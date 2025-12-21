@@ -68,20 +68,31 @@ These are **internal services** that other projects depend on. Must be deployed 
 
 ---
 
-### Not Projects (Folders to Clean/Reorganize)
+### Shared Resources & Archives
 
-| Path | What It Is | Action |
-|------|------------|--------|
-| `/opt/google` | Browser folder? | Clarify purpose or archive |
-| `/opt/gmailaccountcreator` | Just a plan | Keep as reference, use API services instead |
-| `/opt/ComplianceOps` | Empty | Rename to complianceOS or delete |
-| `/opt/consult` | Unknown | Review and archive |
-| `/opt/apidoccreator` | Unknown | Review and archive |
-| `/opt/Reference_Creator` | Empty | Delete or repurpose |
-| `/opt/_previouswork` | Archive | Keep as historical reference |
-| `/opt/_backups` | Backups | Keep |
-| `/opt/_tools` | Utilities | Keep |
-| `/opt/_orchestration` | Unknown | Review |
+| Path | What It Is | Used By |
+|------|------------|---------|
+| `/opt/google` | **Chrome/Chromium browser installation** | youtube, web-scraper, llm_batch_processor |
+| `/opt/_project_management` | Global project rules, templates, ports registry | All projects |
+| `/opt/_tools` | Shared utilities and scripts | All projects |
+| `/opt/_backups` | Backup storage | backupsystem |
+| `/opt/_previouswork` | Historical reference, archived plans | Reference only |
+| `/opt/_orchestration` | Architecture docs, project setup guides | Reference only |
+
+### Projects with Specs (Not Yet Implemented)
+
+| Path | Has Specs | Status |
+|------|-----------|--------|
+| `/opt/ComplianceOps` | ✅ ComplianceDesk_SPEC.md, stage prompts | 📋 Planned (10 days) |
+| `/opt/gmailaccountcreator` | ⚠️ Partial | 📋 Defer (use API services) |
+| `/opt/apidoccreator` | ✅ Reference docs for APIs | 🔧 Utility |
+| `/opt/Reference_Creator` | ✅ Instructions.md | 🔧 Utility |
+| `/opt/consult` | TBD | Review needed |
+
+### Note on Folder Names
+
+- `/opt/brand-identiy-creator` has a typo (missing 't' in identity)
+- `/opt/ComplianceOps` vs `complianceOS` - decide on canonical name
 
 ---
 

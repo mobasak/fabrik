@@ -8,12 +8,15 @@ docs/
 ├── QUICKSTART.md                # Get running in 5 minutes
 ├── CONFIGURATION.md             # All settings reference
 ├── DEPLOYMENT.md                # Deployment configuration
+├── DEPLOYMENT_READY_CHECKLIST.md # How to make projects deploy-ready
 ├── TROUBLESHOOTING.md           # Common issues & solutions
 ├── BUSINESS_MODEL.md            # Monetization strategy
 ├── owner_ozgur_basak.md         # Owner profile & AI instructions
 ├── guides/
 │   └── (how-to guides)
 ├── reference/
+│   ├── project-registry.md      # Master inventory of all /opt projects
+│   ├── stack.md                 # Technology stack & tools inventory
 │   ├── roadmap.md               # Complete 8-phase roadmap
 │   ├── Phase1.md                # Phase 1: Foundation
 │   ├── Phase2.md                # Phase 2: WordPress Automation
@@ -23,7 +26,6 @@ docs/
 │   ├── Phase6.md                # Phase 6: Advanced Monitoring
 │   ├── Phase7.md                # Phase 7: Multi-Server Scaling
 │   ├── Phase8.md                # Phase 8: Business Automation
-│   ├── stack.md                 # Technology stack decisions
 │   └── droid-exec-usage.md      # Factory Droid usage guide
 ├── operations/
 │   └── (operational procedures)
@@ -38,12 +40,14 @@ docs/
 - [Quick Start](QUICKSTART.md) — Get Fabrik running
 - [Configuration](CONFIGURATION.md) — Environment variables and settings
 - [Deployment](DEPLOYMENT.md) — How to deploy to VPS
+- [Deployment-Ready Checklist](DEPLOYMENT_READY_CHECKLIST.md) — **Make projects deploy-ready**
 - [Troubleshooting](TROUBLESHOOTING.md) — Common issues
 
 ## Reference
 
+- [Project Registry](reference/project-registry.md) — **Master inventory of all /opt projects**
+- [Stack & Tools](reference/stack.md) — Technology stack, APIs, libraries
 - [Complete Roadmap](reference/roadmap.md) — All 8 phases overview
-- [Stack Architecture](reference/stack.md) — Technology decisions
 - [Phase 1: Foundation](reference/Phase1.md) — Current phase details
 
 ## Project Context
