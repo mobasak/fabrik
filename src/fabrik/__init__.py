@@ -1,0 +1,9 @@
+"""
+Fabrik - Deployment automation CLI for AI-powered infrastructure.
+
+Enables spec-driven deployment of Python APIs, WordPress sites,
+and AI-integrated applications via Coolify.
+"""
+
+__version__ = "0.1.0"
+__author__ = "Özgür Başak"

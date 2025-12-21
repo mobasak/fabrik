@@ -1,0 +1,40 @@
+# Fabrik Platform Configuration
+# Copy to platform.yaml and customize
+
+vps:
+  host: ${VPS_HOST}
+  user: ${VPS_USER}
+  ssh_key: ${VPS_SSH_KEY:-~/.ssh/id_rsa}
+
+coolify:
+  url: ${COOLIFY_API_URL}
+  # token loaded from COOLIFY_API_TOKEN env var
+
+dns:
+  provider: namecheap  # namecheap or cloudflare
+  # Namecheap settings
+  namecheap:
+    api_user: ${NAMECHEAP_API_USER}
+    client_ip: ${NAMECHEAP_CLIENT_IP}
+    # api_key loaded from NAMECHEAP_API_KEY env var
+  # Cloudflare settings (Phase 4+)
+  # cloudflare:
+  #   zone_id: ${CLOUDFLARE_ZONE_ID}
+
+backup:
+  provider: b2
+  bucket: ${B2_BUCKET_NAME}
+  schedule: "0 2 * * *"  # 2 AM daily
+  retention_days: 7
+
+defaults:
+  # Default resources for new apps
+  cpu: 1
+  memory: 512M
+  
+  # Health check defaults
+  healthcheck:
+    path: /health
+    interval: 30s
+    timeout: 5s
+    retries: 3
