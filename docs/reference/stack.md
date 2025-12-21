@@ -355,11 +355,329 @@ Docker+Coolify value:
   * templates
   * ingestion sources
 
-That’s how you scale to 3 businesses without new architecture each time.
+That's how you scale to 3 businesses without new architecture each time.
 
 ---
 
-If you paste your current YouTube project’s components (what processes exist: API? worker? scraper? where files are stored?), I can output a **production-grade compose.yaml** tailored to it (including volumes, healthchecks, and Coolify-friendly env var patterns).
+## 11) Current Tools & Services Inventory
+
+> **Source:** Extracted from all `/opt/*/.env` files and dependency manifests on 2025-12-21.
+
+### 11.1 Active Projects in /opt
+
+| Project | Purpose | Stack | Port |
+|---------|---------|-------|------|
+| `/opt/youtube` | YouTube scraping, transcription, comments | Python, PostgreSQL | - |
+| `/opt/captcha` | Captcha solving service | FastAPI, Anti-Captcha | 8000 |
+| `/opt/proposal-creator` | Proposal/document generation | Python, Claude, WeasyPrint | - |
+| `/opt/translator` | Translation service | FastAPI, DeepL, Azure | 8000 |
+| `/opt/emailgateway` | Email sending gateway | Node.js/Fastify, Resend, SES | 3000 |
+| `/opt/email-reader` | Email reading (Gmail, M365) | FastAPI, Google/Microsoft APIs | 5050 |
+| `/opt/namecheap` | DNS management | FastAPI, Namecheap API | 8001 |
+| `/opt/calendar-orchestration-engine` | Calendar/holiday data | Express, PostgreSQL | 3001 |
+| `/opt/proxy` | Proxy management | Python, Webshare | - |
+| `/opt/llm_batch_processor` | LLM batch processing | Python, Playwright | - |
+| `/opt/iterative_image_editor` | Image editing with FLUX | Python, BFL API | - |
+| `/opt/backupsystem` | Backup automation | Python | - |
+| `/opt/fabrik` | Deployment automation CLI | Python, Coolify API | - |
+
+---
+
+### 11.2 External APIs & Services
+
+#### Speech & Transcription
+
+| Service | Provider | Usage | Project |
+|---------|----------|-------|---------|
+| **Soniox** | soniox.com | Speech-to-text transcription | youtube |
+
+#### Video & Media
+
+| Service | Provider | Usage | Project |
+|---------|----------|-------|---------|
+| **YouTube Data API** | Google | Metadata, comments, captions, search | youtube |
+| **RapidAPI YT Downloader** | RapidAPI | Video/audio downloading (50k req/mo) | youtube |
+| **yt-dlp** | Open source | YouTube downloader | youtube |
+| **FLUX Kontext Pro** | Black Forest Labs (BFL) | AI image generation/editing | iterative_image_editor |
+
+#### Proxy & Anti-Bot
+
+| Service | Provider | Usage | Project |
+|---------|----------|-------|---------|
+| **Webshare.io** | webshare.io | Datacenter/residential proxies | youtube, proxy, namecheap |
+| **Anti-Captcha** | anti-captcha.com | Captcha solving | captcha, youtube |
+| **Apify** | apify.com | YouTube Comments Scraper (fallback) | youtube, proxy |
+| **Tor** | torproject.org | SOCKS5 proxy (fallback) | youtube |
+
+#### Translation
+
+| Service | Provider | Usage | Project |
+|---------|----------|-------|---------|
+| **DeepL API** | DeepL | Primary translation (500k chars/mo free) | translator |
+| **Azure Translator** | Microsoft | Fallback translation (2M chars/hr) | translator |
+
+#### Email
+
+| Service | Provider | Usage | Project |
+|---------|----------|-------|---------|
+| **Resend** | resend.com | Primary email sending (100/day) | emailgateway |
+| **Amazon SES** | AWS | Backup email sending (200/day) | emailgateway |
+| **Gmail API** | Google | Email reading (ozgur@adazonia.com) | email-reader |
+| **Microsoft Graph** | Microsoft | Email reading (ob@ocoron.com) | email-reader |
+
+#### AI & LLM
+
+| Service | Provider | Usage | Project |
+|---------|----------|-------|---------|
+| **Claude** | Anthropic | AI content generation | proposal-creator |
+| **Factory.ai Droid** | Factory.ai | AI coding/automation, batch processing | proposal-creator, calendar-orchestration-engine |
+| **ChatGPT/Claude Web** | OpenAI/Anthropic | Web interface automation | llm_batch_processor |
+
+#### DNS & Domains
+
+| Service | Provider | Usage | Project |
+|---------|----------|-------|---------|
+| **Namecheap API** | Namecheap | Domain/DNS management | namecheap |
+
+#### Calendar & Data
+
+| Service | Provider | Usage | Project |
+|---------|----------|-------|---------|
+| **Abstract API** | abstractapi.com | Holiday/calendar data | calendar-orchestration-engine |
+| **Nager.Date** | nager.date | Public holiday API | calendar-orchestration-engine |
+
+#### Infrastructure
+
+| Service | Provider | Usage | Project |
+|---------|----------|-------|---------|
+| **Coolify** | coolify.io | Deployment control plane | fabrik (planned) |
+| **Backblaze B2** | Backblaze | Backup storage | fabrik (planned) |
+
+---
+
+### 11.3 Databases
+
+| Database | Version | Usage | Projects |
+|----------|---------|-------|----------|
+| **PostgreSQL** | 16 | Primary relational DB | youtube, translator, calendar-orchestration-engine, proxy, llm_batch_processor, namecheap |
+| **SQLite** | - | Lightweight embedded DB | emailgateway |
+
+#### Database Instances
+
+| Database Name | Project | User |
+|---------------|---------|------|
+| `youtube_pipeline` | youtube | youtube_user |
+| `proxy_management` | proxy, youtube | postgres/ozgur |
+| `translator_service` | translator | postgres |
+| `calendar_engine` | calendar-orchestration-engine | postgres |
+| `llm_batch` | llm_batch_processor | llm_batch |
+
+---
+
+### 11.4 Python Libraries
+
+#### Web Frameworks & APIs
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **FastAPI** | ≥0.104 | Web framework | captcha, translator, email-reader, namecheap |
+| **Uvicorn** | ≥0.24 | ASGI server | captcha, translator, email-reader, namecheap |
+| **Pydantic** | ≥2.0 | Data validation | captcha, translator, namecheap, llm_batch_processor |
+| **pydantic-settings** | ≥2.0 | Settings management | captcha, translator, namecheap, llm_batch_processor |
+
+#### Database
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **psycopg2-binary** | ≥2.9.9 | PostgreSQL sync driver | youtube |
+| **asyncpg** | ≥0.29 | PostgreSQL async driver | translator, llm_batch_processor |
+| **SQLAlchemy** | ≥2.0 | ORM | translator |
+| **Alembic** | ≥1.13 | Database migrations | translator |
+
+#### HTTP & Networking
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **httpx** | ≥0.25 | Async HTTP client | captcha, translator, namecheap, llm_batch_processor |
+| **requests** | ≥2.31 | HTTP library | youtube, namecheap, iterative_image_editor |
+| **aiofiles** | ≥23.2 | Async file I/O | translator |
+| **PySocks** | ≥1.7.1 | SOCKS proxy support | youtube |
+
+#### Web Scraping & Automation
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **yt-dlp** | ≥2024.10 | YouTube downloader | youtube |
+| **Selenium** | ≥4.15 | Browser automation | youtube |
+| **undetected-chromedriver** | ≥3.5.4 | Anti-bot Chrome driver | youtube |
+| **youtube-comment-downloader** | ≥0.1.78 | Comment extraction | youtube |
+| **apify-client** | ≥2.3 | Apify API client | youtube |
+| **Playwright** | ≥1.40 | Browser automation | llm_batch_processor |
+
+#### CLI & Output
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **Click** | ≥8.1 | CLI framework | namecheap, proposal-creator, llm_batch_processor |
+| **Rich** | ≥13.0 | Terminal formatting | namecheap, proposal-creator, llm_batch_processor |
+| **colorlog** | ≥6.8 | Colored logging | youtube |
+
+#### Utilities
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **python-dotenv** | ≥1.0 | Environment loading | all |
+| **PyYAML** | ≥6.0 | YAML parsing | youtube, namecheap, proposal-creator, llm_batch_processor |
+| **tenacity** | ≥8.2 | Retry logic | translator, namecheap |
+| **python-dateutil** | ≥2.8 | Date utilities | translator, proposal-creator |
+| **psutil** | ≥5.9.6 | System utilities | youtube |
+| **schedule** | ≥1.2.1 | Background scheduling | namecheap |
+
+#### Image Processing
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **Pillow** | ≥9.0 | Image processing | iterative_image_editor |
+| **NumPy** | ≥1.20 | Numerical computing | iterative_image_editor |
+| **OpenCV** | ≥4.5 | Computer vision | iterative_image_editor |
+| **rembg** | ≥2.0 | Background removal | iterative_image_editor |
+| **scikit-image** | ≥0.19 | Image processing | iterative_image_editor |
+| **ONNX Runtime** | ≥1.15 | ML inference | iterative_image_editor |
+
+#### Document Generation
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **WeasyPrint** | ≥60.0 | PDF generation | proposal-creator |
+| **Jinja2** | ≥3.1 | Templating | proposal-creator |
+| **Markdown** | ≥3.5 | Markdown processing | proposal-creator |
+| **jsonschema** | ≥4.20 | JSON validation | proposal-creator |
+
+#### AI/LLM
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **anthropic** | ≥0.40 | Claude API client | proposal-creator |
+
+#### Authentication
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **google-api-python-client** | ≥2.100 | Google APIs | email-reader |
+| **google-auth-oauthlib** | ≥1.0 | Google OAuth | email-reader |
+| **msal** | ≥1.20 | Microsoft authentication | email-reader |
+
+#### Testing & Development
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **pytest** | ≥7.0 | Testing framework | translator, namecheap, llm_batch_processor |
+| **pytest-asyncio** | ≥0.23 | Async testing | translator, namecheap, llm_batch_processor |
+| **pytest-cov** | ≥4.0 | Coverage | namecheap, llm_batch_processor |
+| **ruff** | ≥0.1 | Linter/formatter | namecheap, llm_batch_processor |
+| **black** | ≥23.12 | Code formatter | namecheap, llm_batch_processor |
+| **mypy** | ≥1.0 | Type checker | namecheap, llm_batch_processor |
+
+---
+
+### 11.5 Node.js / TypeScript Libraries
+
+#### Web Frameworks
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **Express** | ≥5.2 | Web framework | calendar-orchestration-engine |
+| **Fastify** | ≥4.28 | Web framework | emailgateway |
+
+#### Database
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **pg** | ≥8.16 | PostgreSQL client | calendar-orchestration-engine |
+| **sql.js** | ≥1.11 | SQLite in-memory | emailgateway |
+
+#### Email
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **Nodemailer** | ≥6.9 | Email sending (SES) | emailgateway |
+
+#### Utilities
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **dotenv** | ≥17.2 | Environment loading | emailgateway, calendar-orchestration-engine |
+| **date-fns** | ≥4.1 | Date utilities | calendar-orchestration-engine |
+| **date-fns-tz** | ≥3.2 | Timezone support | calendar-orchestration-engine |
+| **cron** | ≥4.4 | Job scheduling | calendar-orchestration-engine |
+| **uuid** | ≥10.0 | UUID generation | emailgateway |
+| **Zod** | ≥3.23 | Schema validation | emailgateway |
+| **envalid** | ≥8.0 | Environment validation | emailgateway |
+
+#### Logging
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **Pino** | ≥9.4 | Structured logging | emailgateway |
+| **pino-pretty** | ≥11.2 | Log formatting | emailgateway |
+
+#### Frontend (Admin UI)
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **React** | ≥18.2 | UI framework | calendar-orchestration-engine |
+| **Vite** | ≥5.0 | Build tool | calendar-orchestration-engine |
+| **TailwindCSS** | ≥4.x | CSS framework | calendar-orchestration-engine |
+| **Lucide React** | latest | Icons | calendar-orchestration-engine |
+
+#### TypeScript
+
+| Library | Version | Purpose | Projects |
+|---------|---------|---------|----------|
+| **TypeScript** | ≥5.6 | Type system | emailgateway, calendar-orchestration-engine |
+| **ts-node** | ≥10.9 | TypeScript execution | calendar-orchestration-engine |
+| **tsx** | ≥4.19 | TypeScript execution | emailgateway |
+
+---
+
+### 11.6 API Keys & Credentials Summary
+
+> **Security Note:** All credentials stored in `.env` files (gitignored). Never commit to git.
+
+| Service | Env Variable | Project(s) |
+|---------|--------------|------------|
+| Soniox | `SONIOX_API_KEYS` | youtube |
+| YouTube Data API | `YOUTUBE_API_KEY` | youtube |
+| RapidAPI | `RAPIDAPI_KEY` | youtube |
+| Webshare.io | `WEBSHARE_API_KEY` | youtube, proxy, namecheap |
+| Anti-Captcha | `ANTICAPTCHA_API_KEY` | captcha |
+| Apify | `APIFY_API_TOKEN` | youtube, proxy |
+| Factory.ai | `FACTORY_API_KEY` | proposal-creator, calendar-orchestration-engine |
+| DeepL | `DEEPL_API_KEY` | translator |
+| Azure Translator | `AZURE_TRANSLATOR_KEY` | translator |
+| Resend | `RESEND_API_KEY` | emailgateway |
+| Amazon SES | `SES_SMTP_USER`, `SES_SMTP_PASS` | emailgateway |
+| Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | email-reader |
+| Microsoft 365 | `M365_CLIENT_ID`, `M365_TENANT_ID` | email-reader |
+| Namecheap | `NAMECHEAP_API_KEY`, `NAMECHEAP_API_USER` | namecheap |
+| Abstract API | `ABSTRACT_API_KEY` | calendar-orchestration-engine |
+| BFL (FLUX) | `BFL_API_KEY` | iterative_image_editor |
+
+---
+
+### 11.7 VPS & Infrastructure
+
+| Component | Value | Notes |
+|-----------|-------|-------|
+| **VPS IP** | 172.93.160.197 | Production server |
+| **SSH User** | ozgur / deploy | Admin access |
+| **SSH Key** | ~/.ssh/id_rsa | Local key |
+| **OS** | Ubuntu | VPS |
+| **Dev Environment** | WSL Ubuntu | Windows host |
+
+---
+
+If you paste your current YouTube project's components (what processes exist: API? worker? scraper? where files are stored?), I can output a **production-grade compose.yaml** tailored to it (including volumes, healthchecks, and Coolify-friendly env var patterns).
 
 [1]: https://coolify.io/docs/knowledge-base/docker/compose?utm_source=chatgpt.com "Docker Compose | Coolify Docs"
 [2]: https://coolify.io/docs/troubleshoot/dns-and-domains/lets-encrypt-not-working?utm_source=chatgpt.com "Let's Encrypt Not Generating SSL Certificates on Coolify | Coolify"
