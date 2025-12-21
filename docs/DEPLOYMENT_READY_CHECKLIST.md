@@ -1,6 +1,23 @@
 # Deployment-Ready Checklist
 
-> **How to make any /opt project ready for VPS deployment via Coolify**
+> **Container-first development: fast local dev + production parity**
+
+---
+
+## Core Principle
+
+**Container-first but not container-only.**
+
+- Write code with normal local tooling (venv/npm) for speed
+- Keep a **working Dockerfile + compose** from day 1
+- Use Docker as the **truth for production parity**
+
+This avoids two common failures:
+
+| Failure Mode | Solution |
+|--------------|----------|
+| "Works locally but not in container" | Docker-ready from day 1, `docker build` as gate |
+| "Container works but dev is slow" | Local venv/npm for speed, Docker only for parity |
 
 ---
 
@@ -10,11 +27,14 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           WSL (Development Factory)                         │
 │                                                                             │
-│  1. Write/modify code                                                       │
-│  2. Test locally (venv, npm run dev, etc.)                                  │
-│  3. Add deployment files (Dockerfile, compose.yaml)                         │
-│  4. Commit to Git                                                           │
-│  5. Push to GitHub                                                          │
+│  LOCAL DEV (fast):                                                          │
+│    - Python: uv venv + uvicorn --reload                                     │
+│    - Node: npm run dev                                                      │
+│    - Shared Postgres container for all projects                             │
+│                                                                             │
+│  DOCKER PARITY (gate):                                                      │
+│    - make docker-smoke (build + run + health check)                         │
+│    - Run before every push to main                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -22,31 +42,33 @@
 │                           GitHub Repository                                 │
 │                                                                             │
 │  - Source code                                                              │
-│  - Dockerfile                                                               │
-│  - compose.yaml                                                             │
+│  - Dockerfile + .dockerignore                                               │
+│  - compose.yaml (prod-like) + compose.dev.yaml (optional)                   │
 │  - .env.example (never .env!)                                               │
+│  - CI: docker build + health check on every PR                              │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           Coolify (VPS Control Plane)                       │
 │                                                                             │
-│  1. Connects to GitHub repo                                                 │
-│  2. Pulls code on deploy                                                    │
-│  3. Builds Docker image from Dockerfile                                     │
-│  4. Runs containers per compose.yaml                                        │
+│  1. Webhook from GitHub on push                                             │
+│  2. Pulls code, builds Docker image                                         │
+│  3. Runs migrations (pre-deploy command)                                    │
+│  4. Starts container, routes traffic                                        │
 │  5. Manages HTTPS certificates                                              │
-│  6. Handles environment variables (set in Coolify UI)                       │
+│  6. Env vars set in Coolify UI (not in repo)                                │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           VPS (Production)                                  │
 │                                                                             │
-│  - Running containers                                                       │
-│  - PostgreSQL database                                                      │
-│  - Persistent volumes                                                       │
-│  - HTTPS endpoints                                                          │
+│  - ONE shared PostgreSQL (Coolify managed or dedicated container)           │
+│  - Per-project databases: project1_db, project2_db, etc.                    │
+│  - App containers connect via DATABASE_URL                                  │
+│  - Persistent volumes for data                                              │
+│  - HTTPS endpoints via Coolify reverse proxy                                │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -61,9 +83,11 @@ For each project, you need these files. Check off as you add them:
 | File | Purpose | Template |
 |------|---------|----------|
 | `Dockerfile` | Build instructions for container | See below |
-| `compose.yaml` | Service definition for Coolify | See below |
+| `compose.yaml` | Production-like (no bind mounts, no dev tools) | See below |
+| `compose.dev.yaml` | Dev overrides (bind mounts, hot reload) | Optional but recommended |
 | `.env.example` | Document all required env vars | Already exists in most projects |
 | `.dockerignore` | Exclude unnecessary files from build | See below |
+| `Makefile` | Standard commands: `make dev`, `make docker-smoke`, `make test` | See below |
 | `README.md` | Include deployment section | Add if missing |
 
 ### Required Code Changes
@@ -74,6 +98,7 @@ For each project, you need these files. Check off as you add them:
 | Listen on `0.0.0.0` | Container networking requirement | Set `host="0.0.0.0"` in uvicorn/express |
 | Port from env var | Flexibility | Use `PORT` or `API_PORT` env var |
 | Graceful shutdown | Clean container stops | Handle SIGTERM signal |
+| Migrations strategy | Repeatable DB setup | Alembic/Prisma with pre-deploy command |
 
 ---
 
@@ -184,24 +209,21 @@ EXPOSE ${PORT}
 CMD ["node", "dist/index.js"]
 ```
 
-### compose.yaml (Coolify-compatible)
+### compose.yaml (Production-like)
 
 ```yaml
-# compose.yaml - Coolify deployment configuration
-# Required env vars use ${VAR:?} syntax (fails if not set)
+# compose.yaml - Production-like configuration
+# Used by: Coolify deployment, docker-smoke test
+# No bind mounts, no dev tools
 
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "${PORT:-8000}:${PORT:-8000}"
     environment:
       - PORT=${PORT:-8000}
       - DATABASE_URL=${DATABASE_URL:?Database URL is required}
-      - API_KEY=${API_KEY:?API key is required}
-      # Add all your required env vars here
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
       interval: 30s
@@ -209,13 +231,72 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
-    # For services that need persistent storage:
-    # volumes:
-    #   - app_data:/app/data
+```
 
-# Uncomment if using volumes
-# volumes:
-#   app_data:
+### compose.dev.yaml (Dev Overrides)
+
+```yaml
+# compose.dev.yaml - Development overrides
+# Usage: docker compose -f compose.yaml -f compose.dev.yaml up --build
+
+services:
+  app:
+    build:
+      target: builder  # Use builder stage for dev deps
+    volumes:
+      - .:/app         # Bind mount for hot reload
+      - /app/node_modules  # Exclude node_modules (Node.js)
+      - /app/.venv         # Exclude venv (Python)
+    environment:
+      - DEBUG=1
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--reload"]
+    # For Node.js:
+    # command: ["npm", "run", "dev"]
+```
+
+### Makefile (Standard Commands)
+
+```makefile
+# Makefile - Standard project commands
+# Usage: make dev, make docker-smoke, make test
+
+.PHONY: dev test docker-smoke docker-build clean
+
+# Local development (fast)
+dev:
+	uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+	# For Node.js: npm run dev
+
+# Run tests
+test:
+	pytest -v
+	# For Node.js: npm test
+
+# Docker smoke test (parity check before push)
+docker-smoke: docker-build
+	@echo "Starting container..."
+	@docker run -d --name smoke-test -p 8000:8000 --env-file .env $(PROJECT_NAME) || true
+	@sleep 3
+	@echo "Health check..."
+	@curl -sf http://localhost:8000/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"
+	@docker stop smoke-test && docker rm smoke-test
+
+# Build Docker image
+docker-build:
+	docker build -t $(PROJECT_NAME) .
+
+# Run with dev overrides
+docker-dev:
+	docker compose -f compose.yaml -f compose.dev.yaml up --build
+
+# Clean up
+clean:
+	docker stop smoke-test 2>/dev/null || true
+	docker rm smoke-test 2>/dev/null || true
+	docker rmi $(PROJECT_NAME) 2>/dev/null || true
+
+# Project name (override in each project)
+PROJECT_NAME ?= myproject
 ```
 
 ### .dockerignore
@@ -523,12 +604,110 @@ volumes:
 
 ---
 
+## Database Strategy
+
+### WSL Development
+
+Run **one shared Postgres container** for all projects:
+
+```bash
+# Start shared dev Postgres (run once)
+docker run -d --name dev-postgres \
+  -e POSTGRES_PASSWORD=devpass \
+  -p 5432:5432 \
+  -v pgdata:/var/lib/postgresql/data \
+  postgres:16
+
+# Create per-project databases
+docker exec -it dev-postgres psql -U postgres -c "CREATE DATABASE captcha_db;"
+docker exec -it dev-postgres psql -U postgres -c "CREATE USER captcha_user WITH PASSWORD 'devpass';"
+docker exec -it dev-postgres psql -U postgres -c "GRANT ALL ON DATABASE captcha_db TO captcha_user;"
+```
+
+Each project's `.env` (local only, not committed):
+
+```bash
+DATABASE_URL=postgresql://captcha_user:devpass@localhost:5432/captcha_db
+```
+
+### VPS Production
+
+- **ONE shared PostgreSQL** (Coolify managed or dedicated container)
+- Per-project databases: `project1_db`, `project2_db`, etc.
+- Connection strings set in Coolify env vars (not in repo)
+
+---
+
+## Migrations Strategy
+
+### Python (Alembic)
+
+```bash
+# In Coolify pre-deploy command:
+alembic upgrade head
+```
+
+Or use init container in compose:
+
+```yaml
+services:
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+  app:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+```
+
+### Node.js (Prisma)
+
+```bash
+# In Coolify pre-deploy command:
+npx prisma migrate deploy
+```
+
+---
+
+## DONE Definition
+
+A project is **deployment-ready** when:
+
+| Criterion | Test |
+|-----------|------|
+| `docker build` succeeds | `docker build -t project .` from clean checkout |
+| Container starts | `docker run --env-file .env.example project` |
+| Health check passes | `curl http://localhost:PORT/health` returns 200 |
+| Migrations work | Can apply DB migrations repeatably |
+| Coolify deploys | Push to GitHub → Coolify deploys automatically |
+
+```bash
+# Quick validation script
+make docker-smoke  # or manually:
+docker build -t myproject .
+docker run -d --name test -p 8000:8000 --env-file .env myproject
+sleep 3
+curl -sf http://localhost:8000/health && echo "✓ READY" || echo "✗ NOT READY"
+docker stop test && docker rm test
+```
+
+---
+
 ## Next Steps
 
 1. **Start with captcha** - simplest service, good test case
 2. **Then emailgateway** - many services need it
 3. **Then translator** - youtube needs it
-4. **Then calendar-orchestration-engine** - you said "deploy soon"
+4. **Then calendar-orchestration-engine** - deploy soon
 5. **Infrastructure services first, then products**
 
-Would you like me to create the actual Dockerfile and compose.yaml for a specific project now?
+---
+
+## Reference
+
+- Project Registry: `/opt/fabrik/docs/reference/project-registry.md`
+- Stack Reference: `/opt/fabrik/docs/reference/stack.md`
+- Windsurfrules: `/opt/_project_management/windsurfrules` (compliance trigger)
