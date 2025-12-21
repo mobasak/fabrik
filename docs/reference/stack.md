@@ -365,21 +365,48 @@ That's how you scale to 3 businesses without new architecture each time.
 
 ### 11.1 Active Projects in /opt
 
-| Project | Purpose | Stack | Port |
-|---------|---------|-------|------|
-| `/opt/youtube` | YouTube scraping, transcription, comments | Python, PostgreSQL | - |
-| `/opt/captcha` | Captcha solving service | FastAPI, Anti-Captcha | 8000 |
-| `/opt/proposal-creator` | Proposal/document generation | Python, Claude, WeasyPrint | - |
-| `/opt/translator` | Translation service | FastAPI, DeepL, Azure | 8000 |
-| `/opt/emailgateway` | Email sending gateway | Node.js/Fastify, Resend, SES | 3000 |
-| `/opt/email-reader` | Email reading (Gmail, M365) | FastAPI, Google/Microsoft APIs | 5050 |
-| `/opt/namecheap` | DNS management | FastAPI, Namecheap API | 8001 |
-| `/opt/calendar-orchestration-engine` | Calendar/holiday data | Express, PostgreSQL | 3001 |
-| `/opt/proxy` | Proxy management | Python, Webshare | - |
-| `/opt/llm_batch_processor` | LLM batch processing | Python, Playwright | - |
-| `/opt/iterative_image_editor` | Image editing with FLUX | Python, BFL API | - |
-| `/opt/backupsystem` | Backup automation | Python | - |
-| `/opt/fabrik` | Deployment automation CLI | Python, Coolify API | - |
+> **Full project registry with statuses:** See `@/opt/fabrik/docs/reference/project-registry.md`
+
+#### Tier 1: Infrastructure Services (Deploy First)
+
+| Project | Purpose | Stack | Port | Status |
+|---------|---------|-------|------|--------|
+| `/opt/proxy` | Proxy management (Webshare.io) | Python | - | ✅ Working |
+| `/opt/captcha` | Captcha solving wrapper | FastAPI, Anti-Captcha | 8000 | ✅ Ready for VPS |
+| `/opt/emailgateway` | Email sending gateway | Node.js/Fastify, Resend, SES | 3000 | ✅ Ready for VPS |
+| `/opt/translator` | Translation service | FastAPI, DeepL, Azure | 8000 | ✅ Working |
+| `/opt/email-reader` | Email reading (Gmail, M365) | FastAPI, Google/Microsoft APIs | 5050 | ✅ Working |
+| `/opt/namecheap` | DNS management | FastAPI, Namecheap API | 8001 | ✅ Working |
+
+#### Tier 2: Core Products
+
+| Project | Purpose | Stack | Port | Status |
+|---------|---------|-------|------|--------|
+| `/opt/youtube` | YouTube scraping, transcription, comments | Python, PostgreSQL | - | 🟡 Active Dev |
+| `/opt/calendar-orchestration-engine` | Calendar/holiday data | Express, PostgreSQL | 3001 | ✅ Ready for VPS |
+| `/opt/proposal-creator` | Proposal/document generation (SaaS potential) | Python, Claude, WeasyPrint | - | ✅ Working |
+| `/opt/image-generation` | AI image generation for all projects | Python, BFL API | - | 🔴 In Dev |
+| `/opt/llm_batch_processor` | Web-based ChatGPT/Claude automation | Python, Playwright | - | ✅ Working |
+
+#### Tier 3: Future Products
+
+| Project | Purpose | Status |
+|---------|---------|--------|
+| `/opt/brand-identity-creator` | Brand design automation | 🔴 Needs Dev |
+| `/opt/complianceOS` | Compliance management SaaS | 📋 Planned (10 days) |
+| `/opt/trade-intelligence` | Foreign trade intelligence (billofladingdata.com) | 🔴 Starting |
+| `/opt/triggered-content-orchestration` | Content publishing automation (SaaS) | 📋 Major project |
+| `/opt/ugc` | User-generated content collection (forums) | 📋 Not started |
+| `/opt/spect-interviewer` | Project specification assistant | 🟡 Early stage |
+
+#### Support & Utilities
+
+| Project | Purpose | Status |
+|---------|---------|--------|
+| `/opt/iterative_image_editor` | Image editing with FLUX | 🟡 Dev (merge into image-generation?) |
+| `/opt/backupsystem` | Backup automation | ✅ Working |
+| `/opt/fabrik` | Deployment automation CLI | 🟡 In Development |
+| `/opt/web-scraper` | Scrapers for calendar-orchestration-engine | ✅ Working |
 
 ---
 
