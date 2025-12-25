@@ -1,0 +1,200 @@
+# Fabrik WordPress Global Defaults
+# Applied to ALL sites before preset and site-specific config
+# Merge order: defaults.yaml → presets/<preset>.yaml → sites/<domain>.yaml
+
+schema_version: 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# THEME (GeneratePress for all sites)
+# ─────────────────────────────────────────────────────────────────────────────
+
+theme:
+  name: generatepress
+  child: false
+  premium: true
+  
+  settings:
+    container_width: 1200
+    header_layout: default
+    sidebar: none
+    content_layout: no-sidebar
+    
+  typography:
+    body_font_family: system-ui
+    body_font_size: 17px
+    heading_font_family: inherit
+    heading_font_weight: 600
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PLUGINS (base stack for every site)
+# ─────────────────────────────────────────────────────────────────────────────
+
+plugins:
+  # Core functionality
+  base:
+    - generatepress           # Theme (free)
+    - gp-premium              # Theme premium features
+    - rank-math-seo           # SEO (or rank-math-seo-pro)
+    - flyingpress             # Performance/caching
+    - wp-mail-smtp            # Email delivery
+    - complianz-gdpr          # Cookie consent / GDPR
+    - updraftplus             # Backups (supplement to container backup)
+    - wordfence               # Security
+    
+  # Form handling (one of)
+  forms:
+    default: fluent-forms
+    alternatives: [wpforms-lite, contact-form-7]
+    
+  # Multilingual (if languages.additional not empty)
+  multilingual:
+    default: sitepress-multilingual-cms  # WPML
+    alternatives: [polylang, translatepress]
+
+  # Premium plugins (pre-placed ZIPs)
+  premium:
+    - gp-premium
+    - rank-math-seo-pro
+    - flyingpress
+    - wp-mail-smtp-pro
+    - complianz-gdpr-premium
+    - fluent-forms-pro
+    
+  # Plugin configuration defaults
+  config:
+    rank-math:
+      modules: [sitemap, seo-analysis, schema, instant-indexing]
+      title_separator: "|"
+      
+    flyingpress:
+      cache_enabled: true
+      minify_html: true
+      minify_css: true
+      minify_js: true
+      lazy_load_images: true
+      
+    complianz:
+      region: eu
+      cookie_banner: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WORDPRESS SETTINGS
+# ─────────────────────────────────────────────────────────────────────────────
+
+wordpress:
+  permalink_structure: "/%postname%/"
+  date_format: "Y-m-d"
+  time_format: "H:i"
+  blog_public: true
+  
+  # Default pages to create
+  default_pages:
+    homepage: true
+    blog: false
+    contact: true
+    privacy_policy: true
+    terms: true
+    
+  # Cleanup on fresh install
+  cleanup:
+    delete_hello_world: true
+    delete_sample_page: true
+    delete_sample_comment: true
+    delete_hello_dolly: true
+    delete_akismet: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BRAND DEFAULTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+brand:
+  colors:
+    primary: "#1e3a5f"
+    secondary: "#0891b2"
+    accent: "#ea580c"
+    background: "#ffffff"
+    text: "#1a1a1a"
+    text_light: "#64748b"
+    
+  fonts:
+    heading: "Inter"
+    body: "Inter"
+    source: google
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SEO DEFAULTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+seo:
+  title_separator: "|"
+  
+  default_meta:
+    title: "{{brand.name}} {{seo.title_separator}} {{page.title}}"
+    description: "{{brand.tagline}}"
+    
+  schema:
+    type: Organization
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEPLOYMENT DEFAULTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+deployment:
+  target: production
+  
+  targets:
+    production:
+      server_profile: vps1
+      ssl: letsencrypt
+      cdn: cloudflare
+      backup:
+        frequency: daily
+        retention_days: 30
+        destination: r2
+        
+    staging:
+      server_profile: wp-test
+      ssl: self_signed
+      cdn: none
+      backup:
+        frequency: none
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST-DEPLOY CHECKS DEFAULTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+checks:
+  require_ssl: true
+  require_sitemap: true
+  urls:
+    - /
+    - /contact
+  admin_accessible: true
+  form_test: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION DEFAULTS (styling/behavior)
+# ─────────────────────────────────────────────────────────────────────────────
+
+sections:
+  hero:
+    default_style: gradient
+    default_height: auto
+    
+  features_grid:
+    default_columns: 3
+    
+  services_grid:
+    default_columns: 3
+    show_icons: true
+    
+  testimonials:
+    default_style: cards
+    default_columns: 2
+    
+  faq:
+    default_style: accordion
+    
+  contact_form:
+    show_info: true
+    show_map: false

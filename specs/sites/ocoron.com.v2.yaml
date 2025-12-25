@@ -1,0 +1,205 @@
+# Site Specification: ocoron.com (v2 schema)
+# This is the MINIMAL site-specific config
+# Inherits: defaults.yaml → presets/company.yaml → this file
+
+schema_version: 1
+preset: company
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SITE IDENTITY (required)
+# ─────────────────────────────────────────────────────────────────────────────
+
+site:
+  domain: ocoron.com
+  name: ocoron-com
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BRAND (required)
+# ─────────────────────────────────────────────────────────────────────────────
+
+brand:
+  name: "Ocoron"
+  tagline:
+    en_US: "Strategic Consulting for Growing Businesses"
+    tr_TR: "Büyüyen İşletmeler için Stratejik Danışmanlık"
+  
+  logo:
+    primary: ocoron.com/logo.svg
+    icon: ocoron.com/logo_single_letter.jpg
+    og_image: ocoron.com/logo-1200-x-630.jpg
+  
+  colors:
+    primary: "#1e3a5f"
+    secondary: "#0891b2"
+    accent: "#ea580c"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LANGUAGES (required: primary)
+# ─────────────────────────────────────────────────────────────────────────────
+
+languages:
+  primary: en_US
+  additional: [tr_TR]
+
+timezone: Europe/Istanbul
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTACT (required: email)
+# ─────────────────────────────────────────────────────────────────────────────
+
+contact:
+  email: contact@ocoron.com
+  social:
+    linkedin: https://www.linkedin.com/company/ocoron/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SERVICES (entity - generates pages)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  - slug: investment-incentives
+    name:
+      en_US: "Investment Incentives & Government Support"
+      tr_TR: "Yatırım Teşvikleri ve Devlet Destekleri"
+    summary:
+      en_US: "KOSGEB, TUBITAK, Turquality programs"
+      tr_TR: "KOSGEB, TÜBİTAK, Turquality programları"
+    icon: landmark
+
+  - slug: foreign-trade
+    name:
+      en_US: "Foreign Trade & Business Development"
+      tr_TR: "Dış Ticaret ve İş Geliştirme"
+    summary:
+      en_US: "International expansion and market entry"
+      tr_TR: "Uluslararası genişleme ve pazar girişi"
+    icon: globe
+
+  - slug: ai-consultancy
+    name:
+      en_US: "AI & Digital Transformation"
+      tr_TR: "AI ve Dijital Dönüşüm"
+    summary:
+      en_US: "AI integration and digital transformation"
+      tr_TR: "AI entegrasyonu ve dijital dönüşüm"
+    icon: brain
+
+  - slug: manufacturing
+    name:
+      en_US: "Manufacturing & Operations"
+      tr_TR: "Üretim ve Operasyonlar"
+    summary:
+      en_US: "Plant design, R&D, ERP implementation"
+      tr_TR: "Fabrika tasarımı, AR-GE, ERP uygulaması"
+    icon: factory
+
+  - slug: logistics
+    name:
+      en_US: "Logistics & Supply Chain"
+      tr_TR: "Lojistik ve Tedarik Zinciri"
+    summary:
+      en_US: "Logistics optimization and supply chain"
+      tr_TR: "Lojistik optimizasyonu ve tedarik zinciri"
+    icon: truck
+
+  - slug: b2b-marketing
+    name:
+      en_US: "B2B Marketing"
+      tr_TR: "B2B Pazarlama"
+    summary:
+      en_US: "B2B marketing strategy and execution"
+      tr_TR: "B2B pazarlama stratejisi ve uygulaması"
+    icon: megaphone
+
+  - slug: medical-procurement
+    name:
+      en_US: "Medical Device Procurement"
+      tr_TR: "Tıbbi Cihaz Tedariki"
+    summary:
+      en_US: "Medical device sourcing and compliance"
+      tr_TR: "Tıbbi cihaz tedariki ve uyum"
+    icon: heart-pulse
+
+  - slug: quality-management
+    name:
+      en_US: "Quality Management Systems"
+      tr_TR: "Kalite Yönetim Sistemleri"
+    summary:
+      en_US: "ISO certifications and quality systems"
+      tr_TR: "ISO sertifikaları ve kalite sistemleri"
+    icon: shield-check
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTENT (optional shared pool)
+# ─────────────────────────────────────────────────────────────────────────────
+
+content:
+  value_props:
+    - icon: landmark
+      title:
+        en_US: "Government Incentives"
+        tr_TR: "Devlet Teşvikleri"
+      description:
+        en_US: "KOSGEB, TUBITAK, Turquality programs"
+        tr_TR: "KOSGEB, TÜBİTAK, Turquality programları"
+    - icon: globe
+      title:
+        en_US: "Global Trade"
+        tr_TR: "Küresel Ticaret"
+      description:
+        en_US: "International expansion and market entry"
+        tr_TR: "Uluslararası genişleme ve pazar girişi"
+    - icon: brain
+      title:
+        en_US: "AI & Digital"
+        tr_TR: "AI ve Dijital"
+      description:
+        en_US: "Digital transformation and AI integration"
+        tr_TR: "Dijital dönüşüm ve AI entegrasyonu"
+    - icon: factory
+      title:
+        en_US: "Manufacturing"
+        tr_TR: "Üretim"
+      description:
+        en_US: "Plant design, R&D, ERP implementation"
+        tr_TR: "Fabrika tasarımı, AR-GE, ERP uygulaması"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SEO (optional, has defaults)
+# ─────────────────────────────────────────────────────────────────────────────
+
+seo:
+  default_meta:
+    en_US:
+      title: "Ocoron | Government Incentives & Business Consultancy"
+      description: "Expert consultancy in Government Incentives, Foreign Trade, AI Integration, and Manufacturing."
+    tr_TR:
+      title: "Ocoron | Devlet Teşvikleri ve İş Danışmanlığı"
+      description: "Devlet Teşvikleri, Dış Ticaret, AI Entegrasyonu ve Üretim alanlarında uzman danışmanlık."
+  
+  analytics:
+    ga4_id: ${GA4_ID}  # G-VK6FMQRVRL in .env
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEPLOYMENT (required: target)
+# ─────────────────────────────────────────────────────────────────────────────
+
+deployment:
+  target: production
+  targets:
+    production:
+      server_profile: vps1
+    staging:
+      server_profile: wp-test
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHECKS (post-deploy verification)
+# ─────────────────────────────────────────────────────────────────────────────
+
+checks:
+  urls:
+    - /
+    - /services
+    - /services/investment-incentives
+    - /about
+    - /contact

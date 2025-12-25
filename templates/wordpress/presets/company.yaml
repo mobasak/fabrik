@@ -1,117 +1,218 @@
-# Company Site Preset
-# Purpose: Corporate anchor site (who you are, what you build, credibility)
+# Company Site Preset (v2)
+# Purpose: Service business, agency, consultancy
+# Entities: services (generates /services/* pages)
+# Merge order: defaults.yaml → this preset → sites/<domain>.yaml
 
-name: Company Site
-description: Corporate website for company presence
-base: wordpress/base
+schema_version: 1
+preset_name: company
+preset_description: "Company/agency website with services, about, contact"
 
-features:
-  blog: true
-  blog_categories:
-    - Insights
-    - Products
-    - News
-  multi_product: true
-  team_page: optional
-  multilingual: true
-  contact_form: true
+# ─────────────────────────────────────────────────────────────────────────────
+# ENTITIES (preset-specific, generate pages)
+# ─────────────────────────────────────────────────────────────────────────────
 
-plugins:
-  # BASE (all sites)
-  free:
-    - wp-mail-smtp
-    - generatepress
-  premium_base:
-    - 7aaUOmxu84su-seo-by-rank-math-3.0.103.zip  # Rank Math Pro
-    - 9XK5d5L4LMZE-gp-premium-2.5.5.zip          # GP Premium
-    # - flyingpress.zip                          # FlyingPress (download)
-    # - wp-staging-pro.zip                       # WP Staging Pro (download)
-  # PROFILE: Company - placed plugins
-  premium_profile:
-    - TrdEExMFwdvs-sitepress-multilingual-cms-4.8.6.zip  # WPML CMS
-    - 32HYjTwq5Xwo-wpml-string-translation-3.4.1.zip     # WPML Strings
-    - nb0NZgVSlE84-essential-grid-3.1.10.zip             # Essential Grid
-    - 2BlKZAEbaNQk-thrive-visual-editor-10.8.5.zip       # Thrive Architect
-    - bdCPXpW6FWcH-thrive-ovation-10.8.5.zip             # Thrive Ovation
-    - SaPBur07zeUq-thrive-leads-10.8.5.zip               # Thrive Leads
-    - nVt1G8Rkmwj5-thrive-automator-10.6.1.1.zip         # Thrive Automator
-    - thrive-headline-optimizer-2.3.1n.zip               # Thrive Headline Optimizer
-    - thrive-clever-widgets-2.9.1n.zip                   # Thrive Clever Widgets
-    - wp-table-builder-pro-1.4.9-active.zip              # WP Table Builder Pro
-  # PROFILE: Company - download plugins
-  premium_download:
-    # - fluent-forms-pro.zip        # Forms, lead capture
-    # - fluentcrm-pro.zip           # CRM, email sequences
-    # - complianz-pro.zip           # GDPR, cookie consent
-    # - automatorwp.zip             # Form→CRM automation
-    # - link-whisper-pro.zip        # Internal linking
-    # - searchwp.zip                # Site search
-    # - novashare.zip               # Social sharing
-    # - pixelyoursite-pro.zip       # Conversion tracking
-    # - chaty-pro.zip               # Multi-channel chat (WhatsApp, FB)
+entities:
+  # Services are the primary entity for company sites
+  # Each service can generate a page under /services/<slug>
+  services:
+    enabled: true
+    parent_page: services
+    generate_pages: true
+    page_template: service-detail
+    
+  # Optional: team members (generates /about/team/<slug>)
+  team:
+    enabled: false
+    parent_page: about
+    generate_pages: false
+    
+  # Optional: locations (for multi-location businesses)
+  locations:
+    enabled: false
+    parent_page: locations
+    generate_pages: true
 
-theme:
-  name: generatepress
-  source: wordpress.org
+# ─────────────────────────────────────────────────────────────────────────────
+# PAGE TEMPLATES (generated from entities + explicit)
+# ─────────────────────────────────────────────────────────────────────────────
 
-languages:
-  primary: en_US
-  additional:
-    - tr_TR
+page_templates:
+  # Homepage
+  home:
+    slug: ""
+    title:
+      en_US: "Home"
+      tr_TR: "Ana Sayfa"
+    template: full-width
+    sections:
+      - type: hero
+        headline_ref: brand.tagline
+        cta_text:
+          en_US: "Learn More"
+          tr_TR: "Daha Fazla"
+        cta_url: /services
+      - type: features_grid
+        headline:
+          en_US: "What We Do"
+          tr_TR: "Ne Yapıyoruz"
+        items_ref: content.value_props
+        columns: 3
+      - type: services_grid
+        headline:
+          en_US: "Our Services"
+          tr_TR: "Hizmetlerimiz"
+        source: entities.services
+        columns: 3
+      - type: cta
+        headline:
+          en_US: "Ready to get started?"
+          tr_TR: "Başlamaya hazır mısınız?"
+        cta_text:
+          en_US: "Contact Us"
+          tr_TR: "İletişime Geçin"
+        cta_url: /contact
 
-pages:
-  create:
-    - title: Home
-      slug: ""
-      template: front-page
-      status: publish
-    - title: Products
-      slug: products
-      template: page
-      status: publish
-    - title: Services
-      slug: services
-      template: page
-      status: publish
-    - title: About
-      slug: about
-      template: page
-      status: publish
-    - title: Contact
-      slug: contact
-      template: page
-      status: publish
-    - title: Insights
-      slug: insights
-      template: page
-      status: publish
-      is_blog_index: true
-    - title: Privacy Policy
-      slug: privacy-policy
-      template: page
-      status: publish
-    - title: Terms of Service
-      slug: terms
-      template: page
-      status: publish
+  # Services index
+  services:
+    slug: services
+    title:
+      en_US: "Services"
+      tr_TR: "Hizmetler"
+    template: default
+    sections:
+      - type: rich_text
+        content_ref: content.services_intro
+      - type: services_grid
+        source: entities.services
+        columns: 2
+        show_summary: true
+
+  # Service detail (template for generated pages)
+  service-detail:
+    template: default
+    sections:
+      - type: rich_text
+        content_ref: entity.description
+      - type: cta
+        headline:
+          en_US: "Interested in {{entity.name}}?"
+          tr_TR: "{{entity.name}} ile ilgileniyor musunuz?"
+        cta_url: /contact
+
+  # About
+  about:
+    slug: about
+    title:
+      en_US: "About"
+      tr_TR: "Hakkımızda"
+    template: default
+    sections:
+      - type: rich_text
+        content_ref: content.about
+
+  # Contact
+  contact:
+    slug: contact
+    title:
+      en_US: "Contact"
+      tr_TR: "İletişim"
+    template: default
+    sections:
+      - type: contact_form
+        show_info: true
+
+  # Blog/Insights
+  insights:
+    slug: insights
+    title:
+      en_US: "Insights"
+      tr_TR: "İçgörüler"
+    template: blog-index
+    is_blog_index: true
+
+  # Legal pages
+  privacy-policy:
+    slug: privacy-policy
+    title:
+      en_US: "Privacy Policy"
+      tr_TR: "Gizlilik Politikası"
+    template: default
+    content_generator: legal.privacy_policy
+
+  terms:
+    slug: terms
+    title:
+      en_US: "Terms of Service"
+      tr_TR: "Hizmet Şartları"
+    template: default
+    content_generator: legal.terms_of_service
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MENUS (auto-generated from pages, can be overridden)
+# ─────────────────────────────────────────────────────────────────────────────
 
 menus:
   primary:
-    - Products
-    - Services
-    - Insights
-    - About
-    - Contact
+    auto_generate: true
+    include:
+      - services    # Will include children (service pages)
+      - about
+      - insights
+      - contact
+    exclude: []
+    
   footer:
-    - Privacy Policy
-    - Terms of Service
+    auto_generate: true
+    include:
+      - privacy-policy
+      - terms
 
-settings:
-  blogname: "{{ site_name }}"
-  blogdescription: "{{ site_tagline }}"
-  permalink_structure: "/%postname%/"
-  timezone_string: "Europe/Istanbul"
-  date_format: "Y-m-d"
-  show_on_front: page
-  page_on_front: Home
-  page_for_posts: Insights
+# ─────────────────────────────────────────────────────────────────────────────
+# PLUGINS (additions to defaults)
+# ─────────────────────────────────────────────────────────────────────────────
+
+plugins:
+  add:
+    # Multilingual
+    - sitepress-multilingual-cms   # WPML
+    - wpml-string-translation
+    # Page building
+    - thrive-architect
+    - thrive-leads
+    # CRM
+    - fluent-forms-pro
+    - fluentcrm-pro
+    # GDPR
+    - complianz-gdpr-premium
+    
+  skip: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BLOG SETTINGS
+# ─────────────────────────────────────────────────────────────────────────────
+
+blog:
+  enabled: true
+  index_page: insights
+  categories:
+    - name:
+        en_US: "Updates"
+        tr_TR: "Güncellemeler"
+      slug: updates
+    - name:
+        en_US: "Industry"
+        tr_TR: "Sektör"
+      slug: industry
+  posts_per_page: 10
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHECKS (preset-specific URLs to verify)
+# ─────────────────────────────────────────────────────────────────────────────
+
+checks:
+  urls:
+    - /
+    - /services
+    - /about
+    - /contact
+    - /privacy-policy

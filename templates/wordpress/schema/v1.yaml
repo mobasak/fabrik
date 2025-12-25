@@ -1,0 +1,352 @@
+# Fabrik WordPress Site Spec Schema v1
+# This defines the structure for site specifications
+# Merge order: defaults.yaml → presets/<preset>.yaml → sites/<domain>.yaml
+
+schema_version: 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED FIELDS (site instance must provide)
+# ─────────────────────────────────────────────────────────────────────────────
+
+required:
+  - site.domain
+  - brand.name
+  - contact.email
+  - languages.primary
+  - deployment.target
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SPEC STRUCTURE
+# ─────────────────────────────────────────────────────────────────────────────
+
+spec:
+  # Schema version (required)
+  schema_version:
+    type: integer
+    required: true
+    description: "Version of this schema (currently 1)"
+
+  # Preset selection (optional, defaults to 'company')
+  preset:
+    type: string
+    default: company
+    allowed: [company, saas, agency, clinic, ecommerce, landing, content]
+    description: "Industry preset that provides entities, page templates, sections"
+
+  # ── SITE IDENTITY ──────────────────────────────────────────────────────────
+  site:
+    domain:
+      type: string
+      required: true
+      description: "Primary domain (e.g., ocoron.com)"
+    name:
+      type: string
+      description: "Internal site name (auto-generated from domain if not set)"
+    environment:
+      type: string
+      default: production
+      allowed: [production, staging, development]
+
+  # ── BRAND ──────────────────────────────────────────────────────────────────
+  brand:
+    name:
+      type: string
+      required: true
+      description: "Company/brand name"
+    tagline:
+      type: localized_string
+      description: "Brand tagline (per-locale)"
+    logo:
+      primary:
+        type: path
+        description: "Path to primary logo (relative to assets/)"
+      icon:
+        type: path
+        description: "Square icon for favicon/app icon"
+      og_image:
+        type: path
+        description: "Open Graph image (1200x630)"
+    colors:
+      primary:
+        type: color
+        default: "#1e3a5f"
+      secondary:
+        type: color
+        default: "#0891b2"
+      accent:
+        type: color
+        default: "#ea580c"
+      background:
+        type: color
+        default: "#ffffff"
+      text:
+        type: color
+        default: "#1a1a1a"
+    fonts:
+      heading:
+        type: string
+        default: "Inter"
+      body:
+        type: string
+        default: "Inter"
+      source:
+        type: string
+        default: google
+        allowed: [google, adobe, local]
+
+  # ── LANGUAGES ──────────────────────────────────────────────────────────────
+  languages:
+    primary:
+      type: locale
+      required: true
+      description: "Primary locale (e.g., en_US)"
+    additional:
+      type: array[locale]
+      default: []
+      description: "Additional locales for translation"
+    plugin:
+      type: string
+      default: wpml
+      allowed: [wpml, polylang, translatepress]
+
+  # ── CONTACT ────────────────────────────────────────────────────────────────
+  contact:
+    email:
+      type: email
+      required: true
+    phone:
+      type: string
+    whatsapp:
+      type: string
+    address:
+      street:
+        type: string
+      city:
+        type: string
+      country:
+        type: string
+        description: "ISO 3166-1 alpha-2 (e.g., TR, US)"
+    social:
+      linkedin:
+        type: url
+      twitter:
+        type: url
+      instagram:
+        type: url
+      youtube:
+        type: url
+      github:
+        type: url
+    form:
+      fields:
+        type: array[string]
+        default: [name, email, message]
+      recipient:
+        type: email
+        description: "Defaults to contact.email"
+      spam_protection:
+        type: string
+        default: turnstile
+        allowed: [turnstile, recaptcha, honeypot, none]
+
+  # ── CONTENT (optional shared pool) ─────────────────────────────────────────
+  content:
+    description: "Reusable content blocks referenced by pages/sections"
+    value_props:
+      type: array[localized_item]
+    testimonials:
+      type: array[testimonial]
+    faq:
+      type: array[faq_item]
+    case_studies:
+      type: array[case_study]
+
+  # ── ENTITIES (preset-provided, generates pages) ────────────────────────────
+  entities:
+    description: "Preset-specific entities that can generate pages"
+    services:
+      type: array[service]
+      description: "For company/agency presets"
+    features:
+      type: array[feature]
+      description: "For saas preset"
+    products:
+      type: array[product]
+      description: "For ecommerce preset"
+    locations:
+      type: array[location]
+      description: "For multi-location businesses"
+
+  # ── PAGES (explicit or generated) ──────────────────────────────────────────
+  pages:
+    description: "Explicit pages. If not provided, generated from preset + entities."
+    type: array[page]
+    page:
+      slug:
+        type: string
+        required: true
+      title:
+        type: localized_string
+        required: true
+      template:
+        type: string
+        default: default
+      sections:
+        type: array[section_ref]
+      children:
+        type: array[page]
+
+  # ── SECTIONS (page building blocks) ────────────────────────────────────────
+  section_types:
+    description: "Available section types for pages"
+    hero:
+      params: [headline, subheadline, cta_text, cta_url, background]
+    cta:
+      params: [headline, cta_text, cta_url, style]
+    features_grid:
+      params: [headline, columns, items_ref, items]
+    services_grid:
+      params: [headline, source, columns]
+    testimonials:
+      params: [headline, items_ref, items, style]
+    faq:
+      params: [headline, items_ref, items]
+    logos_strip:
+      params: [headline, items]
+    contact_form:
+      params: [headline, form_id, show_info]
+    rich_text:
+      params: [content]
+    pricing_table:
+      params: [headline, plans]
+    gallery:
+      params: [headline, images, columns]
+
+  # ── SEO ────────────────────────────────────────────────────────────────────
+  seo:
+    title_separator:
+      type: string
+      default: "|"
+    default_meta:
+      type: localized_meta
+      description: "Default title/description templates with {{tokens}}"
+    schema:
+      type:
+        type: string
+        default: Organization
+        allowed: [Organization, LocalBusiness, Person, Product]
+      name:
+        type: string
+        description: "Defaults to brand.name"
+    analytics:
+      ga4_id:
+        type: string
+        secret: true
+        description: "Use ${GA4_ID} for env reference"
+      gtm_id:
+        type: string
+        secret: true
+    verification:
+      google:
+        type: string
+      bing:
+        type: string
+
+  # ── DEPLOYMENT ─────────────────────────────────────────────────────────────
+  deployment:
+    target:
+      type: string
+      required: true
+      description: "Active target (production/staging)"
+    targets:
+      production:
+        server_profile:
+          type: string
+          default: vps1
+        ssl:
+          type: string
+          default: letsencrypt
+        cdn:
+          type: string
+          default: cloudflare
+        backup:
+          frequency:
+            type: string
+            default: daily
+          retention_days:
+            type: integer
+            default: 30
+          destination:
+            type: string
+            default: r2
+      staging:
+        server_profile:
+          type: string
+          default: wp-test
+        ssl:
+          type: string
+          default: self_signed
+
+  # ── CHECKS (post-deploy verification) ──────────────────────────────────────
+  checks:
+    require_ssl:
+      type: boolean
+      default: true
+    require_sitemap:
+      type: boolean
+      default: true
+    urls:
+      type: array[string]
+      default: ["/", "/contact"]
+      description: "URLs to verify return HTTP 200"
+    form_test:
+      type: boolean
+      default: false
+      description: "Send test form submission"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TYPE DEFINITIONS
+# ─────────────────────────────────────────────────────────────────────────────
+
+types:
+  localized_string:
+    description: "String with per-locale values"
+    example:
+      en_US: "English text"
+      tr_TR: "Türkçe metin"
+
+  localized_item:
+    description: "Item with localized title/description"
+    fields:
+      icon: string
+      title: localized_string
+      description: localized_string
+
+  service:
+    fields:
+      slug: string (required)
+      name: localized_string (required)
+      summary: localized_string
+      icon: string
+      generate_page: boolean (default: true)
+
+  testimonial:
+    fields:
+      name: string
+      role: string
+      company: string
+      quote: localized_string
+      image: path
+
+  faq_item:
+    fields:
+      question: localized_string
+      answer: localized_string
+
+  section_ref:
+    description: "Reference to a section with parameters"
+    fields:
+      type: string (required, from section_types)
+      # ... section-specific params
+      items_ref: string (e.g., "content.testimonials")
+      items: array (inline items, overrides items_ref)
