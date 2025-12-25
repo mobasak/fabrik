@@ -258,44 +258,54 @@ class SiteDeployer:
                     api_client=self.api,
                 )
                 
-                # Convert generated page specs to PageCreator format
-                pages_to_create = []
+                # Build hierarchical page structure for PageCreator
+                # First pass: group children by parent
+                pages_by_parent = {}
+                top_level_specs = []
+                
                 for page_spec in page_specs:
-                    # Skip child pages (they'll be created via parent's children)
-                    if '/' in page_spec.get('slug', '') and page_spec.get('source') == 'entity':
-                        # Entity pages are children of their parent
-                        continue
+                    slug = page_spec.get('slug', '')
                     
-                    pages_to_create.append({
-                        'slug': page_spec.get('slug', ''),
+                    if '/' in slug:
+                        # Child page - group by parent
+                        parts = slug.split('/')
+                        parent_slug = parts[0]
+                        child_slug = parts[1]
+                        
+                        if parent_slug not in pages_by_parent:
+                            pages_by_parent[parent_slug] = []
+                        
+                        pages_by_parent[parent_slug].append({
+                            'slug': child_slug,
+                            'title': page_spec.get('title', ''),
+                            'content': page_spec.get('content', ''),
+                            'status': page_spec.get('status', 'publish'),
+                            'template': page_spec.get('template', ''),
+                        })
+                    else:
+                        # Top-level page
+                        top_level_specs.append(page_spec)
+                
+                # Second pass: build top-level pages with children
+                top_level_pages = []
+                for page_spec in top_level_specs:
+                    slug = page_spec.get('slug', '')
+                    page_dict = {
+                        'slug': slug,
                         'title': page_spec.get('title', ''),
                         'content': page_spec.get('content', ''),
                         'status': page_spec.get('status', 'publish'),
                         'template': page_spec.get('template', ''),
-                    })
+                    }
+                    
+                    # Attach children if any
+                    if slug in pages_by_parent:
+                        page_dict['children'] = pages_by_parent[slug]
+                    
+                    top_level_pages.append(page_dict)
                 
-                self.result.pages_created = creator.create_all(pages_to_create)
-                
-                # Create entity child pages
-                for page_spec in page_specs:
-                    if '/' in page_spec.get('slug', '') and page_spec.get('source') == 'entity':
-                        # Get parent slug
-                        parts = page_spec['slug'].split('/')
-                        parent_slug = parts[0]
-                        child_slug = parts[1]
-                        
-                        # Get parent page ID
-                        parent_page = self.result.pages_created.get(parent_slug)
-                        if parent_page:
-                            child_page = creator.create_page(
-                                title=page_spec.get('title', ''),
-                                slug=child_slug,
-                                content=page_spec.get('content', ''),
-                                status=page_spec.get('status', 'publish'),
-                                template=page_spec.get('template', ''),
-                                parent_id=parent_page.id,
-                            )
-                            self.result.pages_created[page_spec['slug']] = child_page
+                # Create all pages (idempotent, path-based keys)
+                self.result.pages_created = creator.create_all(top_level_pages)
                 
                 # Set homepage if defined
                 homepage = self.result.pages_created.get("")

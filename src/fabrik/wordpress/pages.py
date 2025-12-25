@@ -66,6 +66,77 @@ class PageCreator:
         else:
             self.api = None
     
+    def find_page(self, slug: str, parent_id: Optional[int] = None) -> Optional[CreatedPage]:
+        """
+        Find existing page by slug and parent_id.
+        
+        Args:
+            slug: Page slug
+            parent_id: Parent page ID (None for top-level)
+            
+        Returns:
+            CreatedPage if found, None otherwise
+        """
+        try:
+            # Query pages by slug
+            params = {"slug": slug, "status": "publish,draft"}
+            if parent_id:
+                params["parent"] = parent_id
+            
+            result = self.api._request("GET", "/pages", params=params)
+            
+            if result and len(result) > 0:
+                page = result[0]
+                return CreatedPage(
+                    id=page["id"],
+                    title=page.get("title", {}).get("rendered", ""),
+                    slug=page.get("slug", slug),
+                    url=page.get("link", ""),
+                    parent_id=parent_id,
+                )
+            
+            return None
+        except Exception:
+            return None
+    
+    def create_or_get_page(
+        self,
+        title: str,
+        slug: str = "",
+        content: str = "",
+        status: str = "publish",
+        template: str = "",
+        parent_id: Optional[int] = None,
+    ) -> CreatedPage:
+        """
+        Create page or return existing (idempotent).
+        
+        Args:
+            title: Page title
+            slug: Page slug (empty for homepage)
+            content: Page content (HTML)
+            status: publish, draft, private
+            template: Page template filename
+            parent_id: Parent page ID for hierarchical pages
+            
+        Returns:
+            CreatedPage (existing or newly created)
+        """
+        # Try to find existing page
+        existing = self.find_page(slug, parent_id)
+        if existing:
+            return existing
+        
+        # Create new page
+        return self.create_page(
+            title=title,
+            slug=slug,
+            content=content,
+            status=status,
+            template=template,
+            parent_id=parent_id,
+        )
+    
     def create_page(
         self,
         title: str,
@@ -125,16 +196,32 @@ class PageCreator:
             parent_id=parent_id,
         )
     
-    def create_all(self, pages: list, parent_id: Optional[int] = None) -> dict[str, CreatedPage]:
+    def create_all(
+        self, 
+        pages: list, 
+        parent_id: Optional[int] = None,
+        parent_path: str = "",
+    ) -> dict[str, CreatedPage]:
         """
         Create all pages from spec, including children.
+        
+        Uses path-based keys to prevent slug collisions.
         
         Args:
             pages: List of page specs from site YAML
             parent_id: Parent page ID (for recursive calls)
+            parent_path: Parent path for building full paths
             
         Returns:
-            Dict mapping slug to CreatedPage
+            Dict mapping full path to CreatedPage
+            
+        Example:
+            {
+                "": CreatedPage(...),              # Homepage
+                "about": CreatedPage(...),         # /about
+                "about/team": CreatedPage(...),    # /about/team
+                "services/consulting": CreatedPage(...)  # /services/consulting
+            }
         """
         created = {}
         
@@ -145,8 +232,11 @@ class PageCreator:
             status = page_spec.get("status", "publish")
             template = self._get_template(page_spec.get("template", ""))
             
-            # Create the page
-            page = self.create_page(
+            # Build full path (collision-safe key)
+            path = f"{parent_path}/{slug}".strip("/") if slug else ""
+            
+            # Create the page (idempotent via create_or_get_page)
+            page = self.create_or_get_page(
                 title=title,
                 slug=slug,
                 content=content,
@@ -155,13 +245,17 @@ class PageCreator:
                 parent_id=parent_id,
             )
             
-            # Store by slug (empty string for homepage)
-            created[slug] = page
+            # Store by full path
+            created[path] = page
             
             # Handle child pages
             children = page_spec.get("children", [])
             if children:
-                child_pages = self.create_all(children, parent_id=page.id)
+                child_pages = self.create_all(
+                    children, 
+                    parent_id=page.id,
+                    parent_path=path,
+                )
                 created.update(child_pages)
         
         return created
