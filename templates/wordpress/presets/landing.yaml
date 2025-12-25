@@ -1,0 +1,88 @@
+# Landing Page Preset
+# Purpose: Experiments, ads, waitlists, GEO pages
+
+name: Landing Page
+description: Single-page site for campaigns and experiments
+base: wordpress/base
+
+features:
+  blog: false
+  minimal: true
+  single_page: true
+  email_capture: optional
+  analytics: true
+
+plugins:
+  # BASE (all sites)
+  free:
+    - wp-mail-smtp
+    - generatepress
+  premium_base:
+    - 7aaUOmxu84su-seo-by-rank-math-3.0.103.zip  # Rank Math Pro
+    - 9XK5d5L4LMZE-gp-premium-2.5.5.zip          # GP Premium
+    # - flyingpress.zip                          # FlyingPress (download)
+    # - wp-staging-pro.zip                       # WP Staging Pro (download)
+  # PROFILE: Landing - placed plugins
+  premium_profile:
+    - TrdEExMFwdvs-sitepress-multilingual-cms-4.8.6.zip  # WPML CMS
+    - 32HYjTwq5Xwo-wpml-string-translation-3.4.1.zip     # WPML Strings
+    - nb0NZgVSlE84-essential-grid-3.1.10.zip             # Essential Grid
+    - 2BlKZAEbaNQk-thrive-visual-editor-10.8.5.zip       # Thrive Architect
+    - SaPBur07zeUq-thrive-leads-10.8.5.zip               # Thrive Leads
+    - 3sEhd2E6GIuH-thrive-ultimatum-10.8.5.zip           # Thrive Ultimatum
+    - RROrwvHMp7nQ-thrive-quiz-builder-10.8.5.zip        # Thrive Quiz Builder
+    - nVt1G8Rkmwj5-thrive-automator-10.6.1.1.zip         # Thrive Automator
+    - thrive-headline-optimizer-2.3.1n.zip               # Thrive Headline Optimizer
+    - XWzl6YGkMe8p-seedprod-coming-soon-pro-6.19.3.zip   # SeedProd (maintenance only)
+  # PROFILE: Landing - download plugins
+  premium_download:
+    # - fluent-forms-pro.zip        # Forms, lead capture
+    # - complianz-pro.zip           # GDPR, cookie consent
+    # - automatorwp.zip             # Automation
+    # - novashare.zip               # Social sharing
+    # - pixelyoursite-pro.zip       # Conversion tracking
+
+theme:
+  name: generatepress
+  source: wordpress.org
+  traits:
+    - ultra-minimal
+    - fast-loading
+    - single-page
+
+pages:
+  create:
+    - title: Home
+      slug: ""
+      template: front-page
+      status: publish
+    - title: Privacy Policy
+      slug: privacy
+      template: page
+      status: publish
+
+menus:
+  # Minimal or no navigation
+  footer:
+    - Privacy Policy
+
+settings:
+  blogname: "{{ site_name }}"
+  blogdescription: "{{ site_tagline }}"
+  permalink_structure: "/%postname%/"
+  timezone_string: "Europe/Istanbul"
+  show_on_front: page
+  page_on_front: Home
+
+# Landing page specific
+conversion:
+  primary_cta: "{{ cta_text | default('Get Started') }}"
+  cta_url: "{{ cta_url | default('#signup') }}"
+  email_capture:
+    enabled: "{{ email_capture | default(false) }}"
+    provider: "{{ email_provider | default('none') }}"  # mailchimp, convertkit, etc.
+
+# Traits for quick deploy/discard
+lifecycle:
+  disposable: true
+  max_lifetime_days: 90  # Reminder to review/archive

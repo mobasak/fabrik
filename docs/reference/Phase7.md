@@ -1,5 +1,25 @@
 ## Phase 7: Multi-Server Scaling — Complete Narrative
 
+**Status: ❌ Not Started**
+
+---
+
+### Progress Tracker
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Second VPS provisioned | ❌ Pending |
+| 2 | Server registry in Fabrik | ❌ Pending |
+| 3 | Server selection in specs | ❌ Pending |
+| 4 | Shared PostgreSQL (PgBouncer) | ❌ Pending |
+| 5 | Shared Redis | ❌ Pending |
+| 6 | Cross-server VPN (WireGuard) | ❌ Pending |
+| 7 | Centralized monitoring | ❌ Pending |
+| 8 | DNS-based load distribution | ❌ Pending |
+| 9 | Deployment routing | ❌ Pending |
+
+**Completion: 0/9 tasks (0%)**
+
 ---
 
 ### What We're Building in Phase 7

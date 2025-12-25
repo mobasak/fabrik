@@ -1,0 +1,251 @@
+# Site Specification Schema
+# Template for defining a complete WordPress site before deployment
+# Version: 1.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BASIC INFORMATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+id: ""                          # Unique identifier (DNS-safe, e.g., "ocoron-com")
+domain: ""                      # Primary domain (e.g., "ocoron.com")
+preset: ""                      # company | saas | content | landing | ecommerce
+environment: production         # production | staging
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BRAND IDENTITY
+# ─────────────────────────────────────────────────────────────────────────────
+
+brand:
+  name: ""                      # Brand/company name
+  tagline: ""                   # One-line description
+  
+  # Logo files (relative to assets/ folder)
+  logo:
+    primary: ""                 # Main logo (SVG preferred)
+    light: ""                   # Logo for dark backgrounds (optional)
+    icon: ""                    # Square icon version
+    favicon: ""                 # Favicon (ICO or PNG)
+  
+  # Color palette
+  colors:
+    primary: ""                 # Main brand color (hex)
+    secondary: ""               # Secondary color (hex)
+    accent: ""                  # Accent/CTA color (hex)
+    background: "#ffffff"       # Page background
+    text: "#1a1a1a"             # Body text color
+    text_light: "#6b7280"       # Secondary text
+    
+  # Typography
+  fonts:
+    heading: "Inter"            # Heading font family
+    body: "Inter"               # Body font family
+    source: google              # google | adobe | self-hosted
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LANGUAGES & LOCALIZATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+languages:
+  primary: en_US                # Primary language
+  additional: []                # Additional languages (e.g., [tr_TR, de_DE])
+  plugin: wpml                  # wpml | polylang | none
+
+timezone: "Europe/Istanbul"
+date_format: "Y-m-d"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SITE STRUCTURE
+# ─────────────────────────────────────────────────────────────────────────────
+
+pages:
+  # Each page definition
+  - slug: ""                    # URL slug ("" for homepage)
+    title: ""                   # Page title
+    template: default           # default | full-width | landing | blank
+    status: publish             # publish | draft
+    show_in_menu: true          # Show in primary navigation
+    menu_order: 1               # Order in menu
+    
+    # Page sections (for page builders)
+    sections: []
+    # Example sections:
+    # - type: hero
+    #   headline: ""
+    #   subheadline: ""
+    #   cta_text: ""
+    #   cta_url: ""
+    #   background: image | color | gradient
+    # - type: features
+    #   columns: 3
+    #   items: []
+    # - type: testimonials
+    # - type: cta_banner
+    # - type: contact_form
+    
+    # Child pages (for hierarchical structure)
+    children: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NAVIGATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+menus:
+  primary:                      # Main navigation
+    - title: ""
+      url: ""                   # Page slug or external URL
+      children: []              # Dropdown items
+  
+  footer:                       # Footer navigation
+    - title: ""
+      url: ""
+  
+  # Optional additional menus
+  # social:
+  # legal:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BLOG / CONTENT
+# ─────────────────────────────────────────────────────────────────────────────
+
+blog:
+  enabled: true
+  index_page: insights          # Blog index page slug
+  categories:
+    - name: ""
+      slug: ""
+  posts_per_page: 10
+  show_author: true
+  show_date: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTACT & FORMS
+# ─────────────────────────────────────────────────────────────────────────────
+
+contact:
+  email: ""                     # Primary contact email
+  phone: ""                     # Phone number (optional)
+  address: ""                   # Physical address (optional)
+  
+  # Social media links
+  social:
+    linkedin: ""
+    twitter: ""
+    instagram: ""
+    youtube: ""
+    github: ""
+
+  # Contact form settings
+  form:
+    fields:
+      - name
+      - email
+      - subject
+      - message
+    recipient: ""               # Email to receive form submissions
+    success_message: ""
+    spam_protection: turnstile  # turnstile | recaptcha | none
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PLUGINS
+# ─────────────────────────────────────────────────────────────────────────────
+
+plugins:
+  # Additional plugins beyond preset defaults
+  add: []
+  # Example: 
+  # - bookly-pro
+  # - memberpress
+  
+  # Plugins to skip from preset
+  skip: []
+  
+  # Plugin-specific configuration
+  config: {}
+  # Example:
+  # rank-math:
+  #   sitemap: true
+  #   schema: organization
+
+# ─────────────────────────────────────────────────────────────────────────────
+# THEME
+# ─────────────────────────────────────────────────────────────────────────────
+
+theme:
+  name: generatepress           # Theme slug
+  child: true                   # Create child theme
+  
+  # GeneratePress specific settings
+  generatepress:
+    container_width: 1200
+    header_layout: default      # default | nav-float-right | nav-float-left
+    sidebar: right              # right | left | none
+    
+  # Custom CSS (additional styles)
+  custom_css: ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SEO & ANALYTICS
+# ─────────────────────────────────────────────────────────────────────────────
+
+seo:
+  title_separator: "|"
+  homepage_title: ""
+  homepage_description: ""
+  
+  # Schema.org settings
+  schema:
+    type: Organization          # Organization | LocalBusiness | Person
+    name: ""
+    logo: ""
+    
+  # Analytics
+  analytics:
+    google_analytics: ""        # GA4 measurement ID
+    google_tag_manager: ""      # GTM container ID
+    facebook_pixel: ""
+    
+  # Verification codes
+  verification:
+    google: ""
+    bing: ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTENT SOURCE
+# ─────────────────────────────────────────────────────────────────────────────
+
+content:
+  source: manual                # manual | ai_draft | import
+  
+  # If ai_draft:
+  ai_config:
+    model: claude               # claude | gpt4
+    tone: professional          # professional | friendly | technical
+    review_required: true
+  
+  # If import:
+  import_from: ""               # URL or file path
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEPLOYMENT
+# ─────────────────────────────────────────────────────────────────────────────
+
+deployment:
+  server: vps1                  # Server identifier
+  ssl: letsencrypt              # letsencrypt | cloudflare | custom
+  cdn: cloudflare               # cloudflare | none
+  
+  # Backup settings
+  backup:
+    frequency: daily
+    retention_days: 30
+    destination: r2             # r2 | b2 | s3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# METADATA
+# ─────────────────────────────────────────────────────────────────────────────
+
+metadata:
+  created: ""                   # ISO date
+  updated: ""                   # ISO date
+  status: draft                 # draft | ready | deployed
+  notes: ""

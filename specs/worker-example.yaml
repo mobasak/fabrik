@@ -1,0 +1,18 @@
+id: background-worker
+kind: worker
+template: python-worker
+
+depends:
+  postgres: main
+  redis: cache
+
+env:
+  QUEUE_NAME: default
+  CONCURRENCY: "4"
+
+resources:
+  memory: 1G
+  cpu: "2"
+
+expose:
+  http: false

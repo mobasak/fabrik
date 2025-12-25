@@ -1,5 +1,26 @@
 ## Phase 8: Business Automation with n8n — Complete Narrative
 
+**Status: ❌ Not Started**
+
+---
+
+### Progress Tracker
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Deploy n8n | ❌ Pending |
+| 2 | Lead capture workflows | ❌ Pending |
+| 3 | Contact form processing | ❌ Pending |
+| 4 | Site monitoring alerts | ❌ Pending |
+| 5 | Scheduled reports | ❌ Pending |
+| 6 | Client onboarding automation | ❌ Pending |
+| 7 | Backup notifications | ❌ Pending |
+| 8 | Content publishing workflows | ❌ Pending |
+| 9 | Webhook endpoints | ❌ Pending |
+| 10 | Integration templates | ❌ Pending |
+
+**Completion: 0/10 tasks (0%)**
+
 ---
 
 ### What We're Building in Phase 8

@@ -1,5 +1,311 @@
 ## Phase 2: WordPress Automation — Complete Narrative
 
+**Status: ✅ Core Complete**
+
+---
+
+### Progress Tracker
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Create WordPress template (compose + env + hardening) | ✅ Done |
+| 2 | Add backup sidecar to template | ✅ Done |
+| 3 | Deploy WordPress test site | ✅ Done (wp-test.vps1.ocoron.com) |
+| 4 | WP-CLI wrapper | ✅ Done (WordPressClient driver) |
+| 5 | WordPress REST API client | ✅ Done (WordPressAPIClient driver) |
+| 6 | Theme management | ✅ Done (via WP-CLI wrapper) |
+| 7 | Plugin management | ✅ Done (via WP-CLI wrapper) |
+| 8 | Content operations | ✅ Done (via REST API client) |
+| 9 | Configure WAF rules (from Phase 1c/4) | ⏸️ Deferred (needs Cloudflare permissions) |
+| 10 | Build preset loader | ❌ Pending |
+| 11 | Create themes (flavor-starter, flavor-corporate) | ❌ Pending |
+| 12 | Deploy ocoron.com | ❌ Pending |
+
+**Completion: 8/12 tasks (67%)**
+
+---
+
+### Template Configuration (Decided)
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| **Database** | MariaDB per site (isolated) | WordPress standard, easier migration, full isolation |
+| **PHP** | 8.2 (configurable) | 2025 default, best performance |
+| **Traefik** | HTTPS via Let's Encrypt | Matches existing stack |
+| **Language** | en_US (default) | English default, multilingual via plugin |
+| **Admin Email** | web@ocoron.com | Generic email for all WP notifications |
+
+### Language Support
+
+| Language | Code | Notes |
+|----------|------|-------|
+| English | `en_US` | Default for all sites |
+| Turkish | `tr_TR` | Sites like ocoron.com |
+| Others | As needed | Multilingual via WPML or Polylang |
+
+**Architecture:** Each site starts with single language. Multilingual support added via plugin (WPML for premium, Polylang for free) when needed.
+
+### Default Plugins
+
+| Purpose | Plugin | Why |
+|---------|--------|-----|
+| Security | WP Fail2Ban or Limit Login Attempts | Lightweight, server-friendly |
+| SEO | Rank Math Pro | User has license, better than Yoast |
+| Multilingual | WPML or Polylang | When multiple languages needed |
+
+### wp-config Hardening
+
+```php
+// Disable file editor
+define('DISALLOW_FILE_EDIT', true);
+// Disable XML-RPC
+define('XMLRPC_DISABLED', true);
+// Force SSL admin
+define('FORCE_SSL_ADMIN', true);
+// Limit revisions
+define('WP_POST_REVISIONS', 5);
+// Memory limits
+define('WP_MEMORY_LIMIT', '256M');
+```
+
+### Backups (Non-Optional)
+
+Every WordPress site includes:
+- Daily database dump
+- Weekly full backup
+- Stored to R2 (using existing credentials)
+
+---
+
+## Site Types & Template Architecture
+
+### Template Structure
+
+```
+templates/wordpress/
+├── base/                    # Immutable infrastructure
+│   ├── compose.yaml.j2      # WordPress + MariaDB + Backup
+│   ├── .env.j2              # Generated secrets
+│   ├── wp-config-extra.php  # Security hardening
+│   └── backup/backup.sh     # R2 backup script
+├── presets/                 # Data-driven overlays
+│   ├── saas.yaml            # SaaS companion preset
+│   ├── company.yaml         # Company site preset
+│   ├── content.yaml         # Authority/SEO preset
+│   ├── landing.yaml         # Single-page preset
+│   └── ecommerce.yaml       # Future: WooCommerce
+└── README.md
+```
+
+**Design principles:**
+- `base/` is **immutable** — no product-specific logic, only infra + security
+- Presets are **data-driven** YAML overlays that toggle features
+- Upgrades to base/ apply to all sites automatically
+
+---
+
+### Site Type 1: SaaS Companion
+
+**Purpose:** Marketing site for SaaS products (awareness → trust → signup)
+
+**SaaS Product Architecture:**
+```
+product.com       → WordPress (saas preset) - marketing, pricing, signup
+docs.product.com  → Docusaurus - guides + API reference
+app.product.com   → Application (separate deployment)
+```
+
+| Page | Required | Purpose |
+|------|----------|---------|
+| Homepage | ✅ | Value proposition + primary CTA |
+| Product/Features | ✅ | What it does, screenshots, use cases |
+| Pricing | ✅ | Tiers, what's included |
+| Signup/Login | ✅ | Links to app (external) |
+| About | ✅ | Who's behind it, credibility |
+| Contact | ✅ | Email/form, demo booking |
+| Blog | ⚡ Light | 5-10 posts max (SEO + credibility) |
+| Legal | ✅ | Privacy Policy, Terms of Service |
+
+**Documentation (Docusaurus at docs.product.com):**
+
+| Section | Source | Purpose |
+|---------|--------|---------|
+| Guides/Tutorials | Native MDX | Getting started, how-tos |
+| API Reference | OpenAPI → MDX | Generated from spec |
+
+Stack: `docusaurus-plugin-openapi-docs` + `docusaurus-theme-openapi-docs`
+
+**Preset config:**
+```yaml
+type: saas
+features:
+  blog: true
+  blog_categories: minimal  # 2-3 max
+  docs: basic
+  pricing_page: true
+  signup_cta: true
+plugins:
+  - limit-login-attempts-reloaded
+  - rank-math-pro
+theme: flavor-starter  # or flavor-starter
+```
+
+---
+
+### Site Type 2: Company Site
+
+**Purpose:** Corporate anchor site (who you are, what you build, credibility)
+
+| Page | Required | Purpose |
+|------|----------|---------|
+| Homepage | ✅ | What Ocoron does, links to products |
+| Products/Platforms | ✅ | One page per product |
+| Services/Capabilities | ✅ | High-level, outcome-focused |
+| About | ✅ | Mission, positioning, credibility |
+| Contact | ✅ | Business contact path |
+| Insights/Articles | ⚡ Light | SEO, thought leadership |
+| Updates/News | ⚡ Light | Product launches, milestones |
+| Legal | ✅ | Privacy Policy, Terms of Service |
+
+**Preset config:**
+```yaml
+type: company
+features:
+  blog: true
+  blog_categories: focused  # products, insights, news
+  multi_product: true
+  team_page: optional
+plugins:
+  - limit-login-attempts-reloaded
+  - rank-math-pro
+  - polylang  # for multilingual (ocoron.com)
+languages:
+  - en_US
+  - tr_TR
+theme: flavor-corporate
+```
+
+---
+
+### Site Type 3: Content/Authority Site
+
+**Purpose:** SEO, GEO, brand expansion, AI content systems
+
+| Page | Required | Purpose |
+|------|----------|---------|
+| Homepage | ✅ | Category index, featured content |
+| Articles | ✅ | Primary content (AI-generated) |
+| Categories/Tags | ✅ | Taxonomy for internal linking |
+| Author/About | ✅ | Credibility signal |
+| Contact | ✅ | Minimal |
+
+**Preset config:**
+```yaml
+type: content
+features:
+  blog: true
+  blog_categories: extensive  # Topic clusters
+  internal_linking: optimized
+  author_pages: true
+  publishing_velocity: high
+plugins:
+  - limit-login-attempts-reloaded
+  - rank-math-pro
+  - flavor-ai-publisher  # Phase 3 custom plugin
+theme: flavor-content  # Minimal, fast, SEO-optimized
+```
+
+**Note:** Optimized for Phase 3 AI integration — publishing velocity + internal linking over design.
+
+---
+
+### Site Type 4: Landing Page
+
+**Purpose:** Experiments, ads, waitlists, GEO pages
+
+| Page | Required | Purpose |
+|------|----------|---------|
+| Single page | ✅ | One message, one CTA |
+| Email capture | ⚡ Optional | Waitlist signup |
+
+**Preset config:**
+```yaml
+type: landing
+features:
+  blog: false
+  minimal: true
+  single_page: true
+  email_capture: optional
+plugins:
+  - limit-login-attempts-reloaded
+  # No SEO plugin needed for landing pages
+theme: flavor-landing  # Ultra-minimal
+```
+
+**Key traits:**
+- Ultra-fast to deploy
+- Cheap to discard
+- WordPress (not raw HTML) for Fabrik consistency: DNS, TLS, monitoring, analytics
+
+---
+
+### Site Type 5: E-commerce (Future)
+
+**Purpose:** Product sales, digital goods
+
+**Deferred until needed.** Will include:
+- WooCommerce
+- Payment integration
+- Inventory management
+- Order processing
+
+---
+
+### Preset Overlay Schema
+
+```yaml
+# Example: presets/saas.yaml
+name: SaaS Companion
+description: Marketing site for SaaS products
+base: wordpress/base
+
+features:
+  blog: true
+  blog_limit: 10
+  docs: basic
+  pricing: true
+  signup_cta: true
+
+plugins:
+  install:
+    - limit-login-attempts-reloaded
+    - rank-math-pro
+  premium:
+    - rank-math-pro.zip  # From plugins/ folder
+
+theme:
+  name: flavor-starter
+  source: zip  # or wordpress.org
+
+pages:
+  create:
+    - title: Home
+      template: front-page
+    - title: Features
+      template: page
+    - title: Pricing
+      template: page
+    - title: About
+      template: page
+    - title: Contact
+      template: page
+
+settings:
+  permalink_structure: "/%postname%/"
+  timezone: "Europe/Istanbul"
+  date_format: "Y-m-d"
+```
+
 ---
 
 ### What We're Building in Phase 2

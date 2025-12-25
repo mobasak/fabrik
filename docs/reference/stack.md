@@ -361,7 +361,7 @@ That's how you scale to 3 businesses without new architecture each time.
 
 ## 11) Current Tools & Services Inventory
 
-> **Source:** Extracted from all `/opt/*/.env` files and dependency manifests on 2025-12-21.
+> **Source:** Extracted from all `/opt/*/.env` files and dependency manifests. Updated 2025-12-22.
 
 ### 11.1 Active Projects in /opt
 
@@ -371,12 +371,12 @@ That's how you scale to 3 businesses without new architecture each time.
 
 | Project | Purpose | Stack | Port | Status |
 |---------|---------|-------|------|--------|
-| `/opt/proxy` | Proxy management (Webshare.io) | Python | - | ✅ Working |
-| `/opt/captcha` | Captcha solving wrapper | FastAPI, Anti-Captcha | 8000 | ✅ Ready for VPS |
-| `/opt/emailgateway` | Email sending gateway | Node.js/Fastify, Resend, SES | 3000 | ✅ Ready for VPS |
-| `/opt/translator` | Translation service | FastAPI, DeepL, Azure | 8000 | ✅ Working |
-| `/opt/email-reader` | Email reading (Gmail, M365) | FastAPI, Google/Microsoft APIs | 5050 | ✅ Working |
-| `/opt/namecheap` | DNS management | FastAPI, Namecheap API | 8001 | ✅ Working |
+| `/opt/proxy` | Proxy management (Webshare.io) | Python | 8000 | ✅ Deployed VPS |
+| `/opt/captcha` | Captcha solving wrapper | FastAPI, Anti-Captcha | 8000 | ✅ Deployed VPS |
+| `/opt/emailgateway` | Email sending gateway | Node.js/Fastify, Resend, SES | 3000 | ✅ Deployed VPS |
+| `/opt/translator` | Translation service | FastAPI, DeepL, Azure | 8000 | ✅ Deployed VPS |
+| `/opt/email-reader` | Email reading (Gmail, M365) | FastAPI, Google/Microsoft APIs | 5050 | 🟡 WSL only |
+| `/opt/namecheap` | DNS management | FastAPI, Namecheap API | 8001 | ✅ Deployed VPS |
 
 #### Tier 2: Core Products
 
@@ -404,7 +404,8 @@ That's how you scale to 3 businesses without new architecture each time.
 | Project | Purpose | Status |
 |---------|---------|--------|
 | `/opt/iterative_image_editor` | Image editing with FLUX | 🟡 Dev (merge into image-generation?) |
-| `/opt/backupsystem` | Backup automation | ✅ Working |
+| `/opt/backupsystem` | Backup automation (WSL) | ✅ Working |
+| `/opt/backup` (VPS) | VPS backup to B2 | ✅ Deployed VPS |
 | `/opt/fabrik` | Deployment automation CLI | 🟡 In Development |
 | `/opt/web-scraper` | Scrapers for calendar-orchestration-engine | ✅ Working |
 

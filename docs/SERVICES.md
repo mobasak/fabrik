@@ -24,12 +24,13 @@ Services Fabrik needs to function.
 
 ## VPS Services (Managed by Coolify)
 
-| Service | Container | Port | Purpose |
-|---------|-----------|------|---------|
-| Coolify | coolify | 443 | Deployment control plane |
-| PostgreSQL | postgres-main | 5432 | Shared database |
-| Redis | redis-main | 6379 | Caching (optional) |
-| Uptime Kuma | uptime-kuma | 3001 | Monitoring |
+| Service | Container | Port | URL | Purpose |
+|---------|-----------|------|-----|---------|
+| Coolify | coolify | 443 | coolify.vps1.ocoron.com | Deployment control plane |
+| PostgreSQL | postgres-main | 5432 | - | Shared database |
+| Redis | redis-main | 6379 | - | Caching (optional) |
+| Uptime Kuma | uptime-kuma | 3001 | status.vps1.ocoron.com | Monitoring |
+| Image Broker | image-broker | 8010 | images.vps1.ocoron.com | Stock image API |
 
 ## Startup Order
 
@@ -64,7 +65,13 @@ ssh deploy@vps "docker exec postgres-main pg_isready"
 ### Uptime Kuma
 
 ```bash
-curl -s https://status.yourdomain.com
+curl -s https://status.vps1.ocoron.com
+```
+
+### Image Broker
+
+```bash
+curl -s https://images.vps1.ocoron.com/api/v1/health
 ```
 
 ## Quick Status Check
@@ -82,4 +89,5 @@ coolify         Up 2 days
 postgres-main   Up 2 days
 redis-main      Up 2 days
 uptime-kuma     Up 2 days
+image-broker    Up 1 hour (healthy)
 ```

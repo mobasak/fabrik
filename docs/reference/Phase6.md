@@ -1,5 +1,25 @@
 ## Phase 6: Advanced Monitoring — Complete Narrative
 
+**Status: 🟡 Partially Started**
+
+---
+
+### Progress Tracker
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Basic uptime monitoring | ✅ Done (Uptime Kuma) |
+| 2 | Loki log aggregation | ❌ Pending |
+| 3 | Promtail agent | ❌ Pending |
+| 4 | Prometheus metrics | ❌ Pending |
+| 5 | Node Exporter | ❌ Pending |
+| 6 | cAdvisor | ❌ Pending |
+| 7 | Grafana dashboards | ❌ Pending |
+| 8 | Alerting (Slack/email) | ❌ Pending |
+| 9 | CLI log commands | ❌ Pending |
+
+**Completion: 1/9 tasks (11%)**
+
 ---
 
 ### What We're Building in Phase 6

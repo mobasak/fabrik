@@ -1,16 +1,33 @@
 ## Phase 4: DNS Migration + Advanced Networking — Complete Narrative
 
+**Status: ✅ COMPLETED (Done in Phase 1c)**
+
 ---
 
-### What We're Building in Phase 4
+### Progress Tracker
 
-By the end of Phase 4, you will have:
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Cloudflare DNS driver | ✅ Done (Phase 1c) |
+| 2 | Migrate from Namecheap to Cloudflare | ✅ Done (Phase 1c) |
+| 3 | Proxy mode for CDN | ✅ Available |
+| 4 | WAF rules | ⏸️ Deferred (with WordPress) |
+| 5 | Page rules for caching | ⏸️ Deferred (with WordPress) |
+| 6 | SSL mode (Full Strict) | ✅ Done |
+| 7 | Dual-provider support | ✅ Done (dns.vps1.ocoron.com) |
+| 8 | Unified DNS Manager service | ✅ Done |
+
+**Completion: 6/8 tasks (75%)** - Core complete, WAF/caching deferred to WordPress deployment.
+
+---
+
+### What We Built in Phase 4 (via Phase 1c)
 
 1. **Cloudflare DNS driver** with per-record CRUD operations (no destructive replace-all)
 2. **Smooth migration path** from Namecheap to Cloudflare
 3. **Proxy mode** for CDN and basic DDoS protection
-4. **WAF rules** for WordPress-specific protection
-5. **Page rules** for caching optimization
+4. **WAF rules** for WordPress-specific protection *(deferred)*
+5. **Page rules** for caching optimization *(deferred)*
 6. **SSL mode** properly configured (Full Strict)
 7. **Dual-provider support** — can use either Namecheap or Cloudflare per domain
 8. **Faster, safer DNS automation** for all future deployments

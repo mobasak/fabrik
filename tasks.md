@@ -4,17 +4,17 @@
 
 ### VPS Hardening
 
-- [ ] Task 1.1: SSH hardening (keys only, no root, AllowUsers)
-- [ ] Task 1.2: UFW firewall (22, 80, 443 only)
-- [ ] Task 1.3: Fail2ban setup
-- [ ] Task 1.4: Unattended upgrades
+- [x] Task 1.1: SSH hardening (keys only, no root, AllowUsers) — **Done 2025-12-21**
+- [x] Task 1.2: UFW firewall (22, 80, 443 only) — **Done 2025-12-21**
+- [x] Task 1.3: Fail2ban setup — **Done 2025-12-21**
+- [x] Task 1.4: Unattended upgrades — **Already configured (apt-daily timers)**
 - [ ] Task 1.5: Docker log rotation
 
 ### Coolify Setup
 
-- [ ] Task 1.6: Install Coolify
-- [ ] Task 1.7: Secure Coolify (password, HTTPS)
-- [ ] Task 1.8: Deploy postgres-main via UI
+- [x] Task 1.6: Install Coolify — **Done 2025-12-21** (v4.0.0-beta.455)
+- [x] Task 1.7: Secure Coolify (password, HTTPS) — **Done 2025-12-21** (admin account created)
+- [x] Task 1.8: Deploy postgres-main — **Done 2025-12-21** (PostgreSQL 16)
 - [ ] Task 1.9: Deploy redis-main via UI
 - [ ] Task 1.10: Configure postgres backup to B2
 

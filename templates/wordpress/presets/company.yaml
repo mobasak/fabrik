@@ -1,0 +1,117 @@
+# Company Site Preset
+# Purpose: Corporate anchor site (who you are, what you build, credibility)
+
+name: Company Site
+description: Corporate website for company presence
+base: wordpress/base
+
+features:
+  blog: true
+  blog_categories:
+    - Insights
+    - Products
+    - News
+  multi_product: true
+  team_page: optional
+  multilingual: true
+  contact_form: true
+
+plugins:
+  # BASE (all sites)
+  free:
+    - wp-mail-smtp
+    - generatepress
+  premium_base:
+    - 7aaUOmxu84su-seo-by-rank-math-3.0.103.zip  # Rank Math Pro
+    - 9XK5d5L4LMZE-gp-premium-2.5.5.zip          # GP Premium
+    # - flyingpress.zip                          # FlyingPress (download)
+    # - wp-staging-pro.zip                       # WP Staging Pro (download)
+  # PROFILE: Company - placed plugins
+  premium_profile:
+    - TrdEExMFwdvs-sitepress-multilingual-cms-4.8.6.zip  # WPML CMS
+    - 32HYjTwq5Xwo-wpml-string-translation-3.4.1.zip     # WPML Strings
+    - nb0NZgVSlE84-essential-grid-3.1.10.zip             # Essential Grid
+    - 2BlKZAEbaNQk-thrive-visual-editor-10.8.5.zip       # Thrive Architect
+    - bdCPXpW6FWcH-thrive-ovation-10.8.5.zip             # Thrive Ovation
+    - SaPBur07zeUq-thrive-leads-10.8.5.zip               # Thrive Leads
+    - nVt1G8Rkmwj5-thrive-automator-10.6.1.1.zip         # Thrive Automator
+    - thrive-headline-optimizer-2.3.1n.zip               # Thrive Headline Optimizer
+    - thrive-clever-widgets-2.9.1n.zip                   # Thrive Clever Widgets
+    - wp-table-builder-pro-1.4.9-active.zip              # WP Table Builder Pro
+  # PROFILE: Company - download plugins
+  premium_download:
+    # - fluent-forms-pro.zip        # Forms, lead capture
+    # - fluentcrm-pro.zip           # CRM, email sequences
+    # - complianz-pro.zip           # GDPR, cookie consent
+    # - automatorwp.zip             # Form→CRM automation
+    # - link-whisper-pro.zip        # Internal linking
+    # - searchwp.zip                # Site search
+    # - novashare.zip               # Social sharing
+    # - pixelyoursite-pro.zip       # Conversion tracking
+    # - chaty-pro.zip               # Multi-channel chat (WhatsApp, FB)
+
+theme:
+  name: generatepress
+  source: wordpress.org
+
+languages:
+  primary: en_US
+  additional:
+    - tr_TR
+
+pages:
+  create:
+    - title: Home
+      slug: ""
+      template: front-page
+      status: publish
+    - title: Products
+      slug: products
+      template: page
+      status: publish
+    - title: Services
+      slug: services
+      template: page
+      status: publish
+    - title: About
+      slug: about
+      template: page
+      status: publish
+    - title: Contact
+      slug: contact
+      template: page
+      status: publish
+    - title: Insights
+      slug: insights
+      template: page
+      status: publish
+      is_blog_index: true
+    - title: Privacy Policy
+      slug: privacy-policy
+      template: page
+      status: publish
+    - title: Terms of Service
+      slug: terms
+      template: page
+      status: publish
+
+menus:
+  primary:
+    - Products
+    - Services
+    - Insights
+    - About
+    - Contact
+  footer:
+    - Privacy Policy
+    - Terms of Service
+
+settings:
+  blogname: "{{ site_name }}"
+  blogdescription: "{{ site_tagline }}"
+  permalink_structure: "/%postname%/"
+  timezone_string: "Europe/Istanbul"
+  date_format: "Y-m-d"
+  show_on_front: page
+  page_on_front: Home
+  page_for_posts: Insights

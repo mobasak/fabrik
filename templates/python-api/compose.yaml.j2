@@ -1,0 +1,56 @@
+services:
+  {{ spec.id }}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{ spec.id }}
+    restart: unless-stopped
+    {% if spec.expose.http and not spec.expose.internal_only %}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"
+      - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
+      - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=8000"
+    {% endif %}
+    environment:
+      {% for key, value in env.items() %}
+      - {{ key }}={{ value | env_escape }}
+      {% endfor %}
+      {% if depends.postgres %}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/{{ depends.postgres }}}
+      {% endif %}
+      {% if depends.redis %}
+      - REDIS_URL=${REDIS_URL:-redis://redis-main:6379/0}
+      {% endif %}
+    {% if volumes %}
+    volumes:
+      {% for vol in volumes %}
+      - {{ vol.name }}:{{ vol.path }}
+      {% endfor %}
+    {% endif %}
+    deploy:
+      resources:
+        limits:
+          memory: {{ resources.memory }}
+          cpus: '{{ resources.cpu }}'
+    {% if health %}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000{{ health.path }}"]
+      interval: {{ health.interval }}
+      timeout: {{ health.timeout }}
+      retries: {{ health.retries }}
+    {% endif %}
+    networks:
+      - coolify
+
+{% if volumes %}
+volumes:
+  {% for vol in volumes %}
+  {{ vol.name }}:
+  {% endfor %}
+{% endif %}
+
+networks:
+  coolify:
+    external: true

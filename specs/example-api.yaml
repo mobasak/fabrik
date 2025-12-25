@@ -1,0 +1,24 @@
+id: example-api
+kind: service
+template: python-api
+domain: example.vps1.ocoron.com
+
+depends:
+  postgres: main
+
+env:
+  LOG_LEVEL: INFO
+  DEBUG: "false"
+
+resources:
+  memory: 512M
+  cpu: "1"
+
+health:
+  path: /health
+  interval: 30s
+
+backup:
+  enabled: true
+  frequency: daily
+  retention: 7

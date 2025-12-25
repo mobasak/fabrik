@@ -1,5 +1,23 @@
 ## Phase 5: Staging + Multi-Environment — Complete Narrative
 
+**Status: ❌ Not Started** (Requires Phase 2)
+
+---
+
+### Progress Tracker
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Environment field in specs | ❌ Pending |
+| 2 | Staging subdomain convention | ❌ Pending |
+| 3 | Clone command | ❌ Pending |
+| 4 | Database cloning | ❌ Pending |
+| 5 | Sync command | ❌ Pending |
+| 6 | Promote command | ❌ Pending |
+| 7 | Environment isolation | ❌ Pending |
+
+**Completion: 0/7 tasks (0%)**
+
 ---
 
 ### What We're Building in Phase 5

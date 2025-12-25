@@ -1,0 +1,36 @@
+# File API - Node.js with presigned URL support
+FROM node:20-alpine AS base
+
+# Install curl for healthchecks
+RUN apk add --no-cache curl
+
+WORKDIR /app
+
+# Dependencies
+FROM base AS deps
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Runner
+FROM base AS runner
+
+ENV NODE_ENV=production
+ENV PORT={{ env.get('PORT', '3000') }}
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nodejs
+
+WORKDIR /app
+
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy app
+COPY --chown=nodejs:nodejs . .
+
+USER nodejs
+
+EXPOSE {{ env.get('PORT', '3000') }}
+
+CMD ["node", "src/index.js"]

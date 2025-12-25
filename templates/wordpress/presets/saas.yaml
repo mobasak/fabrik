@@ -1,0 +1,121 @@
+# SaaS Companion Site Preset
+# Purpose: Marketing site for SaaS products (awareness → trust → signup)
+#
+# Architecture for SaaS products:
+#   product.com      → WordPress (this preset) - marketing, pricing, signup
+#   docs.product.com → Docusaurus (separate template) - guides + API reference
+#   app.product.com  → Application (separate deployment)
+
+name: SaaS Companion
+description: Marketing site for SaaS products
+base: wordpress/base
+
+# Related templates (deploy separately)
+related:
+  docs:
+    template: docusaurus
+    subdomain: docs
+    description: Guides + API reference (OpenAPI-generated)
+
+features:
+  blog: true
+  blog_limit: 10  # Max posts for credibility, not content hub
+  blog_categories:
+    - Product Updates
+    - Use Cases
+    - Technical
+  docs: basic  # Getting started, FAQ
+  pricing_page: true
+  signup_cta: true
+  contact_form: true
+
+plugins:
+  # BASE (all sites)
+  free:
+    - wp-mail-smtp
+    - generatepress
+  premium_base:
+    - 7aaUOmxu84su-seo-by-rank-math-3.0.103.zip  # Rank Math Pro
+    - 9XK5d5L4LMZE-gp-premium-2.5.5.zip          # GP Premium
+    # - flyingpress.zip                          # FlyingPress (download)
+    # - wp-staging-pro.zip                       # WP Staging Pro (download)
+  # PROFILE: SaaS - placed plugins
+  premium_profile:
+    - TrdEExMFwdvs-sitepress-multilingual-cms-4.8.6.zip  # WPML CMS
+    - 32HYjTwq5Xwo-wpml-string-translation-3.4.1.zip     # WPML Strings
+    - nb0NZgVSlE84-essential-grid-3.1.10.zip             # Essential Grid
+    - 2BlKZAEbaNQk-thrive-visual-editor-10.8.5.zip       # Thrive Architect
+    - SaPBur07zeUq-thrive-leads-10.8.5.zip               # Thrive Leads
+    - bdCPXpW6FWcH-thrive-ovation-10.8.5.zip             # Thrive Ovation
+    - 3sEhd2E6GIuH-thrive-ultimatum-10.8.5.zip           # Thrive Ultimatum
+    - go_pricing.zip                                      # Go Pricing
+    - nVt1G8Rkmwj5-thrive-automator-10.6.1.1.zip         # Thrive Automator
+    - thrive-headline-optimizer-2.3.1n.zip               # Thrive Headline Optimizer
+    - thrive-clever-widgets-2.9.1n.zip                   # Thrive Clever Widgets
+    - wp-table-builder-pro-1.4.9-active.zip              # WP Table Builder Pro
+  # PROFILE: SaaS - download plugins
+  premium_download:
+    # - fluent-forms-pro.zip        # Forms, lead capture
+    # - fluentcrm-pro.zip           # CRM, email sequences
+    # - complianz-pro.zip           # GDPR, cookie consent
+    # - automatorwp.zip             # Cross-plugin automation
+    # - link-whisper-pro.zip        # Internal linking
+    # - searchwp.zip                # Site search
+    # - novashare.zip               # Social sharing
+    # - pixelyoursite-pro.zip       # Conversion tracking
+    # - affiliatewp.zip             # Affiliate program
+
+theme:
+  name: generatepress
+  source: wordpress.org
+
+pages:
+  create:
+    - title: Home
+      slug: ""
+      template: front-page
+      status: publish
+    - title: Features
+      slug: features
+      template: page
+      status: publish
+    - title: Pricing
+      slug: pricing
+      template: page
+      status: publish
+    - title: About
+      slug: about
+      template: page
+      status: publish
+    - title: Contact
+      slug: contact
+      template: page
+      status: publish
+    - title: Privacy Policy
+      slug: privacy-policy
+      template: page
+      status: publish
+    - title: Terms of Service
+      slug: terms
+      template: page
+      status: publish
+
+menus:
+  primary:
+    - Features
+    - Pricing
+    - About
+    - Contact
+  footer:
+    - Privacy Policy
+    - Terms of Service
+
+settings:
+  blogname: "{{ site_name }}"
+  blogdescription: "{{ site_tagline }}"
+  permalink_structure: "/%postname%/"
+  timezone_string: "Europe/Istanbul"
+  date_format: "Y-m-d"
+  show_on_front: page
+  page_on_front: Home
+  page_for_posts: ""  # No blog index page

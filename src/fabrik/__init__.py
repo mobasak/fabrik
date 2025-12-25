@@ -7,3 +7,11 @@ and AI-integrated applications via Coolify.
 
 __version__ = "0.1.0"
 __author__ = "Özgür Başak"
+
+from fabrik.spec_loader import load_spec, save_spec, create_spec, Spec
+from fabrik.template_renderer import render_template, list_templates, TemplateRenderer
+
+__all__ = [
+    "load_spec", "save_spec", "create_spec", "Spec",
+    "render_template", "list_templates", "TemplateRenderer",
+]

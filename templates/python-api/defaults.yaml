@@ -1,0 +1,5 @@
+env:
+  LOG_LEVEL: INFO
+  DEBUG: "false"
+  PYTHONUNBUFFERED: "1"
+  TZ: UTC

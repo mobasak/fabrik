@@ -1,0 +1,46 @@
+services:
+  {{ spec.id }}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{ spec.id }}
+    restart: unless-stopped
+    
+    environment:
+      # Core
+      - LOG_LEVEL={{ env.get('LOG_LEVEL', 'info') }}
+      - TZ={{ env.get('TZ', 'UTC') }}
+      
+      # Worker config
+      - WORKER_ID={{ env.get('WORKER_ID', 'worker-1') }}
+      - JOB_TYPES={{ env.get('JOB_TYPES', 'transcribe,ocr,extract_text') }}
+      - POLL_INTERVAL={{ env.get('POLL_INTERVAL', '5') }}
+      - MAX_CONCURRENT_JOBS={{ env.get('MAX_CONCURRENT_JOBS', '2') }}
+      - MAX_PROCESSING_TIME={{ env.get('MAX_PROCESSING_TIME', '3600') }}
+      
+      # Supabase
+      - SUPABASE_URL=${SUPABASE_URL:?}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:?}
+      
+      # R2 Storage
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:?}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:?}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:?}
+      - R2_BUCKET=${R2_BUCKET:?}
+      - R2_ENDPOINT=${R2_ENDPOINT:?}
+{% for key, value in env.items() if key not in ['LOG_LEVEL', 'TZ', 'WORKER_ID', 'JOB_TYPES', 'POLL_INTERVAL', 'MAX_CONCURRENT_JOBS', 'MAX_PROCESSING_TIME'] %}
+      - {{ key }}={{ value }}
+{% endfor %}
+
+    deploy:
+      resources:
+        limits:
+          memory: {{ resources.memory }}
+          cpus: '{{ resources.cpu }}'
+
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true

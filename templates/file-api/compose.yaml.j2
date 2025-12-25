@@ -1,0 +1,70 @@
+services:
+  {{ spec.id }}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{ spec.id }}
+    restart: unless-stopped
+    
+    environment:
+      # Core
+      - NODE_ENV={{ env.get('NODE_ENV', 'production') }}
+      - PORT={{ env.get('PORT', '3000') }}
+      - LOG_LEVEL={{ env.get('LOG_LEVEL', 'info') }}
+      - TZ={{ env.get('TZ', 'UTC') }}
+      
+      # Supabase
+      - SUPABASE_URL=${SUPABASE_URL:?}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:?}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:?}
+      
+      # R2 Storage
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:?}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:?}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:?}
+      - R2_BUCKET=${R2_BUCKET:?}
+      - R2_ENDPOINT=${R2_ENDPOINT:?}
+      
+      # Upload config
+      - MAX_FILE_SIZE_MB={{ env.get('MAX_FILE_SIZE_MB', '100') }}
+      - ALLOWED_CONTENT_TYPES={{ env.get('ALLOWED_CONTENT_TYPES', 'application/pdf,audio/mpeg,audio/wav') }}
+      - UPLOAD_URL_EXPIRY_SECONDS={{ env.get('UPLOAD_URL_EXPIRY_SECONDS', '3600') }}
+      - DOWNLOAD_URL_EXPIRY_SECONDS={{ env.get('DOWNLOAD_URL_EXPIRY_SECONDS', '3600') }}
+{% for key, value in env.items() if key not in ['NODE_ENV', 'PORT', 'LOG_LEVEL', 'TZ', 'MAX_FILE_SIZE_MB', 'ALLOWED_CONTENT_TYPES', 'UPLOAD_URL_EXPIRY_SECONDS', 'DOWNLOAD_URL_EXPIRY_SECONDS'] %}
+      - {{ key }}={{ value }}
+{% endfor %}
+
+    deploy:
+      resources:
+        limits:
+          memory: {{ resources.memory }}
+          cpus: '{{ resources.cpu }}'
+
+{% if health %}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ env.get('PORT', '3000') }}{{ health.path }}"]
+      interval: {{ health.interval }}
+      timeout: {{ health.timeout | default('10s') }}
+      retries: {{ health.retries | default(3) }}
+      start_period: 10s
+{% endif %}
+
+    expose:
+      - "{{ env.get('PORT', '3000') }}"
+
+{% if spec.domain %}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ spec.domain }}`)"
+      - "traefik.http.routers.{{ spec.id }}.entrypoints=https"
+      - "traefik.http.routers.{{ spec.id }}.tls=true"
+      - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port={{ env.get('PORT', '3000') }}"
+{% endif %}
+
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true

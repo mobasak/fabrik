@@ -47,6 +47,7 @@ docs/
 
 - [Project Registry](reference/project-registry.md) — **Master inventory of all /opt projects**
 - [Stack & Tools](reference/stack.md) — Technology stack, APIs, libraries
+- [VPS Status](reference/vps-status.md) — **Current VPS state and pending actions**
 - [Complete Roadmap](reference/roadmap.md) — All 8 phases overview
 - [Phase 1: Foundation](reference/Phase1.md) — Current phase details
 

@@ -1,0 +1,37 @@
+services:
+  example-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: example-api
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.example-api.rule=Host(`example.vps1.ocoron.com`)"
+      - "traefik.http.routers.example-api.entrypoints=websecure"
+      - "traefik.http.routers.example-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.example-api.loadbalancer.server.port=8000"
+    environment:
+      - LOG_LEVEL=INFO
+      - DEBUG=false
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+      - API_KEY=test123
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/main}
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - coolify
+
+
+networks:
+  coolify:
+    external: true

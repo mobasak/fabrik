@@ -1,0 +1,95 @@
+services:
+  wordpress:
+    image: wordpress:{{ php_version | default('php8.2') }}-apache
+    container_name: {{ name }}-wordpress
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      WORDPRESS_DB_HOST: {{ name }}-db
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WORDPRESS_DB_NAME: ${DB_NAME}
+      WORDPRESS_CONFIG_EXTRA: |
+        {{ wp_config_extra | indent(8) }}
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./plugins:/var/www/html/wp-content/plugins-custom:ro
+      - ./themes:/var/www/html/wp-content/themes-custom:ro
+    networks:
+      - coolify
+      - {{ name }}-internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.{{ name }}.rule=Host(`{{ domain }}`)"
+      - "traefik.http.routers.{{ name }}.entrypoints=websecure"
+      - "traefik.http.routers.{{ name }}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.{{ name }}.loadbalancer.server.port=80"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mariadb:10.11
+    container_name: {{ name }}-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - {{ name }}-internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backup:
+    image: alpine:3.19
+    container_name: {{ name }}-backup
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: {{ name }}-db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_ACCESS_KEY: ${R2_ACCESS_KEY}
+      R2_SECRET_KEY: ${R2_SECRET_KEY}
+      R2_BUCKET: ${R2_BUCKET}
+      SITE_NAME: {{ name }}
+    volumes:
+      - ./backup:/scripts:ro
+      - wordpress_data:/wordpress:ro
+      - backup_data:/backups
+    networks:
+      - {{ name }}-internal
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache mariadb-client aws-cli gzip
+        echo "0 3 * * * /scripts/backup.sh daily" >> /etc/crontabs/root
+        echo "0 4 * * 0 /scripts/backup.sh weekly" >> /etc/crontabs/root
+        crond -f -l 2
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  wordpress_data:
+  db_data:
+  backup_data:
+
+networks:
+  coolify:
+    external: true
+  {{ name }}-internal:
+    driver: bridge

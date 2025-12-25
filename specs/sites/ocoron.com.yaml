@@ -1,0 +1,472 @@
+# Site Specification: ocoron.com
+# Status: DRAFT - Needs user input
+# Created: 2025-12-24
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BASIC INFORMATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+id: ocoron-com
+domain: ocoron.com
+preset: company
+environment: production
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BRAND IDENTITY
+# ─────────────────────────────────────────────────────────────────────────────
+
+brand:
+  name: "Ocoron"
+  tagline: "Professional Services"
+  tagline_tr: "Profesyonel Hizmetler"
+  
+  logo:
+    primary: "ocoron.com-media/logo.svg"
+    light: "ocoron.com-media/logo_inverted.jpg"
+    icon: "ocoron.com-media/logo_single_letter.jpg"
+    favicon: "ocoron.com-media/Favicon/favicon.ico"
+    og_image: "ocoron.com-media/logo-1200-x-630.jpg"
+  
+  colors:
+    primary: "#1e3a5f"          # Deep ocean blue (from art)
+    secondary: "#0891b2"        # Cyan/teal (luminous)
+    accent: "#ea580c"           # Warm orange (energy, action)
+    background: "#ffffff"
+    text: "#1e3a5f"
+    text_light: "#64748b"
+    
+  fonts:
+    heading: "Inter"
+    body: "Inter"
+    source: google
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LANGUAGES & LOCALIZATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+languages:
+  primary: en_US
+  additional: [tr_TR]
+  plugin: wpml                  # You have WPML license
+
+timezone: "Europe/Istanbul"
+date_format: "Y-m-d"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SITE STRUCTURE
+# ─────────────────────────────────────────────────────────────────────────────
+
+pages:
+  # ── HOMEPAGE ──────────────────────────────────────────────────────────────
+  - slug: ""
+    title: "Home"
+    title_tr: "Ana Sayfa"
+    template: full-width
+    show_in_menu: false
+    sections:
+      - type: hero
+        headline: "Strategic Consulting for Growing Businesses"
+        headline_tr: "Büyüyen İşletmeler için Stratejik Danışmanlık"
+        subheadline: "Expert guidance in Quality Systems, AI Integration, Manufacturing, Logistics, and International Business Development"
+        subheadline_tr: "Kalite Sistemleri, AI Entegrasyonu, Üretim, Lojistik ve Uluslararası İş Geliştirme alanlarında uzman rehberlik"
+        cta_text: "Explore Services"
+        cta_text_tr: "Hizmetleri Keşfet"
+        cta_url: "/services"
+        background: gradient
+      
+      - type: features
+        headline: "How We Help"
+        headline_tr: "Nasıl Yardımcı Oluyoruz"
+        columns: 4
+        items:
+          - icon: landmark
+            title: "Government Incentives"
+            title_tr: "Devlet Teşvikleri"
+            description: "KOSGEB, TUBITAK, Turquality programs"
+            description_tr: "KOSGEB, TÜBİTAK, Turquality programları"
+          - icon: globe
+            title: "Global Trade"
+            title_tr: "Küresel Ticaret"
+            description: "International expansion and market entry"
+            description_tr: "Uluslararası genişleme ve pazar girişi"
+          - icon: brain
+            title: "AI & Digital"
+            title_tr: "AI ve Dijital"
+            description: "Digital transformation and AI integration"
+            description_tr: "Dijital dönüşüm ve AI entegrasyonu"
+          - icon: factory
+            title: "Manufacturing"
+            title_tr: "Üretim"
+            description: "Plant design, R&D, ERP implementation"
+            description_tr: "Fabrika tasarımı, AR-GE, ERP uygulaması"
+      
+      - type: services_grid
+        headline: "Our Services"
+        headline_tr: "Hizmetlerimiz"
+        # Links to service category pages
+      
+      - type: cta_banner
+        headline: "Ready to transform your business?"
+        headline_tr: "İşletmenizi dönüştürmeye hazır mısınız?"
+        cta_text: "Get in Touch"
+        cta_text_tr: "İletişime Geçin"
+        cta_url: "/contact"
+
+  # ── SERVICES (Main) ─────────────────────────────────────────────────────────
+  - slug: services
+    title: "Services"
+    title_tr: "Hizmetler"
+    template: default
+    show_in_menu: true
+    menu_order: 1
+    sections:
+      - type: text_block
+        content: "We provide comprehensive consultancy services across multiple domains to help businesses grow, optimize operations, and achieve certifications."
+        content_tr: "İşletmelerin büyümesine, operasyonlarını optimize etmesine ve sertifikalar almasına yardımcı olmak için birden fazla alanda kapsamlı danışmanlık hizmetleri sunuyoruz."
+    children:
+      # ── Investment Incentives (PRIORITY) ──
+      - slug: investment-incentives
+        title: "Investment Incentives & Government Support"
+        title_tr: "Yatırım Teşvikleri ve Devlet Destekleri"
+        sections:
+          - type: service_list
+            items:
+              - "Trade Ministry Programs"
+              - "KOSGEB Support Programs"
+              - "TUBITAK R&D Grants"
+              - "TEKNOPARK Applications"
+              - "Turquality Program"
+      
+      # ── Foreign Trade & Business Development ──
+      - slug: foreign-trade
+        title: "Foreign Trade & Business Development"
+        title_tr: "Dış Ticaret ve İş Geliştirme"
+        sections:
+          - type: service_list
+            items:
+              - "Foreign Trade Intelligence"
+              - "Competitive Analysis"
+              - "Market Entry & Customer Finding"
+              - "US Incorporation Services"
+              - "Trademark & DBA Services"
+      
+      # ── AI & Digital Transformation ──
+      - slug: ai-consultancy
+        title: "AI Consultancy"
+        title_tr: "AI Danışmanlığı"
+        sections:
+          - type: service_list
+            items:
+              - "Digital Transformation Strategy"
+              - "AI Implementation & Integration"
+              - "Training & Change Management"
+              - "Computer Vision Applications"
+      
+      # ── Manufacturing ──
+      - slug: manufacturing
+        title: "Manufacturing Consultancy"
+        title_tr: "Üretim Danışmanlığı"
+        sections:
+          - type: service_list
+            items:
+              - "Production Plant Design"
+              - "Industrial Solutions"
+              - "Product Development (Cosmetics, Food, Supplements)"
+              - "ERP Consultancy & Implementation"
+              - "Private Label Production"
+      
+      # ── Logistics ──
+      - slug: logistics
+        title: "Logistics Services"
+        title_tr: "Lojistik Hizmetleri"
+        sections:
+          - type: service_list
+            items:
+              - "Built-to-Suit Warehouse Design"
+              - "Warehouse & Transportation Management Systems"
+              - "Supply Chain Management & Optimization"
+      
+      # ── B2B Digital Marketing ──
+      - slug: b2b-marketing
+        title: "B2B Digital Marketing"
+        title_tr: "B2B Dijital Pazarlama"
+        sections:
+          - type: service_list
+            items:
+              - "Targeted Email Campaigns"
+              - "Telemarketing Campaigns"
+              - "PPC Campaigns Worldwide"
+              - "Business Website Creation"
+              - "SEO & Content Writing"
+      
+      # ── Medical Device Procurement ──
+      - slug: medical-procurement
+        title: "Medical Device Procurement"
+        title_tr: "Tıbbi Cihaz Tedariki"
+        sections:
+          - type: service_list
+            items:
+              - "Strategic Procurement Planning"
+              - "Requirement Analysis"
+              - "Tender Preparation"
+              - "Supplier Relationship Management"
+      
+      # ── Quality Management Systems ──
+      - slug: quality-management
+        title: "Quality Management Systems"
+        title_tr: "Kalite Yönetim Sistemleri"
+        sections:
+          - type: service_list
+            items:
+              - "ISO 9001 - Quality Management"
+              - "ISO 13485 - Medical Devices QMS"
+              - "ISO 17025 - Laboratory Competence"
+              - "ISO 17020 - Inspection Bodies"
+              - "ISO 17065 - Certification Bodies"
+
+  # ── ABOUT ─────────────────────────────────────────────────────────────────
+  - slug: about
+    title: "About"
+    title_tr: "Hakkımızda"
+    template: default
+    show_in_menu: true
+    menu_order: 3
+    sections:
+      - type: text_block
+        content: ""             # TODO: Company story, mission, vision
+
+  # ── INSIGHTS (BLOG) ───────────────────────────────────────────────────────
+  - slug: insights
+    title: "Insights"
+    title_tr: "İçgörüler"
+    template: blog-index
+    show_in_menu: true
+    menu_order: 4
+
+  # ── CONTACT ───────────────────────────────────────────────────────────────
+  - slug: contact
+    title: "Contact"
+    title_tr: "İletişim"
+    template: default
+    show_in_menu: true
+    menu_order: 5
+    sections:
+      - type: contact_form
+      - type: contact_info
+
+  # ── LEGAL ─────────────────────────────────────────────────────────────────
+  - slug: privacy-policy
+    title: "Privacy Policy"
+    title_tr: "Gizlilik Politikası"
+    template: default
+    show_in_menu: false
+    
+  - slug: terms
+    title: "Terms of Service"
+    title_tr: "Hizmet Şartları"
+    template: default
+    show_in_menu: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NAVIGATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+menus:
+  primary:
+    - title: Services
+      title_tr: Hizmetler
+      url: /services
+      children:
+        - title: Investment Incentives
+          title_tr: Yatırım Teşvikleri
+          url: /services/investment-incentives
+        - title: Foreign Trade
+          title_tr: Dış Ticaret
+          url: /services/foreign-trade
+        - title: AI Consultancy
+          title_tr: AI Danışmanlığı
+          url: /services/ai-consultancy
+        - title: Manufacturing
+          title_tr: Üretim
+          url: /services/manufacturing
+        - title: Logistics
+          title_tr: Lojistik
+          url: /services/logistics
+        - title: B2B Marketing
+          title_tr: B2B Pazarlama
+          url: /services/b2b-marketing
+        - title: Medical Procurement
+          title_tr: Tıbbi Cihaz Tedariki
+          url: /services/medical-procurement
+        - title: Quality Management
+          title_tr: Kalite Yönetimi
+          url: /services/quality-management
+    - title: About
+      title_tr: Hakkımızda
+      url: /about
+    - title: Insights
+      title_tr: İçgörüler
+      url: /insights
+    - title: Contact
+      title_tr: İletişim
+      url: /contact
+  
+  footer:
+    - title: Privacy Policy
+      title_tr: Gizlilik Politikası
+      url: /privacy-policy
+    - title: Terms of Service
+      title_tr: Hizmet Şartları
+      url: /terms
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BLOG
+# ─────────────────────────────────────────────────────────────────────────────
+
+blog:
+  enabled: true
+  index_page: insights
+  categories:
+    - name: Updates
+      name_tr: Güncellemeler
+      slug: updates
+    - name: Technical
+      name_tr: Teknik
+      slug: technical
+    - name: Industry
+      name_tr: Sektör
+      slug: industry
+  posts_per_page: 10
+  show_author: true
+  show_date: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTACT
+# ─────────────────────────────────────────────────────────────────────────────
+
+contact:
+  email: "contact@ocoron.com"
+  phone: ""                     # Optional
+  address: ""                   # Optional
+  
+  social:
+    linkedin: "https://www.linkedin.com/company/ocoron/"
+    twitter: ""
+    github: ""
+    youtube: ""
+
+  form:
+    fields: [name, email, company, subject, message]
+    recipient: "contact@ocoron.com"
+    success_message: "Thank you for your message. We'll respond shortly."
+    success_message_tr: "Mesajınız için teşekkürler. En kısa sürede yanıt vereceğiz."
+    spam_protection: turnstile
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PLUGINS
+# ─────────────────────────────────────────────────────────────────────────────
+
+plugins:
+  # Preset (company) includes: Rank Math Pro, GP Premium, WPML, Fluent Forms, etc.
+  add:
+    - wpml-string-translation   # For multilingual
+    - thrive-architect          # Page building (you have license)
+    - thrive-leads              # Lead capture (you have license)
+    - essential-grid            # Gallery (you have license)
+    - fluentcrm-pro             # CRM
+    - complianz-pro             # GDPR
+    - chaty-pro                 # Multi-channel chat
+  
+  skip: []
+  
+  config:
+    rank-math:
+      sitemap: true
+      schema: organization
+
+# ─────────────────────────────────────────────────────────────────────────────
+# THEME
+# ─────────────────────────────────────────────────────────────────────────────
+
+theme:
+  name: generatepress
+  child: true
+  
+  generatepress:
+    container_width: 1200
+    header_layout: default
+    sidebar: none               # Full-width for company site
+    
+  custom_css: ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SEO
+# ─────────────────────────────────────────────────────────────────────────────
+
+seo:
+  title_separator: "|"
+  homepage_title: "Ocoron | Government Incentives & Business Consultancy"
+  homepage_title_tr: "Ocoron | Devlet Teşvikleri ve İş Danışmanlığı"
+  homepage_description: "Expert consultancy in Government Incentives, Foreign Trade, AI Integration, and Manufacturing. KOSGEB, TUBITAK, Turquality programs, international expansion, and digital transformation."
+  homepage_description_tr: "Devlet Teşvikleri, Dış Ticaret, AI Entegrasyonu ve Üretim alanlarında uzman danışmanlık. KOSGEB, TÜBİTAK, Turquality programları, uluslararası genişleme ve dijital dönüşüm."
+  
+  schema:
+    type: Organization
+    name: Ocoron
+    logo: "https://ocoron.com/wp-content/uploads/logo.svg"
+    
+  analytics:
+    google_analytics: "G-VK6FMQRVRL"
+    google_tag_manager: ""
+    facebook_pixel: ""
+    
+  verification:
+    google: ""
+    bing: ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTENT SOURCE
+# ─────────────────────────────────────────────────────────────────────────────
+
+content:
+  source: manual                # You provide content, or change to ai_draft
+  
+  ai_config:
+    model: claude
+    tone: professional
+    review_required: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEPLOYMENT
+# ─────────────────────────────────────────────────────────────────────────────
+
+deployment:
+  server: vps1
+  ssl: letsencrypt
+  cdn: cloudflare
+  
+  backup:
+    frequency: daily
+    retention_days: 30
+    destination: r2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# METADATA
+# ─────────────────────────────────────────────────────────────────────────────
+
+metadata:
+  created: "2025-12-24"
+  updated: "2025-12-24"
+  status: ready                 # draft | ready | deployed
+  notes: |
+    Completed:
+    - [x] Brand: logo files, colors, tagline
+    - [x] Content: homepage headline, features
+    - [x] Services: 8 service categories defined
+    - [x] Contact: email, LinkedIn
+    - [x] SEO: title, description, GA4 ID
+    
+    Optional before deployment:
+    - [ ] About page content (company story)
+    - [ ] Phone number / address (if desired)
+    - [ ] Additional social links

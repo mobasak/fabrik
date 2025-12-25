@@ -50,8 +50,9 @@ class Config:
         self.coolify_url = get_env("COOLIFY_API_URL", required=True)
         self.coolify_token = get_env("COOLIFY_API_TOKEN", required=True)
 
-        # DNS
+        # DNS (Namecheap service API)
         self.dns_provider = get_env("DNS_PROVIDER", "namecheap")
+        self.namecheap_api_url = get_env("NAMECHEAP_API_URL", "https://namecheap.vps1.ocoron.com")
 
         # Logging
         self.log_level = get_env("LOG_LEVEL", "INFO")
