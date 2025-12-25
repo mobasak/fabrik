@@ -172,34 +172,37 @@ curl -I https://wp-test.vps1.ocoron.com
 
 ### DNS Configuration
 ```bash
-# Current DNS records (via Cloudflare API)
-curl -s https://dns.vps1.ocoron.com/api/cloudflare/dns/ocoron.com
+# A record added via VPS DNS Manager (2025-12-25)
+curl -s -X POST "https://dns.vps1.ocoron.com/api/cloudflare/dns/ocoron.com" \
+  -H "Content-Type: application/json" \
+  -d '{"record_type": "A", "name": "ocoron.com", "content": "172.93.160.197", "ttl": 1, "proxied": true}'
 
-Records found:
-- MX: ocoron-com.mail.protection.outlook.com (Microsoft 365 email)
-- NS: dns1.registrar-servers.com, dns2.registrar-servers.com (Namecheap nameservers)
-- TXT: SPF, MS verification
+# Result: {"action":"created","record":{"id":"45fc4f7ee170b76ca57526262b0a9bde",...}}
 ```
 
-**Issue:** Nameservers still point to Namecheap, not Cloudflare
-
-**To migrate to Cloudflare:**
-1. Get Cloudflare nameservers for ocoron.com zone
-2. Update nameservers at Namecheap registrar
-3. Wait for DNS propagation (24-48 hours)
+**Current Records:**
+- ✅ A: ocoron.com → 172.93.160.197 (proxied via Cloudflare)
+- ✅ MX: ocoron-com.mail.protection.outlook.com (M365 email - preserved)
+- ✅ CNAME: autodiscover.ocoron.com → autodiscover.outlook.com (M365 - preserved)
+- ✅ TXT: SPF + MS verification (M365 - preserved)
+- ✅ CNAME: www.ocoron.com → ocoron.com
 
 ### HTTPS Certificate
-```
-❓ Unknown - need to check if ocoron.com has A record pointing to VPS
-```
-
-**To check:**
 ```bash
-dig ocoron.com A
-# Should return: 172.93.160.197 (VPS IP)
+# Verified working (2025-12-25)
+curl -I https://ocoron.com
+# HTTP/2 404 (expected - no WordPress yet)
+# Server: cloudflare
+# SSL: Valid (Cloudflare Edge Certificate)
 ```
 
-**If no A record:** Need to add via DNS Manager
+**How Let's Encrypt works with Cloudflare Proxy:**
+1. Domain A record points to VPS (proxied: true)
+2. Cloudflare provides Edge Certificate (automatic, free)
+3. Cloudflare → VPS uses Origin Certificate (or Flexible SSL)
+4. No manual certificate management needed
+
+**Status:** ✅ HTTPS working, M365 preserved, ready for WordPress deployment
 
 ---
 
