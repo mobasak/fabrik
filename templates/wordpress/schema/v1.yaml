@@ -164,6 +164,7 @@ spec:
   # ── ENTITIES (preset-provided, generates pages) ────────────────────────────
   entities:
     description: "Preset-specific entities that can generate pages"
+    note: "Can also be specified at top-level (services:, features:, etc.) - normalized to entities.* internally"
     services:
       type: array[service]
       description: "For company/agency presets"
@@ -176,6 +177,20 @@ spec:
     locations:
       type: array[location]
       description: "For multi-location businesses"
+  
+  # Top-level entity aliases (normalized to entities.*)
+  services:
+    type: array[service]
+    normalized_to: entities.services
+  features:
+    type: array[feature]
+    normalized_to: entities.features
+  products:
+    type: array[product]
+    normalized_to: entities.products
+  locations:
+    type: array[location]
+    normalized_to: entities.locations
 
   # ── PAGES (explicit or generated) ──────────────────────────────────────────
   pages:
@@ -200,23 +215,31 @@ spec:
   section_types:
     description: "Available section types for pages"
     hero:
-      params: [headline, subheadline, cta_text, cta_url, background]
+      params: [headline, headline_ref, subheadline, cta_text, cta_url, background]
     cta:
       params: [headline, cta_text, cta_url, style]
+    cta_banner:
+      params: [headline, cta_text, cta_url, background]
+    features:
+      params: [headline, columns, items_ref, items]
     features_grid:
       params: [headline, columns, items_ref, items]
     services_grid:
-      params: [headline, source, columns]
+      params: [headline, source, columns, show_summary]
+    service_list:
+      params: [items]
     testimonials:
-      params: [headline, items_ref, items, style]
+      params: [headline, items_ref, items, style, columns]
     faq:
-      params: [headline, items_ref, items]
+      params: [headline, items_ref, items, style]
     logos_strip:
       params: [headline, items]
     contact_form:
-      params: [headline, form_id, show_info]
+      params: [headline, form_id, show_info, show_map]
     rich_text:
-      params: [content]
+      params: [content, content_ref]
+    text_block:
+      params: [content, content_ref]
     pricing_table:
       params: [headline, plans]
     gallery:
