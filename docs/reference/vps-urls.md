@@ -16,6 +16,8 @@ All services deployed on VPS1 (172.93.160.197) with HTTPS via Traefik.
 | `status.vps1.ocoron.com` | A | 172.93.160.197 | Uptime Kuma |
 | `translator.vps1.ocoron.com` | A | 172.93.160.197 | Translation API |
 | `wp-test.vps1.ocoron.com` | A | 172.93.160.197 | WordPress test site |
+| `emailgateway.vps1.ocoron.com` | A | 172.93.160.197 | Email Gateway API |
+| `proxy.vps1.ocoron.com` | A | 172.93.160.197 | Proxy API |
 
 ## Service URLs
 
