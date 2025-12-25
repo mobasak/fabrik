@@ -148,6 +148,7 @@ class SpecLoader:
         
         - Top-level entities (services, features, products) → entities.*
         - Ensure entities namespace exists
+        - Handle preset entity config vs site entity data
         """
         if "entities" not in spec:
             spec["entities"] = {}
@@ -156,9 +157,18 @@ class SpecLoader:
         entity_keys = ["services", "features", "products", "locations"]
         for key in entity_keys:
             if key in spec and key != "entities":
-                # Move to entities namespace
-                if key not in spec["entities"]:
+                # Check if entities[key] exists and is a dict (preset config)
+                if key in spec["entities"] and isinstance(spec["entities"][key], dict):
+                    # Preset has config (enabled, parent_page, etc)
+                    # Site has data (list of items)
+                    # Keep config, add data as 'items' or replace with data
+                    if isinstance(spec[key], list):
+                        # Site provides list, use it as the data
+                        spec["entities"][key] = spec[key]
+                else:
+                    # No preset config, just move the data
                     spec["entities"][key] = spec[key]
+                
                 # Remove from top level
                 del spec[key]
         
