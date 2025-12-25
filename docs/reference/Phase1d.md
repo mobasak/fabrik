@@ -20,15 +20,15 @@ Phase 1d implements the complete WordPress site deployment pipeline, covering al
 
 | Step | Name | Status | How We Solve It |
 |------|------|--------|-----------------|
-| 0 | Pre-flight decisions | ✅ HAVE | Site spec YAML (`specs/sites/ocoron.com.yaml`) |
+| 0 | Pre-flight decisions | ✅ HAVE | v2 Spec System (defaults + preset + site) |
 | 1 | Domain + Hosting | ✅ HAVE | Cloudflare DNS + VPS + Coolify |
 | 2 | Install WordPress | ✅ HAVE | Docker Compose template |
 | 3 | Security & Settings | ✅ DONE | `wordpress/settings.py` - tested on wp-test |
 | 4 | Theme decision | ✅ HAVE | GeneratePress + GP Premium |
 | 5 | Theme configuration | ✅ DONE | `wordpress/theme.py` - tested on wp-test |
 | 6 | Plugin installation | ✅ HAVE | WP-CLI + preset YAML |
-| 7 | Site structure (IA) | ✅ HAVE | Site spec YAML |
-| 8 | Build core pages | ✅ DONE | `wordpress/pages.py` + `content.py` - tested on wp-test |
+| 7 | Site structure (IA) | ✅ HAVE | v2 Page Generator (templates + entities) |
+| 8 | Build core pages | ✅ DONE | `wordpress/pages.py` (path-based, idempotent) + `page_generator.py` |
 | 9 | Navigation (menus) | ✅ DONE | `wordpress/menus.py` - tested on wp-test |
 | 10 | Branding consistency | ✅ DONE | Part of `wordpress/theme.py` |
 | 11 | Forms & lead capture | ✅ DONE | `wordpress/forms.py` |
@@ -46,18 +46,46 @@ Phase 1d implements the complete WordPress site deployment pipeline, covering al
 
 All core modules now live in `/opt/fabrik/src/fabrik/wordpress/`:
 
-| Module | Purpose | Tested |
+#### v2 Architecture (New Spec System)
+
+| Module | Purpose | Status |
+|--------|---------|--------|
+| `spec_loader.py` | Load & merge defaults → preset → site | ✅ Tested |
+| `spec_validator.py` | Validate schema, refs, localization | ✅ Tested |
+| `section_renderer.py` | Render 10 section types to Gutenberg blocks | ✅ Tested |
+| `page_generator.py` | Generate pages from templates + entities | ✅ Tested |
+
+#### Core Automation Modules
+
+| Module | Purpose | Status |
 |--------|---------|--------|
 | `settings.py` | Cleanup defaults, apply settings, create editor | ✅ wp-test |
 | `theme.py` | GeneratePress colors, fonts, layout | ✅ wp-test |
 | `media.py` | Upload logos, favicons, set site identity | ✅ Ready |
-| `pages.py` | Create pages with hierarchy via REST API | ✅ wp-test |
+| `pages.py` | Create pages with hierarchy (path-based keys, idempotent) | ✅ v2 tested |
 | `menus.py` | Create navigation menus, assign locations | ✅ wp-test |
 | `seo.py` | Configure Yoast/RankMath settings | ✅ Ready |
 | `forms.py` | Create WPForms/CF7 contact forms | ✅ Ready |
 | `analytics.py` | Inject GA4/GTM tracking codes | ✅ Ready |
 | `legal.py` | AI-generated legal pages (Privacy, Terms) | ✅ Ready |
-| `deployer.py` | **SiteDeployer** orchestrator | ✅ Dry-run tested |
+| `deployer.py` | **SiteDeployer** orchestrator (v2 integrated) | ✅ v2 tested |
+
+#### v2 Spec System
+
+**New layered architecture** (57% reduction in site spec size):
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| Schema | `templates/wordpress/schema/v1.yaml` | Schema definition, types, validation rules |
+| Defaults | `templates/wordpress/defaults.yaml` | Global settings (theme, plugins, WP config) |
+| Preset | `templates/wordpress/presets/company.yaml` | Industry-specific (entities, page templates, sections) |
+| Site | `specs/sites/ocoron.com.v2.yaml` | Site-specific (brand, services, contact, SEO) |
+
+**Documentation:**
+- `docs/wordpress-v2-architecture.md` - Complete v2 architecture guide
+- `docs/wordpress-pages-idempotency.md` - Path-based keys & idempotent creation
+- `templates/wordpress/schema/MERGE_RULES.md` - Deep merge semantics
+- `templates/wordpress/schema/VALIDATION_RULES.md` - Validation pipeline
 
 ---
 
@@ -65,7 +93,7 @@ All core modules now live in `/opt/fabrik/src/fabrik/wordpress/`:
 
 ---
 
-### Step 0: Pre-flight Decisions ✅ HAVE
+### Step 0: Pre-flight Decisions ✅ HAVE (v2 Architecture)
 
 **Purpose:** Define everything about the site in a YAML "blueprint" before deployment.
 
@@ -73,43 +101,69 @@ All core modules now live in `/opt/fabrik/src/fabrik/wordpress/`:
 Before running any automation, we answer all site questions upfront:
 - What's the business name and tagline?
 - What colors and fonts?
-- What pages do we need?
-- What's in the navigation?
+- What services/features/products do we offer?
 - Contact info, SEO settings, analytics IDs?
 
-**Files Involved:**
-| File | Purpose |
-|------|---------|
-| `specs/sites/{domain}.yaml` | Site-specific configuration |
-| `templates/wordpress/presets/*.yaml` | Base presets (company, saas, etc.) |
-| `templates/wordpress/site-spec-schema.yaml` | Schema reference |
+**v2 Spec System (New):**
 
-**Spec Sections:**
-| Section | What It Defines |
-|---------|-----------------|
-| `brand` | name, tagline, logo paths, colors, fonts |
-| `languages` | primary locale, additional locales, translation plugin |
-| `pages` | page hierarchy with titles, slugs, templates, content sections |
-| `menus` | navigation structure (primary, footer) |
-| `contact` | email, phone, social links, form configuration |
-| `plugins` | plugins to add/skip beyond preset |
-| `theme` | theme name + customization settings |
-| `seo` | titles, descriptions, schema, analytics IDs |
-| `deployment` | server, SSL, CDN, backup settings |
+The new v2 architecture uses a **layered spec system** that dramatically reduces per-site configuration:
 
-**How Deployer Uses It:**
-```python
-# deployer.py loads spec and passes sections to modules
-spec = yaml.safe_load(open(f'specs/sites/{domain}.yaml'))
+| Layer | File | What It Provides |
+|-------|------|------------------|
+| **Schema** | `templates/wordpress/schema/v1.yaml` | Schema definition, validation rules |
+| **Defaults** | `templates/wordpress/defaults.yaml` | Global settings (theme, plugins, WP config) |
+| **Preset** | `templates/wordpress/presets/company.yaml` | Industry template (entities, page templates, sections) |
+| **Site** | `specs/sites/ocoron.com.v2.yaml` | Site-specific data (brand, services, contact) |
 
-SettingsApplicator.apply_settings(spec)      # brand, timezone
-ThemeCustomizer.apply_colors(spec['brand'])  # colors, fonts
-PageCreator.create_all(spec['pages'])        # pages
-MenuCreator.create_all(spec['menus'])        # navigation
-# ... etc
+**Merge Order:** defaults → preset → site → secrets → runtime
+
+**Key Improvements:**
+- **57% reduction** in site spec size (473 → 205 lines)
+- **Entity-driven pages**: Services list → pages generated automatically
+- **Section-based content**: 10 reusable section types (hero, features, services_grid, etc.)
+- **Validation-first**: Schema validation with fail-fast error messages
+- **Localization**: Normalized `{en_US: "...", tr_TR: "..."}` format throughout
+
+**Minimal Site Spec Example:**
+```yaml
+schema_version: 1
+preset: company
+
+brand:
+  name: "Ocoron"
+  tagline:
+    en_US: "Strategic Consulting for Growing Businesses"
+    tr_TR: "Büyüyen İşletmeler için Stratejik Danışmanlık"
+
+services:
+  - slug: consulting
+    name: {en_US: "Consulting", tr_TR: "Danışmanlık"}
+    summary: {en_US: "Strategy and ops", tr_TR: "Strateji"}
+
+contact:
+  email: contact@ocoron.com
 ```
 
-**Status:** ✅ Complete — `ocoron.com.yaml` fully defined with brand, pages, menus, SEO, analytics.
+**How v2 Deployer Uses It:**
+```python
+# v2 deployer loads and validates spec
+from fabrik.wordpress import load_spec, SpecValidator, generate_pages
+
+spec = load_spec('ocoron.com')  # Merges defaults + preset + site
+validator = SpecValidator(spec)
+errors, warnings = validator.validate()  # Fail-fast
+
+# Generate pages from templates + entities
+pages = generate_pages(spec, locale='en_US')  # 15 pages from 8 services
+
+# Deploy
+deployer = SiteDeployer('ocoron.com')
+result = deployer.deploy()
+```
+
+**Status:** ✅ Complete — v2 spec system implemented and tested with `ocoron.com.v2.yaml`
+
+**Documentation:** See `docs/wordpress-v2-architecture.md` for complete guide.
 
 ---
 
