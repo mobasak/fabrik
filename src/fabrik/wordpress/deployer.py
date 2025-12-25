@@ -3,16 +3,20 @@ WordPress Site Deployer - Orchestrate complete site deployment.
 
 This is the main entry point for deploying a WordPress site from spec.
 Coordinates all automation modules to deploy a fully configured site.
+
+v2: Uses new spec system with loader, validator, page generator.
 """
 
 import os
-import yaml
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
 from fabrik.drivers.wordpress_api import WordPressAPIClient, WPCredentials
+from fabrik.wordpress.spec_loader import load_spec
+from fabrik.wordpress.spec_validator import SpecValidator, ValidationError
+from fabrik.wordpress.page_generator import generate_pages
 from fabrik.wordpress.settings import SettingsApplicator
 from fabrik.wordpress.theme import ThemeCustomizer
 from fabrik.wordpress.pages import PageCreator, CreatedPage
@@ -49,7 +53,6 @@ class SiteDeployer:
     def __init__(
         self,
         site_id: str,
-        spec_path: Optional[str] = None,
         dry_run: bool = False,
         skip_content: bool = False,
     ):
@@ -57,8 +60,7 @@ class SiteDeployer:
         Initialize site deployer.
         
         Args:
-            site_id: Site identifier (domain or spec name)
-            spec_path: Optional path to spec file (auto-detected if not provided)
+            site_id: Site identifier (domain, e.g., ocoron.com)
             dry_run: If True, print actions without executing
             skip_content: If True, skip AI content generation
         """
@@ -66,21 +68,24 @@ class SiteDeployer:
         self.dry_run = dry_run
         self.skip_content = skip_content
         
-        # Load spec
-        if spec_path:
-            self.spec_path = Path(spec_path)
-        else:
-            self.spec_path = self.SPECS_DIR / f"{site_id}.yaml"
+        # Load and merge spec (defaults → preset → site)
+        self.log(f"Deploying {site_id}")
+        self.spec = load_spec(site_id)
+        self.spec_path = f"specs/sites/{site_id}.yaml"  # For logging
         
-        if not self.spec_path.exists():
-            raise FileNotFoundError(f"Site spec not found: {self.spec_path}")
+        # Validate spec
+        validator = SpecValidator(self.spec)
+        errors, warnings = validator.validate()
         
-        with open(self.spec_path) as f:
-            self.spec = yaml.safe_load(f)
+        if errors:
+            raise ValidationError(f"Spec validation failed:\n" + "\n".join(f"  - {e}" for e in errors))
+        
+        for warning in warnings:
+            self.log(warning, "warning")
         
         # Extract key config
-        self.domain = self.spec.get("domain", site_id)
-        self.site_name = self.spec.get("id", site_id.replace(".", "-"))
+        self.domain = self.spec.get("site", {}).get("domain", site_id)
+        self.site_name = self.spec.get("site", {}).get("name") or site_id.replace(".", "-")
         self.container_name = f"{self.site_name}-wordpress"
         
         # Initialize clients (lazy)
@@ -227,26 +232,70 @@ class SiteDeployer:
             self.result.steps_failed.append(step)
     
     def _step_pages(self):
-        """Create site pages."""
+        """Create site pages from generated page specs."""
         step = "pages"
         self.log(f"Step: {step}")
         
         try:
-            pages = self.spec.get("pages", [])
+            # Generate pages from spec (templates + entities)
+            primary_locale = self.spec.get('languages', {}).get('primary', 'en_US')
+            page_specs = generate_pages(self.spec, locale=primary_locale)
             
-            if not pages:
-                self.log("  No pages defined in spec", "warning")
+            if not page_specs:
+                self.log("  No pages to create", "warning")
                 return
             
             if self.dry_run:
-                self.log(f"  Would create {len(pages)} top-level pages")
+                self.log(f"  Would create {len(page_specs)} pages")
+                for page in page_specs[:5]:  # Show first 5
+                    slug = page.get('slug', '(home)')
+                    title = page.get('title', '')
+                    self.log(f"    - /{slug}: {title}")
             elif self.api:
                 creator = PageCreator(
                     self.site_name,
                     wp_client=self.wp,
                     api_client=self.api,
                 )
-                self.result.pages_created = creator.create_all(pages)
+                
+                # Convert generated page specs to PageCreator format
+                pages_to_create = []
+                for page_spec in page_specs:
+                    # Skip child pages (they'll be created via parent's children)
+                    if '/' in page_spec.get('slug', '') and page_spec.get('source') == 'entity':
+                        # Entity pages are children of their parent
+                        continue
+                    
+                    pages_to_create.append({
+                        'slug': page_spec.get('slug', ''),
+                        'title': page_spec.get('title', ''),
+                        'content': page_spec.get('content', ''),
+                        'status': page_spec.get('status', 'publish'),
+                        'template': page_spec.get('template', ''),
+                    })
+                
+                self.result.pages_created = creator.create_all(pages_to_create)
+                
+                # Create entity child pages
+                for page_spec in page_specs:
+                    if '/' in page_spec.get('slug', '') and page_spec.get('source') == 'entity':
+                        # Get parent slug
+                        parts = page_spec['slug'].split('/')
+                        parent_slug = parts[0]
+                        child_slug = parts[1]
+                        
+                        # Get parent page ID
+                        parent_page = self.result.pages_created.get(parent_slug)
+                        if parent_page:
+                            child_page = creator.create_page(
+                                title=page_spec.get('title', ''),
+                                slug=child_slug,
+                                content=page_spec.get('content', ''),
+                                status=page_spec.get('status', 'publish'),
+                                template=page_spec.get('template', ''),
+                                parent_id=parent_page.id,
+                            )
+                            self.result.pages_created[page_spec['slug']] = child_page
                 
                 # Set homepage if defined
                 homepage = self.result.pages_created.get("")
