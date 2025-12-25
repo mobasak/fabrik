@@ -67,23 +67,49 @@ All core modules now live in `/opt/fabrik/src/fabrik/wordpress/`:
 
 ### Step 0: Pre-flight Decisions ✅ HAVE
 
-**Purpose:** Define site goal, type, pages, assets, and languages before deployment.
+**Purpose:** Define everything about the site in a YAML "blueprint" before deployment.
 
-**How We Solve It:**
-- **Site Spec YAML:** `/opt/fabrik/specs/sites/ocoron.com.yaml`
-- **Presets:** `/opt/fabrik/templates/wordpress/presets/*.yaml` (company, saas, content, landing, ecommerce)
-- **Schema:** `/opt/fabrik/templates/wordpress/site-spec-schema.yaml`
+**What This Step Does:**
+Before running any automation, we answer all site questions upfront:
+- What's the business name and tagline?
+- What colors and fonts?
+- What pages do we need?
+- What's in the navigation?
+- Contact info, SEO settings, analytics IDs?
 
-**What the spec captures:**
-| Item | Spec Location |
-|------|---------------|
-| Site goal | `brand.tagline` |
-| Site type | `preset: company` |
-| Page set | `pages:` array |
-| Assets | `brand.logo.*`, `brand.colors`, `brand.fonts` |
-| Languages | `languages.primary`, `languages.additional` |
+**Files Involved:**
+| File | Purpose |
+|------|---------|
+| `specs/sites/{domain}.yaml` | Site-specific configuration |
+| `templates/wordpress/presets/*.yaml` | Base presets (company, saas, etc.) |
+| `templates/wordpress/site-spec-schema.yaml` | Schema reference |
 
-**Status:** ✅ Complete — ocoron.com.yaml is fully defined.
+**Spec Sections:**
+| Section | What It Defines |
+|---------|-----------------|
+| `brand` | name, tagline, logo paths, colors, fonts |
+| `languages` | primary locale, additional locales, translation plugin |
+| `pages` | page hierarchy with titles, slugs, templates, content sections |
+| `menus` | navigation structure (primary, footer) |
+| `contact` | email, phone, social links, form configuration |
+| `plugins` | plugins to add/skip beyond preset |
+| `theme` | theme name + customization settings |
+| `seo` | titles, descriptions, schema, analytics IDs |
+| `deployment` | server, SSL, CDN, backup settings |
+
+**How Deployer Uses It:**
+```python
+# deployer.py loads spec and passes sections to modules
+spec = yaml.safe_load(open(f'specs/sites/{domain}.yaml'))
+
+SettingsApplicator.apply_settings(spec)      # brand, timezone
+ThemeCustomizer.apply_colors(spec['brand'])  # colors, fonts
+PageCreator.create_all(spec['pages'])        # pages
+MenuCreator.create_all(spec['menus'])        # navigation
+# ... etc
+```
+
+**Status:** ✅ Complete — `ocoron.com.yaml` fully defined with brand, pages, menus, SEO, analytics.
 
 ---
 
