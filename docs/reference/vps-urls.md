@@ -26,7 +26,7 @@ All services deployed on VPS1 (172.93.160.197) with HTTPS via Traefik.
 | Service | URL | Auth | Purpose |
 |---------|-----|------|---------|
 | **Coolify** | `https://vps1.ocoron.com:8000` | Login | Container deployment |
-| **Netdata** | `https://netdata.vps1.ocoron.com` | None | System monitoring |
+| **Netdata** | `https://netdata.vps1.ocoron.com` | Basic Auth | System monitoring |
 | **Uptime Kuma** | `https://status.vps1.ocoron.com` | Login | Service monitoring |
 | **Duplicati** | `https://backup.vps1.ocoron.com` | Password | Backup management |
 
