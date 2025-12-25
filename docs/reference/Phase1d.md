@@ -2,71 +2,852 @@
 
 **Status: 🚧 IN PROGRESS**
 **Last Updated:** 2025-12-25
+**Test Site:** ocoron.com
 
 ---
 
 ## Overview
 
-Phase 1d completes the WordPress automation by implementing the missing components needed to deploy a fully configured WordPress site from a YAML specification.
+Phase 1d implements the complete WordPress site deployment pipeline, covering all 18 steps from the WordPress Company Site Checklist. Each step is either already automated or will be implemented and tested against ocoron.com.
 
-**Goal:** Deploy `ocoron.com` (and future sites) with a single `fabrik wp:deploy site-id` command.
+**Goal:** Deploy `ocoron.com` with a single command, fully configured and content-ready.
 
-**Prerequisite Phases:**
-- Phase 1: VPS + Coolify + Core CLI ✅
-- Phase 1b: Supabase + R2 ✅
-- Phase 1c: Cloudflare DNS ✅
-- Phase 2: WordPress template + WP-CLI wrapper ✅
+**Done Definition:** A WordPress company website is live on your domain (HTTPS), loads fast on mobile, has core legal pages, clear conversion paths (call/email/lead form), basic SEO + analytics installed, backups enabled, and an owner can edit pages safely.
 
 ---
 
-## Progress Tracker
+## Progress Tracker (All 18 Steps)
 
-| # | Component | Status | Priority | Effort |
-|---|-----------|--------|----------|--------|
-| 1 | Settings applicator | ❌ Pending | HIGH | Low |
-| 2 | Page creator | ❌ Pending | HIGH | Medium |
-| 3 | Menu creator | ❌ Pending | HIGH | Low |
-| 4 | Content generator (AI) | ❌ Pending | HIGH | Medium |
-| 5 | Media uploader | ❌ Pending | MEDIUM | Low |
-| 6 | Theme customizer | ❌ Pending | MEDIUM | Medium |
-| 7 | Form creator | ❌ Pending | MEDIUM | Medium |
-| 8 | SEO applicator | ❌ Pending | MEDIUM | Medium |
-| 9 | Analytics injector | ❌ Pending | MEDIUM | Low |
-| 10 | Legal content generator | ❌ Pending | MEDIUM | Low |
-| 11 | Default content cleanup | ❌ Pending | LOW | Low |
-| 12 | Editor account creation | ❌ Pending | LOW | Low |
-| 13 | Post-deploy cache clear | ❌ Pending | LOW | Low |
+| Step | Name | Status | How We Solve It |
+|------|------|--------|-----------------|
+| 0 | Pre-flight decisions | ✅ HAVE | Site spec YAML |
+| 1 | Domain + Hosting | ✅ HAVE | Cloudflare DNS + VPS + Coolify |
+| 2 | Install WordPress | ✅ HAVE | Docker Compose template |
+| 3 | Security & Settings | ⚡ PARTIAL | Need settings applicator |
+| 4 | Theme decision | ✅ HAVE | GeneratePress + GP Premium |
+| 5 | Theme configuration | 🔧 NEED | Theme customizer |
+| 6 | Plugin installation | ✅ HAVE | WP-CLI + preset YAML |
+| 7 | Site structure (IA) | ✅ HAVE | Site spec YAML |
+| 8 | Build core pages | 🔧 NEED | Page creator + content generator |
+| 9 | Navigation (menus) | 🔧 NEED | Menu creator |
+| 10 | Branding consistency | 🔧 NEED | Theme customizer |
+| 11 | Forms & lead capture | 🔧 NEED | Form creator |
+| 12 | SEO basics | 🔧 NEED | SEO applicator |
+| 13 | Performance | ✅ HAVE | FlyingPress + Cloudflare |
+| 14 | Analytics & tracking | 🔧 NEED | Analytics injector |
+| 15 | Legal/compliance | 🔧 NEED | Legal content generator |
+| 16 | Final QA | 🔧 NEED | QA checklist runner |
+| 17 | Launch | ✅ HAVE | fabrik apply |
+| 18 | Post-launch | ⚡ PARTIAL | Backups ✅, updates manual |
 
-**Completion: 0/13 tasks (0%)**
-
----
-
-## What We Have
-
-### Existing Infrastructure
-- **VPS:** Hardened server with Coolify, Traefik, PostgreSQL, Redis
-- **DNS:** Cloudflare driver with automatic A record creation
-- **WordPress Template:** Docker Compose with WP + MariaDB + backup sidecar
-- **WP-CLI Wrapper:** Execute commands inside WordPress containers
-- **REST API Client:** CRUD operations for posts, pages, media
-- **Plugin Stack:** Full premium plugin collection defined and placed
-- **Presets:** company, saas, content, landing, ecommerce YAMLs
-- **Site Spec:** `ocoron.com.yaml` fully defined with pages, menus, branding
-
-### What's Missing (This Phase)
-The "last mile" automation to:
-1. Apply WordPress settings from spec
-2. Create pages and menus from spec
-3. Generate content for pages
-4. Upload brand assets (logo, favicon)
-5. Configure theme with brand colors/fonts
-6. Create forms from spec
-7. Configure SEO settings
-8. Inject analytics codes
+**Legend:** ✅ HAVE = Already automated | ⚡ PARTIAL = Exists but incomplete | 🔧 NEED = Must implement
 
 ---
 
-## Component Details
+## Detailed Step-by-Step
+
+---
+
+### Step 0: Pre-flight Decisions ✅ HAVE
+
+**Purpose:** Define site goal, type, pages, assets, and languages before deployment.
+
+**How We Solve It:**
+- **Site Spec YAML:** `/opt/fabrik/specs/sites/ocoron.com.yaml`
+- **Presets:** `/opt/fabrik/templates/wordpress/presets/*.yaml` (company, saas, content, landing, ecommerce)
+- **Schema:** `/opt/fabrik/templates/wordpress/site-spec-schema.yaml`
+
+**What the spec captures:**
+| Item | Spec Location |
+|------|---------------|
+| Site goal | `brand.tagline` |
+| Site type | `preset: company` |
+| Page set | `pages:` array |
+| Assets | `brand.logo.*`, `brand.colors`, `brand.fonts` |
+| Languages | `languages.primary`, `languages.additional` |
+
+**Status:** ✅ Complete — ocoron.com.yaml is fully defined.
+
+---
+
+### Step 1: Domain + Hosting ✅ HAVE
+
+**Purpose:** Set up hosting, register domain, connect DNS.
+
+**How We Solve It:**
+
+| Task | Solution | Code Location |
+|------|----------|---------------|
+| Hosting | VPS with Coolify | `/opt/coolify/` |
+| Domain DNS | Cloudflare API via DNS Manager | `dns.vps1.ocoron.com` |
+| A record creation | Automatic via Fabrik | `compiler/dns/cloudflare.py` |
+| SSL certificate | Traefik + Let's Encrypt | `/opt/traefik/compose.yaml` |
+
+**Commands:**
+```bash
+# DNS record created automatically during deploy
+curl -X POST https://dns.vps1.ocoron.com/api/records \
+  -H "X-API-Key: $DNS_API_KEY" \
+  -d '{"type": "A", "name": "ocoron.com", "content": "172.93.160.197"}'
+```
+
+**Status:** ✅ Complete — Infrastructure ready.
+
+---
+
+### Step 2: Install WordPress ✅ HAVE
+
+**Purpose:** Deploy WordPress with database, configure admin credentials.
+
+**How We Solve It:**
+
+| Task | Solution | Code Location |
+|------|----------|---------------|
+| WordPress container | Docker Compose | `templates/wordpress/base/compose.yaml.j2` |
+| Database | MariaDB sidecar | Same compose file |
+| Admin credentials | Generated in `.env` | `compiler/wordpress/deploy.py` |
+| Backup sidecar | Alpine + cron + R2 | Same compose file |
+
+**Template renders:**
+```yaml
+services:
+  wordpress:
+    image: wordpress:php8.2-apache
+    environment:
+      WORDPRESS_DB_HOST: {{ name }}-db
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+```
+
+**Commands:**
+```bash
+fabrik apply ocoron-com  # Deploys via Coolify
+```
+
+**Status:** ✅ Complete — Template ready.
+
+---
+
+### Step 3: Security & Settings ⚡ PARTIAL
+
+**Purpose:** HTTPS, permalinks, timezone, remove defaults, create users.
+
+**What We Have:**
+| Task | Status | How |
+|------|--------|-----|
+| HTTPS | ✅ | Traefik + Let's Encrypt auto |
+| Permalinks | 🔧 | Need WP-CLI execution |
+| Timezone/language | 🔧 | Need WP-CLI execution |
+| Remove defaults | 🔧 | Need cleanup script |
+| Staging | ✅ | WP Staging Pro in plugin stack |
+| User accounts | 🔧 | Need user creation |
+
+**Implementation Needed:**
+
+```python
+# compiler/wordpress/settings.py
+class SettingsApplicator:
+    """Apply WordPress settings from site spec."""
+    
+    def apply(self, site_id: str, spec: dict):
+        wp = WPCLIExecutor(site_id)
+        
+        settings = spec.get('settings', {})
+        brand = spec.get('brand', {})
+        
+        # Core settings
+        wp.option_update('blogname', brand.get('name', ''))
+        wp.option_update('blogdescription', brand.get('tagline', ''))
+        wp.option_update('permalink_structure', settings.get('permalink_structure', '/%postname%/'))
+        wp.option_update('timezone_string', spec.get('timezone', 'UTC'))
+        wp.option_update('date_format', spec.get('date_format', 'Y-m-d'))
+        wp.option_update('blog_public', '1')  # Enable indexing
+        
+    def cleanup_defaults(self, site_id: str):
+        wp = WPCLIExecutor(site_id)
+        wp.execute('post delete 1 --force')  # Hello World
+        wp.execute('post delete 2 --force')  # Sample Page
+        wp.execute('comment delete 1 --force')
+        wp.execute('plugin delete hello akismet')
+        
+    def create_editor(self, site_id: str, email: str) -> dict:
+        wp = WPCLIExecutor(site_id)
+        username = email.split('@')[0]
+        password = secrets.token_urlsafe(16)
+        wp.execute(f'user create {username} {email} --role=editor --user_pass={password}')
+        return {'username': username, 'password': password}
+```
+
+**Status:** 🔧 Needs implementation
+
+---
+
+### Step 4: Theme Decision ✅ HAVE
+
+**Purpose:** Choose between block theme vs page builder.
+
+**How We Solve It:**
+- **Decision made in plugin stack:** GeneratePress + GP Premium for all sites
+- **Page builder:** Thrive Architect available in profiles
+- **Rationale:** Speed, lightweight, Gutenberg-compatible
+
+**From full-plugin-stack.md:**
+```
+BASE (Every Site):
+- GeneratePress (FREE) — Theme foundation
+- GP Premium (PLACED) — Full customization, blocks, hooks
+```
+
+**Status:** ✅ Complete — Decision documented.
+
+---
+
+### Step 5: Theme Configuration 🔧 NEED
+
+**Purpose:** Install theme, import starter, set colors/fonts, upload logo.
+
+**What We Have:**
+| Task | Status | How |
+|------|--------|-----|
+| Install theme | ✅ | WP-CLI `theme install` |
+| Import starter | ❌ | Manual (GP Site Library) |
+| Global styles | 🔧 | Need theme customizer |
+| Upload logo | 🔧 | Need media uploader |
+| Set favicon | 🔧 | Need media uploader |
+
+**Implementation Needed:**
+
+```python
+# compiler/wordpress/theme.py
+class ThemeCustomizer:
+    """Apply brand colors and fonts to GeneratePress."""
+    
+    def apply(self, site_id: str, brand: dict):
+        wp = WPCLIExecutor(site_id)
+        
+        colors = brand.get('colors', {})
+        fonts = brand.get('fonts', {})
+        
+        # GeneratePress global colors (stored as theme mod)
+        gp_settings = {
+            'global_colors': [
+                {'slug': 'contrast', 'color': colors.get('primary', '#1e3a5f')},
+                {'slug': 'contrast-2', 'color': colors.get('secondary', '#0891b2')},
+                {'slug': 'accent', 'color': colors.get('accent', '#ea580c')},
+            ]
+        }
+        
+        # Apply via option (GP stores in generate_settings)
+        wp.execute(f"option update generate_settings '{json.dumps(gp_settings)}'")
+        
+        # Typography
+        if fonts.get('body'):
+            wp.execute(f"option patch update generate_settings font_body '{fonts['body']}'")
+
+# compiler/wordpress/media.py
+class MediaUploader:
+    """Upload brand assets to WordPress."""
+    
+    async def upload_logo(self, site_id: str, logo_path: str) -> int:
+        api = WordPressAPIClient(site_id)
+        result = await api.upload_media(logo_path)
+        return result['id']
+    
+    async def set_site_icon(self, site_id: str, favicon_path: str):
+        media_id = await self.upload_logo(site_id, favicon_path)
+        wp = WPCLIExecutor(site_id)
+        wp.option_update('site_icon', str(media_id))
+```
+
+**Status:** 🔧 Needs implementation
+
+---
+
+### Step 6: Plugin Installation ✅ HAVE
+
+**Purpose:** Install and configure essential plugins.
+
+**How We Solve It:**
+
+| Task | Solution | Code Location |
+|------|----------|---------------|
+| Plugin selection | Full stack defined | `docs/reference/full-plugin-stack.md` |
+| Free plugins | WP-CLI install | `wp plugin install <slug>` |
+| Premium plugins | Pre-placed ZIPs | `templates/wordpress/plugins/premium/` |
+| Activation | WP-CLI activate | `wp plugin activate <slug>` |
+| Per-plugin config | 🔧 Partial | Need plugin configurators |
+
+**Plugin categories covered:**
+- SEO: Rank Math Pro ✅
+- Performance: FlyingPress ✅
+- Security: Cloudflare WAF (edge) ✅
+- Backups: WP Staging Pro ✅
+- Forms: Fluent Forms Pro ✅
+- Email: WP Mail SMTP Pro ✅
+- GDPR: Complianz Pro ✅
+
+**Commands:**
+```bash
+# Free plugins
+wp plugin install generatepress wp-mail-smtp --activate
+
+# Premium (uploaded to plugins folder)
+wp plugin activate gp-premium rank-math-pro flyingpress
+```
+
+**Status:** ✅ Complete — Installation automated, config partially automated.
+
+---
+
+### Step 7: Site Structure (IA) ✅ HAVE
+
+**Purpose:** Define navigation, conversion paths, reusable sections.
+
+**How We Solve It:**
+- **Navigation plan:** `menus:` in site spec
+- **Conversion paths:** CTAs defined in page sections
+- **Reusable sections:** Section types (hero, features, cta_banner, etc.)
+
+**From ocoron.com.yaml:**
+```yaml
+menus:
+  primary:
+    - title: Services
+      children:
+        - title: Investment Incentives
+          url: /services/investment-incentives
+        # ... 7 more service categories
+    - title: About
+    - title: Insights
+    - title: Contact
+  footer:
+    - title: Privacy Policy
+    - title: Terms of Service
+```
+
+**Status:** ✅ Complete — Structure defined in spec.
+
+---
+
+### Step 8: Build Core Pages 🔧 NEED
+
+**Purpose:** Create pages, set homepage, add content.
+
+**What We Have:**
+| Task | Status | How |
+|------|--------|-----|
+| Page definitions | ✅ | Site spec `pages:` array |
+| Create pages | 🔧 | Need page creator |
+| Set homepage | 🔧 | Need settings applicator |
+| Page content | 🔧 | Need content generator |
+| Translations | 🔧 | Need WPML integration |
+
+**Implementation Needed:**
+
+```python
+# compiler/wordpress/pages.py
+class PageCreator:
+    """Create WordPress pages from site spec."""
+    
+    async def create_all(self, site_id: str, pages: list) -> dict[str, int]:
+        """Create pages and return slug->ID mapping."""
+        api = WordPressAPIClient(site_id)
+        created = {}
+        
+        for page in pages:
+            result = await api.create_page(
+                title=page['title'],
+                slug=page.get('slug') or None,
+                status=page.get('status', 'publish'),
+                template=self._get_template(page.get('template')),
+                content=page.get('content', ''),
+            )
+            created[page.get('slug', '')] = result['id']
+            
+            # Handle child pages
+            if page.get('children'):
+                for child in page['children']:
+                    child_result = await api.create_page(
+                        title=child['title'],
+                        slug=child.get('slug'),
+                        parent=result['id'],
+                        status='publish',
+                    )
+                    created[child.get('slug')] = child_result['id']
+        
+        return created
+
+# compiler/wordpress/content.py
+class ContentGenerator:
+    """Generate page content using Claude API."""
+    
+    async def generate(self, page: dict, brand: dict, context: str) -> str:
+        client = anthropic.Anthropic()
+        
+        prompt = self._build_prompt(page, brand, context)
+        
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        return response.content[0].text
+```
+
+**Status:** 🔧 Needs implementation
+
+---
+
+### Step 9: Navigation (Menus) 🔧 NEED
+
+**Purpose:** Create header and footer menus, assign to locations.
+
+**Implementation Needed:**
+
+```python
+# compiler/wordpress/menus.py
+class MenuCreator:
+    """Create WordPress menus from site spec."""
+    
+    def create_all(self, site_id: str, menus: dict, page_ids: dict):
+        wp = WPCLIExecutor(site_id)
+        
+        for menu_name, items in menus.items():
+            # Create menu
+            result = wp.execute(f"menu create '{menu_name}'", json_output=True)
+            menu_id = result.output.get('id') if isinstance(result.output, dict) else None
+            
+            # Add items
+            for item in items:
+                self._add_item(wp, menu_name, item, page_ids)
+            
+            # Assign to location
+            wp.execute(f"menu location assign {menu_name} {menu_name}")
+    
+    def _add_item(self, wp, menu_name, item, page_ids, parent_id=None):
+        url = item.get('url', '')
+        title = item.get('title', '')
+        
+        # Internal page or custom URL
+        slug = url.strip('/')
+        if slug in page_ids:
+            cmd = f"menu item add-post {menu_name} {page_ids[slug]} --title='{title}'"
+        else:
+            cmd = f"menu item add-custom {menu_name} '{url}' '{title}'"
+        
+        if parent_id:
+            cmd += f" --parent-id={parent_id}"
+        
+        result = wp.execute(cmd)
+        item_id = self._extract_id(result.output)
+        
+        # Recurse for children
+        for child in item.get('children', []):
+            self._add_item(wp, menu_name, child, page_ids, parent_id=item_id)
+```
+
+**Status:** 🔧 Needs implementation
+
+---
+
+### Step 10: Branding Consistency 🔧 NEED
+
+**Purpose:** Standardize headings, buttons, spacing across site.
+
+**How We Solve It:**
+- Part of **Theme Customizer** (Step 5)
+- GeneratePress global styles handle this
+- Additional CSS via `theme.custom_css` in spec
+
+**From ocoron.com.yaml:**
+```yaml
+brand:
+  colors:
+    primary: "#1e3a5f"
+    secondary: "#0891b2"
+    accent: "#ea580c"
+  fonts:
+    heading: "Inter"
+    body: "Inter"
+```
+
+**Status:** 🔧 Implemented with Theme Customizer (Step 5)
+
+---
+
+### Step 11: Forms & Lead Capture 🔧 NEED
+
+**Purpose:** Create contact form, configure notifications, spam protection.
+
+**Implementation Needed:**
+
+```python
+# compiler/wordpress/forms.py
+class FormCreator:
+    """Create Fluent Forms from site spec."""
+    
+    async def create_contact_form(self, site_id: str, form_config: dict) -> int:
+        """Create contact form and return form ID."""
+        api = WordPressAPIClient(site_id)
+        
+        # Build Fluent Forms structure
+        fields = []
+        for field_name in form_config.get('fields', ['name', 'email', 'message']):
+            fields.append(self._get_field_config(field_name))
+        
+        # Add Turnstile if configured
+        if form_config.get('spam_protection') == 'turnstile':
+            fields.append({'element': 'turnstile'})
+        
+        form_data = {
+            'title': 'Contact Form',
+            'form_fields': {'fields': fields},
+            'settings': {
+                'confirmation': {
+                    'redirectTo': 'samePage',
+                    'messageToShow': form_config.get('success_message', 'Thank you!')
+                }
+            },
+            'notifications': [{
+                'sendTo': {'type': 'email', 'email': form_config.get('recipient')},
+                'subject': 'New Contact Form Submission - {inputs.name}',
+            }]
+        }
+        
+        # Fluent Forms REST API
+        result = await api.post('/wp-json/fluentform/v1/forms', form_data)
+        return result['id']
+```
+
+**Status:** 🔧 Needs implementation
+
+---
+
+### Step 12: SEO Basics 🔧 NEED
+
+**Purpose:** Site title, meta descriptions, sitemap, Search Console.
+
+**What We Have:**
+| Task | Status | How |
+|------|--------|-----|
+| Site title/tagline | 🔧 | Settings applicator |
+| Per-page meta | 🔧 | SEO applicator (Rank Math) |
+| Sitemap | ✅ | Rank Math auto-generates |
+| Search Console | ❌ | Manual verification |
+| Schema | 🔧 | SEO applicator |
+
+**Implementation Needed:**
+
+```python
+# compiler/wordpress/seo.py
+class SEOApplicator:
+    """Configure Rank Math SEO settings."""
+    
+    def apply(self, site_id: str, seo: dict):
+        wp = WPCLIExecutor(site_id)
+        
+        # Title separator
+        wp.option_update('rank_math_title_separator', seo.get('title_separator', '|'))
+        
+        # Homepage SEO
+        wp.option_update('rank_math_homepage_title', seo.get('homepage_title', ''))
+        wp.option_update('rank_math_homepage_description', seo.get('homepage_description', ''))
+        
+        # Schema (Organization)
+        schema = seo.get('schema', {})
+        wp.option_update('rank_math_knowledgegraph_type', schema.get('type', 'Organization').lower())
+        wp.option_update('rank_math_knowledgegraph_name', schema.get('name', ''))
+        
+        # Enable modules
+        modules = 'sitemap,analytics,seo-analysis,instant-indexing,schema'
+        wp.option_update('rank_math_modules', modules)
+```
+
+**Status:** 🔧 Needs implementation
+
+---
+
+### Step 13: Performance ✅ HAVE
+
+**Purpose:** Caching, image optimization, font loading, speed testing.
+
+**How We Solve It:**
+
+| Task | Solution | Status |
+|------|----------|--------|
+| Caching | FlyingPress | ✅ In plugin stack |
+| CDN | Cloudflare APO | ✅ Configured |
+| Image optimization | 🔧 | Need ShortPixel/Imagify |
+| Font loading | GP Premium | ✅ Optimized by theme |
+| Speed testing | ❌ | Manual (PageSpeed) |
+
+**Status:** ✅ Mostly complete — Image optimization optional.
+
+---
+
+### Step 14: Analytics & Tracking 🔧 NEED
+
+**Purpose:** Install GA4/GTM, event tracking, cookie consent.
+
+**What We Have:**
+| Task | Status | How |
+|------|--------|-----|
+| GA4 | 🔧 | Need analytics injector |
+| GTM | 🔧 | Need analytics injector |
+| Event tracking | ⚡ | PixelYourSite Pro available |
+| Cookie consent | ✅ | Complianz Pro auto-scans |
+
+**Implementation Needed:**
+
+```python
+# compiler/wordpress/analytics.py
+class AnalyticsInjector:
+    """Configure analytics tracking."""
+    
+    def apply(self, site_id: str, analytics: dict):
+        wp = WPCLIExecutor(site_id)
+        
+        # Rank Math Analytics integration
+        if analytics.get('google_analytics'):
+            ga_id = analytics['google_analytics']
+            wp.option_update('rank_math_analytics_id', ga_id)
+            wp.option_update('rank_math_analytics_enabled', '1')
+        
+        # Or use PixelYourSite Pro for more control
+        if analytics.get('google_tag_manager'):
+            gtm_id = analytics['google_tag_manager']
+            wp.option_update('pys_gtm_id', gtm_id)
+```
+
+**Status:** 🔧 Needs implementation
+
+---
+
+### Step 15: Legal/Compliance 🔧 NEED
+
+**Purpose:** Privacy Policy, Terms of Service, cookie consent, accessibility.
+
+**What We Have:**
+| Task | Status | How |
+|------|--------|-----|
+| Privacy Policy page | ✅ | Defined in spec |
+| Privacy content | 🔧 | Need generator |
+| Terms page | ✅ | Defined in spec |
+| Terms content | 🔧 | Need generator |
+| Cookie consent | ✅ | Complianz Pro auto-setup |
+| Accessibility | ❌ | Manual review |
+
+**Implementation Needed:**
+
+```python
+# compiler/wordpress/legal.py
+class LegalContentGenerator:
+    """Generate legal page content."""
+    
+    def privacy_policy(self, brand: dict, contact: dict) -> str:
+        return f"""
+<h2>Privacy Policy</h2>
+<p><em>Last updated: {datetime.now().strftime('%B %d, %Y')}</em></p>
+
+<h3>Who We Are</h3>
+<p>This website is operated by {brand['name']}. You can contact us at {contact['email']}.</p>
+
+<h3>Information We Collect</h3>
+<p>We collect information you provide through our contact forms, including your name, email address, and message content.</p>
+
+<h3>How We Use Information</h3>
+<ul>
+<li>To respond to your inquiries</li>
+<li>To improve our services</li>
+<li>To send relevant communications (with your consent)</li>
+</ul>
+
+<h3>Cookies</h3>
+<p>We use cookies for analytics and site functionality. You can manage your preferences through our cookie consent banner.</p>
+
+<h3>Your Rights</h3>
+<p>You have the right to access, correct, or delete your personal data. Contact us at {contact['email']}.</p>
+
+<h3>Contact</h3>
+<p>For privacy inquiries, email: {contact['email']}</p>
+"""
+    
+    def terms_of_service(self, brand: dict, contact: dict) -> str:
+        return f"""
+<h2>Terms of Service</h2>
+<p><em>Last updated: {datetime.now().strftime('%B %d, %Y')}</em></p>
+
+<h3>Agreement</h3>
+<p>By using this website, you agree to these terms. If you disagree, please do not use our services.</p>
+
+<h3>Services</h3>
+<p>{brand['name']} provides consultancy services as described on this website. Service details and pricing are provided upon request.</p>
+
+<h3>Intellectual Property</h3>
+<p>All content on this website is owned by {brand['name']} unless otherwise stated.</p>
+
+<h3>Limitation of Liability</h3>
+<p>We are not liable for any damages arising from the use of this website or our services, except as required by law.</p>
+
+<h3>Contact</h3>
+<p>Questions about these terms? Contact us at {contact['email']}.</p>
+"""
+```
+
+**Status:** 🔧 Needs implementation
+
+---
+
+### Step 16: Final QA 🔧 NEED
+
+**Purpose:** Mobile check, browser check, links, forms, speed, SEO audit.
+
+**Implementation:** Optional automated checks
+
+```python
+# compiler/wordpress/qa.py
+class QAChecker:
+    """Run automated QA checks."""
+    
+    async def run_all(self, domain: str) -> dict:
+        results = {}
+        
+        # HTTPS check
+        results['https'] = await self._check_https(domain)
+        
+        # PageSpeed API
+        results['pagespeed'] = await self._check_pagespeed(domain)
+        
+        # Link checker (basic)
+        results['links'] = await self._check_links(domain)
+        
+        return results
+    
+    async def _check_https(self, domain: str) -> bool:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'https://{domain}') as resp:
+                    return resp.status == 200
+        except:
+            return False
+```
+
+**Status:** 🔧 Nice to have — Manual OK for now
+
+---
+
+### Step 17: Launch ✅ HAVE
+
+**Purpose:** Push to production, clear caches, verify.
+
+**How We Solve It:**
+
+| Task | Solution | Status |
+|------|----------|--------|
+| Deploy | `fabrik apply <site-id>` | ✅ |
+| Clear caches | 🔧 | Need cache clear command |
+| Verify HTTPS | ✅ | Traefik auto |
+| Enable indexing | 🔧 | Settings applicator |
+
+**Implementation Needed:**
+
+```python
+# compiler/wordpress/cache.py
+class CacheManager:
+    """Manage WordPress caches."""
+    
+    def clear_all(self, site_id: str):
+        wp = WPCLIExecutor(site_id)
+        
+        # WordPress object cache
+        wp.execute('cache flush')
+        
+        # Rewrite rules
+        wp.execute('rewrite flush')
+        
+        # FlyingPress (if installed)
+        try:
+            wp.execute('flyingpress purge --all')
+        except:
+            pass  # Plugin might not be active yet
+```
+
+**Status:** ✅ Mostly complete
+
+---
+
+### Step 18: Post-Launch ⚡ PARTIAL
+
+**Purpose:** Update routine, backups, security monitoring, owner guide.
+
+**What We Have:**
+| Task | Status | How |
+|------|--------|-----|
+| Update routine | ❌ | Manual (WP Staging Pro helps) |
+| Backups | ✅ | Backup sidecar to R2 (daily/weekly) |
+| Security monitoring | ✅ | Uptime Kuma + Cloudflare WAF |
+| Owner edit guide | ❌ | Manual documentation |
+
+**Status:** ⚡ Partial — Backups automated, updates manual.
+
+---
+
+## Implementation Files
+
+```
+/opt/fabrik/compiler/wordpress/
+├── __init__.py
+├── wp_cli.py          # ✅ EXISTS - WP-CLI executor
+├── api.py             # ✅ EXISTS - REST API client
+├── settings.py        # 🔧 Step 3 - Settings applicator
+├── theme.py           # 🔧 Step 5 - Theme customizer
+├── media.py           # 🔧 Step 5 - Media uploader
+├── pages.py           # 🔧 Step 8 - Page creator
+├── content.py         # 🔧 Step 8 - Content generator
+├── menus.py           # 🔧 Step 9 - Menu creator
+├── forms.py           # 🔧 Step 11 - Form creator
+├── seo.py             # 🔧 Step 12 - SEO applicator
+├── analytics.py       # 🔧 Step 14 - Analytics injector
+├── legal.py           # 🔧 Step 15 - Legal content
+├── cache.py           # 🔧 Step 17 - Cache management
+├── qa.py              # 🔧 Step 16 - QA checks (optional)
+└── deploy.py          # 🔧 Orchestrator
+```
+
+---
+
+## Deployment Command (Target)
+
+```bash
+fabrik wp:deploy ocoron-com
+
+# Equivalent to:
+# 1. Create DNS record
+# 2. Deploy WordPress container
+# 3. Wait for ready
+# 4. Cleanup defaults
+# 5. Apply settings
+# 6. Install/activate plugins
+# 7. Upload media assets
+# 8. Apply theme customization
+# 9. Create pages
+# 10. Generate content (AI)
+# 11. Create menus
+# 12. Create forms
+# 13. Apply SEO settings
+# 14. Setup analytics
+# 15. Generate legal content
+# 16. Clear caches
+# 17. Run QA checks
+# 18. Output credentials + URLs
+```
+
+---
+
+## Next: Start Implementation
+
+Begin with **Step 3: Settings Applicator** — the foundation for other components.
 
 ### 1. Settings Applicator
 
