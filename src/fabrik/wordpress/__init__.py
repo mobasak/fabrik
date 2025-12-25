@@ -62,6 +62,11 @@ from fabrik.wordpress.spec_validator import (
     ValidationError,
     validate_spec,
 )
+from fabrik.wordpress.domain_setup import (
+    DomainSetup,
+    DomainSetupResult,
+    setup_domain,
+)
 
 __all__ = [
     # Preset loader
@@ -113,4 +118,8 @@ __all__ = [
     "SpecValidator",
     "ValidationError",
     "validate_spec",
+    # Domain setup
+    "DomainSetup",
+    "DomainSetupResult",
+    "setup_domain",
 ]

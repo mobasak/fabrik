@@ -17,6 +17,7 @@ from fabrik.drivers.wordpress_api import WordPressAPIClient, WPCredentials
 from fabrik.wordpress.spec_loader import load_spec
 from fabrik.wordpress.spec_validator import SpecValidator, ValidationError
 from fabrik.wordpress.page_generator import generate_pages
+from fabrik.wordpress.domain_setup import DomainSetup
 from fabrik.wordpress.settings import SettingsApplicator
 from fabrik.wordpress.theme import ThemeCustomizer
 from fabrik.wordpress.pages import PageCreator, CreatedPage
@@ -143,6 +144,9 @@ class SiteDeployer:
             self.log("DRY RUN MODE - no changes will be made", "warning")
         
         try:
+            # Step 1: Domain & DNS Setup
+            self._step_dns()
+            
             # Step 3: Settings & Cleanup
             self._step_settings()
             
@@ -180,6 +184,54 @@ class SiteDeployer:
         self._print_summary()
         
         return self.result
+    
+    def _step_dns(self):
+        """Configure DNS for the domain (Step 1)."""
+        step = "dns"
+        self.log(f"Step: {step}")
+        
+        try:
+            # Get VPS IP from spec or use default
+            deployment = self.spec.get("deployment", {})
+            vps_ip = deployment.get("vps_ip", "172.93.160.197")
+            proxied = deployment.get("cloudflare_proxy", True)
+            
+            if self.dry_run:
+                self.log(f"  Would configure DNS: {self.domain} → {vps_ip}")
+                self.log(f"  Cloudflare proxy: {proxied}")
+            else:
+                setup = DomainSetup(
+                    self.domain,
+                    vps_ip=vps_ip,
+                    proxied=proxied,
+                    dry_run=False
+                )
+                dns_result = setup.configure_dns()
+                setup.close()
+                
+                if dns_result.a_record_created:
+                    self.log(f"  A record: {self.domain} → {vps_ip}")
+                else:
+                    self.log(f"  A record already exists")
+                
+                if dns_result.dns_resolving:
+                    self.log(f"  DNS resolving: {dns_result.resolved_ips}")
+                
+                if dns_result.https_working:
+                    self.log(f"  HTTPS: working (status {dns_result.https_status_code})")
+                
+                for warning in dns_result.warnings:
+                    self.result.warnings.append(warning)
+                
+                if not dns_result.success:
+                    raise Exception("; ".join(dns_result.errors))
+            
+            self.result.steps_completed.append(step)
+            self.log(f"  DNS configured", "success")
+            
+        except Exception as e:
+            self.log(f"  DNS setup failed: {e}", "error")
+            self.result.steps_failed.append(step)
     
     def _step_settings(self):
         """Apply WordPress settings and cleanup defaults."""
