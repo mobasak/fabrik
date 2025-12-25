@@ -259,24 +259,20 @@ class SiteDeployer:
                 )
                 
                 # Build hierarchical page structure for PageCreator
-                # First pass: group children by parent
+                # First pass: group children by parent_slug (entity pages)
                 pages_by_parent = {}
                 top_level_specs = []
                 
                 for page_spec in page_specs:
-                    slug = page_spec.get('slug', '')
+                    parent_slug = page_spec.get('parent_slug')
                     
-                    if '/' in slug:
-                        # Child page - group by parent
-                        parts = slug.split('/')
-                        parent_slug = parts[0]
-                        child_slug = parts[1]
-                        
+                    if parent_slug:
+                        # Entity child page - group by parent
                         if parent_slug not in pages_by_parent:
                             pages_by_parent[parent_slug] = []
                         
                         pages_by_parent[parent_slug].append({
-                            'slug': child_slug,
+                            'slug': page_spec.get('slug', ''),
                             'title': page_spec.get('title', ''),
                             'content': page_spec.get('content', ''),
                             'status': page_spec.get('status', 'publish'),

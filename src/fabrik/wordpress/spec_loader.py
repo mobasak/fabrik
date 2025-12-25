@@ -148,7 +148,7 @@ class SpecLoader:
         
         - Top-level entities (services, features, products) → entities.*
         - Ensure entities namespace exists
-        - Handle preset entity config vs site entity data
+        - Preserve preset entity config (parent_page, page_template, etc.)
         """
         if "entities" not in spec:
             spec["entities"] = {}
@@ -159,15 +159,26 @@ class SpecLoader:
             if key in spec and key != "entities":
                 # Check if entities[key] exists and is a dict (preset config)
                 if key in spec["entities"] and isinstance(spec["entities"][key], dict):
-                    # Preset has config (enabled, parent_page, etc)
-                    # Site has data (list of items)
-                    # Keep config, add data as 'items' or replace with data
+                    # Preset has config dict (enabled, parent_page, page_template, etc.)
+                    # Site has data list
+                    # Preserve config, add data as 'items'
                     if isinstance(spec[key], list):
-                        # Site provides list, use it as the data
-                        spec["entities"][key] = spec[key]
+                        preset_config = spec["entities"][key].copy()
+                        preset_config["items"] = spec[key]
+                        spec["entities"][key] = preset_config
+                    else:
+                        # Site also has dict, merge it
+                        spec["entities"][key] = self._deep_merge(
+                            spec["entities"][key],
+                            spec[key]
+                        )
                 else:
                     # No preset config, just move the data
-                    spec["entities"][key] = spec[key]
+                    # Wrap list in dict with 'items' key for consistency
+                    if isinstance(spec[key], list):
+                        spec["entities"][key] = {"items": spec[key]}
+                    else:
+                        spec["entities"][key] = spec[key]
                 
                 # Remove from top level
                 del spec[key]

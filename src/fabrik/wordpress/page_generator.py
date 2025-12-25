@@ -117,45 +117,45 @@ class PageGenerator:
         pages = []
         entities = self.spec.get('entities', {})
         
-        # Services
-        services = entities.get('services', [])
-        if services and isinstance(services, list):
-            service_pages = self._generate_entity_pages(
-                services,
-                parent_slug='services',
-                template_name='service-detail'
-            )
-            pages.extend(service_pages)
+        # Process each entity type
+        entity_types = [
+            ('services', 'service-detail'),
+            ('features', 'feature-detail'),
+            ('products', 'product-detail'),
+            ('locations', 'location-detail'),
+        ]
         
-        # Features (for SaaS preset)
-        features = entities.get('features', [])
-        if features and isinstance(features, list):
-            feature_pages = self._generate_entity_pages(
-                features,
-                parent_slug='features',
-                template_name='feature-detail'
-            )
-            pages.extend(feature_pages)
-        
-        # Products (for ecommerce preset)
-        products = entities.get('products', [])
-        if products and isinstance(products, list):
-            product_pages = self._generate_entity_pages(
-                products,
-                parent_slug='products',
-                template_name='product-detail'
-            )
-            pages.extend(product_pages)
-        
-        # Locations (for multi-location businesses)
-        locations = entities.get('locations', [])
-        if locations and isinstance(locations, list):
-            location_pages = self._generate_entity_pages(
-                locations,
-                parent_slug='locations',
-                template_name='location-detail'
-            )
-            pages.extend(location_pages)
+        for entity_key, default_template in entity_types:
+            entity_config = entities.get(entity_key, {})
+            
+            # Skip if not enabled or no data
+            if not entity_config:
+                continue
+            
+            # Handle both dict (with config) and list (legacy)
+            if isinstance(entity_config, dict):
+                # New format: {items: [...], parent_page: "...", page_template: "..."}
+                items = entity_config.get('items', [])
+                parent_slug = entity_config.get('parent_page', entity_key)
+                template_name = entity_config.get('page_template', default_template)
+                
+                # Check if generation is enabled
+                if not entity_config.get('generate_pages', True):
+                    continue
+            else:
+                # Legacy format: direct list
+                items = entity_config if isinstance(entity_config, list) else []
+                parent_slug = entity_key
+                template_name = default_template
+            
+            # Generate pages for this entity type
+            if items:
+                entity_pages = self._generate_entity_pages(
+                    items,
+                    parent_slug=parent_slug,
+                    template_name=template_name
+                )
+                pages.extend(entity_pages)
         
         return pages
     
@@ -165,7 +165,12 @@ class PageGenerator:
         parent_slug: str,
         template_name: str
     ) -> list[dict]:
-        """Generate pages from entity list."""
+        """
+        Generate pages from entity list.
+        
+        Returns pages with child slug only (no slashes) and parent_slug for hierarchy.
+        The deployer will resolve parent_id and create proper parent-child relationships.
+        """
         pages = []
         
         # Get entity detail template
@@ -177,9 +182,6 @@ class PageGenerator:
             if not slug:
                 continue
             
-            # Build full slug (parent/child)
-            full_slug = f"{parent_slug}/{slug}"
-            
             # Get entity name
             name = self._get_localized_from_dict(entity, 'name')
             if not name:
@@ -189,14 +191,14 @@ class PageGenerator:
             content = self._render_entity_page(entity, detail_template)
             
             page = {
-                'slug': full_slug,
+                'slug': slug,  # Child slug only (no slashes)
                 'title': name,
                 'content': content,
                 'status': 'publish',
                 'template': detail_template.get('template', ''),
                 'source': 'entity',
-                'entity_type': parent_slug,
-                'entity_slug': slug,
+                'entity_type': parent_slug,  # Parent slug for hierarchy resolution
+                'parent_slug': parent_slug,  # Explicit parent reference
             }
             
             pages.append(page)

@@ -190,7 +190,13 @@ class SectionRenderer:
         show_summary = section.get('show_summary', True)
         
         # Get services from spec
-        services = self._resolve_ref(source) or []
+        services_data = self._resolve_ref(source) or []
+        
+        # Handle new entity config format: {items: [...], parent_page: "...", ...}
+        if isinstance(services_data, dict):
+            services = services_data.get('items', [])
+        else:
+            services = services_data
         
         html = f'''<!-- wp:heading {{"textAlign":"center"}} -->
 <h2 class="has-text-align-center">{headline}</h2>
