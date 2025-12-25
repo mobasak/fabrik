@@ -26,11 +26,19 @@ Services Fabrik needs to function.
 
 | Service | Container | Port | URL | Purpose |
 |---------|-----------|------|-----|---------|
-| Coolify | coolify | 443 | coolify.vps1.ocoron.com | Deployment control plane |
+| Coolify | coolify | 8000 | `https://vps1.ocoron.com:8000` | Deployment control plane |
 | PostgreSQL | postgres-main | 5432 | - | Shared database |
 | Redis | redis-main | 6379 | - | Caching (optional) |
-| Uptime Kuma | uptime-kuma | 3001 | status.vps1.ocoron.com | Monitoring |
-| Image Broker | image-broker | 8010 | images.vps1.ocoron.com | Stock image API |
+| Netdata | netdata | 19999 | `https://netdata.vps1.ocoron.com` | System monitoring |
+| Uptime Kuma | uptime-kuma | 3001 | `https://status.vps1.ocoron.com` | Service monitoring |
+| Duplicati | duplicati | 8200 | `https://backup.vps1.ocoron.com` | Backup management |
+| Image Broker | image-broker | 8010 | `https://images.vps1.ocoron.com` | Stock image API |
+| DNS Manager | dns-manager | 8001 | `https://dns.vps1.ocoron.com` | DNS record management |
+| Translator | translator | 8002 | `https://translator.vps1.ocoron.com` | Translation API |
+| Captcha | captcha | 8003 | `https://captcha.vps1.ocoron.com` | Anti-Captcha proxy |
+| File API | file-api | 8004 | `https://files-api.vps1.ocoron.com` | File storage API |
+
+See [docs/reference/vps-urls.md](reference/vps-urls.md) for complete URL reference.
 
 ## Startup Order
 
@@ -74,6 +82,18 @@ curl -s https://status.vps1.ocoron.com
 curl -s https://images.vps1.ocoron.com/api/v1/health
 ```
 
+### Netdata
+
+```bash
+curl -s https://netdata.vps1.ocoron.com
+```
+
+### DNS Manager
+
+```bash
+curl -s https://dns.vps1.ocoron.com/health
+```
+
 ## Quick Status Check
 
 ```bash
@@ -88,6 +108,12 @@ NAMES           STATUS
 coolify         Up 2 days
 postgres-main   Up 2 days
 redis-main      Up 2 days
+netdata         Up 2 days
 uptime-kuma     Up 2 days
+duplicati       Up 2 days
 image-broker    Up 1 hour (healthy)
+dns-manager     Up 2 days
+translator      Up 2 days
+captcha         Up 2 days
+file-api        Up 2 days
 ```
