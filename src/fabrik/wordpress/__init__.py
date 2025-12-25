@@ -53,6 +53,15 @@ from fabrik.wordpress.deployer import (
     SiteDeployer,
     deploy_site,
 )
+from fabrik.wordpress.spec_loader import (
+    SpecLoader,
+    load_spec,
+)
+from fabrik.wordpress.spec_validator import (
+    SpecValidator,
+    ValidationError,
+    validate_spec,
+)
 
 __all__ = [
     # Preset loader
@@ -98,4 +107,10 @@ __all__ = [
     "DeploymentResult",
     "SiteDeployer",
     "deploy_site",
+    # Spec loader & validator
+    "SpecLoader",
+    "load_spec",
+    "SpecValidator",
+    "ValidationError",
+    "validate_spec",
 ]
