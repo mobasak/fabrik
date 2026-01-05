@@ -10,7 +10,7 @@ This folder contains documentation for optimizing Windsurf IDE and Cascade AI fo
 
 | Document | Description |
 |----------|-------------|
-| [recommended-extensions.md](recommended-extensions.md) | Curated extensions list |
+| [Recommended Extensions](recommended-extensions.md) | Curated extensions list |
 | cascade-optimization.md | Best practices for Cascade AI (planned) |
 | keybindings.md | Custom keyboard shortcuts (planned) |
 | settings-sync.md | Settings to sync across machines (planned) |

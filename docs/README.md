@@ -60,7 +60,7 @@ docs/
 │   ├── uptime-kuma.md              # Uptime Kuma runbook
 │   ├── verification-framework.md   # 3-lane verification system
 │   ├── windsurf/                   # Windsurf IDE optimization
-│   │   ├── README.md               # Windsurf optimization overview
+│   │   ├── overview.md             # Windsurf optimization overview
 │   │   └── recommended-extensions.md # Curated extensions list
 │   └── wordpress/                  # WordPress technical docs
 │       ├── architecture.md         # WordPress v2 spec system
