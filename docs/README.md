@@ -63,6 +63,7 @@ docs/
 │   │   ├── overview.md             # Windsurf optimization overview
 │   │   ├── recommended-extensions.md # Curated extensions list
 │   │   ├── cascade-models.md       # Cascade models and credits (source of truth)
+│   │   ├── cascade-guide.md        # Cascade modes, checkpoints, tools
 │   │   ├── features.md             # Command, Editor, Terminal features
 │   │   └── csharp-cpp-setup.md     # C#/.NET/C++ setup (not used by Fabrik)
 │   └── wordpress/                  # WordPress technical docs
