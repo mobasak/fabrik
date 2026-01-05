@@ -59,12 +59,14 @@ docs/
 │   ├── trueforge-images.md         # Trueforge image catalog
 │   ├── uptime-kuma.md              # Uptime Kuma runbook
 │   ├── verification-framework.md   # 3-lane verification system
+│   ├── windsurf/                   # Windsurf IDE optimization
+│   │   ├── README.md               # Windsurf optimization overview
+│   │   └── recommended-extensions.md # Curated extensions list
 │   └── wordpress/                  # WordPress technical docs
 │       ├── architecture.md         # WordPress v2 spec system
 │       ├── fixes.md                # Critical fixes
 │       ├── pages-idempotency.md    # Page creation idempotency
 │       ├── plugin-stack.md         # Curated plugin stack
-│       ├── plugin-evaluation.md    # Plugin evaluation
 │       └── site-specification.md   # Site spec YAML format
 ├── operations/
 │   ├── vps-status.md               # Current VPS state and configuration
