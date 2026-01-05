@@ -2,10 +2,9 @@
 
 **Last Updated:** 2026-01-05
 
-> ⚠️ **Manual Updates Required**
+> 📋 **Source:** `scripts/droid_models.py` contains the authoritative model list.
 >
-> Windsurf updates models frequently. This document may become outdated.
-> Check [Windsurf Docs](https://docs.windsurf.com) for the latest model list.
+> Run `python scripts/droid_models.py windsurf` to see all models.
 
 ---
 
@@ -13,58 +12,117 @@
 
 In Cascade, switch models via the dropdown under the text input box. Each model consumes different prompt credits.
 
----
-
-## Available Models
-
-### SWE Models (Windsurf In-House)
-
-| Model | Credits | Description |
-|-------|---------|-------------|
-| **SWE-1.5** | 0.5 | Best agentic coding model. Near Claude 4.5-level performance at 13x speed |
-| SWE-1 | - | First agentic model. Claude 3.5-level performance at lower cost |
-| SWE-1-mini | - | Powers Tab suggestions, optimized for real-time latency |
-| swe-grep | - | Powers context retrieval and Fast Context |
-
-### Claude Models (Anthropic)
-
-| Model | Credits | Notes |
-|-------|---------|-------|
-| Claude Haiku 4.5 | 1 | Fast, available on all tiers including Trial |
-| Claude Sonnet 4.5 | 2 | Balanced performance/cost |
-| Claude Sonnet 4.5 (Thinking) | 3 | Extended reasoning |
-| Claude Opus 4.5 | 4 | Highest quality |
-| Claude Opus 4.5 (Thinking) | 5 | Extended reasoning, premium |
-
-### Gemini Models (Google)
-
-| Model | Credits | Reasoning Level |
-|-------|---------|-----------------|
-| Gemini 3.0 Pro (minimal) | 1 | Minimal reasoning |
-| Gemini 3.0 Pro (low) | 1 | Low reasoning |
-| Gemini 3.0 Pro (medium) | 1.5 | Medium reasoning |
-| Gemini 3.0 Pro (high) | 2 | High reasoning |
-
-### GPT Models (OpenAI)
-
-| Model | Credits | Reasoning Level |
-|-------|---------|-----------------|
-| GPT-5.2 (No Reasoning) | 1 | No extended reasoning |
-| GPT-5.2 (Low Reasoning) | 1 | Low reasoning |
-| GPT-5.2 (Medium Reasoning) | 1.5 | Medium reasoning |
-| GPT-5.2 (High Reasoning) | 2 | High reasoning |
+**Total Models:** 63 across 5 tiers
 
 ---
 
-## Tier Availability
+## Free Tier (11 models)
 
-| Tier | SWE-1.5 | Claude Sonnet | Claude Opus | Haiku | Gemini | GPT |
-|------|---------|---------------|-------------|-------|--------|-----|
-| **Free** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Pro** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Teams** | ✅ | ✅ (3 credits) | ✅ (6 credits) | ✅ | ✅ | ✅ |
-| **Enterprise** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Trial** | - | - | - | ✅ | ✅ | ✅ |
+| Model | Credits |
+|-------|---------|
+| Penguin Alpha | Free |
+| **SWE-1** | Free |
+| **SWE-1.5** | Free |
+| GPT-5.1-Codex | Free |
+| GPT-5.1-Codex Low | Free |
+| GPT-5.1-Codex Max Low | Free |
+| GPT-5.1-Codex Mini | Free |
+| GPT-5.1-Codex Mini Low | Free |
+| DeepSeek R1 (0528) | Free |
+| DeepSeek V3 (0324) | Free |
+| Grok Code Fast 1 | Free |
+
+---
+
+## Budget Tier (14 models, 0.125x - 0.5x)
+
+| Model | Credits |
+|-------|---------|
+| xAI Grok-3 mini (Thinking) | 0.125x |
+| Gemini 3 Flash Low | 0.25x |
+| Gemini 3 Flash Minimal | 0.25x |
+| GPT-OSS 120B (Medium) | 0.25x |
+| Gemini 3 Flash Medium | 0.375x |
+| SWE-1.5 Fast | 0.5x |
+| GPT-5 (Low Reasoning) | 0.5x |
+| GPT-5.1 (No Reasoning) | 0.5x |
+| GPT-5.1 (Low Reasoning) | 0.5x |
+| GPT-5.1-Codex Max Medium | 0.5x |
+| Kimi K2 | 0.5x |
+| Minimax M2 | 0.5x |
+| Qwen3-Coder | 0.5x |
+| Gemini 3 Flash High | 0.5x |
+
+---
+
+## Standard Tier (13 models, 1x)
+
+| Model | Credits |
+|-------|---------|
+| Claude Haiku 4.5 | 1x |
+| Gemini 2.5 Pro | 1x |
+| Gemini 3 Pro Low | 1x |
+| GPT-4.1 | 1x |
+| GPT-4o | 1x |
+| GPT-5 (Medium Reasoning) | 1x |
+| GPT-5.1 (Medium Reasoning) | 1x |
+| GPT-5.1 (No Reasoning, Priority) | 1x |
+| GPT-5.1 (Low, Priority) | 1x |
+| GPT-5.2 No Reasoning | 1x |
+| GPT-5.2 Low Reasoning | 1x |
+| o3 | 1x |
+| o3 (High Reasoning) | 1x |
+
+---
+
+## Premium Tier (15 models, 2x - 3x)
+
+| Model | Credits |
+|-------|---------|
+| Claude 3.5 Sonnet | 2x |
+| Claude 3.7 Sonnet | 2x |
+| Claude Sonnet 4 | 2x |
+| Claude Sonnet 4.5 | 2x |
+| Gemini 3 Pro High | 2x |
+| GPT-5 (High Reasoning) | 2x |
+| GPT-5.1 (High Reasoning) | 2x |
+| GPT-5.1 (Medium, Priority) | 2x |
+| GPT-5.2 No Reasoning Fast | 2x |
+| GPT-5.2 Low Reasoning Fast | 2x |
+| GPT-5.2 Medium Reasoning | 2x |
+| Claude 3.7 Sonnet (Thinking) | 3x |
+| Claude Sonnet 4 (Thinking) | 3x |
+| Claude Sonnet 4.5 (Thinking) | 3x |
+| GPT-5.2 High Reasoning | 3x |
+
+---
+
+## Ultra Tier (10 models, 4x - 20x)
+
+| Model | Credits |
+|-------|---------|
+| Claude Opus 4.5 | 4x |
+| GPT-5.1 (High, Priority) | 4x |
+| GPT-5.2 Medium Reasoning Fast | 4x |
+| Claude Opus 4.5 (Thinking) | 5x |
+| GPT-5.2 High Reasoning Fast | 6x |
+| GPT-5.2 X-High Reasoning | 8x |
+| Claude Sonnet 4.5 (1M) | 10x |
+| GPT-5.2 X-High Reasoning Fast | 16x |
+| Claude Opus 4.1 | 20x |
+| Claude Opus 4.1 (Thinking) | 20x |
+
+---
+
+## SWE Models (Windsurf In-House)
+
+| Model | Description |
+|-------|-------------|
+| **SWE-1.5** | Best agentic coding model. Near Claude 4.5-level at 13x speed |
+| SWE-1.5 Fast | Faster variant (0.5x credits) |
+| SWE-1 | First agentic model. Claude 3.5-level at lower cost |
+| SWE-1-mini | Powers Tab suggestions, real-time latency |
+| swe-grep | Powers context retrieval and Fast Context |
 
 ---
 
@@ -84,25 +142,40 @@ Supported BYOK models:
 
 ## Fabrik Recommendations
 
-For Fabrik workflow, recommended models by task:
-
-| Task | Recommended Model | Why |
-|------|-------------------|-----|
-| **Quick edits** | SWE-1.5 (0.5 credits) | Fast, cheap, good for routine work |
-| **Complex refactoring** | Claude Sonnet 4.5 | Good balance of quality/cost |
-| **Architecture planning** | Claude Opus 4.5 (Thinking) | Deep reasoning needed |
-| **Exploration/research** | Gemini 3.0 Pro (low) | Cheap exploration |
-| **Code review** | SWE-1.5 or Claude Sonnet | Context-aware analysis |
+| Task | Recommended Model | Credits |
+|------|-------------------|---------|
+| **Quick edits** | SWE-1.5 | Free |
+| **Fast iteration** | GPT-5.1-Codex | Free |
+| **Bulk exploration** | Gemini 3 Flash Low | 0.25x |
+| **Complex refactoring** | Claude Sonnet 4.5 | 2x |
+| **Architecture planning** | Claude Opus 4.5 (Thinking) | 5x |
+| **Code review** | SWE-1.5 or Claude Sonnet | Free/2x |
 
 ---
 
 ## Credit Optimization Tips
 
-1. **Start with SWE-1.5** (0.5 credits) for most tasks
-2. **Escalate to Sonnet** when SWE-1.5 struggles
-3. **Use Opus sparingly** for complex architectural decisions
-4. **Gemini low/minimal** for bulk exploration
-5. **Thinking models** only when extended reasoning helps
+1. **Start with Free tier** - SWE-1.5, DeepSeek, GPT-5.1-Codex
+2. **Use Budget for bulk work** - Gemini Flash variants (0.25x)
+3. **Standard for quality** - Claude Haiku, o3
+4. **Premium sparingly** - Sonnet for complex tasks
+5. **Ultra rarely** - Opus only for critical decisions
+
+---
+
+## CLI Commands
+
+```bash
+# List all Windsurf models
+python scripts/droid_models.py windsurf
+
+# Filter by tier
+python scripts/droid_models.py windsurf free     # 11 models
+python scripts/droid_models.py windsurf budget   # 14 models
+python scripts/droid_models.py windsurf standard # 13 models
+python scripts/droid_models.py windsurf premium  # 15 models
+python scripts/droid_models.py windsurf ultra    # 10 models
+```
 
 ---
 
