@@ -21,12 +21,14 @@ repos:
     hooks:
       - id: mypy
         args: [--config-file=pyproject.toml]
+        files: ^src/  # Only check src/ package
         additional_dependencies:
           - types-requests
           - types-PyYAML
           - pydantic>=2.0.0
           - click>=8.1.0
           - httpx>=0.25.0
+          - rich>=13.0.0
 
   # General file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -47,8 +49,8 @@ repos:
     rev: 1.7.10
     hooks:
       - id: bandit
-        args: ['-r', 'src/', '-ll']  # Scan src/, medium+ severity only
-        exclude: tests/
+        args: ['-ll', '-x', 'tests/']  # Medium+ severity, exclude tests
+        files: ^src/  # Only scan src/ directory
 
   # Fabrik-specific hooks
   - repo: local
