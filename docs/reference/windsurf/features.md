@@ -99,29 +99,6 @@ Commands that never auto-execute.
 
 Example: Add `rm` → `rm index.py` always asks permission.
 
-### Fabrik Recommended Lists
-
-**Allow:**
-```
-git
-npm
-pip
-python
-pytest
-docker compose
-ls
-cat
-```
-
-**Deny:**
-```
-rm -rf
-sudo
-dd
-mkfs
-shutdown
-```
-
 ---
 
 ## Dedicated Terminal (Wave 13+)
@@ -155,6 +132,107 @@ If issues with dedicated terminal:
 
 ---
 
+## Windsurf Previews
+
+View local deployment of your app in IDE or browser with listeners for rapid iteration.
+
+### Usage
+
+- Ask Cascade to "preview your site"
+- Or click **Web icon** in Cascade toolbar
+
+### Send Elements to Cascade
+
+1. Click **"Send element"** button (bottom right of Preview)
+2. Select element in the preview
+3. Element appears as `@mention` in Cascade prompt
+4. Add multiple elements to same prompt
+
+### Browser Support
+
+Optimized for: **Chrome, Arc, Chromium-based browsers**
+
+### Disable
+
+Windsurf Settings → Disable Windsurf Previews
+
+---
+
+## AI Commit Messages
+
+Generate git commit messages with one click. **Available to all paid users with no limits.**
+
+### Usage
+
+1. Stage files in Git panel
+2. Click **sparkle (✨) icon** next to commit message field
+3. Review/edit generated message
+4. Complete commit
+
+### Best Practices
+
+- Group small, meaningful units of changes
+- Review message before committing
+
+### Privacy
+
+Code and commit messages remain private. Not stored or used for training.
+
+---
+
+## DeepWiki
+
+Get detailed explanations of code symbols - better than basic hover cards.
+
+### Usage
+
+| Action | How |
+|--------|-----|
+| Open DeepWiki | `Cmd/Ctrl + Shift + Click` on symbol |
+| Send to Cascade | Click `⋮` → "Add to Cascade" |
+
+### Location
+
+Found in **Primary Side Bar / Activity Bar**
+
+---
+
+## Codemaps (Beta)
+
+Hierarchical maps for codebase understanding. Shows execution order and component relationships.
+
+### What It Does
+
+- Maps how everything works together
+- Shows execution order of code/files
+- Shows component relationships
+- Click any node → jump to that file/function
+
+### Access
+
+| Method | How |
+|--------|-----|
+| Activity Bar | Left side panel |
+| Command Palette | `Cmd/Ctrl + Shift + P` → "Focus on Codemaps View" |
+
+### Creating a Codemap
+
+1. Open Codemaps panel
+2. Select suggested topic OR type custom prompt
+3. Or generate from bottom of Cascade conversation
+
+### Sharing
+
+- Share as links viewable in browser
+- Enterprise: Requires opt-in (stored on servers)
+- Team Codemaps require authentication to view
+
+### Use with Cascade
+
+`@mention` a Codemap to include as context in conversations.
+
+---
+
 ## Quick Reference
 
 | Feature | Shortcut | Credits |
@@ -164,6 +242,8 @@ If issues with dedicated terminal:
 | **Reject** | `Cmd/Ctrl + Delete` | - |
 | **Send to Cascade** | `Cmd/Ctrl + L` | - |
 | **Cascade Chat** | `Cmd/Ctrl + Shift + L` | Model-dependent |
+| **DeepWiki** | `Cmd/Ctrl + Shift + Click` | - |
+| **AI Commit** | Click ✨ in Git panel | Paid users |
 
 ---
 
