@@ -74,7 +74,7 @@ From [Windsurf Docs - Recommended Extensions](https://docs.windsurf.com):
 | GitLens | Code authorship visualization | ✅ Installed |
 | GitHub Pull Requests | PR management in IDE | ✅ Installed |
 | GitLab Workflow | GitLab integration | ⬜ Not needed |
-| Mermaid Markdown Preview | Diagram rendering | ⬜ Optional |
+| Mermaid Markdown Preview | Diagram rendering | ✅ Installed |
 | Visual Studio Keybindings | VS keyboard shortcuts | ⬜ Personal pref |
 | Eclipse Keymap | Eclipse shortcuts | ⬜ Personal pref |
 
