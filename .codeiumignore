@@ -1,9 +1,7 @@
 # Fabrik .codeiumignore
 # Prevents Cascade from viewing, editing, or creating these files
 
-# Environment and secrets
-.env
-.env.*
+# Keys and certificates (but NOT .env - Cascade needs to manage credentials)
 *.key
 *.pem
 secrets/

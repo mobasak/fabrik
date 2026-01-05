@@ -189,8 +189,7 @@ All commands execute without permission prompts (except deny list).
 
 ```
 # Fabrik .codeiumignore
-.env
-.env.*
+# NOT .env - Cascade needs to manage credentials
 *.key
 *.pem
 secrets/
