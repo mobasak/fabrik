@@ -233,6 +233,65 @@ Hierarchical maps for codebase understanding. Shows execution order and componen
 
 ---
 
+## Web and Docs Search
+
+Cascade can browse the internet like a human - search, evaluate results, skim pages, read relevant chunks.
+
+### Activation Methods
+
+| Method | When to Use |
+|--------|-------------|
+| **Natural question** | "What's new in React 19?" - auto-detects need |
+| **@web** | Force web search |
+| **@docs** | Query supported documentation (high quality) |
+| **Paste URL** | Direct page read (skips search) |
+
+### Credit Model
+
+Typical web search flow:
+
+| Step | Credits |
+|------|---------|
+| Web search | 1 |
+| Read page + outline | 1 |
+| Read content chunks | 1 per chunk |
+| Generate output | 1 |
+
+**Typical task: 3-6 credits total**
+
+### Optimization Strategies
+
+**DO:**
+- Be specific in questions → fewer chunks read
+- Ask one task at a time
+- Prefer URLs over vague searches when you know the source
+- Use `@docs` for known APIs/platforms
+
+**DON'T:**
+- Ask for broad summaries unless needed
+- Regenerate outputs unnecessarily
+- Do exploratory searches when you know the answer
+
+### Mental Model
+
+```
+Search once → Read narrowly → Generate once
+```
+
+### Optimal Usage Pattern
+
+1. **Default:** Natural questions (Cascade auto-detects)
+2. **Once you know the source:** Switch to direct URLs or `@docs`
+3. **Target:** 3-6 credits per task
+
+### Page Reading Notes
+
+- Reads happen on your device (VPN-friendly)
+- Not all pages can be parsed - file feature requests for specific sites
+- Long pages are skimmed, only relevant sections read
+
+---
+
 ## App Deploys (Beta)
 
 Deploy web apps directly from Cascade to public URLs.
