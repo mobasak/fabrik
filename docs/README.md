@@ -61,7 +61,8 @@ docs/
 │   ├── verification-framework.md   # 3-lane verification system
 │   ├── windsurf/                   # Windsurf IDE optimization
 │   │   ├── overview.md             # Windsurf optimization overview
-│   │   └── recommended-extensions.md # Curated extensions list
+│   │   ├── recommended-extensions.md # Curated extensions list
+│   │   └── csharp-cpp-setup.md     # C#/.NET/C++ setup (not used by Fabrik)
 │   └── wordpress/                  # WordPress technical docs
 │       ├── architecture.md         # WordPress v2 spec system
 │       ├── fixes.md                # Critical fixes
