@@ -62,6 +62,7 @@ docs/
 │   ├── windsurf/                   # Windsurf IDE optimization
 │   │   ├── overview.md             # Windsurf optimization overview
 │   │   ├── recommended-extensions.md # Curated extensions list
+│   │   ├── cascade-models.md       # Cascade models and credits
 │   │   └── csharp-cpp-setup.md     # C#/.NET/C++ setup (not used by Fabrik)
 │   └── wordpress/                  # WordPress technical docs
 │       ├── architecture.md         # WordPress v2 spec system
