@@ -233,6 +233,113 @@ Hierarchical maps for codebase understanding. Shows execution order and componen
 
 ---
 
+## Vibe and Replace
+
+Evolution of find/replace - search for exact text matches and apply an AI prompt to each replacement.
+
+### Modes
+
+| Mode | Description |
+|------|-------------|
+| **Smart** | Slower model, more careful changes |
+| **Fast** | Faster model, quick changes |
+
+Toggle via `⌄` button next to prompt box.
+
+---
+
+## Advanced Settings
+
+Access: **Windsurf Settings** (top right dropdown or `Cmd/Ctrl + Shift + P` → "Open Windsurf Settings Page")
+
+### Cascade Gitignore Access
+
+Allow Cascade to access files matching `.gitignore` patterns.
+
+**Default:** Off (recommended for security - keeps `.env` protected)
+
+### Extension Marketplace
+
+Change marketplace URL under General section if needed.
+
+---
+
+## SSH Support
+
+Windsurf's own SSH implementation (not Microsoft's licensed version).
+
+### Requirements
+
+- OpenSSH installed
+- Linux-based remote hosts only
+
+### Usage
+
+- Command Palette → **Remote-SSH**
+- Or click **Open a Remote Window** (bottom left)
+
+### Known Limitations
+
+- Linux remote hosts only
+- Don't install Microsoft "Remote - SSH" extension (conflicts)
+- DevContainer on remote host requires manual SSH daemon setup
+- SSH agent-forwarding on by default
+
+### Troubleshooting
+
+1. Verify `ssh` works in regular terminal first
+2. Check **Output > Remote SSH (Windsurf)** tab
+
+---
+
+## Dev Containers
+
+Supports Development Containers on Mac, Windows, Linux (local and remote via SSH).
+
+### Prerequisites
+
+| Environment | Requirement |
+|-------------|-------------|
+| **Local** | Docker installed and accessible |
+| **Remote (SSH)** | Docker on remote host, `devcontainer.json` in project |
+
+### Commands (Command Palette)
+
+| Command | Description |
+|---------|-------------|
+| `Dev Containers: Open Folder in Container` | Open workspace with devcontainer.json |
+| `Dev Containers: Reopen in Container` | Reopen current workspace in container |
+| `Dev Containers: Attach to Running Container` | Attach to existing Docker container |
+| `Dev Containers: Reopen Folder Locally` | Disconnect and reopen locally |
+| `Dev Containers: Show Windsurf Dev Containers Log` | View logs for troubleshooting |
+
+---
+
+## WSL Support (Beta)
+
+Windows Subsystem for Linux support as of v1.1.0.
+
+### Requirements
+
+- WSL already set up and configured on Windows
+
+### Usage
+
+- Click **Open a Remote Window** (bottom left)
+- Or Command Palette → **Remote-WSL**
+
+---
+
+## Windsurf Pyright
+
+Fast, Pylance-like Python language server.
+
+**Install:** Search "Windsurf Pyright" or `@id:codeium.windsurfPyright`
+
+**Status:** ✅ Already installed in Fabrik
+
+---
+
 ## Quick Reference
 
 | Feature | Shortcut | Credits |
@@ -244,6 +351,7 @@ Hierarchical maps for codebase understanding. Shows execution order and componen
 | **Cascade Chat** | `Cmd/Ctrl + Shift + L` | Model-dependent |
 | **DeepWiki** | `Cmd/Ctrl + Shift + Click` | - |
 | **AI Commit** | Click ✨ in Git panel | Paid users |
+| **Vibe and Replace** | Find/Replace panel | - |
 
 ---
 
