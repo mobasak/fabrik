@@ -1,0 +1,70 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/fabrik/.factory/hooks/protect-files.sh",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/fabrik/.factory/hooks/log-commands.sh",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/fabrik/.factory/hooks/fabrik-conventions.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "/opt/fabrik/.factory/hooks/secret-scanner.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "/opt/fabrik/.factory/hooks/format-python.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/fabrik/.factory/hooks/session-context.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/fabrik/.factory/hooks/notify.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

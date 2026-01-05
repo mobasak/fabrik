@@ -1,3 +1,5 @@
+> **Phase Navigation:** [← Phase 7](Phase7.md) | **Phase 8** | [All Phases](roadmap.md)
+
 ## Phase 8: Business Automation with n8n — Complete Narrative
 
 **Status: ❌ Not Started**
@@ -410,7 +412,7 @@ add_action('wpcf7_mail_sent', 'send_to_n8n');
 function send_to_n8n($contact_form) {
     $submission = WPCF7_Submission::get_instance();
     $data = $submission->get_posted_data();
-    
+
     wp_remote_post('https://auto.yourdomain.com/webhook/lead-capture', [
         'body' => json_encode([
             'name' => $data['your-name'],
@@ -1367,11 +1369,11 @@ from typing import Optional
 
 class N8NWorkflowTemplates:
     """Library of reusable n8n workflow templates."""
-    
+
     def __init__(self, templates_dir: str = "templates/n8n"):
         self.templates_dir = Path(templates_dir)
         self.templates_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def save_template(self, name: str, workflow: dict, description: str = ""):
         """Save workflow as template."""
         template = {
@@ -1380,47 +1382,47 @@ class N8NWorkflowTemplates:
             "workflow": workflow,
             "variables": self._extract_variables(workflow)
         }
-        
+
         path = self.templates_dir / f"{name}.json"
         with open(path, 'w') as f:
             json.dump(template, f, indent=2)
-    
+
     def load_template(self, name: str) -> dict:
         """Load workflow template."""
         path = self.templates_dir / f"{name}.json"
         with open(path) as f:
             return json.load(f)
-    
+
     def instantiate(self, name: str, variables: dict) -> dict:
         """
         Create workflow from template with variables replaced.
-        
+
         Variables in templates use {{variable_name}} syntax.
         """
         template = self.load_template(name)
         workflow = template['workflow']
-        
+
         # Replace variables in workflow JSON
         workflow_str = json.dumps(workflow)
-        
+
         for var_name, var_value in variables.items():
             workflow_str = workflow_str.replace(f"{{{{var_{var_name}}}}}", str(var_value))
-        
+
         return json.loads(workflow_str)
-    
+
     def _extract_variables(self, workflow: dict) -> list:
         """Extract variable names from workflow."""
         workflow_str = json.dumps(workflow)
-        
+
         import re
         matches = re.findall(r'\{\{var_(\w+)\}\}', workflow_str)
-        
+
         return list(set(matches))
-    
+
     def list_templates(self) -> list[dict]:
         """List all available templates."""
         templates = []
-        
+
         for path in self.templates_dir.glob("*.json"):
             with open(path) as f:
                 data = json.load(f)
@@ -1429,7 +1431,7 @@ class N8NWorkflowTemplates:
                     "description": data.get('description', ''),
                     "variables": data.get('variables', [])
                 })
-        
+
         return templates
 
 
@@ -1585,11 +1587,11 @@ def load_env():
 
 class N8NClient:
     """Client for n8n API."""
-    
+
     def __init__(self):
         self.base_url = os.environ.get('N8N_URL', 'https://auto.yourdomain.com')
         self.api_key = os.environ.get('N8N_API_KEY', '')
-        
+
         self.client = httpx.Client(
             base_url=f"{self.base_url}/api/v1",
             headers={
@@ -1598,49 +1600,49 @@ class N8NClient:
             },
             timeout=30
         )
-    
+
     def list_workflows(self) -> list:
         """List all workflows."""
         resp = self.client.get('/workflows')
         return resp.json().get('data', [])
-    
+
     def get_workflow(self, workflow_id: str) -> dict:
         """Get workflow by ID."""
         resp = self.client.get(f'/workflows/{workflow_id}')
         return resp.json()
-    
+
     def create_workflow(self, workflow: dict) -> dict:
         """Create new workflow."""
         resp = self.client.post('/workflows', json=workflow)
         return resp.json()
-    
+
     def update_workflow(self, workflow_id: str, workflow: dict) -> dict:
         """Update existing workflow."""
         resp = self.client.put(f'/workflows/{workflow_id}', json=workflow)
         return resp.json()
-    
+
     def activate_workflow(self, workflow_id: str) -> bool:
         """Activate workflow."""
         resp = self.client.post(f'/workflows/{workflow_id}/activate')
         return resp.status_code == 200
-    
+
     def deactivate_workflow(self, workflow_id: str) -> bool:
         """Deactivate workflow."""
         resp = self.client.post(f'/workflows/{workflow_id}/deactivate')
         return resp.status_code == 200
-    
+
     def execute_workflow(self, workflow_id: str, data: dict = None) -> dict:
         """Execute workflow manually."""
         body = {'workflowData': data} if data else {}
         resp = self.client.post(f'/workflows/{workflow_id}/run', json=body)
         return resp.json()
-    
+
     def list_executions(self, workflow_id: str = None, limit: int = 20) -> list:
         """List workflow executions."""
         params = {'limit': limit}
         if workflow_id:
             params['workflowId'] = workflow_id
-        
+
         resp = self.client.get('/executions', params=params)
         return resp.json().get('data', [])
 
@@ -1657,38 +1659,38 @@ def automation():
 @click.option('--active-only', is_flag=True, help='Show only active workflows')
 def list_workflows(active_only):
     """List all n8n workflows."""
-    
+
     n8n = N8NClient()
     workflows = n8n.list_workflows()
-    
+
     if active_only:
         workflows = [w for w in workflows if w.get('active')]
-    
+
     if not workflows:
         click.echo("No workflows found.")
         return
-    
+
     click.echo("\n" + "=" * 70)
     click.echo(f"  {'ID':<10} {'NAME':<35} {'ACTIVE':<10} {'UPDATED':<15}")
     click.echo("=" * 70)
-    
+
     for w in workflows:
         active = click.style('✓', fg='green') if w.get('active') else click.style('✗', fg='red')
         updated = w.get('updatedAt', '')[:10]
-        
+
         click.echo(f"  {w['id']:<10} {w['name'][:35]:<35} {active:<10} {updated:<15}")
-    
+
     click.echo("=" * 70 + "\n")
 
 @automation.command('status')
 @click.argument('workflow_id')
 def workflow_status(workflow_id):
     """Show workflow status and recent executions."""
-    
+
     n8n = N8NClient()
-    
+
     workflow = n8n.get_workflow(workflow_id)
-    
+
     click.echo(f"\n{'=' * 60}")
     click.echo(f"  Workflow: {workflow['name']}")
     click.echo(f"{'=' * 60}")
@@ -1697,26 +1699,26 @@ def workflow_status(workflow_id):
     click.echo(f"  Created: {workflow.get('createdAt', 'N/A')}")
     click.echo(f"  Updated: {workflow.get('updatedAt', 'N/A')}")
     click.echo(f"  Nodes:   {len(workflow.get('nodes', []))}")
-    
+
     # Get recent executions
     executions = n8n.list_executions(workflow_id=workflow_id, limit=5)
-    
+
     if executions:
         click.echo(f"\n  Recent Executions:")
         for ex in executions:
             status = '✓' if ex.get('finished') and not ex.get('stoppedAt') else '✗'
             started = ex.get('startedAt', '')[:19]
             click.echo(f"    {status} {ex['id']} - {started}")
-    
+
     click.echo("")
 
 @automation.command('activate')
 @click.argument('workflow_id')
 def activate(workflow_id):
     """Activate a workflow."""
-    
+
     n8n = N8NClient()
-    
+
     if n8n.activate_workflow(workflow_id):
         click.echo(f"✓ Workflow {workflow_id} activated")
     else:
@@ -1726,9 +1728,9 @@ def activate(workflow_id):
 @click.argument('workflow_id')
 def deactivate(workflow_id):
     """Deactivate a workflow."""
-    
+
     n8n = N8NClient()
-    
+
     if n8n.deactivate_workflow(workflow_id):
         click.echo(f"✓ Workflow {workflow_id} deactivated")
     else:
@@ -1739,15 +1741,15 @@ def deactivate(workflow_id):
 @click.option('--data', type=str, help='JSON data to pass to workflow')
 def run(workflow_id, data):
     """Manually execute a workflow."""
-    
+
     n8n = N8NClient()
-    
+
     payload = json.loads(data) if data else None
-    
+
     click.echo(f"Executing workflow {workflow_id}...")
-    
+
     result = n8n.execute_workflow(workflow_id, payload)
-    
+
     if result.get('data', {}).get('executionId'):
         click.echo(f"✓ Execution started: {result['data']['executionId']}")
     else:
@@ -1760,19 +1762,19 @@ def run(workflow_id, data):
 @automation.command('templates')
 def list_templates():
     """List available workflow templates."""
-    
+
     from compiler.n8n.templates import N8NWorkflowTemplates
-    
+
     templates = N8NWorkflowTemplates()
     template_list = templates.list_templates()
-    
+
     if not template_list:
         click.echo("No templates found.")
         return
-    
+
     click.echo("\nAvailable Templates:")
     click.echo("-" * 50)
-    
+
     for t in template_list:
         click.echo(f"\n  {t['name']}")
         click.echo(f"    {t['description']}")
@@ -1784,29 +1786,29 @@ def list_templates():
 @click.option('--var', multiple=True, help='Variable in format name=value')
 def create_from_template(template_name, var):
     """Create workflow from template."""
-    
+
     from compiler.n8n.templates import N8NWorkflowTemplates
-    
+
     templates = N8NWorkflowTemplates()
     n8n = N8NClient()
-    
+
     # Parse variables
     variables = {}
     for v in var:
         if '=' in v:
             name, value = v.split('=', 1)
             variables[name] = value
-    
+
     # Instantiate template
     try:
         workflow = templates.instantiate(template_name, variables)
     except FileNotFoundError:
         click.echo(f"Template not found: {template_name}")
         raise click.Abort()
-    
+
     # Create in n8n
     result = n8n.create_workflow(workflow)
-    
+
     if result.get('id'):
         click.echo(f"✓ Workflow created: {result['id']}")
         click.echo(f"  Name: {result['name']}")
@@ -1824,29 +1826,29 @@ def create_from_template(template_name, var):
 @click.option('--failed-only', is_flag=True, help='Show only failed executions')
 def executions(workflow_id, limit, failed_only):
     """List recent workflow executions."""
-    
+
     n8n = N8NClient()
-    
+
     execs = n8n.list_executions(workflow_id=workflow_id, limit=limit)
-    
+
     if failed_only:
         execs = [e for e in execs if e.get('stoppedAt')]
-    
+
     if not execs:
         click.echo("No executions found.")
         return
-    
+
     click.echo("\n" + "=" * 80)
     click.echo(f"  {'ID':<12} {'WORKFLOW':<30} {'STATUS':<10} {'STARTED':<20}")
     click.echo("=" * 80)
-    
+
     for ex in execs:
         status = click.style('✓', fg='green') if ex.get('finished') and not ex.get('stoppedAt') else click.style('✗', fg='red')
         started = ex.get('startedAt', '')[:19]
         wf_name = ex.get('workflowData', {}).get('name', 'N/A')[:30]
-        
+
         click.echo(f"  {ex['id']:<12} {wf_name:<30} {status:<10} {started:<20}")
-    
+
     click.echo("=" * 80 + "\n")
 
 # ─────────────────────────────────────────────────────────────
@@ -1856,15 +1858,15 @@ def executions(workflow_id, limit, failed_only):
 @automation.command('webhooks')
 def list_webhooks():
     """List all webhook URLs."""
-    
+
     n8n = N8NClient()
     workflows = n8n.list_workflows()
-    
+
     webhook_url = os.environ.get('WEBHOOK_URL', 'https://auto.yourdomain.com')
-    
+
     click.echo("\nWebhook Endpoints:")
     click.echo("-" * 60)
-    
+
     for w in workflows:
         # Check if workflow has webhook trigger
         for node in w.get('nodes', []):
@@ -1883,11 +1885,11 @@ def list_webhooks():
 @click.option('--open', 'open_browser', is_flag=True, help='Open in browser')
 def dashboard(open_browser):
     """Get n8n dashboard URL."""
-    
+
     n8n_url = os.environ.get('N8N_URL', 'https://auto.yourdomain.com')
-    
+
     click.echo(f"\nn8n Dashboard: {n8n_url}")
-    
+
     if open_browser:
         import webbrowser
         webbrowser.open(n8n_url)

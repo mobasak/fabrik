@@ -1,0 +1,125 @@
+# pyproject.toml Template
+# Copy to project root and customize
+#
+# Package Manager Options:
+# - uv (recommended): uv init, uv add <package>, uv sync
+# - pip-tools: pip-compile pyproject.toml
+# - poetry: poetry install
+#
+# Version: 1.0.0
+# Last Updated: 2025-12-13
+
+[project]
+name = "project-name"  # CHANGE: Your project name (lowercase, hyphens)
+version = "0.1.0"
+description = "Brief project description"  # CHANGE
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}  # CHANGE if needed
+authors = [
+    {name = "Your Name", email = "you@example.com"}  # CHANGE
+]
+
+# Core dependencies - add your packages here
+dependencies = [
+    # Web/API
+    # "fastapi>=0.115.0",
+    # "uvicorn[standard]>=0.32.0",
+    # "pydantic>=2.9.0",
+    # "pydantic-settings>=2.6.0",
+
+    # Database
+    # "sqlalchemy>=2.0.0",
+    # "asyncpg>=0.30.0",  # PostgreSQL async
+    # "alembic>=1.14.0",  # Migrations
+
+    # HTTP Client
+    # "httpx>=0.28.0",
+
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-cov>=6.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+    "types-requests>=2.32.0",
+    "types-PyYAML>=6.0.0",
+]
+
+[project.scripts]
+# CLI entry points - uncomment and customize
+# myapp = "src.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ============================================================
+# TOOL CONFIGURATION
+# ============================================================
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "B904",   # raise without from (too noisy)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false  # Set to true for stricter checking
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = false  # Set to true to require all type hints
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv"]
+skips = ["B101"]  # Skip assert warnings in tests
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

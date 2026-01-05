@@ -9,16 +9,16 @@ Commands:
     fabrik templates                         List available templates
 """
 
-import sys
+import os
 from pathlib import Path
-from typing import Optional
 
 import click
 
-from fabrik.spec_loader import load_spec, save_spec, create_spec, Spec, Kind
-from fabrik.template_renderer import render_template, list_templates
-from fabrik.drivers.dns import DNSClient
+from fabrik.deploy import deploy_to_coolify
 from fabrik.drivers.coolify import CoolifyClient
+from fabrik.drivers.dns import DNSClient
+from fabrik.spec_loader import Kind, create_spec, load_spec, save_spec
+from fabrik.template_renderer import list_templates, render_template
 
 
 @click.group()
@@ -29,13 +29,13 @@ def cli():
 
 
 @cli.command()
-@click.argument('name')
-@click.option('--template', '-t', required=True, help='Template to use (e.g., python-api)')
-@click.option('--domain', '-d', help='Domain for the service')
-@click.option('--output', '-o', default='specs', help='Output directory for spec file')
-def new(name: str, template: str, domain: Optional[str], output: str):
+@click.argument("name")
+@click.option("--template", "-t", required=True, help="Template to use (e.g., python-api)")
+@click.option("--domain", "-d", help="Domain for the service")
+@click.option("--output", "-o", default="specs", help="Output directory for spec file")
+def new(name: str, template: str, domain: str | None, output: str):
     """Create a new spec from a template.
-    
+
     Example:
         fabrik new my-api --template python-api --domain api.example.com
     """
@@ -45,19 +45,19 @@ def new(name: str, template: str, domain: Optional[str], output: str):
         click.echo(f"Error: Template '{template}' not found.", err=True)
         click.echo(f"Available templates: {', '.join(available)}", err=True)
         raise SystemExit(1)
-    
+
     # Check if spec already exists
     output_dir = Path(output)
     spec_file = output_dir / f"{name}.yaml"
-    
+
     if spec_file.exists():
         click.echo(f"Error: Spec already exists: {spec_file}", err=True)
         raise SystemExit(1)
-    
+
     # For HTTP services, domain is required
     if not domain:
         domain = click.prompt("Domain for the service (e.g., myapi.vps1.ocoron.com)")
-    
+
     # Create spec
     try:
         spec = create_spec(
@@ -69,11 +69,11 @@ def new(name: str, template: str, domain: Optional[str], output: str):
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
-    
+
     # Save spec
     output_dir.mkdir(parents=True, exist_ok=True)
     save_spec(spec, spec_file)
-    
+
     click.echo(f"✅ Created spec: {spec_file}")
     click.echo(f"   Template: {template}")
     click.echo(f"   Domain: {domain}")
@@ -85,11 +85,11 @@ def new(name: str, template: str, domain: Optional[str], output: str):
 
 
 @cli.command()
-@click.argument('spec_path', type=click.Path(exists=True))
-@click.option('--secrets', '-s', multiple=True, help='Secret in KEY=VALUE format')
+@click.argument("spec_path", type=click.Path(exists=True))
+@click.option("--secrets", "-s", multiple=True, help="Secret in KEY=VALUE format")
 def plan(spec_path: str, secrets: tuple):
     """Show what will be deployed (dry run).
-    
+
     Example:
         fabrik plan specs/my-api.yaml
         fabrik plan specs/my-api.yaml -s API_KEY=xxx
@@ -97,24 +97,24 @@ def plan(spec_path: str, secrets: tuple):
     # Parse secrets
     secrets_dict = {}
     for s in secrets:
-        if '=' not in s:
+        if "=" not in s:
             click.echo(f"Error: Invalid secret format: {s} (use KEY=VALUE)", err=True)
             raise SystemExit(1)
-        key, value = s.split('=', 1)
+        key, value = s.split("=", 1)
         secrets_dict[key] = value
-    
+
     # Load spec
     try:
         spec = load_spec(spec_path)
     except Exception as e:
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
-    
+
     click.echo("=" * 60)
     click.echo(f"DEPLOYMENT PLAN: {spec.id}")
     click.echo("=" * 60)
     click.echo()
-    
+
     # Spec summary
     click.echo("📋 Spec Summary:")
     click.echo(f"   ID: {spec.id}")
@@ -122,7 +122,7 @@ def plan(spec_path: str, secrets: tuple):
     click.echo(f"   Template: {spec.template}")
     click.echo(f"   Domain: {spec.domain or 'N/A'}")
     click.echo()
-    
+
     # Dependencies
     if spec.depends.postgres or spec.depends.redis:
         click.echo("🔗 Dependencies:")
@@ -131,20 +131,20 @@ def plan(spec_path: str, secrets: tuple):
         if spec.depends.redis:
             click.echo(f"   Redis: {spec.depends.redis}")
         click.echo()
-    
+
     # Resources
     click.echo("📦 Resources:")
     click.echo(f"   Memory: {spec.resources.memory}")
     click.echo(f"   CPU: {spec.resources.cpu}")
     click.echo()
-    
+
     # Environment variables
     if spec.env:
         click.echo("🔧 Environment Variables:")
         for key, value in spec.env.items():
             click.echo(f"   {key}={value}")
         click.echo()
-    
+
     # Secrets
     if spec.secrets.required:
         click.echo("🔐 Required Secrets:")
@@ -152,7 +152,7 @@ def plan(spec_path: str, secrets: tuple):
             status = "✅ provided" if key in secrets_dict else "❌ missing"
             click.echo(f"   {key}: {status}")
         click.echo()
-    
+
     # Render preview
     click.echo("📁 Files to Generate:")
     try:
@@ -162,30 +162,30 @@ def plan(spec_path: str, secrets: tuple):
     except Exception as e:
         click.echo(f"   Error: {e}", err=True)
     click.echo()
-    
+
     # Actions
     click.echo("🚀 Actions:")
     click.echo(f"   1. Generate deployment files in apps/{spec.id}/")
     if spec.domain:
         click.echo(f"   2. Create DNS record: {spec.domain}")
-    click.echo(f"   3. Deploy to Coolify")
-    click.echo(f"   4. Add Uptime Kuma monitor")
+    click.echo("   3. Deploy to Coolify")
+    click.echo("   4. Add Uptime Kuma monitor")
     click.echo()
-    
+
     click.echo("=" * 60)
     click.echo("Run 'fabrik apply' to execute this plan")
     click.echo("=" * 60)
 
 
 @cli.command()
-@click.argument('spec_path', type=click.Path(exists=True))
-@click.option('--secrets', '-s', multiple=True, help='Secret in KEY=VALUE format')
-@click.option('--yes', '-y', is_flag=True, help='Skip confirmation prompt')
-@click.option('--skip-dns', is_flag=True, help='Skip DNS record creation')
-@click.option('--skip-deploy', is_flag=True, help='Skip Coolify deployment (files only)')
+@click.argument("spec_path", type=click.Path(exists=True))
+@click.option("--secrets", "-s", multiple=True, help="Secret in KEY=VALUE format")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+@click.option("--skip-dns", is_flag=True, help="Skip DNS record creation")
+@click.option("--skip-deploy", is_flag=True, help="Skip Coolify deployment (files only)")
 def apply(spec_path: str, secrets: tuple, yes: bool, skip_dns: bool, skip_deploy: bool):
     """Deploy a service from spec.
-    
+
     Example:
         fabrik apply specs/my-api.yaml -s API_KEY=xxx
         fabrik apply specs/my-api.yaml --yes  # Skip confirmation
@@ -193,26 +193,26 @@ def apply(spec_path: str, secrets: tuple, yes: bool, skip_dns: bool, skip_deploy
     # Parse secrets
     secrets_dict = {}
     for s in secrets:
-        if '=' not in s:
+        if "=" not in s:
             click.echo(f"Error: Invalid secret format: {s} (use KEY=VALUE)", err=True)
             raise SystemExit(1)
-        key, value = s.split('=', 1)
+        key, value = s.split("=", 1)
         secrets_dict[key] = value
-    
+
     # Load spec
     try:
         spec = load_spec(spec_path)
     except Exception as e:
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
-    
+
     # Check required secrets
     missing_secrets = [k for k in spec.secrets.required if k not in secrets_dict]
     if missing_secrets:
         click.echo(f"Error: Missing required secrets: {', '.join(missing_secrets)}", err=True)
         click.echo("Provide them with: -s KEY=VALUE", err=True)
         raise SystemExit(1)
-    
+
     # Confirm
     if not yes:
         click.echo(f"About to deploy: {spec.id}")
@@ -221,11 +221,11 @@ def apply(spec_path: str, secrets: tuple, yes: bool, skip_dns: bool, skip_deploy
         if not click.confirm("Proceed?"):
             click.echo("Aborted.")
             raise SystemExit(0)
-    
+
     click.echo()
     click.echo(f"🚀 Deploying {spec.id}...")
     click.echo()
-    
+
     # Step 1: Render template
     click.echo("📁 Step 1: Generating deployment files...")
     try:
@@ -236,76 +236,88 @@ def apply(spec_path: str, secrets: tuple, yes: bool, skip_dns: bool, skip_deploy
         click.echo(f"   ❌ Error: {e}", err=True)
         raise SystemExit(1)
     click.echo()
-    
+
     # Step 2: DNS
     if not skip_dns and spec.domain:
         click.echo("🌐 Step 2: Creating DNS record...")
         try:
             # Extract subdomain from domain
             # e.g., myapi.vps1.ocoron.com -> myapi.vps1, ocoron.com
-            parts = spec.domain.split('.')
+            parts = spec.domain.split(".")
             if len(parts) >= 3:
-                subdomain = '.'.join(parts[:-2])
-                base_domain = '.'.join(parts[-2:])
-                
+                subdomain = ".".join(parts[:-2])
+                base_domain = ".".join(parts[-2:])
+
                 dns = DNSClient()
                 result = dns.add_subdomain(base_domain, subdomain, "172.93.160.197")
                 click.echo(f"   ✅ DNS: {spec.domain} -> 172.93.160.197")
             else:
-                click.echo(f"   ⚠️  Skipping DNS: domain format not recognized")
+                click.echo("   ⚠️  Skipping DNS: domain format not recognized")
         except Exception as e:
             click.echo(f"   ⚠️  DNS error (non-fatal): {e}")
     else:
         click.echo("🌐 Step 2: DNS skipped")
     click.echo()
-    
+
     # Step 3: Coolify deployment
     if not skip_deploy:
         click.echo("🐳 Step 3: Deploying to Coolify...")
         try:
-            coolify = CoolifyClient()
-            # For now, just check connection
-            version = coolify.get_version()
-            click.echo(f"   ✅ Connected to Coolify v{version}")
-            click.echo(f"   ℹ️  Manual deployment required via Coolify dashboard")
-            click.echo(f"   ℹ️  Upload files from: apps/{spec.id}/")
+            # Read compose file
+            compose_path = Path(f"apps/{spec.id}/compose.yaml")
+            if not compose_path.exists():
+                compose_path = Path(f"apps/{spec.id}/docker-compose.yaml")
+            if not compose_path.exists():
+                raise FileNotFoundError(f"No compose file in apps/{spec.id}/")
+            compose_content = compose_path.read_text()
+
+            # Deploy
+            result = deploy_to_coolify(spec.id, compose_content)
+            if result["status"] == "created":
+                click.echo(f"   ✅ Created app: {spec.id}")
+            else:
+                click.echo(f"   ✅ Redeployed: {spec.id}")
+            click.echo(f"   ℹ️  UUID: {result['uuid']}")
         except Exception as e:
-            click.echo(f"   ⚠️  Coolify error: {e}")
+            click.echo(f"   ❌ Coolify error: {e}", err=True)
+            raise SystemExit(1)
     else:
         click.echo("🐳 Step 3: Coolify deployment skipped")
     click.echo()
-    
+
     # Summary
     click.echo("=" * 60)
-    click.echo(f"✅ Deployment prepared: {spec.id}")
+    click.echo(f"✅ Deployed: {spec.id}")
     click.echo("=" * 60)
     click.echo()
-    click.echo("Next steps:")
-    click.echo(f"  1. Review generated files in apps/{spec.id}/")
-    click.echo(f"  2. Deploy via Coolify dashboard or API")
-    click.echo(f"  3. Verify at https://{spec.domain}")
+    if spec.domain:
+        click.echo(f"🌐 URL: https://{spec.domain}")
+    click.echo(f"📁 Files: apps/{spec.id}/")
+    click.echo()
+    click.echo("Verify deployment:")
+    click.echo(f"  fabrik status {spec_path}")
 
 
 @cli.command()
 def templates():
     """List available templates."""
     available = list_templates()
-    
+
     if not available:
         click.echo("No templates found.")
         click.echo("Templates should be in: /opt/fabrik/templates/")
         return
-    
+
     click.echo("Available templates:")
     for t in available:
         click.echo(f"  - {t}")
 
 
 @cli.command()
-@click.argument('spec_path', type=click.Path(exists=True))
+@click.argument("spec_path", type=click.Path(exists=True))
 def status(spec_path: str):
     """Check deployment status.
-    
+
     Example:
         fabrik status specs/my-api.yaml
     """
@@ -315,10 +327,10 @@ def status(spec_path: str):
     except Exception as e:
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
-    
+
     click.echo(f"Status for: {spec.id}")
     click.echo()
-    
+
     # Check if files exist
     app_dir = Path(f"apps/{spec.id}")
     if app_dir.exists():
@@ -329,29 +341,29 @@ def status(spec_path: str):
     else:
         click.echo("📁 No generated files (run 'fabrik apply' first)")
     click.echo()
-    
+
     # Check Coolify
     click.echo("🐳 Coolify status:")
     try:
         coolify = CoolifyClient()
         apps = coolify.list_applications()
-        matching = [a for a in apps if a.get('name') == spec.id]
+        matching = [a for a in apps if a.get("name") == spec.id]
         if matching:
             app = matching[0]
             click.echo(f"   ✅ Found in Coolify: {app.get('fqdn', 'N/A')}")
         else:
-            click.echo(f"   ❌ Not found in Coolify")
+            click.echo("   ❌ Not found in Coolify")
     except Exception as e:
         click.echo(f"   ⚠️  Could not check: {e}")
 
 
 @cli.command()
-@click.argument('spec_path', type=click.Path(exists=True))
-@click.option('--lines', '-n', default=100, help='Number of lines to show')
-@click.option('--follow', '-f', is_flag=True, help='Follow log output')
+@click.argument("spec_path", type=click.Path(exists=True))
+@click.option("--lines", "-n", default=100, help="Number of lines to show")
+@click.option("--follow", "-f", is_flag=True, help="Follow log output")
 def logs(spec_path: str, lines: int, follow: bool):
     """View application logs.
-    
+
     Example:
         fabrik logs specs/my-api.yaml
         fabrik logs specs/my-api.yaml -n 50
@@ -363,22 +375,22 @@ def logs(spec_path: str, lines: int, follow: bool):
     except Exception as e:
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
-    
+
     click.echo(f"📋 Logs for: {spec.id}")
     click.echo()
-    
+
     try:
         coolify = CoolifyClient()
         apps = coolify.list_applications()
-        matching = [a for a in apps if a.get('name') == spec.id]
-        
+        matching = [a for a in apps if a.get("name") == spec.id]
+
         if not matching:
             click.echo(f"❌ Application '{spec.id}' not found in Coolify")
             raise SystemExit(1)
-        
+
         app = matching[0]
-        app_uuid = app.get('uuid')
-        
+        app_uuid = app.get("uuid")
+
         if follow:
             click.echo("Following logs (Ctrl+C to stop)...")
             click.echo("-" * 60)
@@ -389,7 +401,7 @@ def logs(spec_path: str, lines: int, follow: bool):
         else:
             logs_data = coolify.get_logs(app_uuid, lines=lines)
             click.echo(logs_data)
-            
+
     except Exception as e:
         click.echo(f"⚠️  Error fetching logs: {e}", err=True)
         click.echo()
@@ -397,13 +409,13 @@ def logs(spec_path: str, lines: int, follow: bool):
 
 
 @cli.command()
-@click.argument('spec_path', type=click.Path(exists=True))
-@click.option('--yes', '-y', is_flag=True, help='Skip confirmation')
-@click.option('--keep-dns', is_flag=True, help='Keep DNS records')
-@click.option('--keep-files', is_flag=True, help='Keep generated files')
+@click.argument("spec_path", type=click.Path(exists=True))
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+@click.option("--keep-dns", is_flag=True, help="Keep DNS records")
+@click.option("--keep-files", is_flag=True, help="Keep generated files")
 def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
     """Remove a deployment.
-    
+
     Example:
         fabrik destroy specs/my-api.yaml
         fabrik destroy specs/my-api.yaml --keep-dns
@@ -414,13 +426,13 @@ def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
     except Exception as e:
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
-    
+
     click.echo(f"🗑️  Destroying: {spec.id}")
     click.echo()
-    
+
     if not yes:
         click.echo("This will:")
-        click.echo(f"  - Stop and remove the application from Coolify")
+        click.echo("  - Stop and remove the application from Coolify")
         if not keep_dns:
             click.echo(f"  - Remove DNS record for {spec.domain}")
         if not keep_files:
@@ -429,64 +441,333 @@ def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
         if not click.confirm("Are you sure?"):
             click.echo("Aborted.")
             raise SystemExit(0)
-    
+
     click.echo()
-    
+
     # Step 1: Remove from Coolify
     click.echo("🐳 Step 1: Removing from Coolify...")
     try:
         coolify = CoolifyClient()
         apps = coolify.list_applications()
-        matching = [a for a in apps if a.get('name') == spec.id]
-        
+        matching = [a for a in apps if a.get("name") == spec.id]
+
         if matching:
             app = matching[0]
-            coolify.delete_application(app.get('uuid'))
-            click.echo(f"   ✅ Removed from Coolify")
+            coolify.delete_application(app.get("uuid"))
+            click.echo("   ✅ Removed from Coolify")
         else:
-            click.echo(f"   ℹ️  Not found in Coolify (already removed?)")
+            click.echo("   ℹ️  Not found in Coolify (already removed?)")
     except Exception as e:
         click.echo(f"   ⚠️  Error: {e}")
     click.echo()
-    
+
     # Step 2: Remove DNS
     if not keep_dns and spec.domain:
         click.echo("🌐 Step 2: Removing DNS record...")
         try:
-            parts = spec.domain.split('.')
+            parts = spec.domain.split(".")
             if len(parts) >= 3:
-                subdomain = '.'.join(parts[:-2])
-                base_domain = '.'.join(parts[-2:])
-                
+                subdomain = ".".join(parts[:-2])
+                base_domain = ".".join(parts[-2:])
+
                 dns = DNSClient()
                 # Note: Would need delete_subdomain method
-                click.echo(f"   ℹ️  DNS removal not implemented yet")
+                click.echo("   ℹ️  DNS removal not implemented yet")
                 click.echo(f"   ℹ️  Manually remove: {spec.domain}")
             else:
-                click.echo(f"   ⚠️  Skipping: domain format not recognized")
+                click.echo("   ⚠️  Skipping: domain format not recognized")
         except Exception as e:
             click.echo(f"   ⚠️  Error: {e}")
     else:
         click.echo("🌐 Step 2: DNS removal skipped")
     click.echo()
-    
+
     # Step 3: Remove files
     if not keep_files:
         click.echo("📁 Step 3: Removing generated files...")
         app_dir = Path(f"apps/{spec.id}")
         if app_dir.exists():
             import shutil
+
             shutil.rmtree(app_dir)
             click.echo(f"   ✅ Removed apps/{spec.id}/")
         else:
-            click.echo(f"   ℹ️  No files to remove")
+            click.echo("   ℹ️  No files to remove")
     else:
         click.echo("📁 Step 3: File removal skipped")
     click.echo()
-    
+
     click.echo("=" * 60)
     click.echo(f"✅ Destroyed: {spec.id}")
     click.echo("=" * 60)
+
+
+@cli.command()
+@click.option("--status", "-s", help="Filter by status (deployed/ready/development)")
+@click.option("--sync", is_flag=True, help="Sync with Coolify first")
+def projects(status: str | None, sync: bool):
+    """List all tracked projects in /opt."""
+    from fabrik.registry import ProjectRegistry
+
+    registry = ProjectRegistry()
+
+    if sync:
+        click.echo("🔄 Syncing with Coolify...")
+        try:
+            from dotenv import load_dotenv
+
+            load_dotenv()
+            coolify = CoolifyClient()
+            apps = coolify.list_applications()
+            for app in apps:
+                name = app.get("name", "").replace("fabrik-", "")
+                if name in registry.projects:
+                    registry.update(
+                        name,
+                        status="deployed",
+                        coolify_uuid=app.get("uuid"),
+                        coolify_name=app.get("name"),
+                        domain=app.get("fqdn"),
+                    )
+            registry.save()
+            click.echo(f"   ✅ Synced {len(apps)} Coolify apps")
+        except Exception as e:
+            click.echo(f"   ⚠️ Sync error: {e}")
+        click.echo()
+
+    projs = registry.list(status=status)
+
+    if not projs:
+        click.echo("No projects found. Run 'fabrik scan' first.")
+        return
+
+    click.echo(f"{'PROJECT':<30} {'TYPE':<10} {'STATUS':<12} {'DOMAIN'}")
+    click.echo("-" * 80)
+    for p in projs:
+        domain = p.domain or "-"
+        click.echo(f"{p.name:<30} {p.type:<10} {p.status:<12} {domain}")
+    click.echo()
+    click.echo(f"Total: {len(projs)} projects")
+
+
+@cli.command()
+@click.option("--base", "-b", default="/opt", help="Base path to scan")
+def scan(base: str):
+    """Scan /opt for projects and update registry."""
+    from fabrik.registry import ProjectRegistry
+
+    registry = ProjectRegistry()
+    click.echo(f"🔍 Scanning {base}...")
+
+    new = registry.scan(Path(base))
+    registry.save()
+
+    click.echo(f"   ✅ Found {len(registry.projects)} projects")
+    if new:
+        click.echo(f"   🆕 New: {', '.join(new)}")
+    click.echo()
+    click.echo(f"Registry saved to: {registry.path}")
+
+
+@cli.command()
+@click.argument("name")
+@click.option("--description", "-d", default="A new project", help="Project description")
+def scaffold(name: str, description: str):
+    """Create a new project with full structure.
+
+    Example:
+        fabrik scaffold my-api -d "REST API for users"
+    """
+    from fabrik.registry import ProjectRegistry
+    from fabrik.scaffold import create_project
+
+    click.echo(f"📁 Creating project: {name}")
+    try:
+        project_dir = create_project(name, description)
+        click.echo(f"✅ Created: {project_dir}")
+
+        # Update registry
+        registry = ProjectRegistry()
+        registry.scan()
+        registry.save()
+        click.echo("✅ Added to registry")
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@cli.command()
+@click.argument("project_path", type=click.Path(exists=True))
+def validate(project_path: str):
+    """Validate project structure against standards."""
+    from fabrik.scaffold import validate_project
+
+    path = Path(project_path).resolve()
+    click.echo(f"Validating: {path.name}")
+
+    present, missing = validate_project(path)
+
+    for f in present:
+        click.echo(f"  ✅ {f}")
+    for f in missing:
+        click.echo(f"  ❌ {f}")
+
+    if missing:
+        click.echo(f"\n{len(missing)} files missing. Run: fabrik fix {project_path}")
+        raise SystemExit(1)
+    else:
+        click.echo("\n✅ Project structure is complete!")
+
+
+@cli.command()
+@click.argument("project_path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option("--dry-run", is_flag=True, help="Show what would be added without making changes")
+def fix(project_path: str, dry_run: bool):
+    """Add missing required files to a project.
+
+    Example:
+        fabrik fix /opt/my-project
+        fabrik fix /opt/my-project --dry-run
+    """
+    from fabrik.scaffold import fix_project
+
+    path = Path(project_path).resolve()
+
+    if dry_run:
+        click.echo(f"Would add to {path.name}:")
+    else:
+        click.echo(f"Fixing: {path.name}")
+
+    added = fix_project(path, dry_run=dry_run)
+
+    if not added:
+        click.echo("  ✅ No missing files - project structure is complete!")
+        return
+
+    for f in added:
+        if dry_run:
+            click.echo(f"  📄 {f}")
+        else:
+            click.echo(f"  ✅ Added: {f}")
+
+    if dry_run:
+        click.echo(f"\nRun without --dry-run to add {len(added)} files")
+    else:
+        click.echo(f"\n✅ Added {len(added)} files")
+
+
+@cli.command()
+@click.argument("domain")
+@click.option("--spec", "-s", default="deploy", help="Verification spec to use (deploy, dns)")
+@click.option("--app-name", "-a", help="Application name (defaults to domain prefix)")
+@click.option("--no-rollback", is_flag=True, help="Disable auto-rollback on failure")
+def verify(domain: str, spec: str, app_name: str | None, no_rollback: bool):
+    """Run postcondition checks against a deployed service.
+
+    Verifies that a deployment meets all postconditions defined in the spec.
+
+    Example:
+        fabrik verify api.example.com
+        fabrik verify api.example.com --spec dns
+        fabrik verify api.example.com --no-rollback
+    """
+    from fabrik.verify import CheckResult, PostconditionChecker
+
+    spec_path = Path(f"/opt/fabrik/specs/verification/{spec}.yaml")
+    if not spec_path.exists():
+        click.echo(f"Error: Verification spec not found: {spec_path}", err=True)
+        click.echo("Available specs: deploy, dns", err=True)
+        raise SystemExit(1)
+
+    # Build context
+    context = {
+        "DOMAIN": domain,
+        "APP_NAME": app_name or domain.split(".")[0],
+        "TARGET_IP": os.getenv("VPS_IP", "172.93.160.197"),
+    }
+
+    click.echo(f"🔍 Verifying: {domain}")
+    click.echo(f"   Spec: {spec}")
+    click.echo(f"   Auto-rollback: {'disabled' if no_rollback else 'enabled'}")
+    click.echo()
+
+    try:
+        checker = PostconditionChecker(spec_path, context)
+        results = checker.run_all()
+
+        click.echo("Postcondition Results:")
+        click.echo("-" * 50)
+
+        for r in results:
+            if r.result == CheckResult.PASS:
+                icon = "✅"
+            elif r.result == CheckResult.FAIL:
+                icon = "❌"
+            elif r.result == CheckResult.SKIP:
+                icon = "⏭️"
+            else:
+                icon = "⚠️"
+
+            click.echo(f"  {icon} {r.name}: {r.message}")
+
+        click.echo("-" * 50)
+
+        if checker.all_passed():
+            click.echo("✅ All postconditions passed!")
+        else:
+            failures = checker.get_failures()
+            click.echo(f"❌ {len(failures)} postcondition(s) failed")
+
+            if not no_rollback and checker.should_rollback():
+                click.echo()
+                click.echo("🔄 Auto-rollback would be triggered")
+                click.echo("   Run with --no-rollback to disable")
+
+            raise SystemExit(1)
+
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"Error running verification: {e}", err=True)
+        raise SystemExit(1)
+
+
+@cli.command("sync-models")
+def sync_models():
+    """Sync droid model names across all Fabrik files.
+
+    Ensures consistency between:
+    - scripts/droid_models.py (source of truth)
+    - scripts/droid_tasks.py
+    - AGENTS.md
+    - docs/reference/droid-exec-usage.md
+
+    Example:
+        fabrik sync-models
+    """
+    import subprocess
+    import sys
+
+    fabrik_root = Path(__file__).parent.parent.parent
+    script = fabrik_root / "scripts" / "droid_models.py"
+
+    if not script.exists():
+        click.echo(f"Error: Script not found: {script}", err=True)
+        raise SystemExit(1)
+
+    result = subprocess.run(
+        [sys.executable, str(script), "sync"],
+        cwd=fabrik_root,
+        capture_output=True,
+        text=True,
+    )
+
+    click.echo(result.stdout)
+    if result.stderr:
+        click.echo(result.stderr, err=True)
+
+    raise SystemExit(result.returncode)
 
 
 def main():

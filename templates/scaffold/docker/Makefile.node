@@ -1,0 +1,60 @@
+# Makefile.node - Standard commands for Node.js projects
+# Copy to project root as "Makefile" and customize:
+#   1. PROJECT_NAME
+#   2. PORT
+#
+# Usage: make dev, make test, make docker-smoke
+
+.PHONY: dev test docker-smoke docker-build docker-dev clean install lint build
+
+# ===== CUSTOMIZE THESE =====
+PROJECT_NAME ?= myproject
+PORT ?= 3000
+# ===========================
+
+# ============================================================
+# Local Development (fast)
+# ============================================================
+
+install:
+	npm install
+
+dev:
+	npm run dev
+
+build:
+	npm run build
+
+test:
+	npm test
+
+lint:
+	npm run lint
+
+# ============================================================
+# Docker (parity check)
+# ============================================================
+
+docker-build:
+	docker build -t $(PROJECT_NAME) .
+
+docker-smoke: docker-build
+	@echo "Starting container..."
+	@docker run -d --name smoke-test -p $(PORT):$(PORT) --env-file .env $(PROJECT_NAME) || true
+	@sleep 3
+	@echo "Health check..."
+	@curl -sf http://localhost:$(PORT)/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"
+	@docker stop smoke-test && docker rm smoke-test
+
+docker-dev:
+	docker compose -f compose.yaml -f compose.dev.yaml up --build
+
+# ============================================================
+# Cleanup
+# ============================================================
+
+clean:
+	docker stop smoke-test 2>/dev/null || true
+	docker rm smoke-test 2>/dev/null || true
+	docker rmi $(PROJECT_NAME) 2>/dev/null || true
+	rm -rf dist/ node_modules/.cache/

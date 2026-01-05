@@ -1,0 +1,50 @@
+# {{ spec.name }} - Agent Briefing
+
+> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+
+## Build & Test
+
+```bash
+npm install
+npm run dev
+npm run build
+npm run lint
+```
+
+## Run Locally
+
+```bash
+npm run dev
+# Open http://localhost:3000
+```
+
+## Docker
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+## droid exec Quick Reference
+
+```bash
+droid exec "Analyze this Next.js project"
+droid exec --auto medium "Add new page with Tailwind styling"
+droid exec --use-spec "Add authentication"
+```
+
+## Conventions
+
+- Use Tailwind CSS for styling
+- Environment variables for config
+- TypeScript strict mode
+
+## Project Structure
+
+```
+├── app/           # Next.js App Router pages
+├── components/    # React components
+├── lib/           # Utilities
+├── Dockerfile     # Production build
+└── compose.yaml   # Deployment config
+```

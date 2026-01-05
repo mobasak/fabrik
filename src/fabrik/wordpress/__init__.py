@@ -1,48 +1,5 @@
 """WordPress automation module."""
 
-from fabrik.wordpress.preset_loader import (
-    PresetConfig,
-    PresetLoader,
-    apply_preset,
-    list_presets,
-)
-from fabrik.wordpress.settings import (
-    EditorCredentials,
-    SettingsApplicator,
-    apply_settings,
-)
-from fabrik.wordpress.theme import (
-    BrandColors,
-    BrandFonts,
-    ThemeCustomizer,
-    apply_theme,
-)
-from fabrik.wordpress.media import (
-    MediaUploader,
-    UploadedMedia,
-    upload_brand_assets,
-)
-from fabrik.wordpress.pages import (
-    CreatedPage,
-    PageCreator,
-    create_pages,
-)
-from fabrik.wordpress.menus import (
-    CreatedMenu,
-    MenuItem,
-    MenuCreator,
-    create_menus,
-)
-from fabrik.wordpress.seo import (
-    SEOApplicator,
-    SEOSettings,
-    apply_seo,
-)
-from fabrik.wordpress.forms import (
-    CreatedForm,
-    FormCreator,
-    create_contact_form,
-)
 from fabrik.wordpress.analytics import (
     AnalyticsConfig,
     AnalyticsInjector,
@@ -53,6 +10,57 @@ from fabrik.wordpress.deployer import (
     SiteDeployer,
     deploy_site,
 )
+from fabrik.wordpress.domain_setup import (
+    DNSSyncResult,
+    # Full automation via VPS DNS Manager
+    DomainProvisioner,
+    # Legacy compatibility
+    DomainSetup,
+    DomainSetupResult,
+    ProvisionResult,
+    ProvisionState,
+    get_domain_status,
+    provision_domain,
+    setup_domain,
+    sync_dns,
+)
+from fabrik.wordpress.forms import (
+    CreatedForm,
+    FormCreator,
+    create_contact_form,
+)
+from fabrik.wordpress.media import (
+    MediaUploader,
+    UploadedMedia,
+    upload_brand_assets,
+)
+from fabrik.wordpress.menus import (
+    CreatedMenu,
+    MenuCreator,
+    MenuItem,
+    create_menus,
+)
+from fabrik.wordpress.pages import (
+    CreatedPage,
+    PageCreator,
+    create_pages,
+)
+from fabrik.wordpress.preset_loader import (
+    PresetConfig,
+    PresetLoader,
+    apply_preset,
+    list_presets,
+)
+from fabrik.wordpress.seo import (
+    SEOApplicator,
+    SEOSettings,
+    apply_seo,
+)
+from fabrik.wordpress.settings import (
+    EditorCredentials,
+    SettingsApplicator,
+    apply_settings,
+)
 from fabrik.wordpress.spec_loader import (
     SpecLoader,
     load_spec,
@@ -62,10 +70,11 @@ from fabrik.wordpress.spec_validator import (
     ValidationError,
     validate_spec,
 )
-from fabrik.wordpress.domain_setup import (
-    DomainSetup,
-    DomainSetupResult,
-    setup_domain,
+from fabrik.wordpress.theme import (
+    BrandColors,
+    BrandFonts,
+    ThemeCustomizer,
+    apply_theme,
 )
 
 __all__ = [

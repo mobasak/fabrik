@@ -1,0 +1,41 @@
+#!/bin/bash
+# runk - Kill a detached job (SID-based, kills entire process tree)
+# Part of Long Command Monitoring System v1.0.0
+# NOTE: -e intentionally omitted; errors handled with || true
+set -uo pipefail
+
+JOB="${1:-}"
+[ -z "$JOB" ] && { echo "Usage: runk /tmp/job_xxx"; exit 1; }
+
+PID=$(cat "${JOB}.pid" 2>/dev/null || echo "")
+[ -z "$PID" ] && { echo "No PID at $JOB"; exit 1; }
+
+SID=$(cat "${JOB}.sid" 2>/dev/null || echo "")
+PGID=$(cat "${JOB}.pgid" 2>/dev/null || echo "")
+
+session_alive() {
+    [ -n "$SID" ] && [ -n "$(ps -s "$SID" -o pid= 2>/dev/null)" ]
+}
+
+echo "TERM..."
+if [ -n "$SID" ]; then
+    pkill -TERM -s "$SID" 2>/dev/null || true
+elif [ -n "$PGID" ]; then
+    kill -TERM -"${PGID}" 2>/dev/null || true
+else
+    kill -TERM "$PID" 2>/dev/null || true
+fi
+sleep 3
+
+if session_alive || kill -0 "$PID" 2>/dev/null; then
+    echo "KILL..."
+    if [ -n "$SID" ]; then
+        pkill -KILL -s "$SID" 2>/dev/null || true
+    elif [ -n "$PGID" ]; then
+        kill -KILL -"${PGID}" 2>/dev/null || true
+    else
+        kill -KILL "$PID" 2>/dev/null || true
+    fi
+fi
+
+echo "Done. runc $JOB"

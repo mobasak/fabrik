@@ -1,3 +1,5 @@
+> **Phase Navigation:** [← Phase 6](Phase6.md) | **Phase 7** | [Phase 8 →](Phase8.md) | [All Phases](roadmap.md)
+
 ## Phase 7: Multi-Server Scaling — Complete Narrative
 
 **Status: ❌ Not Started**
@@ -453,7 +455,7 @@ class ServerResources:
     cpu_cores: int
     memory_gb: float
     disk_gb: float
-    
+
     # Current usage (updated by status check)
     cpu_used_percent: float = 0
     memory_used_percent: float = 0
@@ -465,49 +467,49 @@ class ServerConfig:
     name: str                  # Human-readable name
     role: ServerRole
     status: ServerStatus
-    
+
     # Connectivity
     public_ip: str
     vpn_ip: str                # WireGuard IP
     ssh_user: str = "deploy"
     ssh_port: int = 22
-    
+
     # Coolify
     coolify_url: Optional[str] = None
     coolify_token_env: str = ""  # Environment variable name for token
-    
+
     # Resources
     resources: ServerResources = None
-    
+
     # Limits
     max_containers: int = 50
     reserved_memory_gb: float = 1.0  # Reserved for system
-    
+
     # Tags for deployment routing
     tags: list[str] = field(default_factory=list)
-    
+
     # Location
     region: str = ""
     provider: str = ""
-    
+
     @classmethod
     def from_yaml(cls, path: str) -> 'ServerConfig':
         """Load server config from YAML file."""
         with open(path) as f:
             data = yaml.safe_load(f)
-        
+
         # Parse nested objects
         if 'resources' in data and data['resources']:
             data['resources'] = ServerResources(**data['resources'])
-        
+
         if 'role' in data:
             data['role'] = ServerRole(data['role'])
-        
+
         if 'status' in data:
             data['status'] = ServerStatus(data['status'])
-        
+
         return cls(**data)
-    
+
     def to_yaml(self, path: str):
         """Save server config to YAML file."""
         data = {
@@ -527,79 +529,79 @@ class ServerConfig:
             'region': self.region,
             'provider': self.provider,
         }
-        
+
         if self.resources:
             data['resources'] = {
                 'cpu_cores': self.resources.cpu_cores,
                 'memory_gb': self.resources.memory_gb,
                 'disk_gb': self.resources.disk_gb,
             }
-        
+
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         with open(path, 'w') as f:
             yaml.dump(data, f, default_flow_style=False)
 
 class ServerRegistry:
     """Manage server registry."""
-    
+
     def __init__(self, servers_dir: str = "servers"):
         self.servers_dir = Path(servers_dir)
         self._servers: dict[str, ServerConfig] = {}
         self._load_servers()
-    
+
     def _load_servers(self):
         """Load all server configs from directory."""
         self._servers = {}
-        
+
         if not self.servers_dir.exists():
             return
-        
+
         for yaml_file in self.servers_dir.glob("*.yaml"):
             try:
                 server = ServerConfig.from_yaml(str(yaml_file))
                 self._servers[server.id] = server
             except Exception as e:
                 print(f"Warning: Failed to load {yaml_file}: {e}")
-    
+
     def get(self, server_id: str) -> Optional[ServerConfig]:
         """Get server by ID."""
         return self._servers.get(server_id)
-    
+
     def list(self, status: ServerStatus = None, role: ServerRole = None) -> list[ServerConfig]:
         """List servers with optional filters."""
         servers = list(self._servers.values())
-        
+
         if status:
             servers = [s for s in servers if s.status == status]
-        
+
         if role:
             servers = [s for s in servers if s.role == role]
-        
+
         return servers
-    
+
     def get_active(self) -> list[ServerConfig]:
         """Get all active servers."""
         return self.list(status=ServerStatus.ACTIVE)
-    
+
     def get_primary(self) -> Optional[ServerConfig]:
         """Get primary server."""
         primaries = self.list(role=ServerRole.PRIMARY)
         return primaries[0] if primaries else None
-    
+
     def add(self, server: ServerConfig):
         """Add or update server in registry."""
         server.to_yaml(str(self.servers_dir / f"{server.id}.yaml"))
         self._servers[server.id] = server
-    
+
     def remove(self, server_id: str):
         """Remove server from registry."""
         yaml_path = self.servers_dir / f"{server_id}.yaml"
         if yaml_path.exists():
             yaml_path.unlink()
-        
+
         if server_id in self._servers:
             del self._servers[server_id]
-    
+
     def select_server(
         self,
         preferred: str = None,
@@ -609,35 +611,35 @@ class ServerRegistry:
     ) -> Optional[ServerConfig]:
         """
         Select best server for deployment.
-        
+
         Priority:
         1. Preferred server if specified and available
         2. Server with most available resources
         3. Server matching required tags
         """
-        
+
         candidates = self.get_active()
-        
+
         # Filter by tags
         if required_tags:
             candidates = [
                 s for s in candidates
                 if all(tag in s.tags for tag in required_tags)
             ]
-        
+
         # Exclude specific servers
         if exclude:
             candidates = [s for s in candidates if s.id not in exclude]
-        
+
         if not candidates:
             return None
-        
+
         # If preferred is specified and available, use it
         if preferred:
             for server in candidates:
                 if server.id == preferred:
                     return server
-        
+
         # Otherwise, select by available resources
         # (Would need real-time resource check here)
         # For now, just return first available
@@ -941,12 +943,12 @@ class CoolifyConfig(BaseModel):
 
 class Spec(BaseModel):
     # ... existing fields ...
-    
+
     coolify: CoolifyConfig = Field(default_factory=CoolifyConfig)
-    
+
     # Server can also be specified at top level for convenience
     server: Optional[str] = None  # Overrides coolify.server if set
-    
+
     def get_server_id(self) -> str:
         """Get effective server ID."""
         return self.server or self.coolify.server or "greencloud-1"
@@ -996,35 +998,35 @@ from compiler.coolify import CoolifyAPI
 
 class DeploymentRouter:
     """Route deployments to appropriate servers."""
-    
+
     def __init__(self):
         self.registry = ServerRegistry()
-    
+
     def get_server_for_spec(self, spec: Spec) -> ServerConfig:
         """
         Determine which server to deploy spec to.
-        
+
         Priority:
         1. Explicit server in spec
         2. Existing deployment location (for updates)
         3. Auto-select based on resources
         """
-        
+
         # Check explicit server selection
         server_id = spec.get_server_id()
-        
+
         if server_id:
             server = self.registry.get(server_id)
             if server:
                 return server
             else:
                 raise ValueError(f"Server not found: {server_id}")
-        
+
         # Auto-select server
         return self.registry.select_server(
             required_memory_gb=self._estimate_memory(spec)
         )
-    
+
     def _estimate_memory(self, spec: Spec) -> float:
         """Estimate memory requirement from spec."""
         if spec.resources and spec.resources.memory:
@@ -1034,50 +1036,50 @@ class DeploymentRouter:
                 return float(mem[:-1]) / 1024
             elif mem.endswith('G'):
                 return float(mem[:-1])
-        
+
         # Defaults by template
         defaults = {
             'wp-site': 0.5,
             'app-python': 0.25,
             'app-node': 0.25,
         }
-        
+
         return defaults.get(spec.template, 0.25)
-    
+
     def get_coolify_client(self, server: ServerConfig) -> CoolifyAPI:
         """Get Coolify API client for server."""
-        
+
         token = os.environ.get(server.coolify_token_env)
         if not token:
             raise ValueError(f"Missing Coolify token: {server.coolify_token_env}")
-        
+
         return CoolifyAPI(
             base_url=server.coolify_url,
             token=token
         )
-    
+
     def get_database_url(self, spec: Spec, server: ServerConfig) -> str:
         """
         Get database URL based on server location.
-        
+
         - Primary server: Direct connection
         - Worker server: Via VPN or PgBouncer
         """
-        
+
         primary = self.registry.get_primary()
-        
+
         if server.id == primary.id:
             # Direct connection on primary
             return f"postgres://postgres:${{POSTGRES_PASSWORD}}@postgres-main:5432/{spec.database_name}"
         else:
             # Connection via VPN to primary
             return f"postgres://postgres:${{POSTGRES_PASSWORD}}@{primary.vpn_ip}:5432/{spec.database_name}"
-    
+
     def get_redis_url(self, spec: Spec, server: ServerConfig) -> str:
         """Get Redis URL based on server location."""
-        
+
         primary = self.registry.get_primary()
-        
+
         if server.id == primary.id:
             return "redis://redis-main:6379"
         else:
@@ -1100,69 +1102,69 @@ from compiler.template_renderer import render_template
 @click.option('--skip-plan', is_flag=True, help='Skip plan confirmation')
 def apply(site_id, server, skip_plan):
     """Deploy a site from its spec."""
-    
+
     # Load spec
     spec = load_spec(f"specs/{site_id}/spec.yaml")
-    
+
     # Override server if specified
     if server:
         spec.server = server
-    
+
     # Get deployment router
     router = DeploymentRouter()
-    
+
     # Determine target server
     target_server = router.get_server_for_spec(spec)
-    
+
     click.echo(f"\nDeploying {site_id}")
     click.echo(f"  Server: {target_server.name} ({target_server.id})")
     click.echo(f"  IP: {target_server.public_ip}")
     click.echo("-" * 50)
-    
+
     # Get server-specific URLs
     database_url = router.get_database_url(spec, target_server)
     redis_url = router.get_redis_url(spec, target_server)
-    
+
     # Add to environment
     extra_env = {
         'DATABASE_URL': database_url,
         'REDIS_URL': redis_url,
     }
-    
+
     # Render templates
     compose_path = render_template(spec, extra_env=extra_env)
-    
+
     # Get Coolify client for target server
     coolify = router.get_coolify_client(target_server)
-    
+
     # Plan deployment
     plan = coolify.plan(spec, compose_path)
-    
+
     if not skip_plan:
         click.echo("\nPlan:")
         click.echo(plan.summary())
-        
+
         if not click.confirm("\nApply?"):
             raise click.Abort()
-    
+
     # Apply deployment
     click.echo("\nApplying...")
     result = coolify.apply(spec, compose_path)
-    
+
     # Update DNS to point to target server
     if spec.domain and spec.dns:
         from compiler.dns_cloudflare import CloudflareDNS
-        
+
         dns = CloudflareDNS()
-        
+
         # Update A record to target server IP
         dns_result = dns.apply(
             spec.domain,
             [{'type': 'A', 'name': '@', 'content': target_server.public_ip, 'proxied': True}]
         )
-        
+
         click.echo(f"  DNS: Updated to {target_server.public_ip}")
-    
+
     click.echo(f"\n✓ Deployed to {target_server.name}")
     click.echo(f"  URL: https://{spec.domain}")
 ```
@@ -1299,10 +1301,10 @@ scrape_configs:
 
 def add_server_variable(dashboard: dict) -> dict:
     """Add server selector variable to dashboard."""
-    
+
     if 'templating' not in dashboard:
         dashboard['templating'] = {'list': []}
-    
+
     server_var = {
         'name': 'server',
         'type': 'query',
@@ -1313,9 +1315,9 @@ def add_server_variable(dashboard: dict) -> dict:
         'multi': True,
         'current': {'selected': True, 'text': 'All', 'value': '$__all'}
     }
-    
+
     dashboard['templating']['list'].insert(0, server_var)
-    
+
     # Update panel queries to filter by server
     for panel in dashboard.get('panels', []):
         for target in panel.get('targets', []):
@@ -1325,7 +1327,7 @@ def add_server_variable(dashboard: dict) -> dict:
                     '{',
                     '{server=~"$server",'
                 )
-    
+
     return dashboard
 ```
 
@@ -1371,47 +1373,47 @@ def servers():
 @click.option('--role', type=click.Choice(['primary', 'worker', 'standalone']))
 def list_servers(status, role):
     """List all registered servers."""
-    
+
     from compiler.servers import ServerRegistry, ServerStatus, ServerRole
-    
+
     registry = ServerRegistry()
-    
+
     status_filter = ServerStatus(status) if status else None
     role_filter = ServerRole(role) if role else None
-    
+
     servers_list = registry.list(status=status_filter, role=role_filter)
-    
+
     if not servers_list:
         click.echo("No servers found.")
         return
-    
+
     click.echo("\n" + "=" * 80)
     click.echo(f"  {'ID':<20} {'NAME':<20} {'ROLE':<12} {'STATUS':<12} {'IP':<15}")
     click.echo("=" * 80)
-    
+
     for server in servers_list:
         status_color = {
             'active': 'green',
             'maintenance': 'yellow',
             'offline': 'red'
         }.get(server.status.value, 'white')
-        
+
         status_str = click.style(server.status.value, fg=status_color)
-        
+
         click.echo(f"  {server.id:<20} {server.name:<20} {server.role.value:<12} {status_str:<12} {server.public_ip:<15}")
-    
+
     click.echo("=" * 80 + "\n")
 
 @servers.command('status')
 @click.argument('server_id', required=False)
 def status(server_id):
     """Show detailed server status."""
-    
+
     from compiler.servers import ServerRegistry
     import httpx
-    
+
     registry = ServerRegistry()
-    
+
     if server_id:
         servers_list = [registry.get(server_id)]
         if not servers_list[0]:
@@ -1419,22 +1421,22 @@ def status(server_id):
             raise click.Abort()
     else:
         servers_list = registry.get_active()
-    
+
     for server in servers_list:
         click.echo(f"\n{'=' * 60}")
         click.echo(f"  {server.name} ({server.id})")
         click.echo(f"{'=' * 60}")
-        
+
         click.echo(f"  Role:       {server.role.value}")
         click.echo(f"  Status:     {server.status.value}")
         click.echo(f"  Public IP:  {server.public_ip}")
         click.echo(f"  VPN IP:     {server.vpn_ip}")
         click.echo(f"  Region:     {server.region}")
         click.echo(f"  Provider:   {server.provider}")
-        
+
         # Check connectivity
         click.echo(f"\n  Connectivity:")
-        
+
         # SSH check
         ssh_result = subprocess.run(
             ['ssh', '-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes',
@@ -1443,7 +1445,7 @@ def status(server_id):
         )
         ssh_ok = ssh_result.returncode == 0
         click.echo(f"    SSH:      {click.style('✓' if ssh_ok else '✗', fg='green' if ssh_ok else 'red')}")
-        
+
         # VPN check
         vpn_result = subprocess.run(
             ['ping', '-c', '1', '-W', '2', server.vpn_ip],
@@ -1451,7 +1453,7 @@ def status(server_id):
         )
         vpn_ok = vpn_result.returncode == 0
         click.echo(f"    VPN:      {click.style('✓' if vpn_ok else '✗', fg='green' if vpn_ok else 'red')}")
-        
+
         # Coolify check
         if server.coolify_url:
             try:
@@ -1460,19 +1462,19 @@ def status(server_id):
             except:
                 coolify_ok = False
             click.echo(f"    Coolify:  {click.style('✓' if coolify_ok else '✗', fg='green' if coolify_ok else 'red')}")
-        
+
         # Get system metrics if Prometheus available
         prometheus_url = os.environ.get('PROMETHEUS_URL', 'http://localhost:9090')
-        
+
         try:
             queries = {
                 'CPU': f'100 - (avg(irate(node_cpu_seconds_total{{mode="idle",server="{server.id}"}}[5m])) * 100)',
                 'Memory': f'(1 - (node_memory_MemAvailable_bytes{{server="{server.id}"}} / node_memory_MemTotal_bytes{{server="{server.id}"}})) * 100',
                 'Disk': f'(1 - (node_filesystem_avail_bytes{{mountpoint="/",server="{server.id}"}} / node_filesystem_size_bytes{{mountpoint="/",server="{server.id}"}})) * 100',
             }
-            
+
             click.echo(f"\n  Resources:")
-            
+
             for name, query in queries.items():
                 resp = httpx.get(
                     f'{prometheus_url}/api/v1/query',
@@ -1481,24 +1483,24 @@ def status(server_id):
                 )
                 data = resp.json()
                 results = data.get('data', {}).get('result', [])
-                
+
                 if results:
                     value = float(results[0]['value'][1])
-                    
+
                     if value > 90:
                         color = 'red'
                     elif value > 70:
                         color = 'yellow'
                     else:
                         color = 'green'
-                    
+
                     click.echo(f"    {name:<10} {click.style(f'{value:.1f}%', fg=color)}")
                 else:
                     click.echo(f"    {name:<10} N/A")
-        
+
         except Exception as e:
             click.echo(f"\n  Resources: Unable to fetch ({e})")
-        
+
         # Count containers
         try:
             ssh_cmd = f"ssh {server.ssh_user}@{server.public_ip} 'docker ps -q | wc -l'"
@@ -1507,7 +1509,7 @@ def status(server_id):
             click.echo(f"\n  Containers: {container_count}")
         except:
             pass
-    
+
     click.echo("")
 
 # ─────────────────────────────────────────────────────────────
@@ -1524,16 +1526,16 @@ def status(server_id):
 @click.option('--coolify-token-env', help='Environment variable name for Coolify token')
 def add(server_id, name, public_ip, vpn_ip, role, coolify_url, coolify_token_env):
     """Add a new server to the registry."""
-    
+
     from compiler.servers import ServerRegistry, ServerConfig, ServerRole, ServerStatus, ServerResources
-    
+
     registry = ServerRegistry()
-    
+
     # Check if exists
     if registry.get(server_id):
         click.echo(f"Server already exists: {server_id}")
         raise click.Abort()
-    
+
     server = ServerConfig(
         id=server_id,
         name=name,
@@ -1545,9 +1547,9 @@ def add(server_id, name, public_ip, vpn_ip, role, coolify_url, coolify_token_env
         coolify_token_env=coolify_token_env or f"COOLIFY_{server_id.upper().replace('-', '_')}_TOKEN",
         resources=ServerResources(cpu_cores=4, memory_gb=8, disk_gb=160)
     )
-    
+
     registry.add(server)
-    
+
     click.echo(f"✓ Server added: {server_id}")
     click.echo(f"  Config saved to: servers/{server_id}.yaml")
 
@@ -1556,17 +1558,17 @@ def add(server_id, name, public_ip, vpn_ip, role, coolify_url, coolify_token_env
 @click.confirmation_option(prompt='Are you sure you want to remove this server?')
 def remove(server_id):
     """Remove a server from the registry."""
-    
+
     from compiler.servers import ServerRegistry
-    
+
     registry = ServerRegistry()
-    
+
     if not registry.get(server_id):
         click.echo(f"Server not found: {server_id}")
         raise click.Abort()
-    
+
     registry.remove(server_id)
-    
+
     click.echo(f"✓ Server removed: {server_id}")
 
 # ─────────────────────────────────────────────────────────────
@@ -1578,20 +1580,20 @@ def remove(server_id):
 @click.option('--enable/--disable', default=True)
 def maintenance(server_id, enable):
     """Enable or disable maintenance mode for a server."""
-    
+
     from compiler.servers import ServerRegistry, ServerStatus
-    
+
     registry = ServerRegistry()
     server = registry.get(server_id)
-    
+
     if not server:
         click.echo(f"Server not found: {server_id}")
         raise click.Abort()
-    
+
     new_status = ServerStatus.MAINTENANCE if enable else ServerStatus.ACTIVE
     server.status = new_status
     registry.add(server)  # Save updated config
-    
+
     action = "enabled" if enable else "disabled"
     click.echo(f"✓ Maintenance mode {action} for {server_id}")
 
@@ -1603,16 +1605,16 @@ def maintenance(server_id, enable):
 @click.argument('server_id')
 def ssh(server_id):
     """SSH into a server."""
-    
+
     from compiler.servers import ServerRegistry
-    
+
     registry = ServerRegistry()
     server = registry.get(server_id)
-    
+
     if not server:
         click.echo(f"Server not found: {server_id}")
         raise click.Abort()
-    
+
     import subprocess
     subprocess.run(['ssh', f'{server.ssh_user}@{server.public_ip}'])
 
@@ -1621,18 +1623,18 @@ def ssh(server_id):
 @click.argument('command', nargs=-1)
 def exec_cmd(server_id, command):
     """Execute a command on a server."""
-    
+
     from compiler.servers import ServerRegistry
-    
+
     registry = ServerRegistry()
     server = registry.get(server_id)
-    
+
     if not server:
         click.echo(f"Server not found: {server_id}")
         raise click.Abort()
-    
+
     cmd_str = ' '.join(command)
-    
+
     import subprocess
     result = subprocess.run(
         ['ssh', f'{server.ssh_user}@{server.public_ip}', cmd_str],
@@ -1647,22 +1649,22 @@ def exec_cmd(server_id, command):
 @click.argument('server_id')
 def deployments(server_id):
     """List deployments on a server."""
-    
+
     from compiler.servers import ServerRegistry
     from compiler.spec_loader import load_spec
     from pathlib import Path
-    
+
     registry = ServerRegistry()
     server = registry.get(server_id)
-    
+
     if not server:
         click.echo(f"Server not found: {server_id}")
         raise click.Abort()
-    
+
     # Find specs deployed to this server
     specs_dir = Path("specs")
     deployed = []
-    
+
     for spec_path in specs_dir.glob("*/spec.yaml"):
         try:
             spec = load_spec(str(spec_path))
@@ -1675,14 +1677,14 @@ def deployments(server_id):
                 })
         except:
             continue
-    
+
     if not deployed:
         click.echo(f"No deployments found on {server_id}")
         return
-    
+
     click.echo(f"\nDeployments on {server_id}:")
     click.echo("-" * 60)
-    
+
     for d in deployed:
         click.echo(f"  {d['id']:<25} {d['template']:<15} {d['domain'] or 'N/A'}")
 

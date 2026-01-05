@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "models_found": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-4-5-20251101",
+    "claude-sonnet-4-5-20250929",
+    "gemini-3-flash-preview",
+    "gemini-3-pro-preview",
+    "glm-4.6",
+    "gpt-5.1",
+    "gpt-5.1-codex",
+    "gpt-5.1-codex-max",
+    "gpt-5.2"
+  ],
+  "new_models": [],
+  "errors": [],
+  "timestamp": "2025-12-30T15:52:19.035284"
+}

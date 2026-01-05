@@ -49,6 +49,8 @@ class Config:
         # Coolify
         self.coolify_url = get_env("COOLIFY_API_URL", required=True)
         self.coolify_token = get_env("COOLIFY_API_TOKEN", required=True)
+        self.coolify_server_uuid = get_env("COOLIFY_SERVER_UUID")  # VPS to deploy to
+        self.coolify_project_uuid = get_env("COOLIFY_PROJECT_UUID")  # Default project
 
         # DNS (Namecheap service API)
         self.dns_provider = get_env("DNS_PROVIDER", "namecheap")

@@ -1,0 +1,44 @@
+# {{ spec.name }} File Worker - Agent Briefing
+
+> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+
+## Build & Test
+
+```bash
+pip install -r requirements.txt
+pytest
+ruff check .
+```
+
+## Run Locally
+
+```bash
+python -m worker.main
+```
+
+## Docker
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+## droid exec Quick Reference
+
+```bash
+droid exec "Analyze this worker"
+droid exec --auto medium "Add PDF processing"
+droid exec --use-spec "Add retry logic with backoff"
+```
+
+## Conventions
+
+- Environment variables for all config
+- Graceful shutdown handling
+- Proper error logging
+
+## Security
+
+- Validate input files
+- Run as non-root user
+- No hardcoded credentials

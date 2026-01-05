@@ -1,0 +1,76 @@
+# dockerignore.template - Exclude from Docker build
+# Copy to project root as ".dockerignore"
+#
+# Keeps Docker builds fast and images small by excluding:
+#   - Development files (venv, node_modules, IDE)
+#   - Secrets (.env)
+#   - Local data and logs
+#   - Git history
+
+# ===== Secrets (NEVER include) =====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ===== Virtual environments =====
+venv/
+.venv/
+env/
+node_modules/
+
+# ===== Git =====
+.git/
+.gitignore
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Python cache =====
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ===== Logs =====
+logs/
+*.log
+
+# ===== Local data =====
+data/
+*.db
+*.sqlite
+
+# ===== Build artifacts =====
+dist/
+build/
+*.egg-info/
+
+# ===== Test files (uncomment to include) =====
+tests/
+test_*.py
+*_test.py
+
+# ===== Documentation =====
+docs/
+*.md
+!README.md
+
+# ===== Temporary files =====
+.tmp/
+.cache/
+tmp/
+
+# ===== Development files =====
+Makefile
+compose.dev.yaml
+.pre-commit-config.yaml

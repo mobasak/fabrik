@@ -1,0 +1,148 @@
+# Daily Maintenance - Documentation and Test Updates
+# Keeps documentation and tests in sync with code changes
+#
+# Setup: Add FACTORY_API_KEY to repository secrets
+
+name: Daily Maintenance
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 3 AM UTC daily
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-docs-and-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup droid CLI
+        run: |
+          curl -fsSL https://app.factory.ai/cli | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Get recent changes
+        run: |
+          # Get files modified in the last 7 days
+          git log --since="7 days ago" --name-only --pretty=format: | sort -u | grep -v '^$' > recent_changes.txt
+          echo "Files modified in last 7 days:"
+          cat recent_changes.txt
+
+      - name: Update documentation
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+        run: |
+          cat > docs_prompt.txt << 'EOF'
+          Review all code files modified in the last 7 days (listed in recent_changes.txt) and:
+
+          1. Update any outdated docstrings:
+             - Function/method docstrings that don't match implementation
+             - Class docstrings missing new methods or attributes
+             - Module docstrings that are outdated
+
+          2. Update README.md if:
+             - New features were added
+             - Configuration options changed
+             - Installation steps changed
+             - Usage examples are outdated
+
+          3. Update AGENTS.md if:
+             - New scripts were added
+             - New commands available
+             - Conventions changed
+
+          4. Add missing documentation for:
+             - Public functions without docstrings
+             - New modules without module docstrings
+             - Complex logic without inline comments
+
+          Follow Google-style Python docstrings.
+          Preserve existing documentation structure and style.
+
+          Write a summary of changes to docs-updates.md.
+          DO NOT commit or push changes.
+          EOF
+
+          droid exec --auto low \
+            --model gemini-3-flash-preview \
+            -f docs_prompt.txt
+
+      - name: Generate missing tests
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+        run: |
+          cat > tests_prompt.txt << 'EOF'
+          Find functions and modules without adequate test coverage and generate tests:
+
+          1. Identify untested code:
+             - Public functions in src/ without corresponding tests/
+             - New functions added in recent_changes.txt
+             - Error handling paths without test coverage
+
+          2. Generate unit tests:
+             - Use pytest framework
+             - Follow existing test patterns in the codebase
+             - Include happy path and error cases
+             - Use fixtures for common setup
+             - Mock external dependencies (HTTP, database, file system)
+
+          3. Test naming convention:
+             - test_<function_name>_<scenario>
+             - Example: test_load_spec_valid_yaml, test_load_spec_file_not_found
+
+          4. Test file location:
+             - tests/ directory mirroring src/ structure
+             - Example: src/fabrik/deploy.py → tests/test_deploy.py
+
+          Write a summary of generated tests to test-updates.md.
+          DO NOT commit or push changes.
+          EOF
+
+          droid exec --auto low \
+            --model gpt-5.1-codex-max \
+            -f tests_prompt.txt
+
+      - name: Create PR if changes exist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            BRANCH="maintenance/auto-updates-$(date +%Y%m%d)"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            git checkout -b $BRANCH
+            git add -A
+            git commit -m "chore: automated documentation and test updates
+
+          Co-authored-by: factory-droid[bot] <138933559+factory-droid[bot]@users.noreply.github.com>"
+            git push origin $BRANCH
+
+            # Combine summaries for PR body
+            PR_BODY="## Automated Maintenance Updates\n\n"
+            [ -f docs-updates.md ] && PR_BODY="${PR_BODY}### Documentation Updates\n$(cat docs-updates.md)\n\n"
+            [ -f test-updates.md ] && PR_BODY="${PR_BODY}### Test Updates\n$(cat test-updates.md)\n\n"
+
+            gh pr create \
+              --title "🤖 Daily automated maintenance - $(date +%Y-%m-%d)" \
+              --body "$PR_BODY
+
+          ### Review Checklist
+          - [ ] Documentation changes are accurate
+          - [ ] Generated tests pass locally
+          - [ ] No unintended changes
+
+          ---
+          *Automated maintenance by Factory Droid*" \
+              --label "automated,documentation,tests"
+          else
+            echo "No changes needed"
+          fi

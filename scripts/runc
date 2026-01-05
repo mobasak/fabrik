@@ -1,0 +1,61 @@
+#!/bin/bash
+# runc - Check status of a detached job
+# Part of Long Command Monitoring System v1.0.0
+# NOTE: -e intentionally omitted; errors handled with || true
+set -uo pipefail
+
+JOB="${1:-}"
+[ -z "$JOB" ] && { echo "Usage: runc /tmp/job_xxx"; exit 1; }
+
+PID=$(cat "${JOB}.pid" 2>/dev/null || echo "")
+[ -z "$PID" ] && { echo "ERROR: No job at $JOB"; exit 1; }
+[ -f "${JOB}.log" ] || { echo "No log yet"; exit 0; }
+
+SID=$(cat "${JOB}.sid" 2>/dev/null || echo "")
+PGID=$(cat "${JOB}.pgid" 2>/dev/null || echo "")
+CMD=$(cat "${JOB}.cmd" 2>/dev/null || echo "?")
+
+if [ -f "${JOB}.rc" ]; then
+    RC=$(cat "${JOB}.rc")
+    if [ "$RC" = "SIGTERM" ]; then
+        echo "KILLED | $CMD"
+    else
+        echo "DONE exit=$RC | $CMD"
+    fi
+    tail -20 "${JOB}.log"
+    exit 0
+fi
+
+session_alive() {
+    [ -n "$SID" ] && [ -n "$(ps -s "$SID" -o pid= 2>/dev/null)" ]
+}
+
+if session_alive || kill -0 "$PID" 2>/dev/null; then
+    echo "RUNNING | $CMD"
+    ps -p "$PID" -o pid=,state=,%cpu=,etime=,cputime= 2>/dev/null || true
+
+    if [ -n "$SID" ]; then
+        PCOUNT=$(ps -s "$SID" -o pid= 2>/dev/null | wc -l || echo 0)
+        echo "SID=$SID PROCS=$PCOUNT"
+        ps --forest -o pid,state,%cpu,cputime,cmd -s "$SID" 2>/dev/null | head -12 || true
+    elif [ -n "$PGID" ]; then
+        PCOUNT=$(ps -g "$PGID" -o pid= 2>/dev/null | wc -l || echo 0)
+        echo "PGID=$PGID PROCS=$PCOUNT"
+        ps --forest -o pid,state,%cpu,cputime,cmd -g "$PGID" 2>/dev/null | head -12 || true
+    fi
+
+    echo "LOG=$(wc -c < "${JOB}.log" 2>/dev/null || echo 0) bytes"
+    tail -15 "${JOB}.log"
+else
+    if [ -f "${JOB}.rc" ]; then
+        RC=$(cat "${JOB}.rc")
+        if [ "$RC" = "SIGTERM" ]; then
+            echo "KILLED | $CMD"
+        else
+            echo "DONE exit=$RC | $CMD"
+        fi
+    else
+        echo "DEAD (no rc) | $CMD"
+    fi
+    tail -30 "${JOB}.log"
+fi

@@ -1,6 +1,8 @@
+> **Phase 1 Navigation:** [1a: Foundation](Phase1.md) | [1b: Cloud](Phase1b.md) | [1c: DNS](Phase1c.md) | [1d: WordPress](Phase1d.md) | [Phase 2 →](Phase2.md)
+
 ## Phase 1: Foundation — Complete Narrative
 
-**Last Updated:** 2025-12-23
+**Last Updated:** 2025-12-27
 
 ---
 
@@ -799,20 +801,20 @@ class Spec(BaseModel):
 def load_spec(spec_path: str) -> Spec:
     """Load and validate a spec file."""
     path = Path(spec_path)
-    
+
     if not path.exists():
         raise FileNotFoundError(f"Spec not found: {spec_path}")
-    
+
     with open(path) as f:
         raw = yaml.safe_load(f)
-    
+
     return Spec(**raw)
 
 def save_spec(spec: Spec, spec_path: str):
     """Save a spec to file."""
     path = Path(spec_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     with open(path, 'w') as f:
         yaml.dump(spec.dict(exclude_none=True), f, default_flow_style=False)
 ```
@@ -853,7 +855,7 @@ class DNSRecord:
     content: str
     ttl: int = 1800
     priority: Optional[int] = None
-    
+
     def to_dict(self):
         d = {
             'type': self.type,
@@ -864,18 +866,18 @@ class DNSRecord:
         if self.priority is not None:
             d['priority'] = self.priority
         return d
-    
+
     @classmethod
     def from_dict(cls, d):
         return cls(**d)
 
-@dataclass 
+@dataclass
 class DNSDiff:
     to_add: list[DNSRecord]
     to_update: list[DNSRecord]
     to_delete: list[DNSRecord]
     unchanged: list[DNSRecord]
-    
+
     @property
     def has_changes(self):
         return bool(self.to_add or self.to_update or self.to_delete)
@@ -889,24 +891,24 @@ class DNSResult:
 class NamecheapDNS:
     """
     Namecheap DNS driver with SAFE export→diff→apply pattern.
-    
+
     CRITICAL: Namecheap setHosts REPLACES all records.
     We must always read existing records first and merge.
     """
-    
+
     API_URL = "https://api.namecheap.com/xml.response"
-    
+
     def __init__(self):
         self.api_user = os.environ.get('NAMECHEAP_API_USER')
         self.api_key = os.environ.get('NAMECHEAP_API_KEY')
         self.client_ip = os.environ.get('NAMECHEAP_CLIENT_IP')
-        
+
         if not all([self.api_user, self.api_key, self.client_ip]):
             raise ValueError("Missing Namecheap credentials in environment")
-        
+
         self.state_dir = Path("dns/state")
         self.state_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def _api_call(self, command: str, params: dict) -> ET.Element:
         """Make Namecheap API call."""
         base_params = {
@@ -916,51 +918,51 @@ class NamecheapDNS:
             'ClientIp': self.client_ip,
             'Command': command
         }
-        
+
         with httpx.Client(timeout=30) as client:
             resp = client.get(self.API_URL, params={**base_params, **params})
             resp.raise_for_status()
-        
+
         root = ET.fromstring(resp.text)
-        
+
         # Check for API errors
         status = root.attrib.get('Status')
         if status != 'OK':
             errors = root.findall('.//Error')
             error_msg = '; '.join(e.text for e in errors)
             raise Exception(f"Namecheap API error: {error_msg}")
-        
+
         return root
-    
+
     def _parse_domain(self, domain: str) -> tuple[str, str]:
         """Split domain into SLD and TLD."""
         parts = domain.split('.')
         if len(parts) < 2:
             raise ValueError(f"Invalid domain: {domain}")
-        
+
         # Handle common TLDs
         if len(parts) == 2:
             return parts[0], parts[1]
-        
+
         # Handle .co.uk, .com.tr, etc.
         common_second_level = ['co', 'com', 'org', 'net', 'gov', 'edu']
         if parts[-2] in common_second_level:
             return '.'.join(parts[:-2]), '.'.join(parts[-2:])
-        
+
         return '.'.join(parts[:-1]), parts[-1]
-    
+
     def export(self, domain: str) -> list[DNSRecord]:
         """
         Fetch current DNS records from Namecheap.
         Saves state to dns/state/<domain>.yaml
         """
         sld, tld = self._parse_domain(domain)
-        
+
         root = self._api_call('namecheap.domains.dns.getHosts', {
             'SLD': sld,
             'TLD': tld
         })
-        
+
         records = []
         for host in root.findall('.//host'):
             record = DNSRecord(
@@ -971,48 +973,48 @@ class NamecheapDNS:
                 priority=int(host.attrib['MXPref']) if host.attrib.get('MXPref') else None
             )
             records.append(record)
-        
+
         # Save state
         state = {
             'domain': domain,
             'exported_at': datetime.utcnow().isoformat(),
             'records': [r.to_dict() for r in records]
         }
-        
+
         state_file = self.state_dir / f"{domain}.yaml"
         with open(state_file, 'w') as f:
             yaml.dump(state, f, default_flow_style=False)
-        
+
         return records
-    
+
     def _load_state(self, domain: str) -> list[DNSRecord]:
         """Load cached state, or export if not exists."""
         state_file = self.state_dir / f"{domain}.yaml"
-        
+
         if not state_file.exists():
             return self.export(domain)
-        
+
         with open(state_file) as f:
             state = yaml.safe_load(f)
-        
+
         return [DNSRecord.from_dict(r) for r in state['records']]
-    
+
     def plan(self, domain: str, desired: list[DNSRecord]) -> DNSDiff:
         """
         Compare desired records vs current state.
         Returns diff showing what will change.
         """
         current = self._load_state(domain)
-        
+
         # Index current records by (type, name)
         current_map = {(r.type, r.name): r for r in current}
         desired_map = {(r.type, r.name): r for r in desired}
-        
+
         to_add = []
         to_update = []
         to_delete = []
         unchanged = []
-        
+
         # Check desired records
         for key, desired_record in desired_map.items():
             if key not in current_map:
@@ -1021,45 +1023,45 @@ class NamecheapDNS:
                 to_update.append(desired_record)
             else:
                 unchanged.append(desired_record)
-        
+
         # We do NOT delete records not in desired — they might be mail, verification, etc.
         # Only delete if explicitly marked (not implemented in v1)
-        
+
         return DNSDiff(
             to_add=to_add,
             to_update=to_update,
             to_delete=to_delete,
             unchanged=unchanged
         )
-    
+
     def apply(self, domain: str, desired: list[DNSRecord]) -> DNSResult:
         """
         SAFELY apply DNS changes.
-        
+
         1. Export current records
         2. Merge desired into current (preserves unmanaged records)
         3. setHosts with full merged set
         """
         # Always export fresh before applying
         current = self.export(domain)
-        
+
         # Compute what we're changing
         diff = self.plan(domain, desired)
-        
+
         if not diff.has_changes:
             return DNSResult(status="unchanged", changes=diff)
-        
+
         # Merge: keep all current, override/add desired
         merged_map = {(r.type, r.name): r for r in current}
         for record in desired:
             merged_map[(record.type, record.name)] = record
-        
+
         merged = list(merged_map.values())
-        
+
         # Build setHosts params
         sld, tld = self._parse_domain(domain)
         params = {'SLD': sld, 'TLD': tld}
-        
+
         for i, record in enumerate(merged, 1):
             params[f'HostName{i}'] = record.name
             params[f'RecordType{i}'] = record.type
@@ -1067,16 +1069,16 @@ class NamecheapDNS:
             params[f'TTL{i}'] = record.ttl
             if record.priority is not None:
                 params[f'MXPref{i}'] = record.priority
-        
+
         # Execute
         try:
             self._api_call('namecheap.domains.dns.setHosts', params)
         except Exception as e:
             return DNSResult(status="error", changes=diff, error=str(e))
-        
+
         # Update state
         self.export(domain)
-        
+
         return DNSResult(status="applied", changes=diff)
 ```
 
@@ -1131,17 +1133,17 @@ class Application:
 class CoolifyDriver:
     """
     Coolify API driver.
-    
+
     API Reference: https://coolify.io/docs/api-reference/api/
     """
-    
+
     def __init__(self):
         self.base_url = os.environ.get('COOLIFY_URL', '').rstrip('/')
         self.token = os.environ.get('COOLIFY_API_TOKEN')
-        
+
         if not self.base_url or not self.token:
             raise ValueError("Missing COOLIFY_URL or COOLIFY_API_TOKEN")
-        
+
         self.client = httpx.Client(
             base_url=self.base_url,
             headers={
@@ -1150,43 +1152,43 @@ class CoolifyDriver:
             },
             timeout=60
         )
-    
+
     def _get(self, path: str) -> dict:
         resp = self.client.get(path)
         resp.raise_for_status()
         return resp.json()
-    
+
     def _post(self, path: str, data: dict = None) -> dict:
         resp = self.client.post(path, json=data or {})
         resp.raise_for_status()
         return resp.json()
-    
+
     def _patch(self, path: str, data: dict) -> dict:
         resp = self.client.patch(path, json=data)
         resp.raise_for_status()
         return resp.json()
-    
+
     def _delete(self, path: str) -> dict:
         resp = self.client.delete(path)
         resp.raise_for_status()
         return resp.json()
-    
+
     # ─────────────────────────────────────────────────────────────
     # Projects
     # ─────────────────────────────────────────────────────────────
-    
+
     def list_projects(self) -> list[dict]:
         return self._get('/api/v1/projects')
-    
+
     def get_project(self, uuid: str) -> dict:
         return self._get(f'/api/v1/projects/{uuid}')
-    
+
     def create_project(self, name: str, description: str = "") -> dict:
         return self._post('/api/v1/projects', {
             'name': name,
             'description': description
         })
-    
+
     def ensure_project(self, name: str) -> dict:
         """Get existing project or create new one."""
         projects = self.list_projects()
@@ -1194,27 +1196,27 @@ class CoolifyDriver:
             if p.get('name') == name:
                 return p
         return self.create_project(name)
-    
+
     # ─────────────────────────────────────────────────────────────
     # Servers
     # ─────────────────────────────────────────────────────────────
-    
+
     def list_servers(self) -> list[dict]:
         return self._get('/api/v1/servers')
-    
+
     def get_server(self, uuid: str) -> dict:
         return self._get(f'/api/v1/servers/{uuid}')
-    
+
     # ─────────────────────────────────────────────────────────────
     # Applications
     # ─────────────────────────────────────────────────────────────
-    
+
     def list_applications(self) -> list[dict]:
         return self._get('/api/v1/applications')
-    
+
     def get_application(self, uuid: str) -> dict:
         return self._get(f'/api/v1/applications/{uuid}')
-    
+
     def create_application(
         self,
         project_uuid: str,
@@ -1228,7 +1230,7 @@ class CoolifyDriver:
         compose_path: str = None
     ) -> dict:
         """Create a new application."""
-        
+
         data = {
             'project_uuid': project_uuid,
             'server_uuid': server_uuid,
@@ -1236,31 +1238,31 @@ class CoolifyDriver:
             'name': name,
             'build_pack': build_pack,
         }
-        
+
         if git_repository:
             data['git_repository'] = git_repository
             data['git_branch'] = git_branch
-        
+
         if build_pack == 'dockerfile':
             data['dockerfile'] = dockerfile_path
         elif build_pack == 'dockercompose':
             data['docker_compose_location'] = compose_path or 'docker-compose.yaml'
-        
+
         return self._post('/api/v1/applications', data)
-    
+
     def update_application(self, uuid: str, data: dict) -> dict:
         return self._patch(f'/api/v1/applications/{uuid}', data)
-    
+
     def delete_application(self, uuid: str) -> dict:
         return self._delete(f'/api/v1/applications/{uuid}')
-    
+
     # ─────────────────────────────────────────────────────────────
     # Environment Variables
     # ─────────────────────────────────────────────────────────────
-    
+
     def list_env_vars(self, app_uuid: str) -> list[dict]:
         return self._get(f'/api/v1/applications/{app_uuid}/envs')
-    
+
     def create_env_var(self, app_uuid: str, key: str, value: str, is_secret: bool = False) -> dict:
         return self._post(f'/api/v1/applications/{app_uuid}/envs', {
             'key': key,
@@ -1269,61 +1271,61 @@ class CoolifyDriver:
             'is_build_time': False,
             'is_secret': is_secret
         })
-    
+
     def update_env_var(self, app_uuid: str, env_uuid: str, value: str) -> dict:
         return self._patch(f'/api/v1/applications/{app_uuid}/envs/{env_uuid}', {
             'value': value
         })
-    
+
     def set_env_vars(self, app_uuid: str, env_vars: dict[str, str], secrets: list[str] = None):
         """Set multiple environment variables, creating or updating as needed."""
         secrets = secrets or []
         existing = {e['key']: e for e in self.list_env_vars(app_uuid)}
-        
+
         for key, value in env_vars.items():
             is_secret = key in secrets
             if key in existing:
                 self.update_env_var(app_uuid, existing[key]['uuid'], value)
             else:
                 self.create_env_var(app_uuid, key, value, is_secret)
-    
+
     # ─────────────────────────────────────────────────────────────
     # Domains
     # ─────────────────────────────────────────────────────────────
-    
+
     def set_domain(self, app_uuid: str, domain: str):
         """Set application domain (enables HTTPS automatically)."""
         return self.update_application(app_uuid, {
             'fqdn': f'https://{domain}'
         })
-    
+
     # ─────────────────────────────────────────────────────────────
     # Deployments
     # ─────────────────────────────────────────────────────────────
-    
+
     def deploy(self, app_uuid: str) -> dict:
         """Trigger deployment."""
         return self._post(f'/api/v1/applications/{app_uuid}/deploy')
-    
+
     def get_deployment(self, deployment_uuid: str) -> dict:
         return self._get(f'/api/v1/deployments/{deployment_uuid}')
-    
+
     def list_deployments(self, app_uuid: str) -> list[dict]:
         return self._get(f'/api/v1/applications/{app_uuid}/deployments')
-    
+
     def wait_for_deployment(self, app_uuid: str, timeout: int = 300) -> Deployment:
         """Poll until deployment completes or fails."""
         start = time.time()
-        
+
         while time.time() - start < timeout:
             deployments = self.list_deployments(app_uuid)
             if not deployments:
                 time.sleep(5)
                 continue
-            
+
             latest = deployments[0]
             status = latest.get('status', 'unknown')
-            
+
             if status in ('finished', 'success', 'running'):
                 return Deployment(
                     id=latest.get('uuid', ''),
@@ -1335,15 +1337,15 @@ class CoolifyDriver:
                     status='failed',
                     error=latest.get('error', 'Unknown error')
                 )
-            
+
             time.sleep(5)
-        
+
         return Deployment(id='', status='timeout', error=f'Deployment did not complete in {timeout}s')
-    
+
     # ─────────────────────────────────────────────────────────────
     # Logs
     # ─────────────────────────────────────────────────────────────
-    
+
     def get_logs(self, app_uuid: str, lines: int = 100) -> str:
         """Get application logs."""
         # Note: Coolify API may have different endpoint for logs
@@ -1392,41 +1394,41 @@ from compiler.spec_loader import Spec
 
 class TemplateRenderer:
     """Renders spec + template into deployable compose.yaml"""
-    
+
     def __init__(self, templates_dir: str = "templates"):
         self.templates_dir = Path(templates_dir)
         self.apps_dir = Path("apps")
         self.apps_dir.mkdir(exist_ok=True)
-        
+
         self.jinja = Environment(
             loader=FileSystemLoader(str(self.templates_dir)),
             autoescape=select_autoescape(['yaml', 'j2'])
         )
-    
+
     def render(self, spec: Spec, secrets: dict[str, str]) -> Path:
         """
         Render template for spec, return path to compose.yaml
-        
+
         Creates:
           apps/<id>/compose.yaml
           apps/<id>/Dockerfile (if template has one)
           apps/<id>/.env.example
         """
-        
+
         # Create app directory
         app_dir = self.apps_dir / spec.id
         app_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Load template defaults
         defaults_path = self.templates_dir / spec.template / "defaults.yaml"
         defaults = {}
         if defaults_path.exists():
             with open(defaults_path) as f:
                 defaults = yaml.safe_load(f) or {}
-        
+
         # Merge: defaults < spec.env < secrets
         env_vars = {**defaults.get('env', {}), **spec.env, **secrets}
-        
+
         # Context for Jinja
         context = {
             'spec': spec,
@@ -1436,25 +1438,25 @@ class TemplateRenderer:
             'storage': spec.storage,
             'depends': spec.depends,
         }
-        
+
         # Render compose.yaml
         compose_template = f"{spec.template}/compose.yaml.j2"
         compose_content = self.jinja.get_template(compose_template).render(**context)
-        
+
         compose_path = app_dir / "compose.yaml"
         with open(compose_path, 'w') as f:
             f.write(compose_content)
-        
+
         # Render Dockerfile if exists
         dockerfile_template = self.templates_dir / spec.template / "Dockerfile.j2"
         if dockerfile_template.exists():
             dockerfile_content = self.jinja.get_template(
                 f"{spec.template}/Dockerfile.j2"
             ).render(**context)
-            
+
             with open(app_dir / "Dockerfile", 'w') as f:
                 f.write(dockerfile_content)
-        
+
         # Generate .env.example (documents required vars)
         env_example = app_dir / ".env.example"
         with open(env_example, 'w') as f:
@@ -1465,7 +1467,7 @@ class TemplateRenderer:
             for key in spec.env.keys():
                 if key not in spec.secrets.required:
                     f.write(f"{key}={spec.env[key]}\n")
-        
+
         return compose_path
 
 def render_template(spec: Spec, secrets: dict[str, str]) -> Path:
@@ -1500,16 +1502,16 @@ TEMPLATES = ['wp-site', 'app-python', 'app-node']
 @click.option('--domain', help='Domain for the service')
 def new(template: str, id: str, domain: str = None):
     """Create a new spec from template."""
-    
+
     specs_dir = Path("specs") / id
     spec_file = specs_dir / "spec.yaml"
-    
+
     if spec_file.exists():
         click.echo(f"Error: Spec already exists: {spec_file}")
         raise click.Abort()
-    
+
     specs_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Base spec
     spec = {
         'id': id,
@@ -1533,7 +1535,7 @@ def new(template: str, id: str, domain: str = None):
             'retention': 30
         }
     }
-    
+
     if domain:
         spec['domain'] = domain
         spec['dns'] = {
@@ -1543,7 +1545,7 @@ def new(template: str, id: str, domain: str = None):
                 {'type': 'A', 'name': 'www', 'content': '${VPS_IP}'}
             ]
         }
-    
+
     # Template-specific defaults
     if template == 'wp-site':
         spec['env'] = {
@@ -1567,7 +1569,7 @@ def new(template: str, id: str, domain: str = None):
             {'name': 'uploads', 'path': '/var/www/html/wp-content/uploads', 'backup': True}
         ]
         spec['resources'] = {'memory': '512M', 'cpu': '0.5'}
-        
+
     elif template == 'app-python':
         spec['env'] = {
             'LOG_LEVEL': 'info'
@@ -1581,7 +1583,7 @@ def new(template: str, id: str, domain: str = None):
             'redis': 'redis-main'
         }
         spec['health'] = {'path': '/health', 'interval': '30s'}
-        
+
     elif template == 'app-node':
         spec['env'] = {
             'NODE_ENV': 'production'
@@ -1595,11 +1597,11 @@ def new(template: str, id: str, domain: str = None):
             'redis': 'redis-main'
         }
         spec['health'] = {'path': '/health', 'interval': '30s'}
-    
+
     # Write spec
     with open(spec_file, 'w') as f:
         yaml.dump(spec, f, default_flow_style=False, sort_keys=False)
-    
+
     click.echo(f"Created: {spec_file}")
     click.echo(f"Edit the spec, then run: fabrik plan {id}")
 
@@ -1644,15 +1646,15 @@ def load_env():
 @click.argument('id')
 def plan(id: str):
     """Show what changes will be made."""
-    
+
     load_env()
-    
+
     spec_path = f"specs/{id}/spec.yaml"
-    
+
     click.echo(f"\n{'═' * 60}")
     click.echo(f"  FABRIK PLAN: {id}")
     click.echo(f"{'═' * 60}\n")
-    
+
     # Load spec
     try:
         spec = load_spec(spec_path)
@@ -1660,12 +1662,12 @@ def plan(id: str):
     except Exception as e:
         click.echo(f"✗ Failed to load spec: {e}")
         raise click.Abort()
-    
+
     # Check secrets
     click.echo(f"\n{'─' * 40}")
     click.echo("SECRETS")
     click.echo(f"{'─' * 40}")
-    
+
     secrets_file = Path(f"secrets/projects/{id}.env")
     existing_secrets = {}
     if secrets_file.exists():
@@ -1674,7 +1676,7 @@ def plan(id: str):
                 if '=' in line and not line.startswith('#'):
                     k, v = line.strip().split('=', 1)
                     existing_secrets[k] = v
-    
+
     for secret in spec.secrets.required:
         if secret in existing_secrets:
             click.echo(f"  ✓ {secret}: exists")
@@ -1682,13 +1684,13 @@ def plan(id: str):
             click.echo(f"  ~ {secret}: will generate")
         else:
             click.echo(f"  ✗ {secret}: MISSING (add to secrets/projects/{id}.env)")
-    
+
     # DNS plan
     if spec.dns and spec.domain:
         click.echo(f"\n{'─' * 40}")
         click.echo(f"DNS CHANGES ({spec.domain})")
         click.echo(f"{'─' * 40}")
-        
+
         try:
             dns = NamecheapDNS()
             desired_records = [
@@ -1700,7 +1702,7 @@ def plan(id: str):
                 for r in spec.dns.records
             ]
             diff = dns.plan(spec.domain, desired_records)
-            
+
             if not diff.has_changes:
                 click.echo("  No changes")
             else:
@@ -1713,15 +1715,15 @@ def plan(id: str):
                 click.echo(f"  = {len(diff.unchanged)} unchanged")
         except Exception as e:
             click.echo(f"  ✗ DNS plan failed: {e}")
-    
+
     # Coolify plan
     click.echo(f"\n{'─' * 40}")
     click.echo("COOLIFY CHANGES")
     click.echo(f"{'─' * 40}")
-    
+
     try:
         coolify = CoolifyDriver()
-        
+
         # Check if app exists
         apps = coolify.list_applications()
         existing = None
@@ -1729,28 +1731,28 @@ def plan(id: str):
             if app.get('name') == id:
                 existing = app
                 break
-        
+
         if existing:
             click.echo(f"  ~ Update existing application: {id}")
         else:
             click.echo(f"  + Create new application: {id}")
-        
+
         if spec.domain:
             click.echo(f"  + Set domain: {spec.domain}")
-        
+
         env_count = len(spec.env) + len(spec.secrets.required)
         click.echo(f"  + Environment variables: {env_count}")
-        
+
     except Exception as e:
         click.echo(f"  ✗ Coolify plan failed: {e}")
-    
+
     # Resources
     click.echo(f"\n{'─' * 40}")
     click.echo("RESOURCES")
     click.echo(f"{'─' * 40}")
     click.echo(f"  Memory: {spec.resources.memory}")
     click.echo(f"  CPU: {spec.resources.cpu}")
-    
+
     click.echo(f"\n{'═' * 60}")
     click.echo(f"Run 'fabrik apply {id}' to execute this plan")
     click.echo(f"{'═' * 60}\n")
@@ -1803,15 +1805,15 @@ def timestamp():
 @click.option('--yes', '-y', is_flag=True, help='Skip confirmation')
 def apply(id: str, yes: bool):
     """Deploy or update a service."""
-    
+
     load_env()
-    
+
     spec_path = f"specs/{id}/spec.yaml"
-    
+
     click.echo(f"\n[{timestamp()}] Loading spec: {spec_path}")
     spec = load_spec(spec_path)
     click.echo(f"[{timestamp()}] Validating spec... ✓")
-    
+
     # Ensure secrets
     click.echo(f"[{timestamp()}] Ensuring secrets...")
     secrets = ensure_secrets(spec)
@@ -1819,22 +1821,22 @@ def apply(id: str, yes: bool):
         if key in secrets:
             click.echo(f"         → Generated: {key}")
     click.echo(f"         → Saved: secrets/projects/{id}.env")
-    
+
     # Render template
     click.echo(f"[{timestamp()}] Rendering template...")
     compose_path = render_template(spec, secrets)
     click.echo(f"         → Created: {compose_path}")
-    
+
     # Confirm
     if not yes:
         if not click.confirm(f"\nProceed with deployment?"):
             raise click.Abort()
-    
+
     # DNS
     if spec.dns and spec.domain:
         click.echo(f"[{timestamp()}] Applying DNS...")
         dns = NamecheapDNS()
-        
+
         vps_ip = os.environ.get('VPS_IP', '')
         desired_records = [
             DNSRecord(
@@ -1845,31 +1847,31 @@ def apply(id: str, yes: bool):
             )
             for r in spec.dns.records
         ]
-        
+
         dns_result = dns.apply(spec.domain, desired_records)
-        
+
         if dns_result.status == "error":
             click.echo(f"         ✗ DNS failed: {dns_result.error}")
             raise click.Abort()
-        
+
         changes = dns_result.changes
         click.echo(f"         → {len(changes.to_add)} added, {len(changes.to_update)} updated, {len(changes.unchanged)} unchanged")
-    
+
     # Coolify
     click.echo(f"[{timestamp()}] Configuring Coolify...")
     coolify = CoolifyDriver()
-    
+
     # Ensure project
     project = coolify.ensure_project(spec.coolify.project)
     click.echo(f"         → Project: {project.get('name', spec.coolify.project)}")
-    
+
     # Get server
     servers = coolify.list_servers()
     if not servers:
         click.echo("         ✗ No servers found in Coolify")
         raise click.Abort()
     server = servers[0]  # Use first server
-    
+
     # Check if app exists
     apps = coolify.list_applications()
     existing = None
@@ -1877,7 +1879,7 @@ def apply(id: str, yes: bool):
         if app.get('name') == id:
             existing = app
             break
-    
+
     if existing:
         app_uuid = existing['uuid']
         click.echo(f"         → Updating existing application")
@@ -1895,33 +1897,33 @@ def apply(id: str, yes: bool):
             compose_path=str(compose_path)
         )
         app_uuid = app['uuid']
-    
+
     # Set environment variables
     click.echo(f"[{timestamp()}] Setting environment variables...")
     all_env = {**spec.env, **secrets}
     secret_keys = list(spec.secrets.required)
     coolify.set_env_vars(app_uuid, all_env, secrets=secret_keys)
     click.echo(f"         → {len(all_env)} variables set")
-    
+
     # Set domain
     if spec.domain:
         click.echo(f"[{timestamp()}] Setting domain...")
         coolify.set_domain(app_uuid, spec.domain)
         click.echo(f"         → {spec.domain}")
-    
+
     # Deploy
     click.echo(f"[{timestamp()}] Triggering deployment...")
     coolify.deploy(app_uuid)
-    
+
     click.echo(f"[{timestamp()}] Waiting for deployment...")
     deployment = coolify.wait_for_deployment(app_uuid, timeout=300)
-    
+
     if deployment.status != 'running':
         click.echo(f"         ✗ Deployment failed: {deployment.error}")
         raise click.Abort()
-    
+
     click.echo(f"[{timestamp()}] Deployment complete ✓")
-    
+
     # Report
     report = DeploymentReport(
         id=id,
@@ -1931,7 +1933,7 @@ def apply(id: str, yes: bool):
         secrets_path=f"secrets/projects/{id}.env",
         resources=spec.resources
     )
-    
+
     print_report(report)
 
 if __name__ == '__main__':
@@ -1959,12 +1961,12 @@ def ensure_secrets(spec: Spec) -> dict[str, str]:
     Generate any that are in the generate list.
     Returns dict of all secrets.
     """
-    
+
     secrets_dir = Path("secrets/projects")
     secrets_dir.mkdir(parents=True, exist_ok=True)
-    
+
     secrets_file = secrets_dir / f"{spec.id}.env"
-    
+
     # Load existing
     existing = {}
     if secrets_file.exists():
@@ -1974,7 +1976,7 @@ def ensure_secrets(spec: Spec) -> dict[str, str]:
                 if line and not line.startswith('#') and '=' in line:
                     key, value = line.split('=', 1)
                     existing[key] = value
-    
+
     # Process required secrets
     result = {}
     for secret_name in spec.secrets.required:
@@ -1984,14 +1986,14 @@ def ensure_secrets(spec: Spec) -> dict[str, str]:
             result[secret_name] = generate_secret()
         else:
             raise ValueError(f"Required secret {secret_name} not found and not in generate list")
-    
+
     # Save
     with open(secrets_file, 'w') as f:
         for key, value in {**existing, **result}.items():
             f.write(f"{key}={value}\n")
-    
+
     os.chmod(secrets_file, 0o600)
-    
+
     return result
 ```
 
@@ -2014,30 +2016,30 @@ class DeploymentReport:
 
 def print_report(report: DeploymentReport):
     """Print deployment report."""
-    
+
     click.echo(f"\n{'═' * 60}")
     click.echo(f"DEPLOYMENT REPORT: {report.id}")
     click.echo(f"{'═' * 60}\n")
-    
+
     if report.url:
         click.echo(f"URL:          {report.url}")
-    
+
     if report.health_url:
         click.echo(f"Health:       {report.health_url}")
-    
+
     click.echo(f"Status:       {report.status}")
-    
+
     if report.resources:
         click.echo(f"\nResources:")
         click.echo(f"  Memory:     {report.resources.memory}")
         click.echo(f"  CPU:        {report.resources.cpu}")
-    
+
     if report.secrets_path:
         click.echo(f"\nSecrets:")
         click.echo(f"  Location:   {report.secrets_path}")
-    
+
     click.echo(f"\nLogs:         fabrik logs {report.id}")
-    
+
     click.echo(f"\n{'═' * 60}\n")
 ```
 

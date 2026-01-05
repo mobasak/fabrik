@@ -1,0 +1,12 @@
+[Unit]
+Description=Coolify SSH Key Permissions Self-Healing
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/infrastructure/coolify-ssh-permissions.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

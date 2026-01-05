@@ -1,0 +1,43 @@
+# Simple Project Template
+# For quick scripts, utilities, single-file projects
+
+template:
+  name: simple
+  description: "Simple single-file or small utility project"
+  complexity: low
+  estimated_hours: 2-8
+
+structure:
+  directories:
+    - "."
+
+  files:
+    - path: "README.md"
+      template: "readme_simple"
+    - path: "main.py"
+      template: "main_simple"
+      language: "python"
+    - path: ".gitignore"
+      template: "gitignore_simple"
+    - path: "CLAUDE.md"
+      template: "claude_simple"
+
+features:
+  version_control: true
+  testing: false
+  ci_cd: false
+  documentation: minimal
+  dependencies: minimal
+
+best_for:
+  - "Quick utilities"
+  - "Single-file scripts"
+  - "Learning projects"
+  - "Proof of concepts"
+  - "Simple automation"
+
+avoid_when:
+  - "Multiple components needed"
+  - "Complex business logic"
+  - "Team collaboration required"
+  - "Production deployment planned"

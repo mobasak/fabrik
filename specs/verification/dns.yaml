@@ -1,0 +1,47 @@
+# DNS Operation Postconditions
+# Used by fabrik verify to validate DNS changes
+
+operation: dns
+description: DNS record creation/update
+
+preconditions:
+  - Domain is registered
+  - Cloudflare API token valid
+  - Zone exists in Cloudflare
+
+postconditions:
+  record_exists:
+    description: DNS record exists in Cloudflare
+    check: cloudflare_record
+    domain: "${DOMAIN}"
+    record_type: "${RECORD_TYPE:-A}"
+    expect: exists
+
+  dns_resolves:
+    description: DNS resolves to expected IP
+    check: dns_lookup
+    domain: "${DOMAIN}"
+    expect: "${TARGET_IP}"
+    timeout: 60
+    retries: 5
+    backoff: exponential
+    # DNS propagation can take time
+
+  no_downtime:
+    description: Service remained accessible during change
+    check: uptime_kuma
+    monitor: "${DOMAIN}"
+    window: 5m
+    expect: 100%
+    # Optional - only if monitor exists
+
+invariants:
+  - No wildcard records unless explicitly allowed
+  - TTL >= 300 (5 minutes minimum)
+  - Proxy status matches spec (orange cloud vs grey)
+
+rollback:
+  default: auto
+  on_failure:
+    - Restore previous DNS record
+    - Log change details

@@ -1,0 +1,49 @@
+# {{ spec.name }} Docs - Agent Briefing
+
+> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+
+## Build & Test
+
+```bash
+npm install
+npm run build
+npm run serve
+```
+
+## Run Locally
+
+```bash
+npm start
+# Open http://localhost:3000
+```
+
+## Docker
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+## droid exec Quick Reference
+
+```bash
+droid exec "Analyze this Docusaurus site"
+droid exec --auto medium "Add new documentation page"
+droid exec --use-spec "Restructure documentation sections"
+```
+
+## Conventions
+
+- Markdown for all docs
+- Frontmatter for metadata
+- Sidebar auto-generated from file structure
+
+## Project Structure
+
+```
+├── docs/          # Documentation pages
+├── blog/          # Blog posts (optional)
+├── src/           # Custom components
+├── static/        # Static assets
+└── docusaurus.config.js
+```

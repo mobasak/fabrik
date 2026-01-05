@@ -1,0 +1,77 @@
+# {{ spec.name }} - Agent Briefing
+
+> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+
+## Build & Test
+
+```bash
+pip install -e .
+pytest
+ruff check .
+mypy .
+```
+
+## Run Locally
+
+```bash
+uvicorn main:app --reload --port 8000
+curl http://localhost:8000/health
+```
+
+## Docker
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+## droid exec Quick Reference
+
+```bash
+# Read-only analysis
+droid exec "Analyze this FastAPI project"
+
+# Development
+droid exec --auto medium "Add new endpoint for {{ spec.name }}"
+
+# Full autonomy
+droid exec --auto high "Fix issues and run tests"
+
+# Spec mode for features
+droid exec --use-spec "Add authentication middleware"
+```
+
+### Key Flags
+
+| Flag | Purpose |
+|------|---------|
+| `--auto low/medium/high` | Autonomy level |
+| `--use-spec` | Plan before code |
+| `-m <model>` | Model selection |
+
+## Conventions
+
+### Environment Variables (CRITICAL)
+
+```python
+# CORRECT
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+
+# WRONG
+DB_HOST = 'localhost'  # Hardcoded!
+```
+
+### Health Checks
+
+```python
+@app.get("/health")
+async def health():
+    await db.execute("SELECT 1")  # Test actual dependency
+    return {"status": "ok", "db": "connected"}
+```
+
+## Security
+
+- Never commit `.env`
+- CSPRNG passwords: 32 chars, alphanumeric
+- No hardcoded secrets

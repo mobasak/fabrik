@@ -1,0 +1,33 @@
+#!/bin/bash
+# rund - Run command in detached mode (exec mode, argv-safe)
+# Part of Long Command Monitoring System v1.0.0
+# NOTE: -e intentionally omitted; errors handled with || true
+set -uo pipefail
+
+ts="$(date +%s%N 2>/dev/null || date +%s)"
+JOB="/tmp/job_${ts}_$$"
+echo "JOB=$JOB"
+
+printf '%q ' "$@" > "${JOB}.cmd"; echo >> "${JOB}.cmd"
+date -Is > "${JOB}.start"
+: > "${JOB}.log"
+
+nohup setsid bash -c '
+  tmp="$1.rc.tmp"; rc="$1.rc"; shift
+  trap "echo SIGTERM > \"$tmp\"; mv \"$tmp\" \"$rc\"; exit 143" TERM INT HUP
+  "$@"; _rc=$?
+  echo $_rc > "$tmp" && mv "$tmp" "$rc"
+' _ "${JOB}" "$@" > "${JOB}.log" 2>&1 &
+
+pid=$!
+echo "$pid" > "${JOB}.pid"
+
+for _ in 1 2 3; do
+    sid="$(ps -o sid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")"
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")"
+    [ -n "$sid" ] && break
+    sleep 0.05
+done
+[ -n "$sid" ] && echo "$sid" > "${JOB}.sid"
+[ -n "$pgid" ] && echo "$pgid" > "${JOB}.pgid"
+echo "PID=$pid SID=$sid"

@@ -365,7 +365,7 @@ That's how you scale to 3 businesses without new architecture each time.
 
 ### 11.1 Active Projects in /opt
 
-> **Full project registry with statuses:** See `@/opt/fabrik/docs/reference/project-registry.md`
+> **Full project registry with statuses:** See [project-registry.md](project-registry.md)
 
 #### Tier 1: Infrastructure Services (Deploy First)
 

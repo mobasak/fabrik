@@ -1,0 +1,60 @@
+# Deploy Operation Postconditions
+# Used by fabrik verify to validate deployments
+
+operation: deploy
+description: Deploy a service to Coolify
+
+preconditions:
+  - compose.yaml exists
+  - Dockerfile exists (for build)
+  - .env.example documents all required vars
+  - No hardcoded secrets in source
+
+postconditions:
+  health_check:
+    description: Service health endpoint responds
+    check: http_get
+    url: "https://${DOMAIN}/health"
+    expect: 200
+    timeout: 30
+    retries: 3
+    backoff: exponential
+
+  ssl_valid:
+    description: SSL certificate is valid
+    check: ssl_verify
+    domain: "${DOMAIN}"
+    expect: valid
+    min_days_remaining: 7
+
+  container_running:
+    description: Container is running in Coolify
+    check: coolify_status
+    app_name: "${APP_NAME}"
+    expect: running
+
+  no_secrets_exposed:
+    description: No secrets in logs or responses
+    check: secret_scan
+    targets:
+      - logs
+      - health_response
+    expect: clean
+
+invariants:
+  - No plaintext credentials in environment
+  - Health endpoint tests actual dependencies
+  - Container uses non-root user
+  - Memory limit configured
+
+rollback:
+  default: auto
+  on_failure:
+    - Log failure details
+    - Trigger Coolify rollback
+    - Notify via webhook (if configured)
+
+  # Override for specific cases
+  manual_required:
+    - database_migration
+    - breaking_schema_change

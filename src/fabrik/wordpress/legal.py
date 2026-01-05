@@ -10,10 +10,10 @@ Handles:
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 try:
     import anthropic
+
     HAS_ANTHROPIC = True
 except ImportError:
     HAS_ANTHROPIC = False
@@ -22,6 +22,7 @@ except ImportError:
 @dataclass
 class LegalPage:
     """Generated legal page content."""
+
     title: str
     slug: str
     html: str
@@ -31,62 +32,62 @@ class LegalPage:
 class LegalContentGenerator:
     """
     Generate legal pages for WordPress sites.
-    
+
     Uses AI to generate customized legal content based on:
     - Company information
     - Services offered
     - Data collection practices
     - Jurisdiction
-    
+
     Usage:
         generator = LegalContentGenerator()
         privacy = generator.generate_privacy_policy(brand, contact)
         terms = generator.generate_terms_of_service(brand)
     """
-    
+
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
-    
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+
+    def __init__(self, api_key: str | None = None, model: str | None = None):
         """
         Initialize legal content generator.
-        
+
         Args:
             api_key: Anthropic API key
             model: Model to use
         """
         if not HAS_ANTHROPIC:
             raise ImportError("anthropic package required: pip install anthropic")
-        
+
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY not set")
-        
+
         self.model = model or self.DEFAULT_MODEL
         self.client = anthropic.Anthropic(api_key=self.api_key)
-    
+
     def generate_privacy_policy(
         self,
         brand: dict,
         contact: dict,
-        data_practices: Optional[dict] = None,
+        data_practices: dict | None = None,
         language: str = "en",
     ) -> LegalPage:
         """
         Generate a Privacy Policy page.
-        
+
         Args:
             brand: Brand information (name, etc.)
             contact: Contact information (email, address)
             data_practices: Optional data collection details
             language: Output language
-            
+
         Returns:
             LegalPage with HTML content
         """
         company_name = brand.get("name", "Company")
         contact_email = contact.get("email", "privacy@example.com")
         website = brand.get("website", contact.get("website", ""))
-        
+
         prompt = f"""Generate a comprehensive Privacy Policy for {company_name}.
 
 ## Company Information
@@ -113,43 +114,41 @@ class LegalContentGenerator:
 Output clean HTML only, no markdown or code blocks."""
 
         response = self.client.messages.create(
-            model=self.model,
-            max_tokens=4000,
-            messages=[{"role": "user", "content": prompt}]
+            model=self.model, max_tokens=4000, messages=[{"role": "user", "content": prompt}]
         )
-        
+
         return LegalPage(
             title="Privacy Policy",
             slug="privacy-policy",
             html=response.content[0].text,
         )
-    
+
     def generate_terms_of_service(
         self,
         brand: dict,
         contact: dict,
-        services: Optional[list] = None,
+        services: list | None = None,
         language: str = "en",
     ) -> LegalPage:
         """
         Generate Terms of Service page.
-        
+
         Args:
             brand: Brand information
             contact: Contact information
             services: Optional list of services offered
             language: Output language
-            
+
         Returns:
             LegalPage with HTML content
         """
         company_name = brand.get("name", "Company")
         contact_email = contact.get("email", "legal@example.com")
-        
+
         services_desc = ""
         if services:
             services_desc = f"Services offered: {', '.join(services)}"
-        
+
         prompt = f"""Generate Terms of Service for {company_name}.
 
 ## Company Information
@@ -169,17 +168,15 @@ Output clean HTML only, no markdown or code blocks."""
 Output clean HTML only, no markdown or code blocks."""
 
         response = self.client.messages.create(
-            model=self.model,
-            max_tokens=3000,
-            messages=[{"role": "user", "content": prompt}]
+            model=self.model, max_tokens=3000, messages=[{"role": "user", "content": prompt}]
         )
-        
+
         return LegalPage(
             title="Terms of Service",
             slug="terms-of-service",
             html=response.content[0].text,
         )
-    
+
     def generate_cookie_policy(
         self,
         brand: dict,
@@ -188,17 +185,17 @@ Output clean HTML only, no markdown or code blocks."""
     ) -> LegalPage:
         """
         Generate Cookie Policy page.
-        
+
         Args:
             brand: Brand information
             contact: Contact information
             language: Output language
-            
+
         Returns:
             LegalPage with HTML content
         """
         company_name = brand.get("name", "Company")
-        
+
         prompt = f"""Generate a Cookie Policy for {company_name}.
 
 ## Cookies Used (typical)
@@ -218,17 +215,15 @@ Output clean HTML only, no markdown or code blocks."""
 Output clean HTML only."""
 
         response = self.client.messages.create(
-            model=self.model,
-            max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}]
+            model=self.model, max_tokens=2000, messages=[{"role": "user", "content": prompt}]
         )
-        
+
         return LegalPage(
             title="Cookie Policy",
             slug="cookie-policy",
             html=response.content[0].text,
         )
-    
+
     def generate_all(
         self,
         brand: dict,
@@ -237,21 +232,23 @@ Output clean HTML only."""
     ) -> dict[str, LegalPage]:
         """
         Generate all standard legal pages.
-        
+
         Args:
             brand: Brand information
             contact: Contact information
             language: Output language
-            
+
         Returns:
             Dict mapping slug to LegalPage
         """
         pages = {}
-        
+
         pages["privacy-policy"] = self.generate_privacy_policy(brand, contact, language=language)
-        pages["terms-of-service"] = self.generate_terms_of_service(brand, contact, language=language)
+        pages["terms-of-service"] = self.generate_terms_of_service(
+            brand, contact, language=language
+        )
         pages["cookie-policy"] = self.generate_cookie_policy(brand, contact, language=language)
-        
+
         return pages
 
 
@@ -311,18 +308,18 @@ def generate_legal_pages(
     contact: dict,
     language: str = "en",
     use_ai: bool = True,
-    api_key: Optional[str] = None,
+    api_key: str | None = None,
 ) -> dict[str, LegalPage]:
     """
     Convenience function to generate all legal pages.
-    
+
     Args:
         brand: Brand information
         contact: Contact information
         language: Output language
         use_ai: Whether to use AI generation
         api_key: Optional API key
-        
+
     Returns:
         Dict mapping slug to LegalPage
     """
@@ -332,13 +329,14 @@ def generate_legal_pages(
             return generator.generate_all(brand, contact, language)
         except Exception:
             pass
-    
+
     # Fallback to templates
     from datetime import date
+
     today = date.today().isoformat()
     company_name = brand.get("name", "Company")
     contact_email = contact.get("email", "contact@example.com")
-    
+
     return {
         "privacy-policy": LegalPage(
             title="Privacy Policy",

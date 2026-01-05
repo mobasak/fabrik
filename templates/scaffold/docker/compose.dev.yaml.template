@@ -1,0 +1,30 @@
+# compose.dev.yaml.template - Development overrides
+# Copy to project root as "compose.dev.yaml" and customize
+#
+# Usage: docker compose -f compose.yaml -f compose.dev.yaml up --build
+#
+# This file adds dev-friendly features on top of compose.yaml:
+#   - Bind mounts for hot reload
+#   - Debug environment
+#   - Port mapping for local access
+
+services:
+  app:
+    build:
+      target: builder  # Use builder stage (has dev deps)
+    volumes:
+      - .:/app
+      # Exclude dependency folders (reinstalled in container)
+      - /app/node_modules     # Node.js
+      - /app/.venv            # Python
+      - /app/__pycache__      # Python cache
+    environment:
+      - DEBUG=1
+      - LOG_LEVEL=DEBUG
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    # Override command for hot reload
+    # Python:
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--reload"]
+    # Node.js:
+    # command: ["npm", "run", "dev"]

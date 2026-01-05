@@ -1,0 +1,130 @@
+# Automated PR Code Review with Droid
+# Analyzes pull requests for bugs, security issues, and Fabrik convention violations
+#
+# Setup: Add FACTORY_API_KEY to repository secrets (Settings → Secrets → Actions)
+# Alternative: Use /install-gh-app in droid TUI for guided setup
+
+name: Droid Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - '*.py'
+      - '!**/*.md'
+      - '!**/test_*.py'
+      - '!**/*_test.py'
+
+jobs:
+  code-review:
+    # Skip draft PRs and bot PRs
+    if: |
+      github.event.pull_request.draft == false &&
+      !contains(github.event.pull_request.user.login, '[bot]') &&
+      !contains(github.event.pull_request.title, '[skip-review]')
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup droid CLI
+        run: |
+          curl -fsSL https://app.factory.ai/cli | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > pr_changes.diff
+          echo "Files changed:"
+          git diff --name-only origin/${{ github.base_ref }}...HEAD
+
+      - name: Review code with Droid
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+        run: |
+          cat > review_prompt.txt << 'EOF'
+          You are an automated code review system for a Fabrik project.
+
+          Review the PR diff provided via stdin and identify ONLY clear bugs and issues:
+
+          ## Bug Categories to Check
+          - Dead/unreachable code
+          - Broken control flow (missing break, fallthrough bugs)
+          - Async/await mistakes
+          - Null/undefined dereferences
+          - Resource leaks (unclosed files, connections)
+          - SQL/XSS injection vulnerabilities
+          - Missing error handling
+          - Off-by-one errors
+          - Race conditions
+
+          ## Fabrik-Specific Checks
+          - No hardcoded localhost (must use os.getenv('DB_HOST', 'localhost'))
+          - No Alpine base images (use python:3.12-slim-bookworm)
+          - Health endpoints must test actual dependencies (not just return {"status": "ok"})
+          - No class-level os.getenv() (env vars not set at import time)
+          - No hardcoded passwords or secrets
+          - No use of /tmp/ (use project-local .tmp/)
+
+          ## Guidelines
+          - Submit at most 5 comments total, prioritizing the most critical issues
+          - Skip stylistic concerns, minor optimizations, and architectural opinions
+          - Be specific about the issue and suggest a fix
+          - Include line numbers when possible
+
+          Write your review to review.md with this format:
+
+          ## Code Review Summary
+
+          ### Critical Issues
+          (list critical bugs that must be fixed)
+
+          ### Fabrik Convention Violations
+          (list any Fabrik-specific violations)
+
+          ### Recommendations
+          (optional suggestions, max 2)
+
+          ### Verdict
+          ✅ APPROVED - No blocking issues found
+          OR
+          ⚠️ CHANGES REQUESTED - Issues need attention before merge
+          EOF
+
+          cat pr_changes.diff | droid exec --auto low \
+            --model claude-haiku-4-5-20251001 \
+            -f review_prompt.txt
+
+      - name: Post review comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let review = '## 🤖 Droid Code Review\n\n';
+
+            if (fs.existsSync('review.md')) {
+              review += fs.readFileSync('review.md', 'utf8');
+            } else {
+              review += '✅ Review completed - no issues found.';
+            }
+
+            review += '\n\n---\n*Automated review by [Factory Droid](https://factory.ai)*';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: review
+            });

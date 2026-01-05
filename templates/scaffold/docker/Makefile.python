@@ -1,0 +1,64 @@
+# Makefile.python - Standard commands for Python projects
+# Copy to project root as "Makefile" and customize:
+#   1. PROJECT_NAME
+#   2. PORT
+#   3. Entry point in dev command
+#
+# Usage: make dev, make test, make docker-smoke
+
+.PHONY: dev test docker-smoke docker-build docker-dev clean install lint format
+
+# ===== CUSTOMIZE THESE =====
+PROJECT_NAME ?= myproject
+PORT ?= 8000
+# ===========================
+
+# ============================================================
+# Local Development (fast)
+# ============================================================
+
+install:
+	uv sync
+
+dev:
+	uvicorn app.main:app --host 0.0.0.0 --port $(PORT) --reload
+
+test:
+	pytest -v
+
+lint:
+	ruff check .
+	mypy .
+
+format:
+	ruff format .
+	ruff check --fix .
+
+# ============================================================
+# Docker (parity check)
+# ============================================================
+
+docker-build:
+	docker build -t $(PROJECT_NAME) .
+
+docker-smoke: docker-build
+	@echo "Starting container..."
+	@docker run -d --name smoke-test -p $(PORT):$(PORT) --env-file .env $(PROJECT_NAME) || true
+	@sleep 3
+	@echo "Health check..."
+	@curl -sf http://localhost:$(PORT)/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"
+	@docker stop smoke-test && docker rm smoke-test
+
+docker-dev:
+	docker compose -f compose.yaml -f compose.dev.yaml up --build
+
+# ============================================================
+# Cleanup
+# ============================================================
+
+clean:
+	docker stop smoke-test 2>/dev/null || true
+	docker rm smoke-test 2>/dev/null || true
+	docker rmi $(PROJECT_NAME) 2>/dev/null || true
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true

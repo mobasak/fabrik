@@ -1,0 +1,40 @@
+#!/bin/bash
+# rundsh - Run shell command in detached mode (shell mode, pipes/redirects allowed)
+# Part of Long Command Monitoring System v1.0.0
+# WARNING: Only use with trusted input - eval executes arbitrary shell code
+# NOTE: -e intentionally omitted; errors handled with || true
+set -uo pipefail
+
+ts="$(date +%s%N 2>/dev/null || date +%s)"
+JOB="/tmp/job_${ts}_$$"
+echo "JOB=$JOB"
+
+line="${1:-}"
+[ -z "$line" ] && { echo "Usage: rundsh 'cmd | pipe && etc'"; exit 1; }
+
+printf '%s\n' "$line" > "${JOB}.cmd"
+date -Is > "${JOB}.start"
+: > "${JOB}.log"
+
+nohup setsid bash -lc '
+  tmp="'"${JOB}"'.rc.tmp"
+  rc="'"${JOB}"'.rc"
+  trap "echo SIGTERM > \"\$tmp\"; mv \"\$tmp\" \"\$rc\"; exit 143" TERM INT HUP
+  set -o pipefail
+  eval "$1"
+  _rc=$?
+  echo $_rc > "$tmp" && mv "$tmp" "$rc"
+' _ "$line" > "${JOB}.log" 2>&1 &
+
+pid=$!
+echo "$pid" > "${JOB}.pid"
+
+for _ in 1 2 3; do
+    sid="$(ps -o sid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")"
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")"
+    [ -n "$sid" ] && break
+    sleep 0.05
+done
+[ -n "$sid" ] && echo "$sid" > "${JOB}.sid"
+[ -n "$pgid" ] && echo "$pgid" > "${JOB}.pgid"
+echo "PID=$pid SID=$sid"

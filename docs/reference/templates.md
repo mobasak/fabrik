@@ -8,9 +8,39 @@
 
 | Template | Stack | Port | Use Case |
 |----------|-------|------|----------|
+| **`saas-skeleton`** | **Next.js 14 + Tailwind + SSE** | **3000** | **SaaS apps, dashboards, web apps** |
 | `python-api` | Python 3.12 + FastAPI/Uvicorn | 8000 | REST APIs, microservices |
 | `node-api` | Node.js 20 | 3000 | Express/Fastify APIs |
 | `next-tailwind` | Next.js 14 + Tailwind CSS | 3000 | Full-stack web apps, SSR |
+
+---
+
+## saas-skeleton (RECOMMENDED)
+
+**Use this template for ANY SaaS, web app, or dashboard project.**
+
+**Location:** `templates/saas-skeleton/`
+
+**Features:**
+- Next.js 14 + TypeScript + Tailwind CSS
+- Marketing pages (landing, pricing, FAQ, terms, privacy)
+- App pages (dashboard, settings, job workflow)
+- SSE streaming + ChatUI for droid exec integration
+- Supabase-ready auth patterns
+
+**Quick Start:**
+```bash
+cp -r /opt/fabrik/templates/saas-skeleton /opt/<project-name>
+cd /opt/<project-name>
+npm install
+cp .env.example .env
+npm run dev
+```
+
+**Customize:**
+- `lib/config/site.ts` — Branding, navigation
+- `app/(marketing)/` — Marketing pages
+- `app/(app)/app/` — Authenticated app pages
 
 ---
 

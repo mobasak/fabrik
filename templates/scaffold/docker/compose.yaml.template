@@ -1,0 +1,31 @@
+# compose.yaml.template - Production-like Docker Compose
+# Copy to project root as "compose.yaml" and customize:
+#   1. Service name
+#   2. Port number
+#   3. Environment variables (use ${VAR:?} for required vars)
+#
+# Used by: Coolify deployment, docker-smoke test
+# No bind mounts, no dev tools - production parity
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Required (deployment fails without these)
+      - DATABASE_URL=${DATABASE_URL:?Database URL is required}
+      # Optional (have defaults)
+      - PORT=${PORT:-8000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+# Uncomment for services that need persistent storage
+# volumes:
+#   app_data:

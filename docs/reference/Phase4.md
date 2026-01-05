@@ -1,3 +1,5 @@
+> **Phase Navigation:** [← Phase 3](Phase3.md) | **Phase 4** | [Phase 5 →](Phase5.md) | [All Phases](roadmap.md)
+
 ## Phase 4: DNS Migration + Advanced Networking — Complete Narrative
 
 **Status: ✅ COMPLETED (Done in Phase 1c)**
@@ -213,7 +215,7 @@ class DNSRecord:
     priority: Optional[int] = None  # For MX
     proxied: bool = False  # Orange cloud (CDN) or gray cloud (DNS only)
     record_id: Optional[str] = None  # Cloudflare record ID
-    
+
     def to_dict(self) -> dict:
         d = {
             'type': self.type,
@@ -225,7 +227,7 @@ class DNSRecord:
         if self.priority is not None:
             d['priority'] = self.priority
         return d
-    
+
     @classmethod
     def from_cf_response(cls, data: dict) -> 'DNSRecord':
         return cls(
@@ -244,7 +246,7 @@ class DNSDiff:
     to_update: list[tuple[DNSRecord, DNSRecord]]  # (current, desired)
     to_delete: list[DNSRecord]
     unchanged: list[DNSRecord]
-    
+
     @property
     def has_changes(self) -> bool:
         return bool(self.to_create or self.to_update or self.to_delete)
@@ -261,23 +263,23 @@ class DNSResult:
 class CloudflareDNS:
     """
     Cloudflare DNS driver with safe per-record operations.
-    
+
     Unlike Namecheap, Cloudflare supports:
     - Get single record
     - Create single record
     - Update single record
     - Delete single record
-    
+
     No risk of accidentally deleting unrelated records.
     """
-    
+
     API_BASE = "https://api.cloudflare.com/client/v4"
-    
+
     def __init__(self):
         self.token = os.environ.get('CF_API_TOKEN')
         if not self.token:
             raise ValueError("CF_API_TOKEN not set")
-        
+
         self.client = httpx.Client(
             headers={
                 'Authorization': f'Bearer {self.token}',
@@ -285,14 +287,14 @@ class CloudflareDNS:
             },
             timeout=30
         )
-        
+
         # Cache zone IDs
         self._zone_cache = {}
-    
+
     def _request(self, method: str, endpoint: str, data: dict = None) -> dict:
         """Make API request with error handling."""
         url = f"{self.API_BASE}{endpoint}"
-        
+
         if method == 'GET':
             resp = self.client.get(url, params=data)
         elif method == 'POST':
@@ -305,27 +307,27 @@ class CloudflareDNS:
             resp = self.client.delete(url)
         else:
             raise ValueError(f"Unknown method: {method}")
-        
+
         result = resp.json()
-        
+
         if not result.get('success', False):
             errors = result.get('errors', [])
             error_msg = '; '.join(e.get('message', str(e)) for e in errors)
             raise Exception(f"Cloudflare API error: {error_msg}")
-        
+
         return result
-    
+
     # ─────────────────────────────────────────────────────────────
     # Zone Management
     # ─────────────────────────────────────────────────────────────
-    
+
     def get_zone_id(self, domain: str) -> str:
         """Get zone ID for domain."""
-        
+
         # Check cache
         if domain in self._zone_cache:
             return self._zone_cache[domain]
-        
+
         # Extract root domain (handle subdomains)
         parts = domain.split('.')
         if len(parts) > 2:
@@ -337,39 +339,39 @@ class CloudflareDNS:
                 root = '.'.join(parts[-2:])
         else:
             root = domain
-        
+
         # Query API
         result = self._request('GET', '/zones', {'name': root})
-        
+
         zones = result.get('result', [])
         if not zones:
             raise ValueError(f"Zone not found for domain: {domain}")
-        
+
         zone_id = zones[0]['id']
         self._zone_cache[domain] = zone_id
-        
+
         return zone_id
-    
+
     def list_zones(self) -> list[dict]:
         """List all zones in account."""
         result = self._request('GET', '/zones', {'per_page': 50})
         return result.get('result', [])
-    
+
     # ─────────────────────────────────────────────────────────────
     # DNS Record Operations
     # ─────────────────────────────────────────────────────────────
-    
+
     def list_records(self, zone_id: str, record_type: str = None) -> list[DNSRecord]:
         """List all DNS records in zone."""
-        
+
         params = {'per_page': 100}
         if record_type:
             params['type'] = record_type
-        
+
         result = self._request('GET', f'/zones/{zone_id}/dns_records', params)
-        
+
         return [DNSRecord.from_cf_response(r) for r in result.get('result', [])]
-    
+
     def get_record(self, zone_id: str, record_id: str) -> Optional[DNSRecord]:
         """Get single DNS record by ID."""
         try:
@@ -377,41 +379,41 @@ class CloudflareDNS:
             return DNSRecord.from_cf_response(result['result'])
         except:
             return None
-    
+
     def find_record(self, zone_id: str, record_type: str, name: str) -> Optional[DNSRecord]:
         """Find record by type and name."""
-        
+
         params = {
             'type': record_type,
             'name': name,
             'per_page': 1
         }
-        
+
         result = self._request('GET', f'/zones/{zone_id}/dns_records', params)
         records = result.get('result', [])
-        
+
         if records:
             return DNSRecord.from_cf_response(records[0])
         return None
-    
+
     def create_record(self, zone_id: str, record: DNSRecord) -> DNSRecord:
         """Create new DNS record."""
-        
+
         data = record.to_dict()
-        
+
         result = self._request('POST', f'/zones/{zone_id}/dns_records', data)
-        
+
         return DNSRecord.from_cf_response(result['result'])
-    
+
     def update_record(self, zone_id: str, record_id: str, record: DNSRecord) -> DNSRecord:
         """Update existing DNS record."""
-        
+
         data = record.to_dict()
-        
+
         result = self._request('PUT', f'/zones/{zone_id}/dns_records/{record_id}', data)
-        
+
         return DNSRecord.from_cf_response(result['result'])
-    
+
     def delete_record(self, zone_id: str, record_id: str) -> bool:
         """Delete DNS record."""
         try:
@@ -419,11 +421,11 @@ class CloudflareDNS:
             return True
         except:
             return False
-    
+
     # ─────────────────────────────────────────────────────────────
     # High-Level Operations (used by Fabrik)
     # ─────────────────────────────────────────────────────────────
-    
+
     def normalize_name(self, name: str, domain: str) -> str:
         """Convert @ to domain, ensure FQDN."""
         if name == '@':
@@ -431,38 +433,38 @@ class CloudflareDNS:
         if not name.endswith(domain):
             return f"{name}.{domain}"
         return name
-    
+
     def plan(self, domain: str, desired: list[DNSRecord], zone_id: str = None) -> DNSDiff:
         """
         Compare desired records against current state.
         Returns diff showing what will change.
-        
+
         Note: Only manages records in 'desired' list.
         Does NOT delete records not in desired (preserves mail, etc.)
         """
-        
+
         zone_id = zone_id or self.get_zone_id(domain)
-        
+
         # Get current records
         current_records = self.list_records(zone_id)
-        
+
         # Index current by (type, name)
         current_map = {}
         for r in current_records:
             key = (r.type, r.name)
             current_map[key] = r
-        
+
         to_create = []
         to_update = []
         unchanged = []
-        
+
         for desired_record in desired:
             # Normalize name
             full_name = self.normalize_name(desired_record.name, domain)
             desired_record.name = full_name
-            
+
             key = (desired_record.type, full_name)
-            
+
             if key not in current_map:
                 # Record doesn't exist, create it
                 to_create.append(desired_record)
@@ -475,37 +477,37 @@ class CloudflareDNS:
                     to_update.append((current, desired_record))
                 else:
                     unchanged.append(current)
-        
+
         # Note: We do NOT populate to_delete
         # Fabrik only manages records it knows about
         # This prevents accidental deletion of mail/verification records
-        
+
         return DNSDiff(
             to_create=to_create,
             to_update=to_update,
             to_delete=[],  # Intentionally empty for safety
             unchanged=unchanged
         )
-    
+
     def apply(self, domain: str, desired: list[DNSRecord], zone_id: str = None) -> DNSResult:
         """
         Apply desired DNS state.
-        
+
         Creates missing records, updates changed records.
         Does NOT delete records not in desired list (safe by default).
         """
-        
+
         zone_id = zone_id or self.get_zone_id(domain)
-        
+
         diff = self.plan(domain, desired, zone_id)
-        
+
         if not diff.has_changes:
             return DNSResult(status='unchanged', changes=diff)
-        
+
         created = 0
         updated = 0
         errors = []
-        
+
         # Create new records
         for record in diff.to_create:
             try:
@@ -513,7 +515,7 @@ class CloudflareDNS:
                 created += 1
             except Exception as e:
                 errors.append(f"Create {record.type} {record.name}: {e}")
-        
+
         # Update existing records
         for current, desired_record in diff.to_update:
             try:
@@ -521,7 +523,7 @@ class CloudflareDNS:
                 updated += 1
             except Exception as e:
                 errors.append(f"Update {desired_record.type} {desired_record.name}: {e}")
-        
+
         if errors:
             return DNSResult(
                 status='error',
@@ -530,14 +532,14 @@ class CloudflareDNS:
                 updated=updated,
                 error='; '.join(errors)
             )
-        
+
         return DNSResult(
             status='applied',
             changes=diff,
             created=created,
             updated=updated
         )
-    
+
     def delete_managed_records(
         self,
         domain: str,
@@ -546,31 +548,31 @@ class CloudflareDNS:
     ) -> int:
         """
         Explicitly delete specific records.
-        
+
         Use this only when you intentionally want to remove records.
         """
         zone_id = zone_id or self.get_zone_id(domain)
-        
+
         deleted = 0
         for record in records_to_delete:
             full_name = self.normalize_name(record.name, domain)
             existing = self.find_record(zone_id, record.type, full_name)
-            
+
             if existing and existing.record_id:
                 if self.delete_record(zone_id, existing.record_id):
                     deleted += 1
-        
+
         return deleted
-    
+
     # ─────────────────────────────────────────────────────────────
     # Export/Import for Migration
     # ─────────────────────────────────────────────────────────────
-    
+
     def export_zone(self, domain: str, zone_id: str = None) -> list[dict]:
         """Export all records for backup/migration."""
         zone_id = zone_id or self.get_zone_id(domain)
         records = self.list_records(zone_id)
-        
+
         return [
             {
                 'type': r.type,
@@ -582,7 +584,7 @@ class CloudflareDNS:
             }
             for r in records
         ]
-    
+
     def import_records(
         self,
         domain: str,
@@ -591,13 +593,13 @@ class CloudflareDNS:
         skip_existing: bool = True
     ) -> dict:
         """Import records (e.g., from Namecheap export)."""
-        
+
         zone_id = zone_id or self.get_zone_id(domain)
-        
+
         created = 0
         skipped = 0
         errors = []
-        
+
         for record_data in records:
             record = DNSRecord(
                 type=record_data['type'],
@@ -607,10 +609,10 @@ class CloudflareDNS:
                 priority=record_data.get('priority'),
                 proxied=record_data.get('proxied', False)
             )
-            
+
             # Check if exists
             existing = self.find_record(zone_id, record.type, record.name)
-            
+
             if existing:
                 if skip_existing:
                     skipped += 1
@@ -629,7 +631,7 @@ class CloudflareDNS:
                     created += 1
                 except Exception as e:
                     errors.append(f"{record.type} {record.name}: {e}")
-        
+
         return {
             'created': created,
             'skipped': skipped,
@@ -907,11 +909,11 @@ def get_dns_driver(provider: str):
 # In the apply function:
 if spec.dns and spec.domain:
     click.echo(f"[{timestamp()}] Applying DNS ({spec.dns.provider})...")
-    
+
     dns = get_dns_driver(spec.dns.provider)
-    
+
     vps_ip = os.environ.get('VPS_IP', '')
-    
+
     # Build records from spec
     desired_records = []
     for r in spec.dns.records:
@@ -932,18 +934,18 @@ if spec.dns and spec.domain:
                 content=r.content.replace('${VPS_IP}', vps_ip),
                 ttl=r.ttl if hasattr(r, 'ttl') else 1800
             ))
-    
+
     # For Cloudflare, pass zone_id
     if spec.dns.provider == 'cloudflare':
         zone_id = os.environ.get(spec.dns.zone_id.replace('${', '').replace('}', ''))
         dns_result = dns.apply(spec.domain, desired_records, zone_id)
     else:
         dns_result = dns.apply(spec.domain, desired_records)
-    
+
     if dns_result.status == "error":
         click.echo(f"         ✗ DNS failed: {dns_result.error}")
         raise click.Abort()
-    
+
     click.echo(f"         → {dns_result.created} created, {dns_result.updated} updated")
 ```
 
@@ -976,9 +978,9 @@ import httpx
 
 class CloudflareSettings:
     """Manage Cloudflare zone settings."""
-    
+
     API_BASE = "https://api.cloudflare.com/client/v4"
-    
+
     def __init__(self):
         self.token = os.environ.get('CF_API_TOKEN')
         self.client = httpx.Client(
@@ -988,114 +990,114 @@ class CloudflareSettings:
             },
             timeout=30
         )
-    
+
     def _patch_setting(self, zone_id: str, setting: str, value) -> bool:
         """Update a zone setting."""
         url = f"{self.API_BASE}/zones/{zone_id}/settings/{setting}"
         resp = self.client.patch(url, json={'value': value})
         return resp.json().get('success', False)
-    
+
     def _get_setting(self, zone_id: str, setting: str):
         """Get a zone setting."""
         url = f"{self.API_BASE}/zones/{zone_id}/settings/{setting}"
         resp = self.client.get(url)
         return resp.json().get('result', {}).get('value')
-    
+
     # ─────────────────────────────────────────────────────────────
     # SSL Settings
     # ─────────────────────────────────────────────────────────────
-    
+
     def set_ssl_mode(self, zone_id: str, mode: str = 'full') -> bool:
         """
         Set SSL mode.
-        
+
         Options: off, flexible, full, strict
         """
         return self._patch_setting(zone_id, 'ssl', mode)
-    
+
     def set_always_https(self, zone_id: str, enabled: bool = True) -> bool:
         """Enable/disable Always Use HTTPS."""
         return self._patch_setting(zone_id, 'always_use_https', 'on' if enabled else 'off')
-    
+
     def set_min_tls_version(self, zone_id: str, version: str = '1.2') -> bool:
         """Set minimum TLS version (1.0, 1.1, 1.2, 1.3)."""
         return self._patch_setting(zone_id, 'min_tls_version', version)
-    
+
     # ─────────────────────────────────────────────────────────────
     # Performance Settings
     # ─────────────────────────────────────────────────────────────
-    
+
     def set_brotli(self, zone_id: str, enabled: bool = True) -> bool:
         """Enable/disable Brotli compression."""
         return self._patch_setting(zone_id, 'brotli', 'on' if enabled else 'off')
-    
+
     def set_early_hints(self, zone_id: str, enabled: bool = True) -> bool:
         """Enable/disable Early Hints."""
         return self._patch_setting(zone_id, 'early_hints', 'on' if enabled else 'off')
-    
+
     def set_http3(self, zone_id: str, enabled: bool = True) -> bool:
         """Enable/disable HTTP/3."""
         return self._patch_setting(zone_id, 'http3', 'on' if enabled else 'off')
-    
+
     # ─────────────────────────────────────────────────────────────
     # Security Settings
     # ─────────────────────────────────────────────────────────────
-    
+
     def set_security_level(self, zone_id: str, level: str = 'medium') -> bool:
         """
         Set security level.
-        
+
         Options: off, essentially_off, low, medium, high, under_attack
         """
         return self._patch_setting(zone_id, 'security_level', level)
-    
+
     def set_browser_check(self, zone_id: str, enabled: bool = True) -> bool:
         """Enable/disable Browser Integrity Check."""
         return self._patch_setting(zone_id, 'browser_check', 'on' if enabled else 'off')
-    
+
     # ─────────────────────────────────────────────────────────────
     # Caching Settings
     # ─────────────────────────────────────────────────────────────
-    
+
     def set_cache_level(self, zone_id: str, level: str = 'aggressive') -> bool:
         """
         Set cache level.
-        
+
         Options: bypass, basic, simplified, aggressive
         """
         return self._patch_setting(zone_id, 'cache_level', level)
-    
+
     def set_browser_cache_ttl(self, zone_id: str, ttl: int = 14400) -> bool:
         """Set browser cache TTL in seconds."""
         return self._patch_setting(zone_id, 'browser_cache_ttl', ttl)
-    
+
     # ─────────────────────────────────────────────────────────────
     # Apply Standard Configuration
     # ─────────────────────────────────────────────────────────────
-    
+
     def apply_standard_config(self, zone_id: str) -> dict:
         """Apply standard configuration for WordPress sites."""
-        
+
         results = {}
-        
+
         # SSL
         results['ssl'] = self.set_ssl_mode(zone_id, 'strict')
         results['always_https'] = self.set_always_https(zone_id, True)
         results['min_tls'] = self.set_min_tls_version(zone_id, '1.2')
-        
+
         # Performance
         results['brotli'] = self.set_brotli(zone_id, True)
         results['http3'] = self.set_http3(zone_id, True)
         results['early_hints'] = self.set_early_hints(zone_id, True)
-        
+
         # Security
         results['security_level'] = self.set_security_level(zone_id, 'medium')
         results['browser_check'] = self.set_browser_check(zone_id, True)
-        
+
         # Caching
         results['cache_level'] = self.set_cache_level(zone_id, 'aggressive')
         results['browser_cache_ttl'] = self.set_browser_cache_ttl(zone_id, 14400)  # 4 hours
-        
+
         return results
 ```
 
@@ -1137,9 +1139,9 @@ from typing import Optional
 
 class CloudflareWAF:
     """Manage Cloudflare WAF rules."""
-    
+
     API_BASE = "https://api.cloudflare.com/client/v4"
-    
+
     def __init__(self):
         self.token = os.environ.get('CF_API_TOKEN')
         self.client = httpx.Client(
@@ -1149,10 +1151,10 @@ class CloudflareWAF:
             },
             timeout=30
         )
-    
+
     def _request(self, method: str, endpoint: str, data: dict = None):
         url = f"{self.API_BASE}{endpoint}"
-        
+
         if method == 'GET':
             resp = self.client.get(url, params=data)
         elif method == 'POST':
@@ -1161,13 +1163,13 @@ class CloudflareWAF:
             resp = self.client.put(url, json=data)
         elif method == 'DELETE':
             resp = self.client.delete(url)
-        
+
         return resp.json()
-    
+
     # ─────────────────────────────────────────────────────────────
     # Firewall Rules (Custom Rules)
     # ─────────────────────────────────────────────────────────────
-    
+
     def create_firewall_rule(
         self,
         zone_id: str,
@@ -1176,46 +1178,46 @@ class CloudflareWAF:
         action: str  # block, challenge, js_challenge, managed_challenge, allow, skip
     ) -> dict:
         """Create a custom firewall rule."""
-        
+
         # First create the filter
         filter_result = self._request('POST', f'/zones/{zone_id}/filters', {
             'expression': expression,
             'description': description
         })
-        
+
         if not filter_result.get('success'):
             return filter_result
-        
+
         filter_id = filter_result['result'][0]['id']
-        
+
         # Then create the firewall rule using the filter
         rule_result = self._request('POST', f'/zones/{zone_id}/firewall/rules', [{
             'filter': {'id': filter_id},
             'action': action,
             'description': description
         }])
-        
+
         return rule_result
-    
+
     def list_firewall_rules(self, zone_id: str) -> list:
         """List all firewall rules."""
         result = self._request('GET', f'/zones/{zone_id}/firewall/rules')
         return result.get('result', [])
-    
+
     def delete_firewall_rule(self, zone_id: str, rule_id: str) -> bool:
         """Delete a firewall rule."""
         result = self._request('DELETE', f'/zones/{zone_id}/firewall/rules/{rule_id}')
         return result.get('success', False)
-    
+
     # ─────────────────────────────────────────────────────────────
     # WordPress-Specific Rules
     # ─────────────────────────────────────────────────────────────
-    
+
     def apply_wordpress_rules(self, zone_id: str) -> dict:
         """Apply standard WordPress security rules."""
-        
+
         results = {}
-        
+
         rules = [
             {
                 'description': 'Block xmlrpc.php access',
@@ -1253,7 +1255,7 @@ class CloudflareWAF:
                 'action': 'block'
             },
         ]
-        
+
         for rule in rules:
             try:
                 result = self.create_firewall_rule(
@@ -1265,13 +1267,13 @@ class CloudflareWAF:
                 results[rule['description']] = result.get('success', False)
             except Exception as e:
                 results[rule['description']] = f"Error: {e}"
-        
+
         return results
-    
+
     # ─────────────────────────────────────────────────────────────
     # Rate Limiting
     # ─────────────────────────────────────────────────────────────
-    
+
     def create_rate_limit(
         self,
         zone_id: str,
@@ -1283,7 +1285,7 @@ class CloudflareWAF:
         timeout: int = 60
     ) -> dict:
         """Create a rate limiting rule."""
-        
+
         result = self._request('POST', f'/zones/{zone_id}/rate_limits', {
             'description': description,
             'match': {
@@ -1301,14 +1303,14 @@ class CloudflareWAF:
                 'timeout': timeout
             }
         })
-        
+
         return result
-    
+
     def apply_wordpress_rate_limits(self, zone_id: str) -> dict:
         """Apply rate limiting for WordPress."""
-        
+
         results = {}
-        
+
         # Rate limit login page
         results['login_rate_limit'] = self.create_rate_limit(
             zone_id,
@@ -1319,7 +1321,7 @@ class CloudflareWAF:
             action='block',
             timeout=300      # block for 5 minutes
         ).get('success', False)
-        
+
         # Rate limit xmlrpc (if not blocked)
         results['xmlrpc_rate_limit'] = self.create_rate_limit(
             zone_id,
@@ -1330,7 +1332,7 @@ class CloudflareWAF:
             action='block',
             timeout=3600
         ).get('success', False)
-        
+
         # Rate limit admin-ajax
         results['ajax_rate_limit'] = self.create_rate_limit(
             zone_id,
@@ -1340,7 +1342,7 @@ class CloudflareWAF:
             period=60,
             action='challenge'
         ).get('success', False)
-        
+
         return results
 ```
 
@@ -1388,9 +1390,9 @@ import httpx
 
 class CloudflareCache:
     """Manage Cloudflare cache rules."""
-    
+
     API_BASE = "https://api.cloudflare.com/client/v4"
-    
+
     def __init__(self):
         self.token = os.environ.get('CF_API_TOKEN')
         self.client = httpx.Client(
@@ -1400,10 +1402,10 @@ class CloudflareCache:
             },
             timeout=30
         )
-    
+
     def _request(self, method: str, endpoint: str, data: dict = None):
         url = f"{self.API_BASE}{endpoint}"
-        
+
         if method == 'GET':
             resp = self.client.get(url, params=data)
         elif method == 'POST':
@@ -1414,13 +1416,13 @@ class CloudflareCache:
             resp = self.client.patch(url, json=data)
         elif method == 'DELETE':
             resp = self.client.delete(url)
-        
+
         return resp.json()
-    
+
     # ─────────────────────────────────────────────────────────────
     # Page Rules (legacy, but still useful on free tier)
     # ─────────────────────────────────────────────────────────────
-    
+
     def create_page_rule(
         self,
         zone_id: str,
@@ -1431,10 +1433,10 @@ class CloudflareCache:
     ) -> dict:
         """
         Create a page rule.
-        
+
         Free tier: 3 page rules
         """
-        
+
         result = self._request('POST', f'/zones/{zone_id}/pagerules', {
             'targets': [
                 {
@@ -1449,35 +1451,35 @@ class CloudflareCache:
             'priority': priority,
             'status': status
         })
-        
+
         return result
-    
+
     def list_page_rules(self, zone_id: str) -> list:
         """List all page rules."""
         result = self._request('GET', f'/zones/{zone_id}/pagerules')
         return result.get('result', [])
-    
+
     def delete_page_rule(self, zone_id: str, rule_id: str) -> bool:
         """Delete a page rule."""
         result = self._request('DELETE', f'/zones/{zone_id}/pagerules/{rule_id}')
         return result.get('success', False)
-    
+
     # ─────────────────────────────────────────────────────────────
     # WordPress Cache Configuration
     # ─────────────────────────────────────────────────────────────
-    
+
     def apply_wordpress_cache_rules(self, zone_id: str, domain: str) -> dict:
         """
         Apply standard WordPress cache configuration.
-        
+
         Uses 3 page rules (free tier limit):
         1. Bypass cache for admin
         2. Cache static assets aggressively
         3. Standard cache for everything else
         """
-        
+
         results = {}
-        
+
         # Rule 1: Bypass cache for wp-admin and wp-login
         results['admin_bypass'] = self.create_page_rule(
             zone_id,
@@ -1489,7 +1491,7 @@ class CloudflareCache:
             ],
             priority=1
         ).get('success', False)
-        
+
         # Rule 2: Cache static assets aggressively
         results['static_cache'] = self.create_page_rule(
             zone_id,
@@ -1501,7 +1503,7 @@ class CloudflareCache:
             ],
             priority=2
         ).get('success', False)
-        
+
         # Rule 3: Bypass cache for logged-in users (using cookie)
         results['logged_in_bypass'] = self.create_page_rule(
             zone_id,
@@ -1511,27 +1513,27 @@ class CloudflareCache:
             ],
             priority=3
         ).get('success', False)
-        
+
         return results
-    
+
     # ─────────────────────────────────────────────────────────────
     # Cache Purge
     # ─────────────────────────────────────────────────────────────
-    
+
     def purge_everything(self, zone_id: str) -> bool:
         """Purge all cached content."""
         result = self._request('POST', f'/zones/{zone_id}/purge_cache', {
             'purge_everything': True
         })
         return result.get('success', False)
-    
+
     def purge_urls(self, zone_id: str, urls: list[str]) -> bool:
         """Purge specific URLs."""
         result = self._request('POST', f'/zones/{zone_id}/purge_cache', {
             'files': urls
         })
         return result.get('success', False)
-    
+
     def purge_by_prefix(self, zone_id: str, prefixes: list[str]) -> bool:
         """Purge by URL prefix (Enterprise only, will fail on free tier)."""
         result = self._request('POST', f'/zones/{zone_id}/purge_cache', {
@@ -1601,12 +1603,12 @@ def dns():
 @click.option('--provider', type=click.Choice(['cloudflare', 'namecheap']), default='cloudflare')
 def list_zones(provider):
     """List all DNS zones."""
-    
+
     if provider == 'cloudflare':
         from compiler.dns_cloudflare import CloudflareDNS
         cf = CloudflareDNS()
         zones = cf.list_zones()
-        
+
         click.echo(f"\nCloudflare zones:")
         click.echo("-" * 50)
         for z in zones:
@@ -1624,30 +1626,30 @@ def list_zones(provider):
 @click.option('--type', 'record_type', help='Filter by record type (A, CNAME, MX, TXT)')
 def list_records(domain, provider, record_type):
     """List DNS records for a domain."""
-    
+
     if provider == 'cloudflare':
         from compiler.dns_cloudflare import CloudflareDNS
         cf = CloudflareDNS()
-        
+
         zone_id = cf.get_zone_id(domain)
         records = cf.list_records(zone_id, record_type=record_type)
-        
+
         click.echo(f"\nRecords for {domain} (Cloudflare):")
         click.echo("-" * 70)
-        
+
         for r in records:
             proxy = "🟠" if r.proxied else "⚪"
             click.echo(f"  {proxy} {r.type:6} {r.name:35} → {r.content}")
-    
+
     else:
         from compiler.dns_namecheap import NamecheapDNS
         nc = NamecheapDNS()
-        
+
         records = nc.export(domain)
-        
+
         click.echo(f"\nRecords for {domain} (Namecheap):")
         click.echo("-" * 60)
-        
+
         for r in records:
             click.echo(f"  {r.type:6} {r.name:20} → {r.content}")
 
@@ -1657,11 +1659,11 @@ def list_records(domain, provider, record_type):
 @click.option('--output', type=click.Path(), help='Output file (default: dns/backup/<domain>.yaml)')
 def export_records(domain, provider, output):
     """Export DNS records to YAML file."""
-    
+
     if not output:
         Path('dns/backup').mkdir(parents=True, exist_ok=True)
         output = f'dns/backup/{domain}-{provider}.yaml'
-    
+
     if provider == 'cloudflare':
         from compiler.dns_cloudflare import CloudflareDNS
         cf = CloudflareDNS()
@@ -1670,10 +1672,10 @@ def export_records(domain, provider, output):
         from compiler.dns_namecheap import NamecheapDNS
         nc = NamecheapDNS()
         records = [r.to_dict() for r in nc.export(domain)]
-    
+
     with open(output, 'w') as f:
         yaml.dump(records, f, default_flow_style=False)
-    
+
     click.echo(f"✓ Exported {len(records)} records to {output}")
 
 @dns.command('add')
@@ -1685,27 +1687,27 @@ def export_records(domain, provider, output):
 @click.option('--provider', type=click.Choice(['cloudflare', 'namecheap']), default='cloudflare')
 def add_record(domain, record_type, name, content, proxy, provider):
     """Add a DNS record."""
-    
+
     if provider == 'cloudflare':
         from compiler.dns_cloudflare import CloudflareDNS, DNSRecord
         cf = CloudflareDNS()
-        
+
         zone_id = cf.get_zone_id(domain)
-        
+
         record = DNSRecord(
             type=record_type,
             name=name,
             content=content,
             proxied=proxy
         )
-        
+
         result = cf.apply(domain, [record], zone_id)
-        
+
         if result.status == 'applied':
             click.echo(f"✓ Created {record_type} {name} → {content}")
         else:
             click.echo(f"✗ Failed: {result.error}")
-    
+
     else:
         click.echo("For Namecheap, use 'fabrik apply' to manage records safely")
 
@@ -1717,21 +1719,21 @@ def add_record(domain, record_type, name, content, proxy, provider):
 @click.confirmation_option(prompt='Are you sure you want to delete this record?')
 def delete_record(domain, record_type, name, provider):
     """Delete a DNS record."""
-    
+
     if provider == 'cloudflare':
         from compiler.dns_cloudflare import CloudflareDNS, DNSRecord
         cf = CloudflareDNS()
-        
+
         zone_id = cf.get_zone_id(domain)
-        
+
         record = DNSRecord(type=record_type, name=name, content='')
         deleted = cf.delete_managed_records(domain, [record], zone_id)
-        
+
         if deleted > 0:
             click.echo(f"✓ Deleted {record_type} {name}")
         else:
             click.echo(f"✗ Record not found")
-    
+
     else:
         click.echo("Delete not supported for Namecheap (would require replace-all)")
 
@@ -1746,48 +1748,48 @@ def delete_record(domain, record_type, name, provider):
 @click.option('--zone-id', help='Cloudflare zone ID (if already added)')
 def migrate(domain, from_prov, to_prov, zone_id):
     """Migrate DNS records from one provider to another."""
-    
+
     click.echo(f"Migrating {domain} from {from_prov} to {to_prov}")
-    
+
     # Export from source
     click.echo(f"\n1. Exporting records from {from_prov}...")
-    
+
     from compiler.dns_namecheap import NamecheapDNS
     nc = NamecheapDNS()
     records = [r.to_dict() for r in nc.export(domain)]
-    
+
     click.echo(f"   Found {len(records)} records")
-    
+
     # Save backup
     Path('dns/backup').mkdir(parents=True, exist_ok=True)
     backup_file = f'dns/backup/{domain}-pre-migration.yaml'
     with open(backup_file, 'w') as f:
         yaml.dump(records, f)
     click.echo(f"   Backup saved: {backup_file}")
-    
+
     # Import to destination
     click.echo(f"\n2. Importing records to {to_prov}...")
-    
+
     from compiler.dns_cloudflare import CloudflareDNS
     cf = CloudflareDNS()
-    
+
     if not zone_id:
         try:
             zone_id = cf.get_zone_id(domain)
         except:
             click.echo(f"   ✗ Domain not found in Cloudflare. Add it first at dash.cloudflare.com")
             raise click.Abort()
-    
+
     result = cf.import_records(domain, records, zone_id)
-    
+
     click.echo(f"   Created: {result['created']}")
     click.echo(f"   Skipped (already exist): {result['skipped']}")
-    
+
     if result['errors']:
         click.echo(f"   Errors:")
         for err in result['errors']:
             click.echo(f"     ✗ {err}")
-    
+
     click.echo(f"""
 3. Next steps:
    a. Verify records in Cloudflare dashboard
@@ -1807,52 +1809,52 @@ def migrate(domain, from_prov, to_prov, zone_id):
 @click.option('--cache/--no-cache', default=True, help='Apply cache rules')
 def configure(domain, wordpress, waf, cache):
     """Apply Cloudflare configuration for a domain."""
-    
+
     from compiler.dns_cloudflare import CloudflareDNS
     cf = CloudflareDNS()
     zone_id = cf.get_zone_id(domain)
-    
+
     click.echo(f"\nConfiguring {domain} (Zone: {zone_id})")
-    
+
     # Base settings
     click.echo("\n1. Applying base settings...")
     from compiler.cloudflare_settings import CloudflareSettings
     settings = CloudflareSettings()
     results = settings.apply_standard_config(zone_id)
-    
+
     for setting, success in results.items():
         status = "✓" if success else "✗"
         click.echo(f"   {status} {setting}")
-    
+
     # WAF rules
     if waf and wordpress:
         click.echo("\n2. Applying WordPress WAF rules...")
         from compiler.cloudflare_waf import CloudflareWAF
         waf_mgr = CloudflareWAF()
         waf_results = waf_mgr.apply_wordpress_rules(zone_id)
-        
+
         for rule, success in waf_results.items():
             status = "✓" if success else "✗"
             click.echo(f"   {status} {rule}")
-        
+
         click.echo("\n3. Applying rate limits...")
         rate_results = waf_mgr.apply_wordpress_rate_limits(zone_id)
-        
+
         for rule, success in rate_results.items():
             status = "✓" if success else "✗"
             click.echo(f"   {status} {rule}")
-    
+
     # Cache rules
     if cache and wordpress:
         click.echo("\n4. Applying cache rules...")
         from compiler.cloudflare_cache import CloudflareCache
         cache_mgr = CloudflareCache()
         cache_results = cache_mgr.apply_wordpress_cache_rules(zone_id, domain)
-        
+
         for rule, success in cache_results.items():
             status = "✓" if success else "✗"
             click.echo(f"   {status} {rule}")
-    
+
     click.echo(f"\n✓ Configuration complete for {domain}")
 
 @dns.command('purge-cache')
@@ -1861,15 +1863,15 @@ def configure(domain, wordpress, waf, cache):
 @click.option('--url', multiple=True, help='Specific URLs to purge')
 def purge_cache(domain, purge_all, url):
     """Purge Cloudflare cache."""
-    
+
     from compiler.dns_cloudflare import CloudflareDNS
     from compiler.cloudflare_cache import CloudflareCache
-    
+
     cf = CloudflareDNS()
     zone_id = cf.get_zone_id(domain)
-    
+
     cache = CloudflareCache()
-    
+
     if purge_all:
         if cache.purge_everything(zone_id):
             click.echo(f"✓ Purged all cache for {domain}")

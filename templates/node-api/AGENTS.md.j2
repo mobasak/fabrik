@@ -1,0 +1,76 @@
+# {{ spec.name }} - Agent Briefing
+
+> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+
+## Build & Test
+
+```bash
+npm install
+npm run test
+npm run lint
+```
+
+## Run Locally
+
+```bash
+npm run dev
+curl http://localhost:3000/health
+```
+
+## Docker
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+## droid exec Quick Reference
+
+```bash
+# Read-only analysis
+droid exec "Analyze this Node.js API"
+
+# Development
+droid exec --auto medium "Add new endpoint"
+
+# Full autonomy
+droid exec --auto high "Fix issues, run tests, commit"
+
+# Spec mode
+droid exec --use-spec "Add WebSocket support"
+```
+
+### Key Flags
+
+| Flag | Purpose |
+|------|---------|
+| `--auto low/medium/high` | Autonomy level |
+| `--use-spec` | Plan before code |
+| `-m <model>` | Model selection |
+
+## Conventions
+
+### Environment Variables
+
+```javascript
+// CORRECT
+const dbHost = process.env.DB_HOST || 'localhost';
+
+// WRONG
+const dbHost = 'localhost';  // Hardcoded!
+```
+
+### Health Checks
+
+```javascript
+app.get('/health', async (req, res) => {
+  await db.query('SELECT 1');  // Test actual dependency
+  res.json({ status: 'ok', db: 'connected' });
+});
+```
+
+## Security
+
+- Never commit `.env`
+- Use `crypto.randomBytes` for secrets
+- No hardcoded credentials

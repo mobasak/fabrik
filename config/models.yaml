@@ -1,0 +1,223 @@
+# Droid Model Configuration
+# Source: https://docs.factory.ai/cli/user-guides/choosing-your-model
+# Last updated: 2025-01-02
+# Update this file when Factory publishes new model rankings
+#
+# Note: Even best models score ~65% on Terminal-Bench (real terminal tasks).
+# For complex sysadmin/Docker work: break into small steps, use --auto medium.
+
+version: "2025-01-02"
+source_docs:
+  - https://docs.factory.ai/pricing
+  - https://docs.factory.ai/cli/user-guides/choosing-your-model
+
+# Default model for CLI
+default_model: claude-opus-4-5-20251101
+
+# Stack rankings (1 = best, update when Factory docs change)
+stack_rank:
+  1:
+    model: claude-opus-4-5-20251101
+    why: "Highest quality-and-safety balance; current CLI default for both TUI and exec"
+  2:
+    model: gpt-5.1-codex-max
+    why: "Fast coding loops with Extra High reasoning; great for heavy implementation and debugging"
+  3:
+    model: claude-sonnet-4-5-20250929
+    why: "Strong daily driver with balanced cost/quality; great general-purpose choice"
+  4:
+    model: gpt-5.1-codex
+    why: "Quick iteration with solid code quality at lower cost; bump reasoning when needed"
+  5:
+    model: gpt-5.1
+    why: "Good generalist, especially when you want OpenAI ergonomics with flexible reasoning"
+  6:
+    model: claude-haiku-4-5-20251001
+    why: "Fast, cost-efficient for routine tasks and high-volume automation"
+  7:
+    model: gemini-3-pro-preview
+    why: "Strong at mixed reasoning with Low/High settings; helpful for research flows"
+  8:
+    model: gemini-3-flash-preview
+    why: "Fast, cheap (0.2x multiplier) with full reasoning; great for high-volume tasks"
+  9:
+    model: glm-4.6
+    why: "Open-source, 0.25x multiplier, great for bulk automation or air-gapped; no image support"
+
+# Scenario-based recommendations
+scenarios:
+  deep_planning:
+    description: "Deep planning, architecture reviews, ambiguous product specs"
+    primary: claude-opus-4-5-20251101
+    alternatives:
+      - claude-sonnet-4-5-20250929
+      - gpt-5.1-codex-max
+    notes: "Start with Opus for depth and safety"
+
+  full_feature_dev:
+    description: "Full-feature development, large refactors"
+    primary: claude-opus-4-5-20251101
+    alternatives:
+      - gpt-5.1-codex-max
+      - claude-sonnet-4-5-20250929
+    notes: "GPT-5.1-Codex-Max when you need speed plus Extra High reasoning"
+
+  repeatable_edits:
+    description: "Repeatable edits, summarization, boilerplate generation"
+    primary: claude-haiku-4-5-20251001
+    alternatives:
+      - glm-4.6
+      - gpt-5.1-codex
+    notes: "Speed and cost over quality"
+
+  ci_cd:
+    description: "CI/CD or automation loops"
+    primary: claude-haiku-4-5-20251001
+    alternatives:
+      - glm-4.6
+      - gpt-5.1-codex
+    notes: "Predictable, low-cost throughput; use Codex when automation needs stronger reasoning"
+
+  high_volume:
+    description: "High-volume automation, frequent quick turns"
+    primary: claude-haiku-4-5-20251001
+    alternatives:
+      - glm-4.6
+    notes: "Droid Core when cost is critical or air-gapped deployment needed"
+
+  explore:
+    description: "Research, discovery, codebase understanding"
+    primary: gemini-3-flash-preview
+    alternatives:
+      - claude-haiku-4-5-20251001
+    notes: "Cheap exploration, escalate for depth"
+
+  design:
+    description: "Architecture planning, technical decisions"
+    primary: claude-sonnet-4-5-20250929
+    alternatives:
+      - claude-opus-4-5-20251101
+    notes: "Balanced model, escalate for complexity"
+
+  verify:
+    description: "Testing, validation, autonomous verification"
+    primary: gpt-5.1-codex-max
+    alternatives:
+      - claude-opus-4-5-20251101
+    notes: "Autonomous verification, escalate for tricky bugs"
+
+  code_review:
+    description: "Code review, bug finding, convention compliance"
+    models:
+      - gpt-5.1-codex-max
+      - gemini-3-flash-preview
+    notes: "ALWAYS use BOTH models in parallel - not alternatives. Run both reviews and combine findings."
+
+  ship:
+    description: "Deployment, cleanup, routine release tasks"
+    primary: gemini-3-flash-preview
+    alternatives:
+      - claude-haiku-4-5-20251001
+    notes: "Cheap routine tasks"
+
+  documentation:
+    description: "Documentation updates, README maintenance, API docs"
+    primary: gemini-3-flash-preview
+    alternatives:
+      - glm-4.7
+      - claude-haiku-4-5-20251001
+    notes: "Low-cost model for docs (0.2x). Escalate to haiku for complex API docs."
+
+# Model details (reasoning levels, cost multipliers)
+models:
+  claude-opus-4-5-20251101:
+    provider: anthropic
+    reasoning_levels: [off, low, medium, high]
+    default_reasoning: off
+    cost_multiplier: 2.0
+    cost_tier: premium
+
+  claude-sonnet-4-5-20250929:
+    provider: anthropic
+    reasoning_levels: [off, low, medium, high]
+    default_reasoning: off
+    cost_multiplier: 1.2
+    cost_tier: medium
+
+  claude-haiku-4-5-20251001:
+    provider: anthropic
+    reasoning_levels: [off, low, medium, high]
+    default_reasoning: off
+    cost_multiplier: 0.4
+    cost_tier: low
+
+  gpt-5.1:
+    provider: openai
+    reasoning_levels: [none, low, medium, high]
+    default_reasoning: none
+    cost_multiplier: 0.5
+    cost_tier: medium
+
+  gpt-5.1-codex:
+    provider: openai
+    reasoning_levels: [low, medium, high]
+    default_reasoning: medium
+    cost_multiplier: 0.5
+    cost_tier: medium
+
+  gpt-5.1-codex-max:
+    provider: openai
+    reasoning_levels: [low, medium, high, extra_high]
+    default_reasoning: medium
+    cost_multiplier: 0.5
+    cost_tier: high
+
+  gpt-5.2:
+    provider: openai
+    reasoning_levels: [off, low, medium, high, extra_high]
+    default_reasoning: low
+    cost_multiplier: 0.7
+    cost_tier: high
+
+  gemini-3-pro-preview:
+    provider: google
+    reasoning_levels: [low, high]
+    default_reasoning: high
+    cost_multiplier: 0.8
+    cost_tier: medium
+
+  gemini-3-flash-preview:
+    provider: google
+    reasoning_levels: [minimal, low, medium, high]
+    default_reasoning: high
+    cost_multiplier: 0.2
+    cost_tier: low
+
+  glm-4.6:
+    provider: zhipu
+    reasoning_levels: [none]
+    default_reasoning: none
+    cost_multiplier: 0.25
+    cost_tier: low
+    notes: "No image support"
+
+  glm-4.7:
+    provider: zhipu
+    reasoning_levels: [none]
+    default_reasoning: none
+    cost_multiplier: 0.25
+    cost_tier: low
+    notes: "No image support"
+
+# Session switching rules
+session_switching:
+  same_provider: "Context mostly preserved"
+  different_provider: "CLI converts transcript; translation is lossy but no accuracy regressions in practice"
+  best_practice: "Switch at natural milestones: after commit, PR lands, or plan reset"
+  rapid_switching: "Expect assistant to re-ground itself; summarize recent progress"
+
+# Compatibility rules
+compatibility:
+  openai_only_pairs_with_openai: true
+  anthropic_reasoning_on_pairs_with_anthropic: true
+  anthropic_reasoning_off_pairs_with_non_openai: true

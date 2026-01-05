@@ -64,3 +64,4 @@ dmypy.json
 *.pem
 *.key
 secrets/
+.droid/

@@ -1,0 +1,58 @@
+services:
+  wordpress:
+    image: wordpress:{{ php_version | default('php8.2') }}-apache
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wp_user
+      WORDPRESS_DB_PASSWORD: "{{ db_password }}"
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - coolify
+      - {{ name }}-internal
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.{{ name }}.rule=Host(`{{ domain }}`)
+      - traefik.http.routers.{{ name }}.entrypoints=websecure
+      - traefik.http.routers.{{ name }}.tls=true
+      - traefik.http.routers.{{ name }}.tls.certresolver=letsencrypt
+      - traefik.http.services.{{ name }}.loadbalancer.server.port=80
+      - traefik.http.routers.{{ name }}-www.rule=Host(`www.{{ domain }}`)
+      - traefik.http.routers.{{ name }}-www.entrypoints=websecure
+      - traefik.http.routers.{{ name }}-www.tls=true
+      - traefik.http.routers.{{ name }}-www.middlewares={{ name }}-www-redirect
+      - traefik.http.middlewares.{{ name }}-www-redirect.redirectregex.regex=^https://www\.{{ domain | replace('.', '\.') }}/(.*)
+      - traefik.http.middlewares.{{ name }}-www-redirect.redirectregex.replacement=https://{{ domain }}/$${1}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "{{ db_root_password }}"
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wp_user
+      MYSQL_PASSWORD: "{{ db_password }}"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - {{ name }}-internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  wordpress_data:
+  db_data:
+
+networks:
+  coolify:
+    external: true
+  {{ name }}-internal:
+    driver: bridge

@@ -1,0 +1,148 @@
+# Weekly Security Scanner
+# Scans for vulnerabilities, hardcoded secrets, and dependency issues
+#
+# Setup: Add FACTORY_API_KEY to repository secrets
+
+name: Security Scanner
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Mondays at 9 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup droid CLI
+        run: |
+          curl -fsSL https://app.factory.ai/cli | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run pip-audit
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit --format json > pip-audit-results.json 2>&1 || true
+          echo "Pip audit completed"
+
+      - name: Security audit with Droid
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+        run: |
+          cat > security_prompt.txt << 'EOF'
+          Perform a comprehensive security audit for this Fabrik project.
+
+          ## 1. Dependency Vulnerabilities
+          Check pip-audit-results.json (if exists) for known vulnerabilities.
+          For each vulnerability found:
+          - Note the package and version
+          - Severity level
+          - Recommended fix version
+
+          ## 2. Hardcoded Secrets Scan
+          Search ALL files for:
+          - API keys (patterns like sk-, pk-, api_key, apikey)
+          - Passwords in code (not in .env.example)
+          - Private keys or certificates
+          - Database connection strings with credentials
+          - JWT secrets
+          - AWS/GCP/Azure credentials
+
+          Exclude from false positives:
+          - .env.example files (templates are OK)
+          - Test fixtures with obviously fake values
+          - Documentation examples
+
+          ## 3. Fabrik Security Conventions
+          Check for violations of:
+          - Hardcoded localhost (must use os.getenv)
+          - Passwords not using CSPRNG (must be 32 chars alphanumeric)
+          - Secrets not loaded from environment variables
+          - Missing .env in .gitignore
+
+          ## 4. Code Security Patterns
+          Look for:
+          - SQL injection vulnerabilities (string formatting in queries)
+          - Command injection (os.system, subprocess with shell=True)
+          - Path traversal vulnerabilities
+          - Insecure deserialization
+          - Missing input validation
+
+          ## 5. Generate Report
+          Create security-report.md with:
+
+          # Security Audit Report - $(date +%Y-%m-%d)
+
+          ## Summary
+          - Total issues found: X
+          - Critical: X
+          - High: X
+          - Medium: X
+          - Low: X
+
+          ## Dependency Vulnerabilities
+          (list each with package, severity, fix)
+
+          ## Hardcoded Secrets
+          (list each with file, line, masked value)
+
+          ## Code Security Issues
+          (list each with file, line, issue, fix)
+
+          ## Fabrik Convention Violations
+          (list each violation)
+
+          ## Recommended Actions
+          1. (prioritized list of fixes)
+
+          DO NOT commit or push changes.
+          EOF
+
+          droid exec --auto low \
+            --model claude-sonnet-4-5-20250929 \
+            -f security_prompt.txt
+
+      - name: Create issue if vulnerabilities found
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f security-report.md ]; then
+            # Check if report contains actual issues
+            if grep -qiE "critical|high|vulnerability|hardcoded|injection" security-report.md; then
+              gh issue create \
+                --title "🔒 Security audit findings - $(date +%Y-%m-%d)" \
+                --body-file security-report.md \
+                --label "security,automated"
+              echo "Security issue created"
+            else
+              echo "No significant security issues found"
+            fi
+          else
+            echo "No security report generated"
+          fi
+
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report-${{ github.run_id }}
+          path: |
+            security-report.md
+            pip-audit-results.json
+          retention-days: 30

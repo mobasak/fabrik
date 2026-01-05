@@ -1,0 +1,45 @@
+# {{ spec.name }} File API - Agent Briefing
+
+> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+
+## Build & Test
+
+```bash
+npm install
+npm run test
+npm run lint
+```
+
+## Run Locally
+
+```bash
+npm run dev
+curl http://localhost:3000/health
+```
+
+## Docker
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+## droid exec Quick Reference
+
+```bash
+droid exec "Analyze this file API"
+droid exec --auto medium "Add file validation"
+droid exec --use-spec "Add S3 storage backend"
+```
+
+## Conventions
+
+- Environment variables for all config
+- Health checks must test actual dependencies
+- Never hardcode credentials
+
+## Security
+
+- Validate file types and sizes
+- Sanitize filenames
+- Use signed URLs for access

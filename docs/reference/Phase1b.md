@@ -1,6 +1,8 @@
+> **Phase 1 Navigation:** [1a: Foundation](Phase1.md) | [1b: Cloud](Phase1b.md) | [1c: DNS](Phase1c.md) | [1d: WordPress](Phase1d.md) | [Phase 2 →](Phase2.md)
+
 ## Phase 1b: Cloud Infrastructure (Supabase + R2)
 
-**Last Updated:** 2025-12-23
+**Last Updated:** 2025-12-27
 
 ---
 
@@ -1812,4 +1814,3 @@ If you want, I can provide:
 * a hardened Nginx config (rate limits for init-upload/finalize),
 * a `/v1/tenants/bootstrap` endpoint,
 * and a minimal “admin/internal role” management endpoint.
-

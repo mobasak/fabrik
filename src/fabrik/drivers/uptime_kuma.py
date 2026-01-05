@@ -6,10 +6,10 @@ When a service is deployed via Fabrik, it can automatically be added to Uptime K
 """
 
 import os
-from typing import Optional
 
 try:
-    from uptime_kuma_api import UptimeKumaApi, MonitorType
+    from uptime_kuma_api import MonitorType, UptimeKumaApi
+
     HAS_UPTIME_KUMA = True
 except ImportError:
     HAS_UPTIME_KUMA = False
@@ -22,21 +22,19 @@ class UptimeKumaClient:
 
     def __init__(
         self,
-        url: Optional[str] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
+        url: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
     ):
         self.url = url or os.getenv("UPTIME_KUMA_URL", "https://status.vps1.ocoron.com")
         self.username = username or os.getenv("UPTIME_KUMA_USERNAME")
         self.password = password or os.getenv("UPTIME_KUMA_PASSWORD")
-        self._api: Optional[UptimeKumaApi] = None
+        self._api: UptimeKumaApi | None = None
 
     def _ensure_connected(self) -> None:
         """Ensure we have an active connection."""
         if not HAS_UPTIME_KUMA:
-            raise ImportError(
-                "uptime-kuma-api not installed. Run: pip install uptime-kuma-api"
-            )
+            raise ImportError("uptime-kuma-api not installed. Run: pip install uptime-kuma-api")
         if self._api is None:
             self._api = UptimeKumaApi(self.url)
             self._api.login(self.username, self.password)

@@ -1,151 +1,109 @@
 #!/usr/bin/env python3
-"""
-Setup Duplicati backup job via web API.
-Creates a backup job for VPS data to Backblaze B2.
-"""
+"""Setup Duplicati backup for VPS - Full Automation."""
 
-import requests
-import json
-import hashlib
-import base64
-from urllib.parse import urljoin
+import argparse
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
 
-DUPLICATI_URL = "https://backup.vps1.ocoron.com"
-PASSWORD = "fabrik2025"
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from dotenv import load_dotenv
 
-# B2 Configuration
-B2_BUCKET = "vps1-ocoron-backups"
-B2_ACCOUNT_ID = "0044e7ca36a086b0000000001"
-B2_APP_KEY = "K004hcjQVRBA8hLY0uZzzKEYg4crlq8"
+load_dotenv(Path(__file__).parent.parent / ".env")
 
-# Backup sources
-SOURCES = [
-    "/source/opt/traefik/",
-    "/source/opt/captcha/",
-    "/source/opt/emailgateway/",
-    "/source/opt/translator/",
-    "/source/opt/namecheap/",
-    "/source/opt/proxy/",
-    "/source/opt/redis/",
-    "/source/opt/netdata/",
-    "/source/opt/duplicati/",
-    "/source/opt/email-reader/",
-    "/source/opt/youtube/",
-    "/source/docker-volumes/coolify-db/",
-    "/source/docker-volumes/proxy_postgres_data/",
-]
-
-# Exclude filters
+B2_BUCKET = os.getenv("B2_BUCKET_NAME", "vps1-ocoron-backups")
+B2_ACCOUNT_ID = os.getenv("B2_KEY_ID", "")
+B2_APP_KEY = os.getenv("B2_APPLICATION_KEY", "")
+SERVER_DB = "/var/lib/docker/volumes/duplicati_duplicati-config/_data/Duplicati-server.sqlite"
+BACKUP_DB = "/config/VPS-Complete-Backup.sqlite"
+SOURCES = ["/source/opt/", "/source/docker-volumes/", "/source/data/coolify/"]
 EXCLUDES = [
-    "**/node_modules/",
-    "**/__pycache__/",
-    "**/.git/",
+    "**/node_modules/**",
+    "**/__pycache__/**",
+    "**/.git/**",
     "**/*.log",
-    "**/*.pyc",
-    "**/venv/",
-    "**/.venv/",
-    "**/.cache/",
+    "**/venv/**",
+    "**/.venv/**",
 ]
+DBLOCK_SIZE = "1GB"
 
-def get_session():
-    """Create authenticated session with Duplicati."""
-    session = requests.Session()
-    
-    # Get the initial page to get nonce
-    resp = session.get(DUPLICATI_URL)
-    
-    # Try to login
-    login_url = urljoin(DUPLICATI_URL, "/api/v1/auth/login")
-    
-    # Duplicati uses a salted password hash
-    # First get server state to check if password is needed
-    state_resp = session.get(urljoin(DUPLICATI_URL, "/api/v1/serverstate"))
-    
-    if state_resp.status_code == 200:
-        print("Already authenticated or no password required")
-        return session
-    
-    # Try password login
-    login_data = {"password": PASSWORD}
-    login_resp = session.post(login_url, json=login_data)
-    
-    if login_resp.status_code == 200:
-        print("Login successful")
-        return session
-    else:
-        print(f"Login failed: {login_resp.status_code} - {login_resp.text}")
-        return None
 
-def create_backup_job(session):
-    """Create the backup job configuration."""
-    
-    backup_config = {
-        "Backup": {
-            "Name": "VPS Daily Backup",
-            "Description": "Full VPS backup to B2 - configs, volumes, databases",
-            "Tags": [],
-            "TargetURL": f"b2://{B2_BUCKET}/duplicati?b2-accountid={B2_ACCOUNT_ID}&b2-applicationkey={B2_APP_KEY}",
-            "DBPath": "",
-            "Sources": SOURCES,
-            "Settings": [
-                {"Name": "passphrase", "Value": "fabrik2025backup"},
-                {"Name": "retention-policy", "Value": "7D:1D"},
-                {"Name": "dblock-size", "Value": "50mb"},
-            ],
-            "Filters": [{"Expression": f"-{e}", "Include": False} for e in EXCLUDES],
-            "Metadata": {}
-        },
-        "Schedule": {
-            "ID": 1,
-            "Tags": [],
-            "Time": "02:00",
-            "Repeat": "1D",
-            "LastRun": None,
-            "Rule": "",
-            "AllowedDays": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-        }
-    }
-    
-    # Create backup via API
-    create_url = urljoin(DUPLICATI_URL, "/api/v1/backups")
-    resp = session.post(create_url, json=backup_config)
-    
-    if resp.status_code in [200, 201]:
-        print("Backup job created successfully!")
-        return resp.json()
-    else:
-        print(f"Failed to create backup: {resp.status_code} - {resp.text}")
-        return None
+def ssh(cmd):
+    return subprocess.run(["ssh", "vps", cmd], capture_output=True, text=True).stdout.strip()
 
-def run_backup(session, backup_id):
-    """Trigger a backup run."""
-    run_url = urljoin(DUPLICATI_URL, f"/api/v1/backup/{backup_id}/run")
-    resp = session.post(run_url)
-    
-    if resp.status_code == 200:
-        print("Backup started!")
-        return True
-    else:
-        print(f"Failed to start backup: {resp.status_code} - {resp.text}")
-        return False
 
-def main():
-    print("Setting up Duplicati backup job...")
-    
-    session = get_session()
-    if not session:
-        print("Failed to authenticate")
-        return 1
-    
-    result = create_backup_job(session)
-    if result:
-        backup_id = result.get("ID", 1)
-        print(f"Backup job created with ID: {backup_id}")
-        
-        print("Starting first backup...")
-        run_backup(session, backup_id)
-    
-    return 0
+def target_url():
+    return (
+        f"b2://{B2_BUCKET}/vps1-backup?b2-accountid={B2_ACCOUNT_ID}&b2-applicationkey={B2_APP_KEY}"
+    )
+
+
+def setup():
+    print("Stopping Duplicati...")
+    ssh("sudo docker stop duplicati")
+    print("Cleaning existing jobs...")
+    ssh(
+        f'sudo sqlite3 {SERVER_DB} "DELETE FROM Schedule; DELETE FROM Option WHERE BackupID>0; DELETE FROM Filter; DELETE FROM Source; DELETE FROM Backup;"'
+    )
+
+    print("Creating backup job...")
+    ssh(
+        f'''sudo sqlite3 {SERVER_DB} "INSERT INTO Backup (Name,Description,Tags,TargetURL,DBPath) VALUES ('VPS Complete Backup','Full VPS backup to B2','','{target_url()}','{BACKUP_DB}');"'''
+    )
+    bid = int(ssh(f'sudo sqlite3 {SERVER_DB} "SELECT MAX(ID) FROM Backup;"'))
+
+    for s in SOURCES:
+        ssh(f'''sudo sqlite3 {SERVER_DB} "INSERT INTO Source VALUES ({bid},'{s}');"''')
+    for i, e in enumerate(EXCLUDES):
+        ssh(f'''sudo sqlite3 {SERVER_DB} "INSERT INTO Filter VALUES ({bid},{i},0,'{e}');"''')
+    for n, v in [
+        ("encryption-module", ""),
+        ("no-encryption", "true"),
+        ("dblock-size", DBLOCK_SIZE),
+    ]:
+        ssh(f'''sudo sqlite3 {SERVER_DB} "INSERT INTO Option VALUES ({bid},'','{n}','{v}');"''')
+    ssh(
+        f'''sudo sqlite3 {SERVER_DB} "INSERT INTO Schedule VALUES ({bid},'ID={bid}',strftime('%s','2025-01-01 05:00:00'),'1D',0,'');"'''
+    )
+
+    print("Setting up cron...")
+    ssh("sudo mkdir -p /opt/scripts")
+    excl = " ".join([f"--exclude='{e}'" for e in EXCLUDES])
+    script = f"""docker exec duplicati /app/duplicati/duplicati-cli backup '{target_url()}' {" ".join(SOURCES)} --no-encryption --dblock-size={DBLOCK_SIZE} {excl} --dbpath={BACKUP_DB} 2>&1 | logger -t duplicati-backup"""
+    ssh(
+        f"""echo '#!/bin/bash\n{script}' | sudo tee /opt/scripts/duplicati-backup.sh > /dev/null && sudo chmod +x /opt/scripts/duplicati-backup.sh"""
+    )
+    ssh(
+        """echo '0 5 * * * root /opt/scripts/duplicati-backup.sh' | sudo tee /etc/cron.d/duplicati-backup > /dev/null"""
+    )
+
+    print("Starting Duplicati...")
+    ssh("sudo docker start duplicati")
+    time.sleep(3)
+    print(
+        f"\n✅ Backup job created (ID={bid})! Run with: python setup_duplicati_backup.py --run-backup"
+    )
+    return bid
+
+
+def run_backup():
+    print("Running backup...")
+    excl = " ".join([f"--exclude='{e}'" for e in EXCLUDES])
+    cmd = f"sudo docker exec duplicati /app/duplicati/duplicati-cli backup '{target_url()}' {' '.join(SOURCES)} --no-encryption --dblock-size={DBLOCK_SIZE} {excl} --dbpath={BACKUP_DB}"
+    r = subprocess.run(["ssh", "vps", cmd], capture_output=True, text=True)
+    print(r.stdout[-2000:] if len(r.stdout) > 2000 else r.stdout)
+
 
 if __name__ == "__main__":
-    exit(main())
+    if not B2_ACCOUNT_ID or not B2_APP_KEY:
+        print("Error: B2 credentials missing")
+        sys.exit(1)
+    p = argparse.ArgumentParser()
+    p.add_argument("--run-backup", action="store_true")
+    args = p.parse_args()
+    if args.run_backup:
+        run_backup()
+    else:
+        setup()

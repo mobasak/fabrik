@@ -1,0 +1,33 @@
+# Docker Compose for Coolify deployment
+# Update service name and domain before deploying
+
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-SaaS App}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - DROID_MODEL_ID=${DROID_MODEL_ID:-gemini-3-flash-preview}
+      - DROID_REASONING=${DROID_REASONING:-low}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-saas}.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-saas}.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-saas}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-saas}.loadbalancer.server.port=3000"
+
+networks:
+  default:
+    name: coolify
+    external: true

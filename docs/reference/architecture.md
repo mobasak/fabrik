@@ -1,6 +1,6 @@
 # Fabrik Architecture
 
-**Last Updated:** 2025-12-23
+**Last Updated:** 2025-12-27
 
 ---
 
@@ -114,7 +114,7 @@ save_spec(spec, "specs/my-api.yaml")
 - **Consistency** — All services follow same structure
 - **Variable substitution** — `${VAR}` replaced with spec values
 
-**Input:** Validated `Spec` + template name  
+**Input:** Validated `Spec` + template name
 **Output:** Generated `compose.yaml`, `Dockerfile`, config files
 
 ```python
@@ -132,7 +132,7 @@ files = render_template(spec, template="python-api")
 
 | Driver | Service | Operations |
 |--------|---------|------------|
-| `DNSClient` | Namecheap API (via wrapper) | Add/remove DNS records |
+| `DNSClient` | Namecheap + Cloudflare APIs | Add/remove DNS records |
 | `CoolifyClient` | Coolify API | Create apps, deploy, manage env vars |
 | `UptimeKumaClient` | Uptime Kuma | Add/remove monitors |
 | `SupabaseClient` | Supabase (Phase 1b) | Auth, database, vectors |
@@ -234,8 +234,45 @@ health:
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| **1** | Foundation (CLI, drivers, templates) | 59% complete |
+| **1** | Foundation (CLI, drivers, templates) | ✅ Complete |
 | **1b** | Cloud Infrastructure (Supabase, R2) | Pending |
-| **1c** | Cloudflare DNS Migration | Pending |
+| **1c** | Cloudflare DNS Migration | ✅ Complete |
 | **2** | WordPress Automation | Deferred |
 | **3** | AI Content Integration | Deferred |
+
+---
+
+## Coolify-Managed Services
+
+The following services are deployed via Coolify with GitHub webhook auto-deploy:
+
+| Service | Domain | GitHub Repo |
+|---------|--------|-------------|
+| captcha | captcha.vps1.ocoron.com | mobasak/captcha |
+| dns-manager | dns.vps1.ocoron.com | mobasak/dns-manager |
+| translator | translator.vps1.ocoron.com | mobasak/translator |
+| emailgateway | emailgateway.vps1.ocoron.com | mobasak/emailgateway |
+| image-broker | images.vps1.ocoron.com | mobasak/image-broker |
+| proxy | proxy.vps1.ocoron.com | mobasak/proxy |
+| file-api | files-api.vps1.ocoron.com | mobasak/file-api |
+| file-worker | (background worker) | mobasak/file-worker |
+
+**Coolify UI:** https://coolify.vps1.ocoron.com
+
+**Auto-deploy:** Push to GitHub → Webhook → Coolify rebuilds & deploys
+
+---
+
+## Infrastructure Services
+
+Core platform services running on VPS:
+
+| Service | URL | Purpose |
+|---------|-----|--------|
+| Coolify | https://coolify.vps1.ocoron.com | Container orchestration, deployment management |
+| Traefik | (internal) | Reverse proxy, SSL termination, routing |
+| Uptime Kuma | https://status.vps1.ocoron.com | Uptime monitoring, alerts |
+| Netdata | https://netdata.vps1.ocoron.com | Real-time server metrics |
+| Duplicati | (internal) | Postgres backup to Backblaze B2 |
+| postgres-main | (internal) | Shared PostgreSQL database |
+| redis-main | (internal) | Shared Redis cache |

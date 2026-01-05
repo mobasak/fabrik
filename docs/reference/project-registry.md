@@ -1,7 +1,7 @@
 # Project Registry
 
 > **Master inventory of all projects under /opt with status, dependencies, and deployment roadmap.**
-> **Last updated:** 2025-12-21
+> **Last updated:** 2025-12-27
 
 ---
 
@@ -73,7 +73,7 @@ These are **internal services** that other projects depend on. Must be deployed 
 | Path | What It Is | Used By |
 |------|------------|---------|
 | `/opt/google` | **Chrome/Chromium browser installation** | youtube, web-scraper, llm_batch_processor |
-| `/opt/_project_management` | Global project rules, templates, ports registry | All projects |
+| `/opt/fabrik` | Global project rules, templates, ports registry | All projects |
 | `/opt/_tools` | Shared utilities and scripts | All projects |
 | `/opt/_backups` | Backup storage | backupsystem |
 | `/opt/_previouswork` | Historical reference, archived plans | Reference only |
@@ -180,7 +180,7 @@ These are **internal services** that other projects depend on. Must be deployed 
 ```text
 Day 1-2: Create Dockerfile + compose.yaml templates
 Day 3:   Deploy proxy service
-Day 4:   Deploy captcha service  
+Day 4:   Deploy captcha service
 Day 5:   Deploy translator service
 Day 6:   Deploy emailgateway service
 Day 7:   Deploy email-reader service

@@ -1,0 +1,48 @@
+{
+  "CreatedByVersion": "2.2.0.1",
+  "Schedule": {
+    "ID": 1,
+    "Tags": ["ID=1"],
+    "Time": "2025-12-29T05:00:00Z",
+    "Repeat": "1D",
+    "LastRun": null,
+    "Rule": "1D",
+    "AllowedDays": null
+  },
+  "Backup": {
+    "ID": "1",
+    "Name": "VPS Complete Backup",
+    "Description": "Full VPS backup including /opt, docker volumes, and Coolify data",
+    "Tags": [],
+    "TargetURL": "b2://vps1-ocoron-backups/vps1-backup?b2-accountid=0044e7ca36a086b0000000001&b2-applicationkey=K004hcjQVRBA8hLY0uZzzKEYg4crlq8",
+    "DBPath": null,
+    "Sources": [
+      "/source/opt/",
+      "/source/docker-volumes/",
+      "/source/data/coolify/"
+    ],
+    "Settings": [
+      {"Name": "encryption-module", "Value": ""},
+      {"Name": "compression-module", "Value": "zip"},
+      {"Name": "dblock-size", "Value": "200MB"},
+      {"Name": "keep-versions", "Value": "0"},
+      {"Name": "retention-policy", "Value": ""},
+      {"Name": "backup-test-samples", "Value": "1"}
+    ],
+    "Filters": [
+      {"Order": 0, "Include": false, "Expression": "**/node_modules/"},
+      {"Order": 1, "Include": false, "Expression": "**/__pycache__/"},
+      {"Order": 2, "Include": false, "Expression": "**/.git/"},
+      {"Order": 3, "Include": false, "Expression": "**/*.log"},
+      {"Order": 4, "Include": false, "Expression": "**/venv/"},
+      {"Order": 5, "Include": false, "Expression": "**/.venv/"}
+    ],
+    "Metadata": {
+      "LastBackupStarted": null,
+      "LastBackupFinished": null,
+      "LastBackupDuration": null,
+      "LastBackupDate": null
+    }
+  },
+  "DisplayNames": {}
+}

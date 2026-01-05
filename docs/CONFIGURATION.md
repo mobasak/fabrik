@@ -1,5 +1,7 @@
 # Configuration
 
+**Last Updated:** 2026-01-05
+
 All Fabrik configuration options.
 
 ## Environment Variables
@@ -49,6 +51,18 @@ All Fabrik configuration options.
 | `LOG_LEVEL` | No | `INFO` | DEBUG, INFO, WARNING, ERROR |
 | `LOG_FORMAT` | No | `json` | `json` or `text` |
 
+### Automation & Notifications
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `FABRIK_NOTIFY_SCRIPT` | No | `~/.factory/hooks/notify.sh` | Path to notification script used by the review processor and docs updater; receives `{"message": "<text>"}` on stdin |
+| `FABRIK_ROOT` | No | `/opt/fabrik` | Base path used when resolving review/docs queue, results, and config paths |
+| `FABRIK_REVIEW_QUEUE` | No | `${FABRIK_ROOT}/.droid/review_queue` | Directory where review tasks are queued |
+| `FABRIK_REVIEW_RESULTS` | No | `${FABRIK_ROOT}/.droid/review_results` | Directory where completed reviews are stored |
+| `FABRIK_DOCS_QUEUE` | No | `${FABRIK_ROOT}/.droid/docs_queue` | Directory where documentation update tasks are queued |
+| `FABRIK_DOCS_LOG` | No | `${FABRIK_ROOT}/.droid/docs_log` | Directory where documentation update logs/results are stored |
+| `FABRIK_MODELS_CONFIG` | No | `${FABRIK_ROOT}/config/models.yaml` | Override path for the models configuration used during code review and documentation updates |
+
 ## Config Files
 
 ### config/platform.yaml
@@ -62,10 +76,10 @@ vps:
 
 coolify:
   url: ${COOLIFY_API_URL}
-  
+
 dns:
   provider: namecheap  # or cloudflare
-  
+
 backup:
   provider: b2
   schedule: "0 2 * * *"  # 2 AM daily

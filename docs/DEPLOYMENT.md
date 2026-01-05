@@ -52,11 +52,11 @@ wordpress:
   title: "My Site"
   admin_user: admin
   admin_email: admin@example.com
-  
+
 plugins:
   - contact-form-7
   - yoast-seo
-  
+
 theme: flavor
 ```
 
@@ -116,7 +116,7 @@ fabrik logs my-api --follow
 
 ## Ports
 
-Fabrik assigns ports automatically. Check `/opt/_project_management/PORTS.md` for allocations.
+Fabrik assigns ports automatically. Check `/opt/fabrik/PORTS.md` for allocations.
 
 | Range | Purpose |
 |-------|---------|
@@ -152,3 +152,77 @@ Coolify handles SSL via Let's Encrypt automatically when:
 3. Domain is configured in spec
 
 No manual certificate management needed.
+
+---
+
+## Build & Deploy Strategy
+
+### Option 1: Coolify Builds from GitHub (Current)
+
+Coolify pulls repo and builds Docker image using Dockerfile or Docker Compose build pack.
+
+```
+GitHub Push → Coolify Pull → Build on VPS → Deploy
+```
+
+**Pros:**
+- No registry needed
+- Source-of-truth stays in GitHub
+- Simple setup
+
+**Cons:**
+- Builds happen on VPS (slower for heavy images)
+- VPS must have enough resources for builds
+
+**Use when:** Standard services, early stage, non-ML workloads.
+
+### Option 2: GHCR Registry (Future - ML/Heavy Builds)
+
+GitHub Actions builds image, pushes to GHCR, Coolify pulls pre-built image.
+
+```
+GitHub Push → Actions Build → GHCR Push → Coolify Pull → Deploy
+```
+
+**Pros:**
+- Faster deploys (no build on VPS)
+- Repeatable builds
+- Easy rollbacks via image tags
+
+**Cons:**
+- More complex setup
+- Need multi-arch builds for ARM64
+
+**Use when:** ML models, large dependencies, need quick rollbacks.
+
+### ARM64 Consideration
+
+**VPS is ARM64 (aarch64).** When using Option 2 (GHCR), builds need:
+
+```yaml
+# .github/workflows/build.yaml
+- name: Build and push
+  uses: docker/build-push-action@v5
+  with:
+    platforms: linux/arm64
+    push: true
+    tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+```
+
+### Decision Matrix
+
+| Factor | Option 1 (Coolify Build) | Option 2 (GHCR) |
+|--------|--------------------------|-----------------|
+| Setup complexity | Low | Medium |
+| Build time | On VPS | On GitHub runners |
+| Best for | Standard apps | ML, heavy deps |
+| Rollback | Redeploy from Git | Pull previous tag |
+
+### Current Fabrik Default
+
+All services use **Option 1** until a specific project needs Option 2.
+
+Criteria to switch:
+- Build takes >10 minutes on VPS
+- Image size >2GB
+- Need instant rollbacks

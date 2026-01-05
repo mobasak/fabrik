@@ -1,3 +1,5 @@
+> **Phase Navigation:** [← Phase 2](Phase2.md) | **Phase 3** | [Phase 4 →](Phase4.md) | [All Phases](roadmap.md)
+
 ## Phase 3: AI Content Integration — Complete Narrative
 
 **Status: ❌ Not Started** (Requires Phase 2)
@@ -154,25 +156,25 @@ DEFAULT_MODELS = {
 
 class BaseLLMClient(ABC):
     """Abstract base class for LLM clients."""
-    
+
     @abstractmethod
     def generate(self, prompt: str, system: str = None, config: LLMConfig = None) -> LLMResponse:
         pass
-    
+
     @abstractmethod
     def generate_stream(self, prompt: str, system: str = None, config: LLMConfig = None) -> Generator[str, None, None]:
         pass
 
 class ClaudeClient(BaseLLMClient):
     """Anthropic Claude API client."""
-    
+
     API_URL = "https://api.anthropic.com/v1/messages"
-    
+
     def __init__(self):
         self.api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY not set")
-        
+
         self.client = httpx.Client(
             headers={
                 "x-api-key": self.api_key,
@@ -181,25 +183,25 @@ class ClaudeClient(BaseLLMClient):
             },
             timeout=120
         )
-    
+
     def generate(self, prompt: str, system: str = None, config: LLMConfig = None) -> LLMResponse:
         config = config or LLMConfig()
         model = config.model or DEFAULT_MODELS[LLMProvider.CLAUDE]
-        
+
         messages = [{"role": "user", "content": prompt}]
-        
+
         payload = {
             "model": model,
             "max_tokens": config.max_tokens,
             "temperature": config.temperature,
             "messages": messages
         }
-        
+
         if system:
             payload["system"] = system
-        
+
         start = time.time()
-        
+
         # Retry logic
         max_retries = 3
         for attempt in range(max_retries):
@@ -217,18 +219,18 @@ class ClaudeClient(BaseLLMClient):
                 if attempt < max_retries - 1:
                     continue
                 raise
-        
+
         latency = int((time.time() - start) * 1000)
         data = resp.json()
-        
+
         content = data["content"][0]["text"]
         input_tokens = data["usage"]["input_tokens"]
         output_tokens = data["usage"]["output_tokens"]
-        
+
         # Calculate cost
         pricing = PRICING.get(model, {"input": 0, "output": 0})
         cost = (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
-        
+
         return LLMResponse(
             content=content,
             model=model,
@@ -238,14 +240,14 @@ class ClaudeClient(BaseLLMClient):
             cost_usd=cost,
             latency_ms=latency
         )
-    
+
     def generate_stream(self, prompt: str, system: str = None, config: LLMConfig = None) -> Generator[str, None, None]:
         """Stream response token by token."""
         config = config or LLMConfig()
         model = config.model or DEFAULT_MODELS[LLMProvider.CLAUDE]
-        
+
         messages = [{"role": "user", "content": prompt}]
-        
+
         payload = {
             "model": model,
             "max_tokens": config.max_tokens,
@@ -253,10 +255,10 @@ class ClaudeClient(BaseLLMClient):
             "messages": messages,
             "stream": True
         }
-        
+
         if system:
             payload["system"] = system
-        
+
         with self.client.stream("POST", self.API_URL, json=payload) as resp:
             for line in resp.iter_lines():
                 if line.startswith("data: "):
@@ -266,14 +268,14 @@ class ClaudeClient(BaseLLMClient):
 
 class OpenAIClient(BaseLLMClient):
     """OpenAI API client."""
-    
+
     API_URL = "https://api.openai.com/v1/chat/completions"
-    
+
     def __init__(self):
         self.api_key = os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not set")
-        
+
         self.client = httpx.Client(
             headers={
                 "Authorization": f"Bearer {self.api_key}",
@@ -281,25 +283,25 @@ class OpenAIClient(BaseLLMClient):
             },
             timeout=120
         )
-    
+
     def generate(self, prompt: str, system: str = None, config: LLMConfig = None) -> LLMResponse:
         config = config or LLMConfig()
         model = config.model or DEFAULT_MODELS[LLMProvider.OPENAI]
-        
+
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        
+
         payload = {
             "model": model,
             "max_tokens": config.max_tokens,
             "temperature": config.temperature,
             "messages": messages
         }
-        
+
         start = time.time()
-        
+
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -312,17 +314,17 @@ class OpenAIClient(BaseLLMClient):
                     time.sleep(wait_time)
                     continue
                 raise
-        
+
         latency = int((time.time() - start) * 1000)
         data = resp.json()
-        
+
         content = data["choices"][0]["message"]["content"]
         input_tokens = data["usage"]["prompt_tokens"]
         output_tokens = data["usage"]["completion_tokens"]
-        
+
         pricing = PRICING.get(model, {"input": 0, "output": 0})
         cost = (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
-        
+
         return LLMResponse(
             content=content,
             model=model,
@@ -332,16 +334,16 @@ class OpenAIClient(BaseLLMClient):
             cost_usd=cost,
             latency_ms=latency
         )
-    
+
     def generate_stream(self, prompt: str, system: str = None, config: LLMConfig = None) -> Generator[str, None, None]:
         config = config or LLMConfig()
         model = config.model or DEFAULT_MODELS[LLMProvider.OPENAI]
-        
+
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        
+
         payload = {
             "model": model,
             "max_tokens": config.max_tokens,
@@ -349,7 +351,7 @@ class OpenAIClient(BaseLLMClient):
             "messages": messages,
             "stream": True
         }
-        
+
         with self.client.stream("POST", self.API_URL, json=payload) as resp:
             for line in resp.iter_lines():
                 if line.startswith("data: ") and line != "data: [DONE]":
@@ -361,31 +363,31 @@ class OpenAIClient(BaseLLMClient):
 class LLMClient:
     """
     Unified LLM client with automatic fallback.
-    
+
     Usage:
         client = LLMClient()
         response = client.generate("Write a blog post about AI")
         print(response.content)
     """
-    
+
     def __init__(self, primary: LLMProvider = LLMProvider.CLAUDE):
         self.primary = primary
         self._clients = {}
-        
+
         # Initialize available clients
         try:
             self._clients[LLMProvider.CLAUDE] = ClaudeClient()
         except ValueError:
             pass
-        
+
         try:
             self._clients[LLMProvider.OPENAI] = OpenAIClient()
         except ValueError:
             pass
-        
+
         if not self._clients:
             raise ValueError("No LLM API keys configured")
-    
+
     def generate(
         self,
         prompt: str,
@@ -395,7 +397,7 @@ class LLMClient:
     ) -> LLMResponse:
         """
         Generate content with optional fallback.
-        
+
         Args:
             prompt: User prompt
             system: System prompt
@@ -403,7 +405,7 @@ class LLMClient:
             fallback: If True, try other provider on failure
         """
         config = config or LLMConfig(provider=self.primary)
-        
+
         # Try primary
         if config.provider in self._clients:
             try:
@@ -412,7 +414,7 @@ class LLMClient:
                 if not fallback:
                     raise
                 print(f"Primary LLM failed: {e}, trying fallback...")
-        
+
         # Try fallback
         for provider, client in self._clients.items():
             if provider != config.provider:
@@ -420,9 +422,9 @@ class LLMClient:
                     return client.generate(prompt, system, config)
                 except Exception:
                     continue
-        
+
         raise RuntimeError("All LLM providers failed")
-    
+
     def generate_stream(
         self,
         prompt: str,
@@ -431,7 +433,7 @@ class LLMClient:
     ) -> Generator[str, None, None]:
         """Stream response."""
         config = config or LLMConfig(provider=self.primary)
-        
+
         if config.provider in self._clients:
             yield from self._clients[config.provider].generate_stream(prompt, system, config)
         else:
@@ -536,7 +538,7 @@ class GeneratedContent:
 
 class ContentGenerator:
     """Generate WordPress page/post content using LLMs."""
-    
+
     SYSTEM_PROMPT = """You are an expert web content writer and copywriter. You create professional, engaging website content that converts visitors into customers.
 
 Your content should:
@@ -553,30 +555,30 @@ Output format:
 - Do not include <html>, <head>, <body>, or <article> wrapper tags
 - Do not include inline styles unless specifically requested
 - Use WordPress-compatible HTML that works with any theme"""
-    
+
     def __init__(self):
         self.llm = LLMClient()
-    
+
     def generate_page(self, request: ContentRequest) -> GeneratedContent:
         """Generate a complete page based on the request."""
-        
+
         prompt = self._build_prompt(request)
-        
+
         # Generate main content
         response = self.llm.generate(
             prompt=prompt,
             system=self.SYSTEM_PROMPT,
             config=LLMConfig(temperature=0.7, max_tokens=4096)
         )
-        
+
         html_content = self._clean_html(response.content)
-        
+
         # Generate SEO metadata
         meta = self._generate_meta(request, html_content)
-        
+
         # Generate slug
         slug = self._generate_slug(request.title)
-        
+
         return GeneratedContent(
             title=request.title,
             html_content=html_content,
@@ -585,54 +587,54 @@ Output format:
             excerpt=meta.get("excerpt"),
             suggested_slug=slug
         )
-    
+
     def _build_prompt(self, request: ContentRequest) -> str:
         """Build the generation prompt based on request."""
-        
+
         prompt_parts = []
-        
+
         # Base instruction
         prompt_parts.append(f"Create content for a {request.page_type.value} page.")
         prompt_parts.append(f"Page title: {request.title}")
         prompt_parts.append(f"Business: {request.business_name}")
         prompt_parts.append(f"Business description: {request.business_description}")
-        
+
         if request.industry:
             prompt_parts.append(f"Industry: {request.industry}")
-        
+
         prompt_parts.append(f"Tone: {request.tone.value}")
-        
+
         if request.target_audience:
             prompt_parts.append(f"Target audience: {request.target_audience}")
-        
+
         if request.key_points:
             prompt_parts.append(f"Key points to include:")
             for point in request.key_points:
                 prompt_parts.append(f"  - {point}")
-        
+
         if request.call_to_action:
             prompt_parts.append(f"Call to action: {request.call_to_action}")
-        
+
         prompt_parts.append(f"Target word count: approximately {request.word_count} words")
-        
+
         # Page-type specific instructions
         type_instructions = self._get_type_instructions(request.page_type)
         if type_instructions:
             prompt_parts.append(f"\nPage-specific requirements:\n{type_instructions}")
-        
+
         if request.include_sections:
             prompt_parts.append(f"\nMust include these sections:")
             for section in request.include_sections:
                 prompt_parts.append(f"  - {section}")
-        
+
         if request.additional_instructions:
             prompt_parts.append(f"\nAdditional instructions: {request.additional_instructions}")
-        
+
         return "\n".join(prompt_parts)
-    
+
     def _get_type_instructions(self, page_type: PageType) -> str:
         """Get specific instructions for each page type."""
-        
+
         instructions = {
             PageType.HOME: """
 - Start with a compelling hero section (headline + subheadline)
@@ -640,21 +642,21 @@ Output format:
 - Highlight 3-4 key benefits or services
 - Include social proof section (testimonials or trust indicators)
 - End with a clear call to action""",
-            
+
             PageType.ABOUT: """
 - Tell the company story (origin, mission, values)
 - Introduce the team or founder
 - Highlight what makes the company unique
 - Include company achievements or milestones
 - End with why customers should trust this company""",
-            
+
             PageType.SERVICES: """
 - Brief overview of all services offered
 - Individual sections for each main service
 - Benefits of each service (not just features)
 - Who each service is best suited for
 - Call to action for getting started""",
-            
+
             PageType.SERVICE_DETAIL: """
 - Detailed explanation of the specific service
 - Process or methodology
@@ -663,7 +665,7 @@ Output format:
 - FAQ section (3-4 common questions)
 - Related services
 - Call to action""",
-            
+
             PageType.CONTACT: """
 - Brief welcoming message
 - Multiple contact methods (phone, email, address)
@@ -671,14 +673,14 @@ Output format:
 - What to expect after contact (response time)
 - Simple contact form description
 - Map or directions if relevant""",
-            
+
             PageType.FAQ: """
 - Organize questions by category if many
 - Start with most common questions
 - Provide clear, concise answers
 - Link to relevant pages where appropriate
 - Include contact info for questions not covered""",
-            
+
             PageType.BLOG_POST: """
 - Engaging introduction that hooks the reader
 - Well-structured body with subheadings
@@ -686,7 +688,7 @@ Output format:
 - Examples or case studies where relevant
 - Conclusion with key takeaways
 - Call to action (subscribe, contact, read more)""",
-            
+
             PageType.LANDING: """
 - Single focused message/offer
 - Compelling headline and subheadline
@@ -695,7 +697,7 @@ Output format:
 - Social proof
 - Single, prominent call to action
 - Minimal distractions""",
-            
+
             PageType.PRICING: """
 - Clear pricing tiers or options
 - What's included in each tier
@@ -703,14 +705,14 @@ Output format:
 - FAQ about pricing
 - Money-back guarantee or trial info
 - Call to action for each tier""",
-            
+
             PageType.TEAM: """
 - Brief team overview
 - Individual bios with photo placeholders
 - Relevant experience and expertise
 - Personal touch (interests, fun facts)
 - Contact or connect options""",
-            
+
             PageType.TESTIMONIALS: """
 - Featured testimonials with names/companies
 - Variety of customer types/industries
@@ -718,12 +720,12 @@ Output format:
 - Star ratings if applicable
 - Call to action to become a customer""",
         }
-        
+
         return instructions.get(page_type, "")
-    
+
     def _generate_meta(self, request: ContentRequest, content: str) -> dict:
         """Generate SEO metadata for the content."""
-        
+
         prompt = f"""Based on this page content, generate SEO metadata.
 
 Page title: {request.title}
@@ -739,15 +741,15 @@ Format your response as:
 META_TITLE: [your title]
 META_DESCRIPTION: [your description]
 EXCERPT: [your excerpt]"""
-        
+
         response = self.llm.generate(
             prompt=prompt,
             config=LLMConfig(temperature=0.5, max_tokens=500)
         )
-        
+
         # Parse response
         meta = {"title": "", "description": "", "excerpt": ""}
-        
+
         for line in response.content.split("\n"):
             if line.startswith("META_TITLE:"):
                 meta["title"] = line.replace("META_TITLE:", "").strip()
@@ -755,15 +757,15 @@ EXCERPT: [your excerpt]"""
                 meta["description"] = line.replace("META_DESCRIPTION:", "").strip()
             elif line.startswith("EXCERPT:"):
                 meta["excerpt"] = line.replace("EXCERPT:", "").strip()
-        
+
         # Fallbacks
         if not meta["title"]:
             meta["title"] = f"{request.title} | {request.business_name}"
         if not meta["description"]:
             meta["description"] = f"Learn about {request.title.lower()} from {request.business_name}."
-        
+
         return meta
-    
+
     def _generate_slug(self, title: str) -> str:
         """Generate URL-friendly slug from title."""
         import re
@@ -773,22 +775,22 @@ EXCERPT: [your excerpt]"""
         slug = re.sub(r'-+', '-', slug)
         slug = slug.strip('-')
         return slug
-    
+
     def _clean_html(self, content: str) -> str:
         """Clean and normalize generated HTML."""
         import re
-        
+
         # Remove markdown code blocks if present
         content = re.sub(r'^```html?\n?', '', content)
         content = re.sub(r'\n?```$', '', content)
-        
+
         # Remove wrapper tags if present
         content = re.sub(r'^<article[^>]*>', '', content)
         content = re.sub(r'</article>$', '', content)
-        
+
         # Normalize whitespace
         content = content.strip()
-        
+
         return content
 ```
 
@@ -838,7 +840,7 @@ class GeneratedBlogPost:
 
 class BlogGenerator:
     """Generate blog posts using LLMs."""
-    
+
     SYSTEM_PROMPT = """You are an expert blog content writer. You create engaging, informative blog posts that provide real value to readers while supporting business goals.
 
 Your blog posts should:
@@ -856,31 +858,31 @@ Output format:
 - Use semantic HTML (h2, h3, p, ul, li, blockquote, strong, em)
 - Do not include wrapper tags
 - Mark suggested internal links as [LINK: topic to link]"""
-    
+
     def __init__(self):
         self.llm = LLMClient()
-    
+
     def generate_post(self, request: BlogPostRequest) -> GeneratedBlogPost:
         """Generate a complete blog post."""
-        
+
         # Generate title options first
         title = self._generate_title(request)
-        
+
         # Generate main content
         prompt = self._build_prompt(request, title)
-        
+
         response = self.llm.generate(
             prompt=prompt,
             system=self.SYSTEM_PROMPT,
             config=LLMConfig(temperature=0.7, max_tokens=4096)
         )
-        
+
         html_content = self._clean_html(response.content)
-        
+
         # Generate metadata and taxonomies
         meta = self._generate_meta(request, title, html_content)
         taxonomies = self._suggest_taxonomies(request, title, html_content)
-        
+
         return GeneratedBlogPost(
             title=title,
             html_content=html_content,
@@ -890,10 +892,10 @@ Output format:
             suggested_categories=taxonomies["categories"],
             suggested_tags=taxonomies["tags"]
         )
-    
+
     def _generate_title(self, request: BlogPostRequest) -> str:
         """Generate compelling blog title."""
-        
+
         prompt = f"""Generate 1 compelling blog post title for this topic:
 
 Topic: {request.topic}
@@ -907,17 +909,17 @@ Requirements:
 - Natural, not keyword-stuffed
 
 Return ONLY the title, nothing else."""
-        
+
         response = self.llm.generate(
             prompt=prompt,
             config=LLMConfig(temperature=0.8, max_tokens=100)
         )
-        
+
         return response.content.strip().strip('"')
-    
+
     def _build_prompt(self, request: BlogPostRequest, title: str) -> str:
         """Build the generation prompt."""
-        
+
         prompt_parts = [
             f"Write a blog post with this title: {title}",
             f"Topic: {request.topic}",
@@ -925,16 +927,16 @@ Return ONLY the title, nothing else."""
             f"Tone: {request.tone.value}",
             f"Target word count: {request.word_count} words",
         ]
-        
+
         if request.industry:
             prompt_parts.append(f"Industry context: {request.industry}")
-        
+
         if request.target_audience:
             prompt_parts.append(f"Target audience: {request.target_audience}")
-        
+
         if request.keywords:
             prompt_parts.append(f"Keywords to naturally include: {', '.join(request.keywords)}")
-        
+
         structure = []
         if request.include_intro:
             structure.append("- Engaging introduction that hooks the reader")
@@ -944,17 +946,17 @@ Return ONLY the title, nothing else."""
         if request.include_cta:
             cta = request.cta_text or "Contact us to learn more"
             structure.append(f"- Call to action: {cta}")
-        
+
         prompt_parts.append(f"\nStructure:\n" + "\n".join(structure))
-        
+
         if request.additional_instructions:
             prompt_parts.append(f"\nAdditional instructions: {request.additional_instructions}")
-        
+
         return "\n".join(prompt_parts)
-    
+
     def _generate_meta(self, request: BlogPostRequest, title: str, content: str) -> dict:
         """Generate SEO metadata."""
-        
+
         prompt = f"""Generate SEO metadata for this blog post.
 
 Title: {title}
@@ -967,25 +969,25 @@ Generate:
 Format:
 META_DESCRIPTION: [description]
 EXCERPT: [excerpt]"""
-        
+
         response = self.llm.generate(
             prompt=prompt,
             config=LLMConfig(temperature=0.5, max_tokens=300)
         )
-        
+
         meta = {"description": "", "excerpt": ""}
-        
+
         for line in response.content.split("\n"):
             if line.startswith("META_DESCRIPTION:"):
                 meta["description"] = line.replace("META_DESCRIPTION:", "").strip()
             elif line.startswith("EXCERPT:"):
                 meta["excerpt"] = line.replace("EXCERPT:", "").strip()
-        
+
         return meta
-    
+
     def _suggest_taxonomies(self, request: BlogPostRequest, title: str, content: str) -> dict:
         """Suggest categories and tags."""
-        
+
         prompt = f"""Suggest categories and tags for this blog post.
 
 Title: {title}
@@ -1000,14 +1002,14 @@ Suggest:
 Format:
 CATEGORIES: category1, category2
 TAGS: tag1, tag2, tag3, tag4, tag5"""
-        
+
         response = self.llm.generate(
             prompt=prompt,
             config=LLMConfig(temperature=0.3, max_tokens=200)
         )
-        
+
         taxonomies = {"categories": [], "tags": []}
-        
+
         for line in response.content.split("\n"):
             if line.startswith("CATEGORIES:"):
                 cats = line.replace("CATEGORIES:", "").strip()
@@ -1015,9 +1017,9 @@ TAGS: tag1, tag2, tag3, tag4, tag5"""
             elif line.startswith("TAGS:"):
                 tags = line.replace("TAGS:", "").strip()
                 taxonomies["tags"] = [t.strip() for t in tags.split(",")]
-        
+
         return taxonomies
-    
+
     def _generate_slug(self, title: str) -> str:
         """Generate URL slug."""
         import re
@@ -1026,7 +1028,7 @@ TAGS: tag1, tag2, tag3, tag4, tag5"""
         slug = re.sub(r'[\s_]+', '-', slug)
         slug = re.sub(r'-+', '-', slug)
         return slug.strip('-')[:60]
-    
+
     def _clean_html(self, content: str) -> str:
         """Clean generated HTML."""
         import re
@@ -1064,10 +1066,10 @@ class SEOContent:
 
 class SEOGenerator:
     """Generate SEO metadata and optimize content."""
-    
+
     def __init__(self):
         self.llm = LLMClient()
-    
+
     def generate_meta(
         self,
         title: str,
@@ -1076,7 +1078,7 @@ class SEOGenerator:
         target_keyword: Optional[str] = None
     ) -> SEOContent:
         """Generate SEO metadata for existing content."""
-        
+
         prompt = f"""Analyze this content and generate SEO metadata.
 
 Title: {title}
@@ -1101,19 +1103,19 @@ FOCUS_KEYWORD: [keyword]
 SECONDARY_KEYWORDS: [kw1, kw2, kw3]
 OG_TITLE: [title]
 OG_DESCRIPTION: [description]"""
-        
+
         response = self.llm.generate(
             prompt=prompt,
             config=LLMConfig(temperature=0.4, max_tokens=500)
         )
-        
+
         # Parse response
         seo = SEOContent(
             meta_title="",
             meta_description="",
             secondary_keywords=[]
         )
-        
+
         for line in response.content.split("\n"):
             if line.startswith("META_TITLE:"):
                 seo.meta_title = line.split(":", 1)[1].strip()
@@ -1128,9 +1130,9 @@ OG_DESCRIPTION: [description]"""
                 seo.og_title = line.split(":", 1)[1].strip()
             elif line.startswith("OG_DESCRIPTION:"):
                 seo.og_description = line.split(":", 1)[1].strip()
-        
+
         return seo
-    
+
     def optimize_content(
         self,
         content: str,
@@ -1138,7 +1140,7 @@ OG_DESCRIPTION: [description]"""
         current_score: Optional[int] = None
     ) -> str:
         """Suggest SEO improvements for content."""
-        
+
         prompt = f"""Analyze this content for SEO and suggest improvements.
 
 Target keyword: {target_keyword}
@@ -1156,12 +1158,12 @@ Analyze and provide:
 6. Specific improvement suggestions
 
 Be concise and actionable."""
-        
+
         response = self.llm.generate(
             prompt=prompt,
             config=LLMConfig(temperature=0.4, max_tokens=800)
         )
-        
+
         return response.content
 ```
 
@@ -1213,7 +1215,7 @@ class RevisionResult:
 
 class ContentReviser:
     """Revise existing content based on instructions."""
-    
+
     SYSTEM_PROMPT = """You are an expert content editor. You revise and improve existing content while maintaining its core message and structure unless specifically asked to change it.
 
 When revising:
@@ -1228,51 +1230,51 @@ Output format:
 - Return the revised HTML content only
 - Preserve all HTML tags from original
 - Do not add wrapper tags"""
-    
+
     def __init__(self):
         self.llm = LLMClient()
-    
+
     def revise(self, request: RevisionRequest) -> RevisionResult:
         """Revise content based on request."""
-        
+
         prompt = self._build_revision_prompt(request)
-        
+
         response = self.llm.generate(
             prompt=prompt,
             system=self.SYSTEM_PROMPT,
             config=LLMConfig(temperature=0.6, max_tokens=4096)
         )
-        
+
         revised_content = self._clean_html(response.content)
-        
+
         # Generate summary of changes
         summary = self._summarize_changes(request.current_content, revised_content)
-        
+
         return RevisionResult(
             revised_content=revised_content,
             changes_summary=summary,
             original_length=len(request.current_content.split()),
             revised_length=len(revised_content.split())
         )
-    
+
     def _build_revision_prompt(self, request: RevisionRequest) -> str:
         """Build the revision prompt."""
-        
+
         prompt_parts = [
             f"Revise the following content.",
             f"\nRevision type: {request.revision_type.value}",
             f"Instructions: {request.instructions}",
         ]
-        
+
         if request.preserve_structure:
             prompt_parts.append("Preserve the overall structure and section headings.")
-        
+
         if request.preserve_links:
             prompt_parts.append("Preserve all links and link text.")
-        
+
         if request.target_length:
             prompt_parts.append(f"Target length: approximately {request.target_length} words.")
-        
+
         # Type-specific instructions
         if request.revision_type == RevisionType.EXPAND:
             prompt_parts.append("Add more detail, examples, and depth to existing sections.")
@@ -1282,14 +1284,14 @@ Output format:
             prompt_parts.append("Adjust the tone throughout while keeping the same information.")
         elif request.revision_type == RevisionType.ADD_SECTION:
             prompt_parts.append("Add the new section in an appropriate location within the content.")
-        
+
         prompt_parts.append(f"\nCurrent content:\n{request.current_content}")
-        
+
         return "\n".join(prompt_parts)
-    
+
     def _summarize_changes(self, original: str, revised: str) -> str:
         """Generate summary of changes made."""
-        
+
         prompt = f"""Briefly summarize the changes made between these two versions.
 
 Original (first 500 chars):
@@ -1299,25 +1301,25 @@ Revised (first 500 chars):
 {revised[:500]}
 
 List 3-5 key changes in bullet points. Be specific and concise."""
-        
+
         response = self.llm.generate(
             prompt=prompt,
             config=LLMConfig(temperature=0.3, max_tokens=300)
         )
-        
+
         return response.content
-    
+
     def _clean_html(self, content: str) -> str:
         """Clean revised HTML."""
         import re
         content = re.sub(r'^```html?\n?', '', content)
         content = re.sub(r'\n?```$', '', content)
         return content.strip()
-    
+
     # ─────────────────────────────────────────────────────────────
     # Convenience Methods
     # ─────────────────────────────────────────────────────────────
-    
+
     def make_more_professional(self, content: str) -> RevisionResult:
         """Make content more professional in tone."""
         return self.revise(RevisionRequest(
@@ -1325,7 +1327,7 @@ List 3-5 key changes in bullet points. Be specific and concise."""
             revision_type=RevisionType.TONE_CHANGE,
             instructions="Make the tone more professional and business-appropriate. Remove casual language, improve vocabulary, add credibility markers."
         ))
-    
+
     def make_more_friendly(self, content: str) -> RevisionResult:
         """Make content more friendly and approachable."""
         return self.revise(RevisionRequest(
@@ -1333,7 +1335,7 @@ List 3-5 key changes in bullet points. Be specific and concise."""
             revision_type=RevisionType.TONE_CHANGE,
             instructions="Make the tone warmer and more approachable. Use conversational language, add personality, maintain professionalism but be less formal."
         ))
-    
+
     def expand_content(self, content: str, target_words: int = None) -> RevisionResult:
         """Expand content with more detail."""
         return self.revise(RevisionRequest(
@@ -1342,7 +1344,7 @@ List 3-5 key changes in bullet points. Be specific and concise."""
             instructions="Expand this content with more detail, examples, and supporting information.",
             target_length=target_words
         ))
-    
+
     def shorten_content(self, content: str, target_words: int = None) -> RevisionResult:
         """Shorten content while keeping key information."""
         return self.revise(RevisionRequest(
@@ -1351,7 +1353,7 @@ List 3-5 key changes in bullet points. Be specific and concise."""
             instructions="Shorten this content by removing redundancy and unnecessary detail. Keep all essential information and key messages.",
             target_length=target_words
         ))
-    
+
     def add_section(self, content: str, section_topic: str, placement: str = "end") -> RevisionResult:
         """Add a new section to content."""
         return self.revise(RevisionRequest(
@@ -1360,7 +1362,7 @@ List 3-5 key changes in bullet points. Be specific and concise."""
             instructions=f"Add a new section about: {section_topic}. Place it {placement} of the content.",
             preserve_structure=True
         ))
-    
+
     def fix_and_improve(self, content: str, issues: list[str]) -> RevisionResult:
         """Fix specific issues in content."""
         issues_text = "\n".join(f"- {issue}" for issue in issues)
@@ -1403,11 +1405,11 @@ class BulkGenerationResult:
 
 class BulkGenerator:
     """Generate multiple pieces of content efficiently."""
-    
+
     def __init__(self):
         self.page_generator = ContentGenerator()
         self.blog_generator = BlogGenerator()
-    
+
     def generate_service_pages(
         self,
         services: list[str],
@@ -1419,7 +1421,7 @@ class BulkGenerator:
     ) -> BulkGenerationResult:
         """
         Generate pages for multiple services.
-        
+
         Args:
             services: List of service names
             business_name: Company name
@@ -1428,16 +1430,16 @@ class BulkGenerator:
             tone: Writing tone
             on_progress: Callback(current, total, service_name)
         """
-        
+
         results = []
         errors = []
         total_cost = 0.0
         start_time = time.time()
-        
+
         for i, service in enumerate(services):
             if on_progress:
                 on_progress(i + 1, len(services), service)
-            
+
             try:
                 request = ContentRequest(
                     page_type=PageType.SERVICE_DETAIL,
@@ -1449,14 +1451,14 @@ class BulkGenerator:
                     word_count=600,
                     call_to_action=f"Contact us to learn more about our {service.lower()} services."
                 )
-                
+
                 content = self.page_generator.generate_page(request)
                 results.append({
                     "service": service,
                     "content": content,
                     "status": "success"
                 })
-                
+
             except Exception as e:
                 errors.append(f"{service}: {str(e)}")
                 results.append({
@@ -1465,10 +1467,10 @@ class BulkGenerator:
                     "status": "failed",
                     "error": str(e)
                 })
-            
+
             # Rate limiting - don't hammer the API
             time.sleep(1)
-        
+
         return BulkGenerationResult(
             total=len(services),
             successful=len([r for r in results if r["status"] == "success"]),
@@ -1478,7 +1480,7 @@ class BulkGenerator:
             total_cost_usd=total_cost,
             total_time_seconds=time.time() - start_time
         )
-    
+
     def generate_faq_page(
         self,
         questions: list[str],
@@ -1487,10 +1489,10 @@ class BulkGenerator:
         industry: str = None
     ) -> GeneratedContent:
         """Generate FAQ page from list of questions."""
-        
+
         # Build FAQ content request
         faq_items = "\n".join(f"- {q}" for q in questions)
-        
+
         request = ContentRequest(
             page_type=PageType.FAQ,
             title="Frequently Asked Questions",
@@ -1508,9 +1510,9 @@ Format each Q&A with:
 - Include relevant details
 """
         )
-        
+
         return self.page_generator.generate_page(request)
-    
+
     def generate_blog_series(
         self,
         topics: list[str],
@@ -1521,15 +1523,15 @@ Format each Q&A with:
         on_progress: Callable[[int, int, str], None] = None
     ) -> BulkGenerationResult:
         """Generate a series of related blog posts."""
-        
+
         results = []
         errors = []
         start_time = time.time()
-        
+
         for i, topic in enumerate(topics):
             if on_progress:
                 on_progress(i + 1, len(topics), topic)
-            
+
             try:
                 request = BlogPostRequest(
                     topic=topic,
@@ -1539,14 +1541,14 @@ Format each Q&A with:
                     word_count=1000,
                     additional_instructions=f"This is part of a blog series called '{series_name}'. Reference other posts in the series where relevant."
                 )
-                
+
                 post = self.blog_generator.generate_post(request)
                 results.append({
                     "topic": topic,
                     "post": post,
                     "status": "success"
                 })
-                
+
             except Exception as e:
                 errors.append(f"{topic}: {str(e)}")
                 results.append({
@@ -1555,9 +1557,9 @@ Format each Q&A with:
                     "status": "failed",
                     "error": str(e)
                 })
-            
+
             time.sleep(1)
-        
+
         return BulkGenerationResult(
             total=len(topics),
             successful=len([r for r in results if r["status"] == "success"]),
@@ -1567,7 +1569,7 @@ Format each Q&A with:
             total_cost_usd=0,
             total_time_seconds=time.time() - start_time
         )
-    
+
     def generate_website_content(
         self,
         business_name: str,
@@ -1581,13 +1583,13 @@ Format each Q&A with:
     ) -> dict:
         """
         Generate complete website content package.
-        
+
         Returns dict with:
         - pages: dict of page content
         - posts: list of blog posts (if include_blog)
         - menus: suggested menu structure
         """
-        
+
         results = {
             "pages": {},
             "posts": [],
@@ -1598,15 +1600,15 @@ Format each Q&A with:
                 "total_time": 0
             }
         }
-        
+
         start_time = time.time()
         page_count = 0
         total_pages = 4 + len(services)  # Home, About, Services, Contact + service pages
-        
+
         # Generate Home page
         if on_progress:
             on_progress("Generating Home page", page_count + 1, total_pages)
-        
+
         home = self.page_generator.generate_page(ContentRequest(
             page_type=PageType.HOME,
             title="Home",
@@ -1619,11 +1621,11 @@ Format each Q&A with:
         ))
         results["pages"]["home"] = home
         page_count += 1
-        
+
         # Generate About page
         if on_progress:
             on_progress("Generating About page", page_count + 1, total_pages)
-        
+
         about = self.page_generator.generate_page(ContentRequest(
             page_type=PageType.ABOUT,
             title="About Us",
@@ -1634,11 +1636,11 @@ Format each Q&A with:
         ))
         results["pages"]["about"] = about
         page_count += 1
-        
+
         # Generate Services overview
         if on_progress:
             on_progress("Generating Services page", page_count + 1, total_pages)
-        
+
         services_page = self.page_generator.generate_page(ContentRequest(
             page_type=PageType.SERVICES,
             title="Our Services",
@@ -1650,12 +1652,12 @@ Format each Q&A with:
         ))
         results["pages"]["services"] = services_page
         page_count += 1
-        
+
         # Generate individual service pages
         for service in services:
             if on_progress:
                 on_progress(f"Generating {service} page", page_count + 1, total_pages)
-            
+
             service_page = self.page_generator.generate_page(ContentRequest(
                 page_type=PageType.SERVICE_DETAIL,
                 title=service,
@@ -1665,16 +1667,16 @@ Format each Q&A with:
                 tone=tone,
                 call_to_action=f"Learn more about {service}"
             ))
-            
+
             slug = service.lower().replace(" ", "-")
             results["pages"][f"service-{slug}"] = service_page
             page_count += 1
             time.sleep(1)
-        
+
         # Generate Contact page
         if on_progress:
             on_progress("Generating Contact page", page_count + 1, total_pages)
-        
+
         contact = self.page_generator.generate_page(ContentRequest(
             page_type=PageType.CONTACT,
             title="Contact Us",
@@ -1684,18 +1686,18 @@ Format each Q&A with:
             tone=tone
         ))
         results["pages"]["contact"] = contact
-        
+
         results["stats"]["pages_generated"] = len(results["pages"])
-        
+
         # Generate blog posts if requested
         if include_blog and blog_topics:
             if on_progress:
                 on_progress("Generating blog posts", 0, len(blog_topics))
-            
+
             for i, topic in enumerate(blog_topics):
                 if on_progress:
                     on_progress(f"Generating post: {topic}", i + 1, len(blog_topics))
-                
+
                 try:
                     post = self.blog_generator.generate_post(BlogPostRequest(
                         topic=topic,
@@ -1706,21 +1708,21 @@ Format each Q&A with:
                     results["posts"].append(post)
                 except Exception as e:
                     print(f"Failed to generate post '{topic}': {e}")
-                
+
                 time.sleep(1)
-            
+
             results["stats"]["posts_generated"] = len(results["posts"])
-        
+
         # Generate menu structure
         results["menu_structure"] = self._generate_menu_structure(services)
-        
+
         results["stats"]["total_time"] = time.time() - start_time
-        
+
         return results
-    
+
     def _generate_menu_structure(self, services: list[str]) -> dict:
         """Generate suggested menu structure."""
-        
+
         service_items = [
             {
                 "title": service,
@@ -1729,7 +1731,7 @@ Format each Q&A with:
             }
             for service in services
         ]
-        
+
         return {
             "primary": {
                 "location": "primary-menu",
@@ -1800,8 +1802,8 @@ def ai():
 
 @ai.command('generate-page')
 @click.argument('site_id')
-@click.option('--type', 'page_type', required=True, 
-              type=click.Choice(['home', 'about', 'services', 'service_detail', 
+@click.option('--type', 'page_type', required=True,
+              type=click.Choice(['home', 'about', 'services', 'service_detail',
                                 'contact', 'faq', 'landing', 'custom']))
 @click.option('--title', required=True)
 @click.option('--business', required=True, help='Business name')
@@ -1813,13 +1815,13 @@ def ai():
 @click.option('--output', type=click.Path(), help='Save HTML to file instead of WordPress')
 def generate_page(site_id, page_type, title, business, description, industry, tone, publish, output):
     """Generate a page using AI and optionally publish to WordPress."""
-    
+
     from compiler.ai.content_generator import ContentGenerator, ContentRequest, PageType, Tone
-    
+
     click.echo(f"Generating {page_type} page: {title}")
-    
+
     generator = ContentGenerator()
-    
+
     request = ContentRequest(
         page_type=PageType(page_type),
         title=title,
@@ -1828,13 +1830,13 @@ def generate_page(site_id, page_type, title, business, description, industry, to
         industry=industry,
         tone=Tone(tone)
     )
-    
+
     content = generator.generate_page(request)
-    
+
     click.echo(f"✓ Generated {len(content.html_content.split())} words")
     click.echo(f"  Meta title: {content.meta_title}")
     click.echo(f"  Meta description: {content.meta_description[:60]}...")
-    
+
     if output:
         # Save to file
         Path(output).write_text(content.html_content)
@@ -1842,27 +1844,27 @@ def generate_page(site_id, page_type, title, business, description, industry, to
     else:
         # Publish to WordPress
         creds = load_site_credentials(site_id)
-        
+
         if not creds.get('WP_APP_PASSWORD'):
             click.echo("✗ No WordPress credentials found. Use --output to save to file.")
             raise click.Abort()
-        
+
         from compiler.wordpress.content import ContentManager, PageConfig
-        
+
         cm = ContentManager(
             site_id,
             creds['WP_SITE_URL'],
             creds['WP_ADMIN_USER'],
             creds['WP_APP_PASSWORD']
         )
-        
+
         page = cm.create_page(PageConfig(
             title=title,
             slug=content.suggested_slug,
             content=content.html_content,
             status='publish' if publish else 'draft'
         ))
-        
+
         click.echo(f"✓ Created page: {page.url}")
         click.echo(f"  Status: {'published' if publish else 'draft'}")
 
@@ -1881,14 +1883,14 @@ def generate_page(site_id, page_type, title, business, description, industry, to
 @click.option('--output', type=click.Path())
 def generate_post(site_id, topic, business, industry, tone, words, publish, output):
     """Generate a blog post using AI."""
-    
+
     from compiler.ai.blog_generator import BlogGenerator, BlogPostRequest
     from compiler.ai.content_generator import Tone
-    
+
     click.echo(f"Generating blog post: {topic}")
-    
+
     generator = BlogGenerator()
-    
+
     request = BlogPostRequest(
         topic=topic,
         business_name=business,
@@ -1896,33 +1898,33 @@ def generate_post(site_id, topic, business, industry, tone, words, publish, outp
         tone=Tone(tone),
         word_count=words
     )
-    
+
     post = generator.generate_post(request)
-    
+
     click.echo(f"✓ Generated: {post.title}")
     click.echo(f"  Words: {len(post.html_content.split())}")
     click.echo(f"  Categories: {', '.join(post.suggested_categories)}")
     click.echo(f"  Tags: {', '.join(post.suggested_tags)}")
-    
+
     if output:
         Path(output).write_text(post.html_content)
         click.echo(f"✓ Saved to {output}")
     else:
         creds = load_site_credentials(site_id)
-        
+
         if not creds.get('WP_APP_PASSWORD'):
             click.echo("✗ No WordPress credentials. Use --output to save to file.")
             raise click.Abort()
-        
+
         from compiler.wordpress.content import ContentManager, PostConfig
-        
+
         cm = ContentManager(
             site_id,
             creds['WP_SITE_URL'],
             creds['WP_ADMIN_USER'],
             creds['WP_APP_PASSWORD']
         )
-        
+
         wp_post = cm.create_post(PostConfig(
             title=post.title,
             slug=post.suggested_slug,
@@ -1932,7 +1934,7 @@ def generate_post(site_id, topic, business, industry, tone, words, publish, outp
             tags=post.suggested_tags,
             excerpt=post.excerpt
         ))
-        
+
         click.echo(f"✓ Created post: {wp_post.url}")
 
 # ─────────────────────────────────────────────────────────────
@@ -1944,75 +1946,75 @@ def generate_post(site_id, topic, business, industry, tone, words, publish, outp
 @click.argument('page_slug')
 @click.option('--instructions', required=True, help='Revision instructions')
 @click.option('--type', 'revision_type', default='improve',
-              type=click.Choice(['rewrite', 'improve', 'expand', 'shorten', 
+              type=click.Choice(['rewrite', 'improve', 'expand', 'shorten',
                                 'tone_change', 'add_section', 'fix_issues']))
 @click.option('--publish/--draft', default=True)
 def revise_page(site_id, page_slug, instructions, revision_type, publish):
     """Revise an existing page using AI."""
-    
+
     from compiler.ai.content_reviser import ContentReviser, RevisionRequest, RevisionType
-    
+
     creds = load_site_credentials(site_id)
-    
+
     if not creds.get('WP_APP_PASSWORD'):
         click.echo("✗ No WordPress credentials found")
         raise click.Abort()
-    
+
     from compiler.wordpress.rest_api import WordPressRESTClient
-    
+
     client = WordPressRESTClient(
         creds['WP_SITE_URL'],
         creds['WP_ADMIN_USER'],
         creds['WP_APP_PASSWORD']
     )
-    
+
     # Fetch current content
     click.echo(f"Fetching page: {page_slug}")
     page = client.get_page_by_slug(page_slug)
-    
+
     if not page:
         click.echo(f"✗ Page not found: {page_slug}")
         raise click.Abort()
-    
+
     # Get full content
     pages = client._get('pages', {'slug': page_slug})
     current_content = pages[0]['content']['rendered']
-    
+
     click.echo(f"Revising page: {page.title}")
     click.echo(f"  Type: {revision_type}")
     click.echo(f"  Instructions: {instructions}")
-    
+
     reviser = ContentReviser()
-    
+
     result = reviser.revise(RevisionRequest(
         current_content=current_content,
         revision_type=RevisionType(revision_type),
         instructions=instructions
     ))
-    
+
     click.echo(f"\n✓ Revision complete")
     click.echo(f"  Original: {result.original_length} words")
     click.echo(f"  Revised: {result.revised_length} words")
     click.echo(f"\nChanges:")
     click.echo(result.changes_summary)
-    
+
     # Update page
     if click.confirm("\nApply changes to WordPress?"):
         from compiler.wordpress.content import ContentManager, PageConfig
-        
+
         cm = ContentManager(
             site_id,
             creds['WP_SITE_URL'],
             creds['WP_ADMIN_USER'],
             creds['WP_APP_PASSWORD']
         )
-        
+
         updated = client.update_page(
             page.id,
             content=result.revised_content,
             status='publish' if publish else 'draft'
         )
-        
+
         click.echo(f"\n✓ Updated: {updated.url}")
 
 # ─────────────────────────────────────────────────────────────
@@ -2028,18 +2030,18 @@ def revise_page(site_id, page_slug, instructions, revision_type, publish):
 @click.option('--publish/--draft', default=False)
 def generate_services(site_id, services, business, description, industry, publish):
     """Generate pages for multiple services."""
-    
+
     from compiler.ai.bulk_generator import BulkGenerator
-    
+
     service_list = [s.strip() for s in services.split(',')]
-    
+
     click.echo(f"Generating {len(service_list)} service pages")
-    
+
     generator = BulkGenerator()
-    
+
     def progress(current, total, name):
         click.echo(f"  [{current}/{total}] {name}")
-    
+
     result = generator.generate_service_pages(
         services=service_list,
         business_name=business,
@@ -2047,28 +2049,28 @@ def generate_services(site_id, services, business, description, industry, publis
         industry=industry,
         on_progress=progress
     )
-    
+
     click.echo(f"\n✓ Generated {result.successful}/{result.total} pages")
-    
+
     if result.errors:
         click.echo("Errors:")
         for error in result.errors:
             click.echo(f"  ✗ {error}")
-    
+
     # Publish to WordPress
     if result.successful > 0:
         creds = load_site_credentials(site_id)
-        
+
         if creds.get('WP_APP_PASSWORD') and click.confirm("\nPublish to WordPress?"):
             from compiler.wordpress.content import ContentManager, PageConfig
-            
+
             cm = ContentManager(
                 site_id,
                 creds['WP_SITE_URL'],
                 creds['WP_ADMIN_USER'],
                 creds['WP_APP_PASSWORD']
             )
-            
+
             for r in result.results:
                 if r["status"] == "success":
                     content = r["content"]
@@ -2091,21 +2093,21 @@ def generate_services(site_id, services, business, description, industry, publis
 @click.option('--publish/--draft', default=False)
 def generate_website(site_id, business, description, industry, services, include_blog, blog_topics, publish):
     """Generate complete website content package."""
-    
+
     from compiler.ai.bulk_generator import BulkGenerator
-    
+
     service_list = [s.strip() for s in services.split(',')]
     topic_list = [t.strip() for t in blog_topics.split(',')] if blog_topics else []
-    
+
     click.echo(f"Generating complete website for {business}")
     click.echo(f"  Services: {len(service_list)}")
     click.echo(f"  Blog posts: {len(topic_list) if include_blog else 0}")
-    
+
     generator = BulkGenerator()
-    
+
     def progress(stage, current, total):
         click.echo(f"  {stage} [{current}/{total}]")
-    
+
     result = generator.generate_website_content(
         business_name=business,
         business_description=description,
@@ -2115,29 +2117,29 @@ def generate_website(site_id, business, description, industry, services, include
         blog_topics=topic_list,
         on_progress=progress
     )
-    
+
     click.echo(f"\n✓ Generation complete")
     click.echo(f"  Pages: {result['stats']['pages_generated']}")
     click.echo(f"  Posts: {result['stats']['posts_generated']}")
     click.echo(f"  Time: {result['stats']['total_time']:.1f}s")
-    
+
     # Show menu structure
     click.echo("\nSuggested menu structure:")
     click.echo(yaml.dump(result['menu_structure'], default_flow_style=False))
-    
+
     # Publish to WordPress
     creds = load_site_credentials(site_id)
-    
+
     if creds.get('WP_APP_PASSWORD') and click.confirm("\nPublish all content to WordPress?"):
         from compiler.wordpress.content import ContentManager, PageConfig, PostConfig, MenuConfig
-        
+
         cm = ContentManager(
             site_id,
             creds['WP_SITE_URL'],
             creds['WP_ADMIN_USER'],
             creds['WP_APP_PASSWORD']
         )
-        
+
         # Create pages
         click.echo("\nCreating pages...")
         for slug, content in result['pages'].items():
@@ -2148,7 +2150,7 @@ def generate_website(site_id, business, description, industry, services, include
                 status='publish' if publish else 'draft'
             ))
             click.echo(f"  ✓ {page.title}")
-        
+
         # Create posts
         if result['posts']:
             click.echo("\nCreating posts...")
@@ -2162,7 +2164,7 @@ def generate_website(site_id, business, description, industry, services, include
                     tags=post_content.suggested_tags
                 ))
                 click.echo(f"  ✓ {post.title}")
-        
+
         # Create menu
         click.echo("\nCreating menu...")
         menu_config = result['menu_structure']['primary']
@@ -2172,7 +2174,7 @@ def generate_website(site_id, business, description, industry, services, include
             items=menu_config['items']
         ))
         click.echo(f"  ✓ Menu created (ID: {menu_id})")
-        
+
         click.echo(f"\n✓ Website content published!")
         click.echo(f"  URL: {creds['WP_SITE_URL']}")
 
@@ -2395,13 +2397,13 @@ tools:
 behaviors:
   - name: confirm_destructive
     description: Always confirm before destroying sites or overwriting content
-    
+
   - name: draft_first
     description: Generate content as draft first, then publish after approval
-    
+
   - name: report_urls
     description: Always report created URLs to user
-    
+
   - name: suggest_next_steps
     description: After completing a task, suggest relevant next steps
 
@@ -2411,11 +2413,11 @@ examples:
       - "fabrik new wp-site <id> --domain=<domain>"
       - "fabrik apply <id>"
       - "fabrik ai generate-website <id> --business=<company> ..."
-    
+
   - trigger: "Add a blog post about [topic]"
     actions:
       - "fabrik ai generate-post <site> --topic=<topic> --business=<business>"
-    
+
   - trigger: "Make the [page] more [adjective]"
     actions:
       - "fabrik ai revise-page <site> <slug> --instructions='Make more <adjective>'"
@@ -2465,8 +2467,8 @@ fabrik ai generate-website <site> --business="..." --description="..." --industr
 ### What Windsurf Agents Can Now Do
 
 ```
-User: "Create a professional website for TechStart Inc, a SaaS startup 
-       offering project management software. Include Home, About, 
+User: "Create a professional website for TechStart Inc, a SaaS startup
+       offering project management software. Include Home, About,
        Features, Pricing, and Contact pages."
 
 Agent:

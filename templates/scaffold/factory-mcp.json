@@ -1,0 +1,60 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
+      "disabled": false
+    },
+    "sentry": {
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp",
+      "disabled": false
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp",
+      "disabled": true
+    },
+    "linear": {
+      "type": "http",
+      "url": "https://mcp.linear.app/mcp",
+      "disabled": true
+    },
+    "stripe": {
+      "type": "http",
+      "url": "https://mcp.stripe.com",
+      "disabled": true
+    },
+    "notion": {
+      "type": "http",
+      "url": "https://mcp.notion.com/mcp",
+      "disabled": true
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp",
+      "disabled": true
+    },
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com/",
+      "disabled": true
+    },
+    "netlify": {
+      "type": "http",
+      "url": "https://netlify-mcp.netlify.app/mcp",
+      "disabled": true
+    },
+    "hugging-face": {
+      "type": "http",
+      "url": "https://huggingface.co/mcp",
+      "disabled": true
+    },
+    "socket": {
+      "type": "http",
+      "url": "https://mcp.socket.dev/",
+      "disabled": true
+    }
+  }
+}

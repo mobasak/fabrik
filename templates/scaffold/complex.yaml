@@ -1,0 +1,84 @@
+# Complex Project Template
+# For large-scale, production-ready systems
+
+template:
+  name: complex
+  description: "Complex multi-component production system"
+  complexity: high
+  estimated_hours: 100-500+
+
+structure:
+  directories:
+    - "src/api"
+    - "src/core"
+    - "src/models"
+    - "src/services"
+    - "src/utils"
+    - "tests/unit"
+    - "tests/integration"
+    - "tests/e2e"
+    - "docs"
+    - "config"
+    - "scripts"
+    - "infra"
+
+  files:
+    - path: "README.md"
+      template: "readme_complex"
+    - path: "src/api/main.py"
+      template: "api_main"
+    - path: "src/core/__init__.py"
+      template: "init"
+    - path: "src/models/__init__.py"
+      template: "init"
+    - path: "tests/conftest.py"
+      template: "pytest_config"
+    - path: "requirements.txt"
+      template: "requirements_full"
+    - path: "requirements-dev.txt"
+      template: "requirements_dev"
+    - path: ".gitignore"
+      template: "gitignore_python"
+    - path: "CLAUDE.md"
+      template: "claude_complex"
+    - path: "docs/ARCHITECTURE.md"
+      template: "architecture_detailed"
+    - path: "docs/API.md"
+      template: "api_docs"
+    - path: "docs/DEPLOYMENT.md"
+      template: "deployment"
+    - path: "SECURITY.md"
+      template: "security"
+    - path: "config/config.yaml"
+      template: "config_yaml_full"
+    - path: "config/logging.yaml"
+      template: "logging_config"
+    - path: "scripts/setup.sh"
+      template: "setup_script"
+    - path: "Dockerfile"
+      template: "dockerfile"
+    - path: ".dockerignore"
+      template: "dockerignore"
+
+features:
+  version_control: true
+  testing: comprehensive
+  ci_cd: required
+  documentation: extensive
+  dependencies: strict
+  monitoring: required
+  security: hardened
+
+best_for:
+  - "Production systems"
+  - "Microservices"
+  - "Enterprise applications"
+  - "SaaS products"
+  - "High-traffic APIs"
+  - "Mission-critical systems"
+
+avoid_when:
+  - "Prototyping"
+  - "Learning projects"
+  - "Quick scripts"
+  - "Single-user tools"

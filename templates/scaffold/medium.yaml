@@ -1,0 +1,56 @@
+# Medium Project Template
+# For multi-file projects with some complexity
+
+template:
+  name: medium
+  description: "Medium-sized project with multiple components"
+  complexity: medium
+  estimated_hours: 20-80
+
+structure:
+  directories:
+    - "src"
+    - "tests"
+    - "docs"
+    - "config"
+
+  files:
+    - path: "README.md"
+      template: "readme_medium"
+    - path: "src/main.py"
+      template: "main_medium"
+      language: "python"
+    - path: "src/__init__.py"
+      template: "init"
+    - path: "tests/test_main.py"
+      template: "test_basic"
+    - path: "requirements.txt"
+      template: "requirements"
+    - path: ".gitignore"
+      template: "gitignore_python"
+    - path: "CLAUDE.md"
+      template: "claude_medium"
+    - path: "docs/ARCHITECTURE.md"
+      template: "architecture"
+    - path: "config/config.yaml"
+      template: "config_yaml"
+
+features:
+  version_control: true
+  testing: true
+  ci_cd: optional
+  documentation: standard
+  dependencies: managed
+
+best_for:
+  - "REST APIs"
+  - "CLI tools"
+  - "Data processing pipelines"
+  - "Internal tools"
+  - "MVP products"
+
+avoid_when:
+  - "Enterprise-scale needed"
+  - "Multiple services required"
+  - "Complex deployment"
+  - "High scalability needs"

@@ -1,57 +1,223 @@
 # Fabrik Documentation
 
-## Structure
+**Last Updated:** 2026-01-05
+
+---
+
+## Structure Map
 
 ```text
 docs/
-├── README.md                    # This file - documentation index
-├── QUICKSTART.md                # Get running in 5 minutes
-├── CONFIGURATION.md             # All settings reference
-├── DEPLOYMENT.md                # Deployment configuration
-├── DEPLOYMENT_READY_CHECKLIST.md # How to make projects deploy-ready
-├── TROUBLESHOOTING.md           # Common issues & solutions
-├── BUSINESS_MODEL.md            # Monetization strategy
-├── owner_ozgur_basak.md         # Owner profile & AI instructions
+├── README.md                       # This file - documentation index
+├── QUICKSTART.md                   # Get Fabrik running in 5 minutes
+├── CONFIGURATION.md                # Environment variables and settings
+├── DEPLOYMENT.md                   # How to deploy services to VPS
+├── SERVICES.md                     # External services Fabrik depends on
+├── TROUBLESHOOTING.md              # Common issues & solutions
+├── TESTING.md                      # How to run and write tests
+├── FAQ.md                          # Frequently asked questions
+├── ENVIRONMENT_VARIABLES.md        # Complete env var reference
+├── FABRIK_OVERVIEW.md              # What Fabrik is and what it does
+├── ROADMAP_ACTIVE.md               # Current priorities, backlog, future plans
+├── BUSINESS_MODEL.md               # Monetization strategy
+├── owner_ozgur_basak.md            # Owner profile & AI instructions
 ├── guides/
-│   └── (how-to guides)
+│   ├── PROJECT_WORKFLOW.md         # Start here - new/existing project workflow
+│   ├── FABRIK_INTEGRATION.md       # Build Fabrik-compatible microservices
+│   ├── domain-hosting-automation.md # Domain + hosting automation
+│   └── DEPLOYMENT_READY_CHECKLIST.md # Make projects deployment-ready
 ├── reference/
-│   ├── project-registry.md      # Master inventory of all /opt projects
-│   ├── stack.md                 # Technology stack & tools inventory
-│   ├── roadmap.md               # Complete 8-phase roadmap
-│   ├── Phase1.md                # Phase 1: Foundation
-│   ├── Phase2.md                # Phase 2: WordPress Automation
-│   ├── Phase3.md                # Phase 3: AI Content Integration
-│   ├── Phase4.md                # Phase 4: DNS Migration
-│   ├── Phase5.md                # Phase 5: Staging Environments
-│   ├── Phase6.md                # Phase 6: Advanced Monitoring
-│   ├── Phase7.md                # Phase 7: Multi-Server Scaling
-│   ├── Phase8.md                # Phase 8: Business Automation
-│   └── droid-exec-usage.md      # Factory Droid usage guide
+│   ├── CRITICAL_RULES.md           # Non-negotiable execution rules
+│   ├── DOCUMENTATION_STANDARD.md   # Documentation standards and conventions
+│   ├── PROCESS_MONITORING_QUICKSTART.md # Process monitor setup
+│   ├── SaaS-GUI.md                 # SaaS skeleton GUI guide
+│   ├── architecture.md             # System architecture overview
+│   ├── auto-review.md              # Automatic code review system
+│   ├── docs-updater.md             # Automatic documentation updater
+│   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
+│   ├── building-interactive-apps-with-droid-exec.md # Interactive app patterns
+│   ├── droid-cli-reference-hook-reference.md # Droid CLI + hook reference
+│   ├── droid-exec-complete-guide.md # Full droid exec guide (long-form)
+│   ├── droid-exec-headless.md      # Headless usage patterns
+│   ├── droid-exec-usage.md         # Core droid exec usage
+│   ├── droid-validation-report.md  # Validation report format
+│   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
+│   ├── factory-enterprise.md       # Factory Enterprise overview
+│   ├── factory-hooks.md            # Factory hook catalog
+│   ├── factory-skills.md           # Factory skills catalog
+│   ├── factoryai-power-user-settings.md # Power user settings
+│   ├── file-api-deployment.md      # File API deployment guide
+│   ├── hooks-and-skills-guide.md   # Hook and skill usage guide
+│   ├── phase1b-setup.md            # Phase 1b setup instructions
+│   ├── phase1b-test-results.md     # Phase 1b test results
+│   ├── Phase1.md - Phase9.md       # Phase documentation set
+│   ├── prebuilt-app-containers.md  # Prebuilt container catalog
+│   ├── project-registry.md         # Master inventory of all /opt projects
+│   ├── roadmap.md                  # Complete 8-phase roadmap summary
+│   ├── stack.md                    # Technology stack & tools inventory
+│   ├── templates.md                # Available deployment templates
+│   ├── trueforge-images.md         # Trueforge image catalog
+│   ├── uptime-kuma.md              # Uptime Kuma runbook
+│   ├── verification-framework.md   # 3-lane verification system
+│   └── wordpress/                  # WordPress technical docs
+│       ├── architecture.md         # WordPress v2 spec system
+│       ├── fixes.md                # Critical fixes
+│       ├── pages-idempotency.md    # Page creation idempotency
+│       ├── plugin-stack.md         # Curated plugin stack
+│       ├── plugin-evaluation.md    # Plugin evaluation
+│       └── site-specification.md   # Site spec YAML format
 ├── operations/
-│   └── (operational procedures)
+│   ├── vps-status.md               # Current VPS state and configuration
+│   ├── vps-urls.md                 # All deployed service URLs
+│   ├── disaster-recovery.md        # Backup and recovery procedures
+│   ├── duplicati-setup.md          # Duplicati backup configuration
+│   ├── backup-strategy.md          # VPS backup strategy
+│   └── coolify-migration.md        # Coolify migration procedures
+│   └── backup-strategy.md          # VPS backup strategy
 ├── development/
-│   └── (contributor docs)
-└── archive/
-    └── (obsolete docs)
+│   ├── ARCHITECTURE_ANALYSIS.md    # Codebase analysis report
+│   └── DOCUMENTATION_AUDIT.md      # Documentation audit report
+    ├── 2025-12-27_FUTURE_WORK.md
+    ├── 2025-12-27_WHATS_NEXT.md
+    ├── 2025-12-27_future-development.md
+    ├── previousresearchfordigitalmarketingstack.md
+    ├── PM_INCORPORATION_PLAN.md    # Completed migration plan
+    └── 2026-01-04-monitoring-design/
+        ├── DROID_RUNNER_MONITORING.md
+        └── LONG_COMMAND_MONITORING.md
+    └── 2026-01-04-monitoring-design/ # Superseded design docs
 ```
 
-## Quick Links
+---
 
-- [Quick Start](QUICKSTART.md) — Get Fabrik running
-- [Configuration](CONFIGURATION.md) — Environment variables and settings
-- [Deployment](DEPLOYMENT.md) — How to deploy to VPS
-- [Deployment-Ready Checklist](DEPLOYMENT_READY_CHECKLIST.md) — **Make projects deploy-ready**
-- [Troubleshooting](TROUBLESHOOTING.md) — Common issues
+## Quick Start
 
-## Reference
+| Document | Purpose |
+|----------|--------|
+| [QUICKSTART.md](QUICKSTART.md) | Get Fabrik running in 5 minutes |
+| [CONFIGURATION.md](CONFIGURATION.md) | All environment variables and settings |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | How to deploy services to VPS |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and solutions |
+| [TESTING.md](TESTING.md) | How to run and write tests |
+| [FAQ.md](FAQ.md) | Frequently asked questions |
+| [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md) | Complete env var reference |
 
-- [Project Registry](reference/project-registry.md) — **Master inventory of all /opt projects**
-- [Stack & Tools](reference/stack.md) — Technology stack, APIs, libraries
-- [VPS Status](reference/vps-status.md) — **Current VPS state and pending actions**
-- [Complete Roadmap](reference/roadmap.md) — All 8 phases overview
-- [Phase 1: Foundation](reference/Phase1.md) — Current phase details
+---
+
+## Core Reference
+
+| Document | Purpose |
+|----------|--------|
+| [architecture.md](reference/architecture.md) | System architecture, components, data flow |
+| [stack.md](reference/stack.md) | Technology stack, APIs, libraries |
+| [roadmap.md](reference/roadmap.md) | Complete 8-phase development roadmap |
+| [drivers.md](reference/drivers.md) | Fabrik driver API (Coolify, DNS, etc.) |
+| [templates.md](reference/templates.md) | Available deployment templates |
+| [SaaS-GUI.md](reference/SaaS-GUI.md) | SaaS skeleton template guide |
+
+**SaaS Template:** `templates/saas-skeleton/` — Next.js + Tailwind + SSE streaming for droid exec
+
+---
+
+## Phase Documentation
+
+| Phase | Status | Document |
+|-------|--------|----------|
+| **Phase 1: Foundation** | ✅ Complete | [Phase1.md](reference/Phase1.md) |
+| **Phase 1b: Cloud Infrastructure** | ✅ Complete | [Phase1b.md](reference/Phase1b.md) |
+| **Phase 1c: Cloudflare DNS** | ✅ Complete | [Phase1c.md](reference/Phase1c.md) |
+| **Phase 1d: WordPress Automation** | 🚧 In Progress | [Phase1d.md](reference/Phase1d.md) |
+| **Phase 2: WordPress Sites** | 67% | [Phase2.md](reference/Phase2.md) |
+| **Phase 3: AI Content** | Pending | [Phase3.md](reference/Phase3.md) |
+| **Phase 4: Advanced Networking** | Pending | [Phase4.md](reference/Phase4.md) |
+| **Phase 5: Staging Environments** | Pending | [Phase5.md](reference/Phase5.md) |
+| **Phase 6: Advanced Monitoring** | Pending | [Phase6.md](reference/Phase6.md) |
+| **Phase 7: Multi-Server Scaling** | Pending | [Phase7.md](reference/Phase7.md) |
+| **Phase 8: Business Automation** | Pending | [Phase8.md](reference/Phase8.md) |
+
+---
+
+## Operations
+
+| Document | Purpose |
+|----------|--------|
+| [vps-status.md](operations/vps-status.md) | Current VPS state and configuration |
+| [vps-urls.md](operations/vps-urls.md) | All deployed service URLs |
+| [disaster-recovery.md](operations/disaster-recovery.md) | Backup and recovery procedures |
+| [duplicati-setup.md](operations/duplicati-setup.md) | Duplicati backup configuration |
+| [coolify-migration.md](operations/coolify-migration.md) | Coolify migration procedures |
+
+---
+
+## Guides
+
+| Document | Purpose |
+|----------|--------|
+| [PROJECT_WORKFLOW.md](guides/PROJECT_WORKFLOW.md) | **Start here** — New/existing project workflow |
+| [FABRIK_INTEGRATION.md](guides/FABRIK_INTEGRATION.md) | Build Fabrik-compatible microservices |
+| [domain-hosting-automation.md](guides/domain-hosting-automation.md) | Full domain + hosting automation |
+| [DEPLOYMENT_READY_CHECKLIST.md](guides/DEPLOYMENT_READY_CHECKLIST.md) | Make any project deployment-ready |
+
+---
+
+## WordPress
+
+| Document | Purpose |
+|----------|--------|
+| [plugin-stack.md](reference/wordpress/plugin-stack.md) | Curated WordPress plugin stack |
+| [plugin-evaluation.md](reference/wordpress/plugin-evaluation.md) | Plugin evaluation by site type |
+| [architecture.md](reference/wordpress/architecture.md) | WordPress v2 spec system |
+| [fixes.md](reference/wordpress/fixes.md) | Critical fixes for v2 |
+| [pages-idempotency.md](reference/wordpress/pages-idempotency.md) | Page creation idempotency |
+| [site-specification.md](reference/wordpress/site-specification.md) | Site spec YAML format |
+
+---
+
+## Droid Automation
+
+| Document | Purpose |
+|----------|--------|
+| [droid-exec-usage.md](reference/droid-exec-usage.md) | **Complete droid exec guide** — models, tasks, hooks, MCP, prompting, spec mode |
+| [AGENTS.md](../AGENTS.md) | Agent briefing for AI coding assistants |
+| [factory-settings.json](../templates/scaffold/factory-settings.json) | Factory settings template |
+| [factory-hooks.json](../templates/scaffold/factory-hooks.json) | Hooks configuration template |
+| [factory-mcp.json](../templates/scaffold/factory-mcp.json) | MCP servers template |
+
+**Quick Reference:**
+```bash
+droid exec "analyze code"                        # Read-only
+droid exec --auto medium "fix issues"            # Dev work
+droid exec --use-spec "add feature"              # Plan first
+droid exec -m gemini-3-flash-preview "quick task" # Model select
+droid exec -o stream-json "task"                 # Real-time output
+```
+
+**Model Management (Automated):**
+```bash
+# Auto-update runs daily via cron - no manual intervention needed
+./scripts/setup_model_updates.sh               # Enable daily auto-updates
+
+# Manual commands (if needed)
+python3 scripts/droid_model_updater.py         # Force update check now
+python3 scripts/droid_models.py stack-rank     # View current rankings
+python3 scripts/droid_models.py recommend ci_cd # Get model for scenario
+```
+
+**Config:** `config/models.yaml` — Auto-updated from Factory docs daily
+**Scripts:** `scripts/droid_tasks.py` (task runner), `scripts/droid_models.py` (model registry), `scripts/docs_updater.py` (documentation updater)
+**Batch Scripts:** `scripts/droid/` (refactor-imports, improve-errors, fix-lint)
+**Workflows:** `.github/workflows/` (droid-review, update-docs, security-scanner, daily-maintenance)
+**Key Flags:** `--auto`, `--use-spec`, `-m`, `-r`, `-o`, `--cwd`, `-s`
+**VPS Deployment:** See §25-26 in droid-exec-usage.md for Coolify + SSE streaming patterns
+
+---
 
 ## Project Context
 
-- [Owner Profile](owner_ozgur_basak.md) — AI assistant instructions
-- [Droid Exec Usage](reference/droid-exec-usage.md) — Factory.ai Droid guide
+| Document | Purpose |
+|----------|--------|
+| [FABRIK_OVERVIEW.md](FABRIK_OVERVIEW.md) | What Fabrik is and what it does |
+| [ROADMAP_ACTIVE.md](ROADMAP_ACTIVE.md) | Current priorities, backlog, future plans |
+| [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Monetization strategy |
+| [owner_ozgur_basak.md](owner_ozgur_basak.md) | Owner profile & AI instructions |
+| [project-registry.md](reference/project-registry.md) | Master inventory of all /opt projects |

@@ -1,3 +1,5 @@
+> **Phase Navigation:** [← Phase 5](Phase5.md) | **Phase 6** | [Phase 7 →](Phase7.md) | [All Phases](roadmap.md)
+
 ## Phase 6: Advanced Monitoring — Complete Narrative
 
 **Status: 🟡 Partially Started**
@@ -17,8 +19,15 @@
 | 7 | Grafana dashboards | ❌ Pending |
 | 8 | Alerting (Slack/email) | ❌ Pending |
 | 9 | CLI log commands | ❌ Pending |
+| **Verification Framework** |
+| 10 | Postcondition checker (fabrik verify) | ✅ Done |
+| 11 | Coolify status check integration | ❌ Pending |
+| 12 | Secret scanner check | ❌ Pending |
+| 13 | SSL expiry check (min_days_remaining) | ❌ Pending |
+| 14 | Auto-rollback via Coolify API | ❌ Pending |
+| 15 | Uptime Kuma integration check | ❌ Pending |
 
-**Completion: 1/9 tasks (11%)**
+**Completion: 2/15 tasks (13%)**
 
 ---
 
@@ -29,12 +38,13 @@ By the end of Phase 6, you will have:
 1. **Loki** for centralized log aggregation from all containers
 2. **Promtail** agent shipping logs to Loki
 3. **Prometheus** collecting metrics from containers and services
-4. **Node Exporter** for VPS system metrics (CPU, memory, disk)
-5. **cAdvisor** for container-level metrics
-6. **Grafana** for visualization dashboards
-7. **Pre-built dashboards** for system, containers, WordPress, and APIs
-8. **Alerting** via Slack/email when issues occur
-9. **CLI commands** for quick log access and metrics queries
+4. **Verification Framework** for automated deployment validation
+5. **Node Exporter** for VPS system metrics (CPU, memory, disk)
+6. **cAdvisor** for container-level metrics
+7. **Grafana** for visualization dashboards
+8. **Pre-built dashboards** for system, containers, WordPress, and APIs
+9. **Alerting** via Slack/email when issues occur
+10. **CLI commands** for quick log access and metrics queries
 
 This transforms Fabrik from "deploy and hope" to "full visibility into everything running."
 
@@ -320,17 +330,17 @@ scrape_configs:
             output: log
             stream: stream
             timestamp: time
-            
+
       # Extract container name from path
       - regex:
           source: filename
           expression: '/var/lib/docker/containers/(?P<container_id>[^/]+)/.*'
-          
+
       # Add container name label
       - labels:
           stream:
           container_id:
-          
+
       # Use log content as the line
       - output:
           source: output
@@ -1173,7 +1183,7 @@ from pathlib import Path
 
 def create_container_dashboard() -> dict:
     """Create cAdvisor-based container metrics dashboard."""
-    
+
     return {
         "title": "Container Metrics",
         "uid": "container-metrics",
@@ -1299,7 +1309,7 @@ def create_container_dashboard() -> dict:
 
 def create_logs_dashboard() -> dict:
     """Create Loki-based logs dashboard."""
-    
+
     return {
         "title": "Application Logs",
         "uid": "app-logs",
@@ -1389,12 +1399,12 @@ def save_dashboard(dashboard: dict, path: str):
 
 def generate_all_dashboards(output_dir: str = "apps/grafana/provisioning/dashboards"):
     """Generate all dashboard JSON files."""
-    
+
     dashboards = {
         'containers.json': create_container_dashboard(),
         'logs.json': create_logs_dashboard(),
     }
-    
+
     for filename, dashboard in dashboards.items():
         save_dashboard(dashboard, f"{output_dir}/{filename}")
         print(f"Created: {output_dir}/{filename}")
@@ -1539,7 +1549,7 @@ notifiers:
       url: ${SLACK_WEBHOOK_URL}
       username: Fabrik Monitor
       icon_emoji: ":warning:"
-      
+
   - name: Email
     type: email
     uid: email-notifier
@@ -1619,21 +1629,21 @@ def monitor():
 @click.option('--container', '-c', help='Filter by container name')
 @click.option('--since', '-s', default='1h', help='Time range (e.g., 1h, 30m, 24h)')
 @click.option('--limit', '-n', default=100, help='Max lines to return')
-@click.option('--level', '-l', type=click.Choice(['error', 'warn', 'info', 'debug']), 
+@click.option('--level', '-l', type=click.Choice(['error', 'warn', 'info', 'debug']),
               help='Filter by log level')
 def logs(query, container, since, limit, level):
     """Query logs from Loki."""
-    
+
     loki_url = os.environ.get('LOKI_URL', 'http://localhost:3100')
-    
+
     # Build LogQL query
     label_selectors = ['job="containerlogs"']
-    
+
     if container:
         label_selectors.append(f'container=~".*{container}.*"')
-    
+
     logql = '{' + ','.join(label_selectors) + '}'
-    
+
     # Add line filters
     if level:
         level_filters = {
@@ -1643,23 +1653,23 @@ def logs(query, container, since, limit, level):
             'debug': '|~ "(?i)debug"'
         }
         logql += f' {level_filters[level]}'
-    
+
     if query:
         logql += f' |~ "{query}"'
-    
+
     # Parse time range
     now = datetime.utcnow()
-    
+
     time_units = {'m': 'minutes', 'h': 'hours', 'd': 'days'}
     unit = since[-1]
     value = int(since[:-1])
-    
+
     if unit in time_units:
         delta = timedelta(**{time_units[unit]: value})
         start = now - delta
     else:
         start = now - timedelta(hours=1)
-    
+
     # Query Loki
     params = {
         'query': logql,
@@ -1668,7 +1678,7 @@ def logs(query, container, since, limit, level):
         'limit': limit,
         'direction': 'backward'
     }
-    
+
     try:
         resp = httpx.get(f'{loki_url}/loki/api/v1/query_range', params=params, timeout=30)
         resp.raise_for_status()
@@ -1676,30 +1686,30 @@ def logs(query, container, since, limit, level):
     except Exception as e:
         click.echo(f"Error querying Loki: {e}")
         raise click.Abort()
-    
+
     # Display results
     results = data.get('data', {}).get('result', [])
-    
+
     if not results:
         click.echo("No logs found matching query")
         return
-    
+
     click.echo(f"\nLogs matching: {logql}")
     click.echo("-" * 80)
-    
+
     for stream in results:
         labels = stream.get('stream', {})
         container_name = labels.get('container', labels.get('container_id', 'unknown')[:12])
-        
+
         for ts, line in stream.get('values', []):
             # Parse timestamp
             ts_sec = int(ts) / 1e9
             time_str = datetime.fromtimestamp(ts_sec).strftime('%Y-%m-%d %H:%M:%S')
-            
+
             # Truncate long lines
             if len(line) > 200:
                 line = line[:200] + '...'
-            
+
             click.echo(f"[{time_str}] [{container_name}] {line}")
 
 @monitor.command('errors')
@@ -1707,7 +1717,7 @@ def logs(query, container, since, limit, level):
 @click.option('--container', '-c', help='Filter by container')
 def errors(since, container):
     """Show recent errors from all containers."""
-    
+
     ctx = click.get_current_context()
     ctx.invoke(logs, query='', container=container, since=since, limit=50, level='error')
 
@@ -1716,27 +1726,27 @@ def errors(since, container):
 @click.option('--lines', '-n', default=50, help='Initial lines to show')
 def tail(container, lines):
     """Tail logs from a specific container in real-time."""
-    
+
     import subprocess
-    
+
     vps_ip = os.environ.get('VPS_IP')
     ssh_user = os.environ.get('SSH_USER', 'deploy')
-    
+
     # Find container
     find_cmd = f"ssh {ssh_user}@{vps_ip} 'docker ps --filter name={container} --format {{{{.Names}}}} | head -1'"
     result = subprocess.run(find_cmd, shell=True, capture_output=True, text=True)
     container_name = result.stdout.strip()
-    
+
     if not container_name:
         click.echo(f"Container not found: {container}")
         raise click.Abort()
-    
+
     click.echo(f"Tailing logs for: {container_name}")
     click.echo("-" * 60)
-    
+
     # Stream logs
     tail_cmd = f"ssh {ssh_user}@{vps_ip} 'docker logs -f --tail {lines} {container_name}'"
-    
+
     try:
         subprocess.run(tail_cmd, shell=True)
     except KeyboardInterrupt:
@@ -1749,20 +1759,20 @@ def tail(container, lines):
 @monitor.command('status')
 def status():
     """Show current system status."""
-    
+
     prometheus_url = os.environ.get('PROMETHEUS_URL', 'http://localhost:9090')
-    
+
     queries = {
         'CPU Usage': '100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)',
         'Memory Usage': '(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100',
         'Disk Usage': '(1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100',
         'Containers': 'count(container_last_seen{name!=""})',
     }
-    
+
     click.echo("\n" + "=" * 50)
     click.echo("  SYSTEM STATUS")
     click.echo("=" * 50)
-    
+
     for name, query in queries.items():
         try:
             resp = httpx.get(
@@ -1772,11 +1782,11 @@ def status():
             )
             resp.raise_for_status()
             data = resp.json()
-            
+
             results = data.get('data', {}).get('result', [])
             if results:
                 value = float(results[0]['value'][1])
-                
+
                 if 'Usage' in name:
                     # Show as percentage with color
                     if value > 90:
@@ -1785,29 +1795,29 @@ def status():
                         color = 'yellow'
                     else:
                         color = 'green'
-                    
+
                     click.echo(f"  {name:15} {click.style(f'{value:.1f}%', fg=color)}")
                 else:
                     click.echo(f"  {name:15} {value:.0f}")
             else:
                 click.echo(f"  {name:15} N/A")
-                
+
         except Exception as e:
             click.echo(f"  {name:15} Error: {e}")
-    
+
     click.echo("=" * 50 + "\n")
 
 @monitor.command('containers')
 def containers():
     """Show container resource usage."""
-    
+
     prometheus_url = os.environ.get('PROMETHEUS_URL', 'http://localhost:9090')
-    
+
     # Get container CPU
     cpu_query = 'rate(container_cpu_usage_seconds_total{name!=""}[5m]) * 100'
     # Get container memory
     mem_query = 'container_memory_usage_bytes{name!=""}'
-    
+
     try:
         cpu_resp = httpx.get(
             f'{prometheus_url}/api/v1/query',
@@ -1815,41 +1825,41 @@ def containers():
             timeout=10
         )
         cpu_data = cpu_resp.json().get('data', {}).get('result', [])
-        
+
         mem_resp = httpx.get(
             f'{prometheus_url}/api/v1/query',
             params={'query': mem_query},
             timeout=10
         )
         mem_data = mem_resp.json().get('data', {}).get('result', [])
-        
+
     except Exception as e:
         click.echo(f"Error querying Prometheus: {e}")
         raise click.Abort()
-    
+
     # Combine data
     containers = {}
-    
+
     for result in cpu_data:
         name = result['metric'].get('name', 'unknown')
         containers[name] = {'cpu': float(result['value'][1])}
-    
+
     for result in mem_data:
         name = result['metric'].get('name', 'unknown')
         if name in containers:
             containers[name]['memory'] = float(result['value'][1])
         else:
             containers[name] = {'memory': float(result['value'][1]), 'cpu': 0}
-    
+
     # Display
     click.echo("\n" + "=" * 70)
     click.echo(f"  {'CONTAINER':<30} {'CPU':>10} {'MEMORY':>15}")
     click.echo("=" * 70)
-    
+
     for name, metrics in sorted(containers.items()):
         cpu = metrics.get('cpu', 0)
         mem = metrics.get('memory', 0)
-        
+
         # Format memory
         if mem > 1024**3:
             mem_str = f"{mem/1024**3:.1f} GB"
@@ -1857,17 +1867,17 @@ def containers():
             mem_str = f"{mem/1024**2:.1f} MB"
         else:
             mem_str = f"{mem/1024:.1f} KB"
-        
+
         click.echo(f"  {name:<30} {cpu:>9.1f}% {mem_str:>15}")
-    
+
     click.echo("=" * 70 + "\n")
 
 @monitor.command('alerts')
 def alerts():
     """Show active alerts."""
-    
+
     prometheus_url = os.environ.get('PROMETHEUS_URL', 'http://localhost:9090')
-    
+
     try:
         resp = httpx.get(f'{prometheus_url}/api/v1/alerts', timeout=10)
         resp.raise_for_status()
@@ -1875,23 +1885,23 @@ def alerts():
     except Exception as e:
         click.echo(f"Error querying alerts: {e}")
         raise click.Abort()
-    
+
     alerts_list = data.get('data', {}).get('alerts', [])
-    
+
     if not alerts_list:
         click.echo("\n✓ No active alerts\n")
         return
-    
+
     click.echo("\n" + "=" * 60)
     click.echo("  ACTIVE ALERTS")
     click.echo("=" * 60)
-    
+
     for alert in alerts_list:
         state = alert.get('state', 'unknown')
         name = alert.get('labels', {}).get('alertname', 'unknown')
         severity = alert.get('labels', {}).get('severity', 'unknown')
         summary = alert.get('annotations', {}).get('summary', '')
-        
+
         # Color by state
         if state == 'firing':
             state_color = 'red'
@@ -1899,11 +1909,11 @@ def alerts():
             state_color = 'yellow'
         else:
             state_color = 'white'
-        
+
         click.echo(f"\n  {click.style(state.upper(), fg=state_color)} - {name}")
         click.echo(f"  Severity: {severity}")
         click.echo(f"  {summary}")
-    
+
     click.echo("\n" + "=" * 60 + "\n")
 
 # ─────────────────────────────────────────────────────────────
@@ -1914,14 +1924,14 @@ def alerts():
 @click.option('--open', 'open_browser', is_flag=True, help='Open in browser')
 def dashboard(open_browser):
     """Get Grafana dashboard URL."""
-    
+
     grafana_url = os.environ.get('GRAFANA_URL', 'https://monitor.yourdomain.com')
-    
+
     click.echo(f"\nGrafana Dashboard: {grafana_url}")
     click.echo(f"  System:     {grafana_url}/d/system-overview")
     click.echo(f"  Containers: {grafana_url}/d/container-metrics")
     click.echo(f"  Logs:       {grafana_url}/d/app-logs")
-    
+
     if open_browser:
         import webbrowser
         webbrowser.open(grafana_url)
@@ -1978,7 +1988,7 @@ networks:
 
 def create_wordpress_dashboard() -> dict:
     """Create WordPress-specific dashboard."""
-    
+
     return {
         "title": "WordPress Sites",
         "uid": "wordpress-sites",
@@ -2210,6 +2220,36 @@ fabrik monitor dashboard --open
 
 ---
 
+### Verification Framework (Steps 10-15)
+
+The verification framework validates deployments automatically. Core is implemented; integrations pending.
+
+**What's Done:**
+- `fabrik verify <domain>` - CLI command for postcondition checks
+- HTTP health check with retries
+- SSL certificate validation
+- DNS resolution check
+- Postcondition spec format (`specs/verification/*.yaml`)
+
+**What's Pending:**
+
+| Check | Implementation Needed | Dependency |
+|-------|----------------------|------------|
+| `coolify_status` | Query Coolify API for app status | Coolify API token |
+| `secret_scan` | Call secret-scanner.py on logs/responses | None |
+| `ssl_expiry` | Parse cert expiry, compare to min_days | None (pure Python) |
+| `uptime_kuma` | Query Uptime Kuma API for monitor status | Uptime Kuma API |
+| Auto-rollback | Call Coolify redeploy-previous API | Coolify API |
+| Spec-based backoff | Read backoff config from YAML | None |
+
+**Implementation Priority:**
+1. SSL expiry check (1 hr) - no external deps
+2. Coolify status check (2 hrs) - critical for verification
+3. Auto-rollback (2 hrs) - requires Coolify API
+4. Uptime Kuma integration (1 hr) - nice-to-have
+
+---
+
 ### Phase 6 Summary
 
 | Step | Task | Time |
@@ -2223,10 +2263,14 @@ fabrik monitor dashboard --open
 | 7 | Create System Dashboard | 2 hrs |
 | 8 | Create Container Dashboard | 2 hrs |
 | 9 | Configure Alerting | 1 hr |
-| 10 | CLI Commands | 2 hrs |
-| 11 | WordPress Dashboard | 1 hr |
+| 10 | Postcondition checker (fabrik verify) | ✅ Done |
+| 11 | Coolify status check | 2 hrs |
+| 12 | Secret scanner check | 1 hr |
+| 13 | SSL expiry check | 1 hr |
+| 14 | Auto-rollback via Coolify | 2 hrs |
+| 15 | Uptime Kuma integration | 1 hr |
 
-**Total: ~14 hours (2-3 days)**
+**Total: ~18 hours (3-4 days)**
 
 ---
 

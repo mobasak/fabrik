@@ -1,7 +1,9 @@
+> **Phase 1 Navigation:** [1a: Foundation](Phase1.md) | [1b: Cloud](Phase1b.md) | [1c: DNS](Phase1c.md) | [1d: WordPress](Phase1d.md) | [Phase 2 →](Phase2.md)
+
 # Phase 1d: WordPress Site Builder Automation
 
 **Status: 🚧 IN PROGRESS**
-**Last Updated:** 2025-12-25
+**Last Updated:** 2025-12-27
 **Test Site:** ocoron.com
 
 ---
@@ -21,8 +23,8 @@ Phase 1d implements the complete WordPress site deployment pipeline, covering al
 | Step | Name | Status | How We Solve It |
 |------|------|--------|-----------------|
 | 0 | Pre-flight decisions | ✅ HAVE | v2 Spec System (defaults + preset + site) |
-| 1 | Domain + Hosting | ✅ HAVE | Cloudflare DNS + VPS + Coolify |
-| 2 | Install WordPress | ✅ HAVE | Docker Compose template |
+| 1 | Domain + Hosting | ✅ DONE | `provisioner.py` → DNS Manager API + Namecheap registration |
+| 2 | Install WordPress | ✅ DONE | `provisioner.py` → Coolify API (`docker_compose_raw`) |
 | 3 | Security & Settings | ✅ DONE | `wordpress/settings.py` - tested on wp-test |
 | 4 | Theme decision | ✅ HAVE | GeneratePress + GP Premium |
 | 5 | Theme configuration | ✅ DONE | `wordpress/theme.py` - tested on wp-test |
@@ -54,6 +56,46 @@ All core modules now live in `/opt/fabrik/src/fabrik/wordpress/`:
 | `spec_validator.py` | Validate schema, refs, localization | ✅ Tested |
 | `section_renderer.py` | Render 10 section types to Gutenberg blocks | ✅ Tested |
 | `page_generator.py` | Generate pages from templates + entities | ✅ Tested |
+
+#### Site Provisioner (Steps 0-1-2)
+
+| Module | Purpose | Status |
+|--------|---------|--------|
+| `provisioner.py` | Saga orchestrator for domain → DNS → WordPress | ✅ Implemented |
+
+**State Machine (v2 - Deterministic Coolify States):**
+```
+INIT → STEP0_CF_ZONE_CREATED → STEP0_DOMAIN_REGISTERED →
+STEP1_DNS_RECORDS_UPSERTED → STEP1_CF_STATUS_SNAPSHOT →
+GATE_WAIT_CF_ACTIVE → STEP2_COOLIFY_CREATE_REQUESTED →
+STEP2_COOLIFY_CREATED → STEP2_COOLIFY_DEPLOY_REQUESTED →
+STEP2_COOLIFY_DEPLOY_RUNNING → STEP2_COOLIFY_DEPLOY_SUCCEEDED →
+STEP2_HTTP_VERIFIED → COMPLETE
+```
+
+**Key features:**
+- Inline `docker_compose_raw` (no git required)
+- Job persistence to disk for crash recovery
+- Idempotent state transitions
+- Passwords generated once, stored in job + container .env
+- **Deterministic deploy pattern** (create → deploy → poll → verify HTTP)
+- **Auto-retry with GitOps fallback** on repeated failures
+
+#### Coolify Infrastructure Hardening (Permanent Fixes)
+
+| Fix | Implementation | Purpose |
+|-----|----------------|---------|
+| SSH Key Permissions | `coolify-ssh-permissions.timer` (systemd) | Self-healing 0600 perms every 5min |
+| Compose Linter | `compose_linter.py` | Reject `container_name`, validate env vars |
+| Deterministic Deploy | `instant_deploy=False` + explicit start | Avoid queue timing issues |
+| Explicit States | `COOLIFY_CREATE_REQUESTED` → `DEPLOY_RUNNING` → `SUCCEEDED` | No ambiguity |
+| HTTP Verification | `_step2_verify_http()` | Don't infer success from container status |
+
+**Compose Rules (Coolify Compatibility):**
+1. ❌ Never use `container_name:` (breaks Coolify naming/scaling)
+2. ❌ Never use `${VAR}` substitution (unreliable in Coolify)
+3. ✅ Render secrets directly into compose YAML
+4. ✅ Use service names for internal DNS (`db` not `myapp-db`)
 
 #### Core Automation Modules
 
@@ -245,13 +287,13 @@ fabrik apply ocoron-com  # Deploys via Coolify
 # compiler/wordpress/settings.py
 class SettingsApplicator:
     """Apply WordPress settings from site spec."""
-    
+
     def apply(self, site_id: str, spec: dict):
         wp = WPCLIExecutor(site_id)
-        
+
         settings = spec.get('settings', {})
         brand = spec.get('brand', {})
-        
+
         # Core settings
         wp.option_update('blogname', brand.get('name', ''))
         wp.option_update('blogdescription', brand.get('tagline', ''))
@@ -259,14 +301,14 @@ class SettingsApplicator:
         wp.option_update('timezone_string', spec.get('timezone', 'UTC'))
         wp.option_update('date_format', spec.get('date_format', 'Y-m-d'))
         wp.option_update('blog_public', '1')  # Enable indexing
-        
+
     def cleanup_defaults(self, site_id: str):
         wp = WPCLIExecutor(site_id)
         wp.execute('post delete 1 --force')  # Hello World
         wp.execute('post delete 2 --force')  # Sample Page
         wp.execute('comment delete 1 --force')
         wp.execute('plugin delete hello akismet')
-        
+
     def create_editor(self, site_id: str, email: str) -> dict:
         wp = WPCLIExecutor(site_id)
         username = email.split('@')[0]
@@ -318,13 +360,13 @@ BASE (Every Site):
 # compiler/wordpress/theme.py
 class ThemeCustomizer:
     """Apply brand colors and fonts to GeneratePress."""
-    
+
     def apply(self, site_id: str, brand: dict):
         wp = WPCLIExecutor(site_id)
-        
+
         colors = brand.get('colors', {})
         fonts = brand.get('fonts', {})
-        
+
         # GeneratePress global colors (stored as theme mod)
         gp_settings = {
             'global_colors': [
@@ -333,10 +375,10 @@ class ThemeCustomizer:
                 {'slug': 'accent', 'color': colors.get('accent', '#ea580c')},
             ]
         }
-        
+
         # Apply via option (GP stores in generate_settings)
         wp.execute(f"option update generate_settings '{json.dumps(gp_settings)}'")
-        
+
         # Typography
         if fonts.get('body'):
             wp.execute(f"option patch update generate_settings font_body '{fonts['body']}'")
@@ -344,12 +386,12 @@ class ThemeCustomizer:
 # compiler/wordpress/media.py
 class MediaUploader:
     """Upload brand assets to WordPress."""
-    
+
     async def upload_logo(self, site_id: str, logo_path: str) -> int:
         api = WordPressAPIClient(site_id)
         result = await api.upload_media(logo_path)
         return result['id']
-    
+
     async def set_site_icon(self, site_id: str, favicon_path: str):
         media_id = await self.upload_logo(site_id, favicon_path)
         wp = WPCLIExecutor(site_id)
@@ -368,7 +410,7 @@ class MediaUploader:
 
 | Task | Solution | Code Location |
 |------|----------|---------------|
-| Plugin selection | Full stack defined | `docs/reference/full-plugin-stack.md` |
+| Plugin selection | Full stack defined | `docs/reference/wordpress/plugin-stack.md` |
 | Free plugins | WP-CLI install | `wp plugin install <slug>` |
 | Premium plugins | Pre-placed ZIPs | `templates/wordpress/plugins/premium/` |
 | Activation | WP-CLI activate | `wp plugin activate <slug>` |
@@ -445,12 +487,12 @@ menus:
 # compiler/wordpress/pages.py
 class PageCreator:
     """Create WordPress pages from site spec."""
-    
+
     async def create_all(self, site_id: str, pages: list) -> dict[str, int]:
         """Create pages and return slug->ID mapping."""
         api = WordPressAPIClient(site_id)
         created = {}
-        
+
         for page in pages:
             result = await api.create_page(
                 title=page['title'],
@@ -460,7 +502,7 @@ class PageCreator:
                 content=page.get('content', ''),
             )
             created[page.get('slug', '')] = result['id']
-            
+
             # Handle child pages
             if page.get('children'):
                 for child in page['children']:
@@ -471,24 +513,24 @@ class PageCreator:
                         status='publish',
                     )
                     created[child.get('slug')] = child_result['id']
-        
+
         return created
 
 # compiler/wordpress/content.py
 class ContentGenerator:
     """Generate page content using Claude API."""
-    
+
     async def generate(self, page: dict, brand: dict, context: str) -> str:
         client = anthropic.Anthropic()
-        
+
         prompt = self._build_prompt(page, brand, context)
-        
+
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4000,
             messages=[{"role": "user", "content": prompt}]
         )
-        
+
         return response.content[0].text
 ```
 
@@ -506,39 +548,39 @@ class ContentGenerator:
 # compiler/wordpress/menus.py
 class MenuCreator:
     """Create WordPress menus from site spec."""
-    
+
     def create_all(self, site_id: str, menus: dict, page_ids: dict):
         wp = WPCLIExecutor(site_id)
-        
+
         for menu_name, items in menus.items():
             # Create menu
             result = wp.execute(f"menu create '{menu_name}'", json_output=True)
             menu_id = result.output.get('id') if isinstance(result.output, dict) else None
-            
+
             # Add items
             for item in items:
                 self._add_item(wp, menu_name, item, page_ids)
-            
+
             # Assign to location
             wp.execute(f"menu location assign {menu_name} {menu_name}")
-    
+
     def _add_item(self, wp, menu_name, item, page_ids, parent_id=None):
         url = item.get('url', '')
         title = item.get('title', '')
-        
+
         # Internal page or custom URL
         slug = url.strip('/')
         if slug in page_ids:
             cmd = f"menu item add-post {menu_name} {page_ids[slug]} --title='{title}'"
         else:
             cmd = f"menu item add-custom {menu_name} '{url}' '{title}'"
-        
+
         if parent_id:
             cmd += f" --parent-id={parent_id}"
-        
+
         result = wp.execute(cmd)
         item_id = self._extract_id(result.output)
-        
+
         # Recurse for children
         for child in item.get('children', []):
             self._add_item(wp, menu_name, child, page_ids, parent_id=item_id)
@@ -583,20 +625,20 @@ brand:
 # compiler/wordpress/forms.py
 class FormCreator:
     """Create Fluent Forms from site spec."""
-    
+
     async def create_contact_form(self, site_id: str, form_config: dict) -> int:
         """Create contact form and return form ID."""
         api = WordPressAPIClient(site_id)
-        
+
         # Build Fluent Forms structure
         fields = []
         for field_name in form_config.get('fields', ['name', 'email', 'message']):
             fields.append(self._get_field_config(field_name))
-        
+
         # Add Turnstile if configured
         if form_config.get('spam_protection') == 'turnstile':
             fields.append({'element': 'turnstile'})
-        
+
         form_data = {
             'title': 'Contact Form',
             'form_fields': {'fields': fields},
@@ -611,7 +653,7 @@ class FormCreator:
                 'subject': 'New Contact Form Submission - {inputs.name}',
             }]
         }
-        
+
         # Fluent Forms REST API
         result = await api.post('/wp-json/fluentform/v1/forms', form_data)
         return result['id']
@@ -640,22 +682,22 @@ class FormCreator:
 # compiler/wordpress/seo.py
 class SEOApplicator:
     """Configure Rank Math SEO settings."""
-    
+
     def apply(self, site_id: str, seo: dict):
         wp = WPCLIExecutor(site_id)
-        
+
         # Title separator
         wp.option_update('rank_math_title_separator', seo.get('title_separator', '|'))
-        
+
         # Homepage SEO
         wp.option_update('rank_math_homepage_title', seo.get('homepage_title', ''))
         wp.option_update('rank_math_homepage_description', seo.get('homepage_description', ''))
-        
+
         # Schema (Organization)
         schema = seo.get('schema', {})
         wp.option_update('rank_math_knowledgegraph_type', schema.get('type', 'Organization').lower())
         wp.option_update('rank_math_knowledgegraph_name', schema.get('name', ''))
-        
+
         # Enable modules
         modules = 'sitemap,analytics,seo-analysis,instant-indexing,schema'
         wp.option_update('rank_math_modules', modules)
@@ -701,16 +743,16 @@ class SEOApplicator:
 # compiler/wordpress/analytics.py
 class AnalyticsInjector:
     """Configure analytics tracking."""
-    
+
     def apply(self, site_id: str, analytics: dict):
         wp = WPCLIExecutor(site_id)
-        
+
         # Rank Math Analytics integration
         if analytics.get('google_analytics'):
             ga_id = analytics['google_analytics']
             wp.option_update('rank_math_analytics_id', ga_id)
             wp.option_update('rank_math_analytics_enabled', '1')
-        
+
         # Or use PixelYourSite Pro for more control
         if analytics.get('google_tag_manager'):
             gtm_id = analytics['google_tag_manager']
@@ -741,7 +783,7 @@ class AnalyticsInjector:
 # compiler/wordpress/legal.py
 class LegalContentGenerator:
     """Generate legal page content."""
-    
+
     def privacy_policy(self, brand: dict, contact: dict) -> str:
         return f"""
 <h2>Privacy Policy</h2>
@@ -769,7 +811,7 @@ class LegalContentGenerator:
 <h3>Contact</h3>
 <p>For privacy inquiries, email: {contact['email']}</p>
 """
-    
+
     def terms_of_service(self, brand: dict, contact: dict) -> str:
         return f"""
 <h2>Terms of Service</h2>
@@ -806,21 +848,21 @@ class LegalContentGenerator:
 # compiler/wordpress/qa.py
 class QAChecker:
     """Run automated QA checks."""
-    
+
     async def run_all(self, domain: str) -> dict:
         results = {}
-        
+
         # HTTPS check
         results['https'] = await self._check_https(domain)
-        
+
         # PageSpeed API
         results['pagespeed'] = await self._check_pagespeed(domain)
-        
+
         # Link checker (basic)
         results['links'] = await self._check_links(domain)
-        
+
         return results
-    
+
     async def _check_https(self, domain: str) -> bool:
         try:
             async with aiohttp.ClientSession() as session:
@@ -853,16 +895,16 @@ class QAChecker:
 # compiler/wordpress/cache.py
 class CacheManager:
     """Manage WordPress caches."""
-    
+
     def clear_all(self, site_id: str):
         wp = WPCLIExecutor(site_id)
-        
+
         # WordPress object cache
         wp.execute('cache flush')
-        
+
         # Rewrite rules
         wp.execute('rewrite flush')
-        
+
         # FlyingPress (if installed)
         try:
             wp.execute('flyingpress purge --all')
@@ -969,7 +1011,7 @@ settings:
 def apply_settings(site_id: str, settings: dict):
     """Apply WordPress settings via WP-CLI."""
     wp = WPCLIExecutor(site_id)
-    
+
     for key, value in settings.items():
         if key in ['page_on_front', 'page_for_posts']:
             # These need page ID lookup
@@ -1020,7 +1062,7 @@ pages:
 async def create_pages(site_id: str, pages: list, languages: dict):
     """Create pages from spec via REST API."""
     wp_api = WordPressAPIClient(site_id)
-    
+
     created_pages = {}
     for page in pages:
         # Create primary language version
@@ -1032,7 +1074,7 @@ async def create_pages(site_id: str, pages: list, languages: dict):
             content=page.get('content', ''),  # Will be filled by content generator
         )
         created_pages[page['slug']] = response['id']
-        
+
         # Create translations if multilingual
         if languages.get('additional'):
             for lang in languages['additional']:
@@ -1044,13 +1086,13 @@ async def create_pages(site_id: str, pages: list, languages: dict):
                         language=lang,
                         title=page[title_key]
                     )
-        
+
         # Handle child pages
         if page.get('children'):
             for child in page['children']:
                 child['parent'] = response['id']
                 await create_pages(site_id, [child], languages)
-    
+
     return created_pages
 ```
 
@@ -1097,16 +1139,16 @@ menus:
 def create_menus(site_id: str, menus: dict, page_ids: dict):
     """Create navigation menus from spec."""
     wp = WPCLIExecutor(site_id)
-    
+
     for menu_name, items in menus.items():
         # Create menu
         result = wp.execute(f"menu create '{menu_name}'")
         menu_id = extract_menu_id(result.output)
-        
+
         # Add items
         for item in items:
             add_menu_item(wp, menu_id, item, page_ids)
-        
+
         # Assign to location
         location = 'primary' if menu_name == 'primary' else menu_name
         wp.execute(f"menu location assign {menu_id} {location}")
@@ -1122,13 +1164,13 @@ def add_menu_item(wp, menu_id, item, page_ids, parent_id=None):
             cmd = f"menu item add-custom {menu_id} '{item['url']}' '{item['title']}'"
     else:
         cmd = f"menu item add-custom {menu_id} '{item['url']}' '{item['title']}'"
-    
+
     if parent_id:
         cmd += f" --parent-id={parent_id}"
-    
+
     result = wp.execute(cmd)
     item_id = extract_item_id(result.output)
-    
+
     # Handle children
     if item.get('children'):
         for child in item['children']:
@@ -1169,7 +1211,7 @@ import anthropic
 async def generate_page_content(page: dict, brand: dict, site_context: str) -> str:
     """Generate page content using Claude."""
     client = anthropic.Anthropic()
-    
+
     prompt = f"""Generate professional website content for a {page['title']} page.
 
 Brand: {brand['name']}
@@ -1193,7 +1235,7 @@ Do not include <html>, <head>, or <body> tags. Just the content."""
         max_tokens=4000,
         messages=[{"role": "user", "content": prompt}]
     )
-    
+
     return response.content[0].text
 ```
 
@@ -1226,21 +1268,21 @@ brand:
 async def upload_brand_assets(site_id: str, brand: dict, assets_dir: str):
     """Upload brand assets to WordPress media library."""
     wp_api = WordPressAPIClient(site_id)
-    
+
     uploaded = {}
-    
+
     for asset_type, path in brand.get('logo', {}).items():
         if path:
             full_path = os.path.join(assets_dir, path)
             if os.path.exists(full_path):
                 response = await wp_api.upload_media(full_path)
                 uploaded[asset_type] = response['id']
-    
+
     # Set site icon (favicon)
     if 'favicon' in uploaded:
         wp = WPCLIExecutor(site_id)
         wp.execute(f"option update site_icon {uploaded['favicon']}")
-    
+
     return uploaded
 ```
 
@@ -1279,21 +1321,21 @@ GeneratePress stores settings as theme mods. We apply them via WP-CLI:
 def apply_theme_customization(site_id: str, brand: dict):
     """Apply brand colors and fonts to GeneratePress."""
     wp = WPCLIExecutor(site_id)
-    
+
     colors = brand.get('colors', {})
     fonts = brand.get('fonts', {})
-    
+
     # GP Premium color settings
     color_settings = {
         'generate_settings[global_colors][0][color]': colors.get('primary'),
         'generate_settings[global_colors][1][color]': colors.get('secondary'),
         'generate_settings[global_colors][2][color]': colors.get('accent'),
     }
-    
+
     for key, value in color_settings.items():
         if value:
             wp.execute(f"option update '{key}' '{value}'")
-    
+
     # Typography settings
     if fonts.get('body'):
         wp.execute(f"option update generate_settings[font_body] '{fonts['body']}'")
@@ -1327,19 +1369,19 @@ Fluent Forms has a REST API we can use:
 async def create_contact_form(site_id: str, form_config: dict):
     """Create a Fluent Forms contact form."""
     wp_api = WordPressAPIClient(site_id)
-    
+
     # Build form structure
     fields = []
     for field in form_config.get('fields', []):
         fields.append(get_field_config(field))
-    
+
     # Add spam protection
     if form_config.get('spam_protection') == 'turnstile':
         fields.append({
             'element': 'turnstile',
             'attributes': {'name': 'cf-turnstile'}
         })
-    
+
     form_data = {
         'title': 'Contact Form',
         'fields': fields,
@@ -1351,7 +1393,7 @@ async def create_contact_form(site_id: str, form_config: dict):
             'message': form_config.get('success_message')
         }
     }
-    
+
     # Create via Fluent Forms API
     response = await wp_api.post('/wp-json/fluentform/v1/forms', form_data)
     return response['id']
@@ -1384,23 +1426,23 @@ seo:
 def apply_seo_settings(site_id: str, seo: dict):
     """Apply SEO settings to Rank Math."""
     wp = WPCLIExecutor(site_id)
-    
+
     # Title separator
     wp.execute(f"option update rank_math_title_separator '{seo.get('title_separator', '|')}'")
-    
+
     # Homepage SEO
     if seo.get('homepage_title'):
         wp.execute(f"option update rank_math_homepage_title '{seo['homepage_title']}'")
     if seo.get('homepage_description'):
         wp.execute(f"option update rank_math_homepage_description '{seo['homepage_description']}'")
-    
+
     # Schema
     schema = seo.get('schema', {})
     if schema.get('type'):
         wp.execute(f"option update rank_math_knowledgegraph_type '{schema['type'].lower()}'")
     if schema.get('name'):
         wp.execute(f"option update rank_math_knowledgegraph_name '{schema['name']}'")
-    
+
     # Enable modules
     wp.execute("option update rank_math_modules 'sitemap,analytics,seo-analysis,instant-indexing'")
 ```
@@ -1429,7 +1471,7 @@ Rank Math Pro handles analytics injection:
 def setup_analytics(site_id: str, analytics: dict):
     """Configure analytics via Rank Math."""
     wp = WPCLIExecutor(site_id)
-    
+
     if analytics.get('google_analytics'):
         ga_id = analytics['google_analytics']
         wp.execute(f"option update rank_math_analytics_id '{ga_id}'")
@@ -1497,16 +1539,16 @@ def generate_privacy_policy(brand: dict, contact: dict) -> str:
 def cleanup_defaults(site_id: str):
     """Remove default WordPress content."""
     wp = WPCLIExecutor(site_id)
-    
+
     # Delete default post
     wp.execute("post delete 1 --force")
-    
+
     # Delete sample page
     wp.execute("post delete 2 --force")
-    
+
     # Delete default comment
     wp.execute("comment delete 1 --force")
-    
+
     # Remove default plugins
     wp.execute("plugin delete hello")
     wp.execute("plugin delete akismet")
@@ -1525,12 +1567,12 @@ def cleanup_defaults(site_id: str):
 def create_editor_account(site_id: str, email: str):
     """Create an Editor role user."""
     wp = WPCLIExecutor(site_id)
-    
+
     username = email.split('@')[0]
     password = generate_secure_password()
-    
+
     wp.execute(f"user create {username} {email} --role=editor --user_pass={password}")
-    
+
     return {'username': username, 'password': password}
 ```
 
@@ -1547,13 +1589,13 @@ def create_editor_account(site_id: str, email: str):
 def clear_caches(site_id: str):
     """Clear all caches after deployment."""
     wp = WPCLIExecutor(site_id)
-    
+
     # WordPress cache
     wp.execute("cache flush")
-    
+
     # FlyingPress cache (if installed)
     wp.execute("flyingpress purge --all")
-    
+
     # Rewrite rules
     wp.execute("rewrite flush")
 ```

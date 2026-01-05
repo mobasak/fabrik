@@ -38,9 +38,15 @@ WSL (Dev)                    VPS (Production)
 
 ## Project Status
 
-**Phase 1: Foundation** — In Progress
+| Phase | Status |
+|-------|--------|
+| **Phase 1: Foundation** | ✅ Complete |
+| **Phase 1b: Cloud Infrastructure** | ✅ Complete |
+| **Phase 1c: Cloudflare DNS** | ✅ Complete |
+| **Phase 1d: WordPress Automation** | 🚧 In Progress |
+| **Phase 2: WordPress Sites** | 67% |
 
-See [tasks.md](tasks.md) for current progress.
+See [tasks.md](tasks.md) for detailed progress.
 
 ## Documentation
 
