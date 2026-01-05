@@ -233,6 +233,70 @@ Hierarchical maps for codebase understanding. Shows execution order and componen
 
 ---
 
+## App Deploys (Beta)
+
+Deploy web apps directly from Cascade to public URLs.
+
+### Overview
+
+- Deploy to **Netlify** via Cascade tool calls
+- URL format: `<SUBDOMAIN>.windsurf.build`
+- Re-deploy to same URL after changes
+- Claim projects for full control
+
+### Usage
+
+Ask Cascade:
+- "Deploy this project to Netlify"
+- "Update my deployment"
+
+### Supported Frameworks
+
+- Next.js
+- React
+- Vue
+- Svelte
+- Static HTML/CSS/JS
+
+### Rate Limits
+
+| Plan | Deploys/day | Max Unclaimed |
+|------|-------------|---------------|
+| Free | 1 | 1 |
+| Pro | 10 | 5 |
+
+### Project Configuration
+
+Creates `windsurf_deployment.yaml` at project root with project ID and framework.
+
+### Claiming Deployments
+
+After deploy, you get a claim URL to:
+- Get full control on your Netlify account
+- Access provider features
+- Modify domain name
+- View logs and build info
+
+⚠️ **Unclaimed deployments may be deleted** - claim important projects promptly.
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Build failed | Run `npm run build` locally first |
+| Site not found | Claim site and check build logs |
+| Change subdomain | Delete `windsurf_deployment.yaml`, deploy new site |
+| Project ID error | Check `windsurf_deployment.yaml` has correct ID |
+
+### Fabrik Note
+
+For production apps, use **Coolify on VPS** instead. App Deploys is best for:
+- Quick previews
+- Demos
+- Prototypes
+
+---
+
 ## Vibe and Replace
 
 Evolution of find/replace - search for exact text matches and apply an AI prompt to each replacement.
