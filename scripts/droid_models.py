@@ -42,6 +42,11 @@ CACHE_TTL_HOURS = 24  # Refresh cache daily
 # Config file for model rankings and scenarios
 CONFIG_FILE = Path(__file__).parent.parent / "config" / "models.yaml"
 
+# Windsurf models source of truth
+WINDSURF_MODELS_MD = (
+    Path(__file__).parent.parent / "docs" / "reference" / "windsurf" / "cascade-models.md"
+)
+
 
 # =============================================================================
 # YAML CONFIG LOADING
@@ -310,76 +315,106 @@ class WindsurfModel:
     category: str  # "free", "budget", "standard", "premium", "ultra"
 
 
-WINDSURF_MODELS: list[WindsurfModel] = [
-    # Free tier
-    WindsurfModel("Penguin Alpha", "Free", "free"),
-    WindsurfModel("SWE-1", "Free", "free"),
-    WindsurfModel("SWE-1.5", "Free", "free"),
-    WindsurfModel("GPT-5.1-Codex", "Free", "free"),
-    WindsurfModel("GPT-5.1-Codex Low", "Free", "free"),
-    WindsurfModel("GPT-5.1-Codex Max Low", "Free", "free"),
-    WindsurfModel("GPT-5.1-Codex Mini", "Free", "free"),
-    WindsurfModel("GPT-5.1-Codex Mini Low", "Free", "free"),
-    WindsurfModel("DeepSeek R1 (0528)", "Free", "free"),
-    WindsurfModel("DeepSeek V3 (0324)", "Free", "free"),
-    WindsurfModel("Grok Code Fast 1", "Free", "free"),
-    # Budget tier (0.125x - 0.5x)
-    WindsurfModel("xAI Grok-3 mini (Thinking)", "0.125x", "budget"),
-    WindsurfModel("Gemini 3 Flash Low", "0.25x", "budget"),
-    WindsurfModel("Gemini 3 Flash Minimal", "0.25x", "budget"),
-    WindsurfModel("GPT-OSS 120B (Medium)", "0.25x", "budget"),
-    WindsurfModel("Gemini 3 Flash Medium", "0.375x", "budget"),
-    WindsurfModel("SWE-1.5 Fast", "0.5x", "budget"),
-    WindsurfModel("GPT-5 (Low Reasoning)", "0.5x", "budget"),
-    WindsurfModel("GPT-5.1 (No Reasoning)", "0.5x", "budget"),
-    WindsurfModel("GPT-5.1 (Low Reasoning)", "0.5x", "budget"),
-    WindsurfModel("GPT-5.1-Codex Max Medium", "0.5x", "budget"),
-    WindsurfModel("Kimi K2", "0.5x", "budget"),
-    WindsurfModel("Minimax M2", "0.5x", "budget"),
-    WindsurfModel("Qwen3-Coder", "0.5x", "budget"),
-    WindsurfModel("Gemini 3 Flash High", "0.5x", "budget"),
-    # Standard tier (1x)
-    WindsurfModel("Claude Haiku 4.5", "1x", "standard"),
-    WindsurfModel("Gemini 2.5 Pro", "1x", "standard"),
-    WindsurfModel("Gemini 3 Pro Low", "1x", "standard"),
-    WindsurfModel("GPT-4.1", "1x", "standard"),
-    WindsurfModel("GPT-4o", "1x", "standard"),
-    WindsurfModel("GPT-5 (Medium Reasoning)", "1x", "standard"),
-    WindsurfModel("GPT-5.1 (Medium Reasoning)", "1x", "standard"),
-    WindsurfModel("GPT-5.1 (No Reasoning, Priority)", "1x", "standard"),
-    WindsurfModel("GPT-5.1 (Low, Priority)", "1x", "standard"),
-    WindsurfModel("GPT-5.2 No Reasoning", "1x", "standard"),
-    WindsurfModel("GPT-5.2 Low Reasoning", "1x", "standard"),
-    WindsurfModel("o3", "1x", "standard"),
-    WindsurfModel("o3 (High Reasoning)", "1x", "standard"),
-    # Premium tier (2x-3x)
-    WindsurfModel("Claude 3.5 Sonnet", "2x", "premium"),
-    WindsurfModel("Claude 3.7 Sonnet", "2x", "premium"),
-    WindsurfModel("Claude Sonnet 4", "2x", "premium"),
-    WindsurfModel("Claude Sonnet 4.5", "2x", "premium"),
-    WindsurfModel("Gemini 3 Pro High", "2x", "premium"),
-    WindsurfModel("GPT-5 (High Reasoning)", "2x", "premium"),
-    WindsurfModel("GPT-5.1 (High Reasoning)", "2x", "premium"),
-    WindsurfModel("GPT-5.1 (Medium, Priority)", "2x", "premium"),
-    WindsurfModel("GPT-5.2 No Reasoning Fast", "2x", "premium"),
-    WindsurfModel("GPT-5.2 Low Reasoning Fast", "2x", "premium"),
-    WindsurfModel("GPT-5.2 Medium Reasoning", "2x", "premium"),
-    WindsurfModel("Claude 3.7 Sonnet (Thinking)", "3x", "premium"),
-    WindsurfModel("Claude Sonnet 4 (Thinking)", "3x", "premium"),
-    WindsurfModel("Claude Sonnet 4.5 (Thinking)", "3x", "premium"),
-    WindsurfModel("GPT-5.2 High Reasoning", "3x", "premium"),
-    # Ultra tier (4x+)
-    WindsurfModel("Claude Opus 4.5", "4x", "ultra"),
-    WindsurfModel("GPT-5.1 (High, Priority)", "4x", "ultra"),
-    WindsurfModel("GPT-5.2 Medium Reasoning Fast", "4x", "ultra"),
-    WindsurfModel("Claude Opus 4.5 (Thinking)", "5x", "ultra"),
-    WindsurfModel("GPT-5.2 High Reasoning Fast", "6x", "ultra"),
-    WindsurfModel("GPT-5.2 X-High Reasoning", "8x", "ultra"),
-    WindsurfModel("Claude Sonnet 4.5 (1M)", "10x", "ultra"),
-    WindsurfModel("GPT-5.2 X-High Reasoning Fast", "16x", "ultra"),
-    WindsurfModel("Claude Opus 4.1", "20x", "ultra"),
-    WindsurfModel("Claude Opus 4.1 (Thinking)", "20x", "ultra"),
-]
+# Cache for loaded models
+_windsurf_models_cache: list[WindsurfModel] | None = None
+
+
+def _parse_windsurf_models_from_md() -> list[WindsurfModel]:
+    """
+    Parse Windsurf models from cascade-models.md.
+    Source of truth: docs/reference/windsurf/cascade-models.md
+    """
+    models = []
+
+    if not WINDSURF_MODELS_MD.exists():
+        print(
+            f"Warning: {WINDSURF_MODELS_MD} not found, using empty list",
+            file=__import__("sys").stderr,
+        )
+        return models
+
+    content = WINDSURF_MODELS_MD.read_text()
+
+    # Map section headers to categories
+    category_map = {
+        "Free Tier": "free",
+        "Budget Tier": "budget",
+        "Standard Tier": "standard",
+        "Premium Tier": "premium",
+        "Ultra Tier": "ultra",
+    }
+
+    current_category = None
+    in_table = False
+
+    for line in content.split("\n"):
+        line = line.strip()
+
+        # Check for tier headers
+        for header, cat in category_map.items():
+            if header in line and line.startswith("##"):
+                current_category = cat
+                in_table = False
+                break
+
+        # Skip non-table lines
+        if not line.startswith("|") or current_category is None:
+            continue
+
+        # Skip table headers and separators
+        if "Model" in line and "Credits" in line:
+            in_table = True
+            continue
+        if line.startswith("|---") or line.startswith("| ---"):
+            continue
+
+        if not in_table:
+            continue
+
+        # Parse table row: | Model | Credits |
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 3:
+            model_name = parts[1].strip().replace("**", "")  # Remove bold markers
+            credits = parts[2].strip()
+            if model_name and credits and model_name != "Model":
+                models.append(WindsurfModel(model_name, credits, current_category))
+
+    return models
+
+
+def get_windsurf_models() -> list[WindsurfModel]:
+    """
+    Get Windsurf models, loading from markdown file.
+    Caches result for performance.
+    """
+    global _windsurf_models_cache
+    if _windsurf_models_cache is None:
+        _windsurf_models_cache = _parse_windsurf_models_from_md()
+    return _windsurf_models_cache
+
+
+def reload_windsurf_models() -> list[WindsurfModel]:
+    """Force reload of Windsurf models from markdown file."""
+    global _windsurf_models_cache
+    _windsurf_models_cache = None
+    return get_windsurf_models()
+
+
+# For backward compatibility - lazy property that loads on first access
+class _WindsurfModelsProxy:
+    """Proxy to lazy-load WINDSURF_MODELS from markdown file."""
+
+    def __iter__(self):
+        return iter(get_windsurf_models())
+
+    def __len__(self):
+        return len(get_windsurf_models())
+
+    def __getitem__(self, key):
+        return get_windsurf_models()[key]
+
+
+WINDSURF_MODELS = _WindsurfModelsProxy()
 
 
 def get_mode_config(mode: ExecutionMode) -> ModeConfig:
@@ -392,7 +427,7 @@ def print_execution_modes():
     print("Execution Modes:")
     print(f"{'Mode':<8} {'Name':<10} {'Executor':<25} {'Decider':<8} {'Escalation':<25}")
     print("-" * 85)
-    for i, (mode, cfg) in enumerate(EXECUTION_MODES.items(), 1):
+    for i, (_mode, cfg) in enumerate(EXECUTION_MODES.items(), 1):
         print(f"{i:<8} {cfg.name:<10} {cfg.executor:<25} {cfg.decider:<8} {cfg.escalation:<25}")
 
 
@@ -663,7 +698,7 @@ def refresh_models_from_docs() -> dict[str, any]:
             result["errors"].append(f"Failed to fetch {url}: {str(e)}")
 
     # Normalize to lowercase and deduplicate
-    normalized_models = sorted(set(m.lower() for m in all_models))
+    normalized_models = sorted({m.lower() for m in all_models})
     result["models_found"] = normalized_models
 
     # Check for new models not in our registry (case-insensitive)
@@ -1037,7 +1072,7 @@ if __name__ == "__main__":
         result = refresh_models_from_docs()
 
         # Normalize to lowercase for comparison
-        models_lower = sorted(set(m.lower() for m in result["models_found"]))
+        models_lower = sorted({m.lower() for m in result["models_found"]})
         print(f"Models found ({len(models_lower)}):")
         for m in models_lower:
             in_registry = "✓" if m in MODELS else "NEW"
@@ -1057,7 +1092,7 @@ if __name__ == "__main__":
     elif cmd == "modes":
         print_execution_modes()
         print("\nMode Details:")
-        for mode, cfg in EXECUTION_MODES.items():
+        for _mode, cfg in EXECUTION_MODES.items():
             print(f"  {cfg.name}: {cfg.description}")
 
     elif cmd == "windsurf":
