@@ -185,16 +185,9 @@ Run multiple Cascades at once:
 
 All commands execute without permission prompts (except deny list).
 
-### Recommended .codeiumignore
+### .codeiumignore
 
-```
-# Fabrik .codeiumignore
-# NOT .env - Cascade needs to manage credentials
-*.key
-*.pem
-secrets/
-.droid/responses/
-```
+**Status:** Not used - Cascade has full read/write access to all files.
 
 ---
 
