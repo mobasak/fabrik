@@ -122,6 +122,46 @@ pytest tests/test_enforcement.py -v
 
 ---
 
+---
+
+## Code Review Feedback Loop
+
+For **droid exec only** (not Cascade), automatic code review is available:
+
+### Components
+
+| Script | Purpose |
+|--------|---------|
+| `~/.factory/hooks/fabrik-code-review.py` | PostToolUse hook - queues reviews |
+| `scripts/review_worker.py` | Processes queue, calls reviewer model |
+| `scripts/acknowledge_reviews.py` | CLI to manage pending reviews |
+| `~/.factory/hooks/fabrik-session-reviews.py` | SessionStart hook - shows pending |
+
+### Flow
+
+```
+droid exec edit → queue review → worker processes → next session sees issues
+```
+
+### Usage
+
+```bash
+# Start review worker (background)
+python3 scripts/review_worker.py --watch &
+
+# List pending reviews
+python3 scripts/acknowledge_reviews.py --list
+
+# Acknowledge all
+python3 scripts/acknowledge_reviews.py --all
+```
+
+### Limitation
+
+**This only works for droid exec.** Cascade (Windsurf) does not trigger `.factory/hooks.json`.
+
+---
+
 ## See Also
 
 - [AGENTS.md](/opt/fabrik/AGENTS.md) — Cross-agent briefing
