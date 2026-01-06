@@ -39,12 +39,12 @@ def check_file(file_path: Path) -> list:
 
     results: list[CheckResult] = []
 
-    # Only check Python files
-    if file_path.suffix.lower() != ".py":
+    # Check Python, TypeScript, JavaScript files
+    if file_path.suffix.lower() not in (".py", ".ts", ".tsx", ".js", ".jsx"):
         return results
 
     # Skip test files
-    if "test" in file_path.name.lower():
+    if "test" in file_path.name.lower() or "spec" in file_path.name.lower():
         return results
 
     try:

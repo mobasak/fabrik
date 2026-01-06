@@ -98,9 +98,15 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
         results.extend(run_check_secrets(file_path))
         results.extend(run_check_health(file_path))
 
+    # TypeScript/JavaScript files
+    if suffix in (".ts", ".tsx", ".js", ".jsx"):
+        results.extend(run_check_env_vars(file_path))
+        results.extend(run_check_secrets(file_path))
+
     # Docker files
     if name == "dockerfile" or suffix == ".dockerfile":
         results.extend(run_check_docker(file_path))
+        results.extend(run_check_ports(file_path))  # Check EXPOSE ports
 
     # Compose files
     if name in ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"):
