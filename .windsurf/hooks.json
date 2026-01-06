@@ -3,7 +3,7 @@
   "hooks": [
     {
       "event": "pre_write_code",
-      "command": "python3 /opt/fabrik/scripts/enforcement/validate_conventions.py",
+      "command": "python3 -m scripts.enforcement.validate_conventions --strict",
       "description": "Enforce Fabrik coding standards before writing",
       "timeout": 10
     },
