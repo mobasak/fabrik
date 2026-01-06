@@ -29,6 +29,8 @@ description: droid exec integration, Fabrik skills, workflows - invoke with @90-
 
 ## droid exec Quick Reference
 
+**Note:** Model names update periodically. Check `config/models.yaml` for current names.
+
 ```bash
 # Read-only (safe default)
 droid exec "Analyze this codebase"
@@ -45,7 +47,7 @@ droid exec --auto high "Fix, test, commit, push"
 # Spec mode (plan first)
 droid exec --use-spec "Add authentication"
 
-# Model selection
+# Model selection (check config/models.yaml for current names)
 droid exec -m gemini-3-flash-preview "Quick task"
 droid exec -m gpt-5.1-codex-max -r high "Complex task"
 ```
@@ -67,11 +69,29 @@ droid exec -m gpt-5.1-codex-max -r high "Complex task"
 
 ## Dual-Model Code Review
 
-**Always use BOTH models:**
+**Always use BOTH models for code review:**
 ```bash
+# Get current recommended models
 python3 scripts/droid_models.py recommend code_review
+
+# Run reviews (model names from config/models.yaml)
 droid exec -m gpt-5.1-codex-max "Review [files]..."
 droid exec -m gemini-3-flash-preview "Review [files]..."
+```
+
+---
+
+## Before Launching droid exec
+
+**ALWAYS check for running instances first:**
+```bash
+pgrep -f "droid exec" || echo "No running instances"
+```
+
+**For read-only reviews (no changes):**
+```bash
+# NO --auto flag + explicit instruction
+droid exec "Review this code. DO NOT make changes."
 ```
 
 ---
@@ -98,6 +118,8 @@ python3 scripts/droid_models.py stack-rank     # Rankings
 python3 scripts/droid_models.py recommend ci_cd # Best model
 ./scripts/setup_model_updates.sh               # Auto-update
 ```
+
+**Config:** `config/models.yaml` — Single source of truth for model names
 
 ---
 

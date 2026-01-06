@@ -10,7 +10,7 @@ description: Critical Fabrik rules - ALWAYS enforced
 **Before ANY code change, I MUST:**
 1. Read `AGENTS.md` for conventions
 2. After editing, run: `python3 -m scripts.enforcement.validate_conventions --strict <files>`
-3. After editing, trigger review: `droid exec -m gemini-3-flash-preview "Review <files>"`
+3. After editing, trigger review: `droid exec "Review <files>" # Uses default model from config/models.yaml`
 4. Update documentation if code changed
 
 **If I skip these steps, the user should call me out.**
