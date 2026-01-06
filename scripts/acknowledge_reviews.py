@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-FABRIK_ROOT = Path("/opt/fabrik")
+FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 REVIEW_RESULTS = FABRIK_ROOT / ".droid" / "reviews" / "pending"
 REVIEW_ACKNOWLEDGED = FABRIK_ROOT / ".droid" / "reviews" / "acknowledged"
 
