@@ -1,15 +1,33 @@
 # Fabrik Enforcement System
 
-**Last Updated:** 2026-01-06
+**Last Updated:** 2026-01-06 (16:33 UTC+3)
 
 ---
 
 ## Overview
 
 The enforcement system validates code against Fabrik conventions at multiple points:
+- **Windsurf hooks** (`.windsurf/hooks.json`) — runs before/after Cascade edits
 - **Pre-commit** (git hooks) — blocks bad commits
 - **Post-edit** (droid hooks) — runs after droid exec edits
 - **Manual** — run anytime via CLI
+
+### Windsurf Cascade Hooks
+
+Located in `.windsurf/hooks.json`:
+
+```json
+{
+  "hooks": [
+    {"event": "pre_write_code", "command": "python3 -m scripts.enforcement.validate_conventions --strict"},
+    {"event": "post_write_code", "command": "python3 /opt/fabrik/.factory/hooks/secret-scanner.py"}
+  ]
+}
+```
+
+### Always-On Rules
+
+`.windsurf/rules/00-critical.md` uses `activation: always_on` and includes a mandatory self-check checklist that Cascade must follow before completing any task.
 
 ---
 
