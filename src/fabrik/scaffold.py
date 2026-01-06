@@ -81,8 +81,10 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
                 content = content.replace(old, new)
             (project_dir / dest).write_text(content)
 
-    # Symlink windsurfrules
+    # Symlink windsurfrules (legacy) and .windsurf/rules/
     (project_dir / ".windsurfrules").symlink_to("/opt/fabrik/windsurfrules")
+    (project_dir / ".windsurf").mkdir(exist_ok=True)
+    (project_dir / ".windsurf" / "rules").symlink_to("/opt/fabrik/.windsurf/rules")
 
     # Create .gitignore and .env.example
     (project_dir / ".gitignore").write_text(
@@ -119,7 +121,7 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     return project_dir
 
 
-def validate_project(project_path: Path) -> tuple[list, list]:
+def validate_project(project_path: Path) -> tuple[list[str], list[str]]:
     """Validate project structure. Returns (present, missing) file lists."""
     present, missing = [], []
     for f in REQUIRED_FILES:
@@ -137,7 +139,7 @@ def fix_project(project_path: Path, dry_run: bool = False) -> list[str]:
     project_path = Path(project_path)
     name = project_path.name
     today = date.today().isoformat()
-    added = []
+    added: list[str] = []
 
     _, missing = validate_project(project_path)
 

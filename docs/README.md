@@ -1,6 +1,6 @@
 # Fabrik Documentation
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-06
 
 ---
 
@@ -40,6 +40,7 @@ docs/
 │   ├── droid-exec-complete-guide.md # Full droid exec guide (long-form)
 │   ├── droid-exec-headless.md      # Headless usage patterns
 │   ├── droid-exec-usage.md         # Core droid exec usage
+│   ├── enforcement-system.md       # Convention enforcement (check scripts, rules)
 │   ├── droid-validation-report.md  # Validation report format
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
 │   ├── factory-enterprise.md       # Factory Enterprise overview
@@ -184,6 +185,7 @@ docs/
 | Document | Purpose |
 |----------|--------|
 | [droid-exec-usage.md](reference/droid-exec-usage.md) | **Complete droid exec guide** — models, tasks, hooks, MCP, prompting, spec mode |
+| [enforcement-system.md](reference/enforcement-system.md) | Convention enforcement — check scripts, rules, pre-commit |
 | [AGENTS.md](../AGENTS.md) | Agent briefing for AI coding assistants |
 | [factory-settings.json](../templates/scaffold/factory-settings.json) | Factory settings template |
 | [factory-hooks.json](../templates/scaffold/factory-hooks.json) | Hooks configuration template |
