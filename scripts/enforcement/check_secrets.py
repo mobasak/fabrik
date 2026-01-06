@@ -6,16 +6,28 @@ from pathlib import Path
 
 SECRET_PATTERNS = [
     (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
+    (r"(?:aws_secret|AWS_SECRET)[^=]*=\s*['\"][A-Za-z0-9/+=]{40}['\"]", "AWS Secret Key"),
     (r"AIza[0-9A-Za-z\-_]{35}", "Google API Key"),
     (r"sk-[a-zA-Z0-9]{32,}", "OpenAI API Key"),
     (r"sk-ant-[a-zA-Z0-9\-]{32,}", "Anthropic API Key"),
     (r"ghp_[a-zA-Z0-9]{36}", "GitHub PAT"),
+    (r"gho_[a-zA-Z0-9]{36}", "GitHub OAuth Token"),
     (r"sk_live_[a-zA-Z0-9]{24,}", "Stripe Live Key"),
+    (r"rk_live_[a-zA-Z0-9]{24,}", "Stripe Restricted Key"),
     (r"postgresql://[^:]+:[^@\s]+@", "DB URL with password"),
-    (r'(?:password|secret|api_key)\s*[:=]\s*[\'"][^\'"]{8,}[\'"]', "Hardcoded credential"),
+    (r"mongodb(\+srv)?://[^:]+:[^@\s]+@", "MongoDB URL with password"),
+    (r"-----BEGIN (?:RSA |DSA |EC |OPENSSH )?PRIVATE KEY-----", "Private Key"),
+    (r"Bearer\s+[a-zA-Z0-9\-_\.]{20,}", "Bearer Token"),
+    (r'(?:password|secret|api_key|token)\s*[:=]\s*[\'"][^\'"]{8,}[\'"]', "Hardcoded credential"),
 ]
 
-SKIP_PATTERNS = [r"\.env\.example$", r"test.*\.py$", r"fixtures/", r"mocks/"]
+SKIP_PATTERNS = [
+    r"\.env\.example$",
+    r"/test_[^/]+\.py$",
+    r"fixtures/",
+    r"mocks/",
+    r"check_secrets\.py$",  # Skip self to avoid false positives on patterns
+]
 
 
 def check_file(file_path: Path) -> list:

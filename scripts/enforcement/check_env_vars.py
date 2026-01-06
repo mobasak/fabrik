@@ -66,7 +66,7 @@ def check_file(file_path: Path) -> list:
                     CheckResult(
                         check_name="env_vars",
                         severity=Severity.ERROR,
-                        message=f"Hardcoded {description}. Use os.getenv() instead.",
+                        message=f"{description.capitalize()}. Use os.getenv() instead.",
                         file_path=str(file_path),
                         line_number=line_num,
                         fix_hint="Replace with os.getenv('DB_HOST', 'localhost')",

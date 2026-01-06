@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-"""Check port registration in PORTS.md."""
+"""Check port registration in PORTS.md and validate port ranges."""
 
 import re
 from pathlib import Path
 
 PORT_PATTERN = re.compile(r"(?:port|PORT)\s*[=:]\s*(\d{4,5})")
 EXPOSE_PATTERN = re.compile(r"EXPOSE\s+(\d{4,5})")
+
+# Port ranges per technology (from 00-critical.md)
+PORT_RANGES = {
+    ".py": (8000, 8099, "Python services"),
+    ".ts": (3000, 3099, "Frontend apps"),
+    ".tsx": (3000, 3099, "Frontend apps"),
+    ".js": (3000, 3099, "Frontend apps"),
+}
 
 
 def check_file(file_path: Path) -> list:
@@ -17,7 +25,7 @@ def check_file(file_path: Path) -> list:
     name = file_path.name.lower()
 
     # Only check relevant files
-    if suffix not in (".py", ".yaml", ".yml") and name != "dockerfile":
+    if suffix not in (".py", ".yaml", ".yml", ".ts", ".tsx", ".js") and name != "dockerfile":
         return results
 
     try:
@@ -62,5 +70,21 @@ def check_file(file_path: Path) -> list:
                 fix_hint=f"Register port {port} in PORTS.md to avoid conflicts",
             )
         )
+
+    # Check port ranges per technology
+    if suffix in PORT_RANGES:
+        min_port, max_port, tech_name = PORT_RANGES[suffix]
+        for port in ports_found:
+            if not (min_port <= port <= max_port):
+                results.append(
+                    CheckResult(
+                        check_name="ports",
+                        severity=Severity.WARN,
+                        message=f"Port {port} outside {tech_name} range ({min_port}-{max_port})",
+                        file_path=str(file_path),
+                        line_number=1,
+                        fix_hint=f"Use port in range {min_port}-{max_port} for {tech_name}",
+                    )
+                )
 
     return results

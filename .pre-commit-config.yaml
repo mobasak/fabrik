@@ -63,3 +63,20 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+
+      - id: fabrik-conventions
+        name: Fabrik Convention Validator
+        description: Check for hardcoded localhost, secrets, health endpoints, Docker issues
+        entry: python3 -c "import sys; from scripts.enforcement.validate_conventions import main; sys.argv = ['validate_conventions'] + sys.argv[1:]; sys.exit(main())"
+        language: system
+        types_or: [python, yaml, dockerfile, ts, tsx, javascript]
+        stages: [pre-commit]
+
+      - id: rule-file-size
+        name: Rule File Size Guard
+        description: Ensure .windsurf/rules/*.md files stay under 12KB
+        entry: python3 scripts/enforcement/check_rule_size.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

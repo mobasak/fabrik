@@ -78,6 +78,13 @@ def run_check_ports(file_path: Path) -> list[CheckResult]:
     return check_file(file_path)
 
 
+def run_check_watchdog(file_path: Path) -> list[CheckResult]:
+    """Check that services have watchdog scripts."""
+    from .check_watchdog import check_file
+
+    return check_file(file_path)
+
+
 def run_all_checks(file_path: Path) -> list[CheckResult]:
     """Run all applicable checks for a file."""
     results: list[CheckResult] = []
@@ -98,6 +105,7 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
     # Compose files
     if name in ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"):
         results.extend(run_check_docker(file_path))
+        results.extend(run_check_watchdog(file_path))
 
     # All files get port check if they contain port definitions
     if suffix in (".py", ".ts", ".tsx", ".js", ".yaml", ".yml"):
