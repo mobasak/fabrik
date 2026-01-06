@@ -2,6 +2,15 @@
 
 > Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
 
+## Windsurf Cascade Users
+
+For IDE-specific rules, see `.windsurf/rules/`:
+- `00-critical.md` — Security, env vars, ports (Always On)
+- `10-python.md` — FastAPI patterns (*.py files)
+- `20-typescript.md` — Next.js patterns (*.ts files)
+- `30-ops.md` — Docker/deployment (Dockerfile, compose.yaml)
+- `90-automation.md` — droid exec integration (Manual @mention)
+
 ## Build & Test
 
 ```bash
