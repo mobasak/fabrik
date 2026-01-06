@@ -3,13 +3,63 @@
 
 Provides a safe wrapper around :func:`subprocess.run` with sensible defaults
 for timeout enforcement, error logging, and optional dry-run support.
+
+Also provides file locking for concurrent hook execution safety.
 """
 
 from __future__ import annotations
 
+import fcntl
+import os
 import subprocess
 import sys
 from collections.abc import Sequence
+from contextlib import contextmanager
+from pathlib import Path
+
+# Default lock directory
+LOCK_DIR = Path(os.getenv("FABRIK_LOCK_DIR", "/tmp/fabrik-locks"))
+
+
+@contextmanager
+def file_lock(name: str, timeout: float = 10.0):
+    """Acquire an exclusive file lock for concurrent safety.
+
+    Args:
+        name: Lock name (will be sanitized to filename).
+        timeout: Max seconds to wait for lock (raises TimeoutError if exceeded).
+
+    Usage:
+        with file_lock("hook-validation"):
+            # Only one process runs this at a time
+            run_validation()
+    """
+    LOCK_DIR.mkdir(parents=True, exist_ok=True)
+    lock_file = LOCK_DIR / f"{name.replace('/', '_')}.lock"
+
+    fd = os.open(str(lock_file), os.O_CREAT | os.O_RDWR)
+    try:
+        # Try non-blocking first
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            # Wait with timeout
+            import time
+
+            start = time.time()
+            while time.time() - start < timeout:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    time.sleep(0.1)
+            else:
+                raise TimeoutError(f"Could not acquire lock '{name}' within {timeout}s")
+
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def safe_run(

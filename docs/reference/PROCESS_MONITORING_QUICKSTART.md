@@ -69,7 +69,7 @@ if time.time() - last_check >= monitor.check_interval:
 
 ## Complete Example
 
-See `/opt/fabrik/scripts/droid_runner_integration_example.py` for full integration.
+See `/opt/fabrik/docs/examples/droid_runner_integration_example.py` for full integration.
 
 ## Configuration
 
@@ -308,7 +308,7 @@ if process.poll() is None:
 
 - **Design Document**: `/opt/fabrik/docs/reference/LONG_COMMAND_MONITORING.md`
 - **Full Implementation**: `/opt/fabrik/scripts/process_monitor.py`
-- **Integration Example**: `/opt/fabrik/scripts/droid_runner_integration_example.py`
+- **Integration Example**: `/opt/fabrik/docs/examples/droid_runner_integration_example.py`
 - **Test Suite**: `/opt/fabrik/scripts/test_process_monitor.py`
 
 ## Next Steps
