@@ -1,0 +1,45 @@
+# Windsurf/Codeium Indexing Ignore
+# Excludes files from RAG context to improve speed and relevance
+
+# Large generated/vendor directories
+.venv/
+venv/
+node_modules/
+.git/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Large binary/data files
+*.log
+*.sqlite
+*.db
+*.pkl
+*.parquet
+
+# Temporary/staging
+.tmp/
+.staging/
+*.tmp
+*.bak
+
+# Archives
+*.tar.gz
+*.zip
+*.7z
+
+# Droid queue/results (frequently changing, not code)
+.droid/review_queue/
+.droid/review_results/
+.droid/docs_queue/
+.droid/docs_log/
+.droid/responses/
+
+# Lock files (not useful for context)
+/tmp/fabrik-locks/

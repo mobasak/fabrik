@@ -108,3 +108,17 @@ Before I finish ANY coding task, I MUST verify:
 - [ ] Documentation updated if code changed
 - [ ] Enforcement check passed
 - [ ] Review triggered or manually done
+
+---
+
+## Fast Context (Windsurf RAG)
+
+**Force quick codebase search:** `Cmd+Enter` (Mac) / `Ctrl+Enter` (Win/Linux)
+
+Uses SWE-grep models for parallel code retrieval (up to 8 tool calls/turn).
+
+**Optimize indexing with `.codeiumignore`:**
+- Project-level: `/opt/fabrik/.codeiumignore`
+- Global: `~/.codeium/.codeiumignore`
+
+Excluded from index: `.venv/`, `node_modules/`, `.droid/` queues, build artifacts.
