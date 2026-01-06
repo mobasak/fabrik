@@ -31,7 +31,18 @@ DBLOCK_SIZE = "1GB"
 
 
 def ssh(cmd):
-    return subprocess.run(["ssh", "vps", cmd], capture_output=True, text=True).stdout.strip()
+    try:
+        result = subprocess.run(
+            ["ssh", "vps", cmd], capture_output=True, text=True, check=True, timeout=30
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing SSH command: {cmd}")
+        print(f"Stderr: {e.stderr}")
+        raise
+    except subprocess.TimeoutExpired:
+        print(f"Timeout executing SSH command: {cmd}")
+        raise
 
 
 def target_url():

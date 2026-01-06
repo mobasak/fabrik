@@ -45,7 +45,9 @@ USAGE
 """
 
 import argparse
+import contextlib
 import json
+import os
 import subprocess
 import sys
 import time
@@ -57,10 +59,8 @@ from pathlib import Path
 try:
     from scripts.droid_models import (
         DEFAULT_MODEL,
-        MODELS,
         TaskCategory,
         check_model_change_warning,
-        get_model_info,
         recommend_model,
         refresh_models_from_docs,
     )
@@ -148,7 +148,7 @@ TOOL_CONFIGS = {
     },
     TaskType.REVIEW: {
         "default_auto": "low",
-        "model": "claude-haiku-4-5-20251001",  # Fast, cheap reviews
+        "model": "gpt-5.1-codex-max",  # Fast, cheap reviews
         "reasoning": "off",
         "description": "Read-only code review",
     },
@@ -575,10 +575,8 @@ def run_droid_exec(
         TaskResult with success status and output
     """
     # Ensure model names are up-to-date from config
-    try:
+    with contextlib.suppress(Exception):
         refresh_models_from_docs()
-    except Exception:
-        pass  # Non-fatal - continue with cached models
 
     # Build command
     args = ["droid", "exec"]
@@ -741,9 +739,10 @@ def run_batch_tasks(
 
     print(f"Running {len(tasks)} tasks with autonomy={autonomy.value}")
 
-    out_f = open(output_file, "w") if output_file else None
+    # Use ExitStack to handle optional file opening safely
+    with contextlib.ExitStack() as stack:
+        out_f = stack.enter_context(open(output_file, "w")) if output_file else None
 
-    try:
         for i, task in enumerate(tasks, 1):
             task_type = TaskType(task.get("type", "analyze"))
             prompt = task["prompt"]
@@ -785,9 +784,6 @@ def run_batch_tasks(
 
             # Small delay between tasks
             time.sleep(0.5)
-    finally:
-        if out_f:
-            out_f.close()
 
     return results
 

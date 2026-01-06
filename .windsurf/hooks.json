@@ -3,7 +3,7 @@
   "hooks": [
     {
       "event": "pre_write_code",
-      "command": "python3 -m scripts.enforcement.validate_conventions --strict ${WINDSURF_FILES:-}",
+      "command": "python3 -m scripts.enforcement.validate_conventions --strict --git-diff",
       "description": "Enforce Fabrik coding standards before writing",
       "timeout": 15,
       "cwd": "/opt/fabrik"

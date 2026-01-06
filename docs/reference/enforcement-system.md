@@ -1,6 +1,6 @@
 # Fabrik Enforcement System
 
-**Last Updated:** 2026-01-06 (16:55 UTC+3)
+**Last Updated:** 2026-01-06 (21:55 UTC+3)
 
 ---
 
@@ -19,7 +19,7 @@ Located in `.windsurf/hooks.json`:
 ```json
 {
   "hooks": [
-    {"event": "pre_write_code", "command": "python3 -m scripts.enforcement.validate_conventions --strict ${WINDSURF_FILES:-}", "cwd": "/opt/fabrik"},
+    {"event": "pre_write_code", "command": "python3 -m scripts.enforcement.validate_conventions --strict --git-diff", "cwd": "/opt/fabrik"},
     {"event": "post_write_code", "command": "python3 /opt/fabrik/.factory/hooks/secret-scanner.py"}
   ]
 }
@@ -163,32 +163,42 @@ For **droid exec only** (not Cascade), automatic code review is available:
 | Script | Purpose |
 |--------|---------|
 | `~/.factory/hooks/fabrik-code-review.py` | PostToolUse hook - queues reviews |
-| `scripts/review_worker.py` | Processes queue, calls reviewer model |
+| `scripts/review_processor.py` | Processes queue, runs dual-model review, updates docs |
 | `scripts/acknowledge_reviews.py` | CLI to manage pending reviews |
 | `~/.factory/hooks/fabrik-session-reviews.py` | SessionStart hook - shows pending |
 
 ### Flow
 
 ```
-droid exec edit → queue review → worker processes → next session sees issues
+droid exec edit → queue review → review_processor.py processes → next session sees issues
 ```
 
 ### Usage
 
 ```bash
-# Start review worker (background)
-python3 scripts/review_worker.py --watch &
+# Start review processor (background)
+python3 scripts/review_processor.py --daemon &
 
 # List pending reviews
-python3 scripts/acknowledge_reviews.py --list
-
-# Acknowledge all
-python3 scripts/acknowledge_reviews.py --all
+ls /opt/fabrik/.droid/review_results/
 ```
 
 ### Limitation
 
 **This only works for droid exec.** Cascade (Windsurf) does not trigger `.factory/hooks.json`.
+
+---
+
+## Hook rollback utility
+
+Use when a hook consolidation or update corrupts local hook settings. Restores the latest backups for hooks and settings.
+
+```bash
+./scripts/rollback_hooks.sh
+```
+
+- Restores `~/.factory/hooks.json` from the newest `~/.factory/backups/hooks.json.bak.*`
+- If present, also restores `~/.factory/settings.json` from `~/.factory/backups/settings.json.bak.*`
 
 ---
 

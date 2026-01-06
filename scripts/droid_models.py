@@ -48,6 +48,20 @@ WINDSURF_MODELS_MD = (
 )
 
 
+@dataclass
+class ModelInfo:
+    """Information about a droid model."""
+
+    name: str
+    provider: str
+    reasoning_levels: list[str]
+    default_reasoning: str
+    best_for: list[str]
+    cost_tier: str  # "low", "medium", "high", "premium"
+    cost_multiplier: float  # Cost multiplier relative to standard tokens
+    notes: str = ""
+
+
 # =============================================================================
 # YAML CONFIG LOADING
 # =============================================================================
@@ -67,9 +81,53 @@ def load_models_config() -> dict:
 
     try:
         with open(CONFIG_FILE) as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+
+        # Basic schema validation
+        if not isinstance(config, dict):
+            raise ValueError("Config must be a dictionary")
+        if "models" not in config:
+            raise ValueError("Config missing 'models' section")
+
+        return config
     except Exception as e:
-        return {"version": "builtin", "error": str(e)}
+        # Log error to stderr but don't crash
+        import sys
+
+        print(f"Error loading models.yaml: {e}", file=sys.stderr)
+        return {"version": "builtin", "error": str(e), "models": {}}
+
+
+def get_models_from_yaml() -> dict[str, ModelInfo]:
+    """Load models from YAML config."""
+    config = load_models_config()
+    models_data = config.get("models", {})
+
+    loaded_models = {}
+    for name, info in models_data.items():
+        try:
+            loaded_models[name] = ModelInfo(
+                name=name,
+                provider=info.get("provider", "unknown"),
+                reasoning_levels=info.get("reasoning_levels", ["off"]),
+                default_reasoning=info.get("default_reasoning", "off"),
+                best_for=info.get(
+                    "best_for", []
+                ),  # Not strictly in YAML schema but useful if added
+                cost_tier=info.get("cost_tier", "medium"),
+                cost_multiplier=float(info.get("cost_multiplier", 1.0)),
+                notes=info.get("notes", ""),
+            )
+        except Exception:
+            continue
+
+    return loaded_models
+
+
+def get_default_model() -> str:
+    """Get default model from config."""
+    config = load_models_config()
+    return config.get("default_model", "claude-sonnet-4-5-20250929")
 
 
 def get_stack_rankings() -> list[dict]:
@@ -445,108 +503,22 @@ def print_windsurf_models(category: str = None):
 
 # Current models from Factory docs (December 2025)
 # Source: https://docs.factory.ai/pricing
-MODELS: dict[str, ModelInfo] = {
-    "glm-4.6": ModelInfo(
-        name="glm-4.6",
-        provider="zhipu",
-        reasoning_levels=["none"],
-        default_reasoning="none",
-        best_for=["budget", "simple_tasks", "no_image_support"],
-        cost_tier="low",
-        cost_multiplier=0.25,
-        notes="Droid Core - cheapest option, no image support",
-    ),
-    "claude-haiku-4-5-20251001": ModelInfo(
-        name="claude-haiku-4-5-20251001",
-        provider="anthropic",
-        reasoning_levels=["off", "low", "medium", "high"],
-        default_reasoning="off",
-        best_for=["fast_tasks", "simple_edits", "quick_answers"],
-        cost_tier="low",
-        cost_multiplier=0.4,
-        notes="Fast and cheap, good for simple tasks",
-    ),
-    "gpt-5.1": ModelInfo(
-        name="gpt-5.1",
-        provider="openai",
-        reasoning_levels=["none", "low", "medium", "high"],
-        default_reasoning="none",
-        best_for=["general_coding", "balanced_tasks"],
-        cost_tier="medium",
-        cost_multiplier=0.5,
-        notes="General purpose OpenAI model",
-    ),
-    "gpt-5.1-codex": ModelInfo(
-        name="gpt-5.1-codex",
-        provider="openai",
-        reasoning_levels=["low", "medium", "high"],
-        default_reasoning="medium",
-        best_for=["coding", "refactoring", "code_generation"],
-        cost_tier="medium",
-        cost_multiplier=0.5,
-        notes="Optimized for code tasks",
-    ),
-    "gpt-5.1-codex-max": ModelInfo(
-        name="gpt-5.1-codex-max",
-        provider="openai",
-        reasoning_levels=["low", "medium", "high", "extra_high"],
-        default_reasoning="medium",
-        best_for=["complex_coding", "large_refactors", "architecture"],
-        cost_tier="high",
-        cost_multiplier=0.5,
-        notes="Max capability for complex code tasks",
-    ),
-    "gpt-5.2": ModelInfo(
-        name="gpt-5.2",
-        provider="openai",
-        reasoning_levels=["low", "medium", "high"],
-        default_reasoning="low",
-        best_for=["latest_capabilities", "complex_reasoning"],
-        cost_tier="high",
-        cost_multiplier=0.7,
-        notes="Latest OpenAI model",
-    ),
-    "gemini-3-pro-preview": ModelInfo(
-        name="gemini-3-pro-preview",
-        provider="google",
-        reasoning_levels=["low", "high"],
-        default_reasoning="high",
-        best_for=["large_context", "multi_file_analysis"],
-        cost_tier="medium",
-        cost_multiplier=0.8,
-        notes="Google's pro model, good context window",
-    ),
-    "gemini-3-flash-preview": ModelInfo(
-        name="gemini-3-flash-preview",
-        provider="google",
-        reasoning_levels=["minimal", "low", "medium", "high"],
-        default_reasoning="high",
-        best_for=["fast_tasks", "cost_effective"],
-        cost_tier="low",
-        cost_multiplier=0.2,
-        notes="Fast Google model",
-    ),
-    "claude-sonnet-4-5-20250929": ModelInfo(
-        name="claude-sonnet-4-5-20250929",
-        provider="anthropic",
-        reasoning_levels=["off", "low", "medium", "high"],
-        default_reasoning="off",
-        best_for=["coding", "analysis", "balanced"],
-        cost_tier="medium",
-        cost_multiplier=1.2,
-        notes="Balanced Anthropic model, good for most tasks",
-    ),
-    "claude-opus-4-5-20251101": ModelInfo(
-        name="claude-opus-4-5-20251101",
-        provider="anthropic",
-        reasoning_levels=["off", "low", "medium", "high"],
-        default_reasoning="off",
-        best_for=["complex_reasoning", "architecture", "difficult_bugs"],
-        cost_tier="premium",
-        cost_multiplier=2.0,
-        notes="Most capable Anthropic model",
-    ),
-}
+MODELS = get_models_from_yaml()
+
+if not MODELS:
+    # Fallback if config fails
+    MODELS = {
+        "gpt-5.1-codex-max": ModelInfo(
+            name="gpt-5.1-codex-max",
+            provider="openai",
+            reasoning_levels=["low", "medium", "high", "extra_high"],
+            default_reasoning="medium",
+            best_for=["complex_coding"],
+            cost_tier="high",
+            cost_multiplier=0.5,
+            notes="Fallback model",
+        )
+    }
 
 # Task type to model recommendations
 TASK_MODEL_MAP: dict[TaskCategory, list[str]] = {
@@ -578,7 +550,7 @@ TASK_MODEL_MAP: dict[TaskCategory, list[str]] = {
 }
 
 # Default model for general use
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_MODEL = get_default_model()
 
 
 def get_model_info(model_name: str) -> ModelInfo | None:
@@ -751,23 +723,54 @@ def print_model_table():
 # MODEL SYNC - Update model names in droid_tasks.py and AGENTS.md
 # =============================================================================
 
+
+def get_fabrik_task_models() -> dict[str, str]:
+    """
+    Get task models from config/models.yaml (single source of truth).
+    Falls back to hardcoded defaults if config is missing.
+    """
+    config = load_models_config()
+    scenarios = config.get("scenarios", {})
+
+    # Map scenarios to task types
+    # Default fallback mapping
+    mapping = {
+        "ANALYZE": scenarios.get("explore", {}).get("primary", "gemini-3-flash-preview"),
+        "CODE": scenarios.get("full_feature_dev", {}).get("alternatives", ["gpt-5.1-codex-max"])[0],
+        "REFACTOR": scenarios.get("full_feature_dev", {}).get(
+            "alternatives", ["gpt-5.1-codex-max"]
+        )[0],
+        "TEST": scenarios.get("verify", {}).get("primary", "gpt-5.1-codex-max"),
+        "REVIEW": scenarios.get("code_review", {}).get("models", ["claude-haiku-4-5-20251001"])[
+            0
+        ],  # review uses list
+        "SPEC": scenarios.get("design", {}).get("primary", "claude-sonnet-4-5-20250929"),
+        "SCAFFOLD": scenarios.get("full_feature_dev", {}).get(
+            "alternatives", ["gpt-5.1-codex-max"]
+        )[0],
+        "DEPLOY": scenarios.get("ship", {}).get("primary", "gemini-3-flash-preview"),
+        "MIGRATE": scenarios.get("full_feature_dev", {}).get("alternatives", ["gpt-5.1-codex-max"])[
+            0
+        ],
+        "HEALTH": scenarios.get("verify", {}).get(
+            "primary", "gemini-3-flash-preview"
+        ),  # verify primary is codex-max but health is usually cheaper
+        "PREFLIGHT": scenarios.get("ship", {}).get("primary", "gemini-3-flash-preview"),
+    }
+
+    # Override with specific lookups where logic is more complex
+    # Health/Preflight/Deploy -> Ship scenario
+    ship_model = scenarios.get("ship", {}).get("primary", "gemini-3-flash-preview")
+    mapping["HEALTH"] = ship_model
+    mapping["PREFLIGHT"] = ship_model
+    mapping["DEPLOY"] = ship_model
+
+    return mapping
+
+
 # Canonical model assignments for Fabrik task types
 # This is the SINGLE SOURCE OF TRUTH - sync command updates other files from here
-FABRIK_TASK_MODELS = {
-    # Core task types
-    "ANALYZE": "gemini-3-flash-preview",
-    "CODE": "gpt-5.1-codex-max",
-    "REFACTOR": "gpt-5.1-codex-max",
-    "TEST": "gpt-5.1-codex-max",
-    "REVIEW": "claude-haiku-4-5-20251001",
-    # Fabrik lifecycle task types
-    "SPEC": "claude-sonnet-4-5-20250929",
-    "SCAFFOLD": "gpt-5.1-codex-max",
-    "DEPLOY": "gemini-3-flash-preview",
-    "MIGRATE": "gpt-5.1-codex-max",
-    "HEALTH": "gemini-3-flash-preview",
-    "PREFLIGHT": "gemini-3-flash-preview",
-}
+FABRIK_TASK_MODELS = get_fabrik_task_models()
 
 # Execution modes for AGENTS.md
 FABRIK_EXECUTION_MODES = {

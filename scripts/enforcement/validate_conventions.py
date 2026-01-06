@@ -14,6 +14,7 @@ Exit codes:
 
 import argparse
 import json
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -120,17 +121,50 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
     return results
 
 
+def get_git_diff_files() -> list[str]:
+    """Get list of files changed in git diff (staged and unstaged)."""
+    try:
+        # Check unstaged changes
+        unstaged = subprocess.run(
+            ["git", "diff", "--name-only"], capture_output=True, text=True, check=True
+        ).stdout.splitlines()
+
+        # Check staged changes
+        staged = subprocess.run(
+            ["git", "diff", "--staged", "--name-only"], capture_output=True, text=True, check=True
+        ).stdout.splitlines()
+
+        return list(set(unstaged + staged))
+    except subprocess.CalledProcessError:
+        return []
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Fabrik Convention Validator")
     parser.add_argument("files", nargs="*", help="Files to check")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--strict", action="store_true", help="Treat warnings as errors")
+    parser.add_argument("--git-diff", action="store_true", help="Check files changed in git")
     args = parser.parse_args()
+
+    files_to_check = args.files
+
+    if args.git_diff:
+        git_files = get_git_diff_files()
+        if git_files:
+            files_to_check.extend(git_files)
+        elif not files_to_check:
+            # No files provided and no git diff - print warning but don't fail
+            print("No changed files found to check.", file=sys.stderr)
+            return 0
+
+    # Deduplicate
+    files_to_check = list(set(files_to_check))
 
     all_results: list[CheckResult] = []
 
-    for file_arg in args.files:
+    for file_arg in files_to_check:
         file_path = Path(file_arg)
         if file_path.exists() and file_path.is_file():
             all_results.extend(run_all_checks(file_path))

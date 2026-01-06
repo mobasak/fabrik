@@ -255,11 +255,18 @@ def check_arm64_support(image: str, tag: str = "latest") -> dict:
                 "architectures": architectures,
                 "multi_arch": len(architectures) > 1,
             }
-        except Exception as e:
+        except (ValueError, KeyError, TypeError, httpx.HTTPError) as e:
             return {
                 "image": f"{image}:{tag}",
                 "arm64_supported": None,
                 "error": str(e),
+                "architectures": [],
+            }
+        except Exception as e:
+            return {
+                "image": f"{image}:{tag}",
+                "arm64_supported": None,
+                "error": f"Unexpected error: {str(e)}",
                 "architectures": [],
             }
 
@@ -329,7 +336,7 @@ def format_date(date_str: str) -> str:
     try:
         dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
         return dt.strftime("%Y-%m-%d")
-    except:
+    except ValueError:
         return date_str[:10] if len(date_str) >= 10 else date_str
 
 
@@ -423,10 +430,10 @@ def cmd_check_arch(args):
         status = "[yellow]? UNKNOWN[/yellow]"
 
     content = f"""
-**Image:** {result['image']}
+**Image:** {result["image"]}
 **ARM64 Compatible:** {status}
 **Multi-arch:** {"Yes" if result.get("multi_arch") else "No"}
-**Architectures:** {', '.join(result.get('architectures', [])) or 'Unknown'}
+**Architectures:** {", ".join(result.get("architectures", [])) or "Unknown"}
 """
 
     console.print(Panel(Markdown(content), title="Architecture Check"))
@@ -463,17 +470,17 @@ def cmd_info(args):
     arm64_status = "✓ Yes" if arm64 else ("✗ No" if arm64 is False else "? Unknown")
 
     content = f"""
-## {info.get('namespace', namespace)}/{info.get('name', repo)}
+## {info.get("namespace", namespace)}/{info.get("name", repo)}
 
-**Description:** {info.get('description', 'N/A')}
+**Description:** {info.get("description", "N/A")}
 
 **Stats:**
-- Stars: {info.get('star_count', 0)}
-- Pulls: {info.get('pull_count', 0):,}
-- Last Updated: {format_date(info.get('last_updated'))}
+- Stars: {info.get("star_count", 0)}
+- Pulls: {info.get("pull_count", 0):,}
+- Last Updated: {format_date(info.get("last_updated"))}
 
 **ARM64 Support:** {arm64_status}
-**Architectures:** {', '.join(arch_result.get('architectures', [])) or 'Check specific tag'}
+**Architectures:** {", ".join(arch_result.get("architectures", [])) or "Check specific tag"}
 
 **Links:**
 - Hub: https://hub.docker.com/r/{namespace}/{repo}
@@ -486,8 +493,10 @@ def cmd_info(args):
         tags = client.get_tags(namespace, repo, limit=5)
         for t in tags:
             console.print(f"  - {t.get('name')}")
-    except:
-        console.print("  [dim]Unable to fetch tags[/dim]")
+    except (httpx.HTTPError, ValueError, KeyError) as e:
+        console.print(f"  [dim]Unable to fetch tags: {str(e)}[/dim]")
+    except Exception as e:
+        console.print(f"  [dim]Unexpected error fetching tags: {str(e)}[/dim]")
 
 
 def cmd_pull(args):
@@ -509,11 +518,10 @@ def cmd_pull(args):
         cmd.extend(["--platform", args.platform])
     cmd.append(image)
 
-    result = subprocess.run(cmd)
-
-    if result.returncode == 0:
+    try:
+        result = subprocess.run(cmd, check=True)
         console.print(f"[green]✓ Successfully pulled {image}[/green]")
-    else:
+    except subprocess.CalledProcessError:
         console.print(f"[red]✗ Failed to pull {image}[/red]")
 
 
@@ -690,19 +698,19 @@ def cmd_trueforge_info(args):
     arm64_status = "✓ Yes" if arm64 else ("✗ No" if arm64 is False else "? Unknown")
 
     content = f"""
-## {info.get('name', args.image)}
+## {info.get("name", args.image)}
 
-**Registry:** oci.trueforge.org/tccr/{info.get('name', args.image)}
-**Visibility:** {info.get('visibility', 'N/A')}
-**Created:** {format_date(info.get('created_at'))}
-**Updated:** {format_date(info.get('updated_at'))}
+**Registry:** oci.trueforge.org/tccr/{info.get("name", args.image)}
+**Visibility:** {info.get("visibility", "N/A")}
+**Created:** {format_date(info.get("created_at"))}
+**Updated:** {format_date(info.get("updated_at"))}
 
 **ARM64 Support:** {arm64_status}
-**Architectures:** {', '.join(arch_result.get('architectures', [])) or 'Check specific tag'}
+**Architectures:** {", ".join(arch_result.get("architectures", [])) or "Check specific tag"}
 
 **Links:**
 - GitHub: https://github.com/{TRUEFORGE_ORG}/containerforge
-- Package: https://github.com/orgs/{TRUEFORGE_ORG}/packages/container/package/{info.get('name', args.image)}
+- Package: https://github.com/orgs/{TRUEFORGE_ORG}/packages/container/package/{info.get("name", args.image)}
 
 **Supply Chain Security:**
 - GitHub Actions attestations
