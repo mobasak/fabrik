@@ -1,6 +1,19 @@
 # Windsurf Cascade Project Rules
 # Symlink this file to project root: ln -s /opt/fabrik/windsurfrules .windsurfrules
 
+# ⚠️ DEPRECATION NOTICE (2026-01-06)
+# This monolithic file is being phased out in favor of modular rules.
+# New location: /opt/fabrik/.windsurf/rules/
+# - 00-critical.md (always_on) - Security, env vars, mandatory workflow
+# - 10-python.md (*.py) - FastAPI patterns
+# - 20-typescript.md (*.ts, *.tsx) - Next.js patterns
+# - 30-ops.md (Dockerfile, compose) - Docker standards
+# - 90-automation.md (manual) - droid exec reference
+#
+# This file remains for backward compatibility with existing project symlinks.
+# New projects should symlink .windsurf/rules/ instead.
+
+
 ## Environment Context
 
 **Development:** WSL (Windows Subsystem for Linux)

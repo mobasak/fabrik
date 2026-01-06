@@ -1,3 +1,9 @@
+---
+activation: glob
+globs: ["**/*.ts", "**/*.tsx"]
+description: Next.js patterns, React components, API routes
+---
+
 # TypeScript Rules
 
 **Activation:** Glob `**/*.ts`, `**/*.tsx`

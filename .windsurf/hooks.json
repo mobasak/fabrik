@@ -3,15 +3,17 @@
   "hooks": [
     {
       "event": "pre_write_code",
-      "command": "python3 -m scripts.enforcement.validate_conventions --strict",
+      "command": "python3 -m scripts.enforcement.validate_conventions --strict ${WINDSURF_FILES:-}",
       "description": "Enforce Fabrik coding standards before writing",
-      "timeout": 10
+      "timeout": 15,
+      "cwd": "/opt/fabrik"
     },
     {
       "event": "post_write_code",
       "command": "python3 /opt/fabrik/.factory/hooks/secret-scanner.py",
       "description": "Scan for hardcoded secrets after writing",
-      "timeout": 10
+      "timeout": 10,
+      "cwd": "/opt/fabrik"
     }
   ]
 }

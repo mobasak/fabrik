@@ -1,6 +1,6 @@
 # Fabrik Enforcement System
 
-**Last Updated:** 2026-01-06 (16:33 UTC+3)
+**Last Updated:** 2026-01-06 (16:55 UTC+3)
 
 ---
 
@@ -19,15 +19,27 @@ Located in `.windsurf/hooks.json`:
 ```json
 {
   "hooks": [
-    {"event": "pre_write_code", "command": "python3 -m scripts.enforcement.validate_conventions --strict"},
+    {"event": "pre_write_code", "command": "python3 -m scripts.enforcement.validate_conventions --strict ${WINDSURF_FILES:-}", "cwd": "/opt/fabrik"},
     {"event": "post_write_code", "command": "python3 /opt/fabrik/.factory/hooks/secret-scanner.py"}
   ]
 }
 ```
 
-### Always-On Rules
+### Modular Rules (`.windsurf/rules/`)
 
-`.windsurf/rules/00-critical.md` uses `activation: always_on` and includes a mandatory self-check checklist that Cascade must follow before completing any task.
+| File | Activation | Description |
+|------|------------|-------------|
+| `00-critical.md` | `always_on` | Security, env vars, mandatory workflow |
+| `10-python.md` | `glob: **/*.py` | FastAPI patterns |
+| `20-typescript.md` | `glob: **/*.ts, **/*.tsx` | Next.js patterns |
+| `30-ops.md` | `glob: **/Dockerfile, **/compose.yaml` | Docker standards |
+| `90-automation.md` | `manual` | droid exec reference |
+
+All rule files use YAML frontmatter for structured activation metadata.
+
+### Legacy windsurfrules
+
+The monolithic `windsurfrules` file (50KB) is deprecated but maintained for backward compatibility with existing project symlinks. New projects should use `.windsurf/rules/` instead.
 
 ---
 

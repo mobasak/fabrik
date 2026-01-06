@@ -1,3 +1,9 @@
+---
+activation: glob
+globs: ["**/*.py"]
+description: Python/FastAPI patterns, typing, environment handling
+---
+
 # Python Rules
 
 **Activation:** Glob `**/*.py`
