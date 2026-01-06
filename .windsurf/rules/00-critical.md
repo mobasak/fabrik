@@ -1,13 +1,19 @@
-# Critical Rules (Always Active)
-
-**Activation:** Always On
-**Purpose:** Core protocols, security gates, environment standards
-
+---
+activation: always_on
+description: Critical Fabrik rules - ALWAYS enforced
 ---
 
-## Read AGENTS.md First
+# Critical Rules (ALWAYS ACTIVE)
 
-Before writing ANY code, read `/opt/fabrik/AGENTS.md` for canonical Fabrik conventions.
+## ⚠️ MANDATORY WORKFLOW
+
+**Before ANY code change, I MUST:**
+1. Read `AGENTS.md` for conventions
+2. After editing, run: `python3 -m scripts.enforcement.validate_conventions --strict <files>`
+3. After editing, trigger review: `droid exec -m gemini-3-flash-preview "Review <files>"`
+4. Update documentation if code changed
+
+**If I skip these steps, the user should call me out.**
 
 ---
 
@@ -95,9 +101,10 @@ async def health():
 
 ---
 
-## Cross-References
+## Self-Check Before Responding
 
-- Python specifics: `@10-python.md`
-- TypeScript specifics: `@20-typescript.md`
-- Docker/deployment: `@30-ops.md`
-- Automation/droid: `@90-automation.md`
+Before I finish ANY coding task, I MUST verify:
+- [ ] No hardcoded localhost/secrets
+- [ ] Documentation updated if code changed
+- [ ] Enforcement check passed
+- [ ] Review triggered or manually done

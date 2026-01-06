@@ -1,0 +1,17 @@
+{
+  "description": "Windsurf Cascade hooks for Fabrik enforcement",
+  "hooks": [
+    {
+      "event": "pre_write_code",
+      "command": "python3 /opt/fabrik/scripts/enforcement/validate_conventions.py",
+      "description": "Enforce Fabrik coding standards before writing",
+      "timeout": 10
+    },
+    {
+      "event": "post_write_code",
+      "command": "python3 /opt/fabrik/.factory/hooks/secret-scanner.py",
+      "description": "Scan for hardcoded secrets after writing",
+      "timeout": 10
+    }
+  ]
+}

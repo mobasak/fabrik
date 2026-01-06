@@ -2,6 +2,25 @@
 
 > Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
 
+## ⚠️ MANDATORY WORKFLOW (ALL AI AGENTS)
+
+**Before finishing ANY coding task, you MUST:**
+
+```bash
+# 1. Run enforcement check
+python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
+
+# 2. Trigger code review (if significant changes)
+droid exec -m gemini-3-flash-preview "Review <files> for Fabrik conventions"
+
+# 3. Update documentation
+# If you changed code in src/, scripts/, update relevant docs/
+```
+
+**If you skip these steps, you are violating Fabrik rules.**
+
+---
+
 ## Windsurf Cascade Users
 
 For IDE-specific rules, see `.windsurf/rules/`:
