@@ -208,7 +208,7 @@ DB_USER=postgres
 DB_PASSWORD=secure-password
 
 # Or connection string
-DATABASE_URL=postgresql://postgres:password@localhost:5432/fabrik
+DATABASE_URL=postgresql://user:pass@localhost:5432/db
 ```
 
 ---

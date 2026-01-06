@@ -122,19 +122,31 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
 
 
 def get_git_diff_files() -> list[str]:
-    """Get list of files changed in git diff (staged and unstaged)."""
+    """Get list of files changed in git (staged, unstaged, AND untracked)."""
+    files: set[str] = set()
     try:
-        # Check unstaged changes
+        # Check unstaged changes (tracked files)
         unstaged = subprocess.run(
             ["git", "diff", "--name-only"], capture_output=True, text=True, check=True
         ).stdout.splitlines()
+        files.update(unstaged)
 
         # Check staged changes
         staged = subprocess.run(
             ["git", "diff", "--staged", "--name-only"], capture_output=True, text=True, check=True
         ).stdout.splitlines()
+        files.update(staged)
 
-        return list(set(unstaged + staged))
+        # Check untracked files (NEW - fixes P0 bug)
+        untracked = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()
+        files.update(untracked)
+
+        return list(files)
     except subprocess.CalledProcessError:
         return []
 

@@ -4,7 +4,7 @@
 **ARM64 Support:** 99/100 apps ✅ (only `deluge` is amd64-only)
 **Registry:** `oci.trueforge.org/tccr/<name>`
 **Source:** https://github.com/trueforge-org/containerforge
-**Last Updated:** 2025-12-30
+**Last Updated:** 2026-01-06
 
 ## Quick Commands
 
@@ -17,9 +17,51 @@ python scripts/container_images.py trueforge list
 # Check ARM64 support
 python scripts/container_images.py check-arch oci.trueforge.org/tccr/<name>
 
+# Get image info
+python scripts/container_images.py trueforge info <name>
+
 # Pull an image
-docker pull oci.trueforge.org/tccr/<name>:<tag>
+python scripts/container_images.py pull oci.trueforge.org/tccr/<name>:<tag>
 ```
+
+## Container Image Discovery Tool
+
+Fabrik includes a powerful discovery tool for searching and evaluating container images across multiple registries (Docker Hub, LinuxServer.io, TrueForge).
+
+**Location:** `scripts/container_images.py`
+
+### Usage Examples
+
+```bash
+# Search Docker Hub
+python scripts/container_images.py search nginx
+
+# List tags for an image
+python scripts/container_images.py tags postgres
+
+# Check ARM64 support for any image (Critical for VPS deployment)
+python scripts/container_images.py check-arch redis:7-alpine
+
+# Get detailed image info (stars, pulls, architectures)
+python scripts/container_images.py info nginx:alpine
+
+# Get recommendations for common use cases (database, monitoring, etc.)
+python scripts/container_images.py recommend database
+
+# Pull image to local WSL (with arm64 check)
+python scripts/container_images.py pull postgres:16-alpine
+
+# TrueForge specific commands
+python scripts/container_images.py trueforge list    # List all TrueForge images
+python scripts/container_images.py trueforge tags <name> # List TrueForge tags
+python scripts/container_images.py trueforge info <name> # Get TrueForge image info
+```
+
+### Key Features
+- **Multi-Registry Support**: Docker Hub, ghcr.io, lscr.io, and TrueForge (oci.trueforge.org).
+- **Architecture Validation**: Explicitly checks for `arm64` support, which is mandatory for Fabrik VPS deployments.
+- **Supply Chain Visibility**: Shows build provenance and architectures for TrueForge images.
+- **Smart Recommendations**: Curated list of lightweight, secure, and arm64-compatible images for common infrastructure needs.
 
 ## Complete Image Catalog
 

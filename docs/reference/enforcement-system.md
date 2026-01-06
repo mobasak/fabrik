@@ -1,6 +1,6 @@
 # Fabrik Enforcement System
 
-**Last Updated:** 2026-01-06 (21:55 UTC+3)
+**Last Updated:** 2026-01-07
 
 ---
 
@@ -19,11 +19,16 @@ Located in `.windsurf/hooks.json`:
 ```json
 {
   "hooks": [
-    {"event": "pre_write_code", "command": "python3 -m scripts.enforcement.validate_conventions --strict --git-diff", "cwd": "/opt/fabrik"},
+    {"event": "post_write_code", "command": "python3 -m scripts.enforcement.validate_conventions --strict --git-diff", "cwd": "/opt/fabrik"},
     {"event": "post_write_code", "command": "python3 /opt/fabrik/.factory/hooks/secret-scanner.py"}
   ]
 }
 ```
+
+**Note:** Validation runs at `post_write_code` (not `pre_write_code`) because files must exist on disk for git-based detection to work. The `--git-diff` flag checks:
+- Staged changes (`git diff --staged`)
+- Unstaged changes (`git diff`)
+- **Untracked files** (`git ls-files --others --exclude-standard`)
 
 ### Modular Rules (`.windsurf/rules/`)
 
@@ -52,7 +57,7 @@ The monolithic `windsurfrules` file (50KB) is deprecated but maintained for back
 | `validate_conventions.py` | Orchestrator - runs all checks | - |
 | `check_env_vars.py` | Detects hardcoded `localhost`, `127.0.0.1` | ERROR |
 | `check_secrets.py` | Detects hardcoded credentials (14 patterns) | ERROR |
-| `check_health.py` | Verifies health endpoints test dependencies | WARN |
+| `check_health.py` | Verifies health endpoints test dependencies | ERROR |
 | `check_docker.py` | Validates base images, HEALTHCHECK presence | WARN |
 | `check_ports.py` | Checks port registration and range | WARN |
 | `check_watchdog.py` | Verifies services have watchdog scripts | WARN |

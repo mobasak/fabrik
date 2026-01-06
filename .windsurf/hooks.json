@@ -2,9 +2,9 @@
   "description": "Windsurf Cascade hooks for Fabrik enforcement",
   "hooks": [
     {
-      "event": "pre_write_code",
+      "event": "post_write_code",
       "command": "python3 -m scripts.enforcement.validate_conventions --strict --git-diff",
-      "description": "Enforce Fabrik coding standards before writing",
+      "description": "Enforce Fabrik coding standards after writing (validates changed + untracked files)",
       "timeout": 15,
       "cwd": "/opt/fabrik"
     },

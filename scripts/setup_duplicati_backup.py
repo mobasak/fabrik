@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
+from scripts.utils.subprocess_helper import safe_run
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -30,19 +31,15 @@ EXCLUDES = [
 DBLOCK_SIZE = "1GB"
 
 
-def ssh(cmd):
+def ssh(cmd: str, timeout: int = 30) -> str:
     try:
-        result = subprocess.run(
-            ["ssh", "vps", cmd], capture_output=True, text=True, check=True, timeout=30
-        )
-        return result.stdout.strip()
+        result = safe_run(["ssh", "vps", cmd], timeout=timeout)
+        return (result.stdout or "").strip()
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"Timeout executing SSH command: {cmd}") from e
     except subprocess.CalledProcessError as e:
-        print(f"Error executing SSH command: {cmd}")
-        print(f"Stderr: {e.stderr}")
-        raise
-    except subprocess.TimeoutExpired:
-        print(f"Timeout executing SSH command: {cmd}")
-        raise
+        stderr = (e.stderr or "").strip()
+        raise RuntimeError(f"Error executing SSH command ({e.returncode}): {cmd}\n{stderr}") from e
 
 
 def target_url():
@@ -103,8 +100,15 @@ def run_backup():
     print("Running backup...")
     excl = " ".join([f"--exclude='{e}'" for e in EXCLUDES])
     cmd = f"sudo docker exec duplicati /app/duplicati/duplicati-cli backup '{target_url()}' {' '.join(SOURCES)} --no-encryption --dblock-size={DBLOCK_SIZE} {excl} --dbpath={BACKUP_DB}"
-    r = subprocess.run(["ssh", "vps", cmd], capture_output=True, text=True)
-    print(r.stdout[-2000:] if len(r.stdout) > 2000 else r.stdout)
+    try:
+        result = safe_run(["ssh", "vps", cmd], timeout=300)
+        output = result.stdout or ""
+        print(output[-2000:] if len(output) > 2000 else output)
+    except subprocess.TimeoutExpired:
+        print("Backup command timed out after 300s")
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or "").strip()
+        print(f"Backup command failed: {stderr or str(e)}")
 
 
 if __name__ == "__main__":

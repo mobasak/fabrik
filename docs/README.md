@@ -10,13 +10,13 @@
 docs/
 ├── README.md                       # This file - documentation index
 ├── QUICKSTART.md                   # Get Fabrik running in 5 minutes
-├── CONFIGURATION.md                # Environment variables and settings
+├── CONFIGURATION.md                # Environment variables and settings (updated 2026-01-06)
 ├── DEPLOYMENT.md                   # How to deploy services to VPS
 ├── SERVICES.md                     # External services Fabrik depends on
 ├── TROUBLESHOOTING.md              # Common issues & solutions
 ├── TESTING.md                      # How to run and write tests
 ├── FAQ.md                          # Frequently asked questions
-├── ENVIRONMENT_VARIABLES.md        # Complete env var reference
+├── ENVIRONMENT_VARIABLES.md        # Complete env var reference (updated 2026-01-06)
 ├── FABRIK_OVERVIEW.md              # What Fabrik is and what it does
 ├── ROADMAP_ACTIVE.md               # Current priorities, backlog, future plans
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -39,7 +39,7 @@ docs/
 │   ├── droid-cli-reference-hook-reference.md # Droid CLI + hook reference
 │   ├── droid-exec-complete-guide.md # Full droid exec guide (long-form)
 │   ├── droid-exec-headless.md      # Headless usage patterns
-│   ├── droid-exec-usage.md         # Core droid exec usage
+│   ├── droid-exec-usage.md         # Core droid exec usage (updated 2026-01-06)
 │   ├── enforcement-system.md       # Convention enforcement (check scripts, rules)
 │   ├── droid-validation-report.md  # Validation report format
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
@@ -212,7 +212,7 @@ python3 scripts/droid_models.py recommend ci_cd # Get model for scenario
 ```
 
 **Config:** `config/models.yaml` — Auto-updated from Factory docs daily
-**Scripts:** `scripts/droid_tasks.py` (task runner), `scripts/droid_models.py` (model registry), `scripts/docs_updater.py` (documentation updater)
+**Scripts:** `scripts/droid_tasks.py` (task runner), `scripts/droid_models.py` (model registry), `scripts/docs_updater.py` (documentation updater), `scripts/container_images.py` (image discovery), `scripts/setup_duplicati_backup.py` (backup automation), `scripts/enforcement/validate_conventions.py` (convention validator)
 **Batch Scripts:** `scripts/droid/` (refactor-imports, improve-errors, fix-lint)
 **Workflows:** `.github/workflows/` (droid-review, update-docs, security-scanner, daily-maintenance)
 **Key Flags:** `--auto`, `--use-spec`, `-m`, `-r`, `-o`, `--cwd`, `-s`

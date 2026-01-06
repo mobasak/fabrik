@@ -171,6 +171,7 @@ droid exec --input-format stream-jsonrpc --output-format stream-jsonrpc --auto m
 | `--spec-model <id>` | Model for spec planning | `--spec-model claude-sonnet-4-5-20250929` |
 | `--spec-reasoning-effort <level>` | Reasoning for spec mode | `--spec-reasoning-effort high` |
 | `--delegation-url <url>` | Slack/Linear delegation URL | |
+| `--timeout <seconds>` | Execution timeout (default: 1800) | `--timeout 600` |
 
 ### Safety / autonomy
 
@@ -506,19 +507,31 @@ with DroidSession(autonomy=Autonomy.LOW) as session:
 
 ### Model Registry (`scripts/droid_models.py`)
 
-Dynamic model selection with automatic updates from Factory docs.
+Dynamic model selection and registry with automatic updates from Factory docs and a central sync system for Fabrik files.
 
 ```bash
-# List available models
+# Show current model registry
 python scripts/droid_models.py
 
-# Refresh from Factory docs (checks for new models)
+# Show current model stack rankings (defined in config/models.yaml)
+python scripts/droid_models.py stack-rank
+
+# Get model recommendation for a specific scenario
+python scripts/droid_models.py recommend full_feature_dev
+
+# Sync model names across all Fabrik files (Canonical Source of Truth)
+# Updates: droid_tasks.py, AGENTS.md, droid-exec-usage.md
+python scripts/droid_models.py sync
+
+# Refresh registry from Factory docs (checks for new models)
 python scripts/droid_models.py refresh
 ```
 
-**Model refresh** fetches from:
-- https://docs.factory.ai/pricing
-- https://docs.factory.ai/cli/user-guides/choosing-your-model
+**Model Management:**
+- **Source of Truth**: `scripts/droid_models.py` defines the `FABRIK_TASK_MODELS` mapping.
+- **Auto-Sync**: The `sync` command ensures that the task runner, agent briefing, and documentation all use the same consistent model names.
+- **Config-Driven**: Stack rankings and scenarios are loaded from `config/models.yaml`.
+- **Daily Updates**: Managed via `scripts/droid_model_updater.py` (runs daily via cron).
 
 **Session warning**: Changing models mid-session loses context (new session starts, even with same session ID).
 
@@ -1490,7 +1503,7 @@ Custom prompt template for Fabrik-specific code reviews.
 | **Localhost** | `DB_HOST = "localhost"` | `os.getenv("DB_HOST", "localhost")` |
 | **Images** | `FROM python:3.12-alpine` | `FROM python:3.12-slim-bookworm` |
 | **Health** | `return {"status": "ok"}` | `await db.execute("SELECT 1"); return {...}` |
-| **Secrets** | `password = "secret123"` | `os.getenv("DB_PASSWORD")` |
+| **Secrets** | `password = os.getenv("DB_PASS")` | `os.getenv("DB_PASSWORD")` |
 | **Temp files** | `/tmp/data.json` | `.tmp/data.json` |
 
 ### Using the Template

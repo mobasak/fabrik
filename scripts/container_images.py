@@ -21,8 +21,11 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import httpx
 from dotenv import load_dotenv
@@ -30,6 +33,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
+from scripts.utils.subprocess_helper import safe_run
 
 # Load environment
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -199,7 +203,20 @@ class TrueForgeClient:
                 "architectures": architectures,
                 "multi_arch": len(architectures) > 1,
             }
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
+            console.print(
+                f"[red]Error checking TrueForge manifest for {image_name}:{tag}: {e}[/red]"
+            )
+            return {
+                "image": f"oci.trueforge.org/tccr/{image_name}:{tag}",
+                "arm64_supported": None,
+                "error": str(e),
+                "architectures": [],
+            }
         except Exception as e:
+            console.print(
+                f"[red]Unexpected error checking TrueForge manifest for {image_name}:{tag}: {e}[/red]"
+            )
             return {
                 "image": f"oci.trueforge.org/tccr/{image_name}:{tag}",
                 "arm64_supported": None,
@@ -255,7 +272,8 @@ def check_arm64_support(image: str, tag: str = "latest") -> dict:
                 "architectures": architectures,
                 "multi_arch": len(architectures) > 1,
             }
-        except (ValueError, KeyError, TypeError, httpx.HTTPError) as e:
+        except (ValueError, KeyError, TypeError, httpx.HTTPError, json.JSONDecodeError) as e:
+            console.print(f"[red]Error parsing manifest for {image}:{tag}: {e}[/red]")
             return {
                 "image": f"{image}:{tag}",
                 "arm64_supported": None,
@@ -263,6 +281,7 @@ def check_arm64_support(image: str, tag: str = "latest") -> dict:
                 "architectures": [],
             }
         except Exception as e:
+            console.print(f"[red]Unexpected error checking manifest for {image}:{tag}: {e}[/red]")
             return {
                 "image": f"{image}:{tag}",
                 "arm64_supported": None,
@@ -275,20 +294,12 @@ def _check_arm64_via_docker(image: str, tag: str) -> dict:
     """Check arm64 support using docker manifest inspect."""
     full_image = f"{image}:{tag}"
     try:
-        result = subprocess.run(
+        result = safe_run(
             ["docker", "manifest", "inspect", full_image],
+            timeout=30,
             capture_output=True,
             text=True,
-            timeout=30,
         )
-
-        if result.returncode != 0:
-            return {
-                "image": full_image,
-                "arm64_supported": None,
-                "error": result.stderr.strip(),
-                "architectures": [],
-            }
 
         manifest = json.loads(result.stdout)
         architectures = []
@@ -314,8 +325,23 @@ def _check_arm64_via_docker(image: str, tag: str) -> dict:
             "error": "Timeout checking manifest",
             "architectures": [],
         }
-    except Exception as e:
-        return {"image": full_image, "arm64_supported": None, "error": str(e), "architectures": []}
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        console.print(f"[red]Error parsing manifest for {full_image}: {e}[/red]")
+        return {
+            "image": full_image,
+            "arm64_supported": None,
+            "error": str(e),
+            "architectures": [],
+        }
+    except subprocess.CalledProcessError as e:
+        err = (e.stderr or "").strip() or str(e)
+        console.print(f"[red]docker manifest inspect failed for {full_image}: {err}[/red]")
+        return {
+            "image": full_image,
+            "arm64_supported": None,
+            "error": err,
+            "architectures": [],
+        }
 
 
 def format_size(size_bytes: int) -> str:
@@ -519,10 +545,15 @@ def cmd_pull(args):
     cmd.append(image)
 
     try:
-        result = subprocess.run(cmd, check=True)
+        result = safe_run(cmd, timeout=120, capture_output=True, text=True)
+        if result.stdout:
+            console.print(result.stdout)
         console.print(f"[green]✓ Successfully pulled {image}[/green]")
-    except subprocess.CalledProcessError:
-        console.print(f"[red]✗ Failed to pull {image}[/red]")
+    except subprocess.TimeoutExpired:
+        console.print(f"[red]✗ Pull timed out for {image}[/red]")
+    except subprocess.CalledProcessError as e:
+        err = (e.stderr or "").strip() or str(e)
+        console.print(f"[red]✗ Failed to pull {image}: {err}[/red]")
 
 
 def cmd_recommend(args):

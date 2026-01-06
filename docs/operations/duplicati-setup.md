@@ -119,6 +119,35 @@ docker run -d \
 
 ---
 
+## Automation with `setup_duplicati_backup.py`
+
+Fabrik includes a Python script for full automation of Duplicati setup and execution on the VPS.
+
+**Location:** `scripts/setup_duplicati_backup.py`
+
+### Features
+- **Auto-Provisioning**: Stops Duplicati, wipes existing jobs, and creates a fresh "VPS Complete Backup" job with correct B2 credentials and source paths.
+- **Critical Path Inclusion**: Automatically includes `/opt`, `/var/lib/docker/volumes`, and `/data/coolify` (postgres-main).
+- **Exclude Pattern Management**: Pre-configures standard excludes (node_modules, .git, .venv, logs).
+- **Cron Setup**: Automatically installs a daily backup script and cron job on the VPS.
+- **Manual Execution**: Allows triggering a backup run directly from the CLI.
+
+### Usage
+
+```bash
+# Setup the backup job and cron (Requires B2 credentials in .env)
+python scripts/setup_duplicati_backup.py
+
+# Manually trigger a backup run
+python scripts/setup_duplicati_backup.py --run-backup
+```
+
+### Configuration
+The script uses environment variables from the project `.env` file:
+- `B2_BUCKET_NAME`: Target B2 bucket (default: `vps1-ocoron-backups`)
+- `B2_KEY_ID`: Backblaze application key ID
+- `B2_APPLICATION_KEY`: Backblaze application key
+
 ## ServerUtil CLI (Automation)
 
 Duplicati can be managed via `duplicati-server-util` inside the container:

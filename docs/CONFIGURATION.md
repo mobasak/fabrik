@@ -1,6 +1,6 @@
 # Configuration
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-06
 
 All Fabrik configuration options.
 
@@ -61,7 +61,29 @@ All Fabrik configuration options.
 | `FABRIK_REVIEW_RESULTS` | No | `${FABRIK_ROOT}/.droid/review_results` | Directory where completed reviews are stored |
 | `FABRIK_DOCS_QUEUE` | No | `${FABRIK_ROOT}/.droid/docs_queue` | Directory where documentation update tasks are queued |
 | `FABRIK_DOCS_LOG` | No | `${FABRIK_ROOT}/.droid/docs_log` | Directory where documentation update logs/results are stored |
-| `FABRIK_MODELS_CONFIG` | No | `${FABRIK_ROOT}/config/models.yaml` | Override path for the models configuration used during code review and documentation updates |
+| `FABRIK_MODELS_CONFIG` | No | `${FABRIK_ROOT}/config/models.yaml` | Override path for the models configuration used for model selection, rankings, and scenarios (used by `droid_models.py`, `review_processor.py`, etc.) |
+
+### config/models.yaml
+
+Model registry and stack rankings:
+
+```yaml
+version: "2026-01-06"
+default_model: "claude-sonnet-4-5-20250929"
+
+models:
+  gpt-5.1-codex-max:
+    provider: openai
+    cost_tier: high
+    cost_multiplier: 0.5
+    reasoning_levels: ["low", "medium", "high", "extra_high"]
+    default_reasoning: "medium"
+
+stack_rank:
+  1:
+    model: gpt-5.1-codex-max
+    why: Best for complex coding and refactoring
+```
 
 ## Config Files
 
