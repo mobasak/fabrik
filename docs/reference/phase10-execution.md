@@ -72,10 +72,15 @@ DO:
   - states.py (DeploymentState enum)
   - context.py (DeploymentContext dataclass)
   - exceptions.py (typed errors)
+  - secrets.py (stub)
+- Create folder: tests/orchestrator/
+- Create folder: tests/fixtures/
+- Create fixture: tests/fixtures/test-api.yaml
 - Add to pyproject.toml if needed
 
 GATE:
 - python -c "from fabrik.orchestrator import DeploymentState, DeploymentContext"
+- test -f tests/fixtures/test-api.yaml
 
 EVIDENCE REQUIRED:
 - File list
@@ -143,7 +148,8 @@ EVIDENCE REQUIRED:
 ```text
 DO:
 - Implement __init__.py (DeploymentOrchestrator class)
-- Wire to cli.py (fabrik apply uses orchestrator)
+- Refactor cli.py apply() to use DeploymentOrchestrator
+- Preserve all existing flags and backward compatibility
 - Add --dry-run flag
 
 GATE:
