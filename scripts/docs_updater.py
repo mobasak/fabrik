@@ -532,7 +532,7 @@ def replace_block(
     if current_body == new_body.strip():
         return text, False  # No change needed — idempotent
 
-    stamp = datetime.now().strftime("%Y-%m-%dT%H:%MZ")
+    stamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
 
     def replacer(m):
         return f"{m.group(1)}\n<!-- AUTO-GENERATED:{block_name} v1 | {stamp} -->\n{new_body}\n{m.group(2)}"

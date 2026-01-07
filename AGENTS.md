@@ -294,6 +294,8 @@ command --example
 
 **Get current models:** `python3 scripts/droid_models.py stack-rank`
 
+**Config:** `config/models.yaml` — Single source of truth for model names
+
 **Mixed Models:** Use premium models with high reasoning for planning (`spec`), fast models for implementation (`code`).
 
 **Code Review (Dual-Model):** Always use BOTH models from config, not alternatives:
