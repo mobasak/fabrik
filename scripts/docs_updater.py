@@ -479,6 +479,32 @@ PLANS_INDEX = FABRIK_ROOT / "docs" / "development" / "PLANS.md"
 README_PATH = FABRIK_ROOT / "docs" / "INDEX.md"
 TEMPLATE_PATH = FABRIK_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE.md"
 
+# All docs that need staleness/completeness checks
+MANUAL_DOCS = [
+    "README.md",
+    "tasks.md",
+    "AGENTS.md",
+    "docs/INDEX.md",
+    "docs/QUICKSTART.md",
+    "docs/CONFIGURATION.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/BUSINESS_MODEL.md",
+]
+
+# Placeholder markers that indicate incomplete stubs
+STUB_MARKERS = [
+    "[One-line description",
+    "[TODO",
+    "[TBD",
+    "[PLACEHOLDER",
+    "| ... | ... | ... |",
+    "[team/person]",
+    "[Related doc](../path.md)",
+]
+
+# Max days before a doc is considered stale
+STALENESS_DAYS = 90
+
 STRUCTURE_BLOCK_RE = re.compile(
     r"(<!-- AUTO-GENERATED:STRUCTURE:START -->).*?(<!-- AUTO-GENERATED:STRUCTURE:END -->)",
     re.S,
@@ -638,6 +664,121 @@ from fabrik.{module.name} import ...
         return False
 
 
+def check_stub_completeness() -> list[str]:
+    """Check that reference docs aren't just empty stubs."""
+    issues = []
+    ref_dir = FABRIK_ROOT / "docs" / "reference"
+    if not ref_dir.exists():
+        return issues
+
+    for doc in ref_dir.glob("*.md"):
+        content = doc.read_text()
+        for marker in STUB_MARKERS:
+            if marker in content:
+                issues.append(
+                    f"Incomplete stub: {doc.relative_to(FABRIK_ROOT)} (contains '{marker[:20]}...')"
+                )
+                break
+    return issues
+
+
+def check_link_integrity() -> list[str]:
+    """Check all internal markdown links are valid."""
+    issues = []
+    docs_dir = FABRIK_ROOT / "docs"
+    if not docs_dir.exists():
+        return issues
+
+    # Match markdown links but not code blocks or regex patterns
+    link_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
+    # Skip these path prefixes (external Factory docs, not our files)
+    external_prefixes = ("/cli/", "/guides/", "/web/", "/reference/")
+
+    # Skip files that are copies of external docs
+    skip_files = (
+        "droid-exec-headless.md",
+        "building-interactive-apps-with-droid-exec.md",
+        "factory-hooks.md",
+        "factoryai-power-user-settings.md",
+        "factory-skills.md",
+        "factory-enterprise.md",
+    )
+
+    for doc in docs_dir.rglob("*.md"):
+        # Skip known external doc copies
+        if doc.name in skip_files:
+            continue
+
+        # Skip archived docs and design archives
+        if "/archive" in str(doc) or "/.archive" in str(doc):
+            continue
+
+        content = doc.read_text()
+        for match in link_pattern.finditer(content):
+            link_text, link_path = match.groups()
+
+            # Skip external links, anchors, mailto
+            if link_path.startswith(("http://", "https://", "#", "mailto:")):
+                continue
+
+            # Skip external Factory doc paths
+            if link_path.startswith(external_prefixes):
+                continue
+
+            # Skip regex patterns (contain special chars)
+            if any(c in link_path for c in ["[", "]", "(", ")", "*", "+", "?", "\\"]):
+                continue
+
+            # Skip template placeholders and code examples
+            if link_path.startswith("../path") or "[" in link_text:
+                continue
+            if "{" in link_path or "}" in link_path:
+                continue
+
+            # Resolve relative path
+            if link_path.startswith("/"):
+                # Absolute from repo root
+                target = FABRIK_ROOT / link_path.lstrip("/")
+            else:
+                # Handle anchor in path
+                path_part = link_path.split("#")[0]
+                if not path_part:
+                    continue
+                target = (doc.parent / path_part).resolve()
+
+            if not target.exists():
+                issues.append(
+                    f"Broken link in {doc.relative_to(FABRIK_ROOT)}: [{link_text}]({link_path})"
+                )
+    return issues
+
+
+def check_staleness() -> list[str]:
+    """Check for docs that haven't been updated recently."""
+    issues = []
+    today = datetime.now()
+    last_updated_re = re.compile(r"\*\*Last Updated:\*\*\s*(\d{4}-\d{2}-\d{2})")
+
+    for doc_path in MANUAL_DOCS:
+        full_path = FABRIK_ROOT / doc_path
+        if not full_path.exists():
+            continue
+        content = full_path.read_text()
+        match = last_updated_re.search(content)
+        if not match:
+            issues.append(f"Missing 'Last Updated' date: {doc_path}")
+            continue
+        try:
+            last_date = datetime.strptime(match.group(1), "%Y-%m-%d")
+            days_old = (today - last_date).days
+            if days_old > STALENESS_DAYS:
+                issues.append(f"Stale doc ({days_old} days old): {doc_path}")
+        except ValueError:
+            issues.append(f"Invalid date format in: {doc_path}")
+    return issues
+
+
 def validate_docs() -> tuple[bool, list[str]]:
     """Check for drift. Returns (valid, issues)."""
     issues = []
@@ -660,6 +801,15 @@ def validate_docs() -> tuple[bool, list[str]]:
         plans_md = PLANS_INDEX.read_text()
         if "<!-- AUTO-GENERATED:PLANS:START -->" not in plans_md:
             issues.append("docs/development/PLANS.md missing PLANS auto-block markers")
+
+    # NEW: Stub completeness check
+    issues.extend(check_stub_completeness())
+
+    # NEW: Link integrity check
+    issues.extend(check_link_integrity())
+
+    # NEW: Staleness check
+    issues.extend(check_staleness())
 
     return len(issues) == 0, issues
 
