@@ -4,10 +4,14 @@
 import re
 from pathlib import Path
 
-PORT_PATTERN = re.compile(r"(?:port|PORT)\s*[=:]\s*(\d{4,5})")
+# Patterns for SERVICE ports (not client connection ports)
+# Matches: PORT=8000, port: 8000, EXPOSE 8000
+# Excludes: DB_PORT, REDIS_PORT, etc. (client connections)
+SERVICE_PORT_PATTERN = re.compile(r"(?<![A-Z_])(?:port|PORT)\s*[=:]\s*(\d{4,5})")
 EXPOSE_PATTERN = re.compile(r"EXPOSE\s+(\d{4,5})")
 
 # Port ranges per technology (from 00-critical.md)
+# Only applied to service ports, not client connections
 PORT_RANGES = {
     ".py": (8000, 8099, "Python services"),
     ".ts": (3000, 3099, "Frontend apps"),
@@ -33,9 +37,9 @@ def check_file(file_path: Path) -> list:
     except (OSError, UnicodeDecodeError):
         return results
 
-    # Find ports in file
+    # Find ports in file (service ports only, not client connections)
     ports_found = set()
-    for pattern in [PORT_PATTERN, EXPOSE_PATTERN]:
+    for pattern in [SERVICE_PORT_PATTERN, EXPOSE_PATTERN]:
         for match in pattern.finditer(content):
             port = int(match.group(1))
             if 1024 < port < 65535:

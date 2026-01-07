@@ -34,6 +34,8 @@ SIGNIFICANT_DIRS = [
     "src/",
     "scripts/",
     "templates/",
+    ".factory/",
+    ".github/",
 ]
 
 # Patterns to always skip (never require CHANGELOG)
@@ -140,13 +142,15 @@ def check_changelog_quality() -> bool:
     if not unreleased_content:
         return False
 
-    # Check for actual entry (### Added/Changed/Fixed)
-    if not re.search(r"###\s+(Added|Changed|Fixed)", unreleased_content):
+    # Check for actual entry (### Added/Changed/Fixed/Removed/Security/Deprecated)
+    if not re.search(
+        r"###\s+(Added|Changed|Fixed|Removed|Security|Deprecated)", unreleased_content
+    ):
         print("WARNING: CHANGELOG.md [Unreleased] section has no ### entry")
         return False
 
     # Check for placeholder text
-    placeholders = ["<Brief Title>", "<description>", "TODO", "FIXME", "xxx"]
+    placeholders = ["<Brief Title>", "<description>", "TODO", "FIXME", "xxx", "..."]
     for placeholder in placeholders:
         if placeholder.lower() in unreleased_content.lower():
             print(f"WARNING: CHANGELOG.md contains placeholder: {placeholder}")
