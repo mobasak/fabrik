@@ -1,0 +1,18 @@
+# Test fixture for orchestrator integration tests
+name: test-api
+template: python-api
+
+domain: test-api.example.com
+server: vps1
+
+env:
+  PORT: "8000"
+  LOG_LEVEL: "info"
+
+secrets:
+  - DATABASE_URL
+  - API_KEY
+
+healthcheck:
+  path: /health
+  timeout: 30

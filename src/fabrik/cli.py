@@ -17,6 +17,7 @@ import click
 from fabrik.deploy import deploy_to_coolify
 from fabrik.drivers.coolify import CoolifyClient
 from fabrik.drivers.dns import DNSClient
+from fabrik.orchestrator import DeploymentOrchestrator, DeploymentState
 from fabrik.spec_loader import Kind, create_spec, load_spec, save_spec
 from fabrik.template_renderer import list_templates, render_template
 
@@ -183,14 +184,40 @@ def plan(spec_path: str, secrets: tuple):
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 @click.option("--skip-dns", is_flag=True, help="Skip DNS record creation")
 @click.option("--skip-deploy", is_flag=True, help="Skip Coolify deployment (files only)")
-def apply(spec_path: str, secrets: tuple, yes: bool, skip_dns: bool, skip_deploy: bool):
+@click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
+@click.option("--use-orchestrator", is_flag=True, help="Use new orchestrator pipeline")
+def apply(
+    spec_path: str,
+    secrets: tuple,
+    yes: bool,
+    skip_dns: bool,
+    skip_deploy: bool,
+    dry_run: bool,
+    use_orchestrator: bool,
+):
     """Deploy a service from spec.
 
     Example:
         fabrik apply specs/my-api.yaml -s API_KEY=xxx
         fabrik apply specs/my-api.yaml --yes  # Skip confirmation
+        fabrik apply specs/my-api.yaml --dry-run  # Simulate deployment
     """
-    # Parse secrets
+    # Use orchestrator pipeline if requested or dry-run
+    if use_orchestrator or dry_run:
+        orchestrator = DeploymentOrchestrator()
+        ctx = orchestrator.deploy(Path(spec_path), dry_run=dry_run)
+
+        if ctx.state == DeploymentState.COMPLETE:
+            click.echo(f"✅ Deployment complete: {ctx.deployed_url or ctx.spec.get('domain')}")
+            raise SystemExit(0)
+        elif ctx.state == DeploymentState.ROLLED_BACK:
+            click.echo(f"⚠️  Deployment failed and rolled back: {ctx.error}")
+            raise SystemExit(1)
+        else:
+            click.echo(f"❌ Deployment failed: {ctx.error}")
+            raise SystemExit(1)
+
+    # Legacy path - parse secrets
     secrets_dict = {}
     for s in secrets:
         if "=" not in s:
