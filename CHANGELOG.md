@@ -27,6 +27,27 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+### Added - Automatic Documentation Sync (2026-01-07)
+
+**What:** Created docs_sync.py to check/remind about doc updates after code changes.
+
+**Files:**
+- `scripts/docs_sync.py` - Checks CHANGELOG, tasks.md, phase docs, INDEX.md
+- `scripts/droid-review.sh` - Now calls docs_sync.py after reviews
+
+**Workflow:**
+```
+Code change → droid-review.sh → docs_sync.py → Update flagged docs → Commit
+```
+
+**Checks:**
+- CHANGELOG.md entry exists for code changes
+- tasks.md updated when phase docs change
+- Phase docs updated for implementation work
+- docs/INDEX.md updated when new docs added
+
+---
+
 ### Changed - Scaffold Includes Dashboard + Phase Templates (2026-01-07)
 
 **What:** Updated scaffold templates so new projects get the dashboard structure.

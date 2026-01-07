@@ -92,3 +92,10 @@ echo ""
 droid exec -m "$MODEL" "$FULL_PROMPT
 
 DO NOT make any changes. Only provide review feedback."
+
+# After review, check if docs need updating
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📝 Documentation Sync Check"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+python3 "$FABRIK_ROOT/scripts/docs_sync.py" || true
