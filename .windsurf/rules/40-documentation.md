@@ -8,6 +8,25 @@ globs: ["*.md", "docs/**/*", "specs/**/*"]
 
 ---
 
+## CHANGELOG.md (MANDATORY)
+
+**Every code change MUST update CHANGELOG.md:**
+
+```markdown
+## [Unreleased]
+
+### Added/Changed/Fixed - <Brief Title> (YYYY-MM-DD)
+
+**What:** One-line description
+
+**Files:**
+- `path/to/file.py` - what changed
+```
+
+**No exceptions.** This is enforced by `docs_updater.py`.
+
+---
+
 ## Plan Document Types
 
 ### 1. Exploration Plans (Phase A)

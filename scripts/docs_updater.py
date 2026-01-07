@@ -232,25 +232,35 @@ def build_docs_prompt(files: list[str], change_types: list[str]) -> str:
 
 Follow Fabrik documentation conventions strictly:
 
-1. **Update docs/README.md structure map** if files were added/moved/deleted
-2. **Update relevant docs in docs/reference/** based on change type:
+1. **UPDATE CHANGELOG.md** (MANDATORY for all code changes):
+   - Add entry under `## [Unreleased]` section
+   - Use format: `### Added/Changed/Fixed - <Brief Title> ({datetime.now().strftime("%Y-%m-%d")})`
+   - List what was added/changed/fixed with file paths
+   - Keep entries concise but informative
+
+2. **Update docs/README.md structure map** if files were added/moved/deleted
+
+3. **Update relevant docs in docs/reference/** based on change type:
    - api_endpoint → Update API documentation
    - cli_command → Update CLI reference
    - configuration → Update ENVIRONMENT_VARIABLES.md
    - health_endpoint → Update deployment/health docs
    - database_model → Update data model docs
-3. **Add "Last Updated: {datetime.now().strftime("%Y-%m-%d")}"** to modified docs
-4. **Use clear titles, purpose statements, runnable examples**
-5. **Cross-reference related docs** with relative paths
+
+4. **Add "Last Updated: {datetime.now().strftime("%Y-%m-%d")}"** to modified docs
+
+5. **Use clear titles, purpose statements, runnable examples**
+
+6. **Cross-reference related docs** with relative paths
 
 IMPORTANT:
+- ALWAYS update CHANGELOG.md for code changes - no exceptions
 - Read the changed files to understand what was added/modified
-- Only update documentation that is ACTUALLY out of sync
+- Only update other documentation that is ACTUALLY out of sync
 - Write changes DIRECTLY to the doc files
 - Keep documentation concise and practical
-- If no documentation update is needed, say so and don't modify files
 
-Start by reading the changed files, then update the relevant documentation."""
+Start by reading the changed files, then update CHANGELOG.md first, then other relevant documentation."""
 
 
 def run_docs_update(files: list[str]) -> dict[str, Any]:
