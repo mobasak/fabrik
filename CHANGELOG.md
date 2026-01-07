@@ -12,7 +12,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 **Files:**
 - `scripts/docs_updater.py` - Added --check/--sync/--dry-run modes, CHANGELOG.md as mandatory step 1
-- `scripts/enforcement/check_changelog.py` - Pre-commit hook to enforce CHANGELOG.md updates
+- `scripts/enforcement/check_changelog.py` - Smart pre-commit hook (skips tests/small diffs, validates entry quality)
 - `.pre-commit-config.yaml` - Added changelog-check hook
 - `scripts/enforcement/check_plans.py` - Plan naming validation
 - `scripts/enforcement/validate_conventions.py` - Wired plan checks
