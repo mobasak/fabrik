@@ -97,3 +97,20 @@ class TestDeploymentVerifier:
 
             assert "2 attempts" in str(exc.value)
             assert exc.value.check_type == "health"
+
+    def test_failed_verification_does_not_set_deployed_url(self):
+        """Failed verification should NOT set deployed_url."""
+        verifier = DeploymentVerifier(max_retries=1, retry_interval=0)
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={"name": "test", "domain": "test.example.com"},
+        )
+
+        with patch("fabrik.orchestrator.verifier.urlopen") as mock_urlopen:
+            mock_urlopen.side_effect = Exception("Connection refused")
+
+            with pytest.raises(VerificationError):
+                verifier.verify(ctx)
+
+            # CRITICAL: deployed_url should NOT be set on failure
+            assert ctx.deployed_url is None

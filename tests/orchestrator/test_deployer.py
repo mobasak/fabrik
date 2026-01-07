@@ -36,6 +36,19 @@ class TestServiceDeployer:
 
         assert result is None
 
+    def test_find_existing_api_error_propagates(self):
+        """API errors should propagate (fail fast), not be swallowed."""
+        mock_client = MagicMock()
+        mock_client.list_applications.side_effect = Exception("Coolify API error")
+
+        deployer = ServiceDeployer(coolify_client=mock_client)
+
+        import pytest
+        with pytest.raises(Exception) as exc:
+            deployer.find_existing("my-app")
+
+        assert "Coolify API error" in str(exc.value)
+
     def test_deploy_dry_run(self):
         """Dry run should not call Coolify API."""
         mock_client = MagicMock()
@@ -91,6 +104,25 @@ class TestServiceDeployer:
         assert result == "existing-uuid"
         mock_client.update_application.assert_called_once()
         mock_client.create_application.assert_not_called()
+
+    def test_update_does_not_track_for_rollback(self):
+        """UPDATE should NOT add to created_resources (prevents deleting pre-existing apps)."""
+        mock_client = MagicMock()
+        mock_client.list_applications.return_value = [
+            {"name": "test-app", "uuid": "existing-uuid"},
+        ]
+
+        deployer = ServiceDeployer(coolify_client=mock_client)
+
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={"name": "test-app", "domain": "test.com"},
+        )
+
+        deployer.deploy(ctx)
+
+        # CRITICAL: Update path should NOT track resource for rollback
+        assert len(ctx.created_resources) == 0, "Update should not mark existing app for rollback"
 
     def test_deploy_tracks_resource(self):
         """Deployment should track created resource."""

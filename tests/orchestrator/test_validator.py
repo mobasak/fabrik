@@ -93,6 +93,38 @@ class TestSpecValidator:
 
         assert exc.value.field == "domain"
 
+    def test_validate_blocks_localhost(self):
+        """Block localhost to prevent SSRF."""
+        validator = SpecValidator()
+        spec = {"name": "test", "template": "python-api", "domain": "localhost"}
+
+        with pytest.raises(ValidationError) as exc:
+            validator.validate(spec)
+
+        assert exc.value.field == "domain"
+        assert "Blocked hostname" in str(exc.value)
+
+    def test_validate_blocks_private_ip(self):
+        """Block private IP addresses to prevent SSRF."""
+        validator = SpecValidator()
+
+        for ip in ["127.0.0.1", "10.0.0.1", "192.168.1.1", "172.16.0.1"]:
+            spec = {"name": "test", "template": "python-api", "domain": ip}
+            with pytest.raises(ValidationError) as exc:
+                validator.validate(spec)
+            assert exc.value.field == "domain"
+
+    def test_validate_blocks_internal_tld(self):
+        """Block internal TLDs to prevent SSRF."""
+        validator = SpecValidator()
+
+        for domain in ["app.local", "server.internal", "test.test"]:
+            spec = {"name": "test", "template": "python-api", "domain": domain}
+            with pytest.raises(ValidationError) as exc:
+                validator.validate(spec)
+            assert exc.value.field == "domain"
+            assert "Internal/reserved TLD" in str(exc.value)
+
     def test_validate_secrets_must_be_list(self):
         """Raise ValidationError if secrets is not a list."""
         validator = SpecValidator()

@@ -1,7 +1,9 @@
 """Spec validation for orchestrator."""
 
 import hashlib
+import ipaddress
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +15,79 @@ logger = logging.getLogger(__name__)
 
 REQUIRED_FIELDS = ["name", "template", "domain"]
 OPTIONAL_FIELDS = ["server", "env", "secrets", "healthcheck"]
+
+# Blocked hostnames for SSRF prevention
+BLOCKED_HOSTNAMES = frozenset([
+    "localhost",
+    "localhost.localdomain",
+    "ip6-localhost",
+    "ip6-loopback",
+])
+
+# Valid domain pattern: alphanumeric with hyphens, 2+ parts, valid TLD
+DOMAIN_PATTERN = re.compile(
+    r"^(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(\.[a-zA-Z0-9-]{1,63})*\.[a-zA-Z]{2,}$"
+)
+
+
+def is_private_ip(hostname: str) -> bool:
+    """Check if hostname resolves to a private/reserved IP.
+
+    Args:
+        hostname: Hostname or IP address to check
+
+    Returns:
+        True if private/reserved IP, False otherwise
+    """
+    try:
+        ip = ipaddress.ip_address(hostname)
+        return (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_reserved
+            or ip.is_link_local
+            or ip.is_multicast
+        )
+    except ValueError:
+        # Not an IP address, check if it's a blocked hostname
+        return False
+
+
+def validate_domain_security(domain: str) -> str | None:
+    """Validate domain for SSRF prevention.
+
+    Args:
+        domain: Domain to validate
+
+    Returns:
+        Error message if invalid, None if valid
+    """
+    domain_lower = domain.lower().strip()
+
+    # Block localhost and variants
+    if domain_lower in BLOCKED_HOSTNAMES:
+        return f"Blocked hostname: {domain}"
+
+    # Block raw IP addresses (private ranges)
+    if is_private_ip(domain_lower):
+        return f"Private/reserved IP not allowed: {domain}"
+
+    # Check for IP address format (block all raw IPs for safety)
+    try:
+        ipaddress.ip_address(domain_lower)
+        return f"Raw IP addresses not allowed, use a domain: {domain}"
+    except ValueError:
+        pass  # Not an IP, continue
+
+    # Validate domain format
+    if not DOMAIN_PATTERN.match(domain_lower):
+        return f"Invalid domain format: {domain}"
+
+    # Block internal TLDs
+    if domain_lower.endswith((".local", ".internal", ".test", ".invalid")):
+        return f"Internal/reserved TLD not allowed: {domain}"
+
+    return None
 
 
 def compute_spec_hash(spec: dict[str, Any]) -> str:
@@ -97,15 +172,18 @@ class SpecValidator:
         if not template_path.exists():
             warnings.append(f"Template not found: {template}")
 
-        # Validate domain format
+        # Validate domain format and security (SSRF prevention)
         domain = spec["domain"]
-        if not isinstance(domain, str) or "." not in domain:
-            raise ValidationError("Domain must be a valid hostname", field="domain")
+        if not isinstance(domain, str):
+            raise ValidationError("Domain must be a string", field="domain")
+
+        domain_error = validate_domain_security(domain)
+        if domain_error:
+            raise ValidationError(domain_error, field="domain")
 
         # Validate secrets is a list
-        if "secrets" in spec:
-            if not isinstance(spec["secrets"], list):
-                raise ValidationError("Secrets must be a list", field="secrets")
+        if "secrets" in spec and not isinstance(spec["secrets"], list):
+            raise ValidationError("Secrets must be a list", field="secrets")
 
         # Validate healthcheck
         if "healthcheck" in spec:

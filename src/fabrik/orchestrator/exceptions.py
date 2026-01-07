@@ -47,3 +47,13 @@ class RollbackError(DeploymentError):
     def __init__(self, message: str, resource_type: str | None = None):
         super().__init__(message, step="rolling_back")
         self.resource_type = resource_type
+
+
+class InvalidStateTransitionError(DeploymentError):
+    """Invalid state machine transition attempted."""
+
+    def __init__(self, from_state: str, to_state: str):
+        message = f"Invalid state transition: {from_state} -> {to_state}"
+        super().__init__(message, step="state_transition")
+        self.from_state = from_state
+        self.to_state = to_state

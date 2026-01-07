@@ -57,10 +57,15 @@ class DeploymentVerifier:
         path = healthcheck.get("path", DEFAULT_HEALTHCHECK_PATH)
 
         url = f"https://{domain}{path}"
-        ctx.deployed_url = f"https://{domain}"
 
         logger.info("Verifying deployment at %s", url)
-        return self._check_health(url)
+        result = self._check_health(url)
+
+        # Only set deployed_url AFTER successful verification
+        if result:
+            ctx.deployed_url = f"https://{domain}"
+
+        return result
 
     def _check_health(self, url: str) -> bool:
         """Check health endpoint with retries.

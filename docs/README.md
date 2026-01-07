@@ -1,6 +1,6 @@
 # Fabrik Documentation
 
-**Last Updated:** 2026-01-06
+**Last Updated:** 2026-01-07
 
 ---
 
@@ -43,6 +43,7 @@ docs/
 │   ├── enforcement-system.md       # Convention enforcement (check scripts, rules)
 │   ├── droid-validation-report.md  # Validation report format
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
+│   ├── orchestrator.md             # Deployment orchestrator module (Phase 10)
 │   ├── factory-enterprise.md       # Factory Enterprise overview
 │   ├── factory-hooks.md            # Factory hook catalog
 │   ├── factory-skills.md           # Factory skills catalog

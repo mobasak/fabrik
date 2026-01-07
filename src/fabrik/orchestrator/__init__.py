@@ -11,6 +11,7 @@ from fabrik.orchestrator.deployer import ServiceDeployer
 from fabrik.orchestrator.exceptions import (
     DeployError,
     DeploymentError,
+    InvalidStateTransitionError,
     ProvisioningError,
     RollbackError,
     ValidationError,
@@ -133,13 +134,13 @@ class DeploymentOrchestrator:
         return ctx
 
     def _transition(self, ctx: DeploymentContext, new_state: DeploymentState) -> None:
-        """Transition to a new state with validation."""
+        """Transition to a new state with validation.
+
+        Raises:
+            InvalidStateTransitionError: If transition is not allowed
+        """
         if ctx.state != new_state:
             if not can_transition(ctx.state, new_state):
-                logger.warning(
-                    "Invalid state transition: %s -> %s",
-                    ctx.state.name,
-                    new_state.name,
-                )
+                raise InvalidStateTransitionError(ctx.state.name, new_state.name)
             ctx.state = new_state
             logger.debug("State: %s", new_state.name)

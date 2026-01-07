@@ -65,3 +65,27 @@ class TestStateTransitions:
     def test_verifying_to_complete(self):
         """Can transition from VERIFYING to COMPLETE."""
         assert can_transition(DeploymentState.VERIFYING, DeploymentState.COMPLETE)
+
+
+class TestInvalidStateTransitionError:
+    """Test that orchestrator raises on invalid transitions."""
+
+    def test_invalid_transition_raises(self):
+        """Orchestrator should raise InvalidStateTransitionError on invalid transition."""
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from fabrik.orchestrator import DeploymentOrchestrator
+        from fabrik.orchestrator.context import DeploymentContext
+        from fabrik.orchestrator.exceptions import InvalidStateTransitionError
+
+        orchestrator = DeploymentOrchestrator()
+        ctx = DeploymentContext(spec_path=Path("test.yaml"))
+
+        # Try invalid transition: PENDING -> COMPLETE (skips all steps)
+        import pytest
+        with pytest.raises(InvalidStateTransitionError) as exc:
+            orchestrator._transition(ctx, DeploymentState.COMPLETE)
+
+        assert exc.value.from_state == "PENDING"
+        assert exc.value.to_state == "COMPLETE"

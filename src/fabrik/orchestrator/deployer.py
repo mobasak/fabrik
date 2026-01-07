@@ -41,17 +41,17 @@ class ServiceDeployer:
 
         Returns:
             Application info dict or None if not found
+
+        Raises:
+            DeployError: If Coolify API call fails (fail fast, don't hide errors)
         """
-        try:
-            apps = self.client.list_applications()
-            for app in apps:
-                if app.get("name") == name:
-                    logger.info("Found existing deployment: %s (uuid=%s)", name, app.get("uuid"))
-                    return app
-            return None
-        except Exception as e:
-            logger.warning("Could not check for existing deployment: %s", e)
-            return None
+        # Fail fast on API errors - don't swallow and risk duplicate deployments
+        apps = self.client.list_applications()
+        for app in apps:
+            if app.get("name") == name:
+                logger.info("Found existing deployment: %s (uuid=%s)", name, app.get("uuid"))
+                return app
+        return None
 
     def deploy(self, ctx: DeploymentContext) -> str:
         """Deploy or update a service.
@@ -80,12 +80,15 @@ class ServiceDeployer:
                 uuid = existing["uuid"]
                 logger.info("Updating existing deployment: %s", uuid)
                 self._update_deployment(uuid, ctx)
+                # NOTE: Do NOT add to created_resources on UPDATE
+                # Only rollback resources we CREATE, not pre-existing ones
             else:
                 logger.info("Creating new deployment: %s", name)
                 uuid = self._create_deployment(ctx)
+                # Only track newly created resources for rollback
+                ctx.add_resource("coolify", uuid, name=name)
 
             ctx.coolify_uuid = uuid
-            ctx.add_resource("coolify", uuid, name=name)
             return uuid
 
         except Exception as e:
