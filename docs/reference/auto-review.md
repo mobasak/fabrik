@@ -154,7 +154,7 @@ The processor only runs the documentation update routine for queue items flagged
 When invoked, the docs pass updates:
 - `docs/reference/` for API changes
 - `docs/CONFIGURATION.md` for configuration changes
-- `docs/README.md` structure map when docs are added, moved, or removed
+- `docs/INDEX.md` structure map when docs are added, moved, or removed
 
 ---
 

@@ -281,7 +281,7 @@ Cascade will show:
 |-------|--------|------|
 | 1 | Create missing required files | Safe - adds new files |
 | 2 | Create docs/ subfolders | Safe - adds structure |
-| 3 | Update docs/README.md index | Safe - new content |
+| 3 | Update docs/INDEX.md index | Safe - new content |
 | 4 | Move files to proper locations | Medium - confirm each |
 | 5 | Archive obsolete docs | Medium - review list first |
 | 6 | Remove duplicates | High - explicit approval only |
@@ -299,7 +299,7 @@ Verify the documentation structure matches the standard. List any gaps.
 For existing projects:
 
 - [ ] Create `docs/` folder if missing
-- [ ] Add `docs/README.md` index
+- [ ] Add `docs/INDEX.md` index
 - [ ] Add `docs/QUICKSTART.md`
 - [ ] Add `docs/CONFIGURATION.md`
 - [ ] Add `docs/TROUBLESHOOTING.md`

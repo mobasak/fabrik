@@ -185,7 +185,7 @@ scenarios:
 
 The updater follows these conventions (from AGENTS.md):
 
-1. **Update docs/README.md structure map** if files added/moved/deleted
+1. **Update docs/INDEX.md structure map** if files added/moved/deleted
 2. **Update relevant docs in docs/reference/** based on change type
 3. **Add "Last Updated: YYYY-MM-DD"** to modified docs
 4. **Use clear titles, purpose statements, runnable examples**

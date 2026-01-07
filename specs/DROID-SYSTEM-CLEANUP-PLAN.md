@@ -289,4 +289,4 @@ Phase 0 (Prerequisites) → Phase 4 (--git-diff flag) → Phase 2 (Model registr
 ### Documentation
 - `docs/reference/enforcement-system.md`
 - `AGENTS.md`
-- `docs/README.md`
+- `docs/INDEX.md`

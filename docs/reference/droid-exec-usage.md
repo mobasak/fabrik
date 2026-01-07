@@ -227,7 +227,7 @@ Commands run automatically only when `risk ≤ autonomy_level`. Higher risk = CL
 
 **`--auto low`** — Quick file updates and reconnaissance:
 ```bash
-droid exec --auto low "Update docs/README.md with new instructions"
+droid exec --auto low "Update docs/INDEX.md with new instructions"
 # Edits and read-only checks run without prompts
 # Dependency changes still ask first
 ```

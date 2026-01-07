@@ -6,6 +6,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Rename docs/README.md to docs/INDEX.md (2026-01-07)
+
+**What:** Standardized documentation index naming to avoid confusion with root README.md.
+
+**Files:**
+- `docs/README.md` → `docs/INDEX.md` - Renamed
+- Updated 17 files with 29 references to use new path
+
+---
+
 ### Added - Documentation Automation System (2026-01-07)
 
 **What:** Automated documentation system with mandatory CHANGELOG.md updates, pre-commit enforcement, and port validation.
@@ -113,7 +123,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 **Documentation:**
 - Updated `docs/reference/SaaS-GUI.md` with implementation reference
-- Updated `docs/README.md` with template link
+- Updated `docs/INDEX.md` with template link
 
 ---
 
@@ -215,7 +225,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `.pre-commit-config.yaml` for automated code quality checks (ruff, mypy, bandit)
 - `Makefile` with standard targets (install, dev, test, lint, format, clean)
 - `uv.lock` for reproducible dependency installations (40 packages pinned)
-- Comprehensive documentation index in `docs/README.md`
+- Comprehensive documentation index in `docs/INDEX.md`
 
 ### Changed
 

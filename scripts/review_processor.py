@@ -441,7 +441,7 @@ Check if documentation needs updating:
 1. If API endpoints changed, update docs/reference/
 2. If CLI commands changed, update relevant docs
 3. If config options changed, update CONFIGURATION.md
-4. Update docs/README.md structure map if files were added/moved
+4. Update docs/INDEX.md structure map if files were added/moved
 
 Only make changes if documentation is actually out of sync."""
 

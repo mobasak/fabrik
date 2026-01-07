@@ -35,7 +35,7 @@ pip install -e .
 | [Configuration](docs/CONFIGURATION.md) | Settings and options |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues |
 
-See [docs/README.md](docs/README.md) for full documentation index.
+See [docs/INDEX.md](docs/INDEX.md) for full documentation index.
 
 ## Project Structure
 

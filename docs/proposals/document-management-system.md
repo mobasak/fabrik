@@ -16,7 +16,7 @@ Current state:
 ### From Fabrik Conventions (windsurfrules, AGENTS.md)
 
 1. **Every code change requires documentation update** - No exceptions
-2. **Update docs/README.md structure map** if adding/moving/deleting files
+2. **Update docs/INDEX.md structure map** if adding/moving/deleting files
 3. **Add Last Updated date** to modified docs: `**Last Updated:** YYYY-MM-DD`
 4. **Archive, don't delete** obsolete docs → `docs/archive/YYYY-MM-DD-topic/`
 5. **Clear title, purpose statement, runnable examples, cross-references**
@@ -138,7 +138,7 @@ def update_docs(changed_files: list[str]):
     prompt = f"""Files changed: {changed_files}
 
     Update documentation following Fabrik conventions:
-    1. Update docs/README.md structure map if files added/moved
+    1. Update docs/INDEX.md structure map if files added/moved
     2. Update relevant docs in docs/reference/
     3. Add Last Updated date
     4. Output as git patch format for review
@@ -235,7 +235,7 @@ $ python scripts/review_docs.py
 
     [A]ccept [R]eject [E]dit [D]iff [S]kip?
 
-[3] docs/README.md
+[3] docs/INDEX.md
     ~ Updated structure map (no new files)
 
     [A]ccept [R]eject [E]dit [D]iff [S]kip?

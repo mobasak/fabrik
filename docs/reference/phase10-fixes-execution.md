@@ -161,12 +161,12 @@ EVIDENCE REQUIRED:
 ```text
 DO:
 - Run full test suite
-- Update docs/README.md with orchestrator entry
+- Update docs/INDEX.md with orchestrator entry
 - Mark phase10.md as complete
 
 GATE:
 - CANONICAL GATE passes
-- docs/README.md contains orchestrator section
+- docs/INDEX.md contains orchestrator section
 
 EVIDENCE REQUIRED:
 - Full pytest output (66+ tests)

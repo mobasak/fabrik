@@ -74,7 +74,7 @@ In particular, timestamps/stamps inside `<!-- AUTO-GENERATED:* -->` blocks MUST 
 | Type | Purpose | Authority |
 |------|---------|-----------|
 | `docs/reference/*` | What the system *is* | Enforced |
-| `docs/README.md` | Structure map | Auto-generated (bounded) |
+| `docs/INDEX.md` | Structure map | Auto-generated (bounded) |
 | `docs/development/plans/*` | What we *intend to build* | Agent-created |
 | `docs/development/PLANS.md` | Plan index | Auto-indexed (bounded) |
 | `tasks.md` | What is being executed | Human / agent |
@@ -238,7 +238,7 @@ Do NOT add indexing checks to `validate_conventions.py` to avoid duplicated/cont
 ### Step 4 — Auto-Block Markers (Migration)
 
 **DO:**
-1. Add to `docs/README.md`:
+1. Add to `docs/INDEX.md`:
    ```markdown
    <!-- AUTO-GENERATED:STRUCTURE:START -->
    <!-- AUTO-GENERATED:STRUCTURE v1 | YYYY-MM-DDTHH:MMZ -->
@@ -247,7 +247,7 @@ Do NOT add indexing checks to `validate_conventions.py` to avoid duplicated/cont
    ```
 2. Preserve existing manual content outside blocks
 
-**GATE:** `grep -q "AUTO-GENERATED:STRUCTURE" docs/README.md`
+**GATE:** `grep -q "AUTO-GENERATED:STRUCTURE" docs/INDEX.md`
 
 **EVIDENCE:**
 - Markers present
@@ -537,7 +537,7 @@ def test_stub_creation_skips_existing():
 | `scripts/enforcement/validate_conventions.py` | Extend (add plan validation) |
 | `Makefile` | Create |
 | `scripts/check.sh` | Create |
-| `docs/README.md` | Add markers |
+| `docs/INDEX.md` | Add markers |
 | `scripts/docs_updater.py` | Extend |
 | `templates/docs/MODULE_REFERENCE_TEMPLATE.md` | Create |
 | `tests/test_docs_updater.py` | Create |

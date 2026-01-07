@@ -34,7 +34,7 @@ def check_new_module_docs(changed_files: list[Path]) -> list[CheckResult]:
     for module_path in new_modules:
         module_name = module_path.name
 
-        # Check if docs/README.md mentions the module
+        # Check if docs/INDEX.md mentions the module
         readme_has_mention = False
         if readme_path.exists():
             content = readme_path.read_text()
@@ -56,7 +56,7 @@ def check_new_module_docs(changed_files: list[Path]) -> list[CheckResult]:
                     severity=Severity.WARN,
                     message=f"New module '{module_name}' has no documentation",
                     file_path=str(module_path / "__init__.py"),
-                    fix_hint=f"Add entry to docs/README.md or create docs/reference/{module_name}.md",
+                    fix_hint=f"Add entry to docs/INDEX.md or create docs/reference/{module_name}.md",
                 )
             )
 

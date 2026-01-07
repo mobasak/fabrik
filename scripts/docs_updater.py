@@ -238,7 +238,7 @@ Follow Fabrik documentation conventions strictly:
    - List what was added/changed/fixed with file paths
    - Keep entries concise but informative
 
-2. **Update docs/README.md structure map** if files were added/moved/deleted
+2. **Update docs/INDEX.md structure map** if files were added/moved/deleted
 
 3. **Update relevant docs in docs/reference/** based on change type:
    - api_endpoint → Update API documentation
@@ -476,7 +476,7 @@ def update_single_file(file_path: str) -> None:
 
 PLANS_DIR = FABRIK_ROOT / "docs" / "development" / "plans"
 PLANS_INDEX = FABRIK_ROOT / "docs" / "development" / "PLANS.md"
-README_PATH = FABRIK_ROOT / "docs" / "README.md"
+README_PATH = FABRIK_ROOT / "docs" / "INDEX.md"
 TEMPLATE_PATH = FABRIK_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE.md"
 
 STRUCTURE_BLOCK_RE = re.compile(
@@ -654,7 +654,7 @@ def validate_docs() -> tuple[bool, list[str]]:
     if README_PATH.exists():
         readme = README_PATH.read_text()
         if "<!-- AUTO-GENERATED:STRUCTURE:START -->" not in readme:
-            issues.append("docs/README.md missing STRUCTURE auto-block markers")
+            issues.append("docs/INDEX.md missing STRUCTURE auto-block markers")
 
     if PLANS_INDEX.exists():
         plans_md = PLANS_INDEX.read_text()

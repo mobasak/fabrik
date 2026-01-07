@@ -243,7 +243,7 @@ services:
 
 ### When Making Changes
 
-1. **Update docs/README.md structure map** if adding/moving/deleting files
+1. **Update docs/INDEX.md structure map** if adding/moving/deleting files
 2. **Update relevant docs** in same commit as code changes
 3. **Add Last Updated date** to modified docs: `**Last Updated:** YYYY-MM-DD`
 4. **Archive, don't delete** obsolete docs → `docs/archive/YYYY-MM-DD-topic/`
@@ -277,7 +277,7 @@ command --example
 
 ### Quick Checks Before Commit
 
-- [ ] `docs/README.md` structure map current?
+- [ ] `docs/INDEX.md` structure map current?
 - [ ] Changed files have updated Last Updated date?
 - [ ] New features documented?
 - [ ] Removed features archived or deleted from docs?

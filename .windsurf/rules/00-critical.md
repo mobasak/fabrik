@@ -88,6 +88,20 @@ async def health():
 | Hardcoded localhost | `os.getenv()` |
 | Alpine base images | `python:3.12-slim-bookworm` |
 | Class-level config | Function-level loading |
+---
+
+## Cascade Behavior Rules (STRICT)
+
+| Rule | Description |
+|------|-------------|
+| **Check before create** | ALWAYS verify file exists (`ls`, `find`, `read_file`) before `write_to_file` |
+| **Present before execute** | Present solution/plan first, wait for user approval, then execute |
+| **No unsolicited advice** | Never suggest breaks, lifestyle tips, or non-task commentary |
+
+**Violations:**
+- Attempting to create a file that already exists = STOP, acknowledge error
+- Executing commands without presenting plan first = violation
+- Suggesting breaks or personal advice = violation
 
 ---
 
