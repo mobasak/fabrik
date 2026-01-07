@@ -69,7 +69,8 @@ Violations will fail CI and must be fixed before merge.
 python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 
 # 2. Trigger code review (if significant changes)
-droid exec -m gemini-3-flash-preview "Review <files> for Fabrik conventions"
+# Get model dynamically: python3 scripts/droid_models.py recommend code_review
+droid exec "Review <files> for Fabrik conventions. DO NOT make changes."
 
 # 3. Update documentation
 # If you changed code in src/, scripts/, update relevant docs/
@@ -83,10 +84,12 @@ droid exec -m gemini-3-flash-preview "Review <files> for Fabrik conventions"
 
 For IDE-specific rules, see `.windsurf/rules/`:
 - `00-critical.md` — Security, env vars, ports (Always On)
-- `10-python.md` — FastAPI patterns (*.py files)
-- `20-typescript.md` — Next.js patterns (*.ts files)
-- `30-ops.md` — Docker/deployment (Dockerfile, compose.yaml)
-- `90-automation.md` — droid exec integration (Manual @mention)
+- `10-python.md` — FastAPI patterns (*.py glob)
+- `20-typescript.md` — Next.js patterns (*.ts, *.tsx glob)
+- `30-ops.md` — Docker/deployment (Always On)
+- `40-documentation.md` — Plan documents, writing style (Always On)
+- `50-code-review.md` — Execution protocol, PLAN→APPROVE→IMPLEMENT→REVIEW→FIX→VALIDATE→NEXT (Always On)
+- `90-automation.md` — droid exec integration, skills, batch scripts (Always On)
 
 ## Build & Test
 
@@ -289,6 +292,8 @@ command --example
 | Verify | `test, health` | gpt-5.1-codex-max / gemini-3-flash-preview | low/off | **high** |
 | Ship | `deploy` | gemini-3-flash-preview | off | **high** |
 
+**Get current models:** `python3 scripts/droid_models.py stack-rank`
+
 **Mixed Models:** Use premium models with high reasoning for planning (`spec`), fast models for implementation (`code`).
 
 **Code Review (Dual-Model):** Always use BOTH models from config, not alternatives:
@@ -381,9 +386,10 @@ droid exec --auto high "Fix bug, test, commit, and push"
 droid exec --use-spec "Add user authentication feature"
 droid exec --use-spec --auto medium "Refactor auth module"
 
-# Model selection
-droid exec -m gemini-3-flash-preview "Quick analysis"
-droid exec -m gpt-5.1-codex-max -r high "Complex refactoring"
+# Model selection (get current names from config/models.yaml)
+# python3 scripts/droid_models.py recommend <scenario>
+droid exec -m <model> "Quick analysis"
+droid exec -m <model> -r high "Complex refactoring"
 
 # Output formats
 droid exec -o json "Analyze code"           # Structured for scripts
@@ -506,7 +512,7 @@ Settings file: `~/.factory/settings.json`
 
 Key Fabrik settings:
 - `autonomyLevel`: `auto-high` (full auto coding)
-- `model`: `gpt-5.1-codex-max`
+- `model`: See `config/models.yaml` for current recommendations
 - `reasoningEffort`: `high`
 - `specSaveEnabled`: `true`
 
