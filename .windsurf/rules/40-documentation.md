@@ -5,47 +5,47 @@ globs: ["*.md", "docs/**/*", "specs/**/*"]
 
 ---
 
-## Plan Document Structure (MANDATORY)
+## Plan Document Types
 
-All plan documents (`phaseX.md`, `*_PLAN.md`) MUST follow this structure:
+### 1. Exploration Plans (Phase A)
+Use `templates/docs/PLAN_TEMPLATE.md` for **research and design** phase:
+- The Problem
+- The Solution
+- What We're Building
+- How It Works
+- What This Fixes
+- Timeline
 
-```markdown
-# Phase X: [Feature Name]
+### 2. Execution Plans (Phase B)
+Use `templates/docs/EXECUTION_PLAN_TEMPLATE.md` for **locked implementation**:
+- Task Metadata (goal, done-when, out-of-scope)
+- Constraints
+- Canonical Gate
+- 5-7 Execution Steps (DO → GATE → EVIDENCE)
+- Stop Conditions
 
-**What is this?** One sentence.
+## When to Use Which
 
----
+| Situation | Template |
+|-----------|----------|
+| New feature exploration | PLAN_TEMPLATE.md |
+| Locked implementation | EXECUTION_PLAN_TEMPLATE.md |
+| Bug fix | EXECUTION_PLAN_TEMPLATE.md |
+| Refactoring | EXECUTION_PLAN_TEMPLATE.md |
 
-## The Problem
-Why things are broken. Plain language, bullet points.
+## Execution Plan Rules (STRICT)
 
-## The Solution
-One paragraph + user flow showing what happens automatically.
-
-## What We're Building
-Table: File/Component | What it does
-
-## How It Works (Step by Step)
-Step 1, Step 2, Step 3... in plain words.
-
-## What This Fixes
-Table: Before | After
-
-## Timeline
-Table: Phase | Days | What happens
-
-## What We're NOT Building (Yet)
-Deferred features list.
-
-## Success = When This Works
-Code block showing happy path.
+```text
+- Follow steps exactly in order
+- Do NOT redesign or change scope
+- One step at a time
+- After each step: show Evidence + Gate result
+- If a Gate fails → STOP and report
 ```
-
-**Template:** `templates/docs/PLAN_TEMPLATE.md`
 
 ## Writing Style
 
-- **Plain language** — No jargon unless necessary
-- **Show don't tell** — Use examples and code blocks
+- **Plain language** — No jargon
+- **Show don't tell** — Use examples
 - **Before/After tables** — Make improvements obvious
-- **Step-by-step** — Break complex flows into numbered steps
+- **5-7 steps max** — Human-manageable
