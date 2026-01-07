@@ -2345,5 +2345,149 @@ If a phase encounters major issues:
 
 ---
 
-*Last updated: January 2025*
+---
+
+## Architecture & Configuration Reference
+
+*Merged from droid-exec-complete-guide.md*
+
+### Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| **Factory CLI** | `droid` command | AI coding agent |
+| **Settings** | `~/.factory/settings.json` | Global configuration |
+| **Hooks** | `~/.factory/hooks/` or `.factory/hooks/` | Pre/post execution scripts |
+| **Skills** | `~/.factory/skills/` | Auto-invoked capabilities |
+| **MCP Servers** | `.factory/mcp.json` | External tool integrations |
+| **AGENTS.md** | Project root | Project-specific agent briefing |
+
+### Data Flow
+
+```
+User Request
+    ↓
+Windsurf Cascade (IDE)
+    ↓
+droid exec --auto high "task"
+    ↓
+Factory CLI reads:
+  - ~/.factory/settings.json (autonomy, model, allowlist)
+  - .factory/hooks.json (pre/post hooks)
+  - AGENTS.md (project context)
+    ↓
+LLM processes task
+    ↓
+Commands executed (filtered by allowlist/denylist)
+    ↓
+Results returned
+```
+
+### Settings File: `~/.factory/settings.json`
+
+```json
+{
+  "model": "claude-sonnet-4-5-20250929",
+  "reasoningEffort": "high",
+  "autonomyLevel": "auto-high",
+  "cloudSessionSync": true,
+  "enableHooks": true,
+  "enableSkills": true,
+  "specSaveEnabled": true,
+  "specModeReasoningEffort": "high",
+  "commandAllowlist": ["..."],
+  "commandDenylist": ["..."]
+}
+```
+
+### Command Allowlist (Fabrik Defaults)
+
+```
+File ops:      cat, head, tail, grep, find, mkdir, cp, mv, touch
+Git:           All git commands
+Package mgmt:  pip, npm, yarn, apt
+Docker:        build, run, compose, ps, logs, exec, stop, start
+Dev tools:     python, node, pytest, ruff, mypy, uvicorn
+Remote:        ssh vps, rsync, scp
+Safe cleanup:  rm -rf .venv, node_modules, __pycache__, .tmp
+```
+
+### Command Denylist (Always Blocked)
+
+```
+System destruction:  rm -rf /, rm -rf ~, rm -rf /etc, /usr, /home
+Disk operations:     mkfs, dd of=/dev
+System control:      shutdown, reboot, halt, poweroff
+Permission hazards:  chmod -R 777 /, chown -R
+Fork bombs:          :(){ :|: & };:
+```
+
+### Hooks System
+
+| Hook | When | Use Case |
+|------|------|----------|
+| `PreToolUse` | Before tool execution | Block dangerous patterns |
+| `PostToolUse` | After tool execution | Validate results, scan secrets |
+| `SessionStart` | Session begins | Load context |
+| `Notification` | Status updates | Alerts |
+
+### Fabrik Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `secret-scanner.py` | Scans for hardcoded credentials |
+| `fabrik-conventions.py` | Enforces Fabrik patterns |
+| `protect-files.sh` | Prevents editing protected files |
+| `format-python.sh` | Auto-formats Python code |
+| `log-commands.sh` | Logs all bash commands |
+| `session-context.py` | Loads project context |
+| `notify.sh` | Desktop notifications |
+
+### Skills System
+
+| Skill | Triggers On | What It Does |
+|-------|-------------|--------------|
+| `fabrik-saas-scaffold` | "SaaS", "web app", "dashboard" | Full Next.js SaaS template |
+| `fabrik-scaffold` | "new project", "create service" | Python service scaffold |
+| `fabrik-docker` | "dockerfile", "compose" | Docker/Compose setup |
+| `fabrik-health-endpoint` | "health", "healthcheck" | Proper health endpoints |
+| `fabrik-config` | "config", "environment" | os.getenv() patterns |
+| `fabrik-preflight` | "preflight", "deploy ready" | Pre-deploy validation |
+| `fabrik-api-endpoint` | "endpoint", "route", "API" | FastAPI patterns |
+| `fabrik-watchdog` | "watchdog", "monitor" | Service monitoring |
+| `fabrik-postgres` | "database", "postgres" | PostgreSQL + pgvector |
+
+### File Locations Summary
+
+#### Global (User)
+
+| File | Purpose |
+|------|---------|
+| `~/.factory/settings.json` | CLI configuration |
+| `~/.factory/hooks/` | User-level hooks |
+| `~/.factory/skills/` | User-level skills |
+| `~/.factory/commands/` | Custom slash commands |
+
+#### Project-Level
+
+| File | Purpose |
+|------|---------|
+| `.factory/hooks.json` | Project hook configuration |
+| `.factory/mcp.json` | MCP server configuration |
+| `.factory/settings.json` | Project settings override |
+| `AGENTS.md` | Agent briefing (auto-loaded) |
+
+#### Fabrik-Specific
+
+| File | Purpose |
+|------|---------|
+| `/opt/fabrik/config/models.yaml` | Model rankings & scenarios |
+| `/opt/fabrik/scripts/droid_tasks.py` | Task runner |
+| `/opt/fabrik/scripts/droid_models.py` | Model registry |
+| `/opt/fabrik/scripts/droid_model_updater.py` | Auto-update from Factory docs |
+| `/opt/fabrik/.factory/hooks/` | Fabrik hooks |
+
+---
+
+**Last Updated:** 2026-01-07
 *Source: https://docs.factory.ai/pricing, https://docs.factory.ai/cli/user-guides/choosing-your-model, https://docs.factory.ai/cli/settings, https://docs.factory.ai/headless/automated-code-review, https://docs.factory.ai/headless/github-actions, https://docs.factory.ai/headless/building-interactive-apps, https://docs.factory.ai/cli/getting-started/how-to-talk-to-a-droid, https://docs.factory.ai/cli/user-guides/specification-mode, https://docs.factory.ai/cli/getting-started/common-use-cases, https://docs.factory.ai/cli/getting-started/become-a-power-user, https://docs.factory.ai/cli/user-guides/implementing-large-features*

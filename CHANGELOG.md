@@ -6,6 +6,28 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Droid Review Meta-Prompt and Enforcement Memories (2026-01-07)
+
+**What:** Created adaptive review prompt template and enforcement memories for Cascade behavior.
+
+**Files:**
+- `templates/droid/review-meta-prompt.md` - Adaptive prompt for plan/code/docs reviews
+- `docs/reference/droid-exec-usage.md` - Merged architecture sections from complete-guide
+- `docs/reference/wordpress/plugin-stack.md` - Added plugin activation workarounds section
+
+**Archived:**
+- `docs/reference/droid-validation-report.md` → `docs/archive/2025-01-03-droid-validation/`
+- `docs/reference/droid-exec-complete-guide.md` - Merged and deleted
+
+**New Memories Created:**
+- Droid Review Prompt Location (pointer to meta-prompt)
+- Check templates before creating docs (enforcement)
+- Verify file existence before write (enforcement)
+- Present plan, wait for approval (enforcement)
+- Follow Fabrik doc structure (enforcement)
+
+---
+
 ### Added - Project Structure Enforcement (2026-01-07)
 
 **What:** Enforce document placement in correct locations per Fabrik conventions.

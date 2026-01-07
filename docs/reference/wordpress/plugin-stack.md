@@ -715,3 +715,29 @@ Install when **at least one** is true:
 | Digital products | edd | Base + Fluent Stack + AutomatorWP FluentCRM + PYS |
 | Membership | memberpress | Base + Fluent Stack + AutomatorWP FluentCRM + PYS |
 | Appointments | bookly | Base + Fluent Stack + AutomatorWP FluentCRM + PYS |
+
+---
+
+# PLUGIN ACTIVATION WORKAROUNDS
+
+**Purpose:** Workarounds for premium plugins that require license activation but are used without valid licenses.
+
+> Premium plugins without auto-update. Custom update mechanism will be used.
+
+## WPML WordPress Multilingual CMS
+
+1. Edit `wp-content/plugins/sitepress-multilingual-cms/classes/setup/endpoints/LicenseStep.php`
+2. Line 36: change `'repository_id' => 'wpml'` to `'repository_id' => 'true'`
+3. At WPML Setup, enter any text or site name for license input
+
+## Content Egg Pro
+
+1. Enter any string in license field (e.g., "123")
+
+## General Notes
+
+- All paid plugins have no auto-update
+- Custom update mechanism will be implemented
+- Check `/opt/fabrik/templates/wordpress/plugins/premium/` for placed plugins
+
+**Last Updated:** 2026-01-07
