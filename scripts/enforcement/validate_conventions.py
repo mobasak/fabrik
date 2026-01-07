@@ -86,6 +86,13 @@ def run_check_watchdog(file_path: Path) -> list[CheckResult]:
     return check_file(file_path)
 
 
+def run_check_plans(file_path: Path) -> list[CheckResult]:
+    """Check plan document conventions (location + naming only)."""
+    from .check_plans import check_file
+
+    return check_file(file_path)
+
+
 def run_all_checks(file_path: Path) -> list[CheckResult]:
     """Run all applicable checks for a file."""
     results: list[CheckResult] = []
@@ -101,6 +108,7 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
         # Check for docs on new modules
         if name == "__init__.py":
             from .check_docs import check_file as check_docs
+
             results.extend(check_docs(file_path))
 
     # TypeScript/JavaScript files
@@ -121,6 +129,10 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
     # All files get port check if they contain port definitions
     if suffix in (".py", ".ts", ".tsx", ".js", ".yaml", ".yml"):
         results.extend(run_check_ports(file_path))
+
+    # Markdown files - check plan conventions
+    if suffix == ".md":
+        results.extend(run_check_plans(file_path))
 
     return results
 

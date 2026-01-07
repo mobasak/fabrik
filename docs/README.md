@@ -6,6 +6,8 @@
 
 ## Structure Map
 
+<!-- AUTO-GENERATED:STRUCTURE:START -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-01-07T10:20Z -->
 ```text
 docs/
 ├── README.md                       # This file - documentation index
@@ -95,6 +97,7 @@ docs/
         └── LONG_COMMAND_MONITORING.md
     └── 2026-01-04-monitoring-design/ # Superseded design docs
 ```
+<!-- AUTO-GENERATED:STRUCTURE:END -->
 
 ---
 

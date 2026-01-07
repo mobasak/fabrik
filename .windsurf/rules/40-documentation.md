@@ -1,3 +1,6 @@
+---
+trigger: always_on
+---
 # Documentation Rules
 
 activation: glob

@@ -48,6 +48,12 @@ format:
 pre-commit:
 	pre-commit run --all-files
 
+check:
+	./scripts/check.sh
+
+docs-check:
+	python scripts/docs_updater.py --check
+
 # ============================================================
 # Cleanup
 # ============================================================

@@ -26,6 +26,7 @@ import argparse
 import fcntl
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -459,14 +460,253 @@ def update_single_file(file_path: str) -> None:
         print(f"✗ Failed: {result.get('result', 'unknown error')}")
 
 
+# =============================================================================
+# Documentation Structure Automation (docs-automation plan)
+# =============================================================================
+
+PLANS_DIR = FABRIK_ROOT / "docs" / "development" / "plans"
+PLANS_INDEX = FABRIK_ROOT / "docs" / "development" / "PLANS.md"
+README_PATH = FABRIK_ROOT / "docs" / "README.md"
+TEMPLATE_PATH = FABRIK_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE.md"
+
+STRUCTURE_BLOCK_RE = re.compile(
+    r"(<!-- AUTO-GENERATED:STRUCTURE:START -->).*?(<!-- AUTO-GENERATED:STRUCTURE:END -->)",
+    re.S,
+)
+PLANS_BLOCK_RE = re.compile(
+    r"(<!-- AUTO-GENERATED:PLANS:START -->).*?(<!-- AUTO-GENERATED:PLANS:END -->)",
+    re.S,
+)
+
+
+def is_public_module(p: Path) -> bool:
+    """Only create stubs for modules with __all__ or README.md."""
+    if not (p / "__init__.py").exists():
+        return False
+    if (p / "README.md").exists():
+        return True
+    init = (p / "__init__.py").read_text(encoding="utf-8", errors="ignore")
+    return "__all__" in init
+
+
+def detect_new_modules() -> list[Path]:
+    """Find public src/fabrik/*/ without docs/reference/*.md."""
+    base = FABRIK_ROOT / "src" / "fabrik"
+    if not base.exists():
+        return []
+    mods = []
+    for d in base.iterdir():
+        if d.is_dir() and is_public_module(d):
+            ref = FABRIK_ROOT / "docs" / "reference" / f"{d.name}.md"
+            if not ref.exists():
+                mods.append(d)
+    return mods
+
+
+def extract_block_body(text: str, block_re: re.Pattern) -> str | None:
+    """Extract current body from bounded block (excluding stamp line)."""
+    match = block_re.search(text)
+    if not match:
+        return None
+    content = match.group(0)
+    lines = content.split("\n")
+    body_lines = [line for line in lines if not line.startswith("<!--")]
+    return "\n".join(body_lines).strip()
+
+
+def replace_block(
+    text: str, new_body: str, block_re: re.Pattern, block_name: str
+) -> tuple[str, bool]:
+    """Replace block only if body changed; do not update stamp otherwise."""
+    current_body = extract_block_body(text, block_re)
+    if current_body == new_body.strip():
+        return text, False  # No change needed — idempotent
+
+    stamp = datetime.now().strftime("%Y-%m-%dT%H:%MZ")
+
+    def replacer(m):
+        return f"{m.group(1)}\n<!-- AUTO-GENERATED:{block_name} v1 | {stamp} -->\n{new_body}\n{m.group(2)}"
+
+    return block_re.sub(replacer, text), True
+
+
+def generate_plans_table() -> str:
+    """Generate markdown table of all plan files."""
+    if not PLANS_DIR.exists():
+        return "| Plan | Date | Status |\n|------|------|--------|\n| (none) | - | - |"
+
+    plans = sorted(PLANS_DIR.glob("*.md"))
+    if not plans:
+        return "| Plan | Date | Status |\n|------|------|--------|\n| (none) | - | - |"
+
+    lines = ["| Plan | Date | Status |", "|------|------|--------|"]
+    for p in plans:
+        date = p.name[:10] if len(p.name) > 10 else "-"
+        lines.append(f"| [{p.name}](plans/{p.name}) | {date} | Active |")
+    return "\n".join(lines)
+
+
+def sync_plans_index(dry_run: bool = False) -> tuple[bool, str]:
+    """Sync PLANS.md bounded block. Returns (changed, message)."""
+    if not PLANS_INDEX.exists():
+        return False, "Missing docs/development/PLANS.md"
+
+    text = PLANS_INDEX.read_text()
+    new_body = generate_plans_table()
+    new_text, changed = replace_block(text, new_body, PLANS_BLOCK_RE, "PLANS")
+
+    if not changed:
+        return False, "PLANS.md already up to date"
+
+    if dry_run:
+        return True, f"Would update PLANS.md:\n{new_body}"
+
+    PLANS_INDEX.write_text(new_text)
+    return True, "Updated PLANS.md"
+
+
+def validate_plans_indexed() -> list[str]:
+    """Check all plan files are in PLANS.md. For --check mode."""
+    if not PLANS_INDEX.exists():
+        return ["Missing docs/development/PLANS.md"]
+
+    idx = PLANS_INDEX.read_text()
+    errors = []
+    if PLANS_DIR.exists():
+        for p in PLANS_DIR.glob("*.md"):
+            if p.name not in idx:
+                errors.append(f"Plan not indexed: {p.name}")
+    return errors
+
+
+def create_module_stub(module: Path) -> bool:
+    """Create reference doc stub for a module. Returns True if created."""
+    out = FABRIK_ROOT / "docs" / "reference" / f"{module.name}.md"
+    if out.exists():
+        return False
+
+    try:
+        if TEMPLATE_PATH.exists():
+            content = TEMPLATE_PATH.read_text().format(
+                module_name=module.name,
+                date=datetime.now().date().isoformat(),
+            )
+        else:
+            content = f"""# {module.name}
+
+**Last Updated:** {datetime.now().date().isoformat()}
+
+## Purpose
+
+[One-line description of what this module does]
+
+## Usage
+
+```python
+from fabrik.{module.name} import ...
+```
+
+## Configuration
+
+| Env Var | Description | Default |
+|---------|-------------|---------|
+| ... | ... | ... |
+
+## Ownership
+
+- **Owner:** [team/person]
+- **SLA:** [response time expectation]
+
+## See Also
+
+- [Related doc](../path.md)
+"""
+        out.write_text(content)
+        return True
+    except OSError as e:
+        print(f"Error creating stub {out}: {e}", file=sys.stderr)
+        return False
+
+
+def validate_docs() -> tuple[bool, list[str]]:
+    """Check for drift. Returns (valid, issues)."""
+    issues = []
+
+    # Check plans are indexed
+    issues.extend(validate_plans_indexed())
+
+    # Check for missing module docs
+    missing_modules = detect_new_modules()
+    for m in missing_modules:
+        issues.append(f"Missing reference doc: docs/reference/{m.name}.md")
+
+    # Check bounded blocks exist
+    if README_PATH.exists():
+        readme = README_PATH.read_text()
+        if "<!-- AUTO-GENERATED:STRUCTURE:START -->" not in readme:
+            issues.append("docs/README.md missing STRUCTURE auto-block markers")
+
+    if PLANS_INDEX.exists():
+        plans_md = PLANS_INDEX.read_text()
+        if "<!-- AUTO-GENERATED:PLANS:START -->" not in plans_md:
+            issues.append("docs/development/PLANS.md missing PLANS auto-block markers")
+
+    return len(issues) == 0, issues
+
+
+def run_sync(dry_run: bool = False) -> None:
+    """Create missing stubs + sync structure."""
+    print("=== Documentation Sync ===\n")
+
+    # Sync PLANS.md index
+    changed, msg = sync_plans_index(dry_run=dry_run)
+    print(f"Plans index: {msg}")
+
+    # Create missing module stubs
+    missing = detect_new_modules()
+    for m in missing:
+        if dry_run:
+            print(f"Would create: docs/reference/{m.name}.md")
+        else:
+            if create_module_stub(m):
+                print(f"Created: docs/reference/{m.name}.md")
+
+    if not missing and not changed:
+        print("\nAll documentation is up to date.")
+
+
+def run_check() -> int:
+    """Validate docs, fail on drift. Returns exit code."""
+    print("=== Documentation Check ===\n")
+
+    valid, issues = validate_docs()
+
+    if valid:
+        print("✓ All documentation checks passed")
+        return 0
+    else:
+        print("✗ Documentation issues found:\n")
+        for issue in issues:
+            print(f"  - {issue}")
+        print("\nRun 'python scripts/docs_updater.py --sync' to fix.")
+        return 1
+
+
 def main():
     parser = argparse.ArgumentParser(description="Fabrik Documentation Updater")
     parser.add_argument("--daemon", action="store_true", help="Run continuously")
     parser.add_argument("--file", type=str, help="Update docs for a specific file")
+    parser.add_argument("--check", action="store_true", help="Validate docs, fail on drift")
+    parser.add_argument("--sync", action="store_true", help="Create missing stubs + sync structure")
+    parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
 
     args = parser.parse_args()
 
-    if args.file:
+    if args.check:
+        sys.exit(run_check())
+    elif args.sync:
+        run_sync(dry_run=args.dry_run)
+    elif args.file:
         update_single_file(args.file)
     elif args.daemon:
         run_daemon()

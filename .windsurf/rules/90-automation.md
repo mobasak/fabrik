@@ -1,6 +1,7 @@
 ---
-activation: manual
-description: droid exec integration, Fabrik skills, workflows - invoke with @90-automation
+activation: always_on
+description: droid exec integration, Fabrik skills, workflows
+trigger: always_on
 ---
 
 # Automation Rules

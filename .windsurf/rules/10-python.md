@@ -2,6 +2,7 @@
 activation: glob
 globs: ["**/*.py"]
 description: Python/FastAPI patterns, typing, environment handling
+trigger: glob
 ---
 
 # Python Rules

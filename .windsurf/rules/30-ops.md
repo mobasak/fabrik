@@ -2,6 +2,7 @@
 activation: glob
 globs: ["**/Dockerfile", "**/compose.yaml", "**/compose.yml", "**/docker-compose.yaml", "**/docker-compose.yml"]
 description: Docker standards, deployment, infrastructure
+trigger: always_on
 ---
 
 # Operations & Deployment Rules

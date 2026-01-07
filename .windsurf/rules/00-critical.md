@@ -1,6 +1,7 @@
 ---
 activation: always_on
 description: Critical Fabrik rules - ALWAYS enforced
+trigger: always_on
 ---
 
 # Critical Rules (ALWAYS ACTIVE)

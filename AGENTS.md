@@ -2,6 +2,64 @@
 
 > Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
 
+## Authority Model
+
+- You write content.
+- Tools enforce structure.
+- CI is final authority.
+
+## Execution Protocol (ALL TASKS)
+
+**Before ANY implementation:**
+
+| Phase | Action | Gate |
+|-------|--------|------|
+| **1. PLAN** | Create/show execution plan document | Plan exists in `docs/development/plans/` |
+| **2. APPROVE** | Wait for explicit "go" from human | Human says "go" |
+| **3. IMPLEMENT** | Execute one step at a time | Step code complete |
+| **4. REVIEW** | Request AI code review | Review received |
+| **5. FIX** | Address issues before proceeding | Issues resolved |
+| **6. VALIDATE** | Run gate command, show evidence | Gate passes |
+| **7. NEXT** | Only proceed after gate passes | Approval for next step |
+
+**Step Output Format (MANDATORY after each step):**
+```
+STEP <N> STATUS: PASS / FAIL
+Changed files:
+- <path>
+Gate output:
+<output>
+Next: Proceed to Step <N+1> / STOP
+```
+
+**Violations:**
+- Do NOT implement without showing plan first
+- Do NOT proceed to next step without gate passing
+- Do NOT skip code review on significant changes
+- Do NOT assume approval — wait for explicit "go"
+
+---
+
+## Documentation Rules
+
+1) Do NOT create markdown files in repo root.
+2) Feature/Execution plans:
+   - Create ONLY under `docs/development/plans/`
+   - Filename: `YYYY-MM-DD-<slug>.md`
+   - Include: Goal, DONE WHEN, Out of Scope, Constraints, Steps, Owner, Links
+3) Every new plan MUST be added to `docs/development/PLANS.md`.
+4) Do NOT create new folders under `docs/` except via existing structure.
+5) If you add a module under `src/`, ensure a reference doc exists:
+   - `docs/reference/<module>.md`
+   - If missing, run `docs_updater.py --sync`.
+6) NEVER edit inside `<!-- AUTO-GENERATED:* -->` blocks.
+   - Run `docs_updater.py --sync` instead.
+7) All changes MUST keep `make docs-check` passing.
+
+Violations will fail CI and must be fixed before merge.
+
+---
+
 ## ⚠️ MANDATORY WORKFLOW (ALL AI AGENTS)
 
 **Before finishing ANY coding task, you MUST:**

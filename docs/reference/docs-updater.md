@@ -1,8 +1,10 @@
 # Automatic Documentation Updater
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-07
 
 Automatically updates documentation when code changes are detected. Uses low-cost AI models to analyze changes and write updates directly to doc files.
+
+Also provides **structure enforcement** via `--check` and `--sync` modes for CI integration.
 
 ---
 
@@ -91,7 +93,7 @@ Skips:
 Location: `/opt/fabrik/scripts/docs_updater.py`
 
 ```bash
-# Process queue once
+# Process queue once (AI-driven updates)
 python scripts/docs_updater.py
 
 # Run as daemon (continuous)
@@ -99,7 +101,32 @@ python scripts/docs_updater.py --daemon
 
 # Update docs for specific file
 python scripts/docs_updater.py --file scripts/droid_runner.py
+
+# Structure enforcement (CI modes)
+python scripts/docs_updater.py --check      # Validate, fail on drift (exit code 1)
+python scripts/docs_updater.py --sync       # Create missing stubs + sync indexes
+python scripts/docs_updater.py --dry-run    # Preview changes without writing
 ```
+
+### Structure Enforcement (New)
+
+The `--check` and `--sync` modes provide **deterministic structure enforcement**:
+
+| Mode | Purpose | Writes Files? |
+|------|---------|---------------|
+| `--check` | CI validation — fails if docs out of sync | No |
+| `--sync` | Creates missing stubs, updates auto-blocks | Yes |
+| `--dry-run` | Preview what `--sync` would do | No |
+
+**What `--check` validates:**
+- All plan files indexed in `docs/development/PLANS.md`
+- All public modules have `docs/reference/<module>.md`
+- Auto-block markers exist where required
+
+**What `--sync` does:**
+- Updates `docs/development/PLANS.md` auto-indexed table
+- Creates reference doc stubs for new public modules
+- Idempotent: running twice = no diff
 
 ### 3. Queue Directory
 
