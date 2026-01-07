@@ -27,6 +27,25 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+### Added - droid-review.sh Wrapper Script (2026-01-07)
+
+**What:** Created wrapper script that enforces adaptive meta-prompt for all code reviews.
+
+**Files:**
+- `scripts/droid-review.sh` - Wrapper for `droid exec` reviews
+
+**Usage:**
+```bash
+./scripts/droid-review.sh src/file.py           # Code review
+./scripts/droid-review.sh --plan plan.md        # Plan review
+./scripts/droid-review.sh file1.py file2.py     # Multiple files
+```
+
+**Why:** Ensures all droid exec reviews use the structured meta-prompt from
+`templates/droid/review-meta-prompt.md` for consistent P0/P1 output.
+
+---
+
 ### Fixed - Code Quality Cleanup (2026-01-07)
 
 **What:** Fixed ruff, bandit, and convention violations across codebase.
