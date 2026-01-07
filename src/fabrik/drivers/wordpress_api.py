@@ -4,11 +4,16 @@ WordPress REST API Client - HTTP client for WordPress REST API operations.
 Provides programmatic access to WordPress content: posts, pages, media, users, etc.
 """
 
+from __future__ import annotations
+
 import base64
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
+
+if TYPE_CHECKING:
+    pass
 
 
 @dataclass
@@ -46,7 +51,7 @@ class WPPost:
     categories: list[int] = field(default_factory=list)
     tags: list[int] = field(default_factory=list)
     featured_media: int = 0
-    meta: dict = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
 
 
 class WordPressAPIClient:
@@ -86,8 +91,8 @@ class WordPressAPIClient:
         self,
         method: str,
         endpoint: str,
-        params: dict | None = None,
-        json: dict | None = None,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
     ) -> Any:
         """Make API request."""
         response = self.client.request(
@@ -107,7 +112,7 @@ class WordPressAPIClient:
         page: int = 1,
         status: str = "any",
         search: str | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """List posts."""
         params = {
             "per_page": per_page,
@@ -118,11 +123,11 @@ class WordPressAPIClient:
             params["search"] = search
         return self._request("GET", "/posts", params=params)
 
-    def get_post(self, post_id: int) -> dict:
+    def get_post(self, post_id: int) -> dict[str, Any]:
         """Get a single post."""
         return self._request("GET", f"/posts/{post_id}")
 
-    def create_post(self, post: WPPost) -> dict:
+    def create_post(self, post: WPPost) -> dict[str, Any]:
         """Create a new post."""
         data = {
             "title": post.title,
@@ -139,11 +144,11 @@ class WordPressAPIClient:
         data = {k: v for k, v in data.items() if v}
         return self._request("POST", "/posts", json=data)
 
-    def update_post(self, post_id: int, **fields) -> dict:
+    def update_post(self, post_id: int, **fields: Any) -> dict[str, Any]:
         """Update a post."""
         return self._request("POST", f"/posts/{post_id}", json=fields)
 
-    def delete_post(self, post_id: int, force: bool = False) -> dict:
+    def delete_post(self, post_id: int, force: bool = False) -> dict[str, Any]:
         """Delete a post."""
         return self._request("DELETE", f"/posts/{post_id}", params={"force": force})
 
@@ -154,7 +159,7 @@ class WordPressAPIClient:
         per_page: int = 10,
         page: int = 1,
         status: str = "any",
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """List pages."""
         return self._request(
             "GET",
@@ -166,11 +171,11 @@ class WordPressAPIClient:
             },
         )
 
-    def get_page(self, page_id: int) -> dict:
+    def get_page(self, page_id: int) -> dict[str, Any]:
         """Get a single page."""
         return self._request("GET", f"/pages/{page_id}")
 
-    def create_page(self, post: WPPost) -> dict:
+    def create_page(self, post: WPPost) -> dict[str, Any]:
         """Create a new page."""
         data = {
             "title": post.title,
@@ -184,17 +189,17 @@ class WordPressAPIClient:
         data = {k: v for k, v in data.items() if v}
         return self._request("POST", "/pages", json=data)
 
-    def update_page(self, page_id: int, **fields) -> dict:
+    def update_page(self, page_id: int, **fields: Any) -> dict[str, Any]:
         """Update a page."""
         return self._request("POST", f"/pages/{page_id}", json=fields)
 
-    def delete_page(self, page_id: int, force: bool = False) -> dict:
+    def delete_page(self, page_id: int, force: bool = False) -> dict[str, Any]:
         """Delete a page."""
         return self._request("DELETE", f"/pages/{page_id}", params={"force": force})
 
     # ========== Media ==========
 
-    def list_media(self, per_page: int = 10, page: int = 1) -> list[dict]:
+    def list_media(self, per_page: int = 10, page: int = 1) -> list[dict[str, Any]]:
         """List media items."""
         return self._request(
             "GET",
@@ -205,7 +210,7 @@ class WordPressAPIClient:
             },
         )
 
-    def get_media(self, media_id: int) -> dict:
+    def get_media(self, media_id: int) -> dict[str, Any]:
         """Get a single media item."""
         return self._request("GET", f"/media/{media_id}")
 
@@ -214,7 +219,7 @@ class WordPressAPIClient:
         file_path: str,
         title: str | None = None,
         alt_text: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Upload a media file.
 
@@ -255,69 +260,71 @@ class WordPressAPIClient:
 
         return media
 
-    def update_media(self, media_id: int, **fields) -> dict:
+    def update_media(self, media_id: int, **fields: Any) -> dict[str, Any]:
         """Update media metadata."""
         return self._request("POST", f"/media/{media_id}", json=fields)
 
-    def delete_media(self, media_id: int, force: bool = True) -> dict:
+    def delete_media(self, media_id: int, force: bool = True) -> dict[str, Any]:
         """Delete a media item."""
         return self._request("DELETE", f"/media/{media_id}", params={"force": force})
 
     # ========== Categories ==========
 
-    def list_categories(self, per_page: int = 100) -> list[dict]:
+    def list_categories(self, per_page: int = 100) -> list[dict[str, Any]]:
         """List categories."""
         return self._request("GET", "/categories", params={"per_page": per_page})
 
-    def create_category(self, name: str, slug: str | None = None, parent: int = 0) -> dict:
+    def create_category(
+        self, name: str, slug: str | None = None, parent: int = 0
+    ) -> dict[str, Any]:
         """Create a category."""
         data = {"name": name, "parent": parent}
         if slug:
             data["slug"] = slug
         return self._request("POST", "/categories", json=data)
 
-    def delete_category(self, category_id: int, force: bool = True) -> dict:
+    def delete_category(self, category_id: int, force: bool = True) -> dict[str, Any]:
         """Delete a category."""
         return self._request("DELETE", f"/categories/{category_id}", params={"force": force})
 
     # ========== Tags ==========
 
-    def list_tags(self, per_page: int = 100) -> list[dict]:
+    def list_tags(self, per_page: int = 100) -> list[dict[str, Any]]:
         """List tags."""
         return self._request("GET", "/tags", params={"per_page": per_page})
 
-    def create_tag(self, name: str, slug: str | None = None) -> dict:
+    def create_tag(self, name: str, slug: str | None = None) -> dict[str, Any]:
         """Create a tag."""
         data = {"name": name}
         if slug:
             data["slug"] = slug
         return self._request("POST", "/tags", json=data)
 
-    def delete_tag(self, tag_id: int, force: bool = True) -> dict:
+    def delete_tag(self, tag_id: int, force: bool = True) -> dict[str, Any]:
         """Delete a tag."""
         return self._request("DELETE", f"/tags/{tag_id}", params={"force": force})
 
     # ========== Users ==========
 
-    def list_users(self, per_page: int = 10) -> list[dict]:
+    def list_users(self, per_page: int = 10) -> list[dict[str, Any]]:
         """List users."""
         return self._request("GET", "/users", params={"per_page": per_page})
 
-    def get_user(self, user_id: int) -> dict:
+    def get_user(self, user_id: int) -> dict[str, Any]:
         """Get a user."""
         return self._request("GET", f"/users/{user_id}")
 
-    def get_me(self) -> dict:
+    def get_me(self) -> dict[str, Any]:
         """Get current authenticated user."""
         return self._request("GET", "/users/me")
 
     # ========== Settings ==========
 
-    def get_settings(self) -> dict:
+    def get_settings(self) -> dict[str, Any]:
         """Get site settings."""
         return self._request("GET", "/settings")
 
-    def update_settings(self, **settings) -> dict:
+    def update_settings(self, **settings: Any) -> dict[str, Any]:
         """Update site settings."""
         return self._request("POST", "/settings", json=settings)
 
@@ -331,16 +338,16 @@ class WordPressAPIClient:
         except Exception:
             return False
 
-    def close(self):
+    def close(self) -> None:
         """Close the HTTP client."""
         if self._client:
             self._client.close()
             self._client = None
 
-    def __enter__(self):
+    def __enter__(self) -> WordPressAPIClient:
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.close()
 
 

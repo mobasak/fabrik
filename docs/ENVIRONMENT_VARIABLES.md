@@ -1,6 +1,6 @@
 # Environment Variables Reference
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-07
 
 Complete reference of all environment variables used in Fabrik.
 
@@ -208,7 +208,7 @@ DB_USER=postgres
 DB_PASSWORD=secure-password
 
 # Or connection string
-DATABASE_URL=postgresql://user:pass@localhost:5432/db
+DATABASE_URL=postgresql-connection-string
 ```
 
 ---
