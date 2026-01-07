@@ -106,7 +106,7 @@ class WordPressClient:
             f"--url='{url}' "
             f"--title='{title}' "
             f"--admin_user='{admin_user}' "
-            f"--admin_password='{admin_password}' "
+            f"--admin_password='{admin_password}' "  # noqa: not a hardcoded secret
             f"--admin_email='{admin_email}' "
             f"--locale='{locale}'"
         )

@@ -236,10 +236,6 @@ class SEOApplicator:
         robots_value = ",".join(robots) if robots else ""
 
         if plugin == "yoast":
-            meta_robots = {
-                "index": "1" if index else "2",
-                "follow": "1" if follow else "2",
-            }
             # Yoast uses numeric values
             if not index:
                 self.wp.run(f"post meta update {page_id} _yoast_wpseo_meta-robots-noindex 1")
@@ -294,7 +290,7 @@ class SEOApplicator:
         Returns:
             True if successful
         """
-        schema_type = schema.get("type", "Organization")
+        schema.get("type", "Organization")
 
         # This would typically be handled by the SEO plugin
         # For custom schema, we'd inject via a custom plugin or theme

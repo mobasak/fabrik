@@ -27,6 +27,19 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+### Fixed - Code Quality Cleanup (2026-01-07)
+
+**What:** Fixed ruff, bandit, and convention violations across codebase.
+
+**Fixes:**
+- 12 unused variables removed (ruff F841)
+- jinja2 autoescape enabled in provisioner.py (bandit B701 high severity)
+- Hardcoded localhost removed from coolify.py (now requires COOLIFY_API_URL env var)
+
+**Result:** All pre-commit hooks pass cleanly.
+
+---
+
 ### Fixed - All mypy Type Errors Resolved (2026-01-07)
 
 **What:** Fixed all 57 remaining mypy type errors via droid exec + manual fixes.

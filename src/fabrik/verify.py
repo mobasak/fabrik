@@ -126,7 +126,7 @@ class PostconditionChecker:
         """Verify SSL certificate is valid."""
         config = self._get_check_config(name)
         domain = config.get("domain", "")
-        min_days = config.get("min_days_remaining", 7)
+        config.get("min_days_remaining", 7)
 
         if not domain:
             return PostconditionResult(name, CheckResult.SKIP, "No domain configured")

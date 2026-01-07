@@ -26,6 +26,7 @@ ALLOWED_CONTEXTS = [
     r"#\s*.*localhost",  # Comments with localhost
     r"^\s*#",  # Line starting with comment
     r"\.env\.example",  # Example env files
+    r"#\s*noqa",  # noqa comments
 ]
 
 

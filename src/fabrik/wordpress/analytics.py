@@ -126,10 +126,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 continue
 
             # RankMath has built-in analytics settings
-            if "rank-math" in name.lower():
-                if tracking_type == "ga4":
-                    self.wp.option_update("rank_math_google_analytics", tracking_id)
-                    return True
+            if "rank-math" in name.lower() and tracking_type == "ga4":
+                self.wp.option_update("rank_math_google_analytics", tracking_id)
+                return True
 
             # Yoast doesn't have built-in GA, needs separate plugin
 

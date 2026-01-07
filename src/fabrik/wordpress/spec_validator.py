@@ -147,7 +147,7 @@ class SpecValidator:
                 self.errors.append(f"{path}: missing primary locale '{primary}'")
 
             # Check all locale keys are valid
-            for locale in value.keys():
+            for locale in value:
                 if locale not in allowed_locales:
                     self.errors.append(f"{path}: locale '{locale}' not in languages list")
 

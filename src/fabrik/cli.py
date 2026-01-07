@@ -158,7 +158,7 @@ def plan(spec_path: str, secrets: tuple):
     click.echo("📁 Files to Generate:")
     try:
         rendered = render_template(spec, secrets=secrets_dict, dry_run=True)
-        for filename in rendered.keys():
+        for filename in rendered:
             click.echo(f"   apps/{spec.id}/{filename}")
     except Exception as e:
         click.echo(f"   Error: {e}", err=True)
@@ -257,7 +257,7 @@ def apply(
     click.echo("📁 Step 1: Generating deployment files...")
     try:
         output = render_template(spec, secrets=secrets_dict)
-        for filename, path in output.items():
+        for _filename, path in output.items():
             click.echo(f"   ✅ {path}")
     except Exception as e:
         click.echo(f"   ❌ Error: {e}", err=True)
@@ -494,10 +494,10 @@ def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
         try:
             parts = spec.domain.split(".")
             if len(parts) >= 3:
-                subdomain = ".".join(parts[:-2])
-                base_domain = ".".join(parts[-2:])
+                ".".join(parts[:-2])
+                ".".join(parts[-2:])
 
-                dns = DNSClient()
+                DNSClient()
                 # Note: Would need delete_subdomain method
                 click.echo("   ℹ️  DNS removal not implemented yet")
                 click.echo(f"   ℹ️  Manually remove: {spec.domain}")

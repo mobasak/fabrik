@@ -118,10 +118,7 @@ class SpecLoader:
             return parent[merge_key] == "append"
 
         # Special cases: plugins.add always appends
-        if key == "add" and "plugins" in str(parent):
-            return True
-
-        return False
+        return bool(key == "add" and "plugins" in str(parent))
 
     def _apply_secrets(self, spec: dict) -> dict:
         """Replace ${VAR} references with environment variables."""

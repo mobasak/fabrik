@@ -81,14 +81,16 @@ class ComposeLinter:
 
             # Rule: Warn if database without healthcheck
             image = svc_config.get("image", "")
-            if any(
-                db in image.lower() for db in ["mysql", "mariadb", "postgres", "mongo", "redis"]
+            if (
+                any(
+                    db in image.lower() for db in ["mysql", "mariadb", "postgres", "mongo", "redis"]
+                )
+                and "healthcheck" not in svc_config
             ):
-                if "healthcheck" not in svc_config:
-                    warnings.append(
-                        f"Service '{svc_name}': database service without healthcheck "
-                        "(recommended for depends_on conditions)"
-                    )
+                warnings.append(
+                    f"Service '{svc_name}': database service without healthcheck "
+                    "(recommended for depends_on conditions)"
+                )
 
         # Rule 2.2: Check for unresolved ${VAR} patterns in raw YAML
         # These are unreliable in Coolify docker-compose deployments

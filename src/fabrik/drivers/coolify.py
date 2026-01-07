@@ -69,8 +69,13 @@ class CoolifyClient:
             token: API token. Defaults to COOLIFY_API_TOKEN env var
             timeout: Request timeout in seconds
         """
-        env_base_url = os.getenv("COOLIFY_API_URL", "http://localhost:8000")
-        self.base_url: str = base_url if base_url is not None else env_base_url
+        env_base_url = os.getenv("COOLIFY_API_URL")  # No default - must be configured
+        self.base_url: str = base_url if base_url is not None else (env_base_url or "")
+
+        if not self.base_url:
+            raise ValueError(
+                "Coolify API URL required. Set COOLIFY_API_URL env var or pass base_url parameter."
+            )
 
         token_value = token if token is not None else os.getenv("COOLIFY_API_TOKEN")
         if not token_value:

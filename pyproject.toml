@@ -45,7 +45,13 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
-ignore = ["E501"]
+ignore = [
+    "E501",   # line too long
+    "B904",   # raise from - CLI exits don't need chaining
+    "SIM102", # nested if - sometimes clearer
+    "SIM105", # contextlib.suppress - explicit try/except more readable
+    "SIM117", # nested with - sometimes clearer
+]
 
 [tool.mypy]
 python_version = "3.11"

@@ -45,9 +45,13 @@ def check_file(file_path: Path) -> list:
     except (OSError, UnicodeDecodeError):
         return results
 
+    lines = content.splitlines()
     for pattern, desc in SECRET_PATTERNS:
         for match in re.finditer(pattern, content, re.I):
             line_num = content[: match.start()].count("\n") + 1
+            # Skip lines with noqa comments
+            if line_num <= len(lines) and "noqa" in lines[line_num - 1]:
+                continue
             secret = match.group()
             masked = secret[:4] + "..." + secret[-4:] if len(secret) > 8 else "***"
             results.append(

@@ -293,10 +293,7 @@ class CloudflareClient:
         zone_id = self.get_zone_id(domain)
 
         # Build full record name
-        if not name.endswith(domain):
-            full_name = f"{name}.{domain}" if name else domain
-        else:
-            full_name = name
+        full_name = (f"{name}.{domain}" if name else domain) if not name.endswith(domain) else name
 
         # Check if record exists
         existing = self.list_records(zone_id, record_type=record_type, name=full_name)
@@ -335,10 +332,7 @@ class CloudflareClient:
         zone_id = self.get_zone_id(domain)
 
         # Build full record name
-        if not name.endswith(domain):
-            full_name = f"{name}.{domain}" if name else domain
-        else:
-            full_name = name
+        full_name = (f"{name}.{domain}" if name else domain) if not name.endswith(domain) else name
 
         existing = self.list_records(zone_id, record_type=record_type, name=full_name)
 

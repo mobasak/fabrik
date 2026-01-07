@@ -165,7 +165,7 @@ class PageCreator:
         if not self.api:
             raise ValueError("REST API client required for page creation")
 
-        post = WPPost(
+        WPPost(
             title=title,
             slug=slug,
             content=content,

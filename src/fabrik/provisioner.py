@@ -486,7 +486,10 @@ class SiteProvisioner:
 
     def _render_compose(self, job: ProvisionJob) -> str:
         """Render docker-compose.yaml from Coolify-compatible template."""
-        env = Environment(loader=FileSystemLoader(str(self.TEMPLATES_DIR)))
+        env = Environment(
+            loader=FileSystemLoader(str(self.TEMPLATES_DIR)),
+            autoescape=True,  # Security: prevent XSS in rendered templates
+        )
         template = env.get_template("compose-coolify.yaml.j2")
 
         return template.render(

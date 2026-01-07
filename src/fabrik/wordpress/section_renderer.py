@@ -150,7 +150,7 @@ class SectionRenderer:
     def _render_features(self, section: dict) -> str:
         """Render features grid."""
         headline = self._get_localized(section, "headline")
-        columns = section.get("columns", 3)
+        section.get("columns", 3)
         items = self._get_items(section)
 
         html = f"""<!-- wp:heading {{"textAlign":"center"}} -->
@@ -161,7 +161,7 @@ class SectionRenderer:
 <div class="wp-block-columns alignwide">"""
 
         for item in items:
-            icon = item.get("icon", "")
+            item.get("icon", "")
             title = self._get_localized_from_dict(item, "title")
             description = self._get_localized_from_dict(item, "description")
 
@@ -188,7 +188,7 @@ class SectionRenderer:
         """Render services grid."""
         headline = self._get_localized(section, "headline")
         source = section.get("source", "entities.services")
-        columns = section.get("columns", 3)
+        section.get("columns", 3)
         show_summary = section.get("show_summary", True)
 
         # Get services from spec
