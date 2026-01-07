@@ -14,25 +14,23 @@ repos:
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
 
-  # Type checking with mypy
-  # Config in pyproject.toml [tool.mypy]
-  # Temporarily disabled - gradual typing in progress (see pyproject.toml)
-  # TODO: Re-enable after type annotations are complete
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.13.0
-  #   hooks:
-  #     - id: mypy
-  #       args: [--config-file=pyproject.toml, --explicit-package-bases]
-  #       files: ^src/  # Only check src/ package
-  #       additional_dependencies:
-  #         - types-requests
-  #         - types-PyYAML
-  #         - pydantic>=2.0.0
-  #         - click>=8.1.0
-  #         - httpx>=0.25.0
-  #         - rich>=13.0.0
-  #       pass_filenames: false
-  #       entry: bash -c 'cd /opt/fabrik && MYPYPATH=src mypy src/'
+  # Type checking with mypy (relaxed mode - checks new code)
+  # Config in pyproject.toml [tool.mypy] with ignore_errors for legacy modules
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        args: [--config-file=pyproject.toml]
+        files: ^src/fabrik/
+        additional_dependencies:
+          - types-requests
+          - types-PyYAML
+          - pydantic>=2.0.0
+          - click>=8.1.0
+          - httpx>=0.25.0
+          - rich>=13.0.0
+        pass_filenames: false
+        entry: bash -c 'cd /opt/fabrik && mypy src/fabrik'
 
   # General file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
