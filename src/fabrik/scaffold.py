@@ -40,6 +40,8 @@ TEMPLATE_MAP = {
     "docs/CONFIGURATION_TEMPLATE.md": "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING_TEMPLATE.md": "docs/TROUBLESHOOTING.md",
     "docs/BUSINESS_MODEL_TEMPLATE.md": "docs/BUSINESS_MODEL.md",
+    # Phase docs for project roadmap (dashboard in tasks.md links here)
+    "docs/PHASE_TEMPLATE.md": "docs/development/Phase1.md",
     # Droid exec / Docker workflow files (AGENTS.md handled separately as symlink)
     "docker/Dockerfile.python": "Dockerfile",
     "docker/compose.yaml.template": "compose.yaml",

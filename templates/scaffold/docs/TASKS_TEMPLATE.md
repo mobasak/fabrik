@@ -1,65 +1,46 @@
-# Tasks - [Project Name]
+# {{PROJECT_NAME}} Development Dashboard
 
-**Last Updated:** YYYY-MM-DD
+**Last Updated:** {{DATE}}
 
----
-
-## Current Sprint
-
-### Phase [N]: [Phase Name]
-
-**Goal:** [What this phase achieves]
-
-- [ ] **Task 1: [Task Name]**
-  - [ ] Subtask 1.1
-  - [ ] Subtask 1.2
-  - [ ] Subtask 1.3
-
-- [ ] **Task 2: [Task Name]**
-  - [ ] Subtask 2.1
-  - [ ] Subtask 2.2
-
-- [ ] **Task 3: [Task Name]**
-  - [ ] Subtask 3.1
+> **This file is a dashboard.** Detailed progress lives in phase docs under `docs/development/`.
+> After any implementation, update both this dashboard AND the relevant phase doc.
 
 ---
 
-## Backlog
+## Current Focus
 
-### Phase [N+1]: [Future Phase Name]
-
-- [ ] [Task description]
-- [ ] [Task description]
-- [ ] [Task description]
-
-### Phase [N+2]: [Future Phase Name]
-
-- [ ] [Task description]
-- [ ] [Task description]
-
-### Unscheduled
-
-- [ ] [Task without assigned phase]
-- [ ] [Task without assigned phase]
+| Priority | Task | Phase Doc |
+|----------|------|-----------|
+| 🔴 1 | [Primary goal] | [Phase1.md](docs/development/Phase1.md) |
+| 🟡 2 | [Secondary goal] | [Phase1.md](docs/development/Phase1.md) |
+| 🟡 3 | [Tertiary goal] | [Phase1.md](docs/development/Phase1.md) |
 
 ---
 
-## Completed
+## Phase Status
 
-### Phase 1: [Completed Phase Name] ✅
-
-**Completed:** YYYY-MM-DD
-
-- [x] **Task 1: [Task Name]**
-  - [x] Subtask 1.1
-  - [x] Subtask 1.2
-
-- [x] **Task 2: [Task Name]**
-  - [x] Subtask 2.1
+| Phase | Name | Status | Doc |
+|-------|------|--------|-----|
+| 1 | [Phase Name] | ⚡ In Progress | [Phase1.md](docs/development/Phase1.md) |
+| 2 | [Phase Name] | ❌ Not Started | [Phase2.md](docs/development/Phase2.md) |
+| 3 | [Phase Name] | ❌ Not Started | [Phase3.md](docs/development/Phase3.md) |
 
 ---
 
-## Notes
+## Services (if applicable)
 
-- [Any relevant notes about task management]
-- [Blockers, dependencies, decisions]
+| Service | URL | Status |
+|---------|-----|--------|
+| API | localhost:8000 | 🟡 Dev |
+
+---
+
+## Update Protocol
+
+When completing any task:
+
+1. Update the **phase doc** (checkboxes, status)
+2. Update this **dashboard** (phase status table)
+3. Update **CHANGELOG.md** (code changes)
+
+See: [AGENTS.md](AGENTS.md) for conventions

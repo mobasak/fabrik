@@ -27,6 +27,21 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+### Changed - Scaffold Includes Dashboard + Phase Templates (2026-01-07)
+
+**What:** Updated scaffold templates so new projects get the dashboard structure.
+
+**Files:**
+- `templates/scaffold/docs/TASKS_TEMPLATE.md` - Dashboard format (links to phase docs)
+- `templates/scaffold/docs/PHASE_TEMPLATE.md` - Phase progress tracker template
+- `src/fabrik/scaffold.py` - Now creates `docs/development/Phase1.md`
+
+**New projects get:**
+- `tasks.md` - Dashboard linking to phase docs
+- `docs/development/Phase1.md` - Progress tracker with checkboxes
+
+---
+
 ### Changed - tasks.md to Dashboard Format (2026-01-07)
 
 **What:** Converted tasks.md from duplicated checklist to dashboard linking phase docs.
