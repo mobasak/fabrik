@@ -6,6 +6,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Project Structure Enforcement (2026-01-07)
+
+**What:** Enforce document placement in correct locations per Fabrik conventions.
+
+**Files:**
+- `scripts/enforcement/check_structure.py` - New script to validate .md file locations
+- `.pre-commit-config.yaml` - Added structure-check hook
+- `AGENTS.md` - Added Document Location Rules section
+
+**Enforces:**
+- Root .md files limited to: README.md, CHANGELOG.md, tasks.md, AGENTS.md, PORTS.md, LICENSE.md
+- All other docs must go in docs/ subdirectories
+- Warns on legacy directories (specs/, proposals/)
+
+---
+
 ### Fixed - mypy pre-commit hook finding fabrik package (2026-01-07)
 
 **What:** Fixed mypy import errors by setting MYPYPATH=src in pre-commit hook.

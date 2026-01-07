@@ -91,3 +91,11 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+
+      - id: structure-check
+        name: Project Structure
+        description: Ensure .md files are in correct locations
+        entry: python3 scripts/enforcement/check_structure.py
+        language: system
+        types: [markdown]
+        stages: [pre-commit]

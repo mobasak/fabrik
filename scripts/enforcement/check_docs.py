@@ -17,7 +17,7 @@ def check_new_module_docs(changed_files: list[Path]) -> list[CheckResult]:
     """
     results: list[CheckResult] = []
     docs_dir = Path("/opt/fabrik/docs")
-    readme_path = docs_dir / "README.md"
+    readme_path = docs_dir / "INDEX.md"
 
     # Find new module directories (containing __init__.py)
     new_modules: set[Path] = set()

@@ -241,6 +241,28 @@ services:
 
 **Every code change requires documentation update.** No exceptions.
 
+### Document Location Rules (ENFORCED)
+
+**Root-level `.md` files allowed:**
+- `README.md`, `CHANGELOG.md`, `tasks.md`, `AGENTS.md`, `PORTS.md`, `LICENSE.md`
+
+**All other docs MUST go in `docs/` subdirectories:**
+
+| Directory | Purpose |
+|-----------|---------|
+| `docs/guides/` | How-to guides |
+| `docs/reference/` | API/CLI reference |
+| `docs/operations/` | Ops runbooks |
+| `docs/development/` | Plans, specs |
+| `docs/development/plans/` | Execution plans |
+| `docs/archive/` | Archived docs |
+
+**Forbidden:**
+- Creating `.md` files in `specs/`, `proposals/`, or other non-standard directories
+- Creating `.md` files in `src/`, `scripts/`, `tests/`, `config/`
+
+This is enforced by `scripts/enforcement/check_structure.py` and pre-commit hook.
+
 ### When Making Changes
 
 1. **Update docs/INDEX.md structure map** if adding/moving/deleting files

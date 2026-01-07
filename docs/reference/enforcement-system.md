@@ -62,6 +62,10 @@ The monolithic `windsurfrules` file (50KB) is deprecated but maintained for back
 | `check_ports.py` | Checks port registration and range | WARN |
 | `check_watchdog.py` | Verifies services have watchdog scripts | WARN |
 | `check_rule_size.py` | Ensures rule files stay under 12KB | ERROR |
+| `check_structure.py` | Enforces .md file locations | ERROR |
+| `check_changelog.py` | Requires CHANGELOG.md updates | ERROR |
+| `check_plans.py` | Validates plan file naming | WARN |
+| `check_docs.py` | Warns on undocumented modules | WARN |
 
 ### 2. Secret Patterns Detected
 
@@ -127,6 +131,15 @@ Added to `.pre-commit-config.yaml`:
 - id: rule-file-size
   name: Rule File Size Guard
   entry: python3 scripts/enforcement/check_rule_size.py
+
+- id: changelog-check
+  name: CHANGELOG.md Updated
+  entry: python3 scripts/enforcement/check_changelog.py
+
+- id: structure-check
+  name: Project Structure
+  entry: python3 scripts/enforcement/check_structure.py
+  types: [markdown]
 ```
 
 ---
