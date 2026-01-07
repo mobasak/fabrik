@@ -6,6 +6,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - mypy pre-commit hook finding fabrik package (2026-01-07)
+
+**What:** Fixed mypy import errors by setting MYPYPATH=src in pre-commit hook.
+
+**Files:**
+- `.pre-commit-config.yaml` - Added MYPYPATH and --explicit-package-bases
+
+---
+
 ### Changed - Rename docs/README.md to docs/INDEX.md (2026-01-07)
 
 **What:** Standardized documentation index naming to avoid confusion with root README.md.
