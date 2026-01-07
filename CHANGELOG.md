@@ -27,6 +27,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+### Fixed - droid-review.sh Model Extraction (2026-01-07)
+
+**What:** Fixed model name extraction from droid_models.py output.
+
+**Files:**
+- `scripts/droid-review.sh` - Use Python import instead of parsing CLI output
+- `docs/reference/docs-updater.md` - Document new validation checks
+
+**Root Cause:** Script parsed first line of `recommend` output instead of model name.
+
+---
+
 ### Added - Perfect Documentation Enforcement (2026-01-07)
 
 **What:** Enhanced docs_updater.py with complete coverage for all doc files.

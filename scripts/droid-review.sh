@@ -20,8 +20,8 @@ if [[ ! -f "$META_PROMPT" ]]; then
     exit 1
 fi
 
-# Get recommended model
-MODEL=$(python3 "$FABRIK_ROOT/scripts/droid_models.py" recommend code_review 2>/dev/null | head -1 || echo "gemini-3-flash-preview")
+# Get recommended model using Python import (reliable)
+MODEL=$(python3 -c "from scripts.droid_models import get_scenario_recommendation; print(get_scenario_recommendation('code_review').get('models', ['gemini-3-flash-preview'])[0])" 2>/dev/null || echo "gemini-3-flash-preview")
 
 # Parse arguments
 REVIEW_TYPE="code"

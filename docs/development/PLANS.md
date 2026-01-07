@@ -7,12 +7,13 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v1 | 2026-01-07T20:09 -->
+<!-- AUTO-GENERATED:PLANS v1 | 2026-01-07T22:17 -->
 | Plan | Date | Status |
 |------|------|--------|
 | [2026-01-07-docs-automation.md](plans/2026-01-07-docs-automation.md) | 2026-01-07 | Active |
 | [2026-01-07-mypy-drivers-fix.md](plans/2026-01-07-mypy-drivers-fix.md) | 2026-01-07 | Active |
 | [2026-01-07-scaffold-fix-plan.md](plans/2026-01-07-scaffold-fix-plan.md) | 2026-01-07 | Active |
+| [2026-01-07-update-docs-updater-features.md](plans/2026-01-07-update-docs-updater-features.md) | 2026-01-07 | Active |
 <!-- AUTO-GENERATED:PLANS:END -->
 
 ---

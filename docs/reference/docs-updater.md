@@ -122,6 +122,9 @@ The `--check` and `--sync` modes provide **deterministic structure enforcement**
 - All plan files indexed in `docs/development/PLANS.md`
 - All public modules have `docs/reference/<module>.md`
 - Auto-block markers exist where required
+- **Stub completeness** - Reference docs aren't empty placeholders
+- **Link integrity** - Internal markdown links point to existing files
+- **Staleness** - Manual docs have `**Last Updated:**` date
 
 **What `--sync` does:**
 - Updates `docs/development/PLANS.md` auto-indexed table
