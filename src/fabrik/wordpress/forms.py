@@ -7,8 +7,11 @@ Handles:
 - Form field setup
 """
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
+from typing import Any
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
 
@@ -60,7 +63,7 @@ class FormCreator:
         """
         self.site_name = site_name
         self.wp = wp_client or get_wordpress_client(site_name)
-        self._form_plugin = None
+        self._form_plugin: str | None = None
 
     def detect_form_plugin(self) -> str | None:
         """Detect installed form plugin."""
@@ -134,9 +137,13 @@ class FormCreator:
             else:
                 field_config = field
 
+            type_value = field_config.get("type", "text")
+            if not isinstance(type_value, str):
+                type_value = str(type_value)
+
             form_fields[str(i)] = {
                 "id": str(i),
-                "type": self._map_field_type(field_config.get("type", "text"), "wpforms"),
+                "type": self._map_field_type(type_value, "wpforms"),
                 "label": field_config.get("label", "Field"),
                 "required": "1" if field_config.get("required", False) else "0",
                 "size": "large",
@@ -208,7 +215,10 @@ class FormCreator:
                 field_name = field.get("name", field.get("label", "field").lower())
 
             label = field_config.get("label", field_name.title())
-            field_type = self._map_field_type(field_config.get("type", "text"), "cf7")
+            field_type_value: Any = field_config.get("type", "text")
+            if not isinstance(field_type_value, str):
+                field_type_value = str(field_type_value)
+            field_type = self._map_field_type(field_type_value, "cf7")
             required = field_config.get("required", False)
 
             req_marker = "*" if required else ""

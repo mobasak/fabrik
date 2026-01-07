@@ -131,7 +131,7 @@ class DomainProvisioner:
             result.state = ProvisionState.NC_NAMESERVERS_SET
 
             # Step C: Check zone status (use domain, not zone_id)
-            status = self._step_c_check_status(domain)
+            status: Literal["pending", "active"] = self._step_c_check_status(domain)
             result.cloudflare_status = status
 
             if status == "active":
@@ -231,7 +231,7 @@ class DomainProvisioner:
         data = response.json()
         return data.get("success", False)
 
-    def _step_c_check_status(self, domain: str) -> str:
+    def _step_c_check_status(self, domain: str) -> Literal["pending", "active"]:
         """Step C: Check Cloudflare zone status via DNS Manager."""
         url = f"{self.dns_manager_url}/api/cloudflare/zones/{domain}/status"
 
@@ -239,7 +239,7 @@ class DomainProvisioner:
         response.raise_for_status()
 
         data = response.json()
-        return data.get("status", "pending")
+        return "active" if data.get("status") == "active" else "pending"
 
     def _get_cloudflare_records(self, domain: str) -> list[dict]:
         """Get DNS records via VPS DNS Manager."""

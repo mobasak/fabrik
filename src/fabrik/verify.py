@@ -136,6 +136,14 @@ class PostconditionChecker:
             with socket.create_connection((domain, 443), timeout=10) as sock:
                 with context.wrap_socket(sock, server_hostname=domain) as ssock:
                     cert = ssock.getpeercert()
+                    if not cert:
+                        return PostconditionResult(
+                            name,
+                            CheckResult.FAIL,
+                            f"SSL certificate missing for {domain}",
+                            {"domain": domain},
+                        )
+
                     # Check expiry would go here
                     return PostconditionResult(
                         name,

@@ -45,7 +45,7 @@ class SEOApplicator:
         """
         self.site_name = site_name
         self.wp = wp_client or get_wordpress_client(site_name)
-        self._seo_plugin = None
+        self._seo_plugin: str | None = None
 
     def detect_seo_plugin(self) -> str | None:
         """Detect installed SEO plugin."""

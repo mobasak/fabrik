@@ -5,7 +5,10 @@ This module takes a validated Spec and renders it using Jinja2 templates
 to produce compose.yaml, Dockerfile, and other deployment files.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
@@ -99,7 +102,7 @@ class TemplateRenderer:
             raise ValueError(f"Template missing compose.yaml.j2: {spec.template}")
 
         # Load template defaults
-        defaults = {}
+        defaults: dict[str, Any] = {}
         defaults_path = template_path / "defaults.yaml"
         if defaults_path.exists():
             with open(defaults_path, encoding="utf-8") as f:

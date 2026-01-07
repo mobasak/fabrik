@@ -7,8 +7,11 @@ Provides methods for:
 - Presigned URL generation coordination
 """
 
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -22,7 +25,7 @@ class SupabaseConfig:
     service_role_key: str
 
     @classmethod
-    def from_env(cls) -> "SupabaseConfig":
+    def from_env(cls) -> SupabaseConfig:
         """Load config from environment variables."""
         return cls(
             url=os.getenv("SUPABASE_URL", ""),
@@ -55,9 +58,11 @@ class SupabaseClient:
             service_role_key: Supabase service role key (for admin ops)
             timeout: Request timeout in seconds
         """
-        self.url = url or os.getenv("SUPABASE_URL", "")
-        self.anon_key = anon_key or os.getenv("SUPABASE_ANON_KEY", "")
-        self.service_role_key = service_role_key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+        self.url: str = url or os.getenv("SUPABASE_URL") or ""
+        self.anon_key: str = anon_key or os.getenv("SUPABASE_ANON_KEY", "") or ""
+        self.service_role_key: str = (
+            service_role_key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "") or ""
+        )
         self.timeout = timeout
 
         if not self.url:
@@ -69,7 +74,7 @@ class SupabaseClient:
 
         self._client = httpx.Client(timeout=timeout)
 
-    def _headers(self, use_service_role: bool = False) -> dict:
+    def _headers(self, use_service_role: bool = False) -> dict[str, str]:
         """Get headers for API requests."""
         key = self.service_role_key if use_service_role else self.anon_key
         return {
@@ -370,7 +375,7 @@ class SupabaseClient:
         Returns:
             Updated job record
         """
-        data = {
+        data: dict[str, Any] = {
             "status": "completed" if success else "failed",
             "completed_at": "now()",
         }

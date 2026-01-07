@@ -8,8 +8,11 @@ Handles:
 - Custom CSS injection
 """
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
+from typing import Any
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
 
@@ -83,7 +86,7 @@ class ThemeCustomizer:
         if isinstance(colors, dict):
             colors = BrandColors(**{k: v for k, v in colors.items() if hasattr(BrandColors, k)})
 
-        applied = {}
+        applied: dict[str, str | int] = {}
 
         # Build global colors array for GP
         global_colors = []
@@ -150,7 +153,7 @@ class ThemeCustomizer:
         container_width: int = 1200,
         sidebar: str = "no-sidebar",
         header_layout: str = "default",
-    ) -> dict:
+    ) -> dict[str, str | int]:
         """
         Apply layout settings to GeneratePress.
 
@@ -162,7 +165,7 @@ class ThemeCustomizer:
         Returns:
             Dict of applied settings
         """
-        applied = {}
+        applied: dict[str, str | int] = {}
 
         # Container width
         self.wp.run(f"theme mod set container_width '{container_width}'")
@@ -205,7 +208,7 @@ class ThemeCustomizer:
         Returns:
             Dict of all applied customizations
         """
-        results = {}
+        results: dict[str, Any] = {}
 
         brand = spec.get("brand", {})
         theme = spec.get("theme", {})

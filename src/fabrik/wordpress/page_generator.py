@@ -12,13 +12,17 @@ Handles:
 - Localization
 """
 
+from __future__ import annotations
+
+from typing import Any
+
 from fabrik.wordpress.section_renderer import SectionRenderer
 
 
 class PageGenerator:
     """Generate pages from spec."""
 
-    def __init__(self, spec: dict, locale: str = "en_US"):
+    def __init__(self, spec: dict[str, Any], locale: str = "en_US"):
         """
         Initialize page generator.
 
@@ -26,7 +30,7 @@ class PageGenerator:
             spec: Merged and normalized spec
             locale: Current locale
         """
-        self.spec = spec
+        self.spec: dict[str, Any] = spec
         self.locale = locale
         self.primary_locale = spec.get("languages", {}).get("primary", "en_US")
         self.renderer = SectionRenderer(spec, locale)
@@ -294,7 +298,7 @@ class PageGenerator:
     def _resolve_ref(self, ref: str) -> str | None:
         """Resolve reference path in spec."""
         keys = ref.split(".")
-        value = self.spec
+        value: Any = self.spec
 
         for key in keys:
             if isinstance(value, dict):

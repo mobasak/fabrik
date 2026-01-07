@@ -550,6 +550,14 @@ class SiteProvisioner:
 
         self._transition(job, ProvisionState.STEP2_COOLIFY_CREATED)
 
+    def _step2_set_env_vars(self, job: ProvisionJob) -> None:
+        """Placeholder for setting Coolify environment variables."""
+        raise NotImplementedError("Setting env vars for Coolify app is not implemented yet")
+
+    def _step2_wait_healthy(self, job: ProvisionJob) -> None:
+        """Placeholder for waiting until the application is healthy."""
+        raise NotImplementedError("Health wait step is not implemented yet")
+
     def _step2_trigger_deploy(self, job: ProvisionJob):
         """
         Explicitly trigger deployment (deterministic pattern).

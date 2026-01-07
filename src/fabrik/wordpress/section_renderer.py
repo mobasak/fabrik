@@ -16,13 +16,15 @@ Tier 1 sections (10 types):
 - pricing_table (optional)
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 
 class SectionRenderer:
     """Render sections to WordPress blocks."""
 
-    def __init__(self, spec: dict, locale: str = "en_US"):
+    def __init__(self, spec: dict[str, Any], locale: str = "en_US"):
         """
         Initialize renderer.
 
@@ -30,7 +32,7 @@ class SectionRenderer:
             spec: Full merged spec (for reference resolution)
             locale: Current locale for localized strings
         """
-        self.spec = spec
+        self.spec: dict[str, Any] = spec
         self.locale = locale
         self.primary_locale = spec.get("languages", {}).get("primary", "en_US")
 
@@ -467,7 +469,7 @@ class SectionRenderer:
     def _resolve_ref(self, ref: str) -> Any:
         """Resolve reference path in spec."""
         keys = ref.split(".")
-        value = self.spec
+        value: Any = self.spec
 
         for key in keys:
             if isinstance(value, dict):

@@ -1,5 +1,7 @@
 """Project Registry - Track all projects in /opt folder."""
 
+from __future__ import annotations
+
 import fnmatch
 from dataclasses import dataclass
 from datetime import datetime
@@ -21,8 +23,8 @@ class Project:
     domain: str | None = None
     port: int | None = None
 
-    def to_dict(self) -> dict:
-        d = {"path": self.path, "type": self.type, "status": self.status}
+    def to_dict(self) -> dict[str, str | int]:
+        d: dict[str, str | int] = {"path": self.path, "type": self.type, "status": self.status}
         if self.coolify_uuid:
             d["coolify_uuid"] = self.coolify_uuid
         if self.coolify_name:
@@ -34,7 +36,7 @@ class Project:
         return d
 
     @classmethod
-    def from_dict(cls, name: str, data: dict) -> "Project":
+    def from_dict(cls, name: str, data: dict) -> Project:
         return cls(
             name=name,
             path=data.get("path", f"/opt/{name}"),
@@ -53,11 +55,11 @@ DEFAULT_EXCLUDES = ["_*", ".*", "google", "apps", "__pycache__", "venv"]
 class ProjectRegistry:
     """Manages project registry YAML file."""
 
-    def __init__(self, path: Path = None):
+    def __init__(self, path: Path | None = None):
         self.path = path or Path("/opt/fabrik/data/projects.yaml")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.projects: dict[str, Project] = {}
-        self.excludes = DEFAULT_EXCLUDES.copy()
+        self.excludes: list[str] = DEFAULT_EXCLUDES.copy()
         self.last_scan: str | None = None
         self._load()
 
@@ -104,7 +106,7 @@ class ProjectRegistry:
         self.last_scan = datetime.now().isoformat()
         return new
 
-    def list(self, status: str = None) -> list[Project]:
+    def list(self, status: str | None = None) -> list[Project]:
         """List projects, optionally filtered by status."""
         projs = list(self.projects.values())
         if status:

@@ -7,8 +7,11 @@ Handles:
 - Menu location assignment
 """
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
+from typing import Any
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
 
@@ -53,12 +56,12 @@ class MenuCreator:
         """
         self.site_name = site_name
         self.wp = wp_client or get_wordpress_client(site_name)
-        self._page_cache: dict = {}
+        self._page_cache: dict[str, int] = {}
 
     def create_menu(
         self,
         name: str,
-        items: list,
+        items: list[Any],
         location: str | None = None,
     ) -> CreatedMenu:
         """
@@ -103,7 +106,7 @@ class MenuCreator:
     def _add_items(
         self,
         menu_id: int,
-        items: list,
+        items: list[Any],
         parent_id: int = 0,
         order_start: int = 1,
     ) -> list[MenuItem]:
@@ -119,21 +122,22 @@ class MenuCreator:
         Returns:
             List of created MenuItem objects
         """
-        created = []
+        created: list[MenuItem] = []
         order = order_start
 
         for item in items:
             # Handle different item formats
             if isinstance(item, str):
                 # Simple string - treat as page slug
-                item_spec = {"page": item}
+                item_spec: dict[str, Any] = {"page": item}
             else:
                 item_spec = item
 
             title = item_spec.get("title", "")
             page_slug = item_spec.get("page", "")
             url = item_spec.get("url", "")
-            children = item_spec.get("children", [])
+            children_value = item_spec.get("children")
+            children: list[Any] = children_value if isinstance(children_value, list) else []
 
             # Determine item type and create
             if page_slug:

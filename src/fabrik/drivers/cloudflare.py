@@ -57,7 +57,7 @@ class CloudflareClient:
             timeout=timeout,
         )
 
-    def _request(self, method: str, path: str, **kwargs) -> dict[str, Any]:
+    def _request(self, method: str, path: str, **kwargs) -> Any:
         """Make API request and return result."""
         response = self._client.request(method, path, **kwargs)
         data = response.json()

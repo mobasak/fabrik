@@ -8,6 +8,8 @@ Handles:
 - Slug management
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
@@ -79,8 +81,8 @@ class PageCreator:
         """
         try:
             # Query pages by slug
-            params = {"slug": slug, "status": "publish,draft"}
-            if parent_id:
+            params: dict[str, str | int] = {"slug": slug, "status": "publish,draft"}
+            if parent_id is not None:
                 params["parent"] = parent_id
 
             result = self.api._request("GET", "/pages", params=params)
@@ -171,7 +173,7 @@ class PageCreator:
         )
 
         # Create page
-        data = {
+        data: dict[str, str | int] = {
             "title": title,
             "content": content,
             "status": status,
@@ -183,7 +185,7 @@ class PageCreator:
         if template:
             data["template"] = template
 
-        if parent_id:
+        if parent_id is not None:
             data["parent"] = parent_id
 
         result = self.api._request("POST", "/pages", json=data)

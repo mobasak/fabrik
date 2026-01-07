@@ -1,5 +1,7 @@
 # Droid Exec - Fabrik Automation Engine
 
+**Last Updated: 2026-01-07**
+
 > **Fabrik's autonomous coding agent for the full software lifecycle.**
 
 ## droid exec vs droid TUI

@@ -60,11 +60,12 @@ class SettingsApplicator:
         Returns:
             Dict with cleanup results
         """
-        results = {
+        plugins_deleted: list[str] = []
+        results: dict[str, bool | list[str]] = {
             "post_deleted": False,
             "page_deleted": False,
             "comment_deleted": False,
-            "plugins_deleted": [],
+            "plugins_deleted": plugins_deleted,
         }
 
         # Delete default post
@@ -92,7 +93,7 @@ class SettingsApplicator:
         for plugin in ["hello", "akismet"]:
             try:
                 self.wp.plugin_delete(plugin)
-                results["plugins_deleted"].append(plugin)
+                plugins_deleted.append(plugin)
             except RuntimeError:
                 pass
 
@@ -108,7 +109,7 @@ class SettingsApplicator:
         Returns:
             Dict with applied settings
         """
-        applied = {}
+        applied: dict[str, str | bool | int] = {}
 
         brand = spec.get("brand", {})
         settings = spec.get("settings", {})
@@ -155,7 +156,7 @@ class SettingsApplicator:
         Returns:
             Dict with applied settings
         """
-        applied = {}
+        applied: dict[str, str | int] = {}
 
         # Set to static page mode
         self.wp.option_update("show_on_front", "page")

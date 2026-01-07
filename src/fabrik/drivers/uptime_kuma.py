@@ -39,6 +39,13 @@ class UptimeKumaClient:
             self._api = UptimeKumaApi(self.url)
             self._api.login(self.username, self.password)
 
+    def _get_api(self) -> UptimeKumaApi:
+        """Return connected API client, ensuring it is initialized."""
+        self._ensure_connected()
+        if self._api is None:
+            raise RuntimeError("Uptime Kuma API client not initialized")
+        return self._api
+
     def disconnect(self) -> None:
         """Disconnect from Uptime Kuma."""
         if self._api:
@@ -47,8 +54,8 @@ class UptimeKumaClient:
 
     def get_monitors(self) -> list[dict]:
         """Get all existing monitors."""
-        self._ensure_connected()
-        return self._api.get_monitors()
+        api = self._get_api()
+        return api.get_monitors()
 
     def add_http_monitor(
         self,
@@ -69,15 +76,15 @@ class UptimeKumaClient:
         Returns:
             Monitor info dict
         """
-        self._ensure_connected()
+        api = self._get_api()
 
         # Check if already exists
-        existing = self._api.get_monitors()
+        existing = api.get_monitors()
         for m in existing:
             if m["name"] == name:
                 return {"status": "exists", "monitor": m}
 
-        result = self._api.add_monitor(
+        result = api.add_monitor(
             type=MonitorType.HTTP,
             name=name,
             url=url,
@@ -106,15 +113,15 @@ class UptimeKumaClient:
         Returns:
             Monitor info dict
         """
-        self._ensure_connected()
+        api = self._get_api()
 
         # Check if already exists
-        existing = self._api.get_monitors()
+        existing = api.get_monitors()
         for m in existing:
             if m["name"] == name:
                 return {"status": "exists", "monitor": m}
 
-        result = self._api.add_monitor(
+        result = api.add_monitor(
             type=MonitorType.PORT,
             name=name,
             hostname=hostname,
@@ -127,12 +134,12 @@ class UptimeKumaClient:
 
     def delete_monitor(self, name: str) -> bool:
         """Delete a monitor by name."""
-        self._ensure_connected()
+        api = self._get_api()
 
-        existing = self._api.get_monitors()
+        existing = api.get_monitors()
         for m in existing:
             if m["name"] == name:
-                self._api.delete_monitor(m["id"])
+                api.delete_monitor(m["id"])
                 return True
         return False
 

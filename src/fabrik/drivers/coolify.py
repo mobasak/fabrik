@@ -69,14 +69,16 @@ class CoolifyClient:
             token: API token. Defaults to COOLIFY_API_TOKEN env var
             timeout: Request timeout in seconds
         """
-        self.base_url = base_url or os.getenv("COOLIFY_API_URL", "http://localhost:8000")
-        self.token = token or os.getenv("COOLIFY_API_TOKEN")
+        env_base_url = os.getenv("COOLIFY_API_URL", "http://localhost:8000")
+        self.base_url: str = base_url if base_url is not None else env_base_url
 
-        if not self.token:
+        token_value = token if token is not None else os.getenv("COOLIFY_API_TOKEN")
+        if not token_value:
             raise ValueError(
                 "Coolify API token required. Set COOLIFY_API_TOKEN env var "
                 "or pass token parameter. Generate at: Coolify UI > Keys & Tokens > API tokens"
             )
+        self.token: str = token_value
 
         # Ensure base URL has /api/v1
         if not self.base_url.endswith("/api/v1"):
@@ -92,7 +94,7 @@ class CoolifyClient:
             },
         )
 
-    def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
+    def _request(self, method: str, endpoint: str, **kwargs) -> Any:
         """Make HTTP request to Coolify API."""
         url = f"{self.base_url}{endpoint}"
         response = self._client.request(method, url, **kwargs)

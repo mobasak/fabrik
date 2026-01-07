@@ -1,6 +1,6 @@
 # Fabrik CLI Reference
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-07
 
 The `fabrik` CLI is the main tool for managing specs, deployments, and project structures in the Fabrik ecosystem.
 

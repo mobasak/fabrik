@@ -4,6 +4,8 @@ Fabrik WordPress Spec Validator
 Validates site specifications according to schema/VALIDATION_RULES.md
 """
 
+from __future__ import annotations
+
 import re
 from typing import Any
 
@@ -17,16 +19,16 @@ class ValidationError(Exception):
 class SpecValidator:
     """Validate WordPress site specifications."""
 
-    def __init__(self, spec: dict):
+    def __init__(self, spec: dict[str, Any]):
         """
         Initialize validator.
 
         Args:
             spec: Merged spec dict
         """
-        self.spec = spec
-        self.errors = []
-        self.warnings = []
+        self.spec: dict[str, Any] = spec
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
 
     def validate(self) -> tuple[list[str], list[str]]:
         """
@@ -175,7 +177,7 @@ class SpecValidator:
     def _get_nested(self, path: str, default: Any = None) -> Any:
         """Get nested value from spec using dot notation."""
         keys = path.split(".")
-        value = self.spec
+        value: Any = self.spec
 
         for key in keys:
             if isinstance(value, dict):

@@ -7,6 +7,7 @@ Executes WP-CLI commands inside WordPress Docker containers via SSH.
 import json
 import subprocess
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -113,7 +114,7 @@ class WordPressClient:
 
     # ========== Plugin Commands ==========
 
-    def plugin_list(self, format: str = "json") -> list[dict]:
+    def plugin_list(self, format: str = "json") -> list[dict[str, Any]] | str:
         """List installed plugins."""
         output = self.run(f"plugin list --format={format}")
         if format == "json":
@@ -149,7 +150,7 @@ class WordPressClient:
 
     # ========== Theme Commands ==========
 
-    def theme_list(self, format: str = "json") -> list[dict]:
+    def theme_list(self, format: str = "json") -> list[dict[str, Any]] | str:
         """List installed themes."""
         output = self.run(f"theme list --format={format}")
         if format == "json":
@@ -171,7 +172,7 @@ class WordPressClient:
 
     # ========== User Commands ==========
 
-    def user_list(self, format: str = "json") -> list[dict]:
+    def user_list(self, format: str = "json") -> list[dict[str, Any]] | str:
         """List users."""
         output = self.run(f"user list --format={format}")
         if format == "json":
@@ -234,7 +235,7 @@ class WordPressClient:
 
     # ========== Language Commands ==========
 
-    def language_list(self, format: str = "json") -> list[dict]:
+    def language_list(self, format: str = "json") -> list[dict[str, Any]] | str:
         """List installed languages."""
         output = self.run(f"language core list --format={format}")
         if format == "json":

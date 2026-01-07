@@ -104,7 +104,7 @@ class PresetLoader:
         self.wp = wp_client or get_wordpress_client(site_name)
         self.api = api_client
 
-        self._log = []
+        self._log: list[str] = []
 
     def log(self, message: str):
         """Log an action."""
