@@ -54,7 +54,7 @@ fabrik plan my-api      # Execute and exit
 - 🔒 **Internal** — No external access, Docker network only
 - ⚠️ **Open** — Publicly accessible (needs auth added)
 
-See [docs/reference/vps-urls.md](reference/vps-urls.md) for complete URL reference.
+See [vps-urls.md](operations/vps-urls.md) for complete URL reference.
 
 ## Startup Order
 

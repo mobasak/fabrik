@@ -222,6 +222,6 @@ Use when a hook consolidation or update corrupts local hook settings. Restores t
 
 ## See Also
 
-- [AGENTS.md](/opt/fabrik/AGENTS.md) — Cross-agent briefing
+- [AGENTS.md](../../AGENTS.md) — Cross-agent briefing
 - [droid-exec-usage.md](droid-exec-usage.md) — droid exec reference
 - [hooks-and-skills-guide.md](hooks-and-skills-guide.md) — Hook configuration

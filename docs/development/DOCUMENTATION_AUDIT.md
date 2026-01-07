@@ -200,7 +200,7 @@ This notation:
 
 **Recommendation:** Convert to relative markdown links:
 ```markdown
-See [Phase 1](reference/Phase1.md)
+See [Phase 1](../reference/Phase1.md)
 ```
 
 ### Missing File References

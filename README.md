@@ -1,5 +1,7 @@
 # Fabrik
 
+**Last Updated:** 2026-01-07
+
 **Deployment automation CLI for AI-powered infrastructure.**
 
 Fabrik enables spec-driven deployment of Python APIs, WordPress sites, and AI-integrated applications via Coolify.

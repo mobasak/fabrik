@@ -224,4 +224,4 @@ If a review appears stuck, the processor will emit periodic diagnostics when the
 
 - [Verification Framework](verification-framework.md)
 - [Droid Exec Usage](droid-exec-usage.md)
-- [AGENTS.md](/opt/fabrik/AGENTS.md)
+- [AGENTS.md](../../AGENTS.md)

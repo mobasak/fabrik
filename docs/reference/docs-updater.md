@@ -32,6 +32,7 @@ The documentation updater is a **separate workflow** from code review:
 │  4. docs_updater.py runs async (~30 seconds)                    │
 │     - Uses gemini-3-flash-preview (0.2x credits)                │
 │     - Analyzes what changed (API, CLI, config, etc.)            │
+│     - Handles task recovery and retries                         │
 │     ↓                                                           │
 │  5. Writes updates DIRECTLY to doc files                        │
 │     ↓                                                           │
@@ -42,6 +43,17 @@ The documentation updater is a **separate workflow** from code review:
 │  7. Accept → changes stay | Reject → git restore <file>         │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Task Management
+
+The updater includes robust task management to ensure documentation stays in sync even during failures:
+
+- **Stale Task Recovery:** Tasks stuck in "processing" for more than 15 minutes are automatically reset to "pending".
+- **Retry Logic:** Failed tasks are automatically retried up to 3 times before being marked as permanently failed.
+- **Security:** The updater rejects symlink task files to prevent arbitrary file access or manipulation.
+- **Batching:** Tasks are processed in batches (max 10) with a delay to allow changes to accumulate.
 
 ---
 

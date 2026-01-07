@@ -1,5 +1,7 @@
 # Fabrik Business Model
 
+**Last Updated:** 2026-01-07
+
 Monetization strategy and revenue opportunities.
 
 ## Overview

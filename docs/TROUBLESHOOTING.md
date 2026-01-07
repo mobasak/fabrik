@@ -1,5 +1,7 @@
 # Troubleshooting
 
+**Last Updated:** 2026-01-07
+
 Common issues and solutions.
 
 ## Connection Issues

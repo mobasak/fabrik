@@ -1,5 +1,7 @@
 # Quick Start
 
+**Last Updated:** 2026-01-07
+
 Get Fabrik running in 5 minutes.
 
 ## Prerequisites

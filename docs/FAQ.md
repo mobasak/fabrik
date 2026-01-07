@@ -93,7 +93,7 @@ See [droid-exec-usage.md](reference/droid-exec-usage.md) for complete reference.
 | 8000-8099 | Python APIs |
 | 8100-8199 | Workers |
 
-See [PORTS.md](/opt/fabrik/PORTS.md) for current allocations.
+See [PORTS.md](../PORTS.md) for current allocations.
 
 ### Why isn't my service accessible externally?
 

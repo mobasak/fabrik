@@ -1,5 +1,7 @@
 # Fabrik Project Agent Briefing
 
+**Last Updated:** 2026-01-07
+
 > Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
 
 ## Authority Model
