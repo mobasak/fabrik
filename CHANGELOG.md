@@ -6,6 +6,92 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Documentation Automation System (2026-01-07)
+
+**What:** Automated documentation system with mandatory CHANGELOG.md updates.
+
+**Files:**
+- `scripts/docs_updater.py` - Added --check/--sync/--dry-run modes, CHANGELOG.md as mandatory step 1
+- `scripts/enforcement/check_plans.py` - Plan naming validation
+- `scripts/enforcement/validate_conventions.py` - Wired plan checks
+- `.windsurf/rules/50-code-review.md` - Execution protocol (PLAN→APPROVE→IMPLEMENT→REVIEW→FIX→VALIDATE→NEXT)
+- `.windsurf/rules/40-documentation.md` - Added CHANGELOG.md mandatory rule
+- `.github/workflows/docs-check.yml` - CI for docs validation
+- `docs/development/PLANS.md` - Plans index
+- `docs/development/plans/` - Plans directory structure
+- `templates/docs/MODULE_REFERENCE_TEMPLATE.md` - Module stub template
+- `tests/test_docs_updater.py` - Tests for docs_updater
+
+---
+
+### Added - Deployment Orchestrator Phase 10 (2026-01-06)
+
+**What:** Spec-driven deployment orchestration system.
+
+**Files:**
+- `src/fabrik/orchestrator/` - Complete orchestrator module
+- `docs/reference/orchestrator.md` - Orchestrator documentation
+- `docs/reference/phase10.md` - Human-readable plan
+- `docs/reference/phase10-execution.md` - Execution details
+
+---
+
+### Added - Windsurf Rules Enhancement (2026-01-05)
+
+**What:** Enhanced Windsurf rules with dynamic model discovery.
+
+**Files:**
+- `.windsurf/rules/00-critical.md` - Security, env vars (always_on)
+- `.windsurf/rules/10-python.md` - Python patterns (glob)
+- `.windsurf/rules/20-typescript.md` - TypeScript patterns (glob)
+- `.windsurf/rules/30-ops.md` - Docker/ops (always_on)
+- `.windsurf/rules/90-automation.md` - droid exec integration (always_on)
+- `AGENTS.md` - Removed hardcoded model names, use config/models.yaml
+
+---
+
+### Added - Multi-Model Consensus & Gap Analysis (2026-01-04)
+
+**What:** 4-model consensus for architectural decisions.
+
+**Files:**
+- `specs/FABRIK_CONSOLIDATED_GAP_ANALYSIS.md` - Gap analysis
+- `specs/FABRIK_CONDUCTOR_CONSENSUS_PLAN.md` - Consensus plan
+- `docs/design/CASCADE-DROID-STRATEGY.md` - Cascade-Droid strategy
+
+---
+
+### Added - Enforcement System (2026-01-04)
+
+**What:** Windsurf + Fabrik enforcement integration.
+
+**Files:**
+- `scripts/enforcement/` - Convention validators
+- `.factory/hooks/` - Pre/post hooks
+- `docs/reference/enforcement-system.md` - Enforcement documentation
+
+---
+
+### Added - Code Review Feedback Loop (2026-01-03)
+
+**What:** Automated code review with acknowledgment tracking.
+
+**Files:**
+- `scripts/acknowledge_reviews.py` - Review acknowledgment
+- `docs/reference/auto-review.md` - Auto-review documentation
+
+---
+
+### Added - Process Monitoring (2026-01-03)
+
+**What:** Long-running command monitoring with stuck detection.
+
+**Files:**
+- `scripts/process_monitor.py` - Process monitoring
+- `docs/reference/PROCESS_MONITORING_QUICKSTART.md` - Quickstart guide
+
+---
+
 ### Added - SaaS Skeleton Template (2025-01-02)
 
 **Complete Next.js SaaS template with droid exec integration.**
