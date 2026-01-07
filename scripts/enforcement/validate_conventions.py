@@ -133,6 +133,11 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
     # Markdown files - check plan conventions
     if suffix == ".md":
         results.extend(run_check_plans(file_path))
+        # Check if tasks.md needs update when phase docs change
+        if "phase" in name:
+            from .check_tasks_updated import check_file as check_tasks
+
+            results.extend(check_tasks(file_path))
 
     return results
 

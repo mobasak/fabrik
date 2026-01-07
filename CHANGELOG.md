@@ -27,6 +27,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+### Changed - tasks.md to Dashboard Format (2026-01-07)
+
+**What:** Converted tasks.md from duplicated checklist to dashboard linking phase docs.
+
+**Files:**
+- `tasks.md` - Now links to phase docs, no duplicated checkboxes
+- `scripts/enforcement/check_tasks_updated.py` - Warns when phase docs change
+- `scripts/enforcement/validate_conventions.py` - Added tasks update check
+
+**Update Protocol:**
+1. Update phase doc (checkboxes, completion %)
+2. Update tasks.md (status table)
+3. Update CHANGELOG.md (code changes)
+
+---
+
 ### Added - droid-review.sh Wrapper Script (2026-01-07)
 
 **What:** Created wrapper script that enforces adaptive meta-prompt for all code reviews.

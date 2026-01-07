@@ -1,141 +1,43 @@
-# Fabrik Development Tasks
+# Fabrik Development Dashboard
 
-**Last Updated:** 2025-12-27
+**Last Updated:** 2026-01-07
 
----
-
-## Phase 1: Foundation ✅ COMPLETE (25/25)
-
-### VPS Hardening ✅
-
-- [x] SSH hardening (keys only, no root, AllowUsers)
-- [x] UFW firewall (22, 80, 443 only)
-- [x] Fail2ban setup
-- [x] Unattended upgrades
-- [x] Docker log rotation
-
-### Coolify Setup ✅
-
-- [x] Install Coolify (v4.0.0-beta.455)
-- [x] Secure Coolify (password, HTTPS)
-- [x] Deploy postgres-main (PostgreSQL 16)
-- [x] Deploy redis-main
-- [x] Configure postgres backup to B2 (Duplicati)
-
-### Fabrik Core ✅
-
-- [x] Create folder structure
-- [x] Set up secrets (platform.env)
-- [x] Implement spec_loader.py
-- [x] Implement dns_namecheap.py (DNSClient driver)
-- [x] Implement coolify.py (CoolifyClient driver)
-- [x] Implement template_renderer.py
-- [x] Implement `fabrik new`
-- [x] Implement `fabrik plan`
-- [x] Implement `fabrik apply`
-- [x] Implement `fabrik logs`
-- [x] Implement `fabrik destroy`
-
-### First Deployment ✅
-
-- [x] Create app-python template
-- [x] Deploy hello-api (manual, not via fabrik)
-
-### Monitoring ✅
-
-- [x] Deploy Uptime Kuma
-- [x] Configure checks + alerts
-
-### Validation ✅
-
-- [x] Test backup + restore
+> **This file is a dashboard.** Detailed progress and checkboxes live in phase docs.
+> After any implementation, update both this dashboard AND the relevant phase doc.
 
 ---
 
-## Phase 1b: Cloud Infrastructure ✅ COMPLETE (10/10)
+## Current Focus
 
-- [x] Set up Supabase project
-- [x] Set up Cloudflare R2 bucket
-- [x] Create Supabase driver
-- [x] Create R2 driver
-- [x] Apply DDL (tenants, files, jobs, derivatives)
-- [x] Update Fabrik spec schema for `storage: r2`
-- [x] Create Node API template (presigned URLs) — templates/file-api
-- [x] Create Python worker template — templates/file-worker
-- [x] Deploy first file-processing service (local test passed)
-- [x] Verify end-to-end flow
+| Priority | Task | Phase Doc |
+|----------|------|-----------|
+| 🔴 1 | Deploy ocoron.com (multilingual) | [Phase2.md](docs/reference/Phase2.md) |
+| 🟡 2 | Build preset loader | [Phase2.md](docs/reference/Phase2.md) |
+| 🟡 3 | Create custom themes | [Phase2.md](docs/reference/Phase2.md) |
 
 ---
 
-## Phase 1c: Cloudflare DNS Migration ⚡ 75% (9/12)
+## Phase Status
 
-- [x] Create Cloudflare account
-- [x] Add domain to Cloudflare (ocoron.com)
-- [x] Implement Cloudflare DNS driver
-- [x] Migrate DNS records from Namecheap
-- [x] Update nameservers at registrar
-- [x] Configure SSL mode (Full Strict)
-- [ ] Set up WAF rules — *Deferred (with WordPress)*
-- [x] Update Fabrik to use Cloudflare driver
-- [x] Unified DNS Manager service (dns.vps1.ocoron.com)
-- [x] WordPress tasks moved to Phase 2
-
----
-
-## Phase 2: WordPress Automation ⚡ 67% (8/12)
-
-### Core ✅
-
-- [x] Create WordPress template (compose + env + hardening)
-- [x] Add backup sidecar to template
-- [x] Deploy WordPress test site (wp-test.vps1.ocoron.com)
-- [x] WP-CLI wrapper (WordPressClient driver)
-- [x] WordPress REST API client (WordPressAPIClient driver)
-- [x] Theme management (via WP-CLI wrapper)
-- [x] Plugin management (via WP-CLI wrapper)
-- [x] Content operations (via REST API client)
-
-### Pending ❌
-
-- [ ] Configure WAF rules — *Needs Cloudflare permissions*
-- [ ] Build preset loader — *Load presets/saas.yaml, company.yaml, etc.*
-- [ ] Create themes (flavor-starter, flavor-corporate)
-- [ ] **Deploy ocoron.com** — *Company site, multilingual EN/TR*
+| Phase | Name | Status | Doc |
+|-------|------|--------|-----|
+| 1 | Foundation | ✅ Complete | [Phase1.md](docs/reference/Phase1.md) |
+| 1b | Cloud Infrastructure | ✅ Complete | [Phase1b.md](docs/reference/Phase1b.md) |
+| 1c | Cloudflare DNS | ✅ Complete | [Phase1c.md](docs/reference/Phase1c.md) |
+| 1d | Droid Exec Integration | ✅ Complete | [Phase1d.md](docs/reference/Phase1d.md) |
+| 2 | WordPress Automation | ⚡ 67% | [Phase2.md](docs/reference/Phase2.md) |
+| 3 | AI Content Integration | ❌ Blocked (needs P2) | [Phase3.md](docs/reference/Phase3.md) |
+| 4 | DNS + Networking | ✅ Done in P1c | [Phase4.md](docs/reference/Phase4.md) |
+| 5 | Staging + Multi-Env | ❌ Blocked (needs P2) | [Phase5.md](docs/reference/Phase5.md) |
+| 6 | Advanced Monitoring | 🟡 Partial | [Phase6.md](docs/reference/Phase6.md) |
+| 7 | Multi-Server Scaling | ❌ Not Started | [Phase7.md](docs/reference/Phase7.md) |
+| 8 | Business Automation | ❌ Not Started | [Phase8.md](docs/reference/Phase8.md) |
+| 9 | Docker Acceleration | ✅ Reference | [phase9.md](docs/reference/phase9.md) |
+| 10 | Deployment Orchestrator | 🟡 In Design | [phase10.md](docs/reference/phase10.md) |
 
 ---
 
-## Phase 3: AI Content Integration ❌ NOT STARTED (0/6)
-
-*Requires Phase 2 complete*
-
-- [ ] LLM client wrapper (Claude/OpenAI)
-- [ ] Content generation engine
-- [ ] Content revision system
-- [ ] Bulk generation tools
-- [ ] SEO optimization
-- [ ] Windsurf agent integration
-
----
-
-## Phase 4-8: Future Phases ❌ NOT STARTED
-
-- **Phase 4:** DNS Migration + Advanced Networking
-- **Phase 5:** Staging + Multi-Environment
-- **Phase 6:** Advanced Monitoring
-- **Phase 7:** Multi-Server Scaling
-- **Phase 8:** Business Automation (n8n)
-
----
-
-## Current Priority
-
-1. **Deploy ocoron.com** — Company site with multilingual support
-2. Build preset loader
-3. Create custom themes
-
----
-
-## VPS Services Deployed
+## VPS Services
 
 | Service | URL | Status |
 |---------|-----|--------|
@@ -151,3 +53,15 @@
 | Email Gateway | emailgateway.vps1.ocoron.com | ✅ |
 | Proxy API | proxy.vps1.ocoron.com | ✅ |
 | WordPress Test | wp-test.vps1.ocoron.com | ✅ |
+
+---
+
+## Update Protocol
+
+When completing any task:
+
+1. Update the **phase doc** (checkboxes, status)
+2. Update this **dashboard** (phase status table)
+3. Update **CHANGELOG.md** (code changes)
+
+See: [Documentation Rules](.windsurf/rules/40-documentation.md)
