@@ -98,6 +98,10 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
         results.extend(run_check_env_vars(file_path))
         results.extend(run_check_secrets(file_path))
         results.extend(run_check_health(file_path))
+        # Check for docs on new modules
+        if name == "__init__.py":
+            from .check_docs import check_file as check_docs
+            results.extend(check_docs(file_path))
 
     # TypeScript/JavaScript files
     if suffix in (".ts", ".tsx", ".js", ".jsx"):
