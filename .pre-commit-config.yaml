@@ -80,3 +80,12 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+
+      - id: changelog-check
+        name: CHANGELOG.md Updated
+        description: Ensure CHANGELOG.md is updated when code files change
+        entry: python3 scripts/enforcement/check_changelog.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

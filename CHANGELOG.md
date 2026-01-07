@@ -8,10 +8,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added - Documentation Automation System (2026-01-07)
 
-**What:** Automated documentation system with mandatory CHANGELOG.md updates.
+**What:** Automated documentation system with mandatory CHANGELOG.md updates and pre-commit enforcement.
 
 **Files:**
 - `scripts/docs_updater.py` - Added --check/--sync/--dry-run modes, CHANGELOG.md as mandatory step 1
+- `scripts/enforcement/check_changelog.py` - Pre-commit hook to enforce CHANGELOG.md updates
+- `.pre-commit-config.yaml` - Added changelog-check hook
 - `scripts/enforcement/check_plans.py` - Plan naming validation
 - `scripts/enforcement/validate_conventions.py` - Wired plan checks
 - `.windsurf/rules/50-code-review.md` - Execution protocol (PLAN→APPROVE→IMPLEMENT→REVIEW→FIX→VALIDATE→NEXT)
