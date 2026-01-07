@@ -6,6 +6,26 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - scaffold.py Full Fabrik Compliance (2026-01-07)
+
+**What:** New projects created via `create_project()` are now fully compliant with Fabrik conventions.
+
+**Files:**
+- `src/fabrik/scaffold.py` - Major enhancements
+- `templates/scaffold/docker/Dockerfile.python` - Fixed CMD entry point
+
+**Changes:**
+- AGENTS.md now symlinked to master `/opt/fabrik/AGENTS.md` (with copy fallback)
+- .pre-commit-config.yaml copied and hooks installed automatically
+- pyproject.toml with ruff/mypy/bandit config included
+- Dockerfile CMD fixed: `src.main:app` (was `app.main:app`)
+- Input validation: lowercase names, reserved names blocked, length limit
+- fix_project() uses same AGENTS.md fallback logic as create_project()
+
+**Code Review:** gemini-3-flash-preview verified all issues fixed.
+
+---
+
 ### Added - Droid Review Meta-Prompt and Enforcement Memories (2026-01-07)
 
 **What:** Created adaptive review prompt template and enforcement memories for Cascade behavior.

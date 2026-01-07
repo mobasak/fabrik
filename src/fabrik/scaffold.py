@@ -1,8 +1,33 @@
 """Project scaffolding - create new projects with full structure."""
 
+import re
+import shutil
 import subprocess
 from datetime import date
 from pathlib import Path
+
+# Reserved project names that conflict with system dirs or packages
+RESERVED_NAMES = frozenset(
+    {
+        "src",
+        "test",
+        "tests",
+        "lib",
+        "bin",
+        "opt",
+        "tmp",
+        "var",
+        "usr",
+        "home",
+        "root",
+        "etc",
+        "dev",
+        "proc",
+        "sys",
+        "fabrik",
+        "python",
+    }
+)
 
 TEMPLATE_DIR = Path("/opt/fabrik/templates/scaffold")
 
@@ -15,10 +40,11 @@ TEMPLATE_MAP = {
     "docs/CONFIGURATION_TEMPLATE.md": "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING_TEMPLATE.md": "docs/TROUBLESHOOTING.md",
     "docs/BUSINESS_MODEL_TEMPLATE.md": "docs/BUSINESS_MODEL.md",
-    # Droid exec / Docker workflow files
-    "AGENTS.md": "AGENTS.md",
+    # Droid exec / Docker workflow files (AGENTS.md handled separately as symlink)
     "docker/Dockerfile.python": "Dockerfile",
     "docker/compose.yaml.template": "compose.yaml",
+    # Python tooling config
+    "python/pyproject.toml.template": "pyproject.toml",
 }
 
 REQUIRED_FILES = [
@@ -50,14 +76,74 @@ DIRS = [
     "src",  # Source code directory
 ]
 
+# Master AGENTS.md location
+FABRIK_AGENTS_MD = Path("/opt/fabrik/AGENTS.md")
+
+
+def _validate_project_name(name: str) -> None:
+    """Validate project name. Raises ValueError if invalid."""
+    if not name:
+        raise ValueError("Project name cannot be empty")
+    if not re.match(r"^[a-z][a-z0-9-]*$", name):
+        raise ValueError(
+            f"Invalid project name: '{name}'. "
+            "Must be lowercase, start with letter, contain only letters, numbers, hyphens."
+        )
+    if name in RESERVED_NAMES:
+        raise ValueError(f"Reserved project name: '{name}'")
+    if len(name) > 50:
+        raise ValueError(f"Project name too long: {len(name)} chars (max 50)")
+
+
+def _link_agents_md(project_dir: Path) -> None:
+    """Symlink AGENTS.md to master, fallback to copy if master unavailable."""
+    link_path = project_dir / "AGENTS.md"
+    if FABRIK_AGENTS_MD.exists():
+        try:
+            link_path.symlink_to(FABRIK_AGENTS_MD)
+        except OSError:
+            # Symlink failed, copy instead
+            shutil.copy(FABRIK_AGENTS_MD, link_path)
+    else:
+        # Master not found, copy template
+        template = TEMPLATE_DIR / "AGENTS.md"
+        if template.exists():
+            shutil.copy(template, link_path)
+        else:
+            link_path.write_text("# AGENTS.md\n\nSee /opt/fabrik/AGENTS.md for full briefing.\n")
+
+
+def _install_pre_commit(project_dir: Path) -> bool:
+    """Copy pre-commit config and install hooks. Returns True if successful."""
+    # Copy config file
+    src_config = TEMPLATE_DIR / "pre-commit-config.yaml"
+    dest_config = project_dir / ".pre-commit-config.yaml"
+    if src_config.exists():
+        shutil.copy(src_config, dest_config)
+    else:
+        return False
+
+    # Try to install hooks (graceful failure)
+    if shutil.which("pre-commit"):
+        result = subprocess.run(
+            ["pre-commit", "install"],
+            cwd=project_dir,
+            capture_output=True,
+        )
+        return result.returncode == 0
+    else:
+        # pre-commit not available, but config is copied
+        return True
+
 
 def create_project(name: str, description: str, base: Path = Path("/opt")) -> Path:
     """Create a new project with full structure."""
+    # Validate inputs
+    _validate_project_name(name)
+
     project_dir = base / name
     if project_dir.exists():
         raise ValueError(f"Project already exists: {project_dir}")
-    if name.startswith("_"):
-        raise ValueError("Project name cannot start with underscore")
 
     # Create directories
     for d in DIRS:
@@ -74,9 +160,11 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
                 ("[Project Name]", name),
                 ("[project]", name),
                 ("<project>", name),
+                ("project-name", name),  # pyproject.toml
                 ("YYYY-MM-DD", today),
                 ("[Brief description]", description),
                 ("[One-line description]", description),
+                ("Brief project description", description),  # pyproject.toml
             ]:
                 content = content.replace(old, new)
             (project_dir / dest).write_text(content)
@@ -85,6 +173,9 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     (project_dir / ".windsurfrules").symlink_to("/opt/fabrik/windsurfrules")
     (project_dir / ".windsurf").mkdir(exist_ok=True)
     (project_dir / ".windsurf" / "rules").symlink_to("/opt/fabrik/.windsurf/rules")
+
+    # AGENTS.md: symlink to master, fallback to copy
+    _link_agents_md(project_dir)
 
     # Create .gitignore and .env.example
     (project_dir / ".gitignore").write_text(
@@ -113,6 +204,10 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
 
     # Git init
     subprocess.run(["git", "init", "-q"], cwd=project_dir, capture_output=True)
+
+    # Install pre-commit config (after git init, before add)
+    _install_pre_commit(project_dir)
+
     subprocess.run(["git", "add", "."], cwd=project_dir, capture_output=True)
     subprocess.run(
         ["git", "commit", "-q", "-m", "Initial commit"], cwd=project_dir, capture_output=True
@@ -191,11 +286,12 @@ def fix_project(project_path: Path, dry_run: bool = False) -> list[str]:
 
             agents_link = project_path / "AGENTS.md"
             if not agents_link.exists() and not agents_link.is_symlink():
-                agents_link.symlink_to("/opt/fabrik/AGENTS.md")
-                added.append("AGENTS.md (symlink)")
+                _link_agents_md(project_path)
+                added.append("AGENTS.md (symlink or copy)")
         except OSError:
-            # Log but don't fail - symlinks are nice-to-have
-            pass
+            # Fallback for AGENTS.md
+            _link_agents_md(project_path)
+            added.append("AGENTS.md (copy fallback)")
     else:
         # Check what would be added in dry_run
         windsurfrules_link = project_path / ".windsurfrules"
