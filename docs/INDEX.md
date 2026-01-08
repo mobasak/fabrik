@@ -1,6 +1,6 @@
 # Fabrik Documentation
 
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-01-08
 
 ---
 
@@ -52,6 +52,7 @@ docs/
 │   ├── roadmap.md                  # Complete 8-phase roadmap summary
 │   ├── stack.md                    # Technology stack & tools inventory
 │   ├── templates.md                # Available deployment templates
+│   ├── spec-pipeline.md            # Spec pipeline (idea → scope → spec) (NEW 2026-01-08)
 │   ├── trueforge-images.md         # Trueforge image catalog
 │   ├── uptime-kuma.md              # Uptime Kuma runbook
 │   ├── verification-framework.md   # 3-lane verification system

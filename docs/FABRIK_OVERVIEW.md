@@ -1,7 +1,7 @@
 # Fabrik: What We've Built
 
-**Date:** 2025-12-27
-**Status:** Phase 1 ✅ + Phase 1b ✅ + Phase 1c ✅ + Phase 1d 🚧 + Phase 2 (67%)
+**Last Updated:** 2026-01-08
+**Status:** Phase 1 ✅ + Phase 1b ✅ + Phase 1c ✅ + Phase 1d ✅ + Phase 2 (80%)
 
 ---
 
@@ -71,6 +71,91 @@ fabrik templates                                  # List templates
 | `UptimeKumaClient` | Creates health monitors |
 | `SupabaseClient` | Auth, database, file metadata |
 | `R2Client` | Object storage with presigned URLs |
+
+---
+
+## AI Agent Automation (2026-01-08)
+
+### Droid Scripts
+
+Unified AI agent execution system for code tasks:
+
+| Script | Purpose |
+|--------|--------|
+| `scripts/droid_core.py` | **Main entry** - 13 task types, ProcessMonitor, stuck detection |
+| `scripts/review_processor.py` | Dual-model code review queue |
+| `scripts/docs_updater.py` | Automatic documentation updates |
+| `scripts/droid_models.py` | Model selection and auto-updates |
+
+### Spec Pipeline (idea → scope → spec)
+
+Complete workflow for going from idea to implementation-ready specification:
+
+```bash
+# 1. Capture and explore idea
+droid exec idea "Voice-controlled home automation for elderly"
+
+# 2. Define IN/OUT scope boundaries
+droid exec scope "home-automation"
+
+# 3. Generate full specification
+droid exec spec "home-automation"
+
+# Output structure:
+# specs/home-automation/00-idea.md
+# specs/home-automation/01-scope.md
+# specs/home-automation/02-spec.md
+```
+
+### Task Types
+
+```bash
+python scripts/droid_core.py analyze "Review auth flow"
+python scripts/droid_core.py code "Add error handling" --auto medium
+python scripts/droid_core.py spec "Plan new feature"
+python scripts/droid_core.py run --task tasks/my_task.md
+```
+
+| Type | Use Case |
+|------|----------|
+| `idea`, `scope` | Discovery pipeline (new) |
+| `analyze`, `review` | Read-only analysis |
+| `code`, `refactor` | Write changes (retries disabled) |
+| `spec` | Planning with reasoning |
+| `test`, `health`, `preflight` | Verification |
+| `scaffold`, `deploy`, `migrate` | Infrastructure |
+
+### Key Features
+
+- **ProcessMonitor** - Detects stuck processes, auto-retry for safe tasks
+- **Session continuity** - `--session-id` for multi-turn context
+- **Large prompt support** - >100KB prompts use `--file` flag
+- **Provider switch handling** - Session reset on OpenAI ↔ Anthropic
+
+---
+
+## Enforcement & Quality Gates (2026-01-07)
+
+### Windsurf Rules
+
+Modular rules in `.windsurf/rules/`:
+
+| Rule | Activation | Purpose |
+|------|------------|--------|
+| `00-critical.md` | Always On | Security, env vars, /tmp/ ban |
+| `10-python.md` | `*.py` | FastAPI patterns |
+| `20-typescript.md` | `*.ts` | Next.js patterns |
+| `30-ops.md` | Dockerfile | Container standards |
+| `40-documentation.md` | `*.md` | Doc standards |
+| `50-code-review.md` | Always On | PLAN→APPROVE→IMPLEMENT→REVIEW |
+
+### Enforcement Scripts
+
+```bash
+python3 -m scripts.enforcement.validate_conventions --strict <files>
+python3 scripts/enforcement/check_structure.py
+python3 scripts/enforcement/check_docs.py
+```
 
 ---
 
@@ -255,32 +340,23 @@ All in `/opt/fabrik/.env`:
 
 ## What's Next?
 
-### Immediate Options
+### Completed Since Last Update
 
-1. **Deploy File API to VPS**
-   - Push to GitHub
-   - Deploy via Coolify
-   - Add DNS record
+- ✅ File API deployed to VPS
+- ✅ File Worker deployed
+- ✅ Cloudflare DNS driver (Phase 1c)
+- ✅ WordPress automation (Phase 1d)
+- ✅ AI agent automation (droid scripts)
+- ✅ Enforcement system (Windsurf rules)
 
-2. **Build Upload UI**
-   - React/Next.js component
-   - Drag-drop with progress
-   - Uses presigned URLs
+### Current Priorities
 
-3. **Deploy File Worker**
-   - Enable transcription (Soniox integration)
-   - Enable OCR (Tesseract)
-   - Enable PDF extraction
-
-### Phase 2 Possibilities
-
-| Feature | Description |
-|---------|-------------|
-| **WordPress Template** | One-click WordPress deploys |
-| **Cloudflare DNS** | Alternative to Namecheap |
-| **Auto-scaling** | Multiple workers based on queue |
-| **Webhooks** | Notify on job completion |
-| **Admin Dashboard** | Web UI for Fabrik management |
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **SaaS Skeleton** | ✅ Done | Next.js template with auth, dashboard |
+| **WordPress Sites** | 🚧 80% | Theme/plugin automation |
+| **Admin Dashboard** | 📋 Planned | Web UI for Fabrik management |
+| **Auto-scaling Workers** | 📋 Planned | Queue-based worker scaling |
 
 ---
 

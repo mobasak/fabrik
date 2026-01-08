@@ -15,25 +15,9 @@ Workflow:
 5. User sees changes in Windsurf diff view (native Accept/Reject)
 
 Usage:
-    # Process queue once (default)
-    python scripts/docs_updater.py
-
-    # Run continuously as daemon
-    python scripts/docs_updater.py --daemon
-
-    # Update docs for specific file
-    python scripts/docs_updater.py --file src/api.py
-
-    # Custom prompt from task file (with files to check)
-    python scripts/docs_updater.py --task-file tasks/update-docs.md --check-files src/api.py src/models.py
-
-    # Custom prompt directly
-    python scripts/docs_updater.py --prompt "Update CHANGELOG for auth changes" --check-files src/auth/*.py
-
-    # Validation and sync
-    python scripts/docs_updater.py --check           # Validate docs, fail on drift
-    python scripts/docs_updater.py --sync            # Create missing stubs
-    python scripts/docs_updater.py --sync --dry-run  # Preview changes
+    python scripts/docs_updater.py                    # Process queue once
+    python scripts/docs_updater.py --daemon           # Run continuously
+    python scripts/docs_updater.py --file <path>      # Update docs for specific file
 """
 
 from __future__ import annotations
@@ -46,33 +30,11 @@ import re
 import shutil
 import subprocess
 import sys
-import threading
 import time
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
-from queue import Empty, Queue
 from typing import Any
-
-# Import ProcessMonitor for droid exec monitoring
-try:
-    from process_monitor import ProcessMonitor
-
-    PROCESS_MONITOR_AVAILABLE = True
-except ImportError:
-    PROCESS_MONITOR_AVAILABLE = False
-
-
-def _stream_reader(stream, output_queue: Queue, name: str) -> None:
-    """Read lines from a stream and push them to a queue (for threading)."""
-    try:
-        for line in iter(stream.readline, ""):
-            output_queue.put((name, line))
-    finally:
-        with suppress(Exception):
-            stream.close()
-        output_queue.put((name, None))  # Signal EOF
-
 
 # Configuration via environment variables (Fabrik convention)
 FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
@@ -317,103 +279,44 @@ def run_docs_update(files: list[str]) -> dict[str, Any]:
 
     print(f"Running docs update with {model} for {len(files)} files...")
 
-    timeout_seconds = 600  # 10 min timeout
-    warn_after_seconds = 300  # Warn after 5 min of no activity
-    args = [
-        "droid",
-        "exec",
-        "--auto",
-        "medium",  # Can write to docs
-        "-m",
-        model,
-        "-o",
-        "json",
-        prompt,
-    ]
-
     try:
-        # Use Popen with threading for proper ProcessMonitor polling
-        process = subprocess.Popen(
-            args,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+        # Run droid exec with medium autonomy (can write files)
+        result = subprocess.run(
+            [
+                "droid",
+                "exec",
+                "--auto",
+                "medium",  # Can write to docs
+                "-m",
+                model,
+                "-o",
+                "json",
+                prompt,
+            ],
+            capture_output=True,
             text=True,
+            timeout=600,  # 10 min timeout
             cwd=str(FABRIK_ROOT),
         )
 
-        # Initialize ProcessMonitor if available
-        monitor = None
-        if PROCESS_MONITOR_AVAILABLE:
-            with suppress(Exception):
-                monitor = ProcessMonitor(process, warn_threshold=warn_after_seconds)
-
-        # Use threading to read stdout/stderr without blocking
-        output_queue: Queue = Queue()
-        stdout_thread = threading.Thread(
-            target=_stream_reader, args=(process.stdout, output_queue, "stdout")
-        )
-        stderr_thread = threading.Thread(
-            target=_stream_reader, args=(process.stderr, output_queue, "stderr")
-        )
-        stdout_thread.start()
-        stderr_thread.start()
-
-        # Collect output while polling ProcessMonitor
-        stdout_lines = []
-        stderr_lines = []
-        start_time = time.time()
-        streams_closed = 0
-
-        while streams_closed < 2:
-            # Check timeout
-            if time.time() - start_time > timeout_seconds:
-                process.kill()
-                process.wait()
-                return {"success": False, "result": f"Timeout after {timeout_seconds}s"}
-
-            # Poll ProcessMonitor periodically
-            if monitor and (time.time() - start_time) % 30 < 1:
-                diagnosis = monitor.analyze()
-                if diagnosis["state"] in ("LIKELY_STUCK", "CONFIRMED_STUCK"):
-                    print(f"⚠️ ProcessMonitor: {diagnosis['reason']}", file=sys.stderr)
-
-            try:
-                name, line = output_queue.get(timeout=1.0)
-                if line is None:
-                    streams_closed += 1
-                elif name == "stdout":
-                    stdout_lines.append(line)
-                    if monitor:
-                        monitor.record_activity()
-                else:
-                    stderr_lines.append(line)
-            except Empty:
-                continue
-
-        stdout_thread.join(timeout=5)
-        stderr_thread.join(timeout=5)
-        process.wait()
-
-        stdout = "".join(stdout_lines)
-        stderr = "".join(stderr_lines)
-
-        if process.returncode != 0:
+        if result.returncode != 0:
             return {
                 "success": False,
-                "result": f"Exit code {process.returncode}: {stderr[:500]}",
+                "result": f"Exit code {result.returncode}: {result.stderr[:500]}",
             }
 
         # Parse output
         try:
-            output = json.loads(stdout.strip())
+            output = json.loads(result.stdout.strip())
             return {
                 "success": not output.get("is_error", False),
                 "result": output.get("result", "")[:2000],
             }
         except json.JSONDecodeError:
-            return {"success": True, "result": stdout[:2000]}
+            return {"success": True, "result": result.stdout[:2000]}
 
+    except subprocess.TimeoutExpired:
+        return {"success": False, "result": "Timeout after 600s"}
     except Exception as e:
         return {"success": False, "result": str(e)[:500]}
 
@@ -949,127 +852,10 @@ def run_check() -> int:
         return 1
 
 
-def load_prompt_from_file(file_path: str) -> str:
-    """Load prompt from a markdown or text file."""
-    path = Path(file_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Task file not found: {file_path}")
-    return path.read_text().strip()
-
-
-def run_custom_prompt(prompt: str, files_to_check: list[str] | None = None) -> dict[str, Any]:
-    """Run droid exec with a custom prompt, optionally referencing files."""
-    model = get_docs_model()
-
-    # If files are provided, prepend them to the prompt
-    if files_to_check:
-        files_list = "\n".join(f"- {f}" for f in files_to_check)
-        prompt = f"Files to check:\n{files_list}\n\n{prompt}"
-
-    print(f"Running custom prompt with {model}...")
-
-    timeout_seconds = 600
-    warn_after_seconds = 300
-    args = [
-        "droid",
-        "exec",
-        "--auto",
-        "medium",
-        "-m",
-        model,
-        "-o",
-        "json",
-        prompt,
-    ]
-
-    try:
-        process = subprocess.Popen(
-            args,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=str(FABRIK_ROOT),
-        )
-
-        monitor = None
-        if PROCESS_MONITOR_AVAILABLE:
-            with suppress(Exception):
-                monitor = ProcessMonitor(process, warn_threshold=warn_after_seconds)
-
-        output_queue: Queue = Queue()
-        stdout_thread = threading.Thread(
-            target=_stream_reader, args=(process.stdout, output_queue, "stdout")
-        )
-        stderr_thread = threading.Thread(
-            target=_stream_reader, args=(process.stderr, output_queue, "stderr")
-        )
-        stdout_thread.start()
-        stderr_thread.start()
-
-        stdout_lines = []
-        stderr_lines = []
-        start_time = time.time()
-        streams_closed = 0
-
-        while streams_closed < 2:
-            if time.time() - start_time > timeout_seconds:
-                process.kill()
-                process.wait()
-                return {"success": False, "result": f"Timeout after {timeout_seconds}s"}
-
-            if monitor and (time.time() - start_time) % 30 < 1:
-                diagnosis = monitor.analyze()
-                if diagnosis["state"] in ("LIKELY_STUCK", "CONFIRMED_STUCK"):
-                    print(f"⚠️ ProcessMonitor: {diagnosis['reason']}", file=sys.stderr)
-
-            try:
-                name, line = output_queue.get(timeout=1.0)
-                if line is None:
-                    streams_closed += 1
-                elif name == "stdout":
-                    stdout_lines.append(line)
-                    if monitor:
-                        monitor.record_activity()
-                else:
-                    stderr_lines.append(line)
-            except Empty:
-                continue
-
-        stdout_thread.join(timeout=5)
-        stderr_thread.join(timeout=5)
-        process.wait()
-
-        stdout = "".join(stdout_lines)
-        stderr = "".join(stderr_lines)
-
-        if process.returncode != 0:
-            return {"success": False, "result": f"Exit code {process.returncode}: {stderr[:500]}"}
-
-        try:
-            output = json.loads(stdout.strip())
-            return {
-                "success": not output.get("is_error", False),
-                "result": output.get("result", "")[:2000],
-            }
-        except json.JSONDecodeError:
-            return {"success": True, "result": stdout[:2000]}
-
-    except Exception as e:
-        return {"success": False, "result": str(e)[:500]}
-
-
 def main():
     parser = argparse.ArgumentParser(description="Fabrik Documentation Updater")
     parser.add_argument("--daemon", action="store_true", help="Run continuously")
     parser.add_argument("--file", type=str, help="Update docs for a specific file")
-    parser.add_argument("--task-file", type=str, help="Load prompt from a .md or .txt file")
-    parser.add_argument("--prompt", type=str, help="Run with a custom prompt")
-    parser.add_argument(
-        "--check-files",
-        nargs="+",
-        help="Files for droid to check/review (with --task-file or --prompt)",
-    )
     parser.add_argument("--check", action="store_true", help="Validate docs, fail on drift")
     parser.add_argument("--sync", action="store_true", help="Create missing stubs + sync structure")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
@@ -1080,15 +866,6 @@ def main():
         sys.exit(run_check())
     elif args.sync:
         run_sync(dry_run=args.dry_run)
-    elif args.task_file:
-        prompt = load_prompt_from_file(args.task_file)
-        result = run_custom_prompt(prompt, args.check_files)
-        print(result["result"])
-        sys.exit(0 if result["success"] else 1)
-    elif args.prompt:
-        result = run_custom_prompt(args.prompt, args.check_files)
-        print(result["result"])
-        sys.exit(0 if result["success"] else 1)
     elif args.file:
         update_single_file(args.file)
     elif args.daemon:

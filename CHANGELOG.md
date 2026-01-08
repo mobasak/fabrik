@@ -6,6 +6,92 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Spec Pipeline Integration (2026-01-08)
+
+**What:** Integrated spec-interviewer discovery workflow into Fabrik with Traycer-optional support.
+
+**Files:**
+- `scripts/droid_core.py` - Added `IDEA` and `SCOPE` task types
+- `templates/spec-pipeline/` - NEW (4 files)
+- `templates/traycer/` - NEW (4 files, copied from spec-interviewer)
+- `specs/` - NEW directory for project specifications
+- `docs/FABRIK_OVERVIEW.md` - Updated with spec pipeline docs
+
+**New Task Types:**
+- `droid exec idea "<idea>"` - Capture and explore product idea
+- `droid exec scope "<project>"` - Define IN/OUT boundaries
+
+**Workflow:**
+```
+idea → scope → spec → plan → code → review → deploy
+```
+
+**Traycer Integration:**
+- Templates in `templates/traycer/` for optional Traycer.ai use
+- Works without Traycer using pure droid exec commands
+
+---
+
+### Fixed - Droid Core P0/P1 Issues (2026-01-08)
+
+**What:** Fixed all critical issues identified in dual-model code reviews.
+
+**Files:**
+- `scripts/droid_core.py` - Multiple P0/P1 fixes
+- `scripts/docs_updater.py` - ProcessMonitor threading fix
+- `scripts/review_processor.py` - Task file support
+- `tests/test_droid_core.py` - NEW (16 tests)
+
+**P0 Fixes:**
+- Final buffer completion events now parsed after process exit
+- Large prompts (>100KB) use `--file` flag instead of CLI args (avoids OS limit crash)
+
+**P1 Fixes:**
+- stderr captured via threaded bounded buffer (50 lines max)
+- JSON parse fallback no longer marks failures as success
+- Malformed JSON logged instead of silently ignored
+- `--verbose` now attaches streaming callback
+- Retries disabled for write-heavy tasks (CODE, SCAFFOLD, DEPLOY, MIGRATE, REFACTOR)
+- Session reset on provider switch (OpenAI ↔ Anthropic) with user warning
+
+**Minor Fixes:**
+- `_sanitize_task_id` max length guard (128 chars with hash suffix)
+- `refresh_models_from_docs()` emits warning on failure
+
+**New Features:**
+- Task file support (`--task-file`) in all scripts
+- ProcessMonitor active polling in docs_updater.py
+
+**Tests Added:**
+- Session ID propagation
+- Provider switch reset
+- JSON parse fallback behavior
+- Task ID sanitization
+
+---
+
+### Changed - Droid Scripts Consolidation (2026-01-08)
+
+**What:** Consolidated `droid_tasks.py` + `droid_runner.py` into unified `droid_core.py`.
+
+**Files:**
+- `scripts/droid_core.py` - NEW (1316 lines, replaces 1507 combined)
+- `scripts/droid_tasks.py` - DELETED (merged)
+- `scripts/droid_runner.py` - DELETED (merged)
+- `docs/development/plans/2026-01-08-droid-scripts-consolidation.md` - Execution plan
+
+**Changes:**
+- Unified 11 task types (analyze, code, refactor, test, review, spec, scaffold, deploy, migrate, health, preflight)
+- Merged task persistence and monitoring from droid_runner.py
+- Added run/status/list commands for task management
+- Preserved ProcessMonitor integration
+- Backup at `scripts/.archive/2026-01-08-pre-consolidation/`
+
+**Not Merged (by design):**
+- `review_processor.py` and `docs_updater.py` kept separate (CI-critical validation)
+
+---
+
 ### Changed - Perfect Documentation Enforcement (2026-01-07)
 
 **What:** Enhanced `docs_updater.py` with improved task management, stale task recovery, and pattern detection for more change types.

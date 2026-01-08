@@ -6,27 +6,9 @@ Processes queued review tasks from the post-edit hook.
 Runs dual-model code review using models from config/models.yaml.
 Updates documentation if needed.
 
-Features:
-- ProcessMonitor integration for stuck task detection
-- Automatic retry with reinitiation on stuck tasks
-- Threading-based output capture (no deadlocks)
-- Configurable timeout and warning thresholds
-
 Usage:
-    # Process queue once (default)
-    python scripts/review_processor.py
-
-    # Run continuously as daemon
-    python scripts/review_processor.py --daemon
-
-    # Custom prompt from task file (with files to review)
-    python scripts/review_processor.py --task-file tasks/security-review.md --files src/auth/*.py
-
-    # Custom prompt directly
-    python scripts/review_processor.py --prompt "Review for SQL injection vulnerabilities" --files src/db.py
-
-    # Multiple files
-    python scripts/review_processor.py --prompt "Check error handling" --files src/api.py src/handlers.py
+    python scripts/review_processor.py          # Process queue once
+    python scripts/review_processor.py --daemon # Run continuously
 """
 
 from __future__ import annotations
@@ -773,67 +755,12 @@ def run_daemon() -> None:
         PID_FILE.unlink(missing_ok=True)
 
 
-def load_prompt_from_file(file_path: str) -> str:
-    """Load prompt from a markdown or text file."""
-    path = Path(file_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Task file not found: {file_path}")
-    return path.read_text().strip()
-
-
-def run_custom_review(prompt: str, files: list[str] | None = None) -> dict[str, Any]:
-    """Run a custom review with droid exec, optionally referencing files."""
-    # Get model from config
-    try:
-        import yaml
-
-        with open(CONFIG_FILE) as f:
-            config = yaml.safe_load(f)
-        models = config.get("scenarios", {}).get("code_review", {}).get("models", [])
-        model = models[0] if models else "gpt-5.1-codex-max"
-    except Exception:
-        model = "gpt-5.1-codex-max"
-
-    # Build prompt with files
-    if files:
-        files_list = "\n".join(f"- {f}" for f in files)
-        prompt = f"Files to review:\n{files_list}\n\n{prompt}"
-
-    print(f"Running custom review with {model}...")
-
-    result = run_command_with_monitor(
-        args=["droid", "exec", "-m", model, "-o", "json", prompt],
-        timeout_seconds=1800,
-        warn_after_seconds=300,
-        cwd=FABRIK_ROOT,
-    )
-
-    return {
-        "success": result["returncode"] == 0,
-        "result": result["stdout"][:2000] if result["stdout"] else result["stderr"][:500],
-    }
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Process code review queue")
     parser.add_argument("--daemon", action="store_true", help="Run continuously")
-    parser.add_argument("--task-file", type=str, help="Load prompt from a .md or .txt file")
-    parser.add_argument("--prompt", type=str, help="Run with a custom prompt")
-    parser.add_argument(
-        "--files", nargs="+", help="Files for droid to review (with --task-file or --prompt)"
-    )
     args = parser.parse_args()
 
-    if args.task_file:
-        prompt = load_prompt_from_file(args.task_file)
-        result = run_custom_review(prompt, args.files)
-        print(result["result"])
-        sys.exit(0 if result["success"] else 1)
-    elif args.prompt:
-        result = run_custom_review(args.prompt, args.files)
-        print(result["result"])
-        sys.exit(0 if result["success"] else 1)
-    elif args.daemon:
+    if args.daemon:
         run_daemon()
     else:
         run_once()

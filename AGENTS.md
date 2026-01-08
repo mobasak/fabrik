@@ -1,6 +1,6 @@
 # Fabrik Project Agent Briefing
 
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-01-08
 
 > Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
 
@@ -425,18 +425,35 @@ droid exec -o stream-json "Complex task"    # Real-time JSONL events
 ### Via Fabrik Task Runner
 
 ```bash
+# Discovery Pipeline (NEW - idea → scope → spec)
+python scripts/droid_core.py idea "Voice-controlled home automation"
+python scripts/droid_core.py scope "home-automation"
+python scripts/droid_core.py spec "home-automation"
+
 # Spec mode (Design)
-python scripts/droid_tasks.py spec "Plan the auth system"
+python scripts/droid_core.py spec "Plan the auth system"
 
 # Scaffold (Build)
-python scripts/droid_tasks.py scaffold "Create FastAPI service"
+python scripts/droid_core.py scaffold "Create FastAPI service"
 
 # Health check (Verify - autonomous)
-python scripts/droid_tasks.py health "Verify deployment"
+python scripts/droid_core.py health "Verify deployment"
 
 # Deploy config (Ship)
-python scripts/droid_tasks.py deploy "Add Redis to compose"
+python scripts/droid_core.py deploy "Add Redis to compose"
 ```
+
+### Task Types (13 total)
+
+| Type | Use Case |
+|------|----------|
+| `idea` | Capture and explore product idea (NEW) |
+| `scope` | Define IN/OUT boundaries (NEW) |
+| `analyze`, `review` | Read-only analysis |
+| `code`, `refactor` | Write changes |
+| `spec` | Planning with reasoning |
+| `test`, `health`, `preflight` | Verification |
+| `scaffold`, `deploy`, `migrate` | Infrastructure |
 
 ### Key Flags
 

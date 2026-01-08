@@ -1,6 +1,6 @@
 # Droid Exec - Fabrik Automation Engine
 
-**Last Updated: 2026-01-07**
+**Last Updated: 2026-01-08**
 
 > **Fabrik's autonomous coding agent for the full software lifecycle.**
 
@@ -459,7 +459,14 @@ python scripts/droid_tasks.py session --auto medium
 python scripts/droid_tasks.py batch tasks.jsonl --output results.jsonl
 ```
 
-### Task Types
+### Task Types (13 total)
+
+#### Discovery Pipeline (NEW 2026-01-08)
+
+| Type | Autonomy | Purpose | Output |
+|------|----------|---------|--------|
+| `idea` | low | Capture and explore product idea | `specs/<project>/00-idea.md` |
+| `scope` | low | Define IN/OUT boundaries | `specs/<project>/01-scope.md` |
 
 #### Core
 
@@ -481,6 +488,12 @@ python scripts/droid_tasks.py batch tasks.jsonl --output results.jsonl
 | `migrate` | **high** | Database migration tasks | |
 | `health` | **high** | Verify deployment health | Autonomous |
 | `preflight` | low | Pre-deployment readiness check | Read-only |
+
+#### Complete Workflow
+
+```
+idea → scope → spec → plan → code → review → deploy
+```
 
 ### Programmatic Usage
 

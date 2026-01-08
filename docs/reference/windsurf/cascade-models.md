@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-08
 
 > 📋 **Source:** `scripts/droid_models.py` contains the authoritative model list.
 >
@@ -12,73 +12,77 @@
 
 In Cascade, switch models via the dropdown under the text input box. Each model consumes different prompt credits.
 
-**Total Models:** 63 across 5 tiers
+**Total Models:** 70 across 5 tiers + BYOK
 
 ---
 
-## Free Tier (11 models)
+## Free Tier (10 models)
 
 | Model | Credits |
 |-------|---------|
-| Penguin Alpha | Free |
 | **SWE-1** | Free |
 | **SWE-1.5** | Free |
 | GPT-5.1-Codex | Free |
 | GPT-5.1-Codex Low | Free |
 | GPT-5.1-Codex Max Low | Free |
-| GPT-5.1-Codex Mini | Free |
-| GPT-5.1-Codex Mini Low | Free |
+| GPT-5.1-Codex-Mini | Free |
+| GPT-5.1-Codex-Mini Low | Free |
 | DeepSeek R1 (0528) | Free |
 | DeepSeek V3 (0324) | Free |
 | Grok Code Fast 1 | Free |
 
 ---
 
-## Budget Tier (14 models, 0.125x - 0.5x)
+## Budget Tier (12 models, 0.125x - 0.75x)
 
 | Model | Credits |
 |-------|---------|
 | xAI Grok-3 mini (Thinking) | 0.125x |
-| Gemini 3 Flash Low | 0.25x |
-| Gemini 3 Flash Minimal | 0.25x |
+| GLM 4.7 (Beta) | 0.25x |
 | GPT-OSS 120B (Medium) | 0.25x |
-| Gemini 3 Flash Medium | 0.375x |
-| SWE-1.5 Fast | 0.5x |
 | GPT-5 (Low Reasoning) | 0.5x |
+| GPT-5-Codex | 0.5x |
 | GPT-5.1 (No Reasoning) | 0.5x |
 | GPT-5.1 (Low Reasoning) | 0.5x |
 | GPT-5.1-Codex Max Medium | 0.5x |
+| SWE-1.5 Fast | 0.5x |
 | Kimi K2 | 0.5x |
 | Minimax M2 | 0.5x |
 | Qwen3-Coder | 0.5x |
-| Gemini 3 Flash High | 0.5x |
+| Gemini 3 Flash Minimal | 0.75x |
 
 ---
 
-## Standard Tier (13 models, 1x)
+## Standard Tier (18 models, 1x)
 
 | Model | Credits |
 |-------|---------|
 | Claude Haiku 4.5 | 1x |
 | Gemini 2.5 Pro | 1x |
+| Gemini 3 Flash Low | 1x |
+| Gemini 3 Flash Medium | 1x |
 | Gemini 3 Pro Low | 1x |
+| Gemini 3 Pro Minimal | 1x |
 | GPT-4.1 | 1x |
 | GPT-4o | 1x |
 | GPT-5 (Medium Reasoning) | 1x |
 | GPT-5.1 (Medium Reasoning) | 1x |
 | GPT-5.1 (No Reasoning, Priority) | 1x |
 | GPT-5.1 (Low, Priority) | 1x |
+| GPT-5.1-Codex Max High | 1x |
 | GPT-5.2 No Reasoning | 1x |
 | GPT-5.2 Low Reasoning | 1x |
 | o3 | 1x |
 | o3 (High Reasoning) | 1x |
+| xAI Grok-3 | 1x |
 
 ---
 
-## Premium Tier (15 models, 2x - 3x)
+## Premium Tier (16 models, 1.5x - 3x)
 
 | Model | Credits |
 |-------|---------|
+| Gemini 3 Pro Medium | 1.5x |
 | Claude 3.5 Sonnet | 2x |
 | Claude 3.7 Sonnet | 2x |
 | Claude Sonnet 4 | 2x |
@@ -92,7 +96,8 @@ In Cascade, switch models via the dropdown under the text input box. Each model 
 | GPT-5.2 Medium Reasoning | 2x |
 | Claude 3.7 Sonnet (Thinking) | 3x |
 | Claude Sonnet 4 (Thinking) | 3x |
-| Claude Sonnet 4.5 (Thinking) | 3x |
+| Claude Sonnet 4.5 Thinking | 3x |
+| Gemini 3 Flash High | 3x |
 | GPT-5.2 High Reasoning | 3x |
 
 ---
@@ -111,6 +116,20 @@ In Cascade, switch models via the dropdown under the text input box. Each model 
 | GPT-5.2 X-High Reasoning Fast | 16x |
 | Claude Opus 4.1 | 20x |
 | Claude Opus 4.1 (Thinking) | 20x |
+
+---
+
+## BYOK Models (Bring Your Own Key)
+
+| Model | Status |
+|-------|--------|
+| Claude Opus 4 (BYOK, Beta) | BYOK |
+| Claude Opus 4 (Thinking, BYOK, Beta) | BYOK |
+| Claude Sonnet 4 (BYOK) | BYOK |
+| Claude Sonnet 4 (Thinking, BYOK) | BYOK |
+
+**Available to:** Free and paid individual users only (not Teams/Enterprise)
+**Setup:** Settings → Subscription → Add API Key
 
 ---
 
