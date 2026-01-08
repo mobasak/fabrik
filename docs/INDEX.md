@@ -37,19 +37,11 @@ docs/
 │   ├── auto-review.md              # Automatic code review system
 │   ├── docs-updater.md             # Automatic documentation updater
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
-│   ├── building-interactive-apps-with-droid-exec.md # Interactive app patterns
-│   ├── droid-cli-reference-hook-reference.md # Droid CLI + hook reference
-│   ├── droid-exec-complete-guide.md # Full droid exec guide (long-form)
-│   ├── droid-exec-headless.md      # Headless usage patterns
-│   ├── droid-exec-usage.md         # Core droid exec usage (updated 2026-01-06)
+│   ├── droid-exec-usage.md         # Core droid exec usage (updated 2026-01-07)
 │   ├── enforcement-system.md       # Convention enforcement (check scripts, rules)
 │   ├── droid-validation-report.md  # Validation report format
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
 │   ├── orchestrator.md             # Deployment orchestrator module (Phase 10)
-│   ├── factory-enterprise.md       # Factory Enterprise overview
-│   ├── factory-hooks.md            # Factory hook catalog
-│   ├── factory-skills.md           # Factory skills catalog
-│   ├── factoryai-power-user-settings.md # Power user settings
 │   ├── file-api-deployment.md      # File API deployment guide
 │   ├── hooks-and-skills-guide.md   # Hook and skill usage guide
 │   ├── phase1b-setup.md            # Phase 1b setup instructions
