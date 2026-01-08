@@ -666,6 +666,7 @@ def _run_streaming(
         session_id = None
         events = []
         got_completion = False
+        got_error = False  # P0 FIX: Track is_error in events
         stuck_detected = False
         last_check_time = time.time()
         line_buffer = ""
@@ -799,10 +800,16 @@ def _run_streaming(
                     final_text = event.get("finalText", "")
                     session_id = event.get("session_id")
                     got_completion = True
+                    # P0 FIX: Check is_error in final buffer completion events
+                    if event.get("is_error"):
+                        got_error = True
                 if event.get("type") == "result":
                     final_text = event.get("result", "")
                     session_id = event.get("session_id")
                     got_completion = True
+                    # P0 FIX: Check is_error in final buffer result events
+                    if event.get("is_error"):
+                        got_error = True
             except json.JSONDecodeError:
                 malformed_lines.append(line[:200])
 
@@ -859,6 +866,18 @@ def _run_streaming(
                 result="",
                 error=error_msg + stderr_summary,
                 duration_ms=duration_ms,
+            )
+
+        # P0 FIX: If got_error flag set, return failure even if got completion
+        if got_error:
+            return TaskResult(
+                success=False,
+                task_type=task_type,
+                prompt=original_prompt,
+                result=final_text,
+                error=f"Event indicated error (is_error=True){stderr_summary}",
+                duration_ms=duration_ms,
+                session_id=session_id,
             )
 
         return TaskResult(
@@ -1179,7 +1198,7 @@ def run_droid_exec_monitored(
         args,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,  # P1 FIX: Capture stderr for diagnostics
         text=True,
         cwd=cwd,
         env=env,
@@ -1190,6 +1209,18 @@ def run_droid_exec_monitored(
     final_text = ""
     captured_session_id = None
     events = []
+    stderr_lines: deque[str] = deque(maxlen=50)  # P1 FIX: Bounded stderr buffer
+
+    # P1 FIX: Background thread to capture stderr without blocking
+    def capture_stderr():
+        try:
+            for line in process.stderr:
+                stderr_lines.append(line.rstrip())
+        except Exception:
+            pass
+
+    stderr_thread = threading.Thread(target=capture_stderr, daemon=True)
+    stderr_thread.start()
 
     monitor = None
     if PROCESS_MONITOR_AVAILABLE:
@@ -1223,12 +1254,23 @@ def run_droid_exec_monitored(
                 if event.get("type") == "completion":
                     final_text = event.get("finalText", "")
                     captured_session_id = event.get("session_id", captured_session_id)
-                    record.status = TaskStatus.COMPLETED
                     record.completed_at = datetime.now(UTC).isoformat()
-                    record.result = final_text
                     record.session_id = captured_session_id
                     record.duration_ms = event.get("durationMs")
-                    print(f"[{task_id}] Completed in {record.duration_ms}ms", file=sys.stderr)
+                    # P0 FIX: Check is_error in completion event
+                    if event.get("is_error"):
+                        record.status = TaskStatus.FAILED
+                        record.error = (
+                            final_text[:500] if final_text else "Completion with is_error=True"
+                        )
+                        print(
+                            f"[{task_id}] Failed (completion is_error) in {record.duration_ms}ms",
+                            file=sys.stderr,
+                        )
+                    else:
+                        record.status = TaskStatus.COMPLETED
+                        record.result = final_text
+                        print(f"[{task_id}] Completed in {record.duration_ms}ms", file=sys.stderr)
                     break
 
                 if event.get("type") == "result" and event.get("is_error"):
@@ -1239,13 +1281,30 @@ def run_droid_exec_monitored(
                 continue
 
         process.wait(timeout=30)
-        if process.returncode != 0 and record.status == TaskStatus.RUNNING:
+
+        # P0 FIX: If still RUNNING after process exit, mark as FAILED (no completion event)
+        if record.status == TaskStatus.RUNNING:
+            stderr_snippet = "\n".join(list(stderr_lines)[-10:]) if stderr_lines else ""
             record.status = TaskStatus.FAILED
-            record.error = f"Process exited with code {process.returncode}"
+            record.error = f"No completion event received (exit code {process.returncode})"
+            if stderr_snippet:
+                record.error += f"\nStderr: {stderr_snippet[:500]}"
+
+        # P0 FIX: Non-zero exit code after completion = FAILED (not just warning)
+        if process.returncode != 0 and record.status == TaskStatus.COMPLETED:
+            stderr_snippet = "\n".join(list(stderr_lines)[-5:]) if stderr_lines else ""
+            record.status = TaskStatus.FAILED
+            record.error = f"Completed but exit code {process.returncode}"
+            if stderr_snippet:
+                record.error += f"\nStderr: {stderr_snippet[:300]}"
+            print(
+                f"[{task_id}] FAILED: Completed but exit code {process.returncode}", file=sys.stderr
+            )
 
     except Exception as e:
+        stderr_snippet = "\n".join(list(stderr_lines)[-10:]) if stderr_lines else ""
         record.status = TaskStatus.FAILED
-        record.error = str(e)
+        record.error = f"{str(e)}\nStderr: {stderr_snippet[:500]}" if stderr_snippet else str(e)
 
     finally:
         if process.poll() is None:

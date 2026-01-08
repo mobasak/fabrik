@@ -45,6 +45,10 @@ idea → scope → spec → plan → code → review → deploy
 **P0 Fixes:**
 - Final buffer completion events now parsed after process exit
 - Large prompts (>100KB) use `--file` flag instead of CLI args (avoids OS limit crash)
+- `run_droid_exec_monitored`: Missing completion event now marks FAILED (not stuck RUNNING)
+- `run_droid_exec_monitored`: Non-zero exit code after completion marks FAILED
+- `run_droid_exec_monitored`: Completion with `is_error=True` marks FAILED
+- `_run_streaming`: Final buffer events with `is_error=True` now return failure
 
 **P1 Fixes:**
 - stderr captured via threaded bounded buffer (50 lines max)
