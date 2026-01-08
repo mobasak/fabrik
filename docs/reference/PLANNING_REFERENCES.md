@@ -28,8 +28,9 @@ Path: docs/reference/technology-stack-decision-guide.md
 ```
 
 ### `stack.md`
-**Purpose:** Fabrik's Docker+Coolify deployment pattern (Ultimate Stack v1.0).
-**Consult when:** Understanding how projects are structured and deployed.
+**Purpose:** Complete technology inventory - ALL tools, APIs, databases, and services used across Fabrik projects.
+**Contains:** External APIs (AI, DNS, Calendar), database instances, infrastructure services, deployment patterns.
+**Consult when:** Checking what tools/services already exist, understanding deployment patterns, avoiding duplicate integrations.
 ```
 Path: docs/reference/stack.md
 ```
