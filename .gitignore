@@ -65,3 +65,4 @@ dmypy.json
 *.key
 secrets/
 .droid/
+scripts/.droid_models_cache.json

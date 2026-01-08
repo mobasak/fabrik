@@ -15,7 +15,15 @@ trigger: always_on
 4. Update documentation if code changed
 
 **If I skip these steps, the user should call me out.**
+---
+## Before Creating New Scripts (MANDATORY)
 
+Before writing ANY new script, I MUST:
+1. `grep_search` for similar functionality in scripts/
+2. Check if droid_core.py, droid-review.sh, or existing wrappers handle it
+3. If existing code can be extended → extend it, don't create new
+
+**Violation:** Creating duplicate functionality.
 ---
 
 ## Environment Variables (CRITICAL)

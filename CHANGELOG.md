@@ -11,16 +11,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 **What:** AI-powered code review integrated into pre-commit workflow.
 
 **Files:**
-- `scripts/enforcement/ai_quick_review.py` - NEW: Reviews staged diffs for critical issues
+- `scripts/enforcement/ai_quick_review.py` - Reviews staged diffs for critical issues
+- `scripts/droid_core.py` - Added PRECOMMIT task type
 - `.pre-commit-config.yaml` - Added ai-quick-review hook
 - `.windsurf/rules/20-typescript.md` - Added visual design workflow
-- `scripts/enforcement/check_structure.py` - Allow .windsurf/ directory
+- `.windsurf/rules/00-critical.md` - Added "check existing code first" rule
 
 **Features:**
+- Uses `droid_core.py` with ProcessMonitor (no duplicate monitoring code)
 - Reviews ALL code files: Python, TypeScript, JavaScript, Shell, YAML
-- Uses rund/runc for intelligent stuck detection (no arbitrary timeouts)
+- Includes renamed files (`--diff-filter=ACMR`)
+- Proper exit codes: 0=passed, 1=failed, 2=skipped
 - 8KB diff limit for token efficiency
-- Proper JSON parsing with fallback
 - Disable with `SKIP_AI_REVIEW=1`
 
 **Visual Design Workflow (SaaS/Web/Mobile):**

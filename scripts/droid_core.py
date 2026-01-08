@@ -124,6 +124,8 @@ class TaskType(str, Enum):
     # Discovery task types (idea → scope → spec pipeline)
     IDEA = "idea"  # Capture and explore product idea
     SCOPE = "scope"  # Define IN/OUT boundaries from idea
+    # Pre-commit task type
+    PRECOMMIT = "precommit"  # Quick critical-issues review for pre-commit hooks
     # Fabrik lifecycle task types
     SPEC = "spec"  # Specification mode - plan before implementing
     SCAFFOLD = "scaffold"  # Create new Fabrik project structure
@@ -275,6 +277,12 @@ TOOL_CONFIGS = {
         "model": "gemini-3-flash-preview",
         "reasoning": "off",
         "description": "Pre-deployment readiness check: config, Docker, health, code quality",
+    },
+    TaskType.PRECOMMIT: {
+        "default_auto": "low",  # Read-only, critical issues only
+        "model": "gemini-3-flash-preview",  # Fast, cheap
+        "reasoning": "off",
+        "description": "Quick pre-commit review for critical issues (security, bugs, hardcoded values)",
     },
 }
 
@@ -985,7 +993,7 @@ def run_droid_exec(
         prompt_file_path = project_tmp / f"droid_prompt_{uuid.uuid4().hex[:8]}.md"
         prompt_file_path.write_text(full_prompt)
         args.extend(["--file", str(prompt_file_path)])
-        print(f"ℹ️ Large prompt ({len(full_prompt)//1000}KB) - using temp file", file=sys.stderr)
+        print(f"ℹ️ Large prompt ({len(full_prompt) // 1000}KB) - using temp file", file=sys.stderr)
     else:
         args.append(full_prompt)
 
@@ -1623,14 +1631,14 @@ Examples:
         if args.output == "json":
             print(json.dumps(asdict(record), indent=2, default=str))
         else:
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Task ID: {record.task_id}")
             print(f"Status: {record.status.value}")
             print(f"Duration: {record.duration_ms}ms")
             print(f"Session: {record.session_id}")
             if record.error:
                 print(f"Error: {record.error}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
             if record.result:
                 print(f"\nResult:\n{record.result}")
 
