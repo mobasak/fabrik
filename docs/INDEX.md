@@ -47,12 +47,16 @@ docs/
 │   ├── phase1b-setup.md            # Phase 1b setup instructions
 │   ├── phase1b-test-results.md     # Phase 1b test results
 │   ├── Phase1.md - Phase9.md       # Phase documentation set
+│   ├── AI_TAXONOMY.md              # AI categories & tool selection (15 categories)
+│   ├── DATABASE_STRATEGY.md        # Database selection (PostgreSQL/Supabase/pgvector)
+│   ├── PLANNING_REFERENCES.md      # **INDEX for AI planning phases** (NEW 2026-01-08)
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── project-registry.md         # Master inventory of all /opt projects
 │   ├── roadmap.md                  # Complete 8-phase roadmap summary
 │   ├── stack.md                    # Technology stack & tools inventory
+│   ├── technology-stack-decision-guide.md  # Tech decision flowchart
 │   ├── templates.md                # Available deployment templates
-│   ├── spec-pipeline.md            # Spec pipeline (idea → scope → spec) (NEW 2026-01-08)
+│   ├── spec-pipeline.md            # Spec pipeline (idea → scope → spec)
 │   ├── trueforge-images.md         # Trueforge image catalog
 │   ├── uptime-kuma.md              # Uptime Kuma runbook
 │   ├── verification-framework.md   # 3-lane verification system
