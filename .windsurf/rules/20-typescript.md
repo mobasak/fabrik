@@ -120,3 +120,17 @@ npm run lint          # ESLint
 npm run type-check    # TypeScript
 npm run build         # Production build
 ```
+
+## Visual Design Workflow (SaaS/Web/Mobile)
+
+For UI-heavy projects, use this iterative design-to-code workflow:
+
+### Step 1: Provide Design Reference
+- Screenshot of mockup/Figma design
+- Or detailed description of desired UI
+
+### Step 2: AI Generates Code
+```bash
+# Describe the component
+"Create a pricing card component matching this design: [paste screenshot or describe]"
+---

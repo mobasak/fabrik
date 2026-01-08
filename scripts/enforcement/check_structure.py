@@ -167,6 +167,10 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         elif parts[0] == ".droid":
             pass  # Droid task files allowed
 
+        # Check .windsurf (allowed for rule files)
+        elif parts[0] == ".windsurf":
+            pass  # Windsurf rule files allowed
+
         # Other locations
         else:
             violations.append(

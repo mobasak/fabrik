@@ -99,3 +99,12 @@ repos:
         language: system
         types: [markdown]
         stages: [pre-commit]
+
+      - id: ai-quick-review
+        name: AI Quick Review
+        description: Fast AI review for critical issues (security, bugs, hardcoded values)
+        entry: python3 scripts/enforcement/ai_quick_review.py
+        language: system
+        types: [python]
+        stages: [pre-commit]
+        verbose: true
