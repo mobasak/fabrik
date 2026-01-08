@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Quick AI review for pre-commit hook.
 
-Performs a fast, focused review of staged Python files for critical issues only.
-Designed to be fast (<30s) and catch high-severity bugs before commit.
+Performs a focused review of staged code files for critical issues only.
+Uses rund/runc for long command monitoring (no arbitrary timeouts).
 
 Usage:
     python3 scripts/enforcement/ai_quick_review.py [files...]
@@ -21,9 +21,22 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Code file extensions to review
+CODE_EXTENSIONS = {
+    ".py",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",  # Python, TypeScript, JavaScript
+    ".sh",
+    ".bash",  # Shell scripts
+    ".yaml",
+    ".yml",  # Config files
+}
 
-def get_staged_python_files() -> list[str]:
-    """Get list of staged Python files."""
+
+def get_staged_code_files() -> list[str]:
+    """Get list of staged code files (all languages)."""
     result = subprocess.run(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
         capture_output=True,
@@ -35,7 +48,7 @@ def get_staged_python_files() -> list[str]:
         return []
 
     files = result.stdout.strip().split("\n")
-    return [f for f in files if f.endswith(".py") and f]
+    return [f for f in files if f and any(f.endswith(ext) for ext in CODE_EXTENSIONS)]
 
 
 def get_staged_diff(files: list[str]) -> str:
@@ -66,7 +79,7 @@ def run_quick_review(files: list[str]) -> tuple[bool, str]:
         (passed, output) - True if no critical issues, output message
     """
     if not files:
-        return True, "No Python files to review"
+        return True, "No code files to review"
 
     # Check if droid is available
     droid_check = subprocess.run(
@@ -106,54 +119,133 @@ Output JSON only:
 
 Be brief. Skip style issues. Only report if critical=true."""
 
+    # Use rund for detached execution with monitoring (no arbitrary timeouts)
+    project_root = Path(__file__).parent.parent.parent
+    rund_script = project_root / "scripts" / "rund"
+    runc_script = project_root / "scripts" / "runc"
+
+    if not rund_script.exists():
+        # Fallback to direct execution if rund not available
+        return _run_direct(prompt, project_root)
+
+    try:
+        # Start detached droid exec
+        start_result = subprocess.run(
+            [str(rund_script), "droid", "exec", "-o", "json", prompt],
+            capture_output=True,
+            text=True,
+            cwd=project_root,
+        )
+
+        # Parse JOB path from output
+        job_path = None
+        for line in start_result.stdout.split("\n"):
+            if line.startswith("JOB="):
+                job_path = line.split("=", 1)[1].strip()
+                break
+
+        if not job_path:
+            return True, "Skipped: Failed to start droid via rund"
+
+        # Monitor with runc until complete (check every 2s, max 90s for stuck detection)
+        import time
+
+        max_checks = 45  # 45 * 2s = 90s max
+        last_log_size = 0
+        stuck_count = 0
+
+        for _ in range(max_checks):
+            time.sleep(2)
+
+            check_result = subprocess.run(
+                [str(runc_script), job_path],
+                capture_output=True,
+                text=True,
+                cwd=project_root,
+            )
+
+            output = check_result.stdout
+
+            # Check if done
+            if "DONE" in output or "exit" in output.lower():
+                # Read the log file for results
+                log_file = Path(job_path + ".log")
+                if log_file.exists():
+                    log_content = log_file.read_text()
+                    return _parse_review_result(log_content)
+                return True, "Quick review passed"
+
+            # Stuck detection: log size unchanged for 3 checks (6s)
+            if "LOG=" in output:
+                try:
+                    log_size = int(output.split("LOG=")[1].split()[0])
+                    if log_size == last_log_size:
+                        stuck_count += 1
+                    else:
+                        stuck_count = 0
+                    last_log_size = log_size
+                except (ValueError, IndexError):
+                    pass
+
+            if stuck_count >= 3:
+                # Kill stuck process
+                subprocess.run(
+                    [str(project_root / "scripts" / "runk"), job_path],
+                    capture_output=True,
+                    cwd=project_root,
+                )
+                return True, "Skipped: Review process stuck, killed"
+
+        return True, "Skipped: Review did not complete in time"
+
+    except Exception as e:
+        return True, f"Skipped: {e}"
+
+
+def _run_direct(prompt: str, cwd: Path) -> tuple[bool, str]:
+    """Fallback direct execution without rund."""
     try:
         result = subprocess.run(
             ["droid", "exec", "-o", "json", prompt],
             capture_output=True,
             text=True,
-            timeout=30,  # 30 second timeout
-            cwd=Path(__file__).parent.parent.parent,
+            cwd=cwd,
         )
-
-        # P1 fix: Check exit code first
         if result.returncode != 0:
-            stderr = result.stderr.strip() if result.stderr else "unknown error"
-            return True, f"Skipped: droid failed (exit {result.returncode}): {stderr[:200]}"
-
-        output = result.stdout.strip()
-        if not output:
-            return True, "Skipped: empty response from droid"
-
-        # Try to parse JSON response
-        try:
-            # Find JSON in output (may have surrounding text)
-            json_start = output.find("{")
-            json_end = output.rfind("}") + 1
-            if json_start >= 0 and json_end > json_start:
-                data = json.loads(output[json_start:json_end])
-                if data.get("critical") is True:
-                    issues = data.get("issues", [])
-                    return False, f"Critical issues found: {issues}"
-        except json.JSONDecodeError:
-            # Fallback to string search if JSON parsing fails
-            if '"critical": true' in output.lower() or '"critical":true' in output.lower():
-                return False, f"Critical issues found:\n{output}"
-
-        return True, "Quick review passed"
-
-    except subprocess.TimeoutExpired:
-        return True, "Skipped: Review timed out (30s limit)"
+            return True, f"Skipped: droid failed (exit {result.returncode})"
+        return _parse_review_result(result.stdout)
     except Exception as e:
         return True, f"Skipped: {e}"
+
+
+def _parse_review_result(output: str) -> tuple[bool, str]:
+    """Parse droid output for critical issues."""
+    output = output.strip()
+    if not output:
+        return True, "Skipped: empty response"
+
+    try:
+        json_start = output.find("{")
+        json_end = output.rfind("}") + 1
+        if json_start >= 0 and json_end > json_start:
+            data = json.loads(output[json_start:json_end])
+            if data.get("critical") is True:
+                issues = data.get("issues", [])
+                return False, f"Critical issues found: {issues}"
+    except json.JSONDecodeError:
+        if '"critical": true' in output.lower() or '"critical":true' in output.lower():
+            return False, f"Critical issues found:\n{output}"
+
+    return True, "Quick review passed"
 
 
 def main() -> int:
     """Main entry point."""
     # Get files from args or staged files
     if len(sys.argv) > 1:
-        files = [f for f in sys.argv[1:] if f.endswith(".py")]
+        files = [f for f in sys.argv[1:] if any(f.endswith(ext) for ext in CODE_EXTENSIONS)]
     else:
-        files = get_staged_python_files()
+        files = get_staged_code_files()
 
     passed, message = run_quick_review(files)
 

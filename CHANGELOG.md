@@ -8,7 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added - AI Quick Review Pre-commit Hook (2026-01-08)
 
-**What:** Fast AI-powered code review integrated into pre-commit workflow.
+**What:** AI-powered code review integrated into pre-commit workflow.
 
 **Files:**
 - `scripts/enforcement/ai_quick_review.py` - NEW: Reviews staged diffs for critical issues
@@ -17,8 +17,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `scripts/enforcement/check_structure.py` - Allow .windsurf/ directory
 
 **Features:**
-- Reviews actual diff content (not just filenames)
-- 30s timeout, 8KB diff limit for speed
+- Reviews ALL code files: Python, TypeScript, JavaScript, Shell, YAML
+- Uses rund/runc for intelligent stuck detection (no arbitrary timeouts)
+- 8KB diff limit for token efficiency
 - Proper JSON parsing with fallback
 - Disable with `SKIP_AI_REVIEW=1`
 

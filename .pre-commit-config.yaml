@@ -102,9 +102,9 @@ repos:
 
       - id: ai-quick-review
         name: AI Quick Review
-        description: Fast AI review for critical issues (security, bugs, hardcoded values)
+        description: AI review for critical issues (security, bugs, hardcoded values)
         entry: python3 scripts/enforcement/ai_quick_review.py
         language: system
-        types: [python]
+        types_or: [python, ts, tsx, javascript, shell, yaml]
         stages: [pre-commit]
         verbose: true
