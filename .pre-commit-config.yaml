@@ -108,3 +108,12 @@ repos:
         types_or: [python, ts, tsx, javascript, shell, yaml]
         stages: [pre-commit]
         verbose: true
+
+      - id: sync-extensions
+        name: Sync Windsurf Extensions
+        description: Keep docs/reference/EXTENSIONS.md updated with installed extensions
+        entry: ./scripts/sync_extensions.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

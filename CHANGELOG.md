@@ -6,6 +6,23 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Windsurf Extensions Sync (2026-01-13)
+
+**What:** Automated tracking of installed Windsurf extensions via pre-commit hook.
+
+**Files:**
+- `scripts/sync_extensions.sh` - Syncs extensions to documentation
+- `docs/reference/EXTENSIONS.md` - Auto-generated extensions list with install commands
+- `.pre-commit-config.yaml` - Added sync-extensions hook
+
+**Features:**
+- Runs automatically on every commit
+- Categorizes extensions (AI, Python, Docker, Git, Markdown, Web)
+- Generates one-liner install commands for new machine setup
+- Updates only when extensions change
+
+---
+
 ### Added - AI Quick Review Pre-commit Hook (2026-01-08)
 
 **What:** AI-powered code review integrated into pre-commit workflow.
