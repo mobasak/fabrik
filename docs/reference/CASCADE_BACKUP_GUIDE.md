@@ -14,6 +14,7 @@ This guide documents how Windsurf Cascade configuration is backed up for migrati
 | **Workspace Rules** | `.windsurf/rules/*.md` | Git | ✅ Fully automated |
 | **Memories** | Codeium cloud | Cascade export → `CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md` | ⚠️ Manual trigger |
 | **Global Rules** | Codeium cloud | Cascade export → `CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md` | ⚠️ Manual trigger |
+| **Trajectories** | Codeium cloud | Download from Cascade UI → `docs/trajectories/` | ⚠️ Manual export |
 
 ---
 
@@ -45,6 +46,12 @@ The pre-commit hook checks backup freshness and reminds you when it's stale (>7 
 - **Contains:** All memories and global rules with full content
 - **Restore:** Ask Cascade to create memories from the file
 
+### 4. Trajectories (`docs/trajectories/`)
+- **Updated:** When you manually download from Cascade UI
+- **Contains:** Full conversation history with reasoning, tool calls, decisions
+- **Value:** Preserves context that memories might summarize too briefly
+- **Naming:** `YYYY-MM-DD-description.md`
+
 ---
 
 ## How to Update Backups
@@ -66,6 +73,18 @@ Or periodically (weekly recommended):
 Export all memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md
 ```
 
+### Trajectories (Manual)
+For important conversations with valuable reasoning/decisions:
+1. In Cascade panel, click `...` menu
+2. Click **Download Trajectory**
+3. Save to `docs/trajectories/YYYY-MM-DD-description.md`
+
+**When to save trajectories:**
+- Major feature implementations
+- Complex debugging sessions
+- Architecture decisions
+- Sessions with lots of back-and-forth learning
+
 ---
 
 ## Migration Scenario: Copying Entire WSL
@@ -76,6 +95,7 @@ When migrating to a new computer by copying the entire WSL filesystem:
 - ✅ All project files and git repos
 - ✅ Workspace rules (`.windsurf/rules/`)
 - ✅ Backup files (`CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md`, `EXTENSIONS.md`)
+- ✅ Saved trajectories (`docs/trajectories/`)
 - ✅ All scripts and configurations
 
 ### What's Lost
