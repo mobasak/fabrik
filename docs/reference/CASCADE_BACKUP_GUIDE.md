@@ -190,6 +190,50 @@ Follow steps 2-5 from the WSL migration section.
 
 ---
 
+## Quick Reference: New Machine Checklist
+
+After copying WSL to a new machine and installing fresh Windsurf/Cascade:
+
+### What's Preserved vs Needs Action
+
+| Item | Status After Copy | Action Needed |
+|------|-------------------|---------------|
+| Git config (`~/.gitconfig`) | ✅ Preserved | None |
+| SSH keys (`~/.ssh/`) | ✅ Preserved | May need to re-add to GitHub |
+| GitHub CLI (`gh`) | ⚠️ Token expired | `gh auth login` |
+| Factory CLI (`droid`) | ⚠️ Token expired | Run `droid` (browser auth) |
+| Factory settings | ✅ Preserved | None |
+| Factory skills/hooks | ✅ Preserved | None |
+| Windsurf extensions | ❌ Not in WSL | Install from EXTENSIONS.md |
+| Cascade memories | ❌ Cloud only | Restore from backup file |
+| Global rules | ❌ Cloud only | Re-add manually |
+
+### Quick Commands
+
+```bash
+# 1. Re-authenticate GitHub CLI
+gh auth login
+
+# 2. Test SSH access to GitHub
+ssh -T git@github.com
+
+# 3. If SSH key not recognized, re-add to GitHub
+cat ~/.ssh/id_ed25519.pub
+# Copy output → https://github.com/settings/ssh/new
+
+# 4. Re-authenticate Factory CLI
+droid
+# Opens browser for one-time auth
+
+# 5. Verify droid works
+droid exec "echo hello"
+
+# 6. Install Windsurf extensions (run from WSL)
+cat /opt/fabrik/docs/reference/EXTENSIONS.md | grep "windsurf --install-extension" | bash
+```
+
+---
+
 ## Pre-commit Hooks
 
 Two hooks manage backups:
