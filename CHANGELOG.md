@@ -6,23 +6,31 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Added - Cascade Memories Auto-Sync (2026-01-13)
+### Added - Cascade Backup System (2026-01-13)
 
-**What:** Automated backup of AI memories via pre-commit hook using droid exec.
+**What:** Comprehensive backup system for Windsurf Cascade configuration (extensions, rules, memories).
 
 **Files:**
-- `scripts/sync_memories.sh` - Exports memories via droid exec (fixed prompt for full content)
-- `docs/reference/MEMORIES.md` - Auto-generated memories backup (21 memories, 465 lines)
-- `.pre-commit-config.yaml` - Added sync-memories hook
-- `templates/scaffold/scripts/sync_memories.sh` - Template for new projects
-- `templates/scaffold/pre-commit-config.yaml` - Updated with sync-memories hook
+- `scripts/sync_extensions.sh` - Auto-exports installed extensions list
+- `scripts/sync_cascade_backup.sh` - Checks backup freshness, reminds when stale
+- `docs/reference/EXTENSIONS.md` - Auto-generated extensions with install commands
+- `docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md` - Manual backup of memories & global rules
+- `.windsurf/rules/*.md` - Workspace rules (already in git)
 
-**Features:**
-- Runs on pre-commit, but only if file is >24 hours old (minimizes API calls)
-- Uses droid exec to access AI context and export all memories
-- Fully automated "set and forget" - no manual intervention needed
-- Included in scaffold template for all new projects
-- Tested: Exports complete verbatim memory content, not summaries
+**Architecture:**
+
+| Item | Backup Method | Automation |
+|------|---------------|------------|
+| Extensions | `sync_extensions.sh` hook | ✅ Fully automated |
+| Workspace Rules | Git (`.windsurf/rules/`) | ✅ Fully automated |
+| Memories + Global Rules | Cascade in conversation | ⚠️ Manual trigger (hook reminds when stale) |
+
+**Why manual for memories/rules:** They're stored in Codeium's cloud, only accessible in live Cascade conversation. droid exec from shell cannot access them.
+
+**Usage:**
+- Extensions: Automatic on every commit
+- Workspace Rules: Automatic via git
+- Memories/Global Rules: Ask Cascade "Update the cascade backup file" when hook warns
 
 ---
 

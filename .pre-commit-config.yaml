@@ -118,10 +118,10 @@ repos:
         always_run: true
         stages: [pre-commit]
 
-      - id: sync-memories
-        name: Sync Cascade Memories
-        description: Export AI memories to docs/reference/MEMORIES.md (daily)
-        entry: ./scripts/sync_memories.sh
+      - id: sync-cascade-backup
+        name: Sync Cascade Backup (Memories + Global Rules)
+        description: Export AI memories and global rules to docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md (daily)
+        entry: ./scripts/sync_cascade_backup.sh
         language: script
         pass_filenames: false
         always_run: true
