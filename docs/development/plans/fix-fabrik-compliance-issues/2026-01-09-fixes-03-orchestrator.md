@@ -2,6 +2,7 @@
 
 **Plan:** 3 of 6
 **Created:** 2026-01-09
+**Status:** ⬜ NOT_STARTED
 **Module:** `orchestrator`
 
 ## Summary
