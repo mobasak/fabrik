@@ -14,12 +14,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `scripts/sync_extensions.sh` - Syncs extensions to documentation
 - `docs/reference/EXTENSIONS.md` - Auto-generated extensions list with install commands
 - `.pre-commit-config.yaml` - Added sync-extensions hook
+- `templates/scaffold/scripts/sync_extensions.sh` - Template for new projects
+- `templates/scaffold/pre-commit-config.yaml` - Updated with sync-extensions hook
 
 **Features:**
 - Runs automatically on every commit
 - Categorizes extensions (AI, Python, Docker, Git, Markdown, Web)
 - Generates one-liner install commands for new machine setup
 - Updates only when extensions change
+- Included in scaffold template for all new projects
 
 ---
 

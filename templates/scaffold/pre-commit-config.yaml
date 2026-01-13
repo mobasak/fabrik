@@ -47,6 +47,18 @@ repos:
         args: ['-c', 'pyproject.toml']
         additional_dependencies: ['bandit[toml]']
 
+  # Project-specific hooks
+  - repo: local
+    hooks:
+      - id: sync-extensions
+        name: Sync Windsurf Extensions
+        description: Keep docs/reference/EXTENSIONS.md updated with installed extensions
+        entry: ./scripts/sync_extensions.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
 # Minimal version (copy this if full version is too slow):
 # repos:
 #   - repo: https://github.com/astral-sh/ruff-pre-commit
