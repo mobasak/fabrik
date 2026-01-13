@@ -117,3 +117,12 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+
+      - id: sync-memories
+        name: Sync Cascade Memories
+        description: Export AI memories to docs/reference/MEMORIES.md (daily)
+        entry: ./scripts/sync_memories.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
