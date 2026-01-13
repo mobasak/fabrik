@@ -663,19 +663,59 @@ def replace_block(
     return block_re.sub(replacer, text), True
 
 
-def generate_plans_table() -> str:
-    """Generate markdown table of all plan files."""
-    if not PLANS_DIR.exists():
-        return "| Plan | Date | Status |\n|------|------|--------|\n| (none) | - | - |"
+def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
+    """Extract status and checkbox counts from a plan file.
 
+    Returns: (status, checked_count, total_count)
+    Status is normalized: COMPLETE, PARTIAL, NOT_DONE, IN_PROGRESS, or Active
+    """
+    try:
+        content = plan_path.read_text()
+    except Exception:
+        return "Unknown", 0, 0
+
+    # Extract status line (handles emojis like ✅, ⚠️, ❌)
+    status = "Active"
+    status_match = re.search(r"\*\*Status:\*\*\s*(.+?)(?:\n|$)", content)
+    if status_match:
+        raw_status = status_match.group(1).strip()
+        # Normalize status
+        lower = raw_status.lower()
+        if "complete" in lower:
+            status = "COMPLETE"
+        elif "partial" in lower:
+            status = "PARTIAL"
+        elif "not done" in lower or "not_done" in lower:
+            status = "NOT_DONE"
+        elif "in progress" in lower or "in_progress" in lower:
+            status = "IN_PROGRESS"
+        else:
+            status = raw_status[:20]  # Truncate if weird
+
+    # Count checkboxes in DONE WHEN section (handles [x], [X], [ ])
+    checked = len(re.findall(r"- \[[xX]\]", content))
+    unchecked = len(re.findall(r"- \[ \]", content))
+    total = checked + unchecked
+
+    return status, checked, total
+
+
+def generate_plans_table() -> str:
+    """Generate markdown table of all plan files with real status."""
+    if not PLANS_DIR.exists():
+        return "| Plan | Date | Status | Progress |\n|------|------|--------|----------|\n| (none) | - | - | - |"
+
+    # Use glob for top-level only (subfolders are for grouped incomplete work)
     plans = sorted(PLANS_DIR.glob("*.md"))
     if not plans:
-        return "| Plan | Date | Status |\n|------|------|--------|\n| (none) | - | - |"
+        return "| Plan | Date | Status | Progress |\n|------|------|--------|----------|\n| (none) | - | - | - |"
 
-    lines = ["| Plan | Date | Status |", "|------|------|--------|"]
+    lines = ["| Plan | Date | Status | Progress |", "|------|------|--------|----------|"]
     for p in plans:
         date = p.name[:10] if len(p.name) > 10 else "-"
-        lines.append(f"| [{p.name}](plans/{p.name}) | {date} | Active |")
+        status, checked, total = parse_plan_status(p)
+        progress = f"{checked}/{total}" if total > 0 else "-"
+        lines.append(f"| [{p.name}](plans/{p.name}) | {date} | {status} | {progress} |")
     return "\n".join(lines)
 
 
@@ -709,6 +749,44 @@ def validate_plans_indexed() -> list[str]:
         for p in PLANS_DIR.glob("*.md"):
             if p.name not in idx:
                 errors.append(f"Plan not indexed: {p.name}")
+    return errors
+
+
+def validate_plan_consistency() -> list[str]:
+    """Check plan status matches checkbox completion. For --check mode.
+
+    ERROR: Plan marked COMPLETE but has unchecked boxes
+    WARNING: Plan marked COMPLETE for >14 days (should archive)
+    """
+    errors = []
+    if not PLANS_DIR.exists():
+        return errors
+
+    from datetime import timedelta
+
+    for p in PLANS_DIR.glob("*.md"):
+        status, checked, total = parse_plan_status(p)
+
+        # ERROR: COMPLETE with unchecked boxes
+        if status == "COMPLETE" and total > 0 and checked < total:
+            errors.append(
+                f"ERROR: {p.name} marked COMPLETE but has {total - checked} unchecked items"
+            )
+
+        # WARNING: COMPLETE plans should be archived after 14 days
+        if status == "COMPLETE":
+            try:
+                # Extract date from filename YYYY-MM-DD-slug.md
+                date_str = p.name[:10]
+                plan_date = datetime.strptime(date_str, "%Y-%m-%d")
+                age = datetime.now() - plan_date
+                if age > timedelta(days=14):
+                    errors.append(
+                        f"WARNING: {p.name} is COMPLETE and {age.days} days old - consider archiving"
+                    )
+            except ValueError:
+                pass  # Invalid date format, skip age check
+
     return errors
 
 
@@ -882,6 +960,9 @@ def validate_docs() -> tuple[bool, list[str]]:
 
     # Check plans are indexed
     issues.extend(validate_plans_indexed())
+
+    # Check plan status/checkbox consistency
+    issues.extend(validate_plan_consistency())
 
     # Check for missing module docs
     missing_modules = detect_new_modules()

@@ -6,6 +6,27 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Plan Status Tracking & Consistency Validation (2026-01-14)
+
+**What:** Automated tracking of plan completion status and checkbox progress in PLANS.md table.
+
+**Files:**
+- `scripts/docs_updater.py` - Added `parse_plan_status()` and `validate_plan_consistency()`
+- `docs/reference/docs-updater.md` - Updated documentation
+- `docs/development/PLANS.md` - Now shows real Status and Progress columns
+
+**Features:**
+- Extracts `**Status:**` line from plan files (handles emojis, normalizes to COMPLETE/PARTIAL/NOT_DONE/IN_PROGRESS)
+- Counts `[x]` vs `[ ]` checkboxes for progress tracking
+- ERROR if plan marked COMPLETE but has unchecked boxes
+- WARNING if COMPLETE plan is >14 days old (should archive)
+
+**Before/After PLANS.md:**
+```
+BEFORE: | Plan | Date | Status |  (hardcoded "Active")
+AFTER:  | Plan | Date | Status | Progress |  (real status, e.g., "COMPLETE | 8/8")
+```
+
 ### Added - Cascade Backup System (2026-01-13)
 
 **What:** Comprehensive backup system for Windsurf Cascade configuration (extensions, rules, memories).

@@ -1,6 +1,6 @@
 # Automatic Documentation Updater
 
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-01-14
 
 Automatically updates documentation when code changes are detected. Uses low-cost AI models to analyze changes and write updates directly to doc files.
 
@@ -137,11 +137,22 @@ The `--check` and `--sync` modes provide **deterministic structure enforcement**
 - **Stub completeness** - Reference docs aren't empty placeholders
 - **Link integrity** - Internal markdown links point to existing files
 - **Staleness** - Manual docs have `**Last Updated:**` date
+- **Plan consistency** - Plans marked COMPLETE have all checkboxes checked
+- **Archive reminder** - Warns if COMPLETE plans are >14 days old
 
 **What `--sync` does:**
-- Updates `docs/development/PLANS.md` auto-indexed table
+- Updates `docs/development/PLANS.md` auto-indexed table with real status/progress
 - Creates reference doc stubs for new public modules
 - Idempotent: running twice = no diff
+
+**PLANS.md table format:**
+```markdown
+| Plan | Date | Status | Progress |
+|------|------|--------|----------|
+| 2026-01-07-docs-automation.md | 2026-01-07 | COMPLETE | 8/8 |
+```
+
+Status is extracted from `**Status:**` line in plan file. Progress shows checked/total checkboxes.
 
 ### 3. Queue Directory
 
