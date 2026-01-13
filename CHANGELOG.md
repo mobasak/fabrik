@@ -6,6 +6,26 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Plan Naming Convention Update (2026-01-14)
+
+**What:** New plan naming convention `YYYY-MM-DD-plan-<name>.md` with legacy support.
+
+**Files:**
+- `scripts/enforcement/check_plans.py` - New naming regex, legacy format warns
+- `AGENTS.md` - Updated documentation rules with new format
+- `templates/scaffold/AGENTS.md` - Added Planning section for other /opt projects
+
+**Changes:**
+- New format: `YYYY-MM-DD-plan-<name>.md` (e.g., `2026-01-14-plan-feature-auth.md`)
+- Legacy format `YYYY-MM-DD-<slug>.md` still accepted with WARN severity
+- README.md and index.md files in plans/ are skipped
+- Scaffold template now includes Planning section with plan lifecycle
+
+**Archived Plans:**
+- `2026-01-07-docs-automation.md` → `docs/archive/2026-01-07-completed-plans/`
+- `2026-01-07-mypy-drivers-fix.md` → `docs/archive/2026-01-07-completed-plans/`
+- `2026-01-08-droid-scripts-consolidation.md` → `docs/archive/2026-01-07-completed-plans/`
+
 ### Added - Plan Status Tracking & Consistency Validation (2026-01-14)
 
 **What:** Automated tracking of plan completion status and checkbox progress in PLANS.md table.

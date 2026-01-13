@@ -103,6 +103,43 @@ droid exec --auto medium "Commit Phase 1 with detailed message"
 
 **Key:** Fresh session per phase, test after each, plan rollback.
 
+## Planning (Required for Non-Trivial Work)
+
+**Before implementing any feature or fix, create a plan document.**
+
+### Plan Location & Naming
+- Location: `docs/development/plans/`
+- Filename: `YYYY-MM-DD-plan-<name>.md` (e.g., `2026-01-14-plan-add-auth.md`)
+
+### Required Plan Sections
+```markdown
+# Plan Name
+
+**Status:** NOT_STARTED | IN_PROGRESS | PARTIAL | COMPLETE | NOT_DONE
+**Created:** YYYY-MM-DD
+
+## Goal
+One-line description
+
+## DONE WHEN (all true)
+- [ ] Checkbox 1
+- [ ] Checkbox 2
+
+## Out of Scope
+- Item 1
+
+## Steps
+1. Step 1
+2. Step 2
+```
+
+### Plan Lifecycle
+1. **Create** plan in `docs/development/plans/`
+2. **Add** to `docs/development/PLANS.md` index
+3. **Update** `**Status:**` as work progresses
+4. **Check boxes** as items complete
+5. **Archive** when COMPLETE → move to `docs/archive/`
+
 ## Conventions
 
 ### Environment Variables (CRITICAL)
@@ -148,6 +185,10 @@ async def health():
 │   └── api/               # API endpoints
 ├── tests/                 # Tests mirror src/
 ├── scripts/               # Utility scripts
+├── docs/
+│   ├── INDEX.md           # Documentation map
+│   └── development/
+│       └── plans/         # Plan documents (YYYY-MM-DD-plan-*.md)
 ├── compose.yaml           # Docker Compose
 ├── Dockerfile             # Production build
 ├── .env.example           # Env var template

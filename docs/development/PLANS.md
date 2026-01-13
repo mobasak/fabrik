@@ -7,12 +7,10 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v1 | 2026-01-13T23:58 -->
+<!-- AUTO-GENERATED:PLANS v1 | 2026-01-14T00:19 -->
 | Plan | Date | Status | Progress |
 |------|------|--------|----------|
-| [2026-01-07-docs-automation.md](plans/2026-01-07-docs-automation.md) | 2026-01-07 | COMPLETE | 8/8 |
-| [2026-01-07-mypy-drivers-fix.md](plans/2026-01-07-mypy-drivers-fix.md) | 2026-01-07 | COMPLETE | 4/4 |
-| [2026-01-08-droid-scripts-consolidation.md](plans/2026-01-08-droid-scripts-consolidation.md) | 2026-01-08 | COMPLETE | 7/7 |
+| (none) | - | - | - |
 <!-- AUTO-GENERATED:PLANS:END -->
 
 ---

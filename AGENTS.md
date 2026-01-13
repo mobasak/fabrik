@@ -47,8 +47,9 @@ Next: Proceed to Step <N+1> / STOP
 1) Do NOT create markdown files in repo root.
 2) Feature/Execution plans:
    - Create ONLY under `docs/development/plans/`
-   - Filename: `YYYY-MM-DD-<slug>.md`
+   - Filename: `YYYY-MM-DD-plan-<name>.md` (e.g., `2026-01-14-plan-feature-auth.md`)
    - Include: Goal, DONE WHEN, Out of Scope, Constraints, Steps, Owner, Links
+   - Must have `**Status:**` line (COMPLETE, PARTIAL, NOT_DONE, IN_PROGRESS, NOT_STARTED)
 3) Every new plan MUST be added to `docs/development/PLANS.md`.
 4) Do NOT create new folders under `docs/` except via existing structure.
 5) If you add a module under `src/`, ensure a reference doc exists:
