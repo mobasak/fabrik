@@ -11,8 +11,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 **What:** Automated backup of AI memories via pre-commit hook using droid exec.
 
 **Files:**
-- `scripts/sync_memories.sh` - Exports memories via droid exec
-- `docs/reference/MEMORIES.md` - Auto-generated memories backup
+- `scripts/sync_memories.sh` - Exports memories via droid exec (fixed prompt for full content)
+- `docs/reference/MEMORIES.md` - Auto-generated memories backup (21 memories, 465 lines)
 - `.pre-commit-config.yaml` - Added sync-memories hook
 - `templates/scaffold/scripts/sync_memories.sh` - Template for new projects
 - `templates/scaffold/pre-commit-config.yaml` - Updated with sync-memories hook
@@ -22,6 +22,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Uses droid exec to access AI context and export all memories
 - Fully automated "set and forget" - no manual intervention needed
 - Included in scaffold template for all new projects
+- Tested: Exports complete verbatim memory content, not summaries
 
 ---
 

@@ -34,22 +34,29 @@ else
 fi
 
 # Create prompt for droid exec
-PROMPT="Export ALL memories from your context to a markdown file.
+PROMPT="You MUST output the FULL TEXT of every memory in your context. Do NOT summarize.
 
-Instructions:
-1. List EVERY memory you have access to (workspace and global)
-2. Format as markdown with clear sections
-3. Include the memory ID if visible
-4. Categorize by type (workflow, security, coding standards, etc.)
-5. Output ONLY the markdown content, no explanations
+FORMAT (output this EXACTLY):
 
-Start with:
 # Cascade Memories
 
 **Exported:** $(date +%Y-%m-%d)
 **Workspace:** $(basename $(pwd))
 
-Then list all memories with their full content."
+## Memory 1: [Title from memory]
+[FULL VERBATIM TEXT of memory - every word, every line]
+
+## Memory 2: [Title from memory]
+[FULL VERBATIM TEXT of memory - every word, every line]
+
+... continue for ALL memories ...
+
+CRITICAL RULES:
+- Output the COMPLETE text of each memory, not a summary
+- Include ALL memories you can see in your context
+- Do NOT add commentary or explanations
+- Do NOT skip any memory
+- Do NOT truncate content"
 
 # Run droid exec to export memories
 echo "Running droid exec to export memories..."
