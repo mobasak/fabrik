@@ -1,6 +1,7 @@
 # Update Documentation for docs_updater.py New Checks
 
 **Goal:** Document the three new validation checks added to `scripts/docs_updater.py`.
+**Status:** ❌ NOT DONE (checks not documented in docs/reference/)
 
 **DONE WHEN:**
 - [ ] `docs/reference/docs-updater.md` is updated with details about `check_stub_completeness`, `check_link_integrity`, and `check_staleness`.

@@ -3,6 +3,7 @@
 **What is this?** Make `create_project()` generate Fabrik-compliant projects with all enforcement hooks active from day one.
 
 **AI Council Review:** Gemini 3 Pro ✅, Claude Sonnet 4.5 ✅, GPT-5.2 ✅
+**Status:** ⚠️ PARTIAL (AGENTS.md symlink done, test_scaffold.py missing)
 
 ---
 
