@@ -93,10 +93,18 @@ When migrating to a new computer by copying the entire WSL filesystem:
 
 ### What's Preserved (Already in WSL)
 - ✅ All project files and git repos
+- ✅ Git config (`~/.gitconfig`)
+- ✅ SSH keys (`~/.ssh/`)
+- ✅ Factory CLI (`~/.factory/`)
 - ✅ Workspace rules (`.windsurf/rules/`)
 - ✅ Backup files (`CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md`, `EXTENSIONS.md`)
 - ✅ Saved trajectories (`docs/trajectories/`)
 - ✅ All scripts and configurations
+
+### What Needs Re-Authentication
+- ⚠️ **GitHub CLI** - Run `gh auth login` to re-authenticate
+- ⚠️ **Factory CLI** - Run `droid` to re-authenticate via browser
+- ⚠️ **SSH keys** - May need to re-add to GitHub/GitLab if machine fingerprint changes
 
 ### What's Lost
 - ❌ **Windsurf chat history** - Stored in Codeium cloud, tied to account
@@ -111,24 +119,56 @@ When migrating to a new computer by copying the entire WSL filesystem:
 ### 1. Install Windsurf on New Windows
 Download and install Windsurf on the new Windows machine.
 
-### 2. Install Extensions (Windows Side)
+### 2. Re-Authenticate Git & GitHub CLI
+```bash
+# Verify git config is present
+git config --global --list
+
+# Re-authenticate GitHub CLI (required - tokens don't transfer)
+gh auth login
+# Choose: GitHub.com → SSH → Login with browser
+
+# Test SSH access
+ssh -T git@github.com
+
+# If SSH key not recognized, re-add to GitHub:
+cat ~/.ssh/id_ed25519.pub
+# Copy and add at https://github.com/settings/ssh/new
+```
+
+### 3. Re-Authenticate Factory CLI (droid exec)
+```bash
+# Factory CLI files are preserved but auth token expires
+# Simply run droid - it will prompt for browser auth
+droid
+
+# This opens browser for one-time authentication
+# After auth, verify it works:
+droid exec "echo hello"
+
+# Factory settings are preserved at ~/.factory/settings.json
+# Skills are preserved at ~/.factory/skills/
+# Hooks are preserved at ~/.factory/hooks/
+```
+
+### 4. Install Extensions (Windows Side)
 From WSL, run the install commands:
 ```bash
 cat /opt/fabrik/docs/reference/EXTENSIONS.md | grep "windsurf --install-extension" | bash
 ```
 Or copy commands and run in Windows terminal.
 
-### 3. Restore Memories
+### 5. Restore Memories
 Open a new Cascade conversation and say:
 ```
 Please create memories from each section in /opt/fabrik/docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md under "PART 1: MEMORIES". Create one memory per section.
 ```
 
-### 4. Restore Global Rules
+### 6. Restore Global Rules
 1. Open Windsurf Settings > Cascade > Rules
 2. Add each rule from PART 2 of `CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md`
 
-### 5. Chat History
+### 7. Chat History
 **Chat history cannot be restored.** It's tied to your Codeium account/cloud.
 - If logged into same Codeium account, some history may sync
 - Otherwise, history is lost - this is why we backup memories/rules to files
