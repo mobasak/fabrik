@@ -68,32 +68,65 @@ Export all memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md
 
 ---
 
-## Restoring on New Machine
+## Migration Scenario: Copying Entire WSL
+
+When migrating to a new computer by copying the entire WSL filesystem:
+
+### What's Preserved (Already in WSL)
+- ✅ All project files and git repos
+- ✅ Workspace rules (`.windsurf/rules/`)
+- ✅ Backup files (`CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md`, `EXTENSIONS.md`)
+- ✅ All scripts and configurations
+
+### What's Lost
+- ❌ **Windsurf chat history** - Stored in Codeium cloud, tied to account
+- ❌ **Cascade memories** - Stored in Codeium cloud, need to recreate
+- ❌ **Global rules** - Stored in Codeium cloud, need to recreate
+- ❌ **Windsurf extensions** - Installed on Windows side, not in WSL
+
+---
+
+## Restore Steps After WSL Migration
+
+### 1. Install Windsurf on New Windows
+Download and install Windsurf on the new Windows machine.
+
+### 2. Install Extensions (Windows Side)
+From WSL, run the install commands:
+```bash
+cat /opt/fabrik/docs/reference/EXTENSIONS.md | grep "windsurf --install-extension" | bash
+```
+Or copy commands and run in Windows terminal.
+
+### 3. Restore Memories
+Open a new Cascade conversation and say:
+```
+Please create memories from each section in /opt/fabrik/docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md under "PART 1: MEMORIES". Create one memory per section.
+```
+
+### 4. Restore Global Rules
+1. Open Windsurf Settings > Cascade > Rules
+2. Add each rule from PART 2 of `CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md`
+
+### 5. Chat History
+**Chat history cannot be restored.** It's tied to your Codeium account/cloud.
+- If logged into same Codeium account, some history may sync
+- Otherwise, history is lost - this is why we backup memories/rules to files
+
+---
+
+## Alternative: Fresh Clone (Without WSL Copy)
+
+If starting fresh without copying WSL:
 
 ### 1. Clone the Repository
 ```bash
 git clone <repo-url>
 cd <project>
 ```
-This restores:
-- ✅ Workspace rules (`.windsurf/rules/`)
-- ✅ Backup files for reference
 
-### 2. Install Extensions
-```bash
-# Run all install commands from EXTENSIONS.md:
-cat docs/reference/EXTENSIONS.md | grep "windsurf --install-extension" | bash
-```
-
-### 3. Restore Memories
-Open Cascade and say:
-```
-Please create memories from each section in docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md under "PART 1: MEMORIES"
-```
-
-### 4. Restore Global Rules
-1. Open Windsurf Settings > Cascade > Rules
-2. Add each rule from PART 2 of `CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md`
+### 2-5. Same as Above
+Follow steps 2-5 from the WSL migration section.
 
 ---
 

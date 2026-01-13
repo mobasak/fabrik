@@ -437,19 +437,39 @@ Do NOT assume silence means approval.
 
 # RESTORE INSTRUCTIONS
 
-## Memories
-To restore memories on a new machine, ask Cascade:
-```
-Please create memories from each section in docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md under "PART 1: MEMORIES"
+## Migration Scenario: Copying Entire WSL to New Computer
+
+When you copy WSL to a new machine, **all files are preserved**. What's lost:
+- ❌ Windsurf chat history (cloud-stored, cannot be restored)
+- ❌ Cascade memories (cloud-stored, need to recreate from this file)
+- ❌ Global rules (cloud-stored, need to recreate from this file)
+- ❌ Windsurf extensions (Windows-side, need to reinstall)
+
+### Step 1: Install Windsurf on New Windows
+Download and install Windsurf on the new Windows machine.
+
+### Step 2: Install Extensions
+```bash
+cat /opt/fabrik/docs/reference/EXTENSIONS.md | grep "windsurf --install-extension" | bash
 ```
 
-## Global Rules
-To restore global rules:
+### Step 3: Restore Memories
+Open a new Cascade conversation and say:
+```
+Please create memories from each section in /opt/fabrik/docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md under "PART 1: MEMORIES". Create one memory per section with the exact content.
+```
+
+### Step 4: Restore Global Rules
 1. Open Windsurf Settings > Cascade > Rules
-2. Add each rule from PART 2 above
+2. Add each rule from PART 2 above (copy the full content)
+
+### Step 5: Chat History
+**Cannot be restored.** This is why we backup memories/rules to files.
+- If using same Codeium account, some history may sync automatically
+- Important context from old chats should be in memories
 
 ## Workspace Rules
-Workspace rules are in `.windsurf/rules/` and restored automatically via git clone.
+Already in WSL at `.windsurf/rules/` - no action needed.
 
-## Extensions
-Extensions are in `docs/reference/EXTENSIONS.md` with install commands.
+## Full Documentation
+See `docs/reference/CASCADE_BACKUP_GUIDE.md` for complete restore guide.
