@@ -7,20 +7,39 @@
 
 ## Compliance Summary
 
-| Project | .windsurfrules | AGENTS.md | trajectories/ | pre-commit | backup.sh | .windsurf/rules/ |
-|---------|----------------|-----------|---------------|------------|-----------|------------------|
-| captcha | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| dns-manager | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| emailgateway | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| file-api | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| file-worker | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| _final-verify | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| image-broker | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| _project_management | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| proposal-creator | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| proxy | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| translator | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| youtube | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+### Infrastructure Files
+
+| Project | .windsurfrules | AGENTS.md | trajectories/ | pre-commit | backup.sh |
+|---------|----------------|-----------|---------------|------------|-----------|
+| captcha | ✅ | ❌ | ❌ | ❌ | ❌ |
+| dns-manager | ✅ | ❌ | ❌ | ❌ | ❌ |
+| emailgateway | ✅ | ❌ | ❌ | ❌ | ❌ |
+| file-api | ✅ | ❌ | ❌ | ❌ | ❌ |
+| file-worker | ✅ | ❌ | ❌ | ❌ | ❌ |
+| _final-verify | ❌ | ❌ | ❌ | ❌ | ❌ |
+| image-broker | ✅ | ❌ | ❌ | ❌ | ❌ |
+| _project_management | ❌ | ❌ | ❌ | ❌ | ❌ |
+| proposal-creator | ✅ | ❌ | ❌ | ✅ | ❌ |
+| proxy | ✅ | ✅ | ❌ | ❌ | ❌ |
+| translator | ✅ | ❌ | ❌ | ❌ | ❌ |
+| youtube | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+### Documentation Files (REQUIRED for AI Understanding)
+
+| Project | README.md | CHANGELOG.md | docs/ | docs/INDEX.md |
+|---------|-----------|--------------|-------|---------------|
+| captcha | ✅ | ✅ | ✅ | ❌ |
+| dns-manager | ✅ | ✅ | ✅ | ❌ |
+| emailgateway | ✅ | ✅ | ✅ | ❌ |
+| file-api | ✅ | ❌ | ❌ | ❌ |
+| file-worker | ❌ | ❌ | ❌ | ❌ |
+| _final-verify | ✅ | ❌ | ❌ | ❌ |
+| image-broker | ✅ | ✅ | ✅ | ❌ |
+| _project_management | ✅ | ❌ | ✅ | ❌ |
+| proposal-creator | ✅ | ✅ | ✅ | ❌ |
+| proxy | ✅ | ✅ | ✅ | ❌ |
+| translator | ✅ | ✅ | ✅ | ❌ |
+| youtube | ✅ | ✅ | ✅ | ❌ |
 
 ---
 
@@ -31,12 +50,19 @@ When you open a project from this list, execute these commands to make it Fabrik
 ### Step 1: Check Current Status
 ```bash
 # Run from project root
-echo "=== Compliance Check ==="
+echo "=== Infrastructure Check ==="
 echo ".windsurfrules: $([ -e .windsurfrules ] && echo 'EXISTS' || echo 'MISSING')"
 echo "AGENTS.md: $([ -f AGENTS.md ] && echo 'EXISTS' || echo 'MISSING')"
 echo "docs/trajectories/: $([ -d docs/trajectories ] && echo 'EXISTS' || echo 'MISSING')"
 echo ".pre-commit-config.yaml: $([ -f .pre-commit-config.yaml ] && echo 'EXISTS' || echo 'MISSING')"
 echo "scripts/sync_cascade_backup.sh: $([ -f scripts/sync_cascade_backup.sh ] && echo 'EXISTS' || echo 'MISSING')"
+
+echo ""
+echo "=== Documentation Check (REQUIRED for AI Understanding) ==="
+echo "README.md: $([ -f README.md ] && echo 'EXISTS' || echo 'MISSING')"
+echo "CHANGELOG.md: $([ -f CHANGELOG.md ] && echo 'EXISTS' || echo 'MISSING')"
+echo "docs/: $([ -d docs ] && echo 'EXISTS' || echo 'MISSING')"
+echo "docs/INDEX.md: $([ -f docs/INDEX.md ] && echo 'EXISTS' || echo 'MISSING')"
 ```
 
 ### Step 2: Add Missing Components
@@ -73,6 +99,78 @@ chmod +x scripts/sync_cascade_backup.sh
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/sync_extensions.sh
 ```
+
+### Step 2b: Add Missing Documentation (CRITICAL for AI Understanding)
+
+**If README.md is MISSING or incomplete, CREATE/UPDATE it with this structure:**
+```markdown
+# Project Name
+
+**Purpose:** One-line description of what this project does
+
+## Quick Start
+\`\`\`bash
+# How to run locally
+\`\`\`
+
+## Architecture
+- What components exist
+- How they interact
+
+## Configuration
+- Environment variables required
+- Config files
+
+## Deployment
+- How to deploy to production
+```
+
+**If CHANGELOG.md is MISSING:**
+```bash
+cat > CHANGELOG.md << 'EOF'
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+
+### Added
+- Initial Fabrik compliance (YYYY-MM-DD)
+EOF
+```
+
+**If docs/ folder is MISSING:**
+```bash
+mkdir -p docs
+```
+
+**If docs/INDEX.md is MISSING, CREATE it:**
+```markdown
+# Documentation Index
+
+**Last Updated:** YYYY-MM-DD
+
+## Structure
+
+- `README.md` - Project overview and quick start
+- `CHANGELOG.md` - Version history
+- `AGENTS.md` - AI agent instructions
+
+## docs/
+- (list documentation files here as they are created)
+```
+
+### Step 2c: Update README.md to be AI-Readable
+
+**Read the existing README.md and ensure it answers these questions:**
+
+1. **What does this project do?** (Purpose in first paragraph)
+2. **How do I run it locally?** (Quick start commands)
+3. **What environment variables are needed?** (Configuration section)
+4. **What are the main components?** (Architecture section)
+5. **How is it deployed?** (Deployment section)
+
+**If any of these are missing, ADD them to README.md.**
 
 ### Step 3: Check for Rule Violations
 
@@ -126,7 +224,8 @@ git commit -m "Add Fabrik compliance: rules, AGENTS.md, backup hooks"
 ## Per-Project Instructions
 
 ### captcha
-**Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Docs Missing:** docs/INDEX.md
 ```bash
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
 mkdir -p docs/trajectories scripts
@@ -135,9 +234,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### dns-manager
-**Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Docs Missing:** docs/INDEX.md
 ```bash
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
 mkdir -p docs/trajectories scripts
@@ -146,9 +247,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### emailgateway
-**Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Docs Missing:** docs/INDEX.md
 ```bash
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
 mkdir -p docs/trajectories scripts
@@ -157,9 +260,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### file-api
-**Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Docs Missing:** CHANGELOG.md, docs/, docs/INDEX.md
 ```bash
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
 mkdir -p docs/trajectories scripts
@@ -168,9 +273,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Create CHANGELOG.md. Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### file-worker
-**Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Docs Missing:** README.md, CHANGELOG.md, docs/, docs/INDEX.md
 ```bash
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
 mkdir -p docs/trajectories scripts
@@ -179,9 +286,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** CREATE README.md with Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create CHANGELOG.md. Create docs/INDEX.md.
 
 ### _final-verify
-**Missing:** ALL components
+**Infrastructure Missing:** ALL components
+**Docs Missing:** CHANGELOG.md, docs/, docs/INDEX.md
 ```bash
 ln -s /opt/fabrik/windsurfrules .windsurfrules
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
@@ -191,9 +300,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Create CHANGELOG.md. Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### image-broker
-**Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Docs Missing:** docs/INDEX.md
 ```bash
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
 mkdir -p docs/trajectories scripts
@@ -202,9 +313,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### _project_management
-**Missing:** ALL components
+**Infrastructure Missing:** ALL components
+**Docs Missing:** CHANGELOG.md, docs/INDEX.md
 ```bash
 ln -s /opt/fabrik/windsurfrules .windsurfrules
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
@@ -214,9 +327,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Create CHANGELOG.md. Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### proposal-creator
-**Missing:** AGENTS.md, docs/trajectories/, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** AGENTS.md, docs/trajectories/, scripts/sync_cascade_backup.sh
+**Docs Missing:** docs/INDEX.md
 ```bash
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
 mkdir -p docs/trajectories scripts
@@ -224,9 +339,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### proxy
-**Missing:** docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Docs Missing:** docs/INDEX.md
 ```bash
 mkdir -p docs/trajectories scripts
 cp /opt/fabrik/templates/scaffold/pre-commit-config.yaml .pre-commit-config.yaml
@@ -234,9 +351,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### translator
-**Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** AGENTS.md, docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Docs Missing:** docs/INDEX.md
 ```bash
 cp /opt/fabrik/templates/scaffold/AGENTS.md .
 mkdir -p docs/trajectories scripts
@@ -245,9 +364,11 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ### youtube
-**Missing:** docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Infrastructure Missing:** docs/trajectories/, .pre-commit-config.yaml, scripts/sync_cascade_backup.sh
+**Docs Missing:** docs/INDEX.md
 ```bash
 mkdir -p docs/trajectories scripts
 cp /opt/fabrik/templates/scaffold/pre-commit-config.yaml .pre-commit-config.yaml
@@ -255,6 +376,7 @@ cp /opt/fabrik/scripts/sync_cascade_backup.sh scripts/
 cp /opt/fabrik/scripts/sync_extensions.sh scripts/
 chmod +x scripts/*.sh
 ```
+**Then:** Read README.md and verify it has Purpose, Quick Start, Architecture, Configuration, Deployment sections. Create docs/INDEX.md.
 
 ---
 
@@ -262,12 +384,27 @@ chmod +x scripts/*.sh
 
 Run this to verify full compliance:
 ```bash
-echo "=== Final Compliance Check ==="
+echo "=== Infrastructure Check ==="
 [ -e .windsurfrules ] && echo "✅ .windsurfrules" || echo "❌ .windsurfrules"
 [ -f AGENTS.md ] && echo "✅ AGENTS.md" || echo "❌ AGENTS.md"
 [ -d docs/trajectories ] && echo "✅ docs/trajectories/" || echo "❌ docs/trajectories/"
 [ -f .pre-commit-config.yaml ] && echo "✅ .pre-commit-config.yaml" || echo "❌ .pre-commit-config.yaml"
 [ -f scripts/sync_cascade_backup.sh ] && echo "✅ scripts/sync_cascade_backup.sh" || echo "❌ scripts/sync_cascade_backup.sh"
+
+echo ""
+echo "=== Documentation Check ==="
+[ -f README.md ] && echo "✅ README.md" || echo "❌ README.md"
+[ -f CHANGELOG.md ] && echo "✅ CHANGELOG.md" || echo "❌ CHANGELOG.md"
+[ -d docs ] && echo "✅ docs/" || echo "❌ docs/"
+[ -f docs/INDEX.md ] && echo "✅ docs/INDEX.md" || echo "❌ docs/INDEX.md"
+
+echo ""
+echo "=== README.md Content Check ==="
+if [ -f README.md ]; then
+  grep -q "Purpose\|purpose\|What.*does" README.md && echo "✅ Has Purpose" || echo "❌ Missing Purpose"
+  grep -q "Quick Start\|Getting Started\|Installation" README.md && echo "✅ Has Quick Start" || echo "❌ Missing Quick Start"
+  grep -q "Configuration\|Environment\|Config" README.md && echo "✅ Has Configuration" || echo "❌ Missing Configuration"
+fi
 ```
 
 ---
