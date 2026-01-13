@@ -35,9 +35,11 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 |------|---------|---------------------|
 | `README.md` | Project overview | Must have: Purpose, Quick Start, Architecture, Configuration, Deployment |
 | `CHANGELOG.md` | Version history | Track all changes |
+| `PORTS.md` | Port registry | Document all ports used by the project |
 | `docs/` | Documentation folder | Must exist |
-| `docs/INDEX.md` | Documentation map | List all docs |
+| `docs/INDEX.md` | Documentation map | List all docs with standard structure |
 | `docs/trajectories/` | Saved Cascade conversations | For valuable sessions |
+| `docs/development/PLANS.md` | Execution plan tracker | List all plans (per AGENTS.md) |
 
 ### Deployment Files (REQUIRED for Services)
 
@@ -71,18 +73,20 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 
 ### Summary Table
 
-| Project | Infrastructure | Documentation | Deployment | Code Quality | Violations |
-|---------|----------------|---------------|------------|--------------|------------|
-| captcha | 1/5 | 3/5 | 3/3 ✅ | 2/2 ✅ | 78 ❌ |
-| dns-manager | 1/5 | 3/5 | 3/3 ✅ | 2/2 ✅ | 80 ❌ |
-| emailgateway | 1/5 | 3/5 | 2/3 | 1/2 | 3 ❌ |
-| file-api | 1/5 | 1/5 | 2/3 | 0/2 | 1 ❌ |
-| file-worker | 1/5 | 0/5 | 2/3 | 1/2 | 2 ❌ |
-| image-broker | 1/5 | 3/5 | 3/3 ✅ | 2/2 ✅ | 83 ❌ |
-| proposal-creator | 2/5 | 3/5 | 3/3 ✅ | 3/3 ✅ | 180 ❌ |
-| proxy | 2/5 | 3/5 | 3/3 ✅ | 2/2 ✅ | 13 ❌ |
-| translator | 1/5 | 3/5 | 3/3 ✅ | 2/2 ✅ | 130 ❌ |
-| youtube | 2/5 | 3/5 | 1/3 | 2/2 ✅ | 59 ❌ |
+| Project | Infrastructure | Documentation | Deployment | Code Quality | Violations* |
+|---------|----------------|---------------|------------|--------------|-------------|
+| captcha | 1/5 | 4/7 | 3/3 ✅ | 2/2 ✅ | 4 ❌ |
+| dns-manager | 1/5 | 4/7 | 3/3 ✅ | 2/2 ✅ | 0 ✅ |
+| emailgateway | 1/5 | 4/7 | 2/3 | 1/2 | 1 ❌ |
+| file-api | 1/5 | 2/7 | 2/3 | 0/2 | 0 ✅ |
+| file-worker | 1/5 | 0/7 | 2/3 | 1/2 | 2 ❌ |
+| image-broker | 1/5 | 4/7 | 3/3 ✅ | 2/2 ✅ | 1 ❌ |
+| proposal-creator | 2/5 | 4/7 | 3/3 ✅ | 3/3 ✅ | 2 ❌ |
+| proxy | 2/5 | 4/7 | 3/3 ✅ | 2/2 ✅ | 13 ❌ |
+| translator | 1/5 | 4/7 | 3/3 ✅ | 2/2 ✅ | 0 ✅ |
+| youtube | 2/5 | 4/7 | 0/3 | 2/2 ✅ | 59 ❌ |
+
+*Violations = actual project code only (excludes venv/site-packages)
 
 **Legend:** ✅ = Complete, ❌ = Has issues
 
@@ -116,10 +120,16 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ✅ `tests/`
 - ✅ `requirements.txt`
 
-**Code Violations (78 total):**
-- ❌ 38 hardcoded localhost
-- ❌ 3 /tmp/ usage
-- ❌ 37 tempfile module
+**Code Violations (4 total in actual code):**
+- ❌ 4 hardcoded localhost (client.py)
+- ✅ 0 /tmp/ usage
+- ✅ 0 tempfile module
+
+**Specific violations:**
+```
+/opt/captcha/client.py:10:    solver = CaptchaSolver("http://localhost:8000")
+/opt/captcha/client.py:45:    base_url: str = "http://localhost:8000"
+```
 
 ---
 
@@ -149,10 +159,10 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ✅ `tests/`
 - ✅ `requirements.txt`
 
-**Code Violations (80 total):**
-- ❌ 38 hardcoded localhost
-- ❌ 3 /tmp/ usage
-- ❌ 39 tempfile module
+**Code Violations (0 total in actual code):** ✅
+- ✅ 0 hardcoded localhost
+- ✅ 0 /tmp/ usage
+- ✅ 0 tempfile module
 
 ---
 
@@ -182,9 +192,11 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ✅ `tests/`
 - ❌ `requirements.txt`
 
-**Code Violations (3 total):**
-- ❌ 1 /tmp/ usage
-- ❌ 2 Alpine in Dockerfile
+**Code Violations (1 total in actual code):**
+- ✅ 0 hardcoded localhost
+- ❌ 1 /tmp/ usage (scripts/watchdog_gateway.sh)
+- ✅ 0 tempfile module
+- ❌ Alpine in Dockerfile (node:20-alpine)
 
 ---
 
@@ -214,8 +226,11 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ❌ `tests/`
 - ❌ `requirements.txt`
 
-**Code Violations (1 total):**
-- ❌ 1 Alpine in Dockerfile
+**Code Violations (0 total in actual code):** ✅
+- ✅ 0 hardcoded localhost
+- ✅ 0 /tmp/ usage
+- ✅ 0 tempfile module
+- ❌ Alpine in Dockerfile
 
 ---
 
@@ -245,8 +260,16 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ❌ `tests/`
 - ✅ `requirements.txt`
 
-**Code Violations (2 total):**
-- ❌ 2 tempfile module
+**Code Violations (2 total in actual code):**
+- ✅ 0 hardcoded localhost
+- ✅ 0 /tmp/ usage
+- ❌ 2 tempfile module (worker/main.py:144, 187)
+
+**Specific violations:**
+```
+/opt/file-worker/worker/main.py:144:    with tempfile.TemporaryDirectory() as tmpdir:
+/opt/file-worker/worker/main.py:187:    with tempfile.TemporaryDirectory() as tmpdir:
+```
 
 ---
 
@@ -276,10 +299,15 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ✅ `tests/`
 - ✅ `requirements.txt`
 
-**Code Violations (83 total):**
-- ❌ 34 hardcoded localhost
-- ❌ 6 /tmp/ usage
-- ❌ 43 tempfile module
+**Code Violations (1 total in actual code):**
+- ✅ 0 hardcoded localhost
+- ❌ 1 /tmp/ usage (scripts/watchdog_api.sh)
+- ✅ 0 tempfile module
+
+**Specific violations:**
+```
+/opt/image-broker/scripts/watchdog_api.sh:8:PID_FILE="/tmp/${SERVICE_NAME}.pid"
+```
 
 ---
 
@@ -310,10 +338,16 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ✅ `requirements.txt`
 - ✅ `pyproject.toml`
 
-**Code Violations (180 total):**
-- ❌ 68 hardcoded localhost
-- ❌ 25 /tmp/ usage
-- ❌ 87 tempfile module
+**Code Violations (2 total in actual code):**
+- ✅ 0 hardcoded localhost
+- ❌ 1 /tmp/ usage (scripts/watchdog_api.sh)
+- ❌ 1 tempfile module (src/engine/export.py)
+
+**Specific violations:**
+```
+/opt/proposal-creator/scripts/watchdog_api.sh:8:PID_FILE="/tmp/${SERVICE_NAME}.pid"
+/opt/proposal-creator/src/engine/export.py:354:    with tempfile.NamedTemporaryFile(...)
+```
 
 ---
 
@@ -343,10 +377,17 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ✅ `tests/`
 - ✅ `requirements.txt`
 
-**Code Violations (13 total):**
-- ❌ 7 hardcoded localhost
-- ❌ 5 /tmp/ usage
-- ❌ 1 tempfile module
+**Code Violations (13 total in actual code):**
+- ❌ 7 hardcoded localhost (admin_tools.py, add_service.py, db_proxy_manager_api.py, etc.)
+- ❌ 5 /tmp/ usage (diagnose_youtube*.py files)
+- ❌ 1 tempfile module (factory_wait.py)
+
+**Specific violations:**
+```
+/opt/proxy/admin_tools.py:12:    'host': 'localhost',
+/opt/proxy/db_proxy_manager_api.py:40:    'host': 'localhost',
+/opt/proxy/diagnose_youtube_adapted.py:64:    driver.save_screenshot('/tmp/youtube_v3.png')
+```
 
 ---
 
@@ -376,10 +417,12 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ✅ `tests/`
 - ✅ `requirements.txt`
 
-**Code Violations (130 total):**
-- ❌ 75 hardcoded localhost
-- ❌ 5 /tmp/ usage
-- ❌ 50 tempfile module
+**Code Violations (0 total in actual code):** ✅
+- ✅ 0 hardcoded localhost
+- ✅ 0 /tmp/ usage
+- ✅ 0 tempfile module
+
+**Note:** Dockerfile missing HEALTHCHECK
 
 ---
 
@@ -409,10 +452,17 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 - ✅ `tests/`
 - ✅ `requirements.txt`
 
-**Code Violations (59 total):**
-- ❌ 16 hardcoded localhost
-- ❌ 42 /tmp/ usage
-- ❌ 1 tempfile module
+**Code Violations (59 total in actual code):**
+- ❌ 16 hardcoded localhost (client.py, misc/tests/test_opt_proxy_integration.py)
+- ❌ 42 /tmp/ usage (Extractor_v2.3.0.py has many debug writes to /tmp/)
+- ❌ 1 tempfile module (archive/old_scripts/yt_comments_dwnldr_2.0.py)
+
+**Specific violations:**
+```
+/opt/youtube/client.py:10:    solver = CaptchaSolver("http://localhost:8000")
+/opt/youtube/Extractor_v2.3.0.py:272:    lockfile_path = '/tmp/youtube_extractor.lock'
+/opt/youtube/Extractor_v2.3.0.py:960:    with open("/tmp/youtube_debug.html", "w", ...)
+```
 
 ---
 
@@ -490,15 +540,23 @@ mkdir -p docs/trajectories
 
 **Last Updated:** YYYY-MM-DD
 
-## Structure
-
+## Root Files
 - `README.md` - Project overview and quick start
 - `CHANGELOG.md` - Version history
 - `AGENTS.md` - AI agent instructions
+- `PORTS.md` - Port registry (if applicable)
 
-## docs/
-- `INDEX.md` - This file
+## docs/ Structure
+- `INDEX.md` - This file (documentation map)
 - `trajectories/` - Saved Cascade conversations
+
+### Subdirectories (create as needed)
+- `docs/guides/` - How-to guides
+- `docs/reference/` - API/CLI reference
+- `docs/operations/` - Ops runbooks
+- `docs/development/` - Plans, specs
+- `docs/development/plans/` - Execution plans
+- `docs/development/PLANS.md` - Plan tracker
 ```
 
 **Create CHANGELOG.md (if missing):**
