@@ -1,15 +1,16 @@
 # Droid Exec - Fabrik Automation Engine
 
-**Last Updated: 2026-01-08**
+**Last Updated: 2026-01-14**
 
 > **Fabrik's autonomous coding agent for the full software lifecycle.**
 
-## droid exec vs droid TUI
+## droid exec vs droid TUI vs droid-review.sh
 
 | Command | Type | Use Case |
 |---------|------|----------|
 | `droid exec` | **Headless/batch** | CI/CD, scripts, automation, non-interactive |
 | `droid` | **Interactive TUI** | Manual coding, exploration, interactive workflows |
+| `./scripts/droid-review.sh` | **Review Wrapper** | Standardized code and plan reviews using meta-prompt |
 
 **This document focuses on `droid exec`.**
 

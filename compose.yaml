@@ -1,0 +1,32 @@
+services:
+  fabrik:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PORT=${PORT:-8000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - VPS_HOST=${VPS_HOST:?VPS_HOST is required}
+      - VPS_USER=${VPS_USER:-deploy}
+      - COOLIFY_API_URL=${COOLIFY_API_URL:?COOLIFY_API_URL is required}
+      - COOLIFY_API_TOKEN=${COOLIFY_API_TOKEN:?COOLIFY_API_TOKEN is required}
+      - COOLIFY_SERVER_UUID=${COOLIFY_SERVER_UUID:-}
+      - COOLIFY_PROJECT_UUID=${COOLIFY_PROJECT_UUID:-}
+      - DNS_MANAGER_URL=${DNS_MANAGER_URL:-https://dns.vps1.ocoron.com}
+      - NAMECHEAP_API_URL=${NAMECHEAP_API_URL:-https://dns.vps1.ocoron.com}
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:${PORT:-8000}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true

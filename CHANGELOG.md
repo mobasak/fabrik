@@ -6,22 +6,25 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Added - Auto-Update Docs After Review (2026-01-14)
+### Changed - Dual-Model Review & Auto-Update in droid-review.sh (2026-01-14)
 
-**What:** New `--update-docs` flag for `droid-review.sh` that triggers automatic documentation updates after code review.
+**What:** Major update to `droid-review.sh` adding dual-model reviews and automatic documentation updates.
 
 **Files:**
-- `scripts/droid-review.sh` - Added `--update-docs` flag, fixed P0/P1 issues
+- `scripts/droid-review.sh` - Implemented dual-model review, added `--update-docs` and `--model` flags.
+
+**Features:**
+- **Dual-Model Review:** Automatically runs reviews with both `gpt-5.1-codex-max` and `gemini-3-flash-preview` (Fabrik convention).
+- **Model Override:** Added `--model` (or `-m`) flag to use a single specific model for the review.
+- **Auto-Update Docs:** New `--update-docs` flag triggers `docs_updater.py` after the review process.
+- **Large File Support:** Prompt content now passed via temporary file to avoid `ARG_MAX` issues.
+- **Improved Reliability:** Added `set -euo pipefail`, `PYTHONPATH` export, and better argument validation.
 
 **Usage:**
 ```bash
 ./scripts/droid-review.sh --update-docs src/file.py
+./scripts/droid-review.sh --model claude-3-5-sonnet src/file.py
 ```
-
-**Fixes applied:**
-- Added `set -euo pipefail` for safer bash execution
-- Added `PYTHONPATH` export for reliable Python imports
-- Fixed `--model` argument validation
 
 ### Fixed - Scaffold P0/P1 Issues (2026-01-14)
 

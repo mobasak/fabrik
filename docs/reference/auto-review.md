@@ -56,8 +56,11 @@ The `scripts/droid-review.sh` script provides a manual way to run the Fabrik rev
 ### Usage
 
 ```bash
-# Code review only
+# Dual-model code review (default)
 ./scripts/droid-review.sh src/file.py
+
+# Review with a specific model
+./scripts/droid-review.sh --model gemini-3-flash-preview src/file.py
 
 # Plan review
 ./scripts/droid-review.sh --plan docs/development/plans/my-plan.md
@@ -71,7 +74,7 @@ The `scripts/droid-review.sh` script provides a manual way to run the Fabrik rev
 | `--plan` | Review a plan document instead of code |
 | `--code` | Explicitly review as code (default) |
 | `--update-docs` | Trigger `docs_updater.py` after the review |
-| `--model`, `-m` | Override default review model |
+| `--model`, `-m` | Override default dual-model review with a single model |
 
 ---
 
@@ -79,6 +82,7 @@ The `scripts/droid-review.sh` script provides a manual way to run the Fabrik rev
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
+| `scripts/droid-review.sh` | `/opt/fabrik/scripts/` | CLI wrapper for dual-model reviews |
 | `fabrik-post-edit.py` | `~/.factory/hooks/` | PostToolUse hook - queues changed files |
 | `review_processor.py` | `/opt/fabrik/scripts/` | Async processor - runs dual-model review |
 | `config/models.yaml` | `/opt/fabrik/config/` | Defines which models to use (dynamic) |

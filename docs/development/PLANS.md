@@ -7,10 +7,10 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v1 | 2026-01-14T00:19 -->
+<!-- AUTO-GENERATED:PLANS v1 | 2026-01-14T11:26 -->
 | Plan | Date | Status | Progress |
 |------|------|--------|----------|
-| (none) | - | - | - |
+| [2026-01-14-plan-docker-compose.md](plans/2026-01-14-plan-docker-compose.md) | 2026-01-14 | IN_PROGRESS | 0/5 |
 <!-- AUTO-GENERATED:PLANS:END -->
 
 ---

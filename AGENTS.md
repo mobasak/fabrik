@@ -101,10 +101,11 @@ python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 
 # 2. Trigger code review (if significant changes)
 # Get model dynamically: python3 scripts/droid_models.py recommend code_review
-droid exec "Review <files> for Fabrik conventions. DO NOT make changes."
+./scripts/droid-review.sh <files...>
 
 # 3. Update documentation
 # If you changed code in src/, scripts/, update relevant docs/
+# Manual update: ./scripts/droid-review.sh --update-docs <files...>
 ```
 
 **If you skip these steps, you are violating Fabrik rules.**

@@ -22,9 +22,9 @@ if [[ ! -f "$META_PROMPT" ]]; then
     exit 1
 fi
 
-# Get recommended model using Python import (reliable)
-MODEL=$(python3 -c "from scripts.droid_models import get_scenario_recommendation; print(get_scenario_recommendation('code_review').get('models', ['gemini-3-flash-preview'])[0])" 2>/dev/null || echo "gemini-3-flash-preview")
-MODEL=${MODEL:-gemini-3-flash-preview}  # Ensure MODEL is never empty
+# Get recommended models for dual-model review (Fabrik convention: use BOTH)
+MODELS=($(python3 -c "from scripts.droid_models import get_scenario_recommendation; print(' '.join(get_scenario_recommendation('code_review').get('models', ['gpt-5.1-codex-max', 'gemini-3-flash-preview'])))" 2>/dev/null || echo "gpt-5.1-codex-max gemini-3-flash-preview"))
+CUSTOM_MODEL=""  # Set if user provides --model flag
 
 # Parse arguments
 REVIEW_TYPE="code"
@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
                 echo "ERROR: --model requires a value" >&2
                 exit 1
             fi
-            MODEL="$2"
+            CUSTOM_MODEL="$2"  # Override dual-model with single custom model
             shift 2
             ;;
         *)
@@ -97,14 +97,34 @@ CODE:
 $CONTENT"
 fi
 
-echo "🔍 Running droid review with model: $MODEL"
+# Determine which models to use
+if [[ -n "$CUSTOM_MODEL" ]]; then
+    REVIEW_MODELS=("$CUSTOM_MODEL")
+    echo "🔍 Running droid review with custom model: $CUSTOM_MODEL"
+else
+    REVIEW_MODELS=("${MODELS[@]}")
+    echo "🔍 Running DUAL-MODEL review (Fabrik convention)"
+    echo "   Models: ${MODELS[*]}"
+fi
 echo "📁 Files: ${FILES[*]}"
 echo ""
 
-# Run droid exec (read-only, no --auto flag)
-droid exec -m "$MODEL" "$FULL_PROMPT
+# Write prompt to temp file to avoid ARG_MAX issues with large files
+PROMPT_FILE=$(mktemp)
+trap "rm -f $PROMPT_FILE" EXIT
+echo "$FULL_PROMPT
 
-DO NOT make any changes. Only provide review feedback."
+DO NOT make any changes. Only provide review feedback." > "$PROMPT_FILE"
+
+# Run droid exec for each model
+# Note: --auto medium required because meta-prompt triggers context gathering
+for MODEL in "${REVIEW_MODELS[@]}"; do
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📋 Review with: $MODEL"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    droid exec -m "$MODEL" --auto medium --file "$PROMPT_FILE"
+    echo ""
+done
 
 # After review, check if docs need updating
 echo ""

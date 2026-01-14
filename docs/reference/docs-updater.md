@@ -114,6 +114,9 @@ python scripts/docs_updater.py --daemon
 # Update docs for specific file
 python scripts/docs_updater.py --file scripts/droid_runner.py
 
+# Integrated with droid-review.sh
+./scripts/droid-review.sh --update-docs src/file.py
+
 # Structure enforcement (CI modes)
 python scripts/docs_updater.py --check      # Validate, fail on drift (exit code 1)
 python scripts/docs_updater.py --sync       # Create missing stubs + sync indexes
