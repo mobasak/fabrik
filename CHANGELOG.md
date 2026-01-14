@@ -6,6 +6,23 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Auto-Update Docs After Review (2026-01-14)
+
+**What:** New `--update-docs` flag for `droid-review.sh` that triggers automatic documentation updates after code review.
+
+**Files:**
+- `scripts/droid-review.sh` - Added `--update-docs` flag, fixed P0/P1 issues
+
+**Usage:**
+```bash
+./scripts/droid-review.sh --update-docs src/file.py
+```
+
+**Fixes applied:**
+- Added `set -euo pipefail` for safer bash execution
+- Added `PYTHONPATH` export for reliable Python imports
+- Fixed `--model` argument validation
+
 ### Fixed - Scaffold P0/P1 Issues (2026-01-14)
 
 **What:** Fixed issues from AI code review in scaffold.py.

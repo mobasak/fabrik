@@ -1,8 +1,10 @@
 # Automatic Code Review & Documentation Update
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-14
 
 Fabrik automatically reviews code after every edit and will run documentation updates for changes that the PostToolUse hook flags as needing docs coverage (API/CLI/config surface changes), whether edits come from Cascade, droid exec, or any Factory-enabled tool.
+
+Manual reviews and documentation updates can also be triggered using the `droid-review.sh` script.
 
 ---
 
@@ -44,6 +46,32 @@ Fabrik automatically reviews code after every edit and will run documentation up
                                │ if issues     │
                                └───────────────┘
 ```
+
+---
+
+## Manual Review & Doc Update
+
+The `scripts/droid-review.sh` script provides a manual way to run the Fabrik review process and optionally trigger automatic documentation updates.
+
+### Usage
+
+```bash
+# Code review only
+./scripts/droid-review.sh src/file.py
+
+# Plan review
+./scripts/droid-review.sh --plan docs/development/plans/my-plan.md
+
+# Review + Auto-update documentation (CHANGELOG, reference docs)
+./scripts/droid-review.sh --update-docs src/file.py
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--plan` | Review a plan document instead of code |
+| `--code` | Explicitly review as code (default) |
+| `--update-docs` | Trigger `docs_updater.py` after the review |
+| `--model`, `-m` | Override default review model |
 
 ---
 
