@@ -44,6 +44,8 @@ TEMPLATE_MAP = {
     "docs/PHASE_TEMPLATE.md": "docs/development/Phase1.md",
     # Plans index for tracking feature/execution plans
     "docs/PLANS_INDEX_TEMPLATE.md": "docs/development/PLANS.md",
+    # Archive README for standardized archiving
+    "docs/ARCHIVE_README_TEMPLATE.md": "docs/archive/README.md",
     # Droid exec / Docker workflow files (AGENTS.md handled separately as symlink)
     "docker/Dockerfile.python": "Dockerfile",
     "docker/compose.yaml.template": "compose.yaml",

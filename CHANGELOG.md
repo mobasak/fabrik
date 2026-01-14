@@ -6,6 +6,21 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Standardize Archive Structure (2026-01-14)
+
+**What:** Single archive location with consistent naming and README index.
+
+**Files:**
+- `src/fabrik/scaffold.py` - Added archive README to template map
+- `templates/scaffold/docs/ARCHIVE_README_TEMPLATE.md` - New template
+- `docs/archive/README.md` - Index of all archived content
+
+**Reorganized:**
+- `docs/design/.archive/*` → `docs/archive/2026-01-05-design-docs/`
+- `docs/development/plans/fabrik-implementation-plan/` → `docs/archive/2026-01-07-fabrik-phases/`
+
+**Convention:** `YYYY-MM-DD-<topic>/` for folders, `YYYY-MM-DD-<topic>.md` for files.
+
 ### Added - Plan Structure to Scaffold (2026-01-14)
 
 **What:** New projects now get `docs/development/plans/` directory and `PLANS.md` index automatically.
