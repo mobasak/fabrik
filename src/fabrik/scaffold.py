@@ -42,10 +42,7 @@ TEMPLATE_MAP = {
     "docs/BUSINESS_MODEL_TEMPLATE.md": "docs/BUSINESS_MODEL.md",
     # Phase docs for project roadmap (dashboard in tasks.md links here)
     "docs/PHASE_TEMPLATE.md": "docs/development/Phase1.md",
-    # Plans index for tracking feature/execution plans
-    "docs/PLANS_INDEX_TEMPLATE.md": "docs/development/PLANS.md",
-    # Archive README for standardized archiving
-    "docs/ARCHIVE_README_TEMPLATE.md": "docs/archive/README.md",
+    # Note: PLANS.md and archive/README.md are generated inline, not from templates
     # Droid exec / Docker workflow files (AGENTS.md handled separately as symlink)
     "docker/Dockerfile.python": "Dockerfile",
     "docker/compose.yaml.template": "compose.yaml",
@@ -176,10 +173,14 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
                 content = content.replace(old, new)
             (project_dir / dest).write_text(content)
 
-    # Symlink windsurfrules (legacy) and .windsurf/rules/
-    (project_dir / ".windsurfrules").symlink_to("/opt/fabrik/windsurfrules")
-    (project_dir / ".windsurf").mkdir(exist_ok=True)
-    (project_dir / ".windsurf" / "rules").symlink_to("/opt/fabrik/.windsurf/rules")
+    # Symlink windsurfrules (legacy) and .windsurf/rules/ with existence checks
+    fabrik_windsurfrules = Path("/opt/fabrik/windsurfrules")
+    fabrik_windsurf_rules = Path("/opt/fabrik/.windsurf/rules")
+    if fabrik_windsurfrules.exists():
+        (project_dir / ".windsurfrules").symlink_to(fabrik_windsurfrules)
+    if fabrik_windsurf_rules.exists():
+        (project_dir / ".windsurf").mkdir(exist_ok=True)
+        (project_dir / ".windsurf" / "rules").symlink_to(fabrik_windsurf_rules)
 
     # AGENTS.md: symlink to master, fallback to copy
     _link_agents_md(project_dir)
@@ -189,7 +190,7 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
         ".env\nvenv/\n__pycache__/\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n.venv/\n"
     )
     (project_dir / ".env.example").write_text(
-        f"# {name} Configuration\nDATABASE_URL=postgresql://localhost:5432/{name}_dev\nLOG_LEVEL=INFO\nPORT=8000\n"
+        f"# {name} Configuration\n# Use env vars - never hardcode connection strings\nDB_HOST=localhost\nDB_PORT=5432\nDB_NAME={name}_dev\nDB_USER=postgres\nDB_PASSWORD=\nLOG_LEVEL=INFO\nPORT=8000\n"
     )
 
     # Create requirements.txt
@@ -197,16 +198,54 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
         "fastapi>=0.109.0\nuvicorn[standard]>=0.27.0\npydantic>=2.0\npython-dotenv>=1.0.0\n"
     )
 
-    # Create starter src/main.py
+    # Create starter src/main.py with proper health check
     (project_dir / "src" / "__init__.py").write_text("")
     (project_dir / "src" / "main.py").write_text(
-        f'''"""Main entry point for {name}."""\nimport os\nfrom fastapi import FastAPI\n\napp = FastAPI(title="{name}")\n\n@app.get("/health")\nasync def health():\n    return {{"status": "ok", "service": "{name}"}}\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
+        f'''"""Main entry point for {name}."""\nimport os\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\napp = FastAPI(title="{name}")\n\n@app.get("/health")\nasync def health():\n    # TODO: Add actual dependency checks (DB, Redis, etc.)\n    # Example: await db.execute("SELECT 1")\n    checks = {{"service": "{name}", "status": "ok"}}\n    # Add dependency status here when configured\n    return JSONResponse(content=checks, status_code=200)\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
     )
 
     # Create basic test
     (project_dir / "tests" / "__init__.py").write_text("")
     (project_dir / "tests" / "test_health.py").write_text(
         '''"""Health endpoint tests."""\nfrom fastapi.testclient import TestClient\nfrom src.main import app\n\nclient = TestClient(app)\n\ndef test_health():\n    response = client.get("/health")\n    assert response.status_code == 200\n    assert response.json()["status"] == "ok"\n'''
+    )
+
+    # Create PLANS.md inline (no template file)
+    (project_dir / "docs" / "development" / "PLANS.md").write_text(
+        f"""# Development Plans
+
+Plan documents for {name}.
+
+## Naming: `YYYY-MM-DD-plan-<name>.md`
+
+## Lifecycle
+1. Create in `docs/development/plans/`
+2. Add to this index
+3. Update `**Status:**` as work progresses
+4. Archive when COMPLETE → `docs/archive/`
+
+## Active Plans
+
+| Plan | Date | Status |
+|------|------|--------|
+| (none) | - | - |
+"""
+    )
+
+    # Create archive README inline (no template file)
+    (project_dir / "docs" / "archive" / "README.md").write_text(
+        f"""# Archived Documentation
+
+Obsolete or completed docs for {name}.
+
+## Convention: `YYYY-MM-DD-<topic>/` or `YYYY-MM-DD-<topic>.md`
+
+## Index
+
+| Date | Topic | Description |
+|------|-------|-------------|
+| (none) | - | - |
+"""
     )
 
     # Git init

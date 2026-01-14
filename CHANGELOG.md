@@ -6,6 +6,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Scaffold P0/P1 Issues (2026-01-14)
+
+**What:** Fixed issues from AI code review in scaffold.py.
+
+**P0 Fixed:**
+- Health endpoint now includes comment for adding dependency checks (not just static "ok")
+
+**P1 Fixed:**
+- `.env.example` uses `DB_HOST=localhost` pattern instead of hardcoded connection string
+- Symlink creation now checks if targets exist before creating
+- PLANS.md and archive/README.md generated inline (no template files)
+
+**Files:**
+- `src/fabrik/scaffold.py` - Fixed all issues, consolidated templates
+- `AGENTS.md` - Added "VERIFY before creating" rule and docs structure list
+- Deleted `templates/scaffold/docs/PLANS_INDEX_TEMPLATE.md`
+- Deleted `templates/scaffold/docs/ARCHIVE_README_TEMPLATE.md`
+
 ### Changed - Standardize Archive Structure (2026-01-14)
 
 **What:** Single archive location with consistent naming and README index.

@@ -68,16 +68,24 @@ Next: Proceed to Step <N+1> / STOP
 
 ## Documentation Rules
 
-1) Do NOT create markdown files in repo root.
-2) Feature/Execution plans: See **Planning** section above.
-3) Every new plan MUST be added to `docs/development/PLANS.md`.
-4) Do NOT create new folders under `docs/` except via existing structure.
-5) If you add a module under `src/`, ensure a reference doc exists:
+1) **VERIFY before creating:** Check `docs/INDEX.md` and existing folders before creating new files.
+2) Do NOT create markdown files in repo root (except README.md, CHANGELOG.md, AGENTS.md, tasks.md).
+3) Feature/Execution plans: See **Planning** section above.
+4) Every new plan MUST be added to `docs/development/PLANS.md`.
+5) Do NOT create new folders under `docs/` except via existing structure.
+6) If you add a module under `src/`, ensure a reference doc exists:
    - `docs/reference/<module>.md`
    - If missing, run `docs_updater.py --sync`.
-6) NEVER edit inside `<!-- AUTO-GENERATED:* -->` blocks.
+7) NEVER edit inside `<!-- AUTO-GENERATED:* -->` blocks.
    - Run `docs_updater.py --sync` instead.
-7) All changes MUST keep `make docs-check` passing.
+8) All changes MUST keep `make docs-check` passing.
+
+**Existing docs structure:**
+- `docs/guides/` - How-to guides
+- `docs/reference/` - Technical reference
+- `docs/operations/` - Ops runbooks
+- `docs/development/plans/` - Plan documents
+- `docs/archive/` - Archived/completed docs
 
 Violations will fail CI and must be fixed before merge.
 
