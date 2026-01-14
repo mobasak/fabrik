@@ -1,4 +1,7 @@
-# PHASE B — EXECUTION PLAN TEMPLATE
+# YYYY-MM-DD-plan-[task-name]
+
+**Status:** NOT_STARTED
+**Created:** YYYY-MM-DD
 
 Use this **only after exploration is finished and the plan is locked**.
 

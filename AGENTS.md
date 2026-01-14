@@ -1,6 +1,6 @@
 # Fabrik Project Agent Briefing
 
-**Last Updated:** 2026-01-08
+**Last Updated:** 2026-01-14
 
 > Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
 
@@ -42,14 +42,34 @@ Next: Proceed to Step <N+1> / STOP
 
 ---
 
+## Planning (Required for Non-Trivial Work)
+
+**Before implementing any feature or fix, create a plan document.**
+
+### Plan Location & Naming
+- Location: `docs/development/plans/`
+- Filename: `YYYY-MM-DD-plan-<name>.md` (e.g., `2026-01-14-plan-feature-auth.md`)
+
+### Plan Lifecycle
+1. **Create** plan in `docs/development/plans/`
+2. **Add** to `docs/development/PLANS.md` index
+3. **Update** `**Status:**` as work progresses
+4. **Check boxes** as items complete
+5. **Archive** when COMPLETE → move to `docs/archive/`
+
+### Required Plan Sections
+- `**Status:**` line (NOT_STARTED, IN_PROGRESS, PARTIAL, COMPLETE, NOT_DONE)
+- `## Goal` - One-line description
+- `## DONE WHEN` - Checkboxes for completion criteria
+- `## Out of Scope` - What's excluded
+- `## Steps` - Implementation steps
+
+---
+
 ## Documentation Rules
 
 1) Do NOT create markdown files in repo root.
-2) Feature/Execution plans:
-   - Create ONLY under `docs/development/plans/`
-   - Filename: `YYYY-MM-DD-plan-<name>.md` (e.g., `2026-01-14-plan-feature-auth.md`)
-   - Include: Goal, DONE WHEN, Out of Scope, Constraints, Steps, Owner, Links
-   - Must have `**Status:**` line (COMPLETE, PARTIAL, NOT_DONE, IN_PROGRESS, NOT_STARTED)
+2) Feature/Execution plans: See **Planning** section above.
 3) Every new plan MUST be added to `docs/development/PLANS.md`.
 4) Do NOT create new folders under `docs/` except via existing structure.
 5) If you add a module under `src/`, ensure a reference doc exists:

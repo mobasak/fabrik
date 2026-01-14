@@ -1,4 +1,7 @@
-# Phase X: [Feature Name]
+# YYYY-MM-DD-plan-[feature-name]
+
+**Status:** NOT_STARTED
+**Created:** YYYY-MM-DD
 
 **What is this?** One sentence explaining what this plan achieves.
 
@@ -86,9 +89,17 @@ command that works
 
 ---
 
+## DONE WHEN (all true)
+
+- [ ] Primary success criteria
+- [ ] Secondary success criteria
+- [ ] Gate command passes
+
+---
+
 ## Files
 
 | File | Location |
 |------|----------|
-| This Plan | `docs/reference/phaseX.md` |
-| Technical Details | `specs/FEATURE_PLAN.md` (if needed) |
+| This Plan | `docs/development/plans/YYYY-MM-DD-plan-feature-name.md` |
+| Technical Details | `docs/reference/feature.md` (if needed) |
