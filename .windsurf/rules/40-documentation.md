@@ -27,10 +27,32 @@ globs: ["*.md", "docs/**/*", "specs/**/*"]
 
 ---
 
+## Planning (Required for Non-Trivial Work)
+
+### Plan Location & Naming
+- Location: `docs/development/plans/`
+- Filename: `YYYY-MM-DD-plan-<name>.md` (e.g., `2026-01-14-plan-feature-auth.md`)
+
+### Plan Lifecycle
+1. **Create** plan in `docs/development/plans/`
+2. **Add** to [docs/development/PLANS.md](cci:7://file:///opt/fabrik/docs/development/PLANS.md:0:0-0:0) index
+3. **Update** `**Status:**` as work progresses
+4. **Check boxes** as items complete
+5. **Archive** when COMPLETE → move to `docs/archive/`
+
+### Required Plan Sections
+- `**Status:**` line (NOT_STARTED, IN_PROGRESS, PARTIAL, COMPLETE, NOT_DONE)
+- `## Goal` - One-line description
+- `## DONE WHEN` - Checkboxes for completion criteria
+- `## Out of Scope` - What's excluded
+- `## Steps` - Implementation steps
+
+---
+
 ## Plan Document Types
 
 ### 1. Exploration Plans (Phase A)
-Use `templates/docs/PLAN_TEMPLATE.md` for **research and design** phase:
+Use [templates/docs/PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templates/docs/PLAN_TEMPLATE.md:0:0-0:0) for **research and design** phase:
 - The Problem
 - The Solution
 - What We're Building
@@ -39,7 +61,7 @@ Use `templates/docs/PLAN_TEMPLATE.md` for **research and design** phase:
 - Timeline
 
 ### 2. Execution Plans (Phase B)
-Use `templates/docs/EXECUTION_PLAN_TEMPLATE.md` for **locked implementation**:
+Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templates/docs/EXECUTION_PLAN_TEMPLATE.md:0:0-0:0) for **locked implementation**:
 - Task Metadata (goal, done-when, out-of-scope)
 - Constraints
 - Canonical Gate
@@ -54,6 +76,15 @@ Use `templates/docs/EXECUTION_PLAN_TEMPLATE.md` for **locked implementation**:
 | Locked implementation | EXECUTION_PLAN_TEMPLATE.md |
 | Bug fix | EXECUTION_PLAN_TEMPLATE.md |
 | Refactoring | EXECUTION_PLAN_TEMPLATE.md |
+
+## Execution Plan Rules (STRICT)
+
+```text
+- Follow steps exactly in order
+- Do NOT redesign or change scope
+- One step at a time
+- After each step: show Evidence + Gate result
+- If a Gate fails → STOP and report
 
 ## Execution Plan Rules (STRICT)
 

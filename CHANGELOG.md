@@ -6,6 +6,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Plan Structure to Scaffold (2026-01-14)
+
+**What:** New projects now get `docs/development/plans/` directory and `PLANS.md` index automatically.
+
+**Files:**
+- `src/fabrik/scaffold.py` - Added `docs/development/plans/` to DIRS, PLANS.md to TEMPLATE_MAP
+- `templates/scaffold/docs/PLANS_INDEX_TEMPLATE.md` - New template for PLANS.md
+
 ### Changed - Plan Naming Convention Update (2026-01-14)
 
 **What:** New plan naming convention `YYYY-MM-DD-plan-<name>.md` with legacy support.

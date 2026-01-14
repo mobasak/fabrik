@@ -42,6 +42,8 @@ TEMPLATE_MAP = {
     "docs/BUSINESS_MODEL_TEMPLATE.md": "docs/BUSINESS_MODEL.md",
     # Phase docs for project roadmap (dashboard in tasks.md links here)
     "docs/PHASE_TEMPLATE.md": "docs/development/Phase1.md",
+    # Plans index for tracking feature/execution plans
+    "docs/PLANS_INDEX_TEMPLATE.md": "docs/development/PLANS.md",
     # Droid exec / Docker workflow files (AGENTS.md handled separately as symlink)
     "docker/Dockerfile.python": "Dockerfile",
     "docker/compose.yaml.template": "compose.yaml",
@@ -66,6 +68,7 @@ DIRS = [
     "docs/reference",
     "docs/operations",
     "docs/development",
+    "docs/development/plans",
     "docs/archive",
     "config",
     "scripts",
