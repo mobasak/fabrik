@@ -523,7 +523,7 @@ with DroidSession(autonomy=Autonomy.LOW) as session:
 
 ### Model Registry (`scripts/droid_models.py`)
 
-Dynamic model selection and registry with automatic updates from Factory docs and a central sync system for Fabrik files.
+Dynamic model selection and registry with automatic updates from `droid exec -m listmodels` and a central sync system for Fabrik files.
 
 ```bash
 # Show current model registry
@@ -539,15 +539,53 @@ python scripts/droid_models.py recommend full_feature_dev
 # Updates: droid_tasks.py, AGENTS.md, droid-exec-usage.md
 python scripts/droid_models.py sync
 
-# Refresh registry from Factory docs (checks for new models)
-python scripts/droid_models.py refresh
+# Check for deprecated models in use
+python scripts/droid_model_updater.py --check-deprecations
+
+# Force refresh model list from droid CLI
+python scripts/droid_model_updater.py --force
+```
+
+**Model Auto-Update (In-Code):**
+
+The model list and prices are automatically refreshed before each `droid exec` call using a **TTL-based cache**:
+
+| Scenario | Behavior | Latency |
+|----------|----------|---------|
+| Cache valid (<24h) | Use cached models + prices | ~0ms |
+| Cache stale (>24h) | Fetch models from droid CLI + prices from Factory docs | ~5-6s |
+| Model not found | Warn user, suggest update | ~0ms |
+| Deprecated model | Print warning, continue | ~0ms |
+
+**What Gets Fetched Daily:**
+- **Model names**: From `droid exec -m invalid` (triggers error listing available models)
+- **Price multipliers**: From `https://docs.factory.ai/pricing.md`
+
+**In-Code Usage:**
+```python
+from scripts.droid_model_updater import ensure_models_fresh, is_model_available, get_model_price, check_deprecations
+
+# Called automatically before droid exec (uses 24h cache)
+result = ensure_models_fresh()
+# Returns: {"available_models": [...], "model_prices": {"gpt-5.1-codex-max": 0.5, ...}}
+
+# Check if a specific model is available
+if not is_model_available("claude-sonnet-4-5"):
+    print("Model deprecated!")
+
+# Get price multiplier for a model
+price = get_model_price("gpt-5.1-codex-max")  # Returns 0.5
+
+# Get list of deprecated models we're using
+warnings = check_deprecations()
 ```
 
 **Model Management:**
-- **Source of Truth**: `scripts/droid_models.py` defines the `FABRIK_TASK_MODELS` mapping.
-- **Auto-Sync**: The `sync` command ensures that the task runner, agent briefing, and documentation all use the same consistent model names.
-- **Config-Driven**: Stack rankings and scenarios are loaded from `config/models.yaml`.
-- **Daily Updates**: Managed via `scripts/droid_model_updater.py` (runs daily via cron).
+- **Source of Truth**: `config/models.yaml` defines stack rankings, scenarios, and model details.
+- **Auto-Refresh**: `ensure_models_fresh()` called before each droid exec (24h cache).
+- **Price Updates**: Fetched from Factory docs daily along with model names.
+- **Deprecation Detection**: Warns when configured models are no longer available.
+- **Cache Location**: `scripts/.model_update_cache.json`
 
 **Session warning**: Changing models mid-session loses context (new session starts, even with same session ID).
 

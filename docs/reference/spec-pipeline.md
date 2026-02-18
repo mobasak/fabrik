@@ -105,13 +105,31 @@ specs/
 
 ## Task Type Configuration
 
-| Task | Model | Reasoning | Auto |
-|------|-------|-----------|------|
-| `idea` | claude-sonnet-4.5 | high | low |
-| `scope` | claude-sonnet-4.5 | high | low |
-| `spec` | claude-sonnet-4.5 | high | low |
+| Stage | Task | Primary Model | Secondary Model | Reasoning |
+|-------|------|---------------|-----------------|-----------|
+| 1 - Discovery | `idea` | gpt-5.3-codex | gemini-3-pro-preview | high |
+| 1 - Discovery | `scope` | gpt-5.3-codex | gemini-3-pro-preview | high |
+| 2 - Planning | `spec` | claude-sonnet-4.5 | gemini-3-flash (parallel) + gpt-5.3-codex (review) | high |
 
-These use premium models with high reasoning for thorough discovery.
+### Dual-Model Discovery (Stage 1)
+
+Discovery tasks (`idea`, `scope`) use **two models in discussion**:
+- **GPT-5.3-Codex**: Primary reasoning, deep analysis
+- **Gemini Pro**: Secondary perspective, catches blind spots
+
+This dual approach reduces single-model bias in spec creation.
+
+### Plan Review (Stage 2)
+
+Planning (`spec`) uses a **three-model pipeline**:
+1. **Sonnet 4.5**: Structures the phased plan
+2. **Gemini Flash**: Finds edge cases (parallel)
+3. **GPT-5.3-Codex**: Reviews final plan for completeness
+
+If using Traycer or Cascade instead of `droid exec spec`:
+- After plan creation → run `droid exec -m gpt-5.3-codex "Review this plan for gaps"`
+
+See `config/models.yaml` scenarios for current model assignments.
 
 ---
 

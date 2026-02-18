@@ -180,6 +180,41 @@ After domain + hosting:
 - Multi-site management dashboard
 - Pre-built site templates marketplace
 
+### Windsurf Changelog Automation (Future)
+
+**Goal:** Automatically track Windsurf model updates from changelog
+
+**Challenge:** https://windsurf.com/changelog is a React SPA with no RSS feed
+
+**Proposed Solution:**
+1. Playwright-based scraper to extract model announcements
+2. Parse model names (GPT-*, Claude-*, Gemini-*, SWE-*)
+3. Extract credit multipliers from announcement text (e.g., "10x credits")
+4. Compare against current `config/models.yaml`
+5. Alert on new/changed/deprecated models
+6. Run daily alongside droid exec model refresh
+
+**Implementation:**
+```python
+# scripts/windsurf_changelog_scraper.py
+async def scrape_windsurf_changelog():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        await page.goto("https://windsurf.com/changelog")
+        # Extract model announcements
+        # Parse credit multipliers
+        # Compare with current config
+```
+
+**Files to create:**
+- `scripts/windsurf_changelog_scraper.py`
+- `config/windsurf_models.yaml` (cached model info)
+
+**Dependencies:** `playwright`, `beautifulsoup4`
+
+**Priority:** Low (manual updates work for now)
+
 ---
 
 ## Quick Commands

@@ -53,6 +53,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -86,11 +87,20 @@ except ImportError:
 
 # Import model updater
 try:
-    from droid_model_updater import update_if_stale
+    from droid_model_updater import check_deprecations, ensure_models_fresh, is_model_available
 
     MODEL_UPDATER_AVAILABLE = True
 except ImportError:
     MODEL_UPDATER_AVAILABLE = False
+
+    def ensure_models_fresh(force=False):
+        return {"status": "unavailable", "available_models": [], "deprecations": []}
+
+    def is_model_available(model_name):
+        return True  # Assume available if updater not loaded
+
+    def check_deprecations():
+        return []
 
 # =============================================================================
 # Data Directories (from droid_runner.py)
@@ -226,27 +236,34 @@ TOOL_CONFIGS = {
         "description": "Read-only code review",
     },
     # Discovery task types (idea → scope → spec pipeline)
+    # Stage 1: Dual-model spec creation - GPT-5.3-Codex + Gemini Pro
+    # See config/models.yaml scenarios.discovery for model selection
     TaskType.IDEA: {
         "default_auto": "low",
-        "model": "claude-sonnet-4-5-20250929",  # Premium for discovery
+        "model": "gpt-5.3-codex",  # Primary for discovery (dual with gemini-3-pro-preview)
         "reasoning": "high",  # Deep exploration
         "description": "Capture and explore product idea through discovery questions",
         "output_path": "specs/{project}/00-idea.md",
+        "dual_model": "gemini-3-pro-preview",  # Secondary model for dual perspective
     },
     TaskType.SCOPE: {
         "default_auto": "low",
-        "model": "claude-sonnet-4-5-20250929",  # Premium for boundaries
+        "model": "gpt-5.3-codex",  # Primary for discovery (dual with gemini-3-pro-preview)
         "reasoning": "high",  # Critical thinking for scope
         "description": "Define IN/OUT scope boundaries from idea",
         "output_path": "specs/{project}/01-scope.md",
+        "dual_model": "gemini-3-pro-preview",  # Secondary model for dual perspective
     },
-    # Fabrik lifecycle task types - Mixed Model Configuration
+    # Stage 2: Planning - Sonnet structures, Flash finds edge cases, Codex reviews
+    # See config/models.yaml scenarios.planning for model selection
     TaskType.SPEC: {
         "default_auto": "low",
         "use_spec": True,  # Enable --use-spec flag
-        "model": "claude-sonnet-4-5-20250929",  # Premium model for planning
+        "model": "claude-sonnet-4-5-20250929",  # Primary for planning
         "reasoning": "high",  # Deep analysis prevents implementation mistakes
         "description": "Specification mode - detailed planning before implementation",
+        "parallel_model": "gemini-3-flash-preview",  # Parallel for edge cases
+        "review_model": "gpt-5.3-codex",  # Review final plan
     },
     TaskType.SCAFFOLD: {
         "default_auto": "high",
@@ -1129,6 +1146,441 @@ def run_droid_exec(
 
 
 # =============================================================================
+# Multi-Model Execution (Dual/Parallel/Review Pipeline)
+# =============================================================================
+
+
+@dataclass
+class MultiModelResult:
+    """Result from multi-model execution."""
+
+    primary_result: TaskResult
+    secondary_results: list[TaskResult]
+    merged_result: str | None = None
+    review_result: TaskResult | None = None
+
+
+def run_parallel_models(
+    prompt: str,
+    task_type: TaskType,
+    models: list[str],
+    autonomy: Autonomy = Autonomy.LOW,
+    cwd: str | None = None,
+    max_workers: int = 4,
+) -> dict[str, TaskResult]:
+    """
+    Run the same prompt on multiple models in parallel.
+
+    Use cases:
+    - Dual-model discovery (Stage 1): Get diverse perspectives
+    - Parallel code generation: Different modules by different models
+    - Multi-model verification: Cross-check findings
+
+    Args:
+        prompt: The task prompt
+        task_type: Type of task
+        models: List of model IDs to run
+        autonomy: Safety level
+        cwd: Working directory
+        max_workers: Max parallel threads (default 4)
+
+    Returns:
+        Dict of {model_id: TaskResult} preserving model identity regardless of completion order
+    """
+    results: dict[str, TaskResult] = {}
+
+    def _run_single(model: str) -> tuple[str, TaskResult]:
+        result = run_droid_exec(
+            prompt=prompt,
+            task_type=task_type,
+            autonomy=autonomy,
+            model=model,
+            cwd=cwd,
+            streaming=False,
+        )
+        return model, result
+
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(models))) as executor:
+        futures = {executor.submit(_run_single, model): model for model in models}
+        for future in as_completed(futures):
+            submitted_model = futures[future]
+            try:
+                model, result = future.result()
+                results[model] = result
+                print(f"✅ {model}: {'success' if result.success else 'failed'}", file=sys.stderr)
+            except Exception as e:
+                print(f"❌ {submitted_model}: {e}", file=sys.stderr)
+                results[submitted_model] = TaskResult(
+                    success=False,
+                    task_type=task_type,
+                    prompt=prompt,
+                    result="",
+                    error=f"Model {submitted_model} failed: {e}",
+                )
+
+    return results
+
+
+def run_discovery_dual_model(
+    prompt: str,
+    task_type: TaskType,
+    cwd: str | None = None,
+) -> MultiModelResult:
+    """
+    Stage 1 Discovery: Run dual-model discussion for spec creation.
+
+    Uses models from TOOL_CONFIGS[task_type]['model'] and ['dual_model'].
+    Both models analyze the same prompt, results are merged for comprehensive spec.
+
+    Returns:
+        MultiModelResult with both model outputs and merged result
+    """
+    task_config = TOOL_CONFIGS.get(task_type, {})
+    primary_model = task_config.get("model", DEFAULT_MODEL)
+    dual_model = task_config.get("dual_model")
+
+    if not dual_model:
+        # No dual model configured, run single
+        result = run_droid_exec(
+            prompt=prompt,
+            task_type=task_type,
+            model=primary_model,
+            cwd=cwd,
+        )
+        return MultiModelResult(primary_result=result, secondary_results=[])
+
+    print(f"🔄 Running dual-model discovery: {primary_model} + {dual_model}", file=sys.stderr)
+
+    # Run both models in parallel - results keyed by model ID (order-independent)
+    results = run_parallel_models(
+        prompt=prompt,
+        task_type=task_type,
+        models=[primary_model, dual_model],
+        cwd=cwd,
+    )
+
+    # Extract results by model ID (not by completion order)
+    primary_result = results.get(primary_model, TaskResult(
+        success=False, task_type=task_type, prompt=prompt, result="", error="Primary model not in results"
+    ))
+    dual_result = results.get(dual_model)
+    secondary_results = [dual_result] if dual_result else []
+
+    # Merge results: combine insights from both models
+    if primary_result.success and secondary_results and secondary_results[0].success:
+        merged = f"""## Primary Model ({primary_model}) Analysis:
+
+{primary_result.result}
+
+---
+
+## Secondary Model ({dual_model}) Analysis:
+
+{secondary_results[0].result}
+
+---
+
+## Combined Insights:
+Both models have provided their perspectives above. Key agreements and differences should be reconciled in the final spec.
+"""
+        return MultiModelResult(
+            primary_result=primary_result,
+            secondary_results=secondary_results,
+            merged_result=merged,
+        )
+
+    return MultiModelResult(
+        primary_result=primary_result,
+        secondary_results=secondary_results,
+    )
+
+
+def run_planning_with_review(
+    prompt: str,
+    task_type: TaskType,
+    cwd: str | None = None,
+    max_review_iterations: int = 2,
+) -> MultiModelResult:
+    """
+    Stage 2 Planning: Sonnet structures plan, Flash finds edge cases, Codex reviews.
+
+    Uses models from TOOL_CONFIGS[task_type]:
+    - 'model': Primary planner (Sonnet)
+    - 'parallel_model': Edge case finder (Flash)
+    - 'review_model': Plan reviewer (Codex)
+
+    Args:
+        prompt: The planning prompt
+        task_type: Should be TaskType.SPEC
+        cwd: Working directory
+        max_review_iterations: Max review loops before stopping (default 2)
+
+    Returns:
+        MultiModelResult with plan and review results
+    """
+    task_config = TOOL_CONFIGS.get(task_type, {})
+    primary_model = task_config.get("model", DEFAULT_MODEL)
+    parallel_model = task_config.get("parallel_model")
+    review_model = task_config.get("review_model")
+
+    # Step 1: Run primary planner
+    print(f"📋 Planning with {primary_model}...", file=sys.stderr)
+    primary_result = run_droid_exec(
+        prompt=prompt,
+        task_type=task_type,
+        model=primary_model,
+        cwd=cwd,
+    )
+
+    if not primary_result.success:
+        return MultiModelResult(primary_result=primary_result, secondary_results=[])
+
+    # Step 2: Run parallel edge case finder (if configured)
+    secondary_results: list[TaskResult] = []
+    if parallel_model:
+        print(f"🔍 Finding edge cases with {parallel_model}...", file=sys.stderr)
+        edge_case_prompt = f"""Review this plan and identify edge cases, risks, and gaps:
+
+{primary_result.result}
+
+Output a list of:
+1. Edge cases not covered
+2. Potential failure modes
+3. Missing error handling
+4. Security considerations
+5. Performance concerns"""
+
+        edge_result = run_droid_exec(
+            prompt=edge_case_prompt,
+            task_type=TaskType.ANALYZE,
+            model=parallel_model,
+            cwd=cwd,
+        )
+        secondary_results.append(edge_result)
+
+    # Step 3: Review loop with review model (if configured)
+    review_result = None
+    if review_model:
+        review_iterations = 0
+        current_plan = primary_result.result
+        edge_cases = secondary_results[0].result if secondary_results else "None identified"
+
+        while review_iterations < max_review_iterations:
+            review_iterations += 1
+            print(f"🔎 Review iteration {review_iterations}/{max_review_iterations} with {review_model}...", file=sys.stderr)
+
+            review_prompt = f"""Review this plan for completeness and correctness.
+
+## Plan:
+{current_plan}
+
+## Edge Cases Identified:
+{edge_cases}
+
+Review criteria:
+1. Are all edge cases addressed?
+2. Is the plan complete and actionable?
+3. Are there any gaps or ambiguities?
+4. Does it follow Fabrik conventions?
+
+Output JSON: {{"approved": true/false, "issues": [], "suggestions": []}}"""
+
+            review_result = run_droid_exec(
+                prompt=review_prompt,
+                task_type=TaskType.REVIEW,
+                model=review_model,
+                cwd=cwd,
+            )
+
+            if not review_result.success:
+                print(f"⚠️ Review failed: {review_result.error}", file=sys.stderr)
+                break
+
+            # Check if approved
+            try:
+                # Try to parse JSON from review result
+                review_text = review_result.result
+                if '"approved": true' in review_text.lower() or '"approved":true' in review_text.lower():
+                    print("✅ Plan approved by reviewer", file=sys.stderr)
+                    break
+                elif review_iterations >= max_review_iterations:
+                    print(f"⚠️ Max review iterations ({max_review_iterations}) reached", file=sys.stderr)
+                    break
+                else:
+                    print("🔄 Plan needs revision, continuing...", file=sys.stderr)
+            except Exception:
+                break
+
+    return MultiModelResult(
+        primary_result=primary_result,
+        secondary_results=secondary_results,
+        review_result=review_result,
+    )
+
+
+def run_multi_module_parallel(
+    module_prompts: dict[str, str],
+    task_type: TaskType,
+    models: list[str],
+    autonomy: Autonomy = Autonomy.LOW,
+    cwd: str | None = None,
+) -> dict[str, TaskResult]:
+    """
+    Run different modules with different models in parallel for speed.
+
+    Use case: Implement multiple independent modules simultaneously.
+    Each module gets assigned to a different model.
+
+    Args:
+        module_prompts: Dict of {module_name: prompt}
+        task_type: Type of task (usually CODE)
+        models: List of models to distribute work across
+        autonomy: Safety level
+        cwd: Working directory
+
+    Returns:
+        Dict of {module_name: TaskResult}
+    """
+    results: dict[str, TaskResult] = {}
+    module_list = list(module_prompts.items())
+
+    def _run_module(args: tuple[str, str, str]) -> tuple[str, TaskResult]:
+        module_name, prompt, model = args
+        result = run_droid_exec(
+            prompt=prompt,
+            task_type=task_type,
+            autonomy=autonomy,
+            model=model,
+            cwd=cwd,
+        )
+        return module_name, result
+
+    # Distribute modules across models round-robin
+    work_items = [
+        (name, prompt, models[i % len(models)])
+        for i, (name, prompt) in enumerate(module_list)
+    ]
+
+    print(f"🚀 Running {len(work_items)} modules across {len(models)} models in parallel", file=sys.stderr)
+
+    with ThreadPoolExecutor(max_workers=min(4, len(work_items))) as executor:
+        futures = {executor.submit(_run_module, item): item[0] for item in work_items}
+        for future in as_completed(futures):
+            module_name = futures[future]
+            try:
+                name, result = future.result()
+                results[name] = result
+                status = "✅" if result.success else "❌"
+                print(f"{status} {name}: completed", file=sys.stderr)
+            except Exception as e:
+                print(f"❌ {module_name}: {e}", file=sys.stderr)
+                results[module_name] = TaskResult(
+                    success=False,
+                    task_type=task_type,
+                    prompt=module_prompts[module_name],
+                    result="",
+                    error=str(e),
+                )
+
+    return results
+
+
+def run_with_preflight_gates(
+    prompt: str,
+    task_type: TaskType,
+    cwd: str | None = None,
+    run_lint: bool = True,
+    run_typecheck: bool = True,
+    run_tests: bool = False,
+) -> tuple[bool, str]:
+    """
+    Run pre-flight gates before expensive AI verification.
+
+    Gates (fast, deterministic):
+    1. ruff check (lint)
+    2. mypy (typecheck)
+    3. pytest (optional, slower)
+
+    Returns:
+        (passed: bool, report: str)
+    """
+    working_dir = cwd or str(Path.cwd())
+    reports: list[str] = []
+    all_passed = True
+
+    if run_lint:
+        try:
+            result = subprocess.run(
+                ["ruff", "check", "."],
+                cwd=working_dir,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                reports.append("✅ ruff check: PASS")
+            else:
+                reports.append(f"❌ ruff check: FAIL\n{result.stdout[:500]}")
+                all_passed = False
+        except FileNotFoundError:
+            reports.append("❌ ruff check: FAIL (ruff not installed - required tool missing)")
+            all_passed = False
+        except Exception as e:
+            reports.append(f"❌ ruff check: FAIL ({e})")
+            all_passed = False
+
+    if run_typecheck:
+        try:
+            result = subprocess.run(
+                ["mypy", "."],
+                cwd=working_dir,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode == 0:
+                reports.append("✅ mypy: PASS")
+            else:
+                # Check for actual errors (not just notes/warnings)
+                output_lower = result.stdout.lower() + result.stderr.lower()
+                if "error:" in output_lower:
+                    reports.append(f"❌ mypy: FAIL\n{result.stdout[:500]}")
+                    all_passed = False
+                else:
+                    reports.append("✅ mypy: PASS (with warnings)")
+        except FileNotFoundError:
+            reports.append("❌ mypy: FAIL (mypy not installed - required tool missing)")
+            all_passed = False
+        except Exception as e:
+            reports.append(f"❌ mypy: FAIL ({e})")
+            all_passed = False
+
+    if run_tests:
+        try:
+            result = subprocess.run(
+                ["pytest", "-x", "--tb=short", "-q"],
+                cwd=working_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if result.returncode == 0:
+                reports.append("✅ pytest: PASS")
+            else:
+                reports.append(f"❌ pytest: FAIL\n{result.stdout[:500]}")
+                all_passed = False
+        except FileNotFoundError:
+            reports.append("❌ pytest: FAIL (pytest not installed - required tool missing)")
+            all_passed = False
+        except Exception as e:
+            reports.append(f"❌ pytest: FAIL ({e})")
+            all_passed = False
+
+    report = "\n".join(reports)
+    return all_passed, report
+
+
+# =============================================================================
 # Monitored Execution (from droid_runner.py)
 # =============================================================================
 
@@ -1168,9 +1620,13 @@ def run_droid_exec_monitored(
 
     Uses stream-json format to monitor progress. Does NOT auto-kill.
     """
+    # Ensure model list is fresh (uses 24h cache, ~0ms if cached)
     if MODEL_UPDATER_AVAILABLE:
         with contextlib.suppress(Exception):
-            update_if_stale()
+            ensure_models_fresh()
+            # Warn if model is deprecated
+            if not is_model_available(model):
+                print(f"⚠️  WARNING: Model '{model}' may not be available", file=sys.stderr)
 
     ensure_dirs()
 
@@ -1505,6 +1961,12 @@ Examples:
         sub.add_argument(
             "--verbose", action="store_true", help="Verbose output showing tool calls (stream-json)"
         )
+        sub.add_argument(
+            "--dual", action="store_true", help="Use dual-model execution (Stage 1 Discovery)"
+        )
+        sub.add_argument(
+            "--preflight", action="store_true", help="Run pre-flight gates (ruff/mypy) before AI execution"
+        )
 
     # Batch command
     batch = subparsers.add_parser("batch", help="Run batch tasks from JSONL file")
@@ -1664,37 +2126,102 @@ Examples:
             )
 
     else:
-        # Single task execution
+        # Single task execution with multi-model support
         task_type = TaskType(args.command)
         cwd = getattr(args, "cwd", None)
         session_id = getattr(args, "session_id", None)
         streaming = getattr(args, "stream", False)
         verbose = getattr(args, "verbose", False)
+        use_dual = getattr(args, "dual", False)
+        use_preflight = getattr(args, "preflight", False)
+
+        # Check if task type has multi-model config
+        task_config = TOOL_CONFIGS.get(task_type, {})
+        has_dual_model = task_config.get("dual_model") is not None
+        has_parallel_model = task_config.get("parallel_model") is not None
 
         # Streaming callback to print events in real-time
-        def on_stream_event(event):
+        def on_stream_event(event: dict) -> None:
             if event.get("type") == "text_delta":
                 print(event.get("text", ""), end="", flush=True)
 
-        result = run_droid_exec(
-            prompt=args.prompt,
-            task_type=task_type,
-            autonomy=Autonomy(args.auto),
-            model=args.model,
-            cwd=cwd,
-            session_id=session_id,
-            streaming=streaming or verbose,
-            on_stream=on_stream_event if streaming else None,
-        )
+        # Route to appropriate execution path based on task type and flags
+        if use_preflight:
+            # Run pre-flight gates first (fail-closed)
+            print("🔍 Running pre-flight gates...", file=sys.stderr)
+            gates_passed, gate_report = run_with_preflight_gates(
+                prompt=args.prompt,
+                task_type=task_type,
+                cwd=cwd,
+            )
+            print(gate_report, file=sys.stderr)
+            if not gates_passed:
+                print("❌ Pre-flight gates failed. Fix issues before proceeding.", file=sys.stderr)
+                sys.exit(1)
+            print("✅ Pre-flight gates passed. Proceeding with AI execution...", file=sys.stderr)
 
-        if result.success:
-            print(result.result)
-            # Print session ID for continuation (Pattern 2)
+        if use_dual and has_dual_model:
+            # Use dual-model discovery (Stage 1)
+            print(f"🔄 Using dual-model execution for {task_type.value}...", file=sys.stderr)
+            multi_result = run_discovery_dual_model(
+                prompt=args.prompt,
+                task_type=task_type,
+                cwd=cwd,
+            )
+            result = multi_result.primary_result
+            if multi_result.merged_result:
+                print("\n--- MERGED RESULT ---", file=sys.stderr)
+                print(multi_result.merged_result)
+            elif result.success:
+                print(result.result)
             if result.session_id:
                 print(f"\n[Session ID: {result.session_id}]", file=sys.stderr)
+            if not result.success:
+                print(f"Error: {result.error}", file=sys.stderr)
+                sys.exit(1)
+
+        elif task_type == TaskType.SPEC and has_parallel_model:
+            # Use planning with review (Stage 2) for spec tasks
+            print(f"📋 Using tri-model planning for {task_type.value}...", file=sys.stderr)
+            multi_result = run_planning_with_review(
+                prompt=args.prompt,
+                task_type=task_type,
+                cwd=cwd,
+                max_review_iterations=2,
+            )
+            result = multi_result.primary_result
+            if multi_result.review_result:
+                print("\n--- REVIEW RESULT ---", file=sys.stderr)
+                print(multi_result.review_result.result[:500] if multi_result.review_result.result else "No review")
+            if result.success:
+                print(result.result)
+            if result.session_id:
+                print(f"\n[Session ID: {result.session_id}]", file=sys.stderr)
+            if not result.success:
+                print(f"Error: {result.error}", file=sys.stderr)
+                sys.exit(1)
+
         else:
-            print(f"Error: {result.error}", file=sys.stderr)
-            sys.exit(1)
+            # Standard single-model execution
+            result = run_droid_exec(
+                prompt=args.prompt,
+                task_type=task_type,
+                autonomy=Autonomy(args.auto),
+                model=args.model,
+                cwd=cwd,
+                session_id=session_id,
+                streaming=streaming or verbose,
+                on_stream=on_stream_event if streaming else None,
+            )
+
+            if result.success:
+                print(result.result)
+                # Print session ID for continuation (Pattern 2)
+                if result.session_id:
+                    print(f"\n[Session ID: {result.session_id}]", file=sys.stderr)
+            else:
+                print(f"Error: {result.error}", file=sys.stderr)
+                sys.exit(1)
 
 
 if __name__ == "__main__":

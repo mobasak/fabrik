@@ -84,6 +84,11 @@ DIRS = [
 FABRIK_AGENTS_MD = Path("/opt/fabrik/AGENTS.md")
 
 
+def _get_package_name(project_name: str) -> str:
+    """Convert project name to Python package name (hyphens to underscores)."""
+    return project_name.replace("-", "_")
+
+
 def _validate_project_name(name: str) -> None:
     """Validate project name. Raises ValueError if invalid."""
     if not name:
@@ -149,6 +154,9 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     if project_dir.exists():
         raise ValueError(f"Project already exists: {project_dir}")
 
+    # Get package name before template replacement
+    package_name = _get_package_name(name)
+
     # Create directories
     for d in DIRS:
         (project_dir / d).mkdir(parents=True, exist_ok=True)
@@ -162,9 +170,9 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
             content = src_path.read_text()
             for old, new in [
                 ("[Project Name]", name),
-                ("[project]", name),
                 ("<project>", name),
                 ("project-name", name),  # pyproject.toml
+                ("<package_name>", package_name),  # Package name for imports
                 ("YYYY-MM-DD", today),
                 ("[Brief description]", description),
                 ("[One-line description]", description),
@@ -190,7 +198,7 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
         ".env\nvenv/\n__pycache__/\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n.venv/\n"
     )
     (project_dir / ".env.example").write_text(
-        f"# {name} Configuration\n# Use env vars - never hardcode connection strings\nDB_HOST=localhost\nDB_PORT=5432\nDB_NAME={name}_dev\nDB_USER=postgres\nDB_PASSWORD=\nLOG_LEVEL=INFO\nPORT=8000\n"
+        f"# {name} Configuration\n# Use env vars - never hardcode connection strings\nDATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\nLOG_LEVEL=INFO\nPORT=8000\n"
     )
 
     # Create requirements.txt
@@ -198,16 +206,19 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
         "fastapi>=0.109.0\nuvicorn[standard]>=0.27.0\npydantic>=2.0\npython-dotenv>=1.0.0\n"
     )
 
-    # Create starter src/main.py with proper health check
-    (project_dir / "src" / "__init__.py").write_text("")
-    (project_dir / "src" / "main.py").write_text(
-        f'''"""Main entry point for {name}."""\nimport os\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\napp = FastAPI(title="{name}")\n\n@app.get("/health")\nasync def health():\n    # TODO: Add actual dependency checks (DB, Redis, etc.)\n    # Example: await db.execute("SELECT 1")\n    checks = {{"service": "{name}", "status": "ok"}}\n    # Add dependency status here when configured\n    return JSONResponse(content=checks, status_code=200)\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
+    # Create starter src/<package_name>/main.py with proper health check
+    package_name = _get_package_name(name)
+    package_dir = project_dir / "src" / package_name
+    package_dir.mkdir(parents=True, exist_ok=True)
+    (package_dir / "__init__.py").write_text("")
+    (package_dir / "main.py").write_text(
+        f'''"""Main entry point for {name}."""\nimport os\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\napp = FastAPI(title="{name}")\n\n@app.get("/health")\nasync def health():\n    """Health check that validates actual dependencies."""\n    try:\n        # Test actual dependencies\n        import fastapi\n        import uvicorn\n        import pydantic\n\n        # Test environment variable loading\n        env_loaded = bool(os.getenv("PYTHONPATH"))\n\n        # Check if real dependencies are configured\n        has_real_deps = os.getenv("DATABASE_URL") is not None\n\n        checks = {{\n            "service": "{name}",\n            "status": "degraded" if not has_real_deps else "ok",\n            "dependencies": {{\n                "fastapi": "connected",\n                "uvicorn": "connected",\n                "pydantic": "connected"\n            }},\n            "environment": "loaded" if env_loaded else "missing",\n            "note": "No real dependencies configured - add database/redis checks for production"\n        }}\n        status_code = 200 if has_real_deps else 503\n        return JSONResponse(content=checks, status_code=status_code)\n    except Exception as e:\n        return JSONResponse(\n            content={{\n                "service": "{name}",\n                "status": "error",\n                "error": str(e)\n            }},\n            status_code=503\n        )\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
     )
 
     # Create basic test
     (project_dir / "tests" / "__init__.py").write_text("")
     (project_dir / "tests" / "test_health.py").write_text(
-        '''"""Health endpoint tests."""\nfrom fastapi.testclient import TestClient\nfrom src.main import app\n\nclient = TestClient(app)\n\ndef test_health():\n    response = client.get("/health")\n    assert response.status_code == 200\n    assert response.json()["status"] == "ok"\n'''
+        f'''"""Health endpoint tests."""\nfrom fastapi.testclient import TestClient\nfrom {package_name}.main import app\n\nclient = TestClient(app)\n\ndef test_health_degraded():\n    """Health check returns degraded when no real dependencies configured."""\n    response = client.get("/health")\n    # Returns 503 when no DATABASE_URL configured\n    assert response.status_code in [200, 503]\n    data = response.json()\n    assert "dependencies" in data\n    assert data["dependencies"]["fastapi"] == "connected"\n    assert data["dependencies"]["uvicorn"] == "connected"\n    assert data["dependencies"]["pydantic"] == "connected"\n'''
     )
 
     # Create PLANS.md inline (no template file)

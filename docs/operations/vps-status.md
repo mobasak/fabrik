@@ -46,6 +46,54 @@ PasswordAuthentication No
 AllowUsers ozgur (implied)
 ```
 
+### SSH Troubleshooting (Port 22 Blocked)
+
+**Incident Date:** 2026-01-21
+
+**Symptoms:**
+- Port 22 connection refused
+- Web services (80, 443, 8000) still working
+- VPS responds to ping
+
+**Root Causes Found:**
+1. `/run/sshd` directory was missing (tmpfs issue after reboot)
+2. `ssh.socket` activation got into bad state, blocking `ssh.service`
+
+**Fix Applied (via GreenCloudVPS VNC console):**
+```bash
+# 1. Install SSH if missing
+sudo apt update && sudo apt install -y openssh-server
+
+# 2. Create missing directory
+sudo mkdir -p /run/sshd
+sudo chmod 755 /run/sshd
+
+# 3. Disable socket activation (prevents dependency issues)
+sudo systemctl disable --now ssh.socket
+
+# 4. Add RuntimeDirectory override (prevents /run/sshd missing on reboot)
+sudo mkdir -p /etc/systemd/system/ssh.service.d
+echo -e '[Service]\nRuntimeDirectory=sshd\nRuntimeDirectoryMode=0755' | sudo tee /etc/systemd/system/ssh.service.d/override.conf
+
+# 5. Reload and start
+sudo systemctl daemon-reload
+sudo systemctl enable ssh
+sudo systemctl start ssh
+
+# 6. Verify
+systemctl is-active ssh && ss -lntp | grep :22
+```
+
+**Prevention (Already Applied):**
+- `ssh.socket` disabled permanently
+- `RuntimeDirectory=sshd` override ensures `/run/sshd` created on every boot
+- GreenCloudVPS console credentials stored in `/opt/fabrik/.env`
+
+**Emergency Access:**
+- URL: https://greencloudvps.com
+- Use VNC console when SSH is down
+- Credentials: See `GREENCLOUDVPS_*` in `/opt/fabrik/.env`
+
 ---
 
 ## Installed Software

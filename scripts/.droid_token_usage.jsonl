@@ -1,0 +1,2 @@
+{"timestamp": "2026-02-14T19:46:45.932986", "session_id": "2147d557-5f9f-4518-9a8e-da6d934b392e", "model": "gpt-5.1-codex-max", "context_key": "code-review", "input_tokens": 27348, "output_tokens": 2674, "cache_read_tokens": 0, "cache_creation_tokens": 0, "total_tokens": 30022}
+{"timestamp": "2026-02-14T19:47:10.184163", "session_id": "bcb790de-7eaf-4283-b105-e82d740080a1", "model": "gemini-3-flash-preview", "context_key": "code-review", "input_tokens": 29461, "output_tokens": 2477, "cache_read_tokens": 0, "cache_creation_tokens": 0, "total_tokens": 31938}

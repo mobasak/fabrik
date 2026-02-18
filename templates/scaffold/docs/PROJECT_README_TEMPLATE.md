@@ -1,13 +1,13 @@
-# Project Name
+# [Project Name]
 
-Brief one-line description of what this project does.
+[One-line description of what this project does]
 
 [![Status](https://img.shields.io/badge/status-active-green)]()
-[![Python](https://img.shields.io/badge/python-3.11+-blue)]()
+[![Python](https://img.shields.io/badge/python-3.12+-blue)]()
 
 ## Overview
 
-2-3 sentences explaining the purpose and value of this project.
+[Brief 2-3 sentence overview of the project's purpose and value]
 
 ## Features
 
@@ -19,12 +19,16 @@ Brief one-line description of what this project does.
 
 ```bash
 # Installation
-cd /opt/<project>
-source venv/bin/activate
-pip install -e .
+cd /opt/[project]
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-# Basic usage
-<command> --help
+# Start the service
+uvicorn [package_name].main:app --reload --port 8000
+
+# Check health
+curl http://localhost:8000/health
 ```
 
 ## Documentation
@@ -35,18 +39,17 @@ pip install -e .
 | [Configuration](docs/CONFIGURATION.md) | Settings and options |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues |
 
-See [docs/INDEX.md](docs/INDEX.md) for full documentation index.
-
 ## Project Structure
 
 ```
-/opt/<project>/
+/opt/[project]/
 ├── src/                    # Source code
+│   └── [package_name]/     # Main package
 ├── docs/                   # Documentation
-├── config/                 # Configuration files
 ├── scripts/                # Utility scripts
 ├── tests/                  # Test suite
-└── data/                   # Data files
+├── config/                 # Configuration files (optional)
+└── data/                   # Data files (optional)
 ```
 
 ## Configuration
@@ -55,15 +58,17 @@ Key configuration options:
 
 ```bash
 # Environment variables
-VARIABLE_NAME=value
+DATABASE_URL=postgresql://user:pass@localhost:5432/[project]_dev
+LOG_LEVEL=INFO
+PORT=8000
 ```
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full options.
 
 ## Requirements
 
-- Python 3.11+
-- Other dependencies...
+- Python 3.12+
+- See requirements.txt for full list
 
 ## License
 

@@ -6,6 +6,81 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Session Management & Token Tracking (2026-02-14)
+
+**What:** Complete session ID persistence and token usage tracking for droid exec.
+
+**Files:**
+- `scripts/droid_session.py` - NEW: Session management API with token logging
+- `scripts/droid_model_updater.py` - Added `is_model_safe_for_auto()`, `get_models_without_prices()`
+- `scripts/droid-review.sh` - Now uses JSON output for token tracking
+- `docs/reference/droid-exec-limits.md` - NEW: Technical limits reference
+- `~/.factory/hooks/session-end-token-log.py` - NEW: SessionEnd hook
+
+**Key Rules:**
+- **Same session ID = same context** (persist for related tasks)
+- **Model change = context loss** (new session auto-created)
+- **Models without prices require explicit approval** (no auto-use)
+
+**Session API:**
+```python
+from scripts.droid_session import get_or_create_session, log_token_usage
+
+session_id = get_or_create_session("feature-auth", model="gpt-5.1-codex-max")
+# Use: droid exec --session-id {session_id} ...
+
+# After JSON output, log usage
+log_token_usage(session_id, usage_dict, model="...", context_key="...")
+```
+
+**Token Tracking:**
+```bash
+# Get usage summary (last 24h)
+python scripts/droid_session.py usage
+
+# Per-context tracking
+python scripts/droid_session.py usage --context feature-auth
+```
+
+**Limits Documented:**
+- Output limit: 64KB
+- Hook timeout: 60s
+- Models without prices: `claude-opus-4-6-fast`, `glm-5`, `gpt-5.3-codex`
+
+---
+
+### Added - Model Auto-Update with Price Multipliers (2026-02-14)
+
+**What:** Automatic model list AND price multiplier refresh from droid CLI + Factory docs.
+
+**Files:**
+- `scripts/droid_model_updater.py` - Added `ensure_models_fresh()`, `is_model_available()`, `get_model_price()`, `check_deprecations()`, `fetch_model_prices()`
+- `scripts/droid_core.py` - Now calls `ensure_models_fresh()` before each droid exec
+- `docs/reference/droid-exec-usage.md` - Updated Model Registry documentation
+- `config/models.yaml` - Fixed with CORRECT model names from droid exec
+
+**Features:**
+- **TTL-based caching (24h):** First call of day fetches fresh data (~5-6s), subsequent calls use cache (~0ms)
+- **Model names:** From `droid exec -m invalid` (triggers error listing available models)
+- **Price multipliers:** From `https://docs.factory.ai/pricing.md`
+- **Deprecation detection:** Warns when configured models are no longer available
+- **In-code API:** `ensure_models_fresh()`, `is_model_available()`, `get_model_price()`, `check_deprecations()`
+
+**Usage:**
+```bash
+# Check for deprecated models
+python scripts/droid_model_updater.py --check-deprecations
+
+# Force refresh model list + prices
+python scripts/droid_model_updater.py --force
+```
+
+```python
+# Get price multiplier
+from scripts.droid_model_updater import get_model_price
+price = get_model_price("gpt-5.1-codex-max")  # Returns 0.5
+```
+
 ### Changed - Dual-Model Review & Auto-Update in droid-review.sh (2026-01-14)
 
 **What:** Major update to `droid-review.sh` adding dual-model reviews and automatic documentation updates.

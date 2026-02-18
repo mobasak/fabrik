@@ -2,17 +2,25 @@
 """
 Droid Model Auto-Updater
 
-Automatically fetches model rankings from Factory docs and updates local config.
-Runs unattended - no human intervention required.
+Automatically fetches available models from `droid exec -m listmodels` and updates local config.
+Uses TTL-based caching (24h) to avoid slowing down every droid exec call.
 
 Usage:
   python3 scripts/droid_model_updater.py          # Check and update if needed
   python3 scripts/droid_model_updater.py --force  # Force update even if cached
   python3 scripts/droid_model_updater.py --dry-run # Show what would change
+  python3 scripts/droid_model_updater.py --check-deprecations  # Check for deprecated models in use
 
-Automation:
-  Add to crontab for daily updates:
-  0 9 * * * cd /opt/fabrik && python3 scripts/droid_model_updater.py >> .tmp/model-updates.log 2>&1
+In-Code Usage:
+  from droid_model_updater import ensure_models_fresh, check_deprecations
+  ensure_models_fresh()  # Called before droid exec, uses 24h cache
+  warnings = check_deprecations()  # Returns list of deprecated model warnings
+
+Caching Strategy:
+  - First droid exec of day: refresh cache (4-5s)
+  - Subsequent calls: use cache (0ms overhead)
+  - Model not found: refresh and retry
+  - Deprecation: warn when configured model no longer available
 """
 
 import json
@@ -35,15 +43,398 @@ SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 CONFIG_FILE = PROJECT_ROOT / "config" / "models.yaml"
 CACHE_FILE = SCRIPT_DIR / ".model_update_cache.json"
+DEPRECATION_FILE = SCRIPT_DIR / ".model_deprecations.json"
 CACHE_TTL_HOURS = 24
 
-# Factory docs URLs
+# Factory docs URLs (fallback)
 FACTORY_RANKING_URL = "https://docs.factory.ai/cli/user-guides/choosing-your-model.md"
 FACTORY_PRICING_URL = "https://docs.factory.ai/pricing.md"
 
 # Dynamic model name map - populated from pricing.md
 # Format: display_name_lower -> model_id
 MODEL_NAME_MAP: dict[str, str] = {}
+
+# Cache for available models from droid exec
+_AVAILABLE_MODELS_CACHE: list[str] | None = None
+
+
+def fetch_models_from_droid_cli() -> list[str]:
+    """
+    Fetch available models from droid exec by triggering the "invalid model" error.
+
+    When you pass an invalid model to `droid exec -m invalid_model`, it returns
+    the list of available models in the error output. This is the authoritative
+    source for available models.
+
+    Returns:
+        List of available model IDs
+    """
+    import subprocess
+
+    try:
+        # Use an invalid model name to trigger the error that lists available models
+        result = subprocess.run(
+            ["droid", "exec", "-m", "__list_models__", "echo test"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        # Parse the error output which contains the available models
+        # Format: "Available built-in models:\n  model1, model2, model3, ..."
+        output = result.stdout + result.stderr
+        models = []
+
+        for line in output.split("\n"):
+            line = line.strip()
+            # Look for the line with comma-separated model names
+            if line.startswith("gpt-") or line.startswith("claude-") or line.startswith("gemini-"):
+                # This line contains model names
+                for part in line.split(","):
+                    model = part.strip()
+                    if model:
+                        models.append(model)
+            elif "Available built-in models:" in line:
+                continue
+            elif line and not line.startswith("Invalid") and not line.startswith("No custom"):
+                # Check if line contains models after colon
+                if ":" in line:
+                    after_colon = line.split(":", 1)[1].strip()
+                    for part in after_colon.split(","):
+                        model = part.strip()
+                        if model and (model.startswith("gpt-") or model.startswith("claude-") or
+                                     model.startswith("gemini-") or model.startswith("glm-") or
+                                     model.startswith("kimi-")):
+                            models.append(model)
+
+        return list(set(models))  # Deduplicate
+    except subprocess.TimeoutExpired:
+        print("WARNING: droid exec timed out", file=sys.stderr)
+        return []
+    except FileNotFoundError:
+        print("WARNING: droid command not found", file=sys.stderr)
+        return []
+    except Exception as e:
+        print(f"WARNING: Failed to fetch models from droid CLI: {e}", file=sys.stderr)
+        return []
+
+
+def get_models_in_use() -> list[str]:
+    """
+    Get list of models currently configured in our YAML and scripts.
+
+    Returns:
+        List of model IDs that we're using
+    """
+    models_in_use = set()
+
+    if not YAML_AVAILABLE or not CONFIG_FILE.exists():
+        return []
+
+    try:
+        with open(CONFIG_FILE) as f:
+            config = yaml.safe_load(f)
+
+        # Get default model
+        if "default_model" in config:
+            models_in_use.add(config["default_model"])
+
+        # Get models from stack rankings
+        for rank_info in config.get("stack_rank", {}).values():
+            if "model" in rank_info:
+                models_in_use.add(rank_info["model"])
+
+        # Get models from scenarios
+        for scenario in config.get("scenarios", {}).values():
+            if "primary" in scenario:
+                models_in_use.add(scenario["primary"])
+            for alt in scenario.get("alternatives", []):
+                models_in_use.add(alt)
+            for model in scenario.get("models", []):
+                models_in_use.add(model)
+
+        # Get models from model details
+        for model_name in config.get("models", {}):
+            models_in_use.add(model_name)
+
+    except Exception as e:
+        print(f"WARNING: Failed to read models in use: {e}", file=sys.stderr)
+
+    return list(models_in_use)
+
+
+def check_deprecations(available_models: list[str] | None = None) -> list[dict]:
+    """
+    Check if any models we're using have been deprecated.
+
+    Args:
+        available_models: List of currently available models (fetched if not provided)
+
+    Returns:
+        List of deprecation warnings: [{"model": "...", "message": "..."}]
+    """
+    if available_models is None:
+        cache = load_cache()
+        if cache and "available_models" in cache:
+            available_models = cache["available_models"]
+        else:
+            available_models = fetch_models_from_droid_cli()
+
+    if not available_models:
+        return []  # Can't check without available models list
+
+    models_in_use = get_models_in_use()
+    available_lower = {m.lower() for m in available_models}
+
+    deprecations = []
+    for model in models_in_use:
+        if model.lower() not in available_lower:
+            deprecations.append({
+                "model": model,
+                "message": f"Model '{model}' is no longer available. Update config/models.yaml",
+                "severity": "warning",
+            })
+
+    # Save deprecations to file for tracking
+    if deprecations:
+        try:
+            existing = []
+            if DEPRECATION_FILE.exists():
+                existing = json.loads(DEPRECATION_FILE.read_text())
+
+            # Add new deprecations with timestamp
+            for dep in deprecations:
+                dep["detected_at"] = datetime.now().isoformat()
+                if dep not in existing:
+                    existing.append(dep)
+
+            DEPRECATION_FILE.write_text(json.dumps(existing, indent=2))
+        except Exception:
+            pass  # Non-critical
+
+    return deprecations
+
+
+def fetch_model_prices() -> dict[str, float]:
+    """
+    Fetch model price multipliers from Factory docs.
+
+    Parses the pricing table from https://docs.factory.ai/pricing.md
+
+    Returns:
+        Dict mapping model_id -> cost_multiplier
+    """
+    pricing_url = "https://docs.factory.ai/pricing.md"
+
+    try:
+        content = fetch_url(pricing_url)
+        if not content:
+            return {}
+
+        pricing_data = parse_pricing_table(content)
+
+        # Convert to model_id -> multiplier
+        prices = {}
+        for info in pricing_data.values():
+            model_id = info.get("model_id", "")
+            multiplier = info.get("multiplier", 1.0)
+            if model_id:
+                prices[model_id] = multiplier
+
+        return prices
+    except Exception as e:
+        print(f"WARNING: Failed to fetch model prices: {e}", file=sys.stderr)
+        return {}
+
+
+def ensure_models_fresh(force: bool = False) -> dict:
+    """
+    Ensure model list is fresh. Called before droid exec.
+
+    Uses 24-hour cache to avoid delay on every call.
+    Fetches both model names (from droid CLI) and prices (from Factory docs).
+
+    Args:
+        force: Force refresh even if cache is valid
+
+    Returns:
+        dict with status, available_models, model_prices, and deprecation warnings
+    """
+    global _AVAILABLE_MODELS_CACHE
+
+    result = {
+        "status": "ok",
+        "from_cache": False,
+        "available_models": [],
+        "model_prices": {},
+        "deprecations": [],
+    }
+
+    # Check cache first (unless forced)
+    if not force:
+        cache = load_cache()
+        if cache and cache.get("status") in ("up_to_date", "updated"):
+            cache_time = datetime.fromisoformat(cache.get("timestamp", "2000-01-01"))
+            if datetime.now() - cache_time < timedelta(hours=CACHE_TTL_HOURS):
+                result["from_cache"] = True
+                result["available_models"] = cache.get("available_models", [])
+                result["model_prices"] = cache.get("model_prices", {})
+                _AVAILABLE_MODELS_CACHE = result["available_models"]
+
+                # Check deprecations using cached models
+                result["deprecations"] = check_deprecations(result["available_models"])
+                return result
+
+    # Cache stale or forced - fetch fresh data
+    print("Refreshing model list from droid CLI...", file=sys.stderr)
+    available_models = fetch_models_from_droid_cli()
+
+    if not available_models:
+        # Fallback: try to use existing cache even if stale
+        cache = load_cache()
+        if cache and "available_models" in cache:
+            result["available_models"] = cache["available_models"]
+            result["status"] = "using_stale_cache"
+            print("WARNING: Using stale model cache (refresh failed)", file=sys.stderr)
+        else:
+            result["status"] = "error"
+            result["error"] = "Failed to fetch models and no cache available"
+        return result
+
+    # Update cache
+    _AVAILABLE_MODELS_CACHE = available_models
+    result["available_models"] = available_models
+
+    # Fetch model prices from Factory docs
+    print("Fetching model prices from Factory docs...", file=sys.stderr)
+    model_prices = fetch_model_prices()
+    result["model_prices"] = model_prices
+    if model_prices:
+        print(f"   Found prices for {len(model_prices)} models", file=sys.stderr)
+
+    # Check for deprecations
+    result["deprecations"] = check_deprecations(available_models)
+
+    # Print deprecation warnings
+    for dep in result["deprecations"]:
+        print(f"⚠️  DEPRECATED: {dep['message']}", file=sys.stderr)
+
+    # Save to cache (including prices)
+    save_cache({
+        "status": "up_to_date",
+        "available_models": available_models,
+        "models_count": len(available_models),
+        "model_prices": model_prices,
+        "deprecations": result["deprecations"],
+    })
+
+    return result
+
+
+def get_model_price(model_name: str) -> float | None:
+    """
+    Get price multiplier for a model.
+
+    Uses cache if available, otherwise fetches fresh data.
+
+    Args:
+        model_name: Model ID to check
+
+    Returns:
+        Price multiplier (e.g., 0.5, 1.0, 2.0) or None if not found
+    """
+    cache = load_cache()
+    if cache and "model_prices" in cache:
+        prices = cache["model_prices"]
+        # Try exact match first
+        if model_name in prices:
+            return prices[model_name]
+        # Try case-insensitive
+        for name, price in prices.items():
+            if name.lower() == model_name.lower():
+                return price
+    return None
+
+
+def is_model_available(model_name: str) -> bool:
+    """
+    Check if a model is available.
+
+    Uses cache if available, otherwise fetches fresh list.
+
+    Args:
+        model_name: Model ID to check
+
+    Returns:
+        True if model is available
+    """
+    global _AVAILABLE_MODELS_CACHE
+
+    if _AVAILABLE_MODELS_CACHE is None:
+        result = ensure_models_fresh()
+        _AVAILABLE_MODELS_CACHE = result.get("available_models", [])
+
+    return model_name.lower() in {m.lower() for m in _AVAILABLE_MODELS_CACHE}
+
+
+def is_model_safe_for_auto(model_name: str) -> tuple[bool, str]:
+    """
+    Check if a model is safe for automatic use.
+
+    A model is safe for auto-use only if:
+    1. It is available (in droid exec model list)
+    2. It has a known price multiplier (from Factory docs)
+
+    Models without price multipliers require explicit user approval.
+
+    Args:
+        model_name: Model ID to check
+
+    Returns:
+        Tuple of (is_safe, reason)
+    """
+    if not is_model_available(model_name):
+        return False, f"Model '{model_name}' is not available (deprecated or invalid)"
+
+    price = get_model_price(model_name)
+    if price is None:
+        return False, f"Model '{model_name}' has no known price multiplier - requires explicit approval"
+
+    return True, f"Model '{model_name}' is available with {price}x multiplier"
+
+
+def get_models_without_prices() -> list[str]:
+    """
+    Get list of available models that don't have price multipliers.
+
+    These models require explicit user approval for use.
+
+    Returns:
+        List of model IDs without known prices
+    """
+    available = set(get_available_models())
+    cache = load_cache()
+    prices = set(cache.get("model_prices", {}).keys()) if cache else set()
+
+    return sorted(available - prices)
+
+
+def get_available_models() -> list[str]:
+    """
+    Get list of available models.
+
+    Uses cache if available, otherwise fetches fresh list.
+
+    Returns:
+        List of available model IDs
+    """
+    global _AVAILABLE_MODELS_CACHE
+
+    if _AVAILABLE_MODELS_CACHE is None:
+        result = ensure_models_fresh()
+        _AVAILABLE_MODELS_CACHE = result.get("available_models", [])
+
+    return _AVAILABLE_MODELS_CACHE
 
 
 def fetch_url(url: str) -> str | None:
@@ -344,11 +735,48 @@ def main():
     args = sys.argv[1:]
     force = "--force" in args
     dry_run = "--dry-run" in args
+    check_deps = "--check-deprecations" in args
+    use_cli = "--from-cli" in args or not any(a.startswith("--") for a in args)
 
     print("=" * 60)
     print("Droid Model Auto-Updater")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
+
+    # Handle --check-deprecations
+    if check_deps:
+        print("\nChecking for deprecated models...")
+        result = ensure_models_fresh(force=force)
+        deprecations = result.get("deprecations", [])
+        if deprecations:
+            print(f"\n⚠️  Found {len(deprecations)} deprecated model(s):")
+            for dep in deprecations:
+                print(f"   - {dep['model']}: {dep['message']}")
+            return 1
+        else:
+            print("✓ All configured models are available")
+            return 0
+
+    # Use droid CLI as primary source (faster, more accurate)
+    if use_cli or force:
+        print("\n1. Fetching models from droid CLI...")
+        result = ensure_models_fresh(force=force)
+        if result["status"] == "ok":
+            print(f"   Found {len(result['available_models'])} models")
+            if result.get("from_cache"):
+                print("   (from cache)")
+            if result.get("deprecations"):
+                print("\n⚠️  Deprecation warnings:")
+                for dep in result["deprecations"]:
+                    print(f"   - {dep['model']}")
+            print("\n" + "=" * 60)
+            print("Complete")
+            return 0
+        elif result["status"] == "using_stale_cache":
+            print("   WARNING: Using stale cache (CLI failed)")
+        else:
+            print(f"   ERROR: {result.get('error', 'Unknown error')}")
+            # Fall through to Factory docs method
 
     # Check cache unless forced
     if not force:
@@ -358,15 +786,15 @@ def main():
             print("  Use --force to check again")
             return 0
 
-    # Step 1: Fetch pricing.md to get exact Model IDs
-    print(f"\n1. Fetching pricing table: {FACTORY_PRICING_URL}")
+    # Fallback: Fetch from Factory docs
+    print(f"\n2. Fetching pricing table: {FACTORY_PRICING_URL}")
     pricing_content = fetch_url(FACTORY_PRICING_URL)
     if not pricing_content:
         return 1
 
     pricing_models = parse_pricing_table(pricing_content)
     print(f"   Found {len(pricing_models)} models with exact IDs:")
-    for name, info in pricing_models.items():
+    for info in pricing_models.values():
         print(f"     {info['display_name']:<20} -> {info['model_id']}")
 
     # Build the dynamic name map from pricing data

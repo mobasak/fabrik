@@ -1,0 +1,85 @@
+{
+  "reviews": [
+    {
+      "plan_file": "docs/development/plans/2026-02-16-plan-gap01-duplicate-detection.md",
+      "overall_score_1_to_10": 8,
+      "issues": [
+        {
+          "severity": "High",
+          "issue": "Dependency on Node.js (npx) conflicts with python:3.12-slim-bookworm base image in CI/Docker contexts.",
+          "suggestion": "Configure CI to run jscpd on the host runner (ubuntu-latest) which has Node.js, rather than inside the Python container, or switch to a Python-native tool."
+        }
+      ]
+    },
+    {
+      "plan_file": "docs/development/plans/2026-02-16-plan-gap02-windsurf-workflows.md",
+      "overall_score_1_to_10": 9,
+      "issues": [
+        {
+          "severity": "Low",
+          "issue": "Plan assumes Windsurf IDE availability for testing workflows.",
+          "suggestion": "Add a manual validation step to cat/grep the generated files to ensure syntax correctness if Windsurf is not available in the execution environment."
+        }
+      ]
+    },
+    {
+      "plan_file": "docs/development/plans/2026-02-16-plan-gap03-mcp-server-config.md",
+      "overall_score_1_to_10": 9,
+      "issues": [
+        {
+          "severity": "Medium",
+          "issue": "Docker MCP server requires socket access (/var/run/docker.sock) which may be restricted.",
+          "suggestion": "Add a prerequisite check in Step 3 to verify Docker socket accessibility and permission before configuration."
+        }
+      ]
+    },
+    {
+      "plan_file": "docs/development/plans/2026-02-16-plan-gap04-kpi-dashboard.md",
+      "overall_score_1_to_10": 7,
+      "issues": [
+        {
+          "severity": "High",
+          "issue": "Modifying core script 'scripts/droid_session.py' creates high regression risk.",
+          "suggestion": "Use existing hooks or a wrapper script to capture session start/end events without modifying core session logic."
+        },
+        {
+          "severity": "Medium",
+          "issue": "Data duplication with existing '.droid_token_usage.jsonl'.",
+          "suggestion": "Design kpi_tracker.py to ingest/parse existing token logs for cost metrics instead of implementing dual-logging."
+        }
+      ]
+    },
+    {
+      "plan_file": "docs/development/plans/2026-02-16-plan-gap06-custom-droids.md",
+      "overall_score_1_to_10": 8,
+      "issues": [
+        {
+          "severity": "Medium",
+          "issue": "Hardcoded model names (e.g., claude-opus-4-6) may drift from config/models.yaml.",
+          "suggestion": "Update steps to use 'scripts/droid_models.py' to resolve current model names dynamically."
+        },
+        {
+          "severity": "Low",
+          "issue": "Ambiguity in droid definition path (~/.factory/droids vs repo-level).",
+          "suggestion": "Explicitly state whether droids are user-global or project-local, and use repo-relative paths (.factory/droids/) for project-specific tools."
+        }
+      ]
+    },
+    {
+      "plan_file": "docs/development/plans/2026-02-16-plan-gap07-traycer-integration.md",
+      "overall_score_1_to_10": 10,
+      "issues": []
+    },
+    {
+      "plan_file": "docs/development/plans/2026-02-16-plan-gap08-property-testing.md",
+      "overall_score_1_to_10": 9,
+      "issues": [
+        {
+          "severity": "Low",
+          "issue": "Property testing strategies for 'droid_session.py' may be complex due to external dependencies.",
+          "suggestion": "Focus property tests on pure logic functions (utils) first, or use extensive mocking for session tests."
+        }
+      ]
+    }
+  ]
+}

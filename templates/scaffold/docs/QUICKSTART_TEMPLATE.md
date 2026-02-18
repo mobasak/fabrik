@@ -5,7 +5,7 @@ Get [Project Name] running in 5 minutes.
 ## Prerequisites
 
 - Python 3.11+
-- [Other requirements]
+- pip
 
 ## Installation
 
@@ -14,67 +14,95 @@ Get [Project Name] running in 5 minutes.
 cd /opt/<project>
 
 # Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 
-# Install
-pip install -e .
+# Install dependencies
+pip install -r requirements.txt
 ```
 
 ## Configuration
 
-Create configuration file:
-
 ```bash
-cp config/example.yaml config/config.yaml
+# Copy environment template
+cp .env.example .env
 # Edit as needed
-nano config/config.yaml
+nano .env
 ```
 
 Key settings:
 
-```yaml
-setting_name: value
-another_setting: value
+```bash
+# Application
+PORT=8000
+LOG_LEVEL=info
+
+# Database (if needed)
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_NAME=project_dev
+# DB_USER=postgres
+# DB_PASSWORD=
 ```
 
 ## First Run
 
 ```bash
-# Initialize
-<command> init
+# Start the service
+uvicorn src.<package_name>.main:app --reload --port 8000
 
-# Verify setup
-<command> status
+# Check health
+curl http://localhost:8000/health
+```
 
-# Run basic test
-<command> test
+Expected output:
+
+```json
+{
+  "service": "project-name",
+  "status": "ok",
+  "dependencies": {
+    "fastapi": "connected",
+    "uvicorn": "connected",
+    "pydantic": "connected"
+  },
+  "environment": "missing"
+}
 ```
 
 ## Basic Usage
 
-### Example 1: [Common Task]
+### Example 1: Health Check
 
 ```bash
-<command> <action> <args>
+curl http://localhost:8000/health
 ```
 
-### Example 2: [Another Task]
+### Example 2: Root Endpoint
 
 ```bash
-<command> <action> <args>
+curl http://localhost:8000/
+```
+
+Expected output:
+
+```json
+{
+  "message": "Welcome to project-name"
+}
 ```
 
 ## Verify It Works
 
 ```bash
-# Expected output
-<command> status
-# Should show: [expected result]
+# Run tests
+pytest tests/ -v
+
+# Expected: All tests pass
 ```
 
 ## Next Steps
 
 - [Configuration Guide](CONFIGURATION.md) - Full settings reference
-- [Usage Guide](guides/usage.md) - Detailed usage patterns
 - [Troubleshooting](TROUBLESHOOTING.md) - If something goes wrong
+- [Development](../INDEX.md) - Full documentation index

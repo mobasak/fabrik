@@ -23,7 +23,14 @@ if [[ ! -f "$META_PROMPT" ]]; then
 fi
 
 # Get recommended models for dual-model review (Fabrik convention: use BOTH)
-MODELS=($(python3 -c "from scripts.droid_models import get_scenario_recommendation; print(' '.join(get_scenario_recommendation('code_review').get('models', ['gpt-5.1-codex-max', 'gemini-3-flash-preview'])))" 2>/dev/null || echo "gpt-5.1-codex-max gemini-3-flash-preview"))
+# Also validates that models have known price multipliers
+MODELS=($(python3 -c "
+from scripts.droid_models import get_scenario_recommendation
+from scripts.droid_model_updater import is_model_safe_for_auto
+models = get_scenario_recommendation('code_review').get('models', ['gpt-5.1-codex-max', 'gemini-3-flash-preview'])
+safe_models = [m for m in models if is_model_safe_for_auto(m)[0]]
+print(' '.join(safe_models if safe_models else ['gpt-5.1-codex-max', 'gemini-3-flash-preview']))
+" 2>/dev/null || echo "gpt-5.1-codex-max gemini-3-flash-preview"))
 CUSTOM_MODEL=""  # Set if user provides --model flag
 
 # Parse arguments
@@ -116,13 +123,33 @@ echo "$FULL_PROMPT
 
 DO NOT make any changes. Only provide review feedback." > "$PROMPT_FILE"
 
-# Run droid exec for each model
+# Run droid exec for each model with JSON output for token tracking
 # Note: --auto medium required because meta-prompt triggers context gathering
 for MODEL in "${REVIEW_MODELS[@]}"; do
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "📋 Review with: $MODEL"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    droid exec -m "$MODEL" --auto medium --file "$PROMPT_FILE"
+    
+    # Run with JSON output for token tracking
+    OUTPUT=$(droid exec -m "$MODEL" -o json --auto medium --file "$PROMPT_FILE" 2>&1) || true
+    
+    # Extract and display the result
+    RESULT=$(echo "$OUTPUT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('result', 'No result'))" 2>/dev/null || echo "$OUTPUT")
+    echo "$RESULT"
+    
+    # Log token usage
+    echo "$OUTPUT" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    usage = d.get('usage', {})
+    session_id = d.get('session_id', 'unknown')
+    if usage:
+        from scripts.droid_session import log_token_usage
+        log_token_usage(session_id, usage, model='$MODEL', context_key='code-review')
+        print(f'   📊 Tokens: {usage.get("input_tokens", 0)} in, {usage.get("output_tokens", 0)} out')
+except: pass
+" 2>/dev/null || true
     echo ""
 done
 

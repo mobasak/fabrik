@@ -51,5 +51,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 ENV PORT=8000
 EXPOSE ${PORT}
 
-# Entry point (matches scaffold.py which creates src/main.py)
-CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Entry point (uses <package_name> placeholder replaced by scaffold)
+CMD ["sh", "-c", "uvicorn <package_name>.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

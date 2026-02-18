@@ -7,73 +7,150 @@ Common issues and solutions for [Project Name].
 Run these commands first to identify issues:
 
 ```bash
-# Check system status
-<command> status
+# Check service health
+curl http://localhost:8000/health
 
 # View recent logs
-<command> logs -n 50
+tail -f logs/app.log
 
-# Test connectivity
-<command> test
+# Run tests
+pytest tests/ -v
 ```
 
 ---
 
 ## Common Issues
 
-### Issue: [Issue Title]
+### Issue: Service won't start
 
 **Symptoms:**
 
-- Symptom 1
-- Symptom 2
+- `uvicorn` command fails
+- Port already in use error
+- Import errors
 
 **Cause:**
 
-Brief explanation of why this happens.
+Missing dependencies, port conflicts, or incorrect Python version.
 
 **Solution:**
 
 ```bash
-# Step 1: Do this
-command here
+# Ensure virtual environment is active
+source .venv/bin/activate
 
-# Step 2: Then this
-another command
+# Reinstall dependencies
+pip install -r requirements.txt
+
+# Check port availability
+lsof -i :8000
+
+# Try different port
+uvicorn src.<package_name>.main:app --reload --port 8001
 ```
 
 **Prevention:**
 
-How to avoid this issue in the future.
+Always use a virtual environment and check port availability before starting.
 
 ---
 
-### Issue: [Another Issue]
+### Issue: Health check returns 503
 
 **Symptoms:**
 
-- Symptom description
+```json
+{
+  "service": "project-name",
+  "status": "error",
+  "error": "..."
+}
+```
 
 **Cause:**
 
-Explanation.
+Critical imports failing (FastAPI, Uvicorn, Pydantic not installed).
 
 **Solution:**
 
-Steps to resolve.
+```bash
+# Install missing dependencies
+pip install fastapi uvicorn pydantic
+
+# Verify installation
+python -c "import fastapi, uvicorn, pydantic; print('OK')"
+```
+
+**Prevention:**
+
+Always run `pip install -r requirements.txt` after creating a new project.
+
+---
+
+### Issue: Tests fail with import errors
+
+**Symptoms:**
+
+```
+ModuleNotFoundError: No module named 'src'
+```
+
+**Cause:**
+
+Incorrect import path - tests should import from the package name, not `src`.
+
+**Solution:**
+
+```bash
+# Correct import
+from <package_name>.main import app
+
+# Incorrect import
+from src.main import app  # WRONG
+```
+
+**Prevention:**
+
+Use the package name (e.g., `trading_core`) not `src` in imports.
 
 ---
 
 ## Error Messages
 
-### "Error message text here"
+### "ImportError: No module named 'fastapi'"
 
-**Meaning:** What this error indicates.
+**Meaning:** FastAPI not installed or virtual environment not activated.
 
 **Solution:**
 
 ```bash
-# Fix command
+source .venv/bin/activate
+pip install fastapi
+```
+
+### "Address already in use"
+
+**Meaning:** Port 8000 is already in use by another process.
+
+**Solution:**
+
+```bash
+# Find process using port
+lsof -i :8000
+
+# Kill process or use different port
+uvicorn src.<package_name>.main:app --reload --port 8001
+```
+
+### "ModuleNotFoundError: No module named 'src'"
+
+**Meaning:** Incorrect import path in tests.
+
+**Solution:**
+
+Update test imports to use package name:
+```python
+from <package_name>.main import app
 ```
 
 ---
@@ -84,16 +161,24 @@ Steps to resolve.
 
 **Possible causes:**
 
-1. Cause 1 - Solution
-2. Cause 2 - Solution
-3. Cause 3 - Solution
+1. Blocking I/O operations - Use async/await
+2. Database queries not optimized - Add indexes
+3. Logging too verbose - Set LOG_LEVEL=WARNING
+
+**Solutions:**
+
+```bash
+# Enable debug logging to identify bottlenecks
+LOG_LEVEL=DEBUG uvicorn src.<package_name>.main:app --reload
+```
 
 ### High Memory Usage
 
 **Solutions:**
 
-1. Step 1
-2. Step 2
+1. Check for memory leaks in long-running processes
+2. Reduce worker processes
+3. Monitor with `htop` or `top`
 
 ---
 
@@ -102,7 +187,7 @@ Steps to resolve.
 ### Enable Debug Logging
 
 ```bash
-LOG_LEVEL=DEBUG <command>
+LOG_LEVEL=DEBUG uvicorn src.<package_name>.main:app --reload
 ```
 
 ### Collect Debug Info
@@ -112,11 +197,11 @@ LOG_LEVEL=DEBUG <command>
 uname -a
 python --version
 
-# Project status
-<command> status --verbose
+# Test health endpoint
+curl -v http://localhost:8000/health
 
-# Recent logs
-<command> logs -n 100 > debug.log
+# Run tests with verbose output
+pytest tests/ -vv
 ```
 
 ### Report Issues
