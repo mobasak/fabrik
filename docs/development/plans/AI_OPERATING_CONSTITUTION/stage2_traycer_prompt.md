@@ -172,7 +172,7 @@ CONFIRM: "Proceed?" → Wait for explicit "yes"
 **Project**: [name]
 **Project Root**: `/opt/<project>/`
 **Spec Location**: `/opt/<project>/spec_out/`
-**Current State**: 
+**Current State**:
 - [what files/features exist from previous tasks]
 - [what's working]
 

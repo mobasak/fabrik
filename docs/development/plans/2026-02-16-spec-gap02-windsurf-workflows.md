@@ -1,9 +1,9 @@
 # GAP-02 Windsurf Workflows — Spec-Level Implementation Plan
 
-**Version:** 1.1.0  
-**Revision Date:** 2026-02-17  
-**Status:** SPEC (not implementation)  
-**Compliance:** GAP-02 v1.0  
+**Version:** 1.1.0
+**Revision Date:** 2026-02-17
+**Status:** SPEC (not implementation)
+**Compliance:** GAP-02 v1.0
 **Source:** `@/opt/fabrik/docs/development/plans/archived/2026-02-16-plan-gap02-windsurf-workflows.md`
 
 ---

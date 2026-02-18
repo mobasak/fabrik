@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 class RiskLevel(Enum):
     """Risk levels for task routing."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -40,6 +41,7 @@ class RiskLevel(Enum):
 
 class ExitCode(Enum):
     """Exit codes per GAP-09 failure matrix."""
+
     SUCCESS = 0
     STAGE_EXECUTION_FAILED = 1
     VERIFICATION_REJECTED_TWICE = 2
@@ -51,6 +53,7 @@ class ExitCode(Enum):
 @dataclass
 class StageResult:
     """Internal dataclass for stage execution results."""
+
     stage: str
     status: str  # "pass" or "fail"
     started_at: str
@@ -83,9 +86,10 @@ def stage_result_to_report_stage(sr: StageResult) -> dict[str, Any]:
 @dataclass
 class PipelineConfig:
     """Configuration for pipeline execution."""
-    stages: list[str] = field(default_factory=lambda: [
-        "discovery", "planning", "execution", "verification", "ship"
-    ])
+
+    stages: list[str] = field(
+        default_factory=lambda: ["discovery", "planning", "execution", "verification", "ship"]
+    )
     models: dict[str, str] = field(default_factory=dict)
     session_ids: dict[str, str] = field(default_factory=dict)
     max_verify_iterations: int = 2
@@ -102,6 +106,7 @@ class PipelineResult:
     - dry_run: true only when --dry-run flag used
     - metrics.total_tokens: required key for token count
     """
+
     run_id: str
     task: str
     risk_level: str  # "LOW" | "MEDIUM" | "HIGH"
@@ -137,13 +142,13 @@ class PipelineRunner:
         """
         task_lower = task.lower()
 
-        if any(kw in task_lower for kw in ['auth', 'security', 'database', 'api', 'migration']):
+        if any(kw in task_lower for kw in ["auth", "security", "database", "api", "migration"]):
             return RiskLevel.HIGH
 
-        if any(kw in task_lower for kw in ['feature', 'endpoint', 'component']):
+        if any(kw in task_lower for kw in ["feature", "endpoint", "component"]):
             return RiskLevel.MEDIUM
 
-        if any(kw in task_lower for kw in ['typo', 'fix', 'docs', 'comment', 'readme']):
+        if any(kw in task_lower for kw in ["typo", "fix", "docs", "comment", "readme"]):
             return RiskLevel.LOW
 
         return RiskLevel.HIGH
@@ -235,8 +240,7 @@ class PipelineRunner:
                 print(f"[DRY-RUN] Risk: {risk.value}")
                 print(f"[DRY-RUN] Starting stage: {starting_stage}")
                 print(f"[DRY-RUN] Run ID: {self.run_id}")
-                print("[DRY-RUN] Would execute stages:",
-                      self.config.stages[starting_stage - 1:])
+                print("[DRY-RUN] Would execute stages:", self.config.stages[starting_stage - 1 :])
 
             return PipelineResult(
                 run_id=self.run_id,
@@ -376,7 +380,13 @@ def main() -> int:
 
         start_stage = None
         if args.stage:
-            stage_map = {"discovery": 1, "planning": 2, "execution": 3, "verification": 4, "ship": 5}
+            stage_map = {
+                "discovery": 1,
+                "planning": 2,
+                "execution": 3,
+                "verification": 4,
+                "ship": 5,
+            }
             start_stage = stage_map[args.stage]
 
         result = runner.run_pipeline(

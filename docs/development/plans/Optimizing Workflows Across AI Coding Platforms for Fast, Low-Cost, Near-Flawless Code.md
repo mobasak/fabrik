@@ -6,9 +6,9 @@ AI coding platforms now compete less on “autocomplete” and more on **agentic
 
 Your recurring failure modes—**context window limits and state loss**, **duplicate implementations**, **divergent solution branches**, **rule noncompliance**, and **high review burden**—are best treated as **pipeline problems**, not “prompting problems”. The most reliable pattern is:
 
-1) **Make state explicit and machine-readable** (AGENTS.md + enforced repo conventions + automated “state snapshots”). citeturn15view0turn2view3turn18view0turn14view1  
-2) **Split the work into roles** (Planner → Implementer → Verifier), and move to **tool-enforced guardrails** (hooks, linters, pre-commit, CI), because “instructions in chat” are the least reliable enforcement mechanism. citeturn11view0turn10view8turn10view4turn5search2turn7search1turn8search2turn5search3  
-3) **Adopt worktree-based isolation + checkpointing discipline** so parallel variants don’t pollute each other, and rollback is cheap. citeturn4search2turn10view3turn7search0turn7search2  
+1) **Make state explicit and machine-readable** (AGENTS.md + enforced repo conventions + automated “state snapshots”). citeturn15view0turn2view3turn18view0turn14view1
+2) **Split the work into roles** (Planner → Implementer → Verifier), and move to **tool-enforced guardrails** (hooks, linters, pre-commit, CI), because “instructions in chat” are the least reliable enforcement mechanism. citeturn11view0turn10view8turn10view4turn5search2turn7search1turn8search2turn5search3
+3) **Adopt worktree-based isolation + checkpointing discipline** so parallel variants don’t pollute each other, and rollback is cheap. citeturn4search2turn10view3turn7search0turn7search2
 4) **Make verification automatic-first** (tests + static analysis + duplication detection + AI review workflows), with humans reviewing only diffs that already passed gates. citeturn10view12turn21search2turn13view1turn6search32turn5search3turn8search0turn8search2
 
 A practical end-to-end workflow that fits your current stack is: **Traycer as Planner + Verifier**, **Factory Droid as primary Implementer/Runner** (terminal + CI-like execution), and **Windsurf as interactive IDE surface + codebase RAG + fast retrieval + parallel model exploration**. citeturn13view0turn13view1turn10view8turn10view11turn19view1turn10view2turn10view3
@@ -52,16 +52,16 @@ Long-running agent sessions can exceed any model’s context window, requiring s
 Rationale: RAG reduces hallucinations and improves relevance by retrieving repo-grounded context, but RAG alone does not preserve *decisions* (why you chose approach A) unless those decisions live in durable artifacts. The foundational RAG paper frames RAG as combining parametric memory with an external retriever/index. citeturn5search0turn5search4 The durable layer you control is **versioned project state**.
 
 Implementation steps (tool-agnostic, but mapped to your platforms):
-1) Put **AGENTS.md** at repo root and (for monorepos) in subdirectories; treat it as the canonical instructions surface for build/test/style/security. The AGENTS.md standard explicitly positions itself as “agent instructions” and notes nested files for monorepos. citeturn15view0turn2view3turn14view1  
-2) In Windsurf, encode cross-cutting constraints as Rules (prefer “Always On” or “Glob” activation for deterministic coverage) and directory-specific constraints into AGENTS.md files. Windsurf rules are discovered from `.windsurf/rules` and have explicit activation modes. citeturn18view0turn2view3  
-3) In Factory, create Custom Droids for strict roles (Planner, Implementer, Reviewer, Security) so you don’t “re-teach” behavior each session; custom droids carry system prompt + model + tooling policy. citeturn1search2turn10view9  
+1) Put **AGENTS.md** at repo root and (for monorepos) in subdirectories; treat it as the canonical instructions surface for build/test/style/security. The AGENTS.md standard explicitly positions itself as “agent instructions” and notes nested files for monorepos. citeturn15view0turn2view3turn14view1
+2) In Windsurf, encode cross-cutting constraints as Rules (prefer “Always On” or “Glob” activation for deterministic coverage) and directory-specific constraints into AGENTS.md files. Windsurf rules are discovered from `.windsurf/rules` and have explicit activation modes. citeturn18view0turn2view3
+3) In Factory, create Custom Droids for strict roles (Planner, Implementer, Reviewer, Security) so you don’t “re-teach” behavior each session; custom droids carry system prompt + model + tooling policy. citeturn1search2turn10view9
 4) Use session stitching explicitly: Factory `/compress` when context grows; Traycer Phase Mode for multi-step projects; Windsurf Workflows for repeatable sequences. citeturn10view11turn11view0turn2view4
 
 Estimated effort: 2–6 hours to draft a solid root AGENTS.md; 0.5–1 day to add nested AGENTS.md for major modules; 2–4 hours to create initial Windsurf Rules and a few reusable Workflows; 0.5–1 day to define core Factory Custom Droids/Skills.
 
 Failure modes and mitigations:
-- Failure: AGENTS.md becomes stale. Mitigation: require “update AGENTS.md if commands change” as part of Definition-of-Done and enforce via PR review checklist or hooks (see hooks below). citeturn15view0turn7search1  
-- Failure: too many rules cause prompt bloat. Mitigation: prefer directory-scoped AGENTS.md + glob-scoped rules; Windsurf explicitly warns that pinning too much can degrade performance. citeturn19view1turn2view3  
+- Failure: AGENTS.md becomes stale. Mitigation: require “update AGENTS.md if commands change” as part of Definition-of-Done and enforce via PR review checklist or hooks (see hooks below). citeturn15view0turn7search1
+- Failure: too many rules cause prompt bloat. Mitigation: prefer directory-scoped AGENTS.md + glob-scoped rules; Windsurf explicitly warns that pinning too much can degrade performance. citeturn19view1turn2view3
 - Failure: compression loses artifacts/decisions. Mitigation: store decisions as ADRs and ensure each task updates a “Decision/Changes/Next steps” file; Factory’s research highlights artifact tracking as still hard even with structured summaries. citeturn20search1
 
 ### Failure to detect installed/developed code leading to duplicates
@@ -78,18 +78,18 @@ Rationale: If tools cannot reliably “see” the repo, you will get duplicate m
 
 Implementation steps:
 1) Turn on repo understanding primitives:
-   - In Windsurf, validate indexing is running (and not silently capped by file count). If needed, adjust indexing limits and `.codeiumignore` to include what the agent must reason about. citeturn4search1turn19view1  
-   - Use Windsurf Fast Context on codebase-search queries; it’s designed to retrieve relevant code faster and to spend less time reading irrelevant code. citeturn10view2turn3search4  
+   - In Windsurf, validate indexing is running (and not silently capped by file count). If needed, adjust indexing limits and `.codeiumignore` to include what the agent must reason about. citeturn4search1turn19view1
+   - Use Windsurf Fast Context on codebase-search queries; it’s designed to retrieve relevant code faster and to spend less time reading irrelevant code. citeturn10view2turn3search4
 2) Add an **automated “duplicate detection” job**:
-   - Use a duplication detector such as **jscpd** (supports many formats) or **PMD CPD**. citeturn8search0turn8search1turn8search33  
+   - Use a duplication detector such as **jscpd** (supports many formats) or **PMD CPD**. citeturn8search0turn8search1turn8search33
 3) Add “semantic presence checks”:
-   - Use LSP-based symbol queries (find references/definitions) where possible; LSP defines standardized editor↔language-server messages supporting features like “go to definition” and “find references.” citeturn5search1turn5search9  
-   - Use semantic static analysis (Semgrep) to identify patterns and enforce “do not re-implement X” rules. Semgrep explicitly positions itself as fast static analysis that enforces standards and can run in IDE, pre-commit, or CI. citeturn5search3turn5search27  
+   - Use LSP-based symbol queries (find references/definitions) where possible; LSP defines standardized editor↔language-server messages supporting features like “go to definition” and “find references.” citeturn5search1turn5search9
+   - Use semantic static analysis (Semgrep) to identify patterns and enforce “do not re-implement X” rules. Semgrep explicitly positions itself as fast static analysis that enforces standards and can run in IDE, pre-commit, or CI. citeturn5search3turn5search27
 
 Required tools/integrations:
-- jscpd or PMD CPD in CI. citeturn8search0turn8search1  
-- pre-commit for local gate + shared hook config. citeturn5search2turn7search9  
-- Optional: Semgrep in CI (Semgrep provides CI docs and sample configs). citeturn5search31turn5search19  
+- jscpd or PMD CPD in CI. citeturn8search0turn8search1
+- pre-commit for local gate + shared hook config. citeturn5search2turn7search9
+- Optional: Semgrep in CI (Semgrep provides CI docs and sample configs). citeturn5search31turn5search19
 
 Estimated effort: 2–4 hours to wire jscpd/PMD CPD into CI + baseline config; 2–6 hours to add Semgrep with an initial ruleset; 1–2 hours to add pre-commit hooks.
 
@@ -107,25 +107,25 @@ Rationale: divergence is inevitable when models interpret ambiguous tasks. The f
 
 Implementation steps:
 1) Always require a **plan artifact** (file-level, with risk notes) before implementation:
-   - Traycer Plan Mode (task → plan with mermaid diagrams and file-level references) is purpose-built for this. citeturn11view0turn13view0  
-   - Factory Specification Mode offers a similar “plan before changes” guarantee. citeturn10view8turn20search9  
-   - Windsurf has a dedicated Plan mode inside Cascade. citeturn10view5  
+   - Traycer Plan Mode (task → plan with mermaid diagrams and file-level references) is purpose-built for this. citeturn11view0turn13view0
+   - Factory Specification Mode offers a similar “plan before changes” guarantee. citeturn10view8turn20search9
+   - Windsurf has a dedicated Plan mode inside Cascade. citeturn10view5
 2) Isolate variants:
-   - Use git worktrees. Git documents that a repo can support multiple working trees to check out more than one branch at a time. citeturn7search0  
-   - Prefer Windsurf’s built-in Worktrees/Arena Mode isolation where available. citeturn4search2turn10view3  
+   - Use git worktrees. Git documents that a repo can support multiple working trees to check out more than one branch at a time. citeturn7search0
+   - Prefer Windsurf’s built-in Worktrees/Arena Mode isolation where available. citeturn4search2turn10view3
 3) Rank variants with an explicit rubric:
    - Complexity score (files touched, new dependencies, API surface).
    - Risk score (security, migrations, backward compatibility).
    - Verification burden (tests required, mocking cost).
-   - Runtime cost (token/credit multiplier implications; see pricing below). citeturn2view8turn21search23  
+   - Runtime cost (token/credit multiplier implications; see pricing below). citeturn2view8turn21search23
 4) Canonicalize into one implementation plan and store it:
    - Commit an ADR-style short decision note and update AGENTS.md if conventions change (process recommendation grounded in AGENTS.md’s intent to encode conventions). citeturn15view0
 
 Estimated effort: 1–2 hours to build a scoring template; ongoing overhead ~2–5 minutes per task if enforced.
 
 Failure modes and mitigations:
-- Failure: “analysis paralysis” with too many variants. Mitigation: cap to 2–3 variants; Windsurf Arena Mode already makes multi-model comparisons explicit. citeturn10view3  
-- Failure: variants can’t be compared because they change different assumptions. Mitigation: standardize “must keep current public API unless specified” rule in AGENTS.md and rules. citeturn15view0turn18view0  
+- Failure: “analysis paralysis” with too many variants. Mitigation: cap to 2–3 variants; Windsurf Arena Mode already makes multi-model comparisons explicit. citeturn10view3
+- Failure: variants can’t be compared because they change different assumptions. Mitigation: standardize “must keep current public API unless specified” rule in AGENTS.md and rules. citeturn15view0turn18view0
 
 ### AI ignoring documented rules
 
@@ -139,21 +139,21 @@ Rationale: instruction-following is probabilistic; enforcement is deterministic.
 
 Implementation steps:
 1) Establish a baseline gate stack:
-   - `.editorconfig` for consistent whitespace/indentation across editors. citeturn8search3turn8search19  
-   - pre-commit running formatters + linters + secret scanning + fast unit tests. citeturn5search2turn7search9  
+   - `.editorconfig` for consistent whitespace/indentation across editors. citeturn8search3turn8search19
+   - pre-commit running formatters + linters + secret scanning + fast unit tests. citeturn5search2turn7search9
 2) Add code policy checks:
-   - Semgrep for bug patterns and secure coding guardrails (CI + pre-commit). citeturn5search3turn5search31  
-   - CodeQL (where feasible) for vulnerability and error detection; GitHub docs describe CodeQL code scanning and how it builds a CodeQL database and runs queries. citeturn8search2turn8search6  
+   - Semgrep for bug patterns and secure coding guardrails (CI + pre-commit). citeturn5search3turn5search31
+   - CodeQL (where feasible) for vulnerability and error detection; GitHub docs describe CodeQL code scanning and how it builds a CodeQL database and runs queries. citeturn8search2turn8search6
 3) Integrate enforcement into agent workflows:
-   - Windsurf Cascade Hooks can run linters/tests after file writes and can block dangerous commands; hooks can inspect prompts and responses too. citeturn18view1turn18view2turn10view4  
-   - Factory has Hooks reference + cookbooks (code validation, git workflow enforcement) and session automation. citeturn10view9turn3search21turn3search28turn10view10  
+   - Windsurf Cascade Hooks can run linters/tests after file writes and can block dangerous commands; hooks can inspect prompts and responses too. citeturn18view1turn18view2turn10view4
+   - Factory has Hooks reference + cookbooks (code validation, git workflow enforcement) and session automation. citeturn10view9turn3search21turn3search28turn10view10
 4) Treat “rules violated” as an automated feedback loop:
    - Require the agent to fix until green gates, then only humans review.
 
 Estimated effort: 0.5–1 day to implement baseline lints/formatters + pre-commit; 0.5–2 days to add CodeQL/Semgrep depending on languages and CI.
 
 Failure modes and mitigations:
-- Failure: hooks make commits slow → developers bypass with `--no-verify`. Git notes hooks can be bypassed with `--no-verify`; mitigate by duplicating gates in CI (non-bypassable). citeturn7search1turn5search2  
+- Failure: hooks make commits slow → developers bypass with `--no-verify`. Git notes hooks can be bypassed with `--no-verify`; mitigate by duplicating gates in CI (non-bypassable). citeturn7search1turn5search2
 - Failure: agents run expensive checks too often. Mitigation: keep local hooks fast (format/lint), push heavier tests to CI; this aligns with pre-commit’s positioning as a first-line gate and CI as deeper evaluation. citeturn5search2turn7search1
 
 ## Reducing errors and review burden with a verification-first pipeline
@@ -173,8 +173,8 @@ Factory `/review` provides an interactive review workflow for uncommitted change
 Rationale: Your complaint (“multiple review passes”) is exactly what happens when code is produced before test scaffolding. Test-first is still hard for agents; but “tests + gates” are machine-checkable, while “looks good” is not.
 
 Implementation steps:
-1) Make “tests updated/added” part of your repo’s Definition-of-Done in AGENTS.md. The AGENTS.md standard explicitly encourages including testing instructions and commands. citeturn15view0  
-2) Use Factory Specification Mode or Traycer Plan/Phase Mode to ensure the plan includes **test plan** and **validation steps** before coding begins. citeturn10view8turn11view0  
+1) Make “tests updated/added” part of your repo’s Definition-of-Done in AGENTS.md. The AGENTS.md standard explicitly encourages including testing instructions and commands. citeturn15view0
+2) Use Factory Specification Mode or Traycer Plan/Phase Mode to ensure the plan includes **test plan** and **validation steps** before coding begins. citeturn10view8turn11view0
 3) Require the implementer agent to:
    - run unit tests,
    - run lint/format,
@@ -184,13 +184,13 @@ Implementation steps:
 4) Use automated AI review as a *final* pass:
    - Factory `/review` on the diff, and/or
    - Traycer verification vs plan, and/or
-   - Windsurf PR Reviews for GitHub PRs. citeturn10view12turn13view1turn21search2  
+   - Windsurf PR Reviews for GitHub PRs. citeturn10view12turn13view1turn21search2
 
 Required tools:
 - CI runner (GitHub Actions/GitLab/etc — not sourced here; choose your existing).
-- pytest/Hypothesis for Python projects. citeturn6search32turn6search1  
-- Stryker family (language-dependent) if mutation testing is feasible. citeturn6search15turn6search11  
-- OSS-Fuzz for fuzzable components (mostly applicable to security-sensitive parsers/libs). citeturn6search2turn6search6  
+- pytest/Hypothesis for Python projects. citeturn6search32turn6search1
+- Stryker family (language-dependent) if mutation testing is feasible. citeturn6search15turn6search11
+- OSS-Fuzz for fuzzable components (mostly applicable to security-sensitive parsers/libs). citeturn6search2turn6search6
 
 Estimated effort: 1–3 days to get “green pipeline” for an existing codebase with minimal tests; longer if legacy code has no tests (not estimable without repo data).
 
@@ -203,18 +203,18 @@ Failure modes and mitigations:
 ### What you can reliably ground from official sources
 
 Windsurf:
-- Uses prompt credits for Cascade when using premium models; models have different credit multipliers; published plan tiers exist. citeturn21search23turn10view14turn10view0  
-- Fast Context claims up to 20× faster code retrieval using custom SWE-grep models and restricted tools (grep/read/glob) plus parallel tool calls. citeturn10view2turn3search4  
-- Arena Mode enables running multiple models in parallel in separate sessions/worktrees to compare approaches. citeturn10view3turn7search0  
+- Uses prompt credits for Cascade when using premium models; models have different credit multipliers; published plan tiers exist. citeturn21search23turn10view14turn10view0
+- Fast Context claims up to 20× faster code retrieval using custom SWE-grep models and restricted tools (grep/read/glob) plus parallel tool calls. citeturn10view2turn3search4
+- Arena Mode enables running multiple models in parallel in separate sessions/worktrees to compare approaches. citeturn10view3turn7search0
 
 Factory:
-- Pricing is token-based with “Standard Tokens” and published model multipliers; docs warn that switching/rotating expensive models can reduce cache benefits. citeturn2view8turn10view15  
-- Supports mixed models and recommends higher reasoning effort for spec planning to prevent downstream implementation issues. citeturn4search39turn10view8  
-- Explicitly invests in context compression strategies for long-running sessions and frames the key metric as “tokens per task.” citeturn20search1  
+- Pricing is token-based with “Standard Tokens” and published model multipliers; docs warn that switching/rotating expensive models can reduce cache benefits. citeturn2view8turn10view15
+- Supports mixed models and recommends higher reasoning effort for spec planning to prevent downstream implementation issues. citeturn4search39turn10view8
+- Explicitly invests in context compression strategies for long-running sessions and frames the key metric as “tokens per task.” citeturn20search1
 
 Traycer:
-- Pricing is seat-based with “slot capacity” and “recharge rate.” citeturn2view11  
-- Emphasizes that agents drift and positions verification as a way to catch gaps before they spread. citeturn11view0turn13view1  
+- Pricing is seat-based with “slot capacity” and “recharge rate.” citeturn2view11
+- Emphasizes that agents drift and positions verification as a way to catch gaps before they spread. citeturn11view0turn13view1
 
 ### Practical selection heuristic that matches these realities
 
@@ -223,13 +223,13 @@ Traycer:
 Rationale: Most code tasks have phases: explore → plan → implement → validate. The cheapest “good enough” model differs by phase.
 
 Implementation steps:
-- Retrieval/exploration: prefer specialized retrieval (Windsurf Fast Context) or lightweight models with strong tool use; the goal is file discovery, not perfect prose. citeturn10view2  
-- Planning/spec: use higher reasoning effort (Factory explicitly recommends Medium/High reasoning effort for spec planning). citeturn4search39turn10view8  
-- Implementation: use the model that best balances cost multiplier vs correctness for your repo; in Factory this is literally encoded in multipliers; in Windsurf it’s encoded in credit multipliers. citeturn2view8turn21search23  
-- Validation: spend tokens on tools, not prose—run tests, static analysis, `/review`, Traycer verification. citeturn10view12turn13view1turn5search3turn8search2  
+- Retrieval/exploration: prefer specialized retrieval (Windsurf Fast Context) or lightweight models with strong tool use; the goal is file discovery, not perfect prose. citeturn10view2
+- Planning/spec: use higher reasoning effort (Factory explicitly recommends Medium/High reasoning effort for spec planning). citeturn4search39turn10view8
+- Implementation: use the model that best balances cost multiplier vs correctness for your repo; in Factory this is literally encoded in multipliers; in Windsurf it’s encoded in credit multipliers. citeturn2view8turn21search23
+- Validation: spend tokens on tools, not prose—run tests, static analysis, `/review`, Traycer verification. citeturn10view12turn13view1turn5search3turn8search2
 
 Failure modes:
-- Over-rotating models can invalidate caches and harm cost efficiency (Factory warns about cache invalidation when switching models frequently). citeturn2view8  
+- Over-rotating models can invalidate caches and harm cost efficiency (Factory warns about cache invalidation when switching models frequently). citeturn2view8
 - High-speed models may amplify subtle mistakes; mitigation is stricter gating (tests + static analysis).
 
 ## Recommended end-to-end workflow integrating Windsurf, Factory Droid, and Traycer
@@ -254,12 +254,12 @@ flowchart TD
 ```
 
 Grounding for elements in this diagram:
-- Traycer planning + orchestration + verification are explicit features. citeturn11view0turn13view1turn13view0  
-- Factory Spec Mode is explicitly “plan before changes,” and `/review` is an AI review workflow. citeturn10view8turn10view12  
-- Windsurf Plan Mode exists; Worktrees/Arena Mode provide isolation. citeturn10view5turn4search2turn10view3  
-- Git worktrees are a core Git feature. citeturn7search0  
-- Dup detection + static analysis + pre-commit/CI are supported by standard tools cited earlier. citeturn8search0turn5search3turn5search2turn8search2  
-- Windsurf PR Reviews is an official beta feature for GitHub PR review comments. citeturn21search2  
+- Traycer planning + orchestration + verification are explicit features. citeturn11view0turn13view1turn13view0
+- Factory Spec Mode is explicitly “plan before changes,” and `/review` is an AI review workflow. citeturn10view8turn10view12
+- Windsurf Plan Mode exists; Worktrees/Arena Mode provide isolation. citeturn10view5turn4search2turn10view3
+- Git worktrees are a core Git feature. citeturn7search0
+- Dup detection + static analysis + pre-commit/CI are supported by standard tools cited earlier. citeturn8search0turn5search3turn5search2turn8search2
+- Windsurf PR Reviews is an official beta feature for GitHub PR review comments. citeturn21search2
 
 ### State flow diagram for context and persistence
 
@@ -274,7 +274,7 @@ flowchart LR
   S --> I
 
   subgraph LongTerm[Long-term state stores]
-    W1[Windsurf Memories + Rules] 
+    W1[Windsurf Memories + Rules]
     F1[Factory session tools\n/compress /fork + hooks context]
     T1[Traycer local task history\nplans + rationale + file mappings]
   end
@@ -284,9 +284,9 @@ flowchart LR
 ```
 
 Grounding:
-- Windsurf Memories & Rules persist context; rules are stored in `.windsurf/rules` and have activation modes. citeturn18view0  
-- Factory provides `/compress` and `/fork`; hooks can inject context at SessionStart. citeturn10view11turn20search2turn20search5  
-- Traycer preserves task history locally and describes what is preserved (plan evolution, rationale, file mappings). citeturn14view0  
+- Windsurf Memories & Rules persist context; rules are stored in `.windsurf/rules` and have activation modes. citeturn18view0
+- Factory provides `/compress` and `/fork`; hooks can inject context at SessionStart. citeturn10view11turn20search2turn20search5
+- Traycer preserves task history locally and describes what is preserved (plan evolution, rationale, file mappings). citeturn14view0
 
 ### Automation recipes for environment inspection, duplicate detection, and incremental patching
 
@@ -302,11 +302,11 @@ Implementation steps:
   - detected package managers (presence of `package-lock.json`, `poetry.lock`, etc.),
   - versions (`node -v`, `python -V`, etc.),
   - installed deps snapshot (e.g., `pip freeze`, `npm ls --depth=0`) (commands are examples; tune per stack).
-- Factory: run it in a SessionStart hook and add its stdout as additional context (Factory hooks doc explains SessionStart and that stdout is added to context for SessionStart). citeturn20search5turn10view10  
-- Windsurf: run it via `post_setup_worktree` hook so each worktree has an identical environment snapshot (Windsurf hook event exists and is designed for copying env files/install deps). citeturn18view2turn10view4  
+- Factory: run it in a SessionStart hook and add its stdout as additional context (Factory hooks doc explains SessionStart and that stdout is added to context for SessionStart). citeturn20search5turn10view10
+- Windsurf: run it via `post_setup_worktree` hook so each worktree has an identical environment snapshot (Windsurf hook event exists and is designed for copying env files/install deps). citeturn18view2turn10view4
 
 Failure modes:
-- Snapshot leaks secrets. Mitigation: scrub env vars; Factory’s docs also include “Droid Shield” terminology in onboarding materials (not fully analyzed here), but regardless, implement redaction in scripts and restrict hook logs. citeturn4search28turn18view2  
+- Snapshot leaks secrets. Mitigation: scrub env vars; Factory’s docs also include “Droid Shield” terminology in onboarding materials (not fully analyzed here), but regardless, implement redaction in scripts and restrict hook logs. citeturn4search28turn18view2
 
 #### Duplicate detection automation
 
@@ -316,7 +316,7 @@ Implementation steps:
 - Add `jscpd` (or CPD) as:
   - a pre-commit hook (fast enough if scoped to changed files), and
   - a CI job on PRs.
-- Configure ignores consistent with repo structure (jscpd supports ignore patterns; PMD CPD docs cover usage). citeturn8search0turn8search1  
+- Configure ignores consistent with repo structure (jscpd supports ignore patterns; PMD CPD docs cover usage). citeturn8search0turn8search1
 
 Failure modes:
 - High noise due to generated code. Mitigation: ignore generated directories and require generation markers in AGENTS.md.
@@ -328,10 +328,10 @@ Rationale: Git’s `git apply` expects unified diffs with context lines (safety 
 Implementation steps:
 - Standardize “agent output format = unified diff” when not editing directly in IDE.
 - Apply patches with `git apply -C2` (or higher) in CI-like scripts to ensure patch context matches expected code.
-- If patch fails, force the agent to rebase on current repo state (process recommendation grounded in Git’s patch application behavior). citeturn7search2  
+- If patch fails, force the agent to rebase on current repo state (process recommendation grounded in Git’s patch application behavior). citeturn7search2
 
 Failure modes:
-- Agents create diffs that don’t apply due to intermediate edits. Mitigation: isolate work in worktrees; avoid concurrent edits on same files. citeturn7search0turn4search2  
+- Agents create diffs that don’t apply due to intermediate edits. Mitigation: isolate work in worktrees; avoid concurrent edits on same files. citeturn7search0turn4search2
 
 ### KPIs to measure speed, cost, and quality
 
@@ -341,8 +341,8 @@ Factory provides a dedicated “Usage, Cost & Productivity Analytics” doc that
 
 Recommended KPI set (define per repo/team; these are measurement designs):
 - **Cycle time**: task start → first green CI → merge.
-- **Iteration count**: number of agent cycles before “all gates green”; Traycer verification cycles (re-verify count) can proxy this. citeturn13view1  
-- **Cost per merged PR**: Factory standard tokens via `/cost` + Windsurf prompt credits + Traycer artifact consumption. citeturn10view11turn21search23turn2view11  
+- **Iteration count**: number of agent cycles before “all gates green”; Traycer verification cycles (re-verify count) can proxy this. citeturn13view1
+- **Cost per merged PR**: Factory standard tokens via `/cost` + Windsurf prompt credits + Traycer artifact consumption. citeturn10view11turn21search23turn2view11
 - **Quality gates**:
   - test pass rate and coverage trend,
   - static analysis findings (Semgrep/CodeQL),
@@ -350,7 +350,7 @@ Recommended KPI set (define per repo/team; these are measurement designs):
   - post-merge defect rate (bug tickets linked to PRs).
 - **Prompt-rule compliance**:
   - fraction of commits passing lint/format without manual edits,
-  - number of hook blocks triggered (Windsurf Hooks can log rule triggers in post response; Factory hooks can log tool use). citeturn18view2turn3search18turn20search5  
+  - number of hook blocks triggered (Windsurf Hooks can log rule triggers in post response; Factory hooks can log tool use). citeturn18view2turn3search18turn20search5
 
 ## Security, IP, and compliance considerations for multi-agent coding
 
@@ -358,10 +358,10 @@ Recommended KPI set (define per repo/team; these are measurement designs):
 
 The biggest risk is not “the model,” but **where your code and context flow**:
 
-- Windsurf can pull in Google Docs as team-wide shared context via Knowledge Base; docs explicitly warn that those docs do not obey individual Google Drive access controls once an admin makes them available to the team. citeturn19view1  
-- MCP connects agents to external tools. The MCP spec frames MCP as an open protocol connecting LLM applications to external tools and data sources; therefore it expands the blast radius if misconfigured. citeturn17search4turn17search13  
-- Factory enterprise docs emphasize governance of models/tools and note MCP servers can be powerful and side-effecting, and that orgs can restrict allowlists. citeturn17search6  
-- Traycer supports MCP but (per docs) only via remote MCP servers, not local MCP servers; this changes your trust model because remote endpoints become a required dependency for MCP use in Traycer. citeturn16view0  
+- Windsurf can pull in Google Docs as team-wide shared context via Knowledge Base; docs explicitly warn that those docs do not obey individual Google Drive access controls once an admin makes them available to the team. citeturn19view1
+- MCP connects agents to external tools. The MCP spec frames MCP as an open protocol connecting LLM applications to external tools and data sources; therefore it expands the blast radius if misconfigured. citeturn17search4turn17search13
+- Factory enterprise docs emphasize governance of models/tools and note MCP servers can be powerful and side-effecting, and that orgs can restrict allowlists. citeturn17search6
+- Traycer supports MCP but (per docs) only via remote MCP servers, not local MCP servers; this changes your trust model because remote endpoints become a required dependency for MCP use in Traycer. citeturn16view0
 
 ### Deployment and residency controls
 
@@ -373,16 +373,15 @@ Rationale: multi-agent pipelines create “shadow data flows” (logs, hook outp
 
 Implementation steps:
 1) Classify repos and restrict features accordingly:
-   - Disable remote indexing / external knowledge bases for sensitive repos unless vetted (Windsurf supports remote indexing for enterprise scenarios; treat as controlled). citeturn3search12turn19view1  
-   - Restrict MCP servers to allowlisted endpoints (Factory explicitly supports org allowlist/blocklist of MCP servers). citeturn17search6  
+   - Disable remote indexing / external knowledge bases for sensitive repos unless vetted (Windsurf supports remote indexing for enterprise scenarios; treat as controlled). citeturn3search12turn19view1
+   - Restrict MCP servers to allowlisted endpoints (Factory explicitly supports org allowlist/blocklist of MCP servers). citeturn17search6
 2) Adopt policy-as-code for configuration artifacts:
-   - OPA is designed for CI/CD policy-as-code guardrails; Conftest uses OPA’s Rego language for assertions against structured config. citeturn7search23turn7search7turn7search3  
+   - OPA is designed for CI/CD policy-as-code guardrails; Conftest uses OPA’s Rego language for assertions against structured config. citeturn7search23turn7search7turn7search3
 3) Secure your hook logs and transcripts:
-   - Factory hooks reference includes transcript paths and describes how hooks run and what outputs get added to context; treat these as sensitive artifacts and store them securely. citeturn20search5  
+   - Factory hooks reference includes transcript paths and describes how hooks run and what outputs get added to context; treat these as sensitive artifacts and store them securely. citeturn20search5
 4) Add automated security scanning:
-   - CodeQL code scanning identifies vulnerabilities and errors; GitHub docs describe the database-and-query model and alerting. citeturn8search2turn8search34  
-   - Semgrep can detect bugs and enforce secure guardrails and can run in CI. citeturn5search3turn5search31  
+   - CodeQL code scanning identifies vulnerabilities and errors; GitHub docs describe the database-and-query model and alerting. citeturn8search2turn8search34
+   - Semgrep can detect bugs and enforce secure guardrails and can run in CI. citeturn5search3turn5search31
 
 Failure modes and mitigations:
 - Failure: prompts or hook logs leak secrets. Mitigation: integrate secret scanning in pre-commit and CI; restrict hook outputs; scrub env snapshots. (Tool-specific secret scanners not researched here.)
-

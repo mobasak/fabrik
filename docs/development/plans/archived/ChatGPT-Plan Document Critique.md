@@ -1,10 +1,10 @@
 # Plan Document Critique
 
-**User:** Anonymous (ob@ocoron.com)  
-**Created:** 2/16/2026 19:42:03  
-**Updated:** 2/17/2026 12:22:39  
-**Exported:** 2/17/2026 13:36:17  
-**Link:** [https://chatgpt.com/c/699348b9-38fc-8333-a781-1d4e3bcc6275](https://chatgpt.com/c/699348b9-38fc-8333-a781-1d4e3bcc6275)  
+**User:** Anonymous (ob@ocoron.com)
+**Created:** 2/16/2026 19:42:03
+**Updated:** 2/17/2026 12:22:39
+**Exported:** 2/17/2026 13:36:17
+**Link:** [https://chatgpt.com/c/699348b9-38fc-8333-a781-1d4e3bcc6275](https://chatgpt.com/c/699348b9-38fc-8333-a781-1d4e3bcc6275)
 
 ## Prompt:
 2026-02-16-plan-gap01-duplicate-detection.md
@@ -72,21 +72,21 @@ Across the plans, the steps say “create X” and “integrate Y,” but they r
     2026-02-16-plan-gap04-kpi-dashb…
 *   Pipeline runner plan lists functions to call but not the exact input/output structures (StageResult schema, how outputs are persisted, how retries are recorded).
     2026-02-16-plan-gap09-pipeline-…
-    2.  **Repository truth / integration points**  
+    2.  **Repository truth / integration points**
     Many steps assume files and patterns exist (“see check\_secrets.py”, “existing patterns in .pre-commit-config.yaml”, “ci.yml exists”) but don’t anchor with exact paths, snippets, or acceptance diffs.
     *   Duplicate detection plan references existing infra but doesn’t include the actual intended pre-commit hook stanza or workflow step as canonical expected text.
     2026-02-16-plan-gap01-duplicate…
-    3.  **Failure modes & rollback**  
+    3.  **Failure modes & rollback**
     Stop conditions exist, but mitigation/playbooks are often vague:
     *   GAP-01: “stop if npm not available” but no fallback path (e.g., vendored binary, dockerized runner, or CI-only mode).
     2026-02-16-plan-gap01-duplicate…
 *   GAP-03 MCP: security constraints are stated, but no explicit threat model (what MCP can read/write, how secrets are prevented from leaking into logs, minimum env var checks, least-privilege scopes).
     2026-02-16-plan-gap03-mcp-serve…
-    4.  **Test strategy tied to invariants**  
+    4.  **Test strategy tied to invariants**
     Property testing plan is closer to concrete, but still leaves target selection open (“any pure utilities”), which guarantees drift.
     2026-02-16-plan-gap08-property-…
     A real spec would name exact functions/modules and the invariant per function.
-5.  **Non-functional requirements**  
+5.  **Non-functional requirements**
     Latency/timeouts, CI runtime budgets, developer ergonomics, log formats, and determinism are mostly absent.
     *   Pipeline orchestrator claims token/cycle metrics in outputs but does not specify how tokens are computed/collected (it references droid\_core token logging indirectly but lacks contract).
     2026-02-16-plan-gap09-pipeline-…
@@ -101,7 +101,7 @@ Main risk: it’s a _system_ but described as a _script_. Missing:
 *   exact CLI surface (commands, flags, exit codes),
 *   persisted state (where pipeline state lives; resumability),
 *   deterministic stage transitions (what constitutes success/failure),
-*   concrete risk router heuristics and test cases.  
+*   concrete risk router heuristics and test cases.
     It lists what functions exist and what to call, but not the orchestration contract.
     2026-02-16-plan-gap09-pipeline-…
 
@@ -197,7 +197,7 @@ For each GAP you intend to modify (GAP-01/02/03/04/06/07/08/09), output the foll
     *   JSON schema (required fields, types, version, idempotency key, timestamp format)
     *   Example events (2–3)
 *   If the GAP introduces a CLI (e.g., pipeline\_runner), define:
-    *   Commands, flags, exit codes, stdout/stderr format  
+    *   Commands, flags, exit codes, stdout/stderr format
         This is the biggest depth gap today, especially in KPI + orchestrator.
         2026-02-16-plan-gap04-kpi-dashb…
         2026-02-16-plan-gap03-mcp-serve…
@@ -209,14 +209,14 @@ For each GAP you intend to modify (GAP-01/02/03/04/06/07/08/09), output the foll
 **D. Failure modes + rollback**
 
 *   At least 5 named failure modes per GAP + handling
-*   Rollback procedure (git revert / disable flag / CI bypass strategy)  
+*   Rollback procedure (git revert / disable flag / CI bypass strategy)
     Examples: “npm missing” in GAP-01 stop condition must have a fallback path.
     2026-02-16-plan-gap01-duplicate…
 
 **E. Verification plan**
 
 *   Exact gates to run, in order (local + CI)
-*   What the verifier must check and how (JSON output shape)  
+*   What the verifier must check and how (JSON output shape)
     Your GAP templates already demand post-step evidence + Mode 4 verification; keep that structure.
     2026-02-16-plan-gap01-duplicate…
 
@@ -336,7 +336,7 @@ Create a table:
 
 At the end, give a strict rule-set answering:
 
-*   “Do we need to create new files or convert existing ones?”  
+*   “Do we need to create new files or convert existing ones?”
     Your answer must be grounded in the repo mapping + the GAP “DONE WHEN” requirements (not guesswork).
 
 Stop conditions
@@ -423,7 +423,7 @@ Scan the repo and output an “As-Is Map”:
     *   `.droid_token_usage.jsonl` (GAP-04 data source)
     *   `templates/traycer/` (GAP-07)
     *   `config/models.yaml` (models referenced in multiple GAPs)
-    *   `tests/` and `pyproject.toml` (GAP-08)  
+    *   `tests/` and `pyproject.toml` (GAP-08)
         If anything is missing, list it as a blocker and propose **at most 2** minimal fixes (STOP CONDITIONS pattern).
         2026-02-16-plan-gap04-kpi-dashb…
 
@@ -436,7 +436,7 @@ Output ONLY the following sections:
 
 ### 1) CREATE vs MODIFY decision (global)
 
-Answer: “Do we need to create new files or convert existing ones?”  
+Answer: “Do we need to create new files or convert existing ones?”
 Rule-set must be strict:
 
 *   CREATE only if required by a GAP DONE WHEN (e.g., pipeline\_runner must exist; workflows dir must exist; KPI tracker CLI must exist; new droids must exist; some docs/test files are explicitly required).
@@ -620,7 +620,7 @@ at the beginning i told you "these are plan documents opus, chatgpt and gemini a
 ## Response:
 You are lost because you are asking the AI to “plan better” without changing the **planning interface**.
 
-Your current GAP docs are **execution checklists**.  
+Your current GAP docs are **execution checklists**.
 What you need is a **Spec-Level Plan Generator**.
 
 Below is the exact instruction you should give Opus 4.5 so it produces deep, non-shallow plans.
@@ -693,7 +693,7 @@ If the GAP introduces:
 *   Hook integration → define invocation order + failure semantics
 *   Pipeline orchestration → define state transitions and retry rules
 
-No vague language allowed.  
+No vague language allowed.
 Everything must be machine-testable.
 
 ### D. Golden Path (End-to-End)
@@ -917,7 +917,7 @@ That is the correct way to debug a planning meta-prompt.
 now give me the final prompt to send
 
 ## Response:
-Below is the **final, tightened prompt**.  
+Below is the **final, tightened prompt**.
 Use it **only for GAP-09 (Pipeline Orchestrator)** as a controlled test.
 
 Copy-paste exactly.
@@ -929,7 +929,7 @@ FINAL PROMPT — GAP-09 Spec-Level Plan
 
 You are generating a **Spec-Level Implementation Plan**.
 
-Scope: **GAP-09 Pipeline Orchestrator only.**  
+Scope: **GAP-09 Pipeline Orchestrator only.**
 Do not analyze or mention any other GAP.
 
 You are not implementing code.
@@ -1133,7 +1133,7 @@ End of Prompt
 
 * * *
 
-When Opus responds, paste the result here.  
+When Opus responds, paste the result here.
 I will evaluate:
 
 *   Determinism
@@ -1145,7 +1145,7 @@ I will evaluate:
 
 ## Prompt:
 do you think using traycer.ai will help me a lot ?
-ai coders does not forget context, skip or overlook written rules, creates different ui module even in the same page/module, creates duplicate codes and database fields, make mistakes and require continuous reviews by other ais or human, i think traycer.ai might help me a lot. 
+ai coders does not forget context, skip or overlook written rules, creates different ui module even in the same page/module, creates duplicate codes and database fields, make mistakes and require continuous reviews by other ais or human, i think traycer.ai might help me a lot.
 
 opus replied see below
 
@@ -1153,8 +1153,8 @@ opus replied see below
 
 # GAP-09 Pipeline Orchestrator — Spec-Level Implementation Plan
 
-**Version:** 1.0.0  
-**Date:** 2026-02-16  
+**Version:** 1.0.0
+**Date:** 2026-02-16
 **Status:** SPEC (not implementation)
 
 ---
@@ -1705,20 +1705,20 @@ What Traycer claims to do that matches your pain points
 
 ### 1) “AI coder forgets context / overlooks written rules”
 
-Traycer’s core pitch is **spec-driven development**: you turn intent into structured “Artifacts” (specs), then hand off to coding agents, reducing drift. [Traycer+1](https://docs.traycer.ai/?utm_source=chatgpt.com)  
+Traycer’s core pitch is **spec-driven development**: you turn intent into structured “Artifacts” (specs), then hand off to coding agents, reducing drift. [Traycer+1](https://docs.traycer.ai/?utm_source=chatgpt.com)
 It also advertises **Phases Mode** to maintain context across multi-step work. [Traycer+1](https://docs.traycer.ai/?utm_source=chatgpt.com)
 
 **Implication (grounded):** If your rules are embedded in the Artifact/spec and reused across phases, you get a stronger “anchor” than a freeform chat prompt. That should reduce rule-skipping _when the coding agent follows the handed-off plan_.
 
 ### 2) “Creates different UI modules even in the same page/module”
 
-Traycer says it generates **file-level plans with symbol references** and codebase analysis. [Traycer+1](https://docs.traycer.ai/tasks/plan?utm_source=chatgpt.com)  
+Traycer says it generates **file-level plans with symbol references** and codebase analysis. [Traycer+1](https://docs.traycer.ai/tasks/plan?utm_source=chatgpt.com)
 **Implication:** When the plan explicitly references existing components/symbols, it can steer the agent toward reusing existing UI modules instead of inventing new ones—_if you enforce “modify existing component X” in the plan_.
 
 ### 3) “Creates duplicate code / duplicate DB fields”
 
-Traycer claims it **scans your codebase to verify AI-generated changes and apply course corrections** before they reach production. [Traycer+1](https://traycer.ai/?utm_source=chatgpt.com)  
-It also has a “Verification” step that compares implementation vs plan and produces review comments categorized by severity. [Traycer+1](https://docs.traycer.ai/tasks/plan?utm_source=chatgpt.com)  
+Traycer claims it **scans your codebase to verify AI-generated changes and apply course corrections** before they reach production. [Traycer+1](https://traycer.ai/?utm_source=chatgpt.com)
+It also has a “Verification” step that compares implementation vs plan and produces review comments categorized by severity. [Traycer+1](https://docs.traycer.ai/tasks/plan?utm_source=chatgpt.com)
 **Implication:** This can catch some duplication if the plan says “extend existing model/table/field” and verification checks deviations. (It’s not a guarantee against duplicates unless the verification heuristics explicitly detect them; Traycer doesn’t publicly specify exact duplicate-detection rules.)
 
 ### 4) “Requires continuous reviews by other AIs/humans”
@@ -1734,13 +1734,13 @@ What Traycer will not automatically fix (based on public info)
 Security / privacy considerations you should validate
 -----------------------------------------------------
 
-Traycer docs state organizations have “privacy mode” and claim code is “streamed, never uploaded.” [Traycer+1](https://docs.traycer.ai/account/organizations?utm_source=chatgpt.com)  
+Traycer docs state organizations have “privacy mode” and claim code is “streamed, never uploaded.” [Traycer+1](https://docs.traycer.ai/account/organizations?utm_source=chatgpt.com)
 Treat this as a vendor claim until you confirm it fits your risk requirements (especially for proprietary repos).
 
 Cost / friction reality check
 -----------------------------
 
-Traycer uses “artifact slots” with tiered limits and recharge rates (Free/Lite/Pro/Pro+). [Traycer+1](https://docs.traycer.ai/account/pricing?utm_source=chatgpt.com)  
+Traycer uses “artifact slots” with tiered limits and recharge rates (Free/Lite/Pro/Pro+). [Traycer+1](https://docs.traycer.ai/account/pricing?utm_source=chatgpt.com)
 This matters if you plan to run many small tasks per day.
 
 Recommendation: run a controlled A/B test in 60–90 minutes
@@ -1778,8 +1778,8 @@ reevaluate opus answer do you think your prompt worked fine
 
 # GAP-09 Pipeline Orchestrator — Spec-Level Implementation Plan
 
-**Version:** 1.0.0  
-**Date:** 2026-02-16  
+**Version:** 1.0.0
+**Date:** 2026-02-16
 **Status:** SPEC (not implementation)
 
 ---
@@ -2450,7 +2450,7 @@ For each touched interface:
 
 *   API routes (method/path/request/response)
 *   DB fields (name/type/nullability/index/migration rule)
-*   UI components (existing component to reuse, props, state ownership)  
+*   UI components (existing component to reuse, props, state ownership)
     This turns “don’t create a different UI module” into a spec requirement, not a hope. (Same logic as “make state explicit and machine-readable.”)
     Optimizing Workflows Across AI …
 
@@ -2475,7 +2475,7 @@ Planner must define:
 
 *   commands to run
 *   expected outputs
-*   pass/fail criteria  
+*   pass/fail criteria
     This aligns with your existing GAP style: gates + evidence required.
     2026-02-16-plan-gap01-duplicate…
 
@@ -2535,7 +2535,7 @@ STAGE-2 PLANNER SPEC CONTRACT (COPY/PASTE)
 
 You are Stage-2 (Planning).
 
-You are NOT implementing code.  
+You are NOT implementing code.
 You must produce a **deterministic, repo-grounded implementation spec** for the given task.
 
 If any section is missing, incomplete, or vague, the plan is invalid.
@@ -2650,8 +2650,8 @@ List exact commands:
 *   duplicate detection
 *   any task-specific checks
 
-For each:  
-PASS condition  
+For each:
+PASS condition
 FAIL condition
 
 * * *
@@ -2661,9 +2661,9 @@ FAIL condition
 
 For each:
 
-Command:  
-Expected changed files:  
-Expected output:  
+Command:
+Expected changed files:
+Expected output:
 Exit code:
 
 * * *
@@ -2734,9 +2734,9 @@ If you want, I can now optimize this further for **token efficiency for Flash vs
 
 # GAP-09 Pipeline Orchestrator — Spec-Level Implementation Plan (REVISED)
 
-**Version:** 1.1.0  
-**Date:** 2026-02-16  
-**Status:** SPEC (not implementation)  
+**Version:** 1.1.0
+**Date:** 2026-02-16
+**Status:** SPEC (not implementation)
 **Compliance:** GAP-09 v1.0
 
 ---
@@ -3083,25 +3083,25 @@ Your revised v1.1 plan is **much closer to GAP-09** than the earlier Opus versio
 Where v1.1 is clearly improved (and why this indicates the prompt worked)
 -------------------------------------------------------------------------
 
-1.  **Canonical gate is now exact**  
+1.  **Canonical gate is now exact**
     GAP-09 defines the canonical gate exactly as: `--help` + `--dry-run "Test task"` + `echo "PASS"`.
     2026-02-16-plan-gap09-pipeline-…
     Your v1.1 repeats it verbatim.
-2.  **CI/CD integration removed (correctly out of scope)**  
+2.  **CI/CD integration removed (correctly out of scope)**
     GAP-09 explicitly lists CI/CD integration as out of scope.
     2026-02-16-plan-gap09-pipeline-…
     Your v1.1 keeps it out.
-3.  **Session separation is now explicit and matches the documented “verifier independence” rule**  
+3.  **Session separation is now explicit and matches the documented “verifier independence” rule**
     GAP plans repeatedly require a **separate verifier session**.
     2026-02-16-plan-gap09-pipeline-…
     GAP-09 also shows a multi-session dataflow (stage continuity then separate verify).
     2026-02-16-plan-gap09-pipeline-…
     Your v1.1 now encodes this in a session allocation table and the transition table.
-4.  **Pre-flight is now explicitly fail-closed and positioned relative to verification**  
+4.  **Pre-flight is now explicitly fail-closed and positioned relative to verification**
     GAP-09’s pre-flight gate function is described as fail-closed and “must pass before AI verification proceeds.”
     2026-02-16-plan-gap09-pipeline-…
     Your v1.1 makes “PRE\_VERIFY → VERIFICATION” explicit.
-5.  **Step reporting is now treated as a compliance artifact**  
+5.  **Step reporting is now treated as a compliance artifact**
     GAP plans consistently require evidence + gate output + Mode-4 verification after each step.
     2026-02-16-plan-gap09-pipeline-…
     Your v1.1 adds a structured reporting format, which is consistent with that pattern.
@@ -3175,7 +3175,7 @@ You need one thing:
 A Stable Control Loop
 =====================
 
-Right now your real problem is not model choice.  
+Right now your real problem is not model choice.
 It is **drift between plan → execution → verification.**
 
 So simplify.
@@ -3188,8 +3188,8 @@ What To Do Now (Do This Exactly)
 Step 1 — Freeze Everything
 --------------------------
 
-Ignore all other GAPs.  
-Ignore traycer.  
+Ignore all other GAPs.
+Ignore traycer.
 Ignore spec perfection.
 
 Only focus on:
@@ -3227,7 +3227,7 @@ SIMPLE EXECUTION PROMPT (Use This Now)
 
 You are Stage-3 (Execution).
 
-You must implement `scripts/pipeline_runner.py`  
+You must implement `scripts/pipeline_runner.py`
 strictly according to GAP-09 Spec v1.1.
 
 Rules:
@@ -3291,9 +3291,9 @@ Correct Path Forward
 4.  Fix one concrete failure.
 5.  Repeat.
 
-Not theory.  
-Not architecture.  
-Not traycer.  
+Not theory.
+Not architecture.
+Not traycer.
 Execution.
 
 * * *
@@ -3333,13 +3333,13 @@ You need one working loop.
 That’s the move.
 
 ## Prompt:
-now our prompt became this 
+now our prompt became this
 # GAP-09 Pipeline Orchestrator — Spec-Level Implementation Plan
 
-**Version:** 1.2.0  
-**Date:** 2026-02-16  
-**Status:** SPEC (not implementation)  
-**Compliance:** GAP-09 v1.0  
+**Version:** 1.2.0
+**Date:** 2026-02-16
+**Status:** SPEC (not implementation)
+**Compliance:** GAP-09 v1.0
 **Source:** @/opt/fabrik/docs/development/plans/2026-02-16-plan-gap09-pipeline-orchestrator.md
 
 ---

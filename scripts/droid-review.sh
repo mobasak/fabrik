@@ -129,14 +129,14 @@ for MODEL in "${REVIEW_MODELS[@]}"; do
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "📋 Review with: $MODEL"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
+
     # Run with JSON output for token tracking
     OUTPUT=$(droid exec -m "$MODEL" -o json --auto medium --file "$PROMPT_FILE" 2>&1) || true
-    
+
     # Extract and display the result
     RESULT=$(echo "$OUTPUT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('result', 'No result'))" 2>/dev/null || echo "$OUTPUT")
     echo "$RESULT"
-    
+
     # Log token usage
     echo "$OUTPUT" | python3 -c "
 import sys, json

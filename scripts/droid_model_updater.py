@@ -102,9 +102,13 @@ def fetch_models_from_droid_cli() -> list[str]:
                     after_colon = line.split(":", 1)[1].strip()
                     for part in after_colon.split(","):
                         model = part.strip()
-                        if model and (model.startswith("gpt-") or model.startswith("claude-") or
-                                     model.startswith("gemini-") or model.startswith("glm-") or
-                                     model.startswith("kimi-")):
+                        if model and (
+                            model.startswith("gpt-")
+                            or model.startswith("claude-")
+                            or model.startswith("gemini-")
+                            or model.startswith("glm-")
+                            or model.startswith("kimi-")
+                        ):
                             models.append(model)
 
         return list(set(models))  # Deduplicate
@@ -189,11 +193,13 @@ def check_deprecations(available_models: list[str] | None = None) -> list[dict]:
     deprecations = []
     for model in models_in_use:
         if model.lower() not in available_lower:
-            deprecations.append({
-                "model": model,
-                "message": f"Model '{model}' is no longer available. Update config/models.yaml",
-                "severity": "warning",
-            })
+            deprecations.append(
+                {
+                    "model": model,
+                    "message": f"Model '{model}' is no longer available. Update config/models.yaml",
+                    "severity": "warning",
+                }
+            )
 
     # Save deprecations to file for tracking
     if deprecations:
@@ -320,13 +326,15 @@ def ensure_models_fresh(force: bool = False) -> dict:
         print(f"⚠️  DEPRECATED: {dep['message']}", file=sys.stderr)
 
     # Save to cache (including prices)
-    save_cache({
-        "status": "up_to_date",
-        "available_models": available_models,
-        "models_count": len(available_models),
-        "model_prices": model_prices,
-        "deprecations": result["deprecations"],
-    })
+    save_cache(
+        {
+            "status": "up_to_date",
+            "available_models": available_models,
+            "models_count": len(available_models),
+            "model_prices": model_prices,
+            "deprecations": result["deprecations"],
+        }
+    )
 
     return result
 
@@ -398,7 +406,10 @@ def is_model_safe_for_auto(model_name: str) -> tuple[bool, str]:
 
     price = get_model_price(model_name)
     if price is None:
-        return False, f"Model '{model_name}' has no known price multiplier - requires explicit approval"
+        return (
+            False,
+            f"Model '{model_name}' has no known price multiplier - requires explicit approval",
+        )
 
     return True, f"Model '{model_name}' is available with {price}x multiplier"
 

@@ -1260,9 +1260,16 @@ def run_discovery_dual_model(
     )
 
     # Extract results by model ID (not by completion order)
-    primary_result = results.get(primary_model, TaskResult(
-        success=False, task_type=task_type, prompt=prompt, result="", error="Primary model not in results"
-    ))
+    primary_result = results.get(
+        primary_model,
+        TaskResult(
+            success=False,
+            task_type=task_type,
+            prompt=prompt,
+            result="",
+            error="Primary model not in results",
+        ),
+    )
     dual_result = results.get(dual_model)
     secondary_results = [dual_result] if dual_result else []
 
@@ -1367,7 +1374,10 @@ Output a list of:
 
         while review_iterations < max_review_iterations:
             review_iterations += 1
-            print(f"🔎 Review iteration {review_iterations}/{max_review_iterations} with {review_model}...", file=sys.stderr)
+            print(
+                f"🔎 Review iteration {review_iterations}/{max_review_iterations} with {review_model}...",
+                file=sys.stderr,
+            )
 
             review_prompt = f"""Review this plan for completeness and correctness.
 
@@ -1400,11 +1410,17 @@ Output JSON: {{"approved": true/false, "issues": [], "suggestions": []}}"""
             try:
                 # Try to parse JSON from review result
                 review_text = review_result.result
-                if '"approved": true' in review_text.lower() or '"approved":true' in review_text.lower():
+                if (
+                    '"approved": true' in review_text.lower()
+                    or '"approved":true' in review_text.lower()
+                ):
                     print("✅ Plan approved by reviewer", file=sys.stderr)
                     break
                 elif review_iterations >= max_review_iterations:
-                    print(f"⚠️ Max review iterations ({max_review_iterations}) reached", file=sys.stderr)
+                    print(
+                        f"⚠️ Max review iterations ({max_review_iterations}) reached",
+                        file=sys.stderr,
+                    )
                     break
                 else:
                     print("🔄 Plan needs revision, continuing...", file=sys.stderr)
@@ -1457,11 +1473,13 @@ def run_multi_module_parallel(
 
     # Distribute modules across models round-robin
     work_items = [
-        (name, prompt, models[i % len(models)])
-        for i, (name, prompt) in enumerate(module_list)
+        (name, prompt, models[i % len(models)]) for i, (name, prompt) in enumerate(module_list)
     ]
 
-    print(f"🚀 Running {len(work_items)} modules across {len(models)} models in parallel", file=sys.stderr)
+    print(
+        f"🚀 Running {len(work_items)} modules across {len(models)} models in parallel",
+        file=sys.stderr,
+    )
 
     with ThreadPoolExecutor(max_workers=min(4, len(work_items))) as executor:
         futures = {executor.submit(_run_module, item): item[0] for item in work_items}
@@ -1965,7 +1983,9 @@ Examples:
             "--dual", action="store_true", help="Use dual-model execution (Stage 1 Discovery)"
         )
         sub.add_argument(
-            "--preflight", action="store_true", help="Run pre-flight gates (ruff/mypy) before AI execution"
+            "--preflight",
+            action="store_true",
+            help="Run pre-flight gates (ruff/mypy) before AI execution",
         )
 
     # Batch command
@@ -2192,7 +2212,11 @@ Examples:
             result = multi_result.primary_result
             if multi_result.review_result:
                 print("\n--- REVIEW RESULT ---", file=sys.stderr)
-                print(multi_result.review_result.result[:500] if multi_result.review_result.result else "No review")
+                print(
+                    multi_result.review_result.result[:500]
+                    if multi_result.review_result.result
+                    else "No review"
+                )
             if result.success:
                 print(result.result)
             if result.session_id:

@@ -1,9 +1,9 @@
 # GAP-09 Pipeline Orchestrator — Spec-Level Implementation Plan
 
-**Version:** 1.3.0  
-**Revision Date:** 2026-02-17  
-**Status:** SPEC (not implementation)  
-**Compliance:** GAP-09 v1.0  
+**Version:** 1.3.0
+**Revision Date:** 2026-02-17
+**Status:** SPEC (not implementation)
+**Compliance:** GAP-09 v1.0
 **Source:** `@/opt/fabrik/docs/development/plans/archived/2026-02-16-plan-gap09-pipeline-orchestrator.md`
 
 ---

@@ -346,7 +346,9 @@ def estimate_run_cost(model: str, estimated_tokens: int) -> dict:
     standard_tokens = int(estimated_tokens * multiplier)
 
     status = get_quota_status()
-    budget_percent = (standard_tokens / status["remaining"]) * 100 if status["remaining"] > 0 else 100
+    budget_percent = (
+        (standard_tokens / status["remaining"]) * 100 if status["remaining"] > 0 else 100
+    )
 
     return {
         "model": model,
@@ -376,7 +378,9 @@ def check_quota_warning(current_usage: int | None = None) -> str | None:
     elif status["usage_percent"] >= 75:
         return f"⚠️  WARNING: {status['usage_percent']}% quota used. {status['remaining']:,} tokens remaining."
     elif status["usage_percent"] >= 50:
-        return f"ℹ️  {status['usage_percent']}% quota used. {status['remaining']:,} tokens remaining."
+        return (
+            f"ℹ️  {status['usage_percent']}% quota used. {status['remaining']:,} tokens remaining."
+        )
 
     return None
 
@@ -438,7 +442,9 @@ if __name__ == "__main__":
         status = get_quota_status(args.usage)
         print(f"Plan: {status['plan'].upper()} (${BILLING_CONFIG[status['plan']]['price_usd']}/mo)")
         print(f"Cycle: {status['cycle_start'][:10]} to {status['cycle_end'][:10]}")
-        print(f"Usage: {status['current_usage']:,} / {status['monthly_limit']:,} ({status['usage_percent']}%)")
+        print(
+            f"Usage: {status['current_usage']:,} / {status['monthly_limit']:,} ({status['usage_percent']}%)"
+        )
         print(f"Remaining: {status['remaining']:,} tokens")
         print(f"Days left: {status['days_remaining']}")
         print(f"Daily budget: {status['daily_budget']:,} tokens/day")

@@ -1,9 +1,9 @@
 # GAP-03 MCP Server Config — Spec-Level Implementation Plan
 
-**Version:** 1.1.0  
-**Revision Date:** 2026-02-17  
-**Status:** SPEC (not implementation)  
-**Compliance:** GAP-03 v1.0  
+**Version:** 1.1.0
+**Revision Date:** 2026-02-17
+**Status:** SPEC (not implementation)
+**Compliance:** GAP-03 v1.0
 **Source:** `@/opt/fabrik/docs/development/plans/archived/2026-02-16-plan-gap03-mcp-server-config.md`
 
 ---
@@ -193,7 +193,7 @@ print(f'✓ MCP config valid ({server_count} servers)')
       "env": {}
     },
     "postgres": {
-      "command": "npx", 
+      "command": "npx",
       "args": ["-y", "@anthropic/mcp-server-postgres"],
       "env": {
         "POSTGRES_CONNECTION_STRING": "${DB_URL}"

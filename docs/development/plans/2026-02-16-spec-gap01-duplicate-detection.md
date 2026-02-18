@@ -1,9 +1,9 @@
 # GAP-01 Duplicate Detection — Spec-Level Implementation Plan
 
-**Version:** 1.1.0  
-**Revision Date:** 2026-02-17  
-**Status:** SPEC (not implementation)  
-**Compliance:** GAP-01 v1.0  
+**Version:** 1.1.0
+**Revision Date:** 2026-02-17
+**Status:** SPEC (not implementation)
+**Compliance:** GAP-01 v1.0
 **Source:** `@/opt/fabrik/docs/development/plans/archived/2026-02-16-plan-gap01-duplicate-detection.md`
 
 ---
@@ -310,12 +310,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - name: Check for code duplicates
         run: |
           npx jscpd --config .jscpd.json --reporters json,console --output .jscpd-report
@@ -327,7 +327,7 @@ jobs:
               exit 1
             fi
           fi
-      
+
       - name: Upload duplicate report
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,9 +1,9 @@
 # GAP-06 Custom Droids — Spec-Level Implementation Plan
 
-**Version:** 1.1.0  
-**Revision Date:** 2026-02-17  
-**Status:** SPEC (not implementation)  
-**Compliance:** GAP-06 v1.0  
+**Version:** 1.1.0
+**Revision Date:** 2026-02-17
+**Status:** SPEC (not implementation)
+**Compliance:** GAP-06 v1.0
 **Source:** `@/opt/fabrik/docs/development/plans/archived/2026-02-16-plan-gap06-custom-droids.md`
 
 ---

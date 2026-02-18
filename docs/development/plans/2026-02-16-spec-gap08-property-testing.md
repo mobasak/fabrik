@@ -1,9 +1,9 @@
 # GAP-08 Property-Based Testing — Spec-Level Implementation Plan
 
-**Version:** 1.1.0  
-**Revision Date:** 2026-02-17  
-**Status:** SPEC (not implementation)  
-**Compliance:** GAP-08 v1.0  
+**Version:** 1.1.0
+**Revision Date:** 2026-02-17
+**Status:** SPEC (not implementation)
+**Compliance:** GAP-08 v1.0
 **Source:** `@/opt/fabrik/docs/development/plans/archived/2026-02-16-plan-gap08-property-testing.md`
 
 ---

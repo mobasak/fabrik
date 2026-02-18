@@ -143,9 +143,7 @@ class TestPipelineConfig:
     def test_default_stages(self) -> None:
         """Default config should have all 5 stages."""
         config = PipelineConfig()
-        assert config.stages == [
-            "discovery", "planning", "execution", "verification", "ship"
-        ]
+        assert config.stages == ["discovery", "planning", "execution", "verification", "ship"]
 
     def test_custom_cwd(self) -> None:
         """Config should accept custom working directory."""
@@ -298,6 +296,7 @@ class TestReportContract:
         if latest_link.is_symlink():
             # Linux/WSL: symlink should point to run_id (use readlink for robustness)
             import os
+
             assert os.readlink(latest_link) == result.run_id
         else:
             # Windows fallback: latest.txt should contain run_id
@@ -322,6 +321,7 @@ class TestReportContract:
         latest_link = temp_cwd / ".factory" / "reports" / "latest"
         if latest_link.is_symlink():
             import os
+
             assert os.readlink(latest_link) == result2.run_id
         else:
             latest_txt = temp_cwd / ".factory" / "reports" / "latest.txt"
@@ -433,15 +433,23 @@ class TestStage1Discovery:
 
         with patch("scripts.droid_core.run_discovery_dual_model") as mock_discovery:
             # Mock the TaskResult and MultiModelResult
-            mock_task_result = type("TaskResult", (), {
-                "success": True,
-                "session_id": "test-session-123",
-                "result": "Analysis output here",
-            })()
-            mock_multi_result = type("MultiModelResult", (), {
-                "primary_result": mock_task_result,
-                "merged_result": "Merged analysis output",
-            })()
+            mock_task_result = type(
+                "TaskResult",
+                (),
+                {
+                    "success": True,
+                    "session_id": "test-session-123",
+                    "result": "Analysis output here",
+                },
+            )()
+            mock_multi_result = type(
+                "MultiModelResult",
+                (),
+                {
+                    "primary_result": mock_task_result,
+                    "merged_result": "Merged analysis output",
+                },
+            )()
             mock_discovery.return_value = mock_multi_result
 
             runner = PipelineRunner()
@@ -453,15 +461,23 @@ class TestStage1Discovery:
     def test_discovery_captures_session_id(self) -> None:
         """Discovery should capture and store session_id."""
         with patch("scripts.droid_core.run_discovery_dual_model") as mock_discovery:
-            mock_task_result = type("TaskResult", (), {
-                "success": True,
-                "session_id": "captured-session-id",
-                "result": "Output",
-            })()
-            mock_multi_result = type("MultiModelResult", (), {
-                "primary_result": mock_task_result,
-                "merged_result": "Merged output",
-            })()
+            mock_task_result = type(
+                "TaskResult",
+                (),
+                {
+                    "success": True,
+                    "session_id": "captured-session-id",
+                    "result": "Output",
+                },
+            )()
+            mock_multi_result = type(
+                "MultiModelResult",
+                (),
+                {
+                    "primary_result": mock_task_result,
+                    "merged_result": "Merged output",
+                },
+            )()
             mock_discovery.return_value = mock_multi_result
 
             runner = PipelineRunner()
@@ -473,15 +489,23 @@ class TestStage1Discovery:
     def test_discovery_pass_on_success(self) -> None:
         """Discovery should return status='pass' on success."""
         with patch("scripts.droid_core.run_discovery_dual_model") as mock_discovery:
-            mock_task_result = type("TaskResult", (), {
-                "success": True,
-                "session_id": "sess-1",
-                "result": "Output",
-            })()
-            mock_multi_result = type("MultiModelResult", (), {
-                "primary_result": mock_task_result,
-                "merged_result": "Merged",
-            })()
+            mock_task_result = type(
+                "TaskResult",
+                (),
+                {
+                    "success": True,
+                    "session_id": "sess-1",
+                    "result": "Output",
+                },
+            )()
+            mock_multi_result = type(
+                "MultiModelResult",
+                (),
+                {
+                    "primary_result": mock_task_result,
+                    "merged_result": "Merged",
+                },
+            )()
             mock_discovery.return_value = mock_multi_result
 
             runner = PipelineRunner()
@@ -503,15 +527,23 @@ class TestStage1Discovery:
     def test_discovery_has_timestamps(self) -> None:
         """Discovery result should have ISO timestamps."""
         with patch("scripts.droid_core.run_discovery_dual_model") as mock_discovery:
-            mock_task_result = type("TaskResult", (), {
-                "success": True,
-                "session_id": "sess",
-                "result": "Output",
-            })()
-            mock_multi_result = type("MultiModelResult", (), {
-                "primary_result": mock_task_result,
-                "merged_result": "Merged",
-            })()
+            mock_task_result = type(
+                "TaskResult",
+                (),
+                {
+                    "success": True,
+                    "session_id": "sess",
+                    "result": "Output",
+                },
+            )()
+            mock_multi_result = type(
+                "MultiModelResult",
+                (),
+                {
+                    "primary_result": mock_task_result,
+                    "merged_result": "Merged",
+                },
+            )()
             mock_discovery.return_value = mock_multi_result
 
             runner = PipelineRunner()
@@ -519,6 +551,7 @@ class TestStage1Discovery:
 
             # Verify timestamps are valid ISO format
             from datetime import datetime
+
             datetime.fromisoformat(result.started_at)
             datetime.fromisoformat(result.ended_at)
 
@@ -526,15 +559,23 @@ class TestStage1Discovery:
         """Discovery should preserve full output (truncation happens in report mapping)."""
         with patch("scripts.droid_core.run_discovery_dual_model") as mock_discovery:
             long_output = "x" * 1000
-            mock_task_result = type("TaskResult", (), {
-                "success": True,
-                "session_id": "sess",
-                "result": long_output,
-            })()
-            mock_multi_result = type("MultiModelResult", (), {
-                "primary_result": mock_task_result,
-                "merged_result": long_output,
-            })()
+            mock_task_result = type(
+                "TaskResult",
+                (),
+                {
+                    "success": True,
+                    "session_id": "sess",
+                    "result": long_output,
+                },
+            )()
+            mock_multi_result = type(
+                "MultiModelResult",
+                (),
+                {
+                    "primary_result": mock_task_result,
+                    "merged_result": long_output,
+                },
+            )()
             mock_discovery.return_value = mock_multi_result
 
             runner = PipelineRunner()
@@ -546,15 +587,23 @@ class TestStage1Discovery:
     def test_discovery_tokens_used_zero(self) -> None:
         """Discovery should set tokens_used=0 (no estimation)."""
         with patch("scripts.droid_core.run_discovery_dual_model") as mock_discovery:
-            mock_task_result = type("TaskResult", (), {
-                "success": True,
-                "session_id": "sess",
-                "result": "Output",
-            })()
-            mock_multi_result = type("MultiModelResult", (), {
-                "primary_result": mock_task_result,
-                "merged_result": "Output",
-            })()
+            mock_task_result = type(
+                "TaskResult",
+                (),
+                {
+                    "success": True,
+                    "session_id": "sess",
+                    "result": "Output",
+                },
+            )()
+            mock_multi_result = type(
+                "MultiModelResult",
+                (),
+                {
+                    "primary_result": mock_task_result,
+                    "merged_result": "Output",
+                },
+            )()
             mock_discovery.return_value = mock_multi_result
 
             runner = PipelineRunner()
@@ -565,15 +614,23 @@ class TestStage1Discovery:
     def test_discovery_model_is_unknown(self) -> None:
         """Discovery should set model='unknown' (not 'dual-model')."""
         with patch("scripts.droid_core.run_discovery_dual_model") as mock_discovery:
-            mock_task_result = type("TaskResult", (), {
-                "success": True,
-                "session_id": "sess",
-                "result": "Output",
-            })()
-            mock_multi_result = type("MultiModelResult", (), {
-                "primary_result": mock_task_result,
-                "merged_result": "Output",
-            })()
+            mock_task_result = type(
+                "TaskResult",
+                (),
+                {
+                    "success": True,
+                    "session_id": "sess",
+                    "result": "Output",
+                },
+            )()
+            mock_multi_result = type(
+                "MultiModelResult",
+                (),
+                {
+                    "primary_result": mock_task_result,
+                    "merged_result": "Output",
+                },
+            )()
             mock_discovery.return_value = mock_multi_result
 
             runner = PipelineRunner()
