@@ -3,7 +3,7 @@ name = "fabrik"
 version = "0.1.0"
 description = "Deployment automation CLI for AI-powered infrastructure"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "Proprietary" }
 authors = [
     { name = "Özgür Başak" }

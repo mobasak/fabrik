@@ -1558,5 +1558,317 @@
     "message": "Model 'gpt-oss-120b-medium-thinking' is no longer available. Update config/models.yaml",
     "severity": "warning",
     "detected_at": "2026-02-14T19:46:14.835935"
+  },
+  {
+    "model": "gpt-5.2-codex-medium",
+    "message": "Model 'gpt-5.2-codex-medium' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078925"
+  },
+  {
+    "model": "xai-grok-3-mini-thinking",
+    "message": "Model 'xai-grok-3-mini-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078942"
+  },
+  {
+    "model": "kimi-k2-5",
+    "message": "Model 'kimi-k2-5' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078948"
+  },
+  {
+    "model": "gpt-5.2-xhigh-thinking",
+    "message": "Model 'gpt-5.2-xhigh-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078952"
+  },
+  {
+    "model": "gpt-oss-120b-medium-thinking",
+    "message": "Model 'gpt-oss-120b-medium-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078957"
+  },
+  {
+    "model": "gpt-4.1",
+    "message": "Model 'gpt-4.1' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078962"
+  },
+  {
+    "model": "claude-opus-4-6-thinking-1m",
+    "message": "Model 'claude-opus-4-6-thinking-1m' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078966"
+  },
+  {
+    "model": "gpt-5-medium-thinking",
+    "message": "Model 'gpt-5-medium-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078971"
+  },
+  {
+    "model": "gpt-5.3-codex-medium",
+    "message": "Model 'gpt-5.3-codex-medium' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078975"
+  },
+  {
+    "model": "gemini-3-pro-low-thinking",
+    "message": "Model 'gemini-3-pro-low-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078980"
+  },
+  {
+    "model": "kimi-k2",
+    "message": "Model 'kimi-k2' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078985"
+  },
+  {
+    "model": "gemini-3-flash-minimal",
+    "message": "Model 'gemini-3-flash-minimal' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078990"
+  },
+  {
+    "model": "claude-sonnet-4-5-thinking",
+    "message": "Model 'claude-sonnet-4-5-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078994"
+  },
+  {
+    "model": "gpt-5-high-thinking",
+    "message": "Model 'gpt-5-high-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.078999"
+  },
+  {
+    "model": "gpt-5.3-codex-high",
+    "message": "Model 'gpt-5.3-codex-high' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079003"
+  },
+  {
+    "model": "o3",
+    "message": "Model 'o3' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079008"
+  },
+  {
+    "model": "gpt-5.2-high-thinking",
+    "message": "Model 'gpt-5.2-high-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079013"
+  },
+  {
+    "model": "claude-opus-4-6-1m",
+    "message": "Model 'claude-opus-4-6-1m' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079018"
+  },
+  {
+    "model": "claude-opus-4-5",
+    "message": "Model 'claude-opus-4-5' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079023"
+  },
+  {
+    "model": "gpt-5.1-codex-mini",
+    "message": "Model 'gpt-5.1-codex-mini' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079027"
+  },
+  {
+    "model": "gpt-5-low-thinking",
+    "message": "Model 'gpt-5-low-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079032"
+  },
+  {
+    "model": "grok-code-fast-1",
+    "message": "Model 'grok-code-fast-1' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079037"
+  },
+  {
+    "model": "gpt-5.2-codex-high",
+    "message": "Model 'gpt-5.2-codex-high' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079042"
+  },
+  {
+    "model": "claude-sonnet-4-thinking",
+    "message": "Model 'claude-sonnet-4-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079047"
+  },
+  {
+    "model": "gemini-3-flash-low",
+    "message": "Model 'gemini-3-flash-low' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079052"
+  },
+  {
+    "model": "gemini-3-flash-high",
+    "message": "Model 'gemini-3-flash-high' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079057"
+  },
+  {
+    "model": "gemini-2-5-pro",
+    "message": "Model 'gemini-2-5-pro' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079062"
+  },
+  {
+    "model": "xai-grok-3",
+    "message": "Model 'xai-grok-3' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079067"
+  },
+  {
+    "model": "glm-4-7",
+    "message": "Model 'glm-4-7' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079071"
+  },
+  {
+    "model": "swe-1-5-fast",
+    "message": "Model 'swe-1-5-fast' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079076"
+  },
+  {
+    "model": "claude-sonnet-4-5",
+    "message": "Model 'claude-sonnet-4-5' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079081"
+  },
+  {
+    "model": "gpt-5.2-medium-thinking",
+    "message": "Model 'gpt-5.2-medium-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079086"
+  },
+  {
+    "model": "claude-sonnet-4",
+    "message": "Model 'claude-sonnet-4' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079091"
+  },
+  {
+    "model": "gpt-5.3-codex-low",
+    "message": "Model 'gpt-5.3-codex-low' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079096"
+  },
+  {
+    "model": "gpt-4o",
+    "message": "Model 'gpt-4o' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079101"
+  },
+  {
+    "model": "gemini-3-flash-medium",
+    "message": "Model 'gemini-3-flash-medium' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079105"
+  },
+  {
+    "model": "minimax-m2-1",
+    "message": "Model 'minimax-m2-1' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079110"
+  },
+  {
+    "model": "gpt-5.2-low-thinking",
+    "message": "Model 'gpt-5.2-low-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079115"
+  },
+  {
+    "model": "gpt-5.1-codex-max-high",
+    "message": "Model 'gpt-5.1-codex-max-high' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079120"
+  },
+  {
+    "model": "claude-opus-4-5-thinking",
+    "message": "Model 'claude-opus-4-5-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079125"
+  },
+  {
+    "model": "gpt-5.3-codex-xhigh-fast",
+    "message": "Model 'gpt-5.3-codex-xhigh-fast' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079130"
+  },
+  {
+    "model": "gemini-3-pro-high-thinking",
+    "message": "Model 'gemini-3-pro-high-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079135"
+  },
+  {
+    "model": "claude-haiku-4-5",
+    "message": "Model 'claude-haiku-4-5' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079140"
+  },
+  {
+    "model": "gpt-5.3-codex-xhigh",
+    "message": "Model 'gpt-5.3-codex-xhigh' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079145"
+  },
+  {
+    "model": "gpt-5.2-codex-xhigh",
+    "message": "Model 'gpt-5.2-codex-xhigh' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079150"
+  },
+  {
+    "model": "claude-sonnet-4-5-1m",
+    "message": "Model 'claude-sonnet-4-5-1m' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079155"
+  },
+  {
+    "model": "gpt-5.1-codex-max-low",
+    "message": "Model 'gpt-5.1-codex-max-low' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079161"
+  },
+  {
+    "model": "swe-1-5",
+    "message": "Model 'swe-1-5' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079166"
+  },
+  {
+    "model": "claude-opus-4-6-thinking",
+    "message": "Model 'claude-opus-4-6-thinking' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079171"
+  },
+  {
+    "model": "o3-high-reasoning",
+    "message": "Model 'o3-high-reasoning' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079176"
+  },
+  {
+    "model": "gpt-5.2-codex-low",
+    "message": "Model 'gpt-5.2-codex-low' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079181"
+  },
+  {
+    "model": "gpt-5.1-codex-max-medium",
+    "message": "Model 'gpt-5.1-codex-max-medium' is no longer available. Update config/models.yaml",
+    "severity": "warning",
+    "detected_at": "2026-02-18T12:07:40.079187"
   }
 ]

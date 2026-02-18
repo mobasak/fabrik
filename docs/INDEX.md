@@ -39,14 +39,10 @@ docs/
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── droid-exec-usage.md         # Core droid exec usage (updated 2026-01-07)
 │   ├── enforcement-system.md       # Convention enforcement (check scripts, rules)
-│   ├── droid-validation-report.md  # Validation report format
+│   ├── hooks-and-skills-guide.md   # Hook and skill usage guide
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
 │   ├── orchestrator.md             # Deployment orchestrator module (Phase 10)
 │   ├── file-api-deployment.md      # File API deployment guide
-│   ├── hooks-and-skills-guide.md   # Hook and skill usage guide
-│   ├── phase1b-setup.md            # Phase 1b setup instructions
-│   ├── phase1b-test-results.md     # Phase 1b test results
-│   ├── Phase1.md - Phase9.md       # Phase documentation set
 │   ├── AI_TAXONOMY.md              # AI categories & tool selection (15 categories)
 │   ├── DATABASE_STRATEGY.md        # Database selection (PostgreSQL/Supabase/pgvector)
 │   ├── PLANNING_REFERENCES.md      # **INDEX for AI planning phases** (NEW 2026-01-08)
@@ -82,17 +78,8 @@ docs/
 │   └── coolify-migration.md        # Coolify migration procedures
 │   └── backup-strategy.md          # VPS backup strategy
 ├── development/
-│   ├── ARCHITECTURE_ANALYSIS.md    # Codebase analysis report
-│   └── DOCUMENTATION_AUDIT.md      # Documentation audit report
-    ├── 2025-12-27_FUTURE_WORK.md
-    ├── 2025-12-27_WHATS_NEXT.md
-    ├── 2025-12-27_future-development.md
-    ├── previousresearchfordigitalmarketingstack.md
-    ├── PM_INCORPORATION_PLAN.md    # Completed migration plan
-    └── 2026-01-04-monitoring-design/
-        ├── DROID_RUNNER_MONITORING.md
-        └── LONG_COMMAND_MONITORING.md
-    └── 2026-01-04-monitoring-design/ # Superseded design docs
+│   ├── PLANS.md                    # Development plans index
+│   └── plans/                      # Plan documents (YYYY-MM-DD-plan-*.md)
 ```
 <!-- AUTO-GENERATED:STRUCTURE:END -->
 
@@ -131,17 +118,10 @@ docs/
 
 | Phase | Status | Document |
 |-------|--------|----------|
-| **Phase 1: Foundation** | ✅ Complete | [Phase1.md](reference/Phase1.md) |
-| **Phase 1b: Cloud Infrastructure** | ✅ Complete | [Phase1b.md](reference/Phase1b.md) |
-| **Phase 1c: Cloudflare DNS** | ✅ Complete | [Phase1c.md](reference/Phase1c.md) |
-| **Phase 1d: WordPress Automation** | 🚧 In Progress | [Phase1d.md](reference/Phase1d.md) |
-| **Phase 2: WordPress Sites** | 67% | [Phase2.md](reference/Phase2.md) |
-| **Phase 3: AI Content** | Pending | [Phase3.md](reference/Phase3.md) |
-| **Phase 4: Advanced Networking** | Pending | [Phase4.md](reference/Phase4.md) |
-| **Phase 5: Staging Environments** | Pending | [Phase5.md](reference/Phase5.md) |
-| **Phase 6: Advanced Monitoring** | Pending | [Phase6.md](reference/Phase6.md) |
-| **Phase 7: Multi-Server Scaling** | Pending | [Phase7.md](reference/Phase7.md) |
-| **Phase 8: Business Automation** | Pending | [Phase8.md](reference/Phase8.md) |
+| **Phase 1: Foundation** | ✅ Complete | [architecture.md](reference/architecture.md) |
+| **Phase 1b: Cloud Infrastructure** | ✅ Complete | [deployment.md](DEPLOYMENT.md) |
+| **Phase 1c: Cloudflare DNS** | ✅ Complete | [services.md](SERVICES.md) |
+| **Phase 1d: WordPress Automation** | 🚧 In Progress | [wordpress.md](reference/wordpress.md) |
 
 ---
 
@@ -173,7 +153,6 @@ docs/
 | Document | Purpose |
 |----------|--------|
 | [plugin-stack.md](reference/wordpress/plugin-stack.md) | Curated WordPress plugin stack |
-| [plugin-evaluation.md](reference/wordpress/plugin-evaluation.md) | Plugin evaluation by site type |
 | [architecture.md](reference/wordpress/architecture.md) | WordPress v2 spec system |
 | [fixes.md](reference/wordpress/fixes.md) | Critical fixes for v2 |
 | [pages-idempotency.md](reference/wordpress/pages-idempotency.md) | Page creation idempotency |
