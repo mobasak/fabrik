@@ -19,14 +19,14 @@ brand:
   name: "Ocoron"
   tagline: "Professional Services"
   tagline_tr: "Profesyonel Hizmetler"
-  
+
   logo:
     primary: "ocoron.com-media/logo.svg"
     light: "ocoron.com-media/logo_inverted.jpg"
     icon: "ocoron.com-media/logo_single_letter.jpg"
     favicon: "ocoron.com-media/Favicon/favicon.ico"
     og_image: "ocoron.com-media/logo-1200-x-630.jpg"
-  
+
   colors:
     primary: "#1e3a5f"          # Deep ocean blue (from art)
     secondary: "#0891b2"        # Cyan/teal (luminous)
@@ -34,7 +34,7 @@ brand:
     background: "#ffffff"
     text: "#1e3a5f"
     text_light: "#64748b"
-    
+
   fonts:
     heading: "Inter"
     body: "Inter"
@@ -73,7 +73,7 @@ pages:
         cta_text_tr: "Hizmetleri Keşfet"
         cta_url: "/services"
         background: gradient
-      
+
       - type: features
         headline: "How We Help"
         headline_tr: "Nasıl Yardımcı Oluyoruz"
@@ -99,12 +99,12 @@ pages:
             title_tr: "Üretim"
             description: "Plant design, R&D, ERP implementation"
             description_tr: "Fabrika tasarımı, AR-GE, ERP uygulaması"
-      
+
       - type: services_grid
         headline: "Our Services"
         headline_tr: "Hizmetlerimiz"
         # Links to service category pages
-      
+
       - type: cta_banner
         headline: "Ready to transform your business?"
         headline_tr: "İşletmenizi dönüştürmeye hazır mısınız?"
@@ -136,7 +136,7 @@ pages:
               - "TUBITAK R&D Grants"
               - "TEKNOPARK Applications"
               - "Turquality Program"
-      
+
       # ── Foreign Trade & Business Development ──
       - slug: foreign-trade
         title: "Foreign Trade & Business Development"
@@ -149,7 +149,7 @@ pages:
               - "Market Entry & Customer Finding"
               - "US Incorporation Services"
               - "Trademark & DBA Services"
-      
+
       # ── AI & Digital Transformation ──
       - slug: ai-consultancy
         title: "AI Consultancy"
@@ -161,7 +161,7 @@ pages:
               - "AI Implementation & Integration"
               - "Training & Change Management"
               - "Computer Vision Applications"
-      
+
       # ── Manufacturing ──
       - slug: manufacturing
         title: "Manufacturing Consultancy"
@@ -174,7 +174,7 @@ pages:
               - "Product Development (Cosmetics, Food, Supplements)"
               - "ERP Consultancy & Implementation"
               - "Private Label Production"
-      
+
       # ── Logistics ──
       - slug: logistics
         title: "Logistics Services"
@@ -185,7 +185,7 @@ pages:
               - "Built-to-Suit Warehouse Design"
               - "Warehouse & Transportation Management Systems"
               - "Supply Chain Management & Optimization"
-      
+
       # ── B2B Digital Marketing ──
       - slug: b2b-marketing
         title: "B2B Digital Marketing"
@@ -198,7 +198,7 @@ pages:
               - "PPC Campaigns Worldwide"
               - "Business Website Creation"
               - "SEO & Content Writing"
-      
+
       # ── Medical Device Procurement ──
       - slug: medical-procurement
         title: "Medical Device Procurement"
@@ -210,7 +210,7 @@ pages:
               - "Requirement Analysis"
               - "Tender Preparation"
               - "Supplier Relationship Management"
-      
+
       # ── Quality Management Systems ──
       - slug: quality-management
         title: "Quality Management Systems"
@@ -260,7 +260,7 @@ pages:
     title_tr: "Gizlilik Politikası"
     template: default
     show_in_menu: false
-    
+
   - slug: terms
     title: "Terms of Service"
     title_tr: "Hizmet Şartları"
@@ -310,7 +310,7 @@ menus:
     - title: Contact
       title_tr: İletişim
       url: /contact
-  
+
   footer:
     - title: Privacy Policy
       title_tr: Gizlilik Politikası
@@ -348,7 +348,7 @@ contact:
   email: "contact@ocoron.com"
   phone: ""                     # Optional
   address: ""                   # Optional
-  
+
   social:
     linkedin: "https://www.linkedin.com/company/ocoron/"
     twitter: ""
@@ -376,9 +376,9 @@ plugins:
     - fluentcrm-pro             # CRM
     - complianz-pro             # GDPR
     - chaty-pro                 # Multi-channel chat
-  
+
   skip: []
-  
+
   config:
     rank-math:
       sitemap: true
@@ -391,12 +391,12 @@ plugins:
 theme:
   name: generatepress
   child: true
-  
+
   generatepress:
     container_width: 1200
     header_layout: default
     sidebar: none               # Full-width for company site
-    
+
   custom_css: ""
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -409,17 +409,17 @@ seo:
   homepage_title_tr: "Ocoron | Devlet Teşvikleri ve İş Danışmanlığı"
   homepage_description: "Expert consultancy in Government Incentives, Foreign Trade, AI Integration, and Manufacturing. KOSGEB, TUBITAK, Turquality programs, international expansion, and digital transformation."
   homepage_description_tr: "Devlet Teşvikleri, Dış Ticaret, AI Entegrasyonu ve Üretim alanlarında uzman danışmanlık. KOSGEB, TÜBİTAK, Turquality programları, uluslararası genişleme ve dijital dönüşüm."
-  
+
   schema:
     type: Organization
     name: Ocoron
     logo: "https://ocoron.com/wp-content/uploads/logo.svg"
-    
+
   analytics:
     google_analytics: "G-VK6FMQRVRL"
     google_tag_manager: ""
     facebook_pixel: ""
-    
+
   verification:
     google: ""
     bing: ""
@@ -430,7 +430,7 @@ seo:
 
 content:
   source: manual                # You provide content, or change to ai_draft
-  
+
   ai_config:
     model: claude
     tone: professional
@@ -444,7 +444,7 @@ deployment:
   server: vps1
   ssl: letsencrypt
   cdn: cloudflare
-  
+
   backup:
     frequency: daily
     retention_days: 30
@@ -465,7 +465,7 @@ metadata:
     - [x] Services: 8 service categories defined
     - [x] Contact: email, LinkedIn
     - [x] SEO: title, description, GA4 ID
-    
+
     Optional before deployment:
     - [ ] About page content (company story)
     - [ ] Phone number / address (if desired)

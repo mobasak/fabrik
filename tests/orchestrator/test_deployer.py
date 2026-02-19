@@ -44,6 +44,7 @@ class TestServiceDeployer:
         deployer = ServiceDeployer(coolify_client=mock_client)
 
         import pytest
+
         with pytest.raises(Exception) as exc:
             deployer.find_existing("my-app")
 

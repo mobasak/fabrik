@@ -22,12 +22,12 @@ brand:
   tagline:
     en_US: "Strategic Consulting for Growing Businesses"
     tr_TR: "Büyüyen İşletmeler için Stratejik Danışmanlık"
-  
+
   logo:
     primary: ocoron.com/logo.svg
     icon: ocoron.com/logo_single_letter.jpg
     og_image: ocoron.com/logo-1200-x-630.jpg
-  
+
   colors:
     primary: "#1e3a5f"
     secondary: "#0891b2"
@@ -176,7 +176,7 @@ seo:
     tr_TR:
       title: "Ocoron | Devlet Teşvikleri ve İş Danışmanlığı"
       description: "Devlet Teşvikleri, Dış Ticaret, AI Entegrasyonu ve Üretim alanlarında uzman danışmanlık."
-  
+
   analytics:
     ga4_id: ${GA4_ID}  # G-VK6FMQRVRL in .env
 

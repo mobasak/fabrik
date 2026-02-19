@@ -31,7 +31,7 @@ defaults:
   # Default resources for new apps
   cpu: 1
   memory: 512M
-  
+
   # Health check defaults
   healthcheck:
     path: /health

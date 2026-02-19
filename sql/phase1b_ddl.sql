@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS tenant_members (
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    
+
     UNIQUE(tenant_id, user_id)
 );
 
@@ -47,25 +47,25 @@ CREATE INDEX idx_tenant_members_tenant ON tenant_members(tenant_id);
 CREATE TABLE IF NOT EXISTS files (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    
+
     -- File metadata
     filename TEXT NOT NULL,
     content_type TEXT NOT NULL,
     size_bytes BIGINT NOT NULL,
-    
+
     -- R2 storage
     r2_key TEXT NOT NULL UNIQUE,
-    
+
     -- Access control
     visibility TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private', 'internal')),
     uploaded_by UUID REFERENCES auth.users(id),
-    
+
     -- Processing status
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'ready', 'error')),
-    
+
     -- Optional metadata
     metadata JSONB DEFAULT '{}',
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -84,18 +84,18 @@ CREATE INDEX idx_files_uploaded_by ON files(uploaded_by);
 CREATE TABLE IF NOT EXISTS file_derivatives (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-    
+
     -- Derivative info
     derivative_type TEXT NOT NULL, -- 'transcript', 'ocr_text', 'extracted_text', 'thumbnail', 'waveform'
     content_type TEXT NOT NULL,
     size_bytes BIGINT,
-    
+
     -- R2 storage
     r2_key TEXT NOT NULL UNIQUE,
-    
+
     -- Metadata (e.g., language, duration, page count)
     metadata JSONB DEFAULT '{}',
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -110,24 +110,24 @@ CREATE INDEX idx_derivatives_type ON file_derivatives(derivative_type);
 CREATE TABLE IF NOT EXISTS processing_jobs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-    
+
     -- Job type
     job_type TEXT NOT NULL, -- 'transcribe', 'ocr', 'extract_text', 'thumbnail', 'waveform'
-    
+
     -- Status tracking
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
     priority INT DEFAULT 0, -- higher = process sooner
-    
+
     -- Worker tracking
     worker_id TEXT,
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
-    
+
     -- Results
     result_data JSONB,
     error_message TEXT,
     retry_count INT DEFAULT 0,
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
 CREATE INDEX idx_jobs_status ON processing_jobs(status);
 CREATE INDEX idx_jobs_type ON processing_jobs(job_type);
 CREATE INDEX idx_jobs_file ON processing_jobs(file_id);
-CREATE INDEX idx_jobs_pending ON processing_jobs(status, priority DESC, created_at ASC) 
+CREATE INDEX idx_jobs_pending ON processing_jobs(status, priority DESC, created_at ASC)
     WHERE status = 'pending';
 
 -- ============================================================
@@ -179,7 +179,7 @@ CREATE POLICY "Users can upload to tenant" ON files
 CREATE POLICY "Derivatives follow file access" ON file_derivatives
     FOR SELECT USING (
         file_id IN (
-            SELECT id FROM files WHERE 
+            SELECT id FROM files WHERE
             tenant_id IN (SELECT tenant_id FROM tenant_members WHERE user_id = auth.uid())
             OR visibility = 'public'
         )
@@ -249,7 +249,7 @@ BEGIN
     ORDER BY priority DESC, created_at ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED;
-    
+
     IF v_job.id IS NOT NULL THEN
         -- Claim it
         UPDATE processing_jobs
@@ -259,7 +259,7 @@ BEGIN
         WHERE id = v_job.id
         RETURNING * INTO v_job;
     END IF;
-    
+
     RETURN v_job;
 END;
 $$ LANGUAGE plpgsql;

@@ -177,7 +177,7 @@ spec:
     locations:
       type: array[location]
       description: "For multi-location businesses"
-  
+
   # Top-level entity aliases (normalized to entities.*)
   services:
     type: array[service]

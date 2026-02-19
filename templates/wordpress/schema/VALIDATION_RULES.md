@@ -71,21 +71,21 @@ def validate_items_ref(section: dict, spec: dict) -> Optional[str]:
     """Validate items_ref points to existing content."""
     if 'items_ref' not in section:
         return None
-    
+
     ref = section['items_ref']  # e.g., "content.testimonials"
-    
+
     # Check if items provided (overrides ref)
     if section.get('items'):
         return None  # items override, ref not used
-    
+
     # Resolve reference
     value = get_nested(spec, ref)
     if value is None:
         return f"Reference '{ref}' not found in spec"
-    
+
     if not isinstance(value, list):
         return f"Reference '{ref}' must be an array, got {type(value)}"
-    
+
     return None
 ```
 
@@ -96,18 +96,18 @@ def validate_content_ref(section: dict, spec: dict) -> Optional[str]:
     """Validate content_ref points to existing content."""
     if 'content_ref' not in section:
         return None
-    
+
     ref = section['content_ref']
-    
+
     # Check if inline content provided (overrides ref)
     if section.get('content'):
         return None
-    
+
     # Resolve reference
     value = get_nested(spec, ref)
     if value is None:
         return f"Reference '{ref}' not found in spec"
-    
+
     return None
 ```
 
@@ -117,11 +117,11 @@ def validate_content_ref(section: dict, spec: dict) -> Optional[str]:
 def validate_entity_ref(section: dict, context: str) -> Optional[str]:
     """Validate entity.* references only in entity page templates."""
     ref = section.get('content_ref', '')
-    
+
     if ref.startswith('entity.'):
         if context != 'entity_page_template':
             return f"Reference '{ref}' only valid in entity page templates"
-    
+
     return None
 ```
 
@@ -135,14 +135,14 @@ def validate_entity_ref(section: dict, context: str) -> Optional[str]:
 def validate_localized_string(value: dict, primary: str, field_path: str) -> list[str]:
     """Validate localized string has primary locale."""
     errors = []
-    
+
     if not isinstance(value, dict):
         errors.append(f"{field_path}: localized string must be a dict, got {type(value)}")
         return errors
-    
+
     if primary not in value:
         errors.append(f"{field_path}: missing primary locale '{primary}'")
-    
+
     return errors
 ```
 
@@ -152,11 +152,11 @@ def validate_localized_string(value: dict, primary: str, field_path: str) -> lis
 def validate_locale_keys(value: dict, allowed_locales: list[str], field_path: str) -> list[str]:
     """Validate all locale keys are in languages list."""
     errors = []
-    
+
     for locale in value.keys():
         if locale not in allowed_locales:
             errors.append(f"{field_path}: locale '{locale}' not in languages list")
-    
+
     return errors
 ```
 
@@ -166,7 +166,7 @@ def validate_locale_keys(value: dict, allowed_locales: list[str], field_path: st
 def validate_localized_array(items: list, primary: str, field_path: str) -> list[str]:
     """Validate all items in array have consistent localization."""
     errors = []
-    
+
     for i, item in enumerate(items):
         # Find localized fields
         for key, value in item.items():
@@ -174,7 +174,7 @@ def validate_localized_array(items: list, primary: str, field_path: str) -> list
                 # This is a localized field
                 if primary not in value:
                     errors.append(f"{field_path}[{i}].{key}: missing primary locale")
-    
+
     return errors
 ```
 
@@ -186,12 +186,12 @@ def validate_localized_array(items: list, primary: str, field_path: str) -> list
 def apply_locale_fallback(value: dict, primary: str, additional: list[str]) -> dict:
     """Apply fallback for missing additional locales."""
     result = value.copy()
-    
+
     for locale in additional:
         if locale not in result:
             logger.warning(f"Missing locale '{locale}', using primary '{primary}' as fallback")
             result[locale] = result[primary]
-    
+
     return result
 ```
 
@@ -206,14 +206,14 @@ def detect_slug_conflicts(pages: list) -> list[str]:
     """Detect duplicate page slugs."""
     errors = []
     seen = {}
-    
+
     for page in pages:
         slug = page.get('slug', '')
         if slug in seen:
             errors.append(f"Duplicate slug '{slug}' in pages (sources: {seen[slug]}, {page.get('source', 'explicit')})")
         else:
             seen[slug] = page.get('source', 'explicit')
-    
+
     return errors
 ```
 
@@ -223,16 +223,16 @@ def detect_slug_conflicts(pages: list) -> list[str]:
 def resolve_slug_conflicts(explicit_pages: list, generated_pages: list) -> list:
     """Merge pages, explicit wins on conflict."""
     explicit_slugs = {p['slug'] for p in explicit_pages}
-    
+
     # Filter out generated pages with conflicting slugs
     filtered_generated = [
-        p for p in generated_pages 
+        p for p in generated_pages
         if p['slug'] not in explicit_slugs
     ]
-    
+
     for conflict in explicit_slugs & {p['slug'] for p in generated_pages}:
         logger.warning(f"Slug conflict '{conflict}': using explicit page, ignoring generated")
-    
+
     return explicit_pages + filtered_generated
 ```
 
@@ -246,26 +246,26 @@ def resolve_slug_conflicts(explicit_pages: list, generated_pages: list) -> list:
 def deduplicate_plugins(plugins: list) -> list:
     """Remove duplicate plugins, keep last occurrence."""
     seen = {}
-    
+
     for plugin in plugins:
         # Normalize plugin name (remove version, extension)
         name = normalize_plugin_name(plugin)
         seen[name] = plugin  # Last wins
-    
+
     return list(seen.values())
 
 def normalize_plugin_name(plugin: str) -> str:
     """Normalize plugin name for deduplication."""
     # Remove .zip extension
     name = plugin.replace('.zip', '')
-    
+
     # Remove version numbers (e.g., -1.2.3, -v1.2.3)
     import re
     name = re.sub(r'-v?\d+\.\d+(\.\d+)?', '', name)
-    
+
     # Remove hash prefixes (e.g., 7aaUOmxu84su-)
     name = re.sub(r'^[a-zA-Z0-9]+-', '', name)
-    
+
     return name
 ```
 
@@ -275,7 +275,7 @@ def normalize_plugin_name(plugin: str) -> str:
 def apply_plugin_skip(base: list, skip: list) -> list:
     """Remove plugins in skip list from base."""
     skip_normalized = {normalize_plugin_name(p) for p in skip}
-    
+
     return [
         p for p in base
         if normalize_plugin_name(p) not in skip_normalized
@@ -292,14 +292,14 @@ class SpecValidator:
         self.spec = spec
         self.errors = []
         self.warnings = []
-    
+
     def validate(self) -> tuple[list[str], list[str]]:
         """Run all validations, return (errors, warnings)."""
-        
+
         # 1. Schema validation
         self.errors.extend(validate_required(self.spec))
         self.errors.extend(validate_types(self.spec))
-        
+
         # 2. Reference resolution
         for page in self.spec.get('pages', []):
             for section in page.get('sections', []):
@@ -307,33 +307,33 @@ class SpecValidator:
                     self.errors.append(err)
                 if err := validate_content_ref(section, self.spec):
                     self.errors.append(err)
-        
+
         # 3. Localization
         primary = self.spec.get('languages', {}).get('primary')
         allowed = [primary] + self.spec.get('languages', {}).get('additional', [])
-        
+
         for path, value in find_localized_strings(self.spec):
             self.errors.extend(validate_localized_string(value, primary, path))
             self.errors.extend(validate_locale_keys(value, allowed, path))
-        
+
         # 4. Conflicts
         all_pages = self.spec.get('pages', []) + generate_entity_pages(self.spec)
         self.errors.extend(detect_slug_conflicts(all_pages))
-        
+
         # 5. Plugin deduplication (warnings only)
         plugins = collect_all_plugins(self.spec)
         if len(plugins) != len(set(normalize_plugin_name(p) for p in plugins)):
             self.warnings.append("Duplicate plugins detected, will deduplicate")
-        
+
         return self.errors, self.warnings
-    
+
     def fail_fast(self):
         """Raise exception on first error."""
         errors, warnings = self.validate()
-        
+
         if errors:
             raise ValidationError(f"Spec validation failed:\n" + "\n".join(errors))
-        
+
         if warnings:
             for warning in warnings:
                 logger.warning(warning)

@@ -1,6 +1,6 @@
 /**
  * File API - Presigned URL service for R2
- * 
+ *
  * Endpoints:
  *   POST /api/files/upload-url - Get presigned upload URL
  *   POST /api/files/download-url - Get presigned download URL
@@ -55,13 +55,13 @@ async function authMiddleware(req, res, next) {
 
   const token = authHeader.substring(7);
   const { data: { user }, error } = await supabase.auth.getUser(token);
-  
+
   if (error || !user) {
     return res.status(401).json({ error: 'Invalid token' });
   }
 
   req.user = user;
-  
+
   // Get user's tenant (first one for now)
   const { data: membership } = await supabase
     .from('tenant_members')
@@ -69,14 +69,14 @@ async function authMiddleware(req, res, next) {
     .eq('user_id', user.id)
     .limit(1)
     .single();
-  
+
   if (!membership) {
     return res.status(403).json({ error: 'User has no tenant access' });
   }
-  
+
   req.tenantId = membership.tenant_id;
   req.userRole = membership.role;
-  
+
   next();
 }
 

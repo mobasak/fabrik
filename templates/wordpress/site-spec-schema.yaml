@@ -18,14 +18,14 @@ environment: production         # production | staging
 brand:
   name: ""                      # Brand/company name
   tagline: ""                   # One-line description
-  
+
   # Logo files (relative to assets/ folder)
   logo:
     primary: ""                 # Main logo (SVG preferred)
     light: ""                   # Logo for dark backgrounds (optional)
     icon: ""                    # Square icon version
     favicon: ""                 # Favicon (ICO or PNG)
-  
+
   # Color palette
   colors:
     primary: ""                 # Main brand color (hex)
@@ -34,7 +34,7 @@ brand:
     background: "#ffffff"       # Page background
     text: "#1a1a1a"             # Body text color
     text_light: "#6b7280"       # Secondary text
-    
+
   # Typography
   fonts:
     heading: "Inter"            # Heading font family
@@ -65,7 +65,7 @@ pages:
     status: publish             # publish | draft
     show_in_menu: true          # Show in primary navigation
     menu_order: 1               # Order in menu
-    
+
     # Page sections (for page builders)
     sections: []
     # Example sections:
@@ -81,7 +81,7 @@ pages:
     # - type: testimonials
     # - type: cta_banner
     # - type: contact_form
-    
+
     # Child pages (for hierarchical structure)
     children: []
 
@@ -94,11 +94,11 @@ menus:
     - title: ""
       url: ""                   # Page slug or external URL
       children: []              # Dropdown items
-  
+
   footer:                       # Footer navigation
     - title: ""
       url: ""
-  
+
   # Optional additional menus
   # social:
   # legal:
@@ -125,7 +125,7 @@ contact:
   email: ""                     # Primary contact email
   phone: ""                     # Phone number (optional)
   address: ""                   # Physical address (optional)
-  
+
   # Social media links
   social:
     linkedin: ""
@@ -152,13 +152,13 @@ contact:
 plugins:
   # Additional plugins beyond preset defaults
   add: []
-  # Example: 
+  # Example:
   # - bookly-pro
   # - memberpress
-  
+
   # Plugins to skip from preset
   skip: []
-  
+
   # Plugin-specific configuration
   config: {}
   # Example:
@@ -173,13 +173,13 @@ plugins:
 theme:
   name: generatepress           # Theme slug
   child: true                   # Create child theme
-  
+
   # GeneratePress specific settings
   generatepress:
     container_width: 1200
     header_layout: default      # default | nav-float-right | nav-float-left
     sidebar: right              # right | left | none
-    
+
   # Custom CSS (additional styles)
   custom_css: ""
 
@@ -191,19 +191,19 @@ seo:
   title_separator: "|"
   homepage_title: ""
   homepage_description: ""
-  
+
   # Schema.org settings
   schema:
     type: Organization          # Organization | LocalBusiness | Person
     name: ""
     logo: ""
-    
+
   # Analytics
   analytics:
     google_analytics: ""        # GA4 measurement ID
     google_tag_manager: ""      # GTM container ID
     facebook_pixel: ""
-    
+
   # Verification codes
   verification:
     google: ""
@@ -215,13 +215,13 @@ seo:
 
 content:
   source: manual                # manual | ai_draft | import
-  
+
   # If ai_draft:
   ai_config:
     model: claude               # claude | gpt4
     tone: professional          # professional | friendly | technical
     review_required: true
-  
+
   # If import:
   import_from: ""               # URL or file path
 
@@ -233,7 +233,7 @@ deployment:
   server: vps1                  # Server identifier
   ssl: letsencrypt              # letsencrypt | cloudflare | custom
   cdn: cloudflare               # cloudflare | none
-  
+
   # Backup settings
   backup:
     frequency: daily

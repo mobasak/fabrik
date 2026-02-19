@@ -73,7 +73,6 @@ class TestInvalidStateTransitionError:
     def test_invalid_transition_raises(self):
         """Orchestrator should raise InvalidStateTransitionError on invalid transition."""
         from pathlib import Path
-        from unittest.mock import MagicMock
 
         from fabrik.orchestrator import DeploymentOrchestrator
         from fabrik.orchestrator.context import DeploymentContext
@@ -84,6 +83,7 @@ class TestInvalidStateTransitionError:
 
         # Try invalid transition: PENDING -> COMPLETE (skips all steps)
         import pytest
+
         with pytest.raises(InvalidStateTransitionError) as exc:
             orchestrator._transition(ctx, DeploymentState.COMPLETE)
 

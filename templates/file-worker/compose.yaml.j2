@@ -5,23 +5,23 @@ services:
       dockerfile: Dockerfile
     container_name: {{ spec.id }}
     restart: unless-stopped
-    
+
     environment:
       # Core
       - LOG_LEVEL={{ env.get('LOG_LEVEL', 'info') }}
       - TZ={{ env.get('TZ', 'UTC') }}
-      
+
       # Worker config
       - WORKER_ID={{ env.get('WORKER_ID', 'worker-1') }}
       - JOB_TYPES={{ env.get('JOB_TYPES', 'transcribe,ocr,extract_text') }}
       - POLL_INTERVAL={{ env.get('POLL_INTERVAL', '5') }}
       - MAX_CONCURRENT_JOBS={{ env.get('MAX_CONCURRENT_JOBS', '2') }}
       - MAX_PROCESSING_TIME={{ env.get('MAX_PROCESSING_TIME', '3600') }}
-      
+
       # Supabase
       - SUPABASE_URL=${SUPABASE_URL:?}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:?}
-      
+
       # R2 Storage
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:?}
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:?}

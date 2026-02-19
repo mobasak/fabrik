@@ -69,7 +69,7 @@ plugins:
 
 All sites include:
 - File editor disabled
-- XML-RPC blocked  
+- XML-RPC blocked
 - SSL forced for admin
 - Post revisions limited to 5
 - Memory limits configured

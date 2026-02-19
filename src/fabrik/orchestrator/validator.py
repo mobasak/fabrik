@@ -17,17 +17,17 @@ REQUIRED_FIELDS = ["name", "template", "domain"]
 OPTIONAL_FIELDS = ["server", "env", "secrets", "healthcheck"]
 
 # Blocked hostnames for SSRF prevention
-BLOCKED_HOSTNAMES = frozenset([
-    "localhost",
-    "localhost.localdomain",
-    "ip6-localhost",
-    "ip6-loopback",
-])
+BLOCKED_HOSTNAMES = frozenset(
+    [
+        "localhost",
+        "localhost.localdomain",
+        "ip6-localhost",
+        "ip6-loopback",
+    ]
+)
 
 # Valid domain pattern: alphanumeric with hyphens, 2+ parts, valid TLD
-DOMAIN_PATTERN = re.compile(
-    r"^(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(\.[a-zA-Z0-9-]{1,63})*\.[a-zA-Z]{2,}$"
-)
+DOMAIN_PATTERN = re.compile(r"^(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(\.[a-zA-Z0-9-]{1,63})*\.[a-zA-Z]{2,}$")
 
 
 def is_private_ip(hostname: str) -> bool:
@@ -42,11 +42,7 @@ def is_private_ip(hostname: str) -> bool:
     try:
         ip = ipaddress.ip_address(hostname)
         return (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_reserved
-            or ip.is_link_local
-            or ip.is_multicast
+            ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local or ip.is_multicast
         )
     except ValueError:
         # Not an IP address, check if it's a blocked hostname

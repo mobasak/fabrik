@@ -19,13 +19,13 @@ entities:
     parent_page: services
     generate_pages: true
     page_template: service-detail
-    
+
   # Optional: team members (generates /about/team/<slug>)
   team:
     enabled: false
     parent_page: about
     generate_pages: false
-    
+
   # Optional: locations (for multi-location businesses)
   locations:
     enabled: false
@@ -160,7 +160,7 @@ menus:
       - insights
       - contact
     exclude: []
-    
+
   footer:
     auto_generate: true
     include:
@@ -184,7 +184,7 @@ plugins:
     - fluentcrm-pro
     # GDPR
     - complianz-gdpr-premium
-    
+
   skip: []
 
 # ─────────────────────────────────────────────────────────────────────────────

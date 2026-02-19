@@ -26,11 +26,11 @@ aws s3 cp "${DB_BACKUP}" "s3://${R2_BUCKET}/wordpress/${SITE_NAME}/${BACKUP_TYPE
 if [ "${BACKUP_TYPE}" = "weekly" ]; then
     echo "[$(date)] Creating files backup..."
     tar -czf "${FILES_BACKUP}" -C /wordpress wp-content/uploads wp-content/plugins wp-content/themes 2>/dev/null || true
-    
+
     echo "[$(date)] Uploading files backup to R2..."
     aws s3 cp "${FILES_BACKUP}" "s3://${R2_BUCKET}/wordpress/${SITE_NAME}/${BACKUP_TYPE}/files/" \
         --endpoint-url "${R2_ENDPOINT}"
-    
+
     rm -f "${FILES_BACKUP}"
 fi
 
