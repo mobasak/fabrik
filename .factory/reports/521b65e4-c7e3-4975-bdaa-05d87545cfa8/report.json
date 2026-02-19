@@ -1,0 +1,21 @@
+{
+  "run_id": "521b65e4-c7e3-4975-bdaa-05d87545cfa8",
+  "task": "Test task",
+  "risk_level": "HIGH",
+  "status": "success",
+  "stages": [],
+  "timestamps": {
+    "started_at": "2026-02-19T14:03:40.586526+00:00",
+    "ended_at": "2026-02-19T14:03:40.586548+00:00",
+    "duration_seconds": 0.0
+  },
+  "metrics": {
+    "total_tokens": 0,
+    "verification_iterations": 0,
+    "stages_executed": 0,
+    "stages_skipped": 0
+  },
+  "dry_run": false,
+  "errors": [],
+  "exit_code": 0
+}
