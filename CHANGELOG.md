@@ -6,6 +6,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## UNRELEASED - P0 GLOBAL GATES (2026-02-19)
+### Added
+- `scripts/enforcement/check_global_gates.py`: deterministic global gate runner
+  with `--path` arg, PROJECT/MONOREPO_ROOT classification, exit codes 0/1/2
+- `make global-gates` Makefile target
+- `docs/reference/global-gates.md`: classification rules, gate commands, exit
+  codes, frozen architecture list
+
+---
+
 ### Added - Session Management & Token Tracking (2026-02-14)
 
 **What:** Complete session ID persistence and token usage tracking for droid exec.

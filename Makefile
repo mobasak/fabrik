@@ -4,7 +4,7 @@
 # Fabrik is a CLI tool, not a deployed service.
 # No docker-smoke target (N/A for CLI tools).
 
-.PHONY: help install dev test lint format clean pre-commit
+.PHONY: help install dev test lint format clean pre-commit global-gates
 
 # Default target
 help:
@@ -53,6 +53,9 @@ check:
 
 docs-check:
 	python scripts/docs_updater.py --check
+
+global-gates:
+	python -m scripts.enforcement.check_global_gates
 
 # ============================================================
 # Cleanup

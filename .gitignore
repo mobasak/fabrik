@@ -66,3 +66,6 @@ dmypy.json
 secrets/
 .droid/
 scripts/.droid_models_cache.json
+
+# Backup files (not for version control)
+windsurf-memories/
