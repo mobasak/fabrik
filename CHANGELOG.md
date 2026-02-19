@@ -6,6 +6,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - GAP-02 Windsurf Workflows (2026-02-19)
+
+**What:** Four standardised Windsurf workflow files for deploy, new-feature, bug-fix, and code-review.
+
+**Files:**
+- `.windsurf/workflows/deploy.md` — Coolify deploy workflow
+- `.windsurf/workflows/new-feature.md` — Feature development workflow
+- `.windsurf/workflows/bug-fix.md` — Test-first bug fix workflow
+- `.windsurf/workflows/code-review.md` — Dual-model review via droid-review.sh
+
 ## UNRELEASED - P0 GLOBAL GATES (2026-02-19)
 ### Added
 - `scripts/enforcement/check_global_gates.py`: deterministic global gate runner
