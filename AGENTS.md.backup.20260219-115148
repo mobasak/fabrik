@@ -1,6 +1,6 @@
 # Fabrik Project Agent Briefing
 
-**Last Updated:** 2026-02-19
+**Last Updated:** 2026-01-14
 
 > Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
 
@@ -10,30 +10,19 @@
 - Tools enforce structure.
 - CI is final authority.
 
-### Traycer Planning Authority
-
-**Traycer is the planning authority.** If Traycer is used:
-- No other agent may create/modify plans except by updating the Traycer-managed plan artifact
-- All planning happens in Traycer (Phases)
-- Traycer produces the managed plan
-- Traycer's built-in verifier is the primary verification/review surface
-- Coding agents only execute steps from the Traycer-managed plan
-
 ## Execution Protocol (ALL TASKS)
 
 **Before ANY implementation:**
 
 | Phase | Action | Gate |
 |-------|--------|------|
-| **1. PLAN** | Traycer-managed plan exists | Plan exists in Traycer AND saved to `docs/development/plans/` |
+| **1. PLAN** | Create/show execution plan document | Plan exists in `docs/development/plans/` |
 | **2. APPROVE** | Wait for explicit "go" from human | Human says "go" |
-| **3. IMPLEMENT** | Execute one step at a time (from Traycer plan only) | Step code complete |
-| **4. REVIEW** | Run Traycer verification/review for completed step | Traycer verifier findings received |
-| **5. FIX** | Address Traycer findings before proceeding | All findings resolved |
-| **6. VALIDATE** | Traycer verifier passes + repo gate commands | Traycer pass + gate evidence |
-| **7. NEXT** | Only proceed after Traycer + gates pass | Approval for next step |
-
-> **Note:** When Traycer is not available, fall back to manual plan creation and AI code review.
+| **3. IMPLEMENT** | Execute one step at a time | Step code complete |
+| **4. REVIEW** | Request AI code review | Review received |
+| **5. FIX** | Address issues before proceeding | Issues resolved |
+| **6. VALIDATE** | Run gate command, show evidence | Gate passes |
+| **7. NEXT** | Only proceed after gate passes | Approval for next step |
 
 **Step Output Format (MANDATORY after each step):**
 ```
@@ -48,17 +37,14 @@ Next: Proceed to Step <N+1> / STOP
 **Violations:**
 - Do NOT implement without showing plan first
 - Do NOT proceed to next step without gate passing
-- Do NOT skip Traycer verification on significant changes
+- Do NOT skip code review on significant changes
 - Do NOT assume approval — wait for explicit "go"
-- Do NOT reorder, expand, or modify Traycer plan steps without requesting a plan update from Traycer
 
 ---
 
 ## Planning (Required for Non-Trivial Work)
 
-**If Traycer is used:** Planning happens in Traycer Phases. The plan is exported to `docs/development/plans/` and indexed in `docs/development/PLANS.md`. Coding agents only execute steps from the Traycer-managed plan.
-
-**If Traycer is NOT used:** Create a plan document before implementing any feature or fix.
+**Before implementing any feature or fix, create a plan document.**
 
 ### Plan Location & Naming
 - Location: `docs/development/plans/`
@@ -77,25 +63,6 @@ Next: Proceed to Step <N+1> / STOP
 - `## DONE WHEN` - Checkboxes for completion criteria
 - `## Out of Scope` - What's excluded
 - `## Steps` - Implementation steps
-
----
-
-## Traycer Mode (When Task is Traycer-Managed)
-
-When executing a Traycer-managed plan:
-
-1. **Follow steps exactly in order** — Only execute steps from the managed plan
-2. **Do NOT redesign or change scope** — If changes needed, pause and request plan update from Traycer
-3. **One step at a time** — Complete current step before moving to next
-4. **After each step:** Show Evidence + Gate result (use Step Output Format above)
-5. **If a Gate fails** → STOP and report to Traycer for re-planning
-
-**Forbidden actions in Traycer Mode:**
-- Reordering steps
-- Expanding scope beyond the plan
-- Modifying plan steps without Traycer approval
-- Creating alternative plans or workarounds
-- Skipping verification steps
 
 ---
 
@@ -133,31 +100,15 @@ Violations will fail CI and must be fixed before merge.
 python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 
 # 2. Trigger code review (if significant changes)
-# Traycer-managed: Run Traycer verification (primary)
-# Otherwise: ./scripts/droid-review.sh <files...>
+# Get model dynamically: python3 scripts/droid_models.py recommend code_review
+./scripts/droid-review.sh <files...>
 
 # 3. Update documentation
 # If you changed code in src/, scripts/, update relevant docs/
 # Manual update: ./scripts/droid-review.sh --update-docs <files...>
 ```
 
-**Integrated into workflow:**
-- `droid-review.sh` automatically runs docs_sync.py after reviews
-- Pre-commit enforces CHANGELOG exists
-
-**Sequence:**
-
-*Traycer-managed:*
-```
-Code change → Traycer verification → docs_sync.py (if needed) → Update flagged docs → Commit
-```
-
-*Non-Traycer:*
-```
-Code change → droid-review.sh → docs_sync.py → Update all flagged docs → Commit
-```
-
-**Violation:** Committing without running verification/docs_sync.py and addressing its output.
+**If you skip these steps, you are violating Fabrik rules.**
 
 ---
 
@@ -401,11 +352,7 @@ command --example
 
 **Mixed Models:** Use premium models with high reasoning for planning (`spec`), fast models for implementation (`code`).
 
-**Code Review (Dual-Model — NON-TRAYCER TASKS ONLY):**
-
-For Traycer-managed tasks, use Traycer verification as primary; do not run dual-model droid review.
-
-For non-Traycer tasks, use BOTH models from config:
+**Code Review (Dual-Model):** Always use BOTH models from config, not alternatives:
 ```bash
 # Get current model names from config/models.yaml
 python3 scripts/droid_models.py recommend code_review
@@ -427,11 +374,9 @@ python3 scripts/droid_models.py recommend ci_cd # Get model for scenario
 ```
 **Config:** `config/models.yaml` — Auto-updated from Factory docs daily
 
-## Implementing Large Features (NON-TRAYCER TASKS ONLY)
+## Implementing Large Features
 
-For Traycer-managed tasks, create the plan in Traycer Phases (not `droid exec --use-spec`), then execute per Traycer plan.
-
-For non-Traycer tasks touching 30+ files, use the phased workflow:
+For projects touching 30+ files, use the phased workflow:
 
 ```bash
 # 1. Create master plan with spec mode

@@ -11,7 +11,9 @@ trigger: always_on
 **Before ANY code change, I MUST:**
 1. Read `AGENTS.md` for conventions
 2. After editing, run: `python3 -m scripts.enforcement.validate_conventions --strict <files>`
-3. After editing, trigger review: `droid exec "Review <files>" # Uses default model from config/models.yaml`
+3. After editing, trigger review:
+   - **Traycer-managed:** Run Traycer verification (primary)
+   - **Otherwise:** `droid exec "Review <files>" # Uses default model from config/models.yaml`
 4. Update documentation if code changed
 
 **If I skip these steps, the user should call me out.**

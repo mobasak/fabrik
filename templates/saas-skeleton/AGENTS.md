@@ -38,7 +38,9 @@ droid exec --auto medium "Add new API endpoint for user profile"
 # Full autonomy
 droid exec --auto high "Fix TypeScript errors and run build"
 
-# Spec mode for features
+# Planning:
+# - Traycer-managed tasks: planning happens in Traycer Phases; do NOT use --use-spec to create plans.
+# - Non-Traycer tasks only (fallback):
 droid exec --use-spec "Add Stripe subscription integration"
 ```
 
@@ -73,10 +75,13 @@ droid exec --use-spec "Add Stripe subscription integration"
 ### Environment Variables
 
 ```typescript
-// CORRECT
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+// CORRECT - use relative URLs for same-origin API calls
+const response = await fetch('/api/health');
 
-// WRONG - hardcoded
+// CORRECT - require env var for external APIs
+const externalApiUrl = process.env.NEXT_PUBLIC_API_URL!;
+
+// WRONG - hardcoded localhost
 const apiUrl = 'http://localhost:3000';
 ```
 

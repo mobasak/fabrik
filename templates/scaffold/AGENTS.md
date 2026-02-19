@@ -27,6 +27,8 @@ curl http://localhost:8000/health
 
 ## droid exec Quick Reference
 
+> **Traycer-managed tasks:** Planning happens in Traycer Phases; do NOT use `droid exec --use-spec` to create plans. `--use-spec` is fallback for non-Traycer tasks only.
+
 ```bash
 # Read-only analysis (safe default)
 droid exec "Analyze this codebase"
@@ -40,7 +42,7 @@ droid exec --auto medium "Install deps and run tests"
 # Full autonomy
 droid exec --auto high "Fix, test, commit, push"
 
-# Specification mode (plan before code)
+# Specification mode (NON-TRAYCER TASKS ONLY — Traycer-managed tasks must be planned in Traycer Phases)
 droid exec --use-spec "Add authentication"
 droid exec --use-spec --auto medium "Refactor module"
 
@@ -87,10 +89,12 @@ python3 scripts/droid_models.py recommend ci_cd # Get model for scenario
 
 **Config:** `config/models.yaml` — Auto-updated from Factory docs daily
 
-### Implementing Large Features (30+ files)
+### Implementing Large Features (30+ files) — NON-TRAYCER TASKS ONLY
+
+> **Traycer-managed tasks:** Traycer is the planner; spec mode below is fallback for non-Traycer work only.
 
 ```bash
-# 1. Master plan with spec mode
+# 1. Master plan with spec mode (NON-TRAYCER ONLY)
 droid exec --use-spec "Create implementation plan for [feature]"
 # Save as IMPLEMENTATION_PLAN.md
 
@@ -105,7 +109,9 @@ droid exec --auto medium "Commit Phase 1 with detailed message"
 
 ## Planning (Required for Non-Trivial Work)
 
-**Before implementing any feature or fix, create a plan document.**
+**If Traycer is used:** Planning happens in Traycer Phases. The plan is exported to `docs/development/plans/` and indexed in `docs/development/PLANS.md`. Coding agents only execute steps from the Traycer-managed plan.
+
+**If Traycer is NOT used:** Create a plan document before implementing any feature or fix.
 
 ### Plan Location & Naming
 - Location: `docs/development/plans/`

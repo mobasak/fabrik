@@ -40,6 +40,14 @@ globs: ["*.md", "docs/**/*", "specs/**/*"]
 4. **Check boxes** as items complete
 5. **Archive** when COMPLETE → move to `docs/archive/`
 
+### Traycer-Managed Plans
+
+For Traycer-managed work:
+- The plan is created and managed in Traycer (Phases)
+- Plan MUST be exported from Traycer and saved to `docs/development/plans/`
+- Plan MUST still be indexed in `docs/development/PLANS.md`
+- Coding agents only execute steps from the Traycer-managed plan
+
 ### Required Plan Sections
 - `**Status:**` line (NOT_STARTED, IN_PROGRESS, PARTIAL, COMPLETE, NOT_DONE)
 - `## Goal` - One-line description

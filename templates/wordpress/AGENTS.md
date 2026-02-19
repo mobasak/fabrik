@@ -15,6 +15,9 @@ docker compose logs -f
 ```bash
 droid exec "Analyze this WordPress setup"
 droid exec --auto medium "Add custom post type"
+# Planning:
+# - Traycer-managed tasks: planning happens in Traycer Phases; do NOT use --use-spec.
+# - Non-Traycer tasks only (fallback):
 droid exec --use-spec "Create child theme"
 ```
 
@@ -48,7 +51,7 @@ docker compose exec wordpress bash
 │   ├── themes/           # Custom themes
 │   ├── plugins/          # Custom plugins
 │   └── uploads/          # Media uploads
-└── .env                  # Environment config
+└── .env.example          # Environment template (never commit real .env)
 ```
 
 ## Security

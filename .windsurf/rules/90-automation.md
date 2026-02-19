@@ -45,7 +45,7 @@ droid exec --auto medium "Install deps, run tests"
 # Full autonomy (Cascade-driven)
 droid exec --auto high "Fix, test, commit, push"
 
-# Spec mode (plan first)
+# Spec mode (NON-TRAYCER ONLY - Traycer-managed tasks must be planned in Traycer Phases)
 droid exec --use-spec "Add authentication"
 
 # Model selection (check config/models.yaml for current names)
@@ -68,9 +68,11 @@ droid exec -m gpt-5.1-codex-max -r high "Complex task"
 
 ---
 
-## Dual-Model Code Review
+## Dual-Model Code Review (NON-TRAYCER ONLY)
 
-**Always use BOTH models for code review:**
+**For Traycer-managed tasks:** Use Traycer verification as primary; do not run dual-model droid review.
+
+**For non-Traycer tasks, use BOTH models:**
 ```bash
 # Get current recommended models
 python3 scripts/droid_models.py recommend code_review
@@ -99,8 +101,10 @@ droid exec "Review this code. DO NOT make changes."
 
 ## Large Features (30+ files)
 
+> **Traycer-managed tasks:** When a task is Traycer-managed, Traycer is the planner—not `droid exec --use-spec`. The spec mode below is fallback for non-Traycer work only.
+
 ```bash
-# 1. Plan with spec mode
+# 1. Plan with spec mode (NON-TRAYCER TASKS ONLY)
 droid exec --use-spec "Create plan for [feature]"
 
 # 2. Implement phase by phase

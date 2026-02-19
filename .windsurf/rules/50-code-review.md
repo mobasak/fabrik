@@ -12,19 +12,27 @@ trigger: always_on
 
 | Phase | Action | Gate |
 |-------|--------|------|
-| **1. PLAN** | Create/show execution plan | Plan exists |
+| **1. PLAN** | Traycer-managed plan exists | Plan exists in Traycer AND saved to `docs/development/plans/` |
 | **2. APPROVE** | Wait for explicit "go" from human | Human says "go" |
-| **3. IMPLEMENT** | Execute ONE step | Code written |
-| **4. REVIEW** | Run code review (see below) | Review output shown |
-| **5. FIX** | Address ALL issues found | Zero errors |
-| **6. VALIDATE** | Run gate command | Gate passes |
-| **7. NEXT** | Only proceed after gate passes | Ready for next step |
+| **3. IMPLEMENT** | Execute one step at a time (from Traycer plan only) | Step code complete |
+| **4. REVIEW** | Run Traycer verification/review for completed step | Traycer verifier findings received |
+| **5. FIX** | Address Traycer findings before proceeding | All findings resolved |
+| **6. VALIDATE** | Traycer verifier passes + repo gate commands | Traycer pass + gate evidence |
+| **7. NEXT** | Only proceed after Traycer + gates pass | Approval for next step |
+
+> **Note:** When Traycer is not available, fall back to manual plan creation and AI code review.
 
 ---
 
 ## Code Review (After EVERY Code Change)
 
 **Immediately after writing/editing code, I MUST:**
+
+### Traycer-Managed Tasks (Primary)
+
+Use Traycer's built-in verifier as the review surface. Do NOT run droid exec review.
+
+### Non-Traycer Tasks (Fallback)
 
 ```bash
 # 1. Check no droid instances running (prevents resource contention)
@@ -50,8 +58,8 @@ Files: <changed_files>"
 STEP <N> STATUS: PASS / FAIL
 Changed files:
 - <path>
-Review output:
-<issues or "No issues">
+Traycer verifier findings:
+<findings or "No issues">
 Gate output:
 <command result>
 Next: Proceed to Step <N+1> / STOP (issues remain)
@@ -69,7 +77,8 @@ Every plan MUST include review checkpoints:
 **DO:** <what to implement>
 
 **REVIEW:**
-- Run: `droid exec -m <model> "Review <files>..."`
+- Traycer-managed: Run Traycer verification for this step
+- Fallback: Run `droid exec -m <model> "Review <files>..."`
 - Fix all issues
 - Re-review until clean
 
@@ -83,10 +92,11 @@ Every plan MUST include review checkpoints:
 ## Violations
 
 **I am FORBIDDEN from:**
-- Skipping REVIEW phase
+- Skipping REVIEW phase (Traycer verification or fallback review)
 - Proceeding to next step with unfixed errors
 - Marking task complete without final review
 - Assuming approval — must wait for explicit "go"
+- Reordering, expanding, or modifying Traycer plan steps without requesting a plan update from Traycer
 
 **If user catches me skipping review:**
 - I must acknowledge the violation

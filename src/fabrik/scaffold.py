@@ -35,7 +35,7 @@ TEMPLATE_MAP = {
     "docs/PROJECT_README_TEMPLATE.md": "README.md",
     "docs/CHANGELOG_TEMPLATE.md": "CHANGELOG.md",
     "docs/TASKS_TEMPLATE.md": "tasks.md",
-    "docs/DOCS_INDEX_TEMPLATE.md": "docs/INDEX.md",
+    "docs/DOCS_INDEX_TEMPLATE.md": "docs/README.md",
     "docs/QUICKSTART_TEMPLATE.md": "docs/QUICKSTART.md",
     "docs/CONFIGURATION_TEMPLATE.md": "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING_TEMPLATE.md": "docs/TROUBLESHOOTING.md",
@@ -54,7 +54,7 @@ REQUIRED_FILES = [
     "README.md",
     "CHANGELOG.md",
     "tasks.md",
-    "docs/INDEX.md",
+    "docs/README.md",
     "docs/QUICKSTART.md",
     "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING.md",
@@ -82,6 +82,29 @@ DIRS = [
 
 # Master AGENTS.md location
 FABRIK_AGENTS_MD = Path("/opt/fabrik/AGENTS.md")
+
+
+def _ensure_symlink(link_path: Path, target: Path) -> bool:
+    """
+    Ensure link_path is a symlink pointing to target.
+    Returns True if created/updated, False if already correct.
+    """
+    link_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # If it exists and is a symlink, verify target
+    if link_path.is_symlink():
+        resolved = Path(link_path.resolve())
+        target_resolved = Path(target.resolve())
+        if resolved == target_resolved:
+            return False
+        link_path.unlink()  # wrong target -> replace
+
+    # If it exists but is NOT a symlink, do not clobber silently
+    if link_path.exists():
+        raise FileExistsError(f"Expected symlink but found existing path: {link_path}")
+
+    link_path.symlink_to(target)
+    return True
 
 
 def _get_package_name(project_name: str) -> str:
@@ -181,14 +204,18 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
                 content = content.replace(old, new)
             (project_dir / dest).write_text(content)
 
-    # Symlink windsurfrules (legacy) and .windsurf/rules/ with existence checks
+    # Symlink windsurfrules (legacy) and .windsurf/rules/ (authoritative)
+    # Fail fast if fabrik targets are missing - environment is broken
     fabrik_windsurfrules = Path("/opt/fabrik/windsurfrules")
     fabrik_windsurf_rules = Path("/opt/fabrik/.windsurf/rules")
-    if fabrik_windsurfrules.exists():
-        (project_dir / ".windsurfrules").symlink_to(fabrik_windsurfrules)
-    if fabrik_windsurf_rules.exists():
-        (project_dir / ".windsurf").mkdir(exist_ok=True)
-        (project_dir / ".windsurf" / "rules").symlink_to(fabrik_windsurf_rules)
+
+    if not fabrik_windsurfrules.exists():
+        raise FileNotFoundError(f"Missing fabrik windsurfrules: {fabrik_windsurfrules}")
+    if not fabrik_windsurf_rules.exists():
+        raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {fabrik_windsurf_rules}")
+
+    _ensure_symlink(project_dir / ".windsurfrules", fabrik_windsurfrules)
+    _ensure_symlink(project_dir / ".windsurf" / "rules", fabrik_windsurf_rules)
 
     # AGENTS.md: symlink to master, fallback to copy
     _link_agents_md(project_dir)
@@ -212,13 +239,13 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     package_dir.mkdir(parents=True, exist_ok=True)
     (package_dir / "__init__.py").write_text("")
     (package_dir / "main.py").write_text(
-        f'''"""Main entry point for {name}."""\nimport os\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\napp = FastAPI(title="{name}")\n\n@app.get("/health")\nasync def health():\n    """Health check that validates actual dependencies."""\n    try:\n        # Test actual dependencies\n        import fastapi\n        import uvicorn\n        import pydantic\n\n        # Test environment variable loading\n        env_loaded = bool(os.getenv("PYTHONPATH"))\n\n        # Check if real dependencies are configured\n        has_real_deps = os.getenv("DATABASE_URL") is not None\n\n        checks = {{\n            "service": "{name}",\n            "status": "degraded" if not has_real_deps else "ok",\n            "dependencies": {{\n                "fastapi": "connected",\n                "uvicorn": "connected",\n                "pydantic": "connected"\n            }},\n            "environment": "loaded" if env_loaded else "missing",\n            "note": "No real dependencies configured - add database/redis checks for production"\n        }}\n        status_code = 200 if has_real_deps else 503\n        return JSONResponse(content=checks, status_code=status_code)\n    except Exception as e:\n        return JSONResponse(\n            content={{\n                "service": "{name}",\n                "status": "error",\n                "error": str(e)\n            }},\n            status_code=503\n        )\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
+        f'''"""Main entry point for {name}."""\nimport os\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\napp = FastAPI(title="{name}")\n\n@app.get("/health")\nasync def health():\n    """Health check - returns 200 when service is running."""\n    db_url = os.getenv("DATABASE_URL")\n    configured = db_url is not None and db_url.strip() != ""\n\n    checks = {{\n        "service": "{name}",\n        "status": "ok",\n        "configured": configured,\n        "note": "Add real dependency checks (DB/redis/etc.) when the service uses them."\n    }}\n    return JSONResponse(content=checks, status_code=200)\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
     )
 
     # Create basic test
     (project_dir / "tests" / "__init__.py").write_text("")
     (project_dir / "tests" / "test_health.py").write_text(
-        f'''"""Health endpoint tests."""\nfrom fastapi.testclient import TestClient\nfrom {package_name}.main import app\n\nclient = TestClient(app)\n\ndef test_health_degraded():\n    """Health check returns degraded when no real dependencies configured."""\n    response = client.get("/health")\n    # Returns 503 when no DATABASE_URL configured\n    assert response.status_code in [200, 503]\n    data = response.json()\n    assert "dependencies" in data\n    assert data["dependencies"]["fastapi"] == "connected"\n    assert data["dependencies"]["uvicorn"] == "connected"\n    assert data["dependencies"]["pydantic"] == "connected"\n'''
+        f'''"""Health endpoint tests."""\nfrom fastapi.testclient import TestClient\nfrom {package_name}.main import app\n\nclient = TestClient(app)\n\ndef test_health_returns_200():\n    """Health check returns 200 when service is running."""\n    response = client.get("/health")\n    assert response.status_code == 200\n    data = response.json()\n    assert data["service"] == "{name}"\n    assert data["status"] == "ok"\n    assert "configured" in data\n'''
     )
 
     # Create PLANS.md inline (no template file)
@@ -295,9 +322,7 @@ def fix_project(project_path: Path, dry_run: bool = False) -> list[str]:
 
     _, missing = validate_project(project_path)
 
-    if not missing:
-        return added
-
+    # Create missing files (if any)
     for f in missing:
         dest_path = project_path / f
 
@@ -333,29 +358,51 @@ def fix_project(project_path: Path, dry_run: bool = False) -> list[str]:
 
         added.append(f)
 
-    # Ensure symlinks exist (skip in dry_run)
-    if not dry_run:
-        try:
-            windsurfrules_link = project_path / ".windsurfrules"
-            if not windsurfrules_link.exists() and not windsurfrules_link.is_symlink():
-                windsurfrules_link.symlink_to("/opt/fabrik/windsurfrules")
-                added.append(".windsurfrules (symlink)")
+    # Ensure symlinks exist
+    windsurfrules_target = Path("/opt/fabrik/windsurfrules")
+    windsurf_rules_target = Path("/opt/fabrik/.windsurf/rules")
 
-            agents_link = project_path / "AGENTS.md"
-            if not agents_link.exists() and not agents_link.is_symlink():
-                _link_agents_md(project_path)
-                added.append("AGENTS.md (symlink or copy)")
-        except OSError:
-            # Fallback for AGENTS.md
-            _link_agents_md(project_path)
-            added.append("AGENTS.md (copy fallback)")
-    else:
-        # Check what would be added in dry_run
-        windsurfrules_link = project_path / ".windsurfrules"
-        if not windsurfrules_link.exists() and not windsurfrules_link.is_symlink():
+    if not dry_run:
+        # Fail fast if fabrik targets are missing - environment is broken
+        if not windsurfrules_target.exists():
+            raise FileNotFoundError(f"Missing fabrik windsurfrules: {windsurfrules_target}")
+        if not windsurf_rules_target.exists():
+            raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {windsurf_rules_target}")
+
+        if _ensure_symlink(project_path / ".windsurfrules", windsurfrules_target):
             added.append(".windsurfrules (symlink)")
+
+        if _ensure_symlink(project_path / ".windsurf" / "rules", windsurf_rules_target):
+            added.append(".windsurf/rules (symlink)")
+
         agents_link = project_path / "AGENTS.md"
         if not agents_link.exists() and not agents_link.is_symlink():
-            added.append("AGENTS.md (symlink)")
+            _link_agents_md(project_path)
+            added.append("AGENTS.md (symlink or copy)")
+    else:
+        # dry_run: accurately report what would be created/fixed
+        # .windsurfrules
+        link = project_path / ".windsurfrules"
+        if link.is_symlink():
+            if Path(link.resolve()) != Path(windsurfrules_target.resolve()):
+                added.append(".windsurfrules (symlink fix)")
+        elif not link.exists():
+            added.append(".windsurfrules (symlink)")
+
+        # .windsurf/rules
+        link = project_path / ".windsurf" / "rules"
+        if link.is_symlink():
+            if Path(link.resolve()) != Path(windsurf_rules_target.resolve()):
+                added.append(".windsurf/rules (symlink fix)")
+        elif not link.exists():
+            added.append(".windsurf/rules (symlink)")
+
+        # AGENTS.md
+        agents = project_path / "AGENTS.md"
+        if agents.is_symlink():
+            if Path(agents.resolve()) != Path(FABRIK_AGENTS_MD.resolve()):
+                added.append("AGENTS.md (symlink fix)")
+        elif not agents.exists():
+            added.append("AGENTS.md (symlink or copy)")
 
     return added
