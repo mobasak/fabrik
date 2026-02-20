@@ -6,6 +6,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## UNRELEASED - GAP-03 MCP SERVER CONFIG (2026-02-19)
+- Configured /home/ozgur/.factory/mcp.json: filesystem (readOnly, /opt/*) + postgres (env var creds)
+- Created docs/reference/mcp-config.md (security model, env vars, rollback, troubleshooting)
+- Backup at /home/ozgur/.factory/mcp.json.bak
+
 ### Added - GAP-02 Windsurf Workflows (2026-02-19)
 
 **What:** Four standardised Windsurf workflow files for deploy, new-feature, bug-fix, and code-review.
