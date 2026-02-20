@@ -1,4 +1,0 @@
-# file: /opt/fabrik/scripts/pipeline_runner.py
-# hypothesis_version: 6.151.9
-
-[0.0, 500, '--cwd', '--dry-run', '--json', '--risk', '--stage', '.', '.factory', 'Available commands', 'Execute single stage', 'HIGH', 'LOW', 'MEDIUM', 'Stage to execute', 'Task description', 'Working directory', '__main__', 'api', 'auth', 'command', 'comment', 'component', 'cwd', 'database', 'discovery', 'docs', 'duration_seconds', 'ended_at', 'endpoint', 'execution', 'fail', 'feature', 'fix', 'high', 'iteration', 'latest', 'latest.txt', 'low', 'medium', 'migration', 'model', 'none', 'output_summary', 'pass', 'pipeline_runner.py', 'planning', 'readme', 'report.json', 'reports', 'run', 'security', 'session_id', 'ship', 'stage', 'stage_name', 'stages_executed', 'stages_skipped', 'started_at', 'status', 'store_true', 'success', 'task', 'tokens_used', 'total_tokens', 'typo', 'unknown', 'verification', 'w']

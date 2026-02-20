@@ -1,4 +1,0 @@
-# file: /opt/fabrik/src/fabrik/orchestrator/deployer.py
-# hypothesis_version: 6.151.9
-
-['coolify', 'domain', 'dry-run-uuid', 'env', 'id', 'name', 'unknown', 'uuid']

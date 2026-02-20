@@ -1,4 +1,0 @@
-# file: /opt/fabrik/src/fabrik/__init__.py
-# hypothesis_version: 6.151.9
-
-['0.1.0', 'Spec', 'TemplateRenderer', 'create_spec', 'list_templates', 'load_spec', 'render_template', 'save_spec', 'Özgür Başak']

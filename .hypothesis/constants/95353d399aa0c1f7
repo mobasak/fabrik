@@ -1,4 +1,0 @@
-# file: /opt/fabrik/src/fabrik/template_renderer.py
-# hypothesis_version: 6.151.9
-
-['"', '*.j2', '.env.example', 'Dockerfile', 'Dockerfile.j2', '\\"', '\\n', 'apps', 'compose.yaml', 'compose.yaml.j2', 'defaults.yaml', 'depends', 'domain', 'env', 'env_escape', 'health', 'id', 'infrastructure', 'j2', 'resources', 'spec', 'templates', 'utf-8', 'volumes', 'w', 'yaml', 'yml']
