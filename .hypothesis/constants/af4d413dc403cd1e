@@ -1,0 +1,4 @@
+# file: /opt/fabrik/src/fabrik/orchestrator/validator.py
+# hypothesis_version: 6.151.9
+
+['-', '.internal', '.invalid', '.local', '.test', 'Spec validated: %s', '_', 'domain', 'env', 'healthcheck', 'ip6-localhost', 'ip6-loopback', 'localhost', 'name', 'path', 'secrets', 'server', 'syntax', 'template', 'type']

@@ -1,0 +1,4 @@
+# file: /opt/fabrik/scripts/process_monitor.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 300, 600, 1024, 5120, 'CONFIRMED_STUCK', 'HEALTHY', 'LIKELY_STUCK', 'Network: unknown', 'SUSPICIOUS', 'Safe to terminate', '__main__', 'any_network', 'avg_cpu', 'certain', 'confidence', 'has_activity', 'high', 'inet', 'low', 'medium', 'memory_mb', 'metrics', 'num_fds', 'num_threads', 'reason', 'recommendation', 'safe_to_kill', 'state', 'status', 'stopped', 'total_io_bytes', 'unknown', 'zombie', '⚠️ ', '✅', '❌', '❓', '💀']

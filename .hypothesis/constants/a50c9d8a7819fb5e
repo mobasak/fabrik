@@ -1,0 +1,4 @@
+# file: /opt/fabrik/src/fabrik/orchestrator/exceptions.py
+# hypothesis_version: 6.151.9
+
+['deploying', 'provisioning', 'rolling_back', 'state_transition', 'validation', 'verifying']

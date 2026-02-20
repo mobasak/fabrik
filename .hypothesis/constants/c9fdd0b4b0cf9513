@@ -1,0 +1,4 @@
+# file: /opt/fabrik/src/fabrik/spec_loader.py
+# hypothesis_version: 6.151.9
+
+[1800, 86400, '-', '--', '.yaml', '.yml', '/health', '0.5', '10s', '256M', '30s', 'Docker image', 'For MX records', 'Git repo URL', 'IP address or target', 'Redis instance name', 'after', 'cloudflare', 'daily', 'default', 'docker', 'git', 'id', 'local', 'localhost', 'main', 'namecheap', 'none', 'r2', 'service', 'supabase', 'template', 'utf-8', 'w', 'worker', 'wp_repo', 'zip']

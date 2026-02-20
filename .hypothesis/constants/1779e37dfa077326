@@ -1,0 +1,4 @@
+# file: /opt/fabrik/src/fabrik/scaffold.py
+# hypothesis_version: 6.151.9
+
+['-', '-m', '-q', '.', '.cache', '.env.example', '.gitignore', '.tmp', '.windsurf', '.windsurfrules', '/opt', '<package_name>', '<project>', 'AGENTS.md', 'CHANGELOG.md', 'Dockerfile', 'Initial commit', 'PLANS.md', 'README.md', 'YYYY-MM-DD', '[Brief description]', '[Project Name]', '[project]', '^[a-z][a-z0-9-]*$', '_', '__init__.py', 'add', 'archive', 'bin', 'commit', 'compose.yaml', 'config', 'data', 'dev', 'development', 'docs', 'docs/QUICKSTART.md', 'docs/README.md', 'docs/archive', 'docs/development', 'docs/guides', 'docs/operations', 'docs/reference', 'etc', 'fabrik', 'git', 'home', 'init', 'install', 'lib', 'logs', 'main.py', 'opt', 'output', 'pre-commit', 'proc', 'project-name', 'pyproject.toml', 'python', 'requirements.txt', 'root', 'rules', 'scripts', 'src', 'sys', 'tasks.md', 'test', 'test_health.py', 'tests', 'tmp', 'usr', 'var']

@@ -6,6 +6,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## UNRELEASED - GAP-08 PROPERTY-BASED TESTING (2026-02-20)
+- Added `hypothesis>=6.100.0` to dev dependencies in `pyproject.toml`
+- Added `[tool.hypothesis]` config block (database = ".hypothesis")
+- Created `tests/conftest.py` with ci/dev/thorough Hypothesis profiles
+- Created `tests/test_properties.py` with 3 property tests:
+  - `_get_package_name` hyphen-replacement invariants
+  - `recommend_model` valid-candidate invariant
+  - `get_default_model` models.yaml membership invariant
+- Created `docs/reference/property-testing.md`
+
 ### Added - GAP-06 Custom Droids (2026-02-20)
 
 **What:** Four new custom droid definitions (planner, security-auditor, test-generator, documentation-writer) + reference documentation for all 7 droids.

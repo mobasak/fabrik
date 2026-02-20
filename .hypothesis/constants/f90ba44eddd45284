@@ -1,0 +1,4 @@
+# file: /opt/fabrik/src/fabrik/orchestrator/rollback.py
+# hypothesis_version: 6.151.9
+
+['Rolling back %s: %s', 'coolify', 'dns', 'monitor', 'zone']

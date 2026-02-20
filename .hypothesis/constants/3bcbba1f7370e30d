@@ -1,0 +1,4 @@
+# file: /opt/fabrik/src/fabrik/orchestrator/verifier.py
+# hypothesis_version: 6.151.9
+
+[200, 443, '/health', 'domain', 'health', 'healthcheck', 'https://', 'path']
