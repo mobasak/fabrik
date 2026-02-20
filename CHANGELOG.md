@@ -6,6 +6,17 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - GAP-06 Custom Droids (2026-02-20)
+
+**What:** Four new custom droid definitions (planner, security-auditor, test-generator, documentation-writer) + reference documentation for all 7 droids.
+
+**Files:**
+- `/home/ozgur/.factory/droids/planner.md` - Planning droid (autonomy: low)
+- `/home/ozgur/.factory/droids/security-auditor.md` - Security audit droid (autonomy: low)
+- `/home/ozgur/.factory/droids/test-generator.md` - Test generation droid (autonomy: medium)
+- `/home/ozgur/.factory/droids/documentation-writer.md` - Documentation droid (autonomy: medium)
+- `docs/reference/custom-droids.md` - Reference for all 7 droids
+
 ## UNRELEASED - GAP-03 MCP SERVER CONFIG (2026-02-19)
 - Configured /home/ozgur/.factory/mcp.json: filesystem (readOnly, /opt/*) + postgres (env var creds)
 - Created docs/reference/mcp-config.md (security model, env vars, rollback, troubleshooting)
