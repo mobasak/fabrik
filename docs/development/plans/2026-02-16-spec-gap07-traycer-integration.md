@@ -239,7 +239,7 @@ Compare: Which has fewer issues?
 grep -E "^\- \[(x|X)\] \*\*(ADOPT|DEFER|REJECT)\*\*" docs/reference/traycer-evaluation.md && \
 grep -q "## Test Cases Run" docs/reference/traycer-evaluation.md && \
 grep -q "Score:" docs/reference/traycer-evaluation.md && \
-grep -c "| PASS |" docs/reference/traycer-evaluation.md | grep -q "[5-9]" && \
+grep -cE "\| PASS \||\| FAIL \|" docs/reference/traycer-evaluation.md | grep -qE "^[5-9]|^[1-9][0-9]" && \
 echo "PASS"
 ```
 

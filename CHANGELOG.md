@@ -6,6 +6,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## UNRELEASED - GAP-07 TRAYCER EVALUATION (2026-02-21)
+- Created `docs/reference/traycer-evaluation.md` (EVALUATION ONLY)
+- Decision: DEFER — CLI unavailable, cannot run test cases
+- Baseline infrastructure validated via `.tmp/traycer-baseline.json` (pipeline routing works; stage execution pending)
+- 5 test cases documented with evidence
+
 ## UNRELEASED - GAP-04 KPI TRACKER (2026-02-20)
 - Added `scripts/kpi_tracker.py`: CLI with summary/export/ingest/prune/sanitize
 - KPIEvent dataclass with UUID v4 idempotency, ISO 8601 timestamps

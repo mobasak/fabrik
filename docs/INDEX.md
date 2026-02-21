@@ -56,6 +56,7 @@ docs/
 │   ├── trueforge-images.md         # Trueforge image catalog
 │   ├── uptime-kuma.md              # Uptime Kuma runbook
 │   ├── verification-framework.md   # 3-lane verification system
+│   ├── traycer-evaluation.md       # Traycer integration evaluation (GAP-07)
 │   ├── windsurf/                   # Windsurf IDE optimization
 │   │   ├── overview.md             # Windsurf optimization overview
 │   │   ├── recommended-extensions.md # Curated extensions list
