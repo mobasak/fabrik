@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## UNRELEASED - P0 FIX: python3 consistency (2026-02-21)
+- Fixed `Makefile` `global-gates` target: `python` → `python3` to match shebang in `check_global_gates.py`
+
 ## UNRELEASED - GAP-07 TRAYCER EVALUATION (2026-02-21)
 - Created `docs/reference/traycer-evaluation.md` (EVALUATION ONLY)
 - Decision: DEFER — CLI unavailable, cannot run test cases

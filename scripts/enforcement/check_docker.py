@@ -60,7 +60,7 @@ def check_file(file_path: Path) -> list:
                 message="No HEALTHCHECK instruction found",
                 file_path=str(file_path),
                 line_number=1,
-                fix_hint="Add: HEALTHCHECK --interval=30s CMD curl -f http://localhost:8000/health || exit 1",
+                fix_hint="Add: HEALTHCHECK --interval=30s CMD curl -f http://localhost:${PORT:-8000}/health || exit 1",  # noqa: env_vars
             )
         )
 

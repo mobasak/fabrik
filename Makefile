@@ -55,7 +55,7 @@ docs-check:
 	python scripts/docs_updater.py --check
 
 global-gates:
-	python -m scripts.enforcement.check_global_gates
+	python3 -m scripts.enforcement.check_global_gates
 
 # ============================================================
 # Cleanup

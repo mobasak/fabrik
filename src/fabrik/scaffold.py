@@ -224,8 +224,9 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     (project_dir / ".gitignore").write_text(
         ".env\nvenv/\n__pycache__/\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n.venv/\n"
     )
+    # Example .env template with placeholder values (not real credentials)  # noqa: secrets
     (project_dir / ".env.example").write_text(
-        f"# {name} Configuration\n# Use env vars - never hardcode connection strings\nDATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\nLOG_LEVEL=INFO\nPORT=8000\n"
+        f"# {name} Configuration\n# Use env vars - never hardcode connection strings\nDATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\nLOG_LEVEL=INFO\nPORT=8000\n"  # noqa: secrets
     )
 
     # Create requirements.txt

@@ -80,6 +80,8 @@ def run_droid_exec_monitored_v2(
 
     try:
         # Read streaming events
+        if process.stdout is None:
+            raise RuntimeError("Process stdout is None")
         for line in process.stdout:
             line = line.strip()
             if not line:

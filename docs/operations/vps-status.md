@@ -403,7 +403,7 @@ All domains use Namecheap DNS and have WhoisGuard enabled.
 ## Reference
 
 - **Phase 1 Tasks:** [tasks.md](../../tasks.md)
-- **Phase 1 Narrative:** [Phase1.md](../reference/Phase1.md)
+- **Architecture:** [architecture.md](../reference/architecture.md)
 - **Stack Overview:** [stack.md](../reference/stack.md)
 - **Disaster Recovery:** [disaster-recovery.md](disaster-recovery.md)
 - **Duplicati Setup:** [duplicati-setup.md](duplicati-setup.md)

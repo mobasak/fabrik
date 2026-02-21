@@ -358,7 +358,7 @@ class TestReportContract:
         runner = PipelineRunner(config)
         result = runner.run_pipeline("Test", dry_run=False)
 
-        assert isinstance(result.timestamps["duration_seconds"], (int, float))
+        assert isinstance(result.timestamps["duration_seconds"], int | float)
 
 
 class TestExitCodes:

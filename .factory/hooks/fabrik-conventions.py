@@ -131,11 +131,11 @@ def main():
     warnings = [i for i in issues if i[1] == "warning"]
 
     if warnings:
-        for name, severity, message in warnings:
+        for name, _severity, message in warnings:
             print(f"⚠️ Fabrik Warning [{name}]: {message}", file=sys.stderr)
 
     if errors:
-        for name, severity, message in errors:
+        for name, _severity, message in errors:
             print(f"❌ Fabrik Error [{name}]: {message}", file=sys.stderr)
         print("\nPlease fix the above issues to follow Fabrik conventions.", file=sys.stderr)
         print("See: /opt/fabrik/AGENTS.md for Fabrik standards.", file=sys.stderr)

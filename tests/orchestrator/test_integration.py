@@ -133,7 +133,7 @@ class TestDeploymentOrchestrator:
             verifier=mock_verifier,
             rollback_manager=mock_rollback,
         )
-        ctx = orchestrator.deploy(test_spec_path)
+        orchestrator.deploy(test_spec_path)
 
         # Should have rolled back
         mock_rollback.rollback.assert_called_once()

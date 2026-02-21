@@ -128,7 +128,14 @@ __all__ = [
     "ValidationError",
     "validate_spec",
     # Domain setup
+    "DNSSyncResult",
+    "DomainProvisioner",
     "DomainSetup",
     "DomainSetupResult",
+    "ProvisionResult",
+    "ProvisionState",
+    "get_domain_status",
+    "provision_domain",
     "setup_domain",
+    "sync_dns",
 ]

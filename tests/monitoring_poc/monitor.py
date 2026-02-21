@@ -38,7 +38,6 @@ def monitor(mode):
         try:
             with open(f"/proc/{p.pid}/syscall") as f:
                 syscall = f.read().strip()
-                syscall_nr = syscall.split()[0]
                 print(f"Syscall: {syscall}")
         except FileNotFoundError:
             print("Syscall: N/A")

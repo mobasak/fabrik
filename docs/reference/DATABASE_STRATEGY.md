@@ -324,4 +324,4 @@ psql myproject_new < backup.sql
 ## Related Documents
 
 - [CONFIGURATION.md](../CONFIGURATION.md) - Environment variables
-- [PYTHON_PRODUCTION_STANDARDS.md](../../templates/PYTHON_PRODUCTION_STANDARDS.md) - Database code patterns
+- [AGENTS.md](../../AGENTS.md) - Database code patterns and conventions

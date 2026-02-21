@@ -87,4 +87,4 @@ curl https://hello-api.yourdomain.com/health
 
 - [Configuration Reference](CONFIGURATION.md) — All settings explained
 - [Deployment Guide](DEPLOYMENT.md) — Detailed deployment options
-- [Phase 1 Details](reference/Phase1.md) — VPS hardening and Coolify setup
+- [VPS Status](operations/vps-status.md) — Current VPS state and configuration

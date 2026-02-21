@@ -1,0 +1,7 @@
+services:
+  {{ spec.id }}:
+    build: .
+    container_name: {{ spec.id }}
+    restart: unless-stopped
+    networks:
+      - coolify

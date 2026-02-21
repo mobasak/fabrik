@@ -145,6 +145,6 @@ pytest tests/orchestrator/test_validator.py -q
 
 ## Related
 
-- [Phase 10 Execution Plan](phase10-execution.md)
+- [Roadmap](roadmap.md)
 - [Drivers Reference](drivers.md)
 - [CLI Reference](fabrik-cli-reference.md)

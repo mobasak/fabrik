@@ -35,10 +35,10 @@ SECRET_PATTERNS = [
     # Stripe
     (r"sk_live_[a-zA-Z0-9]{24,}", "Stripe Live Secret Key"),
     (r"rk_live_[a-zA-Z0-9]{24,}", "Stripe Restricted Key"),
-    # Database URLs with passwords
-    (r"postgresql://[^:]+:[^@]+@", "Database URL with password"),
-    (r"mysql://[^:]+:[^@]+@", "Database URL with password"),
-    (r"mongodb://[^:]+:[^@]+@", "Database URL with password"),
+    # Database URLs with passwords (regex patterns, not actual secrets)  # noqa: secrets
+    (r"postgresql://[^:]+:[^@]+@", "Database URL with password"),  # noqa: secrets
+    (r"mysql://[^:]+:[^@]+@", "Database URL with password"),  # noqa: secrets
+    (r"mongodb://[^:]+:[^@]+@", "Database URL with password"),  # noqa: secrets
     # Generic secrets
     (
         r'(?:password|passwd|pwd|secret|token|api_key|apikey)\s*[:=]\s*[\'"][^\'"]{8,}[\'"]',
@@ -60,10 +60,7 @@ SKIP_PATTERNS = [
 
 def should_skip(file_path: str) -> bool:
     """Check if file should be skipped."""
-    for pattern in SKIP_PATTERNS:
-        if re.search(pattern, file_path, re.IGNORECASE):
-            return True
-    return False
+    return any(re.search(pattern, file_path, re.IGNORECASE) for pattern in SKIP_PATTERNS)
 
 
 def scan_content(content: str) -> list[tuple[str, str]]:
@@ -75,10 +72,7 @@ def scan_content(content: str) -> list[tuple[str, str]]:
         if matches:
             # Mask the actual secret
             for match in matches:
-                if len(match) > 8:
-                    masked = match[:4] + "..." + match[-4:]
-                else:
-                    masked = "***"
+                masked = match[:4] + "..." + match[-4:] if len(match) > 8 else "***"
                 found.append((description, masked))
 
     return found

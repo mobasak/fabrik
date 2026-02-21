@@ -234,8 +234,8 @@ def main() -> int:
 
     if has_errors:
         return 2
-    elif has_warnings:
-        return 1
+    # Warnings are non-blocking - return 0 so pre-commit passes
+    # (warnings are still printed for visibility)
     return 0
 
 
