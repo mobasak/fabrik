@@ -1,0 +1,89 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  duplicate-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install jscpd
+        run: npm install -g jscpd
+
+      - name: Install Python dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run duplicate check
+        run: python -m scripts.enforcement.check_duplicates --report duplicate-report.json
+
+      - name: Upload duplicate report
+        uses: actions/upload-artifact@v4
+        with:
+          name: duplicate-report
+          path: duplicate-report.json
+        if: always()
+
+  kpi-schema-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ingest token log
+        run: |
+          python scripts/kpi_tracker.py ingest \
+            --source scripts/.droid_token_usage.jsonl || true
+
+      - name: Validate KPI schema
+        run: |
+          python -c "
+          import json
+          import sys
+          from pathlib import Path
+
+          kpi_file = Path('.droid/kpis.jsonl')
+          if not kpi_file.exists():
+              print('No KPI file (OK for new setup)')
+              sys.exit(0)
+
+          required = ['event_id', 'event_type', 'timestamp', 'task_id']
+          valid_types = {'task_start', 'task_end', 'review_start', 'review_end', 'error'}
+          errors = []
+
+          for i, line in enumerate(kpi_file.read_text().strip().splitlines(), 1):
+              if not line:
+                  continue
+              try:
+                  e = json.loads(line)
+                  missing = [f for f in required if f not in e]
+                  if missing:
+                      errors.append(f'Line {i}: Missing {missing}')
+                  if e.get('event_type') not in valid_types:
+                      errors.append(f'Line {i}: Invalid event_type')
+              except json.JSONDecodeError as ex:
+                  errors.append(f'Line {i}: {ex}')
+
+          if errors:
+              print('\n'.join(errors))
+              sys.exit(1)
+
+          print('KPI schema valid')
+          "

@@ -6,6 +6,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## UNRELEASED - GAP-04 KPI TRACKER (2026-02-20)
+- Added `scripts/kpi_tracker.py`: CLI with summary/export/ingest/prune/sanitize
+- KPIEvent dataclass with UUID v4 idempotency, ISO 8601 timestamps
+- Ingest from `scripts/.droid_token_usage.jsonl` (deterministic event_id via UUID5)
+- PII-safe: no prompt text stored; error_message sanitized; 90d prune
+- `scripts/droid-review.sh`: emits review_start/review_end to `.droid/kpis.jsonl`
+- `tests/test_kpi_tracker.py`: 9 test cases, >80% coverage
+- `docs/reference/kpi-schema.md`: schema, examples, PII policy
+- `.github/workflows/ci.yml`: kpi-schema-validate job + duplicate-check job
+
 ## UNRELEASED - GAP-08 PROPERTY-BASED TESTING (2026-02-20)
 - Added `hypothesis>=6.100.0` to dev dependencies in `pyproject.toml`
 - Added `[tool.hypothesis]` config block (database = ".hypothesis")
@@ -73,10 +83,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 from scripts.droid_session import get_or_create_session, log_token_usage
 
 session_id = get_or_create_session("feature-auth", model="gpt-5.1-codex-max")
-# Use: droid exec --session-id {session_id} ...
+# Use: droid exec --session-id {session_id} "Your prompt"
 
 # After JSON output, log usage
-log_token_usage(session_id, usage_dict, model="...", context_key="...")
+log_token_usage(session_id, usage_dict, model="gpt-5.1-codex-max", context_key="feature-auth")
 ```
 
 **Token Tracking:**
