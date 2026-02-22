@@ -6,6 +6,30 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Path Traversal and SSRF Prevention (2026-02-22)
+
+**What:** Added path traversal containment checks and DNS-resolving SSRF prevention to validator and template renderer.
+
+**Files:**
+- `src/fabrik/orchestrator/validator.py` - Added `.resolve().relative_to()` containment check in `SpecValidator.validate()`; rewrote `is_private_ip()` to resolve hostnames via `socket.getaddrinfo()` before checking private ranges (fail-safe on DNS failure)
+- `src/fabrik/template_renderer.py` - Added path containment checks in `render()` (raises `ValueError`) and `template_exists()` (returns `False`)
+- `docs/reference/orchestrator.md` - Documented DNS resolution SSRF fix and path traversal prevention
+- `docs/reference/template_renderer.md` - Created doc with Security section for path containment
+
+### Fixed - WordPress Command Injection Prevention (2026-02-22)
+
+**What:** Applied `shlex.quote()` to all user-supplied arguments in WordPress WP-CLI commands to prevent shell command injection vulnerabilities.
+
+**Files:**
+- `src/fabrik/drivers/wordpress.py` - Quoted container name, all method parameters (url, title, admin_user, plugin, theme, user, option, file, format, locale, etc.)
+- `src/fabrik/wordpress/forms.py` - Quoted form title, content, mail settings, messages; removed fragile manual escaping
+- `src/fabrik/wordpress/menus.py` - Quoted menu name, item title, url, slug, location
+- `src/fabrik/wordpress/seo.py` - Quoted title, description, focus_keyword, robots_value
+- `src/fabrik/wordpress/theme.py` - Quoted colors_json, fonts, container_width, sidebar, css; removed manual escaping
+- `src/fabrik/wordpress/settings.py` - Quoted slug and title in page queries
+- `src/fabrik/wordpress/pages.py` - Quoted slug in get_page_by_slug()
+- `src/fabrik/wordpress/analytics.py` - Removed manual escaping (option_update handles quoting internally)
+
 ## UNRELEASED - P0 FIX: python3 consistency (2026-02-21)
 - Fixed `Makefile` `global-gates` target: `python` → `python3` to match shebang in `check_global_gates.py`
 

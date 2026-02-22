@@ -4,6 +4,7 @@ import hashlib
 import ipaddress
 import logging
 import re
+import socket
 from pathlib import Path
 from typing import Any
 
@@ -39,14 +40,36 @@ def is_private_ip(hostname: str) -> bool:
     Returns:
         True if private/reserved IP, False otherwise
     """
+    # First, try to parse as a literal IP address
     try:
         ip = ipaddress.ip_address(hostname)
         return (
             ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local or ip.is_multicast
         )
     except ValueError:
-        # Not an IP address, check if it's a blocked hostname
+        pass  # Not a literal IP, resolve via DNS
+
+    # Resolve hostname via DNS and check all returned addresses
+    try:
+        addr_info = socket.getaddrinfo(hostname, None)
+        for _family, _type, _proto, _canonname, sockaddr in addr_info:
+            ip_str = sockaddr[0]
+            try:
+                ip = ipaddress.ip_address(ip_str)
+                if (
+                    ip.is_private
+                    or ip.is_loopback
+                    or ip.is_reserved
+                    or ip.is_link_local
+                    or ip.is_multicast
+                ):
+                    return True
+            except ValueError:
+                continue  # Skip unparseable addresses
         return False
+    except socket.gaierror:
+        # DNS resolution failed - treat as blocked (fail-safe)
+        return True
 
 
 def validate_domain_security(domain: str) -> str | None:
@@ -165,6 +188,15 @@ class SpecValidator:
         # Validate template exists
         template = spec["template"]
         template_path = self.templates_dir / template
+
+        # Path traversal containment check
+        try:
+            template_path.resolve().relative_to(self.templates_dir.resolve())
+        except ValueError:
+            raise ValidationError(
+                f"Template path escapes templates directory: {template}", field="template"
+            )
+
         if not template_path.exists():
             warnings.append(f"Template not found: {template}")
 

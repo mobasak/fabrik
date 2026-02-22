@@ -10,6 +10,7 @@ Handles:
 from __future__ import annotations
 
 import json
+import shlex
 from dataclasses import dataclass
 from typing import Any
 
@@ -177,11 +178,10 @@ class FormCreator:
 
         # Create form as custom post type
         form_content = json.dumps(form_data)
-        escaped_content = form_content.replace("'", "'\\''")
 
         output = self.wp.run(
-            f"post create --post_type=wpforms --post_title='{title}' "
-            f"--post_status=publish --post_content='{escaped_content}' --porcelain"
+            f"post create --post_type=wpforms --post_title={shlex.quote(title)} "
+            f"--post_status=publish --post_content={shlex.quote(form_content)} --porcelain"
         )
         form_id = int(output.strip())
 
@@ -238,13 +238,13 @@ class FormCreator:
 
         # Create CF7 form post
         output = self.wp.run(
-            f"post create --post_type=wpcf7_contact_form --post_title='{title}' "
+            f"post create --post_type=wpcf7_contact_form --post_title={shlex.quote(title)} "
             f"--post_status=publish --porcelain"
         )
         form_id = int(output.strip())
 
         # Set form content and mail settings
-        self.wp.run(f"post meta update {form_id} _form '{form_content}'")
+        self.wp.run(f"post meta update {form_id} _form {shlex.quote(form_content)}")
 
         mail_settings = json.dumps(
             {
@@ -257,7 +257,7 @@ class FormCreator:
                 "use_html": False,
             }
         )
-        self.wp.run(f"post meta update {form_id} _mail '{mail_settings}'")
+        self.wp.run(f"post meta update {form_id} _mail {shlex.quote(mail_settings)}")
 
         # Set confirmation message
         messages = json.dumps(
@@ -265,7 +265,7 @@ class FormCreator:
                 "mail_sent_ok": success_message,
             }
         )
-        self.wp.run(f"post meta update {form_id} _messages '{messages}'")
+        self.wp.run(f"post meta update {form_id} _messages {shlex.quote(messages)}")
 
         return CreatedForm(
             id=form_id,

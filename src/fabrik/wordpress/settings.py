@@ -9,6 +9,7 @@ Handles:
 """
 
 import secrets
+import shlex
 from dataclasses import dataclass
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
@@ -211,7 +212,9 @@ class SettingsApplicator:
                 if output and output.strip() != "0":
                     return int(output.strip())
 
-            output = self.wp.run(f"post list --post_type=page --name='{slug}' --format=ids")
+            output = self.wp.run(
+                f"post list --post_type=page --name={shlex.quote(slug)} --format=ids"
+            )
             if output.strip():
                 return int(output.strip().split()[0])
         except (RuntimeError, ValueError):
@@ -230,7 +233,9 @@ class SettingsApplicator:
             Page ID or None if not found
         """
         try:
-            output = self.wp.run(f"post list --post_type=page --title='{title}' --format=ids")
+            output = self.wp.run(
+                f"post list --post_type=page --title={shlex.quote(title)} --format=ids"
+            )
             if output.strip():
                 return int(output.strip().split()[0])
         except (RuntimeError, ValueError):

@@ -70,6 +70,13 @@ class TemplateRenderer:
     def template_exists(self, template_name: str) -> bool:
         """Check if a template exists."""
         template_path = self.templates_dir / template_name
+
+        # Path traversal containment check
+        try:
+            template_path.resolve().relative_to(self.templates_dir.resolve())
+        except ValueError:
+            return False  # Treat escaped paths as non-existent
+
         return template_path.is_dir() and (template_path / "compose.yaml.j2").exists()
 
     def render(
@@ -94,6 +101,13 @@ class TemplateRenderer:
 
         # Validate template exists
         template_path = self.templates_dir / spec.template
+
+        # Path traversal containment check
+        try:
+            template_path.resolve().relative_to(self.templates_dir.resolve())
+        except ValueError:
+            raise ValueError(f"Template path escapes templates directory: {spec.template}")
+
         if not template_path.is_dir():
             raise TemplateNotFound(f"Template not found: {spec.template}")
 

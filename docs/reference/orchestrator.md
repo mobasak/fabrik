@@ -1,6 +1,6 @@
 # Deployment Orchestrator
 
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-02-22
 
 The orchestrator module (`src/fabrik/orchestrator/`) provides unified end-to-end deployment automation.
 
@@ -105,6 +105,8 @@ healthcheck:
 ## Security Features
 
 - **Domain validation**: Blocks localhost, private IPs, internal TLDs (SSRF prevention)
+- **DNS resolution for SSRF**: `is_private_ip()` resolves hostnames via `socket.getaddrinfo()` before checking private ranges — catches DNS-rebinding attacks (e.g., `internal.corp` → `10.0.0.1`)
+- **Path traversal prevention**: Template paths are validated with `.resolve().relative_to()` to prevent directory escape (e.g., `../../etc/passwd`)
 - **HTTPS enforcement**: Health checks only allow `https://` URLs
 - **CSPRNG secrets**: Auto-generated secrets use `secrets` module (32 char alphanumeric)
 - **Rollback safety**: Only resources created in current run are rolled back

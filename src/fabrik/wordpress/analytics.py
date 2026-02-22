@@ -140,22 +140,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         Uses a custom option that can be hooked by theme/plugin.
         """
-        escaped_code = code.replace("'", "'\\''")
         option_name = f"fabrik_head_code_{key}"
 
         try:
-            self.wp.option_update(option_name, escaped_code)
+            self.wp.option_update(option_name, code)
             return True
         except RuntimeError:
             return False
 
     def _inject_body_code(self, code: str, key: str) -> bool:
         """Inject code into wp_body_open via option."""
-        escaped_code = code.replace("'", "'\\''")
         option_name = f"fabrik_body_code_{key}"
 
         try:
-            self.wp.option_update(option_name, escaped_code)
+            self.wp.option_update(option_name, code)
             return True
         except RuntimeError:
             return False
@@ -186,9 +184,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             results["body"] = self._inject_body_code(body_code, "custom_body")
 
         if footer_code:
-            escaped = footer_code.replace("'", "'\\''")
             try:
-                self.wp.option_update("fabrik_footer_code", escaped)
+                self.wp.option_update("fabrik_footer_code", footer_code)
                 results["footer"] = True
             except RuntimeError:
                 results["footer"] = False

@@ -1,6 +1,6 @@
 # Fabrik Templates
 
-**Last Updated:** 2025-12-23
+**Last Updated:** 2026-02-22
 
 ---
 
@@ -216,6 +216,12 @@ services:
         limits:
           memory: {{ resources.memory }}
 ```
+
+---
+
+## Security
+
+- **Path traversal prevention**: `TemplateRenderer.render()` and `template_exists()` validate that template paths stay within the templates directory using `.resolve().relative_to()`. Attempts to escape (e.g., `../../etc/passwd`) raise `ValueError` or return `False`.
 
 ---
 

@@ -5,6 +5,7 @@ Executes WP-CLI commands inside WordPress Docker containers via SSH.
 """
 
 import json
+import shlex
 import subprocess
 from dataclasses import dataclass
 from typing import Any
@@ -54,7 +55,7 @@ class WordPressClient:
             Tuple of (exit_code, output)
         """
         root_flag = "--allow-root" if allow_root else ""
-        cmd = f"sudo docker exec {self.site.container} wp {wp_command} {root_flag}"
+        cmd = f"sudo docker exec {shlex.quote(self.site.container)} wp {wp_command} {root_flag}"
 
         full_cmd = ["ssh", self.ssh_host, cmd]
 
@@ -103,12 +104,12 @@ class WordPressClient:
         """Install WordPress."""
         cmd = (
             f"core install "
-            f"--url='{url}' "
-            f"--title='{title}' "
-            f"--admin_user='{admin_user}' "
-            f"--admin_password='{admin_password}' "  # noqa: not a hardcoded secret
-            f"--admin_email='{admin_email}' "
-            f"--locale='{locale}'"
+            f"--url={shlex.quote(url)} "
+            f"--title={shlex.quote(title)} "
+            f"--admin_user={shlex.quote(admin_user)} "
+            f"--admin_password={shlex.quote(admin_password)} "  # noqa: not a hardcoded secret
+            f"--admin_email={shlex.quote(admin_email)} "
+            f"--locale={shlex.quote(locale)}"
         )
         return self.run(cmd)
 
@@ -116,7 +117,7 @@ class WordPressClient:
 
     def plugin_list(self, format: str = "json") -> list[dict[str, Any]] | str:
         """List installed plugins."""
-        output = self.run(f"plugin list --format={format}")
+        output = self.run(f"plugin list --format={shlex.quote(format)}")
         if format == "json":
             return json.loads(output)
         return output
@@ -130,29 +131,31 @@ class WordPressClient:
             activate: Activate after install
         """
         activate_flag = "--activate" if activate else ""
-        return self.run(f"plugin install {plugin} {activate_flag}")
+        return self.run(f"plugin install {shlex.quote(plugin)} {activate_flag}")
 
     def plugin_activate(self, plugin: str) -> str:
         """Activate a plugin."""
-        return self.run(f"plugin activate {plugin}")
+        return self.run(f"plugin activate {shlex.quote(plugin)}")
 
     def plugin_deactivate(self, plugin: str) -> str:
         """Deactivate a plugin."""
-        return self.run(f"plugin deactivate {plugin}")
+        return self.run(f"plugin deactivate {shlex.quote(plugin)}")
 
     def plugin_delete(self, plugin: str) -> str:
         """Delete a plugin."""
-        return self.run(f"plugin delete {plugin}")
+        return self.run(f"plugin delete {shlex.quote(plugin)}")
 
     def plugin_update(self, plugin: str = "--all") -> str:
         """Update plugin(s)."""
-        return self.run(f"plugin update {plugin}")
+        # Don't quote flag-like arguments (e.g., --all)
+        plugin_arg = plugin if plugin.startswith("--") else shlex.quote(plugin)
+        return self.run(f"plugin update {plugin_arg}")
 
     # ========== Theme Commands ==========
 
     def theme_list(self, format: str = "json") -> list[dict[str, Any]] | str:
         """List installed themes."""
-        output = self.run(f"theme list --format={format}")
+        output = self.run(f"theme list --format={shlex.quote(format)}")
         if format == "json":
             return json.loads(output)
         return output
@@ -160,21 +163,21 @@ class WordPressClient:
     def theme_install(self, theme: str, activate: bool = False) -> str:
         """Install theme from WordPress.org or ZIP path."""
         activate_flag = "--activate" if activate else ""
-        return self.run(f"theme install {theme} {activate_flag}")
+        return self.run(f"theme install {shlex.quote(theme)} {activate_flag}")
 
     def theme_activate(self, theme: str) -> str:
         """Activate a theme."""
-        return self.run(f"theme activate {theme}")
+        return self.run(f"theme activate {shlex.quote(theme)}")
 
     def theme_delete(self, theme: str) -> str:
         """Delete a theme."""
-        return self.run(f"theme delete {theme}")
+        return self.run(f"theme delete {shlex.quote(theme)}")
 
     # ========== User Commands ==========
 
     def user_list(self, format: str = "json") -> list[dict[str, Any]] | str:
         """List users."""
-        output = self.run(f"user list --format={format}")
+        output = self.run(f"user list --format={shlex.quote(format)}")
         if format == "json":
             return json.loads(output)
         return output
@@ -183,45 +186,45 @@ class WordPressClient:
         self, username: str, email: str, role: str = "subscriber", password: str | None = None
     ) -> str:
         """Create a new user."""
-        cmd = f"user create {username} {email} --role={role}"
+        cmd = f"user create {shlex.quote(username)} {shlex.quote(email)} --role={shlex.quote(role)}"
         if password:
-            cmd += f" --user_pass='{password}'"
+            cmd += f" --user_pass={shlex.quote(password)}"
         return self.run(cmd)
 
     def user_update(self, user: str, **fields) -> str:
         """Update user fields."""
-        field_args = " ".join(f"--{k}='{v}'" for k, v in fields.items())
-        return self.run(f"user update {user} {field_args}")
+        field_args = " ".join(f"--{k}={shlex.quote(str(v))}" for k, v in fields.items())
+        return self.run(f"user update {shlex.quote(user)} {field_args}")
 
     def user_delete(self, user: str, reassign: int | None = None) -> str:
         """Delete a user."""
         reassign_flag = f"--reassign={reassign}" if reassign else "--yes"
-        return self.run(f"user delete {user} {reassign_flag}")
+        return self.run(f"user delete {shlex.quote(user)} {reassign_flag}")
 
     # ========== Option Commands ==========
 
     def option_get(self, option: str) -> str:
         """Get an option value."""
-        return self.run(f"option get {option}")
+        return self.run(f"option get {shlex.quote(option)}")
 
     def option_update(self, option: str, value: str) -> str:
         """Update an option value."""
-        return self.run(f"option update {option} '{value}'")
+        return self.run(f"option update {shlex.quote(option)} {shlex.quote(value)}")
 
     # ========== Database Commands ==========
 
     def db_export(self, file: str = "-") -> str:
         """Export database to file or stdout."""
-        return self.run(f"db export {file}")
+        return self.run(f"db export {shlex.quote(file)}")
 
     def db_import(self, file: str) -> str:
         """Import database from file."""
-        return self.run(f"db import {file}")
+        return self.run(f"db import {shlex.quote(file)}")
 
     def db_search_replace(self, old: str, new: str, dry_run: bool = False) -> str:
         """Search and replace in database."""
         dry_flag = "--dry-run" if dry_run else ""
-        return self.run(f"search-replace '{old}' '{new}' {dry_flag}")
+        return self.run(f"search-replace {shlex.quote(old)} {shlex.quote(new)} {dry_flag}")
 
     # ========== Cache Commands ==========
 
@@ -237,7 +240,7 @@ class WordPressClient:
 
     def language_list(self, format: str = "json") -> list[dict[str, Any]] | str:
         """List installed languages."""
-        output = self.run(f"language core list --format={format}")
+        output = self.run(f"language core list --format={shlex.quote(format)}")
         if format == "json":
             return json.loads(output)
         return output
@@ -245,11 +248,11 @@ class WordPressClient:
     def language_install(self, locale: str, activate: bool = False) -> str:
         """Install a language pack."""
         activate_flag = "--activate" if activate else ""
-        return self.run(f"language core install {locale} {activate_flag}")
+        return self.run(f"language core install {shlex.quote(locale)} {activate_flag}")
 
     def language_activate(self, locale: str) -> str:
         """Activate a language."""
-        return self.run(f"site switch-language {locale}")
+        return self.run(f"site switch-language {shlex.quote(locale)}")
 
 
 def get_wordpress_client(site_name: str) -> WordPressClient:

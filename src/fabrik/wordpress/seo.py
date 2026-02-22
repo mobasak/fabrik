@@ -9,6 +9,7 @@ Handles:
 """
 
 import json
+import shlex
 from dataclasses import dataclass
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
@@ -180,30 +181,40 @@ class SEOApplicator:
 
         if plugin == "yoast":
             if title:
-                self.wp.run(f"post meta update {page_id} _yoast_wpseo_title '{title}'")
+                self.wp.run(f"post meta update {page_id} _yoast_wpseo_title {shlex.quote(title)}")
                 applied["title"] = title
             if description:
-                self.wp.run(f"post meta update {page_id} _yoast_wpseo_metadesc '{description}'")
+                self.wp.run(
+                    f"post meta update {page_id} _yoast_wpseo_metadesc {shlex.quote(description)}"
+                )
                 applied["description"] = description
             if focus_keyword:
-                self.wp.run(f"post meta update {page_id} _yoast_wpseo_focuskw '{focus_keyword}'")
+                self.wp.run(
+                    f"post meta update {page_id} _yoast_wpseo_focuskw {shlex.quote(focus_keyword)}"
+                )
                 applied["focus_keyword"] = focus_keyword
 
         elif plugin == "rankmath":
             if title:
-                self.wp.run(f"post meta update {page_id} rank_math_title '{title}'")
+                self.wp.run(f"post meta update {page_id} rank_math_title {shlex.quote(title)}")
                 applied["title"] = title
             if description:
-                self.wp.run(f"post meta update {page_id} rank_math_description '{description}'")
+                self.wp.run(
+                    f"post meta update {page_id} rank_math_description {shlex.quote(description)}"
+                )
                 applied["description"] = description
             if focus_keyword:
-                self.wp.run(f"post meta update {page_id} rank_math_focus_keyword '{focus_keyword}'")
+                self.wp.run(
+                    f"post meta update {page_id} rank_math_focus_keyword {shlex.quote(focus_keyword)}"
+                )
                 applied["focus_keyword"] = focus_keyword
 
         else:
             # No SEO plugin - use basic meta
             if description:
-                self.wp.run(f"post meta update {page_id} _meta_description '{description}'")
+                self.wp.run(
+                    f"post meta update {page_id} _meta_description {shlex.quote(description)}"
+                )
                 applied["description"] = description
 
         return applied
@@ -243,7 +254,7 @@ class SEOApplicator:
                 self.wp.run(f"post meta update {page_id} _yoast_wpseo_meta-robots-nofollow 1")
 
         elif plugin == "rankmath":
-            self.wp.run(f"post meta update {page_id} rank_math_robots '{robots_value}'")
+            self.wp.run(f"post meta update {page_id} rank_math_robots {shlex.quote(robots_value)}")
 
         return {"robots": robots_value or "index,follow"}
 

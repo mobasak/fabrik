@@ -11,6 +11,7 @@ Handles:
 from __future__ import annotations
 
 import json
+import shlex
 from dataclasses import dataclass
 from typing import Any
 
@@ -115,7 +116,7 @@ class ThemeCustomizer:
 
         # Apply via theme mod
         colors_json = json.dumps(global_colors)
-        self.wp.run(f"theme mod set global_colors '{colors_json}'")
+        self.wp.run(f"theme mod set global_colors {shlex.quote(colors_json)}")
 
         return applied
 
@@ -136,14 +137,14 @@ class ThemeCustomizer:
 
         # Body font
         if fonts.body:
-            self.wp.run(f"theme mod set font_body '{fonts.body}'")
+            self.wp.run(f"theme mod set font_body {shlex.quote(fonts.body)}")
             applied["body"] = fonts.body
 
         # Heading fonts (GP has separate settings for each heading level)
         if fonts.heading:
             # Set for all headings
             for level in ["h1", "h2", "h3", "h4", "h5", "h6"]:
-                self.wp.run(f"theme mod set font_{level} '{fonts.heading}'")
+                self.wp.run(f"theme mod set font_{level} {shlex.quote(fonts.heading)}")
             applied["heading"] = fonts.heading
 
         return applied
@@ -168,11 +169,11 @@ class ThemeCustomizer:
         applied: dict[str, str | int] = {}
 
         # Container width
-        self.wp.run(f"theme mod set container_width '{container_width}'")
+        self.wp.run(f"theme mod set container_width {shlex.quote(str(container_width))}")
         applied["container_width"] = container_width
 
         # Sidebar layout
-        self.wp.run(f"theme mod set layout_setting '{sidebar}'")
+        self.wp.run(f"theme mod set layout_setting {shlex.quote(sidebar)}")
         applied["sidebar"] = sidebar
 
         return applied
@@ -190,11 +191,8 @@ class ThemeCustomizer:
         if not css.strip():
             return False
 
-        # Escape single quotes for shell
-        escaped_css = css.replace("'", "'\\''")
-
         # Add via customizer additional CSS
-        self.wp.run(f"theme mod set custom_css '{escaped_css}'")
+        self.wp.run(f"theme mod set custom_css {shlex.quote(css)}")
 
         return True
 

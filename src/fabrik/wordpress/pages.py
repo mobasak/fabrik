@@ -10,6 +10,7 @@ Handles:
 
 from __future__ import annotations
 
+import shlex
 from dataclasses import dataclass
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
@@ -323,7 +324,9 @@ class PageCreator:
         if not self.api:
             # Use WP-CLI
             try:
-                output = self.wp.run(f"post list --post_type=page --name='{slug}' --format=json")
+                output = self.wp.run(
+                    f"post list --post_type=page --name={shlex.quote(slug)} --format=json"
+                )
                 import json
 
                 pages = json.loads(output)

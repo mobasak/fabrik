@@ -10,6 +10,7 @@ Handles:
 from __future__ import annotations
 
 import json
+import shlex
 from dataclasses import dataclass
 from typing import Any
 
@@ -86,7 +87,7 @@ class MenuCreator:
             menu_id = existing_id
         else:
             # Create new menu
-            output = self.wp.run(f"menu create '{name}' --porcelain")
+            output = self.wp.run(f"menu create {shlex.quote(name)} --porcelain")
             menu_id = int(output.strip())
 
         # Add items
@@ -152,14 +153,14 @@ class MenuCreator:
 
                     # Update title if different
                     if title:
-                        self.wp.run(f"menu item update {item_id} --title='{title}'")
+                        self.wp.run(f"menu item update {item_id} --title={shlex.quote(title)}")
                 else:
                     # Page not found, create as custom link
                     if not title:
                         title = page_slug.replace("-", " ").title()
                     url = f"/{page_slug}/" if page_slug else "/"
                     output = self.wp.run(
-                        f"menu item add-custom {menu_id} '{title}' '{url}' "
+                        f"menu item add-custom {menu_id} {shlex.quote(title)} {shlex.quote(url)} "
                         f"--parent-id={parent_id} --position={order} --porcelain"
                     )
                     item_id = int(output.strip())
@@ -168,7 +169,7 @@ class MenuCreator:
                 if not title:
                     title = "Link"
                 output = self.wp.run(
-                    f"menu item add-custom {menu_id} '{title}' '{url}' "
+                    f"menu item add-custom {menu_id} {shlex.quote(title)} {shlex.quote(url)} "
                     f"--parent-id={parent_id} --position={order} --porcelain"
                 )
                 item_id = int(output.strip())
@@ -208,7 +209,9 @@ class MenuCreator:
                     self._page_cache[slug] = page_id
                     return page_id
 
-            output = self.wp.run(f"post list --post_type=page --name='{slug}' --format=ids")
+            output = self.wp.run(
+                f"post list --post_type=page --name={shlex.quote(slug)} --format=ids"
+            )
             if output.strip():
                 page_id = int(output.strip().split()[0])
                 self._page_cache[slug] = page_id
@@ -242,7 +245,7 @@ class MenuCreator:
             True if successful
         """
         try:
-            self.wp.run(f"menu location assign {menu_id} {location}")
+            self.wp.run(f"menu location assign {menu_id} {shlex.quote(location)}")
             return True
         except RuntimeError:
             return False
