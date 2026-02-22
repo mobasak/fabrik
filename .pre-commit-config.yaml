@@ -55,6 +55,30 @@ repos:
         args: ['-ll', '-x', 'tests/']  # Medium+ severity, exclude tests
         files: ^src/  # Only scan src/ directory
 
+  # SQL Injection Detection
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 3.0.7
+    hooks:
+      - id: sqlfluff-lint
+        args: ['--dialect', 'postgres']
+        files: \.sql$
+
+  # Advanced Security Pattern Matching (catches injection, SSRF, path traversal)
+  - repo: https://github.com/returntocorp/semgrep
+    rev: v1.90.0
+    hooks:
+      - id: semgrep
+        args: ['--config', 'p/python', '--config', 'p/security-audit', '--error']
+        files: ^src/
+
+  # Dead Code Detection (high confidence only, exclude false-positive-heavy dirs)
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.11
+    hooks:
+      - id: vulture
+        args: ['src/', '--min-confidence', '95', '--exclude', 'src/fabrik/wordpress/,src/fabrik/drivers/,src/fabrik/provisioner.py']
+        pass_filenames: false
+
   # Fabrik-specific hooks
   - repo: local
     hooks:

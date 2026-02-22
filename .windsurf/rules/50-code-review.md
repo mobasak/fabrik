@@ -34,12 +34,22 @@ Use Traycer's built-in verifier as the review surface.
 
 ### Non-Traycer Tasks: Kilo Code Review (Fallback)
 
-**Iterative review workflow:**
+**Two-phase workflow (pre-commit + AI review):**
 
 ```bash
-# 1. Get review (read-only, JSON output)
+# Single command runs both phases:
 python scripts/kilo_code_review.py review <changed_files> --output json
 ```
+
+**Phase 1: Pre-commit (automatic, FREE)**
+- Runs `pre-commit run --files` on changed files
+- Auto-fixes: ruff, formatting, whitespace
+- Retries up to 5 times until clean
+- If fails after max iterations → aborts (saves Kilo tokens)
+
+**Phase 2: Kilo AI Review (only if Phase 1 passes)**
+- Reviews for: SPEC, SECURITY, CONFIG, EDGE, DOCS
+- Returns JSON with `verdict` and `issues`
 
 **Then I MUST:**
 1. Read JSON output - check `verdict` and `issues`
@@ -49,10 +59,9 @@ python scripts/kilo_code_review.py review <changed_files> --output json
 5. Report to user what was done
 
 **Key points:**
-- I fix issues, not Kilo (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
-- Fix ALL severities, not just BLOCKER/MAJOR
-- Use same session across reviews for context continuity
-- Max 5 iterations before stopping
+- Pre-commit runs first (catches ~80% of MINOR issues for FREE)
+- I fix Kilo issues, not Kilo auto-fix (cheaper)
+- Use `--skip-precommit` only if pre-commit already passed
 
 **Output format after each step:**
 ```

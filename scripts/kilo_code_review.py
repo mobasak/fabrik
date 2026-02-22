@@ -2664,6 +2664,11 @@ Examples:
         action="store_true",
         help="Use lighter doc-only review (auto-detected for .md files)",
     )
+    common.add_argument(
+        "--skip-precommit",
+        action="store_true",
+        help="Skip pre-commit checks (not recommended)",
+    )
 
     # review command
     review_parser = subparsers.add_parser(
@@ -2748,6 +2753,113 @@ def load_plan(plan_arg: str | None) -> str | None:
     return plan_arg
 
 
+# =============================================================================
+# PRE-COMMIT INTEGRATION
+# =============================================================================
+
+MAX_PRECOMMIT_ITERATIONS = 5
+
+
+def run_precommit(files: list[Path], max_iterations: int = MAX_PRECOMMIT_ITERATIONS) -> bool:
+    """
+    Run pre-commit on specified files, auto-fixing issues until clean.
+
+    Args:
+        files: List of files to check
+        max_iterations: Max fix-and-retry cycles
+
+    Returns:
+        True if pre-commit passes, False if still failing after max iterations
+    """
+    if not files:
+        return True
+
+    # Check if pre-commit is available
+    precommit_path = shutil.which("pre-commit")
+    if not precommit_path:
+        print("[PRE-COMMIT] pre-commit not found, skipping...", file=sys.stderr)
+        return True
+
+    file_paths = [str(f) for f in files]
+    project_root = get_project_root()
+
+    for iteration in range(1, max_iterations + 1):
+        print(f"\n[PRE-COMMIT] Iteration {iteration}/{max_iterations}...", file=sys.stderr)
+
+        try:
+            result = subprocess.run(
+                [precommit_path, "run", "--files"] + file_paths,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                cwd=project_root,
+            )
+
+            if result.returncode == 0:
+                print("[PRE-COMMIT] ✅ All checks passed!", file=sys.stderr)
+                return True
+
+            # Pre-commit failed - check if files were modified (auto-fixed)
+            stdout = result.stdout or ""
+            stderr = result.stderr or ""
+            output = stdout + stderr
+
+            # Check for "files were modified" which means auto-fix happened
+            if "files were modified" in output.lower():
+                print(
+                    f"[PRE-COMMIT] Files auto-fixed, re-running... ({iteration}/{max_iterations})",
+                    file=sys.stderr,
+                )
+                continue
+
+            # Check for specific fixable issues and try to fix them
+            if "ruff" in output.lower() and iteration < max_iterations:
+                # Try running ruff --fix directly
+                print("[PRE-COMMIT] Running ruff --fix...", file=sys.stderr)
+                subprocess.run(
+                    ["ruff", "check", "--fix"] + file_paths,
+                    capture_output=True,
+                    cwd=project_root,
+                    timeout=60,
+                )
+                subprocess.run(
+                    ["ruff", "format"] + file_paths,
+                    capture_output=True,
+                    cwd=project_root,
+                    timeout=60,
+                )
+                continue
+
+            # Non-fixable failure - show output and return False
+            print(f"[PRE-COMMIT] ❌ Failed (iteration {iteration}):", file=sys.stderr)
+            # Show last 50 lines of output
+            lines = output.strip().split("\n")
+            for line in lines[-50:]:
+                print(f"  {line}", file=sys.stderr)
+
+            if iteration < max_iterations:
+                print(
+                    f"[PRE-COMMIT] Retrying... ({iteration}/{max_iterations})",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"[PRE-COMMIT] ❌ Max iterations ({max_iterations}) reached. "
+                    "Fix remaining issues manually before Kilo review.",
+                    file=sys.stderr,
+                )
+                return False
+
+        except subprocess.TimeoutExpired:
+            print(f"[PRE-COMMIT] Timeout after 120s (iteration {iteration})", file=sys.stderr)
+            return False
+        except FileNotFoundError:
+            print("[PRE-COMMIT] pre-commit not found", file=sys.stderr)
+            return True  # Skip if not installed
+
+    return False
+
+
 async def main() -> int:
     """Main entry point."""
     args = parse_args()
@@ -2796,6 +2908,22 @@ async def main() -> int:
     if not files:
         print("No files to review.", file=sys.stderr)
         return 0
+
+    # Run pre-commit checks first (unless skipped)
+    if not getattr(args, "skip_precommit", False):
+        print("\n" + "=" * 60, file=sys.stderr)
+        print("PHASE 1: PRE-COMMIT CHECKS", file=sys.stderr)
+        print("=" * 60, file=sys.stderr)
+        if not run_precommit(files):
+            print(
+                "\n❌ Pre-commit checks failed after max iterations. "
+                "Fix remaining issues manually or use --skip-precommit.",
+                file=sys.stderr,
+            )
+            return 2
+        print("\n" + "=" * 60, file=sys.stderr)
+        print("PHASE 2: KILO AI REVIEW", file=sys.stderr)
+        print("=" * 60, file=sys.stderr)
 
     # Set iteration and auto-fix based on command
     if args.command == "review":

@@ -143,7 +143,7 @@ python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 **Kilo Code Review Workflow (Non-Traycer):**
 
 ```bash
-# Get review (read-only, JSON output)
+# Single command runs both phases:
 python scripts/kilo_code_review.py review <changed_files> --output json
 ```
 
