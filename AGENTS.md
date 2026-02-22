@@ -1,6 +1,6 @@
 # Fabrik Project Agent Briefing
 
-**Last Updated:** 2026-02-19
+**Last Updated:** 2026-02-23
 
 > Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
 
@@ -134,16 +134,31 @@ python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 
 # 2. Trigger code review (if significant changes)
 # Traycer-managed: Run Traycer verification (primary)
-# Otherwise: ./scripts/droid-review.sh <files...>
+# Otherwise: python scripts/kilo_code_review.py review <files> --output json
 
 # 3. Update documentation
 # If you changed code in src/, scripts/, update relevant docs/
-# Manual update: ./scripts/droid-review.sh --update-docs <files...>
 ```
 
-**Integrated into workflow:**
-- `droid-review.sh` automatically runs docs_sync.py after reviews
-- Pre-commit enforces CHANGELOG exists
+**Kilo Code Review Workflow (Non-Traycer):**
+
+```bash
+# Get review (read-only, JSON output)
+python scripts/kilo_code_review.py review <changed_files> --output json
+```
+
+Then:
+1. Read JSON output - check `verdict` and `issues`
+2. Fix ALL issues myself (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
+3. Get another review (same session for context continuity)
+4. Repeat 2-3 until `verdict=PASS` (max 5 iterations)
+5. Report to user what was done
+
+**Key points:**
+- I fix issues, not Kilo (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
+- Fix ALL severities, not just BLOCKER/MAJOR
+- Use same session across reviews for context continuity
+- Max 5 iterations before stopping
 
 **Sequence:**
 
@@ -154,10 +169,10 @@ Code change → Traycer verification → docs_sync.py (if needed) → Update fla
 
 *Non-Traycer:*
 ```
-Code change → droid-review.sh → docs_sync.py → Update all flagged docs → Commit
+Code change → kilo_code_review.py → Fix issues myself → Re-review → Commit
 ```
 
-**Violation:** Committing without running verification/docs_sync.py and addressing its output.
+**Violation:** Committing without running verification and addressing all issues.
 
 ---
 
@@ -182,7 +197,7 @@ pytest -x --tb=short               # Stop on first failure
 
 # Check code quality
 ruff check .                        # Lint
-mypy .                              # Type check
+mypy .                              # Type check (full); pre-commit uses src/fabrik/ only
 
 # Docker
 docker compose up -d                # Start services

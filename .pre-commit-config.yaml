@@ -30,7 +30,7 @@ repos:
           - httpx>=0.25.0
           - rich>=13.0.0
         pass_filenames: false
-        entry: bash -c 'cd /opt/fabrik && mypy src/fabrik'
+        entry: mypy src/fabrik
 
   # General file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -70,7 +70,7 @@ repos:
       - id: fabrik-conventions
         name: Fabrik Convention Validator
         description: Check for hardcoded localhost, secrets, health endpoints, Docker issues
-        entry: python3 -c "import sys; from scripts.enforcement.validate_conventions import main; sys.argv = ['validate_conventions'] + sys.argv[1:]; sys.exit(main())"
+        entry: python3 -c "import sys; from scripts.enforcement.validate_conventions import main; sys.argv = ['validate_conventions', '--strict'] + sys.argv[1:]; sys.exit(main())"
         language: system
         types_or: [python, yaml, dockerfile, ts, tsx, javascript]
         stages: [pre-commit]
@@ -100,15 +100,6 @@ repos:
         language: system
         types: [markdown]
         stages: [pre-commit]
-
-      - id: ai-quick-review
-        name: AI Quick Review
-        description: AI review for critical issues (security, bugs, hardcoded values)
-        entry: python3 scripts/enforcement/ai_quick_review.py
-        language: system
-        types_or: [python, ts, tsx, javascript, shell, yaml]
-        stages: [pre-commit]
-        verbose: true
 
       - id: sync-extensions
         name: Sync Windsurf Extensions

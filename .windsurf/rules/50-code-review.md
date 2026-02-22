@@ -30,28 +30,29 @@ trigger: always_on
 
 ### Traycer-Managed Tasks (Primary)
 
-Use Traycer's built-in verifier as the review surface. Do NOT run droid exec review.
+Use Traycer's built-in verifier as the review surface.
 
-### Non-Traycer Tasks (Fallback)
+### Non-Traycer Tasks: Kilo Code Review (Fallback)
+
+**Iterative review workflow:**
 
 ```bash
-# 1. Check no droid instances running (prevents resource contention)
-pgrep -f "droid exec" || echo "Ready"
-
-# 2. Get recommended model for code review
-python3 scripts/droid_models.py recommend code_review 2>/dev/null || echo "gemini-3-flash-preview"
-
-# 3. Run review (read-only, NO changes)
-droid exec -m <model_from_step_2> "Review these files for Fabrik conventions and bugs. DO NOT make changes, only report issues as JSON: {issues: [{file, line, severity, message}], summary: string}
-
-Files: <changed_files>"
+# 1. Get review (read-only, JSON output)
+python scripts/kilo_code_review.py review <changed_files> --output json
 ```
 
 **Then I MUST:**
-1. Show the review output to user
-2. Fix ALL errors (severity: error)
-3. Fix warnings if reasonable
-4. Re-run review until: `"issues": []` or only minor warnings remain
+1. Read JSON output - check `verdict` and `issues`
+2. Fix ALL issues myself (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
+3. Get another review (same session for context continuity)
+4. Repeat 2-3 until `verdict=PASS` (max 5 iterations)
+5. Report to user what was done
+
+**Key points:**
+- I fix issues, not Kilo (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
+- Fix ALL severities, not just BLOCKER/MAJOR
+- Use same session across reviews for context continuity
+- Max 5 iterations before stopping
 
 **Output format after each step:**
 ```
@@ -78,9 +79,9 @@ Every plan MUST include review checkpoints:
 
 **REVIEW:**
 - Traycer-managed: Run Traycer verification for this step
-- Fallback: Run `droid exec -m <model> "Review <files>..."`
-- Fix all issues
-- Re-review until clean
+- Fallback: Run `python scripts/kilo_code_review.py review <files> --output json`
+- Fix all issues myself (I fix, not Kilo)
+- Re-review until verdict=PASS
 
 **GATE:** <validation command>
 

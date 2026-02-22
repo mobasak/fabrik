@@ -6,6 +6,27 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Kilo Code Review Integration (2026-02-23)
+
+**What:** Added Kilo CLI-based code review workflow for AI-assisted iterative code review.
+
+**Files:**
+- `scripts/kilo_code_review.py` - NEW: Kilo CLI wrapper with session management, model routing, and iterative review loop
+- `docs/reference/kilo-code-review.md` - NEW: Kilo code review reference documentation
+- `docs/reference/kilo-agents.md` - NEW: Kilo agents reference
+- `docs/reference/kilo-complete-reference.md` - NEW: Complete Kilo reference
+- `docs/reference/kilo-files.md` - NEW: Kilo files listing
+- `.windsurf/rules/50-code-review.md` - Updated to use Kilo workflow instead of droid exec
+- `AGENTS.md` - Updated with Kilo code review workflow instructions
+
+### Fixed - Duplicati Backup Security Hardening (2026-02-23)
+
+**What:** Fixed credential exposure and encryption issues in Duplicati backup setup.
+
+**Files:**
+- `scripts/setup_duplicati_backup.py` - Stripped credentials from URL; added base64 transport for secrets; enabled AES encryption; added CLI flags for B2 credentials and passphrase; added SQL/shell escaping; fixed error message env var names
+- `.env.example` - Added `DUPLICATI_PASSPHRASE` variable
+
 ### Fixed - Path Traversal and SSRF Prevention (2026-02-22)
 
 **What:** Added path traversal containment checks and DNS-resolving SSRF prevention to validator and template renderer.
