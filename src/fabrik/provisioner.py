@@ -349,6 +349,9 @@ class SiteProvisioner:
             if job.state == ProvisionState.STEP2_DEPLOY_TRIGGERED:
                 self._step2_wait_healthy(job)
 
+            if job.state == ProvisionState.STEP2_COOLIFY_DEPLOY_RUNNING:
+                self._step2_wait_healthy(job)
+
             if job.state == ProvisionState.STEP2_WP_INSTALLED:
                 self._transition(job, ProvisionState.COMPLETE)
 
@@ -554,12 +557,47 @@ class SiteProvisioner:
         self._transition(job, ProvisionState.STEP2_COOLIFY_CREATED)
 
     def _step2_set_env_vars(self, job: ProvisionJob) -> None:
-        """Placeholder for setting Coolify environment variables."""
-        raise NotImplementedError("Setting env vars for Coolify app is not implemented yet")
+        """
+        Set environment variables on the Coolify application.
+
+        Maps job credentials to the env vars expected by the WordPress compose template.
+        Does not transition state - relies on alias equivalence for saga flow.
+        """
+        env_vars = {
+            "WORDPRESS_DB_PASSWORD": job.db_password,
+            "MYSQL_ROOT_PASSWORD": job.db_root_password,
+            "WORDPRESS_ADMIN_PASSWORD": job.wp_admin_password,
+            "WORDPRESS_SITE_URL": f"https://{job.domain}",
+            "SITE_NAME": job.site_name,
+        }
+
+        self.coolify.update_service_env_vars(job.coolify_app_uuid, env_vars)
+        self._save_job(job)
 
     def _step2_wait_healthy(self, job: ProvisionJob) -> None:
-        """Placeholder for waiting until the application is healthy."""
-        raise NotImplementedError("Health wait step is not implemented yet")
+        """
+        Wait for the application to become healthy, then verify HTTP access.
+
+        Delegates to existing polling helpers:
+        - _step2_poll_deployment: polls Coolify status until running/healthy
+        - _step2_verify_http: verifies WordPress is accessible via HTTPS
+
+        HTTP verification runs for non-terminal states, allowing recovery
+        when poll times out but the site is actually reachable.
+        """
+        timeout = int(os.getenv("COOLIFY_HEALTH_TIMEOUT", "600"))
+
+        # Poll deployment status until success or timeout
+        self._step2_poll_deployment(job, max_wait_seconds=timeout)
+
+        # Only verify HTTP if deployment succeeded or is still running
+        # Do NOT override failure states (FAILED_RETRYABLE, FAILED_TERMINAL)
+        success_states = (
+            ProvisionState.STEP2_COOLIFY_DEPLOY_SUCCEEDED,
+            ProvisionState.STEP2_COOLIFY_DEPLOY_RUNNING,
+        )
+        if job.state in success_states:
+            self._step2_verify_http(job)
 
     def _step2_trigger_deploy(self, job: ProvisionJob):
         """

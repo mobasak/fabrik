@@ -10,20 +10,23 @@ Also provides file locking for concurrent hook execution safety.
 from __future__ import annotations
 
 import os
-
-# fcntl is POSIX-only; on Windows, locking is skipped (no-op)
-try:
-    import fcntl
-
-    _HAS_FCNTL = True
-except ImportError:
-    fcntl = None  # type: ignore[assignment]
-    _HAS_FCNTL = False
 import subprocess
 import sys
 from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
+
+# fcntl is POSIX-only; on non-Linux platforms, locking is skipped (no-op)
+_HAS_FCNTL = False
+if sys.platform.startswith("linux"):
+    try:
+        import fcntl
+
+        _HAS_FCNTL = True
+    except ImportError:
+        fcntl = None  # type: ignore[assignment]
+else:
+    fcntl = None  # type: ignore[assignment]
 
 # Default lock directory (use project .tmp/ per AGENTS.md, not /tmp/)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

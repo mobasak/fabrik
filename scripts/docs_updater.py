@@ -40,15 +40,6 @@ from __future__ import annotations
 
 import argparse
 import json
-
-# fcntl is POSIX-only; on Windows, locking is skipped (no-op)
-try:
-    import fcntl
-
-    _HAS_FCNTL = True
-except ImportError:
-    fcntl = None  # type: ignore[assignment]
-    _HAS_FCNTL = False
 import os
 import re
 import shutil
@@ -61,6 +52,18 @@ from datetime import datetime
 from pathlib import Path
 from queue import Empty, Queue
 from typing import Any
+
+# fcntl is POSIX-only; on non-Linux platforms, locking is skipped (no-op)
+_HAS_FCNTL = False
+if sys.platform.startswith("linux"):
+    try:
+        import fcntl
+
+        _HAS_FCNTL = True
+    except ImportError:
+        fcntl = None  # type: ignore[assignment]
+else:
+    fcntl = None  # type: ignore[assignment]
 
 # Import ProcessMonitor for droid exec monitoring
 try:

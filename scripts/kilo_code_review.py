@@ -888,8 +888,9 @@ def find_kilo_executable() -> str | None:
         if os.path.isfile(kilo_path_env) and os.access(kilo_path_env, os.X_OK):
             return kilo_path_env
 
-    # Check common locations
+    # Check common locations (WSL npm-global first to avoid Windows binary in PATH)
     paths_to_check = [
+        os.path.expanduser("~/.npm-global/bin/kilo"),  # WSL npm-global (priority)
         shutil.which("kilo"),
         os.path.expanduser("~/.local/bin/kilo"),
         "/usr/local/bin/kilo",

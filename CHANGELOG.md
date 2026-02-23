@@ -6,6 +6,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Provisioner Step 2 Implementation (2026-02-23)
+
+**What:** Implemented `_step2_set_env_vars` and `_step2_wait_healthy` stubs; fixed saga gap for `STEP2_COOLIFY_DEPLOY_RUNNING` state.
+
+**Files:**
+- `src/fabrik/provisioner.py` - Implemented env var setting via Coolify API, health wait delegation
+- `docs/reference/provisioner.md` - NEW: Reference documentation for provisioner module
+
 ### Added - Fabrik Scaffold Specs Document (2026-02-23)
 
 **What:** Comprehensive specification document for project creation, templates, and management.

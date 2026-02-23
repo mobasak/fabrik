@@ -140,24 +140,34 @@ python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 # If you changed code in src/, scripts/, update relevant docs/
 ```
 
-**Kilo Code Review Workflow (Non-Traycer):**
+**Kilo Code Review Workflow:**
 
 ```bash
-# Single command runs both phases:
-python scripts/kilo_code_review.py review <changed_files> --output json
+# Initial review: pass the task/plan for SPEC verification
+python scripts/kilo_code_review.py review <changed_files> \
+  --plan .droid/review-context/task.md \
+  --review-agent ask \
+  --output json
+
+# Subsequent reviews: use --session continue (Kilo maintains context)
+python scripts/kilo_code_review.py review <changed_files> \
+  --session continue \
+  --output json
 ```
 
 Then:
 1. Read JSON output - check `verdict` and `issues`
 2. Fix ALL issues myself (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
-3. Get another review (same session for context continuity)
+3. Get another review with `--session continue`
 4. Repeat 2-3 until `verdict=PASS` (max 5 iterations)
 5. Report to user what was done
 
 **Key points:**
+- **Pass the task/plan on initial review** - Kilo needs it for SPEC verification
+- Save task to `.droid/review-context/task.md` (not in `docs/development/plans/`)
 - I fix issues, not Kilo (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
 - Fix ALL severities, not just BLOCKER/MAJOR
-- Use same session across reviews for context continuity
+- Use `--session continue` for subsequent reviews (maintains context)
 - Max 5 iterations before stopping
 
 **Sequence:**

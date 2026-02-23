@@ -37,8 +37,16 @@ Use Traycer's built-in verifier as the review surface.
 **Two-phase workflow (pre-commit + AI review):**
 
 ```bash
-# Single command runs both phases:
-python scripts/kilo_code_review.py review <changed_files> --output json
+# Initial review: pass the task/plan for SPEC verification
+python scripts/kilo_code_review.py review <changed_files> \
+  --plan .droid/review-context/task.md \
+  --review-agent ask \
+  --output json
+
+# Subsequent reviews: use --session continue (Kilo maintains context)
+python scripts/kilo_code_review.py review <changed_files> \
+  --session continue \
+  --output json
 ```
 
 **Phase 1: Pre-commit (automatic, FREE)**
@@ -54,13 +62,16 @@ python scripts/kilo_code_review.py review <changed_files> --output json
 **Then I MUST:**
 1. Read JSON output - check `verdict` and `issues`
 2. Fix ALL issues myself (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
-3. Get another review (same session for context continuity)
+3. Get another review with `--session continue`
 4. Repeat 2-3 until `verdict=PASS` (max 5 iterations)
 5. Report to user what was done
 
 **Key points:**
+- **Pass the task/plan on initial review** - Kilo needs it for SPEC verification
+- Save task to `.droid/review-context/task.md` (not in `docs/development/plans/`)
 - Pre-commit runs first (catches ~80% of MINOR issues for FREE)
 - I fix Kilo issues, not Kilo auto-fix (cheaper)
+- Use `--session continue` for subsequent reviews (maintains context)
 - Use `--skip-precommit` only if pre-commit already passed
 
 **Output format after each step:**

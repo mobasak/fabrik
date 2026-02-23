@@ -64,8 +64,10 @@ repos:
         files: \.sql$
 
   # Advanced Security Pattern Matching (catches injection, SSRF, path traversal)
+  # NOTE: v1.90.0 broken with Python 3.12 (opentelemetry requires pkg_resources)
+  # Downgraded to v1.56.0 which works without tracing dependencies
   - repo: https://github.com/returntocorp/semgrep
-    rev: v1.90.0
+    rev: v1.56.0
     hooks:
       - id: semgrep
         args: ['--config', 'p/python', '--config', 'p/security-audit', '--error']
@@ -138,6 +140,15 @@ repos:
         name: Sync Cascade Backup (Memories + Global Rules)
         description: Export AI memories and global rules to docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md (daily)
         entry: ./scripts/sync_cascade_backup.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: kilo-health
+        name: Kilo CLI Health Check
+        description: Verify Kilo CLI is available and working (WSL binary, not Windows)
+        entry: ./scripts/check_kilo_health.sh
         language: script
         pass_filenames: false
         always_run: true
