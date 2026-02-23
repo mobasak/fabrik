@@ -97,6 +97,147 @@ fabrik scaffold <name> [--description <text>]
 fabrik templates
 ```
 
+### `fabrik scaffold` Output (Complete File List)
+
+When you run `fabrik scaffold my-project -d "My description"`, the following structure is created:
+
+#### Directories Created (11)
+
+```
+/opt/my-project/
+├── .cache/                    # Cache directory (gitignored)
+├── .tmp/                      # Temp files (gitignored, NOT /tmp/)
+├── .windsurf/                 # Windsurf IDE config
+│   └── rules/ → /opt/fabrik/.windsurf/rules  # Symlink
+├── config/                    # Configuration files
+├── data/                      # Data files (gitignored)
+├── docs/
+│   ├── archive/               # Completed/obsolete docs
+│   ├── development/
+│   │   └── plans/             # Plan documents
+│   ├── guides/                # How-to guides
+│   ├── operations/            # Ops runbooks
+│   └── reference/             # Technical reference
+├── logs/                      # Log files (gitignored)
+├── output/                    # Output files (gitignored)
+├── scripts/                   # Utility scripts
+├── src/
+│   └── <package_name>/        # Main Python package
+└── tests/                     # Test suite
+```
+
+#### Files Created (21)
+
+| File | Source Template | Purpose |
+|------|-----------------|---------|
+| **Root Files** | | |
+| `README.md` | `docs/PROJECT_README_TEMPLATE.md` | Project overview |
+| `CHANGELOG.md` | `docs/CHANGELOG_TEMPLATE.md` | Version history |
+| `tasks.md` | `docs/TASKS_TEMPLATE.md` | Task tracking |
+| `AGENTS.md` | Symlink → `/opt/fabrik/AGENTS.md` | AI agent instructions |
+| `.windsurfrules` | Symlink → `/opt/fabrik/windsurfrules` | Legacy rules shim |
+| `.gitignore` | Generated inline | Git ignore patterns |
+| `.env.example` | Generated inline | Env var template |
+| `requirements.txt` | Generated inline | Python dependencies |
+| `Dockerfile` | `docker/Dockerfile.python` | Production Docker build |
+| `compose.yaml` | `docker/compose.yaml.template` | Docker Compose config |
+| `pyproject.toml` | `python/pyproject.toml.template` | Python project config |
+| `.pre-commit-config.yaml` | `pre-commit-config.yaml` | Pre-commit hooks |
+| **Documentation** | | |
+| `docs/README.md` | `docs/DOCS_INDEX_TEMPLATE.md` | Docs index |
+| `docs/QUICKSTART.md` | `docs/QUICKSTART_TEMPLATE.md` | Getting started |
+| `docs/CONFIGURATION.md` | `docs/CONFIGURATION_TEMPLATE.md` | Config reference |
+| `docs/TROUBLESHOOTING.md` | `docs/TROUBLESHOOTING_TEMPLATE.md` | Common issues |
+| `docs/BUSINESS_MODEL.md` | `docs/BUSINESS_MODEL_TEMPLATE.md` | Business context |
+| `docs/development/Phase1.md` | `docs/PHASE_TEMPLATE.md` | Phase 1 roadmap |
+| `docs/development/PLANS.md` | Generated inline | Plans index |
+| `docs/archive/README.md` | Generated inline | Archive index |
+| **Source Code** | | |
+| `src/<package>/main.py` | Generated inline | FastAPI entry point |
+| `src/<package>/__init__.py` | Generated inline | Package init |
+| `tests/__init__.py` | Generated inline | Tests package |
+| `tests/test_health.py` | Generated inline | Health endpoint test |
+
+#### Symlinks Created (3)
+
+| Link | Target | Purpose |
+|------|--------|---------|
+| `AGENTS.md` | `/opt/fabrik/AGENTS.md` | Shared agent instructions |
+| `.windsurfrules` | `/opt/fabrik/windsurfrules` | Legacy rules (shim) |
+| `.windsurf/rules/` | `/opt/fabrik/.windsurf/rules/` | Authoritative IDE rules |
+
+#### Generated Code Examples
+
+**`src/<package>/main.py`** (FastAPI with health check):
+```python
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+import os
+
+app = FastAPI(title="my-project")
+
+@app.get("/health")
+async def health():
+    db_url = os.getenv("DATABASE_URL")
+    configured = db_url is not None and db_url.strip() != ""
+    return JSONResponse(content={
+        "service": "my-project",
+        "status": "ok",
+        "configured": configured,
+        "note": "Add real dependency checks when service uses them."
+    }, status_code=200)
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to my-project"}
+```
+
+**`.gitignore`**:
+```
+.env
+venv/
+__pycache__/
+logs/
+data/
+.tmp/
+.cache/
+output/
+*.log
+.venv/
+```
+
+**`.env.example`**:
+```bash
+# my-project Configuration
+DATABASE_URL=postgresql://user:pass@localhost:5432/my-project_dev
+LOG_LEVEL=INFO
+PORT=8000
+```
+
+**`requirements.txt`**:
+```
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.0
+python-dotenv>=1.0.0
+```
+
+#### Post-Creation Actions
+
+After file creation, `fabrik scaffold` also:
+
+1. **Git init** - Initializes git repository
+2. **Pre-commit install** - Copies config and runs `pre-commit install`
+3. **Initial commit** - Stages all files and commits "Initial commit"
+
+#### Project Name Validation
+
+- Must be lowercase
+- Must start with a letter
+- Only letters, numbers, hyphens allowed
+- Max 50 characters
+- Cannot use reserved names: `src`, `test`, `tests`, `lib`, `bin`, `opt`, `tmp`, `fabrik`, `python`, etc.
+
 ### Deployment
 
 ```bash
