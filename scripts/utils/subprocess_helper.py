@@ -9,16 +9,25 @@ Also provides file locking for concurrent hook execution safety.
 
 from __future__ import annotations
 
-import fcntl
 import os
+
+# fcntl is POSIX-only; on Windows, locking is skipped (no-op)
+try:
+    import fcntl
+
+    _HAS_FCNTL = True
+except ImportError:
+    fcntl = None  # type: ignore[assignment]
+    _HAS_FCNTL = False
 import subprocess
 import sys
 from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
-# Default lock directory
-LOCK_DIR = Path(os.getenv("FABRIK_LOCK_DIR", "/tmp/fabrik-locks"))
+# Default lock directory (use project .tmp/ per AGENTS.md, not /tmp/)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+LOCK_DIR = Path(os.getenv("FABRIK_LOCK_DIR", str(_PROJECT_ROOT / ".tmp" / "fabrik-locks")))
 
 
 @contextmanager
@@ -33,32 +42,38 @@ def file_lock(name: str, timeout: float = 10.0):
         with file_lock("hook-validation"):
             # Only one process runs this at a time
             run_validation()
+
+    Note:
+        On non-Linux platforms where fcntl is unavailable, locking is skipped
+        and the context manager acts as a no-op guard.
     """
     LOCK_DIR.mkdir(parents=True, exist_ok=True)
     lock_file = LOCK_DIR / f"{name.replace('/', '_')}.lock"
 
     fd = os.open(str(lock_file), os.O_CREAT | os.O_RDWR)
     try:
-        # Try non-blocking first
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            # Wait with timeout
-            import time
+        if _HAS_FCNTL:
+            # Try non-blocking first
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                # Wait with timeout
+                import time
 
-            start = time.time()
-            while time.time() - start < timeout:
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except BlockingIOError:
-                    time.sleep(0.1)
-            else:
-                raise TimeoutError(f"Could not acquire lock '{name}' within {timeout}s")
+                start = time.time()
+                while time.time() - start < timeout:
+                    try:
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        break
+                    except BlockingIOError:
+                        time.sleep(0.1)
+                else:
+                    raise TimeoutError(f"Could not acquire lock '{name}' within {timeout}s")
 
         yield
     finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
+        if _HAS_FCNTL:
+            fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
 
 

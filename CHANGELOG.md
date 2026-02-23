@@ -6,6 +6,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Fabrik Scaffold Specs Document (2026-02-23)
+
+**What:** Comprehensive specification document for project creation, templates, and management.
+
+**Files:**
+- `docs/reference/fabrik-scaffold-specs.md` - NEW: Full scaffold specification with all templates, CLI commands, workflows
+
 ### Added - Pre-commit Security Hooks Integration (2026-02-23)
 
 **What:** Added security and code quality pre-commit hooks; integrated pre-commit auto-fix into Kilo workflow.
@@ -15,6 +22,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `scripts/kilo_code_review.py` - Added Phase 1 pre-commit auto-fix loop before Kilo AI review
 - `.windsurf/rules/50-code-review.md` - Updated workflow to document two-phase approach
 - `AGENTS.md` - Updated workflow documentation
+
+### Fixed - Windows Compatibility (2026-02-23)
+
+**What:** Guarded fcntl imports for Windows compatibility; fixed /tmp/ usage violation.
+
+**Files:**
+- `scripts/utils/subprocess_helper.py` - Guard fcntl import, use .tmp/ instead of /tmp/
+- `scripts/docs_updater.py` - Guard fcntl import, use O_NOFOLLOW for atomic symlink rejection
 
 ### Added - Kilo Code Review Integration (2026-02-23)
 

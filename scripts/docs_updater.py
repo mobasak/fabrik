@@ -39,8 +39,16 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import fcntl
 import json
+
+# fcntl is POSIX-only; on Windows, locking is skipped (no-op)
+try:
+    import fcntl
+
+    _HAS_FCNTL = True
+except ImportError:
+    fcntl = None  # type: ignore[assignment]
+    _HAS_FCNTL = False
 import os
 import re
 import shutil
@@ -484,17 +492,22 @@ def send_notification(message: str) -> None:
 
 
 def _acquire_lock() -> int | None:
-    """Acquire exclusive lock using fcntl. Returns file descriptor or None."""
+    """Acquire exclusive lock using fcntl. Returns file descriptor or None.
+
+    Note:
+        On non-Linux platforms where fcntl is unavailable, locking is skipped
+        and the function returns a valid descriptor without locking.
+    """
     PID_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    # Security: reject symlinks
-    if PID_FILE.exists() and PID_FILE.is_symlink():
-        print(f"Security: Rejecting symlink PID file: {PID_FILE}", file=sys.stderr)
-        return None
-
     try:
-        fd = os.open(str(PID_FILE), os.O_CREAT | os.O_RDWR)
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Use O_NOFOLLOW to atomically reject symlinks (avoids TOCTOU race)
+        flags = os.O_CREAT | os.O_RDWR
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        fd = os.open(str(PID_FILE), flags)
+        if _HAS_FCNTL:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         os.write(fd, str(os.getpid()).encode())
         os.fsync(fd)
         return fd
@@ -504,9 +517,15 @@ def _acquire_lock() -> int | None:
 
 
 def _release_lock(fd: int) -> None:
-    """Release the lock and clean up."""
+    """Release the lock and clean up.
+
+    Note:
+        On non-Linux platforms where fcntl is unavailable, only closes the
+        file descriptor and removes the PID file.
+    """
     try:
-        fcntl.flock(fd, fcntl.LOCK_UN)
+        if _HAS_FCNTL:
+            fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
         PID_FILE.unlink(missing_ok=True)
     except Exception:
