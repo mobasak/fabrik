@@ -201,6 +201,42 @@ Review passed after 2 iteration(s). All issues resolved.
 }
 ```
 
+## Pre-commit Integration
+
+Before calling AI agents, Kilo runs pre-commit checks with auto-fixing (up to 5 iterations):
+
+### Workflow
+
+```python
+MAX_PRECOMMIT_ITERATIONS = 5
+
+def run_precommit(files: list[Path], max_iterations: int = 5) -> bool:
+    # 1. Run pre-commit on files
+    # 2. If "files were modified" - auto-fix happened, re-run
+    # 3. If ruff issues - run ruff --fix directly
+    # 4. Repeat until clean or max iterations
+    # 5. If still failing after 5 iterations - abort, require manual fixes
+```
+
+### Pre-commit Hooks
+
+See [`enforcement-system.md`](./enforcement-system.md#pre-commit-integration) for complete list of pre-commit hooks:
+- **Standard hooks:** ruff, mypy, file hygiene (trailing whitespace, YAML/JSON validation, etc.)
+- **Security hooks:** bandit, sqlfluff, semgrep
+- **Code quality:** vulture (dead code detection)
+- **Fabrik-specific:** sync-droid-models, fabrik-conventions, changelog-check, etc.
+
+### Purpose
+
+Pre-commit catches ~80% of MINOR issues for FREE before expensive AI review runs.
+
+### Skip Option
+
+Use `--skip-precommit` if pre-commit already passed:
+```bash
+python scripts/kilo_code_review.py review <files> --skip-precommit
+```
+
 ## Review Categories
 
 The review checks code in this order:

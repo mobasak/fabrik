@@ -122,25 +122,62 @@ python3 -m scripts.enforcement.validate_conventions --strict src/
 
 Added to `.pre-commit-config.yaml`:
 
-```yaml
-- id: fabrik-conventions
-  name: Fabrik Convention Validator
-  entry: python3 -c "from scripts.enforcement.validate_conventions import main; ..."
-  types_or: [python, yaml, dockerfile, ts, tsx, javascript]
+### Standard Hooks
 
-- id: rule-file-size
-  name: Rule File Size Guard
-  entry: python3 scripts/enforcement/check_rule_size.py
+| Hook | Purpose | Auto-fix? |
+|------|---------|----------|
+| `ruff` | Python linting and formatting | Yes (`--fix` flag) |
+| `mypy` | Static type checking (src/fabrik/ only) | No |
+| `trailing-whitespace` | Remove trailing spaces | Yes |
+| `end-of-file-fixer` | Ensure files end with newline | Yes |
+| `check-yaml` | Validate YAML syntax | No |
+| `check-json` | Validate JSON syntax | No |
+| `check-added-large-files` | Block files > 1MB | No |
+| `check-merge-conflict` | Detect merge conflict markers | No |
+| `detect-private-key` | Detect exposed private keys | No |
 
-- id: changelog-check
-  name: CHANGELOG.md Updated
-  entry: python3 scripts/enforcement/check_changelog.py
+### Security Hooks
 
-- id: structure-check
-  name: Project Structure
-  entry: python3 scripts/enforcement/check_structure.py
-  types: [markdown]
+| Hook | Purpose | Auto-fix? |
+|------|---------|----------|
+| `bandit` | Python security linter (Medium+ severity) | No |
+| `sqlfluff` | SQL injection detection (Postgres) | No |
+| `semgrep` | Advanced security patterns (injection, SSRF, path traversal) | No |
+
+### Code Quality
+
+| Hook | Purpose | Auto-fix? |
+|------|---------|----------|
+| `vulture` | Dead code detection (95% confidence) | No |
+
+### Fabrik-Specific Hooks
+
+| Hook | Purpose | Auto-fix? |
+|------|---------|----------|
+| `sync-droid-models` | Keep model names consistent across droid_tasks.py, AGENTS.md, docs | No |
+| `fabrik-conventions` | Check for hardcoded localhost, secrets, health endpoints, Docker issues | No |
+| `rule-file-size` | Ensure `.windsurf/rules/*.md` < 12KB | No |
+| `changelog-check` | Require CHANGELOG.md updates for code changes | No |
+| `structure-check` | Ensure `.md` files in correct locations | No |
+| `sync-extensions` | Keep EXTENSIONS.md updated with installed extensions | No |
+| `sync-cascade-backup` | Export AI memories and global rules daily | No |
+
+### Pre-commit Workflow
+
+In Kilo code review, pre-commit runs **before** AI agents with auto-fixing:
+
+```python
+MAX_PRECOMMIT_ITERATIONS = 5
+
+def run_precommit(files: list[Path], max_iterations: int = 5) -> bool:
+    # 1. Run pre-commit
+    # 2. If "files were modified" - auto-fix happened, re-run
+    # 3. If ruff issues - run ruff --fix directly
+    # 4. Repeat until clean or max iterations
+    # 5. If still failing after 5 iterations - abort, require manual fixes
 ```
+
+**Purpose:** Catches ~80% of MINOR issues for FREE before expensive AI review runs.
 
 ---
 
