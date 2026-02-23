@@ -101,29 +101,53 @@ fabrik templates
 
 When you run `fabrik scaffold my-project -d "My description"`, the following structure is created:
 
-#### Directories Created (11)
+#### Actual Project Tree (20 directories, 24 files)
 
 ```
 /opt/my-project/
-├── .cache/                    # Cache directory (gitignored)
-├── .tmp/                      # Temp files (gitignored, NOT /tmp/)
-├── .windsurf/                 # Windsurf IDE config
-│   └── rules/ → /opt/fabrik/.windsurf/rules  # Symlink
-├── config/                    # Configuration files
-├── data/                      # Data files (gitignored)
+├── .cache/                          # Cache directory (gitignored)
+├── config/                          # Configuration files
+├── data/                            # Data files (gitignored)
 ├── docs/
-│   ├── archive/               # Completed/obsolete docs
+│   ├── archive/
+│   │   └── README.md                # Archive index
 │   ├── development/
-│   │   └── plans/             # Plan documents
-│   ├── guides/                # How-to guides
-│   ├── operations/            # Ops runbooks
-│   └── reference/             # Technical reference
-├── logs/                      # Log files (gitignored)
-├── output/                    # Output files (gitignored)
-├── scripts/                   # Utility scripts
+│   │   ├── plans/                   # Plan documents directory
+│   │   ├── Phase1.md                # Phase 1 roadmap
+│   │   └── PLANS.md                 # Plans index
+│   ├── guides/                      # How-to guides
+│   ├── operations/                  # Ops runbooks
+│   ├── reference/                   # Technical reference
+│   ├── BUSINESS_MODEL.md            # Business context
+│   ├── CONFIGURATION.md             # Config reference
+│   ├── QUICKSTART.md                # Getting started
+│   ├── README.md                    # Docs index
+│   └── TROUBLESHOOTING.md           # Common issues
+├── logs/                            # Log files (gitignored)
+├── output/                          # Output files (gitignored)
+├── scripts/                         # Utility scripts
 ├── src/
-│   └── <package_name>/        # Main Python package
-└── tests/                     # Test suite
+│   └── my_project/                  # Main Python package
+│       ├── __init__.py
+│       └── main.py                  # FastAPI entry point
+├── tests/
+│   ├── __init__.py
+│   └── test_health.py               # Health endpoint test
+├── .tmp/                            # Temp files (gitignored, NOT /tmp/)
+├── .windsurf/
+│   └── rules -> /opt/fabrik/.windsurf/rules  # Symlink
+├── AGENTS.md -> /opt/fabrik/AGENTS.md        # Symlink
+├── CHANGELOG.md                     # Version history
+├── compose.yaml                     # Docker Compose config
+├── Dockerfile                       # Production Docker build
+├── .env.example                     # Env var template
+├── .gitignore                       # Git ignore patterns
+├── .pre-commit-config.yaml          # Pre-commit hooks
+├── pyproject.toml                   # Python project config
+├── README.md                        # Project overview
+├── requirements.txt                 # Python dependencies
+├── tasks.md                         # Task tracking
+└── .windsurfrules -> /opt/fabrik/windsurfrules  # Symlink (legacy)
 ```
 
 #### Files Created (21)
