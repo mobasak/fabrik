@@ -6,6 +6,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Final Gate Perfection (2026-02-23)
+
+**What:** Polished `final_gate.py` with semgrep integration, CRLF preservation, correct blocker counts, and accurate log messages.
+
+**Files:**
+- `scripts/final_gate.py` - Added semgrep check, fixed CRLF handling, accurate iteration messages
+- `AGENTS.md` - Fixed "3 blockers" → "4 blockers", updated violation text to Step 7
+- `.windsurf/rules/50-code-review.md` - Fixed blocker count to 4
+
 ### Changed - Pre-commit Workflow Restructure (2026-02-23)
 
 **What:** Moved quality checks from pre-commit to `scripts/final_gate.py` for coder AI to run before Traycer commit. Pre-commit now only runs 3 absolute blockers.

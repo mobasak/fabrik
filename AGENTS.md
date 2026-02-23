@@ -228,7 +228,7 @@ python scripts/final_gate.py --sync
 
 **What Final Gate checks:**
 1. **Auto-fix formatting** - trailing whitespace, EOF, ruff-format, ruff --fix
-2. **Static analysis** - ruff, mypy, bandit, yaml, json, sqlfluff, vulture
+2. **Static analysis** - ruff, mypy, bandit, semgrep, yaml, json, sqlfluff, vulture
 3. **Repo consistency** - structure, conventions, rule size, model names, changelog, kilo health
 4. **Sync steps** (Step 7 only) - Windsurf Extensions, Cascade Backup
 

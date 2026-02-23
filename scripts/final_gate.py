@@ -18,7 +18,7 @@ All Flags:
 
 Checks (in normal mode: default / --check):
 1. AUTO-FIX: trailing whitespace, EOF, ruff-format, ruff --fix
-2. STATIC: ruff, mypy, bandit, yaml, json, sqlfluff, vulture
+2. STATIC: ruff, mypy, bandit, semgrep, yaml, json, sqlfluff, vulture
 3. CONSISTENCY: structure, conventions, rule size, models, changelog, kilo health
 
 Sync steps (--sync mode only):
@@ -54,6 +54,7 @@ TIMEOUTS = {
     "bandit": 180,
     "sqlfluff": 180,
     "ruff": 120,
+    "semgrep": 300,
 }
 
 # Max fix iterations to prevent infinite loops
@@ -156,7 +157,7 @@ def fix_end_of_files() -> tuple[bool, str, int]:
             continue
         try:
             content = path.read_text(encoding="utf-8")
-            # Check if file already ends with a newline (LF)
+            # Check if file already ends with a newline
             if content and not content.endswith("\n"):
                 # Preserve line ending style: use CRLF if file contains CRLF, else LF
                 newline = "\r\n" if "\r\n" in content else "\n"
@@ -249,6 +250,16 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
         timeout=TIMEOUTS["bandit"],
     )
     results.append(("bandit", code == 0, out if code != 0 else ""))
+
+    # Semgrep (skip if not installed)
+    code, out = run_cmd(
+        ["semgrep", "--config", "auto", "src/"],
+        timeout=TIMEOUTS["semgrep"],
+    )
+    if "Command not found: semgrep" in out:
+        results.append(("semgrep", True, "(semgrep not installed, skipping)"))
+    else:
+        results.append(("semgrep", code == 0, out if code != 0 else ""))
 
     # Check YAML (guard import, always append result)
     code, out = run_cmd(["git", "ls-files", "-z", "--", "*.yaml", "*.yml"])
