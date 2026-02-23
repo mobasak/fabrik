@@ -6,6 +6,38 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Pre-commit Workflow Restructure (2026-02-23)
+
+**What:** Moved quality checks from pre-commit to `scripts/final_gate.py` for coder AI to run before Traycer commit. Pre-commit now only runs 3 absolute blockers.
+
+**Files:**
+- `scripts/final_gate.py` - NEW: All quality, consistency, and sync checks in one script
+- `.pre-commit-config.yaml` - Reduced to 3 blockers (large files, merge conflicts, private keys)
+- `AGENTS.md` - Added Final Gate workflow documentation
+- `.windsurf/rules/00-critical.md` - Updated mandatory workflow
+- `.windsurf/rules/50-code-review.md` - Updated workflow with Final Gate phase
+
+### Fixed - Empty VPS_IP Check in Domain Setup (2026-02-23)
+
+**What:** Added explicit checks for empty `vps_ip` in all DNS functions to prevent creating invalid records.
+
+**Files:**
+- `src/fabrik/wordpress/domain_setup.py` - Added ValueError/failed result for empty vps_ip in 4 locations
+- `src/fabrik/wordpress/deployer.py` - Mark step as failed when VPS_IP missing
+
+### Changed - Remove Hardcoded IPs (2026-02-23)
+
+**What:** Replaced hardcoded IP addresses with `VPS_IP` environment variable across codebase.
+
+**Files:**
+- `src/fabrik/config.py` - Added `load_dotenv()` at module level
+- `src/fabrik/deploy.py` - Added explicit guard before `servers[0]` access
+- `src/fabrik/cli.py` - Removed hardcoded IP fallbacks
+- `src/fabrik/wordpress/deployer.py` - Use `VPS_IP` env var
+- `src/fabrik/wordpress/domain_setup.py` - Use `VPS_IP` env var for defaults
+- `src/fabrik/drivers/cloudflare.py` - Updated docstring examples
+- `.env.example` - Added `VPS_IP` entry
+
 ### Added - Provisioner Step 2 Implementation (2026-02-23)
 
 **What:** Implemented `_step2_set_env_vars` and `_step2_wait_healthy` stubs; fixed saga gap for `STEP2_COOLIFY_DEPLOY_RUNNING` state.

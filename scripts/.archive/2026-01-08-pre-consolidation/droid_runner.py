@@ -462,14 +462,14 @@ def cmd_run(args):
     if args.output == "json":
         print(json.dumps(asdict(record), indent=2, default=str))
     else:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Task ID: {record.task_id}")
         print(f"Status: {record.status.value}")
         print(f"Duration: {record.duration_ms}ms")
         print(f"Session: {record.session_id}")
         if record.error:
             print(f"Error: {record.error}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         if record.result:
             print(f"\nResult:\n{record.result}")
 

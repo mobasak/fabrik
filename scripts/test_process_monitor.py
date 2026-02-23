@@ -70,7 +70,7 @@ print("Done")
     for i in range(4):
         time.sleep(2)
         diagnosis = monitor.analyze()
-        print(f"  {i*2}s: {diagnosis['state']} - {diagnosis['reason']}")
+        print(f"  {i * 2}s: {diagnosis['state']} - {diagnosis['reason']}")
 
         # Should show CPU activity
         if diagnosis.get("metrics"):
@@ -108,16 +108,16 @@ def test_network_wait():
         time.sleep(2)
         diagnosis = monitor.analyze()
         states.append(diagnosis["state"])
-        print(f"  {i*2}s: {diagnosis['state']} - {diagnosis['reason']}")
+        print(f"  {i * 2}s: {diagnosis['state']} - {diagnosis['reason']}")
 
         if diagnosis.get("metrics"):
             m = diagnosis["metrics"]
             print(f"      CPU={m['avg_cpu']:.2f}%, I/O={m['total_io_bytes']}B")
 
     # After 6s, should be SUSPICIOUS (no stdout, low activity)
-    assert (
-        "SUSPICIOUS" in states or "LIKELY_STUCK" in states
-    ), "Sleep should trigger SUSPICIOUS/LIKELY_STUCK after threshold"
+    assert "SUSPICIOUS" in states or "LIKELY_STUCK" in states, (
+        "Sleep should trigger SUSPICIOUS/LIKELY_STUCK after threshold"
+    )
 
     # Cleanup
     proc.terminate()
@@ -156,7 +156,7 @@ print("Done")
         for i in range(3):
             time.sleep(2)
             diagnosis = monitor.analyze()
-            print(f"  {i*2}s: {diagnosis['state']} - {diagnosis['reason']}")
+            print(f"  {i * 2}s: {diagnosis['state']} - {diagnosis['reason']}")
 
             if diagnosis.get("metrics"):
                 m = diagnosis["metrics"]
@@ -275,7 +275,9 @@ def test_stuck_detection():
         diagnosis = monitor.analyze()
         states_seen.add(diagnosis["state"])
 
-        print(f"  {i*2}s: {diagnosis['state']} ({diagnosis['confidence']}) - {diagnosis['reason']}")
+        print(
+            f"  {i * 2}s: {diagnosis['state']} ({diagnosis['confidence']}) - {diagnosis['reason']}"
+        )
 
         if diagnosis.get("metrics"):
             m = diagnosis["metrics"]
@@ -314,7 +316,7 @@ def test_activity_recovery():
     for i in range(3):
         time.sleep(2)
         diagnosis = monitor.analyze()
-        print(f"  {i*2}s: {diagnosis['state']}")
+        print(f"  {i * 2}s: {diagnosis['state']}")
 
     # Should be SUSPICIOUS now
     assert diagnosis["state"] == "SUSPICIOUS", "Should be SUSPICIOUS"

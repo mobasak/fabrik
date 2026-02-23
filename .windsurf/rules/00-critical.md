@@ -10,11 +10,12 @@ trigger: always_on
 
 **Before ANY code change, I MUST:**
 1. Read `AGENTS.md` for conventions
-2. After editing, run: `python3 -m scripts.enforcement.validate_conventions --strict <files>`
-3. After editing, trigger review:
+2. After editing, trigger review:
    - **Traycer-managed:** Run Traycer verification (primary)
-   - **Otherwise:** `droid exec "Review <files>" # Uses default model from config/models.yaml`
-4. Update documentation if code changed
+   - **Otherwise:** `python scripts/kilo_code_review.py review <files> --output json`
+3. After review PASS, run Final Gate: `python scripts/final_gate.py`
+4. Fix any issues until Final Gate passes
+5. Only then press Traycer Commit (or `git commit`)
 
 **If I skip these steps, the user should call me out.**
 ---

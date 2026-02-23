@@ -275,9 +275,13 @@ def apply(
                 subdomain = ".".join(parts[:-2])
                 base_domain = ".".join(parts[-2:])
 
-                dns = DNSClient()
-                result = dns.add_subdomain(base_domain, subdomain, "172.93.160.197")
-                click.echo(f"   ✅ DNS: {spec.domain} -> 172.93.160.197")
+                vps_ip = os.getenv("VPS_IP")
+                if not vps_ip:
+                    click.echo("   ⚠️  VPS_IP not set — skipping DNS", err=True)
+                else:
+                    dns = DNSClient()
+                    result = dns.add_subdomain(base_domain, subdomain, vps_ip)
+                    click.echo(f"   ✅ DNS: {spec.domain} -> {vps_ip}")
             else:
                 click.echo("   ⚠️  Skipping DNS: domain format not recognized")
         except Exception as e:
@@ -710,7 +714,7 @@ def verify(domain: str, spec: str, app_name: str | None, no_rollback: bool):
     context = {
         "DOMAIN": domain,
         "APP_NAME": app_name or domain.split(".")[0],
-        "TARGET_IP": os.getenv("VPS_IP", "172.93.160.197"),
+        "TARGET_IP": os.getenv("VPS_IP", ""),
     }
 
     click.echo(f"🔍 Verifying: {domain}")

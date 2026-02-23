@@ -10,15 +10,17 @@ trigger: always_on
 
 **This applies to ALL tasks in /opt/* projects.**
 
-| Phase | Action | Gate |
-|-------|--------|------|
-| **1. PLAN** | Traycer-managed plan exists | Plan exists in Traycer AND saved to `docs/development/plans/` |
-| **2. APPROVE** | Wait for explicit "go" from human | Human says "go" |
-| **3. IMPLEMENT** | Execute one step at a time (from Traycer plan only) | Step code complete |
-| **4. REVIEW** | Run Traycer verification/review for completed step | Traycer verifier findings received |
-| **5. FIX** | Address Traycer findings before proceeding | All findings resolved |
-| **6. VALIDATE** | Traycer verifier passes + repo gate commands | Traycer pass + gate evidence |
-| **7. NEXT** | Only proceed after Traycer + gates pass | Approval for next step |
+| Step | Action | Gate |
+|------|--------|------|
+| **1** | **Traycer Plan** | Plan exists with spec, edge cases, env vars, DB changes |
+| **2** | **Coder Implements** | Code only what phase requires, follow spec strictly |
+| **3** | **Final Gate (Pre-Kilo)** | `python scripts/final_gate.py` → all PASS |
+| **4** | **Kilo Review Loop** | Fix ALL issues until verdict=PASS (diff-scoped) |
+| **5** | **Final Gate (Post-Kilo)** | `python scripts/final_gate.py` → all PASS |
+| **6** | **Traycer Verification** | Traycer verifier passes |
+| **7** | **Sync Only** | `python scripts/final_gate.py --sync` → sync extensions/backup |
+| **8** | **Traycer Commit** | Pre-commit runs 4 blockers only |
+| **9** | **Next Phase** | Move to next Traycer phase |
 
 > **Note:** When Traycer is not available, fall back to manual plan creation and AI code review.
 
@@ -34,7 +36,7 @@ Use Traycer's built-in verifier as the review surface.
 
 ### Non-Traycer Tasks: Kilo Code Review (Fallback)
 
-**Two-phase workflow (pre-commit + AI review):**
+**Two-phase workflow (Kilo review + Final Gate):**
 
 ```bash
 # Initial review: pass the task/plan for SPEC verification
@@ -49,13 +51,7 @@ python scripts/kilo_code_review.py review <changed_files> \
   --output json
 ```
 
-**Phase 1: Pre-commit (automatic, FREE)**
-- Runs `pre-commit run --files` on changed files
-- Auto-fixes: ruff, formatting, whitespace
-- Retries up to 5 times until clean
-- If fails after max iterations → aborts (saves Kilo tokens)
-
-**Phase 2: Kilo AI Review (only if Phase 1 passes)**
+**Phase 1: Kilo AI Review**
 - Reviews for: SPEC, SECURITY, CONFIG, EDGE, DOCS
 - Returns JSON with `verdict` and `issues`
 
@@ -66,13 +62,29 @@ python scripts/kilo_code_review.py review <changed_files> \
 4. Repeat 2-3 until `verdict=PASS` (max 5 iterations)
 5. Report to user what was done
 
+**Phase 2: Final Gate (MANDATORY before commit)**
+
+```bash
+# Step 3 - Before Kilo review (catches deterministic failures, saves tokens)
+python scripts/final_gate.py
+
+# Step 5 - After Kilo review (ensures Kilo fixes didn't break rules)
+python scripts/final_gate.py
+
+# Step 7 - Sync only (no duplicate checks)
+python scripts/final_gate.py --sync
+```
+
+This runs quality and consistency checks at Steps 3/5, then sync-only at Step 7.
+
 **Key points:**
 - **Pass the task/plan on initial review** - Kilo needs it for SPEC verification
 - Save task to `.droid/review-context/task.md` (not in `docs/development/plans/`)
-- Pre-commit runs first (catches ~80% of MINOR issues for FREE)
-- I fix Kilo issues, not Kilo auto-fix (cheaper)
+- I fix Kilo issues, not Kilo auto-fix (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
+- Fix ALL severities, not just BLOCKER/MAJOR
 - Use `--session continue` for subsequent reviews (maintains context)
-- Use `--skip-precommit` only if pre-commit already passed
+- Max 5 iterations before stopping
+- If still failing after 5 iterations, escalate model or request plan clarification
 
 **Output format after each step:**
 ```

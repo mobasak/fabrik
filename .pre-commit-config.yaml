@@ -1,155 +1,39 @@
-# Pre-commit Configuration for Fabrik
+# Pre-commit Configuration for Fabrik (MINIMAL - Final Commit Blockers Only)
+#
+# Most checks have moved to scripts/final_gate.py which coder AI runs BEFORE
+# Traycer commit. This file contains only absolute blockers that must never
+# be bypassed.
+#
 # Setup: pip install pre-commit && pre-commit install
 # Run all: pre-commit run --all-files
 #
-# Configured to match pyproject.toml settings (ruff, mypy)
+# Full quality checks: python scripts/final_gate.py
 
 repos:
-  # Ruff - Fast Python linter and formatter
-  # Config in pyproject.toml [tool.ruff]
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0
-    hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-      - id: ruff-format
-
-  # Type checking with mypy (relaxed mode - checks new code)
-  # Config in pyproject.toml [tool.mypy] with ignore_errors for legacy modules
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
-    hooks:
-      - id: mypy
-        args: [--config-file=pyproject.toml]
-        files: ^src/fabrik/
-        additional_dependencies:
-          - types-requests
-          - types-PyYAML
-          - pydantic>=2.0.0
-          - click>=8.1.0
-          - httpx>=0.25.0
-          - rich>=13.0.0
-        pass_filenames: false
-        entry: mypy src/fabrik
-
-  # General file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-        args: [--unsafe]  # Allow custom YAML tags in templates
-        exclude: templates/wordpress/schema/v1\.yaml
-      - id: check-json
+      # === ABSOLUTE BLOCKERS (always run at commit) ===
       - id: check-added-large-files
-        args: ['--maxkb=1000']
+        args: ['--maxkb=500']  # 500KB - catches accidental large files
       - id: check-merge-conflict
       - id: detect-private-key
 
-  # Security checks
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.10
-    hooks:
-      - id: bandit
-        args: ['-ll', '-x', 'tests/']  # Medium+ severity, exclude tests
-        files: ^src/  # Only scan src/ directory
+      # === FORMATTING HOOKS (called by final_gate.py, not at commit) ===
+      # These are available for final_gate.py to call via:
+      #   pre-commit run trailing-whitespace --all-files
+      #   pre-commit run end-of-file-fixer --all-files
+      - id: trailing-whitespace
+        stages: [manual]
+      - id: end-of-file-fixer
+        stages: [manual]
 
-  # SQL Injection Detection
-  - repo: https://github.com/sqlfluff/sqlfluff
-    rev: 3.0.7
-    hooks:
-      - id: sqlfluff-lint
-        args: ['--dialect', 'postgres']
-        files: \.sql$
-
-  # Advanced Security Pattern Matching (catches injection, SSRF, path traversal)
-  # NOTE: v1.90.0 broken with Python 3.12 (opentelemetry requires pkg_resources)
-  # Downgraded to v1.56.0 which works without tracing dependencies
-  - repo: https://github.com/returntocorp/semgrep
-    rev: v1.56.0
-    hooks:
-      - id: semgrep
-        args: ['--config', 'p/python', '--config', 'p/security-audit', '--error']
-        files: ^src/
-
-  # Dead Code Detection (high confidence only, exclude false-positive-heavy dirs)
-  - repo: https://github.com/jendrikseipp/vulture
-    rev: v2.11
-    hooks:
-      - id: vulture
-        args: ['src/', '--min-confidence', '95', '--exclude', 'src/fabrik/wordpress/,src/fabrik/drivers/,src/fabrik/provisioner.py']
-        pass_filenames: false
-
-  # Fabrik-specific hooks
+  # Forbidden files blocker - prevents committing secrets even if .gitignore fails
   - repo: local
     hooks:
-      - id: sync-droid-models
-        name: Sync Droid Model Names
-        description: Ensure model names are consistent across droid_tasks.py, AGENTS.md, and docs
-        entry: python3 scripts/droid_models.py sync
+      - id: forbid-secrets
+        name: Block forbidden files (.env, keys, certs)
+        entry: "bash -c 'echo ERROR: Forbidden file detected && exit 1'"
         language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
-
-      - id: fabrik-conventions
-        name: Fabrik Convention Validator
-        description: Check for hardcoded localhost, secrets, health endpoints, Docker issues
-        entry: python3 -c "import sys; from scripts.enforcement.validate_conventions import main; sys.argv = ['validate_conventions', '--strict'] + sys.argv[1:]; sys.exit(main())"
-        language: system
-        types_or: [python, yaml, dockerfile, ts, tsx, javascript]
-        stages: [pre-commit]
-
-      - id: rule-file-size
-        name: Rule File Size Guard
-        description: Ensure .windsurf/rules/*.md files stay under 12KB
-        entry: python3 scripts/enforcement/check_rule_size.py
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
-
-      - id: changelog-check
-        name: CHANGELOG.md Updated
-        description: Ensure CHANGELOG.md is updated when code files change
-        entry: python3 scripts/enforcement/check_changelog.py
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
-
-      - id: structure-check
-        name: Project Structure
-        description: Ensure .md files are in correct locations
-        entry: python3 scripts/enforcement/check_structure.py
-        language: system
-        types: [markdown]
-        stages: [pre-commit]
-
-      - id: sync-extensions
-        name: Sync Windsurf Extensions
-        description: Keep docs/reference/EXTENSIONS.md updated with installed extensions
-        entry: ./scripts/sync_extensions.sh
-        language: script
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
-
-      - id: sync-cascade-backup
-        name: Sync Cascade Backup (Memories + Global Rules)
-        description: Export AI memories and global rules to docs/reference/CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md (daily)
-        entry: ./scripts/sync_cascade_backup.sh
-        language: script
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
-
-      - id: kilo-health
-        name: Kilo CLI Health Check
-        description: Verify Kilo CLI is available and working (WSL binary, not Windows)
-        entry: ./scripts/check_kilo_health.sh
-        language: script
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
+        files: '(^\.env$|^\.env\.local$|\.pem$|\.key$|^id_rsa$|^id_ed25519$|\.p12$|\.pfx$|^secrets/)'
+        pass_filenames: true

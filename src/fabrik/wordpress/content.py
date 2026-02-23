@@ -120,8 +120,8 @@ class ContentGenerator:
         return f"""Generate professional website content for a "{title}" page.
 
 ## Brand Information
-- Company: {brand.get('name', 'Company')}
-- Tagline: {brand.get('tagline', '')}
+- Company: {brand.get("name", "Company")}
+- Tagline: {brand.get("tagline", "")}
 {f"- Context: {context}" if context else ""}
 
 ## Page Sections to Include
@@ -186,7 +186,7 @@ Return ONLY the HTML content, no explanations or markdown code blocks."""
         prompt = f"""Generate professional service page content for "{service_name}".
 
 ## Company
-{brand.get('name', 'Company')} - {brand.get('tagline', '')}
+{brand.get("name", "Company")} - {brand.get("tagline", "")}
 
 ## Services in this category
 {chr(10).join(f"- {item}" for item in service_items)}

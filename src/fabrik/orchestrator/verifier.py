@@ -86,7 +86,7 @@ class DeploymentVerifier:
                 # Only allow https:// URLs for security
                 if not url.startswith("https://"):
                     raise ValueError(f"Only HTTPS URLs allowed: {url}")
-                response = urlopen(url, timeout=self.timeout)  # nosec B310  # nosemgrep: dynamic-urllib-use-detected
+                response = urlopen(url, timeout=self.timeout)  # nosec B310
                 status = response.getcode()
 
                 if status == 200:

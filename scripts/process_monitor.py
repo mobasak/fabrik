@@ -316,9 +316,9 @@ class ProcessMonitor:
                 "state": "SUSPICIOUS",
                 "confidence": "low",
                 "reason": (
-                    f'No stdout for {int(seconds_since_activity)}s but process active '
-                    f'(CPU={activity["avg_cpu"]:.2f}%, I/O={activity["total_io_bytes"]}B, '
-                    f'Net={activity["any_network"]})'
+                    f"No stdout for {int(seconds_since_activity)}s but process active "
+                    f"(CPU={activity['avg_cpu']:.2f}%, I/O={activity['total_io_bytes']}B, "
+                    f"Net={activity['any_network']})"
                 ),
                 "safe_to_kill": False,
                 "metrics": activity,
@@ -337,8 +337,8 @@ class ProcessMonitor:
                 "state": "LIKELY_STUCK",
                 "confidence": "medium",
                 "reason": (
-                    f'Zero activity for {int(suspicious_duration)}s '
-                    f'(CPU={activity["avg_cpu"]:.2f}%, I/O={activity["total_io_bytes"]}B)'
+                    f"Zero activity for {int(suspicious_duration)}s "
+                    f"(CPU={activity['avg_cpu']:.2f}%, I/O={activity['total_io_bytes']}B)"
                 ),
                 "safe_to_kill": False,
                 "metrics": activity,
@@ -361,8 +361,7 @@ class ProcessMonitor:
             "state": "CONFIRMED_STUCK",
             "confidence": "high",
             "reason": (
-                f"No activity for {int(suspicious_duration)}s "
-                f"(likely hung or waiting for stdin)"
+                f"No activity for {int(suspicious_duration)}s (likely hung or waiting for stdin)"
             ),
             "safe_to_kill": False,  # Never auto-kill per requirements
             "recommendation": "Manual termination recommended",

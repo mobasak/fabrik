@@ -1,8 +1,11 @@
 """Deploy helper for fabrik apply command."""
 
+import logging
 import os
 
 from fabrik.drivers.coolify import CoolifyClient
+
+logger = logging.getLogger(__name__)
 
 
 def deploy_to_coolify(app_name: str, compose_content: str) -> dict:
@@ -13,9 +16,10 @@ def deploy_to_coolify(app_name: str, compose_content: str) -> dict:
     server_uuid = os.environ.get("COOLIFY_SERVER_UUID")
     if not server_uuid:
         servers = coolify.list_servers()
-        server_uuid = servers[0]["uuid"] if servers else None
-    if not server_uuid:
-        raise ValueError("No server. Set COOLIFY_SERVER_UUID.")
+        if not servers:
+            raise ValueError("No Coolify servers found. Set COOLIFY_SERVER_UUID.")
+        server_uuid = servers[0]["uuid"]
+        logger.warning("COOLIFY_SERVER_UUID not set, auto-detected: %s", server_uuid)
 
     # Get/create project
     project_uuid = os.environ.get("COOLIFY_PROJECT_UUID")

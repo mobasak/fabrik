@@ -193,10 +193,16 @@ class SiteDeployer:
         self.log(f"Step: {step}")
 
         try:
-            # Get VPS IP from spec or use default
+            # Get VPS IP from spec or environment
             deployment = self.spec.get("deployment", {})
-            vps_ip = deployment.get("vps_ip", "172.93.160.197")
+            vps_ip = deployment.get("vps_ip") or os.getenv("VPS_IP", "")
             proxied = deployment.get("cloudflare_proxy", True)
+
+            if not vps_ip:
+                self.log("  ⚠️  VPS_IP not configured — skipping DNS")
+                self.result.errors.append("VPS_IP not configured")
+                self.result.steps_failed.append(step)
+                return
 
             if self.dry_run:
                 self.log(f"  Would configure DNS: {self.domain} → {vps_ip}")

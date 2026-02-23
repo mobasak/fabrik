@@ -159,7 +159,7 @@ def run_backup():
     print("Running backup...")
     excl = " ".join([f"--exclude='{e}'" for e in EXCLUDES])
     # Source secrets file on VPS and pass credentials via CLI flags (shell variables, not Python interpolated)
-    cmd = f"""source /etc/duplicati-secrets.env && sudo docker exec duplicati /app/duplicati/duplicati-cli backup '{target_url()}' --b2-accountid="$B2_ACCOUNT_ID" --b2-applicationkey="$B2_APP_KEY" --passphrase="$DUPLICATI_PASSPHRASE" --encryption-module=aes {' '.join(SOURCES)} --dblock-size={DBLOCK_SIZE} {excl} --dbpath={BACKUP_DB}"""
+    cmd = f"""source /etc/duplicati-secrets.env && sudo docker exec duplicati /app/duplicati/duplicati-cli backup '{target_url()}' --b2-accountid="$B2_ACCOUNT_ID" --b2-applicationkey="$B2_APP_KEY" --passphrase="$DUPLICATI_PASSPHRASE" --encryption-module=aes {" ".join(SOURCES)} --dblock-size={DBLOCK_SIZE} {excl} --dbpath={BACKUP_DB}"""
     try:
         result = safe_run(["ssh", "vps", cmd], timeout=300)
         output = result.stdout or ""

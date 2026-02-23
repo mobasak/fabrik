@@ -7,8 +7,9 @@
 ## Authority Model
 
 - You write content.
-- Tools enforce structure.
-- CI is final authority.
+- Deterministic gates enforce structure.
+- Final Gate is the quality authority.
+- Pre-commit enforces only absolute blockers.
 
 ### Traycer Planning Authority
 
@@ -19,21 +20,47 @@
 - Traycer's built-in verifier is the primary verification/review surface
 - Coding agents only execute steps from the Traycer-managed plan
 
-## Execution Protocol (ALL TASKS)
+## Execution Protocol (9-Step Agile Flow)
 
-**Before ANY implementation:**
+**Token-optimized workflow: deterministic checks before LLM review.**
 
-| Phase | Action | Gate |
-|-------|--------|------|
-| **1. PLAN** | Traycer-managed plan exists | Plan exists in Traycer AND saved to `docs/development/plans/` |
-| **2. APPROVE** | Wait for explicit "go" from human | Human says "go" |
-| **3. IMPLEMENT** | Execute one step at a time (from Traycer plan only) | Step code complete |
-| **4. REVIEW** | Run Traycer verification/review for completed step | Traycer verifier findings received |
-| **5. FIX** | Address Traycer findings before proceeding | All findings resolved |
-| **6. VALIDATE** | Traycer verifier passes + repo gate commands | Traycer pass + gate evidence |
-| **7. NEXT** | Only proceed after Traycer + gates pass | Approval for next step |
+| Step | Action | Command / Gate |
+|------|--------|----------------|
+| **1** | **Traycer Plan** | Plan exists with spec, edge cases, env vars, DB changes |
+| **2** | **Coder Implements** | Code only what phase requires, follow spec strictly |
+| **3** | **Final Gate (Pre-Kilo)** | `python scripts/final_gate.py` → all PASS |
+| **4** | **Kilo Review Loop** | Fix ALL issues until verdict=PASS (diff-scoped) |
+| **5** | **Final Gate (Post-Kilo)** | `python scripts/final_gate.py` → all PASS |
+| **6** | **Traycer Verification** | Traycer verifier passes |
+| **7** | **Sync Only** | `python scripts/final_gate.py --sync` → sync extensions/backup |
+| **8** | **Traycer Commit** | Pre-commit runs 4 blockers only |
+| **9** | **Next Phase** | Move to next Traycer phase |
 
-> **Note:** When Traycer is not available, fall back to manual plan creation and AI code review.
+### Step Details
+
+**Step 1 - Traycer Plan:** Ensure plan includes functional spec, edge cases, required env vars, DB changes, docs impact. Do NOT start if spec is vague.
+
+**Step 2 - Coder Implements:** Use Gemini 3.1 Pro High Thinking (1x). Implement only phase scope. Escalate to Sonnet 4.5 Thinking (3x) if stuck.
+
+**Step 3 - Final Gate (Pre-Kilo):** Catches deterministic failures BEFORE spending Kilo tokens. Checks: ruff, mypy, bandit, yaml, json, structure, conventions, changelog.
+
+**Step 4 - Kilo Review:** Reviews only the diff. JSON structured. Coder fixes ALL issues (BLOCKER, MAJOR, MINOR). Repeat until verdict=PASS. Kilo handles: spec compliance, security reasoning, edge cases, logic bugs. NOT: formatting, lint, syntax (already handled by Final Gate).
+
+**Step 5 - Final Gate (Post-Kilo):** Ensures Kilo fixes didn't break deterministic rules.
+
+**Step 6 - Traycer Verification:** If issues found, return to Step 3.
+
+**Step 7 - Sync Only:** Runs sync steps only (extensions, backup). No duplicate checks—Step 5 already verified everything.
+
+**Step 8 - Traycer Commit:** Runs only 4 blockers: check-added-large-files, check-merge-conflict, detect-private-key, forbid-secrets.
+
+### Why This Works
+
+- Deterministic issues caught early (saves tokens)
+- LLM tokens used only for reasoning problems
+- No repeated lint/security cycles inside Kilo
+- No commit friction
+- No duplicated gates
 
 **Step Output Format (MANDATORY after each step):**
 ```
@@ -46,11 +73,11 @@ Next: Proceed to Step <N+1> / STOP
 ```
 
 **Violations:**
-- Do NOT implement without showing plan first
-- Do NOT proceed to next step without gate passing
-- Do NOT skip Traycer verification on significant changes
-- Do NOT assume approval — wait for explicit "go"
-- Do NOT reorder, expand, or modify Traycer plan steps without requesting a plan update from Traycer
+- Do NOT implement without plan approval
+- Do NOT skip final_gate before Kilo review
+- Do NOT proceed with BLOCKER/MAJOR issues
+- Do NOT skip post-Kilo final_gate
+- Do NOT commit without Step 7 passing
 
 ---
 
@@ -170,19 +197,57 @@ Then:
 - Use `--session continue` for subsequent reviews (maintains context)
 - Max 5 iterations before stopping
 
-**Sequence:**
-
-*Traycer-managed:*
+**Sequence (Traycer-managed):**
 ```
-Code change → Traycer verification → docs_sync.py (if needed) → Update flagged docs → Commit
+Code → Final Gate → Kilo loop → Final Gate → Traycer verification → Sync (--sync) → Commit
 ```
 
-*Non-Traycer:*
+**Sequence (Non-Traycer):**
 ```
-Code change → kilo_code_review.py → Fix issues myself → Re-review → Commit
+Code → Final Gate → Kilo loop until PASS → Final Gate → Sync (--sync) → Commit
 ```
 
-**Violation:** Committing without running verification and addressing all issues.
+**Violation:** Committing without Step 7 (`python scripts/final_gate.py --sync`) PASS.
+
+---
+
+## Final Gate (MANDATORY - Runs 3 Times Per Phase)
+
+**Final Gate runs twice, then sync-only once:**
+
+```bash
+# Step 3 - Before Kilo review (catches deterministic failures, saves tokens)
+python scripts/final_gate.py
+
+# Step 5 - After Kilo review (ensures Kilo fixes didn't break rules)
+python scripts/final_gate.py
+
+# Step 7 - Sync only (no duplicate checks)
+python scripts/final_gate.py --sync
+```
+
+**What Final Gate checks:**
+1. **Auto-fix formatting** - trailing whitespace, EOF, ruff-format, ruff --fix
+2. **Static analysis** - ruff, mypy, bandit, yaml, json, sqlfluff, vulture
+3. **Repo consistency** - structure, conventions, rule size, model names, changelog, kilo health
+4. **Sync steps** (Step 7 only) - Windsurf Extensions, Cascade Backup
+
+**Why default never syncs (Steps 3/5):**
+- Avoids side-effect diffs before review is complete
+- Sync only matters for final release candidate
+
+**What remains in pre-commit hooks (4 absolute blockers):**
+- `check-added-large-files` - No files >500KB
+- `check-merge-conflict` - No conflict markers
+- `detect-private-key` - No secrets
+- `forbid-secrets` - No .env, .pem, .key files
+
+**Workflow:**
+1. Kilo review PASS (or Traycer verification PASS)
+2. Run `python scripts/final_gate.py` — fix until clean
+3. Press Traycer Commit (or `git commit`)
+4. Pre-commit runs only 4 blockers
+5. Commit succeeds
 
 ---
 

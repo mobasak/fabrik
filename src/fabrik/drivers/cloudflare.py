@@ -19,10 +19,10 @@ Usage:
     records = cf.list_records(zone_id)
 
     # Create record
-    cf.create_record(zone_id, "A", "myapp", "172.93.160.197", proxied=True)
+    cf.create_record(zone_id, "A", "myapp", os.getenv("VPS_IP"), proxied=True)
 
     # Update record
-    cf.update_record(zone_id, record_id, "A", "myapp", "172.93.160.198")
+    cf.update_record(zone_id, record_id, "A", "myapp", os.getenv("VPS_IP"))
 
     # Delete record
     cf.delete_record(zone_id, record_id)
@@ -293,7 +293,7 @@ class CloudflareClient:
         zone_id = self.get_zone_id(domain)
 
         # Build full record name
-        full_name = (f"{name}.{domain}" if name else domain) if not name.endswith(domain) else name
+        full_name = domain if not name else (name if name.endswith(domain) else f"{name}.{domain}")
 
         # Check if record exists
         existing = self.list_records(zone_id, record_type=record_type, name=full_name)
@@ -332,7 +332,7 @@ class CloudflareClient:
         zone_id = self.get_zone_id(domain)
 
         # Build full record name
-        full_name = (f"{name}.{domain}" if name else domain) if not name.endswith(domain) else name
+        full_name = domain if not name else (name if name.endswith(domain) else f"{name}.{domain}")
 
         existing = self.list_records(zone_id, record_type=record_type, name=full_name)
 

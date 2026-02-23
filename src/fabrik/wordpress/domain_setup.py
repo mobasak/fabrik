@@ -18,7 +18,7 @@ Usage:
     print(result.zone_id, result.nameservers, result.cloudflare_status)
 
     # Sync DNS records (when zone is active)
-    dns_result = sync_dns('tojlo.com', vps_ip='172.93.160.197')
+    dns_result = sync_dns('tojlo.com')
     print(dns_result.applied, dns_result.blocked_by_status)
 """
 
@@ -148,7 +148,7 @@ class DomainProvisioner:
         return result
 
     def sync_dns(
-        self, domain: str, vps_ip: str = "172.93.160.197", proxied: bool = True, force: bool = False
+        self, domain: str, vps_ip: str | None = None, proxied: bool = True, force: bool = False
     ) -> DNSSyncResult:
         """
         Sync DNS records for a domain (Step D).
@@ -157,14 +157,20 @@ class DomainProvisioner:
 
         Args:
             domain: Root domain
-            vps_ip: VPS IP address
+            vps_ip: VPS IP address (defaults to VPS_IP env var)
             proxied: Enable Cloudflare proxy
             force: Apply even if zone is pending
 
         Returns:
             DNSSyncResult
         """
+        vps_ip = vps_ip or os.getenv("VPS_IP") or ""
         result = DNSSyncResult(domain=domain)
+
+        if not vps_ip:
+            result.applied = False
+            result.errors.append("VPS_IP environment variable is not set")
+            return result
 
         try:
             # Check zone status first via DNS Manager
@@ -329,7 +335,7 @@ def provision_domain(domain: str) -> ProvisionResult:
 
 
 def sync_dns(
-    domain: str, vps_ip: str = "172.93.160.197", proxied: bool = True, force: bool = False
+    domain: str, vps_ip: str | None = None, proxied: bool = True, force: bool = False
 ) -> DNSSyncResult:
     """
     Sync DNS records for a domain.
@@ -341,6 +347,9 @@ def sync_dns(
         elif result.blocked_by_status:
             print("Zone still pending")
     """
+    vps_ip = vps_ip or os.getenv("VPS_IP") or ""
+    if not vps_ip:
+        raise ValueError("VPS_IP environment variable is not set")
     with DomainProvisioner() as provisioner:
         return provisioner.sync_dns(domain, vps_ip, proxied, force)
 
@@ -377,11 +386,14 @@ class DomainSetup:
     def __init__(
         self,
         domain: str,
-        vps_ip: str = "172.93.160.197",
+        vps_ip: str | None = None,
         dns_manager_url: str | None = None,
         proxied: bool = True,
         dry_run: bool = False,
     ):
+        vps_ip = vps_ip or os.getenv("VPS_IP") or ""
+        if not vps_ip:
+            raise ValueError("VPS_IP environment variable is not set")
         self.domain = domain
         self.vps_ip = vps_ip
         self.proxied = proxied
@@ -465,8 +477,11 @@ class DomainSetup:
 
 
 def setup_domain(
-    domain: str, vps_ip: str = "172.93.160.197", proxied: bool = True, dry_run: bool = False
+    domain: str, vps_ip: str | None = None, proxied: bool = True, dry_run: bool = False
 ) -> DomainSetupResult:
     """Legacy function - uses new provisioning system."""
+    vps_ip = vps_ip or os.getenv("VPS_IP") or ""
+    if not vps_ip:
+        raise ValueError("VPS_IP environment variable is not set")
     with DomainSetup(domain, vps_ip, proxied=proxied, dry_run=dry_run) as setup:
         return setup.configure_dns()

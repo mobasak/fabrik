@@ -43,6 +43,12 @@ NO_MD_DIRS = {
     "__pycache__",
 }
 
+# Directories excluded from structure checks (backup/export folders)
+EXCLUDED_DIRS = {
+    "windsurf-memories",
+    ".droid",
+}
+
 # Legacy directories to warn about (should be migrated)
 LEGACY_DIRS = {
     "specs",
@@ -85,6 +91,9 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         if any(p.startswith(".") and p not in {".windsurf", ".droid"} for p in parts):
             continue
         if "node_modules" in parts or "__pycache__" in parts:
+            continue
+        # Skip excluded directories (backup/export folders)
+        if any(p in EXCLUDED_DIRS for p in parts):
             continue
 
         # Flag forbidden directories as errors (not skip!)
