@@ -26,10 +26,16 @@ Traycer prevents agent drift and preserves human intent using **Spec-Driven Deve
 
 ## WSL Environment Architecture
 
-Traycer manages its configuration inside your WSL home directory:
+Traycer manages its configuration and data inside your WSL home directory at **`~/.traycer/`**:
+
 - **`~/.traycer/cli-agents/`**: Shell scripts that Traycer executes (e.g., `Factory AI.sh`). Must be configured to point to `/opt/fabrik` instead of `/opt/proxy`.
 - **`~/.traycer/prompt-templates/`**: The active templates Traycer uses for generating specs and verifying tasks.
-- **`~/.traycer/app-assets/` & `cache/`**: Internal SQLite databases.
+- **`~/.traycer/app-assets/`**: **Main history database** (`app-assets.db`) - SQLite database storing all task history, phase progression, plan evolution, context preservation, and development decisions.
+- **`~/.traycer/cache/`**: Cache database (`cache.db`) - SQLite database for caching.
+- **`~/.traycer/epic-chat-transcripts/`**: Epic Mode chat conversation history.
+- **`~/.traycer/yolo_artifacts/`**: YOLO Mode execution artifacts.
+
+**Data Storage Location:** All Traycer data is stored locally on your machine at `~/.traycer/`, ensuring your development history and sensitive project information remain private and under your control.
 
 ## Phase Management & Automation
 
@@ -704,6 +710,44 @@ Example: A command might have multiple next steps:
 - `tech-plan` — for backend features
 - `spike-investigation` — for uncertain requirements
 
+## History (Task & Phase Tracking)
+
+Traycer automatically preserves the complete history of all your tasks and phases, allowing you to review, revert, or continue from any previous state.
+
+### What is Preserved
+
+Traycer maintains a comprehensive record of your development workflow:
+
+- **Task history:** Complete timeline of all generated tasks and their iterations
+- **Phase progression:** Step-by-step history of multi-phase projects
+- **Plan evolution:** How your implementation plans changed over time
+- **Context preservation:** All decisions, file mappings, and rationale from previous sessions
+
+### Finding Your Tasks
+
+The Task History interface provides powerful tools to locate and manage your development history:
+
+**Fuzzy search:**
+- Quickly find tasks using partial matches across task titles and queries
+
+**Workspace filtering:**
+- **Current Workspace:** Show only tasks from your active workspace
+- **All Workspaces:** Display tasks from all your workspaces for a complete overview
+
+### History Data Storage
+
+**Where is my data stored?**
+
+All history is stored locally on your machine at **`~/.traycer/app-assets/app-assets.db`** (SQLite database), ensuring your data stays private.
+
+**Is my data secure?**
+
+Yes. Since all data remains on your local machine at `~/.traycer/`, you maintain complete control over your development history and sensitive project information.
+
+**What happens if I reinstall Traycer?**
+
+Your history persists across Traycer installations as long as your local data directory (`~/.traycer/`) remains intact.
+
 ## Supported Coding Agents
 
 Traycer hands off clean, actionable prompts to your preferred AI coding agents.
@@ -758,6 +802,51 @@ Fabrik uses **Custom CLI Agents** for async job submission:
 - `Factory AI.sh` — Direct execution wrapper
 
 These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 9-step workflow.
+
+## AGENTS.md Integration (Project-Specific Context)
+
+Traycer automatically detects and uses `AGENTS.md` files to enhance AI task execution with project-specific context—no configuration required.
+
+### What is AGENTS.md?
+
+`AGENTS.md` is an open standard that provides AI coding agents with machine-readable, project-specific instructions. Unlike `README.md` files designed for human developers, `AGENTS.md` focuses on giving AI agents clear guidance about:
+- Build processes and testing procedures
+- Coding conventions and style guidelines
+- Architectural patterns and design decisions
+- Project structure and component organization
+
+### How Traycer Uses AGENTS.md
+
+When you create a Task, Traycer automatically searches for `AGENTS.md` files to gather project context:
+
+1. **Finds the nearest AGENTS.md** — Starts from the location of attached file references or the current working directory during exploration
+2. **Traverses to workspace root** — Continues up the directory tree if no `AGENTS.md` is found nearby
+3. **Incorporates into Task context** — Uses the instructions to inform plan generation and execution
+
+**This means:**
+- Place `AGENTS.md` at your repository root for project-wide instructions
+- Add nested `AGENTS.md` files in subdirectories for component-specific guidance (ideal for monorepos)
+- No manual configuration needed—detection happens automatically
+
+### What This Means for Your Tasks
+
+When Traycer finds an `AGENTS.md` file, it uses the project-specific instructions to:
+- **Generate more accurate plans** — Understands your project's structure, conventions, and patterns
+- **Follow your standards** — Respects your team's coding style, testing requirements, and workflows
+- **Reduce iterations** — Creates plans aligned with your project from the start
+- **Support monorepos** — Uses the most relevant `AGENTS.md` based on your working directory
+
+The result is faster, more accurate Task execution that respects your project's unique requirements.
+
+### Industry Standard
+
+`AGENTS.md` is supported by AI coding tools including Cursor, GitHub Copilot, Factory, Codex, Jules, and others. By adding an `AGENTS.md` file to your repository, you provide consistent instructions across all these tools.
+
+**Learn more:** [agents.md](https://agents.md) (official standard documentation)
+
+### Disabling AGENTS.md Detection
+
+You can disable `AGENTS.md` detection at any time in your Traycer settings if you prefer not to use this feature.
 
 ## Setup (One-Time)
 

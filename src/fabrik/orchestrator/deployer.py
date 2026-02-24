@@ -1,6 +1,7 @@
 """Coolify deployment with idempotency."""
 
 import logging
+import os
 from typing import Any
 
 from fabrik.orchestrator.context import DeploymentContext
@@ -66,10 +67,10 @@ class ServiceDeployer:
             DeployError: If deployment fails
         """
         name = ctx.spec["name"]
-        domain = ctx.spec["domain"]
+        domain = ctx.spec.get("domain", "")
 
         if ctx.dry_run:
-            logger.info("[DRY RUN] Would deploy %s to %s", name, domain)
+            logger.info("[DRY RUN] Would deploy %s to %s", name, domain or "(no domain)")
             return "dry-run-uuid"
 
         # Check for existing deployment
@@ -94,6 +95,39 @@ class ServiceDeployer:
         except Exception as e:
             raise DeployError(f"Deployment failed: {e}", coolify_error=str(e)) from e
 
+    def _resolve_project_server_uuids(self) -> tuple[str, str]:
+        """Resolve Coolify server and project UUIDs.
+
+        Mirrors the UUID-resolution logic in deploy.py:
+        - Server: env var or first from list_servers()
+        - Project: env var or find/create 'fabrik' project
+
+        Returns:
+            (server_uuid, project_uuid)
+
+        Raises:
+            DeployError: If no servers found
+        """
+        server_uuid = os.environ.get("COOLIFY_SERVER_UUID")
+        if not server_uuid:
+            servers = self.client.list_servers()
+            if not servers:
+                raise DeployError("No Coolify servers found. Set COOLIFY_SERVER_UUID.")
+            server_uuid = servers[0]["uuid"]
+
+        project_uuid = os.environ.get("COOLIFY_PROJECT_UUID")
+        if not project_uuid:
+            projects = self.client.list_projects()
+            for proj in projects:
+                if proj.get("name") == "fabrik":
+                    project_uuid = proj["uuid"]
+                    break
+            if not project_uuid:
+                result = self.client.create_project("fabrik", "Fabrik apps")
+                project_uuid = result["uuid"]
+
+        return server_uuid, project_uuid
+
     def _create_deployment(self, ctx: DeploymentContext) -> str:
         """Create a new Coolify deployment.
 
@@ -103,21 +137,42 @@ class ServiceDeployer:
         Returns:
             New application UUID
         """
+        from fabrik.spec_loader import Spec
+        from fabrik.template_renderer import TemplateRenderer
+
         spec = ctx.spec
 
-        # Build environment from spec + secrets
-        env_vars = dict(spec.get("env", {}))
-        for key, value in ctx.secrets.items():
-            env_vars[key] = value
+        server_uuid, project_uuid = self._resolve_project_server_uuids()
 
-        # Create via Coolify API
-        result = self.client.create_application(
+        # Build spec_dict preserving all user fields (resources, volumes, depends, etc.)
+        spec_dict = dict(spec)
+        spec_dict["id"] = spec.get("id", spec["name"])
+        spec_dict.pop("name", None)  # Remove orchestrator-only key
+
+        # Ensure env is a dict (validator allows it to be absent)
+        if not isinstance(spec_dict.get("env"), dict):
+            spec_dict["env"] = {}
+
+        spec_obj = Spec(**spec_dict)
+
+        rendered = TemplateRenderer().render(spec_obj, secrets=ctx.secrets, dry_run=True)
+        compose_content = rendered["compose.yaml"]
+
+        result = self.client.create_dockercompose_application(
+            project_uuid=project_uuid,
+            server_uuid=server_uuid,
+            docker_compose_raw=compose_content,
             name=spec["name"],
-            fqdn=f"https://{spec['domain']}",
-            env_vars=env_vars,
+            instant_deploy=True,
         )
 
-        return result.get("uuid", result.get("id", "unknown"))
+        uuid = result.get("uuid") or result.get("id")
+        if not uuid:
+            raise DeployError(
+                "Coolify API response missing 'uuid' or 'id'",
+                coolify_error=str(result),
+            )
+        return uuid
 
     def _update_deployment(self, uuid: str, ctx: DeploymentContext) -> None:
         """Update an existing Coolify deployment.
@@ -127,17 +182,25 @@ class ServiceDeployer:
             ctx: Deployment context
         """
         spec = ctx.spec
+        domain = spec.get("domain")
+
+        # Update application metadata (fqdn only if domain is set)
+        if domain:
+            self.client.update_application(
+                uuid=uuid,
+                fqdn=f"https://{domain}",
+            )
 
         # Build environment from spec + secrets
+        # NOTE: Secrets are passed to Coolify API. Ensure HTTP client debug
+        # logging is disabled in production to avoid exposing secret values.
         env_vars = dict(spec.get("env", {}))
         for key, value in ctx.secrets.items():
             env_vars[key] = value
 
-        self.client.update_application(
-            uuid=uuid,
-            fqdn=f"https://{spec['domain']}",
-            env_vars=env_vars,
-        )
+        # Use dedicated bulk_update_env_vars - update_application ignores env_vars
+        if env_vars:
+            self.client.bulk_update_env_vars(uuid, env_vars)
 
     def delete(self, uuid: str, dry_run: bool = False) -> bool:
         """Delete a Coolify deployment.

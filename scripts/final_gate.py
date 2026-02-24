@@ -430,6 +430,10 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
     code, out = run_cmd([PYTHON, "scripts/docs_updater.py", "--check"])
     results.append(("Documentation Drift", code == 0, out if code != 0 else ""))
 
+    # AGENTS.md TOC Current
+    code, out = run_cmd([PYTHON, "scripts/update_agents_toc.py", "--check"])
+    results.append(("AGENTS.md TOC Current", code == 0, out if code != 0 else ""))
+
     return results
 
 

@@ -6,6 +6,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Orchestrator Deployment API Mismatch (2026-02-24)
+
+**What:** Fixed latent bug in orchestrator deployer that called wrong Coolify API method.
+
+**Files:**
+- `src/fabrik/orchestrator/deployer.py` - Rewrote `_create_deployment()` to use `create_dockercompose_application` with proper UUID resolution; added `_resolve_project_server_uuids()` helper; fixed `_update_deployment()` to use `bulk_update_env_vars`; improved error handling (raise on missing UUID vs silent 'unknown'); safe domain access with `.get()`
+
 ### Changed - Traycer Workflow Documentation (2026-02-24)
 
 **What:** Updated Traycer integration docs to reflect Plan Mode context inputs, Epic Mode artifacts (mini-specs + tickets), Epic Mode workflow progression (elicitation/dialogue), Workflows (command sequences, Traycer Agile Workflow, Traycer Refactoring Workflow, custom workflows), Executions audit trail, Smart YOLO and artifact selection/handoff, YOLO Mode for Phases (comprehensive activation steps, Plan/Review workflows, four handoff types with configuration options, FAQ), Supported Coding Agents, and expanded Traycer verification guidance.

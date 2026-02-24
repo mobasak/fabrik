@@ -28,7 +28,7 @@ Traycer can optionally orchestrate the end-to-end loop in **YOLO Mode**; in Epic
 
 **Who:** Traycer.ai (Windsurf Extension)
 
-**What:** Creates a focused plan (mini-spec) via the Windsurf IDE extension running in WSL. 
+**What:** Creates a focused plan (mini-spec) via the Windsurf IDE extension running in WSL.
 This follows Traycer's core planning loop:
 1. **Choose Workflow:** Select `Plan` (single-PR), `Phases` (multi-step execution), or `Epic` (specs + tickets).
 2. **Describe Goal:** Provide a clear description of the objective and constraints. Optional context can include specific files, folders, images (UI mockups or error screenshots), and Git diffs (uncommitted, against `main`, against a branch, or against a commit).
@@ -45,7 +45,7 @@ This follows Traycer's core planning loop:
 
 **Output:** Async job submitted to `.factory_jobs/` and executing via `droid exec`.
 
-**Epic note:** In Epic Mode, Traycer organizes work into mini-spec artifacts (Specs) and actionable Tickets. Epic Mode is driven by **Workflows** (default: Traycer Agile Workflow), which are structured command sequences (e.g., `/trigger_workflow` → `/epic-brief` → `/core-flows` → `/prd-validation` → `/tech-plan` → `/architecture-validation` → `/ticket-breakdown` → `/implementation-validation`) that guide the elicitation process. 
+**Epic note:** In Epic Mode, Traycer organizes work into mini-spec artifacts (Specs) and actionable Tickets. Epic Mode is driven by **Workflows** (default: Traycer Agile Workflow), which are structured command sequences (e.g., `/trigger_workflow` → `/epic-brief` → `/core-flows` → `/prd-validation` → `/tech-plan` → `/architecture-validation` → `/ticket-breakdown` → `/implementation-validation`) that guide the elicitation process.
 
 **How Epic Mode and Fabrik Workflow relate:**
 - **Traycer Agile Workflow (8 commands)** runs INSIDE Epic Mode to create tickets (Step 1 of Fabrik workflow)
@@ -60,9 +60,9 @@ Epic Mode also tracks **Executions** as an audit trail for each agent handoff (w
 
 **Gate:** Plan must have required sections (enforced by `check_plan_quality.py`):
 - `**Status:**` line
-- `## Goal` 
+- `## Goal`
 - `## DONE WHEN` (with checkboxes)
-- `## Out of Scope` 
+- `## Out of Scope`
 - `## Steps`
 
 ---

@@ -1,8 +1,48 @@
 # Fabrik Project Agent Briefing
 
-**Last Updated:** 2026-02-23
+**Last Updated:** 2026-02-24
 
 > Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
+
+<!-- AUTO-GENERATED:TOC:START -->
+<!-- This section is auto-generated. Do not edit manually. Run: python scripts/update_agents_toc.py -->
+## Table of Contents
+- [Authority Model](#authority-model)
+- [Execution Protocol (9-Step Agile Flow)](#execution-protocol-9-step-agile-flow)
+- [Planning (Required for Non-Trivial Work)](#planning-required-for-non-trivial-work)
+- [Traycer Mode Selection](#traycer-mode-selection)
+- [Traycer Mode (When Task is Traycer-Managed)](#traycer-mode-when-task-is-traycer-managed)
+- [Documentation Rules](#documentation-rules)
+- [⚠️ MANDATORY WORKFLOW (ALL AI AGENTS)](#⚠️-mandatory-workflow-all-ai-agents)
+- [Final Gate (MANDATORY - Runs 3 Times Per Phase)](#final-gate-mandatory-runs-3-times-per-phase)
+- [Windsurf Cascade Users](#windsurf-cascade-users)
+- [Build & Test](#build-test)
+- [Run Locally](#run-locally)
+- [Architecture Overview](#architecture-overview)
+- [SaaS Projects (MANDATORY)](#saas-projects-mandatory)
+- [Project Layout](#project-layout)
+- [Conventions & Patterns](#conventions-patterns)
+- [Security](#security)
+- [Deployment](#deployment)
+- [Gotchas](#gotchas)
+- [Documentation Rules (MUST)](#documentation-rules-must)
+- [Feature Name](#feature-name)
+- [Execution Modes (Fabrik Lifecycle)](#execution-modes-fabrik-lifecycle)
+- [Implementing Large Features (NON-TRAYCER TASKS ONLY)](#implementing-large-features-non-traycer-tasks-only)
+- [Auto-Run Mode (Autonomy Levels)](#auto-run-mode-autonomy-levels)
+- [droid exec Quick Reference](#droid-exec-quick-reference)
+- [Batch Refactoring Scripts](#batch-refactoring-scripts)
+- [Output Formats](#output-formats)
+- [VPS Deployment (Coolify)](#vps-deployment-coolify)
+- [GitHub Actions Workflows](#github-actions-workflows)
+- [Fabrik Skills (Auto-Invoked)](#fabrik-skills-auto-invoked)
+- [Custom Slash Commands (TUI)](#custom-slash-commands-tui)
+- [Factory Settings](#factory-settings)
+- [MCP (Model Context Protocol)](#mcp-model-context-protocol)
+- [Droid Hooks](#droid-hooks)
+- [Agent Readiness Checklist](#agent-readiness-checklist)
+- [Writing Effective Prompts](#writing-effective-prompts)
+<!-- AUTO-GENERATED:TOC:END -->
 
 ## Authority Model
 
@@ -108,6 +148,31 @@ Next: Proceed to Step <N+1> / STOP
 - `## DONE WHEN` - Checkboxes for completion criteria
 - `## Out of Scope` - What's excluded
 - `## Steps` - Implementation steps
+
+---
+
+## Traycer Mode Selection
+
+**When planning work with Traycer, choose the appropriate mode based on task complexity:**
+
+| Scenario | Mode | Description |
+|----------|------|-------------|
+| **Single-PR / Focused task** | **Plan** | Creates a detailed, actionable implementation plan. Best for tasks that fit in one PR. |
+| **Complex / Multi-step project** | **Phases** | Manages multiple phases across a project lifecycle to prevent context loss. Each phase is a discrete unit of work. |
+| **Feature with specs + tickets** | **Epic** | Driven by Workflows (default: Traycer Agile Workflow). Organizes work into mini-spec artifacts (Specs) and actionable Tickets. Ideal for features requiring requirements gathering, technical planning, and ticket breakdown. |
+| **Code Audit / Verification** | **Review** | Structured workflow for code review tasks. |
+| **Trivial change (< 5 files)** | *Skip Traycer* | Use `droid exec` directly for small changes. |
+
+**Workflow-Driven Modes (Epic):**
+- **Traycer Agile Workflow** (default): 8-command, 3-gated-phase workflow for feature development (`/trigger_workflow` → `/epic-brief` → `/core-flows` → `/prd-validation` → `/tech-plan` → `/architecture-validation` → `/ticket-breakdown` → `/implementation-validation`)
+- **Traycer Refactoring Workflow**: 4-command workflow for safe refactoring (`/trigger-workflow` → `/plan-refactor` → `/ticket-breakdown` → `/verification`)
+- **Custom Workflows**: Create your own command sequences tailored to your methodology
+
+**For complete workflow details**, see:
+- [`templates/traycer/README.md`](templates/traycer/README.md) - Traycer integration guide
+- [`docs/reference/traycer-agile-workflow.md`](docs/reference/traycer-agile-workflow.md) - Detailed Agile Workflow reference
+- [`docs/reference/traycer-refactoring-workflow.md`](docs/reference/traycer-refactoring-workflow.md) - Detailed Refactoring Workflow reference
+- [`docs/guides/DEVELOPMENT_WORKFLOW.md`](docs/guides/DEVELOPMENT_WORKFLOW.md) - How Traycer fits into Fabrik's 9-step workflow
 
 ---
 
