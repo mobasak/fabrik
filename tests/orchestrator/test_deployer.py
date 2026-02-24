@@ -1,7 +1,9 @@
 """Tests for Coolify deployer."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer import ServiceDeployer
@@ -43,8 +45,6 @@ class TestServiceDeployer:
 
         deployer = ServiceDeployer(coolify_client=mock_client)
 
-        import pytest
-
         with pytest.raises(Exception) as exc:
             deployer.find_existing("my-app")
 
@@ -64,13 +64,15 @@ class TestServiceDeployer:
         result = deployer.deploy(ctx)
 
         assert result == "dry-run-uuid"
-        mock_client.create_application.assert_not_called()
+        mock_client.create_dockercompose_application.assert_not_called()
 
     def test_deploy_creates_new(self):
         """Create new deployment if none exists."""
         mock_client = MagicMock()
         mock_client.list_applications.return_value = []
-        mock_client.create_application.return_value = {"uuid": "new-uuid"}
+        mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
+        mock_client.list_projects.return_value = [{"name": "fabrik", "uuid": "project-uuid"}]
+        mock_client.create_dockercompose_application.return_value = {"uuid": "new-uuid"}
 
         deployer = ServiceDeployer(coolify_client=mock_client)
 
@@ -80,11 +82,16 @@ class TestServiceDeployer:
             secrets={"API_KEY": "secret123"},
         )
 
-        result = deployer.deploy(ctx)
+        with (
+            patch("fabrik.spec_loader.Spec"),
+            patch("fabrik.template_renderer.TemplateRenderer") as mock_renderer_cls,
+        ):
+            mock_renderer_cls.return_value.render.return_value = {"compose.yaml": "version: '3'"}
+            result = deployer.deploy(ctx)
 
         assert result == "new-uuid"
         assert ctx.coolify_uuid == "new-uuid"
-        mock_client.create_application.assert_called_once()
+        mock_client.create_dockercompose_application.assert_called_once()
 
     def test_deploy_updates_existing(self):
         """Update existing deployment if found."""
@@ -104,7 +111,7 @@ class TestServiceDeployer:
 
         assert result == "existing-uuid"
         mock_client.update_application.assert_called_once()
-        mock_client.create_application.assert_not_called()
+        mock_client.create_dockercompose_application.assert_not_called()
 
     def test_update_does_not_track_for_rollback(self):
         """UPDATE should NOT add to created_resources (prevents deleting pre-existing apps)."""
@@ -129,16 +136,23 @@ class TestServiceDeployer:
         """Deployment should track created resource."""
         mock_client = MagicMock()
         mock_client.list_applications.return_value = []
-        mock_client.create_application.return_value = {"uuid": "new-uuid"}
+        mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
+        mock_client.list_projects.return_value = [{"name": "fabrik", "uuid": "project-uuid"}]
+        mock_client.create_dockercompose_application.return_value = {"uuid": "new-uuid"}
 
         deployer = ServiceDeployer(coolify_client=mock_client)
 
         ctx = DeploymentContext(
             spec_path=Path("test.yaml"),
-            spec={"name": "test-app", "domain": "test.com"},
+            spec={"name": "test-app", "domain": "test.com", "template": "python-api"},
         )
 
-        deployer.deploy(ctx)
+        with (
+            patch("fabrik.spec_loader.Spec"),
+            patch("fabrik.template_renderer.TemplateRenderer") as mock_renderer_cls,
+        ):
+            mock_renderer_cls.return_value.render.return_value = {"compose.yaml": "version: '3'"}
+            deployer.deploy(ctx)
 
         assert len(ctx.created_resources) == 1
         assert ctx.created_resources[0].resource_type == "coolify"

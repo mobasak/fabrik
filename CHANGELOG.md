@@ -13,6 +13,20 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 **Files:**
 - `src/fabrik/orchestrator/deployer.py` - Rewrote `_create_deployment()` to use `create_dockercompose_application` with proper UUID resolution; added `_resolve_project_server_uuids()` helper; fixed `_update_deployment()` to use `bulk_update_env_vars`; improved error handling (raise on missing UUID vs silent 'unknown'); safe domain access with `.get()`
 
+### Fixed - Orchestrator SpecValidator `id`-as-`name` Alias (2026-02-24)
+
+**What:** Fixed `SpecValidator.validate()` to accept `id` as a backward-compatible
+alias for `name`, so specs produced by `fabrik new` (which emit `id:` not `name:`)
+pass orchestrator validation without any manual editing.
+
+**Files:**
+- `src/fabrik/orchestrator/validator.py` — Added shim before `REQUIRED_FIELDS` loop:
+  if `"name"` is absent but `"id"` is present, set `spec["name"] = spec["id"]`
+- `tests/orchestrator/test_validator.py` — Added `test_validate_id_as_name_alias`
+- `tests/orchestrator/test_integration.py` — Added `test_full_pipeline_dry_run_id_based_spec`
+- `tests/orchestrator/test_deployer.py` — Updated mocks to `create_dockercompose_application`,
+  `list_servers`, `list_projects`; patched `Spec`/`TemplateRenderer` in create/track tests
+
 ### Changed - Traycer Workflow Documentation (2026-02-24)
 
 **What:** Updated Traycer integration docs to reflect Plan Mode context inputs, Epic Mode artifacts (mini-specs + tickets), Epic Mode workflow progression (elicitation/dialogue), Workflows (command sequences, Traycer Agile Workflow, Traycer Refactoring Workflow, custom workflows), Executions audit trail, Smart YOLO and artifact selection/handoff, YOLO Mode for Phases (comprehensive activation steps, Plan/Review workflows, four handoff types with configuration options, FAQ), Supported Coding Agents, Custom CLI Agents (comprehensive guide + Kilo integration), and expanded Traycer verification guidance.

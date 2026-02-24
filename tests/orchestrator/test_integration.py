@@ -178,3 +178,22 @@ class TestDeploymentOrchestrator:
             DeploymentState.COMPLETE,
         ]
         assert states_seen == expected_states
+
+    def test_full_pipeline_dry_run_id_based_spec(self, tmp_path):
+        """Dry run with id-based spec should use validator shim for name."""
+        spec_file = tmp_path / "id-spec.yaml"
+        spec_file.write_text(
+            "id: id-based-app\n"
+            "template: python-api\n"
+            "domain: test.example.com\n"
+        )
+
+        validator = SpecValidator(templates_dir=tmp_path)
+        (tmp_path / "python-api").mkdir()
+
+        orchestrator = DeploymentOrchestrator(validator=validator)
+        ctx = orchestrator.deploy(spec_file, dry_run=True)
+
+        assert ctx.state == DeploymentState.COMPLETE
+        assert ctx.spec["name"] == "id-based-app"
+        assert ctx.dry_run is True

@@ -170,3 +170,35 @@ class TestSpecValidator:
         assert spec["name"] == "test-app"
         assert len(spec_hash) == 16
         assert isinstance(warnings, list)
+
+    def test_validate_id_as_name_alias(self, tmp_path):
+        """Validate that 'id' is aliased to 'name' for backward compatibility."""
+        validator = SpecValidator(templates_dir=tmp_path)
+        (tmp_path / "python-api").mkdir()
+
+        spec = {
+            "id": "my-app",
+            "template": "python-api",
+            "domain": "test.example.com",
+        }
+
+        warnings = validator.validate(spec)
+
+        assert warnings == []
+        assert spec["name"] == "my-app"
+
+    def test_validate_blocks_path_traversal(self, tmp_path):
+        """Block template paths that escape templates directory."""
+        validator = SpecValidator(templates_dir=tmp_path)
+
+        spec = {
+            "name": "test-app",
+            "template": "../../etc/passwd",
+            "domain": "test.example.com",
+        }
+
+        with pytest.raises(ValidationError) as exc:
+            validator.validate(spec)
+
+        assert exc.value.field == "template"
+        assert "escapes" in str(exc.value)
