@@ -5,7 +5,7 @@ Implements the 3-lane verification framework:
 - Dynamic: postcondition checks after deployment
 - Runtime: fail-closed with auto-rollback
 
-Last Updated: 2026-01-04
+Last Updated: 2026-02-23
 """
 
 import logging
@@ -22,6 +22,8 @@ from typing import Any
 
 import httpx
 import yaml
+
+from fabrik.config import FABRIK_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +128,7 @@ class PostconditionChecker:
         """Verify SSL certificate is valid."""
         config = self._get_check_config(name)
         domain = config.get("domain", "")
-        config.get("min_days_remaining", 7)
+        _min_days = config.get("min_days_remaining", 7)  # TODO: Use for expiry check
 
         if not domain:
             return PostconditionResult(name, CheckResult.SKIP, "No domain configured")
@@ -262,8 +264,8 @@ def get_spec_path(spec_name: str) -> Path:
     if fabrik_path.exists():
         return fabrik_path
 
-    # Fallback to hardcoded path
-    return Path(f"/opt/fabrik/specs/verification/{spec_name}.yaml")
+    # Fallback to FABRIK_ROOT path
+    return FABRIK_ROOT / "specs" / "verification" / f"{spec_name}.yaml"
 
 
 def verify_postconditions(spec_name: str = "deploy", auto_rollback: bool = True):
@@ -285,7 +287,7 @@ def verify_postconditions(spec_name: str = "deploy", auto_rollback: bool = True)
                 context = {
                     "DOMAIN": result.get("domain", ""),
                     "APP_NAME": result.get("app_name", result.get("id", "")),
-                    "TARGET_IP": os.getenv("VPS_IP", "172.93.160.197"),
+                    "TARGET_IP": os.getenv("VPS_IP", ""),
                 }
 
             # Find spec file

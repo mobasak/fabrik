@@ -742,36 +742,13 @@ def generate_plans_table() -> str:
 
 
 def sync_plans_index(dry_run: bool = False) -> tuple[bool, str]:
-    """Sync PLANS.md bounded block. Returns (changed, message)."""
-    if not PLANS_INDEX.exists():
-        return False, "Missing docs/development/PLANS.md"
-
-    text = PLANS_INDEX.read_text()
-    new_body = generate_plans_table()
-    new_text, changed = replace_block(text, new_body, PLANS_BLOCK_RE, "PLANS")
-
-    if not changed:
-        return False, "PLANS.md already up to date"
-
-    if dry_run:
-        return True, f"Would update PLANS.md:\n{new_body}"
-
-    PLANS_INDEX.write_text(new_text)
-    return True, "Updated PLANS.md"
+    """PLANS.md sync is obsolete (Traycer owns plans/indexing)."""
+    return False, "Skipped (Traycer-managed)"
 
 
 def validate_plans_indexed() -> list[str]:
-    """Check all plan files are in PLANS.md. For --check mode."""
-    if not PLANS_INDEX.exists():
-        return ["Missing docs/development/PLANS.md"]
-
-    idx = PLANS_INDEX.read_text()
-    errors = []
-    if PLANS_DIR.exists():
-        for p in PLANS_DIR.glob("*.md"):
-            if p.name not in idx:
-                errors.append(f"Plan not indexed: {p.name}")
-    return errors
+    """Indexing is Traycer-managed; do not enforce PLANS.md coverage."""
+    return []
 
 
 def validate_plan_consistency() -> list[str]:
@@ -980,10 +957,7 @@ def validate_docs() -> tuple[bool, list[str]]:
     """Check for drift. Returns (valid, issues)."""
     issues = []
 
-    # Check plans are indexed
-    issues.extend(validate_plans_indexed())
-
-    # Check plan status/checkbox consistency
+    # Check plan status/checkbox consistency (plans indexing is Traycer-managed)
     issues.extend(validate_plan_consistency())
 
     # Check for missing module docs
@@ -997,10 +971,7 @@ def validate_docs() -> tuple[bool, list[str]]:
         if "<!-- AUTO-GENERATED:STRUCTURE:START -->" not in readme:
             issues.append("docs/INDEX.md missing STRUCTURE auto-block markers")
 
-    if PLANS_INDEX.exists():
-        plans_md = PLANS_INDEX.read_text()
-        if "<!-- AUTO-GENERATED:PLANS:START -->" not in plans_md:
-            issues.append("docs/development/PLANS.md missing PLANS auto-block markers")
+    # PLANS.md auto-block check removed (Traycer-managed)
 
     # NEW: Stub completeness check
     issues.extend(check_stub_completeness())
@@ -1018,9 +989,7 @@ def run_sync(dry_run: bool = False) -> None:
     """Create missing stubs + sync structure."""
     print("=== Documentation Sync ===\n")
 
-    # Sync PLANS.md index
-    changed, msg = sync_plans_index(dry_run=dry_run)
-    print(f"Plans index: {msg}")
+    # PLANS.md sync intentionally skipped (Traycer-managed)
 
     # Create missing module stubs
     missing = detect_new_modules()
@@ -1031,7 +1000,7 @@ def run_sync(dry_run: bool = False) -> None:
             if create_module_stub(m):
                 print(f"Created: docs/reference/{m.name}.md")
 
-    if not missing and not changed:
+    if not missing:
         print("\nAll documentation is up to date.")
 
 

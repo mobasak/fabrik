@@ -42,7 +42,11 @@
 
 **Step 2 - Coder Implements:** Use Gemini 3.1 Pro High Thinking (1x). Implement only phase scope. Escalate to Sonnet 4.5 Thinking (3x) if stuck.
 
-**Step 3 - Final Gate (Pre-Kilo):** Catches deterministic failures BEFORE spending Kilo tokens. Checks: ruff, mypy, bandit, yaml, json, structure, conventions, changelog.
+**Step 3 - Final Gate (Pre-Kilo):** Catches deterministic failures BEFORE spending Kilo tokens.
+Checks include:
+- Auto-fix: trailing whitespace, EOF newline, ruff-format, ruff --fix
+- Static: ruff, mypy, bandit, semgrep (best-effort), check yaml, check json, sqlfluff, vulture
+- Consistency: structure, conventions, rule size, model names sync, changelog, kilo health
 
 **Step 4 - Kilo Review:** Reviews only the diff. JSON structured. Coder fixes ALL issues (BLOCKER, MAJOR, MINOR). Repeat until verdict=PASS. Kilo handles: spec compliance, security reasoning, edge cases, logic bugs. NOT: formatting, lint, syntax (already handled by Final Gate).
 
@@ -109,13 +113,16 @@ Next: Proceed to Step <N+1> / STOP
 
 ## Traycer Mode (When Task is Traycer-Managed)
 
-When executing a Traycer-managed plan:
+When executing a Traycer-managed plan via the **Windsurf Extension**:
 
-1. **Follow steps exactly in order** — Only execute steps from the managed plan
-2. **Do NOT redesign or change scope** — If changes needed, pause and request plan update from Traycer
-3. **One step at a time** — Complete current step before moving to next
-4. **After each step:** Show Evidence + Gate result (use Step Output Format above)
-5. **If a Gate fails** → STOP and report to Traycer for re-planning
+1. **Traycer runs as an IDE Extension** — It connects directly to your WSL environment via CLI agents (`~/.traycer/cli-agents/`).
+2. **Context Preservation** — Traycer automatically carries forward file mappings, decisions, and rationale across phases. Do not re-analyze the entire architecture if you are executing a later phase; rely on the provided spec.
+3. **Async Job Submission** — Traycer submits plans using `factory_submit.py` and waits for execution using `factory_wait.py` inside `/opt/fabrik/`.
+4. **Follow steps exactly in order** — Only execute steps from the managed plan.
+5. **Do NOT redesign or change scope** — If changes needed, pause and request plan update from Traycer.
+6. **One step at a time** — Complete current step before moving to next.
+7. **After each step:** Show Evidence + Gate result (use Step Output Format above).
+8. **If a Gate fails** → STOP and report to Traycer for re-planning.
 
 **Forbidden actions in Traycer Mode:**
 - Reordering steps
@@ -229,8 +236,26 @@ python scripts/final_gate.py --sync
 **What Final Gate checks:**
 1. **Auto-fix formatting** - trailing whitespace, EOF, ruff-format, ruff --fix
 2. **Static analysis** - ruff, mypy, bandit, semgrep, yaml, json, sqlfluff, vulture
-3. **Repo consistency** - structure, conventions, rule size, model names, changelog, kilo health
+3. **Repo consistency** - structure, conventions, rule size, model names, changelog, kilo health, symlink integrity
 4. **Sync steps** (Step 7 only) - Windsurf Extensions, Cascade Backup
+
+**Enforcement Scripts (`scripts/enforcement/`):**
+
+| Script | Purpose | Severity |
+|--------|---------|----------|
+| `check_env_vars.py` | Hardcoded localhost/127.0.0.1 | ERROR |
+| `check_secrets.py` | Hardcoded API keys, tokens | ERROR |
+| `check_env_contract.py` | .env.example ↔ compose.yaml ↔ CONFIGURATION.md | ERROR/WARN |
+| `check_health.py` | /health tests deps + test file exists | WARN |
+| `check_docker.py` | Alpine base, HEALTHCHECK, port consistency | ERROR/WARN |
+| `check_ports.py` | Port registered in PORTS.md | WARN |
+| `check_watchdog.py` | Watchdog script exists | WARN |
+| `check_structure.py` | MD file placement | ERROR/WARN |
+| `check_changelog.py` | CHANGELOG entry for code changes | ERROR |
+| `check_docs.py` | Module docs exist | WARN |
+| `check_tasks_updated.py` | tasks.md freshness | WARN |
+| `check_plans.py` | Plan naming convention | ERROR/WARN |
+| `check_rule_size.py` | Rule files < 12KB | ERROR |
 
 **Why default never syncs (Steps 3/5):**
 - Avoids side-effect diffs before review is complete

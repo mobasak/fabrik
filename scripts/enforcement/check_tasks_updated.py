@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Check that tasks.md is updated when phase docs change."""
 
+import os
 from pathlib import Path
 
-from .validate_conventions import CheckResult, Severity
+FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
+
+from .validate_conventions import CheckResult, Severity  # noqa: E402
 
 
 def check_file(file_path: Path) -> list[CheckResult]:
@@ -25,7 +28,7 @@ def check_file(file_path: Path) -> list[CheckResult]:
         return results
 
     # Check if tasks.md was also modified in this commit
-    tasks_md = Path("/opt/fabrik/tasks.md")
+    tasks_md = FABRIK_ROOT / "tasks.md"
     if not tasks_md.exists():
         return results
 

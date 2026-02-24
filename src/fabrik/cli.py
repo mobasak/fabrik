@@ -14,6 +14,7 @@ from pathlib import Path
 
 import click
 
+from fabrik.config import FABRIK_ROOT
 from fabrik.deploy import deploy_to_coolify
 from fabrik.drivers.coolify import CoolifyClient
 from fabrik.drivers.dns import DNSClient
@@ -336,7 +337,7 @@ def templates():
 
     if not available:
         click.echo("No templates found.")
-        click.echo("Templates should be in: /opt/fabrik/templates/")
+        click.echo(f"Templates should be in: {FABRIK_ROOT / 'templates'}/")
         return
 
     click.echo("Available templates:")
@@ -498,11 +499,11 @@ def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
         try:
             parts = spec.domain.split(".")
             if len(parts) >= 3:
-                ".".join(parts[:-2])
-                ".".join(parts[-2:])
-
-                DNSClient()
-                # Note: Would need delete_subdomain method
+                # TODO: Implement DNS deletion when DNSClient supports it
+                # subdomain = ".".join(parts[:-2])
+                # base_domain = ".".join(parts[-2:])
+                # dns = DNSClient()
+                # dns.delete_subdomain(base_domain, subdomain)
                 click.echo("   ℹ️  DNS removal not implemented yet")
                 click.echo(f"   ℹ️  Manually remove: {spec.domain}")
             else:
@@ -704,7 +705,7 @@ def verify(domain: str, spec: str, app_name: str | None, no_rollback: bool):
     """
     from fabrik.verify import CheckResult, PostconditionChecker
 
-    spec_path = Path(f"/opt/fabrik/specs/verification/{spec}.yaml")
+    spec_path = FABRIK_ROOT / "specs" / "verification" / f"{spec}.yaml"
     if not spec_path.exists():
         click.echo(f"Error: Verification spec not found: {spec_path}", err=True)
         click.echo("Available specs: deploy, dns", err=True)

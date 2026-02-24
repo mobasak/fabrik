@@ -17,6 +17,7 @@ load_dotenv()
 
 # Project paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
+FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 CONFIG_DIR = PROJECT_ROOT / "config"
 SPECS_DIR = PROJECT_ROOT / "specs"
 TEMPLATES_DIR = PROJECT_ROOT / "templates"

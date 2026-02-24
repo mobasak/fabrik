@@ -8,14 +8,23 @@ trigger: always_on
 
 ## ⚠️ MANDATORY WORKFLOW
 
-**Before ANY code change, I MUST:**
-1. Read `AGENTS.md` for conventions
-2. After editing, trigger review:
-   - **Traycer-managed:** Run Traycer verification (primary)
-   - **Otherwise:** `python scripts/kilo_code_review.py review <files> --output json`
-3. After review PASS, run Final Gate: `python scripts/final_gate.py`
-4. Fix any issues until Final Gate passes
-5. Only then press Traycer Commit (or `git commit`)
+**PLAN → IMPLEMENT → FINAL_GATE → KILO → FINAL_GATE → TRAYCER_VERIFY → SYNC → COMMIT**
+
+1. Step 3 (Pre-Kilo): `python scripts/final_gate.py` → all PASS
+2. Step 4 (Kilo loop): fix until verdict=PASS (diff-scoped)
+3. Step 5 (Post-Kilo): `python scripts/final_gate.py` → all PASS
+4. Step 6 (Traycer verification): must PASS
+5. Step 7 (Sync only): `python scripts/final_gate.py --sync`
+6. Step 8 (Commit): pre-commit runs ONLY 4 blockers:
+   - check-added-large-files
+   - check-merge-conflict
+   - detect-private-key
+   - forbid-secrets
+
+**Notes:**
+- Final Gate is the authority for deterministic checks.
+- Semgrep is best-effort: skipped if not installed or not authenticated.
+- Do not rely on .gitignore as a security control (pre-commit blockers still apply).
 
 **If I skip these steps, the user should call me out.**
 ---

@@ -12,10 +12,10 @@
 
 ### Raw Model Data
 
-Full verbose specs for **all 628 Kilo models** are stored in:
-- **File:** [`kilo-models-raw.json`](./kilo-models-raw.json)
-- **Update command:** `python scripts/update_kilo_models.py`
-- **Contains:** id, name, cost (input/output/cache), limits (context/output), capabilities (reasoning, toolcall, attachment, input/output types), variants, description
+Full verbose specs for Kilo models are managed by:
+- **Config:** `config/models.yaml` (local model configuration)
+- **Update command:** `python scripts/droid_models.py sync`
+- **Contains:** id, name, cost tiers, limits, capabilities, variants
 
 ---
 

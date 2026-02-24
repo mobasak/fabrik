@@ -24,6 +24,29 @@ trigger: always_on
 
 > **Note:** When Traycer is not available, fall back to manual plan creation and AI code review.
 
+## Gates Contract (Current Workflow)
+
+### Final Gate (Steps 3 + 5)
+Runs deterministic checks and must PASS:
+- AUTO-FIX: trailing whitespace, EOF, ruff-format, ruff --fix
+- STATIC: ruff, mypy, bandit, semgrep (best-effort), yaml, json, sqlfluff, vulture
+- CONSISTENCY: structure, conventions, rule size, models, changelog, kilo health
+
+Semgrep policy:
+- If semgrep is missing → skip (PASS)
+- If semgrep is not authenticated (HTTP 401 / requires login) → skip (PASS with instruction)
+- Otherwise semgrep failures are enforced
+
+### Sync Only (Step 7)
+`python scripts/final_gate.py --sync` runs ONLY sync side-effects (extensions + backup). No quality checks.
+
+### Pre-commit (Step 8)
+Pre-commit enforces ONLY 4 absolute blockers:
+- check-added-large-files
+- check-merge-conflict
+- detect-private-key
+- forbid-secrets
+
 ---
 
 ## Code Review (After EVERY Code Change)
@@ -76,6 +99,15 @@ python scripts/final_gate.py --sync
 ```
 
 This runs quality and consistency checks at Steps 3/5, then sync-only at Step 7.
+
+Final Gate coverage (Steps 3 and 5):
+- Auto-fix formatting: trailing whitespace, EOF newline, ruff-format, ruff --fix
+- Static analysis: ruff, mypy, bandit, semgrep, check yaml, check json, sqlfluff, vulture
+- Repo consistency: structure, conventions, rule size, model names sync, changelog, kilo health
+
+Sync-only coverage (Step 7 / --sync):
+- Sync Windsurf Extensions
+- Sync Cascade Backup
 
 **Key points:**
 - **Pass the task/plan on initial review** - Kilo needs it for SPEC verification

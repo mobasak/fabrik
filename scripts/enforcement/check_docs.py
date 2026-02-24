@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Check that new src/ modules have corresponding documentation."""
 
+import os
 from pathlib import Path
 
-from .validate_conventions import CheckResult, Severity
+FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
+
+from .validate_conventions import CheckResult, Severity  # noqa: E402
 
 
 def check_new_module_docs(changed_files: list[Path]) -> list[CheckResult]:
@@ -16,7 +19,7 @@ def check_new_module_docs(changed_files: list[Path]) -> list[CheckResult]:
         List of check results
     """
     results: list[CheckResult] = []
-    docs_dir = Path("/opt/fabrik/docs")
+    docs_dir = FABRIK_ROOT / "docs"
     readme_path = docs_dir / "INDEX.md"
 
     # Find new module directories (containing __init__.py)
@@ -38,7 +41,7 @@ def check_new_module_docs(changed_files: list[Path]) -> list[CheckResult]:
         readme_has_mention = False
         if readme_path.exists():
             content = readme_path.read_text()
-            if module_name in content or "orchestrator" in content.lower():
+            if module_name in content:
                 readme_has_mention = True
 
         # Check for dedicated doc file

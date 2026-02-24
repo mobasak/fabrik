@@ -6,6 +6,8 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
+from fabrik.config import FABRIK_ROOT
+
 # Reserved project names that conflict with system dirs or packages
 RESERVED_NAMES = frozenset(
     {
@@ -29,7 +31,7 @@ RESERVED_NAMES = frozenset(
     }
 )
 
-TEMPLATE_DIR = Path("/opt/fabrik/templates/scaffold")
+TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"
 
 TEMPLATE_MAP = {
     "docs/PROJECT_README_TEMPLATE.md": "README.md",
@@ -81,7 +83,7 @@ DIRS = [
 ]
 
 # Master AGENTS.md location
-FABRIK_AGENTS_MD = Path("/opt/fabrik/AGENTS.md")
+FABRIK_AGENTS_MD = FABRIK_ROOT / "AGENTS.md"
 
 
 def _ensure_symlink(link_path: Path, target: Path) -> bool:
@@ -142,7 +144,7 @@ def _link_agents_md(project_dir: Path) -> None:
         if template.exists():
             shutil.copy(template, link_path)
         else:
-            link_path.write_text("# AGENTS.md\n\nSee /opt/fabrik/AGENTS.md for full briefing.\n")
+            link_path.write_text(f"# AGENTS.md\n\nSee {FABRIK_AGENTS_MD} for full briefing.\n")
 
 
 def _install_pre_commit(project_dir: Path) -> bool:
@@ -206,8 +208,8 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
 
     # Symlink windsurfrules (legacy) and .windsurf/rules/ (authoritative)
     # Fail fast if fabrik targets are missing - environment is broken
-    fabrik_windsurfrules = Path("/opt/fabrik/windsurfrules")
-    fabrik_windsurf_rules = Path("/opt/fabrik/.windsurf/rules")
+    fabrik_windsurfrules = FABRIK_ROOT / "windsurfrules"
+    fabrik_windsurf_rules = FABRIK_ROOT / ".windsurf" / "rules"
 
     if not fabrik_windsurfrules.exists():
         raise FileNotFoundError(f"Missing fabrik windsurfrules: {fabrik_windsurfrules}")
@@ -360,8 +362,8 @@ def fix_project(project_path: Path, dry_run: bool = False) -> list[str]:
         added.append(f)
 
     # Ensure symlinks exist
-    windsurfrules_target = Path("/opt/fabrik/windsurfrules")
-    windsurf_rules_target = Path("/opt/fabrik/.windsurf/rules")
+    windsurfrules_target = FABRIK_ROOT / "windsurfrules"
+    windsurf_rules_target = FABRIK_ROOT / ".windsurf" / "rules"
 
     if not dry_run:
         # Fail fast if fabrik targets are missing - environment is broken

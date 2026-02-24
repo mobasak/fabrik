@@ -6,14 +6,67 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Changed - Final Gate Perfection (2026-02-23)
+### Changed - Traycer Workflow Documentation (2026-02-24)
 
-**What:** Polished `final_gate.py` with semgrep integration, CRLF preservation, correct blocker counts, and accurate log messages.
+**What:** Updated Traycer integration docs to reflect Plan Mode context inputs, Epic Mode artifacts (mini-specs + tickets), Epic Mode workflow progression (elicitation/dialogue), Workflows (command sequences, Traycer Agile Workflow, Traycer Refactoring Workflow, custom workflows), Executions audit trail, Smart YOLO and artifact selection/handoff, YOLO Mode for Phases (comprehensive activation steps, Plan/Review workflows, four handoff types with configuration options, FAQ), Supported Coding Agents, and expanded Traycer verification guidance.
 
 **Files:**
-- `scripts/final_gate.py` - Added semgrep check, fixed CRLF handling, accurate iteration messages
-- `AGENTS.md` - Fixed "3 blockers" → "4 blockers", updated violation text to Step 7
-- `.windsurf/rules/50-code-review.md` - Fixed blocker count to 4
+- `docs/guides/DEVELOPMENT_WORKFLOW.md` - Document Plan Mode context inputs/symbol references; document Epic Mode selection and ticket-based progression; document Workflows driving Epic Mode; clarify how Epic Mode and Fabrik Workflow relate; clarify verification severity categories; include review comment categories and fix workflows
+- `templates/traycer/README.md` - Document official Traycer workflows, Epic Mode artifacts (specs + tickets), Workflows (command structure, slash commands, argument passing, agent modes, Traycer Agile Workflow 8-command breakdown with 3 gated phases, Traycer Refactoring Workflow 4-command breakdown, custom workflow management), Supported Coding Agents (built-in YOLO vs configurable as Custom CLI vs extension-only, based on CLI availability; export options, Fabrik CLI agent integration), artifact management (Documents panel), selection/handoff, Smart YOLO, Epic Mode workflow progression, Executions audit trail, and phase management/YOLO mode
+- `docs/reference/traycer-agile-workflow.md` - NEW: Complete detailed reference for all 8 Traycer Agile Workflow commands including roles, philosophy, artifact structures, processing flows, acceptance criteria, and validation gate mechanics
+- `docs/reference/traycer-refactoring-workflow.md` - NEW: Complete detailed reference for all 4 Traycer Refactoring Workflow commands including analysis/approach artifacts, ticket structure, verification paths, and feedback loop mechanics
+- `docs/reference/traycer-evaluation.md` - Updated evaluation to reflect Windsurf extension usage and paid Pro+ tier
+- `AGENTS.md` - Clarified Traycer mode context preservation and async job submission paths
+- `factory_submit.py` - Added for Traycer async submit integration
+- `factory_wait.py` - Added for Traycer async wait integration
+
+### Added - Enforcement Gap Fixes (2026-02-23)
+
+**What:** Added 6 new enforcement checks to close identified gaps in the workflow.
+
+**Files:**
+- `scripts/enforcement/check_env_contract.py` - NEW: Cross-validate .env.example ↔ compose.yaml ↔ CONFIGURATION.md
+- `scripts/enforcement/check_health.py` - Extended: Check tests/test_health.py existence
+- `scripts/enforcement/check_docker.py` - Extended: Port consistency (Dockerfile EXPOSE vs compose.yaml)
+- `scripts/enforcement/check_plan_quality.py` - NEW: Validate plan sections (Status, Goal, DONE WHEN, Out of Scope, Steps)
+- `scripts/enforcement/check_deps_sync.py` - NEW: Validate pyproject.toml ↔ requirements.txt sync
+- `scripts/enforcement/validate_conventions.py` - Integrated check_env_contract, check_plan_quality, check_deps_sync
+- `scripts/final_gate.py` - Added symlink integrity check and documentation drift check to consistency phase
+
+### Changed - Droid Infrastructure Archive (2026-02-23)
+
+**What:** Archived droid orchestration infrastructure (replaced by Traycer/Kilo workflow).
+
+**Files:**
+- `scripts/.archive/2026-02-23-cleanup/droid/droid_core.py` - Main droid orchestrator
+- `scripts/.archive/2026-02-23-cleanup/droid/droid_session.py` - Session management
+- `scripts/.archive/2026-02-23-cleanup/droid/droid_model_updater.py` - Model updates
+- `scripts/.archive/2026-02-23-cleanup/droid/pipeline_runner.py` - 5-stage pipeline
+- `scripts/.archive/2026-02-23-cleanup/check.sh` - Redundant (covered by final_gate.py)
+- `scripts/.archive/2026-02-23-cleanup/verify.sh` - Redundant (covered by final_gate.py)
+- `scripts/.archive/2026-02-23-cleanup/rollback_hooks.sh` - Obsolete (droid hooks)
+
+**Kept:** `droid_models.py` (actively used by final_gate.py for model sync)
+
+### Changed - Script Cleanup and Archive (2026-02-23)
+
+**What:** Archived 4 redundant/obsolete scripts to streamline enforcement architecture.
+
+**Files:**
+- `scripts/.archive/2026-02-23-cleanup/ai_quick_review.py` - Archived (not integrated into Final Gate)
+- `scripts/.archive/2026-02-23-cleanup/check_global_gates.py` - Archived (redundant with final_gate.py)
+- `scripts/.archive/2026-02-23-cleanup/docs_sync.py` - Archived (covered by check_changelog.py + check_tasks_updated.py)
+- `scripts/.archive/2026-02-23-cleanup/droid-review.sh` - Archived (shell wrapper, use kilo_code_review.py)
+
+### Changed - Final Gate Perfection (2026-02-23)
+
+**What:** Polished `final_gate.py` with semgrep best-effort integration, CRLF preservation, correct blocker counts, and accurate log messages. Updated all workflow docs to align with 9-step process.
+
+**Files:**
+- `scripts/final_gate.py` - Semgrep best-effort (skip on 401), token helper without PyYAML
+- `AGENTS.md` - Full Step 3 check list, semgrep (best-effort) parenthetical
+- `.windsurf/rules/00-critical.md` - Aligned MANDATORY WORKFLOW with 9-step process
+- `.windsurf/rules/50-code-review.md` - Added Gates Contract section with semgrep policy
 
 ### Changed - Pre-commit Workflow Restructure (2026-02-23)
 

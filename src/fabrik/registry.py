@@ -9,6 +9,8 @@ from pathlib import Path
 
 import yaml
 
+from fabrik.config import FABRIK_ROOT
+
 
 @dataclass
 class Project:
@@ -56,7 +58,7 @@ class ProjectRegistry:
     """Manages project registry YAML file."""
 
     def __init__(self, path: Path | None = None):
-        self.path = path or Path("/opt/fabrik/data/projects.yaml")
+        self.path = path or FABRIK_ROOT / "data" / "projects.yaml"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.projects: dict[str, Project] = {}
         self.excludes: list[str] = DEFAULT_EXCLUDES.copy()

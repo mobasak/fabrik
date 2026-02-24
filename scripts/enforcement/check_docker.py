@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Check Docker conventions (base images, healthcheck)."""
+"""Check Docker conventions (base images, healthcheck, port consistency)."""
 
 import re
 from pathlib import Path
 
 ALPINE_PATTERN = re.compile(r"FROM\s+.*alpine", re.IGNORECASE)
 HEALTHCHECK_PATTERN = re.compile(r"HEALTHCHECK", re.IGNORECASE)
+EXPOSE_PATTERN = re.compile(r"EXPOSE\s+(\d+)", re.IGNORECASE)
+COMPOSE_PORT_PATTERN = re.compile(r'["\']\$\{?PORT[^}]*\}?:(\d+)["\']|["\'](\d+):(\d+)["\']')
 
 APPROVED_BASES = [
     "python:3.12-slim-bookworm",
@@ -60,8 +62,42 @@ def check_file(file_path: Path) -> list:
                 message="No HEALTHCHECK instruction found",
                 file_path=str(file_path),
                 line_number=1,
-                fix_hint="Add: HEALTHCHECK --interval=30s CMD curl -f http://localhost:${PORT:-8000}/health || exit 1",  # noqa: env_vars
+                fix_hint="Add: HEALTHCHECK --interval=30s CMD curl -f http://localhost:${PORT:-8000}/health || exit 1",  # noqa: E501
             )
         )
+
+    # Check port consistency with compose.yaml
+    expose_match = EXPOSE_PATTERN.search(content)
+    if expose_match:
+        dockerfile_port = expose_match.group(1)
+        project_root = file_path.parent
+
+        compose_file = project_root / "compose.yaml"
+        if not compose_file.exists():
+            compose_file = project_root / "compose.yml"
+
+        if compose_file.exists():
+            try:
+                compose_content = compose_file.read_text(encoding="utf-8")
+                compose_ports = set()
+
+                for match in COMPOSE_PORT_PATTERN.finditer(compose_content):
+                    # Extract container port from various patterns
+                    port = match.group(1) or match.group(3)
+                    if port:
+                        compose_ports.add(port)
+
+                if compose_ports and dockerfile_port not in compose_ports:
+                    results.append(
+                        CheckResult(
+                            check_name="docker_ports",
+                            severity=Severity.WARN,
+                            message=f"Dockerfile EXPOSE {dockerfile_port} not found in compose.yaml ports",
+                            file_path=str(file_path),
+                            fix_hint=f"Ensure compose.yaml uses port {dockerfile_port} or update EXPOSE",
+                        )
+                    )
+            except (OSError, UnicodeDecodeError):
+                pass
 
     return results

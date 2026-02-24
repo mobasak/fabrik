@@ -1,18 +1,24 @@
+import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
+FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
+
+from dotenv import load_dotenv  # noqa: E402
 
 # Add src to path
-sys.path.append(str(Path("/opt/fabrik/src")))
+sys.path.append(str(FABRIK_ROOT / "src"))
 
-import httpx
+from urllib.parse import urlparse  # noqa: E402
 
-from fabrik.drivers.coolify import CoolifyClient
+import httpx  # noqa: E402
+
+from fabrik.drivers.coolify import CoolifyClient  # noqa: E402
+from fabrik.orchestrator.validator import is_private_ip  # noqa: E402
 
 
 def check_health():
-    load_dotenv("/opt/fabrik/.env")
+    load_dotenv(FABRIK_ROOT / ".env")
 
     try:
         coolify = CoolifyClient()
@@ -44,6 +50,17 @@ def check_health():
                     health_url = f"{fqdn}/health"
                     if not health_url.startswith("http"):
                         health_url = f"http://{health_url}"
+
+                    # SSRF protection: validate hostname before request
+                    try:
+                        parsed = urlparse(health_url)
+                        hostname = parsed.hostname or ""
+                        if is_private_ip(hostname):
+                            print("  Health Check: SKIPPED (internal address)")
+                            continue
+                    except Exception:
+                        print("  Health Check: SKIPPED (invalid URL)")
+                        continue
 
                     try:
                         resp = httpx.get(health_url, timeout=5.0)

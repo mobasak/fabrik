@@ -10,6 +10,7 @@ from typing import Any
 
 import yaml
 
+from fabrik.config import FABRIK_ROOT
 from fabrik.orchestrator.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -131,7 +132,7 @@ class SpecValidator:
         Args:
             templates_dir: Path to templates directory
         """
-        self.templates_dir = templates_dir or Path("/opt/fabrik/templates")
+        self.templates_dir = templates_dir or FABRIK_ROOT / "templates"
 
     def load_spec(self, spec_path: Path) -> dict[str, Any]:
         """Load and parse a spec file.

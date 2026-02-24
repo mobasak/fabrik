@@ -80,6 +80,37 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
         return 1, f"Command not found: {cmd[0]}"
 
 
+def semgrep_env_with_token() -> dict[str, str] | None:
+    """Return env for semgrep with SEMGREP_APP_TOKEN if available.
+
+    Reads ~/.semgrep/settings.yml without requiring PyYAML.
+    """
+    import os
+    import re
+
+    settings_path = Path.home() / ".semgrep" / "settings.yml"
+    if not settings_path.exists():
+        return None
+
+    try:
+        raw = settings_path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return None
+
+    # settings.yml usually contains: api_token: <token>
+    m = re.search(r"^\s*api_token\s*:\s*(.+?)\s*$", raw, flags=re.MULTILINE)
+    if not m:
+        return None
+
+    token = m.group(1).strip().strip("'\"")
+    if not token:
+        return None
+
+    env = os.environ.copy()
+    env["SEMGREP_APP_TOKEN"] = token
+    return env
+
+
 def print_header(title: str) -> None:
     """Print a section header."""
     print(f"\n{BOLD}{BLUE}{'=' * 60}{RESET}")
@@ -251,13 +282,27 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
     )
     results.append(("bandit", code == 0, out if code != 0 else ""))
 
-    # Semgrep (skip if not installed)
-    code, out = run_cmd(
-        ["semgrep", "--config", "auto", "src/"],
-        timeout=TIMEOUTS["semgrep"],
-    )
+    # Semgrep (best-effort: skip if not installed or not authenticated)
+    semgrep_env = semgrep_env_with_token()
+    try:
+        result = subprocess.run(
+            ["semgrep", "--config", "auto", "src/"],
+            cwd=FABRIK_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUTS["semgrep"],
+            env=semgrep_env,
+        )
+        code, out = result.returncode, (result.stdout + result.stderr).strip()
+    except FileNotFoundError:
+        code, out = 1, "Command not found: semgrep"
+    except subprocess.TimeoutExpired:
+        code, out = 1, "Command timed out"
+
     if "Command not found: semgrep" in out:
         results.append(("semgrep", True, "(semgrep not installed, skipping)"))
+    elif "HTTP 401" in out or "semgrep login" in out.lower():
+        results.append(("semgrep", True, "(semgrep not authenticated, run 'semgrep login')"))
     else:
         results.append(("semgrep", code == 0, out if code != 0 else ""))
 
@@ -377,7 +422,60 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
     code, out = run_cmd(["./scripts/check_kilo_health.sh"])
     results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
 
+    # Symlink Integrity Check
+    symlink_ok, symlink_msg = check_symlinks()
+    results.append(("Symlink Integrity", symlink_ok, symlink_msg))
+
+    # Documentation Drift Check
+    code, out = run_cmd([PYTHON, "scripts/docs_updater.py", "--check"])
+    results.append(("Documentation Drift", code == 0, out if code != 0 else ""))
+
     return results
+
+
+def check_symlinks() -> tuple[bool, str]:
+    """Check that required symlinks exist and point to correct targets.
+
+    Note: Skipped for /opt/fabrik itself (the source, not a consumer).
+    Only validates symlinks in child projects.
+
+    Returns:
+        (success, error_message)
+    """
+    # Skip for fabrik root - it's the source, not a consumer
+    if str(FABRIK_ROOT) == "/opt/fabrik":
+        return True, ""
+
+    symlinks = [
+        (".windsurfrules", "/opt/fabrik/windsurfrules"),
+        (".windsurf/rules", "/opt/fabrik/.windsurf/rules"),
+    ]
+
+    errors = []
+    for symlink, expected_target in symlinks:
+        link_path = FABRIK_ROOT / symlink
+        target_path = Path(expected_target)
+
+        if not link_path.exists():
+            # Not an error - symlink may not be required
+            continue
+
+        if not link_path.is_symlink():
+            errors.append(f"{symlink}: exists but is not a symlink")
+            continue
+
+        try:
+            resolved = link_path.resolve()
+            expected = target_path.resolve()
+
+            if resolved != expected:
+                errors.append(f"{symlink}: points to {resolved}, expected {expected}")
+        except OSError as e:
+            errors.append(f"{symlink}: cannot resolve - {e}")
+
+    if errors:
+        return False, "\n".join(errors)
+    return True, ""
 
 
 def run_sync_steps() -> list[tuple[str, bool, str]]:

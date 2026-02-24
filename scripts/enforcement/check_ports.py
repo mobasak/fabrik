@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Check port registration in PORTS.md and validate port ranges."""
 
+import os
 import re
 from pathlib import Path
+
+FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 
 # Patterns for SERVICE ports (not client connection ports)
 # Matches: PORT=8000, port: 8000, EXPOSE 8000
@@ -51,7 +54,7 @@ def check_file(file_path: Path) -> list:
     # Check if PORTS.md exists and contains these ports
     ports_md = file_path.parent / "PORTS.md"
     if not ports_md.exists():
-        ports_md = Path("/opt/fabrik/PORTS.md")
+        ports_md = FABRIK_ROOT / "PORTS.md"
 
     registered_ports = set()
     if ports_md.exists():

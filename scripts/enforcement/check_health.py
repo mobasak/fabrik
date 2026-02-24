@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Check that health endpoints test actual dependencies."""
+"""Check that health endpoints test actual dependencies.
+
+Also verifies that projects with health endpoints have corresponding test files.
+"""
 
 import re
 from pathlib import Path
@@ -52,6 +55,30 @@ def check_file(file_path: Path) -> list:
                     file_path=str(file_path),
                     line_number=line_num,
                     fix_hint="Add DB/Redis ping: await db.execute('SELECT 1')",
+                )
+            )
+
+    # Check for health test file existence when health endpoint found
+    has_health_endpoint = FAKE_HEALTH_PATTERN.search(content) is not None
+    if has_health_endpoint:
+        # Find project root (go up until we find tests/ or pyproject.toml)
+        project_root = file_path.parent
+        while project_root != project_root.parent:
+            if (project_root / "pyproject.toml").exists() or (project_root / "tests").exists():
+                break
+            project_root = project_root.parent
+
+        tests_dir = project_root / "tests"
+        test_health = tests_dir / "test_health.py"
+
+        if tests_dir.exists() and not test_health.exists():
+            results.append(
+                CheckResult(
+                    check_name="health_test",
+                    severity=Severity.WARN,
+                    message="Health endpoint exists but tests/test_health.py not found",
+                    file_path=str(file_path),
+                    fix_hint="Create tests/test_health.py to test the /health endpoint",
                 )
             )
 

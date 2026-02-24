@@ -79,6 +79,13 @@ def run_check_ports(file_path: Path) -> list[CheckResult]:
     return check_file(file_path)
 
 
+def run_check_env_contract(file_path: Path) -> list[CheckResult]:
+    """Check ENV contract across .env.example, compose.yaml, CONFIGURATION.md."""
+    from .check_env_contract import check_file
+
+    return check_file(file_path)
+
+
 def run_check_watchdog(file_path: Path) -> list[CheckResult]:
     """Check that services have watchdog scripts."""
     from .check_watchdog import check_file
@@ -89,6 +96,20 @@ def run_check_watchdog(file_path: Path) -> list[CheckResult]:
 def run_check_plans(file_path: Path) -> list[CheckResult]:
     """Check plan document conventions (location + naming only)."""
     from .check_plans import check_file
+
+    return check_file(file_path)
+
+
+def run_check_plan_quality(file_path: Path) -> list[CheckResult]:
+    """Check plan document quality (required sections + content)."""
+    from .check_plan_quality import check_file
+
+    return check_file(file_path)
+
+
+def run_check_deps_sync(file_path: Path) -> list[CheckResult]:
+    """Check dependency sync between pyproject.toml and requirements.txt."""
+    from .check_deps_sync import check_file
 
     return check_file(file_path)
 
@@ -125,6 +146,11 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
     if name in ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"):
         results.extend(run_check_docker(file_path))
         results.extend(run_check_watchdog(file_path))
+        results.extend(run_check_env_contract(file_path))
+
+    # .env.example and CONFIGURATION.md - ENV contract
+    if name == ".env.example" or name == "CONFIGURATION.md":
+        results.extend(run_check_env_contract(file_path))
 
     # All files get port check if they contain port definitions
     if suffix in (".py", ".ts", ".tsx", ".js", ".yaml", ".yml"):
@@ -133,11 +159,16 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
     # Markdown files - check plan conventions
     if suffix == ".md":
         results.extend(run_check_plans(file_path))
+        results.extend(run_check_plan_quality(file_path))
         # Check if tasks.md needs update when phase docs change
         if "phase" in name:
             from .check_tasks_updated import check_file as check_tasks
 
             results.extend(check_tasks(file_path))
+
+    # Requirements files - check dependency sync
+    if name == "requirements.txt":
+        results.extend(run_check_deps_sync(file_path))
 
     return results
 
