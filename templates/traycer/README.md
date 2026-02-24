@@ -1021,6 +1021,124 @@ cd /opt/fabrik && droid exec --auto medium "$TRAYCER_PROMPT"
 
 These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 9-step workflow.
 
+### Kilo Code Review Custom CLI Agents
+
+Fabrik uses three Kilo-powered code review agents for iterative quality checking within Traycer workflows:
+
+**Kilo Review.sh** - Initial review with SPEC verification:
+```bash
+#!/bin/bash
+# Initial code review with task/plan context
+# Saves TRAYCER_PROMPT to .droid/review-context/task.md for SPEC verification
+# Output: JSON with verdict, issues, and review stats
+
+set -e
+cd /opt/fabrik || exit 2
+mkdir -p .droid/review-context
+echo "$TRAYCER_PROMPT" > .droid/review-context/task.md
+
+CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR HEAD | tr '\n' ' ')
+if [ -z "$CHANGED_FILES" ]; then
+    echo '{"verdict": "PASS", "summary": "No files changed", "issues": [], "notes": [], "stats": {}}'
+    exit 0
+fi
+
+python scripts/kilo_code_review.py review $CHANGED_FILES \
+    --plan .droid/review-context/task.md \
+    --review-agent ask \
+    --output json
+```
+
+**Kilo Re-Review.sh** - Session continuity for iterative review:
+```bash
+#!/bin/bash
+# Continue session after manual fixes
+# Uses session continuity to maintain context from initial review
+# Verifies previous issues are resolved
+
+set -e
+cd /opt/fabrik || exit 2
+
+CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR HEAD | tr '\n' ' ')
+if [ -z "$CHANGED_FILES" ]; then
+    echo '{"verdict": "PASS", "summary": "No files changed", "issues": [], "notes": [], "stats": {}}'
+    exit 0
+fi
+
+python scripts/kilo_code_review.py review $CHANGED_FILES \
+    --session continue \
+    --review-agent ask \
+    --output json
+```
+
+**Kilo Auto-Fix.sh** - Automated review-fix loop (expensive):
+```bash
+#!/bin/bash
+# Automated review → fix → re-review loop
+# WARNING: Expensive - Kilo applies fixes automatically
+# Use sparingly for high-value automation
+
+set -e
+cd /opt/fabrik || exit 2
+mkdir -p .droid/review-context
+echo "$TRAYCER_PROMPT" > .droid/review-context/task.md
+
+CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR HEAD | tr '\n' ' ')
+if [ -z "$CHANGED_FILES" ]; then
+    echo '{"verdict": "PASS", "summary": "No files changed", "issues": [], "notes": [], "stats": {}}'
+    exit 0
+fi
+
+python scripts/kilo_code_review.py auto-fix $CHANGED_FILES \
+    --plan .droid/review-context/task.md \
+    --max-iterations 5 \
+    --review-agent ask \
+    --fix-agent code \
+    --output json
+```
+
+**When to Use Each Agent:**
+
+| Agent | Use Case | Cost | Session |
+|-------|----------|------|---------|
+| **Kilo Review** | Initial review, get feedback | ~$0.03-0.40 per review | Creates new session |
+| **Kilo Re-Review** | Verify manual fixes | ~$0.03-0.40 per review | Continues existing session |
+| **Kilo Auto-Fix** | Full automation (rare) | ~$0.03-0.40 review + $1-2 fix per iteration | Full loop |
+
+**Review Categories (JSON Output):**
+- `SPEC` - Implementation doesn't match task/plan requirements
+- `SECURITY` - Security vulnerabilities (injection, auth, secrets)
+- `CONFIG` - Environment variables, hardcoded values, secrets hygiene
+- `EDGE` - Null handling, error paths, race conditions
+- `DOCS` - Documentation updates needed
+
+**Integration with Fabrik 9-Step Workflow:**
+
+```text
+Step 3: final_gate.py (Pre-Kilo)
+  ↓
+Step 4: Kilo Review (Initial)           ← Use "Kilo Review" agent
+  ↓
+  Coder fixes issues manually
+  ↓
+Step 4: Kilo Re-Review (Verify fixes)   ← Use "Kilo Re-Review" agent
+  ↓
+  Repeat until verdict=PASS
+  ↓
+Step 5: final_gate.py (Post-Kilo)
+```
+
+**Session Management:**
+- Sessions stored in `.droid/reviews/<session_id>/`
+- Maintains context across review iterations
+- Use `TRAYCER_TASK_ID` to correlate with Traycer tasks
+- Session continuity reduces token usage (no context re-transmission)
+
+**Exit Codes:**
+- `0` = PASS (all issues resolved or only MINOR)
+- `1` = FAIL (BLOCKER or MAJOR issues remain)
+- `2` = ERROR (Kilo unavailable, invalid input)
+
 ### Custom CLI Agents FAQ
 
 **Q: Can I pass dangerous or elevated permission flags?**

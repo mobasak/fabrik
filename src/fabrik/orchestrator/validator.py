@@ -1,10 +1,19 @@
-"""Spec validation for orchestrator."""
+"""Spec validation for orchestrator.
+
+Security Note:
+    Domain validation (validate_domain_security) performs DNS resolution at
+    validation time as a pre-flight check. This does NOT guarantee security at
+    deployment time due to DNS rebinding attacks (TOCTOU). Callers MUST
+    re-validate or pin resolved IPs at connection/deployment time.
+"""
 
 import hashlib
 import ipaddress
 import logging
 import re
 import socket
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +25,9 @@ from fabrik.orchestrator.exceptions import ValidationError
 logger = logging.getLogger(__name__)
 
 REQUIRED_FIELDS = ["name", "template", "domain"]
-OPTIONAL_FIELDS = ["server", "env", "secrets", "healthcheck"]
+
+# DNS resolution timeout for SSRF checks (seconds)
+DNS_TIMEOUT = 5
 
 # Blocked hostnames for SSRF prevention
 BLOCKED_HOSTNAMES = frozenset(
@@ -51,8 +62,21 @@ def is_private_ip(hostname: str) -> bool:
         pass  # Not a literal IP, resolve via DNS
 
     # Resolve hostname via DNS and check all returned addresses
+    # Use thread with timeout to prevent blocking on malicious/slow DNS
+    def _resolve() -> list:
+        return socket.getaddrinfo(hostname, None)
+
     try:
-        addr_info = socket.getaddrinfo(hostname, None)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_resolve)
+            addr_info = future.result(timeout=DNS_TIMEOUT)
+    except FuturesTimeoutError:
+        logger.warning("DNS resolution timeout for %s", hostname)
+        return True  # Fail-safe: treat timeout as blocked
+    except socket.gaierror:
+        return True  # DNS resolution failed - fail-safe
+
+    try:
         for _family, _type, _proto, _canonname, sockaddr in addr_info:
             ip_str = sockaddr[0]
             try:
@@ -68,46 +92,56 @@ def is_private_ip(hostname: str) -> bool:
             except ValueError:
                 continue  # Skip unparseable addresses
         return False
-    except socket.gaierror:
-        # DNS resolution failed - treat as blocked (fail-safe)
+    except Exception:
+        # Unexpected error - fail-safe
         return True
 
 
-def validate_domain_security(domain: str) -> str | None:
+def validate_domain_security(domain: str) -> tuple[str | None, str]:
     """Validate domain for SSRF prevention.
+
+    Warning:
+        This is a pre-flight check only. DNS can change between validation
+        and use (DNS rebinding). Callers MUST re-validate at deployment time.
 
     Args:
         domain: Domain to validate
 
     Returns:
-        Error message if invalid, None if valid
+        Tuple of (error_message, normalized_domain). Error is None if valid.
     """
-    domain_lower = domain.lower().strip()
+    # Normalize and reject whitespace-padded domains
+    domain_stripped = domain.strip()
+    if domain_stripped != domain:
+        return (f"Domain has leading/trailing whitespace: '{domain}'", domain)
+
+    domain_lower = domain_stripped.lower()
 
     # Block localhost and variants
     if domain_lower in BLOCKED_HOSTNAMES:
-        return f"Blocked hostname: {domain}"
+        return (f"Blocked hostname: {domain}", domain_lower)
 
-    # Block raw IP addresses (private ranges)
-    if is_private_ip(domain_lower):
-        return f"Private/reserved IP not allowed: {domain}"
-
-    # Check for IP address format (block all raw IPs for safety)
+    # Check for IP address format (block all raw IPs for safety) - check BEFORE DNS
     try:
         ipaddress.ip_address(domain_lower)
-        return f"Raw IP addresses not allowed, use a domain: {domain}"
+        return (f"Raw IP addresses not allowed, use a domain: {domain}", domain_lower)
     except ValueError:
         pass  # Not an IP, continue
 
-    # Validate domain format
+    # Validate domain format (cheap check before expensive DNS)
     if not DOMAIN_PATTERN.match(domain_lower):
-        return f"Invalid domain format: {domain}"
+        return (f"Invalid domain format: {domain}", domain_lower)
 
-    # Block internal TLDs
+    # Block internal TLDs (check before DNS to give specific error message)
     if domain_lower.endswith((".local", ".internal", ".test", ".invalid")):
-        return f"Internal/reserved TLD not allowed: {domain}"
+        return (f"Internal/reserved TLD not allowed: {domain}", domain_lower)
 
-    return None
+    # Block private/reserved IPs (requires DNS resolution for hostnames)
+    # This is the expensive check - run last after all cheap validations pass
+    if is_private_ip(domain_lower):
+        return (f"Private/reserved IP not allowed: {domain}", domain_lower)
+
+    return (None, domain_lower)
 
 
 def compute_spec_hash(spec: dict[str, Any]) -> str:
@@ -150,10 +184,10 @@ class SpecValidator:
             raise ValidationError(f"Spec file not found: {spec_path}", field="path")
 
         try:
-            with open(spec_path) as f:
+            with open(spec_path, encoding="utf-8") as f:
                 spec = yaml.safe_load(f)
         except yaml.YAMLError as e:
-            raise ValidationError(f"Invalid YAML: {e}", field="syntax")
+            raise ValidationError(f"Invalid YAML: {e}", field="syntax") from e
 
         if not isinstance(spec, dict):
             raise ValidationError("Spec must be a YAML mapping", field="type")
@@ -184,11 +218,19 @@ class SpecValidator:
             if field not in spec:
                 raise ValidationError(f"Missing required field: {field}", field=field)
 
-        # Validate name format
+        # Validate name format (must be string, alphanumeric with hyphens/underscores,
+        # at least 1 char, and contain at least one letter to avoid conflicts with IDs)
         name = spec["name"]
-        if not isinstance(name, str) or not name.replace("-", "").replace("_", "").isalnum():
+        name_stripped = name.replace("-", "").replace("_", "") if isinstance(name, str) else ""
+        if (
+            not isinstance(name, str)
+            or not name_stripped
+            or not name_stripped.isalnum()
+            or not any(c.isalpha() for c in name_stripped)
+        ):
             raise ValidationError(
-                "Name must be alphanumeric with hyphens/underscores", field="name"
+                "Name must be alphanumeric with hyphens/underscores and contain at least one letter",
+                field="name",
             )
 
         # Validate template exists
@@ -201,7 +243,7 @@ class SpecValidator:
         except ValueError:
             raise ValidationError(
                 f"Template path escapes templates directory: {template}", field="template"
-            )
+            ) from None
 
         if not template_path.exists():
             warnings.append(f"Template not found: {template}")
@@ -211,9 +253,12 @@ class SpecValidator:
         if not isinstance(domain, str):
             raise ValidationError("Domain must be a string", field="domain")
 
-        domain_error = validate_domain_security(domain)
+        domain_error, normalized_domain = validate_domain_security(domain)
         if domain_error:
             raise ValidationError(domain_error, field="domain")
+
+        # Store normalized domain back to spec for consistent downstream usage
+        spec["domain"] = normalized_domain
 
         # Validate secrets is a list
         if "secrets" in spec and not isinstance(spec["secrets"], list):

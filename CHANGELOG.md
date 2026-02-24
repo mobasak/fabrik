@@ -15,7 +15,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed - Traycer Workflow Documentation (2026-02-24)
 
-**What:** Updated Traycer integration docs to reflect Plan Mode context inputs, Epic Mode artifacts (mini-specs + tickets), Epic Mode workflow progression (elicitation/dialogue), Workflows (command sequences, Traycer Agile Workflow, Traycer Refactoring Workflow, custom workflows), Executions audit trail, Smart YOLO and artifact selection/handoff, YOLO Mode for Phases (comprehensive activation steps, Plan/Review workflows, four handoff types with configuration options, FAQ), Supported Coding Agents, and expanded Traycer verification guidance.
+**What:** Updated Traycer integration docs to reflect Plan Mode context inputs, Epic Mode artifacts (mini-specs + tickets), Epic Mode workflow progression (elicitation/dialogue), Workflows (command sequences, Traycer Agile Workflow, Traycer Refactoring Workflow, custom workflows), Executions audit trail, Smart YOLO and artifact selection/handoff, YOLO Mode for Phases (comprehensive activation steps, Plan/Review workflows, four handoff types with configuration options, FAQ), Supported Coding Agents, Custom CLI Agents (comprehensive guide + Kilo integration), and expanded Traycer verification guidance.
 
 **Files:**
 - `docs/guides/DEVELOPMENT_WORKFLOW.md` - Document Plan Mode context inputs/symbol references; document Epic Mode selection and ticket-based progression; document Workflows driving Epic Mode; clarify how Epic Mode and Fabrik Workflow relate; clarify verification severity categories; include review comment categories and fix workflows
