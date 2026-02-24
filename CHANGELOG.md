@@ -6,6 +6,19 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Dead Code and Unused Variables (2026-02-24)
+
+**What:** Removed three dead-code sites flagged by vulture (RB-6, RB-7, RB-8).
+No logic changes.
+
+**Files:**
+- `src/fabrik/monitor.py` — Deleted bare expression `current_time - self._last_check_time`
+  (line 72); deleted discarded `m.syscall.split()[0]` in `_is_valid_sleep()` (line 222).
+- `src/fabrik/verify.py` — Replaced unused `_min_days` assignment with
+  `# TODO: implement SSL expiry check using min_days_remaining` in `check_ssl()`.
+- `src/fabrik/scaffold.py` — Deleted duplicate `package_name = _get_package_name(name)`
+  assignment in `create_project()` (line 240; original at line 183).
+
 ### Fixed - Provisioner Hardcoded Defaults and Deprecated datetime (2026-02-24)
 
 **What:** Removed hardcoded VPS_IP/COOLIFY_SERVER_UUID defaults from `SiteProvisioner`

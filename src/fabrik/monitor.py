@@ -69,7 +69,6 @@ class ProcessMonitor:
                 return ProcessState.UNKNOWN
 
             current_time = time.time()
-            current_time - self._last_check_time
             self._last_check_time = current_time
 
             # 1. Gather raw metrics
@@ -219,7 +218,6 @@ class ProcessMonitor:
 
         # Syscall check for network/time
         if m.syscall:
-            m.syscall.split()[0]
             # 230 = clock_nanosleep, 202 = futex, 7 = poll, 23 = select (approx)
             # This is brittle across archs, prefer wchan
             pass

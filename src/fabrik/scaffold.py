@@ -237,7 +237,6 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     )
 
     # Create starter src/<package_name>/main.py with proper health check
-    package_name = _get_package_name(name)
     package_dir = project_dir / "src" / package_name
     package_dir.mkdir(parents=True, exist_ok=True)
     (package_dir / "__init__.py").write_text("")
