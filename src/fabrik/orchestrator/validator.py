@@ -174,6 +174,11 @@ class SpecValidator:
         """
         warnings: list[str] = []
 
+        # Backward-compatible shim: alias 'id' to 'name' for specs from fabrik new
+        if "name" not in spec and "id" in spec:
+            spec["name"] = spec["id"]
+            logger.debug("Using 'id' as 'name' alias: %s", spec["id"])
+
         # Check required fields
         for field in REQUIRED_FIELDS:
             if field not in spec:

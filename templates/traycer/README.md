@@ -848,6 +848,247 @@ The result is faster, more accurate Task execution that respects your project's 
 
 You can disable `AGENTS.md` detection at any time in your Traycer settings if you prefer not to use this feature.
 
+## Custom CLI Agents (Advanced Integration)
+
+Create custom CLI agents with custom arguments and permissions for any CLI-based coding agent. This powerful feature enables you to pass special flags and create platform-specific configurations tailored to your workflow.
+
+### What are Custom CLI Agents?
+
+Custom CLI agents allow you to:
+- **Execute any CLI-based coding agent** with custom arguments
+- **Pass special flags** like `--dangerous` or `--force` for elevated permissions
+- **Create platform-specific CLI agents** for different environments (WSL, macOS, Windows)
+- **Maintain session state** across plan generation, execution, and verification using Traycer identifiers
+
+### Available Environment Variables
+
+Traycer sets the following environment variables at runtime that you can use in your custom CLI agent scripts:
+
+| Variable | Bash / Git Bash | PowerShell | Description |
+|----------|-----------------|------------|-------------|
+| `TRAYCER_PROMPT` | `"$TRAYCER_PROMPT"` | `"$env:TRAYCER_PROMPT"` | **Required.** The prompt content. At least one of `TRAYCER_PROMPT` or `TRAYCER_PROMPT_TMP_FILE` must be referenced. |
+| `TRAYCER_PROMPT_TMP_FILE` | `"$TRAYCER_PROMPT_TMP_FILE"` | `"$env:TRAYCER_PROMPT_TMP_FILE"` | Temporary file path containing prompt content. Use for large prompts exceeding environment variable size limits. |
+| `TRAYCER_PHASE_ID` | `"$TRAYCER_PHASE_ID"` | `"$env:TRAYCER_PHASE_ID"` | Per-phase identifier for maintaining session across plan and verification. |
+| `TRAYCER_PHASE_BREAKDOWN_ID` | `"$TRAYCER_PHASE_BREAKDOWN_ID"` | `"$env:TRAYCER_PHASE_BREAKDOWN_ID"` | Phase breakdown identifier for maintaining session across current phase list. |
+| `TRAYCER_TASK_ID` | `"$TRAYCER_TASK_ID"` | `"$env:TRAYCER_TASK_ID"` | Task identifier for maintaining session across all phase iterations, plans, and verification. |
+| `TRAYCER_SYSTEM_PROMPT` | `"$TRAYCER_SYSTEM_PROMPT"` | `"$env:TRAYCER_SYSTEM_PROMPT"` | System prompt to append to CLI agent. Use with `--append-system-prompt` flag. |
+
+**Important:** The temporary file from `TRAYCER_PROMPT_TMP_FILE` is automatically cleaned up by Traycer after 30 seconds.
+
+### Template Scopes
+
+Custom CLI agents can be created in two different scopes:
+
+**User Scope:**
+- Location: `~/.traycer/cli-agents/`
+- Personal CLI agents available across all your projects
+- Travel with you to any workspace
+- Ideal for personal tool configurations
+
+**Workspace Scope:**
+- Location: `<workspace-root>/.traycer/cli-agents/`
+- Project-specific CLI agents stored in workspace settings
+- Can be committed to repository for team sharing
+- Ideal for team-shared configurations or project-specific agent setups
+
+### Creating Custom CLI Agents
+
+**5-Step Process:**
+
+1. **Open Manage CLI Agents** — Click the three dots on the top of the sidebar → "Manage CLI Agents"
+2. **Click Add CLI Agent** — Click "Add CLI Agent" button
+3. **Choose scope** — Select **User** (personal) or **Workspace** (project-specific)
+4. **CLI Agent Name** — Provide a descriptive name (e.g., "Claude Dangerous", "Factory Submit")
+5. **Add CLI Agent Command** — Add your custom command to the created file and save
+
+### Popular CLI Agents
+
+Here are popular CLI-based coding agents you can configure:
+
+**Claude Code CLI:**
+```bash
+#!/bin/sh
+# Basic
+claude "$TRAYCER_PROMPT"
+
+# Verbose
+claude --verbose "$TRAYCER_PROMPT"
+
+# Dangerous Mode (elevated permissions)
+claude --dangerously-skip-permissions "$TRAYCER_PROMPT"
+```
+
+**Codex CLI:**
+```bash
+#!/bin/sh
+codex "$TRAYCER_PROMPT"
+```
+
+**Gemini CLI:**
+```bash
+#!/bin/sh
+gemini "$TRAYCER_PROMPT"
+```
+
+**Factory Droid CLI (Fabrik Integration):**
+```bash
+#!/bin/sh
+# Basic execution
+droid exec "$TRAYCER_PROMPT"
+
+# With auto-run level
+droid exec --auto medium "$TRAYCER_PROMPT"
+```
+
+**Cline CLI:**
+```bash
+#!/bin/sh
+cline "$TRAYCER_PROMPT"
+```
+
+**Cursor CLI:**
+```bash
+#!/bin/sh
+cursor "$TRAYCER_PROMPT"
+```
+
+**Aider:**
+```bash
+#!/bin/sh
+aider "$TRAYCER_PROMPT"
+```
+
+### Using Custom Paths
+
+If your CLI agent is installed at a custom location, specify the full path:
+
+```bash
+#!/bin/sh
+/usr/local/bin/claude --verbose "$TRAYCER_PROMPT"
+```
+
+**Security Warning:** Flags like `--dangerous` grant elevated permissions to the agent. Always review what permissions you're granting to CLI agents.
+
+### Reading Large Prompts from File
+
+For very large prompts that exceed environment variable size limits, use `TRAYCER_PROMPT_TMP_FILE`:
+
+**Bash/Git Bash:**
+```bash
+#!/bin/sh
+claude "$(cat "$TRAYCER_PROMPT_TMP_FILE")"
+```
+
+**PowerShell:**
+```powershell
+claude "$(Get-Content -Raw "$env:TRAYCER_PROMPT_TMP_FILE")"
+```
+
+### Use Cases
+
+Custom CLI agents are particularly useful for:
+- **Passing dangerous/elevated permissions flags** for trusted automation
+- **Using custom model configurations** (specific models, temperature settings)
+- **Setting specific output formats** (JSON, structured output)
+- **Creating environment-specific agent configurations** (dev vs prod)
+- **Team-shared agent configurations** (via Workspace scope)
+- **Maintaining session continuity** using `TRAYCER_PHASE_ID` and `TRAYCER_TASK_ID`
+
+### Fabrik Custom CLI Agents
+
+Fabrik uses three Custom CLI Agents for async job submission with Traycer:
+
+**Factory Submit (async).sh:**
+```bash
+#!/bin/sh
+# Submits jobs to /opt/fabrik/factory_submit.py
+cd /opt/fabrik && python factory_submit.py "$TRAYCER_PROMPT"
+```
+
+**Factory Wait (async).sh:**
+```bash
+#!/bin/sh
+# Monitors jobs via /opt/fabrik/factory_wait.py
+cd /opt/fabrik && python factory_wait.py "$TRAYCER_TASK_ID"
+```
+
+**Factory AI.sh:**
+```bash
+#!/bin/sh
+# Direct execution wrapper
+cd /opt/fabrik && droid exec --auto medium "$TRAYCER_PROMPT"
+```
+
+These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 9-step workflow.
+
+### Custom CLI Agents FAQ
+
+**Q: Can I pass dangerous or elevated permission flags?**
+
+A: Yes, you can pass any flags supported by your CLI agent, including `--dangerous`, `--force`, or other elevated permission flags. However, be cautious as these flags grant the agent more control over your system. Always understand what permissions you're granting before using such flags.
+
+**Q: How do I share custom CLI agents with my team?**
+
+A: Create them in **Workspace scope**. Workspace-scoped CLI agents are stored in your project's workspace root under `.traycer/cli-agents/`, which can be committed to your repository. When team members pull the latest changes, they'll automatically have access to the shared custom CLI agents.
+
+**Q: What's the difference between User and Workspace scope?**
+
+A: **User scope** CLI agents are stored in your personal settings (`~/.traycer/cli-agents/`) and available across all projects. **Workspace scope** CLI agents are project-specific (`.traycer/cli-agents/` in repo) and stored in the workspace settings, making them ideal for team collaboration.
+
+**Q: Can I edit an existing CLI agent?**
+
+A: Yes, you can modify any custom CLI agent by clicking on it within the Custom CLI Agents section of Traycer settings. This will open the file for editing.
+
+**Q: What's the difference between Bash and PowerShell syntax for environment variables?**
+
+A: Bash (Linux/macOS/Git Bash) uses `$VARIABLE_NAME` directly (e.g., `$TRAYCER_PROMPT`). PowerShell (Windows) uses `$env:` prefix (e.g., `$env:TRAYCER_PROMPT`). Double quotes are recommended in both shells to handle prompts containing spaces or special characters. Git Bash on Windows uses Bash syntax, not PowerShell syntax.
+
+**Q: What happens if I don't include the `$TRAYCER_PROMPT` or `$TRAYCER_PROMPT_TMP_FILE` environment variable?**
+
+A: The CLI agent validation will fail because at least one of `$TRAYCER_PROMPT` or `$TRAYCER_PROMPT_TMP_FILE` must be referenced in your CLI agent template to pass the task instructions to the agent.
+
+**Q: When should I use `TRAYCER_PROMPT_TMP_FILE` instead of `TRAYCER_PROMPT`?**
+
+A: `TRAYCER_PROMPT` is the recommended default for most use cases. Use `TRAYCER_PROMPT_TMP_FILE` when:
+- Dealing with very large prompts (multiple files, extensive context)
+- Encountering environment variable size limits (Windows: ~32KB, Linux/macOS: varies)
+- Experiencing prompt truncation issues
+
+Both variables are always available.
+
+**Q: How does `TRAYCER_PROMPT_TMP_FILE` work internally?**
+
+A: Traycer creates a temporary file containing the prompt content and sets `TRAYCER_PROMPT_TMP_FILE` to the file path. When you reference `$TRAYCER_PROMPT_TMP_FILE` in your template, you need to read the file content using commands like `cat "$TRAYCER_PROMPT_TMP_FILE"` (bash/sh) or `Get-Content -Raw "$env:TRAYCER_PROMPT_TMP_FILE"` (PowerShell). This approach bypasses environment variable size limits. The temporary file is automatically cleaned up by Traycer after 30 seconds.
+
+**Q: Can I use custom CLI agents with YOLO Mode?**
+
+A: Yes, custom CLI agents work with YOLO Mode for automated execution. This is exactly how Fabrik's async job submission works.
+
+**Q: Can I have multiple versions of the same agent?**
+
+A: Yes, you can create multiple custom CLI agents with different names that use the same underlying CLI tool. For example, you could have "Claude Verbose", "Claude Dangerous", and "Claude Standard" - each with different flags but all calling the same `claude` CLI agent.
+
+**Q: What if the CLI tool isn't installed on my system?**
+
+A: Traycer does not install CLI agents for you. You must install the CLI tool separately before creating a custom CLI agent. We recommend testing the CLI command in your terminal first to ensure it works correctly before adding it to an agent.
+
+**Q: Can I use session identifiers to maintain state?**
+
+A: Yes! Use `TRAYCER_PHASE_ID`, `TRAYCER_TASK_ID`, or `TRAYCER_PHASE_BREAKDOWN_ID` in your scripts to maintain session continuity across plan generation, execution, and verification. This is useful for tools that support session resumption.
+
+**Q: How do I debug a custom CLI agent that isn't working?**
+
+A: Test the command manually in your terminal first:
+```bash
+# Set test variables
+export TRAYCER_PROMPT="Test prompt"
+export TRAYCER_TASK_ID="test-123"
+
+# Run your script
+~/.traycer/cli-agents/YourAgent.sh
+```
+Check for errors and verify the CLI tool is installed and in your PATH.
+
 ## Setup (One-Time)
 
 1. Open Traycer Extension in Windsurf.
