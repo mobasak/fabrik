@@ -5,10 +5,13 @@ Implements a saga pattern with granular states for safe retries and
 partial failure recovery.
 
 States:
-    INIT → STEP0_CF_ZONE_CREATED → STEP0_DOMAIN_REGISTERED →
-    STEP1_DNS_RECORDS_UPSERTED → STEP1_CF_STATUS_SNAPSHOT →
-    GATE_WAIT_CF_ACTIVE → STEP2_COOLIFY_APP_CREATED →
-    STEP2_ENV_SET → STEP2_DEPLOY_TRIGGERED → STEP2_WP_INSTALLED → COMPLETE
+    INIT → STEP0_CF_ZONE_CREATED → STEP0_DOMAIN_REGISTER_REQUESTED →
+    STEP0_DOMAIN_REGISTERED → STEP1_DNS_RECORDS_UPSERTED →
+    STEP1_CF_STATUS_SNAPSHOT → GATE_WAIT_CF_ACTIVE →
+    STEP2_COOLIFY_CREATE_REQUESTED →
+    STEP2_COOLIFY_CREATED → STEP2_COOLIFY_DEPLOY_REQUESTED →
+    STEP2_COOLIFY_DEPLOY_RUNNING → STEP2_COOLIFY_DEPLOY_SUCCEEDED →
+    STEP2_HTTP_VERIFIED → COMPLETE
 """
 
 import base64
@@ -17,7 +20,7 @@ import os
 import secrets
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 
@@ -152,7 +155,6 @@ class ProvisionJob:
     def from_dict(cls, data: dict) -> "ProvisionJob":
         """Create from dict (JSON deserialization)."""
         data["state"] = ProvisionState(data["state"])
-        data["contact"] = None  # Contact not stored in job
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
@@ -170,16 +172,23 @@ class SiteProvisioner:
         provisioner.resume(job)
     """
 
-    DNS_MANAGER_URL = os.getenv("DNS_MANAGER_URL", "https://dns.vps1.ocoron.com")
-    VPS_IP = os.getenv("VPS_IP", "172.93.160.197")
-    VPS_SERVER_UUID = os.getenv("COOLIFY_SERVER_UUID", "jk4wskkcks8csg4gcokwgw8s")
-
     JOBS_DIR = Path(__file__).parent.parent.parent / "data" / "provision_jobs"
     TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates" / "wordpress" / "base"
+    DNS_MANAGER_URL = os.getenv("DNS_MANAGER_URL", "https://dns.vps1.ocoron.com")
 
     def __init__(self):
         """Initialize provisioner."""
-        self.JOBS_DIR.mkdir(parents=True, exist_ok=True)
+        self.JOBS_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+        # Required environment variables (no hardcoded defaults)
+        self.vps_ip = os.getenv("VPS_IP")
+        if self.vps_ip is None:
+            raise ValueError("VPS_IP env var is required")
+
+        self.vps_server_uuid = os.getenv("COOLIFY_SERVER_UUID")
+        if self.vps_server_uuid is None:
+            raise ValueError("COOLIFY_SERVER_UUID env var is required")
+
         self._http = httpx.Client(timeout=60.0)
         self._coolify: CoolifyClient | None = None
 
@@ -203,13 +212,30 @@ class SiteProvisioner:
 
     def _save_job(self, job: ProvisionJob):
         """Persist job state to disk."""
-        job.updated_at = datetime.utcnow().isoformat()
+        job.updated_at = datetime.now(UTC).isoformat()
         path = self.JOBS_DIR / f"{job.job_id}.json"
-        path.write_text(json.dumps(job.to_dict(), indent=2))
+
+        # Path traversal containment check
+        try:
+            path.resolve().relative_to(self.JOBS_DIR.resolve())
+        except ValueError:
+            raise ValueError("Invalid job_id: path traversal detected") from None
+
+        # Write with restrictive permissions (0o600) to protect credentials
+        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(job.to_dict(), f, indent=2)
 
     def load_job(self, job_id: str) -> ProvisionJob:
         """Load job from disk."""
         path = self.JOBS_DIR / f"{job_id}.json"
+
+        # Path traversal containment check
+        try:
+            path.resolve().relative_to(self.JOBS_DIR.resolve())
+        except ValueError:
+            raise ValueError("Invalid job_id: path traversal detected") from None
+
         if not path.exists():
             raise FileNotFoundError(f"Job not found: {job_id}")
         return ProvisionJob.from_dict(json.loads(path.read_text()))
@@ -248,8 +274,8 @@ class SiteProvisioner:
             domain=request.domain,
             preset=request.preset,
             state=ProvisionState.INIT,
-            created_at=datetime.utcnow().isoformat(),
-            updated_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
+            updated_at=datetime.now(UTC).isoformat(),
             site_name=request.domain.replace(".", "-"),
         )
 
@@ -309,11 +335,8 @@ class SiteProvisioner:
         try:
             # Step 0: Domain Registration
             if job.state == ProvisionState.INIT:
-                if request and request.skip_registration:
-                    # Skip registration, but still need CF zone
-                    self._step0_create_cf_zone(job)
-                else:
-                    self._step0_create_cf_zone(job)
+                # Always create CF zone first (regardless of skip_registration)
+                self._step0_create_cf_zone(job)
 
             if job.state == ProvisionState.STEP0_CF_ZONE_CREATED:
                 if request and not request.skip_registration:
@@ -321,6 +344,20 @@ class SiteProvisioner:
                 else:
                     # Skip to DNS setup
                     self._transition(job, ProvisionState.STEP0_DOMAIN_REGISTERED)
+
+            # Handle resume from STEP0_DOMAIN_REGISTER_REQUESTED (crash during registration)
+            if job.state == ProvisionState.STEP0_DOMAIN_REGISTER_REQUESTED:
+                if request and not request.skip_registration:
+                    # Retry registration with request info
+                    self._step0_register_domain(job, request)
+                else:
+                    # Cannot retry without request - fail
+                    self._fail(
+                        job,
+                        "STEP0_DOMAIN_REGISTER_REQUESTED",
+                        "Cannot resume domain registration without original request",
+                        retryable=False,
+                    )
 
             # Step 1: DNS Setup
             if job.state == ProvisionState.STEP0_DOMAIN_REGISTERED:
@@ -335,11 +372,17 @@ class SiteProvisioner:
 
             if job.state == ProvisionState.GATE_WAIT_CF_ACTIVE:
                 self._gate_wait_cf_active(job)
+                # Early return if gate failed (timeout transitions to FAILED_RETRYABLE)
+                if job.state.value.startswith("FAILED"):
+                    return
 
             # Step 2: WordPress Deployment
             if job.state == ProvisionState.GATE_WAIT_CF_ACTIVE and job.zone_status == "active":
                 self._step2_create_coolify_app(job)
 
+            # Note: STEP2_COOLIFY_APP_CREATED and STEP2_ENV_SET are aliases for the same
+            # state value (STEP2_COOLIFY_CREATED). This is intentional - env var setting is
+            # idempotent via Coolify API, so re-running on resume is safe.
             if job.state == ProvisionState.STEP2_COOLIFY_APP_CREATED:
                 self._step2_set_env_vars(job)
 
@@ -431,7 +474,7 @@ class SiteProvisioner:
             json={
                 "record_type": "A",
                 "name": job.domain,
-                "content": self.VPS_IP,
+                "content": self.vps_ip,
                 "proxied": True,
             },
         )
@@ -480,8 +523,13 @@ class SiteProvisioner:
 
             time.sleep(30)
 
-        # Timeout - leave in GATE state for retry
-        job.error_message = f"Zone still pending after {max_wait_seconds}s"
+        # Timeout - transition to failed state for retry
+        self._fail(
+            job,
+            "GATE_WAIT_CF_ACTIVE",
+            f"Zone still pending after {max_wait_seconds}s",
+            retryable=True,
+        )
 
     # =========================================================================
     # Step 2: WordPress Deployment
@@ -535,7 +583,7 @@ class SiteProvisioner:
         try:
             app = self.coolify.create_dockercompose_application(
                 project_uuid=job.coolify_project_uuid,
-                server_uuid=self.VPS_SERVER_UUID,
+                server_uuid=self.vps_server_uuid,
                 docker_compose_raw=compose_b64,
                 name=job.site_name,
                 description=f"WordPress for {job.domain}",

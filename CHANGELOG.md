@@ -6,6 +6,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Provisioner Hardcoded Defaults and Deprecated datetime (2026-02-24)
+
+**What:** Removed hardcoded VPS_IP/COOLIFY_SERVER_UUID defaults from `SiteProvisioner`
+class body; values are now read in `__init__` with a `ValueError` raised when absent.
+Replaced all `datetime.utcnow()` calls with timezone-aware `datetime.now(UTC)`.
+
+**Files:**
+- `src/fabrik/provisioner.py` - Moved `VPS_IP`/`COOLIFY_SERVER_UUID` to `__init__` (no
+  fallback defaults, ValueError if absent); updated call sites to use instance attributes;
+  replaced `datetime.utcnow()` with `datetime.now(UTC)` (3 sites); added path traversal
+  containment check in `_save_job()` and `load_job()`; set restrictive permissions (0o700)
+  on JOBS_DIR and (0o600) on individual job files; removed dead code in `_run_saga()`;
+  fixed `_gate_wait_cf_active` to transition to FAILED_RETRYABLE on timeout with early
+  return; added handler for STEP0_DOMAIN_REGISTER_REQUESTED state in saga; updated module
+  docstring with current states
+
 ### Fixed - Orchestrator Deployment API Mismatch (2026-02-24)
 
 **What:** Fixed latent bug in orchestrator deployer that called wrong Coolify API method.
@@ -29,7 +45,7 @@ pass orchestrator validation without any manual editing.
 
 ### Changed - Traycer Workflow Documentation (2026-02-24)
 
-**What:** Updated Traycer integration docs to reflect Plan Mode context inputs, Epic Mode artifacts (mini-specs + tickets), Epic Mode workflow progression (elicitation/dialogue), Workflows (command sequences, Traycer Agile Workflow, Traycer Refactoring Workflow, custom workflows), Executions audit trail, Smart YOLO and artifact selection/handoff, YOLO Mode for Phases (comprehensive activation steps, Plan/Review workflows, four handoff types with configuration options, FAQ), Supported Coding Agents, Custom CLI Agents (comprehensive guide + Kilo integration), and expanded Traycer verification guidance.
+**What:** Updated Traycer integration docs to reflect Plan Mode context inputs, Epic Mode artifacts (mini-specs + tickets), Epic Mode workflow progression (elicitation/dialogue), Workflows (command sequences, Traycer Agile Workflow, Traycer Refactoring Workflow, custom workflows), Executions audit trail, Smart YOLO and artifact selection/handoff, YOLO Mode for Phases (comprehensive activation steps, Plan/Review workflows, four handoff types with configuration options, FAQ), Supported Coding Agents, Custom CLI Agents (comprehensive guide), Templates (Handlebars syntax, 5 template types, frontmatter, best practices), complete 10-agent Kilo suite (5 coding, 3 review, 2 fix with explicit model/variant naming, template integration, usage matrix), and expanded Traycer verification guidance.
 
 **Files:**
 - `docs/guides/DEVELOPMENT_WORKFLOW.md` - Document Plan Mode context inputs/symbol references; document Epic Mode selection and ticket-based progression; document Workflows driving Epic Mode; clarify how Epic Mode and Fabrik Workflow relate; clarify verification severity categories; include review comment categories and fix workflows
