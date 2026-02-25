@@ -1,6 +1,6 @@
-# {{PROJECT_NAME}} Development Dashboard
+# [Project Name] Development Dashboard
 
-**Last Updated:** {{DATE}}
+**Last Updated:** YYYY-MM-DD
 
 > **This file is a dashboard.** Detailed progress lives in phase docs under `docs/development/`.
 > After any implementation, update both this dashboard AND the relevant phase doc.
@@ -11,9 +11,9 @@
 
 | Priority | Task | Phase Doc |
 |----------|------|-----------|
-| 🔴 1 | [Primary goal] | [Phase1.md](docs/development/Phase1.md) |
-| 🟡 2 | [Secondary goal] | [Phase1.md](docs/development/Phase1.md) |
-| 🟡 3 | [Tertiary goal] | [Phase1.md](docs/development/Phase1.md) |
+| 🔴 1 | Set up development environment | [Phase1.md](docs/development/Phase1.md) |
+| 🟡 2 | Implement core API endpoints | [Phase1.md](docs/development/Phase1.md) |
+| 🟡 3 | Add tests and documentation | [Phase1.md](docs/development/Phase1.md) |
 
 ---
 
@@ -21,9 +21,9 @@
 
 | Phase | Name | Status | Doc |
 |-------|------|--------|-----|
-| 1 | [Phase Name] | ⚡ In Progress | [Phase1.md](docs/development/Phase1.md) |
-| 2 | [Phase Name] | ❌ Not Started | [Phase2.md](docs/development/Phase2.md) |
-| 3 | [Phase Name] | ❌ Not Started | [Phase3.md](docs/development/Phase3.md) |
+| 1 | Foundation | ⚡ In Progress | [Phase1.md](docs/development/Phase1.md) |
+| 2 | Core Features | ❌ Not Started | [Phase2.md](docs/development/Phase2.md) |
+| 3 | Polish & Deploy | ❌ Not Started | [Phase3.md](docs/development/Phase3.md) |
 
 ---
 

@@ -13,11 +13,11 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      # Required (deployment fails without these)
-      - DATABASE_URL=${DATABASE_URL:?Database URL is required}
-      # Optional (have defaults)
+      # Required (have defaults)
       - PORT=${PORT:-8000}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Optional (uncomment if using database)
+      # - DATABASE_URL=${DATABASE_URL}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
       interval: 30s

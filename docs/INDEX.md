@@ -1,6 +1,6 @@
 # Fabrik Documentation
 
-**Last Updated:** 2026-01-08
+**Last Updated:** 2026-02-25
 
 ---
 
@@ -171,6 +171,8 @@ docs/
 | [factory-settings.json](../templates/scaffold/factory-settings.json) | Factory settings template |
 | [factory-hooks.json](../templates/scaffold/factory-hooks.json) | Hooks configuration template |
 | [factory-mcp.json](../templates/scaffold/factory-mcp.json) | MCP servers template |
+
+**Archived (2026-02-25):** `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, `implementation-plan-template.md` moved to `docs/archive/2026-02-25-pre-traycer-templates/`. Replaced by Traycer Phases + dynamic spec generation.
 
 **Quick Reference:**
 ```bash

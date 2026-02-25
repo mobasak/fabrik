@@ -1,13 +1,7 @@
-# Traycer Task Execution Template
-
-## Template Metadata
-- **Type**: User Query (or Generic)
-- **Scope**: User (available across all projects)
-- **Name**: Task Execution with Spec Enforcement
-
 ---
-
-## Template Prompt
+displayName: Task Execution with Spec Enforcement
+applicableFor: user query
+---
 
 You are executing a single implementation task for this project. Follow these rules strictly.
 
@@ -46,7 +40,7 @@ Report:
 
 ## Current Task
 
-[Traycer will inject the task details here via $TRAYCER_PROMPT]
+{{userQuery}}
 
 ---
 

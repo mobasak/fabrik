@@ -37,6 +37,43 @@ Traycer manages its configuration and data inside your WSL home directory at **`
 
 **Data Storage Location:** All Traycer data is stored locally on your machine at `~/.traycer/`, ensuring your development history and sensitive project information remain private and under your control.
 
+### Template Directory Structure
+
+Traycer uses a two-tier template system:
+
+**1. Built-in Default Templates** (`traycer:/.traycer/default-templates/`)
+- Internal to Traycer application (note the `traycer:` prefix - not a filesystem path)
+- Ships with Traycer installation
+- Read-only - cannot be modified
+- Includes: `user-query.md`, `plan.md`, `verification.md`, `review.md`
+- Purpose: Fallback templates when no custom template selected
+
+**2. Custom User Templates** (`~/.traycer/prompt-templates/`)
+- Located in your WSL home directory
+- Read-write - you can create, modify, delete
+- Appears in Traycer's template selector dropdown
+- Purpose: Override defaults or add project-specific templates
+
+**Template Selection Priority:**
+```
+1. Check ~/.traycer/prompt-templates/ (custom templates)
+2. Fallback to traycer:/.traycer/default-templates/ (built-in)
+```
+
+**Custom Template Format:**
+```markdown
+---
+displayName: My Custom Template
+applicableFor: plan|userQuery|verification|review
+---
+
+Your custom instructions here...
+
+{{planMarkdown}}  # or {{userQuery}}, {{comments}}, {{reviewComments}}
+```
+
+**Fabrik Custom Templates:** Located in `~/.traycer/prompt-templates/Kilo*.md`, these templates integrate Fabrik's 9-step workflow and conventions into Traycer handoffs.
+
 ## Phase Management & Automation
 
 Traycer provides flexible phase management for evolving projects:

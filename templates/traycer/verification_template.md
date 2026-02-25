@@ -1,13 +1,7 @@
-# Traycer Verification Template
-
-## Template Metadata
-- **Type**: Verification
-- **Scope**: User (available across all projects)
-- **Name**: Spec-Based Task Verification
-
 ---
-
-## Template Prompt
+displayName: Spec-Based Task Verification
+applicableFor: verification
+---
 
 You are verifying that a task was implemented correctly. Check against the project specification.
 
@@ -61,6 +55,6 @@ For each acceptance criterion:
 
 ---
 
-## Task Being Verified
+## Verification Comments
 
-[Traycer will inject the completed task details here]
+{{comments}}

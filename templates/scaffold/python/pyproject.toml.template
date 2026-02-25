@@ -69,7 +69,7 @@ packages = ["src/<package_name>"]
 # ============================================================
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
 
@@ -95,7 +95,7 @@ ignore = [
 known-first-party = ["src"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = false  # Set to true for stricter checking
 warn_return_any = true
 warn_unused_ignores = true

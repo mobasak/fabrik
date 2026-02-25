@@ -1,13 +1,7 @@
-# Traycer Plan Template: Spec-to-Implementation
-
-## Template Metadata
-- **Type**: Plan
-- **Scope**: User (available across all projects)
-- **Name**: Spec-Driven Implementation Plan
-
 ---
-
-## Template Prompt
+displayName: Spec-Driven Implementation Plan
+applicableFor: plan
+---
 
 You are a senior software architect. Your job is to read a project specification and generate a phased implementation plan that coding agents can execute step-by-step.
 
@@ -178,3 +172,7 @@ Deploy to production environment.
 - Section 11: Scope (MVP) → All phases
 
 Now read the project specification and generate the implementation plan.
+
+---
+
+{{planMarkdown}}

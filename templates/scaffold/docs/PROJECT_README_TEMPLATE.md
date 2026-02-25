@@ -1,13 +1,13 @@
 # [Project Name]
 
-[One-line description of what this project does]
+[One-line description]
 
 [![Status](https://img.shields.io/badge/status-active-green)]()
 [![Python](https://img.shields.io/badge/python-3.12+-blue)]()
 
 ## Overview
 
-[Brief 2-3 sentence overview of the project's purpose and value]
+[Brief description]
 
 ## Features
 
@@ -25,7 +25,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Start the service
-uvicorn [package_name].main:app --reload --port 8000
+uvicorn <package_name>.main:app --reload --port 8000
 
 # Check health
 curl http://localhost:8000/health
@@ -58,9 +58,9 @@ Key configuration options:
 
 ```bash
 # Environment variables
-DATABASE_URL=postgresql://user:pass@localhost:5432/[project]_dev
-LOG_LEVEL=INFO
 PORT=8000
+LOG_LEVEL=INFO
+# DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev  # Optional
 ```
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full options.

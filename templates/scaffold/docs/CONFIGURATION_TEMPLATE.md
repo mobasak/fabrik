@@ -15,21 +15,18 @@ cp .env.example .env
 
 ## Environment Variables
 
-### Database
+### Application
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes | - | PostgreSQL connection string |
-| `DATABASE_POOL_SIZE` | No | `5` | Connection pool size |
-| `DATABASE_TIMEOUT` | No | `30` | Query timeout in seconds |
+| `PORT` | No | `8000` | Server port |
+| `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 
-### API Keys
+### Database (Optional)
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `API_KEY` | Yes | - | Main API authentication key |
-| `SECRET_KEY` | Yes | - | JWT signing secret |
-| `EXTERNAL_API_KEY` | No | - | Third-party service key |
+| `DATABASE_URL` | No | - | PostgreSQL connection string (enables DB features) |
 
 ### Feature Flags
 
@@ -42,7 +39,6 @@ cp .env.example .env
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `LOG_FORMAT` | No | `json` | Log format (json, text) |
 | `LOG_FILE` | No | `logs/app.log` | Log file path |
 
@@ -62,8 +58,6 @@ cp .env.example .env
 |------|---------|
 | `.env` | Environment variables (not committed) |
 | `.env.example` | Template for .env (committed) |
-| `config/config.yaml` | Application settings |
-| `config/logging.yaml` | Logging configuration |
 
 ---
 
@@ -92,8 +86,6 @@ DATABASE_URL=postgresql://prod-host:5432/myapp
 Before running the application:
 
 - [ ] `.env` file created from `.env.example`
-- [ ] `DATABASE_URL` set and database accessible
-- [ ] `SECRET_KEY` set (use `openssl rand -hex 32` to generate)
-- [ ] `API_KEY` set if using external APIs
-- [ ] Log directory exists and is writable
-- [ ] All required environment variables set
+- [ ] `PORT` set (default: 8000)
+- [ ] `DATABASE_URL` set if using database features
+- [ ] Log directory exists and is writable (if using file logging)

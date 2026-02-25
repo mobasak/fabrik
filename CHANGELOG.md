@@ -6,6 +6,108 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Kilo YOLO-Optimized Templates (2026-02-25)
+
+**What:** Created lighter, token-efficient versions of Kilo templates optimized for Traycer YOLO mode automation.
+
+**Files:**
+- `~/.traycer/prompt-templates/Kilo Plan – YOLO Optimized.md` - 100 lines (vs 180 original) - Removes code examples, keeps essential behavioral guidance and workflow steps
+- `~/.traycer/prompt-templates/Kilo Verification – YOLO Optimized.md` - 50 lines (vs 90 original) - Focuses on critical patterns, removes heavy examples and checklists
+
+**Why:** YOLO mode benefits from lighter templates that reduce token usage while preserving essential Fabrik conventions and behavioral guidance. Original templates remain available for manual workflows.
+
+**Optimization approach:**
+- Removed verbose code examples (referenced patterns instead)
+- Condensed checklists to critical items only
+- Kept behavioral rules (check/minimal/present)
+- Kept workflow steps (Steps 3-7)
+- Kept Fabrik-specific patterns (env vars, multi-environment, CHANGELOG)
+
+### Fixed - Scaffold Template Improvements (2026-02-25)
+
+**What:** Fixed 6 issues in scaffold templates: placeholder paths, DB contract, Python version drift,
+config file references, health check behavior, and template placeholders.
+
+**Files:**
+- `src/fabrik/scaffold.py` — Updated .env.example (DATABASE_URL optional), requirements.txt
+  (versions match pyproject.toml: FastAPI 0.115+, uvicorn 0.32+, pydantic 2.9+), health check
+  (tests deps, returns 503 on failure), test template (covers DB configured/not paths)
+- `templates/scaffold/docs/QUICKSTART_TEMPLATE.md` — Fixed uvicorn command (removed `src.`
+  prefix), Python 3.12+ prerequisite, DATABASE_URL optional
+- `templates/scaffold/docs/PROJECT_README_TEMPLATE.md` — Fixed uvicorn command, DATABASE_URL
+  optional in config example
+- `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md` — Removed API_KEY/SECRET_KEY (not used),
+  removed config/config.yaml and config/logging.yaml references, DATABASE_URL now optional
+- `templates/scaffold/docker/compose.yaml.template` — DATABASE_URL optional (no `:?` required)
+- `templates/scaffold/docker/Dockerfile.python` — Added health check dependency timing note
+- `templates/scaffold/python/pyproject.toml.template` — ruff target-version and mypy
+  python_version both set to 3.12
+- `templates/scaffold/docs/TASKS_TEMPLATE.md` — Replaced placeholders with concrete starter values
+- `templates/scaffold/docs/PHASE_TEMPLATE.md` — Replaced placeholders with Foundation phase content
+- `templates/scaffold/docs/BUSINESS_MODEL_TEMPLATE.md` — Marked as optional with revisit date
+
+### Fixed - Kilo CLI Agent Scripts (2026-02-25)
+
+**What:** Fixed critical bug in all 13 Kilo CLI agent scripts - removed hardcoded `/opt/fabrik` path that broke when used on Fabrik-scaffolded projects.
+
+**Files:**
+- All 13 scripts in `~/.traycer/cli-agents/Kilo*.sh`
+
+**Changes:**
+- Removed `cd /opt/fabrik` - agents now work in current directory (Traycer sets working directory)
+- Changed `scripts/kilo_code_review.py` → `/opt/fabrik/scripts/kilo_code_review.py` (absolute path)
+- Changed fallback `${CHANGED_FILES:-src/}` → `${CHANGED_FILES:-.}` (current dir, not src/)
+
+**Why:** Agents were changing to /opt/fabrik instead of staying in the user's project directory (e.g., /opt/test-kilo-analysis), causing them to review wrong codebase.
+
+### Fixed - Kilo Template Workflow Descriptions (2026-02-25)
+
+**What:** Corrected workflow descriptions in Kilo templates - coder agent runs gates and fixes issues itself (like Windsurf), not Traycer orchestrating.
+
+**Files:**
+- `~/.traycer/prompt-templates/Kilo Plan – Fabrik 9-Step.md` - Added correct 9-step workflow instructions
+- `~/.traycer/prompt-templates/Kilo User Query – Fabrik Direct.md` - Added workflow steps coder must execute
+
+**Correct workflow:**
+1. Implement code
+2. Run `python scripts/final_gate.py` (Pre-Kilo) - fix issues, re-run until PASS
+3. Run Kilo Review - fix issues yourself, re-review with `--session continue` until PASS
+4. Run `python scripts/final_gate.py` (Post-Kilo) - ensure fixes didn't break rules
+5. Report completion
+
+### Added - Kilo Custom Templates with Cascade Behavior (2026-02-25)
+
+**What:** Created 4 custom Traycer templates for Kilo agents integrating Fabrik's 9-step workflow and Cascade-like behavior patterns. Documented template directory structure (built-in vs custom).
+
+**Files:**
+- `~/.traycer/prompt-templates/Kilo Plan – Fabrik 9-Step.md` - Plan handoff template with project-aware patterns
+- `~/.traycer/prompt-templates/Kilo User Query – Fabrik Direct.md` - User query handoff template (lightweight)
+- `~/.traycer/prompt-templates/Kilo Verification – Fabrik Fix Loop.md` - Verification handoff template (fix-only)
+- `~/.traycer/prompt-templates/Kilo Review – Fabrik Code Review.md` - Review handoff template (fix-only)
+- `templates/traycer/README.md` - Added "Template Directory Structure" section
+
+**Cascade Behavior Patterns:**
+- Check Before Create - Always verify file exists before creating
+- Minimal Changes - Focused edits, follow existing style
+- Present Approach - Outline approach before implementing
+
+**Project-Aware Patterns:**
+- Environment variables - Never hardcode (localhost, DB credentials, secrets)
+- Multi-environment design - Works in dev/docker/cloud without modification
+- Health check pattern - Tests actual dependencies
+- Project temp directory - Use `.tmp/` not `/tmp`
+- Config loading - Function-level, not class-level
+- CHANGELOG requirement - Every code change updates it
+
+### Fixed - Template Format (2026-02-25)
+
+**What:** Fixed Traycer template frontmatter in existing template files to use proper Handlebars format and YAML frontmatter.
+
+**Files:**
+- `templates/traycer/task_execution_template.md` - Fixed to use `applicableFor: userQuery` (camelCase) and `{{userQuery}}` placeholder
+- `templates/traycer/plan_template.md` - Added YAML frontmatter and `{{planMarkdown}}` placeholder
+- `templates/traycer/verification_template.md` - Added YAML frontmatter and `{{comments}}` placeholder
+
 ### Fixed - Dead Code and Unused Variables (2026-02-24)
 
 **What:** Removed three dead-code sites flagged by vulture (RB-6, RB-7, RB-8).
@@ -14,8 +116,8 @@ No logic changes.
 **Files:**
 - `src/fabrik/monitor.py` — Deleted bare expression `current_time - self._last_check_time`
   (line 72); deleted discarded `m.syscall.split()[0]` in `_is_valid_sleep()` (line 222).
-- `src/fabrik/verify.py` — Replaced unused `_min_days` assignment with
-  `# TODO: implement SSL expiry check using min_days_remaining` in `check_ssl()`.
+- `src/fabrik/verify.py` — Replaced unused `_min_days` assignment with a comment
+  noting SSL expiry check is pending implementation in `check_ssl()`.
 - `src/fabrik/scaffold.py` — Deleted duplicate `package_name = _get_package_name(name)`
   assignment in `create_project()` (line 240; original at line 183).
 

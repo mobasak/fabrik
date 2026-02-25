@@ -4,7 +4,7 @@ Get [Project Name] running in 5 minutes.
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.12+
 - pip
 
 ## Installation
@@ -37,19 +37,15 @@ Key settings:
 PORT=8000
 LOG_LEVEL=info
 
-# Database (if needed)
-# DB_HOST=localhost
-# DB_PORT=5432
-# DB_NAME=project_dev
-# DB_USER=postgres
-# DB_PASSWORD=
+# Database (optional - uncomment if using DB)
+# DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev
 ```
 
 ## First Run
 
 ```bash
 # Start the service
-uvicorn src.<package_name>.main:app --reload --port 8000
+uvicorn <package_name>.main:app --reload --port 8000
 
 # Check health
 curl http://localhost:8000/health
@@ -59,14 +55,11 @@ Expected output:
 
 ```json
 {
-  "service": "project-name",
+  "service": "<project>",
   "status": "ok",
   "dependencies": {
-    "fastapi": "connected",
-    "uvicorn": "connected",
-    "pydantic": "connected"
-  },
-  "environment": "missing"
+    "database": "not_configured"
+  }
 }
 ```
 

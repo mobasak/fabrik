@@ -1,7 +1,10 @@
 # Business Model - [Project Name]
 
 **Last Updated:** YYYY-MM-DD
-**Status:** [Draft / Research / Validated]
+**Status:** Optional Draft
+**Revisit By:** (set date 2 weeks from project start)
+
+> **Note:** This document is optional for technical projects. Fill in when exploring monetization or user acquisition strategies.
 
 ---
 

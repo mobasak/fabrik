@@ -58,6 +58,7 @@
 - Traycer produces the managed plan
 - Traycer's built-in verifier is the primary verification/review surface
 - Coding agents only execute steps from the Traycer-managed plan
+- No agent may create `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, or `implementation-plan-template.md` in any project — these patterns are retired. Traycer Phases are the planning authority.
 
 ## Execution Protocol (9-Step Agile Flow)
 
@@ -125,6 +126,8 @@ Next: Proceed to Step <N+1> / STOP
 ---
 
 ## Planning (Required for Non-Trivial Work)
+
+> ⚠️ **Archived templates (2026-02-25):** `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, and `implementation-plan-template.md` have been archived to `docs/archive/2026-02-25-pre-traycer-templates/`. Do NOT recreate them. Use Traycer Phases for all planning.
 
 **If Traycer is used:** Planning happens in Traycer Phases. The plan is exported to `docs/development/plans/` and indexed in `docs/development/PLANS.md`. Coding agents only execute steps from the Traycer-managed plan.
 
