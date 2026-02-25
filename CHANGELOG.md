@@ -6,6 +6,55 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Kilo CLI Agent Scripts Critical Error (2026-02-25)
+
+**What:** Completely rewrote all 5 Kilo Code CLI agent scripts after studying Traycer's built-in templates and Kilo documentation. Fixed fundamental misunderstanding of how CLI agents work.
+
+**Files:**
+- All 5 scripts in `~/.traycer/cli-agents/Kilo Code*.sh`
+
+**Root Problem:**
+- Scripts were overcomplicated (file saving, git diff detection, wrong tools)
+- First attempt: Called `kilo_code_review.py` (wrong - that's for Step 4 review only)
+- Second attempt: Added `--file` flag (wrong - Kilo needs message argument, not file)
+- Third attempt: Removed task.md creation (wrong - Step 4 needs `--plan .droid/review-context/task.md`)
+
+**Final Correct Pattern:**
+```bash
+#!/bin/sh
+# Save task.md for Step 4 (kilo_code_review.py --plan flag needs it)
+mkdir -p .droid/review-context
+echo "$TRAYCER_PROMPT" > .droid/review-context/task.md
+
+# Pass TRAYCER_PROMPT directly to Kilo (Traycer template pattern)
+kilo run --format json --auto \
+    --model kilo/google/gemini-3-flash-preview \
+    --variant high \
+    --agent code \
+    "$TRAYCER_PROMPT"
+```
+
+**Why both are needed:**
+1. **Save task.md** - Template tells Kilo to run Step 4: `python scripts/kilo_code_review.py review <files> --plan .droid/review-context/task.md`
+2. **Pass $TRAYCER_PROMPT** - Kilo CLI requires message as positional argument, not file
+3. **Template contains workflow** - Kilo executes Steps 3-7 (gates + review + sync) as instructed
+
+### Added - Traycer Phased YOLO Workflow Documentation (2026-02-25)
+
+**What:** Comprehensive documentation of Phased YOLO workflow with Kilo agents, including configuration, execution flow, session continuity, and monitoring guidance.
+
+**Files:**
+- `docs/guides/TRAYCER_YOLO_WORKFLOW.md` - Complete workflow documentation (9-step process, configuration settings, agent architecture, session continuity mechanism, template usage, monitoring checklist)
+
+**Covers:**
+- 9-step workflow (Plan → Implement → Gates → Review → Verification → Commit)
+- YOLO configuration settings (Plan tab, Verification tab, Commit tab)
+- Session continuity mechanism via `TRAYCER_TASK_ID`
+- Template architecture (YOLO Optimized vs original)
+- Available Kilo agents and their use cases
+- What's factual vs inferred (to be validated during testing)
+- Monitoring checklist and troubleshooting guide
+
 ### Added - Kilo YOLO-Optimized Templates (2026-02-25)
 
 **What:** Created lighter, token-efficient versions of Kilo templates optimized for Traycer YOLO mode automation.

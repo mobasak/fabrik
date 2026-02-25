@@ -685,6 +685,125 @@ def replace_block(
     return block_re.sub(replacer, text), True
 
 
+def generate_docs_structure_tree() -> str:
+    """Generate indented tree string of docs/ directory with comments."""
+    docs_dir = FABRIK_ROOT / "docs"
+    if not docs_dir.exists():
+        return "docs/ (not found)"
+
+    comments = {
+        "README.md": "Documentation index (Legacy)",
+        "INDEX.md": "Main documentation entry point",
+        "QUICKSTART.md": "Get Fabrik running in 5 minutes",
+        "CONFIGURATION.md": "Environment variables and settings",
+        "DEPLOYMENT.md": "How to deploy services to VPS",
+        "SERVICES.md": "External services Fabrik depends on",
+        "TROUBLESHOOTING.md": "Common issues & solutions",
+        "TESTING.md": "How to run and write tests",
+        "FAQ.md": "Frequently asked questions",
+        "ENVIRONMENT_VARIABLES.md": "Complete env var reference",
+        "FABRIK_OVERVIEW.md": "What Fabrik is and what it does",
+        "ROADMAP_ACTIVE.md": "Current priorities, backlog, future plans",
+        "BUSINESS_MODEL.md": "Monetization strategy",
+        "owner_ozgur_basak.md": "Owner profile & AI instructions",
+        "guides/": "Step-by-step guides and tutorials",
+        "PROJECT_WORKFLOW.md": "Start here - new/existing project workflow",
+        "FABRIK_INTEGRATION.md": "Build Fabrik-compatible microservices",
+        "domain-hosting-automation.md": "Domain + hosting automation",
+        "DEPLOYMENT_READY_CHECKLIST.md": "Make projects deployment-ready",
+        "DEVELOPMENT_WORKFLOW.md": "How Traycer fits into Fabrik's 9-step workflow",
+        "TRAYCER_YOLO_WORKFLOW.md": "Traycer YOLO (fast-path) workflow guide",
+        "reference/": "Technical reference and module documentation",
+        "CRITICAL_RULES.md": "Non-negotiable execution rules",
+        "DOCUMENTATION_STANDARD.md": "Documentation standards and conventions",
+        "PROCESS_MONITORING_QUICKSTART.md": "Process monitor setup",
+        "SaaS-GUI.md": "SaaS skeleton GUI guide",
+        "architecture.md": "System architecture overview",
+        "auto-review.md": "Automatic code review system",
+        "docs-updater.md": "Automatic documentation updater",
+        "fabrik-cli-reference.md": "Fabrik CLI command reference",
+        "droid-exec-usage.md": "Core droid exec usage",
+        "enforcement-system.md": "Convention enforcement (check scripts, rules)",
+        "hooks-and-skills-guide.md": "Hook and skill usage guide",
+        "drivers.md": "Fabrik driver API (Coolify, DNS, etc.)",
+        "orchestrator.md": "Deployment orchestrator module",
+        "file-api-deployment.md": "File API deployment guide",
+        "AI_TAXONOMY.md": "AI categories & tool selection",
+        "DATABASE_STRATEGY.md": "Database selection",
+        "PLANNING_REFERENCES.md": "INDEX for AI planning phases",
+        "prebuilt-app-containers.md": "Prebuilt container catalog",
+        "project-registry.md": "Master inventory of all /opt projects",
+        "roadmap.md": "Complete 8-phase roadmap summary",
+        "stack.md": "Technology stack & tools inventory",
+        "technology-stack-decision-guide.md": "Tech decision flowchart",
+        "templates.md": "Available deployment templates",
+        "spec-pipeline.md": "Spec pipeline (idea -> scope -> spec)",
+        "trueforge-images.md": "Trueforge image catalog",
+        "uptime-kuma.md": "Uptime Kuma runbook",
+        "verification-framework.md": "3-lane verification system",
+        "traycer-evaluation.md": "Traycer integration evaluation",
+        "global-gates.md": "Global gate definitions",
+        "windsurf/": "Windsurf IDE optimization",
+        "wordpress/": "WordPress technical docs",
+        "plugin-evaluation.md": "WordPress plugin evaluation criteria",
+        "plugin-stack.md": "Curated WordPress plugin stack",
+        "site-specification.md": "Site spec YAML format",
+        "pages-idempotency.md": "Page creation idempotency",
+        "fixes.md": "Critical fixes",
+        "kilo-agents.md": "Kilo agent configuration and usage",
+        "kilo-code-review.md": "Kilo code review workflow",
+        "kilo-complete-reference.md": "Complete Kilo reference",
+        "kilo-files.md": "Kilo file handling reference",
+        "traycer-agile-workflow.md": "8-command Traycer Agile Workflow reference",
+        "traycer-refactoring-workflow.md": "4-command Traycer Refactoring Workflow reference",
+        "mcp-config.md": "MCP server configuration reference",
+        "operations/": "Operational runbooks and VPS state",
+        "vps-status.md": "Current VPS state and configuration",
+        "vps-urls.md": "All deployed service URLs",
+        "disaster-recovery.md": "Backup and recovery procedures",
+        "duplicati-setup.md": "Duplicati backup configuration",
+        "backup-strategy.md": "VPS backup strategy",
+        "coolify-migration.md": "Coolify migration procedures",
+        "development/": "Active development plans and specs",
+        "PLANS.md": "Development plans index",
+        "plans/": "Plan documents (YYYY-MM-DD-plan-*.md)",
+        "archive/": "Archived and completed documentation",
+        "design/": "System design and architecture proposals",
+        "examples/": "Example code and configuration",
+        "proposals/": "Project and feature proposals",
+    }
+
+    tree = ["docs/"]
+
+    def walk(directory: Path, prefix: str = ""):
+        items = sorted(directory.iterdir())
+        # Filter items
+        items = [i for i in items if not i.name.startswith(".")]
+
+        for i, item in enumerate(items):
+            is_last = i == len(items) - 1
+            connector = "└── " if is_last else "├── "
+
+            comment = comments.get(item.name, "")
+            # If directory, check with trailing slash
+            if item.is_dir() and not comment:
+                comment = comments.get(f"{item.name}/", "")
+
+            line = f"{prefix}{connector}{item.name}"
+            if comment:
+                line = f"{line.ljust(35)} # {comment}"
+
+            tree.append(line)
+
+            if item.is_dir():
+                new_prefix = prefix + ("    " if is_last else "│   ")
+                walk(item, new_prefix)
+
+    walk(docs_dir)
+    tree_str = "\n".join(tree)
+    return f"```text\n{tree_str}\n```"
+
+
 def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     """Extract status and checkbox counts from a plan file.
 
@@ -988,6 +1107,19 @@ def validate_docs() -> tuple[bool, list[str]]:
 def run_sync(dry_run: bool = False) -> None:
     """Create missing stubs + sync structure."""
     print("=== Documentation Sync ===\n")
+
+    # Sync STRUCTURE block in INDEX.md
+    if README_PATH.exists():
+        content = README_PATH.read_text()
+        new_tree = generate_docs_structure_tree()
+        new_content, changed = replace_block(content, new_tree, STRUCTURE_BLOCK_RE, "STRUCTURE")
+
+        if changed:
+            if dry_run:
+                print("Would update: docs/INDEX.md (STRUCTURE block)")
+            else:
+                README_PATH.write_text(new_content)
+                print("Updated: docs/INDEX.md (STRUCTURE block)")
 
     # PLANS.md sync intentionally skipped (Traycer-managed)
 
