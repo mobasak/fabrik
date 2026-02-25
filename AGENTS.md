@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-24
 
-> Standard instructions for AI coding agents (droid exec, Cursor, Aider, etc.)
+> Traycer is the planning authority. droid exec is the implementation executor.
 
 <!-- AUTO-GENERATED:TOC:START -->
 <!-- This section is auto-generated. Do not edit manually. Run: python scripts/update_agents_toc.py -->
@@ -32,7 +32,6 @@
 - [Auto-Run Mode (Autonomy Levels)](#auto-run-mode-autonomy-levels)
 - [droid exec Quick Reference](#droid-exec-quick-reference)
 - [Batch Refactoring Scripts](#batch-refactoring-scripts)
-- [Output Formats](#output-formats)
 - [VPS Deployment (Coolify)](#vps-deployment-coolify)
 - [GitHub Actions Workflows](#github-actions-workflows)
 - [Fabrik Skills (Auto-Invoked)](#fabrik-skills-auto-invoked)
@@ -609,29 +608,9 @@ python3 scripts/droid_models.py recommend ci_cd # Get model for scenario
 
 ## Implementing Large Features (NON-TRAYCER TASKS ONLY)
 
-For Traycer-managed tasks, create the plan in Traycer Phases (not `droid exec --use-spec`), then execute per Traycer plan.
+**Primary path:** Use Traycer Phases for large features — it manages context across phases and prevents drift.
 
-For non-Traycer tasks touching 30+ files, use the phased workflow:
-
-```bash
-# 1. Create master plan with spec mode
-droid exec --use-spec "Create implementation plan for [feature]. Break into
-phases completable in 1-2 days with testing points."
-# Save output as IMPLEMENTATION_PLAN.md
-
-# 2. Implement phase by phase (fresh session per phase)
-droid exec --auto medium "Implement Phase 1 per IMPLEMENTATION_PLAN.md.
-Update doc to mark complete when done."
-
-# 3. Commit and PR per phase
-droid exec --auto medium "Commit Phase 1 changes with detailed message."
-droid exec --auto medium "Create PR for Phase 1 on branch feature-phase-1."
-
-# 4. Test each phase before moving on
-droid exec --auto medium "Run tests for Phase 1. Verify functionality."
-```
-
-**Best practices:** Start read-only, maintain backward compatibility, use feature flags, plan rollback for each phase.
+**Fallback:** For non-Traycer tasks touching 30+ files, run `droid exec --use-spec "Create phased plan for [feature]"` to generate a plan, then implement phase by phase with `droid exec --auto medium`.
 
 ## Auto-Run Mode (Autonomy Levels)
 
@@ -687,33 +666,10 @@ droid exec -o json "Analyze code"           # Structured for scripts
 droid exec -o stream-json "Complex task"    # Real-time JSONL events
 ```
 
-### Via Fabrik Task Runner
-
-```bash
-# Discovery Pipeline (NEW - idea → scope → spec)
-python scripts/droid_core.py idea "Voice-controlled home automation"
-python scripts/droid_core.py scope "home-automation"
-python scripts/droid_core.py spec "home-automation"
-
-# Spec mode (Design)
-python scripts/droid_core.py spec "Plan the auth system"
-
-# Scaffold (Build)
-python scripts/droid_core.py scaffold "Create FastAPI service"
-
-# Health check (Verify - autonomous)
-python scripts/droid_core.py health "Verify deployment"
-
-# Deploy config (Ship)
-python scripts/droid_core.py deploy "Add Redis to compose"
-```
-
-### Task Types (13 total)
+### Task Types (11 total)
 
 | Type | Use Case |
 |------|----------|
-| `idea` | Capture and explore product idea (NEW) |
-| `scope` | Define IN/OUT boundaries (NEW) |
 | `analyze`, `review` | Read-only analysis |
 | `code`, `refactor` | Write changes |
 | `spec` | Planning with reasoning |
@@ -743,21 +699,6 @@ Location: `scripts/droid/`
 | `fix-lint.sh` | Fix lint violations | `./scripts/droid/fix-lint.sh src` |
 
 All scripts support `DRY_RUN=true` for preview mode.
-
-## Output Formats
-
-| Flag | Format | Use Case |
-|------|--------|----------|
-| `--stream` | Real-time text | CLI feedback |
-| `--debug` | Verbose tool calls | Web UI development, debugging |
-
-```bash
-# Verbose output showing tool calls
-python scripts/droid_tasks.py analyze "Find auth code" --debug
-
-# Streaming output
-python scripts/droid_tasks.py analyze "Find auth code" --stream
-```
 
 ## VPS Deployment (Coolify)
 
@@ -802,7 +743,7 @@ Skills are **model-invoked** — droids automatically apply them based on task c
 | `fabrik-watchdog` | "watchdog", "monitor", "auto-restart" | Service monitoring scripts |
 | `fabrik-postgres` | "database", "postgres", "migration" | PostgreSQL + pgvector setup |
 
-**How it works:** When you run `python scripts/droid_tasks.py scaffold "Create user-api"`, droid detects keywords and automatically invokes `fabrik-scaffold`, `fabrik-config`, `fabrik-docker`, ensuring ALL Fabrik conventions are followed.
+**How it works:** When you run `droid exec scaffold "Create user-api"`, droid detects keywords and automatically invokes `fabrik-scaffold`, `fabrik-config`, `fabrik-docker`, ensuring ALL Fabrik conventions are followed.
 
 ## Custom Slash Commands (TUI)
 
