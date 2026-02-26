@@ -121,16 +121,36 @@ npm run type-check    # TypeScript
 npm run build         # Production build
 ```
 
-## Visual Design Workflow (SaaS/Web/Mobile)
+## Visual Design Workflow (SaaS/Web/Mobile/Extension/Any Other)
 
 For UI-heavy projects, use this iterative design-to-code workflow:
 
 ### Step 1: Provide Design Reference
 - Screenshot of mockup/Figma design
-- Or detailed description of desired UI
+- Existing site/app you want to replicate
+- Detailed written description of desired UI
 
 ### Step 2: AI Generates Code
-```bash
-# Describe the component
-"Create a pricing card component matching this design: [paste screenshot or describe]"
----
+- Cascade/Kilo generates component code from description or screenshot
+- Uses Tailwind CSS + shadcn/ui components automatically
+- Follows TypeScript best practices (type-safe props, proper imports)
+
+### Step 3: Iterate Until Perfect
+- Review generated code in browser
+- Request adjustments: "Make card shadow stronger", "Use primary color for CTA button"
+- Refine spacing, colors, typography until matches design
+
+**Best Practices:**
+- Start with complete page mockups, not individual components
+- Provide color palette (`primary: #3B82F6`) and spacing guidelines upfront
+- Use existing shadcn/ui components when possible (reduces custom code)
+- For Chrome extensions: Include popup dimensions in design reference
+- For mobile: Specify target devices (iOS, Android, or both)
+
+**Example Prompt:**
+```
+Create a pricing page with 3 tiers (Free, Pro, Enterprise).
+Design: Modern SaaS style, use Tailwind's blue-600 for primary color.
+Each card should have: tier name, price, feature list (checkmarks), CTA button.
+Make the Pro tier highlighted with a "Popular" badge.
+```

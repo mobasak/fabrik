@@ -471,10 +471,15 @@ nano .env
 - `COOLIFY_API_URL`, `COOLIFY_API_TOKEN` - Coolify API
 - `NAMECHEAP_API_URL` or `CLOUDFLARE_API_TOKEN` - DNS provider
 
-### Deploy Your First Service
+### Create Your First Project
 
 ```bash
-# Create a Python API spec
+# Option 1: Full project structure (recommended for development)
+fabrik scaffold my-api -d "User authentication API"
+# Creates complete structure with docs, tests, Docker, pre-commit hooks
+# See: docs/reference/fabrik-scaffold-specs.md
+
+# Option 2: Deployment spec only (for existing projects)
 fabrik new my-api --template python-api --domain api.example.com
 
 # Preview deployment plan

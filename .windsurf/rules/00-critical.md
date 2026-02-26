@@ -55,7 +55,7 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 
 Before writing ANY new script, I MUST:
 1. `grep_search` for similar functionality in scripts/
-2. Check if droid_core.py, droid-review.sh, or existing wrappers handle it
+2. Check if existing scripts in scripts/ or scripts/enforcement/ handle it
 3. If existing code can be extended → extend it, don't create new
 
 **Violation:** Creating duplicate functionality.

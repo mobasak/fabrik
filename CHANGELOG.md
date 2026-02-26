@@ -6,6 +6,48 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Deep Documentation Review + Complete droid exec Removal (2026-02-26)
+
+**What:** Comprehensive deep review and cleanup of all `.windsurf/rules/*.md`, `AGENTS.md`, and `README.md` to reflect current Fabrik reality. Zero deprecated tool references remain.
+
+**Phase 1: Windsurf Rules Cleanup**
+1. **00-critical.md** - Removed stale references to archived `droid_core.py` and `droid-review.sh`
+2. **90-automation.md** - Completely rewritten for Traycer YOLO automation (Smart/Phased modes), removed 108 lines of droid exec content
+3. **20-typescript.md** - Completed truncated "Visual Design Workflow" section with full 3-step process, renamed to include "Extension/Any Other"
+4. **Batch scripts archived** - Moved `scripts/droid/` to `.archive/2026-02-26-droid-exec-batch-scripts/` (all depend on deprecated droid exec)
+
+**Phase 2: AGENTS.md Deep Cleanup (160 lines removed)**
+5. **AGENTS.md** - Removed ALL remaining droid exec content:
+   - Removed "Batch Refactoring Scripts" section (11 lines)
+   - Removed "Implementing Large Features" with droid exec (5 lines)
+   - Removed "Auto-Run Mode (Autonomy Levels)" section (22 lines)
+   - Removed "droid exec Quick Reference" section (53 lines!)
+   - Removed "VPS Deployment" droid CLI instructions (7 lines)
+   - Removed "Fabrik Skills" droid invocation example (9 lines)
+   - Removed "Custom Slash Commands (TUI)" section (9 lines)
+   - Removed "Factory Settings" with auto-high (9 lines)
+   - Replaced dual-model droid review with Kilo CLI reference (16 lines → 1 line)
+   - Fixed broken MCP section structure
+   - Added proper "Fabrik Skills (Convention Enforcement)" section
+
+**Phase 3: README.md Enhancement**
+6. **README.md** - Added `fabrik scaffold` reference in Quick Start with link to `docs/reference/fabrik-scaffold-specs.md`
+
+**Files Changed:**
+- `.windsurf/rules/00-critical.md` - 1 line (script reference)
+- `.windsurf/rules/90-automation.md` - 140 → 70 lines (-50% reduction)
+- `.windsurf/rules/20-typescript.md` - +33 lines (completed visual design section)
+- `AGENTS.md` - 881 → 719 lines (-162 lines = 18% reduction)
+- `README.md` - Added fabrik scaffold documentation reference
+- `scripts/droid/*` - Archived (3 batch scripts)
+
+**Result:** 
+- Zero droid exec references in active documentation
+- All rules reflect Traycer YOLO + Kilo CLI workflow
+- AGENTS.md is 18% smaller and 100% accurate
+- fabrik scaffold properly documented in README
+- Final Gate: 25/25 PASS
+
 ### Fixed - Script Path Fixes + droid exec Deprecation Cleanup (2026-02-26)
 
 **What:** Fixed scaffolded projects to access Fabrik infrastructure by using absolute paths in symlinked rules. Removed deprecated droid exec references across README and AGENTS, replaced with Kilo CLI.

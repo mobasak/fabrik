@@ -29,15 +29,9 @@
 - [Documentation Rules (MUST)](#documentation-rules-must)
 - [Feature Name](#feature-name)
 - [Execution Modes (Fabrik Lifecycle)](#execution-modes-fabrik-lifecycle)
-- [Implementing Large Features (NON-TRAYCER TASKS ONLY)](#implementing-large-features-non-traycer-tasks-only)
-- [Auto-Run Mode (Autonomy Levels)](#auto-run-mode-autonomy-levels)
-- [droid exec Quick Reference](#droid-exec-quick-reference)
-- [Batch Refactoring Scripts](#batch-refactoring-scripts)
 - [VPS Deployment (Coolify)](#vps-deployment-coolify)
 - [GitHub Actions Workflows](#github-actions-workflows)
-- [Fabrik Skills (Auto-Invoked)](#fabrik-skills-auto-invoked)
-- [Custom Slash Commands (TUI)](#custom-slash-commands-tui)
-- [Factory Settings](#factory-settings)
+- [Fabrik Skills (Convention Enforcement)](#fabrik-skills-convention-enforcement)
 - [MCP (Model Context Protocol)](#mcp-model-context-protocol)
 - [Droid Hooks](#droid-hooks)
 - [Agent Readiness Checklist](#agent-readiness-checklist)
@@ -384,7 +378,7 @@ For IDE-specific rules, see `.windsurf/rules/`:
 - `30-ops.md` — Docker/deployment (Always On)
 - `40-documentation.md` — Plan documents, writing style (Always On)
 - `50-code-review.md` — Execution protocol, PLAN→APPROVE→IMPLEMENT→REVIEW→FIX→VALIDATE→NEXT (Always On)
-- `90-automation.md` — droid exec integration, skills, batch scripts (Always On)
+- `90-automation.md` — Traycer YOLO automation, Fabrik skills (Always On)
 
 ## Build & Test
 
@@ -437,7 +431,7 @@ cp .env.example .env
 npm run dev
 ```
 
-**Template includes:** Next.js 14 + TypeScript + Tailwind CSS, marketing pages, app pages (dashboard, settings, job workflow), SSE streaming + ChatUI for droid exec integration.
+**Template includes:** Next.js 14 + TypeScript + Tailwind CSS, marketing pages, app pages (dashboard, settings, job workflow), SSE streaming + ChatUI for AI chat integration.
 
 **Customize:** `lib/config/site.ts` for branding, `app/(marketing)/` for content.
 
@@ -615,138 +609,11 @@ command --example
 
 **Mixed Models:** Use premium models with high reasoning for planning (`spec`), fast models for implementation (`code`).
 
-**Code Review (Dual-Model — NON-TRAYCER TASKS ONLY):**
-
-For Traycer-managed tasks, use Traycer verification as primary; do not run dual-model droid review.
-
-For non-Traycer tasks, use BOTH models from config:
-```bash
-# Get current model names from config/models.yaml
-python3 scripts/droid_models.py recommend code_review
-
-# Use the returned models (names may change)
-for model in $(python3 -c "import yaml; c=yaml.safe_load(open('config/models.yaml')); print(' '.join(c['scenarios']['code_review']['models']))"); do
-  droid exec -m "$model" "Review [files]..."
-done
-```
-
-**Model Compatibility:** OpenAI only pairs with OpenAI. Anthropic with reasoning ON only pairs with Anthropic. See `droid-exec-usage.md` for details.
-
-**Model Management (Automated):**
-```bash
-./scripts/setup_model_updates.sh               # Enable daily auto-updates (cron)
-python3 scripts/droid_model_updater.py         # Force update now
-python3 scripts/droid_models.py stack-rank     # View current rankings
-python3 scripts/droid_models.py recommend ci_cd # Get model for scenario
-```
-**Config:** `config/models.yaml` — Auto-updated from Factory docs daily
-
-## Implementing Large Features (NON-TRAYCER TASKS ONLY)
-
-**Primary path:** Use Traycer Phases for large features — it manages context across phases and prevents drift.
-
-**Fallback:** For non-Traycer tasks touching 30+ files, run `droid exec --use-spec "Create phased plan for [feature]"` to generate a plan, then implement phase by phase with `droid exec --auto medium`.
-
-## Auto-Run Mode (Autonomy Levels)
-
-Auto-Run lets droid execute work matching your risk tolerance without repeated confirmations.
-
-| Level | What Runs Automatically | Typical Examples |
-|-------|------------------------|------------------|
-| **Default** | Read-only only | `ls`, `git status`, `cat` |
-| **`--auto low`** | File edits, creation | `Edit`, `Create`, `git diff` |
-| **`--auto medium`** | + Reversible changes | `npm install`, `git commit`, builds |
-| **`--auto high`** | All non-blocked commands | `docker compose up`, `git push`, migrations |
-
-**Risk Classification:**
-- **Low risk** — Read-only, no irreversible damage
-- **Medium risk** — Alters workspace, easy to undo
-- **High risk** — Destructive, hard to rollback, security-sensitive
-
-**Safety interlocks (always blocked, even in high):**
-- `rm -rf /`, `dd of=/dev/*`
-- Command substitution `$(...)`
-- CLI security-flagged commands
-
-**Fabrik preference:** Use `medium` for dev work, `high` for CI/CD.
-
-## droid exec Quick Reference
-
-### Direct CLI Usage
-
-```bash
-# Read-only analysis (default - no --auto flag)
-droid exec "Analyze the auth system and create a plan"
-
-# Safe file edits
-droid exec --auto low "Add JSDoc comments to all functions"
-
-# Development work (Fabrik default)
-droid exec --auto medium "Install deps, run tests, fix issues"
-
-# Full autonomy (CI/CD, deployments)
-droid exec --auto high "Fix bug, test, commit, and push"
-
-# Specification mode (plan before executing)
-droid exec --use-spec "Add user authentication feature"
-droid exec --use-spec --auto medium "Refactor auth module"
-
-# Model selection (get current names from config/models.yaml)
-# python3 scripts/droid_models.py recommend <scenario>
-droid exec -m <model> "Quick analysis"
-droid exec -m <model> -r high "Complex refactoring"
-
-# Output formats
-droid exec -o json "Analyze code"           # Structured for scripts
-droid exec -o stream-json "Complex task"    # Real-time JSONL events
-```
-
-### Task Types (11 total)
-
-| Type | Use Case |
-|------|----------|
-| `analyze`, `review` | Read-only analysis |
-| `code`, `refactor` | Write changes |
-| `spec` | Planning with reasoning |
-| `test`, `health`, `preflight` | Verification |
-| `scaffold`, `deploy`, `migrate` | Infrastructure |
-
-### Key Flags
-
-| Flag | Purpose |
-|------|---------|
-| `--auto low/medium/high` | Autonomy level |
-| `--use-spec` | Specification mode (plan before code) |
-| `-m <model>` | Model selection |
-| `-r <level>` | Reasoning effort |
-| `-o json/stream-json` | Output format |
-| `--cwd <path>` | Working directory |
-| `-s <id>` | Continue session |
-
-## Batch Refactoring Scripts
-
-Location: `scripts/droid/`
-
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `refactor-imports.sh` | Organize Python imports | `./scripts/droid/refactor-imports.sh src` |
-| `improve-errors.sh` | Improve error messages | `./scripts/droid/improve-errors.sh src` |
-| `fix-lint.sh` | Fix lint violations | `./scripts/droid/fix-lint.sh src` |
-
-All scripts support `DRY_RUN=true` for preview mode.
+**Code Review:** See `.windsurf/rules/50-code-review.md` for complete 9-step workflow with Kilo CLI.
 
 ## VPS Deployment (Coolify)
 
-Install droid CLI on VPS host, apps call via subprocess:
-
-```bash
-# On VPS
-curl -fsSL https://app.factory.ai/cli | sh
-droid  # One-time browser auth
-```
-
-**For SaaS web apps:** Use `--output-format debug` for SSE streaming.
-See `droid-exec-usage.md` §25-26 for full patterns.
+**Deployment:** Use Fabrik CLI (`fabrik apply`) for deployment automation to Coolify.
 
 ## GitHub Actions Workflows
 
@@ -761,14 +628,14 @@ Location: `.github/workflows/`
 
 **Setup:** Add `FACTORY_API_KEY` to repository secrets.
 
-## Fabrik Skills (Auto-Invoked)
+## Fabrik Skills (Convention Enforcement)
 
-Location: `~/.factory/skills/` (personal) or `<repo>/.factory/skills/` (workspace)
+Location: `.factory/skills/`
 
-Skills are **model-invoked** — droids automatically apply them based on task context.
+Skills define Fabrik's coding conventions and project patterns.
 
-| Skill | Auto-Triggers On | Purpose |
-|-------|------------------|---------|
+| Skill | Triggers On | Purpose |
+|-------|-------------|---------|
 | `fabrik-scaffold` | "new project", "create service" | Full project structure with all conventions |
 | `fabrik-docker` | "dockerfile", "compose", "deploy" | Docker/Compose for ARM64 Coolify VPS |
 | `fabrik-health-endpoint` | "health", "healthcheck" | Health endpoints that test dependencies |
@@ -778,33 +645,9 @@ Skills are **model-invoked** — droids automatically apply them based on task c
 | `fabrik-watchdog` | "watchdog", "monitor", "auto-restart" | Service monitoring scripts |
 | `fabrik-postgres` | "database", "postgres", "migration" | PostgreSQL + pgvector setup |
 
-**How it works:** When you run `droid exec scaffold "Create user-api"`, droid detects keywords and automatically invokes `fabrik-scaffold`, `fabrik-config`, `fabrik-docker`, ensuring ALL Fabrik conventions are followed.
-
-## Custom Slash Commands (TUI)
-
-Location: `~/.factory/commands/` (personal) or `<repo>/.factory/commands/` (workspace)
-
-| Command | Type | Description |
-|---------|------|-------------|
-| `/health-check` | Executable | Check service health endpoints |
-
-Usage in droid TUI: `/health-check 8000`
-
-## Factory Settings
-
-Settings file: `~/.factory/settings.json`
-
-Key Fabrik settings:
-- `autonomyLevel`: `auto-high` (full auto coding)
-- `model`: See `config/models.yaml` for current recommendations
-- `reasoningEffort`: `high`
-- `specSaveEnabled`: `true`
-
-Template: `/opt/fabrik/templates/scaffold/factory-settings.json`
-
 ## MCP (Model Context Protocol)
 
-MCP servers extend droid with external tools. Config: `~/.factory/mcp.json`
+MCP servers extend AI capabilities with external tools. Config: `~/.factory/mcp.json`
 
 | Server | Purpose | Priority |
 |--------|---------|----------|
