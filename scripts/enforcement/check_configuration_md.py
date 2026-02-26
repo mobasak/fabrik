@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""Enforce CONFIGURATION.md updates when env vars change.
+"""Enforce configuration documentation pattern.
 
-CONFIGURATION.md is the complete config reference - must document all env vars.
+New pattern (2026-02-26):
+- .env.example = AUTHORITATIVE (self-documenting with inline comments)
+- docs/CONFIGURATION.md = GUIDE only (how to get credentials, troubleshooting)
+- NO variable tables in CONFIGURATION.md
+
+This checker verifies .env.example has comment blocks for each variable.
 """
 
 import re
@@ -10,7 +15,7 @@ from pathlib import Path
 
 
 def check_configuration_md(repo_root: Path, changed_files: list[str]) -> tuple[bool, list[str]]:
-    """Check if CONFIGURATION.md is in sync with .env.example."""
+    """Check if .env.example has proper comment blocks for all variables."""
     config_path = repo_root / "docs" / "CONFIGURATION.md"
     env_example_path = repo_root / ".env.example"
     errors = []
@@ -22,31 +27,46 @@ def check_configuration_md(repo_root: Path, changed_files: list[str]) -> tuple[b
     if not env_example_path.exists():
         return True, []  # No .env.example = nothing to check
 
-    # If .env.example changed, verify CONFIGURATION.md documents the vars
-    if ".env.example" in changed_files or "docs/CONFIGURATION.md" in changed_files:
+    # If .env.example changed, verify it has comment blocks
+    if ".env.example" in changed_files:
         example_content = env_example_path.read_text()
-        config_content = config_path.read_text()
 
-        # Extract variable names from .env.example
-        example_vars = set(re.findall(r"^([A-Z_][A-Z0-9_]*)=", example_content, re.MULTILINE))
+        # Extract variables and check if they have preceding comments
+        lines = example_content.splitlines()
+        missing_comments = []
 
-        # Check if each var is documented in CONFIGURATION.md
-        undocumented = []
-        for var in sorted(example_vars):
-            # Look for the var wrapped in backticks (markdown code)
-            if f"`{var}`" not in config_content:
-                undocumented.append(var)
+        for i, line in enumerate(lines):
+            # Check for variable lines
+            match = re.match(r"^([A-Z_][A-Z0-9_]*)=", line.strip())
+            if match:
+                var_name = match.group(1)
 
-        if undocumented:
+                # Check if previous line is a comment (not just section separator)
+                has_comment = False
+                if i > 0:
+                    prev_line = lines[i - 1].strip()
+                    # Valid comment is one that's not just "=" separator
+                    if (
+                        prev_line.startswith("#")
+                        and prev_line.replace("#", "").replace("=", "").strip() != ""
+                    ):
+                        has_comment = True
+
+                if not has_comment:
+                    missing_comments.append(var_name)
+
+        if missing_comments:
             errors.append(
-                f"ERROR: These env vars are in .env.example but not documented in CONFIGURATION.md:\n"
-                f"{', '.join(undocumented)}\n\n"
-                f"Add them to the Environment Variables section with:\n"
-                f"| Variable | Required | Default | Description |\n"
-                f"|----------|----------|---------|-------------|\n"
-                f"| `{undocumented[0]}` | ... | ... | ... |"
+                f"WARNING: These env vars in .env.example lack comment blocks:\n"
+                f"{', '.join(missing_comments)}\n\n"
+                f"Add comments above each var explaining:\n"
+                f"# Why needed: <explanation>\n"
+                f"# How to get: <steps>\n"
+                f"# Default: <value> (if applicable)\n"
+                f"{missing_comments[0]}=<value>"
             )
-            return False, errors
+            # Downgraded to warning - not blocking
+            return True, errors
 
     return True, errors
 

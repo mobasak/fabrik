@@ -15,7 +15,7 @@
 | **README.md** | Primary entry point - features, quick start, architecture, tech stack | New features, tech changes, setup changes | Step 3 (ERROR) |
 | **CHANGELOG.md** | Change history - what/why/when | Every code change | Step 3 (ERROR) |
 | **AGENTS.md** | AI agent briefing (symlink to /opt/fabrik/AGENTS.md) | Never edit (managed by Fabrik) | N/A |
-| **.env.example** | Secrets template - structure of required API keys, passwords, config | New secrets/credentials needed | Step 3 (ERROR) |
+| **.env.example** | Self-documenting secrets template - AUTHORITATIVE variable reference with inline comments explaining each var | New secrets/credentials needed | Step 3 (ERROR) |
 | **.env** | Actual secrets - NEVER COMMIT | When user provides secrets, AI writes here | N/A |
 | **requirements.txt** | Python dependencies | New packages imported | Step 3 (ERROR) |
 | **pyproject.toml** | Python project config - ruff, mypy, pytest settings | New tools/linting rules | Step 5 (WARN) |
@@ -33,9 +33,9 @@
 |------|---------|-------------|----------|
 | **docs/README.md** | Documentation index - auto-generated structure tree | Auto-updated by docs_updater.py | Step 7 (auto) |
 | **docs/QUICKSTART.md** | Getting started guide - installation, first run, verification | Setup steps change | Step 5 (WARN) |
-| **docs/CONFIGURATION.md** | Complete config reference - all env vars, defaults, examples | New env vars added | Step 3 (ERROR) |
+| **docs/CONFIGURATION.md** | Configuration GUIDE - how to get credentials, architecture context, troubleshooting (NOT variable tables - see .env.example) | New services, config patterns, troubleshooting cases | Step 5 (WARN) |
 | **docs/TROUBLESHOOTING.md** | Developer troubleshooting - dependency issues, deployment errors | New complex dependencies | Step 5 (WARN) |
-| **docs/BUSINESS_MODEL.md** | Go-to-market + monetization strategy | Strategy/pricing changes | Manual |
+| **docs/BUSINESS_MODEL.md** | Go-to-market + monetization strategy + AUTO-GENERATED project catalog | Manual updates for strategy; AUTO-GENERATED:PROJECTS block syncs via `python scripts/sync_projects.py` or `fabrik scaffold` completion | Step 7 (auto-sync catalog only) |
 
 ---
 
@@ -48,7 +48,7 @@
 ├── docs/                   # Documentation
 │   ├── README.md           # Auto-generated docs index
 │   ├── QUICKSTART.md       # Getting started
-│   ├── CONFIGURATION.md    # Config reference
+│   ├── CONFIGURATION.md    # Configuration guide
 │   ├── TROUBLESHOOTING.md  # Dev troubleshooting
 │   ├── guides/             # How-to guides
 │   ├── reference/          # Technical reference
@@ -95,7 +95,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 - Sync Droid Model Names
 - INDEX.md (Master File Index)
 - README.md (Primary Entry Point)
-- CONFIGURATION.md (Env Vars Reference)
+  - CONFIGURATION.md (Configuration Guide - credentials, architecture context, troubleshooting)
 - .env Updates (WARN - secrets population)
 - CHANGELOG.md Updated
 - Kilo CLI Health Check
@@ -182,7 +182,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
-├── CONFIGURATION.md                # Environment variables and settings
+├── CONFIGURATION.md                # Configuration guide - credentials, architecture, troubleshooting
 ├── DEPLOYMENT.md                   # How to deploy services to VPS
 ├── ENVIRONMENT_VARIABLES.md        # Complete env var reference
 ├── FABRIK_OVERVIEW.md              # What Fabrik is and what it does
@@ -415,7 +415,7 @@ docs/
 | Document | Purpose |
 |----------|--------|
 | [QUICKSTART.md](docs/QUICKSTART.md) | Get Fabrik running in 5 minutes |
-| [CONFIGURATION.md](docs/CONFIGURATION.md) | All environment variables and settings |
+| [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | How to deploy services to VPS |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [TESTING.md](docs/TESTING.md) | How to run and write tests |
@@ -535,11 +535,11 @@ python3 scripts/droid_models.py stack-rank     # View current rankings
 python3 scripts/droid_models.py recommend ci_cd # Get model for scenario
 ```
 
-**Config:** `config/models.yaml` — Auto-updated from Factory docs daily  
-**Scripts:** `scripts/droid_tasks.py`, `scripts/droid_models.py`, `scripts/docs_updater.py`, `scripts/container_images.py`, `scripts/enforcement/validate_conventions.py`  
-**Batch Scripts:** `scripts/droid/` (refactor-imports, improve-errors, fix-lint)  
-**Workflows:** `.github/workflows/` (droid-review, update-docs, security-scanner, daily-maintenance)  
-**Key Flags:** `--auto`, `--use-spec`, `-m`, `-r`, `-o`, `--cwd`, `-s`  
+**Config:** `config/models.yaml` — Auto-updated from Factory docs daily
+**Scripts:** `scripts/droid_tasks.py`, `scripts/droid_models.py`, `scripts/docs_updater.py`, `scripts/container_images.py`, `scripts/enforcement/validate_conventions.py`
+**Batch Scripts:** `scripts/droid/` (refactor-imports, improve-errors, fix-lint)
+**Workflows:** `.github/workflows/` (droid-review, update-docs, security-scanner, daily-maintenance)
+**Key Flags:** `--auto`, `--use-spec`, `-m`, `-r`, `-o`, `--cwd`, `-s`
 **VPS Deployment:** See §25-26 in droid-exec-usage.md for Coolify + SSE streaming patterns
 
 ### Project Context

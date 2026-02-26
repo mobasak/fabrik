@@ -87,22 +87,11 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 
 ## Execution Plan Rules (STRICT)
 
-```text
 - Follow steps exactly in order
 - Do NOT redesign or change scope
 - One step at a time
 - After each step: show Evidence + Gate result
 - If a Gate fails → STOP and report
-
-## Execution Plan Rules (STRICT)
-
-```text
-- Follow steps exactly in order
-- Do NOT redesign or change scope
-- One step at a time
-- After each step: show Evidence + Gate result
-- If a Gate fails → STOP and report
-```
 
 ## Writing Style
 
@@ -110,3 +99,41 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 - **Show don't tell** — Use examples
 - **Before/After tables** — Make improvements obvious
 - **5-7 steps max** — Human-manageable
+
+---
+
+## AUTO-GENERATED Project Catalog
+
+**File:** `docs/BUSINESS_MODEL.md`
+
+**AUTO-GENERATED Block:** `<!-- AUTO-GENERATED:PROJECTS:START -->` to `<!-- AUTO-GENERATED:PROJECTS:END -->`
+
+**Sync Triggers:**
+1. **Automatic:** `fabrik scaffold` completion (post-hook in `src/fabrik/cli.py`)
+2. **Manual:** `python scripts/sync_projects.py`
+
+**What it does:**
+- Scans all `/opt/*` projects (excludes `_*` prefixes)
+- Extracts metadata from README.md, compose.yaml, .env.example
+- Categorizes: Production, Active Dev, Planning, Shell
+- Updates catalog table with: Project | Purpose | Stack | Status | URL | Scaffold Status
+
+**DO NOT:**
+- Edit inside AUTO-GENERATED blocks manually
+- Run sync on every code change (token waste)
+- Create duplicate project tracking systems
+
+**Enforcement:** Step 7 (auto-sync catalog only)
+
+---
+
+## Configuration Documentation Pattern
+
+**Problem:** Duplication between `.env.example` and `docs/CONFIGURATION.md` causes drift.
+
+**Solution:**
+- `.env.example` = AUTHORITATIVE (self-documenting with inline comments)
+- `docs/CONFIGURATION.md` = GUIDE only (how to get credentials, architecture, troubleshooting)
+- NO variable tables in CONFIGURATION.md
+
+**Enforcement:** `check_configuration_md.py` verifies `.env.example` has comment blocks

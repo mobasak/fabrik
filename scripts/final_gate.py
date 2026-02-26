@@ -300,7 +300,9 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
         code, out = 1, "Command timed out"
 
     if "Command not found: semgrep" in out:
-        results.append(("semgrep", False, "ERROR: semgrep not installed. Install: pip install semgrep"))
+        results.append(
+            ("semgrep", False, "ERROR: semgrep not installed. Install: pip install semgrep")
+        )
     elif "HTTP 401" in out or "semgrep login" in out.lower():
         results.append(("semgrep", False, "ERROR: semgrep not authenticated. Run: semgrep login"))
     else:
@@ -387,7 +389,9 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
         ]
     )
     if "No module named vulture" in out:
-        results.append(("vulture", False, "ERROR: vulture not installed. Install: pip install vulture"))
+        results.append(
+            ("vulture", False, "ERROR: vulture not installed. Install: pip install vulture")
+        )
     else:
         results.append(("vulture", code == 0, out if code != 0 else ""))
 

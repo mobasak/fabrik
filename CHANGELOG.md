@@ -6,6 +6,114 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Configuration Documentation Pattern (2026-02-26)
+
+**What:** Transformed CONFIGURATION.md from variable tables to guide-only format, established .env.example as authoritative variable reference
+
+**Why:** Eliminate duplication between CONFIGURATION.md and .env.example, reduce maintenance burden, provide single source of truth
+
+**The Problem:**
+- CONFIGURATION.md had duplicate variable tables matching .env.example
+- Two places to update when adding/changing variables
+- Tables in CONFIGURATION.md often empty/outdated
+- Developers copied from .env.example anyway
+
+**The Solution:**
+- `.env.example` = AUTHORITATIVE variable reference (self-documenting with inline comments)
+- `docs/CONFIGURATION.md` = GUIDE only (HOW to get credentials, WHY configs exist, architecture, troubleshooting)
+- NO variable tables in CONFIGURATION.md - reference .env.example instead
+
+**Changes:**
+1. `docs/CONFIGURATION.md` - Transformed to guide format with:
+   - Quick setup instructions
+   - Detailed credential acquisition steps (VPS, Coolify, B2, Docker Hub, etc.)
+   - Architecture context (database strategy, DNS provider choice, logging)
+   - Environment-specific examples (dev vs prod)
+   - Troubleshooting common issues
+   - Security best practices
+   - Migration guides
+2. `INDEX.md` - Updated CONFIGURATION.md purpose and enforcement level
+3. `INDEX.md` - Updated .env.example description to reflect authoritative role
+4. `AGENTS.md` - Added configuration pattern documentation
+5. `.windsurf/rules/40-documentation.md` - Added configuration documentation pattern section
+6. `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md` - Transformed to guide-only format
+7. `scripts/consolidate_envs.py` - NEW script to consolidate all /opt/* project .env files into Fabrik .env
+
+**Enforcement Updates:**
+- `check_configuration_md.py` verifies .env.example has comment blocks (NOT table duplication)
+- CONFIGURATION.md enforcement downgraded from Step 3 (ERROR) → Step 5 (WARN)
+
+**Files:**
+- `docs/CONFIGURATION.md` - Complete rewrite (300 lines)
+- `INDEX.md` - Updated CONFIGURATION.md and .env.example purposes
+- `AGENTS.md` - Added configuration pattern section
+- `.windsurf/rules/40-documentation.md` - Added pattern documentation
+- `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md` - Transformed template
+- `scripts/consolidate_envs.py` - NEW env consolidation tool
+
+**Migration Path:**
+- Existing projects: Keep current CONFIGURATION.md, migrate on next major update
+- New scaffolds: Use guide-only template automatically via `fabrik scaffold` (uses CONFIGURATION_TEMPLATE.md)
+- Consolidation: Run `python scripts/consolidate_envs.py --apply` manually when needed (not automated - manual trigger only)
+
+**Result:** Zero duplication, single source of truth, better developer experience, less maintenance
+
+---
+
+### Fixed - Documentation Consistency & Completeness (2026-02-26)
+
+**What:** Merged duplicate READMEs, documented BUSINESS_MODEL.md sync, fixed CONFIGURATION.md discrepancies
+
+**Why:** Remove confusion from duplicate docs, clarify auto-sync behavior, ensure env var documentation is complete
+
+**Changes:**
+1. `/opt/iterative_image_editor/README.md` - Merged README_POC.md content (input requirements, pipeline details)
+2. `/opt/iterative_image_editor/README_POC.md` - Deleted (consolidated into README.md)
+3. `INDEX.md` - Documented BUSINESS_MODEL.md AUTO-GENERATED block and sync triggers
+4. `.windsurf/rules/40-documentation.md` - Added AUTO-GENERATED project catalog section
+5. `docs/CONFIGURATION.md` - Added missing env vars: VPS_IP, COOLIFY_SERVER_UUID, COOLIFY_PROJECT_UUID, DUPLICATI_PASSPHRASE, DATABASE_URL, DOCKER_HUB_USERNAME, DOCKER_HUB_ACCESS_TOKEN
+6. `docs/CONFIGURATION.md` - Updated Namecheap section to reflect service-based approach (NAMECHEAP_API_URL)
+7. `docs/CONFIGURATION.md` - Updated Last Updated date to 2026-02-26
+
+**Files:**
+- `/opt/iterative_image_editor/README.md` - Merged content
+- `/opt/iterative_image_editor/README_POC.md` - Deleted
+- `INDEX.md` - Added BUSINESS_MODEL.md sync documentation
+- `.windsurf/rules/40-documentation.md` - Added project catalog sync rules
+- `docs/CONFIGURATION.md` - Fixed all discrepancies with .env.example
+
+**Result:** Single source of truth for each project, clear sync documentation, complete env var reference
+
+---
+
+### Added - Automatic Project Tracking (2026-02-26)
+
+**What:** Auto-syncing project catalog in BUSINESS_MODEL.md via `scripts/sync_projects.py`
+
+**Why:** Track all 36+ /opt/* revenue-generating projects without manual updates
+
+**How it works:**
+1. `fabrik scaffold` creates project → auto-triggers sync
+2. `sync_projects.py` scans /opt/* (excluding _* prefixes)
+3. Extracts metadata from README.md, compose.yaml, .env.example
+4. Updates AUTO-GENERATED:PROJECTS block in BUSINESS_MODEL.md
+5. Categorizes: Production (5), Active Dev (5), Planning (14), Shell (12)
+
+**Triggers:**
+- Post-scaffold hook: `fabrik scaffold` completion
+- Manual: `python scripts/sync_projects.py`
+- **NOT on every code change** (zero token waste)
+
+**Files:**
+- `scripts/sync_projects.py` - NEW (scans /opt/*, generates catalog markdown)
+- `src/fabrik/cli.py` - Added post-scaffold hook
+- `docs/BUSINESS_MODEL.md` - Added AUTO-GENERATED:PROJECTS block
+- `AGENTS.md` - Documented AUTO-GENERATED behavior
+
+**Result:** Always-current project portfolio, zero manual work, Fabrik-only tracking
+
+---
+
 ### Changed - Semgrep & Vulture Now REQUIRED (2026-02-26)
 
 **What:** Made `semgrep` and `vulture` strict ERROR checks (previously best-effort/optional)

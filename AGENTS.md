@@ -203,7 +203,7 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 ## Documentation Rules
 
 1) **VERIFY before creating:** Check `INDEX.md` (root) and existing folders before creating new files.
-2) Do NOT create markdown files in repo root (except INDEX.md, README.md, CHANGELOG.md, AGENTS.md).
+2) Do NOT create markdown files in repo root (except INDEX.md, README.md, CHANGELOG.md, AGENTS.md, PORTS.md, LICENSE.md).
 3) Feature/Execution plans: See **Planning** section above.
 4) Every new plan MUST be added to `docs/development/PLANS.md`.
 5) Do NOT create new folders under `docs/` except via existing structure.
@@ -217,6 +217,16 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 **docs/ root allowlist (standard files):**
 - `QUICKSTART.md`, `CONFIGURATION.md`, `TROUBLESHOOTING.md`, `BUSINESS_MODEL.md`
 - `SERVICES.md`, `FABRIK_OVERVIEW.md`, `ENVIRONMENT_VARIABLES.md`
+
+**Configuration pattern (NO DUPLICATION):**
+- `.env.example` = AUTHORITATIVE variable reference (self-documenting with inline comments)
+- `docs/CONFIGURATION.md` = GUIDE only (how to get credentials, architecture, troubleshooting)
+- DO NOT duplicate variable tables in CONFIGURATION.md - reference .env.example instead
+
+**AUTO-GENERATED blocks (DO NOT EDIT MANUALLY):**
+- `BUSINESS_MODEL.md` → `<!-- AUTO-GENERATED:PROJECTS:* -->` (project catalog)
+- Run `python scripts/sync_projects.py` to update
+- Automatically syncs on `fabrik scaffold` completion
 
 **Existing docs structure:**
 - `docs/guides/` - How-to guides

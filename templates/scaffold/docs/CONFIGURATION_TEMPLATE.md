@@ -1,91 +1,177 @@
-# Configuration
+# Configuration Guide
 
 **Last Updated:** YYYY-MM-DD
+
+**Purpose:** This guide explains HOW to configure this service and WHY certain configurations exist. For WHAT variables are needed, see `.env.example` which is self-documenting.
 
 ---
 
 ## Quick Setup
 
 ```bash
+# 1. Copy template
 cp .env.example .env
-# Edit .env with your values
+
+# 2. Edit with your values
+nano .env
+
+# 3. Verify configuration loads
+python -m src.main --check-config
 ```
 
----
-
-## Environment Variables
-
-### Application
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `PORT` | No | `8000` | Server port |
-| `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
-
-### Database (Optional)
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | No | - | PostgreSQL connection string (enables DB features) |
-
-### Feature Flags
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ENABLE_FEATURE_X` | No | `false` | Enable experimental feature X |
-| `DEBUG_MODE` | No | `false` | Enable debug logging |
-
-### Logging
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `LOG_FORMAT` | No | `json` | Log format (json, text) |
-| `LOG_FILE` | No | `logs/app.log` | Log file path |
-
-### External Services
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `REDIS_URL` | No | - | Redis connection string |
-| `SMTP_HOST` | No | - | Email server host |
-| `SMTP_PORT` | No | `587` | Email server port |
+**All variables are documented in `.env.example` with inline comments.**
 
 ---
 
-## Configuration Files
+## Getting Credentials
 
-| File | Purpose |
-|------|---------|
-| `.env` | Environment variables (not committed) |
-| `.env.example` | Template for .env (committed) |
+### Example: External API Service
 
----
+**Why needed:** [Brief explanation of why this service needs the API]
 
-## Environment-Specific Settings
+**How to get:**
+1. Go to https://service-provider.com
+2. Create account or login
+3. Navigate to Settings → API Keys
+4. Create new key with [required permissions]
+5. Copy key (shown once)
+6. Add to `.env`: `API_KEY=your_key_here`
 
-### Development
+**Cost/Limits:**
+- Free tier: [limits]
+- Paid tier: [pricing]
 
+### Database Access
+
+**Why needed:** [Explain what database features are enabled]
+
+**Options:**
+
+**Shared postgres-main (recommended):**
 ```bash
-DEBUG_MODE=true
-LOG_LEVEL=DEBUG
+DATABASE_URL=postgresql://myapp:password@postgres-main:5432/myapp
+```
+
+**Local PostgreSQL:**
+```bash
 DATABASE_URL=postgresql://localhost:5432/myapp_dev
 ```
 
-### Production
+---
+
+## Architecture Context
+
+### Why This Service Exists
+
+[1-2 paragraph explanation of this service's role in the broader system]
+
+### Configuration Philosophy
+
+- **Environment variables** → Runtime config (secrets, endpoints)
+- **Config files** → Static business logic
+- **Feature flags** → Gradual rollouts, A/B tests
+
+### Port Selection
+
+**Default:** 8000
+
+**Conflicts?** See `/opt/fabrik/PORTS.md` for registry. Update if needed.
+
+---
+
+## Environment-Specific Setups
+
+### Development (WSL)
 
 ```bash
-DEBUG_MODE=false
+# .env
+PORT=8000
+LOG_LEVEL=DEBUG
+LOG_FORMAT=text
+DEBUG_MODE=true
+DATABASE_URL=postgresql://localhost:5432/myapp_dev
+```
+
+**Why:** Local services, verbose logging, human-readable output, hot reload enabled.
+
+### Production (VPS via Coolify)
+
+```bash
+# .env
+PORT=${PORT}  # Coolify-managed
 LOG_LEVEL=INFO
-DATABASE_URL=postgresql://prod-host:5432/myapp
+LOG_FORMAT=json
+DEBUG_MODE=false
+DATABASE_URL=postgresql://myapp:${DB_PASSWORD}@postgres-main:5432/myapp
+```
+
+**Why:** Container networking, structured logs for aggregation, security hardening.
+
+---
+
+## Troubleshooting
+
+### "Config validation failed"
+
+**Cause:** Missing required environment variable.
+
+**Fix:**
+1. Check error message for missing var
+2. Verify `.env` has all vars from `.env.example`
+3. Check for typos in variable names
+
+### Service won't start
+
+**Common causes:**
+- **Port already in use** → Change `PORT` in `.env`
+- **Database unreachable** → Verify `DATABASE_URL` and network
+- **Invalid credentials** → Regenerate API keys
+
+**Debug:**
+```bash
+# Test database connection
+psql $DATABASE_URL
+
+# Check port availability
+lsof -i :8000
+
+# Validate env file
+cat .env | grep -v '^#' | grep -v '^$'
+```
+
+---
+
+## Security Best Practices
+
+### Credential Management
+
+**DO:**
+- Use strong, unique passwords (32+ chars)
+- Rotate API keys every 90 days
+- Store backups in `/opt/fabrik/.env`
+
+**DON'T:**
+- Commit `.env` to git
+- Share credentials in chat/email
+- Reuse passwords across services
+
+### Secret Generation
+
+```bash
+# Generate strong password
+python -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32)))"
 ```
 
 ---
 
 ## Configuration Checklist
 
-Before running the application:
+Before deploying:
 
-- [ ] `.env` file created from `.env.example`
-- [ ] `PORT` set (default: 8000)
-- [ ] `DATABASE_URL` set if using database features
-- [ ] Log directory exists and is writable (if using file logging)
+- [ ] `.env` created from `.env.example`
+- [ ] All required credentials obtained
+- [ ] Port registered in `/opt/fabrik/PORTS.md`
+- [ ] Database accessible (if used)
+- [ ] Health endpoint returns 200: `curl http://localhost:${PORT}/health`
+- [ ] Logs writing to expected location
+- [ ] Environment-specific settings verified (dev vs prod)

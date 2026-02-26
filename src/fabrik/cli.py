@@ -623,6 +623,22 @@ def scaffold(name: str, description: str):
         registry.scan()
         registry.save()
         click.echo("✅ Added to registry")
+
+        # Update Fabrik project catalog
+        import subprocess
+
+        fabrik_root = Path("/opt/fabrik")
+        sync_script = fabrik_root / "scripts" / "sync_projects.py"
+        if sync_script.exists():
+            click.echo("📊 Updating Fabrik project catalog...")
+            result = subprocess.run(
+                ["python", str(sync_script)], cwd=str(fabrik_root), capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                click.echo("✅ BUSINESS_MODEL.md updated")
+            else:
+                click.echo(f"⚠️  Catalog sync failed: {result.stderr}", err=True)
+
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
