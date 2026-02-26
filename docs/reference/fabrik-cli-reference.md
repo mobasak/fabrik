@@ -137,5 +137,5 @@ fabrik templates
 
 ## See Also
 - [QUICKSTART.md](../QUICKSTART.md) - Get started with Fabrik
-- [ENVIRONMENT_VARIABLES.md](../ENVIRONMENT_VARIABLES.md) - Configuration reference
+- .env.example - Configuration reference
 - [docs-updater.md](docs-updater.md) - Automatic documentation updater

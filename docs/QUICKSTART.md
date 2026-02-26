@@ -49,10 +49,12 @@ VPS_USER=deploy
 COOLIFY_API_URL=https://coolify.yourdomain.com
 COOLIFY_API_TOKEN=your-token
 
-# Namecheap DNS
-NAMECHEAP_API_USER=your-user
-NAMECHEAP_API_KEY=your-key
-NAMECHEAP_CLIENT_IP=your-whitelisted-ip
+# DNS Manager (Namecheap service)
+NAMECHEAP_API_URL=https://dns.vps1.ocoron.com
+
+# Or use Cloudflare (optional)
+# CLOUDFLARE_API_TOKEN=your-token
+# CLOUDFLARE_ZONE_ID=your-zone-id
 
 # Backblaze B2 (backups)
 B2_KEY_ID=your-key-id

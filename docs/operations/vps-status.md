@@ -407,5 +407,5 @@ All domains use Namecheap DNS and have WhoisGuard enabled.
 - **Stack Overview:** [stack.md](../reference/stack.md)
 - **Disaster Recovery:** [disaster-recovery.md](disaster-recovery.md)
 - **Duplicati Setup:** [duplicati-setup.md](duplicati-setup.md)
-- **Active Roadmap:** [ROADMAP_ACTIVE.md](../ROADMAP_ACTIVE.md)
+- **Active Roadmap:** [tasks.md](../../tasks.md)
 - **Fabrik Drivers:** [drivers.md](../reference/drivers.md)

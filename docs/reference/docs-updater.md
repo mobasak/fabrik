@@ -288,5 +288,5 @@ Remove the hook from `~/.factory/settings.json`:
 ## See Also
 
 - [Auto Review System](auto-review.md) - Code review workflow
-- [ENVIRONMENT_VARIABLES.md](../ENVIRONMENT_VARIABLES.md) - All env vars
+- .env.example (authoritative variable reference) - All env vars
 - [AGENTS.md](../../AGENTS.md) - Documentation conventions

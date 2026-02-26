@@ -184,18 +184,19 @@ docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
 ├── CONFIGURATION.md                # Configuration guide - credentials, architecture, troubleshooting
 ├── DEPLOYMENT.md                   # How to deploy services to VPS
-├── ENVIRONMENT_VARIABLES.md        # Complete env var reference
-├── FABRIK_OVERVIEW.md              # What Fabrik is and what it does
 ├── FAQ.md                          # Frequently asked questions
 ├── INDEX.md                        # Main documentation entry point
 ├── QUICKSTART.md                   # Get Fabrik running in 5 minutes
-├── ROADMAP_ACTIVE.md               # Current priorities, backlog, future plans
 ├── SERVICES.md                     # External services Fabrik depends on
 ├── TESTING.md                      # How to run and write tests
 ├── TROUBLESHOOTING.md              # Common issues & solutions
 ├── archive                         # Archived and completed documentation
 │   ├── 2025-01-03-droid-validation
 │   │   └── droid-validation-report.md
+│   ├── 2026-02-26-doc-consolidation
+│   │   ├── ENVIRONMENT_VARIABLES.md
+│   │   ├── FABRIK_OVERVIEW.md
+│   │   └── ROADMAP_ACTIVE.md
 │   ├── 2025-12-27_FUTURE_WORK.md
 │   ├── 2025-12-27_WHATS_NEXT.md
 │   ├── 2025-12-27_future-development.md

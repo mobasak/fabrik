@@ -110,7 +110,7 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 
 **Sync Triggers:**
 1. **Automatic:** `fabrik scaffold` completion (post-hook in `src/fabrik/cli.py`)
-2. **Manual:** `python scripts/sync_projects.py`
+2. **Manual:** `python /opt/fabrik/scripts/sync_projects.py`
 
 **What it does:**
 - Scans all `/opt/*` projects (excludes `_*` prefixes)

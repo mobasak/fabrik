@@ -143,5 +143,5 @@ done
 
 VPS1 uses ARM64 (aarch64). Verify image support:
 ```bash
-python scripts/container_images.py check-arch <image:tag>
+python /opt/fabrik/scripts/container_images.py check-arch <image:tag>
 ```

@@ -160,5 +160,5 @@ See `templates/traycer/README.md` for details.
 ## See Also
 
 - [droid-exec-usage.md](droid-exec-usage.md) - Core droid exec usage
-- [FABRIK_OVERVIEW.md](../FABRIK_OVERVIEW.md) - Full Fabrik overview
+- [FABRIK_OVERVIEW.md](../archive/2026-02-26-doc-consolidation/FABRIK_OVERVIEW.md) - Full Fabrik overview
 - [templates/spec-pipeline/README.md](../../templates/spec-pipeline/README.md) - Template details

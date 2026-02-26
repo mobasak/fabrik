@@ -10,11 +10,11 @@ trigger: always_on
 
 **PLAN → IMPLEMENT → FINAL_GATE → KILO → FINAL_GATE → TRAYCER_VERIFY → SYNC → COMMIT**
 
-1. Step 3 (Pre-Kilo): `python scripts/final_gate.py` → all PASS
+1. Step 3 (Pre-Kilo): `python /opt/fabrik/scripts/final_gate.py` → all PASS
 2. Step 4 (Kilo loop): fix until verdict=PASS (diff-scoped)
-3. Step 5 (Post-Kilo): `python scripts/final_gate.py` → all PASS
+3. Step 5 (Post-Kilo): `python /opt/fabrik/scripts/final_gate.py` → all PASS
 4. Step 6 (Traycer verification): must PASS
-5. Step 7 (Sync only): `python scripts/final_gate.py --sync`
+5. Step 7 (Sync only): `python /opt/fabrik/scripts/final_gate.py --sync`
 6. Step 8 (Commit): pre-commit runs ONLY 4 blockers:
    - check-added-large-files
    - check-merge-conflict
@@ -27,6 +27,29 @@ trigger: always_on
 - Do not rely on .gitignore as a security control (pre-commit blockers still apply).
 
 **If I skip these steps, the user should call me out.**
+---
+
+## Sensitive Data Protection (CRITICAL)
+
+**Before modifying ANY file containing credentials/secrets:**
+- `.env`, `.env.*` (except `.env.example`)
+- `*.key`, `*.pem`, `*.p12`, `*.pfx`
+- Files in `secrets/`, `credentials/`, `.ssh/`
+
+**MUST create timestamped backup first:**
+```bash
+cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
+```
+
+**Then verify backup exists before proceeding.**
+
+**Violations:**
+- Modifying `.env` without backup = STOP immediately
+- Running destructive scripts on production data without dry-run test = FORBIDDEN
+- Applying changes to credentials without showing full diff first = FORBIDDEN
+
+**Enforcement:** Pre-commit hook + manual AI review discipline.
+
 ---
 ## Before Creating New Scripts (MANDATORY)
 

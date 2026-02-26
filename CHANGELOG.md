@@ -6,6 +6,81 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Script Path Fixes + droid exec Deprecation Cleanup (2026-02-26)
+
+**What:** Fixed scaffolded projects to access Fabrik infrastructure by using absolute paths in symlinked rules. Removed deprecated droid exec references across README and AGENTS, replaced with Kilo CLI.
+
+**Why:** Scaffolded projects couldn't run `final_gate.py` or `kilo_code_review.py` because rules used relative paths that broke outside `/opt/fabrik`. droid exec is no longer used - Kilo CLI handles both coding and review.
+
+**Files:**
+- `.windsurf/rules/00-critical.md` - Changed `scripts/final_gate.py` → `/opt/fabrik/scripts/final_gate.py` (3×)
+- `.windsurf/rules/30-ops.md` - Changed `scripts/container_images.py` → `/opt/fabrik/scripts/container_images.py`
+- `.windsurf/rules/40-documentation.md` - Changed `scripts/sync_projects.py` → `/opt/fabrik/scripts/sync_projects.py`
+- `.windsurf/rules/50-code-review.md` - Absolute paths for `final_gate.py` (6×) and `kilo_code_review.py` (3×)
+- `AGENTS.md` - Absolute paths (13 fixes), removed droid exec sections (lines 620-782), updated tagline to "Kilo CLI or Windsurf Cascade"
+- `README.md` - Replaced "droid exec" with "Kilo CLI" (10 references), removed deprecated AI Skills section example, updated tech stack table
+
+**Result:** 9-step workflow now accessible from any `/opt/*` project via symlinked rules with absolute paths.
+
+### Added/Changed/Fixed - Comprehensive README & FAQ Rewrite v2 (2026-02-26)
+
+**What:** Completely rewrote README.md and FAQ.md from shallow deployment-tool descriptions to comprehensive AI-driven development platform documentation
+
+**Why:** Original README (425 lines) completely missed Fabrik's TRUE depth: Traycer integration, 9-step agile workflow, Kilo review, 13,565 lines of code, WordPress automation, enforcement system
+
+**Changes:**
+- `README.md` - Expanded from 131 lines to 450+ lines with:
+  - Clear value proposition (vs K8s, PaaS, Terraform)
+  - Architecture diagrams and component descriptions
+  - Complete feature list with code examples
+  - All available templates with use cases
+  - Production infrastructure details
+  - Quick start guide
+  - Use case scenarios (SaaS, microservices, WordPress, file processing)
+  - Tech stack table
+  - Development instructions
+- `docs/FAQ.md` - Expanded from 238 lines to 500+ lines with:
+  - Real answers to common questions (not placeholders)
+  - Installation & setup guide
+  - Development workflows
+  - Deployment procedures
+  - WordPress automation details
+  - Comprehensive troubleshooting
+  - Advanced features (Supabase, R2, background jobs)
+- `INDEX.md` - Removed ROADMAP_ACTIVE.md from structure (archived)
+
+**Enforcement:**
+- `scripts/enforcement/check_readme_md.py` - Enforces README.md has required sections (## Overview, ## Quick Start, ## Documentation)
+- `src/fabrik/scaffold.py` - Enforces INDEX.md creation via TEMPLATE_MAP (line 37)
+- Final Gate runs check_readme_md.py in Phase 3 repo consistency checks
+
+**Impact:** Developers can now understand Fabrik's purpose, architecture, and usage without reading source code
+
+---
+
+### Added/Changed/Fixed - Documentation Consolidation & Environment Variable Expansion (2026-02-26)
+
+**What:** Consolidated documentation, expanded .env.example, fixed scripts/consolidate_envs.py data loss bug, added sensitive data protection rules
+
+**Files:**
+- `.env.example` - Added 45+ missing variables (Supabase, R2, AI services, monitoring, external APIs, WordPress, Fabrik internal)
+- `docs/ENVIRONMENT_VARIABLES.md` - Archived (replaced by .env.example as authoritative source)
+- `docs/FABRIK_OVERVIEW.md` - Archived (key sections merged into README.md)
+- `docs/ROADMAP_ACTIVE.md` - Archived (60 days stale, duplicates tasks.md)
+- `README.md` - Merged "What We Built" sections (infrastructure, services, templates) from FABRIK_OVERVIEW.md
+- `INDEX.md` - Updated to reflect archived docs
+- `docs/FAQ.md` - Updated stale references (env var documentation now points to .env.example)
+- `docs/DEPLOYMENT.md` - Added DNS integration section (dns-manager supports Namecheap + Cloudflare)
+- `docs/QUICKSTART.md` - Updated env vars to use dns-manager service instead of direct Namecheap API
+- `.windsurf/rules/00-critical.md` - Added sensitive data protection rule (mandatory timestamped backups)
+- `AGENTS.md` - Added sensitive data protection section
+- `scripts/consolidate_envs.py` - Fixed data loss bug, now preserves all 137+ vars correctly
+- `docs/archive/2026-02-26-doc-consolidation/` - Created archive folder for consolidated docs
+
+**Impact:** Simplified documentation structure, eliminated duplication between CONFIGURATION.md and ENVIRONMENT_VARIABLES.md, expanded .env.example to be comprehensive reference
+
+---
+
 ### Changed - Configuration Documentation Pattern (2026-02-26)
 
 **What:** Transformed CONFIGURATION.md from variable tables to guide-only format, established .env.example as authoritative variable reference

@@ -14,11 +14,11 @@ trigger: always_on
 |------|--------|------|
 | **1** | **Traycer Plan** | Plan exists with spec, edge cases, env vars, DB changes |
 | **2** | **Coder Implements** | Code only what phase requires, follow spec strictly |
-| **3** | **Final Gate (Pre-Kilo)** | `python scripts/final_gate.py` → all PASS |
+| **3** | **Final Gate (Pre-Kilo)** | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
 | **4** | **Kilo Review Loop** | Fix ALL issues until verdict=PASS (diff-scoped) |
-| **5** | **Final Gate (Post-Kilo)** | `python scripts/final_gate.py` → all PASS |
+| **5** | **Final Gate (Post-Kilo)** | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
 | **6** | **Traycer Verification** | Traycer verifier passes |
-| **7** | **Sync Only** | `python scripts/final_gate.py --sync` → sync extensions/backup |
+| **7** | **Sync Only** | `python /opt/fabrik/scripts/final_gate.py --sync` → sync extensions/backup |
 | **8** | **Traycer Commit** | Pre-commit runs 4 blockers only |
 | **9** | **Next Phase** | Move to next Traycer phase |
 
@@ -38,7 +38,7 @@ Semgrep policy:
 - Otherwise semgrep failures are enforced
 
 ### Sync Only (Step 7)
-`python scripts/final_gate.py --sync` runs ONLY sync side-effects (extensions + backup). No quality checks.
+`python /opt/fabrik/scripts/final_gate.py --sync` runs ONLY sync side-effects (extensions + backup). No quality checks.
 
 ### Pre-commit (Step 8)
 Pre-commit enforces ONLY 4 absolute blockers:
@@ -63,13 +63,13 @@ Use Traycer's built-in verifier as the review surface.
 
 ```bash
 # Initial review: pass the task/plan for SPEC verification
-python scripts/kilo_code_review.py review <changed_files> \
+python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
   --plan .droid/review-context/task.md \
   --review-agent ask \
   --output json
 
 # Subsequent reviews: use --session continue (Kilo maintains context)
-python scripts/kilo_code_review.py review <changed_files> \
+python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
   --session continue \
   --output json
 ```
@@ -89,13 +89,13 @@ python scripts/kilo_code_review.py review <changed_files> \
 
 ```bash
 # Step 3 - Before Kilo review (catches deterministic failures, saves tokens)
-python scripts/final_gate.py
+python /opt/fabrik/scripts/final_gate.py
 
 # Step 5 - After Kilo review (ensures Kilo fixes didn't break rules)
-python scripts/final_gate.py
+python /opt/fabrik/scripts/final_gate.py
 
 # Step 7 - Sync only (no duplicate checks)
-python scripts/final_gate.py --sync
+python /opt/fabrik/scripts/final_gate.py --sync
 ```
 
 This runs quality and consistency checks at Steps 3/5, then sync-only at Step 7.
@@ -143,7 +143,7 @@ Every plan MUST include review checkpoints:
 
 **REVIEW:**
 - Traycer-managed: Run Traycer verification for this step
-- Fallback: Run `python scripts/kilo_code_review.py review <files> --output json`
+- Fallback: Run `python /opt/fabrik/scripts/kilo_code_review.py review <files> --output json`
 - Fix all issues myself (I fix, not Kilo)
 - Re-review until verdict=PASS
 

@@ -13,11 +13,35 @@ Usage:
     python scripts/consolidate_envs.py --apply  # Apply changes to /opt/fabrik/.env
 """
 
-import os
 import re
 import sys
 from collections import OrderedDict
+from datetime import datetime
 from pathlib import Path
+
+# Sensitive variable patterns (for masking in dry-run output)
+SENSITIVE_PATTERNS = [
+    r".*PASSWORD.*",
+    r".*SECRET.*",
+    r".*TOKEN.*",
+    r".*KEY.*",
+    r".*PASSPHRASE.*",
+    r".*CREDENTIAL.*",
+    r".*AUTH.*",
+    r".*API_KEY.*",
+]
+
+
+def is_sensitive_var(var_name: str) -> bool:
+    """Check if variable name matches sensitive patterns."""
+    return any(re.match(pattern, var_name, re.IGNORECASE) for pattern in SENSITIVE_PATTERNS)
+
+
+def mask_value(value: str) -> str:
+    """Mask sensitive value for display."""
+    if len(value) <= 4:
+        return "****"
+    return value[:2] + "*" * (len(value) - 4) + value[-2:]
 
 
 def get_project_dirs() -> list[Path]:
@@ -56,11 +80,11 @@ def parse_env_file(env_path: Path) -> dict[str, tuple[str, list[str]]]:
             current_comments.append(line)
             continue
 
-        # Parse variable line
-        match = re.match(r"^([A-Z_][A-Z0-9_]*)=(.*)$", stripped)
+        # Parse variable line (CRITICAL: accept uppercase, lowercase, mixed-case)
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", stripped)
         if match:
             var_name = match.group(1)
-            value = match.group(2)
+            value = match.group(2).strip('"').strip("'")
             result[var_name] = (value, current_comments.copy())
             current_comments = []
         else:
@@ -87,12 +111,15 @@ def consolidate_envs(dry_run: bool = True) -> tuple[str, dict[str, int]]:
     sections = OrderedDict()
     sections["FABRIK_CORE"] = OrderedDict()
 
-    # Keep all vars from .env.example (core Fabrik vars)
+    # CRITICAL FIX: First, add ALL vars from existing .env (preserves all 137+ vars)
+    # This is the primary source of truth - never lose existing vars
+    for var_name, var_data in fabrik_vars.items():
+        sections["FABRIK_CORE"][var_name] = var_data
+
+    # Then, add any vars from .env.example that aren't already present
+    # (provides defaults for vars that exist in example but not in .env)
     for var_name in fabrik_example_vars:
-        if var_name in fabrik_vars:
-            sections["FABRIK_CORE"][var_name] = fabrik_vars[var_name]
-        else:
-            # Use example value if not in actual .env
+        if var_name not in sections["FABRIK_CORE"]:
             sections["FABRIK_CORE"][var_name] = fabrik_example_vars[var_name]
 
     # Scan all projects
@@ -179,9 +206,20 @@ def main():
     if dry_run:
         print("🔎 DRY RUN - No changes made")
         print()
-        print("Preview of consolidated .env:")
+        print("Preview of consolidated .env (secrets masked):")
         print("=" * 80)
-        print(new_content[:1000] + "\n... (truncated)" if len(new_content) > 1000 else new_content)
+        # Mask sensitive values in preview
+        preview_lines = []
+        for line in new_content.splitlines()[:50]:  # Show first 50 lines
+            if "=" in line and not line.strip().startswith("#"):
+                var_name = line.split("=", 1)[0]
+                if is_sensitive_var(var_name):
+                    value = line.split("=", 1)[1] if "=" in line else ""
+                    line = f"{var_name}={mask_value(value)}"
+            preview_lines.append(line)
+        print("\n".join(preview_lines))
+        if len(new_content.splitlines()) > 50:
+            print(f"\n... ({len(new_content.splitlines()) - 50} more lines)")
         print("=" * 80)
         print()
         print("To apply changes, run: python scripts/consolidate_envs.py --apply")
@@ -190,9 +228,10 @@ def main():
     # Write consolidated .env
     fabrik_env = Path("/opt/fabrik/.env")
 
-    # Backup existing .env
+    # Backup existing .env with timestamped name
     if fabrik_env.exists():
-        backup_path = fabrik_env.with_suffix(f".env.backup.{os.getpid()}")
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_path = fabrik_env.parent / f".env.backup.{timestamp}"
         backup_path.write_text(fabrik_env.read_text())
         print(f"✅ Backed up existing .env to: {backup_path}")
 

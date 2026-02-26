@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-24
 
-> Traycer is the planning authority. droid exec is the implementation executor.
+> Traycer is the planning authority. Kilo CLI or Windsurf Cascade is the coding executor.
 
 <!-- AUTO-GENERATED:TOC:START -->
 <!-- This section is auto-generated. Do not edit manually. Run: python scripts/update_agents_toc.py -->
@@ -14,7 +14,8 @@
 - [Traycer Mode (When Task is Traycer-Managed)](#traycer-mode-when-task-is-traycer-managed)
 - [Documentation Rules](#documentation-rules)
 - [⚠️ MANDATORY WORKFLOW (ALL AI AGENTS)](#⚠️-mandatory-workflow-all-ai-agents)
-- [Final Gate (MANDATORY - Runs 3 Times Per Phase)](#final-gate-mandatory-runs-3-times-per-phase)
+- [Sensitive Data Protection (CRITICAL)](#sensitive-data-protection-critical)
+- [Security Gates (MANDATORY - Runs 3 Times Per Phase)](#security-gates-mandatory-runs-3-times-per-phase)
 - [Windsurf Cascade Users](#windsurf-cascade-users)
 - [Build & Test](#build-test)
 - [Run Locally](#run-locally)
@@ -68,11 +69,11 @@
 |------|--------|----------------|
 | **1** | **Traycer Plan** | Plan exists with spec, edge cases, env vars, DB changes |
 | **2** | **Coder Implements** | Code only what phase requires, follow spec strictly |
-| **3** | **Final Gate (Pre-Kilo)** | `python scripts/final_gate.py` → all PASS |
+| **3** | **Final Gate (Pre-Kilo)** | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
 | **4** | **Kilo Review Loop** | Fix ALL issues until verdict=PASS (diff-scoped) |
-| **5** | **Final Gate (Post-Kilo)** | `python scripts/final_gate.py` → all PASS |
+| **5** | **Final Gate (Post-Kilo)** | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
 | **6** | **Traycer Verification** | Traycer verifier passes |
-| **7** | **Sync Only** | `python scripts/final_gate.py --sync` → sync extensions/backup |
+| **7** | **Sync Only** | `python /opt/fabrik/scripts/final_gate.py --sync` → sync extensions/backup |
 | **8** | **Traycer Commit** | Pre-commit runs 4 blockers only |
 | **9** | **Next Phase** | Move to next Traycer phase |
 
@@ -163,7 +164,6 @@ Next: Proceed to Step <N+1> / STOP
 | **Complex / Multi-step project** | **Phases** | Manages multiple phases across a project lifecycle to prevent context loss. Each phase is a discrete unit of work. |
 | **Feature with specs + tickets** | **Epic** | Driven by Workflows (default: Traycer Agile Workflow). Organizes work into mini-spec artifacts (Specs) and actionable Tickets. Ideal for features requiring requirements gathering, technical planning, and ticket breakdown. |
 | **Code Audit / Verification** | **Review** | Structured workflow for code review tasks. |
-| **Trivial change (< 5 files)** | *Skip Traycer* | Use `droid exec` directly for small changes. |
 
 **Workflow-Driven Modes (Epic):**
 - **Traycer Agile Workflow** (default): 8-command, 3-gated-phase workflow for feature development (`/trigger_workflow` → `/epic-brief` → `/core-flows` → `/prd-validation` → `/tech-plan` → `/architecture-validation` → `/ticket-breakdown` → `/implementation-validation`)
@@ -225,7 +225,7 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 
 **AUTO-GENERATED blocks (DO NOT EDIT MANUALLY):**
 - `BUSINESS_MODEL.md` → `<!-- AUTO-GENERATED:PROJECTS:* -->` (project catalog)
-- Run `python scripts/sync_projects.py` to update
+- Run `python /opt/fabrik/scripts/sync_projects.py` to update
 - Automatically syncs on `fabrik scaffold` completion
 
 **Existing docs structure:**
@@ -249,7 +249,7 @@ python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 
 # 2. Trigger code review (if significant changes)
 # Traycer-managed: Run Traycer verification (primary)
-# Otherwise: python scripts/kilo_code_review.py review <files> --output json
+# Otherwise: python /opt/fabrik/scripts/kilo_code_review.py review <files> --output json
 
 # 3. Update documentation
 # If you changed code in src/, scripts/, update relevant docs/
@@ -259,13 +259,13 @@ python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 
 ```bash
 # Initial review: pass the task/plan for SPEC verification
-python scripts/kilo_code_review.py review <changed_files> \
+python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
   --plan .droid/review-context/task.md \
   --review-agent ask \
   --output json
 
 # Subsequent reviews: use --session continue (Kilo maintains context)
-python scripts/kilo_code_review.py review <changed_files> \
+python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
   --session continue \
   --output json
 ```
@@ -295,23 +295,42 @@ Code → Final Gate → Kilo loop → Final Gate → Traycer verification → Sy
 Code → Final Gate → Kilo loop until PASS → Final Gate → Sync (--sync) → Commit
 ```
 
-**Violation:** Committing without Step 7 (`python scripts/final_gate.py --sync`) PASS.
+**Violation:** Committing without Step 7 (`python /opt/fabrik/scripts/final_gate.py --sync`) PASS.
 
 ---
 
-## Final Gate (MANDATORY - Runs 3 Times Per Phase)
+## Sensitive Data Protection (CRITICAL)
+
+**Before modifying files with credentials/secrets:**
+- `.env`, `.env.*` (not `.env.example`)
+- `*.key`, `*.pem`, `*.p12`, `*.pfx`
+- `secrets/`, `credentials/`, `.ssh/`
+
+**REQUIRED: Create timestamped backup first**
+```bash
+cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
+```
+
+**FORBIDDEN actions:**
+- Modify `.env` without backup
+- Run destructive scripts on production data without dry-run test on dummy data first
+- Apply changes to credentials without showing full diff for approval
+
+---
+
+## Security Gates (MANDATORY - Runs 3 Times Per Phase)
 
 **Final Gate runs twice, then sync-only once:**
 
 ```bash
 # Step 3 - Before Kilo review (catches deterministic failures, saves tokens)
-python scripts/final_gate.py
+python /opt/fabrik/scripts/final_gate.py
 
 # Step 5 - After Kilo review (ensures Kilo fixes didn't break rules)
-python scripts/final_gate.py
+python /opt/fabrik/scripts/final_gate.py
 
 # Step 7 - Sync only (no duplicate checks)
-python scripts/final_gate.py --sync
+python /opt/fabrik/scripts/final_gate.py --sync
 ```
 
 **What Final Gate checks:**
@@ -349,7 +368,7 @@ python scripts/final_gate.py --sync
 
 **Workflow:**
 1. Kilo review PASS (or Traycer verification PASS)
-2. Run `python scripts/final_gate.py` — fix until clean
+2. Run `python /opt/fabrik/scripts/final_gate.py` — fix until clean
 3. Press Traycer Commit (or `git commit`)
 4. Pre-commit runs only 4 blockers
 5. Commit succeeds
@@ -847,8 +866,6 @@ Fabrik projects target **Level 3+ (Standardized)** readiness.
 - [ ] Metrics/observability
 
 **Critical:** Keep verification fast. Tests >30s kill iteration speed.
-
-**Evaluate readiness:** Run `/readiness-report` in droid TUI (not `droid exec`) to evaluate a repo. Requires `enableReadinessReport: true` in settings.
 
 ---
 

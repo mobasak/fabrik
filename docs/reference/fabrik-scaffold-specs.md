@@ -808,5 +808,5 @@ class Config:
 
 - [Project Workflow Guide](../guides/PROJECT_WORKFLOW.md)
 - [Fabrik CLI Reference](fabrik-cli-reference.md)
-- [Environment Variables](../ENVIRONMENT_VARIABLES.md)
+- [.env.example](../../.env.example)
 - [Python Production Standards](../../templates/scaffold/PYTHON_PRODUCTION_STANDARDS.md)
