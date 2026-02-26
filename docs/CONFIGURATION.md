@@ -297,3 +297,149 @@ Before deploying:
 - [ ] Backups configured: `DUPLICATI_PASSPHRASE` set
 - [ ] Verification passed: `python -m fabrik.config --verify`
 - [ ] Master backup exists: `/opt/fabrik/.env` synced
+
+---
+
+## Environment Variable Best Practices
+
+### 1. Never Hardcode Values
+
+```python
+# ❌ WRONG - breaks in Docker/VPS
+DB_HOST = "localhost"
+API_KEY = "sk-abc123"
+
+# ✅ CORRECT - works everywhere
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+API_KEY = os.getenv('API_KEY')
+if not API_KEY:
+    raise ValueError("API_KEY environment variable is required")
+```
+
+### 2. Load Configuration at Runtime
+
+```python
+# ❌ WRONG - env vars not set at import time
+class Config:
+    DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}/db"
+    # This evaluates immediately when class is defined!
+
+# ✅ CORRECT - load in function/property
+def get_db_url() -> str:
+    user = os.getenv('DB_USER')
+    password = os.getenv('DB_PASSWORD')
+    host = os.getenv('DB_HOST', 'localhost')
+    return f"postgresql://{user}:{password}@{host}/db"
+
+# OR use Pydantic Settings
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    db_user: str
+    db_password: str
+    db_host: str = "localhost"
+
+settings = Settings()  # Loads from env at instantiation
+```
+
+### 3. Store Credentials in Two Places
+
+**Always maintain backups:**
+
+1. **Project `.env`** - For local development use
+2. **`/opt/fabrik/.env`** - Master backup (survives project deletion)
+
+```bash
+# After creating project .env, backup to master
+cp /opt/my-project/.env /opt/fabrik/.env.my-project.backup
+```
+
+### 4. Document in .env.example
+
+```bash
+# .env.example (COMMIT THIS to git)
+# Never commit actual .env file!
+
+# Database Configuration
+DB_HOST=localhost                    # Database host (localhost for dev, postgres-main for Docker)
+DB_PORT=5432                         # PostgreSQL port
+DB_NAME=myapp_dev                    # Database name
+DB_USER=postgres                     # Database username
+DB_PASSWORD=                         # SET IN .env - never commit actual password
+
+# API Keys (GET FROM: https://platform.openai.com/api-keys)
+OPENAI_API_KEY=                      # Required for AI features
+```
+
+### 5. Environment-Specific Defaults
+
+**WSL (Development):**
+```python
+DB_HOST = os.getenv('DB_HOST', 'localhost')  # Local PostgreSQL
+DB_PORT = int(os.getenv('DB_PORT', '5432'))
+```
+
+**VPS Docker (Production):**
+```yaml
+# compose.yaml
+environment:
+  - DB_HOST=postgres-main  # Container name, not localhost
+  - DB_PORT=5432
+```
+
+**Supabase:**
+```python
+# Use full connection string
+DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this
+```
+
+### 6. Validation Patterns
+
+```python
+import os
+from typing import Optional
+
+def get_required_env(key: str) -> str:
+    """Get required environment variable or raise error."""
+    value = os.getenv(key)
+    if not value:
+        raise ValueError(f"Required environment variable {key} is not set")
+    return value
+
+def get_optional_env(key: str, default: str) -> str:
+    """Get optional environment variable with default."""
+    return os.getenv(key, default)
+
+# Usage
+API_KEY = get_required_env('API_KEY')  # Must be set
+LOG_LEVEL = get_optional_env('LOG_LEVEL', 'INFO')  # Defaults to INFO
+```
+
+### 7. Type Conversion
+
+```python
+import os
+from typing import List
+
+# Boolean
+DEBUG = os.getenv('DEBUG', 'false').lower() in ('true', '1', 'yes')
+
+# Integer
+PORT = int(os.getenv('PORT', '8000'))
+MAX_WORKERS = int(os.getenv('MAX_WORKERS', '4'))
+
+# Float
+TIMEOUT = float(os.getenv('TIMEOUT', '30.0'))
+
+# List (comma-separated)
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost').split(',')
+# ALLOWED_HOSTS=localhost,example.com → ['localhost', 'example.com']
+```
+
+---
+
+## See Also
+
+- [.env.example](../.env.example) - Complete list of all environment variables
+- [SERVICES.md](SERVICES.md) - External services catalog
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common configuration issues

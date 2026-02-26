@@ -6,6 +6,27 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Environment Variable Best Practices Documentation (2026-02-26)
+
+**What:** Extracted comprehensive environment variable best practices from archived `ENVIRONMENT_VARIABLES.md` and added to active `docs/CONFIGURATION.md`.
+
+**Content Added:**
+1. Never hardcode values (with examples)
+2. Load configuration at runtime (Pydantic Settings pattern)
+3. Store credentials in two places (project + master backup)
+4. Document in .env.example (comprehensive comments)
+5. Environment-specific defaults (WSL vs Docker vs Supabase)
+6. Validation patterns (required vs optional)
+7. Type conversion (boolean, int, float, list)
+
+**Files:**
+- `docs/CONFIGURATION.md` - Added 120+ lines of best practices with code examples
+- `docs/reference/fabrik-scaffold-specs.md` - Updated to 2026-02-26, removed droid exec references, removed Phase1.md/tasks.md (Traycer replaced)
+
+**Source:** `docs/archive/2026-02-26-doc-consolidation/ENVIRONMENT_VARIABLES.md` (lines 278-312 best practices section)
+
+**Result:** Active documentation now includes comprehensive environment variable patterns without duplicating .env.example content.
+
 ### Fixed - Deep Documentation Review + Complete droid exec Removal (2026-02-26)
 
 **What:** Comprehensive deep review and cleanup of all `.windsurf/rules/*.md`, `AGENTS.md`, and `README.md` to reflect current Fabrik reality. Zero deprecated tool references remain.
