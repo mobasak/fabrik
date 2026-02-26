@@ -18,7 +18,7 @@ All Flags:
 
 Checks (in normal mode: default / --check):
 1. AUTO-FIX: trailing whitespace, EOF, ruff-format, ruff --fix
-2. STATIC: ruff, mypy, bandit, semgrep, yaml, json, sqlfluff, vulture
+2. STATIC: ruff, mypy, bandit, semgrep (REQUIRED), yaml, json, sqlfluff, vulture (REQUIRED)
 3. CONSISTENCY: structure, conventions, rule size, models, changelog, kilo health
 
 Sync steps (--sync mode only):
@@ -282,7 +282,7 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
     )
     results.append(("bandit", code == 0, out if code != 0 else ""))
 
-    # Semgrep (best-effort: skip if not installed or not authenticated)
+    # Semgrep (REQUIRED - fail if not installed or not authenticated)
     semgrep_env = semgrep_env_with_token()
     try:
         result = subprocess.run(
@@ -300,9 +300,9 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
         code, out = 1, "Command timed out"
 
     if "Command not found: semgrep" in out:
-        results.append(("semgrep", True, "(semgrep not installed, skipping)"))
+        results.append(("semgrep", False, "ERROR: semgrep not installed. Install: pip install semgrep"))
     elif "HTTP 401" in out or "semgrep login" in out.lower():
-        results.append(("semgrep", True, "(semgrep not authenticated, run 'semgrep login')"))
+        results.append(("semgrep", False, "ERROR: semgrep not authenticated. Run: semgrep login"))
     else:
         results.append(("semgrep", code == 0, out if code != 0 else ""))
 
@@ -373,7 +373,7 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
     else:
         results.append(("sqlfluff-lint", True, "(no .sql files)"))
 
-    # Vulture (skip if not installed)
+    # Vulture (REQUIRED - fail if not installed)
     code, out = run_cmd(
         [
             PYTHON,
@@ -387,7 +387,7 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
         ]
     )
     if "No module named vulture" in out:
-        results.append(("vulture", True, "(vulture not installed, skipping)"))
+        results.append(("vulture", False, "ERROR: vulture not installed. Install: pip install vulture"))
     else:
         results.append(("vulture", code == 0, out if code != 0 else ""))
 
@@ -413,6 +413,22 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
     # Sync Droid Model Names
     code, out = run_cmd([PYTHON, "scripts/droid_models.py", "sync"])
     results.append(("Sync Droid Model Names", code == 0, out if code != 0 else ""))
+
+    # INDEX.md (Master File Index)
+    code, out = run_cmd([PYTHON, "scripts/enforcement/check_index_md.py"])
+    results.append(("INDEX.md (Master File Index)", code == 0, out if code != 0 else ""))
+
+    # README.md (Primary Entry Point)
+    code, out = run_cmd([PYTHON, "scripts/enforcement/check_readme_md.py"])
+    results.append(("README.md (Primary Entry Point)", code == 0, out if code != 0 else ""))
+
+    # CONFIGURATION.md (Env Vars Reference)
+    code, out = run_cmd([PYTHON, "scripts/enforcement/check_configuration_md.py"])
+    results.append(("CONFIGURATION.md (Env Vars)", code == 0, out if code != 0 else ""))
+
+    # .env Updates (Secrets Population)
+    code, out = run_cmd([PYTHON, "scripts/enforcement/check_env_updates.py"])
+    results.append((".env Updates (Secrets)", code == 0, out if code != 0 else ""))
 
     # CHANGELOG.md Updated
     code, out = run_cmd([PYTHON, "scripts/enforcement/check_changelog.py"])

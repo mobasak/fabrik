@@ -6,6 +6,115 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Semgrep & Vulture Now REQUIRED (2026-02-26)
+
+**What:** Made `semgrep` and `vulture` strict ERROR checks (previously best-effort/optional)
+
+**Why:** Security and code quality must be enforced - no skipping allowed
+
+**Impact:**
+- `semgrep` missing or not authenticated → ERROR (was: PASS with skip message)
+- `vulture` missing → ERROR (was: PASS with skip message)
+- Both tools must be installed and working in all environments
+
+**Files:**
+- `scripts/final_gate.py` - Changed semgrep and vulture to fail if missing/not authenticated
+- `INDEX.md` - Updated enforcement gates documentation with REQUIRED markers
+
+**Installation:**
+```bash
+pip install semgrep vulture
+semgrep login  # Authenticate semgrep
+```
+
+---
+
+### Changed - INDEX.md Consolidation (2026-02-26)
+
+**What:** Merged `docs/INDEX.md` into root `INDEX.md` - single source of truth combining file purposes + complete docs navigation
+
+**What was merged:**
+- Repository Structure (complete /opt/fabrik tree)
+- Documentation Structure Map (AUTO-GENERATED docs/ tree with 200+ files)
+- All documentation navigation tables (Quick Start, Core Reference, Guides, Operations, WordPress, Droid Automation, Kilo, Traycer, Project Context)
+- Droid exec quick reference and model management commands
+- Phase documentation status
+
+**Files:**
+- `INDEX.md` (root) - now 563 lines with file purposes + repository structure + docs structure map + complete navigation
+- `docs/INDEX.md` - **ARCHIVED** to `docs/archive/2026-02-26-INDEX.md.archived` (all content merged into root)
+- `templates/scaffold/docs/PROJECT_INDEX_TEMPLATE.md` - updated with docs navigation
+- `scripts/enforcement/check_structure.py` - removed INDEX.md from docs/ allowlist (now only allowed at root)
+- `AGENTS.md` - updated rule #1 to reference root INDEX.md
+
+---
+
+### Added - INDEX.md Master File Index + Enforcement (2026-02-25)
+
+**What:** Created INDEX.md as master file index documenting purpose, update triggers, and enforcement level for every project file. Added 4 new enforcement checks to Step 3 gate.
+
+**Files:**
+- `templates/scaffold/docs/PROJECT_INDEX_TEMPLATE.md` - Template for INDEX.md in all projects
+- `src/fabrik/scaffold.py` - Added INDEX.md to TEMPLATE_MAP and REQUIRED_FILES
+- `scripts/enforcement/check_index_md.py` - Enforces INDEX.md exists with required sections (ERROR)
+- `scripts/enforcement/check_readme_md.py` - Enforces README.md has required sections (ERROR)
+- `scripts/enforcement/check_configuration_md.py` - Enforces CONFIGURATION.md documents all env vars (ERROR)
+- `scripts/enforcement/check_env_updates.py` - Reminds AI to populate .env when secrets provided (WARN)
+- `scripts/final_gate.py` - Integrated 4 new checks into Step 3 consistency checks
+
+**Why:**
+- **Problem:** Coder AI might misunderstand file purposes (like Cascade did) leading to incorrect updates
+- **Solution:** INDEX.md is single source of truth - AI reads this FIRST before making changes
+- **Enforcement:** Step 3 and Step 5 gates catch missing updates automatically
+- **Coverage:** Documents root files, docs/ files, project structure, enforcement gates, update protocol
+
+**Enforcement Strategy:**
+```
+Step 3: Pre-Kilo Gate
+├─ INDEX.md (ERROR) - must exist and document all files
+├─ README.md (ERROR) - must have required sections (Overview, Quick Start, Docs)
+├─ docs/CONFIGURATION.md (ERROR) - must document all env vars from .env.example
+├─ .env updates (WARN) - reminds AI to populate .env when user provides secrets
+├─ CHANGELOG.md (ERROR) - already enforced
+├─ requirements.txt (ERROR) - already enforced via check_deps_sync.py
+└─ .env.example (ERROR) - already enforced via check_env_contract.py
+```
+
+**Result:** Coder AI can't skip documentation updates - gates block commit until fixed.
+
+### Removed - tasks.md from Scaffold (2026-02-25)
+
+**What:** Removed `tasks.md` from scaffold templates and enforcement. Traycer Phases replace manual task tracking.
+
+**Files:**
+- `src/fabrik/scaffold.py` - Removed TASKS_TEMPLATE.md from TEMPLATE_MAP and REQUIRED_FILES
+- `scripts/enforcement/check_tasks_updated.py` - Deleted (WARN-only enforcement, no longer needed)
+- `/opt/test-kilo-analysis/tasks.md` - Deleted from test project
+
+**Why:**
+- Template was archived to `docs/archive/2026-02-25-pre-traycer-templates/TASKS_TEMPLATE.md`
+- Traycer UI provides superior task tracking with Phases, progress bars, and history
+- Only WARN level enforcement (not blocking), so safe to remove
+- Reduces manual maintenance overhead in Traycer-managed workflow
+
+### Fixed - INDEX.md Repository Structure (2026-02-25)
+
+**What:** Removed non-existent `.factory/reports` entry from the repository structure tree and summary table in `docs/INDEX.md`. Updated `.factory/hooks` description with missing scripts.
+
+**Files:**
+- `docs/INDEX.md`
+
+**Why:** Fix Traycer verification issue regarding non-existent directory documentation.
+
+### Added - Repository Structure Section to INDEX.md (2026-02-25)
+
+**What:** Added a "Repository Structure" section to `docs/INDEX.md` providing a comprehensive overview of the monorepo layout, including top-level directories and a quick-navigation purpose table.
+
+**Files:**
+- `docs/INDEX.md` - Added tree-style structure and directory purpose table.
+
+**Why:** Documentation previously only covered the `docs/` subtree. Users and AI agents need a single entry point to understand the purpose of all top-level directories (`apps/`, `src/`, `templates/`, etc.) and find relevant reference material.
+
 ### Fixed - Kilo CLI Agent Scripts Critical Error (2026-02-25)
 
 **What:** Completely rewrote all 5 Kilo Code CLI agent scripts after studying Traycer's built-in templates and Kilo documentation. Fixed fundamental misunderstanding of how CLI agents work.
@@ -91,8 +200,6 @@ config file references, health check behavior, and template placeholders.
 - `templates/scaffold/docker/Dockerfile.python` — Added health check dependency timing note
 - `templates/scaffold/python/pyproject.toml.template` — ruff target-version and mypy
   python_version both set to 3.12
-- `templates/scaffold/docs/TASKS_TEMPLATE.md` — Replaced placeholders with concrete starter values
-- `templates/scaffold/docs/PHASE_TEMPLATE.md` — Replaced placeholders with Foundation phase content
 - `templates/scaffold/docs/BUSINESS_MODEL_TEMPLATE.md` — Marked as optional with revisit date
 
 ### Fixed - Kilo CLI Agent Scripts (2026-02-25)

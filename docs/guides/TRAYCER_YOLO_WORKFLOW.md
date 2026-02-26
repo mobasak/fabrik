@@ -100,29 +100,29 @@ Kilo Code agent passes: --session "$TRAYCER_TASK_ID"  ← SAME ID
 3. Traycer invokes "Kilo Code Gemini-3-Flash-Preview High.sh"
    └─ exports TRAYCER_TASK_ID, TRAYCER_PROMPT
 4. Agent executes Steps 2-7:
-   
+
    Step 2: Implement code
    - Read wrapped plan
    - Follow Fabrik conventions (env vars, multi-environment, CHANGELOG)
    - Apply Cascade behavior (check before create, minimal changes)
-   
+
    Step 3: Pre-Kilo Gate
    - Run: python scripts/final_gate.py
    - Fix: formatting, lint, types, semgrep, etc.
    - Re-run until all checks PASS
-   
+
    Step 4: Kilo Review (Self-Review)
    - Run: python scripts/kilo_code_review.py review <files> --plan .droid/review-context/task.md --review-agent ask --output json
    - Read JSON verdict and issues
    - Fix ALL issues (BLOCKER, MAJOR, MINOR)
    - Re-review with --session continue until verdict=PASS
    - Max 5 iterations
-   
+
    Step 5: Post-Kilo Gate
    - Run: python scripts/final_gate.py
    - Ensure fixes didn't break deterministic rules
    - Re-run until PASS
-   
+
    Step 7: Sync
    - Run: python scripts/final_gate.py --sync
    - Sync Windsurf Extensions + Cascade Backup
@@ -141,20 +141,20 @@ Kilo Code agent passes: --session "$TRAYCER_TASK_ID"  ← SAME ID
    - Generates verification comments with severity (Critical/Major/Minor)
 
 2. IF issues found with selected severity levels:
-   
+
    a. Traycer wraps comments with "Kilo Verification – YOLO Optimized" template
-   
+
    b. Traycer invokes "Kilo Code Gemini-3-Flash-Preview High.sh" (SAME agent)
       └─ exports TRAYCER_TASK_ID (SAME ID), TRAYCER_PROMPT (verification comments)
-   
+
    c. Agent fixes issues:
       - Reads verification comments
       - Applies fix strategy (minimal changes, check before create)
       - Fixes all reported issues
       - Updates CHANGELOG if code changed
-   
+
    d. Agent script exits with code 0
-   
+
    e. Traycer re-verifies
       - If still has issues → repeat (max 3 attempts)
       - If clean → proceed to commit

@@ -202,8 +202,8 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 
 ## Documentation Rules
 
-1) **VERIFY before creating:** Check `docs/INDEX.md` and existing folders before creating new files.
-2) Do NOT create markdown files in repo root (except README.md, CHANGELOG.md, AGENTS.md, tasks.md).
+1) **VERIFY before creating:** Check `INDEX.md` (root) and existing folders before creating new files.
+2) Do NOT create markdown files in repo root (except INDEX.md, README.md, CHANGELOG.md, AGENTS.md).
 3) Feature/Execution plans: See **Planning** section above.
 4) Every new plan MUST be added to `docs/development/PLANS.md`.
 5) Do NOT create new folders under `docs/` except via existing structure.
@@ -213,6 +213,10 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 7) NEVER edit inside `<!-- AUTO-GENERATED:* -->` blocks.
    - Run `docs_updater.py --sync` instead.
 8) All changes MUST keep `make docs-check` passing.
+
+**docs/ root allowlist (standard files):**
+- `QUICKSTART.md`, `CONFIGURATION.md`, `TROUBLESHOOTING.md`, `BUSINESS_MODEL.md`
+- `SERVICES.md`, `FABRIK_OVERVIEW.md`, `ENVIRONMENT_VARIABLES.md`
 
 **Existing docs structure:**
 - `docs/guides/` - How-to guides
@@ -320,7 +324,6 @@ python scripts/final_gate.py --sync
 | `check_structure.py` | MD file placement | ERROR/WARN |
 | `check_changelog.py` | CHANGELOG entry for code changes | ERROR |
 | `check_docs.py` | Module docs exist | WARN |
-| `check_tasks_updated.py` | tasks.md freshness | WARN |
 | `check_plans.py` | Plan naming convention | ERROR/WARN |
 | `check_rule_size.py` | Rule files < 12KB | ERROR |
 
@@ -507,9 +510,9 @@ services:
 ### Document Location Rules (ENFORCED)
 
 **Root-level `.md` files allowed:**
-- `README.md`, `CHANGELOG.md`, `tasks.md`, `AGENTS.md`, `PORTS.md`, `LICENSE.md`
+- `README.md`, `CHANGELOG.md`, `AGENTS.md`, `PORTS.md`, `LICENSE.md`
 
-**All other docs MUST go in `docs/` subdirectories:**
+**All other docs (not in allowlist below) MUST go in `docs/` subdirectories:**
 
 | Directory | Purpose |
 |-----------|---------|

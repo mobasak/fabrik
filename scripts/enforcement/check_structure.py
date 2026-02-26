@@ -9,6 +9,7 @@ from pathlib import Path
 
 # Allowed .md files in project root
 ALLOWED_ROOT_MD = {
+    "INDEX.md",
     "README.md",
     "CHANGELOG.md",
     "tasks.md",
@@ -125,10 +126,10 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         # Check docs/ structure
         elif parts[0] == "docs":
             if len(parts) == 2:
-                # File directly in docs/ - only INDEX.md allowed
+                # File directly in docs/ - only these standard files allowed
                 filename = parts[1]
                 if filename not in {
-                    "INDEX.md",
+                    "README.md",
                     "QUICKSTART.md",
                     "CONFIGURATION.md",
                     "TROUBLESHOOTING.md",

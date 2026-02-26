@@ -34,16 +34,16 @@ RESERVED_NAMES = frozenset(
 TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"
 
 TEMPLATE_MAP = {
+    "docs/PROJECT_INDEX_TEMPLATE.md": "INDEX.md",
     "docs/PROJECT_README_TEMPLATE.md": "README.md",
     "docs/CHANGELOG_TEMPLATE.md": "CHANGELOG.md",
-    "docs/TASKS_TEMPLATE.md": "tasks.md",
     "docs/DOCS_INDEX_TEMPLATE.md": "docs/README.md",
     "docs/QUICKSTART_TEMPLATE.md": "docs/QUICKSTART.md",
     "docs/CONFIGURATION_TEMPLATE.md": "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING_TEMPLATE.md": "docs/TROUBLESHOOTING.md",
     "docs/BUSINESS_MODEL_TEMPLATE.md": "docs/BUSINESS_MODEL.md",
-    # Phase docs for project roadmap (dashboard in tasks.md links here)
-    "docs/PHASE_TEMPLATE.md": "docs/development/Phase1.md",
+    # Note: Phase docs removed - Traycer Phases replace manual phase tracking
+    # Note: tasks.md removed - Traycer UI replaces manual task dashboard
     # Note: PLANS.md and archive/README.md are generated inline, not from templates
     # Droid exec / Docker workflow files (AGENTS.md handled separately as symlink)
     "docker/Dockerfile.python": "Dockerfile",
@@ -53,9 +53,9 @@ TEMPLATE_MAP = {
 }
 
 REQUIRED_FILES = [
+    "INDEX.md",
     "README.md",
     "CHANGELOG.md",
-    "tasks.md",
     "docs/README.md",
     "docs/QUICKSTART.md",
     "docs/CONFIGURATION.md",
