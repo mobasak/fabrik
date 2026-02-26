@@ -41,7 +41,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `README.md` - Added fabrik scaffold documentation reference
 - `scripts/droid/*` - Archived (3 batch scripts)
 
-**Result:** 
+**Result:**
 - Zero droid exec references in active documentation
 - All rules reflect Traycer YOLO + Kilo CLI workflow
 - AGENTS.md is 18% smaller and 100% accurate

@@ -1,6 +1,6 @@
 # Fabrik Scaffold Specification
 
-**Last Updated:** 2026-02-23
+**Last Updated:** 2026-02-26
 
 > Complete specification for project creation, templates, deployment, and management in the Fabrik ecosystem.
 
@@ -113,7 +113,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   └── README.md                # Archive index
 │   ├── development/
 │   │   ├── plans/                   # Plan documents directory
-│   │   ├── Phase1.md                # Phase 1 roadmap
 │   │   └── PLANS.md                 # Plans index
 │   ├── guides/                      # How-to guides
 │   ├── operations/                  # Ops runbooks
@@ -146,7 +145,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 ├── pyproject.toml                   # Python project config
 ├── README.md                        # Project overview
 ├── requirements.txt                 # Python dependencies
-├── tasks.md                         # Task tracking
 └── .windsurfrules -> /opt/fabrik/windsurfrules  # Symlink (legacy)
 ```
 
@@ -157,7 +155,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | **Root Files** | | |
 | `README.md` | `docs/PROJECT_README_TEMPLATE.md` | Project overview |
 | `CHANGELOG.md` | `docs/CHANGELOG_TEMPLATE.md` | Version history |
-| `tasks.md` | `docs/TASKS_TEMPLATE.md` | Task tracking |
 | `AGENTS.md` | Symlink → `/opt/fabrik/AGENTS.md` | AI agent instructions |
 | `.windsurfrules` | Symlink → `/opt/fabrik/windsurfrules` | Legacy rules shim |
 | `.gitignore` | Generated inline | Git ignore patterns |
@@ -462,7 +459,7 @@ Full-featured SaaS starter with:
 ### Features
 - **Marketing Site:** Landing, pricing, FAQ, terms, privacy
 - **App Shell:** Sidebar navigation, dashboard, job workflow
-- **Chat UI:** SSE streaming for droid exec integration
+- **Chat UI:** SSE streaming for AI chat integration
 - **Supabase Ready:** Auth and database
 
 ### Structure
