@@ -24,7 +24,7 @@ def check_file(file_path: Path) -> list:
     """Check health endpoints test dependencies."""
     from .validate_conventions import CheckResult, Severity
 
-    results = []
+    results: list[CheckResult] = []
     if file_path.suffix.lower() != ".py":
         return results
     if "test" in file_path.name.lower():

@@ -6,6 +6,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Enforcement Scripts Consistency (2026-02-27)
+
+**What:** Fixed environment variable support and consistency issues in enforcement scripts.
+
+**Files:**
+- `scripts/enforcement/check_rule_size.py` - Added FABRIK_ROOT env var support instead of hardcoded path
+- `scripts/enforcement/check_env_vars.py` - Added 127.0.0.1 to allowed contexts (consistency with localhost)
+- `scripts/enforcement/check_health.py` - Improved type annotation for results variable
+
 ### Removed - Droid Exec Cleanup (2026-02-27)
 
 **What:** Archived all droid exec related code and documentation. Fabrik now uses Traycer + Kilo + Windsurf Cascade workflow.

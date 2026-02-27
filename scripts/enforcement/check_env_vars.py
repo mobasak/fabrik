@@ -21,9 +21,9 @@ HARDCODED_PATTERNS = [
 
 # Patterns that indicate proper usage (allowlist) - must be specific
 ALLOWED_CONTEXTS = [
-    r"os\.getenv\s*\([^)]*,\s*['\"]localhost",  # os.getenv('VAR', 'localhost') default
-    r"os\.environ\.get\s*\([^)]*,\s*['\"]localhost",  # os.environ.get default
-    r"#\s*.*localhost",  # Comments with localhost
+    r"os\.getenv\s*\([^)]*,\s*['\"](?:localhost|127\.0\.0\.1)",  # os.getenv default
+    r"os\.environ\.get\s*\([^)]*,\s*['\"](?:localhost|127\.0\.0\.1)",  # os.environ.get default
+    r"#\s*.*(?:localhost|127\.0\.0\.1)",  # Comments with localhost/127.0.0.1
     r"^\s*#",  # Line starting with comment
     r"\.env\.example",  # Example env files
     r"#\s*noqa",  # noqa comments
