@@ -1,6 +1,6 @@
 # Fabrik Scaffold Specification
 
-**Last Updated:** 2026-02-26
+**Last Updated:** 2026-02-27
 
 > Complete specification for project creation, templates, deployment, and management in the Fabrik ecosystem.
 
@@ -101,10 +101,14 @@ fabrik templates
 
 When you run `fabrik scaffold my-project -d "My description"`, the following structure is created:
 
-#### Actual Project Tree (20 directories, 24 files)
+#### Actual Project Tree (22 directories, 35 files)
 
 ```
 /opt/my-project/
+├── .droid/
+│   ├── .gitignore                   # Blocks Kilo runtime files from git
+│   └── review-context/
+│       └── .gitkeep                 # Tracked placeholder for Traycer plans
 ├── .cache/                          # Cache directory (gitignored)
 ├── config/                          # Configuration files
 ├── data/                            # Data files (gitignored)
@@ -124,7 +128,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   └── TROUBLESHOOTING.md           # Common issues
 ├── logs/                            # Log files (gitignored)
 ├── output/                          # Output files (gitignored)
-├── scripts/                         # Utility scripts
 ├── src/
 │   └── my_project/                  # Main Python package
 │       ├── __init__.py
@@ -138,17 +141,27 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 ├── AGENTS.md -> /opt/fabrik/AGENTS.md        # Symlink
 ├── CHANGELOG.md                     # Version history
 ├── compose.yaml                     # Docker Compose config
+├── compose.dev.yaml                 # Dev overlay (hot reload via bind mount)
+├── .dockerignore                    # Excludes venv/.git from Docker builds
 ├── Dockerfile                       # Production Docker build
 ├── .env.example                     # Env var template
 ├── .gitignore                       # Git ignore patterns
 ├── .pre-commit-config.yaml          # Pre-commit hooks
 ├── pyproject.toml                   # Python project config
+├── Makefile                         # Shortcuts: make dev, make test, make review
 ├── README.md                        # Project overview
 ├── requirements.txt                 # Python dependencies
+├── scripts/
+│   ├── runc                         # Run container (production mode)
+│   ├── rund                         # Run container (hot reload / dev mode)
+│   ├── rundsh                       # Shell into running container
+│   ├── runk                         # Kill running container
+│   ├── sync_cascade_backup.sh       # Backup Cascade session
+│   └── sync_extensions.sh           # Sync Windsurf extensions
 └── .windsurfrules -> /opt/fabrik/windsurfrules  # Symlink (legacy)
 ```
 
-#### Files Created (21)
+#### Files Created (32)
 
 | File | Source Template | Purpose |
 |------|-----------------|---------|
@@ -178,6 +191,18 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `src/<package>/__init__.py` | Generated inline | Package init |
 | `tests/__init__.py` | Generated inline | Tests package |
 | `tests/test_health.py` | Generated inline | Health endpoint test |
+| **Kilo / Dev Tooling** | | |
+| `Makefile` | `docker/Makefile.python` | Dev shortcuts (`make dev`, `make test`, `make review`) |
+| `compose.dev.yaml` | `docker/compose.dev.yaml.template` | Dev overlay with bind-mount hot reload |
+| `.dockerignore` | `docker/dockerignore.template` | Excludes `.venv`, `.git`, `__pycache__` from Docker context |
+| `.droid/.gitignore` | Generated inline | Blocks Kilo runtime files; tracks `review-context/` |
+| `.droid/review-context/.gitkeep` | Generated inline | Ensures `review-context/` is committed |
+| `scripts/runc` | `scripts/runc` | Run container (production) — executable |
+| `scripts/rund` | `scripts/rund` | Run container with hot reload — executable |
+| `scripts/rundsh` | `scripts/rundsh` | Shell into container — executable |
+| `scripts/runk` | `scripts/runk` | Kill container — executable |
+| `scripts/sync_cascade_backup.sh` | `scripts/sync_cascade_backup.sh` | Backup Cascade session — executable |
+| `scripts/sync_extensions.sh` | `scripts/sync_extensions.sh` | Sync Windsurf extensions — executable |
 
 #### Symlinks Created (3)
 
@@ -225,6 +250,10 @@ data/
 output/
 *.log
 .venv/
+.droid/kilo_usage.jsonl
+.droid/reviews/
+.droid/kilo_models_cache.json
+.droid/.kilo_cache_last_refresh
 ```
 
 **`.env.example`**:
@@ -250,6 +279,29 @@ After file creation, `fabrik scaffold` also:
 1. **Git init** - Initializes git repository
 2. **Pre-commit install** - Copies config and runs `pre-commit install`
 3. **Initial commit** - Stages all files and commits "Initial commit"
+
+#### Kilo Workflow Integration
+
+`fabrik scaffold` now provisions the `.droid/` directory required by `kilo_code_review.py` automatically:
+
+| Path | Purpose |
+|------|---------|
+| `.droid/review-context/` | Where Traycer saves plan artifacts (`task.md`) |
+| `.droid/.gitignore` | Commits `review-context/` only; blocks runtime files |
+| `.droid/review-context/.gitkeep` | Ensures directory is tracked by git |
+
+**Result:** Running `kilo_code_review.py review src/` works immediately after scaffold — no manual `.droid/` setup needed.
+
+**Developer shortcuts (all available immediately after scaffold):**
+
+```bash
+make dev          # Start dev server with hot reload
+make test         # Run pytest
+make review       # Run Kilo code review
+./scripts/rund    # Docker hot-reload container
+./scripts/runc    # Docker production container
+./scripts/rundsh  # Shell into running container
+```
 
 #### Project Name Validation
 

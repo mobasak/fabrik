@@ -6,6 +6,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Scaffold Kilo Workflow + Developer Velocity Tools (2026-02-27)
+
+**What:** Five improvements to `fabrik scaffold` so new projects work with Kilo code review and developer tooling out of the box — no manual setup required.
+
+**Why:** Previously, `fabrik scaffold` generated 24 files but was missing critical infrastructure. Kilo review failed without `.droid/`, and developers had to type long Docker commands manually.
+
+**Changes (all in `src/fabrik/scaffold.py`):**
+
+- **P1 — `.droid/` infrastructure:** Added `.droid/review-context/` to `DIRS`; writes `.droid/.gitignore` (tracks `review-context/`, blocks runtime files) and `.droid/review-context/.gitkeep`; added four Kilo runtime paths to project `.gitignore`.
+- **P2 — `.dockerignore`:** Added `docker/dockerignore.template` → `.dockerignore` to `TEMPLATE_MAP`. Excludes `.venv`, `.git`, `__pycache__` from Docker build context (faster builds).
+- **P3 — `compose.dev.yaml`:** Added `docker/compose.dev.yaml.template` → `compose.dev.yaml` to `TEMPLATE_MAP`. Bind-mount overlay for hot reload during development.
+- **P4 — `Makefile`:** Added `docker/Makefile.python` → `Makefile` to `TEMPLATE_MAP` with `myproject` → project name substitution. Provides `make dev`, `make test`, `make review` shortcuts.
+- **P5 — Utility scripts:** Defined `SCRIPT_FILES` (`runc`, `rund`, `rundsh`, `runk`, `sync_cascade_backup.sh`, `sync_extensions.sh`); copies each from `templates/scaffold/scripts/` with `chmod 0o755`.
+
+**Files changed:**
+- `src/fabrik/scaffold.py` — All five improvements
+- `docs/reference/fabrik-scaffold-specs.md` — Updated tree, file table, added Kilo Workflow section
+
 ### Fixed - Enforcement Scripts Consistency (2026-02-27)
 
 **What:** Fixed environment variable support and consistency issues in enforcement scripts.
