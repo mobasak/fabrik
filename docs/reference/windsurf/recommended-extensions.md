@@ -1,6 +1,6 @@
 # Windsurf Recommended Extensions
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-02-27
 
 Curated list of extensions for Fabrik development workflow.
 
@@ -35,10 +35,18 @@ Curated list of extensions for Fabrik development workflow.
 ### Code Quality
 
 | Extension | Publisher | Purpose |
-|-----------|-----------|---------|
+|-----------|-----------|----------|
 | `davidanson.vscode-markdownlint` | David Anson | Markdown linting |
 | `charliermarsh.ruff` | Charlie Marsh | Python linter and formatter |
-| `esbenp.prettier-vscode` | Prettier | JavaScript/TypeScript formatter |
+| `prettier.prettier-vscode` | Prettier | JavaScript/TypeScript formatter |
+
+### Diagrams & Documentation
+
+| Extension | Publisher | Purpose |
+|-----------|-----------|----------|
+| `bierner.markdown-mermaid` | Matt Bierner | Mermaid diagram preview in markdown |
+| `bpruitt-goddard.mermaid-markdown-syntax-highlighting` | Brian Pruitt-Goddard | Mermaid syntax highlighting |
+| `vstirbu.vscode-mermaid-preview` | Vlad Stirbu | Live Mermaid diagram preview |
 
 ### Web Development
 
@@ -74,7 +82,7 @@ From [Windsurf Docs - Recommended Extensions](https://docs.windsurf.com):
 | GitLens | Code authorship visualization | ✅ Installed |
 | GitHub Pull Requests | PR management in IDE | ✅ Installed |
 | GitLab Workflow | GitLab integration | ⬜ Not needed |
-| Mermaid Markdown Preview | Diagram rendering | ✅ Installed |
+| Mermaid Markdown Preview | Diagram rendering | ✅ Installed (3 extensions) |
 | Visual Studio Keybindings | VS keyboard shortcuts | ⬜ Personal pref |
 | Eclipse Keymap | Eclipse shortcuts | ⬜ Personal pref |
 
@@ -107,9 +115,12 @@ Or search by extension ID:
 eamodio.gitlens
 github.vscode-pull-request-github
 charliermarsh.ruff
-esbenp.prettier-vscode
+prettier.prettier-vscode
 bradlc.vscode-tailwindcss
 redhat.vscode-yaml
+bierner.markdown-mermaid
+bpruitt-goddard.mermaid-markdown-syntax-highlighting
+vstirbu.vscode-mermaid-preview
 ```
 
 ---

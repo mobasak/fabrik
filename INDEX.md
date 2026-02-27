@@ -132,7 +132,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── example-api/                 # Example FastAPI service (Dockerfile, compose.yaml)
 │   └── postgres-main/               # Shared PostgreSQL instance (compose.yaml)
 ├── config/                          # Runtime configuration files
-│   ├── models.yaml                  # AI model registry (auto-updated daily)
 │   └── platform.yaml.example        # Platform config template
 ├── infrastructure/                  # VPS-level system files
 │   ├── coolify-ssh-permissions.sh
@@ -142,7 +141,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── final_gate.py                # Mandatory pre-commit quality gate
 │   ├── docs_updater.py              # Auto-update docs structure
 │   ├── kilo_code_review.py          # Kilo-based code review runner
-│   ├── droid_models.py              # AI model registry CLI
 │   ├── enforcement/                 # Convention check scripts (check_*.py)
 │   ├── droid/                       # Batch refactoring scripts
 │   └── utils/                       # Shared script utilities
@@ -353,9 +351,6 @@ docs/
 │   ├── custom-droids.md
 │   ├── docs-updater.md             # Automatic documentation updater
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
-│   ├── droid-exec-integration.md
-│   ├── droid-exec-limits.md
-│   ├── droid-exec-usage.md         # Core droid exec usage
 │   ├── enforcement-system.md       # Convention enforcement (check scripts, rules)
 │   ├── exampleconsultancysitemap.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
@@ -375,7 +370,6 @@ docs/
 │   ├── property-testing.md
 │   ├── provisioner.md
 │   ├── roadmap.md                  # Complete 8-phase roadmap summary
-│   ├── spec-pipeline.md            # Spec pipeline (idea -> scope -> spec)
 │   ├── stack.md                    # Technology stack & tools inventory
 │   ├── technology-stack-decision-guide.md # Tech decision flowchart
 │   ├── template_renderer.md
@@ -480,7 +474,6 @@ docs/
 
 | Document | Purpose |
 |----------|--------|
-| [droid-exec-usage.md](docs/reference/droid-exec-usage.md) | **Complete droid exec guide** — models, tasks, hooks, MCP, prompting, spec mode |
 | [enforcement-system.md](docs/reference/enforcement-system.md) | Convention enforcement — check scripts, rules, pre-commit |
 | [AGENTS.md](AGENTS.md) | Agent briefing for AI coding assistants |
 | [factory-settings.json](templates/scaffold/factory-settings.json) | Factory settings template |
@@ -514,32 +507,14 @@ docs/
 
 **Archived (2026-02-25):** `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, `implementation-plan-template.md` moved to `docs/archive/2026-02-25-pre-traycer-templates/`. Replaced by Traycer Phases + dynamic spec generation.
 
-**Quick Reference:**
-```bash
-droid exec "analyze code"                        # Read-only
-droid exec --auto medium "fix issues"            # Dev work
-droid exec --use-spec "add feature"              # Plan first
-droid exec -m gemini-3-flash-preview "quick task" # Model select
-droid exec -o stream-json "task"                 # Real-time output
-```
+**Archived (2026-02-27):** `droid exec` system archived. Fabrik now uses **Traycer + Kilo + Windsurf Cascade** workflow.
+- `scripts/droid_models.py` → `scripts/.archive/2026-02-27-droid-exec-cleanup/`
+- `docs/reference/droid-exec-usage.md` → `docs/archive/2026-02-27-droid-exec-cleanup/`
+- `docs/reference/spec-pipeline.md` → `docs/archive/2026-02-27-droid-exec-cleanup/`
+- `config/models.yaml` → `config/.archive/2026-02-27-droid-exec-cleanup/`
 
-**Model Management (Automated):**
-```bash
-# Auto-update runs daily via cron - no manual intervention needed
-./scripts/setup_model_updates.sh               # Enable daily auto-updates
-
-# Manual commands (if needed)
-python3 scripts/droid_model_updater.py         # Force update check now
-python3 scripts/droid_models.py stack-rank     # View current rankings
-python3 scripts/droid_models.py recommend ci_cd # Get model for scenario
-```
-
-**Config:** `config/models.yaml` — Auto-updated from Factory docs daily
-**Scripts:** `scripts/droid_tasks.py`, `scripts/droid_models.py`, `scripts/docs_updater.py`, `scripts/container_images.py`, `scripts/enforcement/validate_conventions.py`
-**Batch Scripts:** `scripts/droid/` (refactor-imports, improve-errors, fix-lint)
-**Workflows:** `.github/workflows/` (droid-review, update-docs, security-scanner, daily-maintenance)
-**Key Flags:** `--auto`, `--use-spec`, `-m`, `-r`, `-o`, `--cwd`, `-s`
-**VPS Deployment:** See §25-26 in droid-exec-usage.md for Coolify + SSE streaming patterns
+**Scripts:** `scripts/docs_updater.py`, `scripts/container_images.py`, `scripts/enforcement/validate_conventions.py`
+**Workflows:** `.github/workflows/` (security-scanner, daily-maintenance)
 
 ### Project Context
 
