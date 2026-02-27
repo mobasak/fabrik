@@ -6,6 +6,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Droid Models Registry Cleanup (2026-02-27)
+
+**What:** Removed duplicate ModelInfo dataclass and fixed model name mismatch in droid_models.py.
+
+**Files:**
+- `scripts/droid_models.py` - Removed duplicate ModelInfo class (L258-269), fixed glm-4.6 → glm-4.7 to match config/models.yaml
+
 ### Changed - Traycer Documentation Reorganization + MCP Integration (2026-02-27)
 
 **What:** Reorganized all Traycer documentation into dedicated `docs/traycer/` folder and added comprehensive MCP (Model Context Protocol) integration documentation with concrete implementation recommendations.

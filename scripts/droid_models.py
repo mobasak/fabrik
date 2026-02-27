@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 try:
     import yaml
@@ -253,20 +254,6 @@ class TaskCategory(str, Enum):
     COMPLEX = "complex"  # Large refactors, architecture
     REASONING = "reasoning"  # Problems requiring deep thinking
     BUDGET = "budget"  # Cost-sensitive tasks
-
-
-@dataclass
-class ModelInfo:
-    """Information about a droid model."""
-
-    name: str
-    provider: str
-    reasoning_levels: list[str]
-    default_reasoning: str
-    best_for: list[str]
-    cost_tier: str  # "low", "medium", "high", "premium"
-    cost_multiplier: float  # Cost multiplier relative to standard tokens
-    notes: str = ""
 
 
 # Session switching rules (from Factory docs)
@@ -525,7 +512,7 @@ TASK_MODEL_MAP: dict[TaskCategory, list[str]] = {
     TaskCategory.FAST_SIMPLE: [
         "claude-haiku-4-5-20251001",
         "gemini-3-flash-preview",
-        "glm-4.6",
+        "glm-4.7",
     ],
     TaskCategory.STANDARD: [
         "claude-sonnet-4-5-20250929",
@@ -543,7 +530,7 @@ TASK_MODEL_MAP: dict[TaskCategory, list[str]] = {
         "gpt-5.1-codex-max",
     ],
     TaskCategory.BUDGET: [
-        "glm-4.6",
+        "glm-4.7",
         "claude-haiku-4-5-20251001",
         "gemini-3-flash-preview",
     ],
@@ -617,7 +604,7 @@ def check_model_change_warning(current_model: str, new_model: str) -> str | None
     )
 
 
-def refresh_models_from_docs() -> dict[str, any]:
+def refresh_models_from_docs() -> dict[str, Any]:
     """
     Refresh model list from Factory docs.
 
@@ -732,26 +719,28 @@ def get_fabrik_task_models() -> dict[str, str]:
     config = load_models_config()
     scenarios = config.get("scenarios", {})
 
+    # Helper to safely get first element from alternatives list
+    def _first_or_default(lst: list, default: str) -> str:
+        return lst[0] if lst else default
+
+    # Get alternatives with safe fallback
+    full_feature_alts = scenarios.get("full_feature_dev", {}).get(
+        "alternatives", ["gpt-5.1-codex-max"]
+    )
+    review_models = scenarios.get("code_review", {}).get("models", ["claude-haiku-4-5-20251001"])
+
     # Map scenarios to task types
     # Default fallback mapping
     mapping = {
         "ANALYZE": scenarios.get("explore", {}).get("primary", "gemini-3-flash-preview"),
-        "CODE": scenarios.get("full_feature_dev", {}).get("alternatives", ["gpt-5.1-codex-max"])[0],
-        "REFACTOR": scenarios.get("full_feature_dev", {}).get(
-            "alternatives", ["gpt-5.1-codex-max"]
-        )[0],
+        "CODE": _first_or_default(full_feature_alts, "gpt-5.1-codex-max"),
+        "REFACTOR": _first_or_default(full_feature_alts, "gpt-5.1-codex-max"),
         "TEST": scenarios.get("verify", {}).get("primary", "gpt-5.1-codex-max"),
-        "REVIEW": scenarios.get("code_review", {}).get("models", ["claude-haiku-4-5-20251001"])[
-            0
-        ],  # review uses list
+        "REVIEW": _first_or_default(review_models, "claude-haiku-4-5-20251001"),
         "SPEC": scenarios.get("design", {}).get("primary", "claude-sonnet-4-5-20250929"),
-        "SCAFFOLD": scenarios.get("full_feature_dev", {}).get(
-            "alternatives", ["gpt-5.1-codex-max"]
-        )[0],
+        "SCAFFOLD": _first_or_default(full_feature_alts, "gpt-5.1-codex-max"),
         "DEPLOY": scenarios.get("ship", {}).get("primary", "gemini-3-flash-preview"),
-        "MIGRATE": scenarios.get("full_feature_dev", {}).get("alternatives", ["gpt-5.1-codex-max"])[
-            0
-        ],
+        "MIGRATE": _first_or_default(full_feature_alts, "gpt-5.1-codex-max"),
         "HEALTH": scenarios.get("verify", {}).get(
             "primary", "gemini-3-flash-preview"
         ),  # verify primary is codex-max but health is usually cheaper
