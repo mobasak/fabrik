@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
@@ -32,9 +33,24 @@ RESERVED_NAMES = frozenset(
     }
 )
 
+SCAFFOLD_TYPES = frozenset(
+    {
+        "python-api",
+        "saas-skeleton",
+        "node-api",
+        "file-api",
+        "file-worker",
+        "wordpress",
+        "docusaurus",
+        "chrome-extension",
+        "mobile-app",
+        "desktop-app",
+    }
+)
+
 TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"
 
-TEMPLATE_MAP = {
+SHARED_TEMPLATE_MAP = {
     "docs/PROJECT_INDEX_TEMPLATE.md": "INDEX.md",
     "docs/PROJECT_README_TEMPLATE.md": "README.md",
     "docs/CHANGELOG_TEMPLATE.md": "CHANGELOG.md",
@@ -46,6 +62,9 @@ TEMPLATE_MAP = {
     # Note: Phase docs removed - Traycer Phases replace manual phase tracking
     # Note: tasks.md removed - Traycer UI replaces manual task dashboard
     # Note: PLANS.md and archive/README.md are generated inline, not from templates
+}
+
+_PYTHON_API_TEMPLATE_MAP = {
     # Droid exec / Docker workflow files (AGENTS.md handled separately as symlink)
     "docker/Dockerfile.python": "Dockerfile",
     "docker/compose.yaml.template": "compose.yaml",
@@ -56,7 +75,7 @@ TEMPLATE_MAP = {
     "python/pyproject.toml.template": "pyproject.toml",
 }
 
-REQUIRED_FILES = [
+_SHARED_REQUIRED_FILES = [
     "INDEX.md",
     "README.md",
     "CHANGELOG.md",
@@ -64,11 +83,22 @@ REQUIRED_FILES = [
     "docs/QUICKSTART.md",
     "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING.md",
-    "Dockerfile",
-    "compose.yaml",
 ]
 
-DIRS = [
+TYPE_REQUIRED_FILES: dict[str, list[str]] = {
+    "python-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "compose.yaml"],
+    "saas-skeleton": _SHARED_REQUIRED_FILES[:],
+    "node-api": _SHARED_REQUIRED_FILES[:],
+    "file-api": _SHARED_REQUIRED_FILES[:],
+    "file-worker": _SHARED_REQUIRED_FILES[:],
+    "wordpress": _SHARED_REQUIRED_FILES[:],
+    "docusaurus": _SHARED_REQUIRED_FILES[:],
+    "chrome-extension": _SHARED_REQUIRED_FILES[:],
+    "mobile-app": _SHARED_REQUIRED_FILES[:],
+    "desktop-app": _SHARED_REQUIRED_FILES[:],
+}
+
+SHARED_DIRS = [
     "docs/guides",
     "docs/reference",
     "docs/operations",
@@ -83,9 +113,10 @@ DIRS = [
     ".tmp",
     ".cache",
     "output",
-    "src",  # Source code directory
     ".droid/review-context",  # Kilo/Traycer review context directory
 ]
+
+_PYTHON_API_DIRS = ["src"]
 
 SCRIPT_FILES = ["runc", "rund", "rundsh", "runk", "sync_cascade_backup.sh", "sync_extensions.sh"]
 
@@ -177,20 +208,10 @@ def _install_pre_commit(project_dir: Path) -> bool:
         return True
 
 
-def create_project(name: str, description: str, base: Path = Path("/opt")) -> Path:
-    """Create a new project with full structure."""
-    # Validate inputs
-    _validate_project_name(name)
-
-    project_dir = base / name
-    if project_dir.exists():
-        raise ValueError(f"Project already exists: {project_dir}")
-
-    # Get package name before template replacement
-    package_name = _get_package_name(name)
-
-    # Create directories
-    for d in DIRS:
+def _scaffold_shared(project_dir: Path, name: str, description: str, today: str) -> None:
+    """Create the shared project structure common to all project types, including git init."""
+    # Create shared directories
+    for d in SHARED_DIRS:
         (project_dir / d).mkdir(parents=True, exist_ok=True)
 
     # Write .droid/ files: gitignore keeps review-context/, blocks runtime files
@@ -204,10 +225,10 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     # .gitkeep so git tracks the empty review-context/ directory
     (project_dir / ".droid" / "review-context" / ".gitkeep").write_text("")
 
-    today = date.today().isoformat()
+    package_name = _get_package_name(name)
 
-    # Copy templates
-    for src, dest in TEMPLATE_MAP.items():
+    # Copy shared templates
+    for src, dest in SHARED_TEMPLATE_MAP.items():
         src_path = TEMPLATE_DIR / src
         if src_path.exists():
             content = src_path.read_text()
@@ -229,11 +250,11 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
 
     # Copy executable scripts from templates/scaffold/scripts/
     for f in SCRIPT_FILES:
-        src = TEMPLATE_DIR / "scripts" / f
-        if src.exists():
-            dest = project_dir / "scripts" / f
-            shutil.copy(src, dest)
-            os.chmod(dest, 0o755)
+        script_src = TEMPLATE_DIR / "scripts" / f
+        if script_src.exists():
+            script_dest = project_dir / "scripts" / f
+            shutil.copy(script_src, script_dest)
+            os.chmod(script_dest, 0o755)  # noqa: S103  # nosec B103
 
     # Symlink windsurfrules (legacy) and .windsurf/rules/ (authoritative)
     # Fail fast if fabrik targets are missing - environment is broken
@@ -259,25 +280,6 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     # Example .env template with placeholder values (not real credentials)  # noqa: secrets
     (project_dir / ".env.example").write_text(
         f"# {name} Configuration\n# Required\nPORT=8000\nLOG_LEVEL=INFO\n\n# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n"  # noqa: secrets
-    )
-
-    # Create requirements.txt (versions match pyproject.toml)
-    (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\n"
-    )
-
-    # Create starter src/<package_name>/main.py with proper health check
-    package_dir = project_dir / "src" / package_name
-    package_dir.mkdir(parents=True, exist_ok=True)
-    (package_dir / "__init__.py").write_text("")
-    (package_dir / "main.py").write_text(
-        f'''"""Main entry point for {name}."""\nimport os\nfrom contextlib import asynccontextmanager\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\n\n@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    """Application lifespan handler."""\n    # Startup: initialize resources here\n    yield\n    # Shutdown: cleanup resources here\n\n\napp = FastAPI(title="{name}", lifespan=lifespan)\n\n\n@app.get("/health")\nasync def health():\n    """Health check - tests actual dependencies, returns non-200 on failure."""\n    db_url = os.getenv("DATABASE_URL")\n    deps = {{}}\n    all_ok = True\n\n    # Database check (only if configured)\n    if db_url:\n        try:\n            # TODO: Replace with actual async DB ping when DB is added\n            # Example: await db.execute("SELECT 1")\n            deps["database"] = "configured"\n        except Exception as e:\n            deps["database"] = f"error: {{str(e)}}"\n            all_ok = False\n    else:\n        deps["database"] = "not_configured"\n\n    status_code = 200 if all_ok else 503\n    return JSONResponse(\n        content={{\n            "service": "{name}",\n            "status": "ok" if all_ok else "degraded",\n            "dependencies": deps,\n        }},\n        status_code=status_code,\n    )\n\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
-    )
-
-    # Create basic test
-    (project_dir / "tests" / "__init__.py").write_text("")
-    (project_dir / "tests" / "test_health.py").write_text(
-        f'''"""Health endpoint tests."""\nimport os\nfrom unittest.mock import patch\nfrom fastapi.testclient import TestClient\nfrom {package_name}.main import app\n\nclient = TestClient(app)\n\n\ndef test_health_returns_200_without_db():\n    """Health returns 200 when DB is not configured."""\n    with patch.dict(os.environ, {{}}, clear=True):\n        response = client.get("/health")\n        assert response.status_code == 200\n        data = response.json()\n        assert data["service"] == "{name}"\n        assert data["status"] == "ok"\n        assert data["dependencies"]["database"] == "not_configured"\n\n\ndef test_health_returns_200_with_db_configured():\n    """Health returns 200 when DB is configured (mocked)."""\n    with patch.dict(os.environ, {{"DATABASE_URL": "postgresql://test@localhost/test"}}):\n        response = client.get("/health")\n        assert response.status_code == 200\n        data = response.json()\n        assert data["dependencies"]["database"] == "configured"\n\n\ndef test_root_endpoint():\n    """Root endpoint returns welcome message."""\n    response = client.get("/")\n    assert response.status_code == 200\n    assert "message" in response.json()\n'''
     )
 
     # Create PLANS.md inline (no template file)
@@ -318,12 +320,105 @@ Obsolete or completed docs for {name}.
 """
     )
 
-    # Git init
+    # Git bootstrap: initialize repo so type-specific scaffolders run inside a git repo.
+    # The final commit is deferred to create_project() so it captures all files in one
+    # clean, complete snapshot.
     subprocess.run(["git", "init", "-q"], cwd=project_dir, capture_output=True)
-
-    # Install pre-commit config (after git init, before add)
     _install_pre_commit(project_dir)
 
+
+def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
+    """Create Python API-specific project structure."""
+    package_name = _get_package_name(name)
+    today = date.today().isoformat()
+
+    # Create Python API-specific directories
+    for d in _PYTHON_API_DIRS:
+        (project_dir / d).mkdir(parents=True, exist_ok=True)
+
+    # Copy Python API templates
+    for src, dest in _PYTHON_API_TEMPLATE_MAP.items():
+        src_path = TEMPLATE_DIR / src
+        if src_path.exists():
+            content = src_path.read_text()
+            for old, new in [
+                ("[Project Name]", name),
+                ("[project]", name),  # README paths
+                ("<project>", name),  # QUICKSTART paths
+                ("project-name", name),  # pyproject.toml
+                ("myproject", name),  # Makefile
+                ("[package_name]", package_name),  # README imports
+                ("<package_name>", package_name),  # QUICKSTART imports
+                ("YYYY-MM-DD", today),
+                ("[Brief description]", description),
+                ("[One-line description]", description),
+                ("Brief project description", description),  # pyproject.toml
+            ]:
+                content = content.replace(old, new)
+            (project_dir / dest).write_text(content)
+
+    # Create requirements.txt (versions match pyproject.toml)
+    (project_dir / "requirements.txt").write_text(
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\n"
+    )
+
+    # Create starter src/<package_name>/main.py with proper health check
+    package_dir = project_dir / "src" / package_name
+    package_dir.mkdir(parents=True, exist_ok=True)
+    (package_dir / "__init__.py").write_text("")
+    (package_dir / "main.py").write_text(
+        f'''"""Main entry point for {name}."""\nimport os\nfrom contextlib import asynccontextmanager\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\n\n@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    """Application lifespan handler."""\n    # Startup: initialize resources here\n    yield\n    # Shutdown: cleanup resources here\n\n\napp = FastAPI(title="{name}", lifespan=lifespan)\n\n\n@app.get("/health")\nasync def health():\n    """Health check - tests actual dependencies, returns non-200 on failure."""\n    db_url = os.getenv("DATABASE_URL")\n    deps = {{}}\n    all_ok = True\n\n    # Database check (only if configured)\n    if db_url:\n        try:\n            # TODO: Replace with actual async DB ping when DB is added\n            # Example: await db.execute("SELECT 1")\n            deps["database"] = "configured"\n        except Exception as e:\n            deps["database"] = f"error: {{str(e)}}"\n            all_ok = False\n    else:\n        deps["database"] = "not_configured"\n\n    status_code = 200 if all_ok else 503\n    return JSONResponse(\n        content={{\n            "service": "{name}",\n            "status": "ok" if all_ok else "degraded",\n            "dependencies": deps,\n        }},\n        status_code=status_code,\n    )\n\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
+    )
+
+    # Create basic test
+    (project_dir / "tests" / "__init__.py").write_text("")
+    (project_dir / "tests" / "test_health.py").write_text(
+        f'''"""Health endpoint tests."""\nimport os\nfrom unittest.mock import patch\nfrom fastapi.testclient import TestClient\nfrom {package_name}.main import app\n\nclient = TestClient(app)\n\n\ndef test_health_returns_200_without_db():\n    """Health returns 200 when DB is not configured."""\n    with patch.dict(os.environ, {{}}, clear=True):\n        response = client.get("/health")\n        assert response.status_code == 200\n        data = response.json()\n        assert data["service"] == "{name}"\n        assert data["status"] == "ok"\n        assert data["dependencies"]["database"] == "not_configured"\n\n\ndef test_health_returns_200_with_db_configured():\n    """Health returns 200 when DB is configured (mocked)."""\n    with patch.dict(os.environ, {{"DATABASE_URL": "postgresql://test@localhost/test"}}):\n        response = client.get("/health")\n        assert response.status_code == 200\n        data = response.json()\n        assert data["dependencies"]["database"] == "configured"\n\n\ndef test_root_endpoint():\n    """Root endpoint returns welcome message."""\n    response = client.get("/")\n    assert response.status_code == 200\n    assert "message" in response.json()\n'''
+    )
+
+
+# Dispatch table mapping project types to their scaffolder functions.
+# Subsequent phases will add entries for the other 9 types.
+_TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
+    "python-api": _scaffold_python_api,
+}
+
+
+def create_project(
+    name: str,
+    description: str,
+    base: Path = Path("/opt"),
+    project_type: str = "python-api",
+    preset: str | None = None,
+) -> Path:
+    """Create a new project with full structure."""
+    # Validate inputs
+    _validate_project_name(name)
+
+    if project_type not in SCAFFOLD_TYPES:
+        valid = ", ".join(sorted(SCAFFOLD_TYPES))
+        raise ValueError(f"Invalid project type: '{project_type}'. Valid types: {valid}")
+
+    project_dir = base / name
+    if project_dir.exists():
+        raise ValueError(f"Project already exists: {project_dir}")
+
+    # Resolve the type-specific scaffolder BEFORE writing anything so that an
+    # unimplemented type raises NotImplementedError immediately, leaving no
+    # partial project directory on disk.
+    if project_type not in _TYPE_SCAFFOLDERS:
+        raise NotImplementedError(f"Scaffolder for '{project_type}' not yet implemented")
+    scaffolder = _TYPE_SCAFFOLDERS[project_type]
+
+    today = date.today().isoformat()
+
+    # _scaffold_shared() creates all shared structure AND runs git init + pre-commit install.
+    _scaffold_shared(project_dir, name, description, today)
+
+    scaffolder(project_dir, name, description, preset=preset)
+
+    # Final commit after all files (shared + type-specific) are in place so the
+    # initial snapshot is complete and clean.
     subprocess.run(["git", "add", "."], cwd=project_dir, capture_output=True)
     subprocess.run(
         ["git", "commit", "-q", "-m", "Initial commit"], cwd=project_dir, capture_output=True
@@ -332,10 +427,18 @@ Obsolete or completed docs for {name}.
     return project_dir
 
 
-def validate_project(project_path: Path) -> tuple[list[str], list[str]]:
+def validate_project(
+    project_path: Path,
+    project_type: str = "python-api",
+) -> tuple[list[str], list[str]]:
     """Validate project structure. Returns (present, missing) file lists."""
+    if project_type not in SCAFFOLD_TYPES:
+        valid = ", ".join(sorted(SCAFFOLD_TYPES))
+        raise ValueError(f"Invalid project type: '{project_type}'. Valid types: {valid}")
+
+    required = TYPE_REQUIRED_FILES.get(project_type, TYPE_REQUIRED_FILES["python-api"])
     present, missing = [], []
-    for f in REQUIRED_FILES:
+    for f in required:
         if (project_path / f).exists():
             present.append(f)
         else:
@@ -343,7 +446,11 @@ def validate_project(project_path: Path) -> tuple[list[str], list[str]]:
     return present, missing
 
 
-def fix_project(project_path: Path, dry_run: bool = False) -> list[str]:
+def fix_project(
+    project_path: Path,
+    dry_run: bool = False,
+    project_type: str = "python-api",
+) -> list[str]:
     """Add missing required files to a project. Returns list of files added."""
     from datetime import date
 
@@ -352,7 +459,11 @@ def fix_project(project_path: Path, dry_run: bool = False) -> list[str]:
     today = date.today().isoformat()
     added: list[str] = []
 
-    _, missing = validate_project(project_path)
+    _, missing = validate_project(project_path, project_type=project_type)
+
+    # Build the combined template map for this project type
+    type_template_map = _PYTHON_API_TEMPLATE_MAP if project_type == "python-api" else {}
+    combined_template_map = {**SHARED_TEMPLATE_MAP, **type_template_map}
 
     # Create missing files (if any)
     for f in missing:
@@ -367,7 +478,7 @@ def fix_project(project_path: Path, dry_run: bool = False) -> list[str]:
 
         # Check if we have a template
         template_name = None
-        for src, dest in TEMPLATE_MAP.items():
+        for src, dest in combined_template_map.items():
             if dest == f:
                 template_name = src
                 break

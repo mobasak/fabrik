@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-02-27 18:50:42 -->
-<!-- Total projects: 36 -->
+<!-- Last synced: 2026-02-27 21:46:58 -->
+<!-- Total projects: 37 -->
 
 ### Production Services (5 projects)
 
@@ -104,7 +104,7 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure Tra... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (5 projects)
+### Active Development (6 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
@@ -112,6 +112,7 @@ With ~$50/month infrastructure cost:
 | **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C c... | Python | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, and... | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-analysis** | Test project for scaffold structure analysis | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-kilo-scaffold** | Test Kilo infrastructure and velocity tools | FastAPI | 🔨 Development | - | ✅ Current |
 | **trading-core** | Live FX trading service connecting to Pepperstone/cTrader via cTrader Open API with crash-safe st... | FastAPI | 🔨 Development | - | ✅ Current |
 
 ### Planning/Research (14 projects)
