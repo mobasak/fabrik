@@ -49,6 +49,7 @@ SCAFFOLD_TYPES = frozenset(
 )
 
 TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"
+SAAS_SKELETON_DIR = FABRIK_ROOT / "templates" / "saas-skeleton"
 
 SHARED_TEMPLATE_MAP = {
     "docs/PROJECT_INDEX_TEMPLATE.md": "INDEX.md",
@@ -88,7 +89,7 @@ _SHARED_REQUIRED_FILES = [
 TYPE_REQUIRED_FILES: dict[str, list[str]] = {
     "python-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "compose.yaml"],
     "saas-skeleton": _SHARED_REQUIRED_FILES[:],
-    "node-api": _SHARED_REQUIRED_FILES[:],
+    "node-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "package.json"],
     "file-api": _SHARED_REQUIRED_FILES[:],
     "file-worker": _SHARED_REQUIRED_FILES[:],
     "wordpress": _SHARED_REQUIRED_FILES[:],
@@ -377,10 +378,117 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
     )
 
 
+_SAAS_SKIP_FILES = {"AGENTS.md", "pyproject.toml", "requirements.txt"}
+
+
+def _scaffold_saas_skeleton(
+    project_dir: Path, name: str, description: str, **kwargs: object
+) -> None:
+    """Copy the saas-skeleton template into the project directory, patching names."""
+    for src in SAAS_SKELETON_DIR.rglob("*"):
+        if not src.is_file():
+            continue
+
+        rel = src.relative_to(SAAS_SKELETON_DIR)
+
+        # Skip excluded filenames
+        if src.name in _SAAS_SKIP_FILES:
+            continue
+
+        dest = project_dir / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            content = src.read_text(encoding="utf-8")
+            content = content.replace("saas-skeleton", name)
+            dest.write_text(content, encoding="utf-8")
+        except UnicodeDecodeError:
+            shutil.copy2(src, dest)
+
+
+def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
+    """Create Node API-specific project structure."""
+    import json
+
+    # a) Create src/ directory
+    (project_dir / "src").mkdir(parents=True, exist_ok=True)
+
+    # b) Copy and patch Dockerfile.node -> Dockerfile
+    dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.node"
+    if dockerfile_src.exists():
+        content = dockerfile_src.read_text()
+        content = content.replace("PROJECT_NAME", name)
+        content = content.replace("dist/index.js", "src/index.js")
+        content = content.replace("./dist", "./src")
+        # Replace `npm ci` with `npm install` — no lockfile is generated during
+        # scaffold, so `npm ci` would fail on a fresh docker build.
+        content = content.replace("RUN npm ci", "RUN npm install")
+        (project_dir / "Dockerfile").write_text(content)
+
+    # c) Copy and patch Makefile.node -> Makefile
+    makefile_src = TEMPLATE_DIR / "docker" / "Makefile.node"
+    if makefile_src.exists():
+        content = makefile_src.read_text()
+        content = content.replace("myproject", name)
+        (project_dir / "Makefile").write_text(content)
+
+    # d) Generate package.json inline
+    package_json = {
+        "name": name,
+        "version": "0.1.0",
+        "description": description,
+        "main": "src/index.js",
+        "scripts": {
+            "start": "node src/index.js",
+            "dev": "node --watch src/index.js",
+            "test": "node --test",
+            "lint": "echo 'No linter configured'",
+        },
+    }
+    (project_dir / "package.json").write_text(json.dumps(package_json, indent=2) + "\n")
+
+    # e) Generate src/index.js inline
+    (project_dir / "src" / "index.js").write_text(
+        f"""'use strict';
+
+const http = require('http');
+
+const PORT = process.env.PORT || 3000;
+
+const server = http.createServer((req, res) => {{
+  if (req.method === 'GET' && req.url === '/health') {{
+    res.writeHead(200, {{ 'Content-Type': 'application/json' }});
+    res.end(JSON.stringify({{ service: '{name}', status: 'ok' }}));
+    return;
+  }}
+
+  res.writeHead(200, {{ 'Content-Type': 'application/json' }});
+  res.end(JSON.stringify({{ message: 'Welcome to {name}' }}));
+}});
+
+server.listen(PORT, () => {{
+  console.log(`{name} listening on port ${{PORT}}`);
+}});
+"""
+    )
+
+    # f) Overwrite .env.example with Node-appropriate content
+    (project_dir / ".env.example").write_text(
+        f"# {name} Configuration\nPORT=3000\nNODE_ENV=development\nLOG_LEVEL=info\n"
+    )
+
+    # g) Overwrite .gitignore with Node-appropriate content
+    (project_dir / ".gitignore").write_text(
+        "node_modules/\ndist/\n.env\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n"
+        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+    )
+
+
 # Dispatch table mapping project types to their scaffolder functions.
-# Subsequent phases will add entries for the other 9 types.
 _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "python-api": _scaffold_python_api,
+    "saas-skeleton": _scaffold_saas_skeleton,
+    "node-api": _scaffold_node_api,
 }
 
 
