@@ -34,7 +34,7 @@
 
 ## Completed Since Last Update
 
-- ✅ **File API deployed** — `files-api.vps1.ocoron.com` 
+- ✅ **File API deployed** — `files-api.vps1.ocoron.com`
 - ✅ **File Worker deployed** — Background processing active
 - ✅ **All 8 microservices migrated to Coolify** — Auto-deploy via GitHub webhooks
 - ✅ **Cloudflare DNS migration complete** — All DNS via Cloudflare
@@ -156,18 +156,18 @@ async def scrape_windsurf_changelog():
         browser = await p.chromium.launch()
         page = await browser.new_page()
         await page.goto("https://windsurf.com/changelog")
-        
+
         # Extract model announcements
         entries = await page.query_selector_all('.changelog-entry')
         for entry in entries:
             title = await entry.query_selector('h3').text_content()
             date = await entry.query_selector('.date').text_content()
             content = await entry.query_selector('.content').text_content()
-            
+
             # Parse model names and multipliers
             models = parse_model_names(content)
             multipliers = parse_credit_multipliers(content)
-            
+
             # Compare with current config
             if is_new_model(models):
                 notify_model_update(models, multipliers)
@@ -181,7 +181,7 @@ async def scrape_windsurf_changelog():
 def process_newsletter_email(email_content: str) -> dict:
     """
     Extract changelog items from email newsletters.
-    
+
     Supports:
     - Google AI Studio updates
     - Factory.ai release notes
@@ -199,21 +199,21 @@ def process_newsletter_email(email_content: str) -> dict:
 class ChangelogMonitor:
     """
     Unified changelog monitoring for all AI services.
-    
+
     Sources:
     - Web scraping (Playwright for SPAs, requests for static pages)
     - RSS feeds (where available)
     - Email parsing (IMAP + HTML parsing)
     - API endpoints (where available)
     """
-    
+
     async def check_all_sources(self):
         windsurf = await self.check_windsurf()
         kilo = await self.check_kilo()
         traycer = await self.check_traycer()
         anthropic = await self.check_anthropic()
         openai = await self.check_openai()
-        
+
         return {
             'windsurf': windsurf,
             'kilo': kilo,
@@ -221,17 +221,17 @@ class ChangelogMonitor:
             'anthropic': anthropic,
             'openai': openai,
         }
-    
+
     def compare_with_cache(self, changes: dict):
         """Compare against cached versions, alert on new items."""
         cache = self.load_cache()
         new_items = []
-        
+
         for tool, items in changes.items():
             for item in items:
                 if item not in cache.get(tool, []):
                     new_items.append((tool, item))
-        
+
         return new_items
 ```
 
@@ -246,7 +246,7 @@ def notify_changelog_update(tool: str, update: dict):
         'url': update['url'],
         'priority': 'medium',
     }
-    
+
     subprocess.run([
         os.getenv('FABRIK_NOTIFY_SCRIPT', '~/.factory/hooks/notify.sh')
     ], input=json.dumps(message), text=True)

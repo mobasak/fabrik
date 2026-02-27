@@ -1,4 +1,4 @@
-> **Phase Navigation:** [← Phase 7](Phase7.md) | **Phase 8** | [All Phases](roadmap.md)
+> **Phase Navigation:** [← Phase 7](Phase7.md) | **Phase 8** | [All Phases](README.md)
 
 **Status:** ✅ COMPLETE (historical implementation)
 ## Phase 8: Business Automation with n8n — Complete Narrative

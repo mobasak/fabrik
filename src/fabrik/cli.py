@@ -627,12 +627,11 @@ def scaffold(name: str, description: str):
         # Update Fabrik project catalog
         import subprocess
 
-        fabrik_root = Path("/opt/fabrik")
-        sync_script = fabrik_root / "scripts" / "sync_projects.py"
+        sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
         if sync_script.exists():
             click.echo("📊 Updating Fabrik project catalog...")
             result = subprocess.run(
-                ["python", str(sync_script)], cwd=str(fabrik_root), capture_output=True, text=True
+                ["python", str(sync_script)], cwd=str(FABRIK_ROOT), capture_output=True, text=True
             )
             if result.returncode == 0:
                 click.echo("✅ BUSINESS_MODEL.md updated")

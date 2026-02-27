@@ -6,6 +6,37 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Scaffold Dockerfile PYTHONPATH (2026-02-26)
+
+**What:** Added `ENV PYTHONPATH=/app/src` to Dockerfile template so uvicorn can import from src/<package_name>
+
+**Files:**
+- `templates/scaffold/docker/Dockerfile.python` - Added PYTHONPATH environment variable
+
+**Why:** Scaffold creates `src/<package_name>/main.py` but Dockerfile CMD uses `uvicorn <package_name>.main:app` without path prefix. PYTHONPATH makes imports work correctly.
+
+**Result:** Scaffolded projects now have working Docker builds without manual Dockerfile edits.
+
+### Added - Previously Planned Ideas Documentation (2026-02-26)
+
+**What:** Created `docs/previously_planned_ideas.md` to consolidate future feature ideas and deferred enhancements from various planning sessions.
+
+**Content:**
+- Current Priority: Phase 1d (WordPress Automation) with active tasks
+- What's Next for Fabrik (completed milestones + current status)
+- Future: Web-Based Site Builder (domain registration + site wizard)
+- Changelog Automation for AI Tools (Windsurf, Kilo, Traycer, Anthropic, OpenAI, etc.)
+  - Playwright-based web scraping for React SPAs
+  - Email newsletter processing (IMAP + HTML parsing)
+  - Unified changelog aggregator with caching
+  - Integration with existing notify.sh
+- Integration ideas backlog
+- Future enhancements (low priority)
+
+**Source:** Extracted from `docs/archive/2026-02-26-doc-consolidation/ROADMAP_ACTIVE.md`
+
+**Result:** All future ideas now consolidated in one document, preventing duplication and making it easy to revisit quarterly.
+
 ### Added - Environment Variable Best Practices Documentation (2026-02-26)
 
 **What:** Extracted comprehensive environment variable best practices from archived `ENVIRONMENT_VARIABLES.md` and added to active `docs/CONFIGURATION.md`.

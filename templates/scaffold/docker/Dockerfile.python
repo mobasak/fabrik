@@ -52,5 +52,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 ENV PORT=8000
 EXPOSE ${PORT}
 
+# Python path - enables imports from src/<package_name>
+ENV PYTHONPATH=/app/src
+
 # Entry point (uses <package_name> placeholder replaced by scaffold)
 CMD ["sh", "-c", "uvicorn <package_name>.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -1,4 +1,4 @@
-> **Phase Navigation:** [← Phase 1](Phase1.md) | **Phase 2** | [Phase 3 →](Phase3.md) | [All Phases](roadmap.md)
+> **Phase Navigation:** [← Phase 1](Phase1.md) | **Phase 2** | [Phase 3 →](Phase3.md) | [All Phases](README.md)
 
 **Status:** ✅ COMPLETE (historical implementation)
 ## Phase 2: WordPress Automation — Complete Narrative

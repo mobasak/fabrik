@@ -1,4 +1,4 @@
-> **Phase Navigation:** [← Phase 5](Phase5.md) | **Phase 6** | [Phase 7 →](Phase7.md) | [All Phases](roadmap.md)
+> **Phase Navigation:** [← Phase 5](Phase5.md) | **Phase 6** | [Phase 7 →](Phase7.md) | [All Phases](README.md)
 
 **Status:** ✅ COMPLETE (historical implementation)
 ## Phase 6: Advanced Monitoring — Complete Narrative

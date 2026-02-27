@@ -1,4 +1,4 @@
-> **Phase Navigation:** [← Phase 2](Phase2.md) | **Phase 3** | [Phase 4 →](Phase4.md) | [All Phases](roadmap.md)
+> **Phase Navigation:** [← Phase 2](Phase2.md) | **Phase 3** | [Phase 4 →](Phase4.md) | [All Phases](README.md)
 
 **Status:** ✅ COMPLETE (historical implementation)
 ## Phase 3: AI Content Integration — Complete Narrative
