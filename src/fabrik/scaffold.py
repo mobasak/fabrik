@@ -48,6 +48,7 @@ TEMPLATE_MAP = {
     # Droid exec / Docker workflow files (AGENTS.md handled separately as symlink)
     "docker/Dockerfile.python": "Dockerfile",
     "docker/compose.yaml.template": "compose.yaml",
+    "docker/compose.dev.yaml.template": "compose.dev.yaml",
     "docker/dockerignore.template": ".dockerignore",
     # Python tooling config
     "python/pyproject.toml.template": "pyproject.toml",
