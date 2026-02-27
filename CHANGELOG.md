@@ -6,6 +6,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Removed - Droid Exec Cleanup (2026-02-27)
+
+**What:** Archived all droid exec related code and documentation. Fabrik now uses Traycer + Kilo + Windsurf Cascade workflow.
+
+**Files Archived:**
+- `scripts/droid_models.py` → `scripts/.archive/2026-02-27-droid-exec-cleanup/`
+- `docs/reference/droid-exec-usage.md` → `docs/archive/2026-02-27-droid-exec-cleanup/`
+
+**Files Updated:**
+- `src/fabrik/cli.py` - Removed `fabrik sync-models` command
+- `scripts/final_gate.py` - Removed "Sync Droid Model Names" check
+- `tests/test_properties.py` - Removed droid_models tests, kept scaffold tests
+- `docs/reference/windsurf/cascade-models.md` - Updated source reference, removed CLI commands
+- `docs/reference/windsurf/overview.md` - Fixed stale droid exec references
+- `docs/reference/windsurf/recommended-extensions.md` - Removed droid exec from description
+- `docs/reference/spec-pipeline.md` - Archived (entirely about droid exec)
+- Fixed 6 broken documentation links across reference docs
+
 ### Fixed - Droid Models Registry Cleanup (2026-02-27)
 
 **What:** Removed duplicate ModelInfo dataclass and fixed model name mismatch in droid_models.py.

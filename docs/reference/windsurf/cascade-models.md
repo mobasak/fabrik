@@ -2,9 +2,9 @@
 
 **Last Updated:** 2026-02-23
 
-> 📋 **Source:** `scripts/droid_models.py` contains the authoritative model list.
+> 📋 **Source:** `config/models.yaml` contains the authoritative model configuration.
 >
-> Run `python scripts/droid_models.py windsurf` to see all models.
+> Models are selected directly in Windsurf Cascade via the dropdown menu.
 
 ---
 
@@ -30,7 +30,7 @@ In Cascade, switch models via the dropdown under the text input box. Each model 
 
 ---
 
-## Budget Tier (11 models, 0.125x - 0.75x)
+## Budget Tier (12 models, 0.125x - 0.75x)
 
 | Model | Credits |
 |-------|---------|
@@ -165,23 +165,6 @@ In Cascade, switch models via the dropdown under the text input box. Each model 
 
 ---
 
-## CLI Commands
-
-```bash
-# List all Windsurf models
-python scripts/droid_models.py windsurf
-
-# Filter by tier
-python scripts/droid_models.py windsurf free     # 7 models
-python scripts/droid_models.py windsurf budget   # 11 models
-python scripts/droid_models.py windsurf standard # 21 models
-python scripts/droid_models.py windsurf premium  # 18 models
-python scripts/droid_models.py windsurf ultra    # 19 models
-```
-
----
-
 ## See Also
 
-- [Factory.ai Models](../droid-exec-usage.md) - droid exec model selection
 - [Recommended Extensions](recommended-extensions.md)

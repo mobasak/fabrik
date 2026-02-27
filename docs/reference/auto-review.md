@@ -255,5 +255,4 @@ If a review appears stuck, the processor will emit periodic diagnostics when the
 ## See Also
 
 - [Verification Framework](verification-framework.md)
-- [Droid Exec Usage](droid-exec-usage.md)
 - [AGENTS.md](../../AGENTS.md)

@@ -780,43 +780,6 @@ def verify(domain: str, spec: str, app_name: str | None, no_rollback: bool):
         raise SystemExit(1)
 
 
-@cli.command("sync-models")
-def sync_models():
-    """Sync droid model names across all Fabrik files.
-
-    Ensures consistency between:
-    - scripts/droid_models.py (source of truth)
-    - scripts/droid_tasks.py
-    - AGENTS.md
-    - docs/reference/droid-exec-usage.md
-
-    Example:
-        fabrik sync-models
-    """
-    import subprocess
-    import sys
-
-    fabrik_root = Path(__file__).parent.parent.parent
-    script = fabrik_root / "scripts" / "droid_models.py"
-
-    if not script.exists():
-        click.echo(f"Error: Script not found: {script}", err=True)
-        raise SystemExit(1)
-
-    result = subprocess.run(
-        [sys.executable, str(script), "sync"],
-        cwd=fabrik_root,
-        capture_output=True,
-        text=True,
-    )
-
-    click.echo(result.stdout)
-    if result.stderr:
-        click.echo(result.stderr, err=True)
-
-    raise SystemExit(result.returncode)
-
-
 def main():
     """Entry point for the CLI."""
     cli()

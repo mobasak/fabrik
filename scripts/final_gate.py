@@ -414,10 +414,6 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
     code, out = run_cmd([PYTHON, "scripts/enforcement/check_rule_size.py"])
     results.append(("Rule File Size Guard", code == 0, out if code != 0 else ""))
 
-    # Sync Droid Model Names
-    code, out = run_cmd([PYTHON, "scripts/droid_models.py", "sync"])
-    results.append(("Sync Droid Model Names", code == 0, out if code != 0 else ""))
-
     # INDEX.md (Master File Index)
     code, out = run_cmd([PYTHON, "scripts/enforcement/check_index_md.py"])
     results.append(("INDEX.md (Master File Index)", code == 0, out if code != 0 else ""))

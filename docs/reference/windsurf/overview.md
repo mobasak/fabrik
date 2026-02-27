@@ -11,9 +11,7 @@ This folder contains documentation for optimizing Windsurf IDE and Cascade AI fo
 | Document | Description |
 |----------|-------------|
 | [Recommended Extensions](recommended-extensions.md) | Curated extensions list |
-| cascade-optimization.md | Best practices for Cascade AI (planned) |
-| keybindings.md | Custom keyboard shortcuts (planned) |
-| settings-sync.md | Settings to sync across machines (planned) |
+| [Cascade Models](cascade-models.md) | Model tiers and credit costs |
 
 ---
 
@@ -21,7 +19,7 @@ This folder contains documentation for optimizing Windsurf IDE and Cascade AI fo
 
 1. **Install recommended extensions** - See [recommended-extensions.md](recommended-extensions.md)
 2. **Configure settings** - Import from `~/.windsurf/settings.json`
-3. **Enable Cascade features** - Use `--auto medium` for autonomous work
+3. **Enable Cascade features** - Configure Traycer YOLO mode for autonomous work
 
 ---
 
@@ -37,6 +35,5 @@ Windsurf + Cascade is our primary development environment. Optimizing it:
 
 ## Related
 
-- [Factory CLI Integration](../droid-exec-usage.md)
 - [Auto Review System](../auto-review.md)
 - [Documentation Updater](../docs-updater.md)

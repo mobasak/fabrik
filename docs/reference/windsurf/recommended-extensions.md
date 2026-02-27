@@ -51,7 +51,7 @@ Curated list of extensions for Fabrik development workflow.
 
 | Extension | Publisher | Purpose |
 |-----------|-----------|---------|
-| `factory.factory-vscode-extension` | Factory | Factory.ai / droid exec integration |
+| `factory.factory-vscode-extension` | Factory | Factory.ai integration |
 | `traycer.traycer-vscode` | Traycer | Traycer AI assistant |
 | `anthropic.claude-code` | Anthropic | Claude AI integration |
 
@@ -161,4 +161,3 @@ Add to Windsurf settings.json for optimal experience:
 
 - [Windsurf Documentation](https://docs.windsurf.com)
 - [Open VSX Registry](https://open-vsx.org)
-- [Factory.ai Integration](../droid-exec-usage.md)
