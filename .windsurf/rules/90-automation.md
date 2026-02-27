@@ -50,7 +50,7 @@ trigger: always_on
 /yolo phased "Refactor auth system to use JWT"
 ```
 
-**See:** `docs/guides/TRAYCER_YOLO_WORKFLOW.md` for complete workflow
+**See:** `docs/traycer/traycer-yolo-workflow.md` for complete workflow
 
 ---
 

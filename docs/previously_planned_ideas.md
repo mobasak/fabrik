@@ -1,10 +1,275 @@
 # Previously Planned Ideas & Future Enhancements
 
-**Last Updated:** 2026-02-26
+**Last Updated:** 2026-02-27
 
 > This document consolidates future feature ideas, deferred enhancements, and low-priority improvements from various planning sessions. Items here are NOT currently scheduled but may be implemented when resources allow.
 
 ---
+
+## Traycer MCP Integration (Future Work)
+
+**Status:** 📋 Planned | **Priority:** Medium | **Value:** High automation leverage | **Cost:** ~$50/month
+
+### Overview
+
+Integrate Model Context Protocol (MCP) into Traycer workflows to enable live external data access during Epic Mode planning and YOLO execution. Focus on high-value integrations that reduce manual coordination.
+
+### Phase 1: GitHub Issues Integration (Week 1)
+
+**Goal:** Epic Mode automatically pulls and updates GitHub issues
+
+**Implementation:**
+1. Add Composio GitHub MCP server (10 min)
+   - Authentication: GitHub OAuth
+   - Tools: `list_issues`, `get_issue`, `update_issue`, `create_comment`
+   - Account: Organization
+
+2. Update custom templates (20 min)
+   - `~/.traycer/prompt-templates/Kilo Plan - Fabrik 9-Step.md`
+   - Add: "Before planning, use GitHub MCP to check related issues"
+   - Add: "After commit, update GitHub issue status"
+
+3. Test workflow (30 min)
+   - Create test Epic: "Fix scaffold compliance"
+   - Verify: Traycer pulls issues during `/epic-brief`
+   - Verify: Tickets reference actual issue numbers
+   - Verify: YOLO updates issue status automatically
+
+**Value:** Single source of truth for 759+ compliance issues across 6 modules. No manual status updates.
+
+**Done When:**
+- [ ] Epic planning fetches GitHub issues labeled "compliance"
+- [ ] Generated tickets include GitHub issue numbers
+- [ ] YOLO execution updates issue status (in-progress → closed)
+- [ ] Commit messages link to closed issues
+
+---
+
+### Phase 2: Notion Architecture Repository (Week 2)
+
+**Goal:** Enforce consistent patterns across all `/opt/*` projects
+
+**Implementation:**
+1. Create Notion workspace (1 hour)
+   - Page: "Fabrik Service Patterns" (health checks, env vars, CHANGELOG)
+   - Page: "Active Services" (all projects + ports + URLs)
+   - Page: "Architecture Decisions" (rationale for patterns)
+
+2. Add Composio Notion MCP server (10 min)
+   - Authentication: Notion OAuth
+   - Tools: `search_pages`, `read_page`, `update_page`
+   - Account: Organization
+
+3. Update templates (30 min)
+   - Epic planning: "Query Notion for relevant patterns"
+   - Verification: "Check against Notion documented patterns"
+
+**Value:** Every new microservice follows exact same conventions. Zero architecture drift.
+
+**Done When:**
+- [ ] Traycer can query "microservice health check pattern"
+- [ ] Returns exact code snippet from Notion
+- [ ] New service scaffolds match documented patterns
+- [ ] Deployed services automatically update "Active Services" page
+
+---
+
+### Phase 3: Slack Critical Alerts (Week 3)
+
+**Goal:** Monitor unattended YOLO execution
+
+**Implementation:**
+1. Create Slack channels (5 min)
+   - `#fabrik-alerts` — Only BLOCKER/MAJOR verification failures
+   - `#fabrik-deploys` — Epic completion summaries
+
+2. Add Composio Slack MCP server (10 min)
+   - Authentication: Slack OAuth
+   - Tools: `post_message`
+   - Account: Organization
+
+3. Update verification template (20 min)
+   - Add: "If BLOCKER issues, post to #fabrik-alerts"
+   - Include: Phase name, issue summary, file paths
+   - Do NOT spam for MINOR issues
+
+**Value:** Stay informed without watching YOLO. Critical failures surface immediately.
+
+**Done When:**
+- [ ] BLOCKER verification failure → Slack message in #fabrik-alerts
+- [ ] Message includes: Phase, files, issues
+- [ ] Epic completion → Summary in #fabrik-deploys
+- [ ] MINOR issues do NOT trigger alerts
+
+---
+
+### Cost & ROI
+
+| Item | Cost | Notes |
+|------|------|-------|
+| Composio Team Plan | ~$20-50/month | 250+ integrations |
+| Traycer Pro+ | $384/year | Already paid (sunk cost) |
+| **Time Saved** | 2-4 hours/week | No manual issue updates, pattern lookups |
+| **ROI** | Positive after Month 1 | 8-16 hours saved vs $50 cost |
+
+---
+
+### Example End-to-End Workflow (After All 3 Phases)
+
+```
+You: "Create auth service with JWT"
+
+Traycer Epic Mode:
+1. MCP → Notion: Pull "auth service pattern"
+2. Generates Epic Brief with JWT library, token expiry, refresh flow
+3. MCP → GitHub: Check existing "auth" issues
+4. Creates tickets referencing issue #142 (JWT rotation)
+
+YOLO Execution:
+5. Implements code following Notion pattern
+6. MCP → GitHub: Updates issue #142 → "in-progress"
+7. Verification passes
+8. MCP → GitHub: Closes issue #142, links commit
+9. MCP → Slack: "#fabrik-deploys: Auth service complete, 3 tickets, 0 blockers"
+
+You: Check Slack, review commit, done.
+```
+
+---
+
+### What NOT to Integrate
+
+| Tool | Reason |
+|------|--------|
+| Gmail | Code-first workflow, not email-driven |
+| Linear | GitHub already works, migration overhead |
+| Google Calendar | Doesn't integrate with code workflow |
+| Generic docs search | Local `docs/` folder sufficient |
+
+---
+
+### References
+
+- MCP Documentation: `docs/traycer/README.md` (MCP Integration section)
+- Traycer Platform: https://traycer.ai
+- Composio: https://composio.dev
+
+---
+
+### Complementary: GitHub Ticket Assist (Future Work)
+
+**Status:** 📋 Planned | **Priority:** High | **Value:** Immediate automation wins | **Cost:** FREE (included in Pro+)
+
+**Alternative/Addition to MCP GitHub integration**
+
+#### What It Does
+
+Ticket Assist automatically generates development plans from GitHub issues without manual Epic Mode planning.
+
+**Workflow:**
+```
+GitHub Issue → Traycer Auto-Plan → YOLO Execution → Done
+```
+
+#### When to Use
+
+**Use Ticket Assist for:**
+- ✅ Standalone bug fixes ("Fix health check timeout")
+- ✅ Security patches ("Update dependency X to v2.0")
+- ✅ Small features ("Add retry logic to API client")
+- ✅ Issues with clear, detailed descriptions
+
+**Use MCP GitHub for:**
+- ✅ Multi-issue Epics ("Fix all 759 compliance issues")
+- ✅ Cross-module refactoring ("Standardize env vars across /opt/*")
+- ✅ Complex features requiring architecture decisions
+
+#### Recommended Setup for Fabrik
+
+**Repository:** `fabrik` (main repo)
+
+**Configuration:**
+```yaml
+Target Branch: main
+Plan Creation: On
+Trigger: On issue creation
+Label Filter: "auto-plan"
+```
+
+**Label Strategy:**
+- `auto-plan` → Ticket Assist generates plan automatically
+- `epic` → Handle via MCP GitHub in Epic Mode (manual planning)
+- `manual` → No automation (review, research, unclear scope)
+
+**Example Issue Labels:**
+```
+Issue #142: JWT token rotation
+Labels: security, auth, auto-plan
+→ Ticket Assist creates plan
+
+Issue #143-899: Compliance fixes (759 issues)
+Labels: compliance, epic
+→ Epic Mode with MCP GitHub query
+
+Issue #900: Research alternative auth providers
+Labels: research, manual
+→ No automation
+```
+
+#### Implementation Steps
+
+1. **Install Traycer GitHub App** (5 min)
+   - Traycer Platform → Ticket Assist → Repositories
+   - Add `fabrik` repository
+   - Grant access to GitHub app
+
+2. **Configure Settings** (5 min)
+   - Target Branch: `main`
+   - Trigger: On issue creation
+   - Label Filter: `auto-plan`
+
+3. **Test Workflow** (15 min)
+   - Create test issue: "Fix broken health check"
+   - Add label: `auto-plan`
+   - Verify: Plan appears in Traycer
+   - Review plan → Run YOLO or manual implementation
+
+**Done When:**
+- [ ] GitHub app installed for `fabrik` repo
+- [ ] Label filter configured: `auto-plan`
+- [ ] Test issue generates plan automatically
+- [ ] Plan quality is good (clear steps, file references)
+
+#### Cost
+
+**Free** — Built into Traycer Pro+ subscription (already paid)
+
+#### Combined Strategy (Ticket Assist + MCP GitHub)
+
+**Best of both worlds:**
+
+```
+Small Issues (auto-plan label):
+  GitHub Issue → Ticket Assist → YOLO → Done
+  (Zero manual planning)
+
+Large Epics (epic label):
+  GitHub Issues → Epic Mode (MCP queries all) → Tickets → YOLO → Done
+  (Organized planning for multi-issue work)
+
+Manual Work (manual label):
+  GitHub Issue → You investigate → Manual plan/implementation
+  (Research, unclear scope, needs human judgment)
+```
+
+**ROI:**
+- Ticket Assist: Saves 30-60 min per small issue (no manual planning)
+- MCP GitHub: Saves 2-4 hours per Epic (organized multi-issue work)
+- Combined: Best automation coverage
+
+---
+
+
 
 ## Current Priority: Phase 1d (WordPress Automation)
 

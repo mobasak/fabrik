@@ -165,9 +165,9 @@ Next: Proceed to Step <N+1> / STOP
 - **Custom Workflows**: Create your own command sequences tailored to your methodology
 
 **For complete workflow details**, see:
-- [`templates/traycer/README.md`](templates/traycer/README.md) - Traycer integration guide
-- [`docs/reference/traycer-agile-workflow.md`](docs/reference/traycer-agile-workflow.md) - Detailed Agile Workflow reference
-- [`docs/reference/traycer-refactoring-workflow.md`](docs/reference/traycer-refactoring-workflow.md) - Detailed Refactoring Workflow reference
+- [`docs/traycer/README.md`](docs/traycer/README.md) - Traycer integration guide
+- [`docs/traycer/traycer-agile-workflow.md`](docs/traycer/traycer-agile-workflow.md) - Detailed Agile Workflow reference
+- [`docs/traycer/traycer-refactoring-workflow.md`](docs/traycer/traycer-refactoring-workflow.md) - Detailed Refactoring Workflow reference
 - [`docs/guides/DEVELOPMENT_WORKFLOW.md`](docs/guides/DEVELOPMENT_WORKFLOW.md) - How Traycer fits into Fabrik's 9-step workflow
 
 ---

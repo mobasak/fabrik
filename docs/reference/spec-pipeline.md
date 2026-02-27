@@ -139,12 +139,12 @@ If using Traycer.ai for enhanced planning:
 
 1. Complete the spec pipeline (idea → scope → spec)
 2. Point Traycer to `specs/<project>/02-spec.md`
-3. Use templates from `templates/traycer/`:
+3. Use templates from `docs/traycer/templates/`:
    - `plan_template.md` - Generate phased plan
    - `task_execution_template.md` - Execute tasks
    - `verification_template.md` - Verify completion
 
-See `templates/traycer/README.md` for details.
+See `docs/traycer/README.md` for details.
 
 ---
 
@@ -153,7 +153,7 @@ See `templates/traycer/README.md` for details.
 | Directory | Purpose |
 |-----------|---------|
 | `templates/spec-pipeline/` | Prompts for idea/scope/spec stages |
-| `templates/traycer/` | Optional Traycer integration templates |
+| `docs/traycer/templates/` | Optional Traycer integration templates |
 
 ---
 

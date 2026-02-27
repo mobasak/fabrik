@@ -56,7 +56,7 @@ Traycer asks pointed questions to surface constraints, edge cases, and "invisibl
 
 Epic Mode also tracks **Executions** as an audit trail for each agent handoff (what was handed off, plan generated if any, verification comments, commit, and execution status).
 
-**For complete Epic Mode workflow details**, see [Traycer Agile Workflow (Detailed Reference)](../reference/traycer-agile-workflow.md).
+**For complete Epic Mode workflow details**, see [Traycer Agile Workflow (Detailed Reference)](../traycer/traycer-agile-workflow.md).
 
 **Gate:** Plan must have required sections (enforced by `check_plan_quality.py`):
 - `**Status:**` line

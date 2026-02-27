@@ -13,6 +13,82 @@ Traycer is a spec-driven development orchestrator that:
 - Hands tasks to AI coding agents (like Cascade or droid exec).
 - Verifies task completion.
 
+## Pricing & Usage Limits
+
+**Current Plan:** Pro+ ($40/month per user)
+
+### Credit System
+
+Traycer uses **credits** to meter usage across all operations.
+
+**Pro+ Plan Includes:**
+- **$50 credits/month** (subscription credits)
+- Credits reset monthly (unused don't carry over)
+- Additional credits via bundles ($10 minimum, never expire)
+
+### Rate Card (Credit Costs)
+
+| Action | Cost |
+|--------|------|
+| Plan generation | $0.50 credits |
+| Plan chat | $0.125 credits |
+| Review | $0.50 credits |
+| Review chat | $0.125 credits |
+| Phases generation | $0.125 credits |
+| Phase chat | $0.125 credits |
+| Verification | $0.50 credits |
+| Re-verification | $0.125 credits |
+| Epic chat | $0.25 credits |
+
+**Note:** Requests exceeding context window cost 2x.
+
+### Usage Estimates (Pro+ $50/month)
+
+**Typical YOLO Workflow:**
+- Plan generation: $0.50
+- Verification: $0.50
+- Re-verification (1x): $0.125
+- **Total per phase:** ~$1.13
+
+**Monthly capacity:**
+- ~44 YOLO phases per month
+- Or ~100 plan generations
+- Or ~400 chat interactions
+
+**Heavy usage:**
+- If you exceed $50/month, buy bundles ($10+ increments)
+- Bundle credits never expire
+
+### Plan Tiers
+
+| Plan | Price/User/Month | Included Credits |
+|------|------------------|------------------|
+| Lite | $20 | $20 credits |
+| **Pro+** | **$40** | **$50 credits** |
+| Ultra | $100+ | $150+ credits |
+| Ultra+ | $200-500 | $300-750 credits |
+
+**Annual:** 20% discount (pay yearly, save $96/year on Pro+)
+
+### Enterprise Features
+
+**Same pricing as individual plans, adds:**
+- Centralized billing (single invoice)
+- Seat management dashboard
+- Org-wide MCP server management
+- Enforced privacy mode
+- Dedicated support channel (Slack/Discord)
+
+### Important Notes
+
+- **Credits per seat:** Each user gets their own credit allocation
+- **Artifacts persist:** Downgrading doesn't delete previous work
+- **Failed generations:** Automatic credit refund
+- **No refunds:** Deleting artifacts doesn't refund credits
+- **Trial:** 7 days free with $10 credits (no card required)
+
+---
+
 ## When to Use Traycer
 
 Traycer prevents agent drift and preserves human intent using **Spec-Driven Development**. Instead of monolithic documents, it uses **Epic Mode** and **focused mini-specs** to guide agents.
@@ -36,6 +112,273 @@ Traycer manages its configuration and data inside your WSL home directory at **`
 - **`~/.traycer/yolo_artifacts/`**: YOLO Mode execution artifacts.
 
 **Data Storage Location:** All Traycer data is stored locally on your machine at `~/.traycer/`, ensuring your development history and sensitive project information remain private and under your control.
+
+### Model Context Protocol (MCP) Integration
+
+**MCP enables Traycer agents to access external tools and data sources** during workflow execution.
+
+#### What is MCP?
+
+Model Context Protocol allows Traycer to securely connect to:
+- External APIs (Gmail, Slack, Notion, Linear via Composio)
+- Custom remote endpoints
+- Third-party services with authentication
+
+#### Configuration
+
+**Platform:** Traycer Platform (https://traycer.ai)
+
+**1. Account Selection:** Personal vs Organization
+- **Personal:** MCP servers private to you
+- **Organization:** Shared across all team members
+
+**2. Add Custom MCP Server:**
+- Navigate to "Remote MCP Servers" sidebar
+- Click "Add Custom MCP"
+- Configure:
+  - **Name:** Descriptive identifier
+  - **Endpoint URL:** HTTPS endpoint
+  - **Authentication:** None / API Key / OAuth
+
+**3. Tool Management:**
+- All tools enabled by default
+- Disable unwanted tools individually
+- Use "Enable All" / "Disable All" for bulk changes
+- Master toggle for organization-wide enable/disable
+
+#### Switching Accounts in Extension
+
+**In Traycer Extension (Windsurf):**
+1. Click MCP icon in top toolbar
+2. Use account dropdown (personal ↔ organization)
+3. Click "Mark as Active" to switch
+4. View configured servers and available tools
+
+#### Important Limitations
+
+- **Remote only:** Local MCP servers NOT supported
+- **Workaround:** Use Composio for 250+ local integrations as managed remote services
+- **Organization sharing:** Only applies to servers added under organization account
+
+#### Usage in Workflows
+
+During Plan, Phases, Review, or Epic workflows, Traycer agents can invoke MCP tools if:
+- MCP server configured in active account
+- Tool enabled for the server
+- Agent has appropriate template/prompting to use tools
+
+**Example Use Cases:**
+- Fetch issue details from Linear during planning
+- Query documentation from Notion for context
+- Send Slack notifications on workflow completion
+- Access Gmail for requirements gathering
+
+#### Recommended MCP Implementations for Fabrik
+
+**Priority 1: GitHub Issues Integration**
+
+*Use case:* Epic Mode planning with live issue tracking
+
+- **MCP Server:** GitHub (via Composio)
+- **Tools:** `list_issues`, `get_issue`, `update_issue`, `create_comment`
+- **Account:** Organization (team-shared)
+- **Benefit:** Single source of truth for compliance issues, automatic status updates during YOLO execution
+
+**Workflow:**
+1. Epic planning: Fetch open issues labeled "compliance" + module name
+2. Ticket breakdown: Reference actual GitHub issue numbers
+3. YOLO execution: Update issue status to "in-progress"
+4. After verification: Close issue, link commit
+
+**Priority 2: Notion Architecture Patterns**
+
+*Use case:* Enforce consistent patterns across all `/opt/*` projects
+
+- **MCP Server:** Notion (via Composio)
+- **Tools:** `search_pages`, `read_page`, `update_page`
+- **Account:** Organization
+- **Benefit:** Every new service follows documented patterns automatically
+
+**Notion Pages to Create:**
+- "Fabrik Service Patterns" (health checks, env vars, CHANGELOG rules)
+- "Active Services" (all projects + ports + URLs)
+- "Architecture Decisions" (when/why patterns were chosen)
+
+**Workflow:**
+1. New service Epic: Query Notion for "microservice patterns"
+2. Plan includes: Required health check pattern, env var naming
+3. After deployment: Update "Active Services" page
+
+**Priority 3: Slack Critical Alerts**
+
+*Use case:* Unattended YOLO monitoring
+
+- **MCP Server:** Slack (via Composio)
+- **Tools:** `post_message`
+- **Account:** Organization
+- **Channels:** `#fabrik-alerts` (BLOCKER only), `#fabrik-deploys` (completions)
+- **Benefit:** Stay informed without constant monitoring
+
+**Workflow:**
+1. Verification fails (BLOCKER) → Post to #fabrik-alerts with phase, issues, files
+2. Epic completes → Post to #fabrik-deploys with summary, commit links
+3. No spam for MINOR issues
+
+**What NOT to Use MCP For:**
+- ❌ Gmail (code-first workflow, not email-driven)
+- ❌ Calendar integrations (doesn't integrate with code workflow)
+- ❌ Simple documentation queries (use local `docs/` instead)
+
+**Cost:** Composio ~$20-50/month for team plan (250+ integrations)
+
+---
+
+### GitHub Ticket Assist (Automatic Plan Generation)
+
+**Ticket Assist** is a built-in Traycer feature that automatically generates development plans from GitHub issues.
+
+#### What is Ticket Assist?
+
+Ticket Assist integrates directly with your GitHub repositories to:
+- Monitor GitHub issues for specific triggers
+- Automatically analyze issue content and linked resources
+- Generate actionable development plans in Traycer
+- Enable single-click transition to IDE for implementation
+
+**Key Difference from MCP:**
+- **MCP:** Traycer queries/updates GitHub during Epic planning (you drive)
+- **Ticket Assist:** GitHub issues trigger automatic plan creation (issue-driven)
+
+#### Installation
+
+**1. Access Traycer Platform**
+- Log in to Traycer Platform (https://traycer.ai)
+- Use account dropdown to select Personal or Organization account
+
+**2. Navigate to Repositories**
+- Sidebar: Ticket Assist → Repositories
+- Click "Add Repositories"
+
+**3. Install Traycer GitHub App**
+- Redirected to GitHub for app installation
+- Choose organization or personal account
+- Grant access:
+  - **All repositories** (full integration), or
+  - **Only select repositories** (specific repos only)
+
+**4. Configure Per-Repository Settings**
+
+| Setting | Options | Purpose |
+|---------|---------|----------|
+| **Target Branch** | main, develop, etc. | Default branch context for plan generation |
+| **Plan Creation** | On/Off toggle | Enable/disable automatic plan generation |
+| **Trigger** | On issue creation, On issue assignment | When to generate plans |
+| **Label Filter** | Optional label name | Generate plans only for issues with specific label |
+
+#### How It Works
+
+**Workflow:**
+```
+1. GitHub: Create or assign issue
+   ↓
+2. Traycer: AI analyzes issue + linked resources (PRs, commits, docs)
+   ↓
+3. Traycer: Generates precise, actionable plan
+   ↓
+4. You: Open plan in IDE, customize, execute
+```
+
+**Example:**
+```
+GitHub Issue #142: "Add JWT token rotation to auth service"
+  - Description: Current tokens don't expire, security risk
+  - Label: "security", "auth"
+  - Assignee: @ozgur
+
+Traycer Ticket Assist:
+  - Detects issue creation (trigger: on creation)
+  - Filters by label: "security" ✓
+  - Analyzes: Issue description + auth service codebase context
+  - Generates Plan: "JWT Token Rotation Implementation"
+    - Step 1: Add token expiry config to .env
+    - Step 2: Implement refresh token endpoint
+    - Step 3: Update auth middleware to check expiry
+    - Step 4: Add rotation tests
+    - References: src/auth/jwt.py, docs/security-patterns.md
+
+You:
+  - Open plan in Traycer IDE extension
+  - Review and customize as needed
+  - Hand off to YOLO execution or implement manually
+```
+
+#### Configuration Strategies
+
+**Strategy 1: Label-Based (Recommended for Fabrik)**
+```yaml
+Repository: fabrik
+Target Branch: main
+Plan Creation: On
+Trigger: On issue creation
+Label Filter: "auto-plan"
+```
+**Use case:** Only issues labeled "auto-plan" generate plans automatically. Gives you control over which issues are automated.
+
+**Strategy 2: Assignment-Based**
+```yaml
+Repository: fabrik
+Target Branch: main
+Plan Creation: On
+Trigger: On issue assignment
+Label Filter: (none)
+```
+**Use case:** Plans generated when you assign issues to yourself. Good for team workflows.
+
+**Strategy 3: Full Auto (High Volume)**
+```yaml
+Repository: fabrik
+Target Branch: main
+Plan Creation: On
+Trigger: On issue creation
+Label Filter: (none)
+```
+**Use case:** Every new issue gets a plan. Works for repositories with high issue quality and clear descriptions.
+
+#### When to Use Ticket Assist vs MCP GitHub
+
+| Scenario | Use Ticket Assist | Use MCP GitHub |
+|----------|-------------------|----------------|
+| Single issue → Implementation | ✅ Perfect fit | ❌ Overkill |
+| Epic planning with 10+ related issues | ❌ Too many individual plans | ✅ Query all at once |
+| Compliance issue tracking (759 issues) | ❌ Plan explosion | ✅ Organized Epic |
+| Bug fix from GitHub issue | ✅ Auto-plan helpful | ⚠️ Manual faster |
+| Feature with multiple issues | ⚠️ Fragmented plans | ✅ Unified Epic |
+
+**Fabrik-Specific Recommendation:**
+- **Use Ticket Assist:** For standalone bugs, security issues, isolated features
+- **Use MCP GitHub:** For Epic Mode planning of multi-issue compliance work
+- **Use Both:** Label compliance issues "epic" (MCP) vs "auto-plan" (Ticket Assist)
+
+#### Ticket Assist + YOLO Integration
+
+**Powerful combination:**
+1. GitHub issue created with label "auto-plan"
+2. Ticket Assist generates plan automatically
+3. Plan appears in Traycer
+4. You review plan → Click YOLO
+5. Unattended implementation + verification + commit
+6. Issue updated via MCP (if configured)
+
+**End-to-end automation without Epic Mode overhead.**
+
+#### Limitations
+
+- **Quality depends on issue quality:** Vague issues → vague plans
+- **Context limited to repository:** Doesn't know about other `/opt/*` projects
+- **No cross-repo Epic planning:** Each issue = separate plan
+- **Notification overhead:** Many issues = many plan notifications
+
+---
 
 ### Template Directory Structure
 
@@ -671,7 +1014,7 @@ The default workflow that guides you through feature development with a collabor
 - **`/implementation-validation`** — Validates code vs specs, creates bug tickets (implementation gate)
 
 **For complete command details** (roles, acceptance criteria, artifact structures, processing flows, validation gate mechanics), see:
-- [Traycer Agile Workflow (Detailed Reference)](../../docs/reference/traycer-agile-workflow.md)
+- [Traycer Agile Workflow (Detailed Reference)](./traycer-agile-workflow.md)
 
 ### Traycer Refactoring Workflow
 

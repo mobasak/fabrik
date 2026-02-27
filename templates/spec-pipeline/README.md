@@ -72,12 +72,12 @@ specs/
 If using Traycer.ai for enhanced planning:
 
 1. Point Traycer to `specs/<project>/02-spec.md`
-2. Use templates from `templates/traycer/` for:
+2. Use templates from `docs/traycer/templates/` for:
    - Plan generation
    - Task execution
    - Verification
 
-See `templates/traycer/README.md` for details.
+See `docs/traycer/README.md` for details.
 
 ## Why This Works
 

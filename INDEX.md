@@ -159,7 +159,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ├── templates/                       # Project and document templates
 │   ├── saas-skeleton/               # Next.js 14 + Tailwind SaaS starter
 │   ├── scaffold/                    # Fabrik scaffold config
-│   ├── traycer/                     # Traycer plan/task/verification templates
 │   └── docs/                        # Document templates
 ├── tests/                           # Test suite
 ├── .factory/                        # Factory AI workspace config
@@ -326,7 +325,6 @@ docs/
 │   ├── DEVELOPMENT_WORKFLOW.md     # How Traycer fits into Fabrik's 9-step workflow
 │   ├── FABRIK_INTEGRATION.md       # Build Fabrik-compatible microservices
 │   ├── PROJECT_WORKFLOW.md         # Start here - new/existing project workflow
-│   ├── TRAYCER_YOLO_WORKFLOW.md    # Traycer YOLO (fast-path) workflow guide
 │   └── domain-hosting-automation.md # Domain + hosting automation
 ├── operations                      # Operational runbooks and VPS state
 │   ├── backup-strategy.md          # VPS backup strategy
@@ -382,9 +380,6 @@ docs/
 │   ├── technology-stack-decision-guide.md # Tech decision flowchart
 │   ├── template_renderer.md
 │   ├── templates.md                # Available deployment templates
-│   ├── traycer-agile-workflow.md   # 8-command Traycer Agile Workflow reference
-│   ├── traycer-evaluation.md       # Traycer integration evaluation
-│   ├── traycer-refactoring-workflow.md # 4-command Traycer Refactoring Workflow reference
 │   ├── trueforge-images.md         # Trueforge image catalog
 │   ├── uptime-kuma.md              # Uptime Kuma runbook
 │   ├── verification-framework.md   # 3-lane verification system
@@ -469,7 +464,6 @@ docs/
 | [domain-hosting-automation.md](docs/guides/domain-hosting-automation.md) | Full domain + hosting automation |
 | [DEPLOYMENT_READY_CHECKLIST.md](docs/guides/DEPLOYMENT_READY_CHECKLIST.md) | Make any project deployment-ready |
 | [DEVELOPMENT_WORKFLOW.md](docs/guides/DEVELOPMENT_WORKFLOW.md) | How Traycer fits into Fabrik's 9-step workflow |
-| [TRAYCER_YOLO_WORKFLOW.md](docs/guides/TRAYCER_YOLO_WORKFLOW.md) | Traycer YOLO (fast-path) workflow guide |
 
 ### WordPress
 
@@ -507,12 +501,16 @@ docs/
 | [kilo-complete-reference.md](docs/reference/kilo-complete-reference.md) | Complete Kilo reference |
 | [kilo-files.md](docs/reference/kilo-files.md) | Kilo file handling reference |
 
-### Traycer Workflows
+### Traycer Documentation
 
 | Document | Purpose |
 |----------|--------|
-| [traycer-agile-workflow.md](docs/reference/traycer-agile-workflow.md) | 8-command Traycer Agile Workflow reference |
-| [traycer-refactoring-workflow.md](docs/reference/traycer-refactoring-workflow.md) | 4-command Traycer Refactoring Workflow reference |
+| [README.md](docs/traycer/README.md) | Traycer integration guide - features, modes, workflows |
+| [traycer-yolo-workflow.md](docs/traycer/traycer-yolo-workflow.md) | YOLO (fast-path) workflow with Kilo agents |
+| [traycer-agile-workflow.md](docs/traycer/traycer-agile-workflow.md) | 8-command Agile Workflow reference |
+| [traycer-refactoring-workflow.md](docs/traycer/traycer-refactoring-workflow.md) | 4-command Refactoring Workflow reference |
+| [traycer-evaluation.md](docs/traycer/traycer-evaluation.md) | Integration evaluation & decision |
+| [templates/](docs/traycer/templates/) | Plan, execution, verification templates |
 
 **Archived (2026-02-25):** `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, `implementation-plan-template.md` moved to `docs/archive/2026-02-25-pre-traycer-templates/`. Replaced by Traycer Phases + dynamic spec generation.
 

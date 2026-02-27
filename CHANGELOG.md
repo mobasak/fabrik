@@ -6,6 +6,70 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Traycer Documentation Reorganization + MCP Integration (2026-02-27)
+
+**What:** Reorganized all Traycer documentation into dedicated `docs/traycer/` folder and added comprehensive MCP (Model Context Protocol) integration documentation with concrete implementation recommendations.
+
+**Files Moved:**
+- `templates/traycer/README.md` → `docs/traycer/README.md`
+- `templates/traycer/*.md` → `docs/traycer/templates/*.md`
+- `docs/guides/TRAYCER_YOLO_WORKFLOW.md` → `docs/traycer/traycer-yolo-workflow.md`
+- `docs/reference/traycer-agile-workflow.md` → `docs/traycer/traycer-agile-workflow.md`
+- `docs/reference/traycer-refactoring-workflow.md` → `docs/traycer/traycer-refactoring-workflow.md`
+- `docs/reference/traycer-evaluation.md` → `docs/traycer/traycer-evaluation.md`
+
+**Updated References:**
+- `AGENTS.md` - Updated all Traycer documentation links
+- `INDEX.md` - New Traycer Documentation section with complete file listing
+- `docs/guides/DEVELOPMENT_WORKFLOW.md` - Updated Epic Mode workflow reference
+- All internal Traycer doc cross-references updated
+
+**MCP Integration Documentation:**
+- What is MCP and how it works
+- Configuration via Traycer Platform (personal vs organization accounts)
+- Adding custom MCP servers (name, endpoint, authentication)
+- Tool management (enable/disable, bulk operations)
+- Switching accounts in Traycer extension
+- Important limitations (remote only, Composio workaround, organization sharing)
+- Usage in workflows (Plan, Phases, Review, Epic modes)
+- Example use cases (Linear, Notion, Slack, Gmail integration)
+
+**MCP Implementation Recommendations Added:**
+- **Priority 1:** GitHub Issues integration (Epic Mode + YOLO status updates)
+- **Priority 2:** Notion architecture patterns (enforce consistency across projects)
+- **Priority 3:** Slack critical alerts (unattended YOLO monitoring)
+- 3-week phased implementation plan with done-when criteria
+- Cost/ROI analysis (~$50/month, 2-4 hours saved/week)
+- Example end-to-end workflow demonstrating all 3 integrations
+
+**GitHub Ticket Assist Documentation Added:**
+- What is Ticket Assist (automatic plan generation from GitHub issues)
+- Installation steps (GitHub app, repository configuration)
+- Configuration strategies (label-based, assignment-based, full auto)
+- When to use Ticket Assist vs MCP GitHub (decision matrix)
+- Ticket Assist + YOLO integration workflow
+- Limitations and considerations
+
+**Pricing & Usage Limits Documentation Added:**
+- Credit-based pricing system explanation
+- Pro+ plan details ($40/month, $50 credits included)
+- Complete rate card (plan generation $0.50, verification $0.50, chat $0.125, etc.)
+- Usage estimates for YOLO workflows (~44 phases/month on Pro+)
+- Plan tier comparison (Lite, Pro+, Ultra, Ultra+)
+- Enterprise features (centralized billing, privacy mode, dedicated support)
+- Bundle credits ($10+ increments, never expire)
+- Important notes (credits per seat, artifact persistence, trial details)
+
+**Planning Documentation:**
+- `docs/previously_planned_ideas.md` - Added "Traycer MCP Integration" section with 3-phase implementation plan
+- Includes GitHub/Notion/Slack workflows, setup steps, value proposition, cost analysis
+- Added "GitHub Ticket Assist" complementary section
+- Label strategy (auto-plan, epic, manual) with examples
+- Combined strategy for Ticket Assist + MCP GitHub
+- Free (built into Traycer Pro+), saves 30-60 min per small issue
+
+**Why:** Consolidates all Traycer-related documentation in one location for easier maintenance and discovery. MCP documentation enables teams to extend Traycer capabilities with external tools. Implementation plan provides concrete next steps for automation leverage.
+
 ### Fixed - Scaffold Dockerfile PYTHONPATH (2026-02-26)
 
 **What:** Added `ENV PYTHONPATH=/app/src` to Dockerfile template so uvicorn can import from src/<package_name>
@@ -430,7 +494,7 @@ kilo run --format json --auto \
 **What:** Comprehensive documentation of Phased YOLO workflow with Kilo agents, including configuration, execution flow, session continuity, and monitoring guidance.
 
 **Files:**
-- `docs/guides/TRAYCER_YOLO_WORKFLOW.md` - Complete workflow documentation (9-step process, configuration settings, agent architecture, session continuity mechanism, template usage, monitoring checklist)
+- `docs/traycer/traycer-yolo-workflow.md` - Complete workflow documentation (9-step process, configuration settings, agent architecture, session continuity mechanism, template usage, monitoring checklist)
 
 **Covers:**
 - 9-step workflow (Plan → Implement → Gates → Review → Verification → Commit)
@@ -517,7 +581,7 @@ config file references, health check behavior, and template placeholders.
 - `~/.traycer/prompt-templates/Kilo User Query – Fabrik Direct.md` - User query handoff template (lightweight)
 - `~/.traycer/prompt-templates/Kilo Verification – Fabrik Fix Loop.md` - Verification handoff template (fix-only)
 - `~/.traycer/prompt-templates/Kilo Review – Fabrik Code Review.md` - Review handoff template (fix-only)
-- `templates/traycer/README.md` - Added "Template Directory Structure" section
+- `docs/traycer/README.md` - Added "Template Directory Structure" section
 
 **Cascade Behavior Patterns:**
 - Check Before Create - Always verify file exists before creating
@@ -537,9 +601,9 @@ config file references, health check behavior, and template placeholders.
 **What:** Fixed Traycer template frontmatter in existing template files to use proper Handlebars format and YAML frontmatter.
 
 **Files:**
-- `templates/traycer/task_execution_template.md` - Fixed to use `applicableFor: userQuery` (camelCase) and `{{userQuery}}` placeholder
-- `templates/traycer/plan_template.md` - Added YAML frontmatter and `{{planMarkdown}}` placeholder
-- `templates/traycer/verification_template.md` - Added YAML frontmatter and `{{comments}}` placeholder
+- `docs/traycer/templates/task_execution_template.md` - Fixed to use `applicableFor: userQuery` (camelCase) and `{{userQuery}}` placeholder
+- `docs/traycer/templates/plan_template.md` - Added YAML frontmatter and `{{planMarkdown}}` placeholder
+- `docs/traycer/templates/verification_template.md` - Added YAML frontmatter and `{{comments}}` placeholder
 
 ### Fixed - Dead Code and Unused Variables (2026-02-24)
 
@@ -598,9 +662,9 @@ pass orchestrator validation without any manual editing.
 **Files:**
 - `docs/guides/DEVELOPMENT_WORKFLOW.md` - Document Plan Mode context inputs/symbol references; document Epic Mode selection and ticket-based progression; document Workflows driving Epic Mode; clarify how Epic Mode and Fabrik Workflow relate; clarify verification severity categories; include review comment categories and fix workflows
 - `templates/traycer/README.md` - Document official Traycer workflows, Epic Mode artifacts (specs + tickets), Workflows (command structure, slash commands, argument passing, agent modes, Traycer Agile Workflow 8-command breakdown with 3 gated phases, Traycer Refactoring Workflow 4-command breakdown, custom workflow management), Supported Coding Agents (built-in YOLO vs configurable as Custom CLI vs extension-only, based on CLI availability; export options, Fabrik CLI agent integration), Custom CLI Agents (comprehensive: environment variables, scopes, creation steps, popular agents, use cases, 13-question FAQ), AGENTS.md integration (automatic detection, monorepo support), artifact management (Documents panel), selection/handoff, Smart YOLO, Epic Mode workflow progression, Executions audit trail, Mermaid diagrams, Verification process, History tracking, and phase management/YOLO mode
-- `docs/reference/traycer-agile-workflow.md` - NEW: Complete detailed reference for all 8 Traycer Agile Workflow commands including roles, philosophy, artifact structures, processing flows, acceptance criteria, and validation gate mechanics
-- `docs/reference/traycer-refactoring-workflow.md` - NEW: Complete detailed reference for all 4 Traycer Refactoring Workflow commands including analysis/approach artifacts, ticket structure, verification paths, and feedback loop mechanics
-- `docs/reference/traycer-evaluation.md` - Updated evaluation to reflect Windsurf extension usage and paid Pro+ tier
+- `docs/traycer/traycer-agile-workflow.md` - NEW: Complete detailed reference for all 8 Traycer Agile Workflow commands including roles, philosophy, artifact structures, processing flows, acceptance criteria, and validation gate mechanics
+- `docs/traycer/traycer-refactoring-workflow.md` - NEW: Complete detailed reference for all 4 Traycer Refactoring Workflow commands including analysis/approach artifacts, ticket structure, verification paths, and feedback loop mechanics
+- `docs/traycer/traycer-evaluation.md` - Updated evaluation to reflect Windsurf extension usage and paid Pro+ tier
 - `AGENTS.md` - Clarified Traycer mode context preservation and async job submission paths
 - `factory_submit.py` - Added for Traycer async submit integration
 - `factory_wait.py` - Added for Traycer async wait integration
@@ -767,7 +831,7 @@ pass orchestrator validation without any manual editing.
 - Fixed `Makefile` `global-gates` target: `python` → `python3` to match shebang in `check_global_gates.py`
 
 ## UNRELEASED - GAP-07 TRAYCER EVALUATION (2026-02-21)
-- Created `docs/reference/traycer-evaluation.md` (EVALUATION ONLY)
+- Created `docs/traycer/traycer-evaluation.md` (EVALUATION ONLY)
 - Decision: DEFER — CLI unavailable, cannot run test cases
 - Baseline infrastructure validated via `.tmp/traycer-baseline.json` (pipeline routing works; stage execution pending)
 - 5 test cases documented with evidence

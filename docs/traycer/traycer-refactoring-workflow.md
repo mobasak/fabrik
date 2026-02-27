@@ -539,6 +539,8 @@ Each ticket should include:
 
 ## See Also
 
-- [Traycer Templates (Integration Guide)](../../templates/traycer/README.md)
-- [Traycer Agile Workflow (Detailed Reference)](./traycer-agile-workflow.md)
+- [Traycer Integration Guide](README.md)
+- [Traycer Agile Workflow](traycer-agile-workflow.md)
+- [Traycer YOLO Workflow](traycer-yolo-workflow.md)
 - [Development Workflow](../guides/DEVELOPMENT_WORKFLOW.md)
+- [AGENTS.md](../../AGENTS.md)

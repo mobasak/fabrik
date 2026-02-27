@@ -468,6 +468,8 @@ Each ticket:
 
 ## See Also
 
-- [Traycer Templates (Integration Guide)](../../templates/traycer/README.md)
+- [Traycer Integration Guide](README.md)
+- [Traycer YOLO Workflow](traycer-yolo-workflow.md)
+- [Traycer Refactoring Workflow](traycer-refactoring-workflow.md)
 - [Development Workflow](../guides/DEVELOPMENT_WORKFLOW.md)
 - [AGENTS.md](../../AGENTS.md)

@@ -10,28 +10,27 @@ Provides methods for:
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+import re
+from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
+# Table name validation pattern
+_TABLE_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
-@dataclass
-class SupabaseConfig:
-    """Supabase configuration."""
 
-    url: str
-    anon_key: str
-    service_role_key: str
+def _validate_table_name(table: str) -> None:
+    """Validate table name to prevent path injection."""
+    if not _TABLE_NAME_PATTERN.match(table):
+        raise ValueError(f"Invalid table name: {table}")
 
-    @classmethod
-    def from_env(cls) -> SupabaseConfig:
-        """Load config from environment variables."""
-        return cls(
-            url=os.getenv("SUPABASE_URL", ""),
-            anon_key=os.getenv("SUPABASE_ANON_KEY", ""),
-            service_role_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""),
-        )
+
+def _validate_column_name(col: str) -> None:
+    """Validate column name to prevent query parameter injection."""
+    if not _TABLE_NAME_PATTERN.match(col):
+        raise ValueError(f"Invalid column name: {col}")
 
 
 class SupabaseClient:
@@ -58,15 +57,21 @@ class SupabaseClient:
             service_role_key: Supabase service role key (for admin ops)
             timeout: Request timeout in seconds
         """
-        self.url: str = url or os.getenv("SUPABASE_URL") or ""
-        self.anon_key: str = anon_key or os.getenv("SUPABASE_ANON_KEY", "") or ""
+        self.url: str = url if url is not None else (os.getenv("SUPABASE_URL") or "")
+        self.anon_key: str = (
+            anon_key if anon_key is not None else (os.getenv("SUPABASE_ANON_KEY") or "")
+        )
         self.service_role_key: str = (
-            service_role_key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "") or ""
+            service_role_key
+            if service_role_key is not None
+            else (os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "")
         )
         self.timeout = timeout
 
         if not self.url:
             raise ValueError("SUPABASE_URL is required")
+        if not self.anon_key:
+            raise ValueError("SUPABASE_ANON_KEY is required")
 
         # REST API base URL
         self.rest_url = f"{self.url}/rest/v1"
@@ -76,6 +81,8 @@ class SupabaseClient:
 
     def _headers(self, use_service_role: bool = False) -> dict[str, str]:
         """Get headers for API requests."""
+        if use_service_role and not self.service_role_key:
+            raise ValueError("SUPABASE_SERVICE_ROLE_KEY is required for admin operations")
         key = self.service_role_key if use_service_role else self.anon_key
         return {
             "apikey": key,
@@ -132,6 +139,7 @@ class SupabaseClient:
         select: str = "*",
         filters: dict | None = None,
         limit: int | None = None,
+        order: str | None = None,
         use_service_role: bool = False,
     ) -> list[dict]:
         """
@@ -142,18 +150,27 @@ class SupabaseClient:
             select: Columns to select
             filters: Column filters (eq only for now)
             limit: Max rows to return
+            order: Order clause (e.g., 'priority.desc,created_at.asc')
             use_service_role: Use service role key for admin access
 
         Returns:
             List of rows
         """
-        url = f"{self.rest_url}/{table}?select={select}"
+        _validate_table_name(table)
+        url = f"{self.rest_url}/{table}?select={quote(select, safe='*,.')}"
 
         if filters:
             for col, val in filters.items():
-                url += f"&{col}=eq.{val}"
+                _validate_column_name(col)
+                url += f"&{col}=eq.{quote(str(val), safe='')}"
 
-        if limit:
+        if order:
+            url += f"&order={quote(order, safe='.,')}"
+
+        if limit is not None:
+            limit = int(limit)
+            if limit < 0:
+                raise ValueError("limit must be non-negative")
             url += f"&limit={limit}"
 
         response = self._client.get(url, headers=self._headers(use_service_role))
@@ -177,6 +194,7 @@ class SupabaseClient:
         Returns:
             Inserted row(s)
         """
+        _validate_table_name(table)
         url = f"{self.rest_url}/{table}"
 
         if isinstance(data, dict):
@@ -208,14 +226,21 @@ class SupabaseClient:
 
         Returns:
             Updated row(s)
-        """
-        url = f"{self.rest_url}/{table}?"
 
+        Raises:
+            ValueError: If filters is empty (would update all rows)
+        """
+        _validate_table_name(table)
+        if not filters:
+            raise ValueError("filters required for update() to prevent updating all rows")
+        filter_parts = []
         for col, val in filters.items():
-            url += f"{col}=eq.{val}&"
+            _validate_column_name(col)
+            filter_parts.append(f"{col}=eq.{quote(str(val), safe='')}")
+        url = f"{self.rest_url}/{table}?{'&'.join(filter_parts)}"
 
         response = self._client.patch(
-            url.rstrip("&"),
+            url,
             json=data,
             headers=self._headers(use_service_role),
         )
@@ -238,14 +263,21 @@ class SupabaseClient:
 
         Returns:
             Deleted row(s)
-        """
-        url = f"{self.rest_url}/{table}?"
 
+        Raises:
+            ValueError: If filters is empty (would delete all rows)
+        """
+        _validate_table_name(table)
+        if not filters:
+            raise ValueError("filters required for delete() to prevent deleting all rows")
+        filter_parts = []
         for col, val in filters.items():
-            url += f"{col}=eq.{val}&"
+            _validate_column_name(col)
+            filter_parts.append(f"{col}=eq.{quote(str(val), safe='')}")
+        url = f"{self.rest_url}/{table}?{'&'.join(filter_parts)}"
 
         response = self._client.delete(
-            url.rstrip("&"),
+            url,
             headers=self._headers(use_service_role),
         )
         response.raise_for_status()
@@ -287,7 +319,7 @@ class SupabaseClient:
             "visibility": visibility,
             "status": "pending",
         }
-        if uploaded_by:
+        if uploaded_by is not None:
             data["uploaded_by"] = uploaded_by
 
         result = self.insert("files", data, use_service_role=True)
@@ -324,7 +356,8 @@ class SupabaseClient:
         """
         Claim the next available job for processing.
 
-        Uses a transaction-safe approach to claim jobs.
+        Uses optimistic locking via conditional update. Not fully transaction-safe;
+        under high concurrency, duplicate claims are possible but handled gracefully.
 
         Args:
             job_types: List of job types this worker handles
@@ -338,6 +371,7 @@ class SupabaseClient:
             jobs = self.query(
                 "processing_jobs",
                 filters={"job_type": job_type, "status": "pending"},
+                order="priority.desc,created_at.asc",
                 limit=1,
                 use_service_role=True,
             )
@@ -377,11 +411,11 @@ class SupabaseClient:
         """
         data: dict[str, Any] = {
             "status": "completed" if success else "failed",
-            "completed_at": "now()",
+            "completed_at": datetime.now(UTC).isoformat(),
         }
-        if result_data:
+        if result_data is not None:
             data["result_data"] = result_data
-        if error_message:
+        if error_message is not None:
             data["error_message"] = error_message
 
         result = self.update(

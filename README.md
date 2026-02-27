@@ -739,7 +739,7 @@ fabrik scaffold my-service
 
 - **[Windsurf Rules](.windsurf/rules/)** - 6 rule files (critical, Python, TypeScript, ops, docs, review)
 - **[Enforcement Scripts](scripts/enforcement/)** - 19 scripts, 2,230 lines
-- **[Traycer Integration](templates/traycer/README.md)** - Complete workflow details
+- **[Traycer Integration](docs/traycer/README.md)** - Complete workflow details
 
 ---
 
