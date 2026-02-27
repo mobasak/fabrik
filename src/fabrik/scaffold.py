@@ -80,6 +80,7 @@ DIRS = [
     ".cache",
     "output",
     "src",  # Source code directory
+    ".droid/review-context",  # Kilo/Traycer review context directory
 ]
 
 # Master AGENTS.md location
@@ -186,6 +187,17 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     for d in DIRS:
         (project_dir / d).mkdir(parents=True, exist_ok=True)
 
+    # Write .droid/ files: gitignore keeps review-context/, blocks runtime files
+    (project_dir / ".droid" / ".gitignore").write_text(
+        "# Kilo/Traycer runtime files — do not commit\n"
+        "*\n"
+        "!.gitignore\n"
+        "!review-context/\n"
+        "!review-context/**\n"
+    )
+    # .gitkeep so git tracks the empty review-context/ directory
+    (project_dir / ".droid" / "review-context" / ".gitkeep").write_text("")
+
     today = date.today().isoformat()
 
     # Copy templates
@@ -227,6 +239,7 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
     # Create .gitignore and .env.example
     (project_dir / ".gitignore").write_text(
         ".env\nvenv/\n__pycache__/\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n.venv/\n"
+        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
     )
     # Example .env template with placeholder values (not real credentials)  # noqa: secrets
     (project_dir / ".env.example").write_text(
