@@ -50,6 +50,7 @@ TEMPLATE_MAP = {
     "docker/compose.yaml.template": "compose.yaml",
     "docker/compose.dev.yaml.template": "compose.dev.yaml",
     "docker/dockerignore.template": ".dockerignore",
+    "docker/Makefile.python": "Makefile",
     # Python tooling config
     "python/pyproject.toml.template": "pyproject.toml",
 }
@@ -212,6 +213,7 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
                 ("[project]", name),  # README paths
                 ("<project>", name),  # QUICKSTART paths
                 ("project-name", name),  # pyproject.toml
+                ("myproject", name),  # Makefile
                 ("[package_name]", package_name),  # README imports
                 ("<package_name>", package_name),  # QUICKSTART imports
                 ("YYYY-MM-DD", today),
@@ -368,6 +370,7 @@ def fix_project(project_path: Path, dry_run: bool = False) -> list[str]:
                 ("YYYY-MM-DD", today),
                 ("[Brief description]", f"{name} project"),
                 ("[One-line description]", f"{name} project"),
+                ("myproject", name),  # Makefile
             ]:
                 content = content.replace(old, new)
             dest_path.write_text(content)
