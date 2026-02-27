@@ -1,5 +1,6 @@
 """Project scaffolding - create new projects with full structure."""
 
+import os
 import re
 import shutil
 import subprocess
@@ -85,6 +86,8 @@ DIRS = [
     "src",  # Source code directory
     ".droid/review-context",  # Kilo/Traycer review context directory
 ]
+
+SCRIPT_FILES = ["runc", "rund", "rundsh", "runk", "sync_cascade_backup.sh", "sync_extensions.sh"]
 
 # Master AGENTS.md location
 FABRIK_AGENTS_MD = FABRIK_ROOT / "AGENTS.md"
@@ -223,6 +226,14 @@ def create_project(name: str, description: str, base: Path = Path("/opt")) -> Pa
             ]:
                 content = content.replace(old, new)
             (project_dir / dest).write_text(content)
+
+    # Copy executable scripts from templates/scaffold/scripts/
+    for f in SCRIPT_FILES:
+        src = TEMPLATE_DIR / "scripts" / f
+        if src.exists():
+            dest = project_dir / "scripts" / f
+            shutil.copy(src, dest)
+            os.chmod(dest, 0o755)
 
     # Symlink windsurfrules (legacy) and .windsurf/rules/ (authoritative)
     # Fail fast if fabrik targets are missing - environment is broken
