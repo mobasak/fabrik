@@ -171,7 +171,14 @@ MODEL_CACHE_FILE = Path(os.getenv("KILO_MODEL_CACHE", ".droid/kilo_models_cache.
 MODEL_CACHE_REFRESH_FILE = Path(".droid/.kilo_cache_last_refresh")
 
 # Retry configuration for transient failures
-MAX_RETRIES = int(os.getenv("KILO_MAX_RETRIES", "3"))  # Max retry attempts
+try:
+    MAX_RETRIES = max(1, int(os.getenv("KILO_MAX_RETRIES", "3")))  # Max retry attempts (min 1)
+except ValueError:
+    print(
+        f"Warning: Invalid KILO_MAX_RETRIES value '{os.getenv('KILO_MAX_RETRIES')}', using default 3",
+        file=sys.stderr,
+    )
+    MAX_RETRIES = 3
 RETRYABLE_EXIT_CODES = {124, 503}  # Timeout (124) and Service Unavailable (503)
 
 # Model successor mapping for deprecated models
@@ -370,6 +377,7 @@ HARD_MAX_ITERATIONS = 10
 
 # Cumulative usage tracking file
 USAGE_LOG_FILE = Path(os.getenv("KILO_USAGE_LOG", ".droid/kilo_usage.jsonl"))
+METRICS_FILE = Path(os.getenv("KILO_METRICS_FILE", ".droid/kilo_metrics.jsonl"))
 
 # Project root for path validation (will be set to git root or CWD at runtime)
 # This is initialized lazily to avoid subprocess calls at import time
@@ -641,8 +649,6 @@ def get_validated_model(model: str) -> str:
 
     return validated
 
-
-def get_model_with_fallback(preferred: str, failed_models: set[str] | None = None) -> str:
     """
     Get available model, falling back through chain if preferred unavailable.
 

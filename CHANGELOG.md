@@ -39,7 +39,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - AUTO Tier: New tier (A) for kilo/auto agents with $0 pricing, automatic Opus/Sonnet routing per mode
 - Dry-run mode: `--dry-run` flag to preview agent generation without creating files
 - Retry logic: Exponential backoff (1s, 2s, 4s) for transient failures (timeout/503 errors), configurable via KILO_MAX_RETRIES (default 3)
-- Retry logic: Exponential backoff (1s, 2s, 4s) for transient failures (timeout/503 errors), configurable via KILO_MAX_RETRIES (default 3)
+- Model performance metrics: Track avg iterations, cost, pass rate per model/file_type, saved to .droid/kilo_metrics.jsonl
 
 ---
 
