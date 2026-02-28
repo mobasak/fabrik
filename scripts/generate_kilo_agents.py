@@ -104,16 +104,28 @@ def generate_script_content(agent: dict, tier: str, rank: int) -> str:
 # Specialty: {specialty}
 # Pricing: ${input_price:.2f}/1M input, ${output_price:.2f}/1M output
 
+# Handle both regular and large prompts
+if [ -n "$TRAYCER_PROMPT_TMP_FILE" ] && [ -f "$TRAYCER_PROMPT_TMP_FILE" ]; then
+    # For large prompts - read from temp file
+    PROMPT=$(cat "$TRAYCER_PROMPT_TMP_FILE")
+else
+    # For regular prompts - use environment variable
+    PROMPT="$TRAYCER_PROMPT"
+fi
+
 # Save task context for Step 4 (kilo_code_review.py needs it)
 mkdir -p .droid/review-context
-printf '%s\\n' "$TRAYCER_PROMPT" > .droid/review-context/task.md
+printf '%s\\n' "$PROMPT" > .droid/review-context/task.md
 
 # Run Kilo agent
 kilo run --format json --auto \\
     --model {full_name} \\
     --variant {variant} \\
     --agent {role} \\
-    "$TRAYCER_PROMPT"
+    "$PROMPT"
+
+# Capture exit code and exit explicitly
+exit $?
 """
 
 

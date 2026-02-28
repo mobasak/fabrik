@@ -6,6 +6,23 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Kilo Agent Scripts Improved (2026-02-28)
+
+**What:** Fixed Kilo CLI agent scripts for Traycer integration
+
+**Fixes:**
+- Handle large prompts via `TRAYCER_PROMPT_TMP_FILE`
+- Explicit exit code propagation (`exit $?`)
+- Improved portability (`printf` instead of `echo`)
+
+**Files:**
+- `scripts/generate_kilo_agents.py` - Updated script generation logic
+- `~/.traycer/cli-agents/*.sh` - Regenerated all 18 agent scripts
+
+**Context:** Traycer was showing "awaiting execution" because scripts didn't handle large prompts properly. Scripts now check for `TRAYCER_PROMPT_TMP_FILE` and fall back to `TRAYCER_PROMPT` variable.
+
+---
+
 ### Changed - Kilo File Organization & Cleanup (2026-02-28)
 
 **What:** Consolidated and organized all Kilo-related files into structured directories
