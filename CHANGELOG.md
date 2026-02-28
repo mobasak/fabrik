@@ -44,6 +44,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Pre-review validation: Fail-fast checks for file size, syntax, encoding before calling Kilo API (saves credits)
 - Script validation: `generate_kilo_agents.py` validates generated shell scripts (shebang, exit, syntax)
 - Agent backup: Automatic timestamped backup before regenerating agents (safe rollback)
+- Agent health check: `kilo_agent_health.sh` utility verifies agent integrity (executable, shebang, syntax, required components)
 
 ---
 
