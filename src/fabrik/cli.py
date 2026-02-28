@@ -480,27 +480,34 @@ def logs(service: str, tail: int, since: str):
         fabrik logs grafana
         fabrik logs loki --tail 200 --since 24h
     """
+    import json
+
     import httpx
 
-    loki_url = os.getenv("LOKI_URL", "http://loki:3100")
+    loki_url = os.getenv("LOKI_URL", "http://localhost:3100")
     query = f'{{container_name=~".*{service}.*"}}'
 
-    response = httpx.get(
-        f"{loki_url}/loki/api/v1/query_range",
-        params={
-            "query": query,
-            "limit": tail,
-            "since": since,
-        },
-    )
-
-    if response.status_code == 200:
+    try:
+        response = httpx.get(
+            f"{loki_url}/loki/api/v1/query_range",
+            params={
+                "query": query,
+                "limit": tail,
+                "since": since,
+            },
+            timeout=30.0,
+        )
+        response.raise_for_status()
         data = response.json()
         for result in data.get("data", {}).get("result", []):
             for value in result.get("values", []):
                 click.echo(value[1])
-    else:
-        click.echo(f"Error: {response.status_code}")
+    except httpx.RequestError as e:
+        click.echo(f"Network/timeout error querying Loki: {e}", err=True)
+        raise SystemExit(1)
+    except json.JSONDecodeError:
+        click.echo("Malformed JSON from Loki", err=True)
+        raise SystemExit(1)
 
 
 @cli.command()

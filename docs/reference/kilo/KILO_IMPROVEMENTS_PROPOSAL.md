@@ -686,7 +686,7 @@ Context:
 {context}
 
 Generate minimal working code:"""
-    
+
     result = kilo_run(
         model="mistralai/codestral-2508",
         prompt=prompt,
@@ -717,7 +717,7 @@ Code:
 {code}
 
 Suggest refactoring:"""
-    
+
     result = kilo_run(
         model="mistralai/codestral-2508",
         prompt=prompt,
@@ -745,7 +745,7 @@ def generate_docstring(function_code: str) -> str:
 {function_code}
 
 Docstring (Google style):"""
-    
+
     result = kilo_run(
         model="mistralai/codestral-2508",
         prompt=prompt,
@@ -772,7 +772,7 @@ def generate_test_cases(function_code: str) -> str:
 {function_code}
 
 Include edge cases and normal cases:"""
-    
+
     result = kilo_run(
         model="mistralai/codestral-2508",
         prompt=prompt,
@@ -799,7 +799,7 @@ def translate_code(source_code: str, from_lang: str, to_lang: str) -> str:
 {source_code}
 
 Translated {to_lang} code:"""
-    
+
     result = kilo_run(
         model="mistralai/codestral-2508",
         prompt=prompt,
@@ -827,7 +827,7 @@ def review_diff(diff: str) -> dict:
 
 Focus on: bugs, security, performance, style.
 Output JSON:"""
-    
+
     result = kilo_run(
         model="mistralai/codestral-2508",
         prompt=prompt,
@@ -922,18 +922,18 @@ exit $?
 ```python
 def select_autocomplete_model(file_type: str, context_size: int) -> str:
     """Select optimal autocomplete model"""
-    
+
     # Simple syntax → use free/fast models
     if file_type in [".json", ".yaml", ".md"]:
         return "z-ai/glm-4.5-air"  # FREE
-    
+
     # Complex code → use Codestral
     if file_type in [".py", ".ts", ".js"]:
         if context_size < 2000:
             return "mistralai/codestral-2508"  # Fast, specialized
         else:
             return "qwen3-coder"  # FREE with long context
-    
+
     return "codestral-latest"  # Default
 ```
 
@@ -944,13 +944,13 @@ def select_autocomplete_model(file_type: str, context_size: int) -> str:
 ```python
 async def hybrid_autocomplete(context: str) -> str:
     """Request suggestions from multiple models, return fastest"""
-    
+
     models = [
         ("z-ai/glm-4.5-air", 0),           # FREE - fastest
         ("mistralai/codestral-2508", 0.1), # Budget - specialized
         ("qwen3-coder", 0.2)               # FREE - high quality
     ]
-    
+
     # Race models with staggered start
     tasks = [
         asyncio.create_task(
@@ -958,17 +958,17 @@ async def hybrid_autocomplete(context: str) -> str:
         )
         for model, delay in models
     ]
-    
+
     # Return first successful completion
     done, pending = await asyncio.wait(
         tasks,
         return_when=asyncio.FIRST_COMPLETED
     )
-    
+
     # Cancel slower requests
     for task in pending:
         task.cancel()
-    
+
     return done.pop().result()
 ```
 
@@ -979,7 +979,407 @@ async def hybrid_autocomplete(context: str) -> str:
 
 ---
 
-## 6. Documentation Improvements
+## 6. Browser Use Integration & Automation
+
+### Current Browser Use Feature
+
+**Kilo Code provides browser automation** capabilities that let you interact with websites directly from your coding workflow. This supports testing web applications, automating browser tasks, and capturing screenshots without leaving your editor.
+
+#### Model Requirements
+
+**Browser Use requires advanced agentic models:**
+- Claude Sonnet 4 class models (most reliable)
+- Recent high-capability models with strong reasoning
+- Models with good visual understanding for screenshots
+
+#### How Browser Use Works
+
+**Built-in browser (default):**
+- Launches automatically when visiting websites
+- Captures screenshots of web pages
+- Allows interaction with web elements
+- Runs invisibly in background
+- Integrated directly in VS Code
+
+**No setup required** for basic usage.
+
+#### Using Browser Use
+
+**Typical interaction pattern:**
+
+```
+1. Ask Kilo to visit a website
+   → "Open the browser and view our site"
+
+2. Kilo launches browser and shows screenshot
+   → Returns screenshot + console logs
+
+3. Request additional actions
+   → "Scroll down to the bottom of the page"
+
+4. Kilo closes browser when finished
+   → Session cleanup
+```
+
+**Example commands:**
+- "Can you check if my website at https://kilocode.ai is displaying correctly?"
+- "Browse http://localhost:3000, scroll down and check footer information"
+- "Test the login form on staging.example.com"
+
+#### Browser Actions
+
+**The `browser_action` tool** controls browser instance, returning screenshots and console logs.
+
+| Action | Description | When to Use |
+|--------|-------------|-------------|
+| **launch** | Opens browser at URL | Starting new session |
+| **click** | Clicks at coordinates | Interacting with buttons, links |
+| **type** | Types text into active element | Filling forms, search boxes |
+| **scroll_down** | Scrolls down by one page | Viewing content below fold |
+| **scroll_up** | Scrolls up by one page | Returning to previous content |
+| **close** | Closes the browser | Ending session |
+
+**Key characteristics:**
+- Each session: launch → actions → close
+- One browser action per message
+- No other tools while browser active
+- Must wait for response before next action
+
+#### Browser Use Settings
+
+**Default configuration:**
+```json
+{
+  "enable_browser_tool": true,
+  "viewport_size": "Small Desktop (900x600)",
+  "screenshot_quality": 75,
+  "use_remote_browser_connection": false
+}
+```
+
+**Viewport Size Options:**
+- Large Desktop (1280x800)
+- Small Desktop (900x600) - Default
+- Tablet (768x1024)
+- Mobile (360x640)
+
+**Tradeoff:** Higher viewport = larger view but more tokens
+
+**Screenshot Quality (1-100%):**
+- 40-50%: Basic text-based websites
+- 60-70%: Balanced for most browsing (default: 75%)
+- 80%+: Fine visual details critical
+
+**Tradeoff:** Higher quality = clearer but more tokens
+
+#### Remote Browser Connection
+
+**Purpose:** Connect to existing Chrome instead of built-in browser.
+
+**Benefits:**
+- Works in containerized environments (DevContainers)
+- Works in remote development workflows
+- Maintains authenticated sessions between uses
+- Eliminates repetitive login steps
+- Allows custom browser profiles with extensions
+
+**Requirements:** Chrome with remote debugging enabled.
+
+**Setup:**
+
+```bash
+# macOS
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222 \
+  --user-data-dir=/tmp/chrome-debug \
+  --no-first-run
+
+# Windows
+"C:\Program Files\Google\Chrome\Application\chrome.exe" \
+  --remote-debugging-port=9222 \
+  --user-data-dir=C:\chrome-debug \
+  --no-first-run
+
+# Linux
+google-chrome \
+  --remote-debugging-port=9222 \
+  --user-data-dir=/tmp/chrome-debug \
+  --no-first-run
+```
+
+**Common use cases:**
+- DevContainers: Connect from container to host Chrome
+- Remote Development: Local Chrome + remote VS Code
+- Custom Profiles: Specific extensions and settings
+
+---
+
+### Proposed Browser Use Enhancements
+
+#### 1. **Browser Task Automation Scripts (NEW)**
+
+**Benefit:** Automate repetitive browser testing workflows.
+
+```python
+# scripts/browser_test_suite.py
+"""Automated browser testing for Kilo Code"""
+
+class BrowserTestSuite:
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        self.results = []
+    
+    async def test_page_load(self, path: str) -> dict:
+        """Test page loads correctly"""
+        prompt = f"""Launch browser at {self.base_url}{path}
+        
+Check if page loads without errors.
+Report console errors if any.
+Take screenshot."""
+        
+        result = await kilo_browser_action("launch", url=f"{self.base_url}{path}")
+        
+        return {
+            "path": path,
+            "loaded": "error" not in result["console_logs"],
+            "screenshot": result["screenshot"]
+        }
+    
+    async def test_responsive_design(self, path: str) -> dict:
+        """Test responsive design across viewports"""
+        viewports = [
+            ("mobile", "360x640"),
+            ("tablet", "768x1024"),
+            ("desktop", "1280x800")
+        ]
+        
+        screenshots = {}
+        for name, size in viewports:
+            result = await kilo_browser_action(
+                "launch",
+                url=f"{self.base_url}{path}",
+                viewport=size
+            )
+            screenshots[name] = result["screenshot"]
+        
+        return {"path": path, "viewports": screenshots}
+    
+    async def test_form_submission(self, form_url: str, test_data: dict) -> dict:
+        """Test form submission"""
+        # Launch browser
+        await kilo_browser_action("launch", url=form_url)
+        
+        # Fill form fields
+        for field, value in test_data.items():
+            await kilo_browser_action("click", selector=f"#{field}")
+            await kilo_browser_action("type", text=value)
+        
+        # Submit form
+        result = await kilo_browser_action("click", selector="button[type=submit]")
+        
+        # Verify success
+        return {
+            "submitted": True,
+            "success_indicators": "success" in result["console_logs"]
+        }
+    
+    async def run_all_tests(self) -> dict:
+        """Run complete test suite"""
+        results = {
+            "page_loads": await self.test_page_load("/"),
+            "responsive": await self.test_responsive_design("/"),
+            "form": await self.test_form_submission("/contact", {
+                "name": "Test User",
+                "email": "test@example.com"
+            })
+        }
+        return results
+
+# Usage
+suite = BrowserTestSuite("http://localhost:3000")
+test_results = await suite.run_all_tests()
+```
+
+#### 2. **Screenshot Comparison Testing (NEW)**
+
+**Benefit:** Visual regression testing for UI changes.
+
+```python
+# scripts/visual_regression.py
+"""Visual regression testing using browser screenshots"""
+
+import hashlib
+from PIL import Image
+import imagehash
+
+async def capture_baseline(url: str, name: str):
+    """Capture baseline screenshot"""
+    result = await kilo_browser_action("launch", url=url)
+    
+    # Save baseline
+    with open(f"tests/baselines/{name}.png", "wb") as f:
+        f.write(result["screenshot"])
+    
+    # Compute hash
+    img = Image.open(f"tests/baselines/{name}.png")
+    baseline_hash = imagehash.average_hash(img)
+    
+    return baseline_hash
+
+async def compare_with_baseline(url: str, name: str) -> dict:
+    """Compare current screenshot with baseline"""
+    result = await kilo_browser_action("launch", url=url)
+    
+    # Load baseline
+    baseline_img = Image.open(f"tests/baselines/{name}.png")
+    baseline_hash = imagehash.average_hash(baseline_img)
+    
+    # Current screenshot
+    current_img = Image.open(io.BytesIO(result["screenshot"]))
+    current_hash = imagehash.average_hash(current_img)
+    
+    # Compare
+    diff = baseline_hash - current_hash
+    
+    return {
+        "name": name,
+        "url": url,
+        "diff_score": diff,
+        "passed": diff < 5,  # Threshold for acceptable difference
+        "baseline_hash": str(baseline_hash),
+        "current_hash": str(current_hash)
+    }
+
+# Usage
+await capture_baseline("http://localhost:3000", "homepage")
+result = await compare_with_baseline("http://localhost:3000", "homepage")
+```
+
+#### 3. **Browser-Based E2E Testing Agent (NEW)**
+
+**Benefit:** End-to-end testing with Kilo Code browser automation.
+
+```bash
+# New browser testing agent
+BROWSER01-sonnet45-e2e-high.sh    # E2E testing with browser actions
+```
+
+**Agent template:**
+```bash
+#!/bin/sh
+# Kilo Browser Testing Agent
+# Model: kilo/anthropic/claude-sonnet-4.5
+# Role: browser | Variant: high
+# Specialty: E2E testing with browser automation
+# Requires: Browser Use enabled
+
+# Enable browser tool in environment
+export KILO_ENABLE_BROWSER=1
+export KILO_SCREENSHOT_QUALITY=75
+export KILO_VIEWPORT="900x600"
+
+# Run test with browser actions
+kilo run --format json --auto \
+    --model kilo/anthropic/claude-sonnet-4.5 \
+    --variant high \
+    --agent code \
+    --enable-browser \
+    "$TRAYCER_PROMPT"
+
+exit $?
+```
+
+#### 4. **Lighthouse Integration (NEW)**
+
+**Benefit:** Automated performance and accessibility audits.
+
+```python
+# scripts/browser_lighthouse.py
+"""Run Lighthouse audits via Kilo browser"""
+
+async def run_lighthouse_audit(url: str) -> dict:
+    """Run Lighthouse audit and return scores"""
+    
+    # Launch browser with Lighthouse
+    prompt = f"""Launch browser at {url}
+    
+Run Lighthouse audit for:
+- Performance
+- Accessibility
+- Best Practices
+- SEO
+
+Report scores and key issues."""
+    
+    result = await kilo_run(
+        model="kilo/anthropic/claude-sonnet-4.5",
+        prompt=prompt,
+        enable_browser=True
+    )
+    
+    return {
+        "url": url,
+        "performance": result["scores"]["performance"],
+        "accessibility": result["scores"]["accessibility"],
+        "best_practices": result["scores"]["best_practices"],
+        "seo": result["scores"]["seo"],
+        "issues": result["issues"]
+    }
+
+# Usage in CI/CD
+audit = await run_lighthouse_audit("https://staging.example.com")
+if audit["performance"] < 90:
+    raise Exception(f"Performance score {audit['performance']} below threshold")
+```
+
+#### 5. **Cost-Optimized Browser Testing Strategy**
+
+**Challenge:** Browser screenshots increase token usage significantly.
+
+**Solution:** Viewport and quality optimization per task.
+
+```python
+def optimize_browser_settings(task_type: str) -> dict:
+    """Select optimal browser settings for task"""
+    
+    configs = {
+        "text_verification": {
+            "viewport": "360x640",      # Mobile (smallest)
+            "quality": 40,              # Low quality OK for text
+            "model": "budget"           # Budget model sufficient
+        },
+        "layout_check": {
+            "viewport": "900x600",      # Small desktop
+            "quality": 60,              # Medium quality
+            "model": "budget"
+        },
+        "visual_qa": {
+            "viewport": "1280x800",     # Large desktop
+            "quality": 85,              # High quality
+            "model": "premium"          # Premium model for analysis
+        },
+        "responsive_test": {
+            "viewport": "variable",     # Test all sizes
+            "quality": 50,              # Lower quality for multiple
+            "model": "budget"
+        }
+    }
+    
+    return configs.get(task_type, configs["layout_check"])
+
+# Usage
+settings = optimize_browser_settings("text_verification")
+# Use settings for browser test → save 60-70% on tokens
+```
+
+**Token savings:**
+- Mobile viewport (360x640) vs Desktop (1280x800): 70% reduction
+- Quality 40% vs 85%: 50% reduction
+- **Total potential savings: 85% on browser tests**
+
+---
+
+## 7. Documentation Improvements
 
 ### 5.1 Add Troubleshooting Guide
 
