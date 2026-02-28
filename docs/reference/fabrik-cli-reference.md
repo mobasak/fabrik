@@ -1,6 +1,6 @@
 # Fabrik CLI Reference
 
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-02-28
 
 The `fabrik` CLI is the main tool for managing specs, deployments, and project structures in the Fabrik ecosystem.
 
@@ -34,7 +34,7 @@ Execute the deployment for a spec.
 
 **Usage:**
 ```bash
-fabrik apply <spec_path> [-s KEY=VALUE] [--yes] [--skip-dns] [--skip-deploy]
+fabrik apply <spec_path> [-s KEY=VALUE] [--yes] [--skip-dns] [--skip-deploy] [--dry-run] [--use-orchestrator]
 ```
 
 ### `fabrik status`
@@ -63,6 +63,34 @@ fabrik destroy <spec_path> [--yes] [--keep-dns] [--keep-files]
 
 ---
 
+## AI Commands
+
+### `fabrik ai generate`
+Generate content from a prompt using the configured LLM provider.
+
+**Usage:**
+```bash
+fabrik ai generate "<prompt>" [--provider claude|openai] [--model <model>] [-s <system>]
+```
+
+### `fabrik ai revise`
+Revise a file based on AI-generated feedback.
+
+**Usage:**
+```bash
+fabrik ai revise <file> "<instructions>" [--provider claude|openai] [-o <output>]
+```
+
+### `fabrik ai usage`
+Show usage totals and per-model cost breakdown.
+
+**Usage:**
+```bash
+fabrik ai usage [--month YYYY-MM] [--project <name>]
+```
+
+---
+
 ## Project Management
 
 ### `fabrik projects`
@@ -86,7 +114,7 @@ Create a new project structure following Fabrik standards.
 
 **Usage:**
 ```bash
-fabrik scaffold <name> [--description <text>]
+fabrik scaffold <name> [--description <text>] [--type <type>] [--preset <preset>]
 ```
 
 ### `fabrik validate`
@@ -94,7 +122,7 @@ Validate a project's structure against Fabrik standards.
 
 **Usage:**
 ```bash
-fabrik validate <project_path>
+fabrik validate <project_path> [--type <type>]
 ```
 
 ### `fabrik fix`
@@ -102,7 +130,7 @@ Automatically add missing required files to a project to meet standards.
 
 **Usage:**
 ```bash
-fabrik fix <project_path> [--dry-run]
+fabrik fix <project_path> [--dry-run] [--type <type>]
 ```
 
 ---
@@ -115,14 +143,6 @@ Run postcondition checks against a deployed service to ensure it meets specifica
 **Usage:**
 ```bash
 fabrik verify <domain> [--spec <type>] [--app-name <name>] [--no-rollback]
-```
-
-### `fabrik sync-models`
-Sync droid model names across all Fabrik configuration and documentation files.
-
-**Usage:**
-```bash
-fabrik sync-models
 ```
 
 ### `fabrik templates`

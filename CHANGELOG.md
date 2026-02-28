@@ -16,6 +16,21 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+### Added - Phase 3: AI Content Integration (2026-02-28)
+
+**Summary:** Provider-agnostic LLM client with CLI and cost tracking. Supports Claude (primary) and OpenAI (fallback) with SQLite usage tracking.
+
+**New files:**
+- `src/fabrik/ai/__init__.py`, `client.py`, `tracker.py` — LLMClient, LLMProvider, LLMResponse, UsageTracker
+- `templates/prompts/blog-post.txt` — example prompt template
+- `tests/test_ai_client.py` — unit tests (no live calls)
+
+**CLI:** `fabrik ai generate`, `fabrik ai revise`, `fabrik ai usage`
+
+**Docs:** `.env.example` updated with `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` vars.
+
+---
+
 ### Changed - Kilo Agent Scripts Improved (2026-02-28)
 
 **What:** Fixed Kilo CLI agent scripts for Traycer integration

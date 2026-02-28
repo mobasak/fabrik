@@ -2,11 +2,7 @@
 Fabrik CLI - Command line interface for deployment automation.
 
 Commands:
-    fabrik new <name> --template <template>  Create new spec from template
-    fabrik plan <spec>                       Show deployment plan (dry run)
-    fabrik apply <spec>                      Execute deployment
-    fabrik status <spec>                     Check deployment status
-    fabrik templates                         List available templates
+    See `fabrik --help` for available commands.
 """
 
 import os
@@ -29,6 +25,28 @@ from fabrik.template_renderer import list_templates, render_template
 def cli():
     """Fabrik - Spec-driven deployment automation CLI."""
     pass
+
+
+def _split_domain_for_dns(domain: str) -> tuple[str, str] | None:
+    parts = domain.split(".")
+    if len(parts) < 3:
+        return None
+
+    base_parts = 2
+    if (
+        len(parts) >= 4
+        and len(parts[-1]) == 2
+        and parts[-2] in {"co", "com", "net", "org", "gov", "ac"}
+    ):
+        base_parts = 3
+
+    subdomain = ".".join(parts[:-base_parts])
+    base_domain = ".".join(parts[-base_parts:])
+
+    if not subdomain:
+        return None
+
+    return subdomain, base_domain
 
 
 @cli.command()
@@ -204,8 +222,20 @@ def apply(
         fabrik apply specs/my-api.yaml --yes  # Skip confirmation
         fabrik apply specs/my-api.yaml --dry-run  # Simulate deployment
     """
+    # Parse secrets
+    secrets_dict = {}
+    for s in secrets:
+        if "=" not in s:
+            click.echo(f"Error: Invalid secret format: {s} (use KEY=VALUE)", err=True)
+            raise SystemExit(1)
+        key, value = s.split("=", 1)
+        secrets_dict[key] = value
+
     # Use orchestrator pipeline if requested or dry-run
     if use_orchestrator or dry_run:
+        if secrets_dict:
+            for key, value in secrets_dict.items():
+                os.environ[key] = value
         orchestrator = DeploymentOrchestrator()
         ctx = orchestrator.deploy(Path(spec_path), dry_run=dry_run)
 
@@ -218,15 +248,6 @@ def apply(
         else:
             click.echo(f"❌ Deployment failed: {ctx.error}")
             raise SystemExit(1)
-
-    # Legacy path - parse secrets
-    secrets_dict = {}
-    for s in secrets:
-        if "=" not in s:
-            click.echo(f"Error: Invalid secret format: {s} (use KEY=VALUE)", err=True)
-            raise SystemExit(1)
-        key, value = s.split("=", 1)
-        secrets_dict[key] = value
 
     # Load spec
     try:
@@ -272,18 +293,21 @@ def apply(
         try:
             # Extract subdomain from domain
             # e.g., myapi.vps1.ocoron.com -> myapi.vps1, ocoron.com
-            parts = spec.domain.split(".")
-            if len(parts) >= 3:
-                subdomain = ".".join(parts[:-2])
-                base_domain = ".".join(parts[-2:])
+            split = _split_domain_for_dns(spec.domain)
+            if split:
+                subdomain, base_domain = split
 
                 vps_ip = os.getenv("VPS_IP")
                 if not vps_ip:
                     click.echo("   ⚠️  VPS_IP not set — skipping DNS", err=True)
                 else:
                     dns = DNSClient()
-                    result = dns.add_subdomain(base_domain, subdomain, vps_ip)
-                    click.echo(f"   ✅ DNS: {spec.domain} -> {vps_ip}")
+                    dns_result = dns.add_subdomain(base_domain, subdomain, vps_ip)
+                    if dns_result.get("success") is False:
+                        message = dns_result.get("message", "unknown error")
+                        click.echo(f"   ⚠️  DNS service error: {message}")
+                    else:
+                        click.echo(f"   ✅ DNS: {spec.domain} -> {vps_ip}")
             else:
                 click.echo("   ⚠️  Skipping DNS: domain format not recognized")
         except Exception as e:
@@ -424,6 +448,10 @@ def logs(spec_path: str, lines: int, follow: bool):
         app = matching[0]
         app_uuid = app.get("uuid")
 
+        if not app_uuid:
+            click.echo("Error: Application UUID missing in Coolify response", err=True)
+            raise SystemExit(1)
+
         if follow:
             click.echo("Following logs (Ctrl+C to stop)...")
             click.echo("-" * 60)
@@ -486,7 +514,11 @@ def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
 
         if matching:
             app = matching[0]
-            coolify.delete_application(app.get("uuid"))
+            app_uuid = app.get("uuid")
+            if not app_uuid:
+                click.echo("   Error: Application UUID missing in Coolify response", err=True)
+                raise SystemExit(1)
+            coolify.delete_application(app_uuid)
             click.echo("   ✅ Removed from Coolify")
         else:
             click.echo("   ℹ️  Not found in Coolify (already removed?)")
@@ -498,8 +530,8 @@ def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
     if not keep_dns and spec.domain:
         click.echo("🌐 Step 2: Removing DNS record...")
         try:
-            parts = spec.domain.split(".")
-            if len(parts) >= 3:
+            split = _split_domain_for_dns(spec.domain)
+            if split:
                 # TODO: Implement DNS deletion when DNSClient supports it
                 # subdomain = ".".join(parts[:-2])
                 # base_domain = ".".join(parts[-2:])
@@ -518,12 +550,18 @@ def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
     # Step 3: Remove files
     if not keep_files:
         click.echo("📁 Step 3: Removing generated files...")
-        app_dir = Path(f"apps/{spec.id}")
+        app_root = Path("apps").resolve()
+        app_dir = (app_root / spec.id).resolve()
+        display_path = Path("apps") / spec.id
+        if not app_dir.is_relative_to(app_root):
+            click.echo("   Error: Refusing to remove path outside apps directory", err=True)
+            raise SystemExit(1)
+
         if app_dir.exists():
             import shutil
 
             shutil.rmtree(app_dir)
-            click.echo(f"   ✅ Removed apps/{spec.id}/")
+            click.echo(f"   ✅ Removed {display_path}/")
         else:
             click.echo("   ℹ️  No files to remove")
     else:
@@ -816,6 +854,107 @@ def verify(domain: str, spec: str, app_name: str | None, no_rollback: bool):
     except Exception as e:
         click.echo(f"Error running verification: {e}", err=True)
         raise SystemExit(1)
+
+
+@cli.group()
+def ai():
+    """AI content generation commands."""
+    pass
+
+
+@ai.command("generate")
+@click.argument("prompt")
+@click.option("--provider", type=click.Choice(["claude", "openai"]), default="claude")
+@click.option("--model", default=None)
+@click.option("--system", "-s", default=None)
+def ai_generate(prompt: str, provider: str, model: str | None, system: str | None):
+    """Generate content from a prompt."""
+    from fabrik.ai import LLMClient, LLMProvider
+
+    try:
+        provider_enum = LLMProvider(provider)
+        client = LLMClient(provider=provider_enum, model=model)
+        response = client.generate(prompt, system=system)
+    except ValueError as e:
+        click.echo(f"Configuration error: {e}", err=True)
+        raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"Provider runtime error: {str(e)}", err=True)
+        raise SystemExit(1)
+
+    click.echo(response.content)
+    click.echo()
+    click.echo("Usage summary:")
+    click.echo(f"  Provider: {response.provider.value}")
+    click.echo(f"  Model: {response.model}")
+    click.echo(f"  Tokens: {response.tokens_in} in / {response.tokens_out} out")
+    click.echo(f"  Cost: ${response.cost:.4f}")
+    click.echo(f"  Duration: {response.duration_ms}ms")
+
+
+@ai.command("revise")
+@click.argument("file", type=click.Path(exists=True))
+@click.argument("instructions")
+@click.option("--provider", type=click.Choice(["claude", "openai"]), default="claude")
+@click.option("--output", "-o", default=None)
+def ai_revise(file: str, instructions: str, provider: str, output: str | None):
+    """Revise a file using AI instructions."""
+    from fabrik.ai import LLMClient, LLMProvider
+
+    try:
+        provider_enum = LLMProvider(provider)
+        client = LLMClient(provider=provider_enum)
+        source_path = Path(file)
+        original = source_path.read_text()
+        revised = client.revise(original, instructions)
+    except ValueError as e:
+        click.echo(f"Configuration error: {e}", err=True)
+        raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"Provider runtime error: {str(e)}", err=True)
+        raise SystemExit(1)
+
+    output_path = Path(output) if output else source_path
+    output_path.write_text(revised)
+    click.echo(f"Revised content written to: {output_path}")
+
+
+@ai.command("usage")
+@click.option("--month", default=None, help="Filter usage by month (YYYY-MM)")
+@click.option("--project", default=None)
+def ai_usage(month: str | None, project: str | None):
+    """Show AI usage and cost summary."""
+    from fabrik.ai import UsageTracker
+
+    try:
+        tracker = UsageTracker()
+        usage = tracker.get_usage(month=month, project=project)
+    except ValueError as e:
+        click.echo(f"Configuration error: {e}", err=True)
+        raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"Usage tracker error: {str(e)}", err=True)
+        raise SystemExit(1)
+
+    click.echo("AI Usage Summary")
+    click.echo("-" * 60)
+    click.echo(f"Total calls: {usage['total_calls']}")
+    click.echo(f"Total cost: ${usage['total_cost']:.4f}")
+    click.echo(f"Tokens in: {usage['total_tokens_in']}")
+    click.echo(f"Tokens out: {usage['total_tokens_out']}")
+    click.echo()
+    click.echo("By model:")
+
+    if not usage["by_model"]:
+        click.echo("  (no usage recorded)")
+        return
+
+    click.echo(f"{'Model':<28} {'Calls':>5} {'Cost':>10} {'In':>8} {'Out':>8}")
+    click.echo("-" * 60)
+    for model_name, stats in sorted(usage["by_model"].items()):
+        click.echo(
+            f"{model_name:<28} {stats['calls']:>5} ${stats['cost']:.4f} {stats['tokens_in']:>8} {stats['tokens_out']:>8}"
+        )
 
 
 def main():

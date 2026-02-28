@@ -1,0 +1,8 @@
+Write a blog post about: {topic}
+
+Requirements:
+- Target audience: {audience}
+- Tone: {tone}
+- Length: approximately {word_count} words
+- Include: introduction, 3 main sections, conclusion
+- SEO keyword to include naturally: {keyword}
