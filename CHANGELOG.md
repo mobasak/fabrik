@@ -6,6 +6,28 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Phase 6: Monitoring Stack (2026-02-28)
+
+**Summary:** Added Loki/Promtail/Prometheus/Grafana monitoring stack configs and spec with a Loki-backed logs CLI.
+
+**New files:** `configs/loki/loki-config.yaml`, `configs/promtail/promtail-config.yaml`, `configs/prometheus/prometheus.yml`, `specs/infrastructure/monitoring-stack.yaml`
+
+**CLI:** `fabrik logs <service>` (Loki-backed, LogQL query)
+
+**Changed:** `fabrik logs <spec_path>` renamed to `fabrik app-logs <spec_path>` (Coolify-backed)
+
+**Docs:** `.env.example` (GRAFANA_ADMIN_PASSWORD, LOKI_URL), `PORTS.md`, `docs/SERVICES.md`
+
+---
+
+### Fixed - AI Client Typing (2026-02-28)
+
+**Summary:** Ensure LLM API keys are stored as non-optional strings to satisfy mypy.
+
+**Files:** `src/fabrik/ai/client.py`, `docs/reference/ai.md`
+
+---
+
 ### Added - Phase 9: Infrastructure Services (2026-02-28)
 
 **Summary:** Deployed five infrastructure services: Browserless (3000), Gotenberg (3003), MinIO (9000/9001), Apprise (8005), Meilisearch (7700).

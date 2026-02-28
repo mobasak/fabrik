@@ -55,13 +55,15 @@ class LLMClient:
             self.tracker = UsageTracker()
 
         if provider == LLMProvider.CLAUDE:
-            self.api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not self.api_key:
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
                 raise ValueError("ANTHROPIC_API_KEY environment variable is required for Claude")
+            self.api_key = api_key
         elif provider == LLMProvider.OPENAI:
-            self.api_key = os.getenv("OPENAI_API_KEY")
-            if not self.api_key:
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable is required for OpenAI")
+            self.api_key = api_key
 
     def generate(
         self, prompt: str, system: str | None = None, project: str | None = None

@@ -414,17 +414,17 @@ def status(spec_path: str):
         click.echo(f"   ⚠️  Could not check: {e}")
 
 
-@cli.command()
+@cli.command("app-logs")
 @click.argument("spec_path", type=click.Path(exists=True))
 @click.option("--lines", "-n", default=100, help="Number of lines to show")
 @click.option("--follow", "-f", is_flag=True, help="Follow log output")
-def logs(spec_path: str, lines: int, follow: bool):
-    """View application logs.
+def app_logs(spec_path: str, lines: int, follow: bool):
+    """View application logs via Coolify (spec-based).
 
     Example:
-        fabrik logs specs/my-api.yaml
-        fabrik logs specs/my-api.yaml -n 50
-        fabrik logs specs/my-api.yaml -f
+        fabrik app-logs specs/my-api.yaml
+        fabrik app-logs specs/my-api.yaml -n 50
+        fabrik app-logs specs/my-api.yaml -f
     """
     # Load spec
     try:
@@ -467,6 +467,40 @@ def logs(spec_path: str, lines: int, follow: bool):
         click.echo(f"⚠️  Error fetching logs: {e}", err=True)
         click.echo()
         click.echo("Tip: You can also view logs via Coolify dashboard")
+
+
+@cli.command()
+@click.argument("service")
+@click.option("--tail", "-n", default=100, help="Number of lines")
+@click.option("--since", default="1h", help="Time range (1h, 24h, 7d)")
+def logs(service: str, tail: int, since: str):
+    """View logs for a service from Loki.
+
+    Example:
+        fabrik logs grafana
+        fabrik logs loki --tail 200 --since 24h
+    """
+    import httpx
+
+    loki_url = os.getenv("LOKI_URL", "http://loki:3100")
+    query = f'{{container_name=~".*{service}.*"}}'
+
+    response = httpx.get(
+        f"{loki_url}/loki/api/v1/query_range",
+        params={
+            "query": query,
+            "limit": tail,
+            "since": since,
+        },
+    )
+
+    if response.status_code == 200:
+        data = response.json()
+        for result in data.get("data", {}).get("result", []):
+            for value in result.get("values", []):
+                click.echo(value[1])
+    else:
+        click.echo(f"Error: {response.status_code}")
 
 
 @cli.command()

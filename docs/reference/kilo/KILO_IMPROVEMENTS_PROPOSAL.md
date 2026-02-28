@@ -13,6 +13,58 @@ After comprehensive analysis of the Kilo CLI integration and Fabrik's 9-step wor
 
 ---
 
+## Free & Budget Model Catalog
+
+**This catalog lists all free and budget-friendly models available through Kilo Code for zero-cost or low-cost development.**
+
+### Completely Free Options
+
+#### Kilo Gateway Free Models (5 models - no setup needed)
+
+| Model | Provider | Best For | Setup |
+|-------|----------|----------|-------|
+| **MiniMax M2.1** | MiniMax | Strong general-purpose performance | None required |
+| **Z.AI: GLM 4.7** | Z.AI | Agent-centric applications | None required |
+| **MoonshotAI: Kimi K2.5** | MoonshotAI | Agentic capabilities, tool use, reasoning, code synthesis | None required |
+| **Giga Potato** | Stealth | Evaluation period free model | None required |
+| **Arcee AI: Trinity Large Preview** | Arcee AI | Strong capabilities (preview) | None required |
+
+**Access:** Available immediately through Kilo Gateway - no configuration needed.
+
+#### OpenRouter Free Tier Models (4 models - requires free account)
+
+| Model | Best For | Setup |
+|-------|----------|-------|
+| **Qwen3 Coder** | Agentic coding: function calling, tool use, long-context reasoning | Free OpenRouter account + API key |
+| **Z.AI: GLM 4.5 Air** | Lightweight agent-centric applications | Free OpenRouter account + API key |
+| **DeepSeek: R1 0528** | Performance on par with OpenAI o1, open reasoning tokens | Free OpenRouter account + API key |
+| **MoonshotAI: Kimi K2** | Advanced tool use, reasoning, code synthesis | Free OpenRouter account + API key |
+
+**Setup:**
+1. Create free account at [openrouter.ai](https://openrouter.ai)
+2. Get API key from dashboard
+3. Configure in Kilo: `~/.config/kilo/opencode.json`
+
+### Cost-Effective Premium Models
+
+#### Ultra-Budget Champions (Under $0.50/M tokens)
+
+| Model | Cost (Input/M) | Best For | Performance |
+|-------|----------------|----------|-------------|
+| **Mistral Devstral Small** | ~$0.20/M | Code generation, debugging, refactoring | 85% of premium at 10% cost |
+| **Llama 4 Maverick** | ~$0.30/M | Complex reasoning, architecture planning | Excellent for most dev tasks |
+| **DeepSeek v3** | ~$0.27/M | Code analysis, large codebase understanding | Strong technical reasoning |
+
+#### Mid-Range Value Models ($0.50-$2.00/M tokens)
+
+| Model | Cost (Input/M) | Best For | Performance |
+|-------|----------------|----------|-------------|
+| **Qwen3 235B** | ~$1.20/M | Complex projects requiring high accuracy | Near-premium at 40% cost |
+
+**Total:** 13 free/budget models covering all development tasks.
+
+---
+
 ## 1. Agent Scripts (.sh) Improvements
 
 ### Current State
@@ -547,7 +599,387 @@ python scripts/kilo_cost_report.py --days 30
 
 ---
 
-## 5. Documentation Improvements
+## 5. Autocomplete Integration & Optimization
+
+### Current Autocomplete Feature
+
+**Kilo Code's autocomplete** provides intelligent code suggestions and completions while typing, helping write code faster and more efficiently.
+
+#### How Autocomplete Works
+
+**Capabilities:**
+- Inline completions as you type
+- Quick fixes for common code patterns
+- Contextual suggestions based on surrounding code
+- Multi-line completions for complex structures
+
+#### Triggering Options
+
+**1. Auto-trigger (Default)**
+- Automatically shows inline suggestions when you pause typing
+- Configurable delay (default 3 seconds)
+- Seamless coding experience
+
+**2. Manual trigger (Cmd+L / Ctrl+L)**
+- Position cursor where you need assistance
+- Press keybinding for immediate suggestions
+- Ideal for quick fixes, completions, refactoring
+
+**3. Chat autocomplete**
+- Suggestions as you type in chat input
+- Press Tab to accept
+
+### Current Model: Codestral (Mistral AI)
+
+**Provider priority order:**
+1. Mistral (using `codestral-latest`)
+2. Kilo Code (using `mistralai/codestral-2508`)
+3. OpenRouter (using `mistralai/codestral-2508`)
+4. Requesty (using `mistral/codestral-latest`)
+5. Bedrock (using `mistral.codestral-2508-v1:0`)
+6. Hugging Face (using `mistralai/Codestral-22B-v0.1`)
+7. LiteLLM (using `codestral/codestral-latest`)
+8. LM Studio (using `mistralai/codestral-22b-v0.1`)
+9. Ollama (using `codestral:latest`)
+
+**Current limitation:** Model selection is fixed - Codestral optimized for Fill-in-the-Middle (FIM) completions.
+
+---
+
+### Codestral Variants Analysis
+
+**What are these Codestral models?**
+
+Codestral is Mistral AI's specialized code completion model optimized for Fill-in-the-Middle (FIM) tasks. Different providers offer various versions:
+
+| Variant | Context Window | Notes |
+|---------|----------------|-------|
+| `codestral-latest` | 32K tokens | Latest version, rolling updates |
+| `codestral-2508` | 32K tokens | Stable August 2025 version |
+| `codestral-2508-v1:0` | 32K tokens | AWS Bedrock format |
+| `Codestral-22B-v0.1` | 32K tokens | 22B parameter model |
+| `codestral-22b-v0.1` | 32K tokens | Local deployment variant |
+
+**Key characteristics:**
+- Optimized for code completion (FIM)
+- Fast inference (critical for autocomplete UX)
+- 22B parameters (smaller than full chat models)
+- Specialized training on code patterns
+
+---
+
+### Proposed: Repurpose Codestral for Other Use Cases
+
+**Can Codestral be used for tasks beyond autocomplete?**
+
+**YES - Multiple high-value use cases:**
+
+#### 1. **Code Snippet Generation (NEW USE CASE)**
+
+**Benefit:** Fast, cheap code generation for small, focused tasks.
+
+```python
+def generate_code_snippet(task: str, context: str) -> str:
+    """Use Codestral for quick code generation"""
+    prompt = f"""Task: {task}
+Context:
+{context}
+
+Generate minimal working code:"""
+    
+    result = kilo_run(
+        model="mistralai/codestral-2508",
+        prompt=prompt,
+        max_tokens=500,  # Short snippets
+        temperature=0.3   # More deterministic
+    )
+    return result
+```
+
+**Use cases:**
+- Generate test fixtures
+- Create boilerplate classes/functions
+- Generate configuration examples
+- Quick utility functions
+
+**Cost advantage:** ~$0.25/M tokens vs $3-30/M for full chat models
+
+#### 2. **Code Refactoring Suggestions (NEW USE CASE)**
+
+**Benefit:** Fast analysis and refactoring suggestions for small code blocks.
+
+```python
+def suggest_refactoring(code: str, issue: str) -> dict:
+    """Use Codestral for refactoring suggestions"""
+    prompt = f"""Analyze this code for: {issue}
+
+Code:
+{code}
+
+Suggest refactoring:"""
+    
+    result = kilo_run(
+        model="mistralai/codestral-2508",
+        prompt=prompt,
+        max_tokens=1000,
+        temperature=0.2
+    )
+    return {"suggestion": result, "cost": "budget"}
+```
+
+**Use cases:**
+- Extract method refactorings
+- Variable renaming suggestions
+- Code simplification
+- Pattern improvements
+
+#### 3. **Documentation Generation (NEW USE CASE)**
+
+**Benefit:** Generate docstrings and inline comments quickly.
+
+```python
+def generate_docstring(function_code: str) -> str:
+    """Use Codestral for docstring generation"""
+    prompt = f"""Generate a comprehensive docstring for this function:
+
+{function_code}
+
+Docstring (Google style):"""
+    
+    result = kilo_run(
+        model="mistralai/codestral-2508",
+        prompt=prompt,
+        max_tokens=300
+    )
+    return result
+```
+
+**Use cases:**
+- Function docstrings
+- Class documentation
+- Module-level docs
+- Inline comments
+
+#### 4. **Test Case Generation (NEW USE CASE)**
+
+**Benefit:** Generate unit tests for functions quickly and cheaply.
+
+```python
+def generate_test_cases(function_code: str) -> str:
+    """Use Codestral for test generation"""
+    prompt = f"""Generate pytest test cases for this function:
+
+{function_code}
+
+Include edge cases and normal cases:"""
+    
+    result = kilo_run(
+        model="mistralai/codestral-2508",
+        prompt=prompt,
+        max_tokens=800
+    )
+    return result
+```
+
+**Use cases:**
+- Unit test generation
+- Edge case identification
+- Test fixture creation
+- Mock object generation
+
+#### 5. **Code Translation (NEW USE CASE)**
+
+**Benefit:** Convert code between languages cheaply.
+
+```python
+def translate_code(source_code: str, from_lang: str, to_lang: str) -> str:
+    """Use Codestral for code translation"""
+    prompt = f"""Translate this {from_lang} code to {to_lang}:
+
+{source_code}
+
+Translated {to_lang} code:"""
+    
+    result = kilo_run(
+        model="mistralai/codestral-2508",
+        prompt=prompt,
+        max_tokens=1000
+    )
+    return result
+```
+
+**Use cases:**
+- Python → TypeScript
+- JavaScript → Python
+- SQL → NoSQL query languages
+- Legacy code migration
+
+#### 6. **Diff-Based Code Review (NEW USE CASE)**
+
+**Benefit:** Quick, focused code review for small changes.
+
+```python
+def review_diff(diff: str) -> dict:
+    """Use Codestral for diff review"""
+    prompt = f"""Review this code diff for issues:
+
+{diff}
+
+Focus on: bugs, security, performance, style.
+Output JSON:"""
+    
+    result = kilo_run(
+        model="mistralai/codestral-2508",
+        prompt=prompt,
+        max_tokens=500,
+        format="json"
+    )
+    return json.loads(result)
+```
+
+**Use cases:**
+- Pre-commit quick review
+- PR diff analysis
+- Change impact assessment
+- Security pattern detection
+
+---
+
+### Implementation: Codestral Multi-Purpose Agent
+
+**Proposed:** Create multi-purpose agents using Codestral variants.
+
+```bash
+# New Codestral-based agents (ultra-budget tier)
+ULTRA01-codestral-snippet-low.sh      # Code snippet generation
+ULTRA02-codestral-refactor-low.sh     # Refactoring suggestions
+ULTRA03-codestral-docs-minimal.sh     # Documentation generation
+ULTRA04-codestral-test-low.sh         # Test case generation
+ULTRA05-codestral-translate-low.sh    # Code translation
+ULTRA06-codestral-review-low.sh       # Diff-based review
+```
+
+**Agent template:**
+```bash
+#!/bin/sh
+# Kilo Code Agent - Ultra-Budget Tier (Codestral)
+# Model: mistralai/codestral-2508
+# Role: snippet | Variant: low
+# Specialty: Fast code generation
+# Pricing: ~$0.25/1M input (10x cheaper than budget models)
+
+# Run Kilo with Codestral
+kilo run --format json --auto \
+    --model mistralai/codestral-2508 \
+    --max-tokens 500 \
+    --temperature 0.3 \
+    --agent code \
+    "$PROMPT"
+
+exit $?
+```
+
+**Cost comparison:**
+- Codestral: ~$0.25/M tokens
+- Free models: $0/M (but may have rate limits)
+- Budget models: $0.20-0.50/M
+- Premium models: $3-30/M
+
+**Codestral sweet spot:** Faster than free models, cheaper than budget, specialized for code.
+
+---
+
+### Autocomplete Optimization Proposals
+
+#### 1. **Configurable Model Selection**
+
+**Current limitation:** Fixed to Codestral
+**Proposal:** Allow users to choose from budget/free models
+
+**Benefits:**
+- Use free models for autocomplete → zero cost
+- Fallback to Codestral when free models unavailable
+- A/B test different models for autocomplete quality
+
+**Implementation:**
+```json
+{
+  "autocomplete": {
+    "models": [
+      {"provider": "kilo", "model": "z-ai/glm-4.5-air", "priority": 1},
+      {"provider": "mistral", "model": "codestral-latest", "priority": 2},
+      {"provider": "openrouter", "model": "qwen3-coder", "priority": 3}
+    ],
+    "fallback_chain": true
+  }
+}
+```
+
+#### 2. **Context-Aware Model Selection**
+
+**Proposal:** Switch models based on file type and context size.
+
+```python
+def select_autocomplete_model(file_type: str, context_size: int) -> str:
+    """Select optimal autocomplete model"""
+    
+    # Simple syntax → use free/fast models
+    if file_type in [".json", ".yaml", ".md"]:
+        return "z-ai/glm-4.5-air"  # FREE
+    
+    # Complex code → use Codestral
+    if file_type in [".py", ".ts", ".js"]:
+        if context_size < 2000:
+            return "mistralai/codestral-2508"  # Fast, specialized
+        else:
+            return "qwen3-coder"  # FREE with long context
+    
+    return "codestral-latest"  # Default
+```
+
+#### 3. **Hybrid Autocomplete Strategy**
+
+**Proposal:** Use multiple models in parallel for best results.
+
+```python
+async def hybrid_autocomplete(context: str) -> str:
+    """Request suggestions from multiple models, return fastest"""
+    
+    models = [
+        ("z-ai/glm-4.5-air", 0),           # FREE - fastest
+        ("mistralai/codestral-2508", 0.1), # Budget - specialized
+        ("qwen3-coder", 0.2)               # FREE - high quality
+    ]
+    
+    # Race models with staggered start
+    tasks = [
+        asyncio.create_task(
+            asyncio.sleep(delay) and get_completion(model, context)
+        )
+        for model, delay in models
+    ]
+    
+    # Return first successful completion
+    done, pending = await asyncio.wait(
+        tasks,
+        return_when=asyncio.FIRST_COMPLETED
+    )
+    
+    # Cancel slower requests
+    for task in pending:
+        task.cancel()
+    
+    return done.pop().result()
+```
+
+**Benefits:**
+- Free models get first chance
+- Fallback to Codestral if free models slow
+- Optimal cost/speed balance
+
+---
+
+## 6. Documentation Improvements
 
 ### 5.1 Add Troubleshooting Guide
 

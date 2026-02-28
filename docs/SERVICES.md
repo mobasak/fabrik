@@ -1,5 +1,7 @@
 # Required Services
 
+**Last Updated:** 2026-02-28
+
 Services Fabrik needs to function.
 
 ## About Fabrik
@@ -50,6 +52,12 @@ fabrik plan my-api      # Execute and exit
 | MinIO | minio | 9000/9001 | `https://s3.vps1.ocoron.com` | 🔐 Password | S3-compatible object storage |
 | Apprise | apprise | 8005 | `https://notify.vps1.ocoron.com` | ⚠️ Open | Unified notifications |
 | Meilisearch | meilisearch | 7700 | `https://search.vps1.ocoron.com` | 🔑 API Key | Fast full-text search |
+| Loki | loki | 3100 | internal only | 🔒 Internal | Log aggregation |
+| Promtail | promtail | — | internal only | 🔒 Internal | Log shipper (Docker → Loki) |
+| Prometheus | prometheus | 9090 | internal only | 🔒 Internal | Metrics collection (15d retention) |
+| Node Exporter | node-exporter | 9100 | internal only | 🔒 Internal | Host system metrics |
+| cAdvisor | cadvisor | 8080 | internal only | 🔒 Internal | Container metrics |
+| Grafana | grafana | 3002 | `https://monitor.vps1.ocoron.com` | 🔐 Password | Dashboards & alerting |
 
 *Coolify port 8000 is exposed directly on host. All other services use Traefik reverse proxy on port 443.
 

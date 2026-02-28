@@ -34,6 +34,11 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 9000/9001 | minio | specs/infrastructure/minio.yaml | https://s3.vps1.ocoron.com |
 | 8005 | apprise | specs/infrastructure/apprise.yaml | https://notify.vps1.ocoron.com |
 | 7700 | meilisearch | specs/infrastructure/meilisearch.yaml | https://search.vps1.ocoron.com |
+| 3100 | loki | specs/infrastructure/monitoring-stack.yaml | internal only |
+| 9090 | prometheus | specs/infrastructure/monitoring-stack.yaml | internal only |
+| 9100 | node-exporter | specs/infrastructure/monitoring-stack.yaml | internal only |
+| 8080 | cadvisor | specs/infrastructure/monitoring-stack.yaml | internal only |
+| 3002 | grafana | specs/infrastructure/monitoring-stack.yaml | https://monitor.vps1.ocoron.com |
 
 ### Fabrik Microservices (VPS)
 
