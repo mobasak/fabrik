@@ -1,9 +1,33 @@
 {
-  "timestamp": "2026-02-28T18:20:00Z",
-  "total_agents": 18,
+  "timestamp": "2026-02-28T21:00:00Z",
+  "total_agents": 20,
   "pricing_complete": true,
   "note": "All 18 priority models with complete input/output pricing. Variants affect token usage, not $/token rate.",
   "agents": [
+    {
+      "agent_name": "Auto Code Auto",
+      "model_name": "auto",
+      "full_name": "kilo/auto",
+      "provider": "kilo",
+      "use_case": "Code",
+      "variant": "auto",
+      "specialty": "Automatic mode-based routing (Opus 4.6 for review, Sonnet 4.5 for code)",
+      "input_per_1m": 0.0,
+      "output_per_1m": 0.0,
+      "ratio": 0.0
+    },
+    {
+      "agent_name": "Auto Review Auto",
+      "model_name": "auto",
+      "full_name": "kilo/auto",
+      "provider": "kilo",
+      "use_case": "Review",
+      "variant": "auto",
+      "specialty": "Automatic mode-based routing (Opus 4.6 for review, Sonnet 4.5 for code)",
+      "input_per_1m": 0.0,
+      "output_per_1m": 0.0,
+      "ratio": 0.0
+    },
     {
       "agent_name": "Code GPT-5.3-Codex High",
       "model_name": "gpt-5.3-codex",

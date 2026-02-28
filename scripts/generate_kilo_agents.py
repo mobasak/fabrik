@@ -20,6 +20,11 @@ OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
 
 # Tier assignments (based on user specification)
 TIER_ASSIGNMENTS = {
+    # Auto Tier - Automatic mode-based routing (NEW)
+    "A": [
+        ("auto", "code", "auto"),
+        ("auto", "review", "auto"),
+    ],
     # Prime Tier - Mission critical
     "P": [
         ("claude-opus-4.6", "code", "max"),
@@ -95,7 +100,7 @@ def generate_script_content(agent: dict, tier: str, rank: int) -> str:
     input_price = agent["input_per_1m"]
     output_price = agent["output_per_1m"]
 
-    tier_name = {"P": "Prime", "S": "Strong", "B": "Balanced", "E": "Economy"}[tier]
+    tier_name = {"A": "Auto", "P": "Prime", "S": "Strong", "B": "Balanced", "E": "Economy"}[tier]
 
     return f"""#!/bin/sh
 # Kilo {role.capitalize()} Agent - {tier_name} Tier #{rank:02d}
@@ -176,7 +181,12 @@ def main():
     with open(AGENTS_FILE) as f:
         data = json.load(f)
 
-    agents = {a["model_name"]: a for a in data["agents"]}
+    # Build lookup dict: (model_name, use_case, variant) -> agent
+    # This supports multiple agents with same model_name but different use_case
+    agents = {}
+    for a in data["agents"]:
+        key = (a["model_name"], a["use_case"].lower(), a["variant"])
+        agents[key] = a
 
     # Create output directory
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -186,15 +196,11 @@ def main():
     # Generate scripts for each tier
     for tier, tier_agents in TIER_ASSIGNMENTS.items():
         for rank, (model_name, role, variant) in enumerate(tier_agents, 1):
-            if model_name not in agents:
-                print(f"⚠ Warning: {model_name} not found in agents.json")
-                continue
-
-            agent = agents[model_name]
-
-            # Verify role and variant match
-            if agent["use_case"].lower() != role or agent["variant"] != variant:
-                print(f"⚠ Warning: {model_name} role/variant mismatch")
+            # Find agent by (model_name, use_case, variant) tuple
+            key = (model_name, role, variant)
+            agent = agents.get(key)
+            if not agent:
+                print(f"⚠ Warning: {model_name}/{role}/{variant} not found in agents.json")
                 continue
 
             # Build filename
