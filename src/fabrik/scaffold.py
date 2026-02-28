@@ -7,6 +7,7 @@ import subprocess
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from fabrik.config import FABRIK_ROOT
 
@@ -48,7 +49,12 @@ SCAFFOLD_TYPES = frozenset(
     }
 )
 
+WORDPRESS_PRESETS = frozenset({"saas", "company", "content", "landing", "ecommerce"})
+
 TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"
+WORDPRESS_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "wordpress"
+FILE_API_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-api"
+FILE_WORKER_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-worker"
 SAAS_SKELETON_DIR = FABRIK_ROOT / "templates" / "saas-skeleton"
 
 SHARED_TEMPLATE_MAP = {
@@ -90,13 +96,14 @@ TYPE_REQUIRED_FILES: dict[str, list[str]] = {
     "python-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "compose.yaml"],
     "saas-skeleton": _SHARED_REQUIRED_FILES[:],
     "node-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "package.json"],
-    "file-api": _SHARED_REQUIRED_FILES[:],
-    "file-worker": _SHARED_REQUIRED_FILES[:],
-    "wordpress": _SHARED_REQUIRED_FILES[:],
-    "docusaurus": _SHARED_REQUIRED_FILES[:],
-    "chrome-extension": _SHARED_REQUIRED_FILES[:],
-    "mobile-app": _SHARED_REQUIRED_FILES[:],
-    "desktop-app": _SHARED_REQUIRED_FILES[:],
+    "file-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "package.json", "src/index.js"],
+    "file-worker": _SHARED_REQUIRED_FILES + ["Dockerfile", "requirements.txt", "worker/main.py"],
+    "wordpress": _SHARED_REQUIRED_FILES
+    + ["compose.yaml.j2", "compose-coolify.yaml.j2", ".env.example"],
+    "docusaurus": _SHARED_REQUIRED_FILES + ["package.json", "docs/intro.md"],
+    "chrome-extension": _SHARED_REQUIRED_FILES + ["package.json", "src/background.ts"],
+    "mobile-app": _SHARED_REQUIRED_FILES + ["package.json", "src/App.tsx"],
+    "desktop-app": _SHARED_REQUIRED_FILES + ["package.json", "src/main.ts"],
 }
 
 SHARED_DIRS = [
@@ -484,11 +491,410 @@ server.listen(PORT, () => {{
     )
 
 
+def _scaffold_file_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
+    """Create File API-specific project structure."""
+    import json
+
+    # a) Create src/ directory
+    (project_dir / "src").mkdir(parents=True, exist_ok=True)
+
+    # b) Copy index.js verbatim from file-api template
+    src_index = FILE_API_TEMPLATE_DIR / "src" / "index.js"
+    if src_index.exists():
+        shutil.copy2(src_index, project_dir / "src" / "index.js")
+
+    # c) Copy and patch Dockerfile.node -> Dockerfile
+    dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.node"
+    if dockerfile_src.exists():
+        content = dockerfile_src.read_text()
+        content = content.replace("PROJECT_NAME", name)
+        content = content.replace("dist/index.js", "src/index.js")
+        content = content.replace("./dist", "./src")
+        content = content.replace("RUN npm ci", "RUN npm install")
+        (project_dir / "Dockerfile").write_text(content)
+
+    # d) Copy and patch Makefile.node -> Makefile
+    makefile_src = TEMPLATE_DIR / "docker" / "Makefile.node"
+    if makefile_src.exists():
+        content = makefile_src.read_text()
+        content = content.replace("myproject", name)
+        (project_dir / "Makefile").write_text(content)
+
+    # e) Generate package.json inline with R2/Supabase dependencies
+    package_json = {
+        "name": name,
+        "version": "0.1.0",
+        "description": description,
+        "main": "src/index.js",
+        "scripts": {
+            "start": "node src/index.js",
+            "dev": "node --watch src/index.js",
+            "test": "node --test",
+            "lint": "echo 'No linter configured'",
+        },
+        "dependencies": {
+            "express": "^4.18.2",
+            "cors": "^2.8.5",
+            "@supabase/supabase-js": "^2.38.0",
+            "@aws-sdk/client-s3": "^3.450.0",
+            "@aws-sdk/s3-request-presigner": "^3.450.0",
+            "uuid": "^9.0.1",
+        },
+    }
+    (project_dir / "package.json").write_text(json.dumps(package_json, indent=2) + "\n")
+
+    # f) Overwrite .env.example with R2/Supabase-specific vars
+    (project_dir / ".env.example").write_text(
+        f"""# {name} Configuration
+PORT=3000
+NODE_ENV=development
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=your-access-key-id
+R2_SECRET_ACCESS_KEY=your-secret-access-key
+R2_BUCKET=your-bucket-name
+MAX_FILE_SIZE_MB=100
+ALLOWED_CONTENT_TYPES=application/pdf,audio/mpeg
+UPLOAD_URL_EXPIRY_SECONDS=3600
+DOWNLOAD_URL_EXPIRY_SECONDS=3600
+"""
+    )
+
+    # g) Overwrite .gitignore with Node-appropriate content
+    (project_dir / ".gitignore").write_text(
+        "node_modules/\ndist/\n.env\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n"
+        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+    )
+
+
+def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
+    """Create File Worker-specific project structure."""
+    # a) Create worker/ directory
+    (project_dir / "worker").mkdir(parents=True, exist_ok=True)
+
+    # b) Copy main.py verbatim from file-worker template
+    src_main = FILE_WORKER_TEMPLATE_DIR / "worker" / "main.py"
+    if src_main.exists():
+        shutil.copy2(src_main, project_dir / "worker" / "main.py")
+
+    # c) Copy and patch Dockerfile.python -> Dockerfile
+    dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.python"
+    if dockerfile_src.exists():
+        content = dockerfile_src.read_text()
+        content = content.replace("myproject", name)
+        content = content.replace("PROJECT_NAME", name)
+        # Replace CMD: perform explicit line substitution to handle both the raw
+        # template token form (<package_name>) and any already-substituted variant.
+        # We iterate lines and replace whichever CMD line is present.
+        lines = content.splitlines(keepends=True)
+        new_lines = []
+        for line in lines:
+            if line.startswith("CMD ") and "main:app" in line:
+                new_lines.append('CMD ["python", "worker/main.py"]\n')
+            else:
+                new_lines.append(line)
+        content = "".join(new_lines)
+        # Replace HEALTHCHECK to check process instead of HTTP
+        content = re.sub(
+            r"HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \\\n"
+            r"    CMD curl -f http://localhost:\$\{PORT:-8000\}/health \|\| exit 1",
+            "HEALTHCHECK --interval=30s --timeout=5s --retries=3 \\\n"
+            '    CMD pgrep -f "python worker/main.py" || exit 1',
+            content,
+        )
+        # Replace PYTHONPATH
+        content = content.replace("ENV PYTHONPATH=/app/src", "ENV PYTHONPATH=/app")
+        (project_dir / "Dockerfile").write_text(content)
+
+    # d) Copy and patch Makefile.python -> Makefile
+    makefile_src = TEMPLATE_DIR / "docker" / "Makefile.python"
+    if makefile_src.exists():
+        content = makefile_src.read_text()
+        content = content.replace("myproject", name)
+        # Replace the dev target body: match any uvicorn invocation on the line
+        # following the "dev:" target and replace it with the worker command.
+        # This handles the actual template command regardless of exact arguments.
+        lines = content.splitlines(keepends=True)
+        new_lines = []
+        in_dev_target = False
+        for line in lines:
+            stripped = line.rstrip("\n")
+            if stripped == "dev:":
+                in_dev_target = True
+                new_lines.append(line)
+            elif in_dev_target and stripped.startswith("\t") and "uvicorn" in stripped:
+                new_lines.append("\tpython worker/main.py\n")
+                in_dev_target = False
+            else:
+                in_dev_target = False
+                new_lines.append(line)
+        content = "".join(new_lines)
+        (project_dir / "Makefile").write_text(content)
+
+    # e) Generate requirements.txt inline with worker dependencies
+    (project_dir / "requirements.txt").write_text(
+        """boto3>=1.35.0
+structlog>=24.4.0
+supabase>=2.9.0
+pypdf>=4.3.0
+"""
+    )
+
+    # f) Overwrite .env.example with worker-specific vars
+    (project_dir / ".env.example").write_text(
+        f"""# {name} Configuration
+WORKER_ID=worker-1
+JOB_TYPES=transcribe,ocr,extract_text
+POLL_INTERVAL=5
+MAX_CONCURRENT_JOBS=2
+MAX_PROCESSING_TIME=3600
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=your-access-key-id
+R2_SECRET_ACCESS_KEY=your-secret-access-key
+R2_BUCKET=your-bucket-name
+"""
+    )
+
+    # g) Overwrite .gitignore with Python-appropriate content
+    (project_dir / ".gitignore").write_text(
+        ".env\nvenv/\n__pycache__/\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n.venv/\n"
+        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+    )
+
+
+def _scaffold_wordpress(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
+    """Create WordPress-specific project structure."""
+    # a) Extract and validate preset
+    preset = kwargs.get("preset") or "saas"
+    if preset not in WORDPRESS_PRESETS:
+        raise ValueError(
+            f"Invalid WordPress preset: {preset}. "
+            f"Valid options: {', '.join(sorted(WORDPRESS_PRESETS))}"
+        )
+
+    # b) Create WordPress-specific directories
+    (project_dir / "plugins").mkdir(parents=True, exist_ok=True)
+    (project_dir / "themes").mkdir(parents=True, exist_ok=True)
+    (project_dir / "backup").mkdir(parents=True, exist_ok=True)
+
+    # c) Recursively copy all files from base template, preserving relative paths
+    base_dir = WORDPRESS_TEMPLATE_DIR / "base"
+    if base_dir.exists():
+        for src_file in base_dir.rglob("*"):
+            if not src_file.is_file():
+                continue
+            rel = src_file.relative_to(base_dir)
+            dest_file = project_dir / rel
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dest_file)
+        # Re-apply executable permission to backup script after copy
+        backup_sh = project_dir / "backup" / "backup.sh"
+        if backup_sh.exists():
+            os.chmod(backup_sh, 0o755)  # noqa: S103  # nosec B103
+
+    # d) Copy the chosen preset YAML
+    preset_src = WORDPRESS_TEMPLATE_DIR / "presets" / f"{preset}.yaml"
+    if preset_src.exists():
+        shutil.copy2(preset_src, project_dir / "config" / "preset.yaml")
+
+    # e) Overwrite .env.example with WordPress/MariaDB/R2 placeholder vars
+    name_underscored = name.replace("-", "_")
+    (project_dir / ".env.example").write_text(
+        f"""# WordPress: {name}
+DB_NAME={name_underscored}_wp
+DB_USER={name_underscored}_user
+DB_PASSWORD=CHANGE_ME
+DB_ROOT_PASSWORD=CHANGE_ME
+WORDPRESS_DEBUG=false
+SITE_URL=https://example.com
+SITE_NAME={name}
+R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
+R2_ACCESS_KEY=your-r2-access-key
+R2_SECRET_KEY=your-r2-secret-key
+R2_BUCKET=fabrik-backups
+"""
+    )
+
+    # f) Overwrite .gitignore with WordPress-appropriate content
+    (project_dir / ".gitignore").write_text(
+        """.env
+wp-content/uploads/
+wp-content/upgrade/
+logs/
+data/
+.tmp/
+.cache/
+*.log
+.droid/kilo_usage.jsonl
+.droid/reviews/
+.droid/kilo_models_cache.json
+.droid/.kilo_cache_last_refresh
+"""
+    )
+
+
+def _scaffold_generic_ts(
+    project_dir: Path, name: str, description: str, type_name: str, **kwargs: object
+) -> None:
+    """Create generic TypeScript/Node project structure for docusaurus, chrome-extension, mobile-app, desktop-app."""
+    import json
+
+    # Type-specific configurations
+    # has_docker: only set True when the type has a runnable Node entrypoint
+    #   that the Dockerfile.node template can target directly (src/index.js).
+    #   - docusaurus: serves via `docusaurus start`; no src/index.js entrypoint.
+    #   - desktop-app: uses Electron (src/main.ts); Electron apps do not run in
+    #     a standard Node HTTP container and have no src/index.js entrypoint.
+    #   - chrome-extension / mobile-app: no server; Docker is not applicable.
+    type_configs: dict[str, dict[str, Any]] = {
+        "docusaurus": {
+            "entry_dir": "docs/",
+            "entry_file": "docs/intro.md",
+            "has_docker": False,
+            "scripts": {
+                "start": "docusaurus start",
+                "build": "docusaurus build",
+                "serve": "docusaurus serve",
+            },
+        },
+        "chrome-extension": {
+            "entry_dir": "src/",
+            "entry_file": "src/background.ts",
+            "has_docker": False,
+            "scripts": {"build": "tsc", "test": "echo 'No tests configured'"},
+        },
+        "mobile-app": {
+            "entry_dir": "src/",
+            "entry_file": "src/App.tsx",
+            "has_docker": False,
+            "scripts": {
+                "start": "expo start",
+                "android": "expo start --android",
+                "ios": "expo start --ios",
+                "test": "jest",
+            },
+        },
+        "desktop-app": {
+            "entry_dir": "src/",
+            "entry_file": "src/main.ts",
+            "has_docker": False,
+            "scripts": {"start": "electron .", "build": "electron-builder", "test": "jest"},
+        },
+    }
+
+    if type_name not in type_configs:
+        raise ValueError(f"Unknown generic TS type: {type_name}")
+
+    config = type_configs[type_name]
+
+    # a) Create the entry directory
+    entry_dir: str = config["entry_dir"]  # type: ignore[assignment]
+    (project_dir / entry_dir).mkdir(parents=True, exist_ok=True)
+
+    # b) Write minimal entry file
+    entry_file: str = config["entry_file"]  # type: ignore[assignment]
+    entry_file_path = project_dir / entry_file
+    if type_name == "docusaurus":
+        entry_file_path.write_text(
+            """# Introduction
+
+Welcome to the documentation for this project.
+
+## Getting Started
+
+Add your content here.
+"""
+        )
+    elif type_name == "chrome-extension":
+        entry_file_path.write_text(
+            """chrome.runtime.onInstalled.addListener(() => {
+  console.log('Extension installed');
+});
+"""
+        )
+    elif type_name == "mobile-app":
+        entry_file_path.write_text(
+            """import React from 'react';
+import { View, Text } from 'react-native';
+
+export default function App() {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <Text>Welcome to Mobile App</Text>
+    </View>
+  );
+}
+"""
+        )
+    elif type_name == "desktop-app":
+        entry_file_path.write_text(
+            """const { app, BrowserWindow } = require('electron');
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 800,
+    height: 600,
+  });
+  win.loadFile('index.html');
+}
+
+app.whenReady().then(createWindow);
+"""
+        )
+
+    # c) Generate package.json inline
+    package_json = {
+        "name": name,
+        "version": "0.1.0",
+        "description": description,
+        "scripts": config["scripts"],
+    }
+    (project_dir / "package.json").write_text(json.dumps(package_json, indent=2) + "\n")
+
+    # d) If has_docker, copy and patch Dockerfile + Makefile
+    if config["has_docker"]:
+        dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.node"
+        if dockerfile_src.exists():
+            content = dockerfile_src.read_text()
+            content = content.replace("PROJECT_NAME", name)
+            content = content.replace("dist/index.js", "src/index.js")
+            content = content.replace("./dist", "./src")
+            content = content.replace("RUN npm ci", "RUN npm install")
+            (project_dir / "Dockerfile").write_text(content)
+
+        makefile_src = TEMPLATE_DIR / "docker" / "Makefile.node"
+        if makefile_src.exists():
+            content = makefile_src.read_text()
+            content = content.replace("myproject", name)
+            (project_dir / "Makefile").write_text(content)
+
+    # e) Overwrite .env.example with minimal Node-style env
+    (project_dir / ".env.example").write_text(f"# {name} Configuration\nNODE_ENV=development\n")
+
+    # f) Overwrite .gitignore with Node-appropriate content
+    (project_dir / ".gitignore").write_text(
+        "node_modules/\ndist/\n.env\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n"
+        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+    )
+
+
 # Dispatch table mapping project types to their scaffolder functions.
 _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "python-api": _scaffold_python_api,
     "saas-skeleton": _scaffold_saas_skeleton,
     "node-api": _scaffold_node_api,
+    "file-api": _scaffold_file_api,
+    "file-worker": _scaffold_file_worker,
+    "wordpress": _scaffold_wordpress,
+    "docusaurus": lambda pd, n, d, **kw: _scaffold_generic_ts(pd, n, d, "docusaurus", **kw),
+    "chrome-extension": lambda pd, n, d, **kw: _scaffold_generic_ts(
+        pd, n, d, "chrome-extension", **kw
+    ),
+    "mobile-app": lambda pd, n, d, **kw: _scaffold_generic_ts(pd, n, d, "mobile-app", **kw),
+    "desktop-app": lambda pd, n, d, **kw: _scaffold_generic_ts(pd, n, d, "desktop-app", **kw),
 }
 
 
@@ -569,9 +975,27 @@ def fix_project(
 
     _, missing = validate_project(project_path, project_type=project_type)
 
+    # Types whose type-specific missing files cannot be safely reconstructed
+    # by fix_project (they require the full scaffolder to be run correctly).
+    # We report these files as missing but skip silent placeholder creation.
+    _UNSUPPORTED_FIX_TYPES = frozenset(
+        {
+            "file-api",
+            "file-worker",
+            "wordpress",
+            "docusaurus",
+            "chrome-extension",
+            "mobile-app",
+            "desktop-app",
+        }
+    )
+
     # Build the combined template map for this project type
     type_template_map = _PYTHON_API_TEMPLATE_MAP if project_type == "python-api" else {}
     combined_template_map = {**SHARED_TEMPLATE_MAP, **type_template_map}
+
+    # Shared required file set for fast membership test
+    shared_required_set = set(_SHARED_REQUIRED_FILES)
 
     # Create missing files (if any)
     for f in missing:
@@ -604,8 +1028,14 @@ def fix_project(
             ]:
                 content = content.replace(old, new)
             dest_path.write_text(content)
+        elif project_type in _UNSUPPORTED_FIX_TYPES and f not in shared_required_set:
+            # Type-specific artifact that fix_project cannot safely reconstruct.
+            # Report as missing (return value) but do NOT write a placeholder that
+            # would silently mask a broken scaffold.
+            added.append(f"[unsupported-fix] {f}")
+            continue
         else:
-            # Create minimal placeholder
+            # Create minimal placeholder for shared docs
             dest_path.write_text(f"# {f}\n\n**Last Updated:** {today}\n\nTODO: Add content\n")
 
         added.append(f)
