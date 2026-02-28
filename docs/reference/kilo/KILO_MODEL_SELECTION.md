@@ -6,6 +6,88 @@ This guide covers practical model selection strategies for Kilo Code, focusing o
 
 ---
 
+## Auto Model (kilo/auto) - Smart Routing
+
+**The easiest way to use Kilo:** Let the system automatically select the optimal AI model based on your current task mode.
+
+### How It Works
+
+1. Select `kilo/auto` as your model in the model dropdown
+2. Start working in any mode (Code, Architect, Debug, etc.)
+3. The system automatically routes your requests to the best model for that task
+
+**No configuration needed.**
+
+### Mode-to-Model Mapping
+
+Auto Model routes to different models based on task type:
+
+| Mode | Model Used | Best For |
+|------|-----------|----------|
+| **architect** | Claude Opus 4.6 | System design, planning |
+| **orchestrator** | Claude Opus 4.6 | Multi-step task coordination |
+| **ask** | Claude Opus 4.6 | Questions, explanations |
+| **plan** | Claude Opus 4.6 | Planning, reasoning |
+| **general** | Claude Opus 4.6 | General assistance |
+| **code** | Claude Sonnet 4.5 | Writing and editing code |
+| **build** | Claude Sonnet 4.5 | Implementation tasks |
+| **debug** | Claude Sonnet 4.5 | Debugging and fixing issues |
+| **explore** | Claude Sonnet 4.5 | Codebase exploration |
+
+**Strategy:**
+- **Planning/reasoning tasks** → Claude Opus 4.6 (deep reasoning, architectural decisions)
+- **Implementation tasks** → Claude Sonnet 4.5 (fast, accurate code generation)
+
+### Benefits
+
+**✅ Simplified Setup**
+- No manual model switching when changing modes
+- Transparent background routing
+
+**✅ Cost Optimization**
+- Uses economical Sonnet for implementation (speed matters)
+- Reserves Opus for planning (benefits from deeper reasoning)
+- Optimal cost-to-capability ratio automatically
+
+**✅ Best-in-Class Models**
+- Always routes to Claude's latest and most capable models
+- Claude Opus for reasoning-intensive tasks
+- Claude Sonnet for implementation-focused tasks
+
+### Requirements
+
+⚠️ **Version Requirements:**
+- VS Code/JetBrains extension v5.2.3+
+- CLI v1.0.15+
+
+On older versions, `kilo/auto` defaults to Claude Sonnet for all requests.
+
+### Getting Started
+
+**Quick Setup:**
+1. Open Kilo Code in VS Code or JetBrains
+2. Click the model selector dropdown
+3. Choose `kilo/auto`
+4. Start chatting - the right model is selected automatically
+
+### When to Use Auto Model
+
+Auto Model is ideal for:
+- **Developers who frequently switch between planning and coding** - No need to remember which model works best
+- **Teams wanting consistent model selection** - Everyone gets optimal routing without individual configuration
+- **Cost-conscious developers** - Automatically balances cost and capability
+- **New Kilo Code users** - Great defaults without needing to understand model differences
+
+### When to Use a Specific Model
+
+You may want to select a specific model instead when:
+- Cost is not a factor for a particular task
+- You need a particular model's unique capabilities (e.g., very long context windows)
+- You're working with a specialized provider or local model
+- You want full control over model selection
+
+---
+
 ## The Philosophy: Live Data Over Static Lists
 
 **The honest truth:** By the time model recommendations are written down, they're probably already outdated. New models drop every few weeks, existing ones get updated, prices shift, and yesterday's champion becomes today's budget option.
