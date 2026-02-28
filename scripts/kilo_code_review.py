@@ -2276,6 +2276,30 @@ async def review_loop(
     all_issues: list[dict[str, Any]] = []
     all_fixes: list[dict[str, Any]] = []
     files_reviewed = [str(f) for f in files]
+
+    # Pre-review validation (fail fast before spending credits)
+    validation_issues = pre_review_checks(files)
+    if validation_issues:
+        return FinalReport(
+            status="ERROR",
+            verdict="FAIL",
+            iterations=0,
+            files_reviewed=files_reviewed,
+            all_issues=[
+                {
+                    "severity": "BLOCKER",
+                    "category": "VALIDATION",
+                    "file": "pre-review",
+                    "lines": "",
+                    "why": issue,
+                    "fix_hint": "Fix the validation error before running review",
+                }
+                for issue in validation_issues
+            ],
+            all_fixes=[],
+            remaining_issues=[],
+            usage={},
+        )
     previous_issues: list[dict[str, Any]] | None = None
     previous_verdict: str | None = None  # Track last review verdict for max variant decision
     iteration = 0
@@ -2623,6 +2647,44 @@ def format_report_text(report: FinalReport) -> str:
     lines.append("")
     lines.append(report.summary)
     lines.append("")
+
+
+def pre_review_checks(files: list[Path]) -> list[str]:
+    """Run fast validation before Kilo review to fail fast.
+
+    Returns list of blocking issues that should prevent review.
+    """
+    issues = []
+    MAX_FILE_SIZE = 500 * 1024
+
+    for f in files:
+        if not f.exists():
+            issues.append(f"File does not exist: {f}")
+            continue
+        size = f.stat().st_size
+        if size > MAX_FILE_SIZE:
+            issues.append(f"File too large: {f} ({size:,} bytes, max {MAX_FILE_SIZE:,})")
+
+    for f in [f for f in files if f.suffix == ".py"]:
+        if not f.exists():
+            continue
+        try:
+            content = f.read_text(encoding="utf-8")
+            compile(content, str(f), "exec")
+        except SyntaxError as e:
+            issues.append(f"Syntax error in {f}:{e.lineno}: {e.msg}")
+        except UnicodeDecodeError as e:
+            issues.append(f"Encoding error in {f}: {e}")
+        except Exception:
+            pass
+
+    for f in files:
+        if not f.exists():
+            continue
+        if f.stat().st_size == 0:
+            issues.append(f"Empty file: {f}")
+
+    return issues
 
     # Files reviewed
     lines.append(f"📁 Files reviewed: {len(report.files_reviewed)}")
