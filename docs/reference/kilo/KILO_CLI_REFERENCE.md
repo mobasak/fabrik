@@ -223,6 +223,215 @@ kilo run --auto "Implement feature X"
 
 ---
 
+## Modes
+
+**Modes** in Kilo Code are specialized personas that tailor the assistant's behavior to your current task. Each mode offers different capabilities, expertise, and access levels.
+
+### Why Use Different Modes?
+
+**Benefits:**
+- **Task specialization** - Get precisely the type of assistance you need
+- **Safety controls** - Prevent unintended file modifications when planning or learning
+- **Focused interactions** - Responses optimized for your current activity
+- **Workflow optimization** - Seamlessly transition between planning, implementing, debugging, and learning
+
+### Switching Between Modes
+
+**Four ways to switch:**
+
+1. **Dropdown menu** - Click the selector to the left of the chat input
+2. **Slash commands** - Type mode name in chat:
+   - `/code` - Switch to Code mode
+   - `/ask` - Switch to Ask mode
+   - `/architect` - Switch to Architect mode
+   - `/debug` - Switch to Debug mode
+   - `/orchestrator` - Switch to Orchestrator mode
+   - `/review` - Switch to Review mode
+3. **Keyboard shortcut** - Toggle through modes:
+   - **macOS:** `⌘ + .`
+   - **Windows/Linux:** `Ctrl + .`
+4. **Accept suggestions** - Click on mode switch suggestions that Kilo Code offers
+
+### Understanding /newtask vs /smol
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `/newtask` | Creates new task with context from current task | Start something new while carrying over context |
+| `/smol` | Condenses your current context window | Conversation getting too long, need to summarize |
+
+---
+
+### Built-in Modes
+
+#### Code Mode (Default)
+
+| Aspect | Details |
+|--------|---------|
+| **Description** | Skilled software engineer with expertise in programming languages, design patterns, best practices |
+| **Tool Access** | **Full access:** read, edit, browser, command, mcp |
+| **Ideal For** | Writing code, implementing features, debugging, general development |
+| **Special Features** | No tool restrictions—full flexibility for all coding tasks |
+
+**When to use:**
+- Writing new code or features
+- Implementing changes to existing code
+- General development tasks
+- Running commands and tests
+
+---
+
+#### Ask Mode
+
+| Aspect | Details |
+|--------|---------|
+| **Description** | Knowledgeable technical assistant focused on answering questions without changing your codebase |
+| **Tool Access** | **Limited:** read, browser, mcp only (cannot edit files or run commands) |
+| **Ideal For** | Code explanation, concept exploration, technical learning |
+| **Special Features** | Optimized for informative responses without modifying your project |
+
+**When to use:**
+- Understanding existing code
+- Learning new concepts
+- Exploring architecture without changes
+- Technical questions and explanations
+
+**Safety:** Cannot accidentally modify files or run commands.
+
+---
+
+#### Architect Mode
+
+| Aspect | Details |
+|--------|---------|
+| **Description** | Experienced technical leader and planner who helps design systems and create implementation plans |
+| **Tool Access** | **Restricted:** read, browser, mcp, edit (markdown files only) |
+| **Ideal For** | System design, high-level planning, architecture discussions |
+| **Special Features** | Follows structured approach from information gathering to detailed planning |
+
+**When to use:**
+- Designing new systems or features
+- Creating implementation plans
+- Architecture discussions
+- High-level planning documents
+
+**Safety:** Can only edit markdown files (e.g., design docs, plans).
+
+---
+
+#### Debug Mode
+
+| Aspect | Details |
+|--------|---------|
+| **Description** | Expert problem solver specializing in systematic troubleshooting and diagnostics |
+| **Tool Access** | **Full access:** read, edit, browser, command, mcp |
+| **Ideal For** | Tracking down bugs, diagnosing errors, resolving complex issues |
+| **Special Features** | Uses methodical approach of analyzing, narrowing possibilities, and fixing issues |
+
+**When to use:**
+- Tracking down bugs
+- Diagnosing errors
+- Performance issues
+- System troubleshooting
+
+**💡 Tip:** Keep debugging separate from main tasks:
+```
+"Start a new task in Debug mode with all necessary context to figure out X"
+```
+This uses a separate context window and doesn't pollute the main task.
+
+---
+
+#### Orchestrator Mode
+
+| Aspect | Details |
+|--------|---------|
+| **Description** | Strategic workflow orchestrator who coordinates complex tasks by delegating to specialized modes |
+| **Tool Access** | **Limited:** create new tasks, coordinate workflows |
+| **Ideal For** | Breaking down complex projects into manageable subtasks assigned to specialized modes |
+| **Special Features** | Uses the `new_task` tool to delegate work to other modes |
+
+**When to use:**
+- Complex multi-step projects
+- Tasks requiring different specialized approaches
+- Coordinating work across multiple contexts
+- Strategic planning and delegation
+
+**Workflow:**
+1. Orchestrator analyzes complex task
+2. Breaks into subtasks
+3. Delegates each to appropriate mode (Architect, Code, Debug, etc.)
+4. Coordinates results
+
+---
+
+#### Review Mode
+
+| Aspect | Details |
+|--------|---------|
+| **Description** | Expert code reviewer specializing in analyzing changes to provide structured feedback on quality, security, best practices |
+| **Tool Access** | **Restricted:** read, browser, mcp, edit (when permitted) |
+| **Ideal For** | Catching issues early, enforcing code standards, accelerating PR turnaround |
+| **Special Features** | Code review before committing, surfacing feedback across performance, security, style, test coverage |
+
+**When to use:**
+- Pre-commit code review
+- Security analysis
+- Code quality checks
+- Best practices enforcement
+- PR review acceleration
+
+**Review categories:**
+- Performance optimization
+- Security vulnerabilities
+- Code style and standards
+- Test coverage
+- Best practices compliance
+
+---
+
+#### Custom Modes
+
+Create your own specialized assistants by defining:
+- Tool access permissions
+- File permissions
+- Behavior instructions
+
+**Use cases:**
+- Team-specific standards enforcement
+- Domain-specific assistants
+- Custom workflow optimization
+- Project-specific constraints
+
+**See:** Custom Modes documentation for setup instructions.
+
+---
+
+### Mode Selection Best Practices
+
+**Start with restricted modes, escalate when needed:**
+
+```
+Planning → Architect mode (safe, markdown-only edits)
+Learning → Ask mode (read-only, no accidental changes)
+Debugging → Debug mode (full access, focused troubleshooting)
+Implementation → Code mode (full access, general development)
+Coordination → Orchestrator mode (delegates to specialists)
+Quality → Review mode (feedback-focused, limited edits)
+```
+
+**Cost optimization by mode:**
+
+| Mode | Typical Cost | Optimization Strategy |
+|------|--------------|----------------------|
+| Ask | Low | Use free/budget models (no file operations) |
+| Architect | Low-Medium | Budget models for planning, premium for complex design |
+| Code | High | Start budget, escalate to premium for complex tasks |
+| Debug | High | Premium models for complex issues, budget for simple bugs |
+| Orchestrator | Medium | Budget for coordination, premium for complex delegation |
+| Review | Medium-High | Premium for critical code review, budget for standards checks |
+
+---
+
 ## Configuration
 
 Kilo CLI is a fork of OpenCode and supports the same configuration options.

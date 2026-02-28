@@ -20,23 +20,30 @@ This guide covers practical model selection strategies for Kilo Code, focusing o
 
 ### Mode-to-Model Mapping
 
-Auto Model routes to different models based on task type:
+Auto Model routes to different models based on the Kilo mode you're using:
 
-| Mode | Model Used | Best For |
-|------|-----------|----------|
-| **architect** | Claude Opus 4.6 | System design, planning |
-| **orchestrator** | Claude Opus 4.6 | Multi-step task coordination |
-| **ask** | Claude Opus 4.6 | Questions, explanations |
-| **plan** | Claude Opus 4.6 | Planning, reasoning |
-| **general** | Claude Opus 4.6 | General assistance |
-| **code** | Claude Sonnet 4.5 | Writing and editing code |
-| **build** | Claude Sonnet 4.5 | Implementation tasks |
-| **debug** | Claude Sonnet 4.5 | Debugging and fixing issues |
-| **explore** | Claude Sonnet 4.5 | Codebase exploration |
+| Mode | Model Used | Tool Access | Best For |
+|------|-----------|-------------|----------|
+| **architect** | Claude Opus 4.6 | Read, browser, mcp, edit (markdown only) | System design, planning, architecture |
+| **orchestrator** | Claude Opus 4.6 | Limited (task creation, coordination) | Multi-step task coordination, delegation |
+| **ask** | Claude Opus 4.6 | Read, browser, mcp only | Questions, explanations, learning |
+| **plan** | Claude Opus 4.6 | Varies | Planning, reasoning |
+| **general** | Claude Opus 4.6 | Varies | General assistance |
+| **review** | Claude Opus 4.6 | Read, browser, mcp, edit (permitted) | Code review, quality analysis |
+| **code** | Claude Sonnet 4.5 | Full (read, edit, browser, command, mcp) | Writing and editing code |
+| **build** | Claude Sonnet 4.5 | Full | Implementation tasks |
+| **debug** | Claude Sonnet 4.5 | Full (read, edit, browser, command, mcp) | Debugging and fixing issues |
+| **explore** | Claude Sonnet 4.5 | Varies | Codebase exploration |
 
 **Strategy:**
 - **Planning/reasoning tasks** → Claude Opus 4.6 (deep reasoning, architectural decisions)
 - **Implementation tasks** → Claude Sonnet 4.5 (fast, accurate code generation)
+- **Review/quality tasks** → Claude Opus 4.6 (thorough analysis)
+
+**Cost optimization insight:**
+- Opus modes (architect, ask, review, orchestrator) typically have **lower token usage** due to limited tool access
+- Sonnet modes (code, debug) have **higher token usage** due to full file operations
+- Auto Model balances quality and cost automatically based on mode
 
 ### Benefits
 
@@ -204,17 +211,33 @@ When you need more capability than free models provide:
 
 **Use appropriate modes to limit expensive operations:**
 
-| Mode | Purpose | Cost Impact |
-|------|---------|-------------|
-| **Ask** | Information gathering without code changes | Low |
-| **Architect** | Planning without expensive file operations | Medium |
-| **Debug** | Focused troubleshooting | Medium |
-| **Code** | Implementation with file operations | High |
+| Mode | Purpose | Tool Access | Cost Impact | Recommended Model Tier |
+|------|---------|-------------|-------------|----------------------|
+| **Ask** | Information gathering, learning | Read-only | **Very Low** | Free/Budget (no edits) |
+| **Architect** | Planning, design | Markdown edits only | **Low** | Budget for simple, Premium for complex design |
+| **Review** | Code quality analysis | Read + limited edit | **Medium** | Premium (quality critical) |
+| **Orchestrator** | Task delegation | Task creation only | **Medium** | Budget for coordination |
+| **Code** | Implementation | Full file operations | **High** | Budget → Premium escalation |
+| **Debug** | Troubleshooting | Full file operations | **High** | Premium for complex, Budget for simple |
+
+**Mode selection for cost savings:**
+
+```
+Daily workflow:
+1. Morning planning → Architect mode + DeepSeek R1 (FREE)
+2. Learning/exploration → Ask mode + Qwen3 Coder (FREE)
+3. Simple implementation → Code mode + Mistral Devstral Small ($0.20/M)
+4. Complex features → Code mode + Claude Sonnet 4.5 (premium)
+5. Pre-commit review → Review mode + Claude Opus 4.6 (premium)
+6. Quick bug fixes → Debug mode + Budget model
+7. Complex debugging → Debug mode + Premium model
+```
 
 **Custom modes for budget control:**
 - Create modes that restrict expensive tools
 - Limit file access to specific directories
 - Control which operations are auto-approved
+- Define cost-tier preferences per mode
 
 ---
 
