@@ -9,10 +9,16 @@ Naming format: <TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh
 Example: P01-opus46-review-max-i500-o2500.sh
 
 Usage:
-    python generate_kilo_agents.py
+    python generate_kilo_agents.py [-h] [-d]
+
+Options:
+    -h, --help     Show this help message and exit
+    -d, --dry-run  Dry-run mode (do not write files)
 """
 
+import argparse
 import json
+import sys
 from pathlib import Path
 
 AGENTS_FILE = Path(__file__).parent / "kilo_18_agents_complete.json"
@@ -176,7 +182,7 @@ exit $EXIT_CODE
 """
 
 
-def main():
+def main(dry_run: bool = False):
     # Load agent definitions
     with open(AGENTS_FILE) as f:
         data = json.load(f)
@@ -188,41 +194,60 @@ def main():
         key = (a["model_name"], a["use_case"].lower(), a["variant"])
         agents[key] = a
 
-    # Create output directory
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # Create output directory (skip in dry-run)
+    if not dry_run:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     generated = []
 
-    # Generate scripts for each tier
-    for tier, tier_agents in TIER_ASSIGNMENTS.items():
-        for rank, (model_name, role, variant) in enumerate(tier_agents, 1):
+    # Generate scripts per tier
+    for tier, assignments in TIER_ASSIGNMENTS.items():
+        for rank, (model, role, effort) in enumerate(assignments, start=1):
             # Find agent by (model_name, use_case, variant) tuple
-            key = (model_name, role, variant)
+            key = (model, role, effort)
             agent = agents.get(key)
             if not agent:
-                print(f"⚠ Warning: {model_name}/{role}/{variant} not found in agents.json")
+                print(
+                    f"⚠ Warning: {model}/{role}/{effort} not found in agents.json", file=sys.stderr
+                )
                 continue
 
             # Build filename
-            model_norm = normalize_model_name(model_name)
+            model_norm = normalize_model_name(model)
             input_enc = encode_price(agent["input_per_1m"])
             output_enc = encode_price(agent["output_per_1m"])
 
             filename = (
-                f"{tier}{rank:02d}-{model_norm}-{role}-{variant}-i{input_enc}-o{output_enc}.sh"
+                f"{tier}{rank:02d}-{model_norm}-{role}-{effort}-i{input_enc}-o{output_enc}.sh"
             )
             filepath = OUTPUT_DIR / filename
 
-            # Generate script
-            content = generate_script_content(agent, tier, rank)
-            filepath.write_text(content)
-            filepath.chmod(0o755)
+            if dry_run:
+                # Dry-run: show what would be generated
+                print(f"[DRY-RUN] Would generate: {filename}")
+                print(f"          Model: {agent['full_name']}")
+                print(f"          Tier: {tier} | Role: {role} | Variant: {effort}")
+                print(f"          Output: {filepath}")
+            else:
+                # Generate script
+                content = generate_script_content(agent, tier, rank)
+                filepath.write_text(content)
+                filepath.chmod(0o755)
+                print(f"✓ Generated: {filename}")
 
             generated.append(filename)
-            print(f"✓ Generated: {filename}")
 
-    print(f"\n✅ Generated {len(generated)} agent scripts in {OUTPUT_DIR}")
+    if dry_run:
+        print(f"\n[DRY-RUN] Would generate {len(generated)} agent scripts in {OUTPUT_DIR}")
+        print("[DRY-RUN] Run without --dry-run to actually create files")
+    else:
+        print(f"\n✅ Generated {len(generated)} agent scripts in {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Generate Kilo CLI Agent Scripts")
+    parser.add_argument(
+        "-d", "--dry-run", action="store_true", help="Dry-run mode (do not write files)"
+    )
+    args = parser.parse_args()
+    main(dry_run=args.dry_run)
