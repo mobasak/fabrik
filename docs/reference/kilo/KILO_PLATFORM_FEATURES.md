@@ -82,7 +82,7 @@ Get instant answers about your codebase without switching contexts:
 When your team identifies an issue or improvement in a Slack thread, ask the bot to implement it:
 
 ```
-@Kilo based on this thread, can you implement the fix for the 
+@Kilo based on this thread, can you implement the fix for the
 null pointer exception in the order processing service?
 ```
 
