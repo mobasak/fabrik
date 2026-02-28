@@ -11,7 +11,8 @@ This directory contains all documentation for the Kilo AI agent system used in F
 | Document | Purpose |
 |----------|---------|
 | **KILO_CLI_REFERENCE.md** | Complete Kilo CLI reference (install, commands, config, permissions) |
-| **KILO_MODEL_SELECTION.md** | Real-time model selection guide and leaderboards |
+| **KILO_MODEL_SELECTION.md** | Real-time model selection guide, Auto Model, and leaderboards |
+| **KILO_IMPROVEMENTS_PROPOSAL.md** | Proposed enhancements to agent scripts and code review system |
 | **KILO_PLATFORM_FEATURES.md** | Slack integration and App Builder features |
 | **KILO_AGENT_NAMING.md** | Tier-based naming convention for agent scripts |
 | **KILO_UPDATE_SCHEDULE.md** | Update automation schedule and process |

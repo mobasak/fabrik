@@ -278,6 +278,73 @@ Use `{env:VARIABLE_NAME}` syntax:
 }
 ```
 
+### Setting Up Free Providers
+
+#### OpenRouter (Free Tier Models)
+
+OpenRouter offers several free models including Qwen3 Coder, DeepSeek R1, and GLM 4.5 Air.
+
+**Setup:**
+1. Visit [openrouter.ai](https://openrouter.ai)
+2. Create free account
+3. Get API key from dashboard
+4. Configure in `opencode.json`:
+
+```json
+{
+  "provider": {
+    "openrouter": {
+      "options": {
+        "apiKey": "{env:OPENROUTER_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+5. Set environment variable:
+```bash
+export OPENROUTER_API_KEY="your-key-here"
+```
+
+#### Groq (Free Fast Inference)
+
+Groq provides free fast inference for supported models.
+
+**Setup:**
+1. Visit [groq.com](https://groq.com)
+2. Create account
+3. Get API key
+4. Configure in `opencode.json`:
+
+```json
+{
+  "provider": {
+    "groq": {
+      "options": {
+        "apiKey": "{env:GROQ_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+5. Set environment variable:
+```bash
+export GROQ_API_KEY="your-key-here"
+```
+
+#### Kilo Gateway (Free Models)
+
+Kilo Gateway provides free models directly without additional setup:
+- MiniMax M2.1
+- Z.AI GLM 4.7
+- MoonshotAI Kimi K2.5
+- Giga Potato
+- Arcee AI Trinity Large Preview
+
+**No configuration needed** - available immediately through Kilo Code.
+
 ---
 
 ## Permissions
