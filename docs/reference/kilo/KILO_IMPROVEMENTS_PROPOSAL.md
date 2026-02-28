@@ -608,13 +608,19 @@ python scripts/kilo_cost_report.py --days 30
 
 ### Reliability
 - **Retry logic:** Handle transient API failures
-- **Timeout protection:** Prevent hung Traycer jobs
-- **Environment validation:** Fail fast with clear errors
-- **Free tier fallback:** Continue working when budget exhausted
+- **Benefits of mode-specific agents:**
+- **Ask mode agents** - Read-only, perfect for free tier (no edit costs)
+- **Architect mode agents** - Markdown-only edits, safe for free tier
+- **Code mode agents** - Full implementation with zero cost
+- **Review mode agents** - Quality analysis without premium cost
+- **Debug mode agents** - Troubleshooting without premium cost
+- **Orchestrator mode agents** - Task delegation with free tier coordination
 
-### Observability
-- **Debug mode:** Troubleshoot integration issues
-- **Usage logging:** Track credit consumption by tier
+**Orchestrator Mode optimization:**
+- Use free tier models for coordination (context is small - only summaries)
+- Delegate expensive work to specialized subtask agents
+- Example: FREE09 orchestrator → B04 code subtask → S05 review subtask
+- Result: 70-80% cost savings vs single premium model for entire workflow
 - **Performance metrics:** Identify best models per task and tier
 - **Cost tier reporting:** Monitor 50% rule compliance
 

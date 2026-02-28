@@ -343,24 +343,150 @@ This uses a separate context window and doesn't pollute the main task.
 
 #### Orchestrator Mode
 
+**Formerly known as:** Boomerang Tasks
+
 | Aspect | Details |
 |--------|---------|
 | **Description** | Strategic workflow orchestrator who coordinates complex tasks by delegating to specialized modes |
-| **Tool Access** | **Limited:** create new tasks, coordinate workflows |
+| **Tool Access** | **Limited:** create new tasks (`new_task` tool), coordinate workflows, receive completion summaries |
 | **Ideal For** | Breaking down complex projects into manageable subtasks assigned to specialized modes |
-| **Special Features** | Uses the `new_task` tool to delegate work to other modes |
+| **Special Features** | Uses `new_task` tool to delegate work, `attempt_completion` tool for subtask results |
 
-**When to use:**
-- Complex multi-step projects
-- Tasks requiring different specialized approaches
-- Coordinating work across multiple contexts
-- Strategic planning and delegation
+### Why Use Orchestrator Mode?
 
-**Workflow:**
-1. Orchestrator analyzes complex task
-2. Breaks into subtasks
-3. Delegates each to appropriate mode (Architect, Code, Debug, etc.)
-4. Coordinates results
+**Tackle Complexity**
+- Break large, multi-step projects (e.g., building a full feature) into focused subtasks
+- Each subtask handles a specific piece (e.g., design, implementation, documentation)
+
+**Use Specialized Modes**
+- Automatically delegate subtasks to the mode best suited for that work
+- Leverage specialized capabilities for optimal results
+- Example: Architect mode for design → Code mode for implementation → Review mode for quality checks
+
+**Maintain Focus & Efficiency**
+- Each subtask operates in its own **isolated context** with separate conversation history
+- Parent (orchestrator) task stays clutter-free (no code diffs, file analysis details)
+- Parent focuses on high-level workflow management
+- Only concise summaries from completed subtasks return to parent
+
+**Streamline Workflows**
+- Results from one subtask automatically pass to the next
+- Create smooth flow: architectural decisions → coding task → testing task
+- Maintain continuity across specialized work
+
+### How It Works
+
+**Step-by-step workflow:**
+
+1. **Analysis** - Orchestrator mode analyzes complex task and suggests breaking it down
+2. **Subtask Creation** - Parent task pauses, new subtask begins in different mode
+3. **Execution** - Subtask runs in isolation with its own context
+4. **Completion** - When goal achieved, Kilo signals completion via `attempt_completion` tool
+5. **Resume** - Parent task resumes with only the summary from subtask
+6. **Continue** - Parent uses summary to continue main workflow
+
+**Tools involved:**
+
+```
+new_task tool:
+  - message: Context passed DOWN to subtask (initial instructions)
+  - mode: Which mode to use for subtask (code, architect, debug, etc.)
+
+attempt_completion tool:
+  - result: Summary passed UP to parent when subtask finishes
+```
+
+### Key Considerations
+
+#### Approval Required
+
+**Default behavior:**
+- You must approve creation of each subtask
+- You must approve completion of each subtask
+
+**Auto-approval option:**
+- Can be automated via "Auto-Approving Actions" settings
+- Use with caution - ensures you maintain control
+
+#### Context Isolation and Transfer
+
+**Complete isolation:**
+- Each subtask operates with its own conversation history
+- Subtask does NOT automatically inherit parent's context
+- Information must be explicitly passed
+
+**Context transfer mechanisms:**
+
+| Direction | Mechanism | Tool Parameter | Content |
+|-----------|-----------|----------------|---------|
+| **DOWN** (Parent → Subtask) | Initial instructions | `new_task.message` | What subtask needs to know |
+| **UP** (Subtask → Parent) | Final summary | `attempt_completion.result` | What parent needs to know |
+
+**⚠️ Important:** Only the summary returns to parent. Detailed execution steps, code diffs, and file analysis stay in subtask context.
+
+#### Navigation
+
+**Task hierarchy:**
+- Kilo's interface shows parent-child relationships
+- Navigate between active and paused tasks
+- See which task is parent, which are children
+- Resume paused parent tasks after subtask completion
+
+### Example Workflow
+
+**Scenario:** Build a new authentication feature
+
+```
+1. Orchestrator Mode (Parent)
+   ├─ Analyzes: "Build authentication feature"
+   ├─ Suggests subtasks:
+   │
+   ├─ Subtask 1: Architect Mode
+   │  ├─ Context DOWN: "Design auth system with JWT, user roles, session management"
+   │  ├─ Execution: Creates architecture document, API design
+   │  └─ Summary UP: "Designed JWT-based auth with 3 roles, session timeout 30min"
+   │
+   ├─ Subtask 2: Code Mode
+   │  ├─ Context DOWN: "Implement auth based on architecture: [summary from Subtask 1]"
+   │  ├─ Execution: Writes auth middleware, user routes, token validation
+   │  └─ Summary UP: "Implemented JWT auth, 5 endpoints, middleware, tests passing"
+   │
+   └─ Subtask 3: Review Mode
+      ├─ Context DOWN: "Review auth implementation for security issues"
+      ├─ Execution: Analyzes code for vulnerabilities, checks best practices
+      └─ Summary UP: "Found 2 minor issues (fixed), security best practices applied"
+```
+
+### Best Practices
+
+**💡 Keep Tasks Focused**
+- Use subtasks to maintain clarity
+- If request significantly shifts focus or requires different expertise (mode), create a subtask
+- Don't overload the current task
+
+**When to create subtasks:**
+- Task requires multiple modes (design + code + review)
+- Task has distinct phases (planning → implementation → testing)
+- Context is becoming cluttered with implementation details
+- Different expertise levels needed for different parts
+
+**When NOT to create subtasks:**
+- Simple, single-mode tasks
+- Quick changes or bug fixes
+- Tasks where context continuity is critical
+- When overhead of subtask management exceeds benefits
+
+### Cost Optimization with Orchestrator Mode
+
+**Token efficiency:**
+- Parent context stays small (only summaries)
+- Detailed work happens in isolated subtask contexts
+- Reduces token waste from carrying forward large contexts
+
+**Model selection:**
+- Use **budget models** for orchestrator coordination ($0.20-0.50/M)
+- Use **specialized models** for subtasks based on mode
+- Example: Free model for orchestration, premium for complex code subtasks
 
 ---
 
