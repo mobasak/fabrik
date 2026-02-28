@@ -170,6 +170,10 @@ SESSION_DIR = Path(os.getenv("KILO_SESSION_DIR", ".droid/reviews"))
 MODEL_CACHE_FILE = Path(os.getenv("KILO_MODEL_CACHE", ".droid/kilo_models_cache.json"))
 MODEL_CACHE_REFRESH_FILE = Path(".droid/.kilo_cache_last_refresh")
 
+# Retry configuration for transient failures
+MAX_RETRIES = int(os.getenv("KILO_MAX_RETRIES", "3"))  # Max retry attempts
+RETRYABLE_EXIT_CODES = {124, 503}  # Timeout (124) and Service Unavailable (503)
+
 # Model successor mapping for deprecated models
 MODEL_SUCCESSORS = {
     "kilo/anthropic/claude-sonnet-4.5": "kilo/anthropic/claude-sonnet-4.6",
@@ -1185,54 +1189,96 @@ async def run_kilo(
     if config.verbose:
         print(f"[KILO] Running: {' '.join(cmd)}", file=sys.stderr)
 
-    try:
-        # Use synchronous subprocess for reliability on Windows
-        # Run in thread pool to keep async interface
-        import concurrent.futures
+    # Retry loop with exponential backoff for transient failures
+    last_exception = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            # Use synchronous subprocess for reliability on Windows
+            # Run in thread pool to keep async interface
+            import concurrent.futures
 
-        def run_subprocess():
-            result = subprocess.run(
-                cmd,
-                input=prompt.encode("utf-8"),
-                capture_output=True,
-                timeout=timeout,
-                shell=False,  # Never use shell=True to prevent command injection
+            def run_subprocess():
+                result = subprocess.run(
+                    cmd,
+                    input=prompt.encode("utf-8"),
+                    capture_output=True,
+                    timeout=timeout,
+                    shell=False,  # Never use shell=True to prevent command injection
+                )
+                return result
+
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(executor, run_subprocess),
+                    timeout=timeout + 10,  # Extra buffer for executor overhead
+                )
+
+            stdout = result.stdout
+            stderr = result.stderr
+
+            # Check for retryable failures (timeout or service unavailable)
+            if result.returncode in RETRYABLE_EXIT_CODES and attempt < MAX_RETRIES - 1:
+                wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                error_msg = stderr.decode("utf-8", errors="replace")[:200]
+                print(
+                    f"⏳ Kilo transient failure (exit {result.returncode}). "
+                    f"Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
+                    file=sys.stderr,
+                )
+                if config.verbose:
+                    print(f"[RETRY] Error: {error_msg}", file=sys.stderr)
+                await asyncio.sleep(wait_time)
+                continue
+
+            if result.returncode != 0:
+                error_msg = stderr.decode("utf-8", errors="replace")
+                # Truncate and redact secrets to prevent leaking sensitive data in logs
+                error_msg = error_msg[:200]
+                error_msg = _redact_secrets(error_msg)
+                raise RuntimeError(f"Kilo failed (exit {result.returncode}): {error_msg}")
+
+            output = stdout.decode("utf-8", errors="replace")
+
+            if config.verbose:
+                print(f"[KILO] Output: {len(output)} chars", file=sys.stderr)
+                if stderr:
+                    stderr_text = stderr.decode("utf-8", errors="replace")
+                    if stderr_text.strip() and "error" in stderr_text.lower():
+                        print(f"[KILO] Stderr: {stderr_text[:300]}", file=sys.stderr)
+
+            # Parse and return result
+            return parse_kilo_jsonl(output)
+
+        except subprocess.TimeoutExpired as e:
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:
+                wait_time = 2**attempt
+                print(
+                    f"⏳ Kilo timeout. Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
+                    file=sys.stderr,
+                )
+                await asyncio.sleep(wait_time)
+                continue
+            raise RuntimeError(f"Kilo timed out after {timeout}s (tried {MAX_RETRIES} times)")
+        except TimeoutError as e:
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:
+                wait_time = 2**attempt
+                print(
+                    f"⏳ Kilo async timeout. Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
+                    file=sys.stderr,
+                )
+                await asyncio.sleep(wait_time)
+                continue
+            raise RuntimeError(
+                f"Kilo async timeout after {timeout + 10}s (tried {MAX_RETRIES} times)"
             )
-            return result
 
-        loop = asyncio.get_event_loop()
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            result = await asyncio.wait_for(
-                loop.run_in_executor(executor, run_subprocess),
-                timeout=timeout + 10,  # Extra buffer for executor overhead
-            )
-
-        stdout = result.stdout
-        stderr = result.stderr
-
-        if result.returncode != 0:
-            error_msg = stderr.decode("utf-8", errors="replace")
-            # Truncate and redact secrets to prevent leaking sensitive data in logs
-            error_msg = error_msg[:200]
-            error_msg = _redact_secrets(error_msg)
-            raise RuntimeError(f"Kilo failed (exit {result.returncode}): {error_msg}")
-
-        output = stdout.decode("utf-8", errors="replace")
-
-        if config.verbose:
-            print(f"[KILO] Output: {len(output)} chars", file=sys.stderr)
-            if stderr:
-                stderr_text = stderr.decode("utf-8", errors="replace")
-                if stderr_text.strip() and "error" in stderr_text.lower():
-                    print(f"[KILO] Stderr: {stderr_text[:300]}", file=sys.stderr)
-
-        # Parse and return result
-        return parse_kilo_jsonl(output)
-
-    except subprocess.TimeoutExpired:
-        raise RuntimeError(f"Kilo timed out after {timeout}s")
-    except TimeoutError:
-        raise RuntimeError(f"Kilo async timeout after {timeout + 10}s")
+    # If we exhausted retries, raise the last exception
+    if last_exception:
+        raise last_exception
+    raise RuntimeError("Kilo call failed after all retries")
 
 
 # =============================================================================

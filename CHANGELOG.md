@@ -21,14 +21,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added - Kilo Agent Debug Mode, Timeout, Cost Tracking (2026-02-28)
 
-**Summary:** Enhanced Kilo agent script template with debug mode (KILO_DEBUG=1), timeout protection (KILO_TIMEOUT), and cost tracking (KILO_TRACK_COST). Added kilo/auto support to kilo_code_review.py as default model. Generated AUTO tier agents for automatic mode-based routing.
+**Summary:** Enhanced Kilo agent script template with debug mode (KILO_DEBUG=1), timeout protection (KILO_TIMEOUT), and cost tracking (KILO_TRACK_COST). Added kilo/auto support to kilo_code_review.py as default model. Generated AUTO tier agents for automatic mode-based routing. Added retry logic with exponential backoff for transient failures.
 
 **Files:**
 - `scripts/generate_kilo_agents.py` - Enhanced agent template with 3 new features, added AUTO tier support
-- `scripts/kilo_code_review.py` - Added kilo/auto as default model
+- `scripts/kilo_code_review.py` - Added kilo/auto as default model, retry logic with exponential backoff
 - `scripts/kilo_18_agents_complete.json` - Added kilo/auto agent definitions (Code and Review)
 - `~/.traycer/cli-agents/A01-auto-code-auto-i000-o000.sh` - AUTO tier Code agent
 - `~/.traycer/cli-agents/A02-auto-review-auto-i000-o000.sh` - AUTO tier Review agent
+- `.env.example` - Added KILO_MAX_RETRIES configuration
 
 **Features:**
 - Debug mode: Verbose logging with set -x, agent/model/task metadata
@@ -37,6 +38,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Auto Model: kilo/auto as default for automatic mode-based routing
 - AUTO Tier: New tier (A) for kilo/auto agents with $0 pricing, automatic Opus/Sonnet routing per mode
 - Dry-run mode: `--dry-run` flag to preview agent generation without creating files
+- Retry logic: Exponential backoff (1s, 2s, 4s) for transient failures (timeout/503 errors), configurable via KILO_MAX_RETRIES (default 3)
+- Retry logic: Exponential backoff (1s, 2s, 4s) for transient failures (timeout/503 errors), configurable via KILO_MAX_RETRIES (default 3)
 
 ---
 
