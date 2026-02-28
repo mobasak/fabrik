@@ -42,6 +42,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Model performance metrics: Track avg iterations, cost, pass rate per model/file_type, saved to .droid/kilo_metrics.jsonl
 - Cost reporting utility: `kilo_cost_report.py` analyzes usage logs, generates cost summaries and breakdowns by model/filetype
 - Pre-review validation: Fail-fast checks for file size, syntax, encoding before calling Kilo API (saves credits)
+- Script validation: `generate_kilo_agents.py` validates generated shell scripts (shebang, exit, syntax)
+- Agent backup: Automatic timestamped backup before regenerating agents (safe rollback)
 
 ---
 

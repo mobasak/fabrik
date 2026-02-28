@@ -233,15 +233,25 @@ def main(dry_run: bool = False):
                 content = generate_script_content(agent, tier, rank)
                 filepath.write_text(content)
                 filepath.chmod(0o755)
-                print(f"✓ Generated: {filename}")
+                print(f"          Tier: {tier} | Role: {role} | Variant: {effort}")
+                print(f"          Output: {filepath}")
 
-            generated.append(filename)
+                # Validate generated script
+                validation_issues = validate_script(filepath)
+                if validation_issues:
+                    print(f"  ⚠ {filename} - Validation issues:")
+                    for issue in validation_issues:
+                        print(f"    - {issue}")
+                else:
+                    print(f"  ✓ {filename}")
+
+                generated_count += 1
 
     if dry_run:
-        print(f"\n[DRY-RUN] Would generate {len(generated)} agent scripts in {OUTPUT_DIR}")
+        print(f"\n[DRY-RUN] Would generate {generated_count} agent scripts in {OUTPUT_DIR}")
         print("[DRY-RUN] Run without --dry-run to actually create files")
     else:
-        print(f"\n✅ Generated {len(generated)} agent scripts in {OUTPUT_DIR}")
+        print(f"\n✅ Generated {generated_count} agent scripts in {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
