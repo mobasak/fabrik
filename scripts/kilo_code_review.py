@@ -75,13 +75,21 @@ MAX_ITERATIONS_CODE = 5
 # Documentation file extensions (lighter review)
 DOC_EXTENSIONS = {".md", ".rst", ".txt", ".adoc"}
 
-# Default model for code review (Claude Opus 4.6 - best reasoning, 128K output)
+# Default model for code review
+# AUTO MODEL (kilo/auto - recommended):
+#   - Automatically routes to best model for task
+#   - Opus 4.6 for planning/reasoning modes (architect, orchestrator, ask, review)
+#   - Sonnet 4.5 for implementation modes (code, build, debug, explore)
+#   - No configuration needed, transparent routing
+#
 # Note: Kilo CLI requires full model path with kilo/ prefix (e.g. "kilo/anthropic/claude-opus-4.6")
 # This differs from config/models.yaml which uses short names (e.g. "claude-opus-4-6").
 # The kilo_models section in models.yaml maps providers to short model names;
 # this script uses the kilo/<provider>/<model> format required by Kilo CLI.
 # Can be overridden via KILO_REVIEW_MODEL env var (validated at runtime)
-# Fallback model when routing cannot determine (should not happen)
+# Default: kilo/auto (automatic mode-based routing)
+# Fallback: Gemini 3 Flash if auto unavailable
+_DEFAULT_MODEL = "kilo/auto"
 _DEFAULT_MODEL_FALLBACK = "kilo/google/gemini-3-flash-preview"
 
 
@@ -409,17 +417,22 @@ def select_model_for_diff(
     user_model: str | None = None,
 ) -> tuple[str, bool, str]:
     """
-    Select model based on diff file paths (cost-aware routing).
+    Intelligent model routing based on diff characteristics.
 
-    Args:
-        diff_files: List of files in the current diff
-        user_model: User-specified model override (if any)
+    Strategy:
+    - AUTO (kilo/auto) for automatic mode-based routing (recommended)
+      - Opus 4.6 for review mode (quality critical)
+      - Sonnet 4.5 for code mode (implementation)
+    - Gemini Pro Thinking for complex diffs (high-stakes changes, reasoning needed)
+    - Sonnet for standard code review (balanced cost/quality)
+    - Flash for simple documentation changes (docs, comments, minimal risk)
 
-    Returns:
-        (selected_model, escalated, reason)
+    Escalation triggers:
+    - High-risk directories (scripts/, src/fabrik/, .windsurf/)
+    - Large diffs (>500 lines changed)
+    - Security-sensitive file types (.sh, .py in scripts/)
 
-    If user provides --model, that takes precedence.
-    Otherwise, escalate to Opus only for high-risk paths.
+    Note: If KILO_REVIEW_MODEL=kilo/auto, routing is handled by Kilo Code automatically.
     """
     if user_model:
         return user_model, False, "user_override"
