@@ -1,0 +1,6305 @@
+{
+  "total_models": 319,
+  "generated_at": "2026-02-28T16:00:00Z",
+  "agents": [
+    {
+      "model_id": "kilo/ai21/jamba-large-1.7",
+      "provider": "ai21",
+      "model_name": "jamba-large-1.7",
+      "short_name": "jamba-large-1.7",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/aion-labs/aion-1.0",
+      "provider": "aion-labs",
+      "model_name": "aion-1.0",
+      "short_name": "aion-1.0",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/aion-labs/aion-1.0-mini",
+      "provider": "aion-labs",
+      "model_name": "aion-1.0-mini",
+      "short_name": "aion-1.0-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/aion-labs/aion-2.0",
+      "provider": "aion-labs",
+      "model_name": "aion-2.0",
+      "short_name": "aion-2.0",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/aion-labs/aion-rp-llama-3.1-8b",
+      "provider": "aion-labs",
+      "model_name": "aion-rp-llama-3.1-8b",
+      "short_name": "aion-rp-llama-3.1-8b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/alfredpros/codellama-7b-instruct-solidity",
+      "provider": "alfredpros",
+      "model_name": "codellama-7b-instruct-solidity",
+      "short_name": "codellama-7b-instruct-solidity",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/alibaba/tongyi-deepresearch-30b-a3b",
+      "provider": "alibaba",
+      "model_name": "tongyi-deepresearch-30b-a3b",
+      "short_name": "tongyi-deepresearch-30b-a3b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/allenai/molmo-2-8b",
+      "provider": "allenai",
+      "model_name": "molmo-2-8b",
+      "short_name": "molmo-2-8b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/allenai/olmo-2-0325-32b-instruct",
+      "provider": "allenai",
+      "model_name": "olmo-2-0325-32b-instruct",
+      "short_name": "olmo-2-0325-32b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/allenai/olmo-3-32b-think",
+      "provider": "allenai",
+      "model_name": "olmo-3-32b-think",
+      "short_name": "olmo-3-32b-think",
+      "specialties": [
+        "reasoning"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/allenai/olmo-3-7b-instruct",
+      "provider": "allenai",
+      "model_name": "olmo-3-7b-instruct",
+      "short_name": "olmo-3-7b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/allenai/olmo-3-7b-think",
+      "provider": "allenai",
+      "model_name": "olmo-3-7b-think",
+      "short_name": "olmo-3-7b-think",
+      "specialties": [
+        "reasoning"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/allenai/olmo-3.1-32b-instruct",
+      "provider": "allenai",
+      "model_name": "olmo-3.1-32b-instruct",
+      "short_name": "olmo-3.1-32b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/alpindale/goliath-120b",
+      "provider": "alpindale",
+      "model_name": "goliath-120b",
+      "short_name": "goliath-120b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/amazon/nova-2-lite-v1",
+      "provider": "amazon",
+      "model_name": "nova-2-lite-v1",
+      "short_name": "nova-2-lite-v1",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/amazon/nova-lite-v1",
+      "provider": "amazon",
+      "model_name": "nova-lite-v1",
+      "short_name": "nova-lite-v1",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/amazon/nova-micro-v1",
+      "provider": "amazon",
+      "model_name": "nova-micro-v1",
+      "short_name": "nova-micro-v1",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/amazon/nova-premier-v1",
+      "provider": "amazon",
+      "model_name": "nova-premier-v1",
+      "short_name": "nova-premier-v1",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/amazon/nova-pro-v1",
+      "provider": "amazon",
+      "model_name": "nova-pro-v1",
+      "short_name": "nova-pro-v1",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/anthracite-org/magnum-v4-72b",
+      "provider": "anthracite-org",
+      "model_name": "magnum-v4-72b",
+      "short_name": "magnum-v4-72b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-3-haiku",
+      "provider": "anthropic",
+      "model_name": "claude-3-haiku",
+      "short_name": "claude-3-haiku",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-3.5-haiku",
+      "provider": "anthropic",
+      "model_name": "claude-3.5-haiku",
+      "short_name": "claude-3.5-haiku",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-3.5-sonnet",
+      "provider": "anthropic",
+      "model_name": "claude-3.5-sonnet",
+      "short_name": "claude-3.5-sonnet",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-3.7-sonnet",
+      "provider": "anthropic",
+      "model_name": "claude-3.7-sonnet",
+      "short_name": "claude-3.7-sonnet",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-3.7-sonnet:thinking",
+      "provider": "anthropic",
+      "model_name": "claude-3.7-sonnet:thinking",
+      "short_name": "claude-3.7-sonnet",
+      "specialties": [
+        "reasoning"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-haiku-4.5",
+      "provider": "anthropic",
+      "model_name": "claude-haiku-4.5",
+      "short_name": "claude-haiku-4.5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-opus-4",
+      "provider": "anthropic",
+      "model_name": "claude-opus-4",
+      "short_name": "claude-opus-4",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-opus-4.1",
+      "provider": "anthropic",
+      "model_name": "claude-opus-4.1",
+      "short_name": "claude-opus-4.1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-opus-4.5",
+      "provider": "anthropic",
+      "model_name": "claude-opus-4.5",
+      "short_name": "claude-opus-4.5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-opus-4.6",
+      "provider": "anthropic",
+      "model_name": "claude-opus-4.6",
+      "short_name": "claude-opus-4.6",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-sonnet-4",
+      "provider": "anthropic",
+      "model_name": "claude-sonnet-4",
+      "short_name": "claude-sonnet-4",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-sonnet-4.5",
+      "provider": "anthropic",
+      "model_name": "claude-sonnet-4.5",
+      "short_name": "claude-sonnet-4.5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/anthropic/claude-sonnet-4.6",
+      "provider": "anthropic",
+      "model_name": "claude-sonnet-4.6",
+      "short_name": "claude-sonnet-4.6",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/arcee-ai/coder-large",
+      "provider": "arcee-ai",
+      "model_name": "coder-large",
+      "short_name": "coder-large",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/arcee-ai/maestro-reasoning",
+      "provider": "arcee-ai",
+      "model_name": "maestro-reasoning",
+      "short_name": "maestro-reasoning",
+      "specialties": [
+        "reasoning"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/arcee-ai/spotlight",
+      "provider": "arcee-ai",
+      "model_name": "spotlight",
+      "short_name": "spotlight",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/arcee-ai/trinity-large-preview:free",
+      "provider": "arcee-ai",
+      "model_name": "trinity-large-preview:free",
+      "short_name": "trinity-large-preview",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/arcee-ai/trinity-mini",
+      "provider": "arcee-ai",
+      "model_name": "trinity-mini",
+      "short_name": "trinity-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/arcee-ai/virtuoso-large",
+      "provider": "arcee-ai",
+      "model_name": "virtuoso-large",
+      "short_name": "virtuoso-large",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/baidu/ernie-4.5-21b-a3b",
+      "provider": "baidu",
+      "model_name": "ernie-4.5-21b-a3b",
+      "short_name": "ernie-4.5-21b-a3b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/baidu/ernie-4.5-21b-a3b-thinking",
+      "provider": "baidu",
+      "model_name": "ernie-4.5-21b-a3b-thinking",
+      "short_name": "ernie-4.5-21b-a3b-thinking",
+      "specialties": [
+        "reasoning"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/baidu/ernie-4.5-300b-a47b",
+      "provider": "baidu",
+      "model_name": "ernie-4.5-300b-a47b",
+      "short_name": "ernie-4.5-300b-a47b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/baidu/ernie-4.5-vl-28b-a3b",
+      "provider": "baidu",
+      "model_name": "ernie-4.5-vl-28b-a3b",
+      "short_name": "ernie-4.5-vl-28b-a3b",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/baidu/ernie-4.5-vl-424b-a47b",
+      "provider": "baidu",
+      "model_name": "ernie-4.5-vl-424b-a47b",
+      "short_name": "ernie-4.5-vl-424b-a47b",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/bytedance-seed/seed-1.6",
+      "provider": "bytedance-seed",
+      "model_name": "seed-1.6",
+      "short_name": "seed-1.6",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/bytedance-seed/seed-1.6-flash",
+      "provider": "bytedance-seed",
+      "model_name": "seed-1.6-flash",
+      "short_name": "seed-1.6-flash",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/bytedance-seed/seed-2.0-mini",
+      "provider": "bytedance-seed",
+      "model_name": "seed-2.0-mini",
+      "short_name": "seed-2.0-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/bytedance/ui-tars-1.5-7b",
+      "provider": "bytedance",
+      "model_name": "ui-tars-1.5-7b",
+      "short_name": "ui-tars-1.5-7b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/cohere/command-a",
+      "provider": "cohere",
+      "model_name": "command-a",
+      "short_name": "command-a",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/cohere/command-r-08-2024",
+      "provider": "cohere",
+      "model_name": "command-r-08-2024",
+      "short_name": "command-r-08-2024",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/cohere/command-r-plus-08-2024",
+      "provider": "cohere",
+      "model_name": "command-r-plus-08-2024",
+      "short_name": "command-r-plus-08-2024",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/cohere/command-r7b-12-2024",
+      "provider": "cohere",
+      "model_name": "command-r7b-12-2024",
+      "short_name": "command-r7b-12-2024",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepcogito/cogito-v2.1-671b",
+      "provider": "deepcogito",
+      "model_name": "cogito-v2.1-671b",
+      "short_name": "cogito-v2.1-671b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-chat",
+      "provider": "deepseek",
+      "model_name": "deepseek-chat",
+      "short_name": "deepseek-chat",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-chat-v3-0324",
+      "provider": "deepseek",
+      "model_name": "deepseek-chat-v3-0324",
+      "short_name": "deepseek-chat-v3-0324",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-chat-v3.1",
+      "provider": "deepseek",
+      "model_name": "deepseek-chat-v3.1",
+      "short_name": "deepseek-chat-v3.1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-r1",
+      "provider": "deepseek",
+      "model_name": "deepseek-r1",
+      "short_name": "deepseek-r1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-r1-0528",
+      "provider": "deepseek",
+      "model_name": "deepseek-r1-0528",
+      "short_name": "deepseek-r1-0528",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-r1-distill-llama-70b",
+      "provider": "deepseek",
+      "model_name": "deepseek-r1-distill-llama-70b",
+      "short_name": "deepseek-r1-distill-llama-70b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-r1-distill-qwen-32b",
+      "provider": "deepseek",
+      "model_name": "deepseek-r1-distill-qwen-32b",
+      "short_name": "deepseek-r1-distill-qwen-32b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-v3.1-terminus",
+      "provider": "deepseek",
+      "model_name": "deepseek-v3.1-terminus",
+      "short_name": "deepseek-v3.1-terminus",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-v3.1-terminus:exacto",
+      "provider": "deepseek",
+      "model_name": "deepseek-v3.1-terminus:exacto",
+      "short_name": "deepseek-v3.1-terminus",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-v3.2",
+      "provider": "deepseek",
+      "model_name": "deepseek-v3.2",
+      "short_name": "deepseek-v3.2",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-v3.2-exp",
+      "provider": "deepseek",
+      "model_name": "deepseek-v3.2-exp",
+      "short_name": "deepseek-v3.2-exp",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/deepseek/deepseek-v3.2-speciale",
+      "provider": "deepseek",
+      "model_name": "deepseek-v3.2-speciale",
+      "short_name": "deepseek-v3.2-speciale",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/eleutherai/llemma_7b",
+      "provider": "eleutherai",
+      "model_name": "llemma_7b",
+      "short_name": "llemma_7b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/essentialai/rnj-1-instruct",
+      "provider": "essentialai",
+      "model_name": "rnj-1-instruct",
+      "short_name": "rnj-1-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/google/gemini-2.0-flash-001",
+      "provider": "google",
+      "model_name": "gemini-2.0-flash-001",
+      "short_name": "gemini-2.0-flash-001",
+      "specialties": [
+        "fast",
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping",
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-2.0-flash-lite-001",
+      "provider": "google",
+      "model_name": "gemini-2.0-flash-lite-001",
+      "short_name": "gemini-2.0-flash-lite-001",
+      "specialties": [
+        "fast",
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping",
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-2.5-flash",
+      "provider": "google",
+      "model_name": "gemini-2.5-flash",
+      "short_name": "gemini-2.5-flash",
+      "specialties": [
+        "fast",
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping",
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-2.5-flash-lite",
+      "provider": "google",
+      "model_name": "gemini-2.5-flash-lite",
+      "short_name": "gemini-2.5-flash-lite",
+      "specialties": [
+        "fast",
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping",
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-2.5-flash-lite-preview-09-2025",
+      "provider": "google",
+      "model_name": "gemini-2.5-flash-lite-preview-09-2025",
+      "short_name": "gemini-2.5-flash-lite-preview-09-2025",
+      "specialties": [
+        "fast",
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping",
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-2.5-pro",
+      "provider": "google",
+      "model_name": "gemini-2.5-pro",
+      "short_name": "gemini-2.5-pro",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-2.5-pro-preview",
+      "provider": "google",
+      "model_name": "gemini-2.5-pro-preview",
+      "short_name": "gemini-2.5-pro-preview",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-2.5-pro-preview-05-06",
+      "provider": "google",
+      "model_name": "gemini-2.5-pro-preview-05-06",
+      "short_name": "gemini-2.5-pro-preview-05-06",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-3-flash-preview",
+      "provider": "google",
+      "model_name": "gemini-3-flash-preview",
+      "short_name": "gemini-3-flash-preview",
+      "specialties": [
+        "fast",
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping",
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.20",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-3-pro-preview",
+      "provider": "google",
+      "model_name": "gemini-3-pro-preview",
+      "short_name": "gemini-3-pro-preview",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.80",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-3.1-pro-preview",
+      "provider": "google",
+      "model_name": "gemini-3.1-pro-preview",
+      "short_name": "gemini-3.1-pro-preview",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemini-3.1-pro-preview-customtools",
+      "provider": "google",
+      "model_name": "gemini-3.1-pro-preview-customtools",
+      "short_name": "gemini-3.1-pro-preview-customtools",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/google/gemma-2-27b-it",
+      "provider": "google",
+      "model_name": "gemma-2-27b-it",
+      "short_name": "gemma-2-27b-it",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/google/gemma-2-9b-it",
+      "provider": "google",
+      "model_name": "gemma-2-9b-it",
+      "short_name": "gemma-2-9b-it",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/google/gemma-3-12b-it",
+      "provider": "google",
+      "model_name": "gemma-3-12b-it",
+      "short_name": "gemma-3-12b-it",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/google/gemma-3-27b-it",
+      "provider": "google",
+      "model_name": "gemma-3-27b-it",
+      "short_name": "gemma-3-27b-it",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/google/gemma-3-4b-it",
+      "provider": "google",
+      "model_name": "gemma-3-4b-it",
+      "short_name": "gemma-3-4b-it",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/google/gemma-3n-e4b-it",
+      "provider": "google",
+      "model_name": "gemma-3n-e4b-it",
+      "short_name": "gemma-3n-e4b-it",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/gryphe/mythomax-l2-13b",
+      "provider": "gryphe",
+      "model_name": "mythomax-l2-13b",
+      "short_name": "mythomax-l2-13b",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/ibm-granite/granite-4.0-h-micro",
+      "provider": "ibm-granite",
+      "model_name": "granite-4.0-h-micro",
+      "short_name": "granite-4.0-h-micro",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/inception/mercury",
+      "provider": "inception",
+      "model_name": "mercury",
+      "short_name": "mercury",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/inception/mercury-coder",
+      "provider": "inception",
+      "model_name": "mercury-coder",
+      "short_name": "mercury-coder",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/inflection/inflection-3-pi",
+      "provider": "inflection",
+      "model_name": "inflection-3-pi",
+      "short_name": "inflection-3-pi",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/inflection/inflection-3-productivity",
+      "provider": "inflection",
+      "model_name": "inflection-3-productivity",
+      "short_name": "inflection-3-productivity",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/kilo/auto",
+      "provider": "kilo",
+      "model_name": "auto",
+      "short_name": "auto",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/kilo/auto-free",
+      "provider": "kilo",
+      "model_name": "auto-free",
+      "short_name": "auto-free",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/kilo/auto-small",
+      "provider": "kilo",
+      "model_name": "auto-small",
+      "short_name": "auto-small",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/kwaipilot/kat-coder-pro",
+      "provider": "kwaipilot",
+      "model_name": "kat-coder-pro",
+      "short_name": "kat-coder-pro",
+      "specialties": [
+        "coding",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/liquid/lfm-2-24b-a2b",
+      "provider": "liquid",
+      "model_name": "lfm-2-24b-a2b",
+      "short_name": "lfm-2-24b-a2b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/liquid/lfm-2.2-6b",
+      "provider": "liquid",
+      "model_name": "lfm-2.2-6b",
+      "short_name": "lfm-2.2-6b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/liquid/lfm2-8b-a1b",
+      "provider": "liquid",
+      "model_name": "lfm2-8b-a1b",
+      "short_name": "lfm2-8b-a1b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mancer/weaver",
+      "provider": "mancer",
+      "model_name": "weaver",
+      "short_name": "weaver",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meituan/longcat-flash-chat",
+      "provider": "meituan",
+      "model_name": "longcat-flash-chat",
+      "short_name": "longcat-flash-chat",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3-70b-instruct",
+      "provider": "meta-llama",
+      "model_name": "llama-3-70b-instruct",
+      "short_name": "llama-3-70b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3-8b-instruct",
+      "provider": "meta-llama",
+      "model_name": "llama-3-8b-instruct",
+      "short_name": "llama-3-8b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3.1-405b",
+      "provider": "meta-llama",
+      "model_name": "llama-3.1-405b",
+      "short_name": "llama-3.1-405b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3.1-405b-instruct",
+      "provider": "meta-llama",
+      "model_name": "llama-3.1-405b-instruct",
+      "short_name": "llama-3.1-405b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3.1-70b-instruct",
+      "provider": "meta-llama",
+      "model_name": "llama-3.1-70b-instruct",
+      "short_name": "llama-3.1-70b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3.1-8b-instruct",
+      "provider": "meta-llama",
+      "model_name": "llama-3.1-8b-instruct",
+      "short_name": "llama-3.1-8b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3.2-11b-vision-instruct",
+      "provider": "meta-llama",
+      "model_name": "llama-3.2-11b-vision-instruct",
+      "short_name": "llama-3.2-11b-vision-instruct",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3.2-1b-instruct",
+      "provider": "meta-llama",
+      "model_name": "llama-3.2-1b-instruct",
+      "short_name": "llama-3.2-1b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3.2-3b-instruct",
+      "provider": "meta-llama",
+      "model_name": "llama-3.2-3b-instruct",
+      "short_name": "llama-3.2-3b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-3.3-70b-instruct",
+      "provider": "meta-llama",
+      "model_name": "llama-3.3-70b-instruct",
+      "short_name": "llama-3.3-70b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-4-maverick",
+      "provider": "meta-llama",
+      "model_name": "llama-4-maverick",
+      "short_name": "llama-4-maverick",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-4-scout",
+      "provider": "meta-llama",
+      "model_name": "llama-4-scout",
+      "short_name": "llama-4-scout",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-guard-2-8b",
+      "provider": "meta-llama",
+      "model_name": "llama-guard-2-8b",
+      "short_name": "llama-guard-2-8b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-guard-3-8b",
+      "provider": "meta-llama",
+      "model_name": "llama-guard-3-8b",
+      "short_name": "llama-guard-3-8b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/meta-llama/llama-guard-4-12b",
+      "provider": "meta-llama",
+      "model_name": "llama-guard-4-12b",
+      "short_name": "llama-guard-4-12b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/microsoft/phi-4",
+      "provider": "microsoft",
+      "model_name": "phi-4",
+      "short_name": "phi-4",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/microsoft/wizardlm-2-8x22b",
+      "provider": "microsoft",
+      "model_name": "wizardlm-2-8x22b",
+      "short_name": "wizardlm-2-8x22b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/minimax/minimax-01",
+      "provider": "minimax",
+      "model_name": "minimax-01",
+      "short_name": "minimax-01",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/minimax/minimax-m1",
+      "provider": "minimax",
+      "model_name": "minimax-m1",
+      "short_name": "minimax-m1",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/minimax/minimax-m2",
+      "provider": "minimax",
+      "model_name": "minimax-m2",
+      "short_name": "minimax-m2",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/minimax/minimax-m2-her",
+      "provider": "minimax",
+      "model_name": "minimax-m2-her",
+      "short_name": "minimax-m2-her",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/minimax/minimax-m2.1",
+      "provider": "minimax",
+      "model_name": "minimax-m2.1",
+      "short_name": "minimax-m2.1",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/minimax/minimax-m2.5",
+      "provider": "minimax",
+      "model_name": "minimax-m2.5",
+      "short_name": "minimax-m2.5",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.12",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/minimax/minimax-m2.5:free",
+      "provider": "minimax",
+      "model_name": "minimax-m2.5:free",
+      "short_name": "minimax-m2.5",
+      "specialties": [
+        "budget",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.12",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/mistralai/codestral-2508",
+      "provider": "mistralai",
+      "model_name": "codestral-2508",
+      "short_name": "codestral-2508",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/mistralai/devstral-2512",
+      "provider": "mistralai",
+      "model_name": "devstral-2512",
+      "short_name": "devstral-2512",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/devstral-medium",
+      "provider": "mistralai",
+      "model_name": "devstral-medium",
+      "short_name": "devstral-medium",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/devstral-small",
+      "provider": "mistralai",
+      "model_name": "devstral-small",
+      "short_name": "devstral-small",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/ministral-14b-2512",
+      "provider": "mistralai",
+      "model_name": "ministral-14b-2512",
+      "short_name": "ministral-14b-2512",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/mistralai/ministral-3b-2512",
+      "provider": "mistralai",
+      "model_name": "ministral-3b-2512",
+      "short_name": "ministral-3b-2512",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/mistralai/ministral-8b-2512",
+      "provider": "mistralai",
+      "model_name": "ministral-8b-2512",
+      "short_name": "ministral-8b-2512",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-7b-instruct",
+      "provider": "mistralai",
+      "model_name": "mistral-7b-instruct",
+      "short_name": "mistral-7b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-7b-instruct-v0.1",
+      "provider": "mistralai",
+      "model_name": "mistral-7b-instruct-v0.1",
+      "short_name": "mistral-7b-instruct-v0.1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-7b-instruct-v0.3",
+      "provider": "mistralai",
+      "model_name": "mistral-7b-instruct-v0.3",
+      "short_name": "mistral-7b-instruct-v0.3",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-large",
+      "provider": "mistralai",
+      "model_name": "mistral-large",
+      "short_name": "mistral-large",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-large-2407",
+      "provider": "mistralai",
+      "model_name": "mistral-large-2407",
+      "short_name": "mistral-large-2407",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-large-2411",
+      "provider": "mistralai",
+      "model_name": "mistral-large-2411",
+      "short_name": "mistral-large-2411",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-large-2512",
+      "provider": "mistralai",
+      "model_name": "mistral-large-2512",
+      "short_name": "mistral-large-2512",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-medium-3",
+      "provider": "mistralai",
+      "model_name": "mistral-medium-3",
+      "short_name": "mistral-medium-3",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-medium-3.1",
+      "provider": "mistralai",
+      "model_name": "mistral-medium-3.1",
+      "short_name": "mistral-medium-3.1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-nemo",
+      "provider": "mistralai",
+      "model_name": "mistral-nemo",
+      "short_name": "mistral-nemo",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-saba",
+      "provider": "mistralai",
+      "model_name": "mistral-saba",
+      "short_name": "mistral-saba",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-small-24b-instruct-2501",
+      "provider": "mistralai",
+      "model_name": "mistral-small-24b-instruct-2501",
+      "short_name": "mistral-small-24b-instruct-2501",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-small-3.1-24b-instruct",
+      "provider": "mistralai",
+      "model_name": "mistral-small-3.1-24b-instruct",
+      "short_name": "mistral-small-3.1-24b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-small-3.2-24b-instruct",
+      "provider": "mistralai",
+      "model_name": "mistral-small-3.2-24b-instruct",
+      "short_name": "mistral-small-3.2-24b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mistral-small-creative",
+      "provider": "mistralai",
+      "model_name": "mistral-small-creative",
+      "short_name": "mistral-small-creative",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mixtral-8x22b-instruct",
+      "provider": "mistralai",
+      "model_name": "mixtral-8x22b-instruct",
+      "short_name": "mixtral-8x22b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/mixtral-8x7b-instruct",
+      "provider": "mistralai",
+      "model_name": "mixtral-8x7b-instruct",
+      "short_name": "mixtral-8x7b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/pixtral-large-2411",
+      "provider": "mistralai",
+      "model_name": "pixtral-large-2411",
+      "short_name": "pixtral-large-2411",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/mistralai/voxtral-small-24b-2507",
+      "provider": "mistralai",
+      "model_name": "voxtral-small-24b-2507",
+      "short_name": "voxtral-small-24b-2507",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/moonshotai/kimi-k2",
+      "provider": "moonshotai",
+      "model_name": "kimi-k2",
+      "short_name": "kimi-k2",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/moonshotai/kimi-k2-0905",
+      "provider": "moonshotai",
+      "model_name": "kimi-k2-0905",
+      "short_name": "kimi-k2-0905",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/moonshotai/kimi-k2-0905:exacto",
+      "provider": "moonshotai",
+      "model_name": "kimi-k2-0905:exacto",
+      "short_name": "kimi-k2-0905",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/moonshotai/kimi-k2-thinking",
+      "provider": "moonshotai",
+      "model_name": "kimi-k2-thinking",
+      "short_name": "kimi-k2-thinking",
+      "specialties": [
+        "reasoning"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/moonshotai/kimi-k2.5",
+      "provider": "moonshotai",
+      "model_name": "kimi-k2.5",
+      "short_name": "kimi-k2.5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.25",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/moonshotai/kimi-k2.5:free",
+      "provider": "moonshotai",
+      "model_name": "kimi-k2.5:free",
+      "short_name": "kimi-k2.5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.25",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/morph/morph-v3-fast",
+      "provider": "morph",
+      "model_name": "morph-v3-fast",
+      "short_name": "morph-v3-fast",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/morph/morph-v3-large",
+      "provider": "morph",
+      "model_name": "morph-v3-large",
+      "short_name": "morph-v3-large",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/neversleep/llama-3.1-lumimaid-8b",
+      "provider": "neversleep",
+      "model_name": "llama-3.1-lumimaid-8b",
+      "short_name": "llama-3.1-lumimaid-8b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/neversleep/noromaid-20b",
+      "provider": "neversleep",
+      "model_name": "noromaid-20b",
+      "short_name": "noromaid-20b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/nex-agi/deepseek-v3.1-nex-n1",
+      "provider": "nex-agi",
+      "model_name": "deepseek-v3.1-nex-n1",
+      "short_name": "deepseek-v3.1-nex-n1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/nousresearch/hermes-2-pro-llama-3-8b",
+      "provider": "nousresearch",
+      "model_name": "hermes-2-pro-llama-3-8b",
+      "short_name": "hermes-2-pro-llama-3-8b",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/nousresearch/hermes-3-llama-3.1-405b",
+      "provider": "nousresearch",
+      "model_name": "hermes-3-llama-3.1-405b",
+      "short_name": "hermes-3-llama-3.1-405b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/nousresearch/hermes-3-llama-3.1-70b",
+      "provider": "nousresearch",
+      "model_name": "hermes-3-llama-3.1-70b",
+      "short_name": "hermes-3-llama-3.1-70b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/nousresearch/hermes-4-405b",
+      "provider": "nousresearch",
+      "model_name": "hermes-4-405b",
+      "short_name": "hermes-4-405b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/nousresearch/hermes-4-70b",
+      "provider": "nousresearch",
+      "model_name": "hermes-4-70b",
+      "short_name": "hermes-4-70b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/nvidia/llama-3.1-nemotron-70b-instruct",
+      "provider": "nvidia",
+      "model_name": "llama-3.1-nemotron-70b-instruct",
+      "short_name": "llama-3.1-nemotron-70b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/nvidia/llama-3.3-nemotron-super-49b-v1.5",
+      "provider": "nvidia",
+      "model_name": "llama-3.3-nemotron-super-49b-v1.5",
+      "short_name": "llama-3.3-nemotron-super-49b-v1.5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/nvidia/nemotron-3-nano-30b-a3b",
+      "provider": "nvidia",
+      "model_name": "nemotron-3-nano-30b-a3b",
+      "short_name": "nemotron-3-nano-30b-a3b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/nvidia/nemotron-nano-12b-v2-vl",
+      "provider": "nvidia",
+      "model_name": "nemotron-nano-12b-v2-vl",
+      "short_name": "nemotron-nano-12b-v2-vl",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/nvidia/nemotron-nano-9b-v2",
+      "provider": "nvidia",
+      "model_name": "nemotron-nano-9b-v2",
+      "short_name": "nemotron-nano-9b-v2",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-3.5-turbo",
+      "provider": "openai",
+      "model_name": "gpt-3.5-turbo",
+      "short_name": "gpt-3.5-turbo",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-3.5-turbo-0613",
+      "provider": "openai",
+      "model_name": "gpt-3.5-turbo-0613",
+      "short_name": "gpt-3.5-turbo-0613",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-3.5-turbo-16k",
+      "provider": "openai",
+      "model_name": "gpt-3.5-turbo-16k",
+      "short_name": "gpt-3.5-turbo-16k",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-3.5-turbo-instruct",
+      "provider": "openai",
+      "model_name": "gpt-3.5-turbo-instruct",
+      "short_name": "gpt-3.5-turbo-instruct",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-4",
+      "provider": "openai",
+      "model_name": "gpt-4",
+      "short_name": "gpt-4",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4-0314",
+      "provider": "openai",
+      "model_name": "gpt-4-0314",
+      "short_name": "gpt-4-0314",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4-1106-preview",
+      "provider": "openai",
+      "model_name": "gpt-4-1106-preview",
+      "short_name": "gpt-4-1106-preview",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4-turbo",
+      "provider": "openai",
+      "model_name": "gpt-4-turbo",
+      "short_name": "gpt-4-turbo",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-4-turbo-preview",
+      "provider": "openai",
+      "model_name": "gpt-4-turbo-preview",
+      "short_name": "gpt-4-turbo-preview",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-4.1",
+      "provider": "openai",
+      "model_name": "gpt-4.1",
+      "short_name": "gpt-4.1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4.1-mini",
+      "provider": "openai",
+      "model_name": "gpt-4.1-mini",
+      "short_name": "gpt-4.1-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-4.1-nano",
+      "provider": "openai",
+      "model_name": "gpt-4.1-nano",
+      "short_name": "gpt-4.1-nano",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o",
+      "provider": "openai",
+      "model_name": "gpt-4o",
+      "short_name": "gpt-4o",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o-2024-05-13",
+      "provider": "openai",
+      "model_name": "gpt-4o-2024-05-13",
+      "short_name": "gpt-4o-2024-05-13",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o-2024-08-06",
+      "provider": "openai",
+      "model_name": "gpt-4o-2024-08-06",
+      "short_name": "gpt-4o-2024-08-06",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o-2024-11-20",
+      "provider": "openai",
+      "model_name": "gpt-4o-2024-11-20",
+      "short_name": "gpt-4o-2024-11-20",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o-audio-preview",
+      "provider": "openai",
+      "model_name": "gpt-4o-audio-preview",
+      "short_name": "gpt-4o-audio-preview",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o-mini",
+      "provider": "openai",
+      "model_name": "gpt-4o-mini",
+      "short_name": "gpt-4o-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o-mini-2024-07-18",
+      "provider": "openai",
+      "model_name": "gpt-4o-mini-2024-07-18",
+      "short_name": "gpt-4o-mini-2024-07-18",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o-mini-search-preview",
+      "provider": "openai",
+      "model_name": "gpt-4o-mini-search-preview",
+      "short_name": "gpt-4o-mini-search-preview",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o-search-preview",
+      "provider": "openai",
+      "model_name": "gpt-4o-search-preview",
+      "short_name": "gpt-4o-search-preview",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-4o:extended",
+      "provider": "openai",
+      "model_name": "gpt-4o:extended",
+      "short_name": "gpt-4o",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-5",
+      "provider": "openai",
+      "model_name": "gpt-5",
+      "short_name": "gpt-5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-5-chat",
+      "provider": "openai",
+      "model_name": "gpt-5-chat",
+      "short_name": "gpt-5-chat",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-5-codex",
+      "provider": "openai",
+      "model_name": "gpt-5-codex",
+      "short_name": "gpt-5-codex",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-5-mini",
+      "provider": "openai",
+      "model_name": "gpt-5-mini",
+      "short_name": "gpt-5-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-5-nano",
+      "provider": "openai",
+      "model_name": "gpt-5-nano",
+      "short_name": "gpt-5-nano",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-5-pro",
+      "provider": "openai",
+      "model_name": "gpt-5-pro",
+      "short_name": "gpt-5-pro",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.1",
+      "provider": "openai",
+      "model_name": "gpt-5.1",
+      "short_name": "gpt-5.1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.50",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.1-chat",
+      "provider": "openai",
+      "model_name": "gpt-5.1-chat",
+      "short_name": "gpt-5.1-chat",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.1-codex",
+      "provider": "openai",
+      "model_name": "gpt-5.1-codex",
+      "short_name": "gpt-5.1-codex",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.50",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.1-codex-max",
+      "provider": "openai",
+      "model_name": "gpt-5.1-codex-max",
+      "short_name": "gpt-5.1-codex-max",
+      "specialties": [
+        "coding",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.50",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.1-codex-mini",
+      "provider": "openai",
+      "model_name": "gpt-5.1-codex-mini",
+      "short_name": "gpt-5.1-codex-mini",
+      "specialties": [
+        "coding",
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor",
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.2",
+      "provider": "openai",
+      "model_name": "gpt-5.2",
+      "short_name": "gpt-5.2",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.70",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.2-chat",
+      "provider": "openai",
+      "model_name": "gpt-5.2-chat",
+      "short_name": "gpt-5.2-chat",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.2-codex",
+      "provider": "openai",
+      "model_name": "gpt-5.2-codex",
+      "short_name": "gpt-5.2-codex",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.70",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.2-pro",
+      "provider": "openai",
+      "model_name": "gpt-5.2-pro",
+      "short_name": "gpt-5.2-pro",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-5.3-codex",
+      "provider": "openai",
+      "model_name": "gpt-5.3-codex",
+      "short_name": "gpt-5.3-codex",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.70",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-audio",
+      "provider": "openai",
+      "model_name": "gpt-audio",
+      "short_name": "gpt-audio",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-audio-mini",
+      "provider": "openai",
+      "model_name": "gpt-audio-mini",
+      "short_name": "gpt-audio-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/gpt-oss-120b",
+      "provider": "openai",
+      "model_name": "gpt-oss-120b",
+      "short_name": "gpt-oss-120b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-oss-120b:exacto",
+      "provider": "openai",
+      "model_name": "gpt-oss-120b:exacto",
+      "short_name": "gpt-oss-120b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-oss-20b",
+      "provider": "openai",
+      "model_name": "gpt-oss-20b",
+      "short_name": "gpt-oss-20b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/gpt-oss-safeguard-20b",
+      "provider": "openai",
+      "model_name": "gpt-oss-safeguard-20b",
+      "short_name": "gpt-oss-safeguard-20b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/o1",
+      "provider": "openai",
+      "model_name": "o1",
+      "short_name": "o1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/o1-pro",
+      "provider": "openai",
+      "model_name": "o1-pro",
+      "short_name": "o1-pro",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/o3",
+      "provider": "openai",
+      "model_name": "o3",
+      "short_name": "o3",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/o3-deep-research",
+      "provider": "openai",
+      "model_name": "o3-deep-research",
+      "short_name": "o3-deep-research",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openai/o3-mini",
+      "provider": "openai",
+      "model_name": "o3-mini",
+      "short_name": "o3-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/o3-mini-high",
+      "provider": "openai",
+      "model_name": "o3-mini-high",
+      "short_name": "o3-mini-high",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/o3-pro",
+      "provider": "openai",
+      "model_name": "o3-pro",
+      "short_name": "o3-pro",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/o4-mini",
+      "provider": "openai",
+      "model_name": "o4-mini",
+      "short_name": "o4-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/o4-mini-deep-research",
+      "provider": "openai",
+      "model_name": "o4-mini-deep-research",
+      "short_name": "o4-mini-deep-research",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openai/o4-mini-high",
+      "provider": "openai",
+      "model_name": "o4-mini-high",
+      "short_name": "o4-mini-high",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/opengvlab/internvl3-78b",
+      "provider": "opengvlab",
+      "model_name": "internvl3-78b",
+      "short_name": "internvl3-78b",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/openrouter/bodybuilder",
+      "provider": "openrouter",
+      "model_name": "bodybuilder",
+      "short_name": "bodybuilder",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/openrouter/free",
+      "provider": "openrouter",
+      "model_name": "free",
+      "short_name": "free",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/perplexity/sonar",
+      "provider": "perplexity",
+      "model_name": "sonar",
+      "short_name": "sonar",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/perplexity/sonar-deep-research",
+      "provider": "perplexity",
+      "model_name": "sonar-deep-research",
+      "short_name": "sonar-deep-research",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/perplexity/sonar-pro",
+      "provider": "perplexity",
+      "model_name": "sonar-pro",
+      "short_name": "sonar-pro",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/perplexity/sonar-pro-search",
+      "provider": "perplexity",
+      "model_name": "sonar-pro-search",
+      "short_name": "sonar-pro-search",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/perplexity/sonar-reasoning-pro",
+      "provider": "perplexity",
+      "model_name": "sonar-reasoning-pro",
+      "short_name": "sonar-reasoning-pro",
+      "specialties": [
+        "reasoning",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/prime-intellect/intellect-3",
+      "provider": "prime-intellect",
+      "model_name": "intellect-3",
+      "short_name": "intellect-3",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen-2.5-72b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen-2.5-72b-instruct",
+      "short_name": "qwen-2.5-72b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen-2.5-7b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen-2.5-7b-instruct",
+      "short_name": "qwen-2.5-7b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen-2.5-coder-32b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen-2.5-coder-32b-instruct",
+      "short_name": "qwen-2.5-coder-32b-instruct",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen-2.5-vl-7b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen-2.5-vl-7b-instruct",
+      "short_name": "qwen-2.5-vl-7b-instruct",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen-max",
+      "provider": "qwen",
+      "model_name": "qwen-max",
+      "short_name": "qwen-max",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen-plus",
+      "provider": "qwen",
+      "model_name": "qwen-plus",
+      "short_name": "qwen-plus",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen-plus-2025-07-28",
+      "provider": "qwen",
+      "model_name": "qwen-plus-2025-07-28",
+      "short_name": "qwen-plus-2025-07-28",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen-plus-2025-07-28:thinking",
+      "provider": "qwen",
+      "model_name": "qwen-plus-2025-07-28:thinking",
+      "short_name": "qwen-plus-2025-07-28",
+      "specialties": [
+        "reasoning",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen-turbo",
+      "provider": "qwen",
+      "model_name": "qwen-turbo",
+      "short_name": "qwen-turbo",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen-vl-max",
+      "provider": "qwen",
+      "model_name": "qwen-vl-max",
+      "short_name": "qwen-vl-max",
+      "specialties": [
+        "vision",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen-vl-plus",
+      "provider": "qwen",
+      "model_name": "qwen-vl-plus",
+      "short_name": "qwen-vl-plus",
+      "specialties": [
+        "vision",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen2.5-coder-7b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen2.5-coder-7b-instruct",
+      "short_name": "qwen2.5-coder-7b-instruct",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen2.5-vl-32b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen2.5-vl-32b-instruct",
+      "short_name": "qwen2.5-vl-32b-instruct",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen2.5-vl-72b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen2.5-vl-72b-instruct",
+      "short_name": "qwen2.5-vl-72b-instruct",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-14b",
+      "provider": "qwen",
+      "model_name": "qwen3-14b",
+      "short_name": "qwen3-14b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-235b-a22b",
+      "provider": "qwen",
+      "model_name": "qwen3-235b-a22b",
+      "short_name": "qwen3-235b-a22b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-235b-a22b-2507",
+      "provider": "qwen",
+      "model_name": "qwen3-235b-a22b-2507",
+      "short_name": "qwen3-235b-a22b-2507",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-235b-a22b-thinking-2507",
+      "provider": "qwen",
+      "model_name": "qwen3-235b-a22b-thinking-2507",
+      "short_name": "qwen3-235b-a22b-thinking-2507",
+      "specialties": [
+        "reasoning"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-30b-a3b",
+      "provider": "qwen",
+      "model_name": "qwen3-30b-a3b",
+      "short_name": "qwen3-30b-a3b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-30b-a3b-instruct-2507",
+      "provider": "qwen",
+      "model_name": "qwen3-30b-a3b-instruct-2507",
+      "short_name": "qwen3-30b-a3b-instruct-2507",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-30b-a3b-thinking-2507",
+      "provider": "qwen",
+      "model_name": "qwen3-30b-a3b-thinking-2507",
+      "short_name": "qwen3-30b-a3b-thinking-2507",
+      "specialties": [
+        "reasoning"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-32b",
+      "provider": "qwen",
+      "model_name": "qwen3-32b",
+      "short_name": "qwen3-32b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-8b",
+      "provider": "qwen",
+      "model_name": "qwen3-8b",
+      "short_name": "qwen3-8b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-coder",
+      "provider": "qwen",
+      "model_name": "qwen3-coder",
+      "short_name": "qwen3-coder",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-coder-30b-a3b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen3-coder-30b-a3b-instruct",
+      "short_name": "qwen3-coder-30b-a3b-instruct",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-coder-flash",
+      "provider": "qwen",
+      "model_name": "qwen3-coder-flash",
+      "short_name": "qwen3-coder-flash",
+      "specialties": [
+        "coding",
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor",
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-coder-next",
+      "provider": "qwen",
+      "model_name": "qwen3-coder-next",
+      "short_name": "qwen3-coder-next",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-coder-plus",
+      "provider": "qwen",
+      "model_name": "qwen3-coder-plus",
+      "short_name": "qwen3-coder-plus",
+      "specialties": [
+        "coding",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-coder:exacto",
+      "provider": "qwen",
+      "model_name": "qwen3-coder:exacto",
+      "short_name": "qwen3-coder",
+      "specialties": [
+        "coding"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-max",
+      "provider": "qwen",
+      "model_name": "qwen3-max",
+      "short_name": "qwen3-max",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-max-thinking",
+      "provider": "qwen",
+      "model_name": "qwen3-max-thinking",
+      "short_name": "qwen3-max-thinking",
+      "specialties": [
+        "reasoning",
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-next-80b-a3b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen3-next-80b-a3b-instruct",
+      "short_name": "qwen3-next-80b-a3b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-next-80b-a3b-thinking",
+      "provider": "qwen",
+      "model_name": "qwen3-next-80b-a3b-thinking",
+      "short_name": "qwen3-next-80b-a3b-thinking",
+      "specialties": [
+        "reasoning"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-vl-235b-a22b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen3-vl-235b-a22b-instruct",
+      "short_name": "qwen3-vl-235b-a22b-instruct",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-vl-235b-a22b-thinking",
+      "provider": "qwen",
+      "model_name": "qwen3-vl-235b-a22b-thinking",
+      "short_name": "qwen3-vl-235b-a22b-thinking",
+      "specialties": [
+        "reasoning",
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture",
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-vl-30b-a3b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen3-vl-30b-a3b-instruct",
+      "short_name": "qwen3-vl-30b-a3b-instruct",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-vl-30b-a3b-thinking",
+      "provider": "qwen",
+      "model_name": "qwen3-vl-30b-a3b-thinking",
+      "short_name": "qwen3-vl-30b-a3b-thinking",
+      "specialties": [
+        "reasoning",
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture",
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-vl-32b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen3-vl-32b-instruct",
+      "short_name": "qwen3-vl-32b-instruct",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-vl-8b-instruct",
+      "provider": "qwen",
+      "model_name": "qwen3-vl-8b-instruct",
+      "short_name": "qwen3-vl-8b-instruct",
+      "specialties": [
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3-vl-8b-thinking",
+      "provider": "qwen",
+      "model_name": "qwen3-vl-8b-thinking",
+      "short_name": "qwen3-vl-8b-thinking",
+      "specialties": [
+        "reasoning",
+        "vision"
+      ],
+      "recommended_use_cases": [
+        "Code review",
+        "Security analysis",
+        "Architecture",
+        "UI review",
+        "Screenshot analysis"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3.5-122b-a10b",
+      "provider": "qwen",
+      "model_name": "qwen3.5-122b-a10b",
+      "short_name": "qwen3.5-122b-a10b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3.5-27b",
+      "provider": "qwen",
+      "model_name": "qwen3.5-27b",
+      "short_name": "qwen3.5-27b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3.5-35b-a3b",
+      "provider": "qwen",
+      "model_name": "qwen3.5-35b-a3b",
+      "short_name": "qwen3.5-35b-a3b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3.5-397b-a17b",
+      "provider": "qwen",
+      "model_name": "qwen3.5-397b-a17b",
+      "short_name": "qwen3.5-397b-a17b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/qwen/qwen3.5-flash-02-23",
+      "provider": "qwen",
+      "model_name": "qwen3.5-flash-02-23",
+      "short_name": "qwen3.5-flash-02-23",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwen3.5-plus-02-15",
+      "provider": "qwen",
+      "model_name": "qwen3.5-plus-02-15",
+      "short_name": "qwen3.5-plus-02-15",
+      "specialties": [
+        "premium"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high",
+        "max"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/qwen/qwq-32b",
+      "provider": "qwen",
+      "model_name": "qwq-32b",
+      "short_name": "qwq-32b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/raifle/sorcererlm-8x22b",
+      "provider": "raifle",
+      "model_name": "sorcererlm-8x22b",
+      "short_name": "sorcererlm-8x22b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/relace/relace-apply-3",
+      "provider": "relace",
+      "model_name": "relace-apply-3",
+      "short_name": "relace-apply-3",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/relace/relace-search",
+      "provider": "relace",
+      "model_name": "relace-search",
+      "short_name": "relace-search",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/sao10k/l3-euryale-70b",
+      "provider": "sao10k",
+      "model_name": "l3-euryale-70b",
+      "short_name": "l3-euryale-70b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/sao10k/l3-lunaris-8b",
+      "provider": "sao10k",
+      "model_name": "l3-lunaris-8b",
+      "short_name": "l3-lunaris-8b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/sao10k/l3.1-70b-hanami-x1",
+      "provider": "sao10k",
+      "model_name": "l3.1-70b-hanami-x1",
+      "short_name": "l3.1-70b-hanami-x1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/sao10k/l3.1-euryale-70b",
+      "provider": "sao10k",
+      "model_name": "l3.1-euryale-70b",
+      "short_name": "l3.1-euryale-70b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/sao10k/l3.3-euryale-70b",
+      "provider": "sao10k",
+      "model_name": "l3.3-euryale-70b",
+      "short_name": "l3.3-euryale-70b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/stepfun/step-3.5-flash",
+      "provider": "stepfun",
+      "model_name": "step-3.5-flash",
+      "short_name": "step-3.5-flash",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/stepfun/step-3.5-flash:free",
+      "provider": "stepfun",
+      "model_name": "step-3.5-flash:free",
+      "short_name": "step-3.5-flash",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/switchpoint/router",
+      "provider": "switchpoint",
+      "model_name": "router",
+      "short_name": "router",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/tencent/hunyuan-a13b-instruct",
+      "provider": "tencent",
+      "model_name": "hunyuan-a13b-instruct",
+      "short_name": "hunyuan-a13b-instruct",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/thedrummer/cydonia-24b-v4.1",
+      "provider": "thedrummer",
+      "model_name": "cydonia-24b-v4.1",
+      "short_name": "cydonia-24b-v4.1",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/thedrummer/rocinante-12b",
+      "provider": "thedrummer",
+      "model_name": "rocinante-12b",
+      "short_name": "rocinante-12b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/thedrummer/skyfall-36b-v2",
+      "provider": "thedrummer",
+      "model_name": "skyfall-36b-v2",
+      "short_name": "skyfall-36b-v2",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/thedrummer/unslopnemo-12b",
+      "provider": "thedrummer",
+      "model_name": "unslopnemo-12b",
+      "short_name": "unslopnemo-12b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/tngtech/deepseek-r1t2-chimera",
+      "provider": "tngtech",
+      "model_name": "deepseek-r1t2-chimera",
+      "short_name": "deepseek-r1t2-chimera",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/undi95/remm-slerp-l2-13b",
+      "provider": "undi95",
+      "model_name": "remm-slerp-l2-13b",
+      "short_name": "remm-slerp-l2-13b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/writer/palmyra-x5",
+      "provider": "writer",
+      "model_name": "palmyra-x5",
+      "short_name": "palmyra-x5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/x-ai/grok-3",
+      "provider": "x-ai",
+      "model_name": "grok-3",
+      "short_name": "grok-3",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/x-ai/grok-3-beta",
+      "provider": "x-ai",
+      "model_name": "grok-3-beta",
+      "short_name": "grok-3-beta",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/x-ai/grok-3-mini",
+      "provider": "x-ai",
+      "model_name": "grok-3-mini",
+      "short_name": "grok-3-mini",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/x-ai/grok-3-mini-beta",
+      "provider": "x-ai",
+      "model_name": "grok-3-mini-beta",
+      "short_name": "grok-3-mini-beta",
+      "specialties": [
+        "budget"
+      ],
+      "recommended_use_cases": [
+        "Budget tasks",
+        "Simple fixes"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/x-ai/grok-4",
+      "provider": "x-ai",
+      "model_name": "grok-4",
+      "short_name": "grok-4",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/x-ai/grok-4-fast",
+      "provider": "x-ai",
+      "model_name": "grok-4-fast",
+      "short_name": "grok-4-fast",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/x-ai/grok-4.1-fast",
+      "provider": "x-ai",
+      "model_name": "grok-4.1-fast",
+      "short_name": "grok-4.1-fast",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/x-ai/grok-code-fast-1",
+      "provider": "x-ai",
+      "model_name": "grok-code-fast-1",
+      "short_name": "grok-code-fast-1",
+      "specialties": [
+        "coding",
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Code generation",
+        "Debug",
+        "Refactor",
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/xiaomi/mimo-v2-flash",
+      "provider": "xiaomi",
+      "model_name": "mimo-v2-flash",
+      "short_name": "mimo-v2-flash",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/z-ai/glm-4-32b",
+      "provider": "z-ai",
+      "model_name": "glm-4-32b",
+      "short_name": "glm-4-32b",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/z-ai/glm-4.5",
+      "provider": "z-ai",
+      "model_name": "glm-4.5",
+      "short_name": "glm-4.5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/z-ai/glm-4.5-air",
+      "provider": "z-ai",
+      "model_name": "glm-4.5-air",
+      "short_name": "glm-4.5-air",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/z-ai/glm-4.5v",
+      "provider": "z-ai",
+      "model_name": "glm-4.5v",
+      "short_name": "glm-4.5v",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/z-ai/glm-4.6",
+      "provider": "z-ai",
+      "model_name": "glm-4.6",
+      "short_name": "glm-4.6",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/z-ai/glm-4.6:exacto",
+      "provider": "z-ai",
+      "model_name": "glm-4.6:exacto",
+      "short_name": "glm-4.6",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/z-ai/glm-4.6v",
+      "provider": "z-ai",
+      "model_name": "glm-4.6v",
+      "short_name": "glm-4.6v",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/z-ai/glm-4.7",
+      "provider": "z-ai",
+      "model_name": "glm-4.7",
+      "short_name": "glm-4.7",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": true,
+      "price_per_10m": "$0.25",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    },
+    {
+      "model_id": "kilo/z-ai/glm-4.7-flash",
+      "provider": "z-ai",
+      "model_name": "glm-4.7-flash",
+      "short_name": "glm-4.7-flash",
+      "specialties": [
+        "fast"
+      ],
+      "recommended_use_cases": [
+        "Quick edits",
+        "Prototyping"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": false,
+      "suitable_for_review_agent": false
+    },
+    {
+      "model_id": "kilo/z-ai/glm-5",
+      "provider": "z-ai",
+      "model_name": "glm-5",
+      "short_name": "glm-5",
+      "specialties": [
+        "general"
+      ],
+      "recommended_use_cases": [
+        "General purpose"
+      ],
+      "has_verified_pricing": false,
+      "price_per_10m": "TBD",
+      "recommended_variants": [
+        "high"
+      ],
+      "suitable_for_code_agent": true,
+      "suitable_for_review_agent": true
+    }
+  ]
+}

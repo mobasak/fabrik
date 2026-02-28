@@ -1,0 +1,264 @@
+{
+  "timestamp": "2026-02-28T17:37:47Z",
+  "total_models": 17,
+  "successful": 16,
+  "failed": 1,
+  "pricing": {
+    "kilo/anthropic/claude-opus-4.5": {
+      "input_per_1m": 7.5049,
+      "output_per_1m": 2049.171,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 335,
+          "output": 5
+        },
+        "call2_tokens": {
+          "input": 1948,
+          "output": 4
+        }
+      }
+    },
+    "kilo/anthropic/claude-opus-4.6": {
+      "input_per_1m": 8.2874,
+      "output_per_1m": 1668.2009,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 335,
+          "output": 6
+        },
+        "call2_tokens": {
+          "input": 1948,
+          "output": 4
+        }
+      }
+    },
+    "kilo/anthropic/claude-sonnet-4.5": {
+      "input_per_1m": 2.3881,
+      "output_per_1m": 2259.5955,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 21427,
+          "output": 13
+        },
+        "call2_tokens": {
+          "input": 1948,
+          "output": 4
+        }
+      }
+    },
+    "kilo/anthropic/claude-sonnet-4.6": {
+      "input_per_1m": 3.3336,
+      "output_per_1m": 1799.2154,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 21428,
+          "output": 5
+        },
+        "call2_tokens": {
+          "input": 1948,
+          "output": 4
+        }
+      }
+    },
+    "kilo/google/gemini-3-flash-preview": {
+      "input_per_1m": 0.5,
+      "output_per_1m": 3.0,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 19750,
+          "output": 117
+        },
+        "call2_tokens": {
+          "input": 21363,
+          "output": 26
+        }
+      }
+    },
+    "kilo/google/gemini-3.1-pro-preview-customtools": {
+      "input_per_1m": 1.8079,
+      "output_per_1m": 129.0719,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 20719,
+          "output": 34
+        },
+        "call2_tokens": {
+          "input": 2241,
+          "output": 38
+        }
+      }
+    },
+    "kilo/minimax/minimax-m2.5": {
+      "input_per_1m": 0.2614,
+      "output_per_1m": 20.9013,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 18632,
+          "output": 37
+        },
+        "call2_tokens": {
+          "input": 1631,
+          "output": 32
+        }
+      }
+    },
+    "kilo/minimax/minimax-m2.5:free": {
+      "input_per_1m": 0.0,
+      "output_per_1m": 0.0,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 18936,
+          "output": 32
+        },
+        "call2_tokens": {
+          "input": 1631,
+          "output": 50
+        }
+      }
+    },
+    "kilo/openai/gpt-5.2": {
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 16929,
+          "output": 12
+        },
+        "call2_tokens": {
+          "input": 18543,
+          "output": 5
+        }
+      }
+    },
+    "kilo/openai/gpt-5.2-chat": {
+      "input_per_1m": 1.6452,
+      "output_per_1m": 75.189,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 16931,
+          "output": 29
+        },
+        "call2_tokens": {
+          "input": 1777,
+          "output": 51
+        }
+      }
+    },
+    "kilo/openai/gpt-5.2-codex": {
+      "input_per_1m": 1.5289,
+      "output_per_1m": 222.0102,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 16935,
+          "output": 18
+        },
+        "call2_tokens": {
+          "input": 1781,
+          "output": 16
+        }
+      }
+    },
+    "kilo/openai/gpt-5.2-pro": {
+      "input_per_1m": 21.0,
+      "output_per_1m": 168.0,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 16931,
+          "output": 5
+        },
+        "call2_tokens": {
+          "input": 18545,
+          "output": 5
+        }
+      }
+    },
+    "kilo/openai/gpt-5.3-codex": {
+      "input_per_1m": -6.9477,
+      "output_per_1m": 891.3845,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 167,
+          "output": 5
+        },
+        "call2_tokens": {
+          "input": 1781,
+          "output": 21
+        }
+      }
+    },
+    "kilo/z-ai/glm-4.7": {
+      "input_per_1m": 0.5109,
+      "output_per_1m": 21.9275,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 18617,
+          "output": 87
+        },
+        "call2_tokens": {
+          "input": 1627,
+          "output": 114
+        }
+      }
+    },
+    "kilo/z-ai/glm-4.7-flash": {
+      "input_per_1m": 0.0502,
+      "output_per_1m": 4.1878,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 19095,
+          "output": 100
+        },
+        "call2_tokens": {
+          "input": 1626,
+          "output": 59
+        }
+      }
+    },
+    "kilo/z-ai/glm-5": {
+      "input_per_1m": 0.8472,
+      "output_per_1m": 143.5508,
+      "verification": {
+        "call1_error": 0.0,
+        "call2_error": 0.0,
+        "call1_tokens": {
+          "input": 18620,
+          "output": 21
+        },
+        "call2_tokens": {
+          "input": 1674,
+          "output": 29
+        }
+      }
+    }
+  }
+}

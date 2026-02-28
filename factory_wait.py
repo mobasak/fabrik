@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-import os, sys, json, time, tempfile, pathlib, subprocess
+import json
+import os
+import pathlib
+import subprocess
+import sys
+import tempfile
+import time
 
 JOBS_DIR = pathlib.Path(os.getenv("FACTORY_JOBS_DIR", ".factory_jobs"))
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
@@ -57,10 +63,11 @@ def build_summary(job: dict) -> dict:
 def main():
     job_id = pick_job_id_from_args_or_latest()
     if not job_id:
-        print(json.dumps({
-            "status": "error",
-            "message": "No job_id provided and no latest_job.txt found"
-        }))
+        print(
+            json.dumps(
+                {"status": "error", "message": "No job_id provided and no latest_job.txt found"}
+            )
+        )
         sys.exit(1)
 
     try:
@@ -84,9 +91,12 @@ def main():
     cmd = [
         "droid",
         "exec",
-        "-f", spec_path,
-        "--auto", os.getenv("FACTORY_AUTO_LEVEL", "medium"),
-        "-o", "json",
+        "-f",
+        spec_path,
+        "--auto",
+        os.getenv("FACTORY_AUTO_LEVEL", "medium"),
+        "-o",
+        "json",
     ]
 
     proc = subprocess.run(cmd, text=True, capture_output=True)

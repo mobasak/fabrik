@@ -1,6 +1,6 @@
 # Fabrik Phase Priority Analysis
 
-**Date:** 2026-02-27  
+**Date:** 2026-02-27
 **Scope:** Prioritize remaining Fabrik phases for 10 active projects
 
 ---
@@ -560,20 +560,20 @@ class LLMProvider(Enum):
 
 class LLMClient:
     """Provider-agnostic LLM client with cost tracking."""
-    
+
     def __init__(self, provider: LLMProvider = LLMProvider.CLAUDE):
         self.provider = provider
         self.usage_tracker = UsageTracker()
-    
+
     def generate(self, prompt: str, **kwargs) -> LLMResponse:
         """Generate content with automatic retry and cost tracking."""
         # Route to provider
         # Track tokens and cost
         # Return standardized response
-    
+
     def generate_structured(self, prompt: str, schema: dict) -> dict:
         """Generate JSON matching schema."""
-        
+
     def revise(self, content: str, instructions: str) -> str:
         """Revise existing content based on instructions."""
 ```
@@ -633,7 +633,7 @@ Webhook → Risk gate triggered
     ↓
 Switch → Route by severity
     ↓
-CRITICAL: 
+CRITICAL:
   - Slack message (immediate)
   - SMS via Apprise
   - Email to backup

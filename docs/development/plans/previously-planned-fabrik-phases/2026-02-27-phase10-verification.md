@@ -59,7 +59,7 @@ Phase 10 covers the **Deployment Orchestrator** - a unified controller for end-t
 **Verified in `states.py`:**
 ```python
 class DeploymentState(Enum):
-    PENDING, VALIDATING, PROVISIONING, DEPLOYING, 
+    PENDING, VALIDATING, PROVISIONING, DEPLOYING,
     VERIFYING, COMPLETE, FAILED, ROLLING_BACK, ROLLED_BACK
 ```
 

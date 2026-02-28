@@ -190,48 +190,58 @@ REASONING_MODELS = {
 # Primary model: Claude Opus 4.6 (best reasoning, used for review AND fix)
 # Fallback chain is tried IN ORDER when a model is unavailable or errors.
 #
-# TESTED MODELS (2026-02-22):
+# TESTED MODELS (2026-02-28):
 # ┌─────────────────────────────────────┬───────────┬────────────┬─────────────────────┐
 # │ Model                               │ Cost/10M  │ Status     │ Notes               │
 # ├─────────────────────────────────────┼───────────┼────────────┼─────────────────────┤
 # │ Claude Opus 4.6                     │ $50/$250  │ ✅ Primary │ Best reasoning      │
 # │ Claude Sonnet 4.6                   │ $30/$150  │ ✅ Backup  │ Cheaper Anthropic   │
+# │ GPT-5.3-Codex                       │ $12.5/$50 │ ✅ NEW     │ Opus-like quality   │
+# │ GPT-5.3-Codex-Spark                 │ $6.25/$25 │ ✅ NEW     │ Fast iteration      │
 # │ GPT-5.2-Codex                       │ $12.5/$50 │ ✅ Backup  │ OpenAI alternative  │
 # │ Gemini 3.1 Pro                      │ $12.5/$50 │ ✅ Backup  │ Heavy reasoning     │
 # │ Gemini 3 Flash                      │ $0.75/$3  │ ✅ Backup  │ Speed fallback      │
-# │ GPT-5.3-Codex                       │ TBD       │ ❌ Preview │ Not yet available   │
-# │ GPT-5.3-Codex-Spark                 │ TBD       │ ❌ Preview │ Not yet available   │
+# │ O3-Mini                             │ $10/$40   │ ✅ NEW     │ Fast reasoning      │
+# │ Gemini 2.5 Pro                      │ $15/$60   │ ✅ NEW     │ Next-gen Google     │
 # └─────────────────────────────────────┴───────────┴────────────┴─────────────────────┘
 #
 # FALLBACK ORDER:
 # 1. Claude Opus 4.6      - Primary (best quality, $50/10M in, $250/10M out)
-# 2. Claude Sonnet 4.6    - Cheaper Anthropic ($30/10M in, $150/10M out)
-# 3. GPT-5.2-Codex        - OpenAI alternative ($12.50/10M in, $50/10M out)
-# 4. Gemini 3.1 Pro       - Heavy reasoning ($12.50/10M in, $50/10M out)
-# 5. Gemini 3 Flash       - Speed fallback ($0.75/10M in, $3/10M out)
+# 2. GPT-5.3-Codex        - Opus-like quality ($12.50/10M in, $50/10M out)
+# 3. Claude Sonnet 4.6    - Cheaper Anthropic ($30/10M in, $150/10M out)
+# 4. GPT-5.2-Codex        - OpenAI alternative ($12.50/10M in, $50/10M out)
+# 5. Gemini 3.1 Pro       - Heavy reasoning ($12.50/10M in, $50/10M out)
+# 6. GPT-5.3-Codex-Spark  - Fast iteration ($6.25/10M in, $25/10M out)
+# 7. O3-Mini              - Fast reasoning ($10/10M in, $40/10M out)
+# 8. Gemini 2.5 Pro       - Next-gen Google ($15/10M in, $60/10M out)
+# 9. Gemini 3 Flash       - Speed fallback ($0.75/10M in, $3/10M out)
 #
 # CLI override: --model <model_name> (uses exactly that model, no fallback)
 
 BACKUP_MODELS = {
     # Model ID: (input_cost_per_10M, output_cost_per_10M, description)
     "kilo/anthropic/claude-opus-4.6": (50.0, 250.0, "Primary - best reasoning"),
+    "kilo/openai/gpt-5.3-codex": (12.50, 50.0, "Opus-like quality"),
     "kilo/anthropic/claude-sonnet-4.6": (30.0, 150.0, "Cheaper Anthropic"),
     "kilo/openai/gpt-5.2-codex": (12.50, 50.0, "OpenAI alternative"),
     "kilo/google/gemini-3.1-pro-preview": (12.50, 50.0, "Heavy reasoning"),
+    "kilo/openai/gpt-5.3-codex-spark": (6.25, 25.0, "Fast iteration"),
+    "kilo/openai/o3-mini": (10.0, 40.0, "Fast reasoning"),
+    "kilo/google/gemini-2.5-pro": (15.0, 60.0, "Next-gen Google"),
     "kilo/google/gemini-3-flash-preview": (0.75, 3.0, "Speed fallback"),
-    # Preview models (not yet available in Kilo CLI)
-    "kilo/openai/gpt-5.3-codex": (12.50, 50.0, "Opus-like quality (PREVIEW)"),
-    "kilo/openai/gpt-5.3-codex-spark": (6.25, 25.0, "Fast iteration (PREVIEW)"),
 }
 
 # Ordered fallback chain (tried in order if model unavailable)
-# Only includes AVAILABLE models - preview models excluded until released
 MODEL_FALLBACK_CHAIN = [
     "kilo/anthropic/claude-opus-4.6",  # 1. Primary - best quality
-    "kilo/anthropic/claude-sonnet-4.6",  # 2. Cheaper Anthropic
-    "kilo/openai/gpt-5.2-codex",  # 3. OpenAI alternative
-    "kilo/google/gemini-3.1-pro-preview",  # 4. Heavy reasoning
-    "kilo/google/gemini-3-flash-preview",  # 5. Speed fallback
+    "kilo/openai/gpt-5.3-codex",  # 2. Opus-like quality, cheaper
+    "kilo/anthropic/claude-sonnet-4.6",  # 3. Cheaper Anthropic
+    "kilo/openai/gpt-5.2-codex",  # 4. OpenAI alternative
+    "kilo/google/gemini-3.1-pro-preview",  # 5. Heavy reasoning
+    "kilo/openai/gpt-5.3-codex-spark",  # 6. Fast iteration
+    "kilo/openai/o3-mini",  # 7. Fast reasoning
+    "kilo/google/gemini-2.5-pro",  # 8. Next-gen Google
+    "kilo/google/gemini-3-flash-preview",  # 9. Speed fallback
 ]
 
 # =============================================================================

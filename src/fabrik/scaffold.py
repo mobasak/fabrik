@@ -51,6 +51,20 @@ SCAFFOLD_TYPES = frozenset(
 
 WORDPRESS_PRESETS = frozenset({"saas", "company", "content", "landing", "ecommerce"})
 
+# Types whose type-specific missing files cannot be safely reconstructed
+# by fix_project (they require the full scaffolder to be run correctly).
+UNSUPPORTED_FIX_TYPES = frozenset(
+    {
+        "file-api",
+        "file-worker",
+        "wordpress",
+        "docusaurus",
+        "chrome-extension",
+        "mobile-app",
+        "desktop-app",
+    }
+)
+
 TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"
 WORDPRESS_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "wordpress"
 FILE_API_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-api"
@@ -619,11 +633,11 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         new_lines = []
         in_dev_target = False
         for line in lines:
-            stripped = line.rstrip("\n")
+            stripped = line.strip()
             if stripped == "dev:":
                 in_dev_target = True
                 new_lines.append(line)
-            elif in_dev_target and stripped.startswith("\t") and "uvicorn" in stripped:
+            elif in_dev_target and line.startswith("\t") and "uvicorn" in line:
                 new_lines.append("\tpython worker/main.py\n")
                 in_dev_target = False
             else:
@@ -975,21 +989,6 @@ def fix_project(
 
     _, missing = validate_project(project_path, project_type=project_type)
 
-    # Types whose type-specific missing files cannot be safely reconstructed
-    # by fix_project (they require the full scaffolder to be run correctly).
-    # We report these files as missing but skip silent placeholder creation.
-    _UNSUPPORTED_FIX_TYPES = frozenset(
-        {
-            "file-api",
-            "file-worker",
-            "wordpress",
-            "docusaurus",
-            "chrome-extension",
-            "mobile-app",
-            "desktop-app",
-        }
-    )
-
     # Build the combined template map for this project type
     type_template_map = _PYTHON_API_TEMPLATE_MAP if project_type == "python-api" else {}
     combined_template_map = {**SHARED_TEMPLATE_MAP, **type_template_map}
@@ -1028,7 +1027,7 @@ def fix_project(
             ]:
                 content = content.replace(old, new)
             dest_path.write_text(content)
-        elif project_type in _UNSUPPORTED_FIX_TYPES and f not in shared_required_set:
+        elif project_type in UNSUPPORTED_FIX_TYPES and f not in shared_required_set:
             # Type-specific artifact that fix_project cannot safely reconstruct.
             # Report as missing (return value) but do NOT write a placeholder that
             # would silently mask a broken scaffold.

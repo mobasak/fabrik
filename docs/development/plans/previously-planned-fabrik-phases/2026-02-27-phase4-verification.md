@@ -42,7 +42,7 @@ class CloudflareClient:
     # Account & Token
     - verify_token()
     - health()
-    
+
     # Zones
     - list_zones()
     - create_zone()
@@ -50,7 +50,7 @@ class CloudflareClient:
     - ensure_zone()
     - get_zone_id()
     - get_zone()
-    
+
     # DNS Records
     - list_records()
     - get_record()

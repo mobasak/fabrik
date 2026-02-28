@@ -1,0 +1,2767 @@
+{
+  "total_models": 319,
+  "total_providers": 57,
+  "timestamp": "2026-02-28T16:00:00Z",
+  "providers": {
+    "ai21": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/ai21/jamba-large-1.7",
+          "model": "jamba-large-1.7",
+          "short_name": "jamba-large-1.7",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "aion-labs": {
+      "count": 4,
+      "models": [
+        {
+          "full_name": "kilo/aion-labs/aion-1.0",
+          "model": "aion-1.0",
+          "short_name": "aion-1.0",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/aion-labs/aion-1.0-mini",
+          "model": "aion-1.0-mini",
+          "short_name": "aion-1.0-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/aion-labs/aion-2.0",
+          "model": "aion-2.0",
+          "short_name": "aion-2.0",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/aion-labs/aion-rp-llama-3.1-8b",
+          "model": "aion-rp-llama-3.1-8b",
+          "short_name": "aion-rp-llama-3.1-8b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "alfredpros": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/alfredpros/codellama-7b-instruct-solidity",
+          "model": "codellama-7b-instruct-solidity",
+          "short_name": "codellama-7b-instruct-solidity",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "alibaba": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/alibaba/tongyi-deepresearch-30b-a3b",
+          "model": "tongyi-deepresearch-30b-a3b",
+          "short_name": "tongyi-deepresearch-30b-a3b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "allenai": {
+      "count": 6,
+      "models": [
+        {
+          "full_name": "kilo/allenai/molmo-2-8b",
+          "model": "molmo-2-8b",
+          "short_name": "molmo-2-8b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/allenai/olmo-2-0325-32b-instruct",
+          "model": "olmo-2-0325-32b-instruct",
+          "short_name": "olmo-2-0325-32b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/allenai/olmo-3-32b-think",
+          "model": "olmo-3-32b-think",
+          "short_name": "olmo-3-32b-think",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/allenai/olmo-3-7b-instruct",
+          "model": "olmo-3-7b-instruct",
+          "short_name": "olmo-3-7b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/allenai/olmo-3-7b-think",
+          "model": "olmo-3-7b-think",
+          "short_name": "olmo-3-7b-think",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/allenai/olmo-3.1-32b-instruct",
+          "model": "olmo-3.1-32b-instruct",
+          "short_name": "olmo-3.1-32b-instruct",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "alpindale": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/alpindale/goliath-120b",
+          "model": "goliath-120b",
+          "short_name": "goliath-120b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "amazon": {
+      "count": 5,
+      "models": [
+        {
+          "full_name": "kilo/amazon/nova-2-lite-v1",
+          "model": "nova-2-lite-v1",
+          "short_name": "nova-2-lite-v1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/amazon/nova-lite-v1",
+          "model": "nova-lite-v1",
+          "short_name": "nova-lite-v1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/amazon/nova-micro-v1",
+          "model": "nova-micro-v1",
+          "short_name": "nova-micro-v1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/amazon/nova-premier-v1",
+          "model": "nova-premier-v1",
+          "short_name": "nova-premier-v1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/amazon/nova-pro-v1",
+          "model": "nova-pro-v1",
+          "short_name": "nova-pro-v1",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "anthracite-org": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/anthracite-org/magnum-v4-72b",
+          "model": "magnum-v4-72b",
+          "short_name": "magnum-v4-72b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "anthropic": {
+      "count": 13,
+      "models": [
+        {
+          "full_name": "kilo/anthropic/claude-3-haiku",
+          "model": "claude-3-haiku",
+          "short_name": "claude-3-haiku",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-3.5-haiku",
+          "model": "claude-3.5-haiku",
+          "short_name": "claude-3.5-haiku",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-3.5-sonnet",
+          "model": "claude-3.5-sonnet",
+          "short_name": "claude-3.5-sonnet",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-3.7-sonnet",
+          "model": "claude-3.7-sonnet",
+          "short_name": "claude-3.7-sonnet",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-3.7-sonnet:thinking",
+          "model": "claude-3.7-sonnet:thinking",
+          "short_name": "claude-3.7-sonnet",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-haiku-4.5",
+          "model": "claude-haiku-4.5",
+          "short_name": "claude-haiku-4.5",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-opus-4",
+          "model": "claude-opus-4",
+          "short_name": "claude-opus-4",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-opus-4.1",
+          "model": "claude-opus-4.1",
+          "short_name": "claude-opus-4.1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-opus-4.5",
+          "model": "claude-opus-4.5",
+          "short_name": "claude-opus-4.5",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-opus-4.6",
+          "model": "claude-opus-4.6",
+          "short_name": "claude-opus-4.6",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-sonnet-4",
+          "model": "claude-sonnet-4",
+          "short_name": "claude-sonnet-4",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-sonnet-4.5",
+          "model": "claude-sonnet-4.5",
+          "short_name": "claude-sonnet-4.5",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/anthropic/claude-sonnet-4.6",
+          "model": "claude-sonnet-4.6",
+          "short_name": "claude-sonnet-4.6",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "arcee-ai": {
+      "count": 6,
+      "models": [
+        {
+          "full_name": "kilo/arcee-ai/coder-large",
+          "model": "coder-large",
+          "short_name": "coder-large",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/arcee-ai/maestro-reasoning",
+          "model": "maestro-reasoning",
+          "short_name": "maestro-reasoning",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/arcee-ai/spotlight",
+          "model": "spotlight",
+          "short_name": "spotlight",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/arcee-ai/trinity-large-preview:free",
+          "model": "trinity-large-preview:free",
+          "short_name": "trinity-large-preview",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/arcee-ai/trinity-mini",
+          "model": "trinity-mini",
+          "short_name": "trinity-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/arcee-ai/virtuoso-large",
+          "model": "virtuoso-large",
+          "short_name": "virtuoso-large",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "baidu": {
+      "count": 5,
+      "models": [
+        {
+          "full_name": "kilo/baidu/ernie-4.5-21b-a3b",
+          "model": "ernie-4.5-21b-a3b",
+          "short_name": "ernie-4.5-21b-a3b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/baidu/ernie-4.5-21b-a3b-thinking",
+          "model": "ernie-4.5-21b-a3b-thinking",
+          "short_name": "ernie-4.5-21b-a3b-thinking",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/baidu/ernie-4.5-300b-a47b",
+          "model": "ernie-4.5-300b-a47b",
+          "short_name": "ernie-4.5-300b-a47b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/baidu/ernie-4.5-vl-28b-a3b",
+          "model": "ernie-4.5-vl-28b-a3b",
+          "short_name": "ernie-4.5-vl-28b-a3b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/baidu/ernie-4.5-vl-424b-a47b",
+          "model": "ernie-4.5-vl-424b-a47b",
+          "short_name": "ernie-4.5-vl-424b-a47b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "bytedance-seed": {
+      "count": 3,
+      "models": [
+        {
+          "full_name": "kilo/bytedance-seed/seed-1.6",
+          "model": "seed-1.6",
+          "short_name": "seed-1.6",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/bytedance-seed/seed-1.6-flash",
+          "model": "seed-1.6-flash",
+          "short_name": "seed-1.6-flash",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/bytedance-seed/seed-2.0-mini",
+          "model": "seed-2.0-mini",
+          "short_name": "seed-2.0-mini",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "bytedance": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/bytedance/ui-tars-1.5-7b",
+          "model": "ui-tars-1.5-7b",
+          "short_name": "ui-tars-1.5-7b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "cohere": {
+      "count": 4,
+      "models": [
+        {
+          "full_name": "kilo/cohere/command-a",
+          "model": "command-a",
+          "short_name": "command-a",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/cohere/command-r-08-2024",
+          "model": "command-r-08-2024",
+          "short_name": "command-r-08-2024",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/cohere/command-r-plus-08-2024",
+          "model": "command-r-plus-08-2024",
+          "short_name": "command-r-plus-08-2024",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/cohere/command-r7b-12-2024",
+          "model": "command-r7b-12-2024",
+          "short_name": "command-r7b-12-2024",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "deepcogito": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/deepcogito/cogito-v2.1-671b",
+          "model": "cogito-v2.1-671b",
+          "short_name": "cogito-v2.1-671b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "deepseek": {
+      "count": 12,
+      "models": [
+        {
+          "full_name": "kilo/deepseek/deepseek-chat",
+          "model": "deepseek-chat",
+          "short_name": "deepseek-chat",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-chat-v3-0324",
+          "model": "deepseek-chat-v3-0324",
+          "short_name": "deepseek-chat-v3-0324",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-chat-v3.1",
+          "model": "deepseek-chat-v3.1",
+          "short_name": "deepseek-chat-v3.1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-r1",
+          "model": "deepseek-r1",
+          "short_name": "deepseek-r1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-r1-0528",
+          "model": "deepseek-r1-0528",
+          "short_name": "deepseek-r1-0528",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-r1-distill-llama-70b",
+          "model": "deepseek-r1-distill-llama-70b",
+          "short_name": "deepseek-r1-distill-llama-70b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-r1-distill-qwen-32b",
+          "model": "deepseek-r1-distill-qwen-32b",
+          "short_name": "deepseek-r1-distill-qwen-32b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-v3.1-terminus",
+          "model": "deepseek-v3.1-terminus",
+          "short_name": "deepseek-v3.1-terminus",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-v3.1-terminus:exacto",
+          "model": "deepseek-v3.1-terminus:exacto",
+          "short_name": "deepseek-v3.1-terminus",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-v3.2",
+          "model": "deepseek-v3.2",
+          "short_name": "deepseek-v3.2",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-v3.2-exp",
+          "model": "deepseek-v3.2-exp",
+          "short_name": "deepseek-v3.2-exp",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/deepseek/deepseek-v3.2-speciale",
+          "model": "deepseek-v3.2-speciale",
+          "short_name": "deepseek-v3.2-speciale",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "eleutherai": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/eleutherai/llemma_7b",
+          "model": "llemma_7b",
+          "short_name": "llemma_7b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "essentialai": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/essentialai/rnj-1-instruct",
+          "model": "rnj-1-instruct",
+          "short_name": "rnj-1-instruct",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "google": {
+      "count": 18,
+      "models": [
+        {
+          "full_name": "kilo/google/gemini-2.0-flash-001",
+          "model": "gemini-2.0-flash-001",
+          "short_name": "gemini-2.0-flash-001",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemini-2.0-flash-lite-001",
+          "model": "gemini-2.0-flash-lite-001",
+          "short_name": "gemini-2.0-flash-lite-001",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemini-2.5-flash",
+          "model": "gemini-2.5-flash",
+          "short_name": "gemini-2.5-flash",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemini-2.5-flash-lite",
+          "model": "gemini-2.5-flash-lite",
+          "short_name": "gemini-2.5-flash-lite",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemini-2.5-flash-lite-preview-09-2025",
+          "model": "gemini-2.5-flash-lite-preview-09-2025",
+          "short_name": "gemini-2.5-flash-lite-preview-09-2025",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemini-2.5-pro",
+          "model": "gemini-2.5-pro",
+          "short_name": "gemini-2.5-pro",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemini-2.5-pro-preview",
+          "model": "gemini-2.5-pro-preview",
+          "short_name": "gemini-2.5-pro-preview",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemini-2.5-pro-preview-05-06",
+          "model": "gemini-2.5-pro-preview-05-06",
+          "short_name": "gemini-2.5-pro-preview-05-06",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemini-3-flash-preview",
+          "model": "gemini-3-flash-preview",
+          "short_name": "gemini-3-flash-preview",
+          "has_pricing": true,
+          "price": 0.2
+        },
+        {
+          "full_name": "kilo/google/gemini-3-pro-preview",
+          "model": "gemini-3-pro-preview",
+          "short_name": "gemini-3-pro-preview",
+          "has_pricing": true,
+          "price": 0.8
+        },
+        {
+          "full_name": "kilo/google/gemini-3.1-pro-preview",
+          "model": "gemini-3.1-pro-preview",
+          "short_name": "gemini-3.1-pro-preview",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemini-3.1-pro-preview-customtools",
+          "model": "gemini-3.1-pro-preview-customtools",
+          "short_name": "gemini-3.1-pro-preview-customtools",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemma-2-27b-it",
+          "model": "gemma-2-27b-it",
+          "short_name": "gemma-2-27b-it",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemma-2-9b-it",
+          "model": "gemma-2-9b-it",
+          "short_name": "gemma-2-9b-it",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemma-3-12b-it",
+          "model": "gemma-3-12b-it",
+          "short_name": "gemma-3-12b-it",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemma-3-27b-it",
+          "model": "gemma-3-27b-it",
+          "short_name": "gemma-3-27b-it",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemma-3-4b-it",
+          "model": "gemma-3-4b-it",
+          "short_name": "gemma-3-4b-it",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/google/gemma-3n-e4b-it",
+          "model": "gemma-3n-e4b-it",
+          "short_name": "gemma-3n-e4b-it",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "gryphe": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/gryphe/mythomax-l2-13b",
+          "model": "mythomax-l2-13b",
+          "short_name": "mythomax-l2-13b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "ibm-granite": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/ibm-granite/granite-4.0-h-micro",
+          "model": "granite-4.0-h-micro",
+          "short_name": "granite-4.0-h-micro",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "inception": {
+      "count": 2,
+      "models": [
+        {
+          "full_name": "kilo/inception/mercury",
+          "model": "mercury",
+          "short_name": "mercury",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/inception/mercury-coder",
+          "model": "mercury-coder",
+          "short_name": "mercury-coder",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "inflection": {
+      "count": 2,
+      "models": [
+        {
+          "full_name": "kilo/inflection/inflection-3-pi",
+          "model": "inflection-3-pi",
+          "short_name": "inflection-3-pi",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/inflection/inflection-3-productivity",
+          "model": "inflection-3-productivity",
+          "short_name": "inflection-3-productivity",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "kilo": {
+      "count": 3,
+      "models": [
+        {
+          "full_name": "kilo/kilo/auto",
+          "model": "auto",
+          "short_name": "auto",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/kilo/auto-free",
+          "model": "auto-free",
+          "short_name": "auto-free",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/kilo/auto-small",
+          "model": "auto-small",
+          "short_name": "auto-small",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "kwaipilot": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/kwaipilot/kat-coder-pro",
+          "model": "kat-coder-pro",
+          "short_name": "kat-coder-pro",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "liquid": {
+      "count": 3,
+      "models": [
+        {
+          "full_name": "kilo/liquid/lfm-2-24b-a2b",
+          "model": "lfm-2-24b-a2b",
+          "short_name": "lfm-2-24b-a2b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/liquid/lfm-2.2-6b",
+          "model": "lfm-2.2-6b",
+          "short_name": "lfm-2.2-6b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/liquid/lfm2-8b-a1b",
+          "model": "lfm2-8b-a1b",
+          "short_name": "lfm2-8b-a1b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "mancer": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/mancer/weaver",
+          "model": "weaver",
+          "short_name": "weaver",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "meituan": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/meituan/longcat-flash-chat",
+          "model": "longcat-flash-chat",
+          "short_name": "longcat-flash-chat",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "meta-llama": {
+      "count": 15,
+      "models": [
+        {
+          "full_name": "kilo/meta-llama/llama-3-70b-instruct",
+          "model": "llama-3-70b-instruct",
+          "short_name": "llama-3-70b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-3-8b-instruct",
+          "model": "llama-3-8b-instruct",
+          "short_name": "llama-3-8b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-3.1-405b",
+          "model": "llama-3.1-405b",
+          "short_name": "llama-3.1-405b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-3.1-405b-instruct",
+          "model": "llama-3.1-405b-instruct",
+          "short_name": "llama-3.1-405b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-3.1-70b-instruct",
+          "model": "llama-3.1-70b-instruct",
+          "short_name": "llama-3.1-70b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-3.1-8b-instruct",
+          "model": "llama-3.1-8b-instruct",
+          "short_name": "llama-3.1-8b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-3.2-11b-vision-instruct",
+          "model": "llama-3.2-11b-vision-instruct",
+          "short_name": "llama-3.2-11b-vision-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-3.2-1b-instruct",
+          "model": "llama-3.2-1b-instruct",
+          "short_name": "llama-3.2-1b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-3.2-3b-instruct",
+          "model": "llama-3.2-3b-instruct",
+          "short_name": "llama-3.2-3b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-3.3-70b-instruct",
+          "model": "llama-3.3-70b-instruct",
+          "short_name": "llama-3.3-70b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-4-maverick",
+          "model": "llama-4-maverick",
+          "short_name": "llama-4-maverick",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-4-scout",
+          "model": "llama-4-scout",
+          "short_name": "llama-4-scout",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-guard-2-8b",
+          "model": "llama-guard-2-8b",
+          "short_name": "llama-guard-2-8b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-guard-3-8b",
+          "model": "llama-guard-3-8b",
+          "short_name": "llama-guard-3-8b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/meta-llama/llama-guard-4-12b",
+          "model": "llama-guard-4-12b",
+          "short_name": "llama-guard-4-12b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "microsoft": {
+      "count": 2,
+      "models": [
+        {
+          "full_name": "kilo/microsoft/phi-4",
+          "model": "phi-4",
+          "short_name": "phi-4",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/microsoft/wizardlm-2-8x22b",
+          "model": "wizardlm-2-8x22b",
+          "short_name": "wizardlm-2-8x22b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "minimax": {
+      "count": 7,
+      "models": [
+        {
+          "full_name": "kilo/minimax/minimax-01",
+          "model": "minimax-01",
+          "short_name": "minimax-01",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/minimax/minimax-m1",
+          "model": "minimax-m1",
+          "short_name": "minimax-m1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/minimax/minimax-m2",
+          "model": "minimax-m2",
+          "short_name": "minimax-m2",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/minimax/minimax-m2-her",
+          "model": "minimax-m2-her",
+          "short_name": "minimax-m2-her",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/minimax/minimax-m2.1",
+          "model": "minimax-m2.1",
+          "short_name": "minimax-m2.1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/minimax/minimax-m2.5",
+          "model": "minimax-m2.5",
+          "short_name": "minimax-m2.5",
+          "has_pricing": true,
+          "price": 0.12
+        },
+        {
+          "full_name": "kilo/minimax/minimax-m2.5:free",
+          "model": "minimax-m2.5:free",
+          "short_name": "minimax-m2.5",
+          "has_pricing": true,
+          "price": 0.12
+        }
+      ]
+    },
+    "mistralai": {
+      "count": 26,
+      "models": [
+        {
+          "full_name": "kilo/mistralai/codestral-2508",
+          "model": "codestral-2508",
+          "short_name": "codestral-2508",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/devstral-2512",
+          "model": "devstral-2512",
+          "short_name": "devstral-2512",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/devstral-medium",
+          "model": "devstral-medium",
+          "short_name": "devstral-medium",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/devstral-small",
+          "model": "devstral-small",
+          "short_name": "devstral-small",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/ministral-14b-2512",
+          "model": "ministral-14b-2512",
+          "short_name": "ministral-14b-2512",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/ministral-3b-2512",
+          "model": "ministral-3b-2512",
+          "short_name": "ministral-3b-2512",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/ministral-8b-2512",
+          "model": "ministral-8b-2512",
+          "short_name": "ministral-8b-2512",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-7b-instruct",
+          "model": "mistral-7b-instruct",
+          "short_name": "mistral-7b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-7b-instruct-v0.1",
+          "model": "mistral-7b-instruct-v0.1",
+          "short_name": "mistral-7b-instruct-v0.1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-7b-instruct-v0.3",
+          "model": "mistral-7b-instruct-v0.3",
+          "short_name": "mistral-7b-instruct-v0.3",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-large",
+          "model": "mistral-large",
+          "short_name": "mistral-large",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-large-2407",
+          "model": "mistral-large-2407",
+          "short_name": "mistral-large-2407",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-large-2411",
+          "model": "mistral-large-2411",
+          "short_name": "mistral-large-2411",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-large-2512",
+          "model": "mistral-large-2512",
+          "short_name": "mistral-large-2512",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-medium-3",
+          "model": "mistral-medium-3",
+          "short_name": "mistral-medium-3",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-medium-3.1",
+          "model": "mistral-medium-3.1",
+          "short_name": "mistral-medium-3.1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-nemo",
+          "model": "mistral-nemo",
+          "short_name": "mistral-nemo",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-saba",
+          "model": "mistral-saba",
+          "short_name": "mistral-saba",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-small-24b-instruct-2501",
+          "model": "mistral-small-24b-instruct-2501",
+          "short_name": "mistral-small-24b-instruct-2501",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-small-3.1-24b-instruct",
+          "model": "mistral-small-3.1-24b-instruct",
+          "short_name": "mistral-small-3.1-24b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-small-3.2-24b-instruct",
+          "model": "mistral-small-3.2-24b-instruct",
+          "short_name": "mistral-small-3.2-24b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mistral-small-creative",
+          "model": "mistral-small-creative",
+          "short_name": "mistral-small-creative",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mixtral-8x22b-instruct",
+          "model": "mixtral-8x22b-instruct",
+          "short_name": "mixtral-8x22b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/mixtral-8x7b-instruct",
+          "model": "mixtral-8x7b-instruct",
+          "short_name": "mixtral-8x7b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/pixtral-large-2411",
+          "model": "pixtral-large-2411",
+          "short_name": "pixtral-large-2411",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/mistralai/voxtral-small-24b-2507",
+          "model": "voxtral-small-24b-2507",
+          "short_name": "voxtral-small-24b-2507",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "moonshotai": {
+      "count": 6,
+      "models": [
+        {
+          "full_name": "kilo/moonshotai/kimi-k2",
+          "model": "kimi-k2",
+          "short_name": "kimi-k2",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/moonshotai/kimi-k2-0905",
+          "model": "kimi-k2-0905",
+          "short_name": "kimi-k2-0905",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/moonshotai/kimi-k2-0905:exacto",
+          "model": "kimi-k2-0905:exacto",
+          "short_name": "kimi-k2-0905",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/moonshotai/kimi-k2-thinking",
+          "model": "kimi-k2-thinking",
+          "short_name": "kimi-k2-thinking",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/moonshotai/kimi-k2.5",
+          "model": "kimi-k2.5",
+          "short_name": "kimi-k2.5",
+          "has_pricing": true,
+          "price": 0.25
+        },
+        {
+          "full_name": "kilo/moonshotai/kimi-k2.5:free",
+          "model": "kimi-k2.5:free",
+          "short_name": "kimi-k2.5",
+          "has_pricing": true,
+          "price": 0.25
+        }
+      ]
+    },
+    "morph": {
+      "count": 2,
+      "models": [
+        {
+          "full_name": "kilo/morph/morph-v3-fast",
+          "model": "morph-v3-fast",
+          "short_name": "morph-v3-fast",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/morph/morph-v3-large",
+          "model": "morph-v3-large",
+          "short_name": "morph-v3-large",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "neversleep": {
+      "count": 2,
+      "models": [
+        {
+          "full_name": "kilo/neversleep/llama-3.1-lumimaid-8b",
+          "model": "llama-3.1-lumimaid-8b",
+          "short_name": "llama-3.1-lumimaid-8b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/neversleep/noromaid-20b",
+          "model": "noromaid-20b",
+          "short_name": "noromaid-20b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "nex-agi": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/nex-agi/deepseek-v3.1-nex-n1",
+          "model": "deepseek-v3.1-nex-n1",
+          "short_name": "deepseek-v3.1-nex-n1",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "nousresearch": {
+      "count": 5,
+      "models": [
+        {
+          "full_name": "kilo/nousresearch/hermes-2-pro-llama-3-8b",
+          "model": "hermes-2-pro-llama-3-8b",
+          "short_name": "hermes-2-pro-llama-3-8b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/nousresearch/hermes-3-llama-3.1-405b",
+          "model": "hermes-3-llama-3.1-405b",
+          "short_name": "hermes-3-llama-3.1-405b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/nousresearch/hermes-3-llama-3.1-70b",
+          "model": "hermes-3-llama-3.1-70b",
+          "short_name": "hermes-3-llama-3.1-70b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/nousresearch/hermes-4-405b",
+          "model": "hermes-4-405b",
+          "short_name": "hermes-4-405b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/nousresearch/hermes-4-70b",
+          "model": "hermes-4-70b",
+          "short_name": "hermes-4-70b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "nvidia": {
+      "count": 5,
+      "models": [
+        {
+          "full_name": "kilo/nvidia/llama-3.1-nemotron-70b-instruct",
+          "model": "llama-3.1-nemotron-70b-instruct",
+          "short_name": "llama-3.1-nemotron-70b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/nvidia/llama-3.3-nemotron-super-49b-v1.5",
+          "model": "llama-3.3-nemotron-super-49b-v1.5",
+          "short_name": "llama-3.3-nemotron-super-49b-v1.5",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/nvidia/nemotron-3-nano-30b-a3b",
+          "model": "nemotron-3-nano-30b-a3b",
+          "short_name": "nemotron-3-nano-30b-a3b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/nvidia/nemotron-nano-12b-v2-vl",
+          "model": "nemotron-nano-12b-v2-vl",
+          "short_name": "nemotron-nano-12b-v2-vl",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/nvidia/nemotron-nano-9b-v2",
+          "model": "nemotron-nano-9b-v2",
+          "short_name": "nemotron-nano-9b-v2",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "openai": {
+      "count": 54,
+      "models": [
+        {
+          "full_name": "kilo/openai/gpt-3.5-turbo",
+          "model": "gpt-3.5-turbo",
+          "short_name": "gpt-3.5-turbo",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-3.5-turbo-0613",
+          "model": "gpt-3.5-turbo-0613",
+          "short_name": "gpt-3.5-turbo-0613",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-3.5-turbo-16k",
+          "model": "gpt-3.5-turbo-16k",
+          "short_name": "gpt-3.5-turbo-16k",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-3.5-turbo-instruct",
+          "model": "gpt-3.5-turbo-instruct",
+          "short_name": "gpt-3.5-turbo-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4",
+          "model": "gpt-4",
+          "short_name": "gpt-4",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4-0314",
+          "model": "gpt-4-0314",
+          "short_name": "gpt-4-0314",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4-1106-preview",
+          "model": "gpt-4-1106-preview",
+          "short_name": "gpt-4-1106-preview",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4-turbo",
+          "model": "gpt-4-turbo",
+          "short_name": "gpt-4-turbo",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4-turbo-preview",
+          "model": "gpt-4-turbo-preview",
+          "short_name": "gpt-4-turbo-preview",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4.1",
+          "model": "gpt-4.1",
+          "short_name": "gpt-4.1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4.1-mini",
+          "model": "gpt-4.1-mini",
+          "short_name": "gpt-4.1-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4.1-nano",
+          "model": "gpt-4.1-nano",
+          "short_name": "gpt-4.1-nano",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o",
+          "model": "gpt-4o",
+          "short_name": "gpt-4o",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o-2024-05-13",
+          "model": "gpt-4o-2024-05-13",
+          "short_name": "gpt-4o-2024-05-13",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o-2024-08-06",
+          "model": "gpt-4o-2024-08-06",
+          "short_name": "gpt-4o-2024-08-06",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o-2024-11-20",
+          "model": "gpt-4o-2024-11-20",
+          "short_name": "gpt-4o-2024-11-20",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o-audio-preview",
+          "model": "gpt-4o-audio-preview",
+          "short_name": "gpt-4o-audio-preview",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o-mini",
+          "model": "gpt-4o-mini",
+          "short_name": "gpt-4o-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o-mini-2024-07-18",
+          "model": "gpt-4o-mini-2024-07-18",
+          "short_name": "gpt-4o-mini-2024-07-18",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o-mini-search-preview",
+          "model": "gpt-4o-mini-search-preview",
+          "short_name": "gpt-4o-mini-search-preview",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o-search-preview",
+          "model": "gpt-4o-search-preview",
+          "short_name": "gpt-4o-search-preview",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-4o:extended",
+          "model": "gpt-4o:extended",
+          "short_name": "gpt-4o",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5",
+          "model": "gpt-5",
+          "short_name": "gpt-5",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5-chat",
+          "model": "gpt-5-chat",
+          "short_name": "gpt-5-chat",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5-codex",
+          "model": "gpt-5-codex",
+          "short_name": "gpt-5-codex",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5-mini",
+          "model": "gpt-5-mini",
+          "short_name": "gpt-5-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5-nano",
+          "model": "gpt-5-nano",
+          "short_name": "gpt-5-nano",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5-pro",
+          "model": "gpt-5-pro",
+          "short_name": "gpt-5-pro",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.1",
+          "model": "gpt-5.1",
+          "short_name": "gpt-5.1",
+          "has_pricing": true,
+          "price": 0.5
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.1-chat",
+          "model": "gpt-5.1-chat",
+          "short_name": "gpt-5.1-chat",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.1-codex",
+          "model": "gpt-5.1-codex",
+          "short_name": "gpt-5.1-codex",
+          "has_pricing": true,
+          "price": 0.5
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.1-codex-max",
+          "model": "gpt-5.1-codex-max",
+          "short_name": "gpt-5.1-codex-max",
+          "has_pricing": true,
+          "price": 0.5
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.1-codex-mini",
+          "model": "gpt-5.1-codex-mini",
+          "short_name": "gpt-5.1-codex-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.2",
+          "model": "gpt-5.2",
+          "short_name": "gpt-5.2",
+          "has_pricing": true,
+          "price": 0.7
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.2-chat",
+          "model": "gpt-5.2-chat",
+          "short_name": "gpt-5.2-chat",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.2-codex",
+          "model": "gpt-5.2-codex",
+          "short_name": "gpt-5.2-codex",
+          "has_pricing": true,
+          "price": 0.7
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.2-pro",
+          "model": "gpt-5.2-pro",
+          "short_name": "gpt-5.2-pro",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-5.3-codex",
+          "model": "gpt-5.3-codex",
+          "short_name": "gpt-5.3-codex",
+          "has_pricing": true,
+          "price": 0.7
+        },
+        {
+          "full_name": "kilo/openai/gpt-audio",
+          "model": "gpt-audio",
+          "short_name": "gpt-audio",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-audio-mini",
+          "model": "gpt-audio-mini",
+          "short_name": "gpt-audio-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-oss-120b",
+          "model": "gpt-oss-120b",
+          "short_name": "gpt-oss-120b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-oss-120b:exacto",
+          "model": "gpt-oss-120b:exacto",
+          "short_name": "gpt-oss-120b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-oss-20b",
+          "model": "gpt-oss-20b",
+          "short_name": "gpt-oss-20b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/gpt-oss-safeguard-20b",
+          "model": "gpt-oss-safeguard-20b",
+          "short_name": "gpt-oss-safeguard-20b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o1",
+          "model": "o1",
+          "short_name": "o1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o1-pro",
+          "model": "o1-pro",
+          "short_name": "o1-pro",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o3",
+          "model": "o3",
+          "short_name": "o3",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o3-deep-research",
+          "model": "o3-deep-research",
+          "short_name": "o3-deep-research",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o3-mini",
+          "model": "o3-mini",
+          "short_name": "o3-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o3-mini-high",
+          "model": "o3-mini-high",
+          "short_name": "o3-mini-high",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o3-pro",
+          "model": "o3-pro",
+          "short_name": "o3-pro",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o4-mini",
+          "model": "o4-mini",
+          "short_name": "o4-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o4-mini-deep-research",
+          "model": "o4-mini-deep-research",
+          "short_name": "o4-mini-deep-research",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openai/o4-mini-high",
+          "model": "o4-mini-high",
+          "short_name": "o4-mini-high",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "opengvlab": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/opengvlab/internvl3-78b",
+          "model": "internvl3-78b",
+          "short_name": "internvl3-78b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "openrouter": {
+      "count": 2,
+      "models": [
+        {
+          "full_name": "kilo/openrouter/bodybuilder",
+          "model": "bodybuilder",
+          "short_name": "bodybuilder",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/openrouter/free",
+          "model": "free",
+          "short_name": "free",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "perplexity": {
+      "count": 5,
+      "models": [
+        {
+          "full_name": "kilo/perplexity/sonar",
+          "model": "sonar",
+          "short_name": "sonar",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/perplexity/sonar-deep-research",
+          "model": "sonar-deep-research",
+          "short_name": "sonar-deep-research",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/perplexity/sonar-pro",
+          "model": "sonar-pro",
+          "short_name": "sonar-pro",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/perplexity/sonar-pro-search",
+          "model": "sonar-pro-search",
+          "short_name": "sonar-pro-search",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/perplexity/sonar-reasoning-pro",
+          "model": "sonar-reasoning-pro",
+          "short_name": "sonar-reasoning-pro",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "prime-intellect": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/prime-intellect/intellect-3",
+          "model": "intellect-3",
+          "short_name": "intellect-3",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "qwen": {
+      "count": 47,
+      "models": [
+        {
+          "full_name": "kilo/qwen/qwen-2.5-72b-instruct",
+          "model": "qwen-2.5-72b-instruct",
+          "short_name": "qwen-2.5-72b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-2.5-7b-instruct",
+          "model": "qwen-2.5-7b-instruct",
+          "short_name": "qwen-2.5-7b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-2.5-coder-32b-instruct",
+          "model": "qwen-2.5-coder-32b-instruct",
+          "short_name": "qwen-2.5-coder-32b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-2.5-vl-7b-instruct",
+          "model": "qwen-2.5-vl-7b-instruct",
+          "short_name": "qwen-2.5-vl-7b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-max",
+          "model": "qwen-max",
+          "short_name": "qwen-max",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-plus",
+          "model": "qwen-plus",
+          "short_name": "qwen-plus",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-plus-2025-07-28",
+          "model": "qwen-plus-2025-07-28",
+          "short_name": "qwen-plus-2025-07-28",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-plus-2025-07-28:thinking",
+          "model": "qwen-plus-2025-07-28:thinking",
+          "short_name": "qwen-plus-2025-07-28",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-turbo",
+          "model": "qwen-turbo",
+          "short_name": "qwen-turbo",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-vl-max",
+          "model": "qwen-vl-max",
+          "short_name": "qwen-vl-max",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen-vl-plus",
+          "model": "qwen-vl-plus",
+          "short_name": "qwen-vl-plus",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen2.5-coder-7b-instruct",
+          "model": "qwen2.5-coder-7b-instruct",
+          "short_name": "qwen2.5-coder-7b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen2.5-vl-32b-instruct",
+          "model": "qwen2.5-vl-32b-instruct",
+          "short_name": "qwen2.5-vl-32b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen2.5-vl-72b-instruct",
+          "model": "qwen2.5-vl-72b-instruct",
+          "short_name": "qwen2.5-vl-72b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-14b",
+          "model": "qwen3-14b",
+          "short_name": "qwen3-14b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-235b-a22b",
+          "model": "qwen3-235b-a22b",
+          "short_name": "qwen3-235b-a22b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-235b-a22b-2507",
+          "model": "qwen3-235b-a22b-2507",
+          "short_name": "qwen3-235b-a22b-2507",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-235b-a22b-thinking-2507",
+          "model": "qwen3-235b-a22b-thinking-2507",
+          "short_name": "qwen3-235b-a22b-thinking-2507",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-30b-a3b",
+          "model": "qwen3-30b-a3b",
+          "short_name": "qwen3-30b-a3b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-30b-a3b-instruct-2507",
+          "model": "qwen3-30b-a3b-instruct-2507",
+          "short_name": "qwen3-30b-a3b-instruct-2507",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-30b-a3b-thinking-2507",
+          "model": "qwen3-30b-a3b-thinking-2507",
+          "short_name": "qwen3-30b-a3b-thinking-2507",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-32b",
+          "model": "qwen3-32b",
+          "short_name": "qwen3-32b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-8b",
+          "model": "qwen3-8b",
+          "short_name": "qwen3-8b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-coder",
+          "model": "qwen3-coder",
+          "short_name": "qwen3-coder",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-coder-30b-a3b-instruct",
+          "model": "qwen3-coder-30b-a3b-instruct",
+          "short_name": "qwen3-coder-30b-a3b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-coder-flash",
+          "model": "qwen3-coder-flash",
+          "short_name": "qwen3-coder-flash",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-coder-next",
+          "model": "qwen3-coder-next",
+          "short_name": "qwen3-coder-next",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-coder-plus",
+          "model": "qwen3-coder-plus",
+          "short_name": "qwen3-coder-plus",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-coder:exacto",
+          "model": "qwen3-coder:exacto",
+          "short_name": "qwen3-coder",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-max",
+          "model": "qwen3-max",
+          "short_name": "qwen3-max",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-max-thinking",
+          "model": "qwen3-max-thinking",
+          "short_name": "qwen3-max-thinking",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-next-80b-a3b-instruct",
+          "model": "qwen3-next-80b-a3b-instruct",
+          "short_name": "qwen3-next-80b-a3b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-next-80b-a3b-thinking",
+          "model": "qwen3-next-80b-a3b-thinking",
+          "short_name": "qwen3-next-80b-a3b-thinking",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-vl-235b-a22b-instruct",
+          "model": "qwen3-vl-235b-a22b-instruct",
+          "short_name": "qwen3-vl-235b-a22b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-vl-235b-a22b-thinking",
+          "model": "qwen3-vl-235b-a22b-thinking",
+          "short_name": "qwen3-vl-235b-a22b-thinking",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-vl-30b-a3b-instruct",
+          "model": "qwen3-vl-30b-a3b-instruct",
+          "short_name": "qwen3-vl-30b-a3b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-vl-30b-a3b-thinking",
+          "model": "qwen3-vl-30b-a3b-thinking",
+          "short_name": "qwen3-vl-30b-a3b-thinking",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-vl-32b-instruct",
+          "model": "qwen3-vl-32b-instruct",
+          "short_name": "qwen3-vl-32b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-vl-8b-instruct",
+          "model": "qwen3-vl-8b-instruct",
+          "short_name": "qwen3-vl-8b-instruct",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3-vl-8b-thinking",
+          "model": "qwen3-vl-8b-thinking",
+          "short_name": "qwen3-vl-8b-thinking",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3.5-122b-a10b",
+          "model": "qwen3.5-122b-a10b",
+          "short_name": "qwen3.5-122b-a10b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3.5-27b",
+          "model": "qwen3.5-27b",
+          "short_name": "qwen3.5-27b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3.5-35b-a3b",
+          "model": "qwen3.5-35b-a3b",
+          "short_name": "qwen3.5-35b-a3b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3.5-397b-a17b",
+          "model": "qwen3.5-397b-a17b",
+          "short_name": "qwen3.5-397b-a17b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3.5-flash-02-23",
+          "model": "qwen3.5-flash-02-23",
+          "short_name": "qwen3.5-flash-02-23",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwen3.5-plus-02-15",
+          "model": "qwen3.5-plus-02-15",
+          "short_name": "qwen3.5-plus-02-15",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/qwen/qwq-32b",
+          "model": "qwq-32b",
+          "short_name": "qwq-32b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "raifle": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/raifle/sorcererlm-8x22b",
+          "model": "sorcererlm-8x22b",
+          "short_name": "sorcererlm-8x22b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "relace": {
+      "count": 2,
+      "models": [
+        {
+          "full_name": "kilo/relace/relace-apply-3",
+          "model": "relace-apply-3",
+          "short_name": "relace-apply-3",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/relace/relace-search",
+          "model": "relace-search",
+          "short_name": "relace-search",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "sao10k": {
+      "count": 5,
+      "models": [
+        {
+          "full_name": "kilo/sao10k/l3-euryale-70b",
+          "model": "l3-euryale-70b",
+          "short_name": "l3-euryale-70b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/sao10k/l3-lunaris-8b",
+          "model": "l3-lunaris-8b",
+          "short_name": "l3-lunaris-8b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/sao10k/l3.1-70b-hanami-x1",
+          "model": "l3.1-70b-hanami-x1",
+          "short_name": "l3.1-70b-hanami-x1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/sao10k/l3.1-euryale-70b",
+          "model": "l3.1-euryale-70b",
+          "short_name": "l3.1-euryale-70b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/sao10k/l3.3-euryale-70b",
+          "model": "l3.3-euryale-70b",
+          "short_name": "l3.3-euryale-70b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "stepfun": {
+      "count": 2,
+      "models": [
+        {
+          "full_name": "kilo/stepfun/step-3.5-flash",
+          "model": "step-3.5-flash",
+          "short_name": "step-3.5-flash",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/stepfun/step-3.5-flash:free",
+          "model": "step-3.5-flash:free",
+          "short_name": "step-3.5-flash",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "switchpoint": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/switchpoint/router",
+          "model": "router",
+          "short_name": "router",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "tencent": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/tencent/hunyuan-a13b-instruct",
+          "model": "hunyuan-a13b-instruct",
+          "short_name": "hunyuan-a13b-instruct",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "thedrummer": {
+      "count": 4,
+      "models": [
+        {
+          "full_name": "kilo/thedrummer/cydonia-24b-v4.1",
+          "model": "cydonia-24b-v4.1",
+          "short_name": "cydonia-24b-v4.1",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/thedrummer/rocinante-12b",
+          "model": "rocinante-12b",
+          "short_name": "rocinante-12b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/thedrummer/skyfall-36b-v2",
+          "model": "skyfall-36b-v2",
+          "short_name": "skyfall-36b-v2",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/thedrummer/unslopnemo-12b",
+          "model": "unslopnemo-12b",
+          "short_name": "unslopnemo-12b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "tngtech": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/tngtech/deepseek-r1t2-chimera",
+          "model": "deepseek-r1t2-chimera",
+          "short_name": "deepseek-r1t2-chimera",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "undi95": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/undi95/remm-slerp-l2-13b",
+          "model": "remm-slerp-l2-13b",
+          "short_name": "remm-slerp-l2-13b",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "writer": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/writer/palmyra-x5",
+          "model": "palmyra-x5",
+          "short_name": "palmyra-x5",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "x-ai": {
+      "count": 8,
+      "models": [
+        {
+          "full_name": "kilo/x-ai/grok-3",
+          "model": "grok-3",
+          "short_name": "grok-3",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/x-ai/grok-3-beta",
+          "model": "grok-3-beta",
+          "short_name": "grok-3-beta",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/x-ai/grok-3-mini",
+          "model": "grok-3-mini",
+          "short_name": "grok-3-mini",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/x-ai/grok-3-mini-beta",
+          "model": "grok-3-mini-beta",
+          "short_name": "grok-3-mini-beta",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/x-ai/grok-4",
+          "model": "grok-4",
+          "short_name": "grok-4",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/x-ai/grok-4-fast",
+          "model": "grok-4-fast",
+          "short_name": "grok-4-fast",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/x-ai/grok-4.1-fast",
+          "model": "grok-4.1-fast",
+          "short_name": "grok-4.1-fast",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/x-ai/grok-code-fast-1",
+          "model": "grok-code-fast-1",
+          "short_name": "grok-code-fast-1",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "xiaomi": {
+      "count": 1,
+      "models": [
+        {
+          "full_name": "kilo/xiaomi/mimo-v2-flash",
+          "model": "mimo-v2-flash",
+          "short_name": "mimo-v2-flash",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    },
+    "z-ai": {
+      "count": 10,
+      "models": [
+        {
+          "full_name": "kilo/z-ai/glm-4-32b",
+          "model": "glm-4-32b",
+          "short_name": "glm-4-32b",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/z-ai/glm-4.5",
+          "model": "glm-4.5",
+          "short_name": "glm-4.5",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/z-ai/glm-4.5-air",
+          "model": "glm-4.5-air",
+          "short_name": "glm-4.5-air",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/z-ai/glm-4.5v",
+          "model": "glm-4.5v",
+          "short_name": "glm-4.5v",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/z-ai/glm-4.6",
+          "model": "glm-4.6",
+          "short_name": "glm-4.6",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/z-ai/glm-4.6:exacto",
+          "model": "glm-4.6:exacto",
+          "short_name": "glm-4.6",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/z-ai/glm-4.6v",
+          "model": "glm-4.6v",
+          "short_name": "glm-4.6v",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/z-ai/glm-4.7",
+          "model": "glm-4.7",
+          "short_name": "glm-4.7",
+          "has_pricing": true,
+          "price": 0.25
+        },
+        {
+          "full_name": "kilo/z-ai/glm-4.7-flash",
+          "model": "glm-4.7-flash",
+          "short_name": "glm-4.7-flash",
+          "has_pricing": false,
+          "price": null
+        },
+        {
+          "full_name": "kilo/z-ai/glm-5",
+          "model": "glm-5",
+          "short_name": "glm-5",
+          "has_pricing": false,
+          "price": null
+        }
+      ]
+    }
+  },
+  "categories": {
+    "coding": {
+      "count": 20,
+      "models": [
+        "kilo/alfredpros/codellama-7b-instruct-solidity",
+        "kilo/arcee-ai/coder-large",
+        "kilo/inception/mercury-coder",
+        "kilo/kwaipilot/kat-coder-pro",
+        "kilo/mistralai/codestral-2508",
+        "kilo/openai/gpt-5-codex",
+        "kilo/openai/gpt-5.1-codex",
+        "kilo/openai/gpt-5.1-codex-max",
+        "kilo/openai/gpt-5.1-codex-mini",
+        "kilo/openai/gpt-5.2-codex",
+        "kilo/openai/gpt-5.3-codex",
+        "kilo/qwen/qwen-2.5-coder-32b-instruct",
+        "kilo/qwen/qwen2.5-coder-7b-instruct",
+        "kilo/qwen/qwen3-coder",
+        "kilo/qwen/qwen3-coder-30b-a3b-instruct",
+        "kilo/qwen/qwen3-coder-flash",
+        "kilo/qwen/qwen3-coder-next",
+        "kilo/qwen/qwen3-coder-plus",
+        "kilo/qwen/qwen3-coder:exacto",
+        "kilo/x-ai/grok-code-fast-1"
+      ]
+    },
+    "vision": {
+      "count": 17,
+      "models": [
+        "kilo/baidu/ernie-4.5-vl-28b-a3b",
+        "kilo/baidu/ernie-4.5-vl-424b-a47b",
+        "kilo/meta-llama/llama-3.2-11b-vision-instruct",
+        "kilo/nvidia/nemotron-nano-12b-v2-vl",
+        "kilo/opengvlab/internvl3-78b",
+        "kilo/qwen/qwen-2.5-vl-7b-instruct",
+        "kilo/qwen/qwen-vl-max",
+        "kilo/qwen/qwen-vl-plus",
+        "kilo/qwen/qwen2.5-vl-32b-instruct",
+        "kilo/qwen/qwen2.5-vl-72b-instruct",
+        "kilo/qwen/qwen3-vl-235b-a22b-instruct",
+        "kilo/qwen/qwen3-vl-235b-a22b-thinking",
+        "kilo/qwen/qwen3-vl-30b-a3b-instruct",
+        "kilo/qwen/qwen3-vl-30b-a3b-thinking",
+        "kilo/qwen/qwen3-vl-32b-instruct",
+        "kilo/qwen/qwen3-vl-8b-instruct",
+        "kilo/qwen/qwen3-vl-8b-thinking"
+      ]
+    },
+    "thinking": {
+      "count": 27,
+      "models": [
+        "kilo/allenai/olmo-3-32b-think",
+        "kilo/allenai/olmo-3-7b-think",
+        "kilo/anthropic/claude-3.7-sonnet:thinking",
+        "kilo/arcee-ai/maestro-reasoning",
+        "kilo/baidu/ernie-4.5-21b-a3b-thinking",
+        "kilo/deepseek/deepseek-r1",
+        "kilo/deepseek/deepseek-r1-0528",
+        "kilo/deepseek/deepseek-r1-distill-llama-70b",
+        "kilo/deepseek/deepseek-r1-distill-qwen-32b",
+        "kilo/moonshotai/kimi-k2-thinking",
+        "kilo/openai/o1",
+        "kilo/openai/o1-pro",
+        "kilo/openai/o3",
+        "kilo/openai/o3-deep-research",
+        "kilo/openai/o3-mini",
+        "kilo/openai/o3-mini-high",
+        "kilo/openai/o3-pro",
+        "kilo/perplexity/sonar-reasoning-pro",
+        "kilo/qwen/qwen-plus-2025-07-28:thinking",
+        "kilo/qwen/qwen3-235b-a22b-thinking-2507",
+        "kilo/qwen/qwen3-30b-a3b-thinking-2507",
+        "kilo/qwen/qwen3-max-thinking",
+        "kilo/qwen/qwen3-next-80b-a3b-thinking",
+        "kilo/qwen/qwen3-vl-235b-a22b-thinking",
+        "kilo/qwen/qwen3-vl-30b-a3b-thinking",
+        "kilo/qwen/qwen3-vl-8b-thinking",
+        "kilo/tngtech/deepseek-r1t2-chimera"
+      ]
+    },
+    "flash": {
+      "count": 14,
+      "models": [
+        "kilo/bytedance-seed/seed-1.6-flash",
+        "kilo/google/gemini-2.0-flash-001",
+        "kilo/google/gemini-2.0-flash-lite-001",
+        "kilo/google/gemini-2.5-flash",
+        "kilo/google/gemini-2.5-flash-lite",
+        "kilo/google/gemini-2.5-flash-lite-preview-09-2025",
+        "kilo/google/gemini-3-flash-preview",
+        "kilo/meituan/longcat-flash-chat",
+        "kilo/qwen/qwen3-coder-flash",
+        "kilo/qwen/qwen3.5-flash-02-23",
+        "kilo/stepfun/step-3.5-flash",
+        "kilo/stepfun/step-3.5-flash:free",
+        "kilo/xiaomi/mimo-v2-flash",
+        "kilo/z-ai/glm-4.7-flash"
+      ]
+    },
+    "mini": {
+      "count": 50,
+      "models": [
+        "kilo/aion-labs/aion-1.0-mini",
+        "kilo/amazon/nova-2-lite-v1",
+        "kilo/amazon/nova-lite-v1",
+        "kilo/amazon/nova-micro-v1",
+        "kilo/arcee-ai/trinity-mini",
+        "kilo/bytedance-seed/seed-2.0-mini",
+        "kilo/google/gemini-2.0-flash-001",
+        "kilo/google/gemini-2.0-flash-lite-001",
+        "kilo/google/gemini-2.5-flash",
+        "kilo/google/gemini-2.5-flash-lite",
+        "kilo/google/gemini-2.5-flash-lite-preview-09-2025",
+        "kilo/google/gemini-2.5-pro",
+        "kilo/google/gemini-2.5-pro-preview",
+        "kilo/google/gemini-2.5-pro-preview-05-06",
+        "kilo/google/gemini-3-flash-preview",
+        "kilo/google/gemini-3-pro-preview",
+        "kilo/google/gemini-3.1-pro-preview",
+        "kilo/google/gemini-3.1-pro-preview-customtools",
+        "kilo/ibm-granite/granite-4.0-h-micro",
+        "kilo/kilo/auto-small",
+        "kilo/minimax/minimax-01",
+        "kilo/minimax/minimax-m1",
+        "kilo/minimax/minimax-m2",
+        "kilo/minimax/minimax-m2-her",
+        "kilo/minimax/minimax-m2.1",
+        "kilo/minimax/minimax-m2.5",
+        "kilo/minimax/minimax-m2.5:free",
+        "kilo/mistralai/devstral-small",
+        "kilo/mistralai/ministral-14b-2512",
+        "kilo/mistralai/ministral-3b-2512",
+        "kilo/mistralai/ministral-8b-2512",
+        "kilo/mistralai/mistral-small-24b-instruct-2501",
+        "kilo/mistralai/mistral-small-3.1-24b-instruct",
+        "kilo/mistralai/mistral-small-3.2-24b-instruct",
+        "kilo/mistralai/mistral-small-creative",
+        "kilo/mistralai/voxtral-small-24b-2507",
+        "kilo/openai/gpt-4.1-mini",
+        "kilo/openai/gpt-4o-mini",
+        "kilo/openai/gpt-4o-mini-2024-07-18",
+        "kilo/openai/gpt-4o-mini-search-preview",
+        "kilo/openai/gpt-5-mini",
+        "kilo/openai/gpt-5.1-codex-mini",
+        "kilo/openai/gpt-audio-mini",
+        "kilo/openai/o3-mini",
+        "kilo/openai/o3-mini-high",
+        "kilo/openai/o4-mini",
+        "kilo/openai/o4-mini-deep-research",
+        "kilo/openai/o4-mini-high",
+        "kilo/x-ai/grok-3-mini",
+        "kilo/x-ai/grok-3-mini-beta"
+      ]
+    },
+    "chinese": {
+      "count": 81,
+      "models": [
+        "kilo/baidu/ernie-4.5-21b-a3b",
+        "kilo/baidu/ernie-4.5-21b-a3b-thinking",
+        "kilo/baidu/ernie-4.5-300b-a47b",
+        "kilo/baidu/ernie-4.5-vl-28b-a3b",
+        "kilo/baidu/ernie-4.5-vl-424b-a47b",
+        "kilo/deepseek/deepseek-chat",
+        "kilo/deepseek/deepseek-chat-v3-0324",
+        "kilo/deepseek/deepseek-chat-v3.1",
+        "kilo/deepseek/deepseek-r1",
+        "kilo/deepseek/deepseek-r1-0528",
+        "kilo/deepseek/deepseek-r1-distill-llama-70b",
+        "kilo/deepseek/deepseek-r1-distill-qwen-32b",
+        "kilo/deepseek/deepseek-v3.1-terminus",
+        "kilo/deepseek/deepseek-v3.1-terminus:exacto",
+        "kilo/deepseek/deepseek-v3.2",
+        "kilo/deepseek/deepseek-v3.2-exp",
+        "kilo/deepseek/deepseek-v3.2-speciale",
+        "kilo/moonshotai/kimi-k2",
+        "kilo/moonshotai/kimi-k2-0905",
+        "kilo/moonshotai/kimi-k2-0905:exacto",
+        "kilo/moonshotai/kimi-k2-thinking",
+        "kilo/moonshotai/kimi-k2.5",
+        "kilo/moonshotai/kimi-k2.5:free",
+        "kilo/qwen/qwen-2.5-72b-instruct",
+        "kilo/qwen/qwen-2.5-7b-instruct",
+        "kilo/qwen/qwen-2.5-coder-32b-instruct",
+        "kilo/qwen/qwen-2.5-vl-7b-instruct",
+        "kilo/qwen/qwen-max",
+        "kilo/qwen/qwen-plus",
+        "kilo/qwen/qwen-plus-2025-07-28",
+        "kilo/qwen/qwen-plus-2025-07-28:thinking",
+        "kilo/qwen/qwen-turbo",
+        "kilo/qwen/qwen-vl-max",
+        "kilo/qwen/qwen-vl-plus",
+        "kilo/qwen/qwen2.5-coder-7b-instruct",
+        "kilo/qwen/qwen2.5-vl-32b-instruct",
+        "kilo/qwen/qwen2.5-vl-72b-instruct",
+        "kilo/qwen/qwen3-14b",
+        "kilo/qwen/qwen3-235b-a22b",
+        "kilo/qwen/qwen3-235b-a22b-2507",
+        "kilo/qwen/qwen3-235b-a22b-thinking-2507",
+        "kilo/qwen/qwen3-30b-a3b",
+        "kilo/qwen/qwen3-30b-a3b-instruct-2507",
+        "kilo/qwen/qwen3-30b-a3b-thinking-2507",
+        "kilo/qwen/qwen3-32b",
+        "kilo/qwen/qwen3-8b",
+        "kilo/qwen/qwen3-coder",
+        "kilo/qwen/qwen3-coder-30b-a3b-instruct",
+        "kilo/qwen/qwen3-coder-flash",
+        "kilo/qwen/qwen3-coder-next",
+        "kilo/qwen/qwen3-coder-plus",
+        "kilo/qwen/qwen3-coder:exacto",
+        "kilo/qwen/qwen3-max",
+        "kilo/qwen/qwen3-max-thinking",
+        "kilo/qwen/qwen3-next-80b-a3b-instruct",
+        "kilo/qwen/qwen3-next-80b-a3b-thinking",
+        "kilo/qwen/qwen3-vl-235b-a22b-instruct",
+        "kilo/qwen/qwen3-vl-235b-a22b-thinking",
+        "kilo/qwen/qwen3-vl-30b-a3b-instruct",
+        "kilo/qwen/qwen3-vl-30b-a3b-thinking",
+        "kilo/qwen/qwen3-vl-32b-instruct",
+        "kilo/qwen/qwen3-vl-8b-instruct",
+        "kilo/qwen/qwen3-vl-8b-thinking",
+        "kilo/qwen/qwen3.5-122b-a10b",
+        "kilo/qwen/qwen3.5-27b",
+        "kilo/qwen/qwen3.5-35b-a3b",
+        "kilo/qwen/qwen3.5-397b-a17b",
+        "kilo/qwen/qwen3.5-flash-02-23",
+        "kilo/qwen/qwen3.5-plus-02-15",
+        "kilo/qwen/qwq-32b",
+        "kilo/tencent/hunyuan-a13b-instruct",
+        "kilo/z-ai/glm-4-32b",
+        "kilo/z-ai/glm-4.5",
+        "kilo/z-ai/glm-4.5-air",
+        "kilo/z-ai/glm-4.5v",
+        "kilo/z-ai/glm-4.6",
+        "kilo/z-ai/glm-4.6:exacto",
+        "kilo/z-ai/glm-4.6v",
+        "kilo/z-ai/glm-4.7",
+        "kilo/z-ai/glm-4.7-flash",
+        "kilo/z-ai/glm-5"
+      ]
+    }
+  },
+  "models_with_pricing": 13
+}

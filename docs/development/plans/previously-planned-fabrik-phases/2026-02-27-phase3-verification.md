@@ -190,7 +190,7 @@ Current CLI only has: `new`, `plan`, `apply`, `logs`, `destroy`, `templates`
 
 What exists:
 - ✅ Basic content generation (`ContentGenerator`)
-- ✅ Legal content generation (`LegalContentGenerator`)  
+- ✅ Legal content generation (`LegalContentGenerator`)
 - ✅ SEO settings applicator
 
 What's missing:

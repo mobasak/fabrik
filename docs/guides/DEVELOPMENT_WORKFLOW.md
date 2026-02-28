@@ -43,7 +43,7 @@ This follows Traycer's core planning loop:
 - Database changes
 - Documentation impact
 
-**Output:** Async job submitted to `.factory_jobs/` and executing via `droid exec`.
+**Output:** Async job submitted to `.factory_jobs/` and executing via Kilo CLI agents.
 
 **Epic note:** In Epic Mode, Traycer organizes work into mini-spec artifacts (Specs) and actionable Tickets. Epic Mode is driven by **Workflows** (default: Traycer Agile Workflow), which are structured command sequences (e.g., `/trigger_workflow` → `/epic-brief` → `/core-flows` → `/prd-validation` → `/tech-plan` → `/architecture-validation` → `/ticket-breakdown` → `/implementation-validation`) that guide the elicitation process.
 
@@ -69,7 +69,7 @@ Epic Mode also tracks **Executions** as an audit trail for each agent handoff (w
 
 ### Step 2: Coder Implements
 
-**Who:** AI Agent (Cascade, Cursor, droid exec)
+**Who:** AI Agent (Cascade, Cursor, Kilo CLI)
 
 **What:** Writes code following the plan spec exactly.
 
@@ -120,7 +120,6 @@ Epic Mode also tracks **Executions** as an audit trail for each agent handoff (w
 | Project Structure | `check_structure.py` | MD file placement |
 | Fabrik Convention Validator | `validate_conventions.py` | Orchestrates all enforcement checks |
 | Rule File Size Guard | `check_rule_size.py` | `.windsurf/rules` < 12KB |
-| Sync Droid Model Names | `droid_models.py sync` | Model config sync |
 | CHANGELOG.md Updated | `check_changelog.py` | Changelog required for code changes |
 | Kilo CLI Health Check | `check_kilo_health.sh` | Verify Kilo CLI works |
 | Symlink Integrity | `check_symlinks()` | Verify `.windsurfrules` symlinks |
@@ -367,5 +366,5 @@ git commit -m "feat: description"
 ## See Also
 
 - [AGENTS.md](../../AGENTS.md) — Agent instructions
-- [Kilo Reference](../reference/kilo-complete-reference.md) — Kilo CLI details
+- [Kilo Reference](../reference/kilo/README.md) — Kilo CLI details
 - [Fabrik Scaffold Specs](../reference/fabrik-scaffold-specs.md) — Scaffold structure

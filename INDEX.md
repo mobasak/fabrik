@@ -1,6 +1,6 @@
 # Project File Index
 
-**Last Updated:** 2026-02-25
+**Last Updated:** 2026-02-28
 
 > **Purpose:** Single source of truth for all file purposes in this project.
 > **For AI Agents:** Read this FIRST before making changes. Every file's purpose and update trigger is documented here.
@@ -92,7 +92,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 - Project Structure
 - Fabrik Convention Validator
 - Rule File Size Guard
-- Sync Droid Model Names
 - INDEX.md (Master File Index)
 - README.md (Primary Entry Point)
   - CONFIGURATION.md (Configuration Guide - credentials, architecture context, troubleshooting)
@@ -358,10 +357,11 @@ docs/
 │   ├── file-api-deployment.md      # File API deployment guide
 │   ├── global-gates.md             # Global gate definitions
 │   ├── hooks-and-skills-guide.md   # Hook and skill usage guide
-│   ├── kilo-agents.md              # Kilo agent configuration and usage
-│   ├── kilo-code-review.md         # Kilo code review workflow
-│   ├── kilo-complete-reference.md  # Complete Kilo reference
-│   ├── kilo-files.md               # Kilo file handling reference
+│   ├── kilo/                       # Kilo agent system documentation
+│   │   ├── README.md               # Kilo system overview
+│   │   ├── KILO_AGENT_NAMING.md    # Tier-based naming convention
+│   │   ├── KILO_UPDATE_SCHEDULE.md # Update automation
+│   │   └── KILO_EXTRACTION_SUMMARY.md
 │   ├── kpi-schema.md
 │   ├── mcp-config.md               # MCP server configuration reference
 │   ├── orchestrator.md             # Deployment orchestrator module
@@ -410,7 +410,7 @@ docs/
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [TESTING.md](docs/TESTING.md) | How to run and write tests |
 | [FAQ.md](docs/FAQ.md) | Frequently asked questions |
-| [ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) | Complete env var reference |
+| [.env.example](.env.example) | Environment variable reference (AUTHORITATIVE with inline comments) |
 
 ### Core Reference
 
@@ -428,16 +428,16 @@ docs/
 | [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |
 | [enforcement-system.md](docs/reference/enforcement-system.md) | Convention enforcement scripts and rules |
 
-**SaaS Template:** `templates/saas-skeleton/` — Next.js + Tailwind + SSE streaming for droid exec
+**SaaS Template:** `templates/saas-skeleton/` — Next.js + Tailwind + SSE streaming for AI chat integration
 
 ### Phase Documentation
 
 | Phase | Status | Document |
 |-------|--------|----------|
-| **Phase 1: Foundation** | ✅ Complete | [architecture.md](docs/reference/architecture.md) |
-| **Phase 1b: Cloud Infrastructure** | ✅ Complete | [DEPLOYMENT.md](docs/DEPLOYMENT.md) |
-| **Phase 1c: Cloudflare DNS** | ✅ Complete | [SERVICES.md](docs/SERVICES.md) |
-| **Phase 1d: WordPress Automation** | 🚧 In Progress | [wordpress.md](docs/reference/wordpress.md) |
+| **Phase 1: Foundation** | Complete | [architecture.md](docs/reference/architecture.md) |
+| **Phase 1b: Cloud Infrastructure** | Complete | [DEPLOYMENT.md](docs/DEPLOYMENT.md) |
+| **Phase 1c: Cloudflare DNS** | Complete | [SERVICES.md](docs/SERVICES.md) |
+| **Phase 1d: WordPress Automation** | In Progress | [wordpress.md](docs/reference/wordpress.md) |
 
 ### Operations
 
@@ -556,3 +556,35 @@ docs/
 - Duplicate files
 - Files outside the documented structure
 - Temporary files in root (use `.tmp/`)
+
+**Note:** For complete architecture details, see `docs/reference/`.
+
+---
+
+## Kilo Agent System
+
+**Location:** `scripts/` + `docs/reference/kilo/` + `~/.traycer/cli-agents/`
+**Purpose:** AI code review and code generation via Kilo CLI
+
+### Documentation Hub
+- **`docs/reference/kilo/`** - Complete Kilo documentation (README, INDEX, guides)
+
+### Core Scripts
+- `scripts/generate_kilo_agents.py` - Generates tier-based agent scripts from pricing manifest
+- `scripts/kilo_agent_updater.py` - Updates catalog and pricing (57 providers)
+- `scripts/kilo_code_review.py` - Code review (Step 4 in 9-step workflow)
+- `scripts/extract_pricing.py` - 2-call algebraic pricing extraction
+
+### Data Files (AUTHORITATIVE)
+- `scripts/kilo_18_agents_complete.json` - Primary pricing manifest (18 agents)
+- `scripts/kilo_all_models.json` - Complete catalog (319 models)
+- `scripts/manual_pricing_data.json` - Manual pricing (12 models)
+- `scripts/kilo_comprehensive_db.json` - Model database with capabilities
+
+### Active Agents (18 + 1 utility)
+- `~/.traycer/cli-agents/<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh`
+- Tiers: P=Prime, S=Strong, B=Balanced, E=Economy
+- See `docs/reference/kilo/` for complete documentation
+
+**Archived:** 10 obsolete JSON files → `scripts/.archive/kilo-json-20260228/`
+**Archived:** 5 redundant docs → `docs/archive/2026-02-28-kilo-redundant/`

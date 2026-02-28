@@ -200,7 +200,7 @@ def process_ocr(job: dict, file_info: dict) -> dict:
             images = convert_from_path(local_path)
             for i, img in enumerate(images):
                 text = pytesseract.image_to_string(img)
-                text_parts.append(f"--- Page {i+1} ---\n{text}")
+                text_parts.append(f"--- Page {i + 1} ---\n{text}")
         else:
             # Direct image OCR
             img = Image.open(local_path)

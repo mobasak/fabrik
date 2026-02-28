@@ -615,8 +615,9 @@ def scan(base: str):
 )
 @click.option(
     "--preset",
+    type=click.Choice(["saas", "company", "content", "landing", "ecommerce"]),
     default=None,
-    help="Preset variant (only used for --type wordpress; choices: saas, company, content, landing, ecommerce)",
+    help="Preset variant (only used for --type wordpress)",
 )
 def scaffold(name: str, description: str, project_type: str, preset: str | None):
     """Create a new project with full structure.

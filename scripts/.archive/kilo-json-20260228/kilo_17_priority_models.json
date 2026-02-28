@@ -1,0 +1,253 @@
+{
+  "timestamp": "2026-02-28T18:11:00Z",
+  "total_models": 16,
+  "note": "All variants (minimal/low/medium/high/max) use same base token prices. Variants control reasoning effort/token usage.",
+  "models": [
+    {
+      "model_name": "gpt-5.3-codex",
+      "full_name": "kilo/openai/gpt-5.3-codex",
+      "provider": "OpenAI",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "blended_per_10m": 0.7,
+      "input_per_1m": 0.0175,
+      "output_per_1m": 0.0525,
+      "pricing_source": "Cache"
+    },
+    {
+      "model_name": "gpt-5.2",
+      "full_name": "kilo/openai/gpt-5.2",
+      "provider": "OpenAI",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "blended_per_10m": 0.7,
+      "input_per_1m": 0.0175,
+      "output_per_1m": 0.0525,
+      "pricing_source": "Cache"
+    },
+    {
+      "model_name": "gpt-5.2-chat",
+      "full_name": "kilo/openai/gpt-5.2-chat",
+      "provider": "OpenAI",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0,
+      "pricing_source": "Manual"
+    },
+    {
+      "model_name": "gpt-5.2-codex",
+      "full_name": "kilo/openai/gpt-5.2-codex",
+      "provider": "OpenAI",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "blended_per_10m": 0.7,
+      "input_per_1m": 0.0175,
+      "output_per_1m": 0.0525,
+      "pricing_source": "Cache"
+    },
+    {
+      "model_name": "gpt-5.2-pro",
+      "full_name": "kilo/openai/gpt-5.2-pro",
+      "provider": "OpenAI",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 21.0,
+      "output_per_1m": 168.0,
+      "pricing_source": "Manual"
+    },
+    {
+      "model_name": "gemini-3.1-pro-preview",
+      "full_name": "kilo/google/gemini-3.1-pro-preview",
+      "provider": "Google",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 2.0,
+      "output_per_1m": 12.0,
+      "pricing_source": "Manual"
+    },
+    {
+      "model_name": "gemini-3.1-pro-preview-customtools",
+      "full_name": "kilo/google/gemini-3.1-pro-preview-customtools",
+      "provider": "Google",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 2.0,
+      "output_per_1m": 12.0,
+      "pricing_source": "Manual"
+    },
+    {
+      "model_name": "claude-sonnet-4.5",
+      "full_name": "kilo/anthropic/claude-sonnet-4.5",
+      "provider": "Anthropic",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "pricing_source": "Manual"
+    },
+    {
+      "model_name": "claude-sonnet-4.6",
+      "full_name": "kilo/anthropic/claude-sonnet-4.6",
+      "provider": "Anthropic",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "pricing_source": "Manual"
+    },
+    {
+      "model_name": "claude-opus-4.5",
+      "full_name": "kilo/anthropic/claude-opus-4.5",
+      "provider": "Anthropic",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 5.0,
+      "output_per_1m": 25.0,
+      "pricing_source": "Manual"
+    },
+    {
+      "model_name": "claude-opus-4.6",
+      "full_name": "kilo/anthropic/claude-opus-4.6",
+      "provider": "Anthropic",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 5.0,
+      "output_per_1m": 25.0,
+      "pricing_source": "Manual"
+    },
+    {
+      "model_name": "gemini-3-flash-preview",
+      "full_name": "kilo/google/gemini-3-flash-preview",
+      "provider": "Google",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "blended_per_10m": 0.2,
+      "input_per_1m": 0.005,
+      "output_per_1m": 0.015,
+      "pricing_source": "Cache"
+    },
+    {
+      "model_name": "minimax-m2.5",
+      "full_name": "kilo/minimax/minimax-m2.5",
+      "provider": "Minimax",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "blended_per_10m": 0.12,
+      "input_per_1m": 0.003,
+      "output_per_1m": 0.009,
+      "pricing_source": "Cache"
+    },
+    {
+      "model_name": "glm-4.7",
+      "full_name": "kilo/z-ai/glm-4.7",
+      "provider": "Z-AI",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "blended_per_10m": 0.25,
+      "input_per_1m": 0.0063,
+      "output_per_1m": 0.0188,
+      "pricing_source": "Cache"
+    },
+    {
+      "model_name": "glm-4.7-flash",
+      "full_name": "kilo/z-ai/glm-4.7-flash",
+      "provider": "Z-AI",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 0.07,
+      "output_per_1m": 0.4,
+      "pricing_source": "Manual"
+    },
+    {
+      "model_name": "glm-5",
+      "full_name": "kilo/z-ai/glm-5",
+      "provider": "Z-AI",
+      "variants": [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "input_per_1m": 1.0,
+      "output_per_1m": 3.2,
+      "pricing_source": "Manual"
+    }
+  ]
+}

@@ -6,13 +6,134 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Kilo File Organization & Cleanup (2026-02-28)
+
+**What:** Consolidated and organized all Kilo-related files into structured directories
+
+**Changes:**
+- Created `docs/reference/kilo/` as centralized documentation hub
+- Moved core docs: KILO_AGENT_NAMING.md, KILO_UPDATE_SCHEDULE.md, KILO_EXTRACTION_SUMMARY.md, KILO_AGENT_SELECTION_GUIDE.md
+- Archived 10 obsolete JSON files → `scripts/.archive/kilo-json-20260228/`:
+  - kilo_16_agents_complete.json, kilo_17_priority_models.json (superseded by 18)
+  - kilo_18_agents_final.json (duplicate)
+  - kilo_complete_pricing.json, kilo_pricing_extracted.json (integrated)
+  - kilo_pricing_regression_results.json (failed method)
+  - kilo_pricing_shortlist.json, kilo_models_missing_pricing.json (superseded)
+  - models_truly_missing_pricing.json, manual_pricing_template.json (obsolete)
+- Archived 5 redundant docs → `docs/archive/2026-02-28-kilo-redundant/`:
+  - kilo-agents.md, kilo-ai-documentation.md, kilo-code-review.md, kilo-complete-reference.md, kilo-files.md
+
+**AUTHORITATIVE Files:**
+- `scripts/kilo_18_agents_complete.json` - Primary pricing manifest
+- `scripts/manual_pricing_data.json` - Manual pricing source
+- `docs/reference/kilo/` - Complete documentation
+
+### Added - Kilo Agent Tier-Based Naming System (2026-02-28)
+
+**What:** Implemented tier-based naming convention for Kilo agents with pricing visibility in filenames
+
+**Files:**
+- `scripts/generate_kilo_agents.py` - Auto-generates agent scripts from pricing manifest
+- `scripts/kilo_18_agents_complete.json` - Priority 18 agents with full input/output pricing
+- `scripts/manual_pricing_data.json` - Manual pricing for 12 models (Grok, Seed, Claude, Gemini, GLM, GPT)
+- `docs/reference/KILO_AGENT_NAMING.md` - Complete naming convention documentation
+- `~/.traycer/cli-agents/<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh` - 18 generated agents
+
+**Naming Format:** `<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh`
+- Tiers: P=Prime (mission-critical), S=Strong (production), B=Balanced (cost-effective), E=Economy (budget)
+- Pricing encoded: value × 100 (e.g., $0.02 → 002, $5.00 → 500)
+- Examples: `P01-opus46-code-max-i500-o2500.sh`, `E01-flash3-code-minimal-i000-o001.sh`
+
+**Benefits:**
+- Instant cost visibility in filename
+- Sortable by tier → rank → price
+- Machine-parseable for automation
+- No manual renaming (regenerate from manifest)
+
+**Archived:** 33 legacy agent scripts to `~/.traycer/cli-agents/.archive/20260228-*`
+
+### Added - Kilo Agent System & Catalog (2026-02-28)
+
+**What:** Complete Kilo model catalog extraction and agent management system
+
+**Files:**
+- `scripts/kilo_agent_updater.py` - Automated agent updater with pricing resolution (4-step fallback chain)
+- `scripts/extract_pricing.py` - 2-call algebraic pricing extractor for separate input/output pricing
+- `scripts/kilo_all_models.json` - Complete catalog of 319 Kilo models from 57 providers
+- `scripts/kilo_comprehensive_db.json` - Model database with variants, pricing, capabilities
+- `scripts/kilo_all_319_models_analyzed.json` - Provider breakdown by category (coding/reasoning/vision/etc)
+- `scripts/KILO_COMPLETE_AGENT_CATALOG.json` - Agent recommendations for all 319 models
+- `scripts/KILO_AGENT_SELECTION_GUIDE.md` - Provider highlights and selection guide
+- `scripts/kilo_pricing_shortlist.json` - 17 priority models for pricing extraction
+- `docs/reference/kilo-ai-documentation.md` - Kilo system documentation
+- `docs/reference/KILO_EXTRACTION_SUMMARY.md` - Extraction summary and statistics
+- `docs/reference/KILO_UPDATE_SCHEDULE.md` - Automation schedule (daily sync cron, manual leaderboard review)
+
+**Capabilities:**
+- Automated daily agent sync (pricing, endpoints, context limits)
+- Pricing resolution with alias mapping (catalog ID → cache key)
+- **Separate input/output pricing extraction** via 2-call algebraic solver (17 priority models)
+- Manual Arena + TBench leaderboard integration (Phase 2: auto-scraping planned Q2 2026)
+- Supports 57 providers including OpenAI, Anthropic, Google, GLM, Kimi, Grok, Minimax, Qwen, DeepSeek, etc.
+- 16 models with verified pricing, 303 models available (pricing TBD)
+
+**Pricing Extraction:**
+- Uses system of equations to solve for separate input/output token pricing
+- 2 API calls per model with different input/output ratios
+- ~3-4 minutes for 17 priority models (~$0.50-1.00 cost)
+- Quarterly update cycle or on provider pricing changes
+
+**Current agents:** 34 active in `~/.traycer/cli-agents/`
+
+### Added - Expanded Kilo Agent Selection: 20 New Agents + GPT-5.3 Support (2026-02-28)
+
+**What:** Expanded Traycer CLI agent selection with 20 new Kilo-based agents (10 code + 10 review) and updated kilo_code_review.py to support GPT-5.3 models.
+
+**Why:** GPT-5.3-Codex and GPT-5.3-Codex-Spark are now available, offering Opus-like quality at 75% lower cost. Added diverse agent configurations across all supported models for different use cases.
+
+**Changes:**
+- **GPT-5.3 Support:** Verified availability, updated kilo_code_review.py model tables, added to fallback chain
+- **10 New Code Agents:**
+  1. GPT-5.3-Spark High (fast iteration, $6.25/$25)
+  2. O3-Mini High (fast reasoning, $10/$40)
+  3. Gemini-2.5-Pro High (next-gen Google, $15/$60)
+  4. Sonnet-4.6 Max (max reasoning Anthropic)
+  5. GPT-5.2-Debug High (debugging specialist)
+  6. Opus-4.6 Max (ultimate coding agent)
+  7. Gemini-3.1-Plan High (planning-focused)
+  8. Flash-3-Minimal (ultra-fast, $0.75/$3)
+  9. GPT-5.3-Orchestrator Max (multi-agent coordination)
+  10. Sonnet-4.6-Compaction Low (code cleanup)
+- **10 New Review Agents:**
+  1. GPT-5.3-Codex High (Opus-like quality, 4x cheaper)
+  2. GPT-5.3-Spark High (fast review cycles)
+  3. O3-Mini Max (logic verification)
+  4. Gemini-2.5-Pro Max (complex systems)
+  5. Sonnet-4.6 Max (security review)
+  6. GPT-5.2-Codex High (stable OpenAI)
+  7. Gemini-3.1-Pro High (deep analysis)
+  8. Flash-3-Low (budget reviews)
+  9. GPT-5.3-Security Max (security specialist)
+  10. Multi-Model Consensus (3-model aggregate)
+
+**Files changed:**
+- `scripts/kilo_code_review.py` (updated model tables, fallback chain)
+- `~/.traycer/cli-agents/` (20 new agent scripts)
+- `CHANGELOG.md`
+
+**New Model Pricing:**
+- GPT-5.3-Codex: $12.5/$50 per 10M tokens (same as GPT-5.2)
+- GPT-5.3-Spark: $6.25/$25 per 10M tokens (50% cheaper)
+- O3-Mini: $10/$40 per 10M tokens
+- Gemini 2.5 Pro: $15/$60 per 10M tokens
+
 ### Added - Multi-Type Scaffold CLI: --type and --preset options (2026-02-28)
 
 **What:** Wired the 10-type scaffold backend into the CLI surface. `fabrik scaffold`,
 `fabrik validate`, and `fabrik fix` now accept `--type` and (for scaffold) `--preset`.
 
-**Why:** The scaffold.py backend (Phases 1–3) already supported all 10 project types
-but the CLI still hard-coded `python-api`. This phase exposes the full type dispatch
+**Why:** The scaffold.py backend (P6 implementation) already supported all 10 project types
+but the CLI still hard-coded `python-api`. This change exposes the full type dispatch
 to users.
 
 **Changes:**

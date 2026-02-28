@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-02-28T17:39:00Z",
+  "total_models": 10,
+  "models_needing_extraction": [
+    {
+      "full_name": "kilo/anthropic/claude-opus-4.5",
+      "model_name": "claude-opus-4.5",
+      "provider": "anthropic"
+    },
+    {
+      "full_name": "kilo/anthropic/claude-opus-4.6",
+      "model_name": "claude-opus-4.6",
+      "provider": "anthropic"
+    },
+    {
+      "full_name": "kilo/anthropic/claude-sonnet-4.5",
+      "model_name": "claude-sonnet-4.5",
+      "provider": "anthropic"
+    },
+    {
+      "full_name": "kilo/anthropic/claude-sonnet-4.6",
+      "model_name": "claude-sonnet-4.6",
+      "provider": "anthropic"
+    },
+    {
+      "full_name": "kilo/google/gemini-3.1-pro-preview",
+      "model_name": "gemini-3.1-pro-preview",
+      "provider": "google"
+    },
+    {
+      "full_name": "kilo/google/gemini-3.1-pro-preview-customtools",
+      "model_name": "gemini-3.1-pro-preview-customtools",
+      "provider": "google"
+    },
+    {
+      "full_name": "kilo/openai/gpt-5.2-chat",
+      "model_name": "gpt-5.2-chat",
+      "provider": "openai"
+    },
+    {
+      "full_name": "kilo/openai/gpt-5.2-pro",
+      "model_name": "gpt-5.2-pro",
+      "provider": "openai"
+    },
+    {
+      "full_name": "kilo/z-ai/glm-4.7-flash",
+      "model_name": "glm-4.7-flash",
+      "provider": "z-ai"
+    },
+    {
+      "full_name": "kilo/z-ai/glm-5",
+      "model_name": "glm-5",
+      "provider": "z-ai"
+    }
+  ],
+  "models_with_cached_pricing": [
+    {
+      "full_name": "kilo/google/gemini-3-flash-preview",
+      "model_name": "gemini-3-flash-preview",
+      "price_per_10m": 0.2,
+      "provider": "google"
+    },
+    {
+      "full_name": "kilo/minimax/minimax-m2.5",
+      "model_name": "minimax-m2.5",
+      "price_per_10m": 0.12,
+      "provider": "minimax"
+    },
+    {
+      "full_name": "kilo/minimax/minimax-m2.5:free",
+      "model_name": "minimax-m2.5",
+      "price_per_10m": 0.12,
+      "provider": "minimax"
+    },
+    {
+      "full_name": "kilo/openai/gpt-5.2",
+      "model_name": "gpt-5.2",
+      "price_per_10m": 0.7,
+      "provider": "openai"
+    },
+    {
+      "full_name": "kilo/openai/gpt-5.2-codex",
+      "model_name": "gpt-5.2-codex",
+      "price_per_10m": 0.7,
+      "provider": "openai"
+    },
+    {
+      "full_name": "kilo/openai/gpt-5.3-codex",
+      "model_name": "gpt-5.3-codex",
+      "price_per_10m": 0.7,
+      "provider": "openai"
+    },
+    {
+      "full_name": "kilo/z-ai/glm-4.7",
+      "model_name": "glm-4.7",
+      "price_per_10m": 0.25,
+      "provider": "z-ai"
+    }
+  ]
+}

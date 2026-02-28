@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Test consolidate_envs.py to ensure no data loss."""
 
+import re
 import tempfile
 from pathlib import Path
-from scripts.consolidate_envs import parse_env_file, consolidate_envs
-import re
+
+from scripts.consolidate_envs import consolidate_envs, parse_env_file
+
 
 def test_parse_preserves_all_vars():
     """Test that parse_env_file reads all variable types."""
@@ -17,7 +19,7 @@ VAR_WITH_QUOTES="quoted value"
 VAR_WITH_SPACES=value with spaces
 """
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
         f.write(test_content)
         f.flush()
         test_file = Path(f.name)
@@ -26,19 +28,21 @@ VAR_WITH_SPACES=value with spaces
         result = parse_env_file(test_file)
 
         expected_vars = {
-            'UPPERCASE_VAR': 'value1',
-            'lowercase_var': 'value2',
-            'MixedCase_Var': 'value3',
-            '_UNDERSCORE': 'value4',
-            'VAR_WITH_QUOTES': 'quoted value',
-            'VAR_WITH_SPACES': 'value with spaces',
+            "UPPERCASE_VAR": "value1",
+            "lowercase_var": "value2",
+            "MixedCase_Var": "value3",
+            "_UNDERSCORE": "value4",
+            "VAR_WITH_QUOTES": "quoted value",
+            "VAR_WITH_SPACES": "value with spaces",
         }
 
         print("=== Parse Test Results ===")
         for var_name, expected_value in expected_vars.items():
             if var_name in result:
                 actual_value = result[var_name][0]
-                status = "✓ PASS" if actual_value == expected_value else f"✗ FAIL (got: {actual_value})"
+                status = (
+                    "✓ PASS" if actual_value == expected_value else f"✗ FAIL (got: {actual_value})"
+                )
                 print(f"{var_name}: {status}")
             else:
                 print(f"{var_name}: ✗ MISSING")
@@ -57,7 +61,7 @@ def test_consolidation_preserves_existing():
     print("\n=== Consolidation Preservation Test ===")
 
     # Parse actual .env
-    actual_env = Path('/opt/fabrik/.env')
+    actual_env = Path("/opt/fabrik/.env")
     if not actual_env.exists():
         print("✗ .env not found")
         return False
@@ -73,7 +77,7 @@ def test_consolidation_preserves_existing():
     # Parse consolidated output
     consolidated_vars = {}
     for line in consolidated_content.splitlines():
-        match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line.strip())
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", line.strip())
         if match:
             consolidated_vars[match.group(1)] = match.group(2).strip('"').strip("'")
 
@@ -94,7 +98,7 @@ def test_consolidation_preserves_existing():
         return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parse_ok = test_parse_preserves_all_vars()
     consolidate_ok = test_consolidation_preserves_existing()
 
