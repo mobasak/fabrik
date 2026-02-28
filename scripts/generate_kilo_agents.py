@@ -104,28 +104,70 @@ def generate_script_content(agent: dict, tier: str, rank: int) -> str:
 # Specialty: {specialty}
 # Pricing: ${input_price:.2f}/1M input, ${output_price:.2f}/1M output
 
+# Debug mode (KILO_DEBUG=1)
+if [ "$KILO_DEBUG" = "1" ]; then
+    set -x  # Print all commands
+    echo "[DEBUG] Agent: {tier}{rank:02d}-{agent["model_name"].replace("/", "-").replace("kilo/", "")}-{role}-{variant}" >&2
+    echo "[DEBUG] Model: {full_name}" >&2
+    echo "[DEBUG] TRAYCER_PROMPT length: ${{#TRAYCER_PROMPT}}" >&2
+    echo "[DEBUG] TRAYCER_TASK_ID: $TRAYCER_TASK_ID" >&2
+fi
+
 # Handle both regular and large prompts
 if [ -n "$TRAYCER_PROMPT_TMP_FILE" ] && [ -f "$TRAYCER_PROMPT_TMP_FILE" ]; then
     # For large prompts - read from temp file
     PROMPT=$(cat "$TRAYCER_PROMPT_TMP_FILE")
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using TRAYCER_PROMPT_TMP_FILE: $TRAYCER_PROMPT_TMP_FILE" >&2
 else
     # For regular prompts - use environment variable
     PROMPT="$TRAYCER_PROMPT"
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using TRAYCER_PROMPT environment variable" >&2
 fi
 
 # Save task context for Step 4 (kilo_code_review.py needs it)
 mkdir -p .droid/review-context
 printf '%s\\n' "$PROMPT" > .droid/review-context/task.md
 
-# Run Kilo agent
-kilo run --format json --auto \\
+# Timeout protection (default 10 minutes)
+TIMEOUT="${{KILO_TIMEOUT:-600}}"
+[ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Timeout: $TIMEOUT seconds" >&2
+
+# Cost tracking setup
+USAGE_LOG="${{KILO_USAGE_LOG:-.droid/kilo_usage.jsonl}}"
+START_TIME=$(date +%s)
+
+# Run Kilo agent with timeout
+timeout "$TIMEOUT" kilo run --format json --auto \\
     --model {full_name} \\
     --variant {variant} \\
     --agent {role} \\
     "$PROMPT"
 
+EXIT_CODE=$?
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+# Handle timeout
+if [ $EXIT_CODE -eq 124 ]; then
+    echo '{{"error": "timeout", "duration": '$TIMEOUT', "agent": "{tier}{rank:02d}"}}' >&2
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Task timed out after $TIMEOUT seconds" >&2
+fi
+
+# Cost tracking (if enabled)
+if [ -n "$KILO_TRACK_COST" ]; then
+    mkdir -p "$(dirname "$USAGE_LOG")"
+    echo "{{\\"timestamp\\":\\"$(date -Iseconds)\\",\\"agent\\":\\"{tier}{rank:02d}-{role}-{variant}\\",\\"model\\":\\"{full_name}\\",\\"task_id\\":\\"$TRAYCER_TASK_ID\\",\\"exit_code\\":$EXIT_CODE,\\"duration\\":$DURATION}}" >> "$USAGE_LOG"
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Usage logged to $USAGE_LOG" >&2
+fi
+
+# Debug summary
+if [ "$KILO_DEBUG" = "1" ]; then
+    echo "[DEBUG] Exit code: $EXIT_CODE" >&2
+    echo "[DEBUG] Duration: $DURATION seconds" >&2
+fi
+
 # Capture exit code and exit explicitly
-exit $?
+exit $EXIT_CODE
 """
 
 

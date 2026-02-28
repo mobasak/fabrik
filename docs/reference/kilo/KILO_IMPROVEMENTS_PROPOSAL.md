@@ -1128,23 +1128,23 @@ class BrowserTestSuite:
     def __init__(self, base_url: str):
         self.base_url = base_url
         self.results = []
-    
+
     async def test_page_load(self, path: str) -> dict:
         """Test page loads correctly"""
         prompt = f"""Launch browser at {self.base_url}{path}
-        
+
 Check if page loads without errors.
 Report console errors if any.
 Take screenshot."""
-        
+
         result = await kilo_browser_action("launch", url=f"{self.base_url}{path}")
-        
+
         return {
             "path": path,
             "loaded": "error" not in result["console_logs"],
             "screenshot": result["screenshot"]
         }
-    
+
     async def test_responsive_design(self, path: str) -> dict:
         """Test responsive design across viewports"""
         viewports = [
@@ -1152,7 +1152,7 @@ Take screenshot."""
             ("tablet", "768x1024"),
             ("desktop", "1280x800")
         ]
-        
+
         screenshots = {}
         for name, size in viewports:
             result = await kilo_browser_action(
@@ -1161,28 +1161,28 @@ Take screenshot."""
                 viewport=size
             )
             screenshots[name] = result["screenshot"]
-        
+
         return {"path": path, "viewports": screenshots}
-    
+
     async def test_form_submission(self, form_url: str, test_data: dict) -> dict:
         """Test form submission"""
         # Launch browser
         await kilo_browser_action("launch", url=form_url)
-        
+
         # Fill form fields
         for field, value in test_data.items():
             await kilo_browser_action("click", selector=f"#{field}")
             await kilo_browser_action("type", text=value)
-        
+
         # Submit form
         result = await kilo_browser_action("click", selector="button[type=submit]")
-        
+
         # Verify success
         return {
             "submitted": True,
             "success_indicators": "success" in result["console_logs"]
         }
-    
+
     async def run_all_tests(self) -> dict:
         """Run complete test suite"""
         results = {
@@ -1215,32 +1215,32 @@ import imagehash
 async def capture_baseline(url: str, name: str):
     """Capture baseline screenshot"""
     result = await kilo_browser_action("launch", url=url)
-    
+
     # Save baseline
     with open(f"tests/baselines/{name}.png", "wb") as f:
         f.write(result["screenshot"])
-    
+
     # Compute hash
     img = Image.open(f"tests/baselines/{name}.png")
     baseline_hash = imagehash.average_hash(img)
-    
+
     return baseline_hash
 
 async def compare_with_baseline(url: str, name: str) -> dict:
     """Compare current screenshot with baseline"""
     result = await kilo_browser_action("launch", url=url)
-    
+
     # Load baseline
     baseline_img = Image.open(f"tests/baselines/{name}.png")
     baseline_hash = imagehash.average_hash(baseline_img)
-    
+
     # Current screenshot
     current_img = Image.open(io.BytesIO(result["screenshot"]))
     current_hash = imagehash.average_hash(current_img)
-    
+
     # Compare
     diff = baseline_hash - current_hash
-    
+
     return {
         "name": name,
         "url": url,
@@ -1299,10 +1299,10 @@ exit $?
 
 async def run_lighthouse_audit(url: str) -> dict:
     """Run Lighthouse audit and return scores"""
-    
+
     # Launch browser with Lighthouse
     prompt = f"""Launch browser at {url}
-    
+
 Run Lighthouse audit for:
 - Performance
 - Accessibility
@@ -1310,13 +1310,13 @@ Run Lighthouse audit for:
 - SEO
 
 Report scores and key issues."""
-    
+
     result = await kilo_run(
         model="kilo/anthropic/claude-sonnet-4.5",
         prompt=prompt,
         enable_browser=True
     )
-    
+
     return {
         "url": url,
         "performance": result["scores"]["performance"],
@@ -1341,7 +1341,7 @@ if audit["performance"] < 90:
 ```python
 def optimize_browser_settings(task_type: str) -> dict:
     """Select optimal browser settings for task"""
-    
+
     configs = {
         "text_verification": {
             "viewport": "360x640",      # Mobile (smallest)
@@ -1364,7 +1364,7 @@ def optimize_browser_settings(task_type: str) -> dict:
             "model": "budget"
         }
     }
-    
+
     return configs.get(task_type, configs["layout_check"])
 
 # Usage
