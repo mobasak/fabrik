@@ -64,8 +64,9 @@ The Chatbot Arena and Terminal-Bench leaderboards are currently **manually revie
 - ✅ Daily sync via cron
 
 **Phase 2 (Planned - Q2 2026):**
-- ⏳ Auto-scrape Arena rankings
-- ⏳ Auto-scrape TBench scores
+- ⏳ Auto-scrape Kilo leaderboard (usage data)
+- ⏳ Auto-scrape Arena rankings (preferences)
+- ⏳ Auto-scrape TBench scores (terminal performance)
 - ⏳ Recommendation engine for stack updates
 - ⏳ Slack/email notifications for ranking changes
 
