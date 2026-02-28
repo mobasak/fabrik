@@ -94,17 +94,21 @@ _DEFAULT_MODEL_FALLBACK = "kilo/google/gemini-3-flash-preview"
 
 
 def get_default_model() -> str:
-    """Get validated default model from env var or fallback."""
+    """Get validated default model from env var or kilo/auto default."""
     import re
 
-    model = os.getenv("KILO_REVIEW_MODEL", _DEFAULT_MODEL_FALLBACK)
+    model = os.getenv("KILO_REVIEW_MODEL", _DEFAULT_MODEL)
+
+    # Special case: kilo/auto is always valid
+    if model == "kilo/auto":
+        return model
     # Validate model format to prevent path traversal/injection
     # Allow: letters, numbers, slashes, underscores, hyphens, dots, colons (for :free suffix)
     if not re.match(r"^kilo/[a-zA-Z0-9/_.\-:]+$", model):
         print(
-            f"Warning: Invalid KILO_REVIEW_MODEL format '{model}', using fallback", file=sys.stderr
+            f"Warning: Invalid KILO_REVIEW_MODEL format '{model}', using kilo/auto", file=sys.stderr
         )
-        return _DEFAULT_MODEL_FALLBACK
+        return _DEFAULT_MODEL
     return model
 
 

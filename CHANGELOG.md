@@ -6,6 +6,35 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Phase 1 Implementations (2026-02-28)
+
+**Summary:** Initial implementation of core features and infrastructure.
+
+**New files:** `README.md`, `CHANGELOG.md`, `LICENSE`, `requirements.txt`
+
+**Features:**
+- Basic project structure and organization
+- Initial documentation and changelog setup
+- License and requirements file creation
+
+---
+
+### Added - Kilo Agent Debug Mode, Timeout, Cost Tracking (2026-02-28)
+
+**Summary:** Enhanced Kilo agent script template with debug mode (KILO_DEBUG=1), timeout protection (KILO_TIMEOUT), and cost tracking (KILO_TRACK_COST). Added kilo/auto support to kilo_code_review.py as default model.
+
+**Files:**
+- `scripts/generate_kilo_agents.py` - Enhanced agent template with 3 new features
+- `scripts/kilo_code_review.py` - Added kilo/auto as default model
+
+**Features:**
+- Debug mode: Verbose logging with set -x, agent/model/task metadata
+- Timeout protection: Configurable timeout (default 600s), exit code 124 detection
+- Cost tracking: Usage logging to .droid/kilo_usage.jsonl with timestamp, agent, model, task_id, exit_code, duration
+- Auto Model: kilo/auto as default for automatic mode-based routing
+
+---
+
 ### Added - Phase 6: Monitoring Stack (2026-02-28)
 
 **Summary:** Added Loki/Promtail/Prometheus/Grafana monitoring stack configs and spec with a Loki-backed logs CLI.
