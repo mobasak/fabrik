@@ -1,6 +1,6 @@
 # Fabrik Scaffold Specification
 
-**Last Updated:** 2026-02-27
+**Last Updated:** 2026-02-28
 
 > Complete specification for project creation, templates, deployment, and management in the Fabrik ecosystem.
 
@@ -71,14 +71,86 @@ Does it need to run continuously (24/7)?
 
 ### Type Comparison
 
-| Type | Runs 24/7 | Container | Deploy Method | Template |
-|------|-----------|-----------|---------------|----------|
-| **Service** (API, web) | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify | `python-api`, `node-api` |
-| **Worker** (queue) | ✅ Yes | ✅ Yes | Same compose.yaml | `file-worker` |
-| **Library** | ❌ No | ❌ No | `pip install` on VPS | `scaffold` (simple) |
-| **CLI Tool** | ❌ No | ❌ No | `rsync` to VPS | `scaffold` (medium) |
-| **Script** | ❌ No | ❌ No | Run locally | `scaffold` (simple) |
-| **SaaS App** | ✅ Yes | ✅ Yes | Coolify | `saas-skeleton` |
+| Type | Runtime | Runs 24/7 | Container | Deploy Method |
+|------|---------|-----------|-----------|---------------|
+| `python-api` | Python | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
+| `node-api` | Node.js | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
+| `file-api` | Node.js | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
+| `file-worker` | Python | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
+| `saas-skeleton` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
+| `wordpress` | PHP | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify (preset: `saas`/`company`/`content`/`landing`/`ecommerce`) |
+| `docusaurus` | TypeScript | ❌ No | ❌ No | Static host |
+| `chrome-extension` | TypeScript | ❌ No | ❌ No | Chrome Web Store |
+| `mobile-app` | TypeScript | ❌ No | ❌ No | App stores |
+| `desktop-app` | TypeScript | ❌ No | ❌ No | Direct dist |
+
+### Per-Type Scaffold Details
+
+| Type | Runtime | Container | Key Dirs | Deploy |
+|------|---------|-----------|----------|--------|
+| `python-api` | Python | ✅ | `src/`, `tests/` | Coolify |
+| `node-api` | Node.js | ✅ | `src/` | Coolify |
+| `file-api` | Node.js | ✅ | `src/` | Coolify |
+| `file-worker` | Python | ✅ | `worker/` | Coolify |
+| `saas-skeleton` | TypeScript | ✅ | `app/`, `components/`, `lib/` | Coolify |
+| `wordpress` | PHP | ✅ | `plugins/`, `themes/`, `backup/` | Coolify (preset: `saas`/`company`/`content`/`landing`/`ecommerce`) |
+| `docusaurus` | TypeScript | ❌ | `docs/` | Static host |
+| `chrome-extension` | TypeScript | ❌ | `src/` | Chrome Web Store |
+| `mobile-app` | TypeScript | ❌ | `src/` | App stores |
+| `desktop-app` | TypeScript | ❌ | `src/` | Direct dist |
+
+#### Per-Type Directory Structures
+
+**`python-api`** — FastAPI REST service:
+```
+src/<package>/main.py   tests/   Dockerfile   compose.yaml   pyproject.toml
+```
+
+**`node-api`** — Express/Fastify API:
+```
+src/index.js   tests/   Dockerfile   compose.yaml   package.json
+```
+
+**`file-api`** — File handling API (Node.js + storage):
+```
+src/index.js   tests/   Dockerfile   compose.yaml   package.json
+```
+
+**`file-worker`** — Background file processor:
+```
+worker/main.py   Dockerfile   compose.yaml   requirements.txt
+```
+
+**`saas-skeleton`** — Next.js full SaaS:
+```
+app/   components/   lib/   Dockerfile   compose.yaml   package.json   tailwind.config.ts
+```
+
+**`wordpress`** — WordPress site (preset selects theme/plugin bundle; no Dockerfile — uses official `wordpress` image via Compose):
+```
+plugins/   themes/   backup/   config/preset.yaml
+compose.yaml.j2   compose-coolify.yaml.j2   wp-config-extra.php   .env.example
+```
+
+**`docusaurus`** — Documentation site (no container):
+```
+docs/   docusaurus.config.js   package.json   sidebars.js
+```
+
+**`chrome-extension`** — Browser extension (no container):
+```
+src/   manifest.json   package.json   tsconfig.json
+```
+
+**`mobile-app`** — React Native (Expo) app (no container):
+```
+src/   app.json   package.json   tsconfig.json
+```
+
+**`desktop-app`** — Electron + React (no container):
+```
+src/   electron/   package.json   tsconfig.json
+```
 
 ---
 
@@ -91,11 +163,19 @@ Does it need to run continuously (24/7)?
 fabrik new <name> --template <template> [--domain <domain>] [--output <dir>]
 
 # Create project structure
-fabrik scaffold <name> [--description <text>]
+fabrik scaffold <name> [--type <type>] [--preset <preset>] [--description <text>]
 
 # List available templates
 fabrik templates
 ```
+
+#### `fabrik scaffold` Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--type` | `python-api` | Project type (see Per-Type Scaffold Details table) |
+| `--preset` | _(none)_ | Preset variant — only used with `--type wordpress` (`saas`, `company`, `content`, `landing`, `ecommerce`) |
+| `--description` / `-d` | `"A new project"` | Short project description |
 
 ### `fabrik scaffold` Output (Complete File List)
 
@@ -340,10 +420,10 @@ fabrik projects [--status <status>] [--sync]
 fabrik scan [--base /opt]
 
 # Validate project structure
-fabrik validate <project_path>
+fabrik validate <project_path> [--type <type>]
 
 # Auto-fix missing files
-fabrik fix <project_path> [--dry-run]
+fabrik fix <project_path> [--type <type>] [--dry-run]
 
 # Verify deployed service
 fabrik verify <domain> [--spec <type>] [--app-name <name>]

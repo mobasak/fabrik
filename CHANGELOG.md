@@ -6,6 +6,31 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Multi-Type Scaffold CLI: --type and --preset options (2026-02-28)
+
+**What:** Wired the 10-type scaffold backend into the CLI surface. `fabrik scaffold`,
+`fabrik validate`, and `fabrik fix` now accept `--type` and (for scaffold) `--preset`.
+
+**Why:** The scaffold.py backend (Phases 1–3) already supported all 10 project types
+but the CLI still hard-coded `python-api`. This phase exposes the full type dispatch
+to users.
+
+**Changes:**
+- **`fabrik scaffold --type <type> --preset <preset>`** — `--type` selects from all 10
+  scaffold types (default: `python-api`); `--preset` is forwarded to `create_project()`
+  and is only meaningful for `--type wordpress`.
+- **`fabrik validate --type <type>`** — passes the type to `validate_project()` so the
+  correct `TYPE_REQUIRED_FILES` list is checked.
+- **`fabrik fix --type <type>`** — passes the type to `fix_project()` for type-aware
+  missing-file repair.
+- **`docs/reference/fabrik-scaffold-specs.md`** — CLI reference updated with new options,
+  expanded 10-type comparison table, and per-type directory structure reference.
+
+**Files changed:**
+- `src/fabrik/cli.py`
+- `docs/reference/fabrik-scaffold-specs.md`
+- `CHANGELOG.md`
+
 ### Added - Scaffold Kilo Workflow + Developer Velocity Tools (2026-02-27)
 
 **What:** Five improvements to `fabrik scaffold` so new projects work with Kilo code review and developer tooling out of the box — no manual setup required.

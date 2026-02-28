@@ -19,6 +19,7 @@ from fabrik.deploy import deploy_to_coolify
 from fabrik.drivers.coolify import CoolifyClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.orchestrator import DeploymentOrchestrator, DeploymentState
+from fabrik.scaffold import SCAFFOLD_TYPES
 from fabrik.spec_loader import Kind, create_spec, load_spec, save_spec
 from fabrik.template_renderer import list_templates, render_template
 
@@ -604,18 +605,36 @@ def scan(base: str):
 @cli.command()
 @click.argument("name")
 @click.option("--description", "-d", default="A new project", help="Project description")
-def scaffold(name: str, description: str):
+@click.option(
+    "--type",
+    "project_type",
+    type=click.Choice(sorted(SCAFFOLD_TYPES)),
+    default="python-api",
+    show_default=True,
+    help="Project type to scaffold",
+)
+@click.option(
+    "--preset",
+    default=None,
+    help="Preset variant (only used for --type wordpress; choices: saas, company, content, landing, ecommerce)",
+)
+def scaffold(name: str, description: str, project_type: str, preset: str | None):
     """Create a new project with full structure.
 
     Example:
-        fabrik scaffold my-api -d "REST API for users"
+        fabrik scaffold my-api --type python-api -d "REST API for users"
     """
     from fabrik.registry import ProjectRegistry
     from fabrik.scaffold import create_project
 
+    if preset is not None and project_type != "wordpress":
+        click.echo(
+            f"⚠️  --preset is ignored for --type {project_type} (only used with --type wordpress)"
+        )
+
     click.echo(f"📁 Creating project: {name}")
     try:
-        project_dir = create_project(name, description)
+        project_dir = create_project(name, description, project_type=project_type, preset=preset)
         click.echo(f"✅ Created: {project_dir}")
 
         # Update registry
@@ -645,14 +664,22 @@ def scaffold(name: str, description: str):
 
 @cli.command()
 @click.argument("project_path", type=click.Path(exists=True))
-def validate(project_path: str):
+@click.option(
+    "--type",
+    "project_type",
+    type=click.Choice(sorted(SCAFFOLD_TYPES)),
+    default="python-api",
+    show_default=True,
+    help="Project type to validate against",
+)
+def validate(project_path: str, project_type: str):
     """Validate project structure against standards."""
     from fabrik.scaffold import validate_project
 
     path = Path(project_path).resolve()
     click.echo(f"Validating: {path.name}")
 
-    present, missing = validate_project(path)
+    present, missing = validate_project(path, project_type)
 
     for f in present:
         click.echo(f"  ✅ {f}")
@@ -660,7 +687,9 @@ def validate(project_path: str):
         click.echo(f"  ❌ {f}")
 
     if missing:
-        click.echo(f"\n{len(missing)} files missing. Run: fabrik fix {project_path}")
+        click.echo(
+            f"\n{len(missing)} files missing for type '{project_type}'. Run: fabrik fix {project_path} --type {project_type}"
+        )
         raise SystemExit(1)
     else:
         click.echo("\n✅ Project structure is complete!")
@@ -669,7 +698,15 @@ def validate(project_path: str):
 @cli.command()
 @click.argument("project_path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.option("--dry-run", is_flag=True, help="Show what would be added without making changes")
-def fix(project_path: str, dry_run: bool):
+@click.option(
+    "--type",
+    "project_type",
+    type=click.Choice(sorted(SCAFFOLD_TYPES)),
+    default="python-api",
+    show_default=True,
+    help="Project type to fix against",
+)
+def fix(project_path: str, dry_run: bool, project_type: str):
     """Add missing required files to a project.
 
     Example:
@@ -685,7 +722,7 @@ def fix(project_path: str, dry_run: bool):
     else:
         click.echo(f"Fixing: {path.name}")
 
-    added = fix_project(path, dry_run=dry_run)
+    added = fix_project(path, dry_run=dry_run, project_type=project_type)
 
     if not added:
         click.echo("  ✅ No missing files - project structure is complete!")
