@@ -45,6 +45,11 @@ fabrik plan my-api      # Execute and exit
 | Translator | translator | 8000 | `https://translator.vps1.ocoron.com` | 🔑 API Key | Translation API |
 | Captcha | captcha | 8000 | `https://captcha.vps1.ocoron.com` | ⚠️ Open | Captcha solver (Anti-Captcha) |
 | File API | file-api | 8004 | `https://files-api.vps1.ocoron.com` | ⚠️ Open | File storage API |
+| Browserless | browserless | 3000 | `https://browser.vps1.ocoron.com` | 🔑 API Key | Headless Chrome for scraping/extensions |
+| Gotenberg | gotenberg | 3003 | `https://pdf.vps1.ocoron.com` | ⚠️ Open | PDF generation |
+| MinIO | minio | 9000/9001 | `https://s3.vps1.ocoron.com` | 🔐 Password | S3-compatible object storage |
+| Apprise | apprise | 8005 | `https://notify.vps1.ocoron.com` | ⚠️ Open | Unified notifications |
+| Meilisearch | meilisearch | 7700 | `https://search.vps1.ocoron.com` | 🔑 API Key | Fast full-text search |
 
 *Coolify port 8000 is exposed directly on host. All other services use Traefik reverse proxy on port 443.
 

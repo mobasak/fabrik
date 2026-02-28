@@ -6,6 +6,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Phase 9: Infrastructure Services (2026-02-28)
+
+**Summary:** Deployed five infrastructure services: Browserless (3000), Gotenberg (3003), MinIO (9000/9001), Apprise (8005), Meilisearch (7700).
+
+**New files:** `specs/infrastructure/` (browserless.yaml, gotenberg.yaml, minio.yaml, apprise.yaml, meilisearch.yaml)
+
+**Docs:** `.env.example` (MINIO_*, MEILI_* vars), `PORTS.md`, `docs/SERVICES.md`.
+
+---
+
 ### Changed - Kilo Agent Scripts Improved (2026-02-28)
 
 **What:** Fixed Kilo CLI agent scripts for Traycer integration

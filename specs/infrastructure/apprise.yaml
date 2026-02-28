@@ -1,0 +1,15 @@
+# ARM64: ✓ SUPPORTED — linux/amd64, linux/arm64
+
+name: apprise
+type: docker
+domain: notify.vps1.ocoron.com
+image: caronc/apprise:latest
+ports:
+  - "8005:8000"
+networks:
+  - coolify
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/"]  # Internal port
+  interval: 30s
+  timeout: 10s
+  retries: 3

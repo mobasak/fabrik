@@ -1,0 +1,20 @@
+# ARM64: ✓ SUPPORTED — linux/arm64, linux/amd64
+
+name: meilisearch
+type: docker
+domain: search.vps1.ocoron.com
+image: getmeili/meilisearch:latest
+environment:
+  MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+  MEILI_ENV: production
+volumes:
+  - meilisearch-data:/meili_data
+ports:
+  - "7700:7700"
+networks:
+  - coolify
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3

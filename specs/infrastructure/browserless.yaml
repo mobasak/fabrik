@@ -1,0 +1,20 @@
+# ARM64: ✓ SUPPORTED — linux/amd64, linux/arm64
+
+name: browserless
+type: docker
+domain: browser.vps1.ocoron.com
+image: browserless/chrome:latest
+environment:
+  MAX_CONCURRENT_SESSIONS: "10"
+  CONNECTION_TIMEOUT: "60000"
+  PREBOOT_CHROME: "true"
+  ENABLE_DEBUGGER: "false"
+ports:
+  - "3000:3000"
+networks:
+  - coolify
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+  interval: 30s
+  timeout: 10s
+  retries: 3

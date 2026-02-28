@@ -1,6 +1,6 @@
 # Fabrik Port Allocations
 
-**Last Updated:** 2026-01-04
+**Last Updated:** 2026-02-28
 
 This document tracks port allocations for all Fabrik services to prevent conflicts.
 
@@ -29,6 +29,11 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 3001 | Uptime Kuma | uptime-kuma | https://status.vps1.ocoron.com |
 | 8200 | Duplicati | duplicati | https://backup.vps1.ocoron.com |
 | 19999 | Netdata | netdata | https://netdata.vps1.ocoron.com |
+| 3000 | browserless | specs/infrastructure/browserless.yaml | https://browser.vps1.ocoron.com |
+| 3003 | gotenberg | specs/infrastructure/gotenberg.yaml | https://pdf.vps1.ocoron.com |
+| 9000/9001 | minio | specs/infrastructure/minio.yaml | https://s3.vps1.ocoron.com |
+| 8005 | apprise | specs/infrastructure/apprise.yaml | https://notify.vps1.ocoron.com |
+| 7700 | meilisearch | specs/infrastructure/meilisearch.yaml | https://search.vps1.ocoron.com |
 
 ### Fabrik Microservices (VPS)
 
