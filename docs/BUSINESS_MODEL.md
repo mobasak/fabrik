@@ -91,7 +91,7 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-01 19:23:20 -->
+<!-- Last synced: 2026-03-01 19:41:09 -->
 <!-- Total projects: 36 -->
 
 ### Production Services (5 projects)
@@ -104,17 +104,19 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure Tra... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (5 projects)
+### Active Development (7 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
 | **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, idem... | Fastify | 🔨 Development | - | ✅ Current |
 | **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C c... | Python | 🔨 Development | - | ✅ Current |
+| **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, and... | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-analysis** | Test project for scaffold validation | FastAPI | 🔨 Development | - | ✅ Current |
+| **trade-intelligence** | Multi-tenant web platform proxying bill-of-lading shipment data with vendor-native queries, struc... | FastAPI | 🔨 Development | - | ✅ Current |
 | **trading-core** | Live FX trading service connecting to Pepperstone/cTrader via cTrader Open API with crash-safe st... | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (14 projects)
+### Planning/Research (13 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
@@ -127,13 +129,12 @@ With ~$50/month infrastructure cost:
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. Users u... | Python | 🔨 Development | - | ✅ Current |
 | **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interfaces ... | Python | 🔨 Development | - | ✅ Current |
 | **proxy** | **Status:** Production Ready | Python | 🔨 Development | - | ✅ Current |
-| **trade-intelligence** | Normalized trade data API gateway providing pluggable adapters for multiple shipment data provide... | Unknown | 🔨 Development | - | ✅ Current |
 | **transcriber** | Internal API service providing audio transcription capabilities using Soniox and other provider b... | Unknown | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Orchestrates content creation across Twitter, YouTube, Blog, Email, and LinkedIn platforms. Featu... | Unknown | 🔨 Development | - | ✅ Current |
 | **ugc** | Production-grade web scraping system for extracting user-generated content from social media plat... | Unknown | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Python-based web scraper using Scrapy and Playwright to extract full content to JSONLines format ... | Unknown | 🔨 Development | - | ✅ Current |
 
-### Shell Projects (12 projects)
+### Shell Projects (11 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
@@ -144,7 +145,6 @@ With ~$50/month infrastructure cost:
 | **file-worker** | No description available | Python | 🔨 Development | - | ✅ Current |
 | **gmailaccountcreator** | No description available | Unknown | 🔨 Development | - | ✅ Current |
 | **google** | No description available | Unknown | 🔨 Development | - | ✅ Current |
-| **job-agent** | No description available | Unknown | 🔨 Development | - | ✅ Current |
 | **marketing-argumant-generator** | No description available | Unknown | 🔨 Development | - | ✅ Current |
 | **namecheap** | No description available | Unknown | 🔨 Development | - | ✅ Current |
 | **supplement-tracker-advisor** | No description available | Unknown | 🔨 Development | - | ✅ Current |

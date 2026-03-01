@@ -256,7 +256,6 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
             content = src_path.read_text()
             for old, new in [
                 ("[Project Name]", name),
-                ("[project]", name),  # README paths
                 ("<project>", name),  # QUICKSTART paths
                 ("project-name", name),  # pyproject.toml
                 ("myproject", name),  # Makefile
@@ -365,7 +364,6 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
             content = src_path.read_text()
             for old, new in [
                 ("[Project Name]", name),
-                ("[project]", name),  # README paths
                 ("<project>", name),  # QUICKSTART paths
                 ("project-name", name),  # pyproject.toml
                 ("myproject", name),  # Makefile
@@ -1018,7 +1016,6 @@ def fix_project(
             content = (TEMPLATE_DIR / template_name).read_text()
             for old, new in [
                 ("[Project Name]", name),
-                ("[project]", name),
                 ("<project>", name),
                 ("YYYY-MM-DD", today),
                 ("[Brief description]", f"{name} project"),

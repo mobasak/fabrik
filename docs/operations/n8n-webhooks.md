@@ -125,23 +125,25 @@ The webhook receives `status` (`down`/`up`) and `monitor.name` fields, which n8n
 
 ## Apprise Notification Configuration
 
-Workflow nodes POST directly to `http://apprise:8005/notify` with `urls`, `title`, and `body` fields. Notification URLs are configured as explicit values in each workflow's HTTP Request nodes — no n8n variables or preconfigured Apprise tags are required.
+Workflow nodes POST to `http://apprise:8005/notify` with `urls`, `title`, and `body` fields. Notification URLs are stored as **n8n credentials** for reusability and secret management.
 
-### Prerequisite: Set Notification URLs in Workflow Nodes
+### Setup: Create n8n Credential for Apprise URLs
 
-Before activating workflows, replace the placeholder notification URLs in each HTTP Request node:
+Store notification URLs as reusable n8n credentials (not inline in workflows):
 
 1. Open n8n: `https://auto.vps1.ocoron.com`
-2. Open the workflow to configure
-3. Click each notification HTTP Request node (e.g., "Notify Success", "Alert Down")
-4. In the **Body Parameters**, replace the `urls` value (`slack://tokenA/tokenB/tokenC`) with your actual Apprise notification URLs
-5. Save the workflow
+2. Go to **Settings** > **Credentials** > **Add Credential**
+3. Select type: **Header Auth** (or create a custom credential type)
+4. Name: `apprise-notification-urls`
+5. Value: Your Apprise notification URLs (e.g., `slack://tokenA/tokenB/tokenC,tgram://bot/chat`)
+6. Save the credential
 
 ### How It Works
 
-1. Notification URLs are configured directly in each workflow's HTTP Request node `urls` parameter
-2. Workflow HTTP Request nodes POST to `http://apprise:8005/notify` with `urls`, `title`, and `body`
-3. Apprise resolves the URLs and dispatches notifications directly — no tag lookup required
+1. Notification URLs are stored in n8n credentials (single source of truth)
+2. Workflow HTTP Request nodes reference the credential via expression: `{{ $credentials.apprise-notification-urls }}`
+3. HTTP Request nodes POST to `http://apprise:8005/notify` with `urls`, `title`, and `body`
+4. Apprise resolves the URLs and dispatches notifications
 
 ### Payload Contract
 
@@ -163,19 +165,21 @@ Each notification node sends the following JSON body to `POST http://apprise:800
 
 ### Validating After Import
 
-After importing a workflow, verify the Apprise endpoint is working:
+After importing a workflow, verify the Apprise endpoint and credential are working:
 
 ```bash
-# 1. Verify Apprise is reachable on port 8000
+# 1. Verify Apprise is reachable
 curl -X POST http://apprise:8005/notify \
   -H "Content-Type: application/json" \
   -d '{"urls": "slack://tokenA/tokenB/tokenC", "title": "Test", "body": "n8n integration test"}'
 
-# 2. Then activate the workflow and trigger a manual execution in n8n UI
-#    to confirm notifications are delivered.
+# 2. Verify n8n credential is set:
+#    - Open workflow in n8n UI
+#    - Check HTTP Request node references `apprise-notification-urls` credential
+#    - Trigger manual execution to confirm notifications are delivered
 ```
 
-If the `urls` value has not been replaced from the placeholder, Apprise will fail to deliver notifications.
+If the credential is not configured, create it per the Setup section above.
 
 ### Supported Channels
 
@@ -222,18 +226,19 @@ Workflow JSON files are stored in `configs/n8n/workflows/`:
 ### Apprise notification not received
 
 - Verify Apprise is running: `curl http://apprise:8005/`
-- Verify the `urls` value in each workflow HTTP Request node has been replaced from the placeholder (`slack://tokenA/tokenB/tokenC`) with your actual notification URLs
+- Verify the `apprise-notification-urls` credential is configured in n8n (Settings > Credentials)
+- Verify workflow HTTP Request nodes reference the credential correctly
 - Test the endpoint directly: `curl -X POST http://apprise:8005/notify -H "Content-Type: application/json" -d '{"urls": "slack://tokenA/tokenB/tokenC", "title": "Test", "body": "Ping"}'`
 - Check n8n execution log for HTTP errors
 
 ### n8n health check failing
 
 ```bash
-# Check from inside Docker network (wget is available in the n8n container; curl is not)
-wget -q -O - http://localhost:5678/healthz
+# Check health endpoint (curl is used by the container healthcheck)
+curl -f http://localhost:5678/healthz
 
 # Check container logs
 docker logs n8n --tail 50
 ```
 
-The n8n container uses `wget --spider -q` for its healthcheck (defined in `specs/infrastructure/n8n.yaml`). The `/healthz` endpoint is explicitly enabled via `QUEUE_HEALTH_CHECK_ACTIVE: "true"` in the container environment.
+The n8n container uses `curl -f http://localhost:5678/healthz` for its healthcheck (defined in `specs/infrastructure/n8n.yaml`). The `/healthz` endpoint is available by default in n8n without additional configuration.
