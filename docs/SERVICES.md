@@ -58,6 +58,7 @@ fabrik plan my-api      # Execute and exit
 | Node Exporter | node-exporter | 9100 | internal only | 🔒 Internal | Host system metrics |
 | cAdvisor | cadvisor | 8080 | internal only | 🔒 Internal | Container metrics |
 | Grafana | grafana | 3002 | `https://monitor.vps1.ocoron.com` | 🔐 Password | Dashboards & alerting |
+| n8n | n8n | 5678 | `https://auto.vps1.ocoron.com` | 🔐 Password | Business automation & webhook pipelines |
 
 *Coolify port 8000 is exposed directly on host. All other services use Traefik reverse proxy on port 443.
 

@@ -31,34 +31,34 @@ echo "--------------------------------------------------"
 
 for agent in "$AGENT_DIR"/*.sh; do
     [ -e "$agent" ] || continue
-    
+
     basename=$(basename "$agent")
     issues=()
-    
+
     # Check if executable
     if [ ! -x "$agent" ]; then
         issues+=("not executable")
     fi
-    
+
     # Check shebang
     if ! head -n1 "$agent" | grep -q "^#!/bin/sh"; then
         issues+=("missing/incorrect shebang")
     fi
-    
+
     # Check for required components
     if ! grep -q "TRAYCER_PROMPT" "$agent"; then
         issues+=("missing TRAYCER_PROMPT handling")
     fi
-    
+
     if ! grep -q "exit" "$agent"; then
         issues+=("missing exit statement")
     fi
-    
+
     # Check shell syntax
     if ! sh -n "$agent" 2>/dev/null; then
         issues+=("shell syntax error")
     fi
-    
+
     # Report results
     if [ ${#issues[@]} -eq 0 ]; then
         echo "  ✓ $basename"

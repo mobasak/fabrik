@@ -33,6 +33,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,21 @@ from typing import Any
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
+
+# Max file size (bytes) to attach directly
+MAX_FILE_SIZE = 50_000  # 50KB
+
+# Max lines per file before chunking
+MAX_LINES_PER_FILE = 500
+
+# Max files per Kilo call
+MAX_FILES_PER_BATCH = 5
+
+# Max diff size (characters)
+MAX_DIFF_SIZE = 15_000  # 15KB
+
+# Max prompt size (bytes) to prevent memory exhaustion
+MAX_PROMPT_SIZE = 100_000  # 100KB
 
 # Valid Kilo agents
 VALID_AGENTS = {
@@ -91,6 +107,230 @@ DOC_EXTENSIONS = {".md", ".rst", ".txt", ".adoc"}
 # Fallback: Gemini 3 Flash if auto unavailable
 _DEFAULT_MODEL = "kilo/auto"
 _DEFAULT_MODEL_FALLBACK = "kilo/google/gemini-3-flash-preview"
+
+
+@dataclass
+class KiloReviewConfig:
+    """Configuration for Kilo code review."""
+
+    # Model selection (None = auto-routed based on diff file paths)
+    model: str | None = None
+
+    # Kilo-specific options
+    review_agent: str = "ask"  # Agent for review phase (read-only)
+    fix_agent: str = "code"  # Agent for fix phase (code editing)
+    variant: str = "high"  # Reasoning level: minimal, low, high, max
+
+    # Review scope
+    max_files_per_batch: int = MAX_FILES_PER_BATCH
+    max_lines_per_file: int = MAX_LINES_PER_FILE
+    review_mode: str = "full"  # full, diff_only, staged
+
+    # Iteration control
+    max_iterations: int = 3
+    min_severity: str = "MAJOR"  # BLOCKER, MAJOR, MINOR
+    auto_fix: bool = True
+
+    # Session management
+    session_id: str | None = None
+    persist_session: bool = True
+
+    # Output
+    output_dir: Path = field(default_factory=lambda: SESSION_DIR)
+    output_format: str = "json"  # json, text, markdown
+    verbose: bool = False
+
+    # Plan/spec context
+    traycer_plan: str | None = None
+
+    # Verify mode (cheaper workflow: review → manual fix → verify)
+    verify_mode: bool = False
+    fixes_description: str | None = None
+
+    # Doc-specific review options
+    doc_mode: bool = False  # Use lighter doc-only review (auto-detected for .md files)
+    skip_categories: set[str] = field(default_factory=set)  # Categories to skip
+
+    # Tiered model selection (cost-aware escalation)
+    strategy: str | None = None  # free, economy, standard, premium, critical
+    max_cost: float | None = None  # Stop escalation at budget cap
+    no_escalate: bool = False  # Stay at initial tier
+    verify_high_risk: bool = True  # Auto-verify PASS on high-risk code
+
+
+@dataclass
+class EscalationState:
+    """Tracks model escalation within a review session."""
+
+    strategy: str  # free, economy, standard, premium, critical
+    current_tier_idx: int = 0  # Index in escalation path
+    failed_models: set[str] = field(default_factory=set)  # Models that errored
+    session_id: str = ""  # Kilo session ID for cache hits
+    spent_cost: float = 0.0  # Accumulated cost
+    max_cost: float | None = None  # Budget cap
+    risk_level: str = "medium"  # low, medium, high, critical
+    verification_performed: bool = False  # Did we verify PASS?
+    false_negative_detected: bool = False  # Did cheap model miss issues?
+
+    def get_escalation_path(self) -> list[str]:
+        """Get the escalation path for current strategy."""
+        return ESCALATION_PATHS.get(self.strategy, ESCALATION_PATHS["economy"])
+
+    def can_escalate(self) -> bool:
+        """Check if we can escalate to next tier."""
+        path = self.get_escalation_path()
+        return self.current_tier_idx < len(path) - 1
+
+    def get_current_tier(self) -> str:
+        """Get current tier name."""
+        path = self.get_escalation_path()
+        if self.current_tier_idx < len(path):
+            return path[self.current_tier_idx]
+        return path[-1] if path else "Economy"
+
+
+@dataclass
+class ReviewIssue:
+    """A single issue found during review."""
+
+    severity: str  # BLOCKER, MAJOR, MINOR
+    category: str  # SPEC, SECURITY, CONFIG, EDGE, DOCS
+    file: str
+    lines: str
+    why: str
+    fix_hint: str
+    snippet: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ReviewResult:
+    """Result of a Kilo review call."""
+
+    verdict: str  # PASS, FAIL
+    summary: str
+    issues: list[ReviewIssue]
+    notes: list[str] = field(default_factory=list)
+    stats: dict[str, Any] = field(default_factory=dict)
+    session_id: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost: float = 0.0
+    raw_output: str = ""
+    usage: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class FixResult:
+    """Result of a Kilo fix call."""
+
+    status: str  # SUCCESS, PARTIAL, FAILED
+    total_fixed: int
+    fixes_applied: list[dict[str, Any]]
+    total_skipped: int = 0
+    needs_manual: list[dict[str, Any]] = field(default_factory=list)
+    diff: str | None = None
+    session_id: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost: float = 0.0
+
+
+@dataclass
+class UsageStats:
+    """Tracks token usage and costs for a session."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cost_usd: float = 0.0
+
+    # Review-specific stats
+    review_calls: int = 0
+    review_input_tokens: int = 0
+    review_output_tokens: int = 0
+    review_cost_usd: float = 0.0
+
+    # Fix-specific stats
+    fix_calls: int = 0
+    fix_input_tokens: int = 0
+    fix_output_tokens: int = 0
+    fix_cost_usd: float = 0.0
+
+    def add_review(self, result: ReviewResult) -> None:
+        # Update totals
+        self.input_tokens += result.input_tokens
+        self.output_tokens += result.output_tokens
+        self.total_tokens += result.input_tokens + result.output_tokens
+        self.cost_usd += result.cost
+        # Update review-specific
+        self.review_calls += 1
+        self.review_input_tokens += result.input_tokens
+        self.review_output_tokens += result.output_tokens
+        self.review_cost_usd += result.cost
+
+    def add_fix(self, result: FixResult) -> None:
+        # Update totals
+        self.input_tokens += result.input_tokens
+        self.output_tokens += result.output_tokens
+        self.total_tokens += result.input_tokens + result.output_tokens
+        self.cost_usd += result.cost
+        # Update fix-specific
+        self.fix_calls += 1
+        self.fix_input_tokens += result.input_tokens
+        self.fix_output_tokens += result.output_tokens
+        self.fix_cost_usd += result.cost
+
+    def add_review_call(self, usage: dict[str, Any]) -> None:
+        """Add usage from a raw Kilo response dict."""
+        input_t = usage.get("input_tokens", 0)
+        output_t = usage.get("output_tokens", 0)
+        cost = usage.get("cost", 0.0)
+
+        self.input_tokens += input_t
+        self.output_tokens += output_t
+        self.total_tokens += input_t + output_t
+        self.cost_usd += cost
+
+        self.review_calls += 1
+        self.review_input_tokens += input_t
+        self.review_output_tokens += output_t
+        self.review_cost_usd += cost
+
+
+@dataclass
+class SessionState:
+    """Persistent session state for Cascade chat continuity."""
+
+    session_id: str
+    created_at: str
+    last_used_at: str
+    model: str
+    variant: str
+    files_reviewed: list[str]
+    iteration: int
+    status: str  # in_progress, completed, failed
+    usage: dict[str, Any]
+    last_verdict: str | None = None
+    last_issues: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class FinalReport:
+    """Final report from the review loop."""
+
+    status: str  # CLEAN, NEEDS_FIX, NEEDS_MANUAL, MAX_ITERATIONS, ERROR
+    verdict: str  # PASS, FAIL
+    iterations: int
+    files_reviewed: list[str]
+    all_issues: list[dict[str, Any]]
+    all_fixes: list[dict[str, Any]]
+    remaining_issues: list[dict[str, Any]]
+    usage: dict[str, Any]
+    session_id: str
+    summary: str
 
 
 def get_default_model() -> str:
@@ -148,20 +388,8 @@ IGNORE_DIRS = {
     ".next",
 }
 
-# Max file size (bytes) to attach directly
-MAX_FILE_SIZE = 50_000  # 50KB
-
-# Max lines per file before chunking
-MAX_LINES_PER_FILE = 500
-
-# Max files per Kilo call
-MAX_FILES_PER_BATCH = 5
-
 # Max diff size (characters)
 MAX_DIFF_SIZE = 15_000  # 15KB
-
-# Max prompt size (bytes) to prevent memory exhaustion
-MAX_PROMPT_SIZE = 100_000  # 100KB
 
 # Session state directory (configurable via env var)
 SESSION_DIR = Path(os.getenv("KILO_SESSION_DIR", ".droid/reviews"))
@@ -169,6 +397,17 @@ SESSION_DIR = Path(os.getenv("KILO_SESSION_DIR", ".droid/reviews"))
 # Model cache file and refresh tracking
 MODEL_CACHE_FILE = Path(os.getenv("KILO_MODEL_CACHE", ".droid/kilo_models_cache.json"))
 MODEL_CACHE_REFRESH_FILE = Path(".droid/.kilo_cache_last_refresh")
+
+# Retry configuration for transient failures
+try:
+    MAX_RETRIES = max(1, int(os.getenv("KILO_MAX_RETRIES", "3")))  # Max retry attempts (min 1)
+except ValueError:
+    print(
+        f"Warning: Invalid KILO_MAX_RETRIES value '{os.getenv('KILO_MAX_RETRIES')}', using default 3",
+        file=sys.stderr,
+    )
+    MAX_RETRIES = 3
+RETRYABLE_EXIT_CODES = {124, 503}  # Timeout (124) and Service Unavailable (503)
 
 # Model successor mapping for deprecated models
 MODEL_SUCCESSORS = {
@@ -257,6 +496,111 @@ MODEL_FALLBACK_CHAIN = [
 ]
 
 # =============================================================================
+# TIERED MODEL SELECTION (Cost-Aware Escalation)
+# =============================================================================
+#
+# Strategy: Start cheap, escalate on failure
+# Risk assessment determines starting tier, escalation path handles quality
+#
+# Usage:
+#   --strategy free      Start at Free tier ($0)
+#   --strategy economy   Start at Economy tier (~$0.02/M)
+#   --strategy standard  Start at Balanced tier (~$0.5/M) [default for high-risk]
+#   --strategy premium   Start at Strong tier (~$3/M)
+#   --strategy critical  Start at Prime tier (~$5/M)
+#   --max-cost 1.00      Stop escalating at budget cap
+#   --no-escalate        Stay at initial tier
+
+TIER_MODELS = {
+    "Free": [
+        "kilo/minimax/minimax-m2.1",
+        "kilo/zhipu/glm-4.7-free",
+        "kilo/moonshot/kimi-k2.5",
+        "kilo/qwen/qwen3-coder",
+        "kilo/deepseek/deepseek-r1",
+    ],
+    "Economy": [
+        "kilo/google/gemini-3-flash-preview",
+        "kilo/mistral/devstral-small",
+        "kilo/zhipu/glm-4.7-flash",
+        "kilo/deepseek/deepseek-v3",
+    ],
+    "Balanced": [
+        "kilo/openai/gpt-5.2-codex",
+        "kilo/zhipu/glm-5",
+        "kilo/xai/grok-4.1-fast",
+        "kilo/openai/gpt-5.2-chat",
+    ],
+    "Strong": [
+        "kilo/anthropic/claude-sonnet-4.6",
+        "kilo/openai/gpt-5.3-codex",
+        "kilo/google/gemini-3.1-pro-preview",
+    ],
+    "Prime": [
+        "kilo/anthropic/claude-opus-4.6",
+        "kilo/openai/gpt-5.2-pro",
+    ],
+}
+
+ESCALATION_PATHS = {
+    "free": ["Free", "Economy", "Balanced"],  # Per spec
+    "economy": ["Economy", "Balanced", "Strong"],  # Per spec
+    "standard": ["Balanced", "Strong", "Prime"],
+    "premium": ["Strong", "Prime"],
+    "critical": ["Prime"],
+}
+
+RISK_TO_STRATEGY = {
+    "low": "free",
+    "medium": "economy",
+    "high": "standard",
+    "critical": "premium",
+}
+
+TIER_ESTIMATED_COST = {
+    "Free": 0.0,
+    "Economy": 0.02,
+    "Balanced": 0.50,
+    "Strong": 3.00,
+    "Prime": 5.00,
+}
+
+
+def get_tier_model(tier: str, failed_models: set[str] | None = None) -> str | None:
+    """Get first available model from tier, skipping failed ones."""
+    if failed_models is None:
+        failed_models = set()
+    for model in TIER_MODELS.get(tier, []):
+        if model not in failed_models:
+            return model
+    return None
+
+
+def get_escalation_model(
+    strategy: str,
+    current_tier_idx: int,
+    failed_models: set[str] | None = None,
+    max_cost: float | None = None,
+) -> tuple[str | None, str, int]:
+    """
+    Get next model in escalation path.
+
+    Returns: (model_id, tier_name, new_tier_idx) or (None, "", -1) if exhausted
+    """
+    path = ESCALATION_PATHS.get(strategy, ESCALATION_PATHS["economy"])
+
+    for idx in range(current_tier_idx, len(path)):
+        tier = path[idx]
+        # Check cost cap
+        if max_cost is not None and TIER_ESTIMATED_COST.get(tier, 0) > max_cost:
+            continue
+        model = get_tier_model(tier, failed_models)
+        if model:
+            return model, tier, idx
+    return None, "", -1
+
+
+# =============================================================================
 # DIFF-SCOPED MODEL ROUTING (Cost-Aware)
 # =============================================================================
 #
@@ -318,6 +662,8 @@ HIGH_RISK_FILENAMES = [
     "dockerfile",
     "docker-compose.yml",
     "docker-compose.yaml",
+    "compose.yaml",  # Per spec: compose.yaml is HIGH risk
+    "compose.yml",
     # Env surface
     ".env",
     ".env.production",
@@ -366,6 +712,12 @@ HARD_MAX_ITERATIONS = 10
 
 # Cumulative usage tracking file
 USAGE_LOG_FILE = Path(os.getenv("KILO_USAGE_LOG", ".droid/kilo_usage.jsonl"))
+METRICS_FILE = Path(os.getenv("KILO_METRICS_FILE", ".droid/kilo_metrics.jsonl"))
+REVIEW_SESSIONS_FILE = Path(os.getenv("KILO_SESSIONS_FILE", ".droid/review_sessions.jsonl"))
+AUDIT_LOG_FILE = Path(os.getenv("KILO_AUDIT_LOG", ".droid/review_audits.jsonl"))
+
+# Audit sampling rate (per spec: 5% random sampling of PASS verdicts)
+AUDIT_SAMPLE_RATE = float(os.getenv("KILO_AUDIT_SAMPLE_RATE", "0.05"))
 
 # Project root for path validation (will be set to git root or CWD at runtime)
 # This is initialized lazily to avoid subprocess calls at import time
@@ -458,6 +810,197 @@ def log_routing_decision(
     print(f"[ROUTING] Escalated to Opus: {escalated}", file=sys.stderr)
     print(f"[ROUTING] Reason: {reason}", file=sys.stderr)
     print(f"[ROUTING] Selected model: {selected_model}", file=sys.stderr)
+
+
+def _scan_file_for_critical_keywords(filepath: Path, max_size: int = 100_000) -> bool:
+    """
+    Scan file contents for critical keywords (password, token, key, secret).
+
+    Per spec: content-based keyword detection elevates risk to CRITICAL.
+    Only scans text files under max_size bytes to avoid memory issues.
+    """
+    content_keywords = ["password", "token", "secret", "api_key", "apikey", "private_key"]
+
+    try:
+        if not filepath.exists() or not filepath.is_file():
+            return False
+        if filepath.stat().st_size > max_size:
+            return False  # Skip large files
+
+        # Read file content
+        content = filepath.read_text(encoding="utf-8", errors="ignore").lower()
+
+        # Check for keywords that look like actual secrets (not just variable names)
+        # Pattern: keyword followed by = or : and a quoted/unquoted value
+        # Content is already lowercased, so use lowercase keywords
+        for kw in content_keywords:
+            # Look for assignment patterns like: password = "...", secret: "..."
+            if re.search(rf'{kw}\s*[=:]\s*["\'][^"\']+["\']', content):
+                return True
+            # Look for environment variable patterns like: password=value (case-insensitive)
+            if re.search(rf"^{kw}\s*=\s*\S+", content, re.MULTILINE):
+                return True
+
+    except (OSError, UnicodeDecodeError):
+        pass  # Skip files we can't read
+
+    return False
+
+
+def determine_risk_level(
+    diff_files: list[str] | list[Path],
+    total_diff_lines: int | None = None,
+) -> str:
+    """
+    Determine risk level based on file paths, keywords, diff size, and content.
+
+    Risk levels (per spec):
+    - CRITICAL: auth/, security/, payment/, crypto/, secrets/, OR content contains secrets
+    - HIGH: src/, scripts/, migrations/, OR diff > 400 lines
+    - MEDIUM: normal code
+    - LOW: docs only
+    """
+    has_high_risk = False
+    has_critical = False
+
+    # Critical keywords in path
+    critical_path_keywords = [
+        "auth/",
+        "security/",
+        "payment",
+        "secret",
+        "crypt",
+        "token",
+        "key/",
+        "password",
+    ]
+
+    for fp in diff_files:
+        filepath = Path(fp)
+        normalized = str(fp).replace("\\", "/").lower()
+        filename = filepath.name.lower()
+
+        # Critical: security, auth, payments, secrets in path
+        if any(kw in normalized for kw in critical_path_keywords):
+            has_critical = True
+            break  # No need to check more
+
+        # Critical: content contains secret patterns (per spec)
+        if _scan_file_for_critical_keywords(filepath):
+            has_critical = True
+            break
+
+        # High: source code, scripts, configs, or sensitive files
+        if (
+            any(normalized.startswith(p.lower()) for p in HIGH_RISK_DIR_PREFIXES)
+            or filename in _HIGH_RISK_FILENAMES_LOWER
+        ):
+            has_high_risk = True
+
+    # Large diffs are high risk (per spec: > 400 lines)
+    if total_diff_lines is not None and total_diff_lines > 400:
+        has_high_risk = True
+
+    if has_critical:
+        return "critical"
+    if has_high_risk:
+        return "high"
+    # Check if all docs
+    if is_doc_only_review(diff_files):
+        return "low"
+    return "medium"
+
+
+def get_next_model_from_state(state: EscalationState) -> tuple[str | None, str]:
+    """
+    Get next available model from current escalation state.
+
+    Returns: (model_id, tier_name) or (None, "") if exhausted
+    """
+    path = state.get_escalation_path()
+
+    # Try tiers starting from current index
+    for idx in range(state.current_tier_idx, len(path)):
+        tier = path[idx]
+        # Check cost cap
+        tier_cost = TIER_ESTIMATED_COST.get(tier, 0)
+        if state.max_cost is not None and tier_cost > state.max_cost:
+            continue
+        # Get first available model from tier
+        model = get_tier_model(tier, state.failed_models)
+        if model:
+            state.current_tier_idx = idx
+            return model, tier
+
+    return None, ""
+
+
+def should_verify_pass(risk_level: str, tier: str, findings_count: int) -> bool:
+    """
+    Determine if a PASS verdict needs verification with stronger model.
+
+    Per spec: "Zero issues on critical code is a red flag"
+    HIGH risk starts at Balanced, verify if below Strong.
+    """
+    if findings_count > 0:
+        return False  # Found issues, no verification needed
+
+    if risk_level == "critical" and tier != "Prime":
+        return True  # Always verify critical code
+
+    # HIGH risk: verify if tier is below Strong (Free, Economy, or Balanced)
+    return risk_level == "high" and tier in ("Free", "Economy", "Balanced")
+
+
+def select_model_with_strategy(
+    diff_files: list[str] | list[Path],
+    user_model: str | None,
+    strategy: str | None,
+    max_cost: float | None,
+    total_diff_lines: int | None = None,
+) -> tuple[str, str, str, int, str]:
+    """
+    Select model using tiered escalation strategy.
+
+    Returns: (model_id, tier_name, strategy_used, tier_idx, risk_level)
+    """
+    # User override bypasses strategy
+    if user_model:
+        return user_model, "user", "override", 0, "unknown"
+
+    # Determine risk level
+    risk_level = determine_risk_level(diff_files, total_diff_lines)
+
+    # Determine strategy from risk level if not specified
+    if not strategy:
+        strategy = RISK_TO_STRATEGY.get(risk_level, "economy")
+
+    # Get initial model from strategy
+    strategy_used = strategy
+    model, tier, idx = get_escalation_model(strategy, 0, None, max_cost)
+    if not model:
+        # Fallback to economy respecting max_cost (per spec: graceful degradation)
+        strategy_used = "economy"
+        model, tier, idx = get_escalation_model("economy", 0, None, max_cost)
+    if not model:
+        # Final fallback to free tier if budget exhausted
+        strategy_used = "free"
+        model, tier, idx = get_escalation_model("free", 0, None, max_cost)
+
+    return model or MODEL_CHEAP, tier or "Free", strategy_used, idx, risk_level
+
+
+def log_tiered_routing(
+    diff_files: list[str] | list[Path],
+    model: str,
+    tier: str,
+    strategy: str,
+    risk_level: str,
+) -> None:
+    """Log tiered model routing decision."""
+    print(f"[ROUTING] Files: {len(diff_files)} | Risk: {risk_level}", file=sys.stderr)
+    print(f"[ROUTING] Strategy: {strategy} | Tier: {tier}", file=sys.stderr)
+    print(f"[ROUTING] Model: {model}", file=sys.stderr)
 
 
 def is_doc_only_review(files: list[Path] | list[str]) -> bool:
@@ -618,6 +1161,155 @@ def check_model_deprecation(model: str) -> str:
     return model
 
 
+def check_model_availability(model: str) -> bool:
+    """Check if model exists in Kilo CLI."""
+    kilo_path = find_kilo_executable()
+    if not kilo_path:
+        return True  # Assume available if we can't check
+
+    try:
+        result = subprocess.run(
+            [kilo_path, "models", "--format", "json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return True  # Assume available on error
+
+        models_data = json.loads(result.stdout)
+        model_ids = [m.get("id", "") for m in models_data if isinstance(m, dict)]
+        # Check both with and without kilo/ prefix
+        return (
+            model in model_ids
+            or f"kilo/{model}" in model_ids
+            or model.replace("kilo/", "") in model_ids
+        )
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
+        return True  # Assume available on error
+
+
+@dataclass
+class ReviewSession:
+    """Track review session metrics for analysis."""
+
+    session_id: str
+    files: list[str]
+    file_types: list[str]
+    model: str
+    iterations: int
+    total_cost: float = 0.0
+    verdict: str = "PENDING"
+    started_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    completed_at: str | None = None
+
+    def save(self) -> None:
+        """Save session metrics to review_sessions.jsonl."""
+        REVIEW_SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        self.completed_at = datetime.now(UTC).isoformat()
+        with open(REVIEW_SESSIONS_FILE, "a") as f:
+            json.dump(asdict(self), f)
+            f.write("\n")
+
+
+def run_stats_command(by_filetype: bool = False, by_model: bool = False, days: int = 30) -> None:
+    """Show usage statistics from review sessions."""
+    from collections import defaultdict
+    from datetime import timedelta
+
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+
+    # Load sessions
+    sessions: list[dict[str, Any]] = []
+    if REVIEW_SESSIONS_FILE.exists():
+        with open(REVIEW_SESSIONS_FILE) as f:
+            for line in f:
+                try:
+                    session = json.loads(line.strip())
+                    started_str = session.get("started_at", "")
+                    if not started_str:
+                        continue
+                    started = datetime.fromisoformat(started_str)
+                    if started >= cutoff:
+                        sessions.append(session)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+    # Also load from usage log
+    if USAGE_LOG_FILE.exists():
+        with open(USAGE_LOG_FILE) as f:
+            for line in f:
+                try:
+                    entry = json.loads(line.strip())
+                    ts_str = entry.get("timestamp", "")
+                    if not ts_str:
+                        continue
+                    ts = datetime.fromisoformat(ts_str)
+                    if ts >= cutoff:
+                        sessions.append(entry)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+    if not sessions:
+        print(f"No sessions found in last {days} days.")
+        return
+
+    print(f"\n📊 Kilo Usage Statistics (Last {days} Days)")
+    print(f"{'=' * 60}")
+    print(f"Total sessions: {len(sessions)}")
+
+    # Calculate totals (handle both ReviewSession and log_usage schemas)
+    def get_cost(s: dict[str, Any]) -> float:
+        return s.get("total_cost", s.get("total_cost_usd", s.get("cost_usd", 0.0)))
+
+    def get_model(s: dict[str, Any]) -> str:
+        return s.get("model", s.get("session_id", "unknown"))
+
+    total_cost = sum(get_cost(s) for s in sessions)
+    total_tokens = sum(s.get("total_tokens", 0) for s in sessions)
+    pass_count = sum(1 for s in sessions if s.get("verdict") == "PASS")
+
+    print(f"Total cost: ${total_cost:.4f}")
+    print(f"Total tokens: {total_tokens:,}")
+    print(f"Pass rate: {pass_count}/{len(sessions)} ({100 * pass_count / len(sessions):.1f}%)")
+
+    if by_model:
+        print("\n📈 By Model:")
+        by_model_stats: dict[str, dict[str, Any]] = defaultdict(
+            lambda: {"count": 0, "cost": 0.0, "passes": 0}
+        )
+        for s in sessions:
+            model = get_model(s)
+            by_model_stats[model]["count"] += 1
+            by_model_stats[model]["cost"] += get_cost(s)
+            if s.get("verdict") == "PASS":
+                by_model_stats[model]["passes"] += 1
+
+        for model, stats in sorted(by_model_stats.items(), key=lambda x: -x[1]["cost"]):
+            rate = 100 * stats["passes"] / stats["count"] if stats["count"] > 0 else 0
+            print(f"  {model}: {stats['count']} sessions, ${stats['cost']:.4f}, {rate:.0f}% pass")
+
+    if by_filetype:
+        print("\n📁 By File Type:")
+        by_type_stats: dict[str, dict[str, Any]] = defaultdict(lambda: {"count": 0, "cost": 0.0})
+        for s in sessions:
+            # Handle both ReviewSession.file_types and log_usage.files_reviewed
+            file_types = s.get("file_types", [])
+            if not file_types:
+                # Extract extensions from files_reviewed if available
+                files_reviewed = s.get("files_reviewed", [])
+                file_types = list({Path(f).suffix for f in files_reviewed if Path(f).suffix})
+            cost_per_type = get_cost(s) / max(len(file_types), 1)
+            for ft in file_types:
+                by_type_stats[ft]["count"] += 1
+                by_type_stats[ft]["cost"] += cost_per_type
+
+        for ft, stats in sorted(by_type_stats.items(), key=lambda x: -x[1]["count"]):
+            print(f"  {ft}: {stats['count']} files, ${stats['cost']:.4f}")
+
+    print()
+
+
 def get_validated_model(model: str) -> str:
     """Get validated model, checking for deprecation and ensuring reasoning capability."""
     # Refresh cache daily
@@ -708,181 +1400,6 @@ def should_use_max_variant(
 
     # Default: use high (cheaper, still production-grade)
     return False, "standard"
-
-
-# =============================================================================
-# DATA CLASSES
-# =============================================================================
-
-
-@dataclass
-class KiloReviewConfig:
-    """Configuration for Kilo code review."""
-
-    # Model selection (None = auto-routed based on diff file paths)
-    model: str | None = None
-
-    # Kilo-specific options
-    review_agent: str = "ask"  # Agent for review phase (read-only)
-    fix_agent: str = "code"  # Agent for fix phase (code editing)
-    variant: str = "high"  # Reasoning level: minimal, low, high, max
-
-    # Review scope
-    max_files_per_batch: int = MAX_FILES_PER_BATCH
-    max_lines_per_file: int = MAX_LINES_PER_FILE
-    review_mode: str = "full"  # full, diff_only, staged
-
-    # Iteration control
-    max_iterations: int = 3
-    min_severity: str = "MAJOR"  # BLOCKER, MAJOR, MINOR
-    auto_fix: bool = True
-
-    # Session management
-    session_id: str | None = None
-    persist_session: bool = True
-
-    # Output
-    output_dir: Path = field(default_factory=lambda: SESSION_DIR)
-    output_format: str = "json"  # json, text, markdown
-    verbose: bool = False
-
-    # Plan/spec context
-    traycer_plan: str | None = None
-
-    # Verify mode (cheaper workflow: review → manual fix → verify)
-    verify_mode: bool = False
-    fixes_description: str | None = None
-
-    # Doc-specific review options
-    doc_mode: bool = False  # Use lighter doc-only review (auto-detected for .md files)
-    skip_categories: set[str] = field(default_factory=set)  # Categories to skip
-
-
-@dataclass
-class ReviewIssue:
-    """A single issue found during review."""
-
-    severity: str  # BLOCKER, MAJOR, MINOR
-    category: str  # SPEC, SECURITY, CONFIG, EDGE, DOCS
-    file: str
-    lines: str  # "L42-L50" or "L42"
-    snippet: str | None = None
-    why: str = ""
-    fix_hint: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in asdict(self).items() if v is not None}
-
-
-@dataclass
-class ReviewResult:
-    """Result from a single review call."""
-
-    verdict: str  # PASS, FAIL
-    summary: str
-    issues: list[ReviewIssue]
-    notes: list[str]
-    stats: dict[str, Any]
-    session_id: str | None = None
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cost: float = 0.0
-    raw_output: str = ""
-
-
-@dataclass
-class FixResult:
-    """Result from a fix phase."""
-
-    fixes_applied: list[dict[str, Any]]
-    total_fixed: int = 0
-    total_skipped: int = 0
-    needs_manual: list[dict[str, Any]] = field(default_factory=list)
-    session_id: str | None = None
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cost: float = 0.0
-    diff: str = ""  # Git diff of changes made
-
-
-@dataclass
-class UsageStats:
-    """Accumulated usage statistics with separate review/fix tracking."""
-
-    # Total stats
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    cost_usd: float = 0.0
-
-    # Review-specific stats
-    review_calls: int = 0
-    review_input_tokens: int = 0
-    review_output_tokens: int = 0
-    review_cost_usd: float = 0.0
-
-    # Fix-specific stats
-    fix_calls: int = 0
-    fix_input_tokens: int = 0
-    fix_output_tokens: int = 0
-    fix_cost_usd: float = 0.0
-
-    def add_review(self, result: ReviewResult) -> None:
-        # Update totals
-        self.input_tokens += result.input_tokens
-        self.output_tokens += result.output_tokens
-        self.total_tokens += result.input_tokens + result.output_tokens
-        self.cost_usd += result.cost
-        # Update review-specific
-        self.review_calls += 1
-        self.review_input_tokens += result.input_tokens
-        self.review_output_tokens += result.output_tokens
-        self.review_cost_usd += result.cost
-
-    def add_fix(self, result: FixResult) -> None:
-        # Update totals
-        self.input_tokens += result.input_tokens
-        self.output_tokens += result.output_tokens
-        self.total_tokens += result.input_tokens + result.output_tokens
-        self.cost_usd += result.cost
-        # Update fix-specific
-        self.fix_calls += 1
-        self.fix_input_tokens += result.input_tokens
-        self.fix_output_tokens += result.output_tokens
-        self.fix_cost_usd += result.cost
-
-
-@dataclass
-class SessionState:
-    """Persistent session state for Cascade chat continuity."""
-
-    session_id: str
-    created_at: str
-    last_used_at: str
-    model: str
-    variant: str
-    files_reviewed: list[str]
-    iteration: int
-    status: str  # in_progress, completed, failed
-    usage: dict[str, Any]
-    last_verdict: str | None = None
-    last_issues: list[dict[str, Any]] = field(default_factory=list)
-
-
-@dataclass
-class FinalReport:
-    """Final report from the review loop."""
-
-    status: str  # CLEAN, NEEDS_FIX, NEEDS_MANUAL, MAX_ITERATIONS, ERROR
-    verdict: str  # PASS, FAIL
-    iterations: int
-    files_reviewed: list[str]
-    all_issues: list[dict[str, Any]]
-    all_fixes: list[dict[str, Any]]
-    remaining_issues: list[dict[str, Any]]
-    usage: dict[str, Any]
-    session_id: str
-    summary: str
 
 
 # =============================================================================
@@ -1173,66 +1690,112 @@ async def run_kilo(
     if not kilo_path:
         raise RuntimeError("Kilo executable not found. Is it installed?")
 
+    # Ensure model is set (should always be set by route_to_model before this point)
+    if config.model is None:
+        raise RuntimeError("config.model is None - model routing failed")
+
     cmd = build_kilo_command(
         kilo_path=kilo_path,
         model=config.model,
         agent=agent,
         variant=config.variant,
-        session_id=config.session_id,
+        session_id=config.session_id or "",
         file_paths=file_paths,
     )
 
     if config.verbose:
         print(f"[KILO] Running: {' '.join(cmd)}", file=sys.stderr)
 
-    try:
-        # Use synchronous subprocess for reliability on Windows
-        # Run in thread pool to keep async interface
-        import concurrent.futures
+    # Retry loop with exponential backoff for transient failures
+    last_exception: Exception | None = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            # Use synchronous subprocess for reliability on Windows
+            # Run in thread pool to keep async interface
+            import concurrent.futures
 
-        def run_subprocess():
-            result = subprocess.run(
-                cmd,
-                input=prompt.encode("utf-8"),
-                capture_output=True,
-                timeout=timeout,
-                shell=False,  # Never use shell=True to prevent command injection
+            def run_subprocess():
+                result = subprocess.run(
+                    cmd,
+                    input=prompt.encode("utf-8"),
+                    capture_output=True,
+                    timeout=timeout,
+                    shell=False,  # Never use shell=True to prevent command injection
+                )
+                return result
+
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(executor, run_subprocess),
+                    timeout=timeout + 10,  # Extra buffer for executor overhead
+                )
+
+            stdout = result.stdout
+            stderr = result.stderr
+
+            # Check for retryable failures (timeout or service unavailable)
+            if result.returncode in RETRYABLE_EXIT_CODES and attempt < MAX_RETRIES - 1:
+                wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                error_msg = stderr.decode("utf-8", errors="replace")[:200]
+                print(
+                    f"⏳ Kilo transient failure (exit {result.returncode}). "
+                    f"Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
+                    file=sys.stderr,
+                )
+                if config.verbose:
+                    print(f"[RETRY] Error: {error_msg}", file=sys.stderr)
+                await asyncio.sleep(wait_time)
+                continue
+
+            if result.returncode != 0:
+                error_msg = stderr.decode("utf-8", errors="replace")
+                # Truncate and redact secrets to prevent leaking sensitive data in logs
+                error_msg = error_msg[:200]
+                error_msg = _redact_secrets(error_msg)
+                raise RuntimeError(f"Kilo failed (exit {result.returncode}): {error_msg}")
+
+            output = stdout.decode("utf-8", errors="replace")
+
+            if config.verbose:
+                print(f"[KILO] Output: {len(output)} chars", file=sys.stderr)
+                if stderr:
+                    stderr_text = stderr.decode("utf-8", errors="replace")
+                    if stderr_text.strip() and "error" in stderr_text.lower():
+                        print(f"[KILO] Stderr: {stderr_text[:300]}", file=sys.stderr)
+
+            # Parse and return result
+            return parse_kilo_jsonl(output)
+
+        except subprocess.TimeoutExpired as e:
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:
+                wait_time = 2**attempt
+                print(
+                    f"⏳ Kilo timeout. Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
+                    file=sys.stderr,
+                )
+                await asyncio.sleep(wait_time)
+                continue
+            raise RuntimeError(f"Kilo timed out after {timeout}s (tried {MAX_RETRIES} times)")
+        except TimeoutError as e:
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:
+                wait_time = 2**attempt
+                print(
+                    f"⏳ Kilo async timeout. Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
+                    file=sys.stderr,
+                )
+                await asyncio.sleep(wait_time)
+                continue
+            raise RuntimeError(
+                f"Kilo async timeout after {timeout + 10}s (tried {MAX_RETRIES} times)"
             )
-            return result
 
-        loop = asyncio.get_event_loop()
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            result = await asyncio.wait_for(
-                loop.run_in_executor(executor, run_subprocess),
-                timeout=timeout + 10,  # Extra buffer for executor overhead
-            )
-
-        stdout = result.stdout
-        stderr = result.stderr
-
-        if result.returncode != 0:
-            error_msg = stderr.decode("utf-8", errors="replace")
-            # Truncate and redact secrets to prevent leaking sensitive data in logs
-            error_msg = error_msg[:200]
-            error_msg = _redact_secrets(error_msg)
-            raise RuntimeError(f"Kilo failed (exit {result.returncode}): {error_msg}")
-
-        output = stdout.decode("utf-8", errors="replace")
-
-        if config.verbose:
-            print(f"[KILO] Output: {len(output)} chars", file=sys.stderr)
-            if stderr:
-                stderr_text = stderr.decode("utf-8", errors="replace")
-                if stderr_text.strip() and "error" in stderr_text.lower():
-                    print(f"[KILO] Stderr: {stderr_text[:300]}", file=sys.stderr)
-
-        # Parse and return result
-        return parse_kilo_jsonl(output)
-
-    except subprocess.TimeoutExpired:
-        raise RuntimeError(f"Kilo timed out after {timeout}s")
-    except TimeoutError:
-        raise RuntimeError(f"Kilo async timeout after {timeout + 10}s")
+    # If we exhausted retries, raise the last exception
+    if last_exception:
+        raise last_exception
+    raise RuntimeError("Kilo call failed after all retries")
 
 
 # =============================================================================
@@ -1536,6 +2099,61 @@ def get_changed_files() -> list[Path]:
         ]
     except subprocess.CalledProcessError:
         return []
+
+
+def get_diff_line_count(files: list[Path] | None = None) -> int:
+    """
+    Get total number of changed lines in the diff.
+
+    Returns sum of additions + deletions from git diff --stat.
+    """
+    try:
+        git_path = shutil.which("git")
+        if not git_path or not os.path.isabs(git_path):
+            return 0
+
+        # Get git root for path normalization
+        root_result = subprocess.run(
+            [git_path, "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        git_root = Path(root_result.stdout.strip())
+
+        cmd = [git_path, "diff", "--stat", "HEAD"]
+        if files:
+            cmd.append("--")
+            # Normalize to repo-relative paths for git pathspecs
+            for f in files:
+                try:
+                    rel_path = Path(f).resolve().relative_to(git_root)
+                    cmd.append(str(rel_path))
+                except ValueError:
+                    # Already relative or outside repo
+                    cmd.append(str(f))
+
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
+        # Parse last line: "X files changed, Y insertions(+), Z deletions(-)"
+        lines = result.stdout.strip().split("\n")
+        if not lines:
+            return 0
+        summary = lines[-1]
+        total = 0
+        # Extract insertions
+        if "insertion" in summary:
+            match = re.search(r"(\d+)\s+insertion", summary)
+            if match:
+                total += int(match.group(1))
+        # Extract deletions
+        if "deletion" in summary:
+            match = re.search(r"(\d+)\s+deletion", summary)
+            if match:
+                total += int(match.group(1))
+        return total
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return 0
 
 
 def get_diff_content(
@@ -1901,6 +2519,7 @@ def parse_fix_output(raw_output: str) -> FixResult:
 
     if data is None:
         return FixResult(
+            status="FAILED",
             fixes_applied=[],
             total_fixed=0,
             total_skipped=0,
@@ -1908,7 +2527,12 @@ def parse_fix_output(raw_output: str) -> FixResult:
         )
 
     summary = data.get("summary", {})
+    status = "SUCCESS" if summary.get("total_fixed", 0) > 0 else "FAILED"
+    if summary.get("needs_manual"):
+        status = "PARTIAL"
+
     return FixResult(
+        status=status,
         fixes_applied=data.get("fixes_applied", []),
         total_fixed=summary.get("total_fixed", 0),
         total_skipped=summary.get("total_skipped", 0),
@@ -2206,24 +2830,67 @@ async def review_loop(
     local_session_id = config.session_id or f"local_{uuid.uuid4().hex[:16]}"
 
     # ==========================================================================
-    # DIFF-SCOPED MODEL ROUTING (Cost-Aware)
+    # TIERED MODEL ROUTING (Cost-Aware Escalation)
     # ==========================================================================
-    # Select model based on diff file paths BEFORE review starts.
-    # User --model override takes precedence; otherwise escalate to Opus only
-    # for high-risk paths (backend, auth, docker, etc.)
+    # Select model using tiered strategy based on risk level.
+    # User --model override takes precedence; otherwise use strategy-based selection.
+    # Strategy can be: free, economy, standard, premium, critical
     # Note: config.model is None if user didn't specify --model
-    selected_model, escalated, routing_reason = select_model_for_diff(
+
+    # Compute total diff lines for large diff detection (>400 lines = HIGH risk)
+    total_diff_lines = get_diff_line_count(files)
+
+    selected_model, tier, strategy_used, tier_idx, risk_level = select_model_with_strategy(
         diff_files=files,
         user_model=config.model,  # None if not specified by user
+        strategy=config.strategy,
+        max_cost=config.max_cost,
+        total_diff_lines=total_diff_lines,
     )
     config.model = selected_model
-    log_routing_decision(files, selected_model, escalated, routing_reason)
+    log_tiered_routing(files, selected_model, tier, strategy_used, risk_level)
+
+    # Initialize escalation state for tracking
+    escalation_state = EscalationState(
+        strategy=strategy_used,
+        current_tier_idx=tier_idx,
+        session_id=local_session_id,
+        max_cost=config.max_cost,
+        risk_level=risk_level,
+    )
 
     # Initialize tracking
     usage = UsageStats()
     all_issues: list[dict[str, Any]] = []
     all_fixes: list[dict[str, Any]] = []
     files_reviewed = [str(f) for f in files]
+
+    # Pre-review validation (fail fast before spending credits)
+    validation_issues = pre_review_checks(files)
+    if validation_issues:
+        return FinalReport(
+            status="ERROR",
+            verdict="FAIL",
+            iterations=0,
+            files_reviewed=files_reviewed,
+            all_issues=[
+                {
+                    "severity": "BLOCKER",
+                    "category": "VALIDATION",
+                    "file": "pre-review",
+                    "lines": "",
+                    "why": issue,
+                    "fix_hint": "Fix the validation error before running review",
+                }
+                for issue in validation_issues
+            ],
+            all_fixes=[],
+            remaining_issues=[],
+            usage={},
+            session_id="",
+            summary=f"Pre-review validation failed: {len(validation_issues)} issue(s) found",
+        )
+
     previous_issues: list[dict[str, Any]] | None = None
     previous_verdict: str | None = None  # Track last review verdict for max variant decision
     iteration = 0
@@ -2283,16 +2950,57 @@ async def review_loop(
                     file=sys.stderr,
                 )
 
-            # PHASE 1: Review (with adaptive variant)
+            # PHASE 1: Review (with adaptive variant and model error retry)
             # Temporarily override variant for this iteration
             original_variant = config.variant
             config.variant = current_variant
-            review_result = await run_review(
-                files=files,
-                config=config,
-                iteration=iteration,
-                previous_issues=previous_issues,
-            )
+
+            # Model error retry loop - try models until success or path exhausted
+            max_model_retries = 3
+            review_result = None
+            for _ in range(max_model_retries):
+                try:
+                    review_result = await run_review(
+                        files=files,
+                        config=config,
+                        iteration=iteration,
+                        previous_issues=previous_issues,
+                    )
+                    break  # Success, exit retry loop
+                except Exception as model_error:
+                    # Track failed model
+                    if config.model:
+                        escalation_state.failed_models.add(config.model)
+                    print(
+                        f"  [MODEL ERROR] {config.model} failed: {model_error}",
+                        file=sys.stderr,
+                    )
+
+                    # Check if escalation is allowed
+                    if config.no_escalate:
+                        print("  [ABORT] --no-escalate set, not retrying", file=sys.stderr)
+                        raise
+
+                    # Try next model in escalation path
+                    next_model, next_tier = get_next_model_from_state(escalation_state)
+                    if not next_model:
+                        print("  [ABORT] No more models in escalation path", file=sys.stderr)
+                        raise
+
+                    print(
+                        f"  [ESCALATE] Retrying with {next_model} ({next_tier} tier)",
+                        file=sys.stderr,
+                    )
+                    config.model = next_model
+                    escalation_state.current_tier_idx = (
+                        ESCALATION_PATHS.get(escalation_state.strategy, []).index(next_tier)
+                        if next_tier in ESCALATION_PATHS.get(escalation_state.strategy, [])
+                        else escalation_state.current_tier_idx
+                    )
+
+            if review_result is None:
+                raise RuntimeError("All models in escalation path failed")
+
             config.variant = original_variant  # Restore
             usage.add_review(review_result)
 
@@ -2358,24 +3066,136 @@ async def review_loop(
                     )
                     continue
 
-                # Definitive PASS (either max-variant verification or at iteration limit)
-                session_state.status = "completed"
-                session_state.usage = asdict(usage)
-                if config.persist_session:
-                    save_session(session_state)
-
-                return FinalReport(
-                    status="CLEAN",
-                    verdict="PASS",
-                    iterations=iteration,
-                    files_reviewed=files_reviewed,
-                    all_issues=all_issues,
-                    all_fixes=all_fixes,
-                    remaining_issues=[],
-                    usage=asdict(usage),
-                    session_id=config.session_id,
-                    summary=f"Review passed after {iteration} iteration(s). {review_result.summary}",
+                # =================================================================
+                # FALSE NEGATIVE MITIGATION (Per Spec Phase 4)
+                # =================================================================
+                # "Zero issues on critical code is a red flag" - all 3 models agreed
+                # If cheap model says PASS on high-risk code, verify with stronger tier
+                # Respect --no-escalate and --max-cost flags
+                # Per spec: critical → Prime, high → Strong
+                # Skip verification if user explicitly set --model (strategy == "override")
+                verify_tier = "Prime" if escalation_state.risk_level == "critical" else "Strong"
+                verify_tier_cost = TIER_ESTIMATED_COST.get(verify_tier, 3.0)
+                can_verify = (
+                    config.verify_high_risk
+                    and escalation_state.strategy != "override"  # Skip if user set --model
+                    and not config.no_escalate  # Respect no-escalate flag
+                    and not escalation_state.verification_performed
+                    and (config.max_cost is None or verify_tier_cost <= config.max_cost)
+                    and should_verify_pass(
+                        escalation_state.risk_level,
+                        escalation_state.get_current_tier(),
+                        len(review_result.issues),
+                    )
                 )
+                if can_verify:
+                    escalation_state.verification_performed = True
+                    # Get appropriate tier model for verification (Prime for critical, Strong for high)
+                    verify_model = get_tier_model(verify_tier, escalation_state.failed_models)
+                    if verify_model and verify_model != config.model:
+                        print(
+                            f"  [VERIFY] Zero issues on {escalation_state.risk_level}-risk code. "
+                            f"Verifying with {verify_model}...",
+                            file=sys.stderr,
+                        )
+                        # Create a copy of config with stronger model
+                        original_model = config.model
+                        config.model = verify_model
+                        # Run verification review
+                        verify_result = await _run_single_batch_review(
+                            files=files,
+                            config=config,
+                            iteration=iteration,
+                            previous_issues=None,
+                        )
+                        config.model = original_model  # Restore original
+                        usage.add_review_call(verify_result.usage)
+
+                        if verify_result.verdict == "FAIL" and verify_result.issues:
+                            # Cheap model missed issues! Log for quality tracking
+                            escalation_state.false_negative_detected = True
+                            print(
+                                f"  [FALSE NEGATIVE] Cheap model missed "
+                                f"{len(verify_result.issues)} issue(s)!",
+                                file=sys.stderr,
+                            )
+
+                            # Write quality metrics entry per spec section 5.2
+                            quality_entry = {
+                                "timestamp": datetime.now().isoformat(),
+                                "files": [str(f) for f in files],
+                                "risk_level": escalation_state.risk_level,
+                                "initial_tier": escalation_state.get_current_tier(),
+                                "initial_verdict": "PASS",
+                                "initial_findings": 0,
+                                "verification_tier": verify_tier,
+                                "verification_verdict": "FAIL",
+                                "verification_findings": len(verify_result.issues),
+                                "false_negative": True,
+                                "model_initial": original_model,
+                                "model_verification": verify_model,
+                            }
+                            try:
+                                METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
+                                with open(METRICS_FILE, "a") as f:
+                                    f.write(json.dumps(quality_entry) + "\n")
+                            except OSError as e:
+                                print(f"  [METRICS] Failed to write: {e}", file=sys.stderr)
+
+                            # Use verification result and skip PASS return
+                            review_result = verify_result
+                            # Fall through to issue processing below (skip PASS block)
+
+                # Only return PASS if review_result is still PASS after verification
+                if review_result.verdict == "PASS":
+                    # =================================================================
+                    # 5% AUDIT SAMPLING (Per Spec Phase 5)
+                    # =================================================================
+                    # Random sampling of PASS verdicts for quality monitoring
+                    import random
+
+                    if random.random() < AUDIT_SAMPLE_RATE:
+                        audit_entry = {
+                            "timestamp": datetime.now().isoformat(),
+                            "session_id": config.session_id or local_session_id,
+                            "files": [str(f) for f in files_reviewed],
+                            "tier": escalation_state.get_current_tier(),
+                            "model": config.model,
+                            "risk_level": escalation_state.risk_level,
+                            "verdict": "PASS",
+                            "iterations": iteration,
+                            "verification_performed": escalation_state.verification_performed,
+                            "false_negative_detected": escalation_state.false_negative_detected,
+                        }
+                        try:
+                            AUDIT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+                            with open(AUDIT_LOG_FILE, "a") as f:
+                                f.write(json.dumps(audit_entry) + "\n")
+                            print(
+                                "  [AUDIT] Sampled PASS verdict for quality monitoring",
+                                file=sys.stderr,
+                            )
+                        except OSError as e:
+                            print(f"  [AUDIT] Failed to write audit log: {e}", file=sys.stderr)
+
+                    # Definitive PASS (either max-variant verification or at iteration limit)
+                    session_state.status = "completed"
+                    session_state.usage = asdict(usage)
+                    if config.persist_session:
+                        save_session(session_state)
+
+                    return FinalReport(
+                        status="CLEAN",
+                        verdict="PASS",
+                        iterations=iteration,
+                        files_reviewed=files_reviewed,
+                        all_issues=all_issues,
+                        all_fixes=all_fixes,
+                        remaining_issues=[],
+                        usage=asdict(usage),
+                        session_id=config.session_id or "",
+                        summary=f"Review passed after {iteration} iteration(s). {review_result.summary}",
+                    )
 
             previous_verdict = review_result.verdict  # For max variant decision
 
@@ -2429,7 +3249,7 @@ async def review_loop(
                         all_fixes=all_fixes,
                         remaining_issues=[],
                         usage=asdict(usage),
-                        session_id=config.session_id,
+                        session_id=config.session_id or "",
                         summary=f"Review failed but returned no issues (possible parse error). {review_result.summary}",
                     )
 
@@ -2448,7 +3268,7 @@ async def review_loop(
                     all_fixes=all_fixes,
                     remaining_issues=[i.to_dict() for i in review_result.issues],
                     usage=asdict(usage),
-                    session_id=config.session_id,
+                    session_id=config.session_id or "",
                     summary=f"Review passed (only MINOR issues). {review_result.summary}",
                 )
 
@@ -2468,7 +3288,7 @@ async def review_loop(
                     all_fixes=all_fixes,
                     remaining_issues=[i.to_dict() for i in review_result.issues],
                     usage=asdict(usage),
-                    session_id=config.session_id,
+                    session_id=config.session_id or "",
                     summary=f"Review found issues (auto-fix disabled). {review_result.summary}",
                 )
 
@@ -2510,7 +3330,7 @@ async def review_loop(
                     all_fixes=all_fixes,
                     remaining_issues=[i.to_dict() for i in actionable],
                     usage=asdict(usage),
-                    session_id=config.session_id,
+                    session_id=config.session_id or "",
                     summary=f"Some issues require manual fix: {fix_result.needs_manual}",
                 )
 
@@ -2532,7 +3352,7 @@ async def review_loop(
             all_fixes=all_fixes,
             remaining_issues=previous_issues or [],
             usage=asdict(usage),
-            session_id=config.session_id,
+            session_id=config.session_id or "",
             summary=f"Max iterations ({config.max_iterations}) reached with issues remaining.",
         )
 
@@ -2542,6 +3362,49 @@ async def review_loop(
         if config.persist_session:
             save_session(session_state)
         raise
+
+
+# =============================================================================
+# PRE-REVIEW VALIDATION
+# =============================================================================
+
+
+def pre_review_checks(files: list[Path]) -> list[str]:
+    """Run fast validation before Kilo review to fail fast.
+
+    Returns list of blocking issues that should prevent review.
+    """
+    issues = []
+    max_file_size = 500 * 1024  # 500KB
+
+    for f in files:
+        if not f.exists():
+            issues.append(f"File does not exist: {f}")
+            continue
+        size = f.stat().st_size
+        if size > max_file_size:
+            issues.append(f"File too large: {f} ({size:,} bytes, max {max_file_size:,})")
+
+    for f in [f for f in files if f.suffix == ".py"]:
+        if not f.exists():
+            continue
+        try:
+            content = f.read_text(encoding="utf-8")
+            compile(content, str(f), "exec")
+        except SyntaxError as e:
+            issues.append(f"Syntax error in {f}:{e.lineno}: {e.msg}")
+        except UnicodeDecodeError as e:
+            issues.append(f"Encoding error in {f}: {e}")
+        except Exception:
+            pass
+
+    for f in files:
+        if not f.exists():
+            continue
+        if f.stat().st_size == 0:
+            issues.append(f"Empty file: {f}")
+
+    return issues
 
 
 # =============================================================================
@@ -2697,6 +3560,29 @@ Examples:
         action="store_true",
         help="Skip pre-commit checks (not recommended)",
     )
+    common.add_argument(
+        "--strategy",
+        default=None,
+        choices=["free", "economy", "standard", "premium", "critical"],
+        help="Cost strategy: free ($0), economy (~$0.02/M), standard (~$0.5/M), premium (~$3/M), critical (~$5/M)",
+    )
+    common.add_argument(
+        "--max-cost",
+        type=float,
+        default=None,
+        help="Max cost per review in $/M tokens (stops escalation at budget)",
+    )
+    common.add_argument(
+        "--no-escalate",
+        action="store_true",
+        help="Stay at initial tier, don't escalate on failure",
+    )
+    common.add_argument(
+        "--verify-high-risk",
+        action="store_true",
+        default=None,
+        help="Verify PASS on high-risk code with stronger model (default: True)",
+    )
 
     # review command
     review_parser = subparsers.add_parser(
@@ -2756,6 +3642,28 @@ Examples:
         help="Description of fixes applied (text or @file path)",
     )
 
+    # stats command (analyze usage logs)
+    stats_parser = subparsers.add_parser(
+        "stats",
+        help="Show usage statistics from review sessions",
+    )
+    stats_parser.add_argument(
+        "--by-filetype",
+        action="store_true",
+        help="Group statistics by file type",
+    )
+    stats_parser.add_argument(
+        "--by-model",
+        action="store_true",
+        help="Group statistics by model",
+    )
+    stats_parser.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Number of days to analyze (default: 30)",
+    )
+
     return parser.parse_args()
 
 
@@ -2810,6 +3718,7 @@ def run_precommit(files: list[Path], max_iterations: int = MAX_PRECOMMIT_ITERATI
 
     file_paths = [str(f) for f in files]
     project_root = get_project_root()
+    previous_output = ""  # Track output to detect infinite loops
 
     for iteration in range(1, max_iterations + 1):
         print(f"\n[PRE-COMMIT] Iteration {iteration}/{max_iterations}...", file=sys.stderr)
@@ -2842,6 +3751,18 @@ def run_precommit(files: list[Path], max_iterations: int = MAX_PRECOMMIT_ITERATI
 
             # Check for specific fixable issues and try to fix them
             if "ruff" in output.lower() and iteration < max_iterations:
+                # Check if we're stuck on the same error
+                if previous_output and output == previous_output:
+                    print(
+                        "[PRE-COMMIT] ❌ No progress made - same errors as previous iteration",
+                        file=sys.stderr,
+                    )
+                    print(
+                        "[PRE-COMMIT] Ruff cannot auto-fix these issues. Please fix manually.",
+                        file=sys.stderr,
+                    )
+                    return False
+
                 # Try running ruff --fix directly
                 print("[PRE-COMMIT] Running ruff --fix...", file=sys.stderr)
                 subprocess.run(
@@ -2856,6 +3777,9 @@ def run_precommit(files: list[Path], max_iterations: int = MAX_PRECOMMIT_ITERATI
                     cwd=project_root,
                     timeout=60,
                 )
+
+                # Store output to detect if next iteration is the same
+                previous_output = output
                 continue
 
             # Non-fixable failure - show output and return False
@@ -2892,9 +3816,36 @@ async def main() -> int:
     """Main entry point."""
     args = parse_args()
 
+    # Handle stats command (no async needed)
+    if args.command == "stats":
+        run_stats_command(
+            by_filetype=getattr(args, "by_filetype", False),
+            by_model=getattr(args, "by_model", False),
+            days=getattr(args, "days", 30),
+        )
+        return 0
+
     # Validate model if user specified one (check deprecation, refresh cache daily)
     # If None, model will be auto-selected by diff-scoped routing in review_loop
     validated_model = get_validated_model(args.model) if args.model else None
+
+    # Get strategy from args or env var
+    strategy = getattr(args, "strategy", None) or os.getenv("KILO_DEFAULT_STRATEGY")
+    max_cost_str = os.getenv("KILO_MAX_COST")
+    max_cost = getattr(args, "max_cost", None)
+    if max_cost is None and max_cost_str:
+        try:
+            max_cost = float(max_cost_str)
+        except ValueError:
+            pass
+
+    # Get verify_high_risk from args or env var (default: True per spec)
+    verify_high_risk_arg = getattr(args, "verify_high_risk", None)
+    if verify_high_risk_arg is None:
+        env_val = os.getenv("KILO_VERIFY_HIGH_RISK", "true").lower()
+        verify_high_risk = env_val in ("true", "1", "yes")
+    else:
+        verify_high_risk = verify_high_risk_arg
 
     # Build config
     config = KiloReviewConfig(
@@ -2908,6 +3859,10 @@ async def main() -> int:
         traycer_plan=load_plan(getattr(args, "plan", None)),
         skip_categories=parse_skip_categories(getattr(args, "skip_categories", None)),
         doc_mode=getattr(args, "doc_mode", False),
+        strategy=strategy,
+        max_cost=max_cost,
+        no_escalate=getattr(args, "no_escalate", False),
+        verify_high_risk=verify_high_risk,
     )
 
     # Get files based on command

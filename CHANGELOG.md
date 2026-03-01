@@ -46,9 +46,56 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Agent backup: Automatic timestamped backup before regenerating agents (safe rollback)
 - Agent health check: `kilo_agent_health.sh` utility verifies agent integrity (executable, shebang, syntax, required components)
 
+### Added - Cost-Aware Model Escalation (2026-03-01)
+
+**Summary:** Implemented intelligent tiered model selection that minimizes cost while maintaining review quality. Designed with consensus from GPT-5.2 Pro, Claude Opus, and Gemini Pro.
+
+**Files:**
+- `scripts/kilo_code_review.py` - Full implementation of tiered routing, escalation, false negative mitigation
+- `.env.example` - New env vars: KILO_DEFAULT_STRATEGY, KILO_MAX_COST, KILO_VERIFY_HIGH_RISK, KILO_AUDIT_SAMPLE_RATE
+- `docs/development/plans/2026-03-01-plan-cost-aware-escalation.md` - Complete spec
+
+**Features:**
+- **Risk assessment**: File paths + diff size (>400 lines) + content keyword scanning (password/token/secret)
+- **5 Tiers**: Free ($0) → Economy (~$0.02/M) → Balanced (~$0.50/M) → Strong (~$3/M) → Prime (~$5/M)
+- **Auto-routing**: Risk level determines starting tier (low→Free, medium→Economy, high→Balanced, critical→Strong)
+- **Model error retry**: Catches failures, tracks failed_models, escalates to next tier (max 3 retries)
+- **False negative mitigation**: Zero findings on high/critical risk auto-verifies with stronger model (Prime for critical, Strong for high)
+- **5% audit sampling**: Random PASS verdicts logged to `.droid/review_audits.jsonl` for quality monitoring
+- **Quality metrics**: False negatives logged to `.droid/kilo_metrics.jsonl` with full details
+- **Session preservation**: Same session ID across escalation for cache hits (~30-50% token savings)
+- **Budget caps**: --max-cost flag with graceful degradation to cheaper tiers
+- **CLI args**: --strategy, --max-cost, --no-escalate, --verify-high-risk
+
+**Expected savings:** 90%+ vs always-Prime, with <5% quality loss.
+
 ### Fixed - Kilo Review Hang (2026-03-01)
 
 **CRITICAL BUGFIX:** Fixed infinite loop in `kilo_code_review.py` run_precommit() function that caused review to hang indefinitely when ruff had unfixable errors. Added progress tracking to detect when same error occurs twice and break loop with clear message.
+
+### Fixed - Mypy Type Errors in Kilo Review (2026-03-01)
+
+**Files:**
+- `scripts/kilo_code_review.py` - Fixed 8 mypy type errors
+
+**Fixes:**
+- Added null check for `config.model` before `build_kilo_command()` call
+- Fixed `last_exception` type annotation to `Exception | None` for retry logic
+- Added `or ""` fallback for `session_id` in all `FinalReport` calls (6 locations)
+
+### Added - Mypy Timeout Recovery (2026-03-01)
+
+**Summary:** Added robust mypy execution with automatic recovery from cache corruption that caused 3+ minute hangs on large files.
+
+**Files:**
+- `scripts/final_gate.py` - New `run_mypy_with_recovery()` function
+- `Makefile` - New `make mypy-safe` target
+
+**Features:**
+- 30s timeout on first attempt (fast path with cache)
+- Auto-clear `.mypy_cache/` on timeout
+- Retry with `--no-incremental` flag (recovery path)
+- Self-healing: no more mypy hangs on large files (3000+ lines)
 
 ---
 
@@ -63,6 +110,21 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 **Changed:** `fabrik logs <spec_path>` renamed to `fabrik app-logs <spec_path>` (Coolify-backed)
 
 **Docs:** `.env.example` (GRAFANA_ADMIN_PASSWORD, LOKI_URL), `PORTS.md`, `docs/SERVICES.md`
+
+---
+
+### Added - Phase 8: n8n Business Automation (2026-02-28)
+
+**Summary:** Deployed n8n automation platform with three core workflow templates and Apprise integration for notifications.
+
+**New files:**
+- `specs/infrastructure/n8n.yaml` — n8n service spec (port 5678, basic auth, healthz)
+- `configs/n8n/workflows/backup-notification.json` — cron -> Duplicati -> Apprise
+- `configs/n8n/workflows/uptime-alert.json` — webhook -> switch -> Apprise (down/up)
+- `configs/n8n/workflows/webhook-test.json` — webhook -> respondToWebhook
+- `docs/operations/n8n-webhooks.md` — webhook URLs, payloads, curl tests
+
+**Docs:** `.env.example` (N8N_USER, N8N_PASSWORD, N8N_ENCRYPTION_KEY), `PORTS.md` (5678), `docs/SERVICES.md`
 
 ---
 

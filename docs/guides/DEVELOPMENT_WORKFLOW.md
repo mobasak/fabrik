@@ -15,7 +15,7 @@ Fabrik uses a **deterministic-first, LLM-second** approach:
 3. **Pre-commit** blocks only absolute security issues
 
 ```
-PLAN → IMPLEMENT → FINAL_GATE → KILO → FINAL_GATE → VERIFY → SYNC → COMMIT → NEXT
+PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO → FINAL_GATE → VERIFY → SYNC → COMMIT → NEXT
 ```
 
 Traycer can optionally orchestrate the end-to-end loop in **YOLO Mode**; in Epic Mode, **Smart YOLO** can execute selected specs and tickets end-to-end by dynamically choosing planning/verification strategies per task.
@@ -80,6 +80,48 @@ Epic Mode also tracks **Executions** as an audit trail for each agent handoff (w
 - Escalate to Sonnet 4.5 Thinking (3x cost) if stuck
 
 **Output:** Code changes ready for review
+
+---
+
+### Step 2.5: Self-Review
+
+**Who:** The coding AI that implemented Step 2 (Cascade, Cursor, Kilo CLI)
+
+**What:** Review your own implementation against the plan before gates run.
+
+**Why:** Catches obvious mistakes before spending time on deterministic checks. Forces explicit verification of spec compliance.
+
+**Process:**
+1. **Re-read the complete plan/spec** from Step 1
+2. **Check each requirement** — confirm code implements it
+3. **Verify edge cases** — list what was handled, what wasn't
+4. **Confirm documentation** — env vars, DB changes, README updates
+5. **Identify concerns** — any code smells, potential bugs, or unclear areas
+
+**Output Format (MANDATORY):**
+```
+SELF-REVIEW COMPLETE:
+✓ All spec requirements implemented
+✓ Edge cases handled: <specific list or "N/A">
+✓ Env vars documented: <specific list or "N/A">
+✓ DB changes documented: <specific list or "N/A">
+⚠ Potential issues: <specific concerns or "None identified">
+
+Next: Proceed to Step 3 (Final Gate Pre-Kilo)
+```
+
+**Rules:**
+- Self-review is NOT optional — must complete before Step 3
+- Be honest about gaps — better to catch now than in Kilo review
+- If ⚠ Potential issues found → fix them before Step 3
+- Report must include all 5 sections
+
+**Violations:**
+- Skipping self-review = FORBIDDEN
+- Proceeding with identified issues unfixed = STOP
+- Missing required report sections = invalid, must redo
+
+**Gate:** Self-review report complete with all 5 sections
 
 ---
 

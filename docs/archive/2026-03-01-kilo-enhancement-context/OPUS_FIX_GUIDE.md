@@ -51,7 +51,7 @@ python scripts/kilo_code_review.py --help         # Must work instantly
 ## All 4 Features Are Actually Correct
 
 1. ✅ **Retry logic** (lines 173-182, 1195-1250) - Works perfectly
-2. ✅ **Model metrics** (line 377-378) - Works perfectly  
+2. ✅ **Model metrics** (line 377-378) - Works perfectly
 3. ✅ **Pre-review validation** (lines 2651-2687) - Works perfectly
 4. ✅ **Infinite loop fix** (lines 2905-3017) - Works perfectly
 

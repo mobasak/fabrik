@@ -4,7 +4,7 @@
 # Fabrik is a CLI tool, not a deployed service.
 # No docker-smoke target (N/A for CLI tools).
 
-.PHONY: help install dev test lint format clean pre-commit global-gates
+.PHONY: help install dev test lint format clean pre-commit global-gates mypy-safe
 
 # Default target
 help:
@@ -14,6 +14,7 @@ help:
 	@echo "  make dev         Install in editable mode for development"
 	@echo "  make test        Run pytest"
 	@echo "  make lint        Run ruff + mypy"
+	@echo "  make mypy-safe   Run mypy with timeout protection (auto-recovers from cache corruption)"
 	@echo "  make format      Auto-format code with ruff"
 	@echo "  make pre-commit  Run all pre-commit hooks"
 	@echo "  make clean       Remove cache files"
@@ -40,6 +41,14 @@ test:
 lint:
 	ruff check src/
 	mypy src/
+
+mypy-safe:
+	@# Robust mypy with timeout protection and auto-recovery
+	@timeout 30 mypy src/ scripts/ --ignore-missing-imports 2>/dev/null || { \
+		echo "⚠ mypy hung - clearing cache and retrying..."; \
+		rm -rf .mypy_cache/; \
+		mypy src/ scripts/ --ignore-missing-imports --no-incremental; \
+	}
 
 format:
 	ruff format src/

@@ -1,0 +1,51 @@
+{
+  "name": "Webhook Test Endpoint",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "test",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-test",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "test"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "received": true,
+          "timestamp": "={{ $now.toISO() }}",
+          "data": "={{ $json }}"
+        },
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [220, 0]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -44,38 +44,44 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
          │
          ▼
 ┌──────────────────┐
-│  Final Gate      │  6. Pre-Kilo: Auto-fix format, lint, static analysis (saves tokens)
-│  (Pre-Kilo)      │  7. Repo consistency: 25 checks across security/docs/structure
+│  Self-Review     │  6. Coding AI reviews own work (spec compliance, edge cases, docs)
+│  (MANDATORY)     │  7. Structured report: requirements, env vars, DB, issues
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│  Kilo Review     │  8. Diff-scoped AI review (SPEC, SECURITY, CONFIG, EDGE, DOCS)
-│  (Iterative)     │  9. Coder fixes ALL issues (BLOCKER, MAJOR, MINOR)
-└────────┬─────────┘  10. Re-review until verdict=PASS (max 5 iterations)
+│  Final Gate      │  8. Pre-Kilo: Auto-fix format, lint, static analysis (saves tokens)
+│  (Pre-Kilo)      │  9. Repo consistency: 25 checks across security/docs/structure
+└────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│  Final Gate      │  11. Post-Kilo: Verify fixes didn't break deterministic rules
+│  Kilo Review     │  10. Diff-scoped AI review (SPEC, SECURITY, CONFIG, EDGE, DOCS)
+│  (Iterative)     │  11. Coder fixes ALL issues (BLOCKER, MAJOR, MINOR)
+└────────┬─────────┘  12. Re-review until verdict=PASS (max 5 iterations)
+         │
+         ▼
+┌──────────────────┐
+│  Final Gate      │  13. Post-Kilo: Verify fixes didn't break deterministic rules
 │  (Post-Kilo)     │
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│  Traycer Verify  │  12. Traycer's built-in verifier validates against spec
+│  Traycer Verify  │  14. Traycer's built-in verifier validates against spec
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│  Sync & Commit   │  13. Final Gate --sync: Extensions + backup
-│                  │  14. Pre-commit: 4 absolute blockers only
-└────────┬─────────┘  15. Git commit succeeds
+│  Sync & Commit   │  15. Final Gate --sync: Extensions + backup
+│                  │  16. Pre-commit: 4 absolute blockers only
+└────────┬─────────┘  17. Git commit succeeds
          │
          ▼
 ┌──────────────────┐
-│  Deploy Pipeline │  16. Coolify orchestration (saga pattern)
-│  (Orchestrator)  │  17. DNS + SSL + Health checks
-└──────────────────┘  18. Automatic rollback on failure
+│  Deploy Pipeline │  18. Coolify orchestration (saga pattern)
+│  (Orchestrator)  │  19. DNS + SSL + Health checks
+└──────────────────┘  20. Automatic rollback on failure
 
 ---
 
@@ -502,6 +508,14 @@ curl https://api.example.com/health
 ```bash
 # After coding (Step 2)
 cd /opt/my-api
+
+# Step 2.5: Self-Review (MANDATORY)
+echo "SELF-REVIEW COMPLETE:"
+echo "✓ All spec requirements implemented"
+echo "✓ Edge cases handled: [list]"
+echo "✓ Env vars documented: [list]"
+echo "✓ DB changes documented: N/A"
+echo "⚠ Potential issues: None identified"
 
 # Step 3: Pre-Kilo Final Gate
 python /opt/fabrik/scripts/final_gate.py

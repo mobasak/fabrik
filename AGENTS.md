@@ -77,6 +77,26 @@
 
 **Step 2 - Coder Implements:** Use Gemini 3.1 Pro High Thinking (1x). Implement only phase scope. Escalate to Sonnet 4.5 Thinking (3x) if stuck.
 
+**Step 2.5 - Self-Review (MANDATORY):** Before running pre-kilo, coding AI MUST review its own implementation:
+1. Re-read the plan/spec completely
+2. Check each requirement against code changes
+3. Verify edge cases are handled
+4. Confirm env vars/DB changes documented
+5. Report findings in structured format:
+
+```
+SELF-REVIEW COMPLETE:
+✓ All spec requirements implemented
+✓ Edge cases handled: <list or "N/A">
+✓ Env vars documented: <list or "N/A">
+✓ DB changes documented: <list or "N/A">
+⚠ Potential issues: <list or "None identified">
+
+Next: Proceed to Step 3 (Final Gate Pre-Kilo)
+```
+
+**Violations:** Proceeding to Step 3 without self-review = FORBIDDEN. Self-review report missing required sections = STOP.
+
 **Step 3 - Final Gate (Pre-Kilo):** Catches deterministic failures BEFORE spending Kilo tokens.
 Checks include:
 - Auto-fix: trailing whitespace, EOF newline, ruff-format, ruff --fix

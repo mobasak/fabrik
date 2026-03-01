@@ -6,7 +6,7 @@ Reads agent definitions from kilo_18_agents_complete.json and generates
 properly named scripts in ~/.traycer/cli-agents/
 
 Naming format: <TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh
-Example: P01-opus46-review-max-i500-o2500.sh
+Example: Prime01-opus46-review-max-i500-o2500.sh
 
 Usage:
     python generate_kilo_agents.py [-h] [-d]
@@ -26,27 +26,28 @@ OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
 
 # Tier assignments (based on user specification)
 TIER_ASSIGNMENTS = {
-    # Auto Tier - Automatic mode-based routing (NEW)
-    "A": [
+    # Auto Tier - Automatic mode-based routing
+    "Auto": [
         ("auto", "code", "auto"),
         ("auto", "review", "auto"),
     ],
-    # Prime Tier - Mission critical
-    "P": [
+    # Prime Tier - Mission critical (Opus, GPT-5.2 Pro)
+    "Prime": [
         ("claude-opus-4.6", "code", "max"),
         ("gpt-5.2-pro", "review", "max"),
         ("claude-opus-4.5", "review", "max"),
     ],
-    # Strong Tier - Production grade
-    "S": [
+    # Strong Tier - Production grade (Sonnet, GPT-5.3, Gemini Pro)
+    "Strong": [
         ("gpt-5.3-codex", "code", "high"),
         ("gpt-5.2", "code", "high"),
         ("gemini-3.1-pro-preview", "code", "high"),
         ("claude-sonnet-4.6", "review", "max"),
         ("claude-sonnet-4.5", "review", "max"),
+        ("claude-sonnet-4.5", "code", "high"),
     ],
-    # Balanced Tier - Good performance
-    "B": [
+    # Balanced Tier - Cost-effective (GPT-5.2, Grok, GLM-5)
+    "Balanced": [
         ("gpt-5.2-codex", "code", "high"),
         ("gemini-3.1-pro-preview-customtools", "code", "high"),
         ("glm-5", "review", "high"),
@@ -54,12 +55,37 @@ TIER_ASSIGNMENTS = {
         ("gpt-5.2-chat", "review", "max"),
         ("glm-4.7", "code", "medium"),
     ],
-    # Economy Tier - Budget friendly
-    "E": [
+    # Economy Tier - Budget friendly (Flash, Devstral, DeepSeek, Qwen)
+    "Economy": [
         ("gemini-3-flash-preview", "code", "minimal"),
         ("minimax-m2.5", "code", "low"),
         ("glm-4.7-flash", "code", "minimal"),
         ("seed-2.0-mini", "review", "max"),
+        ("devstral-small", "code", "low"),
+        ("llama-4-maverick", "code", "medium"),
+        ("deepseek-v3", "code", "medium"),
+        ("qwen3-235b", "review", "high"),
+    ],
+    # Free Tier - Zero cost models (MiniMax, GLM, Kimi, Trinity, Qwen Coder)
+    "Free": [
+        ("minimax-m2.1", "code", "medium"),
+        ("glm-4.7-free", "code", "medium"),
+        ("kimi-k2.5", "code", "high"),
+        ("giga-potato", "code", "low"),
+        ("trinity-large", "code", "high"),
+        ("qwen3-coder", "code", "high"),
+        ("glm-4.5-air", "code", "minimal"),
+        ("deepseek-r1", "review", "max"),
+        ("kimi-k2", "code", "high"),
+    ],
+    # Ultra Tier - Codestral specialized agents (~$0.25/M, fast)
+    "Ultra": [
+        ("codestral", "code", "low"),
+        ("codestral-refactor", "code", "low"),
+        ("codestral-docs", "code", "minimal"),
+        ("codestral-test", "code", "low"),
+        ("codestral-translate", "code", "low"),
+        ("codestral-review", "review", "low"),
     ],
 }
 
@@ -83,6 +109,25 @@ MODEL_NORMALIZE = {
     "glm-5": "glm5",
     "grok-4.1-fast": "grok41fast",
     "seed-2.0-mini": "seed20mini",
+    "minimax-m2.1": "minimax21",
+    "glm-4.7-free": "glm47free",
+    "kimi-k2.5": "kimik25",
+    "giga-potato": "gigapotato",
+    "trinity-large": "trinity",
+    "qwen3-coder": "qwen3coder",
+    "glm-4.5-air": "glm45air",
+    "deepseek-r1": "deepseekr1",
+    "kimi-k2": "kimik2",
+    "devstral-small": "devstral",
+    "llama-4-maverick": "llama4mav",
+    "deepseek-v3": "deepseek3",
+    "qwen3-235b": "qwen3235b",
+    "codestral": "codestral",
+    "codestral-refactor": "codestralrefactor",
+    "codestral-docs": "codestraldocs",
+    "codestral-test": "codestraltest",
+    "codestral-translate": "codestraltranslate",
+    "codestral-review": "codestralreview",
 }
 
 
@@ -102,23 +147,96 @@ def generate_script_content(agent: dict, tier: str, rank: int) -> str:
     role = agent["use_case"].lower()
     variant = agent["variant"]
     specialty = agent["specialty"]
+    model_name = agent["model_name"]
 
     input_price = agent["input_per_1m"]
     output_price = agent["output_per_1m"]
 
-    tier_name = {"A": "Auto", "P": "Prime", "S": "Strong", "B": "Balanced", "E": "Economy"}[tier]
+    # Tier name is already full name (Auto, Balanced, Economy, Free, Prime, Strong, Ultra)
+    tier_name = tier  # Use tier name directly (A-Z sorted)
+
+    # Build filename components for documentation
+    model_norm = normalize_model_name(model_name)
+    input_enc = encode_price(input_price)
+    output_enc = encode_price(output_price)
+    # Use full tier name in filename (e.g., Auto01, Prime01, Strong01)
+    script_name = f"{tier}{rank:02d}-{model_norm}-{role}-{variant}-i{input_enc}-o{output_enc}.sh"
+
+    # Generate kilo/auto routing documentation if applicable
+    auto_routing_docs = ""
+    if model_name == "auto":
+        auto_routing_docs = """#
+# ⚙️  KILO/AUTO ROUTING MECHANISM:
+# This agent uses kilo/auto which automatically routes to the best model based on mode:
+#   - Review mode  → claude-opus-4.6   ($5.00/1M in, $25.00/1M out)
+#   - Code mode    → claude-sonnet-4.5 ($3.00/1M in, $15.00/1M out)
+#
+# The routing happens server-side in Kilo CLI. This script just passes --model kilo/auto.
+# The actual model selection is transparent to this script.
+#
+# ⚠️  PRICING NOTE:
+# Filename shows i000-o000 because kilo/auto itself has no fixed price.
+# ACTUAL COSTS depend on which model is selected (see above).
+# Expect $3-5/1M input and $15-25/1M output depending on task complexity."""
+
+    # Build pricing line
+    if model_name == "auto":
+        pricing_line = "# Pricing: VARIABLE (see routing above)"
+    else:
+        pricing_line = f"# Pricing: ${input_price:.2f}/1M input, ${output_price:.2f}/1M output"
 
     return f"""#!/bin/sh
+# ════════════════════════════════════════════════════════════════════════════
 # Kilo {role.capitalize()} Agent - {tier_name} Tier #{rank:02d}
+# ════════════════════════════════════════════════════════════════════════════
+#
+# 📛 SCRIPT NAME: {script_name}
+#
+# 📋 NAMING CONVENTION EXPLAINED:
+#   Format: <TIER><NN>-<model>-<role>-<variant>-i<IN>-o<OUT>.sh
+#
+#   <TIER>    = Agent tier (quality/cost bracket)
+#               Auto     = Automatic model routing (kilo/auto)
+#               Prime    = Mission-critical, max reasoning (Opus, GPT-5.2 Pro)
+#               Strong   = Production-grade (Sonnet, GPT-5.3, Gemini Pro)
+#               Balanced = Cost-effective (GPT-5.2, Grok, GLM-5)
+#               Economy  = Budget-friendly (Flash, Devstral, DeepSeek, Qwen)
+#               Free     = Zero-cost development (MiniMax, GLM, Kimi, Trinity)
+#               Ultra    = Codestral specialized agents (~$0.25/M, fast)
+#
+#   <NN>      = Rank within tier (01-99)
+#
+#   <model>   = Normalized model name (e.g., opus46, flash3, minimax21)
+#
+#   <role>    = Agent purpose
+#               code   = Code generation, refactoring, implementation
+#               review = Code review, security analysis, verification
+#
+#   <variant> = Effort level (affects token budget, not price per token)
+#               auto    = Automatic mode-based selection
+#               minimal = Quick tasks, simple code
+#               low     = Basic functionality
+#               medium  = Standard complexity
+#               high    = Complex logic, edge cases
+#               max     = Deep reasoning, security-critical
+#
+#   i<IN>     = Input cost per 1M tokens × 100 (e.g., i500 = $5.00/1M)
+#   o<OUT>    = Output cost per 1M tokens × 100 (e.g., o2500 = $25.00/1M)
+#{auto_routing_docs}
+#
+# ════════════════════════════════════════════════════════════════════════════
+# AGENT DETAILS
+# ════════════════════════════════════════════════════════════════════════════
 # Model: {full_name}
 # Role: {role} | Variant: {variant}
 # Specialty: {specialty}
-# Pricing: ${input_price:.2f}/1M input, ${output_price:.2f}/1M output
+{pricing_line}
+# ════════════════════════════════════════════════════════════════════════════
 
 # Debug mode (KILO_DEBUG=1)
 if [ "$KILO_DEBUG" = "1" ]; then
     set -x  # Print all commands
-    echo "[DEBUG] Agent: {tier}{rank:02d}-{agent["model_name"].replace("/", "-").replace("kilo/", "")}-{role}-{variant}" >&2
+    echo "[DEBUG] Agent: {tier}{rank:02d}-{agent["model_name"].replace("kilo/", "").replace("/", "-")}-{role}-{variant}" >&2
     echo "[DEBUG] Model: {full_name}" >&2
     echo "[DEBUG] TRAYCER_PROMPT length: ${{#TRAYCER_PROMPT}}" >&2
     echo "[DEBUG] TRAYCER_TASK_ID: $TRAYCER_TASK_ID" >&2
@@ -182,6 +300,37 @@ exit $EXIT_CODE
 """
 
 
+def validate_script(script_path: Path) -> list[str]:
+    """Validate generated shell script"""
+    issues = []
+
+    if not script_path.exists():
+        return ["File does not exist"]
+
+    content = script_path.read_text()
+
+    # Check shebang
+    if not content.startswith("#!/bin/sh"):
+        issues.append("Missing or incorrect shebang")
+
+    # Check for exit statement
+    if "exit $EXIT_CODE" not in content and "exit $?" not in content:
+        issues.append("Missing explicit exit statement")
+
+    # Check for required env var handling
+    if "TRAYCER_PROMPT" not in content:
+        issues.append("Missing TRAYCER_PROMPT handling")
+
+    # Shell syntax check
+    import subprocess
+
+    result = subprocess.run(["sh", "-n", str(script_path)], capture_output=True, text=True)
+    if result.returncode != 0:
+        issues.append(f"Shell syntax error: {result.stderr.strip()[:100]}")
+
+    return issues
+
+
 def main(dry_run: bool = False):
     # Load agent definitions
     with open(AGENTS_FILE) as f:
@@ -198,10 +347,11 @@ def main(dry_run: bool = False):
     if not dry_run:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    generated = []
+    generated_count = 0
 
-    # Generate scripts per tier
-    for tier, assignments in TIER_ASSIGNMENTS.items():
+    # Generate scripts per tier (alphabetically: A, B, E, F, P, S)
+    for tier in sorted(TIER_ASSIGNMENTS.keys()):
+        assignments = TIER_ASSIGNMENTS[tier]
         for rank, (model, role, effort) in enumerate(assignments, start=1):
             # Find agent by (model_name, use_case, variant) tuple
             key = (model, role, effort)
@@ -245,7 +395,8 @@ def main(dry_run: bool = False):
                 else:
                     print(f"  ✓ {filename}")
 
-                generated_count += 1
+            # Increment count for both dry-run and actual generation
+            generated_count += 1
 
     if dry_run:
         print(f"\n[DRY-RUN] Would generate {generated_count} agent scripts in {OUTPUT_DIR}")

@@ -1,0 +1,135 @@
+{
+  "name": "Uptime Alert Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "uptime-alert",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "uptime-alert"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "down",
+              "value": "down",
+              "operation": "equal"
+            },
+            {
+              "outputKey": "up",
+              "value": "up",
+              "operation": "equal"
+            }
+          ]
+        },
+        "dataType": "string",
+        "value1": "={{ $json.status }}"
+      },
+      "id": "switch-status",
+      "name": "Switch Status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://apprise:8005/notify",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "urls",
+              "value": "slack://tokenA/tokenB/tokenC"
+            },
+            {
+              "name": "title",
+              "value": "🔴 Service DOWN"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.monitor.name }} is DOWN"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-down",
+      "name": "Alert Down",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, -100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://apprise:8005/notify",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "urls",
+              "value": "slack://tokenA/tokenB/tokenC"
+            },
+            {
+              "name": "title",
+              "value": "🟢 Service UP"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.monitor.name }} recovered"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-up",
+      "name": "Alert Up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 100]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Status": {
+      "main": [
+        [
+          {
+            "node": "Alert Down",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

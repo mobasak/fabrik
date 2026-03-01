@@ -1,9 +1,158 @@
 # Kilo System Improvement Proposals
 
-**Last Updated:** 2026-02-28
-**Status:** Proposed for Review
+**Last Updated:** 2026-03-01
+**Status:** Partially Implemented
 
 This document contains improvement proposals for Fabrik's Kilo integration, including agent scripts, code review system, and generation scripts.
+
+---
+
+## Implementation Status Summary
+
+### ✅ COMPLETED (2026-03-01)
+
+| Category | Feature | Location |
+|----------|---------|----------|
+| **Agents** | 40 Traycer CLI agents generated | `~/.traycer/cli-agents/` |
+| **Agents** | F-tier (Free) agents (9 models) | F01-F09 agents |
+| **Agents** | E-tier (Economy) agents (8 models) | E01-E08 agents |
+| **Agents** | A-tier (Auto) agents (kilo/auto) | A01-A02 agents |
+| **Code Review** | kilo/auto default model | `kilo_code_review.py:92` |
+| **Code Review** | Type safety fixes (8 mypy errors) | `kilo_code_review.py` |
+| **Code Review** | Retry logic with backoff | ✅ Implemented (model error retry) |
+| **Code Review** | Pre-review validation | ✅ Implemented (content keyword scan) |
+| **Code Review** | Infinite loop fix | ✅ Fixed |
+| **Code Review** | **Cost-aware tiered routing** | `kilo_code_review.py` (Phase G) |
+| **Code Review** | **False negative mitigation** | `kilo_code_review.py` (Phase G) |
+| **Code Review** | **5% audit sampling** | `kilo_code_review.py` (Phase G) |
+| **Code Review** | **Session preservation across escalation** | `kilo_code_review.py` (Phase G) |
+| **Generate** | Dry-run mode | `generate_kilo_agents.py --dry-run` |
+| **Generate** | Script validation | `generate_kilo_agents.py` |
+| **Generate** | Backup mechanism | `generate_kilo_agents.py` |
+| **Utilities** | kilo_cost_report.py | `scripts/kilo_cost_report.py` |
+| **Utilities** | kilo_agent_health.sh | `scripts/kilo_agent_health.sh` |
+| **Infrastructure** | Mypy timeout recovery | `final_gate.py:83-132` |
+| **Infrastructure** | make mypy-safe target | `Makefile:44-50` |
+
+### Current Agent Inventory (40 agents)
+
+| Tier | Count | Purpose | Example Agents |
+|------|-------|---------|----------------|
+| **Auto** | 2 | Automatic model routing | Auto01-auto-code, Auto02-auto-review |
+| **Balanced** | 6 | Cost-effective, good perf | Balanced01-gpt52codex, Balanced02-gemini31tools |
+| **Economy** | 8 | Budget-friendly, fast | Economy01-flash3, Economy05-devstral |
+| **Free** | 9 | Zero-cost development | Free01-minimax21, Free06-qwen3coder |
+| **Prime** | 3 | Mission-critical, max reasoning | Prime01-opus46, Prime02-gpt52pro |
+| **Strong** | 6 | Production-grade coding | Strong04-sonnet46, Strong05-sonnet45 |
+| **Other** | 1 | Utility | save-plan-md.sh |
+
+---
+
+## Remaining Implementation Phases
+
+### Phase A: Agent Script Enhancements (LOW EFFORT) ✅ COMPLETE
+
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| A1. Add debug mode (KILO_DEBUG=1) | High | 1h | ✅ Done |
+| A2. Add timeout protection (KILO_TIMEOUT) | High | 1h | ✅ Done |
+| A3. Add cost tracking in agents | Medium | 2h | ✅ Done |
+| A4. Add environment validation | Medium | 1h | ✅ Done |
+
+**Implementation:** Updated `generate_kilo_agents.py` template (2026-03-01). Regenerate agents to apply.
+
+### Phase B: Code Review Enhancements (MEDIUM EFFORT) ✅ COMPLETE
+
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| B1. Add stats command (--by-filetype, --by-model, --days) | Medium | 2h | ✅ Done |
+| B2. Add ReviewSession dataclass | Low | 1h | ✅ Done |
+| B3. Model availability check | Low | 1h | ✅ Done |
+
+**Implementation:** Added to `kilo_code_review.py` (2026-03-01). Usage: `python scripts/kilo_code_review.py stats --by-model --by-filetype`
+
+### Phase C: Codestral ULTRA Tier (MEDIUM EFFORT) ✅ COMPLETE
+
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| C1. Ultra01-codestral-code-low.sh | Low | 30m | ✅ Done |
+| C2. Ultra02-codestralrefactor-code-low.sh | Low | 30m | ✅ Done |
+| C3. Ultra03-codestraldocs-code-minimal.sh | Low | 30m | ✅ Done |
+| C4. Ultra04-codestraltest-code-low.sh | Low | 30m | ✅ Done |
+| C5. Ultra05-codestraltranslate-code-low.sh | Low | 30m | ✅ Done |
+| C6. Ultra06-codestralreview-review-low.sh | Low | 30m | ✅ Done |
+
+**Implementation:** Added Ultra tier to `generate_kilo_agents.py` and JSON (2026-03-01). 40 total agents now.
+
+**Note:** These are specialized Codestral agents for specific tasks at ~$0.25/M tokens.
+
+### Phase D: Autocomplete Optimization (HIGH EFFORT) ⏸️ DEFERRED
+
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| D1. Configurable model selection | Low | 4h | ⏸️ Deferred |
+| D2. Context-aware model selection | Low | 4h | ⏸️ Deferred |
+| D3. Hybrid autocomplete strategy | Low | 8h | ⏸️ Deferred |
+
+**Note:** Requires Kilo Code configuration changes, not just Fabrik scripts. Defer until needed.
+
+### Phase E: Browser Use Integration (HIGH EFFORT) ⏸️ DEFERRED
+
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| E1. BrowserTestSuite class | Low | 4h | ⏸️ Deferred |
+| E2. Visual regression testing | Low | 4h | ⏸️ Deferred |
+| E3. BROWSER01-sonnet45-e2e-high.sh | Low | 1h | ⏸️ Deferred |
+| E4. Lighthouse integration | Low | 4h | ⏸️ Deferred |
+| E5. Cost-optimized browser settings | Low | 2h | ⏸️ Deferred |
+
+**Note:** Requires browser automation infrastructure. Defer until needed.
+
+### Phase F: Documentation (LOW EFFORT) ✅ COMPLETE
+
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| F1. KILO_TROUBLESHOOTING.md | Medium | 2h | ✅ Done |
+| F2. KILO_PERFORMANCE_TUNING.md | Medium | 2h | ✅ Done |
+
+**Implementation:** Created both docs in `docs/reference/kilo/` (2026-03-01).
+
+### Phase G: Cost-Aware Model Escalation (HIGH EFFORT) ✅ COMPLETE
+
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| G1. Risk assessment (paths + diff size + content) | High | 4h | ✅ Done |
+| G2. Tiered routing (5 tiers: Free→Prime) | High | 4h | ✅ Done |
+| G3. Model error retry with escalation | High | 2h | ✅ Done |
+| G4. False negative mitigation (verify PASS) | High | 2h | ✅ Done |
+| G5. 5% audit sampling for quality monitoring | Medium | 1h | ✅ Done |
+| G6. Session preservation across escalation | Medium | 1h | ✅ Done |
+| G7. Budget caps with graceful degradation | Medium | 1h | ✅ Done |
+| G8. CLI args and env vars | Low | 1h | ✅ Done |
+
+**Implementation:** Full spec in `docs/development/plans/2026-03-01-plan-cost-aware-escalation.md`. Designed with consensus from GPT-5.2 Pro, Claude Opus, and Gemini Pro.
+
+**Key features:**
+- **Risk-based routing**: LOW→Free, MEDIUM→Economy, HIGH→Balanced, CRITICAL→Strong
+- **Content scanning**: Detects password=, token=, api_key= patterns, elevates to CRITICAL
+- **False negative mitigation**: Zero findings on high-risk code triggers verification with stronger model
+- **Model retry**: Catches failures, tracks failed_models, escalates to next tier (max 3 retries)
+- **Session preservation**: Same session ID across escalation for ~30-50% token savings
+- **5% audit sampling**: Random PASS verdicts logged to `.droid/review_audits.jsonl`
+
+**Expected savings:** 90%+ vs always-Prime, with <5% quality loss.
+
+---
+
+## Recommended Execution Order
+
+1. **Phase A** (Agent Enhancements) - Quick wins, improve all 40 agents ✅
+2. **Phase F** (Documentation) - Low effort, high value ✅
+3. **Phase B** (Code Review) - Builds on existing work ✅
+4. **Phase C** (Codestral) - Optional budget tier expansion ✅
+5. **Phase G** (Cost-Aware Escalation) - Major cost savings ✅
+6. **Phase D** (Autocomplete Optimization) - Defer until needed
+7. **Phase E** (Browser Use Integration) - Defer until needed
 
 ---
 
@@ -1405,22 +1554,22 @@ settings = optimize_browser_settings("text_verification")
 
 ## Implementation Priority
 
-### Phase 1 (Immediate - 1 week)
+### Phase 1 (Immediate - 1 week) ✅ COMPLETE
 - ✅ Document Auto Model (kilo/auto)
-- ⏳ Add `kilo/auto` support to `kilo_code_review.py`
-- ⏳ Generate AUTO-code.sh and AUTO-review.sh agents
-- ⏳ Add dry-run mode to `generate_kilo_agents.py`
+- ✅ Add `kilo/auto` support to `kilo_code_review.py`
+- ✅ Generate AUTO-code.sh and AUTO-review.sh agents
+- ✅ Add dry-run mode to `generate_kilo_agents.py`
 
-### Phase 2 (Short-term - 2 weeks)
+### Phase 2 (Short-term - 2 weeks) ✅ COMPLETE
 - ⏳ Add debug mode to agent scripts
 - ⏳ Add cost tracking to agent scripts
-- ⏳ Add retry logic to `kilo_code_review.py`
-- ⏳ Create `kilo_agent_health.sh` utility
+- ✅ Add retry logic to `kilo_code_review.py`
+- ✅ Create `kilo_agent_health.sh` utility
 
-### Phase 3 (Medium-term - 1 month)
-- ⏳ Add model performance metrics
-- ⏳ Create `kilo_cost_report.py` utility
-- ⏳ Add pre-review validation
+### Phase 3 (Medium-term - 1 month) ✅ COMPLETE
+- ✅ Add model performance metrics (METRICS_FILE)
+- ✅ Create `kilo_cost_report.py` utility
+- ✅ Add pre-review validation
 - ⏳ Create troubleshooting guide
 
 ---

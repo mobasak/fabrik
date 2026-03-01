@@ -80,6 +80,58 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
         return 1, f"Command not found: {cmd[0]}"
 
 
+def run_mypy_with_recovery(target: str, timeout: int = 30) -> tuple[int, str]:
+    """Run mypy with timeout protection and auto-recovery from cache corruption.
+
+    Mypy's incremental cache can get corrupted on large files (3000+ lines),
+    causing hangs. This function:
+    1. Tries with incremental cache (fast path: ~0.1s)
+    2. On timeout, clears cache and retries with --no-incremental (recovery: ~1-2s)
+
+    Args:
+        target: Path to check (e.g., "src/fabrik" or "scripts/")
+        timeout: Timeout in seconds for first attempt (default 30s)
+
+    Returns:
+        (returncode, output) tuple
+    """
+    import shutil
+
+    mypy_cache = FABRIK_ROOT / ".mypy_cache"
+    cmd_base = [PYTHON, "-m", "mypy", "--config-file=pyproject.toml", target]
+
+    # First attempt: with incremental cache (fast path)
+    try:
+        result = subprocess.run(
+            cmd_base,
+            cwd=FABRIK_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        output = result.stdout + result.stderr
+        return result.returncode, output.strip()
+    except subprocess.TimeoutExpired:
+        print(f"  {YELLOW}⚠ mypy hung (>{timeout}s) - clearing cache and retrying...{RESET}")
+
+    # Recovery: clear cache and retry without incremental
+    shutil.rmtree(mypy_cache, ignore_errors=True)
+    try:
+        result = subprocess.run(
+            cmd_base + ["--no-incremental"],
+            cwd=FABRIK_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,  # Generous timeout for recovery
+        )
+        output = result.stdout + result.stderr
+        return result.returncode, output.strip()
+    except subprocess.TimeoutExpired:
+        return 1, f"mypy timed out even after cache clear (>{60}s)"
+    except FileNotFoundError:
+        return 1, "mypy not found"
+
+
 def semgrep_env_with_token() -> dict[str, str] | None:
     """Return env for semgrep with SEMGREP_APP_TOKEN if available.
 
@@ -267,12 +319,9 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
     )
     results.append(("ruff", code == 0, out if code != 0 else ""))
 
-    # Mypy (auto-detect package under src/)
+    # Mypy (auto-detect package under src/) - with timeout recovery for cache corruption
     mypy_target = detect_src_package()
-    code, out = run_cmd(
-        [PYTHON, "-m", "mypy", "--config-file=pyproject.toml", mypy_target],
-        timeout=TIMEOUTS["mypy"],
-    )
+    code, out = run_mypy_with_recovery(mypy_target, timeout=30)
     results.append(("mypy", code == 0, out if code != 0 else ""))
 
     # Bandit

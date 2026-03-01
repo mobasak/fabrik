@@ -6,7 +6,7 @@ This document describes the complete Phased YOLO workflow for Fabrik using custo
 
 ## Overview
 
-**Phased YOLO Mode** automates the entire development cycle: Plan Generation → Implementation → Self-Review → External Verification → Commit → Next Phase.
+**Phased YOLO Mode** automates the entire development cycle: Plan Generation → Implementation → Self-Review (MANDATORY) → Pre-Kilo Gate → Kilo Review → Post-Kilo Gate → External Verification → Sync → Commit → Next Phase.
 
 **Key Components:**
 - **Traycer:** Orchestrator (plan generation, verification analysis, commit management)
@@ -21,6 +21,7 @@ This document describes the complete Phased YOLO workflow for Fabrik using custo
 |------|-----|--------|---------------|
 | **1** | Traycer | Create Phase | - |
 | **2** | Kilo Code Agent | Implement | Plan Tab: Execution Agent |
+| **2.5** | Kilo Code Agent | Self-Review (MANDATORY) | Template instructs this |
 | **3** | Kilo Code Agent | Run Pre-Kilo Gate | Template instructs this |
 | **4** | Kilo Code Agent | Run Kilo Review (self-review) | Template instructs this |
 | **5** | Kilo Code Agent | Run Post-Kilo Gate | Template instructs this |

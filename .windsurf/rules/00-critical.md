@@ -8,14 +8,15 @@ trigger: always_on
 
 ## ⚠️ MANDATORY WORKFLOW
 
-**PLAN → IMPLEMENT → FINAL_GATE → KILO → FINAL_GATE → TRAYCER_VERIFY → SYNC → COMMIT**
+**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO → FINAL_GATE → TRAYCER_VERIFY → SYNC → COMMIT**
 
-1. Step 3 (Pre-Kilo): `python /opt/fabrik/scripts/final_gate.py` → all PASS
-2. Step 4 (Kilo loop): fix until verdict=PASS (diff-scoped)
-3. Step 5 (Post-Kilo): `python /opt/fabrik/scripts/final_gate.py` → all PASS
-4. Step 6 (Traycer verification): must PASS
-5. Step 7 (Sync only): `python /opt/fabrik/scripts/final_gate.py --sync`
-6. Step 8 (Commit): pre-commit runs ONLY 4 blockers:
+1. Step 2.5 (Self-Review): Coding AI reviews own work before gates (MANDATORY)
+2. Step 3 (Pre-Kilo): `python /opt/fabrik/scripts/final_gate.py` → all PASS
+3. Step 4 (Kilo loop): fix until verdict=PASS (diff-scoped)
+4. Step 5 (Post-Kilo): `python /opt/fabrik/scripts/final_gate.py` → all PASS
+5. Step 6 (Traycer verification): must PASS
+6. Step 7 (Sync only): `python /opt/fabrik/scripts/final_gate.py --sync`
+7. Step 8 (Commit): pre-commit runs ONLY 4 blockers:
    - check-added-large-files
    - check-merge-conflict
    - detect-private-key

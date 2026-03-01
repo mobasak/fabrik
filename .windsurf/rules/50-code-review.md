@@ -14,6 +14,7 @@ trigger: always_on
 |------|--------|------|
 | **1** | **Traycer Plan** | Plan exists with spec, edge cases, env vars, DB changes |
 | **2** | **Coder Implements** | Code only what phase requires, follow spec strictly |
+| **2.5** | **Self-Review (MANDATORY)** | Review own code, report: ✓ spec compliance ✓ edge cases ✓ env vars ✓ DB changes ⚠ issues |
 | **3** | **Final Gate (Pre-Kilo)** | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
 | **4** | **Kilo Review Loop** | Fix ALL issues until verdict=PASS (diff-scoped) |
 | **5** | **Final Gate (Post-Kilo)** | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
@@ -156,12 +157,14 @@ Every plan MUST include review checkpoints:
 
 ## Violations
 
-**I am FORBIDDEN from:**
-- Skipping REVIEW phase (Traycer verification or fallback review)
-- Proceeding to next step with unfixed errors
-- Marking task complete without final review
-- Assuming approval — must wait for explicit "go"
-- Reordering, expanding, or modifying Traycer plan steps without requesting a plan update from Traycer
+**Violations:**
+- Do NOT implement without plan approval
+- Do NOT skip Step 2.5 self-review
+- Do NOT proceed to Step 3 without self-review report
+- Do NOT skip final_gate before Kilo review
+- Do NOT proceed with BLOCKER/MAJOR issues
+- Do NOT skip post-Kilo final_gate
+- Do NOT commit without Step 7 passing
 
 **If user catches me skipping review:**
 - I must acknowledge the violation

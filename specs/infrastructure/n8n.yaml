@@ -1,0 +1,27 @@
+# ARM64: ✓ SUPPORTED — linux/amd64, linux/arm64
+
+name: n8n
+type: docker
+domain: auto.vps1.ocoron.com
+image: n8nio/n8n:latest
+environment:
+  N8N_BASIC_AUTH_ACTIVE: "true"
+  N8N_BASIC_AUTH_USER: ${N8N_USER}
+  N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD}
+  N8N_HOST: auto.vps1.ocoron.com
+  N8N_PROTOCOL: https
+  WEBHOOK_URL: https://auto.vps1.ocoron.com
+  GENERIC_TIMEZONE: UTC
+  N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+volumes:
+  - n8n-data:/home/node/.n8n
+ports:
+  - "5678:5678"
+networks:
+  - coolify
+restart: unless-stopped
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]
+  interval: 30s
+  timeout: 10s
+  retries: 3

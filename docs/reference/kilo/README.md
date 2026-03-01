@@ -1,6 +1,6 @@
 # Kilo AI Agent System Documentation
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-03-01
 
 This directory contains all documentation for the Kilo AI agent system used in Fabrik for code generation and review.
 
@@ -28,10 +28,10 @@ This directory contains all documentation for the Kilo AI agent system used in F
 
 | Tier | Purpose | Example |
 |------|---------|---------|
-| **P** (Prime) | Mission-critical, maximum reasoning | `P01-opus46-code-max-i500-o2500.sh` |
-| **S** (Strong) | Production-grade coding/review | `S01-gpt53codex-code-high-i001-o005.sh` |
-| **B** (Balanced) | Cost-effective, good performance | `B04-grok41fast-code-high-i020-o050.sh` |
-| **E** (Economy) | Budget-friendly, fast iteration | `E01-flash3-code-minimal-i000-o001.sh` |
+| **Prime** | Mission-critical, maximum reasoning | `Prime01-opus46-code-max-i500-o2500.sh` |
+| **Strong** | Production-grade coding/review | `Strong01-gpt53codex-code-high-i001-o005.sh` |
+| **Balanced** | Cost-effective, good performance | `Balanced04-grok41fast-code-high-i020-o050.sh` |
+| **Economy** | Budget-friendly, fast iteration | `Economy01-flash3-code-minimal-i000-o001.sh` |
 
 ### Data Files (scripts/)
 
@@ -49,11 +49,23 @@ This directory contains all documentation for the Kilo AI agent system used in F
 | `generate_kilo_agents.py` | Generates tier-based agent scripts |
 | `kilo_agent_updater.py` | Updates catalog and pricing |
 | `kilo_code_review.py` | Code review (Step 4 in 9-step workflow) |
+| `kilo_cost_report.py` | Analyze usage logs, cost summaries by model/filetype |
+| `kilo_agent_health.sh` | Verify agent integrity (executable, shebang, syntax) |
 | `extract_pricing.py` | Extract input/output pricing |
+
+### Recent Enhancements (2026-03-01)
+
+| Feature | Location | Description |
+|---------|----------|-------------|
+| **Mypy Recovery** | `final_gate.py` | Auto-clears cache on timeout, retries with --no-incremental |
+| **Retry Logic** | `kilo_code_review.py` | (Coming Soon) Exponential backoff for transient failures |
+| **Pre-Review Validation** | `kilo_code_review.py` | (Coming Soon) Fail-fast checks before API call |
+| **Infinite Loop Fix** | `kilo_code_review.py` | (Coming Soon) Detects stuck ruff --fix, exits cleanly |
+| **Cost Tracking** | `.droid/kilo_metrics.jsonl` | Per-model/filetype performance metrics |
 
 ### Active Agents (~/.traycer/cli-agents/)
 
-18 tier-based agents + `save-plan-md.sh`
+40 tier-based agents + `save-plan-md.sh`
 
 ---
 
