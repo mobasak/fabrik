@@ -7,7 +7,7 @@
     {
       "agent_name": "Auto Code Auto",
       "model_name": "auto",
-      "full_name": "kilo/auto",
+      "full_name": "kilo/kilo/auto",
       "provider": "kilo",
       "use_case": "Code",
       "variant": "auto",
@@ -19,7 +19,7 @@
     {
       "agent_name": "Auto Review Auto",
       "model_name": "auto",
-      "full_name": "kilo/auto",
+      "full_name": "kilo/kilo/auto",
       "provider": "kilo",
       "use_case": "Review",
       "variant": "auto",
@@ -271,7 +271,7 @@
     {
       "agent_name": "FREE Z.AI GLM 4.7 Code",
       "model_name": "glm-4.7-free",
-      "full_name": "kilo/z-ai/glm-4.7-free",
+      "full_name": "kilo/z-ai/glm-4.7",
       "provider": "Kilo Gateway",
       "use_case": "Code",
       "specialty": "Agent-centric applications (FREE)",
@@ -283,7 +283,7 @@
     {
       "agent_name": "FREE Kimi K2.5 Code",
       "model_name": "kimi-k2.5",
-      "full_name": "kilo/moonshot/kimi-k2.5",
+      "full_name": "kilo/moonshotai/kimi-k2.5:free",
       "provider": "Kilo Gateway",
       "use_case": "Code",
       "specialty": "Agentic capabilities, tool use, reasoning (FREE)",
@@ -295,7 +295,7 @@
     {
       "agent_name": "FREE Giga Potato Code",
       "model_name": "giga-potato",
-      "full_name": "kilo/stealth/giga-potato",
+      "full_name": "kilo/giga-potato",
       "provider": "Kilo Gateway",
       "use_case": "Code",
       "specialty": "Evaluation period free model",
@@ -307,7 +307,7 @@
     {
       "agent_name": "FREE Trinity Large Preview Code",
       "model_name": "trinity-large",
-      "full_name": "kilo/arcee/trinity-large-preview",
+      "full_name": "kilo/arcee-ai/trinity-large-preview:free",
       "provider": "Kilo Gateway",
       "use_case": "Code",
       "specialty": "Strong capabilities preview (FREE)",
@@ -319,7 +319,7 @@
     {
       "agent_name": "FREE Qwen3 Coder Code",
       "model_name": "qwen3-coder",
-      "full_name": "openrouter/qwen3-coder",
+      "full_name": "kilo/qwen/qwen3-coder",
       "provider": "OpenRouter",
       "use_case": "Code",
       "specialty": "Agentic coding, function calling, long-context (FREE)",
@@ -331,7 +331,7 @@
     {
       "agent_name": "FREE GLM 4.5 Air Code",
       "model_name": "glm-4.5-air",
-      "full_name": "openrouter/z-ai/glm-4.5-air",
+      "full_name": "kilo/z-ai/glm-4.5-air",
       "provider": "OpenRouter",
       "use_case": "Code",
       "specialty": "Lightweight agent-centric (FREE)",
@@ -343,7 +343,7 @@
     {
       "agent_name": "FREE DeepSeek R1 Review",
       "model_name": "deepseek-r1",
-      "full_name": "openrouter/deepseek/r1-0528",
+      "full_name": "kilo/deepseek/deepseek-r1-0528",
       "provider": "OpenRouter",
       "use_case": "Review",
       "specialty": "OpenAI o1 level performance, reasoning tokens (FREE)",
@@ -355,7 +355,7 @@
     {
       "agent_name": "FREE Kimi K2 Code",
       "model_name": "kimi-k2",
-      "full_name": "openrouter/moonshot/kimi-k2",
+      "full_name": "kilo/moonshotai/kimi-k2",
       "provider": "OpenRouter",
       "use_case": "Code",
       "specialty": "Advanced tool use, reasoning, code synthesis (FREE)",
@@ -379,7 +379,7 @@
     {
       "agent_name": "BUDGET Llama 4 Maverick Code",
       "model_name": "llama-4-maverick",
-      "full_name": "kilo/meta/llama-4-maverick",
+      "full_name": "kilo/meta-llama/llama-4-maverick",
       "provider": "Meta",
       "use_case": "Code",
       "specialty": "Complex reasoning, architecture planning",
@@ -391,7 +391,7 @@
     {
       "agent_name": "BUDGET DeepSeek v3 Code",
       "model_name": "deepseek-v3",
-      "full_name": "kilo/deepseek/deepseek-v3",
+      "full_name": "kilo/deepseek/deepseek-v3.2",
       "provider": "DeepSeek",
       "use_case": "Code",
       "specialty": "Code analysis, large codebase understanding",
@@ -403,7 +403,7 @@
     {
       "agent_name": "BUDGET Qwen3 235B Review",
       "model_name": "qwen3-235b",
-      "full_name": "kilo/qwen/qwen3-235b",
+      "full_name": "kilo/qwen/qwen3-235b-a22b",
       "provider": "Qwen",
       "use_case": "Review",
       "specialty": "Near-premium accuracy at 40% cost",
