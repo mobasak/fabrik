@@ -367,7 +367,7 @@
     {
       "agent_name": "BUDGET Devstral Small Code",
       "model_name": "devstral-small",
-      "full_name": "kilo/mistral/devstral-small",
+      "full_name": "kilo/mistralai/devstral-small",
       "provider": "Mistral",
       "use_case": "Code",
       "specialty": "85% premium performance at 10% cost",
@@ -415,7 +415,7 @@
     {
       "agent_name": "ULTRA Codestral Snippet",
       "model_name": "codestral",
-      "full_name": "kilo/mistral/codestral-2508",
+      "full_name": "kilo/mistralai/codestral-2508",
       "provider": "Mistral",
       "use_case": "Code",
       "specialty": "Fast code snippet generation",
@@ -427,7 +427,7 @@
     {
       "agent_name": "ULTRA Codestral Refactor",
       "model_name": "codestral-refactor",
-      "full_name": "kilo/mistral/codestral-2508",
+      "full_name": "kilo/mistralai/codestral-2508",
       "provider": "Mistral",
       "use_case": "Code",
       "specialty": "Code refactoring suggestions",
@@ -439,7 +439,7 @@
     {
       "agent_name": "ULTRA Codestral Docs",
       "model_name": "codestral-docs",
-      "full_name": "kilo/mistral/codestral-2508",
+      "full_name": "kilo/mistralai/codestral-2508",
       "provider": "Mistral",
       "use_case": "Code",
       "specialty": "Documentation and docstring generation",
@@ -451,7 +451,7 @@
     {
       "agent_name": "ULTRA Codestral Test",
       "model_name": "codestral-test",
-      "full_name": "kilo/mistral/codestral-2508",
+      "full_name": "kilo/mistralai/codestral-2508",
       "provider": "Mistral",
       "use_case": "Code",
       "specialty": "Test case generation",
@@ -463,7 +463,7 @@
     {
       "agent_name": "ULTRA Codestral Translate",
       "model_name": "codestral-translate",
-      "full_name": "kilo/mistral/codestral-2508",
+      "full_name": "kilo/mistralai/codestral-2508",
       "provider": "Mistral",
       "use_case": "Code",
       "specialty": "Code translation between languages",
@@ -475,7 +475,7 @@
     {
       "agent_name": "ULTRA Codestral Review",
       "model_name": "codestral-review",
-      "full_name": "kilo/mistral/codestral-2508",
+      "full_name": "kilo/mistralai/codestral-2508",
       "provider": "Mistral",
       "use_case": "Review",
       "specialty": "Fast diff-based code review",
