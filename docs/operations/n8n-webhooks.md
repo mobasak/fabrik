@@ -13,8 +13,19 @@ n8n is deployed as a business automation platform at `https://auto.vps1.ocoron.c
 | **Base URL** | `https://auto.vps1.ocoron.com` |
 | **Auth** | Basic auth (`N8N_USER` / `N8N_PASSWORD`) |
 | **Internal port** | 5678 |
-| **Apprise endpoint** | `http://apprise:8000/notify` |
+| **Apprise endpoint** | `http://apprise:8000/notify` (internal) |
+| **Apprise external** | `https://notify.vps1.ocoron.com` (port 8005) |
 | **Spec** | `specs/infrastructure/n8n.yaml` |
+
+> **Design Decision: Internal Port Routing**
+>
+> Workflows use `http://apprise:8000/notify` (internal Docker port) instead of external port 8005.
+> This is intentional: within the Docker network, containers communicate via internal ports.
+> The Apprise container maps `8005:8000` (external:internal), so:
+> - **n8n → Apprise** (internal): `http://apprise:8000/notify`
+> - **External access**: `https://notify.vps1.ocoron.com` (Traefik routes to 8005)
+>
+> See `specs/infrastructure/apprise.yaml` and `PORTS.md` for port allocation details.
 
 ---
 
@@ -127,11 +138,39 @@ The webhook receives `status` (`down`/`up`) and `monitor.name` fields, which n8n
 
 Workflow nodes POST to `http://apprise:8000/notify` with `urls`, `title`, and `body` fields.
 
-> **Note:** Workflow JSON files in `configs/n8n/workflows/` contain **placeholder notification URLs** (`slack://tokenA/tokenB/tokenC`). After importing, you must manually edit each HTTP Request node to replace placeholders with your actual Apprise notification URLs.
+> **Note:** Workflow JSON files in `configs/n8n/workflows/` contain **placeholder notification URLs** (`slack://tokenA/tokenB/tokenC`). After importing, configure credentials for reusability (preferred) or edit nodes directly.
 
-### Post-Import Setup (Required)
+### Recommended: Create n8n Credentials for Notification URLs
 
-After importing a workflow, replace placeholder notification URLs:
+Store notification URLs as reusable n8n credentials to avoid per-node edits:
+
+1. Open n8n: `https://auto.vps1.ocoron.com`
+2. Go to **Credentials** → **Add Credential**
+3. Select type: **Header Auth** (or create custom credential type)
+4. Configure:
+   - **Name:** `apprise-slack-urls` (or per-channel: `apprise-telegram-urls`)
+   - **Header Name:** `X-Apprise-URLs` (placeholder, not actually used in header)
+   - **Header Value:** Your Apprise URL(s), e.g., `slack://tokenA/tokenB/tokenC`
+5. Save the credential
+
+**Using credentials in workflows:**
+
+After creating credentials, update HTTP Request nodes to reference them:
+
+1. Open the workflow
+2. Click the HTTP Request node (e.g., "Notify")
+3. In **Body Parameters** → `urls`, use expression: `{{ $credentials.apprise-slack-urls.headerValue }}`
+4. Attach the credential to the node
+5. Save and activate
+
+**Benefits:**
+- Single source of truth for notification URLs
+- Change URLs in one place, all workflows update
+- No need to edit each node individually after import
+
+### Alternative: Direct Node Editing
+
+If credentials are not desired, edit nodes directly after import:
 
 1. Open n8n: `https://auto.vps1.ocoron.com`
 2. Open the imported workflow
@@ -141,7 +180,7 @@ After importing a workflow, replace placeholder notification URLs:
 
 ### How It Works
 
-1. HTTP Request nodes POST to `http://apprise:8000/notify` with `urls`, `title`, and `body`
+1. HTTP Request nodes POST to `http://apprise:8000/notify` (internal Docker port) with `urls`, `title`, and `body`
 2. Apprise resolves the URLs and dispatches notifications to configured channels
 
 ### Payload Contract
