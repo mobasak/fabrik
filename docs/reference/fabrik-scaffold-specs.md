@@ -357,8 +357,9 @@ python-dotenv>=1.0.0
 After file creation, `fabrik scaffold` also:
 
 1. **Git init** - Initializes git repository
-2. **Pre-commit install** - Copies config and runs `pre-commit install`
-3. **Initial commit** - Stages all files and commits "Initial commit"
+2. **Branch creation** - Creates and switches to `mobasak/<project-name>` branch
+3. **Pre-commit install** - Copies config and runs `pre-commit install`
+4. **Initial commit** - Stages all files and commits "Initial commit"
 
 #### Kilo Workflow Integration
 

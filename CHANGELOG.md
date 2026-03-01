@@ -6,6 +6,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Git Branch Creation in Scaffold (2026-03-01)
+
+**What:** `fabrik scaffold` now automatically creates and switches to a `mobasak/<project-name>` branch
+
+**Files:**
+- `src/fabrik/scaffold.py` - Added branch creation logic with defensive check for existing commits
+- `docs/reference/fabrik-scaffold-specs.md` - Updated post-creation actions documentation
+
 ### Added - Phase 1 Implementations (2026-02-28)
 
 **Summary:** Initial implementation of core features and infrastructure.

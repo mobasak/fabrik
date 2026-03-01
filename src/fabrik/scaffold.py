@@ -345,6 +345,22 @@ Obsolete or completed docs for {name}.
     # The final commit is deferred to create_project() so it captures all files in one
     # clean, complete snapshot.
     subprocess.run(["git", "init", "-q"], cwd=project_dir, capture_output=True)
+
+    # Create and switch to project-specific branch (mobasak/<project-name>)
+    # Only create branch if no commits exist yet (defensive check for spec compliance)
+    branch_name = f"mobasak/{name}"
+    has_commits = (
+        subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD"],
+            cwd=project_dir,
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+    if not has_commits:
+        subprocess.run(["git", "checkout", "-b", branch_name], cwd=project_dir, capture_output=True)
+
     _install_pre_commit(project_dir)
 
 
