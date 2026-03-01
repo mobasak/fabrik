@@ -2956,6 +2956,18 @@ def run_precommit(files: list[Path], max_iterations: int = MAX_PRECOMMIT_ITERATI
 
             # Check for specific fixable issues and try to fix them
             if "ruff" in output.lower() and iteration < max_iterations:
+                # Check if we're stuck on the same error
+                if previous_output and output == previous_output:
+                    print(
+                        "[PRE-COMMIT] ❌ No progress made - same errors as previous iteration",
+                        file=sys.stderr,
+                    )
+                    print(
+                        "[PRE-COMMIT] Ruff cannot auto-fix these issues. Please fix manually.",
+                        file=sys.stderr,
+                    )
+                    return False
+
                 # Try running ruff --fix directly
                 print("[PRE-COMMIT] Running ruff --fix...", file=sys.stderr)
                 subprocess.run(
@@ -2970,6 +2982,9 @@ def run_precommit(files: list[Path], max_iterations: int = MAX_PRECOMMIT_ITERATI
                     cwd=project_root,
                     timeout=60,
                 )
+
+                # Store output to detect if next iteration is the same
+                previous_output = output
                 continue
 
             # Non-fixable failure - show output and return False

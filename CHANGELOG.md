@@ -46,6 +46,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Agent backup: Automatic timestamped backup before regenerating agents (safe rollback)
 - Agent health check: `kilo_agent_health.sh` utility verifies agent integrity (executable, shebang, syntax, required components)
 
+### Fixed - Kilo Review Hang (2026-03-01)
+
+**CRITICAL BUGFIX:** Fixed infinite loop in `kilo_code_review.py` run_precommit() function that caused review to hang indefinitely when ruff had unfixable errors. Added progress tracking to detect when same error occurs twice and break loop with clear message.
+
 ---
 
 ### Added - Phase 6: Monitoring Stack (2026-02-28)
