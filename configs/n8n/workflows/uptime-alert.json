@@ -42,7 +42,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://apprise:8005/notify",
+        "url": "http://apprise:8000/notify",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -71,7 +71,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://apprise:8005/notify",
+        "url": "http://apprise:8000/notify",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [

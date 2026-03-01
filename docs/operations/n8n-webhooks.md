@@ -1,6 +1,6 @@
 # n8n Webhook Operations
 
-**Last Updated:** 2026-03-01
+**Last Updated:** 2026-02-28
 
 ---
 
@@ -13,7 +13,7 @@ n8n is deployed as a business automation platform at `https://auto.vps1.ocoron.c
 | **Base URL** | `https://auto.vps1.ocoron.com` |
 | **Auth** | Basic auth (`N8N_USER` / `N8N_PASSWORD`) |
 | **Internal port** | 5678 |
-| **Apprise endpoint** | `http://apprise:8005/notify` |
+| **Apprise endpoint** | `http://apprise:8000/notify` |
 | **Spec** | `specs/infrastructure/n8n.yaml` |
 
 ---
@@ -119,35 +119,34 @@ Configure Uptime Kuma to send alerts to n8n:
 8. Click **Test** to verify
 9. Click **Save**
 
-The webhook receives `status` (`down`/`up`) and `monitor.name` fields, which n8n routes through the switch node to `http://apprise:8005/notify` with appropriate alert titles and notification type.
+The webhook receives `status` (`down`/`up`) and `monitor.name` fields, which n8n routes through the switch node to `http://apprise:8000/notify` with appropriate alert titles and notification type.
 
 ---
 
 ## Apprise Notification Configuration
 
-Workflow nodes POST to `http://apprise:8005/notify` with `urls`, `title`, and `body` fields. Notification URLs are stored as **n8n credentials** for reusability and secret management.
+Workflow nodes POST to `http://apprise:8000/notify` with `urls`, `title`, and `body` fields.
 
-### Setup: Create n8n Credential for Apprise URLs
+> **Note:** Workflow JSON files in `configs/n8n/workflows/` contain **placeholder notification URLs** (`slack://tokenA/tokenB/tokenC`). After importing, you must manually edit each HTTP Request node to replace placeholders with your actual Apprise notification URLs.
 
-Store notification URLs as reusable n8n credentials (not inline in workflows):
+### Post-Import Setup (Required)
+
+After importing a workflow, replace placeholder notification URLs:
 
 1. Open n8n: `https://auto.vps1.ocoron.com`
-2. Go to **Settings** > **Credentials** > **Add Credential**
-3. Select type: **Header Auth** (or create a custom credential type)
-4. Name: `apprise-notification-urls`
-5. Value: Your Apprise notification URLs (e.g., `slack://tokenA/tokenB/tokenC,tgram://bot/chat`)
-6. Save the credential
+2. Open the imported workflow
+3. Click each HTTP Request node (e.g., "Notify", "Alert Down", "Alert Up")
+4. In **Body Parameters**, replace the `urls` value (`slack://tokenA/tokenB/tokenC`) with your actual Apprise notification URLs
+5. Save and activate the workflow
 
 ### How It Works
 
-1. Notification URLs are stored in n8n credentials (single source of truth)
-2. Workflow HTTP Request nodes reference the credential via expression: `{{ $credentials.apprise-notification-urls }}`
-3. HTTP Request nodes POST to `http://apprise:8005/notify` with `urls`, `title`, and `body`
-4. Apprise resolves the URLs and dispatches notifications
+1. HTTP Request nodes POST to `http://apprise:8000/notify` with `urls`, `title`, and `body`
+2. Apprise resolves the URLs and dispatches notifications to configured channels
 
 ### Payload Contract
 
-Each notification node sends the following JSON body to `POST http://apprise:8005/notify`:
+Each notification node sends the following JSON body to `POST http://apprise:8000/notify`:
 
 ```json
 {
@@ -165,21 +164,21 @@ Each notification node sends the following JSON body to `POST http://apprise:800
 
 ### Validating After Import
 
-After importing a workflow, verify the Apprise endpoint and credential are working:
+After importing and configuring a workflow, verify the Apprise endpoint is working:
 
 ```bash
-# 1. Verify Apprise is reachable
-curl -X POST http://apprise:8005/notify \
+# 1. Verify Apprise is reachable (from inside Docker network)
+curl -X POST http://apprise:8000/notify \
   -H "Content-Type: application/json" \
   -d '{"urls": "slack://tokenA/tokenB/tokenC", "title": "Test", "body": "n8n integration test"}'
 
-# 2. Verify n8n credential is set:
+# 2. Verify workflow is configured:
 #    - Open workflow in n8n UI
-#    - Check HTTP Request node references `apprise-notification-urls` credential
+#    - Confirm placeholder URLs have been replaced with actual notification URLs
 #    - Trigger manual execution to confirm notifications are delivered
 ```
 
-If the credential is not configured, create it per the Setup section above.
+If notifications fail, check that placeholder URLs have been replaced with your actual Apprise notification URLs.
 
 ### Supported Channels
 
@@ -211,7 +210,7 @@ Workflow JSON files are stored in `configs/n8n/workflows/`:
 2. Log in with basic auth credentials
 3. Go to **Settings** > **Import from file**
 4. Select the JSON file from `configs/n8n/workflows/`
-5. **Replace placeholder notification URLs** in each HTTP Request node — see [Apprise Notification Configuration](#apprise-notification-configuration)
+5. **Replace placeholder notification URLs** (`slack://tokenA/tokenB/tokenC`) in each HTTP Request node with your actual Apprise URLs — see [Apprise Notification Configuration](#apprise-notification-configuration)
 6. Activate the workflow
 
 ---
@@ -225,10 +224,9 @@ Workflow JSON files are stored in `configs/n8n/workflows/`:
 
 ### Apprise notification not received
 
-- Verify Apprise is running: `curl http://apprise:8005/`
-- Verify the `apprise-notification-urls` credential is configured in n8n (Settings > Credentials)
-- Verify workflow HTTP Request nodes reference the credential correctly
-- Test the endpoint directly: `curl -X POST http://apprise:8005/notify -H "Content-Type: application/json" -d '{"urls": "slack://tokenA/tokenB/tokenC", "title": "Test", "body": "Ping"}'`
+- Verify Apprise is running: `curl http://apprise:8000/`
+- Verify placeholder URLs have been replaced with actual notification URLs in each HTTP Request node
+- Test the endpoint directly: `curl -X POST http://apprise:8000/notify -H "Content-Type: application/json" -d '{"urls": "YOUR_ACTUAL_URL", "title": "Test", "body": "Ping"}'`
 - Check n8n execution log for HTTP errors
 
 ### n8n health check failing
