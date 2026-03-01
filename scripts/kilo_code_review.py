@@ -170,17 +170,6 @@ SESSION_DIR = Path(os.getenv("KILO_SESSION_DIR", ".droid/reviews"))
 MODEL_CACHE_FILE = Path(os.getenv("KILO_MODEL_CACHE", ".droid/kilo_models_cache.json"))
 MODEL_CACHE_REFRESH_FILE = Path(".droid/.kilo_cache_last_refresh")
 
-# Retry configuration for transient failures
-try:
-    MAX_RETRIES = max(1, int(os.getenv("KILO_MAX_RETRIES", "3")))  # Max retry attempts (min 1)
-except ValueError:
-    print(
-        f"Warning: Invalid KILO_MAX_RETRIES value '{os.getenv('KILO_MAX_RETRIES')}', using default 3",
-        file=sys.stderr,
-    )
-    MAX_RETRIES = 3
-RETRYABLE_EXIT_CODES = {124, 503}  # Timeout (124) and Service Unavailable (503)
-
 # Model successor mapping for deprecated models
 MODEL_SUCCESSORS = {
     "kilo/anthropic/claude-sonnet-4.5": "kilo/anthropic/claude-sonnet-4.6",
@@ -377,7 +366,6 @@ HARD_MAX_ITERATIONS = 10
 
 # Cumulative usage tracking file
 USAGE_LOG_FILE = Path(os.getenv("KILO_USAGE_LOG", ".droid/kilo_usage.jsonl"))
-METRICS_FILE = Path(os.getenv("KILO_METRICS_FILE", ".droid/kilo_metrics.jsonl"))
 
 # Project root for path validation (will be set to git root or CWD at runtime)
 # This is initialized lazily to avoid subprocess calls at import time
@@ -649,6 +637,8 @@ def get_validated_model(model: str) -> str:
 
     return validated
 
+
+def get_model_with_fallback(preferred: str, failed_models: set[str] | None = None) -> str:
     """
     Get available model, falling back through chain if preferred unavailable.
 
@@ -1195,96 +1185,54 @@ async def run_kilo(
     if config.verbose:
         print(f"[KILO] Running: {' '.join(cmd)}", file=sys.stderr)
 
-    # Retry loop with exponential backoff for transient failures
-    last_exception = None
-    for attempt in range(MAX_RETRIES):
-        try:
-            # Use synchronous subprocess for reliability on Windows
-            # Run in thread pool to keep async interface
-            import concurrent.futures
+    try:
+        # Use synchronous subprocess for reliability on Windows
+        # Run in thread pool to keep async interface
+        import concurrent.futures
 
-            def run_subprocess():
-                result = subprocess.run(
-                    cmd,
-                    input=prompt.encode("utf-8"),
-                    capture_output=True,
-                    timeout=timeout,
-                    shell=False,  # Never use shell=True to prevent command injection
-                )
-                return result
+        def run_subprocess():
+            result = subprocess.run(
+                cmd,
+                input=prompt.encode("utf-8"),
+                capture_output=True,
+                timeout=timeout,
+                shell=False,  # Never use shell=True to prevent command injection
+            )
+            return result
 
-            loop = asyncio.get_event_loop()
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                result = await asyncio.wait_for(
-                    loop.run_in_executor(executor, run_subprocess),
-                    timeout=timeout + 10,  # Extra buffer for executor overhead
-                )
-
-            stdout = result.stdout
-            stderr = result.stderr
-
-            # Check for retryable failures (timeout or service unavailable)
-            if result.returncode in RETRYABLE_EXIT_CODES and attempt < MAX_RETRIES - 1:
-                wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
-                error_msg = stderr.decode("utf-8", errors="replace")[:200]
-                print(
-                    f"⏳ Kilo transient failure (exit {result.returncode}). "
-                    f"Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
-                    file=sys.stderr,
-                )
-                if config.verbose:
-                    print(f"[RETRY] Error: {error_msg}", file=sys.stderr)
-                await asyncio.sleep(wait_time)
-                continue
-
-            if result.returncode != 0:
-                error_msg = stderr.decode("utf-8", errors="replace")
-                # Truncate and redact secrets to prevent leaking sensitive data in logs
-                error_msg = error_msg[:200]
-                error_msg = _redact_secrets(error_msg)
-                raise RuntimeError(f"Kilo failed (exit {result.returncode}): {error_msg}")
-
-            output = stdout.decode("utf-8", errors="replace")
-
-            if config.verbose:
-                print(f"[KILO] Output: {len(output)} chars", file=sys.stderr)
-                if stderr:
-                    stderr_text = stderr.decode("utf-8", errors="replace")
-                    if stderr_text.strip() and "error" in stderr_text.lower():
-                        print(f"[KILO] Stderr: {stderr_text[:300]}", file=sys.stderr)
-
-            # Parse and return result
-            return parse_kilo_jsonl(output)
-
-        except subprocess.TimeoutExpired as e:
-            last_exception = e
-            if attempt < MAX_RETRIES - 1:
-                wait_time = 2**attempt
-                print(
-                    f"⏳ Kilo timeout. Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
-                    file=sys.stderr,
-                )
-                await asyncio.sleep(wait_time)
-                continue
-            raise RuntimeError(f"Kilo timed out after {timeout}s (tried {MAX_RETRIES} times)")
-        except TimeoutError as e:
-            last_exception = e
-            if attempt < MAX_RETRIES - 1:
-                wait_time = 2**attempt
-                print(
-                    f"⏳ Kilo async timeout. Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
-                    file=sys.stderr,
-                )
-                await asyncio.sleep(wait_time)
-                continue
-            raise RuntimeError(
-                f"Kilo async timeout after {timeout + 10}s (tried {MAX_RETRIES} times)"
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            result = await asyncio.wait_for(
+                loop.run_in_executor(executor, run_subprocess),
+                timeout=timeout + 10,  # Extra buffer for executor overhead
             )
 
-    # If we exhausted retries, raise the last exception
-    if last_exception:
-        raise last_exception
-    raise RuntimeError("Kilo call failed after all retries")
+        stdout = result.stdout
+        stderr = result.stderr
+
+        if result.returncode != 0:
+            error_msg = stderr.decode("utf-8", errors="replace")
+            # Truncate and redact secrets to prevent leaking sensitive data in logs
+            error_msg = error_msg[:200]
+            error_msg = _redact_secrets(error_msg)
+            raise RuntimeError(f"Kilo failed (exit {result.returncode}): {error_msg}")
+
+        output = stdout.decode("utf-8", errors="replace")
+
+        if config.verbose:
+            print(f"[KILO] Output: {len(output)} chars", file=sys.stderr)
+            if stderr:
+                stderr_text = stderr.decode("utf-8", errors="replace")
+                if stderr_text.strip() and "error" in stderr_text.lower():
+                    print(f"[KILO] Stderr: {stderr_text[:300]}", file=sys.stderr)
+
+        # Parse and return result
+        return parse_kilo_jsonl(output)
+
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"Kilo timed out after {timeout}s")
+    except TimeoutError:
+        raise RuntimeError(f"Kilo async timeout after {timeout + 10}s")
 
 
 # =============================================================================
@@ -2276,30 +2224,6 @@ async def review_loop(
     all_issues: list[dict[str, Any]] = []
     all_fixes: list[dict[str, Any]] = []
     files_reviewed = [str(f) for f in files]
-
-    # Pre-review validation (fail fast before spending credits)
-    validation_issues = pre_review_checks(files)
-    if validation_issues:
-        return FinalReport(
-            status="ERROR",
-            verdict="FAIL",
-            iterations=0,
-            files_reviewed=files_reviewed,
-            all_issues=[
-                {
-                    "severity": "BLOCKER",
-                    "category": "VALIDATION",
-                    "file": "pre-review",
-                    "lines": "",
-                    "why": issue,
-                    "fix_hint": "Fix the validation error before running review",
-                }
-                for issue in validation_issues
-            ],
-            all_fixes=[],
-            remaining_issues=[],
-            usage={},
-        )
     previous_issues: list[dict[str, Any]] | None = None
     previous_verdict: str | None = None  # Track last review verdict for max variant decision
     iteration = 0
@@ -2648,44 +2572,6 @@ def format_report_text(report: FinalReport) -> str:
     lines.append(report.summary)
     lines.append("")
 
-
-def pre_review_checks(files: list[Path]) -> list[str]:
-    """Run fast validation before Kilo review to fail fast.
-
-    Returns list of blocking issues that should prevent review.
-    """
-    issues = []
-    MAX_FILE_SIZE = 500 * 1024
-
-    for f in files:
-        if not f.exists():
-            issues.append(f"File does not exist: {f}")
-            continue
-        size = f.stat().st_size
-        if size > MAX_FILE_SIZE:
-            issues.append(f"File too large: {f} ({size:,} bytes, max {MAX_FILE_SIZE:,})")
-
-    for f in [f for f in files if f.suffix == ".py"]:
-        if not f.exists():
-            continue
-        try:
-            content = f.read_text(encoding="utf-8")
-            compile(content, str(f), "exec")
-        except SyntaxError as e:
-            issues.append(f"Syntax error in {f}:{e.lineno}: {e.msg}")
-        except UnicodeDecodeError as e:
-            issues.append(f"Encoding error in {f}: {e}")
-        except Exception:
-            pass
-
-    for f in files:
-        if not f.exists():
-            continue
-        if f.stat().st_size == 0:
-            issues.append(f"Empty file: {f}")
-
-    return issues
-
     # Files reviewed
     lines.append(f"📁 Files reviewed: {len(report.files_reviewed)}")
     for f in report.files_reviewed[:5]:
@@ -2956,18 +2842,6 @@ def run_precommit(files: list[Path], max_iterations: int = MAX_PRECOMMIT_ITERATI
 
             # Check for specific fixable issues and try to fix them
             if "ruff" in output.lower() and iteration < max_iterations:
-                # Check if we're stuck on the same error
-                if previous_output and output == previous_output:
-                    print(
-                        "[PRE-COMMIT] ❌ No progress made - same errors as previous iteration",
-                        file=sys.stderr,
-                    )
-                    print(
-                        "[PRE-COMMIT] Ruff cannot auto-fix these issues. Please fix manually.",
-                        file=sys.stderr,
-                    )
-                    return False
-
                 # Try running ruff --fix directly
                 print("[PRE-COMMIT] Running ruff --fix...", file=sys.stderr)
                 subprocess.run(
@@ -2982,9 +2856,6 @@ def run_precommit(files: list[Path], max_iterations: int = MAX_PRECOMMIT_ITERATI
                     cwd=project_root,
                     timeout=60,
                 )
-
-                # Store output to detect if next iteration is the same
-                previous_output = output
                 continue
 
             # Non-fixable failure - show output and return False
