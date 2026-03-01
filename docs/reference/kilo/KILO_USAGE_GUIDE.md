@@ -6,6 +6,75 @@ How to use Kilo CLI agents and the review script - both automatically and manual
 
 ---
 
+## Cost-Aware Review Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: RISK ASSESSMENT                                                      │
+│                                                                              │
+│ Input: Files to review                                                       │
+│ Checks:                                                                      │
+│   1. Path keywords: auth/, security/, payment/, secret/, crypt/              │
+│   2. File content: password=, token=, api_key=, secret= patterns             │
+│   3. Diff size: > 400 lines = HIGH risk                                      │
+│   4. High-risk filenames: compose.yaml, Dockerfile, .env                     │
+│                                                                              │
+│ Output: risk_level ∈ {low, medium, high, critical}                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: TIER SELECTION                                                       │
+│                                                                              │
+│ Risk Level → Strategy → Starting Tier                                        │
+│   LOW      → free     → Free ($0)        [deepseek, minimax, qwen]          │
+│   MEDIUM   → economy  → Economy ($0.02)  [gemini-flash, devstral]           │
+│   HIGH     → standard → Balanced ($0.50) [gpt-5.2-codex, glm-5]             │
+│   CRITICAL → premium  → Strong ($3.00)   [claude-sonnet-4.6, gpt-5.3-codex] │
+│                                                                              │
+│ User overrides: --strategy, --model, --max-cost                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 3: REVIEW WITH RETRY LOOP                                               │
+│                                                                              │
+│ session_id = generate_or_continue()  ← PRESERVED ACROSS ALL CALLS           │
+│                                                                              │
+│ for attempt in range(3):                                                     │
+│     try:                                                                     │
+│         result = kilo.review(files, model, session_id)                       │
+│         break  # Success                                                     │
+│     except ModelError:                                                       │
+│         failed_models.add(model)                                             │
+│         model = get_next_model(tier, failed_models)                          │
+│         if no_more_models: escalate_tier()                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 4: FALSE NEGATIVE MITIGATION                                            │
+│                                                                              │
+│ IF verdict == PASS AND risk in {HIGH, CRITICAL}:                             │
+│     IF tier < Strong (for HIGH) OR tier < Prime (for CRITICAL):              │
+│         verify_model = Strong/Prime                                          │
+│         verify_result = kilo.review(files, verify_model, session_id)         │
+│                                               ↑ SAME SESSION ID              │
+│         IF verify_result finds issues:                                       │
+│             log_false_negative() → .droid/kilo_metrics.jsonl                 │
+│             RETURN verify_result  # Cheap model missed issues!               │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 5: QUALITY MONITORING                                                   │
+│                                                                              │
+│ IF verdict == PASS:                                                          │
+│     IF random() < 0.05:  # 5% sample                                         │
+│         log_audit() → .droid/review_audits.jsonl                             │
+│                                                                              │
+│ RETURN result                                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Quick Start
 
 ### Automatic Usage (Traycer Integration)
