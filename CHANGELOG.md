@@ -6,6 +6,29 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added/Fixed - Traycer CLI Agent Self-Review Workflow Complete (2026-03-06)
+
+**What:** Completed self-review workflow implementation for all Traycer CLI agent tiers and fixed sync extension timeout issue.
+
+**Files:**
+- `AGENTS.md` — Updated status to reflect 23 agents (Free 9 + Economy 8 + Balanced 6)
+- `scripts/fix_balanced_tier_agents.py` — NEW: Automation script for balanced tier agents
+- `scripts/traycer_agents_fixed/Balanced*.sh` (x6) — NEW: Fixed balanced tier agents with self-review workflow
+- `scripts/sync_extensions.sh` — Fixed timeout issue (added 10s timeout to windsurf CLI call)
+
+**What Changed:**
+- Fixed sync extension timeout from 120s hang to 10s graceful exit
+- Applied self-review workflow to all 6 balanced tier agents
+- Updated documentation to reflect completion status
+- Premium tier: 0 agents (none exist in CLI agents directory)
+
+**Agent Status:**
+- Free tier: 9 agents ✅
+- Economy tier: 8 agents ✅
+- Balanced tier: 6 agents ✅
+- Premium tier: 0 agents (N/A)
+- **Total: 23 agents with mandatory self-review workflow**
+
 ### Added - Kilo Review Strictness Enforcement (2026-03-05)
 
 **What:** Implemented always-on hard-gated Kilo code review workflow with strict JSON schema validation, evidence requirements, comprehensive plan coverage, and risk-based multi-pass review.

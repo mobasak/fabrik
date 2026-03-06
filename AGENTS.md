@@ -663,7 +663,7 @@ command --example
 ## Traycer CLI Agent Auto-Review Integration
 
 **Last Updated:** 2026-03-06
-**Status:** Implemented in all free tier agents (Free01-Free09)
+**Status:** Implemented in Free (9), Economy (8), and Balanced (6) tiers = 23 total agents
 
 **Purpose:** Enable Traycer CLI agents to automatically run the complete 9-step review workflow with mandatory self-review.
 

@@ -7,11 +7,11 @@ set -e
 EXTENSIONS_FILE="docs/reference/EXTENSIONS.md"
 TIMESTAMP=$(date +"%Y-%m-%d %H:%M")
 
-# Get extensions list
-EXTENSIONS=$(windsurf --list-extensions 2>/dev/null || true)
+# Get extensions list (with 10s timeout to avoid hanging)
+EXTENSIONS=$(timeout 10 windsurf --list-extensions 2>/dev/null || true)
 
 if [ -z "$EXTENSIONS" ]; then
-    echo "Warning: Could not get extensions list (windsurf CLI not available)"
+    echo "Warning: Could not get extensions list (windsurf CLI not available or timeout)"
     exit 0
 fi
 
