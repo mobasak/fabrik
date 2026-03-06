@@ -6,6 +6,34 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Traycer Report Panel Integration (2026-03-06)
+
+**What:** Report extraction and persistence system for Traycer CLI agents with Windsurf panel integration.
+
+**Files:**
+- `.droid/.gitignore` — NEW: Ephemeral report exclusions (track directory structure, ignore .md files)
+- `.droid/traycer-reports/.gitignore` — NEW: Directory anchor for git tracking
+- `scripts/traycer_write_report.py` — NEW: Report extraction utility with enhanced slug sanitization
+- `factory_wait.py` — Modified: Pipes agent stdout to report writer after job execution
+
+**What Changed:**
+- Agent stdout is now piped to `traycer_write_report.py` which extracts `BEGIN_TRAYCER_REPORT_MD` / `END_TRAYCER_REPORT_MD` delimited blocks
+- Reports written atomically to `.droid/traycer-reports/latest.md` (temp write + rename for POSIX atomicity)
+- Timestamped copies preserved as `.droid/traycer-reports/YYYY-MM-DD-HHMMSS-<slug>.md`
+- Slug sanitization: lowercase, non-alphanumeric → `-`, collapse multiple `-`, strip leading/trailing `-`
+- Example: `"/// auth  v2  ///"` → `"auth-v2"`
+- Report writer always exits 0 (never fails pipeline, even on missing delimiters or write errors)
+- Slug resolution order: `--slug` CLI arg → `TRAYCER_TASK_ID` env → `TRAYCER_PHASE_ID` env → `"traycer-task"` fallback
+
+**Integration:**
+- `factory_wait.py` verified safe: subprocess call at line 102 uses `text=True, capture_output=True` ensuring `proc.stdout` is always string (never None)
+- Report extraction wrapped in try/except to never fail job flow
+- 10s timeout on report writer subprocess
+
+**External Components (outside repo):**
+- VS Code extension: `~/traycer-report-panel/` — Webview panel that watches `latest.md` and auto-displays reports
+- Prompt templates: Manual update required for three templates in `~/.traycer/prompt-templates/` to output report delimiters
+
 ### Added/Fixed - Traycer CLI Agent Self-Review Workflow Complete (2026-03-06)
 
 **What:** Completed self-review workflow implementation for all Traycer CLI agent tiers and fixed sync extension timeout issue.

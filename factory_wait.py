@@ -104,6 +104,27 @@ def main():
     job["factory_stdout"] = proc.stdout
     job["factory_stderr"] = proc.stderr
 
+    # Extract and write Traycer report if delimiters present
+    try:
+        slug = os.getenv("TRAYCER_TASK_ID") or os.getenv("TRAYCER_PHASE_ID") or "traycer-task"
+        # Build absolute path to report writer (works even if cwd != repo root)
+        report_writer = pathlib.Path(__file__).resolve().parent / "scripts" / "traycer_write_report.py"
+        report_cmd = [sys.executable, str(report_writer), "--slug", slug]
+        report_proc = subprocess.run(
+            report_cmd,
+            input=proc.stdout,
+            text=True,
+            capture_output=True,
+            timeout=10
+        )
+        # Make failures observable without failing job
+        if report_proc.returncode != 0:
+            warning = f"\n[WARN] Report extraction failed (exit {report_proc.returncode}): {report_proc.stderr}"
+            job["factory_stderr"] = job["factory_stderr"] + warning
+    except Exception as e:
+        warning = f"\n[WARN] Report extraction error: {e}"
+        job["factory_stderr"] = job["factory_stderr"] + warning
+
     if proc.returncode == 0:
         job["status"] = "completed"
         job["artifacts"] = job.get("artifacts", [])
