@@ -29,6 +29,7 @@
 - [Documentation Rules (MUST)](#documentation-rules-must)
 - [Feature Name](#feature-name)
 - [Execution Modes (Fabrik Lifecycle)](#execution-modes-fabrik-lifecycle)
+- [Traycer CLI Agent Auto-Review Integration](#traycer-cli-agent-auto-review-integration)
 - [VPS Deployment (Coolify)](#vps-deployment-coolify)
 - [GitHub Actions Workflows](#github-actions-workflows)
 - [Fabrik Skills (Convention Enforcement)](#fabrik-skills-convention-enforcement)
@@ -77,7 +78,27 @@
 
 **Step 2 - Coder Implements:** Use Gemini 3.1 Pro High Thinking (1x). Implement only phase scope. Escalate to Sonnet 4.5 Thinking (3x) if stuck.
 
-**Step 2.5 - Self-Review (MANDATORY):** Before running pre-kilo, coding AI MUST review its own implementation:
+**Step 2.5 - Self-Review (MANDATORY - Implemented 2026-03-06):** Before running pre-kilo, coding AI MUST review its own implementation.
+
+**For Traycer CLI Agents:** Agent performs structured self-review via separate Kilo call:
+1. Agent re-reads original task/spec completely
+2. Agent checks each requirement against code changes
+3. Agent verifies edge cases are handled
+4. Agent confirms environment variables documented
+5. Agent confirms database changes documented
+6. Agent generates structured self-review report
+
+**Self-Review Format (Required):**
+```
+SELF-REVIEW COMPLETE:
+✓ All spec requirements implemented: [Yes/No + brief details]
+✓ Edge cases handled: [list specific cases or "N/A"]
+✓ Env vars documented: [list variables or "N/A"]
+✓ DB changes documented: [list changes or "N/A"]
+⚠ Potential issues: [list concerns or "None identified"]
+```
+
+**For Manual Review (non-Traycer):**
 1. Re-read the plan/spec completely
 2. Check each requirement against code changes
 3. Verify edge cases are handled
@@ -103,7 +124,15 @@ Checks include:
 - Static: ruff, mypy, bandit, semgrep (best-effort), check yaml, check json, sqlfluff, vulture
 - Consistency: structure, conventions, rule size, model names sync, changelog, kilo health
 
-**Step 4 - Kilo Review:** Reviews only the diff. JSON structured. Coder fixes ALL issues (BLOCKER, MAJOR, MINOR). Repeat until verdict=PASS. Kilo handles: spec compliance, security reasoning, edge cases, logic bugs. NOT: formatting, lint, syntax (already handled by Final Gate).
+**Step 4 - Kilo Review (Strict Enforcement - 2026-03-05):** 6-layer enforcement pipeline. Reviews diff with:
+1. Pre-review gates (final_gate.py results injected into prompt)
+2. Risk assessment (security paths + diff size → triggers multi-pass if needed)
+3. Plan extraction (REQ-#, numbered, bulleted requirements)
+4. Schema validation (strict JSON, NO auto-fill, invalid → BLOCKER)
+5. Evidence validation (BLOCKER/MAJOR must have structured evidence: file_line, diff, tool_output, missing, multi_file, external)
+6. Plan coverage validation (all requirements must be addressed, skip for doc/verify modes)
+
+Coder fixes ALL issues (BLOCKER, MAJOR, MINOR). Repeat until verdict=PASS. Retry logic: 1 attempt with JSON skeleton if schema fails. Token accounting: sums ALL attempts. Multi-pass: 2 passes (general + security-focused) for high-risk changes.
 
 **Step 5 - Final Gate (Post-Kilo):** Ensures Kilo fixes didn't break deterministic rules.
 
@@ -630,6 +659,105 @@ command --example
 **Mixed Models:** Use premium models with high reasoning for planning (`spec`), fast models for implementation (`code`).
 
 **Code Review:** See `.windsurf/rules/50-code-review.md` for complete 9-step workflow with Kilo CLI.
+
+## Traycer CLI Agent Auto-Review Integration
+
+**Last Updated:** 2026-03-06
+**Status:** Implemented in all free tier agents (Free01-Free09)
+
+**Purpose:** Enable Traycer CLI agents to automatically run the complete 9-step review workflow with mandatory self-review.
+
+**Location:**
+- Fixed agents: `/opt/fabrik/scripts/traycer_agents_fixed/`
+- Review script: `/opt/fabrik/scripts/traycer_agent_review.py`
+- Implementation script: `/opt/fabrik/scripts/implement_self_review_workflow.py`
+- Documentation: `/opt/fabrik/docs/guides/traycer-kilo-workflow-analysis.md`
+
+### Complete Agent Workflow (Implemented 2026-03-06)
+
+**Single Agent Execution:**
+```bash
+# 1. Agent codes task (Step 2)
+kilo run --model ... "$PROMPT"
+
+# 2. Agent performs Step 2.5 Self-Review (MANDATORY)
+SELF_REVIEW_PROMPT="You just implemented: $PROMPT
+Files changed: $CHANGED_FILES
+Perform structured self-review..."
+
+SELF_REVIEW_OUTPUT=$(kilo run --model ... "$SELF_REVIEW_PROMPT")
+
+# 3. Agent calls review script with real self-review
+python /opt/fabrik/scripts/traycer_agent_review.py \
+    --task "$PROMPT" \
+    --files $CHANGED_FILES \
+    --self-review "$SELF_REVIEW_OUTPUT" \
+    --session-id "$SESSION_ID" \
+    --output json
+
+# 4. Review script runs Steps 3-5
+#    - Step 3: Pre-Kilo Gate (24 checks)
+#    - Step 4: Kilo Review (separate reviewer agent)
+#    - Step 5: Post-Kilo Gate (validates fixes)
+
+# 5. Agent returns exit code
+#    - 0 = PASS → Traycer verifies (Step 6)
+#    - 1 = FAIL → Traycer re-invokes agent (fix loop)
+```
+
+**Two-Level Loop Architecture:**
+- **Inner Loop (Agent):** Single attempt (code → self-review → review → report)
+- **Outer Loop (Traycer):** Re-invokes agent on failure (~5 attempts max)
+
+**Execution Flow:**
+1. **Step 2 - Implementation:** Agent codes task
+2. **Step 2.5 - Self-Review (MANDATORY):** Agent performs structured self-review via separate Kilo call
+3. **Step 3 - Pre-Kilo:** Review script runs `final_gate.py` (24 deterministic checks)
+4. **Step 4 - Kilo Review:** Review script spawns **separate Kilo reviewer agent** (maintains own session ID)
+5. **Step 5 - Post-Kilo:** Review script runs `final_gate.py` again (ensures fixes didn't break rules)
+6. **Exit:** Returns to Traycer for Step 6 verification or re-invocation
+
+**Key Features:**
+- **Real Self-Review:** Separate Kilo call generates structured report (not placeholder)
+- **Validation:** Rejects placeholder/failed self-reviews with exit code 2
+- **Mandatory Workflow:** Always runs on success (not optional)
+- **Separate Reviewer:** Kilo reviewer runs as independent agent (unbiased review)
+- **Session Isolation:** Coder and reviewer maintain separate session IDs for tracking
+- **No Auto-Commit:** Workflow stops before commit - Traycer handles Step 6 verification
+- **JSON Output:** Structured result for programmatic parsing
+- **Cost Tracking:** Review cost tracked separately from coding cost
+
+**Exit Codes:**
+- `0` - All gates PASS, Kilo verdict PASS → Ready for Traycer verification
+- `1` - Review failed (issues found or gates failed) → Traycer re-invokes agent
+- `2` - Error (validation failed, self-review placeholder/failed)
+
+**Self-Review Validation:**
+- ✅ Requires structured format with all 5 sections (spec, edge cases, env vars, DB changes, issues)
+- ❌ Rejects: "Agent completed implementation" (placeholder)
+- ❌ Rejects: "SELF-REVIEW FAILED: Timeout or error"
+- ⚠️ Warns: Missing required sections but proceeds
+
+**Agent Tiers:**
+
+1. **System Prompt Addition:** Add to Traycer CLI agent prompts:
+   ```
+   After completing implementation, run auto-review workflow:
+   {% include 'fabrik-auto-review.md' %}
+   ```
+
+2. **Post-Execution Hook:** Configure in Traycer:
+   ```yaml
+   post_execution_hook:
+     script: /opt/fabrik/scripts/traycer_agent_review.py
+     args: [--task, "{{ task }}", --files, "{{ changed_files }}", ...]
+   ```
+
+3. **Manual Invocation:** Agent explicitly calls script after coding
+
+**Cost Estimate:** ~$0.10-0.50 per agent execution (Kilo review only, gates are free)
+
+**See:** `/opt/fabrik/templates/traycer/agent-post-execution-hook.md` for complete integration guide
 
 ## VPS Deployment (Coolify)
 

@@ -1,7 +1,7 @@
 # Windsurf Extensions
 
-**Last Updated:** 2026-03-01 21:40
-**Total:** 21 extensions
+**Last Updated:** 2026-03-06 18:31
+**Total:** 22 extensions
 
 ## Quick Install (All Extensions)
 
@@ -12,6 +12,7 @@ windsurf --install-extension bpruitt-goddard.mermaid-markdown-syntax-highlightin
 windsurf --install-extension bradlc.vscode-tailwindcss
 windsurf --install-extension charliermarsh.ruff
 windsurf --install-extension codeium.windsurfpyright
+windsurf --install-extension cweijan.vscode-office
 windsurf --install-extension davidanson.vscode-markdownlint
 windsurf --install-extension eamodio.gitlens
 windsurf --install-extension factory.factory-vscode-extension
@@ -63,6 +64,7 @@ windsurf --install-extension vstirbu.vscode-mermaid-preview
 - `prettier.prettier-vscode`
 
 ### Other
+- `cweijan.vscode-office`
 - `ms-vscode.makefile-tools`
 - `redhat.vscode-yaml`
 

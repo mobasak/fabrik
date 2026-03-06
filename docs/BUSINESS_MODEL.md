@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-01 19:41:09 -->
-<!-- Total projects: 36 -->
+<!-- Last synced: 2026-03-05 13:28:33 -->
+<!-- Total projects: 37 -->
 
 ### Production Services (5 projects)
 
@@ -104,10 +104,11 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure Tra... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (7 projects)
+### Active Development (8 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
+| **candle** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
 | **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, idem... | Fastify | 🔨 Development | - | ✅ Current |
 | **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C c... | Python | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |

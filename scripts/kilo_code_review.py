@@ -38,10 +38,12 @@ import shutil
 import subprocess
 import sys
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from jsonschema import Draft7Validator
 
 # =============================================================================
 # CONFIGURATION
@@ -107,6 +109,239 @@ DOC_EXTENSIONS = {".md", ".rst", ".txt", ".adoc"}
 # Fallback: Gemini 3 Flash if auto unavailable
 _DEFAULT_MODEL = "kilo/auto"
 _DEFAULT_MODEL_FALLBACK = "kilo/google/gemini-3-flash-preview"
+
+# Multi-pass review triggers
+SECURITY_SENSITIVE_PATHS = {
+    "auth",
+    "login",
+    "password",
+    "secret",
+    "token",
+    "session",
+    "crypto",
+    "encryption",
+    "jwt",
+    "oauth",
+    "permission",
+    "role",
+    "admin",
+    "sudo",
+    "credential",
+    "key",
+    "certificate",
+}
+RISK_DIFF_SIZE_THRESHOLD = 500  # lines changed
+
+
+# =============================================================================
+# STRICT SCHEMA VALIDATION (ENFORCED)
+# =============================================================================
+
+REVIEW_RESULT_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["verdict", "summary", "issues", "plan_coverage"],
+    "additionalProperties": False,  # CRITICAL: enforces hard-gated output
+    "properties": {
+        "verdict": {"type": "string", "enum": ["PASS", "FAIL"]},
+        "summary": {"type": "string", "minLength": 10, "maxLength": 1000},
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "severity",
+                    "category",
+                    "file",
+                    "lines",
+                    "why",
+                    "fix_hint",
+                    "evidence",
+                ],
+                "additionalProperties": False,  # CRITICAL: no extra fields in issues
+                "properties": {
+                    "severity": {"type": "string", "enum": ["BLOCKER", "MAJOR", "MINOR"]},
+                    "category": {
+                        "type": "string",
+                        "enum": ["SPEC", "SECURITY", "CONFIG", "EDGE", "DOCS"],
+                    },
+                    "file": {"type": "string", "minLength": 1},
+                    "lines": {"type": "string", "pattern": "^(L\\d+(-L\\d+)?|N/A)$"},
+                    "snippet": {"type": "string"},
+                    "why": {"type": "string", "minLength": 10},
+                    "fix_hint": {"type": "string", "minLength": 5},
+                    "evidence": {
+                        "type": "object",
+                        "required": ["type"],
+                        "additionalProperties": False,
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": [
+                                    "diff",
+                                    "file_line",
+                                    "tool_output",
+                                    "missing",
+                                    "multi_file",
+                                    "external",
+                                ],
+                            },
+                            "ref": {"type": "string", "minLength": 1},
+                            "explanation": {"type": "string", "minLength": 10},
+                            "supporting_refs": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "oneOf": [
+                            {
+                                "properties": {
+                                    "type": {"enum": ["diff", "file_line", "tool_output"]}
+                                },
+                                "required": ["ref"],
+                            },
+                            {
+                                "properties": {
+                                    "type": {"enum": ["missing", "multi_file", "external"]}
+                                },
+                                "required": ["explanation"],
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        "plan_coverage": {
+            "type": "array",
+            "minItems": 1,  # CRITICAL: at least 1 entry required
+            "items": {
+                "type": "object",
+                "required": ["requirement", "status", "evidence"],
+                "additionalProperties": False,
+                "properties": {
+                    "requirement_id": {"type": "string"},
+                    "requirement": {"type": "string", "minLength": 5},
+                    "status": {
+                        "type": "string",
+                        "enum": ["satisfied", "missing", "partial", "n/a"],
+                    },
+                    "evidence": {"type": "string", "minLength": 5},
+                    "notes": {"type": "string"},
+                },
+            },
+        },
+        "notes": {"type": "array", "items": {"type": "string"}},
+        "stats": {
+            "type": "object",
+            "properties": {
+                "files_reviewed": {"type": "integer", "minimum": 0},
+                "lines_changed": {"type": "integer", "minimum": 0},
+                "issues_by_severity": {
+                    "type": "object",
+                    "properties": {
+                        "BLOCKER": {"type": "integer", "minimum": 0},
+                        "MAJOR": {"type": "integer", "minimum": 0},
+                        "MINOR": {"type": "integer", "minimum": 0},
+                    },
+                },
+            },
+        },
+    },
+}
+
+# Compile validator once (performance optimization)
+REVIEW_SCHEMA_VALIDATOR = Draft7Validator(REVIEW_RESULT_SCHEMA)
+
+
+def validate_review_schema(data: dict[str, Any]) -> tuple[bool, list[str]]:
+    """
+    Validate reviewer output against strict JSON schema.
+
+    Returns:
+        (is_valid, list_of_error_messages)
+    """
+    errors = []
+    for error in REVIEW_SCHEMA_VALIDATOR.iter_errors(data):
+        path = ".".join(str(p) for p in error.path) if error.path else "root"
+        errors.append(f"{path}: {error.message}")
+    return len(errors) == 0, errors
+
+
+# =============================================================================
+# PLAN REQUIREMENT EXTRACTION
+# =============================================================================
+
+
+def extract_plan_requirements(plan_text: str) -> list[dict[str, str]]:
+    """
+    Extract requirements from Traycer plan.
+
+    Recognizes patterns (priority order):
+    1. REQ-1: text (explicit IDs)
+    2. 1. text (numbered lists)
+    3. - text (bulleted lists, fallback)
+
+    Returns:
+        [{"id": "REQ-1", "text": "Requirement description"}, ...]
+        Empty list if no structured requirements found
+    """
+    if not plan_text or len(plan_text.strip()) < 10:
+        return []
+
+    requirements = []
+
+    # Pattern 1: Explicit IDs (REQ-1:, REQ-2:, etc.)
+    explicit_pattern = re.compile(r"\b(REQ-\d+):\s*(.+?)(?:\n|$)", re.MULTILINE)
+    for match in explicit_pattern.finditer(plan_text):
+        requirements.append({"id": match.group(1), "text": match.group(2).strip()})
+
+    # If explicit IDs found, use only those
+    if requirements:
+        return requirements
+
+    # Pattern 2: Numbered lists (1. text, 2. text, etc.)
+    numbered_pattern = re.compile(r"^\s*(\d+)\.\s+(.+?)(?:\n|$)", re.MULTILINE)
+    for match in numbered_pattern.finditer(plan_text):
+        req_text = match.group(2).strip()
+        # Filter out very short lines (likely not requirements)
+        if len(req_text) > 5:
+            requirements.append({"id": f"R{match.group(1)}", "text": req_text})
+
+    # If numbered lists found, use those
+    if requirements:
+        return requirements
+
+    # Pattern 3: Bulleted lists (- text or * text)
+    bullets = []
+    bullet_pattern = re.compile(r"^\s*[-*]\s+(.+?)(?:\n|$)", re.MULTILINE)
+    for match in bullet_pattern.finditer(plan_text):
+        req_text = match.group(1).strip()
+        if len(req_text) > 5:
+            bullets.append(req_text)
+
+    if bullets:
+        for idx, text in enumerate(bullets, 1):
+            requirements.append({"id": f"B{idx}", "text": text})
+
+    return requirements
+
+
+def format_requirements_for_prompt(requirements: list[dict[str, str]]) -> str:
+    """
+    Format extracted requirements for inclusion in review prompt.
+
+    Returns:
+        Formatted string ready for prompt injection
+    """
+    if not requirements:
+        return """[No explicit requirements extracted - plan is freeform]
+
+**Coverage requirement:** Include at least 1 general coverage entry describing what was reviewed."""
+
+    lines = ["**Extracted Requirements (MUST be covered in plan_coverage):**"]
+    for req in requirements:
+        lines.append(f"  {req['id']}: {req['text']}")
+
+    lines.append("\n**You MUST include each requirement in plan_coverage array.**")
+
+    return "\n".join(lines)
 
 
 @dataclass
@@ -200,6 +435,7 @@ class ReviewIssue:
     why: str
     fix_hint: str
     snippet: str | None = None
+    evidence: dict[str, Any] | None = None  # NEW: structured evidence object
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -214,6 +450,7 @@ class ReviewResult:
     issues: list[ReviewIssue]
     notes: list[str] = field(default_factory=list)
     stats: dict[str, Any] = field(default_factory=dict)
+    plan_coverage: list[dict[str, Any]] = field(default_factory=list)  # NEW: required plan coverage
     session_id: str | None = None
     input_tokens: int = 0
     output_tokens: int = 0
@@ -1803,8 +2040,15 @@ async def run_kilo(
 # =============================================================================
 
 REVIEW_PROMPT_TEMPLATE = """ROLE
-You are Kilo Reviewer (Opus). You are the LAST gate before Traycer verification + commit.
-Strict, fast, diff-scoped. No redesigns. No scope expansion.
+You are Kilo Reviewer (Opus). LAST gate before Traycer verification + commit.
+
+⚠️ **ENFORCEMENT ACTIVE (HARD GATES)**
+- Schema validation + evidence validation + plan coverage validation enforced by caller
+- Invalid output = automatic FAIL + re-run once
+- Missing evidence on BLOCKER/MAJOR = automatic rejection
+- Incomplete plan coverage = automatic rejection
+
+{gate_results}
 
 ITERATION CONTEXT
 - Review #: {iteration_number}
@@ -1816,10 +2060,12 @@ SCOPE (HARD)
 - Do NOT commit. Do NOT apply fixes unless explicitly instructed in a separate step.
 - Do NOT propose redesigns/refactors. Do NOT expand scope beyond the diff unless necessary to demonstrate a real bug/security issue.
 
-INPUTS (YOU MUST USE)
-1) Traycer plan/spec for this task: {traycer_plan}
+INPUTS (REQUIRED)
+1) **Traycer plan/spec:** {traycer_plan}
 2) Repo conventions if present (AGENTS.md / existing patterns). If conflicts: report as SPEC/CONVENTION mismatch.
 3) Diff/files: obtained from the workspace or attached via --file.
+
+{requirements_section}
 
 REVIEW CHECKS (IN THIS ORDER)
 A) SPEC
@@ -1835,15 +2081,21 @@ D) EDGE CASES & CORRECTNESS
 E) DOCS & DEV WORKFLOW
    - README/config/migration notes updated and accurate when behavior/config changes.
 
-EVIDENCE RULE (HARD)
-- Provide file + line references for every issue (line ranges preferred).
-- Include minimal code snippets only when necessary.
-- If you must reference surrounding code outside the diff, keep it minimal and explain why.
+EVIDENCE REQUIREMENT (CRITICAL)
+- EVERY issue MUST include an evidence object with type + ref/explanation
+- Evidence types: diff, file_line, tool_output (need ref), missing, multi_file, external (need explanation)
+- File + line references required for all issues (line ranges preferred)
+
+PLAN COVERAGE REQUIREMENT (CRITICAL)
+- MUST include plan_coverage array with at least 1 entry
+- Each extracted requirement MUST be covered
+- Status: satisfied, missing, partial, n/a
+- Evidence field REQUIRED for all coverage items
 
 If you cannot access the diff/files or the plan/spec input is missing, return FAIL with a single SPEC issue explaining exactly what is missing.
 
-OUTPUT FORMAT (JSON ONLY, EXACT SCHEMA)
-Return ONLY valid JSON with this schema:
+OUTPUT FORMAT (JSON ONLY - SCHEMA ENFORCED)
+Return ONLY valid JSON with this exact schema:
 
 {{
   "verdict": "PASS" | "FAIL",
@@ -1853,10 +2105,28 @@ Return ONLY valid JSON with this schema:
       "severity": "BLOCKER" | "MAJOR" | "MINOR",
       "category": "SPEC" | "SECURITY" | "CONFIG" | "EDGE" | "DOCS",
       "file": "path/to/file.ext",
-      "lines": "Lx-Ly",
-      "snippet": "optional short snippet",
+      "lines": "L10-L20",
       "why": "1-2 sentences on impact/risk",
-      "fix_hint": "minimal change hint; no redesign"
+      "fix_hint": "minimal change hint; no redesign",
+      "snippet": "optional short snippet",
+      "evidence": {{
+        "type": "diff|file_line|tool_output|missing|multi_file|external",
+        "ref": "REQUIRED for diff/file_line/tool_output (e.g., 'src/file.py:L10-L20')",
+        "explanation": "REQUIRED for missing/multi_file/external types"
+      }}
+    }}
+  ],
+
+⚠️ **LINES FIELD FORMAT (CRITICAL - SCHEMA ENFORCED)**
+- MUST match pattern: ^(L\\d+(-L\\d+)?|N/A)$
+- Valid: "L10", "L10-L20", "N/A"
+- INVALID: "L10-L11,L155-L157" (NO commas, NO multi-ranges)
+- If issue spans multiple non-contiguous ranges → create separate issue entries OR use primary range only
+  "plan_coverage": [
+    {{
+      "requirement": "Exact text from plan (or general description if no explicit requirements)",
+      "status": "satisfied|missing|partial|n/a",
+      "evidence": "file:line reference or explanation of how requirement is met"
     }}
   ],
   "notes": ["optional non-blocking observations"],
@@ -1909,7 +2179,7 @@ EVIDENCE RULE
 - Provide file + line references for every issue.
 - If you reference implementation code to verify docs, cite both.
 
-OUTPUT FORMAT (JSON ONLY)
+OUTPUT FORMAT (JSON ONLY - SCHEMA ENFORCED)
 {{
   "verdict": "PASS" | "FAIL",
   "summary": "1-2 sentences",
@@ -1918,10 +2188,24 @@ OUTPUT FORMAT (JSON ONLY)
       "severity": "MAJOR" | "MINOR",
       "category": "SPEC" | "DOCS",
       "file": "path/to/file.md",
-      "lines": "Lx-Ly",
+      "lines": "L10-L20",
       "snippet": "the incorrect text",
       "why": "what's wrong and what it should say",
-      "fix_hint": "corrected text"
+      "fix_hint": "corrected text",
+      "evidence": {{
+        "type": "file_line",
+        "ref": "path/to/file.md:L10-L20"
+      }}
+    }}
+  ],
+
+⚠️ **LINES FIELD FORMAT**: Must match ^(L\\d+(-L\\d+)?|N/A)$ - Valid: "L10", "L10-L20", "N/A" - INVALID: "L10,L20" (NO commas)
+
+  "plan_coverage": [
+    {{
+      "requirement": "Review documentation files",
+      "status": "satisfied",
+      "evidence": "Reviewed {files_list}"
     }}
   ],
   "notes": ["optional observations"]
@@ -1963,22 +2247,35 @@ DO NOT:
 - Expand scope beyond verifying the fixes
 - Report pre-existing issues not related to the fixes
 
-OUTPUT FORMAT (JSON ONLY)
+OUTPUT FORMAT (JSON ONLY - SCHEMA ENFORCED)
 {{
   "verdict": "PASS" | "FAIL",
   "summary": "1-2 sentences on verification result",
   "issues": [
     {{
       "severity": "BLOCKER" | "MAJOR" | "MINOR",
-      "category": "FIX_INCOMPLETE" | "FIX_INCORRECT" | "NEW_ISSUE",
+      "category": "SPEC",
       "file": "path/to/file.ext",
-      "lines": "Lx-Ly",
+      "lines": "L10-L20",
       "why": "what's wrong with the fix or what new issue was introduced",
-      "fix_hint": "minimal correction"
+      "fix_hint": "minimal correction",
+      "evidence": {{
+        "type": "file_line",
+        "ref": "path/to/file.ext:L10-L20"
+      }}
     }}
   ],
-  "verified_fixes": ["list of fixes that were correctly verified"],
-  "notes": ["optional observations"]
+
+⚠️ **LINES FIELD FORMAT**: Must match ^(L\\d+(-L\\d+)?|N/A)$ - Valid: "L10", "L10-L20", "N/A" - INVALID: "L10,L20" (NO commas)
+
+  "plan_coverage": [
+    {{
+      "requirement": "Verify fixes applied",
+      "status": "satisfied",
+      "evidence": "All described fixes verified"
+    }}
+  ],
+  "notes": ["Verified fixes: fix1, fix2, etc."]
 }}
 
 VERDICT RULES
@@ -2454,63 +2751,336 @@ def _extract_json_object(text: str) -> dict | None:
 
 
 def parse_review_output(raw_output: str) -> ReviewResult:
-    """Parse review JSON output from Kilo."""
-    # Use robust JSON extraction
+    """
+    Parse review JSON output with strict schema validation.
+
+    CRITICAL: This is a PURE SYNC function. NO async, NO asyncio.run().
+    Retry logic is handled by the CALLER (_run_single_batch_review).
+
+    CRITICAL: NO AUTO-FILL. If schema validation fails, return ReviewResult
+    with <reviewer> BLOCKER. Do NOT silently default missing fields.
+
+    Args:
+        raw_output: Raw Kilo output (may contain markdown, text, JSON)
+
+    Returns:
+        ReviewResult object (may contain <reviewer> BLOCKER if validation failed)
+    """
+    # Step 1: Extract JSON object from output
     data = _extract_json_object(raw_output)
 
-    if data is None:
-        # No valid JSON found - treat as error
+    if not data:
+        # NO JSON found - this is a reviewer failure (NO AUTO-FILL)
         return ReviewResult(
             verdict="FAIL",
-            summary="Failed to parse review output - no valid JSON found",
+            summary="Reviewer failed to return valid JSON",
             issues=[
                 ReviewIssue(
                     severity="BLOCKER",
                     category="SPEC",
-                    file="N/A",
+                    file="<reviewer>",
                     lines="N/A",
-                    why="Review output did not contain valid JSON",
-                    fix_hint="Check Kilo CLI output",
+                    why="Reviewer output did not contain valid JSON. This is a reviewer failure.",
+                    fix_hint="Re-run review with explicit JSON format instruction.",
+                    evidence={"type": "tool_output", "ref": "kilo_parser:no_json_found"},
                 )
             ],
-            notes=[],
-            stats={"error": "parse_failed"},
+            plan_coverage=[],  # Empty coverage for failure case
+        )
+
+    # Step 2: Validate against strict schema (NO AUTO-FILL)
+    is_valid, schema_errors = validate_review_schema(data)
+
+    if not is_valid:
+        # Schema validation failed - return structured failure (NO AUTO-FILL)
+        error_summary = "; ".join(schema_errors[:5])  # First 5 errors
+
+        return ReviewResult(
+            verdict="FAIL",
+            summary=f"Schema validation failed: {error_summary}",
+            issues=[
+                ReviewIssue(
+                    severity="BLOCKER",
+                    category="SPEC",
+                    file="<reviewer>",
+                    lines="N/A",
+                    why=f"Reviewer output does not conform to required schema. Errors: {error_summary}",
+                    fix_hint="Ensure all required fields are present and types are correct.",
+                    evidence={"type": "tool_output", "ref": "schema_validator:validation_failed"},
+                )
+            ],
+            plan_coverage=[],
             raw_output=raw_output,
         )
 
-    # Validate expected structure
-    if "verdict" not in data:
-        data["verdict"] = "FAIL"
-    if "summary" not in data:
-        data["summary"] = "No summary provided"
-    if "issues" not in data:
-        data["issues"] = []
-
-    # data is already validated by _extract_json_object
-
-    # Parse issues
+    # Step 3: Schema is valid - parse into ReviewResult
     issues = []
-    for issue_data in data.get("issues", []):
+    for item in data["issues"]:
         issues.append(
             ReviewIssue(
-                severity=issue_data.get("severity", "MAJOR"),
-                category=issue_data.get("category", "SPEC"),
-                file=issue_data.get("file", "unknown"),
-                lines=issue_data.get("lines", "?"),
-                snippet=issue_data.get("snippet"),
-                why=issue_data.get("why", ""),
-                fix_hint=issue_data.get("fix_hint", ""),
+                severity=item["severity"],
+                category=item["category"],
+                file=item["file"],
+                lines=item["lines"],
+                why=item["why"],
+                fix_hint=item["fix_hint"],
+                snippet=item.get("snippet"),  # Optional
+                evidence=item["evidence"],  # Required by schema
             )
         )
 
     return ReviewResult(
-        verdict=data.get("verdict", "FAIL"),
-        summary=data.get("summary", ""),
+        verdict=data["verdict"],
+        summary=data["summary"],
         issues=issues,
         notes=data.get("notes", []),
         stats=data.get("stats", {}),
+        plan_coverage=data["plan_coverage"],  # Required by schema
         raw_output=raw_output,
     )
+
+
+# =============================================================================
+# EVIDENCE + COVERAGE VALIDATION
+# =============================================================================
+
+
+def validate_evidence(issues: list[ReviewIssue]) -> tuple[bool, list[str]]:
+    """
+    Validate that BLOCKER/MAJOR issues have proper structured evidence.
+
+    Evidence rules (enforced):
+    - diff/file_line/tool_output: MUST have "ref" field
+    - missing/multi_file/external: MUST have "explanation" field
+
+    IMPORTANT: Schema already enforces evidence field exists for ALL issues.
+    This function validates evidence QUALITY for BLOCKER/MAJOR only.
+    MINOR issues can have minimal evidence without validation failure.
+
+    Returns:
+        (all_valid, list_of_violation_messages)
+    """
+    violations = []
+
+    for idx, issue in enumerate(issues):
+        # Only enforce quality for BLOCKER and MAJOR
+        if issue.severity not in ("BLOCKER", "MAJOR"):
+            continue
+
+        # Check evidence object exists (should be caught by schema, but double-check)
+        if not issue.evidence or not isinstance(issue.evidence, dict):
+            violations.append(
+                f"Issue #{idx + 1} ({issue.severity}/{issue.category} in {issue.file}): "
+                f"missing evidence object"
+            )
+            continue
+
+        ev_type = issue.evidence.get("type")
+        if not ev_type:
+            violations.append(f"Issue #{idx + 1} ({issue.file}): evidence.type is missing")
+            continue
+
+        # Validate based on evidence type
+        if ev_type in ("diff", "file_line", "tool_output"):
+            # These types require "ref" field
+            if not issue.evidence.get("ref"):
+                violations.append(
+                    f"Issue #{idx + 1} ({issue.file}): "
+                    f"evidence type '{ev_type}' requires 'ref' field (e.g., 'src/file.py:L10-L20')"
+                )
+
+        elif ev_type in ("missing", "multi_file", "external"):
+            # These types require "explanation" field
+            if not issue.evidence.get("explanation"):
+                violations.append(
+                    f"Issue #{idx + 1} ({issue.file}): "
+                    f"evidence type '{ev_type}' requires 'explanation' field"
+                )
+
+        else:
+            # Invalid evidence type (should be caught by schema)
+            violations.append(f"Issue #{idx + 1} ({issue.file}): invalid evidence type '{ev_type}'")
+
+    return len(violations) == 0, violations
+
+
+def validate_plan_coverage(
+    extracted_requirements: list[dict[str, str]],
+    coverage: list[dict[str, Any]],
+) -> tuple[bool, list[str]]:
+    """
+    Validate plan coverage completeness.
+
+    Rules:
+    - If requirements extracted: ALL must appear in coverage
+    - If no requirements: at least 1 coverage entry required
+    - missing/partial status should have detailed evidence
+
+    Returns:
+        (all_valid, list_of_violation_messages)
+    """
+    violations = []
+
+    # If no explicit requirements, still need at least 1 coverage entry
+    if not extracted_requirements:
+        if not coverage:
+            violations.append(
+                "plan_coverage is empty - at least 1 entry required for freeform plans "
+                "(describe what was reviewed)"
+            )
+        return len(violations) == 0, violations
+
+    # Build requirement text lookup (case-insensitive, normalized, strip all ID prefixes)
+    covered_texts_normalized = set()
+    for c in coverage:
+        req_text = c["requirement"].lower().strip()
+        # Strip any generated prefix: REQ-1:, R1:, B1:, etc.
+        req_text = re.sub(r"^(req-|r|b)\d+:\s*", "", req_text, flags=re.IGNORECASE)
+        covered_texts_normalized.add(req_text)
+
+    # Check that all requirements are covered
+    for req in extracted_requirements:
+        req_normalized = req["text"].lower().strip()
+        if req_normalized not in covered_texts_normalized:
+            violations.append(
+                f"Requirement '{req['id']}' not covered in plan_coverage: {req['text'][:60]}..."
+            )
+
+    # Check for missing/partial status without detailed evidence
+    for item in coverage:
+        if item["status"] in ("missing", "partial"):
+            if not item.get("evidence") or len(item["evidence"]) < 10:
+                violations.append(
+                    f"Coverage item marked '{item['status']}' lacks detailed evidence: "
+                    f"{item['requirement'][:40]}..."
+                )
+
+    return len(violations) == 0, violations
+
+
+# =============================================================================
+# PRE-REVIEW DETERMINISTIC GATES (RENAMED)
+# =============================================================================
+
+
+def run_pre_review_gates() -> dict[str, Any]:
+    """
+    Run scripts/final_gate.py with fault tolerance.
+
+    RENAMED from run_final_gate() to avoid collision with existing
+    "final_gate" max-variant verification logic in this script.
+
+    Returns structured result even if script missing/errors/times out.
+
+    Returns:
+        {
+            "overall": "PASS" | "FAIL",
+            "summary": "X/Y checks passed",
+            "failures": [{"check": "name", "error": "description"}, ...],
+            "warnings": ["warning text", ...],
+            "raw_output": "full output text"
+        }
+    """
+    import subprocess
+
+    final_gate_path = Path("scripts/final_gate.py")
+
+    # Check if script exists
+    if not final_gate_path.exists():
+        return {
+            "overall": "FAIL",
+            "summary": "0/0 checks (script not found)",
+            "failures": ["scripts/final_gate.py not found - pre-review gates are required"],
+            "warnings": [],
+            "raw_output": "",
+        }
+
+    # Run with timeout
+    try:
+        result = subprocess.run(
+            ["python", str(final_gate_path)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+        raw_output = result.stdout + result.stderr
+
+        # Parse output for pass/fail
+        # Heuristic: look for "All checks passed" or exit code 0
+        if result.returncode == 0:
+            return {
+                "overall": "PASS",
+                "summary": "All checks passed",
+                "failures": [],
+                "warnings": [],
+                "raw_output": raw_output,
+            }
+
+        # Parse failures from output (simple heuristic)
+        failures = []
+        for line in raw_output.split("\n"):
+            if "FAIL" in line or "ERROR" in line:
+                failures.append({"check": "unknown", "error": line.strip()})
+
+        return {
+            "overall": "FAIL",
+            "summary": f"{len(failures)} check(s) failed",
+            "failures": failures[:10],  # Max 10 failures
+            "warnings": [],
+            "raw_output": raw_output[:2000],  # Truncate
+        }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "overall": "FAIL",
+            "summary": "Gate script timed out (>60s)",
+            "failures": [{"check": "timeout", "error": "script exceeded 60s limit"}],
+            "warnings": [],
+            "raw_output": "",
+        }
+
+    except Exception as e:
+        return {
+            "overall": "FAIL",
+            "summary": f"Gate script error: {type(e).__name__}",
+            "failures": [{"check": "execution", "error": str(e)}],
+            "warnings": [],
+            "raw_output": "",
+        }
+
+
+def format_gate_results_compact(gate_data: dict[str, Any]) -> str:
+    """
+    Format gate results compactly for prompt injection.
+
+    Only includes failures/warnings (not full output) to save tokens.
+
+    Args:
+        gate_data: Output from run_pre_review_gates()
+
+    Returns:
+        Formatted string for prompt (empty if PASS with no warnings)
+    """
+    if gate_data["overall"] == "PASS" and not gate_data.get("warnings"):
+        return ""  # No gate issues - don't clutter prompt
+
+    lines = ["**Pre-Review Gates:**"]
+    lines.append(f"Status: {gate_data['overall']} ({gate_data['summary']})")
+
+    if gate_data.get("failures"):
+        lines.append("Failures:")
+        for fail in gate_data["failures"][:5]:  # Max 5 failures
+            lines.append(f"  - {fail.get('check', 'unknown')}: {fail.get('error', 'N/A')}")
+
+    if gate_data.get("warnings"):
+        lines.append("Warnings:")
+        for warn in gate_data["warnings"][:3]:  # Max 3 warnings
+            lines.append(f"  - {warn}")
+
+    lines.append("")  # Blank line separator
+    return "\n".join(lines)
 
 
 def parse_fix_output(raw_output: str) -> FixResult:
@@ -2641,7 +3211,20 @@ async def _run_single_batch_review(
     iteration: int,
     previous_issues: list[dict[str, Any]] | None = None,
 ) -> ReviewResult:
-    """Run review on a single batch of files (internal helper)."""
+    """
+    Run review with ALL enforcement gates.
+
+    Corrections applied:
+    - Token accounting: tracks all attempts, sums costs
+    - Safe gate write: only if SESSION_DIR exists
+    - Metadata from correct call after retry
+    - Retry includes JSON skeleton
+    - Evidence validation for BLOCKER/MAJOR
+    - Plan coverage validation
+    """
+    # Track ALL attempts for accurate cost accounting
+    attempt_results = []
+
     files_to_review = files
 
     # Build prompt with only the files we'll actually review
@@ -2675,16 +3258,35 @@ async def _run_single_batch_review(
     # Format plan
     plan_str = config.traycer_plan or "[No plan/spec provided - review for general issues]"
 
+    # Extract plan requirements (for coverage validation)
+    plan_requirements = extract_plan_requirements(plan_str)
+    requirements_section = format_requirements_for_prompt(plan_requirements)
+
+    # Run pre-review gates (fault-tolerant)
+    gate_data = run_pre_review_gates()
+    gate_results_str = format_gate_results_compact(gate_data)
+
+    # Save gate output SAFELY (check SESSION_DIR exists)
+    if hasattr(config, "session_id") and config.session_id:
+        try:
+            gate_log_dir = SESSION_DIR if "SESSION_DIR" in globals() else Path(".droid/reviews")
+            gate_log_dir.mkdir(parents=True, exist_ok=True)
+            # Only write if we have output (could be empty on error/timeout)
+            if gate_data.get("raw_output"):
+                (gate_log_dir / "gate_output.txt").write_text(gate_data["raw_output"])
+        except Exception as e:
+            print(f"⚠️  Could not save gate output: {e}", file=sys.stderr)
+
     # Select prompt template based on mode
     if config.verify_mode and config.fixes_description:
-        # Verify mode: use lighter verification prompt
+        # Verify mode: use lighter verification prompt (no gates/requirements)
         prompt = VERIFY_PROMPT_TEMPLATE.format(
             fixes_description=config.fixes_description,
             files_list=files_list,
             diff_content=diff_section,
         )
     elif config.doc_mode or is_doc_only_review(files):
-        # Doc-only mode: use lighter doc-specific prompt
+        # Doc-only mode: use lighter doc-specific prompt (no gates/requirements)
         skip_cats_str = ", ".join(config.skip_categories) if config.skip_categories else "None"
         prompt = DOC_REVIEW_PROMPT_TEMPLATE.format(
             iteration_number=iteration,
@@ -2694,35 +3296,320 @@ async def _run_single_batch_review(
             diff_content=diff_section,
         )
     else:
-        # Standard review mode
+        # Standard review mode - WITH gates and requirements
         prompt = REVIEW_PROMPT_TEMPLATE.format(
             iteration_number=iteration,
             previous_issues=prev_issues_str,
             traycer_plan=plan_str,
+            requirements_section=requirements_section,  # NEW
+            gate_results=gate_results_str,  # NEW
             files_list=files_list,
             diff_content=diff_section,
         )
 
-    # Run Kilo
+    # Attempt 1: Run Kilo
     result = await run_kilo(
         prompt=prompt,
         config=config,
         agent=config.review_agent,
         file_paths=files_to_review,
     )
+    attempt_results.append(result)
 
     # Update session ID from Kilo response
     if result.get("session_id") and not config.session_id:
         config.session_id = result["session_id"]
 
-    # Parse result
+    # Parse strict (NO auto-fill)
     review_result = parse_review_output(result["result"])
-    review_result.session_id = result.get("session_id")
-    review_result.input_tokens = result.get("input_tokens", 0)
-    review_result.output_tokens = result.get("output_tokens", 0)
-    review_result.cost = result.get("cost", 0.0)
+
+    # Check if schema validation failed OR no JSON found
+    schema_failed = (
+        review_result.verdict == "FAIL"
+        and len(review_result.issues) >= 1
+        and review_result.issues[0].file == "<reviewer>"
+        and (
+            "schema" in review_result.issues[0].why.lower()
+            or "json" in review_result.issues[0].why.lower()
+        )
+    )
+
+    if schema_failed:
+        print("⚠️  Schema validation failed, retrying with JSON skeleton...", file=sys.stderr)
+
+        # Retry with complete JSON skeleton
+        retry_prompt = f"""SCHEMA VALIDATION FAILED
+
+Your previous output did not match the required JSON schema.
+
+**You MUST return valid JSON matching this structure:**
+
+{{
+  "verdict": "PASS",
+  "summary": "Brief description (min 10 chars)",
+  "issues": [
+    {{
+      "severity": "BLOCKER",
+      "category": "SPEC",
+      "file": "src/example.py",
+      "lines": "L10-L20",
+      "snippet": "optional",
+      "why": "Detailed explanation (min 10 chars)",
+      "fix_hint": "How to fix (min 5 chars)",
+      "evidence": {{
+        "type": "file_line",
+        "ref": "src/example.py:L10-L20"
+      }}
+    }}
+  ],
+  "plan_coverage": [
+    {{
+      "requirement": "Requirement text from plan (min 5 chars)",
+      "status": "satisfied",
+      "evidence": "src/example.py:L10 implements this"
+    }}
+  ],
+  "notes": [],
+  "stats": {{"files_reviewed": {len(files)}, "lines_changed": 0}}
+}}
+
+Return ONLY the JSON object (no markdown, no text before/after).
+
+Original task: {plan_str[:300]}...
+"""
+
+        # Attempt 2: Retry
+        retry_result = await run_kilo(
+            prompt=retry_prompt,
+            config=config,
+            agent=config.review_agent,
+            file_paths=files_to_review,
+        )
+        attempt_results.append(retry_result)
+
+        # Parse retry
+        review_result = parse_review_output(retry_result["result"])
+
+        if review_result.verdict == "FAIL" and any(
+            i.file == "<reviewer>" for i in review_result.issues
+        ):
+            print("❌ Schema still invalid after retry. Giving up.", file=sys.stderr)
+            # Will attach metadata below and return
+
+    # Validate evidence (only if schema passed)
+    if not any(i.file == "<reviewer>" for i in review_result.issues):
+        evidence_valid, evidence_violations = validate_evidence(review_result.issues)
+
+        if not evidence_valid:
+            print("❌ Evidence validation failed", file=sys.stderr)
+            review_result.verdict = "FAIL"
+            review_result.issues.insert(
+                0,
+                ReviewIssue(
+                    severity="BLOCKER",
+                    category="SPEC",
+                    file="<reviewer>",
+                    lines="N/A",
+                    why=f"Missing required evidence. Violations: {'; '.join(evidence_violations[:3])}",
+                    fix_hint="Add structured evidence to all BLOCKER/MAJOR issues",
+                    evidence={"type": "tool_output", "ref": "evidence_validator:failed"},
+                ),
+            )
+        else:
+            # Validate plan coverage (skip for doc/verify modes - they don't use plans)
+            skip_coverage = config.doc_mode or config.verify_mode or is_doc_only_review(files)
+
+            if not skip_coverage:
+                coverage_valid, coverage_violations = validate_plan_coverage(
+                    plan_requirements,
+                    review_result.plan_coverage,
+                )
+
+                if not coverage_valid:
+                    print("❌ Coverage validation failed", file=sys.stderr)
+                    review_result.verdict = "FAIL"
+                    review_result.issues.insert(
+                        0,
+                        ReviewIssue(
+                            severity="BLOCKER",
+                            category="SPEC",
+                            file="<reviewer>",
+                            lines="N/A",
+                            why=f"Incomplete plan coverage. Violations: {'; '.join(coverage_violations[:3])}",
+                            fix_hint="Include all requirements in plan_coverage array",
+                            evidence={"type": "tool_output", "ref": "coverage_validator:failed"},
+                        ),
+                    )
+
+    # Attach metadata - SUM ALL ATTEMPTS
+    total_input_tokens = sum(r.get("input_tokens", 0) for r in attempt_results)
+    total_output_tokens = sum(r.get("output_tokens", 0) for r in attempt_results)
+    total_cost = sum(r.get("cost", 0.0) for r in attempt_results)
+
+    review_result.session_id = attempt_results[-1].get("session_id")
+    review_result.input_tokens = total_input_tokens
+    review_result.output_tokens = total_output_tokens
+    review_result.cost = total_cost
+
+    # Add attempt count to stats
+    if not review_result.stats:
+        review_result.stats = {}
+    review_result.stats["attempts"] = len(attempt_results)
+    if len(attempt_results) > 1:
+        review_result.stats["retried"] = True
+        review_result.stats["retry_reason"] = "schema_validation_failed"
 
     return review_result
+
+
+# =============================================================================
+# MULTI-PASS REVIEW (RISK-BASED)
+# =============================================================================
+
+
+def assess_review_risk(files: list[Path], diff_content: str) -> dict[str, Any]:
+    """
+    Assess risk level for multi-pass decision.
+
+    Returns:
+        {
+            "requires_multi_pass": bool,
+            "risk_level": "low" | "medium" | "high",
+            "triggers": ["reason1", "reason2", ...],
+            "diff_size": int,
+        }
+    """
+    triggers = []
+    diff_size = len(diff_content.split("\n"))
+
+    # Check for security-sensitive paths
+    security_matches = []
+    for f in files:
+        path_str = str(f).lower()
+        for keyword in SECURITY_SENSITIVE_PATHS:
+            if keyword in path_str:
+                security_matches.append(f"{f.name} (keyword: {keyword})")
+                break
+
+    if security_matches:
+        triggers.append(f"security_sensitive_paths: {', '.join(security_matches[:3])}")
+
+    # Check diff size
+    if diff_size > RISK_DIFF_SIZE_THRESHOLD:
+        triggers.append(f"large_diff: {diff_size} lines > {RISK_DIFF_SIZE_THRESHOLD} threshold")
+
+    # Determine risk level and multi-pass requirement
+    if len(triggers) >= 2:
+        risk_level = "high"
+        requires_multi_pass = True
+    elif len(triggers) == 1:
+        risk_level = "medium"
+        requires_multi_pass = True
+    else:
+        risk_level = "low"
+        requires_multi_pass = False
+
+    return {
+        "requires_multi_pass": requires_multi_pass,
+        "risk_level": risk_level,
+        "triggers": triggers,
+        "diff_size": diff_size,
+    }
+
+
+async def run_multi_pass_review(
+    files: list[Path],
+    config: KiloReviewConfig,
+    iteration: int,
+    previous_issues: list[dict[str, Any]] | None = None,
+    risk_assessment: dict[str, Any] | None = None,
+) -> ReviewResult:
+    """
+    Multi-pass review: general + security-focused.
+
+    CRITICAL: Uses dataclasses.replace() to avoid config mutation.
+
+    Args:
+        files: Files to review
+        config: Review configuration
+        iteration: Review iteration number
+        previous_issues: Issues from previous review
+        risk_assessment: Risk assessment data (optional, for logging)
+
+    Returns:
+        Merged ReviewResult from both passes
+    """
+    print("⚠️  HIGH RISK detected - running multi-pass review (general + security)", file=sys.stderr)
+
+    # Pass 1: General review (all categories)
+    print("  [PASS 1/2] General review...", file=sys.stderr)
+    pass1_result = await _run_single_batch_review(files, config, iteration, previous_issues)
+
+    # Pass 2: Security-focused review (skip non-security categories)
+    # CRITICAL: Use dataclasses.replace() to create config copy (avoid mutation)
+    print("  [PASS 2/2] Security-focused review...", file=sys.stderr)
+    security_config = replace(
+        config,
+        skip_categories={"SPEC", "CONFIG", "EDGE", "DOCS"},  # Focus on SECURITY only
+    )
+    pass2_result = await _run_single_batch_review(
+        files, security_config, iteration, previous_issues
+    )
+
+    # Merge results
+    # Strategy: combine issues, sum tokens/costs, use worse verdict
+    merged_issues = list(pass1_result.issues)
+
+    # Add pass2 security issues that aren't duplicates
+    for p2_issue in pass2_result.issues:
+        # Simple dedup: check if same file+lines+category exists in pass1
+        is_duplicate = any(
+            p1_issue.file == p2_issue.file
+            and p1_issue.lines == p2_issue.lines
+            and p1_issue.category == p2_issue.category
+            for p1_issue in pass1_result.issues
+        )
+        if not is_duplicate:
+            merged_issues.append(p2_issue)
+
+    # Merge plan_coverage (prefer pass1 as it's more complete)
+    merged_coverage = pass1_result.plan_coverage or pass2_result.plan_coverage
+
+    # Merge notes
+    merged_notes = list(pass1_result.notes)
+    merged_notes.append(
+        f"Multi-pass review: {len(pass1_result.issues)} general + {len(pass2_result.issues)} security-focused"
+    )
+
+    # Compute merged verdict (FAIL if either pass failed)
+    merged_verdict = (
+        "FAIL" if (pass1_result.verdict == "FAIL" or pass2_result.verdict == "FAIL") else "PASS"
+    )
+
+    # Sum tokens and costs
+    total_input_tokens = pass1_result.input_tokens + pass2_result.input_tokens
+    total_output_tokens = pass1_result.output_tokens + pass2_result.output_tokens
+    total_cost = pass1_result.cost + pass2_result.cost
+
+    # Merge stats
+    merged_stats = pass1_result.stats.copy() if pass1_result.stats else {}
+    merged_stats["multi_pass"] = True
+    merged_stats["pass1_issues"] = len(pass1_result.issues)
+    merged_stats["pass2_issues"] = len(pass2_result.issues)
+    merged_stats["total_issues"] = len(merged_issues)
+
+    return ReviewResult(
+        verdict=merged_verdict,
+        summary=f"Multi-pass review: {merged_verdict} ({len(merged_issues)} total issues)",
+        issues=merged_issues,
+        notes=merged_notes,
+        stats=merged_stats,
+        plan_coverage=merged_coverage,
+        session_id=pass2_result.session_id,  # Use last session ID
+        input_tokens=total_input_tokens,
+        output_tokens=total_output_tokens,
+        cost=total_cost,
+    )
 
 
 async def run_review(
@@ -2731,12 +3618,38 @@ async def run_review(
     iteration: int,
     previous_issues: list[dict[str, Any]] | None = None,
 ) -> ReviewResult:
-    """Run a single review iteration, processing ALL files in batches."""
-    # Process files in batches if more than max_files_per_batch
+    """
+    Run a single review iteration with multi-pass support.
+
+    Assesses risk based on file paths and diff size. If high-risk, triggers
+    multi-pass review (general + security-focused).
+    """
+    # Get diff content for risk assessment
+    if config.review_mode == "staged":
+        diff_content = get_diff_content(files, staged_only=True)
+    elif config.review_mode == "diff_only":
+        diff_content = get_diff_content(files, include_staged=True)
+    else:
+        # Full mode - still get diff for risk assessment (large diffs should trigger multi-pass)
+        diff_content = get_diff_content(files, include_staged=True)
+
+    # Assess risk for multi-pass decision
+    risk_assessment = assess_review_risk(files, diff_content)
+
+    # Route based on risk
+    if risk_assessment["requires_multi_pass"]:
+        print(
+            f"[RISK] {risk_assessment['risk_level'].upper()} risk detected: {', '.join(risk_assessment['triggers'])}",
+            file=sys.stderr,
+        )
+        return await run_multi_pass_review(
+            files, config, iteration, previous_issues, risk_assessment
+        )
+
+    # Standard path: single or batched review
     if len(files) > config.max_files_per_batch:
         return await _run_review_batched(files, config, iteration, previous_issues)
 
-    # Single batch - use the helper directly
     return await _run_single_batch_review(files, config, iteration, previous_issues)
 
 
@@ -3029,6 +3942,7 @@ async def review_loop(
                             "verdict": review_result.verdict,
                             "summary": review_result.summary,
                             "issues": [i.to_dict() for i in review_result.issues],
+                            "plan_coverage": review_result.plan_coverage,  # NEW: must persist coverage
                             "notes": review_result.notes,
                             "stats": review_result.stats,
                             "tokens": {

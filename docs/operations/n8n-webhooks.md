@@ -13,19 +13,15 @@ n8n is deployed as a business automation platform at `https://auto.vps1.ocoron.c
 | **Base URL** | `https://auto.vps1.ocoron.com` |
 | **Auth** | Basic auth (`N8N_USER` / `N8N_PASSWORD`) |
 | **Internal port** | 5678 |
-| **Apprise endpoint** | `http://apprise:8000/notify` (internal) |
-| **Apprise external** | `https://notify.vps1.ocoron.com` (port 8005) |
+| **Apprise internal** | `http://apprise:8000/notify` (Docker network) |
+| **Apprise external** | `https://notify.vps1.ocoron.com` (port 8005→8000) |
 | **Spec** | `specs/infrastructure/n8n.yaml` |
 
-> **Design Decision: Internal Port Routing**
->
-> Workflows use `http://apprise:8000/notify` (internal Docker port) instead of external port 8005.
-> This is intentional: within the Docker network, containers communicate via internal ports.
-> The Apprise container maps `8005:8000` (external:internal), so:
-> - **n8n → Apprise** (internal): `http://apprise:8000/notify`
+> **Port Mapping:** Apprise maps `8005:8000` (external:internal).
+> - **n8n → Apprise** (inside Docker): `http://apprise:8000/notify`
 > - **External access**: `https://notify.vps1.ocoron.com` (Traefik routes to 8005)
 >
-> See `specs/infrastructure/apprise.yaml` and `PORTS.md` for port allocation details.
+> See `specs/infrastructure/apprise.yaml` and `PORTS.md` for details.
 
 ---
 
@@ -130,13 +126,13 @@ Configure Uptime Kuma to send alerts to n8n:
 8. Click **Test** to verify
 9. Click **Save**
 
-The webhook receives `status` (`down`/`up`) and `monitor.name` fields, which n8n routes through the switch node to `http://apprise:8000/notify` with appropriate alert titles and notification type.
+The webhook receives `status` (`down`/`up`) and `monitor.name` fields, which n8n routes through the switch node to `http://apprise:8000/notify` (internal Docker port) with appropriate alert titles and notification type.
 
 ---
 
 ## Apprise Notification Configuration
 
-Workflow nodes POST to `http://apprise:8000/notify` with `urls`, `title`, and `body` fields.
+Workflow nodes POST to `http://apprise:8000/notify` (internal Docker port) with `urls`, `title`, and `body` fields.
 
 > **Note:** Workflow JSON files in `configs/n8n/workflows/` contain **placeholder notification URLs** (`slack://tokenA/tokenB/tokenC`). After importing, configure credentials for reusability (preferred) or edit nodes directly.
 
@@ -180,12 +176,12 @@ If credentials are not desired, edit nodes directly after import:
 
 ### How It Works
 
-1. HTTP Request nodes POST to `http://apprise:8000/notify` (internal Docker port) with `urls`, `title`, and `body`
+1. HTTP Request nodes POST to `http://apprise:8000/notify` (internal) with `urls`, `title`, and `body`
 2. Apprise resolves the URLs and dispatches notifications to configured channels
 
 ### Payload Contract
 
-Each notification node sends the following JSON body to `POST http://apprise:8000/notify`:
+Each notification node sends the following JSON body to `POST http://apprise:8000/notify` (internal):
 
 ```json
 {
@@ -263,9 +259,9 @@ Workflow JSON files are stored in `configs/n8n/workflows/`:
 
 ### Apprise notification not received
 
-- Verify Apprise is running: `curl http://apprise:8000/`
+- Verify Apprise is running: `curl http://apprise:8000/` (internal port)
 - Verify placeholder URLs have been replaced with actual notification URLs in each HTTP Request node
-- Test the endpoint directly: `curl -X POST http://apprise:8000/notify -H "Content-Type: application/json" -d '{"urls": "YOUR_ACTUAL_URL", "title": "Test", "body": "Ping"}'`
+- Test the endpoint directly (from Docker network): `curl -X POST http://apprise:8000/notify -H "Content-Type: application/json" -d '{"urls": "YOUR_ACTUAL_URL", "title": "Test", "body": "Ping"}'`
 - Check n8n execution log for HTTP errors
 
 ### n8n health check failing

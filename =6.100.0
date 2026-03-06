@@ -1,0 +1,7 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting hypothesis
+  Using cached hypothesis-6.151.9-py3-none-any.whl.metadata (5.6 kB)
+Requirement already satisfied: sortedcontainers<3.0.0,>=2.1.0 in /home/ozgur/.local/lib/python3.12/site-packages (from hypothesis) (2.4.0)
+Using cached hypothesis-6.151.9-py3-none-any.whl (529 kB)
+Installing collected packages: hypothesis
+Successfully installed hypothesis-6.151.9

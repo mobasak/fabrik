@@ -19,6 +19,7 @@ dependencies = [
     "rich>=13.0.0",
     "psutil>=6.0.0",
     "uvicorn[standard]>=0.30.0",
+    "jsonschema>=4.17.0",
 ]
 
 [project.optional-dependencies]

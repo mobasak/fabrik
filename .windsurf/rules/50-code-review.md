@@ -75,9 +75,23 @@ python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
   --output json
 ```
 
-**Phase 1: Kilo AI Review**
-- Reviews for: SPEC, SECURITY, CONFIG, EDGE, DOCS
-- Returns JSON with `verdict` and `issues`
+**Phase 1: Kilo AI Review (Strict Enforcement - 2026-03-05)**
+
+**NEW: 6-Layer Enforcement Pipeline:**
+1. **Pre-Review Gates** - Runs final_gate.py (deterministic checks), results injected into prompt
+2. **Risk Assessment** - Security-sensitive paths or large diffs (>500 lines) trigger multi-pass review
+3. **Plan Extraction** - Extracts requirements (REQ-#, numbered, bulleted) from plan
+4. **Kilo Review** - Enhanced prompt with gate results, requirements, strict schema warnings
+5. **Schema Validation** - Strict JSON schema, NO auto-fill (invalid → BLOCKER)
+6. **Evidence + Coverage Validation** - BLOCKER/MAJOR need evidence, all requirements must be covered
+
+**Enforcement Details:**
+- **Schema**: Required fields: verdict, summary, issues, plan_coverage (minItems: 1)
+- **Evidence**: BLOCKER/MAJOR issues MUST have structured evidence object (file_line, diff, tool_output, missing, multi_file, external)
+- **Plan Coverage**: All extracted requirements must be addressed (status: satisfied/missing/partial/n/a)
+- **Retry Logic**: 1 retry with JSON skeleton if schema fails, tracks ALL attempt tokens
+- **Multi-Pass**: High-risk changes get 2 passes (general + security-focused), results merged
+- **Doc/Verify Modes**: Skip plan coverage validation (no plan in prompt)
 
 **Then I MUST:**
 1. Read JSON output - check `verdict` and `issues`

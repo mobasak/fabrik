@@ -6,6 +6,56 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Kilo Review Strictness Enforcement (2026-03-05)
+
+**What:** Implemented always-on hard-gated Kilo code review workflow with strict JSON schema validation, evidence requirements, comprehensive plan coverage, and risk-based multi-pass review.
+
+**Files:**
+- `scripts/kilo_code_review.py` — Major enhancement (~700 lines added/modified):
+  - Added strict JSON schema validator (`REVIEW_RESULT_SCHEMA`, `validate_review_schema()`)
+  - Added evidence quality validator (`validate_evidence()`) — enforces BLOCKER/MAJOR evidence
+  - Added plan coverage validator (`validate_plan_coverage()`) — enforces requirement tracking
+  - Added plan requirement extraction (`extract_plan_requirements()`, `format_requirements_for_prompt()`)
+  - Added fault-tolerant pre-review gates (`run_pre_review_gates()`, `format_gate_results_compact()`)
+  - Replaced `parse_review_output()` with strict no-auto-fill version (returns BLOCKER on schema failure)
+  - Replaced `REVIEW_PROMPT_TEMPLATE` with strict version requiring evidence and plan_coverage fields
+  - Updated `DOC_REVIEW_PROMPT_TEMPLATE` and `VERIFY_PROMPT_TEMPLATE` to match schema requirements
+  - Replaced `_run_single_batch_review()` with full enforcement: token accounting, gates, retry, evidence/coverage validation
+  - Added risk-based multi-pass review (`assess_review_risk()`, `run_multi_pass_review()`)
+  - Updated `run_review()` routing to trigger multi-pass for security-sensitive paths or large diffs
+  - Added security-sensitive path constants (`SECURITY_SENSITIVE_PATHS`, `RISK_DIFF_SIZE_THRESHOLD`)
+- `tests/test_kilo_review_validation.py` — NEW: Comprehensive pytest test suite (614 lines, 34 tests)
+- `pyproject.toml` — Added `jsonschema>=4.17.0` dependency
+
+**Enforcement Flow:**
+1. Pre-review gates run (deterministic checks, fault-tolerant)
+2. Schema validation (strict, no auto-fill)
+3. Retry with JSON skeleton if schema fails
+4. Evidence validation (BLOCKER/MAJOR issues require structured evidence)
+5. Plan coverage validation (all requirements must be addressed)
+6. Multi-pass review for high-risk changes (general + security-focused)
+
+**Breaking Changes:** None — existing workflows maintained, strict schema enforcement is always-on for Kilo review output
+
+**Cost Impact:** Review now includes LLM verification pass, adds ~$0.30-0.60 per review depending on file size
+
+---
+
+### Changed - Phase 10: Docs Sync & Audit (2026-03-01)
+
+**Summary:** Documentation synchronization and audit for Phases 3, 6, 8, 9 implementations.
+
+**Files:**
+- `INDEX.md` — Added `configs/`, `specs/infrastructure/`, `src/fabrik/ai/`, `templates/prompts/`, `docs/operations/` to Repository Structure tree
+- `docs/development/PLANS.md` — Regenerated AUTO-GENERATED:PLANS block with all 4 plan files
+- `.env.example` — Added AI Services comment clarifiers separating fabrik ai keys from Factory.ai key
+- `tasks.md` — Updated Phase 3/6/8/9 status to Complete, added 7 new VPS services, updated Last Updated date
+- `docs/reference/ai.md` — Expanded from stub to full module reference (LLMClient, LLMProvider, LLMResponse, UsageTracker, CLI commands)
+
+**No new code.** Pure docs-sync + audit phase.
+
+---
+
 ### Added - Git Branch Creation in Scaffold (2026-03-01)
 
 **What:** `fabrik scaffold` now automatically creates and switches to a `mobasak/<project-name>` branch
