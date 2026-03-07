@@ -1,10 +1,16 @@
 # Changelog
 
-All notable changes to Fabrik will be documented in this file.
-
-Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+
+### Added
+- WordPress planning system with `ResolvedSpec` dataclass for immutable spec resolution
+- `Planner` class to orchestrate build directory creation and artifact generation
+- Manifest generators package (`manifests/`) for plugins, pages, menus, and checks
+- Secret exclusion in spec hash computation (passwords, tokens, keys, credentials)
+- Build artifacts: `plan.json`, `blueprint.resolved.yaml`, and JSON manifests
+- Comprehensive test coverage for planner and manifest generators
 
 ### Changed - Kilo Agent System Redesign (2026-03-07)
 
