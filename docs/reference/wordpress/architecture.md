@@ -240,6 +240,8 @@ The deployer executes a sequential pipeline of self-contained stages. Each stage
 dns → settings → theme → plugins → pages → menus → forms → seo → analytics → finalize
 ```
 
+**Note:** The `verify` stage runs as a **separate post-deploy command** (`fabrik wp verify <domain>`) and is not part of the main deployment pipeline. This design preserves the Phase 0 regression baseline and allows verification to be optional.
+
 ### StageResult Dataclass
 
 Each stage returns a `StageResult` with these fields:
@@ -539,8 +541,114 @@ services:
 - **More presets:** saas, agency, clinic, ecommerce, landing
 - **Content generation:** AI-powered page content from Claude
 - **State tracking:** Idempotent deploys with spec hash
-- **Post-deploy checks:** Automated QA (URLs, SSL, forms, sitemap)
 - **Migration tool:** Automated v1 → v2 spec conversion
+
+---
+
+## Verification & Handoff
+
+**Last Updated:** 2026-03-08
+
+### Overview
+
+The verification system provides post-deployment health checks and client-facing documentation. It runs as a **separate post-deploy command** after `fabrik wp apply` completes, ensuring the deployment meets functional requirements.
+
+### Verify Stage
+
+**Command:** `fabrik wp verify <domain>`
+
+**Purpose:** Run HTTP checks against the deployed site to validate expected behavior.
+
+**Input:** `build/sites/<site_id>/manifests/checks.json`
+```json
+{
+  "urls": [
+    {"url": "/", "expected_status": 200},
+    {"url": "/about", "expected_status": 200}
+  ],
+  "require_ssl": true,
+  "require_sitemap": true
+}
+```
+
+**Output:** `build/sites/<site_id>/reports/verify-report.json`
+```json
+{
+  "site_id": "ocoron.com",
+  "verified_at": "2026-03-08T10:30:00Z",
+  "checks": [
+    {"url": "https://ocoron.com/", "status": 200, "passed": true},
+    {"url": "https://ocoron.com/about", "status": 200, "passed": true}
+  ],
+  "overall": "pass"
+}
+```
+
+**Behavior:**
+- Prepends `https://<domain>` to relative URLs (e.g., `/` → `https://ocoron.com/`)
+- Uses `httpx.Client` with 15s timeout and redirect following
+- Dry-run mode: skips HTTP calls, reports intent only
+- Network errors: captured gracefully in `error` field per check
+- Exit code: 0 if `overall="pass"`, 1 if `overall="fail"`
+
+**Execution Model:** Verify runs as a **separate stage** (not part of the main `deploy()` loop), invoked explicitly via CLI after deployment completes. This design preserves the Phase 0 regression baseline and allows verification to be optional.
+
+### Handoff Generator
+
+**Module:** `src/fabrik/wordpress/handoff.py`
+
+**Function:** `generate_handoff(site_id: str, build_dir: Path) -> Path`
+
+**Purpose:** Generate client-facing handoff documentation combining apply and verify results.
+
+**Inputs:**
+- `build/sites/<site_id>/reports/apply-report.json` (required)
+- `build/sites/<site_id>/reports/verify-report.json` (optional)
+- `build/sites/<site_id>/blueprint.resolved.yaml` (optional, for metadata only)
+
+**Output:** `build/sites/<site_id>/handoff.md`
+
+**Credential Exclusion:** Only non-secret metadata is extracted from blueprint.resolved.yaml. The handoff generator respects `ResolvedSpec.SECRET_KEY_PATTERNS` (defined in `src/fabrik/wordpress/resolved_spec.py`):
+```python
+SECRET_KEY_PATTERNS = ("password", "secret", "token", "key", "credential")
+```
+
+Any spec key matching these patterns is excluded from the handoff document.
+
+**Sample Output:**
+```markdown
+# Handoff: ocoron.com
+**Generated:** 2026-03-08T10:35:00Z
+
+## Summary
+| Field | Value |
+|-------|-------|
+| Domain | ocoron.com |
+| Brand | Ocoron |
+| Preset | company |
+| Plugins | 15 |
+
+## Stages Applied
+| Stage | Status | Duration |
+|-------|--------|----------|
+| dns | ✅ | 1200ms |
+| settings | ✅ | 850ms |
+
+## Verification
+| URL | Status | Passed |
+|-----|--------|--------|
+| https://ocoron.com/ | 200 | ✅ |
+| https://ocoron.com/about | 200 | ✅ |
+
+## Artifacts
+- blueprint: build/sites/ocoron.com/blueprint.resolved.yaml
+- apply-report: build/sites/ocoron.com/reports/apply-report.json
+- verify-report: build/sites/ocoron.com/reports/verify-report.json
+```
+
+**Error Handling:**
+- If `apply-report.json` is missing, raises `FileNotFoundError`
+- If `verify-report.json` is missing, includes warning notice instead of verification table
 
 ---
 
@@ -566,13 +674,17 @@ src/fabrik/wordpress/
 ├── spec_validator.py              # Validate
 ├── section_renderer.py            # Render sections
 ├── page_generator.py              # Generate pages
-└── deployer.py                    # Updated for v2
+├── deployer.py                    # Updated for v2
+├── stages/
+│   └── verify.py                  # Verification stage (post-deploy)
+└── handoff.py                     # Handoff report generator
 ```
 
 ### Modified Files
 
 ```
 src/fabrik/wordpress/__init__.py   # Added v2 exports
+src/fabrik/cli.py                  # Added `fabrik wp verify` command
 ```
 
 ---

@@ -161,6 +161,9 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── models/                      # Data models
 │   ├── orchestrator/                # Deployment orchestrator
 │   └── wordpress/                   # WordPress automation
+│       ├── handoff.py               # Handoff report generator
+│       ├── stages/
+│       │   └── verify.py            # Verification stage (post-deploy)
 ├── templates/                       # Project and document templates
 │   ├── saas-skeleton/               # Next.js 14 + Tailwind SaaS starter
 │   ├── scaffold/                    # Fabrik scaffold config

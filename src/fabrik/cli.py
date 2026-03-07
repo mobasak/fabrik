@@ -958,6 +958,105 @@ def wp_apply(site_id: str, dry_run: bool, force_stage: str | None):
         raise SystemExit(1)
 
 
+@wp.command("verify")
+@click.argument("domain")
+def wp_verify(domain: str):
+    """Verify deployed WordPress site health.
+
+    Runs HTTP checks against the deployed site and generates verification report.
+
+    Example:
+        fabrik wp verify ocoron.com
+    """
+    from fabrik.wordpress.handoff import generate_handoff
+    from fabrik.wordpress.planner import BUILD_ROOT
+    from fabrik.wordpress.resolved_spec import load_spec
+    from fabrik.wordpress.stages import verify
+
+    try:
+        # Use domain as site_id
+        site_id = domain
+        build_dir = BUILD_ROOT / site_id
+
+        if not build_dir.exists():
+            click.echo(f"❌ Build directory not found: {build_dir}", err=True)
+            click.echo(f"   Run 'fabrik wp plan {site_id}' first.", err=True)
+            raise SystemExit(1)
+
+        # Resolve effective domain and load spec
+        effective_domain = domain
+        try:
+            spec = load_spec(site_id)
+            if spec.get("site", {}).get("domain"):
+                effective_domain = spec["site"]["domain"]
+        except FileNotFoundError:
+            import yaml
+
+            blueprint_path = build_dir / "blueprint.resolved.yaml"
+            if blueprint_path.exists():
+                with open(blueprint_path, "r") as f:
+                    blueprint = yaml.safe_load(f)
+                if blueprint and blueprint.get("site", {}).get("domain"):
+                    effective_domain = blueprint["site"]["domain"]
+
+            spec = {"site_name": site_id, "site": {"domain": effective_domain}}
+
+        if not effective_domain:
+            click.echo(f"❌ Cannot resolve domain for {site_id}. Domain is empty.", err=True)
+            raise SystemExit(1)
+
+        # Ensure domain is in the spec passed to verify
+        if not spec.get("site", {}).get("domain"):
+            if "site" not in spec:
+                spec["site"] = {}
+            spec["site"]["domain"] = effective_domain
+
+        # Run verification
+        click.echo(f"🔍 Verifying {effective_domain}...")
+        result = verify.apply(spec, None, None, build_dir)
+
+        # Display check results
+        click.echo()
+        if result.success:
+            click.echo("✅ All checks passed")
+        else:
+            click.echo("❌ Verification failed:")
+
+        # Read and display individual checks
+        verify_report_path = build_dir / "reports" / "verify-report.json"
+        if verify_report_path.exists():
+            import json
+
+            with open(verify_report_path, "r") as f:
+                report = json.load(f)
+
+            for check in report.get("checks", []):
+                url = check.get("url", "")
+                status = check.get("status", "N/A")
+                passed = check.get("passed", False)
+                icon = "✅" if passed else "❌"
+                click.echo(f"  {icon} {url} → {status}")
+
+        # Generate handoff report
+        click.echo()
+        click.echo("📄 Generating handoff report...")
+        handoff_path = generate_handoff(site_id, build_dir)
+        click.echo(f"✅ Handoff generated: {handoff_path}")
+
+        # Exit with appropriate code
+        if result.success:
+            raise SystemExit(0)
+        else:
+            raise SystemExit(1)
+
+    except FileNotFoundError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"❌ Verification error: {e}", err=True)
+        raise SystemExit(1)
+
+
 @cli.group()
 def ai():
     """AI content generation commands."""
