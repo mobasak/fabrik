@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Generate Kilo CLI Agent Scripts with Tier-Based Naming
+Generate Kilo CLI Agent Scripts (Opus 4.6 Enhanced System)
 
-Reads agent definitions from kilo_18_agents_complete.json and generates
-properly named scripts in ~/.traycer/cli-agents/
+Reads agent definitions from kilo_47_agents_final.json and generates
+clean, intuitive scripts in ~/.traycer/cli-agents/
 
-Naming format: <TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh
-Example: Prime01-opus46-review-max-i500-o2500.sh
+Naming format: {tier}-{N}.sh
+Example: free-1.sh, econ-3.sh, expert-5.sh, apex-1.sh
 
 Usage:
     python generate_kilo_agents.py [-h] [-d]
@@ -18,149 +18,90 @@ Options:
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
-AGENTS_FILE = Path(__file__).parent / "kilo_18_agents_complete.json"
+AGENTS_FILE = Path(__file__).parent / "kilo_47_agents_final.json"
 OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
 
-# Tier assignments (based on user specification)
-TIER_ASSIGNMENTS = {
-    # Auto Tier - Automatic mode-based routing
-    "Auto": [
-        ("auto", "code", "auto"),
-        ("auto", "review", "auto"),
-    ],
-    # Prime Tier - Mission critical (Opus, GPT-5.2 Pro)
-    "Prime": [
-        ("claude-opus-4.6", "code", "max"),
-        ("gpt-5.2-pro", "review", "max"),
-        ("claude-opus-4.5", "review", "max"),
-    ],
-    # Strong Tier - Production grade (Sonnet, GPT-5.3, Gemini Pro)
-    "Strong": [
-        ("gpt-5.3-codex", "code", "high"),
-        ("gpt-5.2", "code", "high"),
-        ("gemini-3.1-pro-preview", "code", "high"),
-        ("claude-sonnet-4.6", "review", "max"),
-        ("claude-sonnet-4.5", "review", "max"),
-        ("claude-sonnet-4.5", "code", "high"),
-    ],
-    # Balanced Tier - Cost-effective (GPT-5.2, Grok, GLM-5)
-    "Balanced": [
-        ("gpt-5.2-codex", "code", "high"),
-        ("gemini-3.1-pro-preview-customtools", "code", "high"),
-        ("glm-5", "review", "high"),
-        ("grok-4.1-fast", "code", "high"),
-        ("gpt-5.2-chat", "review", "max"),
-        ("glm-4.7", "code", "medium"),
-    ],
-    # Economy Tier - Budget friendly (Flash, Devstral, DeepSeek, Qwen)
-    "Economy": [
-        ("gemini-3-flash-preview", "code", "minimal"),
-        ("minimax-m2.5", "code", "low"),
-        ("glm-4.7-flash", "code", "minimal"),
-        ("seed-2.0-mini", "review", "max"),
-        ("devstral-small", "code", "low"),
-        ("llama-4-maverick", "code", "medium"),
-        ("deepseek-v3", "code", "medium"),
-        ("qwen3-235b", "review", "high"),
-    ],
-    # Free Tier - Zero cost models (MiniMax, GLM, Kimi, Trinity, Qwen Coder)
-    "Free": [
-        ("minimax-m2.1", "code", "medium"),
-        ("glm-4.7-free", "code", "medium"),
-        ("kimi-k2.5", "code", "high"),
-        ("giga-potato", "code", "low"),
-        ("trinity-large", "code", "high"),
-        ("qwen3-coder", "code", "high"),
-        ("glm-4.5-air", "code", "minimal"),
-        ("deepseek-r1", "review", "max"),
-        ("kimi-k2", "code", "high"),
-    ],
-    # Ultra Tier - Codestral specialized agents (~$0.25/M, fast)
-    "Ultra": [
-        ("codestral", "code", "low"),
-        ("codestral-refactor", "code", "low"),
-        ("codestral-docs", "code", "minimal"),
-        ("codestral-test", "code", "low"),
-        ("codestral-translate", "code", "low"),
-        ("codestral-review", "review", "low"),
-    ],
-}
+# Tier system: Opus 4.6 Enhanced (Free → Economy → Standard → Pro → Expert → Apex + Specialist)
+# Each model appears exactly once, numbered within tier by cost (cheapest first)
+# -1 suffix = recommended default for that tier
+TIER_ORDER = ["Free", "Economy", "Standard", "Pro", "Expert", "Apex", "Specialist"]
 
-# Model name normalization
-MODEL_NORMALIZE = {
-    "claude-opus-4.6": "opus46",
-    "claude-opus-4.5": "opus45",
-    "claude-sonnet-4.6": "sonnet46",
-    "claude-sonnet-4.5": "sonnet45",
-    "gpt-5.2-pro": "gpt52pro",
-    "gpt-5.3-codex": "gpt53codex",
-    "gpt-5.2": "gpt52",
-    "gpt-5.2-chat": "gpt52chat",
-    "gpt-5.2-codex": "gpt52codex",
-    "gemini-3.1-pro-preview": "gemini31pro",
-    "gemini-3.1-pro-preview-customtools": "gemini31tools",
-    "gemini-3-flash-preview": "flash3",
-    "minimax-m2.5": "m25",
-    "glm-4.7": "glm47",
-    "glm-4.7-flash": "glm47flash",
-    "glm-5": "glm5",
-    "grok-4.1-fast": "grok41fast",
-    "seed-2.0-mini": "seed20mini",
-    "minimax-m2.1": "minimax21",
-    "glm-4.7-free": "glm47free",
-    "kimi-k2.5": "kimik25",
-    "giga-potato": "gigapotato",
-    "trinity-large": "trinity",
-    "qwen3-coder": "qwen3coder",
-    "glm-4.5-air": "glm45air",
-    "deepseek-r1": "deepseekr1",
-    "kimi-k2": "kimik2",
-    "devstral-small": "devstral",
-    "llama-4-maverick": "llama4mav",
-    "deepseek-v3": "deepseek3",
-    "qwen3-235b": "qwen3235b",
-    "codestral": "codestral",
-    "codestral-refactor": "codestralrefactor",
-    "codestral-docs": "codestraldocs",
-    "codestral-test": "codestraltest",
-    "codestral-translate": "codestraltranslate",
-    "codestral-review": "codestralreview",
-}
+# No model normalization needed - agent_id is the canonical name
 
 
 def encode_price(price: float) -> str:
-    """Encode price per 1M tokens (price × 100, no decimals)"""
-    return f"{round(price * 100):03d}"
+    """Encode price as integer cents (multiply by 100)."""
+    return f"{int(price * 100):03d}"
 
 
-def normalize_model_name(model: str) -> str:
-    """Normalize model name for filename"""
-    return MODEL_NORMALIZE.get(model, model.replace("-", "").replace(".", ""))
+def parse_agent_id(agent_id: str) -> tuple[str, str]:
+    """
+    Parse agent_id into tier and identifier.
+
+    Examples:
+        'free-1' -> ('Free', '1')
+        'econ-3' -> ('Economy', '3')
+        'spec-refactor' -> ('Specialist', 'refactor')
+    """
+    tier_map = {
+        "free": "Free",
+        "econ": "Economy",
+        "std": "Standard",
+        "pro": "Pro",
+        "expert": "Expert",
+        "apex": "Apex",
+        "spec": "Specialist",
+    }
+
+    parts = agent_id.split("-", 1)
+    if len(parts) != 2:
+        return ("Unknown", agent_id)
+
+    tier_abbrev, identifier = parts
+    tier_name = tier_map.get(tier_abbrev, "Unknown")
+    return (tier_name, identifier)
 
 
-def generate_script_content(agent: dict, tier: str, rank: int) -> str:
-    """Generate shell script content for agent"""
-    full_name = agent["full_name"]
-    role = agent["use_case"].lower()
-    variant = agent["variant"]
-    specialty = agent["specialty"]
-    model_name = agent["model_name"]
+def get_tier_sort_key(agent_id: str) -> tuple[int, int | str]:
+    """
+    Generate sort key for agents to ensure tier-based ordering.
 
-    input_price = agent["input_per_1m"]
-    output_price = agent["output_per_1m"]
+    Returns:
+        (tier_index, identifier) where identifier is int for numbered agents, str for named
+    """
+    tier_name, identifier = parse_agent_id(agent_id)
 
-    # Tier name is already full name (Auto, Balanced, Economy, Free, Prime, Strong, Ultra)
-    tier_name = tier  # Use tier name directly (A-Z sorted)
+    try:
+        tier_index = TIER_ORDER.index(tier_name)
+    except ValueError:
+        tier_index = 999  # Unknown tiers go last
 
-    # Build filename components for documentation
-    model_norm = normalize_model_name(model_name)
-    input_enc = encode_price(input_price)
-    output_enc = encode_price(output_price)
-    # Use full tier name in filename (e.g., Auto01, Prime01, Strong01)
-    script_name = f"{tier}{rank:02d}-{model_norm}-{role}-{variant}-i{input_enc}-o{output_enc}.sh"
+    # Try to parse identifier as int for proper numeric sorting
+    try:
+        identifier_key: int | str = int(identifier)
+    except ValueError:
+        identifier_key = identifier
+
+    return (tier_index, identifier_key)
+
+
+def generate_script_content(
+    agent_id: str,
+    model_name: str,
+    full_name: str,
+    provider: str,
+    use_case: str,
+    variant: str,
+    specialty: str,
+    input_cost: float,
+    output_cost: float,
+) -> str:
+    """Generate shell script content for a Kilo agent."""
+    tier_name, identifier = parse_agent_id(agent_id)
+    role = use_case.lower()
+    script_name = f"{agent_id}.sh"
 
     # Generate kilo/auto routing documentation if applicable
     auto_routing_docs = ""
@@ -183,52 +124,47 @@ def generate_script_content(agent: dict, tier: str, rank: int) -> str:
     if model_name == "auto":
         pricing_line = "# Pricing: VARIABLE (see routing above)"
     else:
-        pricing_line = f"# Pricing: ${input_price:.2f}/1M input, ${output_price:.2f}/1M output"
+        pricing_line = f"# Pricing: ${input_cost:.3f}/1M in, ${output_cost:.3f}/1M out"
 
     return f"""#!/bin/sh
 # ════════════════════════════════════════════════════════════════════════════
-# Kilo {role.capitalize()} Agent - {tier_name} Tier #{rank:02d}
+# Kilo {role.capitalize()} Agent - {tier_name} Tier
 # ════════════════════════════════════════════════════════════════════════════
 #
 # 📛 SCRIPT NAME: {script_name}
 #
 # 📋 NAMING CONVENTION EXPLAINED:
-#   Format: <TIER><NN>-<model>-<role>-<variant>-i<IN>-o<OUT>.sh
+#   Format: {{tier}}-{{N}}.sh
 #
-#   <TIER>    = Agent tier (quality/cost bracket)
-#               Auto     = Automatic model routing (kilo/auto)
-#               Prime    = Mission-critical, max reasoning (Opus, GPT-5.2 Pro)
-#               Strong   = Production-grade (Sonnet, GPT-5.3, Gemini Pro)
-#               Balanced = Cost-effective (GPT-5.2, Grok, GLM-5)
-#               Economy  = Budget-friendly (Flash, Devstral, DeepSeek, Qwen)
-#               Free     = Zero-cost development (MiniMax, GLM, Kimi, Trinity)
-#               Ultra    = Codestral specialized agents (~$0.25/M, fast)
+#   {{tier}}    = Agent tier (quality/cost bracket)
+#               free     = $0 - Zero-cost (sandbox, rapid iteration)
+#               econ     = $0.001-0.10 - Quick tasks (docs, tests, small edits)
+#               std      = $0.10-0.50 - Daily development (default implementation)
+#               pro      = $0.50-3.00 - Production code (code review, refactoring)
+#               expert   = $3.00-10.00 - Complex analysis (architecture, security)
+#               apex     = $20-40 - Mission-critical (Epic planning, critical decisions)
+#               spec     = Task-specific Codestral variants (refactor, docs, test)
 #
-#   <NN>      = Rank within tier (01-99)
+#   {{N}}       = Cost rank within tier (1-99, lower = cheaper)
+#               Special: 0 = meta-router (auto), 1 = recommended default
 #
-#   <model>   = Normalized model name (e.g., opus46, flash3, minimax21)
+#   Examples:
+#     free-0.sh  → auto router (meta-agent)
+#     free-1.sh  → deepseek-r1 (recommended free tier default)
+#     econ-1.sh  → gemini-3-flash (recommended economy default)
+#     std-1.sh   → devstral-small (recommended standard default)
+#     expert-1.sh → claude-sonnet-4.5 (recommended expert default)
+#     apex-3.sh  → o3-pro (most expensive apex agent)
 #
-#   <role>    = Agent purpose
-#               code   = Code generation, refactoring, implementation
-#               review = Code review, security analysis, verification
-#
-#   <variant> = Effort level (affects token budget, not price per token)
-#               auto    = Automatic mode-based selection
-#               minimal = Quick tasks, simple code
-#               low     = Basic functionality
-#               medium  = Standard complexity
-#               high    = Complex logic, edge cases
-#               max     = Deep reasoning, security-critical
-#
-#   i<IN>     = Input cost per 1M tokens × 100 (e.g., i500 = $5.00/1M)
-#   o<OUT>    = Output cost per 1M tokens × 100 (e.g., o2500 = $25.00/1M)
+#   Variant and pricing info stored in agent metadata, not filename.
 #{auto_routing_docs}
 #
 # ════════════════════════════════════════════════════════════════════════════
 # AGENT DETAILS
 # ════════════════════════════════════════════════════════════════════════════
-# Model: {full_name}
-# Role: {role} | Variant: {variant}
+# Agent ID: {agent_id}
+# Model: {model_name} ({provider})
+# Tier: {tier_name}
 # Specialty: {specialty}
 {pricing_line}
 # ════════════════════════════════════════════════════════════════════════════
@@ -236,7 +172,7 @@ def generate_script_content(agent: dict, tier: str, rank: int) -> str:
 # Debug mode (KILO_DEBUG=1)
 if [ "$KILO_DEBUG" = "1" ]; then
     set -x  # Print all commands
-    echo "[DEBUG] Agent: {tier}{rank:02d}-{agent["model_name"].replace("kilo/", "").replace("/", "-")}-{role}-{variant}" >&2
+    echo "[DEBUG] Agent: {agent_id}" >&2
     echo "[DEBUG] Model: {full_name}" >&2
     echo "[DEBUG] TRAYCER_PROMPT length: ${{#TRAYCER_PROMPT}}" >&2
     echo "[DEBUG] TRAYCER_TASK_ID: $TRAYCER_TASK_ID" >&2
@@ -278,14 +214,14 @@ DURATION=$((END_TIME - START_TIME))
 
 # Handle timeout
 if [ $EXIT_CODE -eq 124 ]; then
-    echo '{{"error": "timeout", "duration": '$TIMEOUT', "agent": "{tier}{rank:02d}"}}' >&2
+    echo '{{"error": "timeout", "duration": '$TIMEOUT', "agent": "{agent_id}"}}' >&2
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Task timed out after $TIMEOUT seconds" >&2
 fi
 
 # Cost tracking (if enabled)
 if [ -n "$KILO_TRACK_COST" ]; then
     mkdir -p "$(dirname "$USAGE_LOG")"
-    echo "{{\\"timestamp\\":\\"$(date -Iseconds)\\",\\"agent\\":\\"{tier}{rank:02d}-{role}-{variant}\\",\\"model\\":\\"{full_name}\\",\\"task_id\\":\\"$TRAYCER_TASK_ID\\",\\"exit_code\\":$EXIT_CODE,\\"duration\\":$DURATION}}" >> "$USAGE_LOG"
+    echo "{{\"timestamp\":\"$(date -Iseconds)\",\"agent\":\"{agent_id}\",\"model\":\"{full_name}\",\"task_id\":\"$TRAYCER_TASK_ID\",\"exit_code\":$EXIT_CODE,\"duration\":$DURATION}}" >> "$USAGE_LOG"
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Usage logged to $USAGE_LOG" >&2
 fi
 
@@ -336,67 +272,62 @@ def main(dry_run: bool = False):
     with open(AGENTS_FILE) as f:
         data = json.load(f)
 
-    # Build lookup dict: (model_name, use_case, variant) -> agent
-    # This supports multiple agents with same model_name but different use_case
-    agents = {}
-    for a in data["agents"]:
-        key = (a["model_name"], a["use_case"].lower(), a["variant"])
-        agents[key] = a
-
     # Create output directory (skip in dry-run)
     if not dry_run:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Sort agents by tier order using the sort key function
+    agents_sorted = sorted(data["agents"], key=lambda a: get_tier_sort_key(a["agent_id"]))
+
     generated_count = 0
 
-    # Generate scripts per tier (alphabetically: A, B, E, F, P, S)
-    for tier in sorted(TIER_ASSIGNMENTS.keys()):
-        assignments = TIER_ASSIGNMENTS[tier]
-        for rank, (model, role, effort) in enumerate(assignments, start=1):
-            # Find agent by (model_name, use_case, variant) tuple
-            key = (model, role, effort)
-            agent = agents.get(key)
-            if not agent:
-                print(
-                    f"⚠ Warning: {model}/{role}/{effort} not found in agents.json", file=sys.stderr
-                )
-                continue
+    for agent in agents_sorted:
+        agent_id = agent["agent_id"]
+        tier_name, identifier = parse_agent_id(agent_id)
 
-            # Build filename
-            model_norm = normalize_model_name(model)
-            input_enc = encode_price(agent["input_per_1m"])
-            output_enc = encode_price(agent["output_per_1m"])
+        # Build filename: agent_id.sh (e.g., free-1.sh, econ-3.sh, spec-refactor.sh)
+        filename = f"{agent_id}.sh"
+        filepath = OUTPUT_DIR / filename
 
-            filename = (
-                f"{tier}{rank:02d}-{model_norm}-{role}-{effort}-i{input_enc}-o{output_enc}.sh"
+        if dry_run:
+            # Dry-run: show what would be generated
+            print(f"[DRY-RUN] Would generate: {filename}")
+            print(f"          Model: {agent['full_name']}")
+            print(
+                f"          Tier: {tier_name} | Role: {agent['use_case'].lower()} | Variant: {agent['variant']}"
             )
-            filepath = OUTPUT_DIR / filename
+            print(f"          Output: {filepath}")
+        else:
+            # Generate script
+            content = generate_script_content(
+                agent_id=agent["agent_id"],
+                model_name=agent["model_name"],
+                full_name=agent["full_name"],
+                provider=agent["provider"],
+                use_case=agent["use_case"],
+                variant=agent["variant"],
+                specialty=agent["specialty"],
+                input_cost=agent["input_per_1m"],
+                output_cost=agent["output_per_1m"],
+            )
+            filepath.write_text(content)
+            filepath.chmod(0o755)
+            print(
+                f"          Tier: {tier_name} | Role: {agent['use_case'].lower()} | Variant: {agent['variant']}"
+            )
+            print(f"          Output: {filepath}")
 
-            if dry_run:
-                # Dry-run: show what would be generated
-                print(f"[DRY-RUN] Would generate: {filename}")
-                print(f"          Model: {agent['full_name']}")
-                print(f"          Tier: {tier} | Role: {role} | Variant: {effort}")
-                print(f"          Output: {filepath}")
+            # Validate generated script
+            validation_issues = validate_script(filepath)
+            if validation_issues:
+                print(f"  ⚠ {filename} - Validation issues:")
+                for issue in validation_issues:
+                    print(f"    - {issue}")
             else:
-                # Generate script
-                content = generate_script_content(agent, tier, rank)
-                filepath.write_text(content)
-                filepath.chmod(0o755)
-                print(f"          Tier: {tier} | Role: {role} | Variant: {effort}")
-                print(f"          Output: {filepath}")
+                print(f"  ✓ {filename}")
 
-                # Validate generated script
-                validation_issues = validate_script(filepath)
-                if validation_issues:
-                    print(f"  ⚠ {filename} - Validation issues:")
-                    for issue in validation_issues:
-                        print(f"    - {issue}")
-                else:
-                    print(f"  ✓ {filename}")
-
-            # Increment count for both dry-run and actual generation
-            generated_count += 1
+        # Increment count for both dry-run and actual generation
+        generated_count += 1
 
     if dry_run:
         print(f"\n[DRY-RUN] Would generate {generated_count} agent scripts in {OUTPUT_DIR}")

@@ -1,7 +1,7 @@
 # Windsurf Extensions
 
-**Last Updated:** 2026-03-06 18:31
-**Total:** 22 extensions
+**Last Updated:** 2026-03-07 20:31
+**Total:** 23 extensions
 
 ## Quick Install (All Extensions)
 
@@ -27,6 +27,7 @@ windsurf --install-extension ms-vscode.makefile-tools
 windsurf --install-extension prettier.prettier-vscode
 windsurf --install-extension redhat.vscode-yaml
 windsurf --install-extension traycer.traycer-vscode
+windsurf --install-extension undefined_publisher.traycer-report-panel
 windsurf --install-extension vstirbu.vscode-mermaid-preview
 ```
 
@@ -67,6 +68,7 @@ windsurf --install-extension vstirbu.vscode-mermaid-preview
 - `cweijan.vscode-office`
 - `ms-vscode.makefile-tools`
 - `redhat.vscode-yaml`
+- `undefined_publisher.traycer-report-panel`
 
 ---
 

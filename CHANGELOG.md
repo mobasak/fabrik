@@ -6,6 +6,33 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Kilo Agent System Redesign (2026-03-07)
+
+**What:** Complete overhaul of Kilo CLI agent tier system following 3-model consultation (GPT-5.3, Gemini 3.1 Pro, Claude Opus 4.6). Selected Opus 4.6 approach for intuitive cost progression.
+
+**Files:**
+- `scripts/kilo_47_agents_final.json` — NEW: 46 unique agents with `agent_id` canonical naming
+- `scripts/generate_kilo_agents.py` — MAJOR UPDATE: Simplified naming, tier-based sorting, agent_id system
+- `docs/traycer/KILO-AGENTS-UPDATE-2026-03.md` — NEW: Complete migration guide and tier documentation
+- `~/.traycer/cli-agents/*.sh` — REGENERATED: 46 clean agents (removed 65 duplicates)
+
+**What Changed:**
+- Tier names: Auto/Balanced/Prime/Reasoning/etc → Free/Economy/Standard/Pro/Expert/Apex/Specialist
+- Naming: `Prime01-opus46-code-max-i500-o2500.sh` → `expert-6.sh` (simple, cost-ordered)
+- Agent count: 65 duplicates → 46 unique (each model exactly once)
+- Default guidance: `-1` suffix is recommended default for each tier (e.g., `free-1`, `econ-1`, `std-1`)
+- Tier progression: Clear cost ladder ($0 → $0.001-0.10 → $0.10-0.50 → $0.50-3 → $3-10 → $20-40)
+
+**Design Rationale:**
+- Consulted GPT-5.3 Codex Thinking, Gemini 3.1 Pro, Claude Opus 4.6 for categorization approaches
+- Selected Opus 4.6 for: intuitive tier names, clear cost progression, default guidance, task-aligned use cases
+- Prevents duplicates via `agent_id` as unique key in JSON
+- Simplifies Traycer invocation: "Use free-1" vs "Use Free08-deepseekr1-review-max-i000-o000"
+
+**Migration:**
+- Old agents backed up to `~/.traycer/cli-agents-backup-20260307/`
+- Equivalents: Prime01-opus46 → expert-6, Reasoning01-o3pro → apex-3, Strong03-gemini25pro → pro-6
+
 ### Added - Traycer Report Panel Integration (2026-03-06)
 
 **What:** Report extraction and persistence system for Traycer CLI agents with Windsurf panel integration.
@@ -30,9 +57,21 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Report extraction wrapped in try/except to never fail job flow
 - 10s timeout on report writer subprocess
 
+**Verification Fixes (2026-03-06):**
+- `factory_wait.py` — Fixed: Uses absolute path to report writer (works from any cwd), makes failures observable via stderr warnings
+- `scripts/traycer_write_report.py` — Fixed: Added microseconds to timestamps to prevent collisions, PID-based temp files for atomic writes
+
 **External Components (outside repo):**
-- VS Code extension: `~/traycer-report-panel/` — Webview panel that watches `latest.md` and auto-displays reports
-- Prompt templates: Manual update required for three templates in `~/.traycer/prompt-templates/` to output report delimiters
+- Windsurf extension v0.2.0: `~/traycer-report-panel/traycer-report-panel-0.2.0.vsix` — Sidebar extension with history browsing
+  - **Location:** Activity bar (left sidebar) with 📄 icon
+  - **Views:** Report History (tree view) + Report Content (webview)
+  - **Features:** Click-to-view, notifications on new reports, refresh, clear all
+  - **Storage:** Reads timestamped files from `.droid/traycer-reports/`
+- Prompt templates: Updated three templates in `~/.traycer/prompt-templates/` with mandatory report block delimiters
+
+**Documentation:**
+- `/opt/fabrik/docs/guides/traycer-report-panel.md` — Complete architecture, component details, troubleshooting
+- `/opt/fabrik/AGENTS.md` — Added "Traycer Report Panel (Windsurf Extension)" section with quick start guide
 
 ### Added/Fixed - Traycer CLI Agent Self-Review Workflow Complete (2026-03-06)
 
