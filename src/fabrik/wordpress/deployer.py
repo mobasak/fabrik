@@ -13,17 +13,21 @@ from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
 from fabrik.drivers.wordpress_api import WordPressAPIClient, WPCredentials
-from fabrik.wordpress.analytics import AnalyticsInjector
-from fabrik.wordpress.domain_setup import DomainSetup
-from fabrik.wordpress.forms import FormCreator
-from fabrik.wordpress.menus import MenuCreator
-from fabrik.wordpress.page_generator import generate_pages
-from fabrik.wordpress.pages import CreatedPage, PageCreator
-from fabrik.wordpress.seo import SEOApplicator
-from fabrik.wordpress.settings import SettingsApplicator
+from fabrik.wordpress.pages import CreatedPage
+from fabrik.wordpress.planner import BUILD_ROOT
 from fabrik.wordpress.spec_loader import load_spec
 from fabrik.wordpress.spec_validator import SpecValidator, ValidationError
-from fabrik.wordpress.theme import ThemeCustomizer
+from fabrik.wordpress.stages import (
+    analytics,
+    dns,
+    forms,
+    menus,
+    pages,
+    plugins,
+    seo,
+    settings,
+    theme,
+)
 
 
 @dataclass
@@ -145,33 +149,46 @@ class SiteDeployer:
         if self.dry_run:
             self.log("DRY RUN MODE - no changes will be made", "warning")
 
+        # Build-dir hard gate (non dry-run only)
+        build_dir = BUILD_ROOT / self.site_id
+        if not self.dry_run and not build_dir.exists():
+            raise RuntimeError(
+                f"Build directory missing for {self.site_id}. Run 'fabrik wp plan' first."
+            )
+
         try:
-            # Step 1: Domain & DNS Setup
-            self._step_dns()
+            # Inject dry_run into spec for stage runners
+            self.spec["dry_run"] = self.dry_run
+            self.spec["site_name"] = self.site_name
 
-            # Step 3: Settings & Cleanup
-            self._step_settings()
+            # Stage registry - ordered execution
+            stages = (dns, settings, theme, plugins, pages, menus, forms, seo, analytics)
 
-            # Step 4-5: Theme
-            self._step_theme()
+            # Initialize local clients once for reuse, preserving lazy behavior in dry-run mode
+            wp_client = None if self.dry_run else self.wp
+            api_client = None if self.dry_run else self.api
 
-            # Step 6: Plugins (handled by preset loader, skipped here)
-            self.result.steps_completed.append("plugins")
+            # Execute each stage
+            for stage in stages:
+                self.log(f"Step: {stage.__name__.split('.')[-1]}")
+                stage_result = stage.apply(self.spec, wp_client, api_client, build_dir)
 
-            # Step 7-8: Pages
-            self._step_pages()
+                if hasattr(stage_result, "warnings") and stage_result.warnings:
+                    for w in stage_result.warnings:
+                        self.log(w, "warning")
 
-            # Step 9: Navigation
-            self._step_menus()
+                if stage_result.success:
+                    if not getattr(stage_result, "skipped", False):
+                        self.result.steps_completed.append(stage_result.name)
+                        self.log(f"  {stage_result.name.capitalize()} completed", "success")
+                else:
+                    self.result.steps_failed.append(stage_result.name)
+                    self.result.errors.extend(stage_result.errors)
+                    print(f"❌   {stage_result.name.capitalize()} failed")
 
-            # Step 11: Forms
-            self._step_forms()
-
-            # Step 12: SEO
-            self._step_seo()
-
-            # Step 14: Analytics
-            self._step_analytics()
+                # Special handling for pages stage - extract pages_created
+                if stage_result.name == "pages" and "pages_created" in stage_result.metadata:
+                    self.result.pages_created = stage_result.metadata["pages_created"]
 
             # Step 17: Final touches
             self._step_finalize()
@@ -186,326 +203,6 @@ class SiteDeployer:
         self._print_summary()
 
         return self.result
-
-    def _step_dns(self):
-        """Configure DNS for the domain (Step 1)."""
-        step = "dns"
-        self.log(f"Step: {step}")
-
-        try:
-            # Get VPS IP from spec or environment
-            deployment = self.spec.get("deployment", {})
-            vps_ip = deployment.get("vps_ip") or os.getenv("VPS_IP", "")
-            proxied = deployment.get("cloudflare_proxy", True)
-
-            if not vps_ip:
-                self.log("  ⚠️  VPS_IP not configured — skipping DNS")
-                self.result.errors.append("VPS_IP not configured")
-                self.result.steps_failed.append(step)
-                return
-
-            if self.dry_run:
-                self.log(f"  Would configure DNS: {self.domain} → {vps_ip}")
-                self.log(f"  Cloudflare proxy: {proxied}")
-            else:
-                setup = DomainSetup(self.domain, vps_ip=vps_ip, proxied=proxied, dry_run=False)
-                dns_result = setup.configure_dns()
-                setup.close()
-
-                if dns_result.a_record_created:
-                    self.log(f"  A record: {self.domain} → {vps_ip}")
-                else:
-                    self.log("  A record already exists")
-
-                if dns_result.dns_resolving:
-                    self.log(f"  DNS resolving: {dns_result.resolved_ips}")
-
-                if dns_result.https_working:
-                    self.log(f"  HTTPS: working (status {dns_result.https_status_code})")
-
-                for warning in dns_result.warnings:
-                    self.result.warnings.append(warning)
-
-                if not dns_result.success:
-                    raise Exception("; ".join(dns_result.errors))
-
-            self.result.steps_completed.append(step)
-            self.log("  DNS configured", "success")
-
-        except Exception as e:
-            self.log(f"  DNS setup failed: {e}", "error")
-            self.result.steps_failed.append(step)
-
-    def _step_settings(self):
-        """Apply WordPress settings and cleanup defaults."""
-        step = "settings"
-        self.log(f"Step: {step}")
-
-        try:
-            if self.dry_run:
-                self.log("  Would cleanup defaults and apply settings")
-            else:
-                applicator = SettingsApplicator(self.site_name, self.wp)
-                applicator.cleanup_defaults()
-                applicator.apply_settings(self.spec)
-
-            self.result.steps_completed.append(step)
-            self.log("  Settings applied", "success")
-
-        except Exception as e:
-            self.log(f"  Settings failed: {e}", "error")
-            self.result.steps_failed.append(step)
-
-    def _step_theme(self):
-        """Install and customize theme."""
-        step = "theme"
-        self.log(f"Step: {step}")
-
-        try:
-            theme_config = self.spec.get("theme", {})
-            theme_name = theme_config.get("name", "generatepress")
-
-            if self.dry_run:
-                self.log(f"  Would install and customize {theme_name}")
-            else:
-                customizer = ThemeCustomizer(self.site_name, self.wp)
-
-                # Install theme
-                try:
-                    customizer.install_theme(activate=True)
-                except Exception:
-                    pass  # May already be installed
-
-                # Apply customizations
-                customizer.apply_from_spec(self.spec)
-
-            self.result.steps_completed.append(step)
-            self.log("  Theme configured", "success")
-
-        except Exception as e:
-            self.log(f"  Theme failed: {e}", "error")
-            self.result.steps_failed.append(step)
-
-    def _step_pages(self):
-        """Create site pages from generated page specs."""
-        step = "pages"
-        self.log(f"Step: {step}")
-
-        try:
-            # Generate pages from spec (templates + entities)
-            primary_locale = self.spec.get("languages", {}).get("primary", "en_US")
-            page_specs = generate_pages(self.spec, locale=primary_locale)
-
-            if not page_specs:
-                self.log("  No pages to create", "warning")
-                return
-
-            if self.dry_run:
-                self.log(f"  Would create {len(page_specs)} pages")
-                for page in page_specs[:5]:  # Show first 5
-                    slug = page.get("slug", "(home)")
-                    title = page.get("title", "")
-                    self.log(f"    - /{slug}: {title}")
-            elif self.api:
-                creator = PageCreator(
-                    self.site_name,
-                    wp_client=self.wp,
-                    api_client=self.api,
-                )
-
-                # Build hierarchical page structure for PageCreator
-                # First pass: group children by parent_slug (entity pages)
-                pages_by_parent = {}
-                top_level_specs = []
-
-                for page_spec in page_specs:
-                    parent_slug = page_spec.get("parent_slug")
-
-                    if parent_slug:
-                        # Entity child page - group by parent
-                        if parent_slug not in pages_by_parent:
-                            pages_by_parent[parent_slug] = []
-
-                        pages_by_parent[parent_slug].append(
-                            {
-                                "slug": page_spec.get("slug", ""),
-                                "title": page_spec.get("title", ""),
-                                "content": page_spec.get("content", ""),
-                                "status": page_spec.get("status", "publish"),
-                                "template": page_spec.get("template", ""),
-                            }
-                        )
-                    else:
-                        # Top-level page
-                        top_level_specs.append(page_spec)
-
-                # Second pass: build top-level pages with children
-                top_level_pages = []
-                for page_spec in top_level_specs:
-                    slug = page_spec.get("slug", "")
-                    page_dict = {
-                        "slug": slug,
-                        "title": page_spec.get("title", ""),
-                        "content": page_spec.get("content", ""),
-                        "status": page_spec.get("status", "publish"),
-                        "template": page_spec.get("template", ""),
-                    }
-
-                    # Attach children if any
-                    if slug in pages_by_parent:
-                        page_dict["children"] = pages_by_parent[slug]
-
-                    top_level_pages.append(page_dict)
-
-                # Create all pages (idempotent, path-based keys)
-                self.result.pages_created = creator.create_all(top_level_pages)
-
-                # Set homepage if defined
-                homepage = self.result.pages_created.get("")
-                if homepage:
-                    creator.set_homepage(homepage.id)
-                    self.log(f"  Homepage set to page ID {homepage.id}")
-
-                # Set blog page if defined
-                blog_page = self.result.pages_created.get(
-                    "insights"
-                ) or self.result.pages_created.get("blog")
-                if blog_page:
-                    creator.set_blog_page(blog_page.id)
-            else:
-                self.log("  REST API not available, skipping page creation", "warning")
-                return
-
-            self.result.steps_completed.append(step)
-            self.log(f"  Created {len(self.result.pages_created)} pages", "success")
-
-        except Exception as e:
-            self.log(f"  Pages failed: {e}", "error")
-            self.result.steps_failed.append(step)
-
-    def _step_menus(self):
-        """Create navigation menus."""
-        step = "menus"
-        self.log(f"Step: {step}")
-
-        try:
-            navigation = self.spec.get("navigation") or self.spec.get("menus", {})
-
-            if not navigation:
-                self.log("  No navigation defined in spec", "warning")
-                return
-
-            if self.dry_run:
-                self.log(f"  Would create menus: {list(navigation.keys())}")
-            else:
-                creator = MenuCreator(self.site_name, self.wp)
-                menus = creator.create_all(navigation)
-                self.log(f"  Created {len(menus)} menus")
-
-            self.result.steps_completed.append(step)
-            self.log("  Menus configured", "success")
-
-        except Exception as e:
-            self.log(f"  Menus failed: {e}", "error")
-            self.result.steps_failed.append(step)
-
-    def _step_forms(self):
-        """Create contact forms."""
-        step = "forms"
-        self.log(f"Step: {step}")
-
-        try:
-            contact = self.spec.get("contact", {})
-
-            if not contact:
-                self.log("  No contact info defined", "warning")
-                return
-
-            if self.dry_run:
-                self.log("  Would create contact form")
-            else:
-                creator = FormCreator(self.site_name, self.wp)
-
-                # Check if form plugin is available
-                plugin = creator.detect_form_plugin()
-                if plugin:
-                    form = creator.create_contact_form(
-                        title="Contact Form",
-                        recipient=contact.get("email", ""),
-                        fields=contact.get("form_fields", ["name", "email", "message"]),
-                    )
-                    self.log(f"  Created form: {form.shortcode}")
-                else:
-                    self.log("  No form plugin installed (WPForms or CF7)", "warning")
-                    return
-
-            self.result.steps_completed.append(step)
-            self.log("  Forms configured", "success")
-
-        except Exception as e:
-            self.log(f"  Forms failed: {e}", "error")
-            self.result.steps_failed.append(step)
-
-    def _step_seo(self):
-        """Apply SEO settings."""
-        step = "seo"
-        self.log(f"Step: {step}")
-
-        try:
-            seo = self.spec.get("seo", {})
-
-            if not seo:
-                self.log("  No SEO settings defined", "warning")
-                return
-
-            if self.dry_run:
-                self.log("  Would apply SEO settings")
-            else:
-                applicator = SEOApplicator(self.site_name, self.wp)
-
-                # Check if SEO plugin available
-                plugin = applicator.detect_seo_plugin()
-                if plugin:
-                    applicator.apply_site_seo(seo)
-                    self.log(f"  Applied SEO via {plugin}")
-                else:
-                    self.log("  No SEO plugin installed (Yoast or RankMath)", "warning")
-
-            self.result.steps_completed.append(step)
-            self.log("  SEO configured", "success")
-
-        except Exception as e:
-            self.log(f"  SEO failed: {e}", "error")
-            self.result.steps_failed.append(step)
-
-    def _step_analytics(self):
-        """Inject analytics codes."""
-        step = "analytics"
-        self.log(f"Step: {step}")
-
-        try:
-            seo = self.spec.get("seo", {})
-            analytics = seo.get("analytics", {})
-
-            ga4 = analytics.get("ga4") or analytics.get("google_analytics") or seo.get("ga4_id")
-            gtm = analytics.get("gtm") or analytics.get("google_tag_manager") or seo.get("gtm_id")
-
-            if not ga4 and not gtm:
-                self.log("  No analytics IDs defined", "warning")
-                return
-
-            if self.dry_run:
-                self.log(f"  Would inject GA4={ga4}, GTM={gtm}")
-            else:
-                injector = AnalyticsInjector(self.site_name, self.wp)
-                injector.apply_from_spec(seo)
-
-            self.result.steps_completed.append(step)
-            self.log("  Analytics configured", "success")
-
-        except Exception as e:
-            self.log(f"  Analytics failed: {e}", "error")
-            self.result.steps_failed.append(step)
 
     def _step_finalize(self):
         """Final touches - flush caches, set homepage, etc."""

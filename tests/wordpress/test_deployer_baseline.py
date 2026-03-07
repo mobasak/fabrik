@@ -11,9 +11,32 @@ KNOWN_GOOD_HASH = "2f31292fe4ce705d8f45ecd38cb6e8a7f7574dd365ba1e63d107592d0a8ff
 
 
 @patch("subprocess.run")
-@patch("fabrik.wordpress.deployer.DomainSetup")
+@patch("fabrik.wordpress.stages.dns.DomainSetup")
+@patch("fabrik.wordpress.stages.settings.SettingsApplicator")
+@patch("fabrik.wordpress.stages.theme.ThemeCustomizer")
+@patch("fabrik.wordpress.stages.pages.generate_pages")
+@patch("fabrik.wordpress.stages.pages.PageCreator")
+@patch("fabrik.wordpress.stages.menus.MenuCreator")
+@patch("fabrik.wordpress.stages.forms.FormCreator")
+@patch("fabrik.wordpress.stages.seo.SEOApplicator")
+@patch("fabrik.wordpress.stages.analytics.AnalyticsInjector")
 @patch("fabrik.wordpress.deployer.WordPressClient")
-def test_baseline_is_deterministic(mock_wp_client, mock_domain_setup, mock_run):
+def test_baseline_is_deterministic(
+    mock_wp_client,
+    mock_analytics,
+    mock_seo,
+    mock_forms,
+    mock_menus,
+    mock_pages,
+    mock_generate,
+    mock_theme,
+    mock_settings,
+    mock_domain_setup,
+    mock_run,
+):
+    # Mock generate_pages to return empty list (dry-run behavior)
+    mock_generate.return_value = []
+
     with patch.dict(
         os.environ, {"WP_CONTAINER_NAME_OCORON_COM": "ocoron-com-wordpress-1"}, clear=True
     ):

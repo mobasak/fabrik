@@ -134,7 +134,8 @@ Benefits:
 | `spec_validator.py` | Validate merged spec | Required fields, refs, localization, conflicts |
 | `section_renderer.py` | Render sections to Gutenberg blocks | 10 section types, localization, ref resolution |
 | `page_generator.py` | Generate pages from spec | Templates + entities → page specs |
-| `deployer.py` | Orchestrate deployment | v2 integration, page hierarchy |
+| `deployer.py` | Orchestrate deployment | v2 integration, page hierarchy, stage runner pipeline |
+| `stages/*.py` | Self-contained stage modules | dns, settings, theme, plugins, pages, menus, forms, seo, analytics |
 
 ---
 
@@ -223,6 +224,103 @@ services:
 # Generated pages:
 # - /services (from preset template)
 # - /services/consulting (from entity, child of /services)
+```
+
+---
+
+## Stage Runner Pipeline
+
+**Last Updated:** 2026-03-07
+
+The deployer executes a sequential pipeline of self-contained stages. Each stage is an isolated module that exports a single `apply()` function.
+
+### Stage Execution Order
+
+```
+dns → settings → theme → plugins → pages → menus → forms → seo → analytics → finalize
+```
+
+### StageResult Dataclass
+
+Each stage returns a `StageResult` with these fields:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `name` | `str` | Stage slug (e.g., "dns") |
+| `success` | `bool` | True if no exception raised |
+| `skipped` | `bool` | Reserved for Phase 2b (default False) |
+| `duration_ms` | `float` | Wall-clock execution time in milliseconds |
+| `errors` | `list[str]` | Error messages on failure |
+| `artifacts_written` | `list[str]` | Paths written (reserved for Phase 2b) |
+| `metadata` | `dict` | Stage-specific data (e.g., pages_created) |
+
+### Build Directory Hard Gate
+
+**Rule:** `build_dir` must exist before non-dry-run stages execute.
+
+```python
+build_dir = BUILD_ROOT / site_id
+if not dry_run and not build_dir.exists():
+    raise RuntimeError(f"Build directory missing for {site_id}. Run 'fabrik wp plan' first.")
+```
+
+### Stage Implementation Pattern
+
+Each stage module follows this pattern:
+
+```python
+from fabrik.wordpress.stages import StageResult, time_stage
+
+@time_stage
+def apply(spec: dict, wp: WordPressClient | None, api: WordPressAPIClient | None, build_dir: Path) -> StageResult:
+    result = StageResult(name="stage_name", success=True)
+    try:
+        dry_run = spec.get("dry_run", False)
+        if dry_run:
+            # Log intent only
+            pass
+        else:
+            # Execute stage logic
+            pass
+    except Exception as e:
+        result.success = False
+        result.errors.append(str(e))
+    return result
+```
+
+### Pages Stage Metadata
+
+The pages stage returns `pages_created` via the `metadata` field:
+
+```python
+result.metadata["pages_created"] = {
+    "": CreatedPage(...),              # Homepage
+    "about": CreatedPage(...),         # /about
+    "services/consulting": CreatedPage(...)  # /services/consulting
+}
+```
+
+`SiteDeployer` extracts this to populate `DeploymentResult.pages_created`.
+
+### Deployment Flow
+
+```mermaid
+sequenceDiagram
+    participant D as SiteDeployer
+    participant S as Stage Modules
+    participant WP as WordPressClient
+    participant API as WordPressAPIClient
+
+    D->>D: Check build_dir exists (hard gate)
+    loop For each stage
+        D->>S: apply(spec, wp, api, build_dir)
+        S->>WP: WP-CLI calls (or dry-run skip)
+        S->>API: REST calls (or dry-run skip)
+        S-->>D: StageResult
+        D->>D: Update DeploymentResult
+    end
+    D->>D: _step_finalize() (flush caches)
+    D->>D: _print_summary()
 ```
 
 ---
