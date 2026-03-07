@@ -145,8 +145,8 @@ The Traycer Report Panel is a VS Code/Windsurf extension that:
 ```python
 # Extract content between delimiters
 report_content = extract_between(
-    stdout, 
-    "BEGIN_TRAYCER_REPORT_MD", 
+    stdout,
+    "BEGIN_TRAYCER_REPORT_MD",
     "END_TRAYCER_REPORT_MD"
 )
 
@@ -189,7 +189,7 @@ job["factory_stdout"] = proc.stdout
 try:
     slug = os.getenv("TRAYCER_TASK_ID") or "traycer-task"
     report_writer = Path(__file__).resolve().parent / "scripts" / "traycer_write_report.py"
-    
+
     report_proc = subprocess.run(
         [sys.executable, str(report_writer), "--slug", slug],
         input=proc.stdout,
@@ -197,7 +197,7 @@ try:
         capture_output=True,
         timeout=10
     )
-    
+
     # Make failures observable (but don't fail job)
     if report_proc.returncode != 0:
         job["factory_stderr"] += f"\n[WARN] Report extraction failed"

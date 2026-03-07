@@ -31,7 +31,7 @@ A FastMCP-based server that exposes 4 Kilo CLI tools to Traycer:
 
 **Critical:** Config location is `~/.traycer/mcp.json` (**Traycer-specific config**)
 
-**⚠️ Common Mistake:** 
+**⚠️ Common Mistake:**
 - ✅ Correct: `~/.traycer/mcp.json` (Traycer MCP config)
 - ❌ Wrong: `~/.factory/mcp.json` (Kilo/Droid config, different system)
 - ❌ Wrong: `/opt/fabrik/.factory/mcp.json` (project dir)

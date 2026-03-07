@@ -1,0 +1,1 @@
+{"domain": "ocoron.com", "errors": ["VPS_IP not configured"], "pages_created": {}, "site_name": "ocoron-com", "steps_completed": ["settings", "theme", "plugins", "pages", "menus", "forms", "seo", "finalize"], "steps_failed": ["dns"], "success": false, "warnings": ["DRY RUN MODE - no changes will be made", "  No analytics IDs defined"]}

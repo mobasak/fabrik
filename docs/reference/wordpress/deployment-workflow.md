@@ -51,7 +51,7 @@ Phase 2: WordPress Configuration (Content & Settings)
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**WSL:** Control plane (CLI, specs, orchestration)  
+**WSL:** Control plane (CLI, specs, orchestration)
 **VPS:** Execution plane (containers, databases, WordPress files)
 
 ---

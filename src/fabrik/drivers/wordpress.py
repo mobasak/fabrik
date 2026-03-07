@@ -5,10 +5,65 @@ Executes WP-CLI commands inside WordPress Docker containers via SSH.
 """
 
 import json
+import os
 import shlex
 import subprocess
+import warnings
 from dataclasses import dataclass
 from typing import Any
+
+
+class ContainerNotFoundError(Exception):
+    """Exception raised when a WordPress container cannot be found."""
+
+    pass
+
+
+class ContainerResolver:
+    """Resolves a WordPress container name."""
+
+    def __init__(self, site_name: str, ssh_host: str = "vps", timeout: int = 10):
+        """Initialize resolver."""
+        self.site_name = site_name
+        self.ssh_host = ssh_host
+        self.timeout = timeout
+        self._cached: str | None = None
+
+    def _slug(self) -> str:
+        """Derives the environment variable slug."""
+        return self.site_name.replace(".", "_").replace("-", "_").upper()
+
+    def resolve(self) -> str:
+        """Resolves the container name."""
+        env_var = os.getenv(f"WP_CONTAINER_NAME_{self._slug()}")
+        if env_var:
+            return env_var
+
+        try:
+            result = subprocess.run(
+                [
+                    "ssh",
+                    self.ssh_host,
+                    f"docker ps --filter name={self.site_name} --format '{{{{.Names}}}}'",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
+            )
+            lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            if lines:
+                return lines[0]
+        except subprocess.TimeoutExpired:
+            pass
+
+        raise ContainerNotFoundError(f"No container found for site {self.site_name!r}")
+
+    def resolve_cached(self) -> str:
+        """Resolves the container name and caches the result."""
+        if self._cached is None:
+            self._cached = self.resolve()
+        return self._cached
 
 
 @dataclass
@@ -21,8 +76,14 @@ class WPSite:
 
     @classmethod
     def from_name(cls, name: str) -> "WPSite":
-        """Create WPSite from site name (assumes standard naming)."""
-        return cls(name=name, domain=f"{name}.vps1.ocoron.com", container=f"{name}-wordpress")
+        """
+        Create WPSite from site name.
+
+        Raises:
+            ContainerNotFoundError: If a container cannot be resolved for the site.
+        """
+        container = ContainerResolver(name).resolve_cached()
+        return cls(name=name, domain=f"{name}.vps1.ocoron.com", container=container)
 
 
 class WordPressClient:

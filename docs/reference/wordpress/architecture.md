@@ -1,7 +1,7 @@
 # WordPress v2 Architecture - Implementation Summary
 
-**Date:** 2025-12-25
-**Status:** ✅ Complete and tested
+**Date:** 2026-03-07
+**Status:** ✅ Updated
 **Spec Format:** v2 (schema version 1)
 
 ---
@@ -44,11 +44,7 @@ WSL (Control Plane)                    VPS (Execution Plane)
 ### Container Naming Convention
 
 **Expected by Fabrik:**
-```python
-# Default pattern in WordPressClient:
-container_name = f"{site_name}-wordpress"
-# Example: "ocoron-com-wordpress"
-```
+Fabrik strictly resolves container names using `ContainerResolver`. It does not fall back to a default naming pattern. If a container cannot be resolved via environment variables or SSH, an error is raised to ensure fail-fast behavior.
 
 **Created by docker-compose:**
 ```bash
@@ -65,14 +61,13 @@ wordpress-scoksgk4ww840okw84ksw40w  # UUID-based
 ocoron-com-wordpress                 # Custom name (if specified)
 ```
 
-**Solution:** Override container name in `WPSite` or environment:
-```python
-site = WPSite(
-    name="ocoron-com",
-    domain="ocoron.com",
-    container="ocoron-com-wordpress-1"  # Explicit override
-)
-```
+### ContainerResolver (resolution order)
+
+1. `WP_CONTAINER_NAME_<SITE_SLUG>` env var (e.g. `WP_CONTAINER_NAME_OCORON_COM`)
+2. SSH `docker ps --filter name=<site_name>` → first match
+3. Raises `ContainerNotFoundError`
+
+SITE_SLUG derivation: `site_name.replace('.', '_').replace('-', '_').upper()`
 
 ### Deployment Methods
 
@@ -135,7 +130,7 @@ Benefits:
 
 | Module | Purpose | Key Features |
 |--------|---------|--------------|
-| `spec_loader.py` | Load & merge YAML layers | Deep merge, entity normalization, secret injection |
+| `spec_loader.py` | Load & merge YAML layers | Deep merge, entity normalization, secret injection, applies `json.loads(json.dumps(..., sort_keys=True))` for deterministic key order |
 | `spec_validator.py` | Validate merged spec | Required fields, refs, localization, conflicts |
 | `section_renderer.py` | Render sections to Gutenberg blocks | 10 section types, localization, ref resolution |
 | `page_generator.py` | Generate pages from spec | Templates + entities → page specs |

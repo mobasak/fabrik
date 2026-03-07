@@ -195,7 +195,7 @@
 ### Option 1: By Full Agent Name
 ```
 Use Free01-deepseekr1-code-max for rapid prototyping
-Use Standard00-devstral-code-low for daily implementation  
+Use Standard00-devstral-code-low for daily implementation
 Use Expert01-sonnet46-review-max for code review
 Use Apex00-gpt52pro-review-max for Epic architecture validation
 ```

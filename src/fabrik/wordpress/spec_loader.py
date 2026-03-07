@@ -10,6 +10,7 @@ Implements merge rules from schema/MERGE_RULES.md
 """
 
 import copy
+import json
 import os
 import re
 from pathlib import Path
@@ -67,6 +68,9 @@ class SpecLoader:
 
         # Normalize (top-level entities → entities.*)
         merged = self._normalize(merged)
+
+        # Apply canonical sort for deterministic hashing
+        merged = json.loads(json.dumps(merged, sort_keys=True))
 
         return merged
 
