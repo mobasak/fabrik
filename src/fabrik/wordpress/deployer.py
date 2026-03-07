@@ -7,8 +7,11 @@ Coordinates all automation modules to deploy a fully configured site.
 v2: Uses new spec system with loader, validator, page generator.
 """
 
+import json
 import os
+import tempfile
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
@@ -18,6 +21,7 @@ from fabrik.wordpress.planner import BUILD_ROOT
 from fabrik.wordpress.spec_loader import load_spec
 from fabrik.wordpress.spec_validator import SpecValidator, ValidationError
 from fabrik.wordpress.stages import (
+    StageResult,
     analytics,
     dns,
     forms,
@@ -60,6 +64,7 @@ class SiteDeployer:
         site_id: str,
         dry_run: bool = False,
         skip_content: bool = False,
+        force_stage: str | None = None,
     ):
         """
         Initialize site deployer.
@@ -68,10 +73,12 @@ class SiteDeployer:
             site_id: Site identifier (domain, e.g., ocoron.com)
             dry_run: If True, print actions without executing
             skip_content: If True, skip AI content generation
+            force_stage: Stage name to force re-run (bypasses skip_if_unchanged)
         """
         self.site_id = site_id
         self.dry_run = dry_run
         self.skip_content = skip_content
+        self.force_stage = force_stage
 
         # Load and merge spec (defaults → preset → site)
         self.log(f"Deploying {site_id}")
@@ -156,6 +163,20 @@ class SiteDeployer:
                 f"Build directory missing for {self.site_id}. Run 'fabrik wp plan' first."
             )
 
+        # Load plan.json for stage skip checks (non dry-run only)
+        stage_entries: dict[str, dict] = {}
+        plan_path = build_dir / "plan.json"
+        if not self.dry_run and plan_path.exists():
+            try:
+                plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
+                stage_entries = {s["name"]: s for s in plan_data.get("stages", [])}
+            except (json.JSONDecodeError, OSError):
+                # Corrupt plan file, continue without skip logic
+                pass
+
+        # Track stage results for apply-report.json
+        stage_results_for_report: list[dict] = []
+
         try:
             # Inject dry_run into spec for stage runners
             self.spec["dry_run"] = self.dry_run
@@ -170,13 +191,32 @@ class SiteDeployer:
 
             # Execute each stage
             for stage in stages:
-                self.log(f"Step: {stage.__name__.split('.')[-1]}")
-                stage_result = stage.apply(self.spec, wp_client, api_client, build_dir)
+                stage_name = stage.__name__.split(".")[-1]
+                self.log(f"Step: {stage_name}")
 
+                # Check if stage should be skipped
+                stage_entry = stage_entries.get(stage_name, {})
+                should_skip = (
+                    stage_entry.get("skip_if_unchanged", False) and self.force_stage != stage_name
+                )
+
+                if should_skip:
+                    stage_result = StageResult(name=stage_name, success=True, skipped=True)
+                    self.log(f"  {stage_name.capitalize()} skipped (unchanged)", "info")
+                else:
+                    # Run stage
+                    stage_result = stage.apply(self.spec, wp_client, api_client, build_dir)
+
+                    # Update plan.json atomically after successful non-skipped stage
+                    if stage_result.success and not stage_result.skipped and not self.dry_run:
+                        self._update_plan_after_stage(build_dir, stage_name, stage_entry)
+
+                # Log warnings
                 if hasattr(stage_result, "warnings") and stage_result.warnings:
                     for w in stage_result.warnings:
                         self.log(w, "warning")
 
+                # Track result
                 if stage_result.success:
                     if not getattr(stage_result, "skipped", False):
                         self.result.steps_completed.append(stage_result.name)
@@ -190,6 +230,17 @@ class SiteDeployer:
                 if stage_result.name == "pages" and "pages_created" in stage_result.metadata:
                     self.result.pages_created = stage_result.metadata["pages_created"]
 
+                # Add to report
+                stage_results_for_report.append(
+                    {
+                        "name": stage_result.name,
+                        "success": stage_result.success,
+                        "skipped": stage_result.skipped,
+                        "duration_ms": stage_result.duration_ms,
+                        "errors": stage_result.errors,
+                    }
+                )
+
             # Step 17: Final touches
             self._step_finalize()
 
@@ -199,10 +250,75 @@ class SiteDeployer:
             self.log(f"Deployment failed: {e}", "error")
             self.result.success = False
 
+        # Write apply-report.json (non dry-run only)
+        if not self.dry_run:
+            self._write_apply_report(build_dir, stage_results_for_report)
+
         # Summary
         self._print_summary()
 
         return self.result
+
+    def _update_plan_after_stage(self, build_dir: Path, stage_name: str, stage_entry: dict) -> None:
+        """
+        Update plan.json atomically after a successful stage run.
+
+        Args:
+            build_dir: Build directory path
+            stage_name: Name of the completed stage
+            stage_entry: Current stage entry dict from plan.json
+        """
+        plan_path = build_dir / "plan.json"
+
+        # Re-read current plan (avoid clobbering concurrent changes)
+        try:
+            current_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return  # Can't update, skip
+
+        # Find and update the stage entry
+        stages = current_plan.get("stages", [])
+        for stage in stages:
+            if stage.get("name") == stage_name:
+                # Mark as successfully run
+                stage["last_success_hash"] = stage.get("input_hash")
+                stage["last_run_at"] = datetime.now(UTC).isoformat()
+                stage["skip_if_unchanged"] = True
+                break
+
+        # Write atomically
+        with tempfile.NamedTemporaryFile(
+            mode="w", dir=build_dir, suffix=".tmp", delete=False, encoding="utf-8"
+        ) as tmp:
+            tmp.write(json.dumps(current_plan, indent=2, sort_keys=True) + "\n")
+            tmp.flush()
+            os.fsync(tmp.fileno())
+            tmp_name = tmp.name
+
+        os.replace(tmp_name, plan_path)
+
+    def _write_apply_report(self, build_dir: Path, stage_results: list[dict]) -> None:
+        """
+        Write apply-report.json to the reports/ subdirectory.
+
+        Args:
+            build_dir: Build directory path
+            stage_results: List of stage result dicts
+        """
+        reports_dir = build_dir / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+
+        report = {
+            "site_id": self.site_id,
+            "ran_at": datetime.now(UTC).isoformat(),
+            "stages": stage_results,
+            "overall_success": self.result.success,
+        }
+
+        report_path = reports_dir / "apply-report.json"
+        report_path.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
     def _step_finalize(self):
         """Final touches - flush caches, set homepage, etc."""

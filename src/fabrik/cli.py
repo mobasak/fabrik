@@ -898,6 +898,67 @@ def verify(domain: str, spec: str, app_name: str | None, no_rollback: bool):
 
 
 @cli.group()
+def wp():
+    """WordPress site factory commands."""
+    pass
+
+
+@wp.command("plan")
+@click.argument("site_id")
+def wp_plan(site_id: str):
+    """Generate WordPress site plan and build artifacts.
+
+    Example:
+        fabrik wp plan ocoron.com
+    """
+    from fabrik.wordpress.planner import Planner
+
+    try:
+        planner = Planner(site_id)
+        build_dir = planner.plan()
+        click.echo(f"✅ Plan generated: {build_dir}")
+        click.echo()
+        click.echo(f"📁 Build directory: {build_dir}")
+        click.echo(f"📄 Plan: {build_dir / 'plan.json'}")
+        click.echo(f"📄 Blueprint: {build_dir / 'blueprint.resolved.yaml'}")
+        click.echo(f"📂 Manifests: {build_dir / 'manifests'}/")
+    except Exception as e:
+        click.echo(f"❌ Plan generation failed: {e}", err=True)
+        raise SystemExit(1)
+
+
+@wp.command("apply")
+@click.argument("site_id")
+@click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
+@click.option("--force-stage", default=None, help="Force re-run a specific stage (bypasses skip)")
+def wp_apply(site_id: str, dry_run: bool, force_stage: str | None):
+    """Deploy WordPress site from spec.
+
+    Example:
+        fabrik wp apply ocoron.com
+        fabrik wp apply ocoron.com --dry-run
+        fabrik wp apply ocoron.com --force-stage plugins
+    """
+    from fabrik.wordpress.deployer import SiteDeployer
+
+    try:
+        deployer = SiteDeployer(site_id, dry_run=dry_run, force_stage=force_stage)
+        result = deployer.deploy()
+
+        if result.success:
+            click.echo()
+            click.echo(f"✅ Deployment successful: {result.domain}")
+            raise SystemExit(0)
+        else:
+            click.echo()
+            click.echo(f"❌ Deployment failed: {len(result.steps_failed)} stage(s) failed")
+            raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"❌ Deployment error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@cli.group()
 def ai():
     """AI content generation commands."""
     pass
