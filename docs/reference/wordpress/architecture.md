@@ -21,6 +21,96 @@ Complete rewrite of WordPress site specification and deployment system. Moved fr
 
 ---
 
+## Infrastructure: WSL + VPS Model
+
+**Last Updated:** 2026-03-07
+
+Fabrik WordPress deployment uses a **control plane + execution plane** architecture:
+
+```
+WSL (Control Plane)                    VPS (Execution Plane)
+┌─────────────────────────┐           ┌─────────────────────────┐
+│ /opt/fabrik/            │           │ Docker Containers:      │
+│ ├── specs/sites/*.yaml  │  SSH +    │ ├── site-wordpress-1    │
+│ └── src/fabrik/         │  API      │ ├── site-db-1           │
+│     └── wordpress/      │  ─────→   │ ├── wp-test-wordpress   │
+│                         │           │ └── wp-test-db          │
+│ Fabrik CLI orchestrates │           │ All containers run here │
+└─────────────────────────┘           └─────────────────────────┘
+```
+
+**Key Principle:** Fabrik does NOT create Docker containers. It configures existing WordPress installations via WP-CLI and REST API.
+
+### Container Naming Convention
+
+**Expected by Fabrik:**
+```python
+# Default pattern in WordPressClient:
+container_name = f"{site_name}-wordpress"
+# Example: "ocoron-com-wordpress"
+```
+
+**Created by docker-compose:**
+```bash
+# Pattern: {project}-{service}-{replica}
+# Example with -p ocoron-com:
+docker compose -p ocoron-com up -d
+# Creates: ocoron-com-wordpress-1 (note the "-1" suffix)
+```
+
+**Created by Coolify:**
+```bash
+# Coolify uses UUIDs or custom names:
+wordpress-scoksgk4ww840okw84ksw40w  # UUID-based
+ocoron-com-wordpress                 # Custom name (if specified)
+```
+
+**Solution:** Override container name in `WPSite` or environment:
+```python
+site = WPSite(
+    name="ocoron-com",
+    domain="ocoron.com",
+    container="ocoron-com-wordpress-1"  # Explicit override
+)
+```
+
+### Deployment Methods
+
+**Method 1: Coolify API** (Recommended for production)
+- Coolify tracks deployment status
+- Auto-restart on failure
+- Health checks integrated
+
+**Method 2: Direct docker-compose** (Fallback)
+- Simple, direct control
+- No Coolify API dependencies
+- Used when Coolify API fails (422 errors)
+
+**Method 3: Coolify UI** (Manual)
+- One-off deployments
+- Testing
+
+**See:** [deployment-workflow.md](deployment-workflow.md) for complete deployment guide.
+
+### Site Isolation
+
+Each WordPress site gets isolated containers:
+```
+ocoron.com:
+├── ocoron-com-wordpress-1  (WordPress + Apache + WP-CLI)
+├── ocoron-com-db-1         (MariaDB)
+├── wordpress_data volume   (wp-content, uploads)
+└── db_data volume          (MySQL data)
+
+Benefits:
+- Security (one site compromise ≠ all sites)
+- Independent updates
+- Different PHP versions per site
+- Separate databases
+```
+
+---
+
 ## Architecture Components
 
 ### 1. Schema & Documentation

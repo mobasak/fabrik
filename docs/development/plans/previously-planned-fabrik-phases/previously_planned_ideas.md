@@ -1,8 +1,377 @@
 # Previously Planned Ideas & Future Enhancements
 
-**Last Updated:** 2026-02-27
+**Last Updated:** 2026-03-07
 
 > This document consolidates future feature ideas, deferred enhancements, and low-priority improvements from various planning sessions. Items here are NOT currently scheduled but may be implemented when resources allow.
+
+---
+
+## Phase 1 Deferred Items
+
+### 1. Cloudflare WAF Rules (Phase 1c)
+
+**Status:** 📋 Deferred | **Priority:** Low | **Source:** Phase1c.md
+
+**Description:** Configure Cloudflare Web Application Firewall rules for WordPress protection.
+
+**Why Deferred:** Not blocking - manual Cloudflare configuration can be done when WordPress goes to production.
+
+**Implementation:** Manual Cloudflare dashboard configuration when needed:
+- WordPress-specific attack patterns
+- Comment spam prevention
+- XML-RPC protection
+- Login page rate limiting
+
+**Done When:**
+- [ ] WAF rules configured in Cloudflare dashboard
+- [ ] Rules tested against WordPress sites
+- [ ] Documentation added to SERVICES.md
+
+---
+
+### 2. WPML Translation Integration (Phase 1d)
+
+**Status:** 📋 Deferred | **Priority:** Low | **Source:** Phase1d.md
+
+**Description:** Multi-language WordPress site support via WPML plugin integration.
+
+**Why Deferred:** Not needed for single-language sites. All current sites are English-only.
+
+**Implementation:** Would require:
+- WPML plugin installation in WordPress automation
+- Language configuration in site spec
+- Translation workflow integration
+- Multi-language menu generation
+
+**Done When:**
+- [ ] WPML plugin auto-installed for multi-lang sites
+- [ ] Spec supports `languages: [en, tr, de]` syntax
+- [ ] Menus generated for each language
+- [ ] Translation strings managed via spec
+
+---
+
+## Phase 2 Missing Items
+
+### 1. Custom Flavor Themes (Design Changed)
+
+**Status:** ✅ RESOLVED (Design Changed) | **Priority:** N/A | **Source:** Phase2.md
+
+**Original Plan:** Create custom child themes (flavor-starter, flavor-corporate) for GeneratePress.
+
+**Current Implementation:** Using GeneratePress + GP Premium plugin directly from wordpress.org.
+
+**Why Changed:** Preset system achieves same goal without maintaining custom child themes. More maintainable approach.
+
+**No Action Required** - Current design is superior.
+
+---
+
+### 2. Deploy ocoron.com
+
+**Status:** 📋 Pending Deployment | **Priority:** Medium | **Source:** Phase2.md
+
+**Description:** Deploy ocoron.com WordPress site using existing spec.
+
+**What Exists:**
+- ✅ Spec: `specs/sites/ocoron.com.yaml` (20KB)
+- ✅ Content plan: `specs/sites/ocoron.com-content-plan.md`
+- ✅ Media assets: `specs/sites/ocoron.com-media/`
+
+**Done When:**
+- [ ] Execute `fabrik apply specs/sites/ocoron.com.yaml`
+- [ ] Verify site loads at ocoron.com
+- [ ] Verify all pages rendered
+- [ ] Verify SSL/HTTPS working
+
+---
+
+## Phase 3 Missing Items
+
+### 1. Unified LLM Client Wrapper
+
+**Status:** 📋 Not Implemented | **Priority:** High | **Source:** Phase3.md
+
+**Description:** Provider-agnostic LLM client with Claude + OpenAI support, fallback, rate limiting, cost tracking.
+
+**Current State:** Direct `anthropic.Anthropic()` usage in `content.py` and `legal.py`.
+
+**Implementation Required:**
+- Create `src/fabrik/ai/llm_client.py`
+- Support Claude (primary) and OpenAI (fallback)
+- Add rate limiting and retry logic
+- Add cost tracking to SQLite
+- Add streaming support
+
+**Effort:** ~2 hours
+
+**Done When:**
+- [ ] `src/fabrik/ai/llm_client.py` created
+- [ ] `LLMClient` class with `generate()` method
+- [ ] Claude + OpenAI providers
+- [ ] Cost tracking to SQLite
+- [ ] `content.py` and `legal.py` migrated to use wrapper
+
+---
+
+### 2. Content Revision System
+
+**Status:** 📋 Not Implemented | **Priority:** Medium | **Source:** Phase3.md
+
+**Description:** Modify existing WordPress content based on natural language instructions.
+
+**What's Needed:**
+- Fetch existing page/post content
+- Apply revision instructions via LLM
+- Preserve structure, update copy
+- Support partial updates (hero only, specific section)
+
+**Implementation:**
+- Create `src/fabrik/ai/content_reviser.py`
+- `ContentReviser.revise_page(page_id, instructions)`
+- `ContentReviser.revise_section(page_id, section_type, instructions)`
+
+**Effort:** ~2 hours
+
+**Done When:**
+- [ ] `ContentReviser` class implemented
+- [ ] Can revise existing pages via LLM
+- [ ] Preserves page structure
+- [ ] CLI command: `fabrik ai revise-page`
+
+---
+
+### 3. Bulk Generation Tools
+
+**Status:** 📋 Not Implemented | **Priority:** Medium | **Source:** Phase3.md
+
+**Description:** Generate multiple related content items in one operation.
+
+**What's Needed:**
+- Service pages generator (10+ services from brief)
+- FAQ generator (Q&A pairs from topic)
+- Blog series generator (5-10 posts on theme)
+- Case study generator (customer stories)
+
+**Implementation:**
+- Create `src/fabrik/ai/bulk_generator.py`
+- `BulkGenerator.generate_services(company, services_list)`
+- `BulkGenerator.generate_faqs(topic, count)`
+- `BulkGenerator.generate_blog_series(theme, count)`
+
+**Effort:** ~4 hours
+
+**Done When:**
+- [ ] `BulkGenerator` class implemented
+- [ ] Service pages generation working
+- [ ] FAQ generation working
+- [ ] Blog series generation working
+- [ ] CLI commands for each generator
+
+---
+
+### 4. CLI AI Commands
+
+**Status:** 📋 Not Implemented | **Priority:** High | **Source:** Phase3.md
+
+**Description:** Command-line interface for AI content operations.
+
+**Planned Commands:**
+- `fabrik ai generate-page <site> <title>` - Generate single page
+- `fabrik ai generate-post <site> <title>` - Generate blog post
+- `fabrik ai revise-page <site> <page-id> "<instructions>"`
+- `fabrik ai generate-services <site> <brief>`
+- `fabrik ai generate-website <site-spec>` - Full site generation
+
+**Implementation:**
+- Add `src/fabrik/cli/ai.py`
+- Wire up to existing `ContentGenerator` and new modules
+- Add to `src/fabrik/cli.py` commands
+
+**Effort:** ~4 hours
+
+**Done When:**
+- [ ] `fabrik ai` subcommand group created
+- [ ] All 5 commands implemented
+- [ ] Commands work with existing WordPress modules
+- [ ] Help text and examples added
+
+---
+
+### 5. Windsurf Agent Integration
+
+**Status:** 📋 Not Implemented | **Priority:** Low | **Source:** Phase3.md
+
+**Description:** Documentation and context rules for Windsurf agents to use Fabrik autonomously.
+
+**What's Needed:**
+- Agent context document with Fabrik capabilities
+- Agent rules for WordPress automation
+- Example conversations
+- Tool usage guidelines
+
+**Implementation:**
+- Create `docs/windsurf/agent_context.md`
+- Create `.windsurf/rules/fabrik-ai-agent.md`
+- Document Fabrik AI workflow
+- Add example prompts
+
+**Effort:** ~2 hours (documentation only)
+
+**Done When:**
+- [ ] Agent context documentation complete
+- [ ] Rules file created
+- [ ] Example conversations documented
+- [ ] Windsurf agent can use Fabrik autonomously
+
+---
+
+## Phase 4 Missing Items
+
+### 1. Cloudflare WAF Rules Module
+
+**Status:** 📋 Not Implemented (Manual Config Available) | **Priority:** Low | **Source:** Phase4.md
+
+**Description:** Programmatic WAF rule configuration for WordPress protection.
+
+**Current State:** WAF rules must be configured manually in Cloudflare dashboard.
+
+**What's Needed:**
+- Create `src/fabrik/drivers/cloudflare_waf.py`
+- WordPress-specific attack patterns
+- Comment spam prevention
+- XML-RPC protection
+- Login page rate limiting
+- Bot fight mode configuration
+
+**Implementation:**
+```python
+class CloudflareWAF:
+    - create_waf_rule(zone_id, rule_config)
+    - enable_wordpress_protection(zone_id)
+    - configure_rate_limiting(zone_id, endpoints)
+    - enable_bot_fight_mode(zone_id)
+```
+
+**Effort:** ~1 hour
+
+**Done When:**
+- [ ] `cloudflare_waf.py` module created
+- [ ] WordPress preset applies WAF rules automatically
+- [ ] Rate limiting configured for /wp-login.php
+- [ ] Bot fight mode enabled
+
+**Alternative:** Continue using Cloudflare dashboard (current approach works fine).
+
+---
+
+### 2. Cloudflare Cache Rules Module
+
+**Status:** 📋 Not Implemented (Manual Config Available) | **Priority:** Low | **Source:** Phase4.md
+
+**Description:** Programmatic cache rule and page rule configuration.
+
+**Current State:** Cache rules must be configured manually in Cloudflare dashboard.
+
+**What's Needed:**
+- Create `src/fabrik/drivers/cloudflare_cache.py`
+- Page rules for static assets
+- Cache purge API
+- Cache-everything rules
+- Bypass rules for admin/login
+
+**Implementation:**
+```python
+class CloudflareCache:
+    - create_page_rule(zone_id, url_pattern, actions)
+    - purge_cache(zone_id, files=None)
+    - enable_cache_everything(zone_id)
+    - bypass_admin_cache(zone_id)
+```
+
+**Effort:** ~1 hour
+
+**Done When:**
+- [ ] `cloudflare_cache.py` module created
+- [ ] WordPress preset applies cache rules
+- [ ] Admin/login pages bypass cache
+- [ ] Cache purge available via CLI
+
+**Alternative:** Continue using Cloudflare dashboard (current approach works fine).
+
+---
+
+### 3. CLI DNS Commands
+
+**Status:** 📋 Not Implemented | **Priority:** Low | **Source:** Phase4.md
+
+**Description:** Command-line interface for DNS operations.
+
+**Current State:** DNS operations require direct Python code using drivers.
+
+**Planned Commands:**
+- `fabrik dns zones` - List Cloudflare zones
+- `fabrik dns records <zone>` - List DNS records
+- `fabrik dns export <zone>` - Export records to YAML
+- `fabrik dns add <zone> <type> <name> <value>` - Add record
+- `fabrik dns delete <zone> <record-id>` - Delete record
+- `fabrik dns migrate <domain>` - Migrate Namecheap → Cloudflare
+- `fabrik dns configure <zone>` - Apply settings/WAF/cache
+- `fabrik dns purge-cache <zone>` - Purge Cloudflare cache
+
+**Implementation:**
+- Add `src/fabrik/cli/dns.py`
+- Wire up to existing `CloudflareClient` driver
+- Add to `src/fabrik/cli.py` commands
+
+**Effort:** ~2 hours
+
+**Done When:**
+- [ ] `fabrik dns` subcommand group created
+- [ ] All 8 commands implemented
+- [ ] Commands work with existing Cloudflare driver
+- [ ] Help text and examples added
+
+**Alternative:** Continue using Python API directly (acceptable for infrastructure automation).
+
+---
+
+### 4. Cloudflare Settings Module
+
+**Status:** 📋 Not Implemented | **Priority:** Low | **Source:** Phase4.md
+
+**Description:** Programmatic configuration of Cloudflare zone settings.
+
+**Current State:** Settings must be configured manually in Cloudflare dashboard.
+
+**What's Needed:**
+- SSL mode (Flexible, Full, Full Strict)
+- TLS version minimums
+- HTTP/3 and QUIC
+- Brotli compression
+- Auto minify (HTML, CSS, JS)
+- Rocket Loader
+- Always HTTPS redirect
+
+**Implementation:**
+```python
+class CloudflareSettings:
+    - configure_ssl(zone_id, mode="full_strict")
+    - configure_tls(zone_id, min_version="1.2")
+    - enable_http3(zone_id)
+    - enable_compression(zone_id)
+    - enable_minify(zone_id, html=True, css=True, js=True)
+```
+
+**Effort:** ~1 hour
+
+**Done When:**
+- [ ] `cloudflare_settings.py` module created
+- [ ] WordPress preset applies optimal settings
+- [ ] SSL mode set to Full Strict
+- [ ] Compression and minify enabled
+
+**Alternative:** Continue using Cloudflare dashboard defaults (current approach works).
 
 ---
 

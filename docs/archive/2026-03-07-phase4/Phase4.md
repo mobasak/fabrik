@@ -1,6 +1,6 @@
 > **Phase Navigation:** [← Phase 3](Phase3.md) | **Phase 4** | [Phase 5 →](Phase5.md) | [All Phases](README.md)
 
-**Status:** ✅ COMPLETE (historical implementation)
+**Status:** ✅ 75% COMPLETE (6/8 tasks - Verified 2026-03-07)
 ## Phase 4: DNS Migration + Advanced Networking — Complete Narrative
 
 **Status: ✅ COMPLETED (Done in Phase 1c)**
@@ -11,16 +11,24 @@
 
 | Step | Task | Status |
 |------|------|--------|
-| 1 | Cloudflare DNS driver | ✅ Done (Phase 1c) |
-| 2 | Migrate from Namecheap to Cloudflare | ✅ Done (Phase 1c) |
-| 3 | Proxy mode for CDN | ✅ Available |
-| 4 | WAF rules | ⏸️ Deferred (with WordPress) |
-| 5 | Page rules for caching | ⏸️ Deferred (with WordPress) |
-| 6 | SSL mode (Full Strict) | ✅ Done |
-| 7 | Dual-provider support | ✅ Done (dns.vps1.ocoron.com) |
-| 8 | Unified DNS Manager service | ✅ Done |
+| 1 | Cloudflare DNS driver | ✅ Done (`src/fabrik/drivers/cloudflare.py` - 369 lines, 21 methods) |
+| 2 | Migrate from Namecheap to Cloudflare | ✅ Done (ocoron.com on Cloudflare) |
+| 3 | Proxy mode for CDN | ✅ Done (`proxied` parameter in create_record) |
+| 4 | WAF rules | ⏸️ Deferred (manual Cloudflare dashboard config) |
+| 5 | Page rules for caching | ⏸️ Deferred (manual Cloudflare dashboard config) |
+| 6 | SSL mode (Full Strict) | ✅ Done (Cloudflare dashboard setting) |
+| 7 | Dual-provider support | ✅ Done (CloudflareClient + DNSClient) |
+| 8 | Unified DNS Manager service | ✅ Done (dns.vps1.ocoron.com operational) |
 
-**Completion: 6/8 tasks (75%)** - Core complete, WAF/caching deferred to WordPress deployment.
+**Completion: 6/8 tasks (75%)** - Core complete, WAF/caching deferred.
+
+**Outstanding Items (4 items, ~5 hours effort):**
+- Cloudflare WAF module (low priority, dashboard works)
+- Cloudflare cache module (low priority, dashboard works)
+- CLI DNS commands (low priority, Python API works)
+- Cloudflare settings module (low priority, dashboard works)
+
+**See:** `previously_planned_ideas.md` for missing items
 
 ---
 
@@ -36,6 +44,8 @@
 8. **Faster, safer DNS automation** for all future deployments
 
 This phase eliminates the Namecheap API pain points (destructive setHosts, IP whitelisting) and adds CDN/security benefits.
+
+**Note:** WAF rules, page rules, and other advanced Cloudflare features can be configured manually in the Cloudflare dashboard. Programmatic modules for these features are low priority since the current approach works well.
 
 ---
 

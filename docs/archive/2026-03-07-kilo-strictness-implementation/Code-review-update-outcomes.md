@@ -1,4 +1,8 @@
-What will change after you implement this
+**Status:** COMPLETE (Implemented 2026-03-02, Verified 2026-03-07)
+
+# Kilo Code Review Implementation Outcomes
+
+What changed after implementation
 1) Reviewer output becomes hard-contract JSON (no “best effort” parsing)
 
 parse_review_output() will stop auto-filling missing fields and will hard-fail if JSON is missing or schema-invalid, returning a single <reviewer> BLOCKER issue.
@@ -72,28 +76,22 @@ D) A test harness to prove validators work
 
 New test file tests/test_kilo_review_validation.py covering schema/evidence/coverage/requirement extraction.
 
-What must be changed (explicit file list)
+## Implementation Complete (2026-03-07)
 
-/opt/fabrik/requirements.txt
+**All changes verified in codebase:**
 
-add jsonschema>=4.17.0
+✅ `/opt/fabrik/requirements.txt` - jsonschema>=4.17.0 added
 
-/opt/fabrik/scripts/kilo_code_review.py
+✅ `/opt/fabrik/scripts/kilo_code_review.py` - All features implemented:
+- Dataclass additions (evidence, plan_coverage)
+- Schema + validator (REVIEW_RESULT_SCHEMA)
+- Plan extraction (extract_plan_requirements)
+- Strict parser (no auto-fill)
+- Gates injection (run_pre_review_gates)
+- Retry + token accounting
+- Multi-pass logic (assess_review_risk, run_multi_pass_review)
 
-implement the dataclass additions
+✅ `/opt/fabrik/tests/test_kilo_review_validation.py` - Test harness created
+✅ `/opt/fabrik/tests/test_kilo_strictness_scenarios.py` - Scenario tests created
 
-add schema + validator
-
-add plan extraction
-
-replace the strict parser
-
-inject gates into prompt
-
-add retry + token accounting
-
-add optional multi-pass logic
-
-/opt/fabrik/tests/test_kilo_review_validation.py
-
-create new validation tests
+**READY TO ARCHIVE**

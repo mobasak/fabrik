@@ -3,7 +3,8 @@
 **Date:** 2026-03-07
 **Total Agents:** 46 (down from 65 duplicates)
 **Tier System:** Opus 4.6 Enhanced (Free → Economy → Standard → Pro → Expert → Apex + Specialist)
-**Naming:** Simple `{tier}-{N}` format (e.g., `free-1`, `econ-3`, `apex-1`)
+**Naming:** Detailed `{Tier}{NN}-{model}-{role}-{variant}-i{IN}-o{OUT}.sh` format
+**Example:** `Economy02-deepseek32-code-medium-i027-o081.sh`
 
 ---
 
@@ -18,8 +19,8 @@
 ### After (Clean)
 - **46 agents** (each model exactly once)
 - **Intuitive tiers:** Free → Economy → Standard → Pro → Expert → Apex (clear cost progression)
-- **Simple naming:** `free-1.sh`, `econ-3.sh`, `expert-5.sh`
-- **Default guidance:** `-1` suffix is the recommended default for each tier
+- **Detailed naming:** `Economy02-deepseek32-code-medium-i027-o081.sh`
+- **Self-documenting:** Model, provider, role, variant, and cost visible in filename
 
 ---
 
@@ -44,18 +45,18 @@
 ### Free Tier ($0)
 **Use for:** Sandbox development, rapid trial-and-error, high-volume automation
 
-| Agent ID | Model | Specialty |
-|----------|-------|-----------|
-| `free-0` | auto | Meta-router (automatic dispatch) |
-| `free-1` | deepseek-r1 | **DEFAULT** - o1-level performance, zero cost |
-| `free-2` | minimax-m2.1 | Strong general-purpose |
-| `free-3` | glm-4.7-free | Agent-centric |
-| `free-4` | kimi-k2.5 | Agentic capabilities |
-| `free-5` | kimi-k2 | Advanced tool use |
-| `free-6` | qwen3-coder | Agentic coding |
-| `free-7` | trinity-large | Strong capabilities preview |
-| `free-8` | glm-4.5-air | Lightweight agent |
-| `free-9` | giga-potato | Evaluation period |
+| Agent | Model | Specialty |
+|-------|-------|-----------|
+| `Free00-auto-code-auto-i000-o000.sh` | auto | Meta-router (automatic dispatch) |
+| `Free01-deepseekr1-code-max-i000-o000.sh` | deepseek-r1 | o1-level performance, zero cost |
+| `Free02-minimax21-code-medium-i000-o000.sh` | minimax-m2.1 | Strong general-purpose |
+| `Free03-glm47free-code-medium-i000-o000.sh` | glm-4.7-free | Agent-centric |
+| `Free04-kimik25-code-high-i000-o000.sh` | kimi-k2.5 | Agentic capabilities |
+| `Free05-kimik2-code-high-i000-o000.sh` | kimi-k2 | Advanced tool use |
+| `Free06-qwen3coder-code-high-i000-o000.sh` | qwen3-coder | Agentic coding |
+| `Free07-trinity-code-high-i000-o000.sh` | trinity-large | Strong capabilities preview |
+| `Free08-glm45air-code-minimal-i000-o000.sh` | glm-4.5-air | Lightweight agent |
+| `Free09-gigapotato-code-low-i000-o000.sh` | giga-potato | Evaluation period |
 
 ---
 
@@ -147,19 +148,28 @@
 
 ## Naming Convention
 
-**Format:** `{tier}-{N}.sh` where N is cost-ordered (cheapest first)
+**Format:** `{Tier}{NN}-{model}-{role}-{variant}-i{IN}-o{OUT}.sh`
 
-**Rules:**
-- `-0` = meta-router (auto dispatch)
-- `-1` = **recommended default** for that tier
-- `-2, -3, ...` = alternatives, ordered by cost
+**Components:**
+- `{Tier}` = Tier name (Free, Economy, Standard, Pro, Expert, Apex, Specialist)
+- `{NN}` = Rank within tier (00-99, cost-ordered)
+- `{model}` = Normalized model name (e.g., deepseek32, opus46, flash25)
+- `{role}` = code or review
+- `{variant}` = auto, minimal, low, medium, high, max
+- `i{IN}` = Input cost per 1M tokens × 100 (e.g., i027 = $0.27/1M)
+- `o{OUT}` = Output cost per 1M tokens × 100 (e.g., o081 = $0.81/1M)
 
 **Examples:**
-- `free-1.sh` → deepseek-r1 (best free model)
-- `econ-1.sh` → gemini-3-flash (cheapest Economy, recommended default)
-- `std-1.sh` → devstral-small (best quality-to-cost for daily work)
-- `expert-1.sh` → claude-sonnet-4.5 (cheapest Expert, recommended default)
-- `apex-3.sh` → o3-pro (most expensive, maximum reasoning)
+- `Free00-auto-code-auto-i000-o000.sh` → Auto router, free
+- `Economy02-deepseek32-code-medium-i027-o081.sh` → DeepSeek v3.2, $0.27/1M in
+- `Expert05-opus46-code-max-i500-o2500.sh` → Claude Opus 4.6, $5/1M in
+- `Apex02-o3pro-review-max-i4000-o16000.sh` → OpenAI o3-pro, $40/1M in
+
+**Benefits:**
+- Model identity visible at a glance
+- Cost visible without looking up docs
+- Provider implicit in model name
+- Role and variant clear for task matching
 
 ---
 
@@ -182,19 +192,19 @@
 
 ## How to Use in Traycer
 
-### Option 1: By Agent ID (Recommended)
+### Option 1: By Full Agent Name
 ```
-Use free-1 for rapid prototyping
-Use std-1 for daily implementation
-Use expert-1 for code review
-Use apex-1 for Epic architecture validation
+Use Free01-deepseekr1-code-max for rapid prototyping
+Use Standard00-devstral-code-low for daily implementation  
+Use Expert01-sonnet46-review-max for code review
+Use Apex00-gpt52pro-review-max for Epic architecture validation
 ```
 
-### Option 2: By Tier (Auto-selects default)
+### Option 2: By Tier + Model Hint
 ```
-Use Free tier for sandbox testing
-Use Expert tier for security review
-Use Apex tier for critical planning
+Use Economy deepseek for quick tasks
+Use Expert opus for security review
+Use Apex o3pro for critical planning
 ```
 
 ### Option 3: Auto-Select
@@ -209,20 +219,20 @@ Review this Epic plan for BLOCKER issues
 
 **No action required.** Old agent scripts backed up to `~/.traycer/cli-agents-backup-20260307/`
 
-**New agent locations:**
-- Old: `~/.traycer/cli-agents/Prime01-opus46-code-max-i500-o2500.sh`
-- New: `~/.traycer/cli-agents/expert-6.sh`
+**Naming format:**
+- Old: `Prime01-opus46-code-max-i500-o2500.sh` (confusing tier names)
+- New: `Expert05-opus46-code-max-i500-o2500.sh` (intuitive tier names)
 
 **Finding equivalents:**
 
 | Old Agent | New Agent | Tier Change |
 |-----------|-----------|-------------|
-| Prime01-opus46 | expert-6 | Prime → Expert |
-| Reasoning01-o3pro | apex-3 | Reasoning → Apex |
-| Strong03-gemini25pro | pro-6 | Strong → Pro |
-| Balanced05-o3minihigh | expert-7 | Balanced → Expert |
-| Economy01-flash25 | econ-2 | Economy → Economy |
-| Free08-deepseekr1 | free-1 | Free → Free |
+| Prime01-opus46-code-max | Expert05-opus46-code-max | Prime → Expert |
+| Reasoning01-o3pro-review-max | Apex02-o3pro-review-max | Reasoning → Apex |
+| Strong03-gemini25pro-code-high | Pro05-gemini25pro-code-high | Strong → Pro |
+| Balanced05-o3minihigh-code-high | Expert06-o3minihigh-code-high | Balanced → Expert |
+| Economy01-flash25-code-minimal | Economy01-flash25-code-minimal | Economy → Economy |
+| Free08-deepseekr1-review-max | Free01-deepseekr1-code-max | Free → Free |
 
 ---
 

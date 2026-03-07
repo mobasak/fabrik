@@ -1,87 +1,73 @@
-# Kilo Review Strictness - Exact Execution Order
+# Kilo Review Strictness - Step-by-Step Implementation Guide
 
-**Status:** READY FOR IMPLEMENTATION
+**Status:** COMPLETE (Implemented 2026-03-02, Verified 2026-03-07)
 **Date:** 2026-03-02
-**Total Time:** ~4 hours
+**Task:** Always-on hard-gated Kilo review with schema/evidence/coverage enforcement
+
+**READY TO ARCHIVE**
 
 ---
 
-## ✅ All Architectural Blockers Resolved
+## Step 1: Extend Dataclasses + Persistence (45 min)
 
-The implementation checklist is explicit and complete. The plan is marked **ready for implementation**, with only coding tasks remaining.
-
-**You can start implementation NOW.**
-
----
-
-## Execution Order (Follow Exactly)
-
-### Step 1 — Update Dependency (5 min)
-
-**File:** `/opt/fabrik/requirements.txt`
-
-**Add:**
-```
-jsonschema>=4.17.0
-```
-
-**Install:**
-```bash
-pip install -r requirements.txt
-```
-
-**Verify:**
-```bash
-python -c "import jsonschema; print(jsonschema.__version__)"
-```
-
----
-
-### Step 2 — Update Dataclasses (10 min)
+### 1.1: Add evidence field to ReviewIssue
 
 **File:** `/opt/fabrik/scripts/kilo_code_review.py`
+**Location:** Line ~193 (search for `class ReviewIssue`)
 
-**Modify `ReviewIssue` (line ~193):**
-
-Add field:
-```python
-evidence: dict[str, Any] | None = None
-```
-
-**Complete dataclass:**
+**Current code:**
 ```python
 @dataclass
 class ReviewIssue:
-    severity: str
-    category: str
+    """A single issue found during review."""
+
+    severity: str  # BLOCKER, MAJOR, MINOR
+    category: str  # SPEC, SECURITY, CONFIG, EDGE, DOCS
     file: str
     lines: str
     why: str
     fix_hint: str
     snippet: str | None = None
-    evidence: dict[str, Any] | None = None  # NEW
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 ```
 
-**Modify `ReviewResult` (line ~209):**
-
-Add field:
+**Change to:**
 ```python
-plan_coverage: list[dict[str, Any]] = field(default_factory=list)
+@dataclass
+class ReviewIssue:
+    """A single issue found during review."""
+
+    severity: str  # BLOCKER, MAJOR, MINOR
+    category: str  # SPEC, SECURITY, CONFIG, EDGE, DOCS
+    file: str
+    lines: str
+    why: str
+    fix_hint: str
+    snippet: str | None = None
+    evidence: dict[str, Any] | None = None  # NEW: structured evidence object
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
 ```
 
-**Complete dataclass:**
+### 1.2: Add plan_coverage field to ReviewResult
+
+**File:** `/opt/fabrik/scripts/kilo_code_review.py`
+**Location:** Line ~209 (search for `class ReviewResult`)
+
+**Current code:**
 ```python
 @dataclass
 class ReviewResult:
-    verdict: str
+    """Result of a Kilo review call."""
+
+    verdict: str  # PASS, FAIL
     summary: str
     issues: list[ReviewIssue]
     notes: list[str] = field(default_factory=list)
     stats: dict[str, Any] = field(default_factory=dict)
-    plan_coverage: list[dict[str, Any]] = field(default_factory=list)  # NEW
     session_id: str | None = None
     input_tokens: int = 0
     output_tokens: int = 0
@@ -90,29 +76,38 @@ class ReviewResult:
     usage: dict[str, Any] = field(default_factory=dict)
 ```
 
-**Why:** These are mandatory for schema validation and coverage enforcement.
-
----
-
-### Step 3 — Update Iteration Persistence (5 min)
-
-**File:** `/opt/fabrik/scripts/kilo_code_review.py`
-
-**Find:** `iteration_data = {` (approximately line 2800-2900)
-
-**Add:**
+**Change to:**
 ```python
-"plan_coverage": result.plan_coverage,
+@dataclass
+class ReviewResult:
+    """Result of a Kilo review call."""
+
+    verdict: str  # PASS, FAIL
+    summary: str
+    issues: list[ReviewIssue]
+    notes: list[str] = field(default_factory=list)
+    stats: dict[str, Any] = field(default_factory=dict)
+    plan_coverage: list[dict[str, Any]] = field(default_factory=list)  # NEW: required
+    session_id: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost: float = 0.0
+    raw_output: str = ""
+    usage: dict[str, Any] = field(default_factory=dict)
 ```
 
-**Complete block:**
+### 1.3: Update session persistence to include plan_coverage
+
+**File:** `/opt/fabrik/scripts/kilo_code_review.py`
+**Location:** Search for `iteration_data = {` (inside review loop, approximately line 2800-2900)
+
+**Find this pattern:**
 ```python
 iteration_data = {
     "iteration": iteration,
     "verdict": result.verdict,
     "summary": result.summary,
     "issues": [i.to_dict() for i in result.issues],
-    "plan_coverage": result.plan_coverage,  # NEW - must be saved to review_iter_*.json
     "notes": result.notes,
     "stats": result.stats,
     "input_tokens": result.input_tokens,
@@ -121,33 +116,69 @@ iteration_data = {
 }
 ```
 
-**Why:** This must be saved to `review_iter_*.json` for coverage tracking.
-
----
-
-### Step 4 — Add Imports (5 min)
-
-**File:** `/opt/fabrik/scripts/kilo_code_review.py`
-
-**Location:** Near top imports section (after existing imports, line ~44)
-
-**Add:**
+**Change to:**
 ```python
-from dataclasses import replace  # For multi-pass config copying
-import jsonschema
-from jsonschema import Draft7Validator
+iteration_data = {
+    "iteration": iteration,
+    "verdict": result.verdict,
+    "summary": result.summary,
+    "issues": [i.to_dict() for i in result.issues],
+    "plan_coverage": result.plan_coverage,  # NEW: persist coverage
+    "notes": result.notes,
+    "stats": result.stats,
+    "input_tokens": result.input_tokens,
+    "output_tokens": result.output_tokens,
+    "cost": result.cost,
+}
+```
+
+**Verification:**
+```bash
+# Check dataclasses are updated
+grep -A 15 "class ReviewIssue" scripts/kilo_code_review.py | grep evidence
+grep -A 20 "class ReviewResult" scripts/kilo_code_review.py | grep plan_coverage
+
+# Check persistence updated
+grep -A 12 '"iteration":' scripts/kilo_code_review.py | grep plan_coverage
 ```
 
 ---
 
-### Step 5 — Add Strict JSON Schema Validator (30 min)
+## Step 2: Add Dependencies + Schema Validator (30 min)
+
+### 2.1: Update requirements.txt
+
+**File:** `/opt/fabrik/requirements.txt`
+
+**Add this line:**
+```
+jsonschema>=4.17.0
+```
+
+**Verification:**
+```bash
+pip install -r requirements.txt
+python -c "import jsonschema; print(jsonschema.__version__)"
+```
+
+### 2.2: Add imports
 
 **File:** `/opt/fabrik/scripts/kilo_code_review.py`
+**Location:** After existing imports (line ~44, after other imports)
 
-**Location:** After constants section (line ~110)
+**Add these lines:**
+```python
+from dataclasses import replace  # For multi-pass config copying
+import jsonschema
+from jsonschema import Draft7Validator, ValidationError
+```
 
-**Add:**
+### 2.3: Add schema definition and validator
 
+**File:** `/opt/fabrik/scripts/kilo_code_review.py`
+**Location:** After constants section (line ~110, after `DOC_EXTENSIONS = ...`)
+
+**Add this complete section:**
 ```python
 # =============================================================================
 # STRICT SCHEMA VALIDATION (ENFORCED)
@@ -157,7 +188,7 @@ REVIEW_RESULT_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
     "required": ["verdict", "summary", "issues", "plan_coverage"],
-    "additionalProperties": False,  # CRITICAL: enforces hard-gated output
+    "additionalProperties": False,
     "properties": {
         "verdict": {
             "type": "string",
@@ -173,15 +204,35 @@ REVIEW_RESULT_SCHEMA = {
             "items": {
                 "type": "object",
                 "required": ["severity", "category", "file", "lines", "why", "fix_hint", "evidence"],
-                "additionalProperties": False,  # CRITICAL: no extra fields in issues
+                "additionalProperties": False,
                 "properties": {
-                    "severity": {"type": "string", "enum": ["BLOCKER", "MAJOR", "MINOR"]},
-                    "category": {"type": "string", "enum": ["SPEC", "SECURITY", "CONFIG", "EDGE", "DOCS"]},
-                    "file": {"type": "string", "minLength": 1},
-                    "lines": {"type": "string", "pattern": "^(L\\d+(-L\\d+)?|N/A)$"},
-                    "snippet": {"type": "string"},
-                    "why": {"type": "string", "minLength": 10},
-                    "fix_hint": {"type": "string", "minLength": 5},
+                    "severity": {
+                        "type": "string",
+                        "enum": ["BLOCKER", "MAJOR", "MINOR"]
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": ["SPEC", "SECURITY", "CONFIG", "EDGE", "DOCS"]
+                    },
+                    "file": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "lines": {
+                        "type": "string",
+                        "pattern": "^(L\\d+(-L\\d+)?|N/A)$"
+                    },
+                    "snippet": {
+                        "type": "string"
+                    },
+                    "why": {
+                        "type": "string",
+                        "minLength": 10
+                    },
+                    "fix_hint": {
+                        "type": "string",
+                        "minLength": 5
+                    },
                     "evidence": {
                         "type": "object",
                         "required": ["type"],
@@ -191,17 +242,30 @@ REVIEW_RESULT_SCHEMA = {
                                 "type": "string",
                                 "enum": ["diff", "file_line", "tool_output", "missing", "multi_file", "external"]
                             },
-                            "ref": {"type": "string", "minLength": 1},
-                            "explanation": {"type": "string", "minLength": 10},
-                            "supporting_refs": {"type": "array", "items": {"type": "string"}}
+                            "ref": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "explanation": {
+                                "type": "string",
+                                "minLength": 10
+                            },
+                            "supporting_refs": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
                         },
                         "oneOf": [
                             {
-                                "properties": {"type": {"enum": ["diff", "file_line", "tool_output"]}},
+                                "properties": {
+                                    "type": {"enum": ["diff", "file_line", "tool_output"]}
+                                },
                                 "required": ["ref"]
                             },
                             {
-                                "properties": {"type": {"enum": ["missing", "multi_file", "external"]}},
+                                "properties": {
+                                    "type": {"enum": ["missing", "multi_file", "external"]}
+                                },
                                 "required": ["explanation"]
                             }
                         ]
@@ -211,21 +275,37 @@ REVIEW_RESULT_SCHEMA = {
         },
         "plan_coverage": {
             "type": "array",
-            "minItems": 1,  # CRITICAL: at least 1 entry required
+            "minItems": 1,
             "items": {
                 "type": "object",
                 "required": ["requirement", "status", "evidence"],
                 "additionalProperties": False,
                 "properties": {
-                    "requirement_id": {"type": "string"},
-                    "requirement": {"type": "string", "minLength": 5},
-                    "status": {"type": "string", "enum": ["satisfied", "missing", "partial", "n/a"]},
-                    "evidence": {"type": "string", "minLength": 5},
-                    "notes": {"type": "string"}
+                    "requirement_id": {
+                        "type": "string"
+                    },
+                    "requirement": {
+                        "type": "string",
+                        "minLength": 5
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["satisfied", "missing", "partial", "n/a"]
+                    },
+                    "evidence": {
+                        "type": "string",
+                        "minLength": 5
+                    },
+                    "notes": {
+                        "type": "string"
+                    }
                 }
             }
         },
-        "notes": {"type": "array", "items": {"type": "string"}},
+        "notes": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
         "stats": {
             "type": "object",
             "properties": {
@@ -262,23 +342,25 @@ def validate_review_schema(data: dict[str, Any]) -> tuple[bool, list[str]]:
     return len(errors) == 0, errors
 ```
 
-**Important schema requirements:**
-- `required`: verdict, summary, issues, plan_coverage
-- `additionalProperties: false` (top level AND issue level)
-- `issues[].evidence` required
-- `plan_coverage` minItems = 1
-
-**Why:** This enforces **hard-gated output** - no extra fields, all required fields present.
+**Verification:**
+```bash
+python -c "
+from scripts.kilo_code_review import REVIEW_SCHEMA_VALIDATOR, validate_review_schema
+test = {'verdict': 'PASS', 'summary': 'Test summary string', 'issues': [], 'plan_coverage': [{'requirement': 'test', 'status': 'satisfied', 'evidence': 'test evidence'}]}
+valid, errors = validate_review_schema(test)
+print('Valid:', valid)
+assert valid, f'Schema validation failed: {errors}'
+"
+```
 
 ---
 
-### Step 6 — Add Requirement Extraction (20 min)
+## Step 3: Plan Requirement Extraction (30 min)
 
 **File:** `/opt/fabrik/scripts/kilo_code_review.py`
+**Location:** After `validate_review_schema()` function
 
-**Location:** After `validate_review_schema()`
-
-**Add:**
+**Add these two functions:**
 
 ```python
 # =============================================================================
@@ -369,26 +451,51 @@ def format_requirements_for_prompt(requirements: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 ```
 
-**Why:** These convert plan text into structured requirements for coverage validation.
+**Verification:**
+```bash
+python -c "
+from scripts.kilo_code_review import extract_plan_requirements, format_requirements_for_prompt
+
+# Test numbered
+plan1 = '''
+Task: Test
+1. First requirement
+2. Second requirement
+'''
+reqs = extract_plan_requirements(plan1)
+assert len(reqs) == 2, f'Expected 2, got {len(reqs)}'
+assert reqs[0]['id'] == 'R1', f'Expected R1, got {reqs[0][\"id\"]}'
+print('✓ Numbered extraction works')
+
+# Test explicit
+plan2 = '''
+REQ-1: First requirement
+REQ-2: Second requirement
+'''
+reqs = extract_plan_requirements(plan2)
+assert len(reqs) == 2
+assert reqs[0]['id'] == 'REQ-1'
+print('✓ Explicit ID extraction works')
+
+# Test formatting
+formatted = format_requirements_for_prompt(reqs)
+assert 'REQ-1' in formatted
+print('✓ Formatting works')
+"
+```
 
 ---
 
-### Step 7 — Replace `parse_review_output()` Completely (20 min)
+## Step 4: Parse Review Output (Strict, Sync, Pure) (30 min)
 
 **File:** `/opt/fabrik/scripts/kilo_code_review.py`
+**Location:** Find and REPLACE the entire `parse_review_output()` function (approximately line 2456)
 
-**Location:** Line ~2456
+**CRITICAL REQUIREMENT: NO AUTO-FILL**
+The current implementation silently defaults missing fields (verdict, summary, issues), which defeats hard gating.
+The new implementation MUST return `<reviewer>` BLOCKER if schema validation fails. NO fallbacks, NO assumptions.
 
-**CRITICAL RULES:**
-- **NO AUTO-FILL**
-- **NO ASYNC**
-- **NO FALLBACKS**
-
-**If schema fails:** Return ReviewResult with `<reviewer>` BLOCKER
-
-**Invalid output must FAIL, not be corrected silently.**
-
-**REPLACE ENTIRE FUNCTION:**
+**REPLACE ENTIRE FUNCTION WITH:**
 
 ```python
 def parse_review_output(raw_output: str) -> ReviewResult:
@@ -411,7 +518,7 @@ def parse_review_output(raw_output: str) -> ReviewResult:
     data = _extract_json_object(raw_output)
 
     if not data:
-        # No JSON found - this is a reviewer failure (NO AUTO-FILL)
+        # No JSON found - this is a reviewer failure
         return ReviewResult(
             verdict="FAIL",
             summary="Reviewer failed to return valid JSON",
@@ -429,11 +536,11 @@ def parse_review_output(raw_output: str) -> ReviewResult:
             plan_coverage=[],  # Empty coverage for failure case
         )
 
-    # Step 2: Validate against strict schema (NO AUTO-FILL)
+    # Step 2: Validate against strict schema
     is_valid, schema_errors = validate_review_schema(data)
 
     if not is_valid:
-        # Schema validation failed - return structured failure (NO AUTO-FILL)
+        # Schema validation failed - return structured failure
         error_summary = "; ".join(schema_errors[:5])  # First 5 errors
 
         return ReviewResult(
@@ -481,23 +588,53 @@ def parse_review_output(raw_output: str) -> ReviewResult:
     )
 ```
 
+**Verification:**
+```bash
+python -c "
+from scripts.kilo_code_review import parse_review_output
+
+# Test valid output
+valid_json = '''
+{
+  \"verdict\": \"PASS\",
+  \"summary\": \"All checks passed successfully\",
+  \"issues\": [],
+  \"plan_coverage\": [{\"requirement\": \"test\", \"status\": \"satisfied\", \"evidence\": \"verified\"}]
+}
+'''
+result = parse_review_output(valid_json)
+assert result.verdict == 'PASS', f'Expected PASS, got {result.verdict}'
+print('✓ Valid JSON parsing works')
+
+# Test invalid (missing plan_coverage)
+invalid_json = '''
+{
+  \"verdict\": \"PASS\",
+  \"summary\": \"Test\",
+  \"issues\": []
+}
+'''
+result = parse_review_output(invalid_json)
+assert result.verdict == 'FAIL', 'Should fail for missing plan_coverage'
+assert any(i.file == '<reviewer>' for i in result.issues), 'Should have reviewer issue'
+print('✓ Schema validation catches missing fields')
+"
+```
+
 ---
 
-### Step 8 — Add Validation Functions (30 min)
+## Step 5: Evidence + Coverage Validation (45 min)
 
 **File:** `/opt/fabrik/scripts/kilo_code_review.py`
+**Location:** After `parse_review_output()` function
 
-**Location:** After `parse_review_output()`
+**CRITICAL: Evidence Policy Split (Intentional)**
+- **Schema (Step 2D):** Enforces `evidence` field present on ALL issues (BLOCKER, MAJOR, MINOR)
+- **validate_evidence() (this step):** Quality-checks evidence for BLOCKER/MAJOR only
+- **Why:** Schema catches missing fields at JSON level, validator ensures meaningful content for critical issues
+- **This split is intentional and must remain consistent**
 
-**Important Policy Split:**
-
-**Schema enforces:** evidence exists on ALL issues (BLOCKER, MAJOR, MINOR)
-
-**Validator enforces quality for:** BLOCKER, MAJOR only
-
-**MINOR can contain minimal evidence.**
-
-**Add:**
+**Add these two validation functions:**
 
 ```python
 # =============================================================================
@@ -507,10 +644,6 @@ def parse_review_output(raw_output: str) -> ReviewResult:
 def validate_evidence(issues: list[ReviewIssue]) -> tuple[bool, list[str]]:
     """
     Validate that BLOCKER/MAJOR issues have proper structured evidence.
-
-    Evidence rules (enforced):
-    - diff/file_line/tool_output: MUST have "ref" field
-    - missing/multi_file/external: MUST have "explanation" field
 
     IMPORTANT: Schema already enforces evidence field exists for ALL issues.
     This function validates evidence QUALITY for BLOCKER/MAJOR only.
@@ -557,12 +690,19 @@ def validate_evidence(issues: list[ReviewIssue]) -> tuple[bool, list[str]]:
                     f"Issue #{idx+1} ({issue.file}): "
                     f"evidence type '{ev_type}' requires 'explanation' field"
                 )
+            # Soft recommendation: supporting_refs helps
+            if not issue.evidence.get("supporting_refs"):
+                print(
+                    f"⚠️  Issue #{idx+1} ({issue.file}): "
+                    f"evidence type '{ev_type}' should include supporting_refs if possible",
+                    file=sys.stderr,
+                )
 
         else:
             # Invalid evidence type (should be caught by schema)
             violations.append(
                 f"Issue #{idx+1} ({issue.file}): "
-                f"invalid evidence type '{ev_type}'"
+                f"invalid evidence type '{ev_type}' (allowed: diff, file_line, tool_output, missing, multi_file, external)"
             )
 
     return len(violations) == 0, violations
@@ -595,6 +735,11 @@ def validate_plan_coverage(
         return len(violations) == 0, violations
 
     # Build requirement text lookup (case-insensitive, normalized)
+    req_texts_normalized = {
+        req["text"].lower().strip(): req["id"]
+        for req in extracted_requirements
+    }
+
     covered_texts_normalized = {
         c["requirement"].lower().strip()
         for c in coverage
@@ -620,6 +765,34 @@ def validate_plan_coverage(
     return len(violations) == 0, violations
 ```
 
+**Verification:**
+```bash
+python -c "
+from scripts.kilo_code_review import validate_evidence, validate_plan_coverage, ReviewIssue
+
+# Test evidence validation
+issue_valid = ReviewIssue(
+    severity='BLOCKER',
+    category='SECURITY',
+    file='test.py',
+    lines='L10',
+    why='Test issue with valid evidence',
+    fix_hint='Fix it',
+    evidence={'type': 'file_line', 'ref': 'test.py:L10'}
+)
+valid, violations = validate_evidence([issue_valid])
+assert valid, f'Should be valid: {violations}'
+print('✓ Evidence validation works for valid evidence')
+
+# Test coverage validation
+reqs = [{'id': 'R1', 'text': 'Test requirement'}]
+coverage = [{'requirement': 'Test requirement', 'status': 'satisfied', 'evidence': 'Verified'}]
+valid, violations = validate_plan_coverage(reqs, coverage)
+assert valid, f'Should be valid: {violations}'
+print('✓ Coverage validation works')
+"
+```
+
 ---
 
-(Continuing in next message due to length...)
+(Continuing in next file due to length...)

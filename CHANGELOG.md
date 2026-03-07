@@ -18,9 +18,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 **What Changed:**
 - Tier names: Auto/Balanced/Prime/Reasoning/etc → Free/Economy/Standard/Pro/Expert/Apex/Specialist
-- Naming: `Prime01-opus46-code-max-i500-o2500.sh` → `expert-6.sh` (simple, cost-ordered)
+- Naming: Detailed format retained `{Tier}{NN}-{model}-{role}-{variant}-i{IN}-o{OUT}.sh`
 - Agent count: 65 duplicates → 46 unique (each model exactly once)
-- Default guidance: `-1` suffix is recommended default for each tier (e.g., `free-1`, `econ-1`, `std-1`)
+- Self-documenting: Model, provider, role, variant, and cost visible in filename
 - Tier progression: Clear cost ladder ($0 → $0.001-0.10 → $0.10-0.50 → $0.50-3 → $3-10 → $20-40)
 
 **Design Rationale:**

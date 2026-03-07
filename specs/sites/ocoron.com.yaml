@@ -144,8 +144,10 @@ pages:
         sections:
           - type: service_list
             items:
-              - "Foreign Trade Intelligence"
-              - "Competitive Analysis"
+              - "Foreign Trade Intelligence (Datamyne, ImportYeti, Panjiva, ImportGenius, Trademo, PIERS)"
+              - "Market Access Research (Access2Markets, Global Trade Helpdesk, Export Potential Map)"
+              - "Regulatory Monitoring (ePing, WTO Notifications, Technical Barriers)"
+              - "Competitive Analysis (Dun & Bradstreet, Company Directories)"
               - "Market Entry & Customer Finding"
               - "US Incorporation Services"
               - "Trademark & DBA Services"
@@ -224,6 +226,101 @@ pages:
               - "ISO 17020 - Inspection Bodies"
               - "ISO 17065 - Certification Bodies"
 
+      # ── Company Registration & Compliance ──
+      - slug: company-registration
+        title: "Company Registration & Compliance"
+        title_tr: "Şirket Kaydı ve Uygunluk"
+        sections:
+          - type: service_list
+            items:
+              - "Company Registration (Turkey)"
+              - "Company Registration (International)"
+              - "Business License Acquisition"
+              - "Trade Registry Services"
+              - "Tax Registration & Compliance"
+              - "Chamber of Commerce Registration"
+
+      # ── Virtual Office & Business Address ──
+      - slug: virtual-office
+        title: "Virtual Office & Business Address"
+        title_tr: "Sanal Ofis ve İş Adresi"
+        sections:
+          - type: service_list
+            items:
+              - "Virtual Office Setup (Istanbul - Levent, Beşiktaş, Kağıthane, Maltepe)"
+              - "Business Address Services"
+              - "Mail Handling & Forwarding"
+              - "Meeting Room Rentals"
+              - "Company Address Change Services"
+
+      # ── Technology Development Zone (Tekmer) Support ──
+      - slug: tekmer-support
+        title: "Technology Development Zone (Tekmer) Support"
+        title_tr: "Teknoloji Geliştirme Bölgesi (Tekmer) Desteği"
+        sections:
+          - type: service_list
+            items:
+              - "Tekmer Application & Registration"
+              - "R&D Tax Incentives (SSK Discounts, VAT Exemption)"
+              - "Engineering Contract Preparation"
+              - "Service Export Tax Benefits (50% Exemption)"
+              - "Employee Support Programs (Stopaj Benefits)"
+
+      # ── E-commerce Platform Integration ──
+      - slug: ecommerce-integration
+        title: "E-commerce Platform Integration"
+        title_tr: "E-ticaret Platform Entegrasyonu"
+        sections:
+          - type: service_list
+            items:
+              - "Trendyol Integration & Setup"
+              - "Product Photography Standards"
+              - "Payment Terms Optimization"
+              - "Platform Compliance"
+              - "Multi-channel Sales Strategy"
+
+      # ── Supplier Network & Sourcing ──
+      - slug: supplier-network
+        title: "Supplier Network & Sourcing"
+        title_tr: "Tedarikçi Ağı ve Kaynak Bulma"
+        sections:
+          - type: service_list
+            items:
+              - "Supplement Manufacturer Sourcing (Turkey)"
+              - "Product Sourcing & Vetting"
+              - "Supply Chain Development"
+              - "Quality Assurance for Suppliers"
+              - "Private Label Manufacturing"
+
+      # ── Global Sourcing & Procurement ──
+      - slug: global-sourcing
+        title: "Global Sourcing & Procurement"
+        title_tr: "Küresel Kaynak Bulma ve Tedarik"
+        sections:
+          - type: service_list
+            items:
+              - "Alibaba.com Sourcing Strategy"
+              - "Global Supplier Identification"
+              - "Procurement Process Optimization"
+              - "International Trade Facilitation"
+              - "Cross-border Logistics Planning"
+
+      # ── US Company Formation & Infrastructure ──
+      - slug: us-company-formation
+        title: "US Company Formation & Infrastructure"
+        title_tr: "AB Şirket Kurulumu ve Altyapı"
+        sections:
+          - type: service_list
+            items:
+              - "US Company Registration (LLC)"
+              - "EIN & ITIN Acquisition"
+              - "DUNS Number Registration"
+              - "US Phone & SMS Services"
+              - "US Domain & Hosting Setup"
+              - "US Bank Account Opening"
+              - "Payment Processor Integration (Stripe, Shopify)"
+              - "Online Store Setup"
+
   # ── ABOUT ─────────────────────────────────────────────────────────────────
   - slug: about
     title: "About"
@@ -301,6 +398,27 @@ menus:
         - title: Quality Management
           title_tr: Kalite Yönetimi
           url: /services/quality-management
+        - title: Company Registration
+          title_tr: Şirket Kaydı
+          url: /services/company-registration
+        - title: Virtual Office
+          title_tr: Sanal Ofis
+          url: /services/virtual-office
+        - title: Tekmer Support
+          title_tr: Tekmer Desteği
+          url: /services/tekmer-support
+        - title: E-commerce Integration
+          title_tr: E-ticaret Entegrasyonu
+          url: /services/ecommerce-integration
+        - title: Supplier Network
+          title_tr: Tedarikçi Ağı
+          url: /services/supplier-network
+        - title: Global Sourcing
+          title_tr: Küresel Kaynak Bulma
+          url: /services/global-sourcing
+        - title: US Company Formation
+          title_tr: AB Şirket Kurulumu
+          url: /services/us-company-formation
     - title: About
       title_tr: Hakkımızda
       url: /about

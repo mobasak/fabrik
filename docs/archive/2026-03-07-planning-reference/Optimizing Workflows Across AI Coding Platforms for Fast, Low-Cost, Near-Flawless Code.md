@@ -1,5 +1,20 @@
 # Optimizing Workflows Across AI Coding Platforms for Fast, Low-Cost, Near-Flawless Code
 
+**Status:** REFERENCE DOCUMENT (Workflow analysis - informed Fabrik architecture)
+**Date:** 2026-02-27
+**Purpose:** Comparative analysis of Windsurf, Factory Droid, and Traycer workflows
+
+**Application in Fabrik:**
+- ✅ Adopted AGENTS.md for state preservation
+- ✅ Implemented tool-enforced guardrails (final_gate.py, pre-commit)
+- ✅ Used multi-model review approach (cost-aware escalation)
+- ✅ Integrated Kilo CLI for verification-first workflow
+
+**This is reference material, not an implementation plan.**
+**READY TO ARCHIVE**
+
+---
+
 ## Executive summary
 
 AI coding platforms now compete less on “autocomplete” and more on **agentic workflows**: codebase indexing + retrieval, planning phases, tool execution (shell/git), policy enforcement hooks, and verification loops. Windsurf, Factory Droid, and Traycer each emphasize a different part of that pipeline: **Windsurf** is an AI-native IDE with a RAG-based context engine and multiple persistence/automation primitives (Memories, Rules, AGENTS.md, Workflows, Hooks, Worktrees/Arena). citeturn19view1turn18view0turn2view3turn2view4turn10view4turn4search2turn10view3 **Factory Droid** is a model-agnostic agent runtime designed to run “anywhere” (laptop/CI/VM/Kubernetes/airgapped), with spec-first execution, session compression, subagents (“custom droids”), hooks, and strong operational controls. citeturn0search1turn10view8turn10view11turn1search2turn20search1turn20search11turn10view9 **Traycer** is explicitly “spec-driven development” focused: it creates file-level plans, hands them off to other agents (including Windsurf/Factory), and then verifies implementations against the plan with structured review comments—while also preserving task history locally. citeturn11view0turn13view0turn13view1turn14view0

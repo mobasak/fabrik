@@ -30,6 +30,7 @@
 - [Feature Name](#feature-name)
 - [Execution Modes (Fabrik Lifecycle)](#execution-modes-fabrik-lifecycle)
 - [Traycer CLI Agent Auto-Review Integration](#traycer-cli-agent-auto-review-integration)
+- [Traycer Report Panel (Windsurf Extension)](#traycer-report-panel-windsurf-extension)
 - [VPS Deployment (Coolify)](#vps-deployment-coolify)
 - [GitHub Actions Workflows](#github-actions-workflows)
 - [Fabrik Skills (Convention Enforcement)](#fabrik-skills-convention-enforcement)
@@ -758,6 +759,70 @@ python /opt/fabrik/scripts/traycer_agent_review.py \
 **Cost Estimate:** ~$0.10-0.50 per agent execution (Kilo review only, gates are free)
 
 **See:** `/opt/fabrik/templates/traycer/agent-post-execution-hook.md` for complete integration guide
+
+---
+
+## Traycer Report Panel (Windsurf Extension)
+
+**Last Updated:** 2026-03-06
+**Status:** Implemented and available for all Fabrik projects
+
+**Purpose:** Windsurf extension that captures and displays Traycer CLI agent execution reports with full history browsing.
+
+### Quick Start
+
+1. **Install Extension** (one-time):
+   ```
+   Extensions → Install from VSIX → ~/traycer-report-panel/traycer-report-panel-0.2.0.vsix
+   ```
+
+2. **View Reports:**
+   - Click 📄 icon in left sidebar (activity bar)
+   - See two sections: **Report History** (top) + **Report Content** (bottom)
+   - Click any report in history to view it
+
+3. **Automatic Capture:**
+   - Runs automatically when Traycer executes Kilo CLI agents
+   - Reports saved to `.droid/traycer-reports/TIMESTAMP-slug.md`
+   - Notification appears when new report arrives
+
+### How It Works
+
+```
+Traycer Job → Agent Outputs Delimited Report → factory_wait.py Extracts
+→ Writes to .droid/traycer-reports/ → Extension Detects → Notification + Display
+```
+
+**Key Components:**
+- **Prompt Templates:** Force agents to wrap reports in `BEGIN_TRAYCER_REPORT_MD` / `END_TRAYCER_REPORT_MD`
+- **Extraction:** `scripts/traycer_write_report.py` extracts from stdout
+- **Integration:** `factory_wait.py` pipes stdout to extraction script
+- **Storage:** Timestamped files in `.droid/traycer-reports/` (never overwritten)
+- **Display:** Windsurf extension shows history + content
+
+### Inheritance by Fabrik Projects
+
+| Component | Auto-Inherited? |
+|-----------|-----------------|
+| Report extraction logic | ✅ Yes - shared via `/opt/fabrik/factory_wait.py` |
+| Storage directory | ✅ Yes - created on first report |
+| Prompt templates | ✅ Yes - global in `~/.traycer/` |
+| Windsurf extension | ⚠️ Manual install (affects all workspaces) |
+
+**All Fabrik projects automatically get report extraction.** Extension install is one-time per Windsurf instance.
+
+### Documentation
+
+**Complete Guide:** `/opt/fabrik/docs/guides/traycer-report-panel.md`
+
+Covers:
+- Architecture diagram
+- Component details (extraction, integration, templates)
+- File structure
+- Security model
+- Troubleshooting
+
+---
 
 ## VPS Deployment (Coolify)
 
