@@ -1,0 +1,219 @@
+# Fabrik — Features
+
+**Last Updated:** 2026-03-08
+**Version:** 0.1.0
+
+> This document serves as both **product documentation** and **marketing source material**.
+
+---
+
+## Quick Reference
+
+| Feature | Status | Audience | Headline |
+|---------|--------|----------|----------|
+| [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | Create production-ready projects in seconds |
+| [Documentation Enforcement](#documentation-enforcement) | ✅ Shipped | Developer | Never ship undocumented code again |
+| [9-Step Workflow](#9-step-workflow) | ✅ Shipped | Developer | Systematic code quality from plan to commit |
+| [Kilo AI Review](#kilo-ai-review) | ✅ Shipped | Developer | AI-powered code review with fix suggestions |
+| [WordPress Provisioning](#wordpress-provisioning) | 🚧 Beta | Admin | Declarative WordPress site deployment |
+
+**Status Legend:**
+- ✅ **Shipped** — Production-ready
+- 🚧 **Beta** — Available but may change
+- 📋 **Planned** — On roadmap
+
+---
+
+## Project Scaffolding
+
+**Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.1
+
+> **Headline:** Create production-ready projects in seconds with built-in best practices
+
+### What It Does
+
+Fabrik scaffold generates a complete project structure with pre-configured tooling, documentation templates, and inherited quality rules. Every scaffolded project starts with the same conventions, reducing onboarding time and ensuring consistency.
+
+### How To Use
+
+```bash
+fabrik scaffold my-project --type api
+```
+
+### Marketing Copy
+
+| Channel | Copy |
+|---------|------|
+| **Landing Page** | "Stop configuring, start building. Fabrik scaffolds production-ready projects with documentation, testing, and deployment ready to go." |
+| **Email Subject** | "New project? Fabrik gets you to 'Hello World' in 30 seconds" |
+| **Social Media** | "🏗️ fabrik scaffold my-app → Full project with docs, tests, CI/CD in seconds #DevTools" |
+| **Sales One-liner** | "Fabrik scaffold eliminates boilerplate so teams ship features, not config." |
+
+### Technical Details
+
+<details>
+<summary>Click to expand</summary>
+
+**CLI Command:** `fabrik scaffold <name> [--type TYPE]`
+
+**Generated Structure:**
+- `src/` — Source code with `__init__.py`
+- `tests/` — Test directory with sample test
+- `docs/` — Documentation with FEATURES.md, INDEX.md
+- `.env.example` — Environment template
+- `AGENTS.md` → symlink to `/opt/fabrik/AGENTS.md`
+- `.windsurf/rules/` → symlink to `/opt/fabrik/.windsurf/rules/`
+
+**Project Types:** `api`, `cli`, `library`, `saas`
+
+</details>
+
+---
+
+## Documentation Enforcement
+
+**Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.1
+
+> **Headline:** Never ship undocumented code again
+
+### What It Does
+
+Automated checks ensure documentation stays in sync with code. When you add a feature, change a schema, or create an API endpoint, Fabrik reminds you to update the relevant docs.
+
+### Enforcement Scripts
+
+| Script | Trigger | Severity |
+|--------|---------|----------|
+| `check_changelog.py` | Code changes ≥10 lines | ERROR |
+| `check_schema_sync.py` | DB model changes | ERROR |
+| `check_readme_md.py` | Missing required sections | ERROR |
+| `check_openapi_sync.py` | New API routes | WARNING |
+| `check_test_coverage.py` | New public functions | WARNING |
+| `check_env_example.py` | New env vars in code | WARNING |
+| `check_compose_services.py` | New Docker services | WARNING |
+
+### Marketing Copy
+
+| Channel | Copy |
+|---------|------|
+| **Landing Page** | "Documentation that updates itself. Fabrik catches missing docs before they reach production." |
+| **Email Subject** | "Your code review just got smarter: auto-doc enforcement" |
+| **Social Media** | "📝 Fabrik now enforces schema.sql sync, API docs, and test coverage automatically #DevOps" |
+| **Sales One-liner** | "Fabrik's enforcement scripts catch documentation drift at commit time." |
+
+---
+
+## 9-Step Workflow
+
+**Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.1
+
+> **Headline:** Systematic code quality from plan to commit
+
+### What It Does
+
+A structured workflow that ensures every code change goes through planning, implementation, review, and verification before commit. Token-optimized to run deterministic checks before expensive AI review.
+
+### The Flow
+
+```
+PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO → FINAL_GATE → VERIFY → SYNC → COMMIT
+```
+
+| Step | Action |
+|------|--------|
+| 1 | Traycer Plan (spec, edge cases, env vars) |
+| 2 | Coder Implements |
+| 2.5 | Self-Review (MANDATORY) |
+| 3 | Final Gate (pre-Kilo) |
+| 4 | Kilo Review Loop |
+| 5 | Final Gate (post-Kilo) |
+| 6 | Traycer Verification |
+| 7 | Sync Only |
+| 8 | Commit |
+
+### Marketing Copy
+
+| Channel | Copy |
+|---------|------|
+| **Landing Page** | "From idea to commit in 9 verified steps. No shortcuts, no surprises." |
+| **Email Subject** | "The workflow that catches bugs before your users do" |
+| **Social Media** | "🔄 9-step workflow: Plan → Code → Review → Gate → Ship. Every time. #QualityFirst" |
+| **Sales One-liner** | "Fabrik's 9-step workflow embeds quality gates into every commit." |
+
+---
+
+## Kilo AI Review
+
+**Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.1
+
+> **Headline:** AI-powered code review with actionable fix suggestions
+
+### What It Does
+
+Kilo is a diff-aware AI code reviewer that analyzes changes against your task spec. It identifies issues, suggests fixes, and validates plan coverage—all with structured JSON output for automation.
+
+### How To Use
+
+```bash
+python scripts/kilo_code_review.py review <files> --plan "Task description" --output json
+```
+
+### Marketing Copy
+
+| Channel | Copy |
+|---------|------|
+| **Landing Page** | "AI code review that understands your intent. Kilo checks your changes against your plan." |
+| **Email Subject** | "Meet Kilo: Your AI code reviewer that actually reads the spec" |
+| **Social Media** | "🤖 Kilo AI review: $0.03-0.40 per review, catches issues humans miss #AICodeReview" |
+| **Sales One-liner** | "Kilo reviews code against your spec, not just syntax—finding logic errors, not just lint." |
+
+---
+
+## WordPress Provisioning
+
+**Status:** 🚧 Beta | **Audience:** Admin | **Since:** v0.1
+
+> **Headline:** Declarative WordPress site deployment
+
+### What It Does
+
+Define your WordPress site in YAML—pages, menus, plugins, users—and Fabrik provisions it. Reproducible, version-controlled WordPress infrastructure.
+
+### Marketing Copy
+
+| Channel | Copy |
+|---------|------|
+| **Landing Page** | "WordPress as code. Define your site in YAML, deploy with one command." |
+| **Email Subject** | "Finally: Version-controlled WordPress deployments" |
+| **Social Media** | "📄 WordPress spec → 🚀 Live site. Fabrik provisions WP declaratively #WordPress #IaC" |
+| **Sales One-liner** | "Fabrik treats WordPress like infrastructure: defined, versioned, reproducible." |
+
+---
+
+## Appendix: Marketing Asset Extraction
+
+### All Headlines
+
+1. **Scaffolding:** "Create production-ready projects in seconds"
+2. **Doc Enforcement:** "Never ship undocumented code again"
+3. **9-Step Workflow:** "Systematic code quality from plan to commit"
+4. **Kilo AI:** "AI-powered code review with actionable fix suggestions"
+5. **WordPress:** "Declarative WordPress site deployment"
+
+### Feature Matrix
+
+| Feature | OSS | Pro |
+|---------|-----|-----|
+| Project Scaffolding | ✅ | ✅ |
+| Documentation Enforcement | ✅ | ✅ |
+| 9-Step Workflow | ✅ | ✅ |
+| Kilo AI Review | ✅ | ✅ |
+| WordPress Provisioning | 🚧 | ✅ |
+
+---
+
+## See Also
+
+- [README.md](../README.md) — Project overview
+- [CHANGELOG.md](../CHANGELOG.md) — Version history
+- [AGENTS.md](../AGENTS.md) — AI agent briefing

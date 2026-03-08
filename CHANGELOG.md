@@ -4,26 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - FEATURES.md Marketing-Ready Documentation (2026-03-08)
+
+**What:** New FEATURES.md template with marketing copy extraction support.
+
+**Files:**
+- `docs/FEATURES.md` — NEW: Fabrik's own features with marketing snippets
+- `templates/docs/FEATURES_TEMPLATE.md` — NEW: Template for scaffolded projects
+- `src/fabrik/scaffold.py` — Modified: Added FEATURES.md to scaffold output
+
+**What Changed:**
+- Each feature includes: Status badge, Audience tags, Headline, How-to, Marketing Copy table
+- Marketing Copy table has pre-written snippets for: Landing Page, Email, Social Media, Sales
+- Appendix sections for Headlines list, Feature Matrix, Release Timeline
+- All scaffolded projects now include docs/FEATURES.md
+
 ### Added - Documentation Enforcement Scripts (2026-03-08)
 
-**What:** Three new enforcement scripts to close documentation gaps in the 9-step workflow.
+**What:** Five new enforcement scripts to close documentation gaps in the 9-step workflow.
 
 **Files:**
 - `scripts/enforcement/check_schema_sync.py` — NEW: Enforces schema.sql/migrations when DB models change (ERROR)
 - `scripts/enforcement/check_openapi_sync.py` — NEW: Warns when API routes lack documentation (WARNING)
 - `scripts/enforcement/check_test_coverage.py` — NEW: Warns when new public code lacks tests (WARNING)
-- `scripts/final_gate.py` — Modified: Integrated all three scripts into consistency checks
+- `scripts/enforcement/check_env_example.py` — NEW: Warns when env vars in code missing from .env.example (WARNING)
+- `scripts/enforcement/check_compose_services.py` — NEW: Warns when new Docker services undocumented (WARNING)
+- `scripts/final_gate.py` — Modified: Integrated all five scripts into consistency checks
 
 **What Changed:**
 - Schema sync: Changes to `src/**/models.py`, `entities.py`, `db/*.py` require schema.sql or migration update
 - OpenAPI sync: New `@app.get/post/etc` routes should have docstrings or API docs
 - Test coverage: New public functions/classes in src/ should have corresponding tests
+- Env example: New os.getenv() vars should be in .env.example
+- Compose services: New Docker services should be documented in SERVICES.md or README
 - All checks integrated into Final Gate (Steps 3 and 5 of 9-step workflow)
 
 **Severity:**
 - `check_schema_sync.py` — ERROR (blocks commit if DB model changed without schema)
 - `check_openapi_sync.py` — WARNING (advisory, doesn't block)
 - `check_test_coverage.py` — WARNING (advisory, doesn't block)
+- `check_env_example.py` — WARNING (advisory, doesn't block)
+- `check_compose_services.py` — WARNING (advisory, doesn't block)
 
 ### Added - README.md Features Enforcement (2026-03-08)
 

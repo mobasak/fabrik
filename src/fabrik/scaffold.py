@@ -80,6 +80,7 @@ SHARED_TEMPLATE_MAP = {
     "docs/CONFIGURATION_TEMPLATE.md": "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING_TEMPLATE.md": "docs/TROUBLESHOOTING.md",
     "docs/BUSINESS_MODEL_TEMPLATE.md": "docs/BUSINESS_MODEL.md",
+    "docs/FEATURES_TEMPLATE.md": "docs/FEATURES.md",
     # Note: Phase docs removed - Traycer Phases replace manual phase tracking
     # Note: tasks.md removed - Traycer UI replaces manual task dashboard
     # Note: PLANS.md and archive/README.md are generated inline, not from templates

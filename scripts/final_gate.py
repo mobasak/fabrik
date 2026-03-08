@@ -495,6 +495,14 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
     code, out = run_cmd([PYTHON, "scripts/enforcement/check_test_coverage.py"])
     results.append(("Test Coverage (New Code)", code == 0, out if code != 0 else ""))
 
+    # .env.example Completeness (env vars in code → .env.example)
+    code, out = run_cmd([PYTHON, "scripts/enforcement/check_env_example.py"])
+    results.append((".env.example Completeness", code == 0, out if code != 0 else ""))
+
+    # Compose Services Documentation (new services → docs)
+    code, out = run_cmd([PYTHON, "scripts/enforcement/check_compose_services.py"])
+    results.append(("Compose Services Docs", code == 0, out if code != 0 else ""))
+
     # Kilo CLI Health Check
     code, out = run_cmd(["./scripts/check_kilo_health.sh"])
     results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
