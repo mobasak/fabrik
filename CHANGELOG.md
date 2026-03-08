@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Traycer Report Integration for CLI Agents (2026-03-08)
+
+**What:** CLI agents now automatically capture and extract Traycer reports from Kilo output.
+
+**Files:**
+- `scripts/generate_kilo_agents.py` — Modified: Added output capture and report writer integration
+- `~/.traycer/cli-agents/*.sh` — Regenerated: All 46 agents now extract and write reports
+
+**What Changed:**
+- Kilo output is captured into `$OUTPUT` variable
+- Output is still displayed to user (maintains Traycer IDE visibility)
+- If `BEGIN_TRAYCER_REPORT_MD` delimiters found, pipes to `traycer_write_report.py`
+- Reports automatically written to `.droid/traycer-reports/latest.md`
+- Windsurf Report Panel updates automatically when tasks complete
+- Debug mode shows delimiter detection and report writer execution
+
+**Impact:**
+- **All projects under `/opt/`**: When using Traycer to assign tasks to Kilo CLI agents, reports now appear automatically
+- No manual report extraction needed
+- Seamless integration with Windsurf Report Panel
+- Exit codes and timeout handling preserved
+
+**Testing:**
+- Verified report extraction with test output containing delimiters
+- Confirmed report written to `.droid/traycer-reports/latest.md`
+- All 46 CLI agents regenerated with new integration logic
+
 ### Added - FEATURES.md Marketing-Ready Documentation (2026-03-08)
 
 **What:** New FEATURES.md template with marketing copy extraction support.

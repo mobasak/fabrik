@@ -271,16 +271,32 @@ TIMEOUT="${{KILO_TIMEOUT:-600}}"
 USAGE_LOG="${{KILO_USAGE_LOG:-.droid/kilo_usage.jsonl}}"
 START_TIME=$(date +%s)
 
-# Run Kilo agent with timeout
-timeout "$TIMEOUT" kilo run --format json --auto \\
+# Run Kilo agent with timeout and capture output for report extraction
+OUTPUT=$(timeout "$TIMEOUT" kilo run --format json --auto \\
     --model {full_name} \\
     --variant {variant} \\
     --agent {role} \\
-    "$PROMPT"
+    "$PROMPT" 2>&1)
 
 EXIT_CODE=$?
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
+
+# Display output to user (important for Traycer IDE visibility)
+echo "$OUTPUT"
+
+# Extract and write Traycer report if delimiters present
+if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
+    REPORT_WRITER="/opt/fabrik/scripts/traycer_write_report.py"
+    if [ -f "$REPORT_WRITER" ]; then
+        echo "$OUTPUT" | python3 "$REPORT_WRITER" --slug "${{TRAYCER_TASK_ID:-traycer-task}}" 2>&1 | grep "📝" >&2 || true
+        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Report delimiters found, report writer executed" >&2
+    else
+        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Report writer not found at $REPORT_WRITER" >&2
+    fi
+else
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] No report delimiters in output" >&2
+fi
 
 # Handle timeout
 if [ $EXIT_CODE -eq 124 ]; then
