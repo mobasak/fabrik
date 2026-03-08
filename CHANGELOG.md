@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Cross-Project Traycer Reports (2026-03-08)
+
+**What:** Reports now write to correct project directory instead of always /opt/fabrik/
+
+**Files:**
+- `scripts/traycer_write_report.py` — Changed from `Path(__file__).parent.parent` to `Path.cwd()`
+
+**What Changed:**
+- Report writer now uses current working directory (CWD) instead of script location
+- Each `/opt/*` project writes reports to its own `.droid/traycer-reports/` directory
+- Windsurf Report Panel in each window sees only that project's reports
+
+**Impact:**
+- **All `/opt/*` projects**: Reports now work correctly when Traycer assigns tasks
+- Each Windsurf window shows only its own project's reports (no cross-contamination)
+- `/opt/fabrik/` → writes to `/opt/fabrik/.droid/traycer-reports/latest.md`
+- `/opt/trade-intelligence/` → writes to `/opt/trade-intelligence/.droid/traycer-reports/latest.md`
+
+**Testing:**
+- Verified report isolation across multiple projects
+- Both timestamped files and latest.md symlink work correctly
+
 ### Added - Traycer Report Integration for CLI Agents (2026-03-08)
 
 **What:** CLI agents now automatically capture and extract Traycer reports from Kilo output.

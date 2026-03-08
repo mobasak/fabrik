@@ -133,8 +133,9 @@ def main() -> int:
         # Resolve slug and write
         slug = resolve_slug(args.slug)
 
-        # Resolve repo root (script is in scripts/, repo root is parent)
-        repo_root = Path(__file__).parent.parent
+        # Use current working directory (project root where Traycer runs the agent)
+        # This allows reports to work in any /opt/* project, not just /opt/fabrik/
+        repo_root = Path.cwd()
         report_dir = repo_root / ".droid" / "traycer-reports"
 
         write_report_atomic(report_dir, slug, report)
