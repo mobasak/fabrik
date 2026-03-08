@@ -6,10 +6,10 @@ These phase documents represent the original Fabrik implementation plan. They ha
 
 ## Phase Documents
 
-- [Phase 1](Phase1.md) - Foundation Infrastructure
-- [Phase 2](Phase2.md) - WordPress Automation
-- [Phase 3](Phase3.md) - AI Content Integration
-- [Phase 4](Phase4.md) - DNS Migration + Advanced Networking
+- [Phase 1](../../../archive/2026-03-07-phase1-complete/Phase1.md) - Foundation Infrastructure (archived)
+- [Phase 2](../../../archive/2026-03-07-phase2-phase3/Phase2.md) - WordPress Automation (archived)
+- [Phase 3](../../../archive/2026-03-07-phase2-phase3/Phase3.md) - AI Content Integration (archived)
+- [Phase 4](../../../archive/2026-03-07-phase4/Phase4.md) - DNS Migration + Advanced Networking (archived)
 - [Phase 5](Phase5.md) - Staging + Multi-Environment
 - [Phase 6](Phase6.md) - Advanced Monitoring
 - [Phase 7](Phase7.md) - Multi-Server Scaling

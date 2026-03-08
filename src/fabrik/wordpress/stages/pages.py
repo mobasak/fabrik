@@ -1,6 +1,7 @@
 """Page creation stage."""
 
 from pathlib import Path
+from typing import Any
 
 from fabrik.drivers.wordpress import WordPressClient
 from fabrik.drivers.wordpress_api import WordPressAPIClient
@@ -46,8 +47,8 @@ def apply(
 
             # Build hierarchical page structure for PageCreator
             # First pass: group children by parent_slug (entity pages)
-            pages_by_parent = {}
-            top_level_specs = []
+            pages_by_parent: dict[str, list[dict[str, str]]] = {}
+            top_level_specs: list[dict[str, Any]] = []
 
             for page_spec in page_specs:
                 parent_slug = page_spec.get("parent_slug")
@@ -71,7 +72,7 @@ def apply(
                     top_level_specs.append(page_spec)
 
             # Second pass: build top-level pages with children
-            top_level_pages = []
+            top_level_pages: list[dict[str, Any]] = []
             for page_spec in top_level_specs:
                 slug = page_spec.get("slug", "")
                 page_dict = {

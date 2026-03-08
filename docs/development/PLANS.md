@@ -23,3 +23,9 @@ All feature/execution/design plans live in `docs/development/plans/`.
 | Completed/obsolete | `docs/archive/YYYY-MM-DD-<slug>/` |
 
 No deletion. History is preserved.
+
+---
+
+## Reference Docs
+
+- [health-monitoring.md](../reference/health-monitoring.md) - Health check system reference

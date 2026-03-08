@@ -131,14 +131,20 @@ def check_changelog_quality() -> bool:
 
     content = changelog_path.read_text()
 
-    # Check for [Unreleased] section with actual content
-    unreleased_match = re.search(r"## \[Unreleased\]\s*\n(.*?)(?=\n## \[|$)", content, re.DOTALL)
-    if not unreleased_match:
+    # Find [Unreleased] section
+    unreleased_start = content.find("## [Unreleased]")
+    if unreleased_start == -1:
         return False
 
-    unreleased_content = unreleased_match.group(1).strip()
+    # Find the next ## [ section (start of the next release section)
+    next_section_idx = content.find("\n## [", unreleased_start + 1)
+    if next_section_idx == -1:
+        next_section_idx = len(content)
 
-    # Check it's not empty or just placeholder
+    # Extract only the [Unreleased] section content
+    unreleased_content = content[unreleased_start:next_section_idx].strip()
+
+    # Check it's not empty
     if not unreleased_content:
         return False
 
@@ -149,10 +155,12 @@ def check_changelog_quality() -> bool:
         print("WARNING: CHANGELOG.md [Unreleased] section has no ### entry")
         return False
 
-    # Check for placeholder text
-    placeholders = ["<Brief Title>", "<description>", "TODO", "FIXME", "xxx", "..."]
+    # Check for placeholder text (only in actual entries, not in examples)
+    # Remove code blocks and examples from the check
+    content_to_check = re.sub(r"```.+?```", "", unreleased_content, flags=re.DOTALL)
+    placeholders = ["<Brief Title>", "<description>", "TODO", "FIXME", "xxx"]
     for placeholder in placeholders:
-        if placeholder.lower() in unreleased_content.lower():
+        if placeholder.lower() in content_to_check.lower():
             print(f"WARNING: CHANGELOG.md contains placeholder: {placeholder}")
             return False
 

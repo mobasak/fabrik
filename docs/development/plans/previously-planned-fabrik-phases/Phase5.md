@@ -1,4 +1,4 @@
-> **Phase Navigation:** [← Phase 4](Phase4.md) | **Phase 5** | [Phase 6 →](Phase6.md) | [All Phases](README.md)
+> **Phase Navigation:** [← Phase 4](../../../archive/2026-03-07-phase4/Phase4.md) | **Phase 5** | [Phase 6 →](Phase6.md) | [All Phases](README.md)
 
 **Status:** ✅ COMPLETE (historical implementation)
 ## Phase 5: Staging + Multi-Environment — Complete Narrative

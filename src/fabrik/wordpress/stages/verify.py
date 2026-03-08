@@ -1,7 +1,7 @@
 """Verification stage - validate deployed site health."""
 
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -26,7 +26,7 @@ def apply(
             result.success = False
             return result
 
-        with open(checks_path, "r") as f:
+        with open(checks_path) as f:
             manifest = json.load(f)
 
         urls = manifest.get("urls", [])
@@ -81,7 +81,7 @@ def apply(
 
         verify_report = {
             "site_id": site_id,
-            "verified_at": datetime.now(timezone.utc).isoformat(),
+            "verified_at": datetime.now(UTC).isoformat(),
             "checks": checks,
             "overall": overall,
         }

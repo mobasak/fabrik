@@ -599,6 +599,6 @@ After deployment:
 ## See Also
 
 - [WordPress Architecture](architecture.md) - System design and components
-- [WordPress Spec Schema](../../templates/wordpress/schema/v1.yaml) - YAML spec reference
+- [WordPress Spec Schema](../../../templates/wordpress/schema/v1.yaml) - YAML spec reference
 - [SERVICES.md](../../SERVICES.md) - VPS infrastructure overview
 - [Deployment Checklist](../../guides/DEPLOYMENT_READY_CHECKLIST.md) - Pre-deployment verification

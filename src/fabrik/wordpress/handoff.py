@@ -1,7 +1,7 @@
 """Handoff report generator - creates client-facing documentation."""
 
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -26,14 +26,14 @@ def generate_handoff(site_id: str, build_dir: Path) -> Path:
             f"apply-report.json not found at {apply_report_path}. Run 'fabrik wp apply' first."
         )
 
-    with open(apply_report_path, "r") as f:
+    with open(apply_report_path) as f:
         apply_report = json.load(f)
 
     # Read verify report (optional)
     verify_report_path = build_dir / "reports" / "verify-report.json"
     verify_report = None
     if verify_report_path.exists():
-        with open(verify_report_path, "r") as f:
+        with open(verify_report_path) as f:
             verify_report = json.load(f)
 
     # Read blueprint for metadata (optional)
@@ -42,7 +42,7 @@ def generate_handoff(site_id: str, build_dir: Path) -> Path:
     if blueprint_path.exists():
         import yaml
 
-        with open(blueprint_path, "r") as f:
+        with open(blueprint_path) as f:
             blueprint = yaml.safe_load(f)
             # Extract non-secret metadata only
             if "site" in blueprint:
@@ -118,7 +118,7 @@ def generate_handoff(site_id: str, build_dir: Path) -> Path:
 - verify-report: build/sites/{site_id}/reports/verify-report.json"""
 
     # Render full handoff document
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
 
     handoff_content = f"""# Handoff: {domain}
 

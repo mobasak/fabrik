@@ -8,6 +8,32 @@ globs: ["*.md", "docs/**/*", "specs/**/*"]
 
 ---
 
+## README.md Features Section (MANDATORY)
+
+**Every NEW feature MUST be added to README.md Features section:**
+
+```markdown
+## Features
+
+### Category Name
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Feature Name | ✅ | One-line description |
+```
+
+**Rules:**
+- Add new features to appropriate category table
+- Use ✅ for implemented, 🚧 for in-progress, ❌ for planned
+- Update status when feature ships
+- This is the **single source of truth** for "what does this product do"
+
+**When to update:**
+- New API endpoint → add to "API Endpoints" table
+- New UI feature → add to relevant category (Search, Dashboard, etc.)
+- New infrastructure capability → add to "Infrastructure" table
+
+---
+
 ## CHANGELOG.md (MANDATORY)
 
 **Every code change MUST update CHANGELOG.md:**
@@ -24,6 +50,10 @@ globs: ["*.md", "docs/**/*", "specs/**/*"]
 ```
 
 **No exceptions.** This is enforced by `docs_updater.py`.
+
+**Relationship to README.md:**
+- **CHANGELOG** = *when* things changed (historical record)
+- **README Features** = *what* exists now (current state)
 
 ---
 

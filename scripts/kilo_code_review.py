@@ -770,11 +770,13 @@ TIER_MODELS = {
     ],
     "Strong": [
         "kilo/anthropic/claude-sonnet-4.6",
+        "kilo/openai/gpt-5.4",
         "kilo/openai/gpt-5.3-codex",
         "kilo/google/gemini-3.1-pro-preview",
     ],
     "Prime": [
         "kilo/anthropic/claude-opus-4.6",
+        "kilo/openai/gpt-5.4-pro",
         "kilo/openai/gpt-5.2-pro",
     ],
 }

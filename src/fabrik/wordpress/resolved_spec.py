@@ -10,8 +10,8 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from dataclasses import InitVar, dataclass, field
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, ClassVar
 
 
 def load_spec(site_id: str) -> dict:
@@ -42,20 +42,30 @@ class ResolvedSpec:
     """
 
     site_id: str
-    data: InitVar[dict[str, Any]]
     spec_hash: str = field(default="")
     _data: dict[str, Any] = field(init=False, repr=False)
 
-    SECRET_KEY_PATTERNS: tuple[str, ...] = field(
-        default=("password", "secret", "token", "key", "credential"),
-        init=False,
-        repr=False,
+    SECRET_KEY_PATTERNS: ClassVar[tuple[str, ...]] = (
+        "password",
+        "secret",
+        "token",
+        "key",
+        "credential",
     )
 
-    def __post_init__(self, data: dict[str, Any]) -> None:
-        """Compute spec_hash if not provided and enforce immutability."""
+    def __init__(self, site_id: str, data: dict[str, Any], spec_hash: str = "") -> None:
+        """Create an immutable resolved spec.
+
+        `data` is deep-copied into internal storage to prevent callers from mutating
+        the spec after construction.
+        """
+
+        object.__setattr__(self, "site_id", site_id)
         object.__setattr__(self, "_data", copy.deepcopy(data))
-        if not self.spec_hash:
+
+        if spec_hash:
+            object.__setattr__(self, "spec_hash", spec_hash)
+        else:
             object.__setattr__(self, "spec_hash", self._compute_hash())
 
     @property

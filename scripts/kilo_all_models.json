@@ -1,5 +1,5 @@
 {
-  "total_models": 319,
+  "total_models": 322,
   "total_providers": 57,
   "providers": [
     "ai21",
@@ -1310,10 +1310,28 @@
       "short_name": "gpt-5.2-pro"
     },
     {
+      "full_name": "kilo/openai/gpt-5.3-chat",
+      "provider": "openai",
+      "model": "gpt-5.3-chat",
+      "short_name": "gpt-5.3-chat"
+    },
+    {
       "full_name": "kilo/openai/gpt-5.3-codex",
       "provider": "openai",
       "model": "gpt-5.3-codex",
       "short_name": "gpt-5.3-codex"
+    },
+    {
+      "full_name": "kilo/openai/gpt-5.4",
+      "provider": "openai",
+      "model": "gpt-5.4",
+      "short_name": "gpt-5.4"
+    },
+    {
+      "full_name": "kilo/openai/gpt-5.4-pro",
+      "provider": "openai",
+      "model": "gpt-5.4-pro",
+      "short_name": "gpt-5.4-pro"
     },
     {
       "full_name": "kilo/openai/gpt-audio",

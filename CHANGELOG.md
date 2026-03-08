@@ -4,6 +4,139 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - GPT 5.4 Model Support (2026-03-08)
+
+**What:** Added OpenAI GPT 5.4 variants to Kilo model catalog and tier routing.
+
+**Files:**
+- `scripts/kilo_all_models.json` — Added gpt-5.3-chat, gpt-5.4, gpt-5.4-pro (total: 322 models)
+- `scripts/kilo_code_review.py` — Added gpt-5.4 to Strong tier, gpt-5.4-pro to Prime tier
+
+**What Changed:**
+- GPT 5.4: Added to Strong tier (production-grade code review)
+- GPT 5.4-pro: Added to Prime tier (mission-critical, max reasoning)
+- GPT 5.3-chat: Added to model catalog
+
+### Changed - Health Checker Docstring Conciseness (2026-03-08)
+
+**What:** Replaced verbose module docstring with concise 3-line version.
+
+**Files:**
+- `scripts/health_checker.py` — Updated docstring (lines 3-11)
+
+**What Changed:**
+- Condensed docstring from 9 lines to 3 lines
+- Covers: HTTP /health probe + DB TCP reachability check for cron/CI use
+- Includes all exit codes: 0 OK, 1 unexpected error, 2 config error, 3 HTTP unhealthy, 4 DB unreachable
+- No code changes - docstring only
+
+### Changed - Traycer Report Panel UI Overhaul (2026-03-08)
+
+**What:** Complete redesign of report viewer with structured parsing, status badges, and problems-first layout
+
+**Files:**
+- `~/traycer-report-panel/src/extension.ts` — Added structured report parsing, status icons, metadata badges
+- `~/traycer-report-panel/package.json` — Bumped to v0.3.0
+
+**What Changed:**
+- **Left pane improvements:** Status icons (✓/⚠/✗), file counts, deviation counts in description
+- **Structured parsing:** Parses STATUS, FILES, FOLLOWED, DEVIATED, ENV, DB, CHECKS, COST, VERIFY fields
+- **Problems-first summary:** ⚠ strip at top showing deviations, ENV/DB changes, failed checks
+- **Card-based layout:** Each field rendered as labeled card instead of raw text
+- **Gate check badges:** PASS/FAIL badges with color coding
+- **Cost visibility:** Dedicated cost card with token counts
+- **Collapsible raw view:** Original report available under "Raw Report" section
+- **Better typography:** Labels, spacing, monospace for commands, wrapped long lines
+
+**Impact:**
+- Reports now scannable at a glance (problems appear first)
+- No more escaped `\n` text or raw dumps
+- Human-readable without losing machine parsability
+- Cost data visible immediately
+- Status/deviations visible in list view before opening report
+
+**Before:** Raw text dump with escaped characters, no visual hierarchy
+**After:** Structured cards with problems summary, status badges, cost visibility
+
+### Changed - Template COST Field Addition (2026-03-08)
+
+**What:** Added COST field to all 6 Kilo prompt templates for token cost visibility
+
+**Files:**
+- All 6 templates: User Query, Plan (9-Step), Plan (YOLO), Verification (Fix Loop), Verification (YOLO), Review (Code Review)
+
+**What Changed:**
+- New field: `COST: $X.XX (input: N tokens, output: M tokens)`
+- Positioned after CHECKS field, before VERIFY
+- Agents now report token costs in every task completion report
+- Extension renders cost in dedicated card
+
+**Impact:**
+- Cost transparency for every Traycer/Kilo task
+- Easier budget tracking and agent selection
+- Visible in both structured view and raw report
+
+### Added - Health Monitoring Reference (2026-03-08)
+
+**What:** Documented Fabrik's dependency-aware health endpoint and added a lightweight CLI checker.
+
+**Files:**
+- `docs/reference/health-monitoring.md` — NEW: `/health` endpoint + health_checker usage
+- `scripts/health_checker.py` — NEW: HTTP + DB reachability checks with exit codes
+
+### Changed - Template Optimization for Cost Control (2026-03-08)
+
+**What:** Optimized all Traycer prompt templates with instruction IDs, compact compliance reports, and removed project-specific branding
+
+**Files:**
+- `~/.traycer/prompt-templates/Kilo User Query – Direct.md` — Debranded, optimized with [R1-R8], [W2-W5], compact report
+- `~/.traycer/prompt-templates/Kilo Plan – 9-Step Workflow.md` — Debranded, optimized with [R1-R11], [W2-W5], compact report
+- `~/.traycer/prompt-templates/Kilo Plan – YOLO Optimized.md` — Optimized with [R1-R11], [W2-W5], compact report
+- `~/.traycer/prompt-templates/Kilo Verification – Fix Loop.md` — Debranded, optimized with [F1-F7], compact report
+- `~/.traycer/prompt-templates/Kilo Verification – YOLO Optimized.md` — Optimized with [F1-F8], compact report
+- `~/.traycer/prompt-templates/Kilo Review – Code Review.md` — Debranded, optimized with [R1-R7], compact report
+
+**What Changed:**
+- Added instruction IDs to all rules (e.g., [R1], [R2], [W2], [F1])
+- Replaced verbose narrative reports with compact compliance blocks
+- New report format: STATUS, FILES, FOLLOWED, DEVIATED, ENV, DB, CHECKS/ISSUES_FIXED, VERIFY
+- FOLLOWED uses "all-applicable" instead of "all" (more precise when some rules aren't relevant)
+- DEVIATED uses structured format "ID:reason; ID:reason" (easier to parse)
+- Added fake-success guard: "If any required step was not actually executed, mark STATUS as PARTIAL or FAILED"
+- Removed redundant step narration, per-file descriptions, workflow checklists
+- Agents now report compliance/deviations via instruction IDs instead of prose
+- Kept ENV and DB fields terse but required (high-impact changes visibility)
+- Verification commands now task-specific (1-2 shortest relevant commands)
+- Removed project-specific branding (templates work for all /opt/* projects)
+
+**Impact:**
+- **Token cost reduction**: 60-80% less output tokens per task (narrative → compact format)
+- **Better audit trail**: Instruction IDs show exactly what was followed/deviated
+- **Faster review**: Compact reports easier to scan for compliance issues
+- **No loss of info**: Still captures all critical data (files, env vars, db changes, checks)
+
+**Example old format (verbose):**
+```
+## Task Completion Report
+**Status:** COMPLETE
+**Files Modified:**
+- path/to/file.py - added health check endpoint with database ping
+- path/to/test.py - added tests for health endpoint
+...
+```
+
+**Example new format (compact):**
+```
+STATUS: COMPLETE
+FILES: src/api/health.py, tests/test_health.py, .env.example, CHANGELOG.md
+FOLLOWED: R1,R2,R5,R6,W2,W2.5,W3,W4,W5,W-CHANGELOG
+DEVIATED: R4 no approach message
+ENV: HEALTH_CHECK_TIMEOUT
+DB: none
+CHECKS: FG_PRE=PASS, SELF_REVIEW=PASS, KILO=PASS, FG_POST=PASS
+VERIFY: pytest tests/test_health.py && curl -f http://localhost:8000/health
+```
+
 ### Fixed - Cross-Project Traycer Reports (2026-03-08)
 
 **What:** Reports now write to correct project directory instead of always /opt/fabrik/

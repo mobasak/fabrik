@@ -994,7 +994,7 @@ def wp_verify(domain: str):
 
             blueprint_path = build_dir / "blueprint.resolved.yaml"
             if blueprint_path.exists():
-                with open(blueprint_path, "r") as f:
+                with open(blueprint_path) as f:
                     blueprint = yaml.safe_load(f)
                 if blueprint and blueprint.get("site", {}).get("domain"):
                     effective_domain = blueprint["site"]["domain"]
@@ -1027,7 +1027,7 @@ def wp_verify(domain: str):
         if verify_report_path.exists():
             import json
 
-            with open(verify_report_path, "r") as f:
+            with open(verify_report_path) as f:
                 report = json.load(f)
 
             for check in report.get("checks", []):
