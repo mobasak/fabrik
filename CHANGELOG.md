@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Documentation Enforcement Scripts (2026-03-08)
+
+**What:** Three new enforcement scripts to close documentation gaps in the 9-step workflow.
+
+**Files:**
+- `scripts/enforcement/check_schema_sync.py` — NEW: Enforces schema.sql/migrations when DB models change (ERROR)
+- `scripts/enforcement/check_openapi_sync.py` — NEW: Warns when API routes lack documentation (WARNING)
+- `scripts/enforcement/check_test_coverage.py` — NEW: Warns when new public code lacks tests (WARNING)
+- `scripts/final_gate.py` — Modified: Integrated all three scripts into consistency checks
+
+**What Changed:**
+- Schema sync: Changes to `src/**/models.py`, `entities.py`, `db/*.py` require schema.sql or migration update
+- OpenAPI sync: New `@app.get/post/etc` routes should have docstrings or API docs
+- Test coverage: New public functions/classes in src/ should have corresponding tests
+- All checks integrated into Final Gate (Steps 3 and 5 of 9-step workflow)
+
+**Severity:**
+- `check_schema_sync.py` — ERROR (blocks commit if DB model changed without schema)
+- `check_openapi_sync.py` — WARNING (advisory, doesn't block)
+- `check_test_coverage.py` — WARNING (advisory, doesn't block)
+
+### Added - README.md Features Enforcement (2026-03-08)
+
+**What:** New mandatory rule requiring README.md Features section updates when adding new features.
+
+**Files:**
+- `.windsurf/rules/40-documentation.md` — Added `## README.md Features Section (MANDATORY)` rule block
+
+**What Changed:**
+- Every NEW feature MUST be added to README.md Features section (table format)
+- Status indicators: ✅ implemented, 🚧 in-progress, ❌ planned
+- Trigger examples: new API endpoint, new UI feature, new infrastructure capability
+- Clarified relationship: CHANGELOG = *when* changed, README Features = *what* exists now
+
+**Inheritance:**
+- All Fabrik-scaffolded projects inherit this via symlinked `.windsurf/rules/`
+
 ### Added
 - WordPress planning system with `ResolvedSpec` dataclass for immutable spec resolution
 - `Planner` class to orchestrate build directory creation and artifact generation

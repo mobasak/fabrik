@@ -483,6 +483,18 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
     code, out = run_cmd([PYTHON, "scripts/enforcement/check_changelog.py"])
     results.append(("CHANGELOG.md Updated", code == 0, out if code != 0 else ""))
 
+    # Schema Sync (DB models → schema.sql/migrations)
+    code, out = run_cmd([PYTHON, "scripts/enforcement/check_schema_sync.py"])
+    results.append(("Schema Sync (DB Models)", code == 0, out if code != 0 else ""))
+
+    # OpenAPI Sync (routes → docs)
+    code, out = run_cmd([PYTHON, "scripts/enforcement/check_openapi_sync.py"])
+    results.append(("OpenAPI Sync (API Docs)", code == 0, out if code != 0 else ""))
+
+    # Test Coverage (new code → tests)
+    code, out = run_cmd([PYTHON, "scripts/enforcement/check_test_coverage.py"])
+    results.append(("Test Coverage (New Code)", code == 0, out if code != 0 else ""))
+
     # Kilo CLI Health Check
     code, out = run_cmd(["./scripts/check_kilo_health.sh"])
     results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
