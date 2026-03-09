@@ -1,1997 +1,1646 @@
 {
-  "total_models": 322,
-  "total_providers": 57,
-  "providers": [
-    "ai21",
-    "aion-labs",
-    "alfredpros",
-    "alibaba",
-    "allenai",
-    "alpindale",
-    "amazon",
-    "anthracite-org",
-    "anthropic",
-    "arcee-ai",
-    "baidu",
-    "bytedance",
-    "bytedance-seed",
-    "cohere",
-    "deepcogito",
-    "deepseek",
-    "eleutherai",
-    "essentialai",
-    "google",
-    "gryphe",
-    "ibm-granite",
-    "inception",
-    "inflection",
-    "kilo",
-    "kwaipilot",
-    "liquid",
-    "mancer",
-    "meituan",
-    "meta-llama",
-    "microsoft",
-    "minimax",
-    "mistralai",
-    "moonshotai",
-    "morph",
-    "neversleep",
-    "nex-agi",
-    "nousresearch",
-    "nvidia",
-    "openai",
-    "opengvlab",
-    "openrouter",
-    "perplexity",
-    "prime-intellect",
-    "qwen",
-    "raifle",
-    "relace",
-    "sao10k",
-    "stepfun",
-    "switchpoint",
-    "tencent",
-    "thedrummer",
-    "tngtech",
-    "undi95",
-    "writer",
-    "x-ai",
-    "xiaomi",
-    "z-ai"
-  ],
-  "models": [
-    {
-      "full_name": "kilo/ai21/jamba-large-1.7",
-      "provider": "ai21",
-      "model": "jamba-large-1.7",
-      "short_name": "jamba-large-1.7"
-    },
-    {
-      "full_name": "kilo/aion-labs/aion-1.0",
-      "provider": "aion-labs",
-      "model": "aion-1.0",
-      "short_name": "aion-1.0"
-    },
-    {
-      "full_name": "kilo/aion-labs/aion-1.0-mini",
-      "provider": "aion-labs",
-      "model": "aion-1.0-mini",
-      "short_name": "aion-1.0-mini"
-    },
-    {
-      "full_name": "kilo/aion-labs/aion-2.0",
-      "provider": "aion-labs",
-      "model": "aion-2.0",
-      "short_name": "aion-2.0"
-    },
-    {
-      "full_name": "kilo/aion-labs/aion-rp-llama-3.1-8b",
-      "provider": "aion-labs",
-      "model": "aion-rp-llama-3.1-8b",
-      "short_name": "aion-rp-llama-3.1-8b"
-    },
-    {
-      "full_name": "kilo/alfredpros/codellama-7b-instruct-solidity",
-      "provider": "alfredpros",
-      "model": "codellama-7b-instruct-solidity",
-      "short_name": "codellama-7b-instruct-solidity"
-    },
-    {
-      "full_name": "kilo/alibaba/tongyi-deepresearch-30b-a3b",
-      "provider": "alibaba",
-      "model": "tongyi-deepresearch-30b-a3b",
-      "short_name": "tongyi-deepresearch-30b-a3b"
-    },
-    {
-      "full_name": "kilo/allenai/molmo-2-8b",
-      "provider": "allenai",
-      "model": "molmo-2-8b",
-      "short_name": "molmo-2-8b"
-    },
-    {
-      "full_name": "kilo/allenai/olmo-2-0325-32b-instruct",
-      "provider": "allenai",
-      "model": "olmo-2-0325-32b-instruct",
-      "short_name": "olmo-2-0325-32b-instruct"
-    },
-    {
-      "full_name": "kilo/allenai/olmo-3-32b-think",
-      "provider": "allenai",
-      "model": "olmo-3-32b-think",
-      "short_name": "olmo-3-32b-think"
-    },
-    {
-      "full_name": "kilo/allenai/olmo-3-7b-instruct",
-      "provider": "allenai",
-      "model": "olmo-3-7b-instruct",
-      "short_name": "olmo-3-7b-instruct"
-    },
-    {
-      "full_name": "kilo/allenai/olmo-3-7b-think",
-      "provider": "allenai",
-      "model": "olmo-3-7b-think",
-      "short_name": "olmo-3-7b-think"
-    },
-    {
-      "full_name": "kilo/allenai/olmo-3.1-32b-instruct",
-      "provider": "allenai",
-      "model": "olmo-3.1-32b-instruct",
-      "short_name": "olmo-3.1-32b-instruct"
-    },
-    {
-      "full_name": "kilo/alpindale/goliath-120b",
-      "provider": "alpindale",
-      "model": "goliath-120b",
-      "short_name": "goliath-120b"
-    },
-    {
-      "full_name": "kilo/amazon/nova-2-lite-v1",
-      "provider": "amazon",
-      "model": "nova-2-lite-v1",
-      "short_name": "nova-2-lite-v1"
-    },
-    {
-      "full_name": "kilo/amazon/nova-lite-v1",
-      "provider": "amazon",
-      "model": "nova-lite-v1",
-      "short_name": "nova-lite-v1"
-    },
-    {
-      "full_name": "kilo/amazon/nova-micro-v1",
-      "provider": "amazon",
-      "model": "nova-micro-v1",
-      "short_name": "nova-micro-v1"
-    },
-    {
-      "full_name": "kilo/amazon/nova-premier-v1",
-      "provider": "amazon",
-      "model": "nova-premier-v1",
-      "short_name": "nova-premier-v1"
-    },
-    {
-      "full_name": "kilo/amazon/nova-pro-v1",
-      "provider": "amazon",
-      "model": "nova-pro-v1",
-      "short_name": "nova-pro-v1"
-    },
-    {
-      "full_name": "kilo/anthracite-org/magnum-v4-72b",
-      "provider": "anthracite-org",
-      "model": "magnum-v4-72b",
-      "short_name": "magnum-v4-72b"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-3-haiku",
-      "provider": "anthropic",
-      "model": "claude-3-haiku",
-      "short_name": "claude-3-haiku"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-3.5-haiku",
-      "provider": "anthropic",
-      "model": "claude-3.5-haiku",
-      "short_name": "claude-3.5-haiku"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-3.5-sonnet",
-      "provider": "anthropic",
-      "model": "claude-3.5-sonnet",
-      "short_name": "claude-3.5-sonnet"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-3.7-sonnet",
-      "provider": "anthropic",
-      "model": "claude-3.7-sonnet",
-      "short_name": "claude-3.7-sonnet"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-3.7-sonnet:thinking",
-      "provider": "anthropic",
-      "model": "claude-3.7-sonnet:thinking",
-      "short_name": "claude-3.7-sonnet"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-haiku-4.5",
-      "provider": "anthropic",
-      "model": "claude-haiku-4.5",
-      "short_name": "claude-haiku-4.5"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-opus-4",
-      "provider": "anthropic",
-      "model": "claude-opus-4",
-      "short_name": "claude-opus-4"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-opus-4.1",
-      "provider": "anthropic",
-      "model": "claude-opus-4.1",
-      "short_name": "claude-opus-4.1"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-opus-4.5",
-      "provider": "anthropic",
-      "model": "claude-opus-4.5",
-      "short_name": "claude-opus-4.5"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-opus-4.6",
-      "provider": "anthropic",
-      "model": "claude-opus-4.6",
-      "short_name": "claude-opus-4.6"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-sonnet-4",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4",
-      "short_name": "claude-sonnet-4"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-sonnet-4.5",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4.5",
-      "short_name": "claude-sonnet-4.5"
-    },
-    {
-      "full_name": "kilo/anthropic/claude-sonnet-4.6",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4.6",
-      "short_name": "claude-sonnet-4.6"
-    },
-    {
-      "full_name": "kilo/arcee-ai/coder-large",
-      "provider": "arcee-ai",
-      "model": "coder-large",
-      "short_name": "coder-large"
-    },
-    {
-      "full_name": "kilo/arcee-ai/maestro-reasoning",
-      "provider": "arcee-ai",
-      "model": "maestro-reasoning",
-      "short_name": "maestro-reasoning"
-    },
-    {
-      "full_name": "kilo/arcee-ai/spotlight",
-      "provider": "arcee-ai",
-      "model": "spotlight",
-      "short_name": "spotlight"
-    },
-    {
-      "full_name": "kilo/arcee-ai/trinity-large-preview:free",
-      "provider": "arcee-ai",
-      "model": "trinity-large-preview:free",
-      "short_name": "trinity-large-preview"
-    },
-    {
-      "full_name": "kilo/arcee-ai/trinity-mini",
-      "provider": "arcee-ai",
-      "model": "trinity-mini",
-      "short_name": "trinity-mini"
-    },
-    {
-      "full_name": "kilo/arcee-ai/virtuoso-large",
-      "provider": "arcee-ai",
-      "model": "virtuoso-large",
-      "short_name": "virtuoso-large"
-    },
-    {
-      "full_name": "kilo/baidu/ernie-4.5-21b-a3b",
-      "provider": "baidu",
-      "model": "ernie-4.5-21b-a3b",
-      "short_name": "ernie-4.5-21b-a3b"
-    },
-    {
-      "full_name": "kilo/baidu/ernie-4.5-21b-a3b-thinking",
-      "provider": "baidu",
-      "model": "ernie-4.5-21b-a3b-thinking",
-      "short_name": "ernie-4.5-21b-a3b-thinking"
-    },
-    {
-      "full_name": "kilo/baidu/ernie-4.5-300b-a47b",
-      "provider": "baidu",
-      "model": "ernie-4.5-300b-a47b",
-      "short_name": "ernie-4.5-300b-a47b"
-    },
-    {
-      "full_name": "kilo/baidu/ernie-4.5-vl-28b-a3b",
-      "provider": "baidu",
-      "model": "ernie-4.5-vl-28b-a3b",
-      "short_name": "ernie-4.5-vl-28b-a3b"
-    },
-    {
-      "full_name": "kilo/baidu/ernie-4.5-vl-424b-a47b",
-      "provider": "baidu",
-      "model": "ernie-4.5-vl-424b-a47b",
-      "short_name": "ernie-4.5-vl-424b-a47b"
-    },
-    {
-      "full_name": "kilo/bytedance-seed/seed-1.6",
-      "provider": "bytedance-seed",
-      "model": "seed-1.6",
-      "short_name": "seed-1.6"
-    },
-    {
-      "full_name": "kilo/bytedance-seed/seed-1.6-flash",
-      "provider": "bytedance-seed",
-      "model": "seed-1.6-flash",
-      "short_name": "seed-1.6-flash"
-    },
-    {
-      "full_name": "kilo/bytedance-seed/seed-2.0-mini",
-      "provider": "bytedance-seed",
-      "model": "seed-2.0-mini",
-      "short_name": "seed-2.0-mini"
-    },
-    {
-      "full_name": "kilo/bytedance/ui-tars-1.5-7b",
-      "provider": "bytedance",
-      "model": "ui-tars-1.5-7b",
-      "short_name": "ui-tars-1.5-7b"
-    },
-    {
-      "full_name": "kilo/cohere/command-a",
-      "provider": "cohere",
-      "model": "command-a",
-      "short_name": "command-a"
-    },
-    {
-      "full_name": "kilo/cohere/command-r-08-2024",
-      "provider": "cohere",
-      "model": "command-r-08-2024",
-      "short_name": "command-r-08-2024"
-    },
-    {
-      "full_name": "kilo/cohere/command-r-plus-08-2024",
-      "provider": "cohere",
-      "model": "command-r-plus-08-2024",
-      "short_name": "command-r-plus-08-2024"
-    },
-    {
-      "full_name": "kilo/cohere/command-r7b-12-2024",
-      "provider": "cohere",
-      "model": "command-r7b-12-2024",
-      "short_name": "command-r7b-12-2024"
-    },
-    {
-      "full_name": "kilo/deepcogito/cogito-v2.1-671b",
-      "provider": "deepcogito",
-      "model": "cogito-v2.1-671b",
-      "short_name": "cogito-v2.1-671b"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-chat",
-      "provider": "deepseek",
-      "model": "deepseek-chat",
-      "short_name": "deepseek-chat"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-chat-v3-0324",
-      "provider": "deepseek",
-      "model": "deepseek-chat-v3-0324",
-      "short_name": "deepseek-chat-v3-0324"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-chat-v3.1",
-      "provider": "deepseek",
-      "model": "deepseek-chat-v3.1",
-      "short_name": "deepseek-chat-v3.1"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-r1",
-      "provider": "deepseek",
-      "model": "deepseek-r1",
-      "short_name": "deepseek-r1"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-r1-0528",
-      "provider": "deepseek",
-      "model": "deepseek-r1-0528",
-      "short_name": "deepseek-r1-0528"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-r1-distill-llama-70b",
-      "provider": "deepseek",
-      "model": "deepseek-r1-distill-llama-70b",
-      "short_name": "deepseek-r1-distill-llama-70b"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-r1-distill-qwen-32b",
-      "provider": "deepseek",
-      "model": "deepseek-r1-distill-qwen-32b",
-      "short_name": "deepseek-r1-distill-qwen-32b"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-v3.1-terminus",
-      "provider": "deepseek",
-      "model": "deepseek-v3.1-terminus",
-      "short_name": "deepseek-v3.1-terminus"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-v3.1-terminus:exacto",
-      "provider": "deepseek",
-      "model": "deepseek-v3.1-terminus:exacto",
-      "short_name": "deepseek-v3.1-terminus"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-v3.2",
-      "provider": "deepseek",
-      "model": "deepseek-v3.2",
-      "short_name": "deepseek-v3.2"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-v3.2-exp",
-      "provider": "deepseek",
-      "model": "deepseek-v3.2-exp",
-      "short_name": "deepseek-v3.2-exp"
-    },
-    {
-      "full_name": "kilo/deepseek/deepseek-v3.2-speciale",
-      "provider": "deepseek",
-      "model": "deepseek-v3.2-speciale",
-      "short_name": "deepseek-v3.2-speciale"
-    },
-    {
-      "full_name": "kilo/eleutherai/llemma_7b",
-      "provider": "eleutherai",
-      "model": "llemma_7b",
-      "short_name": "llemma_7b"
-    },
-    {
-      "full_name": "kilo/essentialai/rnj-1-instruct",
-      "provider": "essentialai",
-      "model": "rnj-1-instruct",
-      "short_name": "rnj-1-instruct"
-    },
-    {
-      "full_name": "kilo/google/gemini-2.0-flash-001",
-      "provider": "google",
-      "model": "gemini-2.0-flash-001",
-      "short_name": "gemini-2.0-flash-001"
-    },
-    {
-      "full_name": "kilo/google/gemini-2.0-flash-lite-001",
-      "provider": "google",
-      "model": "gemini-2.0-flash-lite-001",
-      "short_name": "gemini-2.0-flash-lite-001"
-    },
-    {
-      "full_name": "kilo/google/gemini-2.5-flash",
-      "provider": "google",
-      "model": "gemini-2.5-flash",
-      "short_name": "gemini-2.5-flash"
-    },
-    {
-      "full_name": "kilo/google/gemini-2.5-flash-lite",
-      "provider": "google",
-      "model": "gemini-2.5-flash-lite",
-      "short_name": "gemini-2.5-flash-lite"
-    },
-    {
-      "full_name": "kilo/google/gemini-2.5-flash-lite-preview-09-2025",
-      "provider": "google",
-      "model": "gemini-2.5-flash-lite-preview-09-2025",
-      "short_name": "gemini-2.5-flash-lite-preview-09-2025"
-    },
-    {
-      "full_name": "kilo/google/gemini-2.5-pro",
-      "provider": "google",
-      "model": "gemini-2.5-pro",
-      "short_name": "gemini-2.5-pro"
-    },
-    {
-      "full_name": "kilo/google/gemini-2.5-pro-preview",
-      "provider": "google",
-      "model": "gemini-2.5-pro-preview",
-      "short_name": "gemini-2.5-pro-preview"
-    },
-    {
-      "full_name": "kilo/google/gemini-2.5-pro-preview-05-06",
-      "provider": "google",
-      "model": "gemini-2.5-pro-preview-05-06",
-      "short_name": "gemini-2.5-pro-preview-05-06"
-    },
-    {
-      "full_name": "kilo/google/gemini-3-flash-preview",
-      "provider": "google",
-      "model": "gemini-3-flash-preview",
-      "short_name": "gemini-3-flash-preview"
-    },
-    {
-      "full_name": "kilo/google/gemini-3-pro-preview",
-      "provider": "google",
-      "model": "gemini-3-pro-preview",
-      "short_name": "gemini-3-pro-preview"
-    },
-    {
-      "full_name": "kilo/google/gemini-3.1-pro-preview",
-      "provider": "google",
-      "model": "gemini-3.1-pro-preview",
-      "short_name": "gemini-3.1-pro-preview"
-    },
-    {
-      "full_name": "kilo/google/gemini-3.1-pro-preview-customtools",
-      "provider": "google",
-      "model": "gemini-3.1-pro-preview-customtools",
-      "short_name": "gemini-3.1-pro-preview-customtools"
-    },
-    {
-      "full_name": "kilo/google/gemma-2-27b-it",
-      "provider": "google",
-      "model": "gemma-2-27b-it",
-      "short_name": "gemma-2-27b-it"
-    },
-    {
-      "full_name": "kilo/google/gemma-2-9b-it",
-      "provider": "google",
-      "model": "gemma-2-9b-it",
-      "short_name": "gemma-2-9b-it"
-    },
-    {
-      "full_name": "kilo/google/gemma-3-12b-it",
-      "provider": "google",
-      "model": "gemma-3-12b-it",
-      "short_name": "gemma-3-12b-it"
-    },
-    {
-      "full_name": "kilo/google/gemma-3-27b-it",
-      "provider": "google",
-      "model": "gemma-3-27b-it",
-      "short_name": "gemma-3-27b-it"
-    },
-    {
-      "full_name": "kilo/google/gemma-3-4b-it",
-      "provider": "google",
-      "model": "gemma-3-4b-it",
-      "short_name": "gemma-3-4b-it"
-    },
-    {
-      "full_name": "kilo/google/gemma-3n-e4b-it",
-      "provider": "google",
-      "model": "gemma-3n-e4b-it",
-      "short_name": "gemma-3n-e4b-it"
-    },
-    {
-      "full_name": "kilo/gryphe/mythomax-l2-13b",
-      "provider": "gryphe",
-      "model": "mythomax-l2-13b",
-      "short_name": "mythomax-l2-13b"
-    },
-    {
-      "full_name": "kilo/ibm-granite/granite-4.0-h-micro",
-      "provider": "ibm-granite",
-      "model": "granite-4.0-h-micro",
-      "short_name": "granite-4.0-h-micro"
-    },
-    {
-      "full_name": "kilo/inception/mercury",
-      "provider": "inception",
-      "model": "mercury",
-      "short_name": "mercury"
-    },
-    {
-      "full_name": "kilo/inception/mercury-coder",
-      "provider": "inception",
-      "model": "mercury-coder",
-      "short_name": "mercury-coder"
-    },
-    {
-      "full_name": "kilo/inflection/inflection-3-pi",
-      "provider": "inflection",
-      "model": "inflection-3-pi",
-      "short_name": "inflection-3-pi"
-    },
-    {
-      "full_name": "kilo/inflection/inflection-3-productivity",
-      "provider": "inflection",
-      "model": "inflection-3-productivity",
-      "short_name": "inflection-3-productivity"
-    },
-    {
-      "full_name": "kilo/kilo/auto",
-      "provider": "kilo",
-      "model": "auto",
-      "short_name": "auto"
-    },
-    {
-      "full_name": "kilo/kilo/auto-free",
-      "provider": "kilo",
-      "model": "auto-free",
-      "short_name": "auto-free"
-    },
-    {
-      "full_name": "kilo/kilo/auto-small",
-      "provider": "kilo",
-      "model": "auto-small",
-      "short_name": "auto-small"
-    },
-    {
-      "full_name": "kilo/kwaipilot/kat-coder-pro",
-      "provider": "kwaipilot",
-      "model": "kat-coder-pro",
-      "short_name": "kat-coder-pro"
-    },
-    {
-      "full_name": "kilo/liquid/lfm-2-24b-a2b",
-      "provider": "liquid",
-      "model": "lfm-2-24b-a2b",
-      "short_name": "lfm-2-24b-a2b"
-    },
-    {
-      "full_name": "kilo/liquid/lfm-2.2-6b",
-      "provider": "liquid",
-      "model": "lfm-2.2-6b",
-      "short_name": "lfm-2.2-6b"
-    },
-    {
-      "full_name": "kilo/liquid/lfm2-8b-a1b",
-      "provider": "liquid",
-      "model": "lfm2-8b-a1b",
-      "short_name": "lfm2-8b-a1b"
-    },
-    {
-      "full_name": "kilo/mancer/weaver",
-      "provider": "mancer",
-      "model": "weaver",
-      "short_name": "weaver"
-    },
-    {
-      "full_name": "kilo/meituan/longcat-flash-chat",
-      "provider": "meituan",
-      "model": "longcat-flash-chat",
-      "short_name": "longcat-flash-chat"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3-70b-instruct",
-      "provider": "meta-llama",
-      "model": "llama-3-70b-instruct",
-      "short_name": "llama-3-70b-instruct"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3-8b-instruct",
-      "provider": "meta-llama",
-      "model": "llama-3-8b-instruct",
-      "short_name": "llama-3-8b-instruct"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3.1-405b",
-      "provider": "meta-llama",
-      "model": "llama-3.1-405b",
-      "short_name": "llama-3.1-405b"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3.1-405b-instruct",
-      "provider": "meta-llama",
-      "model": "llama-3.1-405b-instruct",
-      "short_name": "llama-3.1-405b-instruct"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3.1-70b-instruct",
-      "provider": "meta-llama",
-      "model": "llama-3.1-70b-instruct",
-      "short_name": "llama-3.1-70b-instruct"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3.1-8b-instruct",
-      "provider": "meta-llama",
-      "model": "llama-3.1-8b-instruct",
-      "short_name": "llama-3.1-8b-instruct"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3.2-11b-vision-instruct",
-      "provider": "meta-llama",
-      "model": "llama-3.2-11b-vision-instruct",
-      "short_name": "llama-3.2-11b-vision-instruct"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3.2-1b-instruct",
-      "provider": "meta-llama",
-      "model": "llama-3.2-1b-instruct",
-      "short_name": "llama-3.2-1b-instruct"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3.2-3b-instruct",
-      "provider": "meta-llama",
-      "model": "llama-3.2-3b-instruct",
-      "short_name": "llama-3.2-3b-instruct"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-3.3-70b-instruct",
-      "provider": "meta-llama",
-      "model": "llama-3.3-70b-instruct",
-      "short_name": "llama-3.3-70b-instruct"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-4-maverick",
-      "provider": "meta-llama",
-      "model": "llama-4-maverick",
-      "short_name": "llama-4-maverick"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-4-scout",
-      "provider": "meta-llama",
-      "model": "llama-4-scout",
-      "short_name": "llama-4-scout"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-guard-2-8b",
-      "provider": "meta-llama",
-      "model": "llama-guard-2-8b",
-      "short_name": "llama-guard-2-8b"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-guard-3-8b",
-      "provider": "meta-llama",
-      "model": "llama-guard-3-8b",
-      "short_name": "llama-guard-3-8b"
-    },
-    {
-      "full_name": "kilo/meta-llama/llama-guard-4-12b",
-      "provider": "meta-llama",
-      "model": "llama-guard-4-12b",
-      "short_name": "llama-guard-4-12b"
-    },
-    {
-      "full_name": "kilo/microsoft/phi-4",
-      "provider": "microsoft",
-      "model": "phi-4",
-      "short_name": "phi-4"
-    },
-    {
-      "full_name": "kilo/microsoft/wizardlm-2-8x22b",
-      "provider": "microsoft",
-      "model": "wizardlm-2-8x22b",
-      "short_name": "wizardlm-2-8x22b"
-    },
-    {
-      "full_name": "kilo/minimax/minimax-01",
-      "provider": "minimax",
-      "model": "minimax-01",
-      "short_name": "minimax-01"
-    },
-    {
-      "full_name": "kilo/minimax/minimax-m1",
-      "provider": "minimax",
-      "model": "minimax-m1",
-      "short_name": "minimax-m1"
-    },
-    {
-      "full_name": "kilo/minimax/minimax-m2",
-      "provider": "minimax",
-      "model": "minimax-m2",
-      "short_name": "minimax-m2"
-    },
-    {
-      "full_name": "kilo/minimax/minimax-m2-her",
-      "provider": "minimax",
-      "model": "minimax-m2-her",
-      "short_name": "minimax-m2-her"
-    },
-    {
-      "full_name": "kilo/minimax/minimax-m2.1",
-      "provider": "minimax",
-      "model": "minimax-m2.1",
-      "short_name": "minimax-m2.1"
-    },
-    {
-      "full_name": "kilo/minimax/minimax-m2.5",
-      "provider": "minimax",
-      "model": "minimax-m2.5",
-      "short_name": "minimax-m2.5"
-    },
-    {
-      "full_name": "kilo/minimax/minimax-m2.5:free",
-      "provider": "minimax",
-      "model": "minimax-m2.5:free",
-      "short_name": "minimax-m2.5"
-    },
-    {
-      "full_name": "kilo/mistralai/codestral-2508",
-      "provider": "mistralai",
-      "model": "codestral-2508",
-      "short_name": "codestral-2508"
-    },
-    {
-      "full_name": "kilo/mistralai/devstral-2512",
-      "provider": "mistralai",
-      "model": "devstral-2512",
-      "short_name": "devstral-2512"
-    },
-    {
-      "full_name": "kilo/mistralai/devstral-medium",
-      "provider": "mistralai",
-      "model": "devstral-medium",
-      "short_name": "devstral-medium"
-    },
-    {
-      "full_name": "kilo/mistralai/devstral-small",
-      "provider": "mistralai",
-      "model": "devstral-small",
-      "short_name": "devstral-small"
-    },
-    {
-      "full_name": "kilo/mistralai/ministral-14b-2512",
-      "provider": "mistralai",
-      "model": "ministral-14b-2512",
-      "short_name": "ministral-14b-2512"
-    },
-    {
-      "full_name": "kilo/mistralai/ministral-3b-2512",
-      "provider": "mistralai",
-      "model": "ministral-3b-2512",
-      "short_name": "ministral-3b-2512"
-    },
-    {
-      "full_name": "kilo/mistralai/ministral-8b-2512",
-      "provider": "mistralai",
-      "model": "ministral-8b-2512",
-      "short_name": "ministral-8b-2512"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-7b-instruct",
-      "provider": "mistralai",
-      "model": "mistral-7b-instruct",
-      "short_name": "mistral-7b-instruct"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-7b-instruct-v0.1",
-      "provider": "mistralai",
-      "model": "mistral-7b-instruct-v0.1",
-      "short_name": "mistral-7b-instruct-v0.1"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-7b-instruct-v0.3",
-      "provider": "mistralai",
-      "model": "mistral-7b-instruct-v0.3",
-      "short_name": "mistral-7b-instruct-v0.3"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-large",
-      "provider": "mistralai",
-      "model": "mistral-large",
-      "short_name": "mistral-large"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-large-2407",
-      "provider": "mistralai",
-      "model": "mistral-large-2407",
-      "short_name": "mistral-large-2407"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-large-2411",
-      "provider": "mistralai",
-      "model": "mistral-large-2411",
-      "short_name": "mistral-large-2411"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-large-2512",
-      "provider": "mistralai",
-      "model": "mistral-large-2512",
-      "short_name": "mistral-large-2512"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-medium-3",
-      "provider": "mistralai",
-      "model": "mistral-medium-3",
-      "short_name": "mistral-medium-3"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-medium-3.1",
-      "provider": "mistralai",
-      "model": "mistral-medium-3.1",
-      "short_name": "mistral-medium-3.1"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-nemo",
-      "provider": "mistralai",
-      "model": "mistral-nemo",
-      "short_name": "mistral-nemo"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-saba",
-      "provider": "mistralai",
-      "model": "mistral-saba",
-      "short_name": "mistral-saba"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-small-24b-instruct-2501",
-      "provider": "mistralai",
-      "model": "mistral-small-24b-instruct-2501",
-      "short_name": "mistral-small-24b-instruct-2501"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-small-3.1-24b-instruct",
-      "provider": "mistralai",
-      "model": "mistral-small-3.1-24b-instruct",
-      "short_name": "mistral-small-3.1-24b-instruct"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-small-3.2-24b-instruct",
-      "provider": "mistralai",
-      "model": "mistral-small-3.2-24b-instruct",
-      "short_name": "mistral-small-3.2-24b-instruct"
-    },
-    {
-      "full_name": "kilo/mistralai/mistral-small-creative",
-      "provider": "mistralai",
-      "model": "mistral-small-creative",
-      "short_name": "mistral-small-creative"
-    },
-    {
-      "full_name": "kilo/mistralai/mixtral-8x22b-instruct",
-      "provider": "mistralai",
-      "model": "mixtral-8x22b-instruct",
-      "short_name": "mixtral-8x22b-instruct"
-    },
-    {
-      "full_name": "kilo/mistralai/mixtral-8x7b-instruct",
-      "provider": "mistralai",
-      "model": "mixtral-8x7b-instruct",
-      "short_name": "mixtral-8x7b-instruct"
-    },
-    {
-      "full_name": "kilo/mistralai/pixtral-large-2411",
-      "provider": "mistralai",
-      "model": "pixtral-large-2411",
-      "short_name": "pixtral-large-2411"
-    },
-    {
-      "full_name": "kilo/mistralai/voxtral-small-24b-2507",
-      "provider": "mistralai",
-      "model": "voxtral-small-24b-2507",
-      "short_name": "voxtral-small-24b-2507"
-    },
-    {
-      "full_name": "kilo/moonshotai/kimi-k2",
-      "provider": "moonshotai",
-      "model": "kimi-k2",
-      "short_name": "kimi-k2"
-    },
-    {
-      "full_name": "kilo/moonshotai/kimi-k2-0905",
-      "provider": "moonshotai",
-      "model": "kimi-k2-0905",
-      "short_name": "kimi-k2-0905"
-    },
-    {
-      "full_name": "kilo/moonshotai/kimi-k2-0905:exacto",
-      "provider": "moonshotai",
-      "model": "kimi-k2-0905:exacto",
-      "short_name": "kimi-k2-0905"
-    },
-    {
-      "full_name": "kilo/moonshotai/kimi-k2-thinking",
-      "provider": "moonshotai",
-      "model": "kimi-k2-thinking",
-      "short_name": "kimi-k2-thinking"
-    },
-    {
-      "full_name": "kilo/moonshotai/kimi-k2.5",
-      "provider": "moonshotai",
-      "model": "kimi-k2.5",
-      "short_name": "kimi-k2.5"
-    },
-    {
-      "full_name": "kilo/moonshotai/kimi-k2.5:free",
-      "provider": "moonshotai",
-      "model": "kimi-k2.5:free",
-      "short_name": "kimi-k2.5"
-    },
-    {
-      "full_name": "kilo/morph/morph-v3-fast",
-      "provider": "morph",
-      "model": "morph-v3-fast",
-      "short_name": "morph-v3-fast"
-    },
-    {
-      "full_name": "kilo/morph/morph-v3-large",
-      "provider": "morph",
-      "model": "morph-v3-large",
-      "short_name": "morph-v3-large"
-    },
-    {
-      "full_name": "kilo/neversleep/llama-3.1-lumimaid-8b",
-      "provider": "neversleep",
-      "model": "llama-3.1-lumimaid-8b",
-      "short_name": "llama-3.1-lumimaid-8b"
-    },
-    {
-      "full_name": "kilo/neversleep/noromaid-20b",
-      "provider": "neversleep",
-      "model": "noromaid-20b",
-      "short_name": "noromaid-20b"
-    },
-    {
-      "full_name": "kilo/nex-agi/deepseek-v3.1-nex-n1",
-      "provider": "nex-agi",
-      "model": "deepseek-v3.1-nex-n1",
-      "short_name": "deepseek-v3.1-nex-n1"
-    },
-    {
-      "full_name": "kilo/nousresearch/hermes-2-pro-llama-3-8b",
-      "provider": "nousresearch",
-      "model": "hermes-2-pro-llama-3-8b",
-      "short_name": "hermes-2-pro-llama-3-8b"
-    },
-    {
-      "full_name": "kilo/nousresearch/hermes-3-llama-3.1-405b",
-      "provider": "nousresearch",
-      "model": "hermes-3-llama-3.1-405b",
-      "short_name": "hermes-3-llama-3.1-405b"
-    },
-    {
-      "full_name": "kilo/nousresearch/hermes-3-llama-3.1-70b",
-      "provider": "nousresearch",
-      "model": "hermes-3-llama-3.1-70b",
-      "short_name": "hermes-3-llama-3.1-70b"
-    },
-    {
-      "full_name": "kilo/nousresearch/hermes-4-405b",
-      "provider": "nousresearch",
-      "model": "hermes-4-405b",
-      "short_name": "hermes-4-405b"
-    },
-    {
-      "full_name": "kilo/nousresearch/hermes-4-70b",
-      "provider": "nousresearch",
-      "model": "hermes-4-70b",
-      "short_name": "hermes-4-70b"
-    },
-    {
-      "full_name": "kilo/nvidia/llama-3.1-nemotron-70b-instruct",
-      "provider": "nvidia",
-      "model": "llama-3.1-nemotron-70b-instruct",
-      "short_name": "llama-3.1-nemotron-70b-instruct"
-    },
-    {
-      "full_name": "kilo/nvidia/llama-3.3-nemotron-super-49b-v1.5",
-      "provider": "nvidia",
-      "model": "llama-3.3-nemotron-super-49b-v1.5",
-      "short_name": "llama-3.3-nemotron-super-49b-v1.5"
-    },
-    {
-      "full_name": "kilo/nvidia/nemotron-3-nano-30b-a3b",
-      "provider": "nvidia",
-      "model": "nemotron-3-nano-30b-a3b",
-      "short_name": "nemotron-3-nano-30b-a3b"
-    },
-    {
-      "full_name": "kilo/nvidia/nemotron-nano-12b-v2-vl",
-      "provider": "nvidia",
-      "model": "nemotron-nano-12b-v2-vl",
-      "short_name": "nemotron-nano-12b-v2-vl"
-    },
-    {
-      "full_name": "kilo/nvidia/nemotron-nano-9b-v2",
-      "provider": "nvidia",
-      "model": "nemotron-nano-9b-v2",
-      "short_name": "nemotron-nano-9b-v2"
-    },
-    {
-      "full_name": "kilo/openai/gpt-3.5-turbo",
-      "provider": "openai",
-      "model": "gpt-3.5-turbo",
-      "short_name": "gpt-3.5-turbo"
-    },
-    {
-      "full_name": "kilo/openai/gpt-3.5-turbo-0613",
-      "provider": "openai",
-      "model": "gpt-3.5-turbo-0613",
-      "short_name": "gpt-3.5-turbo-0613"
-    },
-    {
-      "full_name": "kilo/openai/gpt-3.5-turbo-16k",
-      "provider": "openai",
-      "model": "gpt-3.5-turbo-16k",
-      "short_name": "gpt-3.5-turbo-16k"
-    },
-    {
-      "full_name": "kilo/openai/gpt-3.5-turbo-instruct",
-      "provider": "openai",
-      "model": "gpt-3.5-turbo-instruct",
-      "short_name": "gpt-3.5-turbo-instruct"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4",
-      "provider": "openai",
-      "model": "gpt-4",
-      "short_name": "gpt-4"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4-0314",
-      "provider": "openai",
-      "model": "gpt-4-0314",
-      "short_name": "gpt-4-0314"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4-1106-preview",
-      "provider": "openai",
-      "model": "gpt-4-1106-preview",
-      "short_name": "gpt-4-1106-preview"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4-turbo",
-      "provider": "openai",
-      "model": "gpt-4-turbo",
-      "short_name": "gpt-4-turbo"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4-turbo-preview",
-      "provider": "openai",
-      "model": "gpt-4-turbo-preview",
-      "short_name": "gpt-4-turbo-preview"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4.1",
-      "provider": "openai",
-      "model": "gpt-4.1",
-      "short_name": "gpt-4.1"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4.1-mini",
-      "provider": "openai",
-      "model": "gpt-4.1-mini",
-      "short_name": "gpt-4.1-mini"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4.1-nano",
-      "provider": "openai",
-      "model": "gpt-4.1-nano",
-      "short_name": "gpt-4.1-nano"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o",
-      "provider": "openai",
-      "model": "gpt-4o",
-      "short_name": "gpt-4o"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o-2024-05-13",
-      "provider": "openai",
-      "model": "gpt-4o-2024-05-13",
-      "short_name": "gpt-4o-2024-05-13"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o-2024-08-06",
-      "provider": "openai",
-      "model": "gpt-4o-2024-08-06",
-      "short_name": "gpt-4o-2024-08-06"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o-2024-11-20",
-      "provider": "openai",
-      "model": "gpt-4o-2024-11-20",
-      "short_name": "gpt-4o-2024-11-20"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o-audio-preview",
-      "provider": "openai",
-      "model": "gpt-4o-audio-preview",
-      "short_name": "gpt-4o-audio-preview"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o-mini",
-      "provider": "openai",
-      "model": "gpt-4o-mini",
-      "short_name": "gpt-4o-mini"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o-mini-2024-07-18",
-      "provider": "openai",
-      "model": "gpt-4o-mini-2024-07-18",
-      "short_name": "gpt-4o-mini-2024-07-18"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o-mini-search-preview",
-      "provider": "openai",
-      "model": "gpt-4o-mini-search-preview",
-      "short_name": "gpt-4o-mini-search-preview"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o-search-preview",
-      "provider": "openai",
-      "model": "gpt-4o-search-preview",
-      "short_name": "gpt-4o-search-preview"
-    },
-    {
-      "full_name": "kilo/openai/gpt-4o:extended",
-      "provider": "openai",
-      "model": "gpt-4o:extended",
-      "short_name": "gpt-4o"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5",
-      "provider": "openai",
-      "model": "gpt-5",
-      "short_name": "gpt-5"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5-chat",
-      "provider": "openai",
-      "model": "gpt-5-chat",
-      "short_name": "gpt-5-chat"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5-codex",
-      "provider": "openai",
-      "model": "gpt-5-codex",
-      "short_name": "gpt-5-codex"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5-mini",
-      "provider": "openai",
-      "model": "gpt-5-mini",
-      "short_name": "gpt-5-mini"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5-nano",
-      "provider": "openai",
-      "model": "gpt-5-nano",
-      "short_name": "gpt-5-nano"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5-pro",
-      "provider": "openai",
-      "model": "gpt-5-pro",
-      "short_name": "gpt-5-pro"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.1",
-      "provider": "openai",
-      "model": "gpt-5.1",
-      "short_name": "gpt-5.1"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.1-chat",
-      "provider": "openai",
-      "model": "gpt-5.1-chat",
-      "short_name": "gpt-5.1-chat"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.1-codex",
-      "provider": "openai",
-      "model": "gpt-5.1-codex",
-      "short_name": "gpt-5.1-codex"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.1-codex-max",
-      "provider": "openai",
-      "model": "gpt-5.1-codex-max",
-      "short_name": "gpt-5.1-codex-max"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.1-codex-mini",
-      "provider": "openai",
-      "model": "gpt-5.1-codex-mini",
-      "short_name": "gpt-5.1-codex-mini"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.2",
-      "provider": "openai",
-      "model": "gpt-5.2",
-      "short_name": "gpt-5.2"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.2-chat",
-      "provider": "openai",
-      "model": "gpt-5.2-chat",
-      "short_name": "gpt-5.2-chat"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.2-codex",
-      "provider": "openai",
-      "model": "gpt-5.2-codex",
-      "short_name": "gpt-5.2-codex"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.2-pro",
-      "provider": "openai",
-      "model": "gpt-5.2-pro",
-      "short_name": "gpt-5.2-pro"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.3-chat",
-      "provider": "openai",
-      "model": "gpt-5.3-chat",
-      "short_name": "gpt-5.3-chat"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.3-codex",
-      "provider": "openai",
-      "model": "gpt-5.3-codex",
-      "short_name": "gpt-5.3-codex"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.4",
-      "provider": "openai",
-      "model": "gpt-5.4",
-      "short_name": "gpt-5.4"
-    },
-    {
-      "full_name": "kilo/openai/gpt-5.4-pro",
-      "provider": "openai",
-      "model": "gpt-5.4-pro",
-      "short_name": "gpt-5.4-pro"
-    },
-    {
-      "full_name": "kilo/openai/gpt-audio",
-      "provider": "openai",
-      "model": "gpt-audio",
-      "short_name": "gpt-audio"
-    },
-    {
-      "full_name": "kilo/openai/gpt-audio-mini",
-      "provider": "openai",
-      "model": "gpt-audio-mini",
-      "short_name": "gpt-audio-mini"
-    },
-    {
-      "full_name": "kilo/openai/gpt-oss-120b",
-      "provider": "openai",
-      "model": "gpt-oss-120b",
-      "short_name": "gpt-oss-120b"
-    },
-    {
-      "full_name": "kilo/openai/gpt-oss-120b:exacto",
-      "provider": "openai",
-      "model": "gpt-oss-120b:exacto",
-      "short_name": "gpt-oss-120b"
-    },
-    {
-      "full_name": "kilo/openai/gpt-oss-20b",
-      "provider": "openai",
-      "model": "gpt-oss-20b",
-      "short_name": "gpt-oss-20b"
-    },
-    {
-      "full_name": "kilo/openai/gpt-oss-safeguard-20b",
-      "provider": "openai",
-      "model": "gpt-oss-safeguard-20b",
-      "short_name": "gpt-oss-safeguard-20b"
-    },
-    {
-      "full_name": "kilo/openai/o1",
-      "provider": "openai",
-      "model": "o1",
-      "short_name": "o1"
-    },
-    {
-      "full_name": "kilo/openai/o1-pro",
-      "provider": "openai",
-      "model": "o1-pro",
-      "short_name": "o1-pro"
-    },
-    {
-      "full_name": "kilo/openai/o3",
-      "provider": "openai",
-      "model": "o3",
-      "short_name": "o3"
-    },
-    {
-      "full_name": "kilo/openai/o3-deep-research",
-      "provider": "openai",
-      "model": "o3-deep-research",
-      "short_name": "o3-deep-research"
-    },
-    {
-      "full_name": "kilo/openai/o3-mini",
-      "provider": "openai",
-      "model": "o3-mini",
-      "short_name": "o3-mini"
-    },
-    {
-      "full_name": "kilo/openai/o3-mini-high",
-      "provider": "openai",
-      "model": "o3-mini-high",
-      "short_name": "o3-mini-high"
-    },
-    {
-      "full_name": "kilo/openai/o3-pro",
-      "provider": "openai",
-      "model": "o3-pro",
-      "short_name": "o3-pro"
-    },
-    {
-      "full_name": "kilo/openai/o4-mini",
-      "provider": "openai",
-      "model": "o4-mini",
-      "short_name": "o4-mini"
-    },
-    {
-      "full_name": "kilo/openai/o4-mini-deep-research",
-      "provider": "openai",
-      "model": "o4-mini-deep-research",
-      "short_name": "o4-mini-deep-research"
-    },
-    {
-      "full_name": "kilo/openai/o4-mini-high",
-      "provider": "openai",
-      "model": "o4-mini-high",
-      "short_name": "o4-mini-high"
-    },
-    {
-      "full_name": "kilo/opengvlab/internvl3-78b",
-      "provider": "opengvlab",
-      "model": "internvl3-78b",
-      "short_name": "internvl3-78b"
-    },
-    {
-      "full_name": "kilo/openrouter/bodybuilder",
-      "provider": "openrouter",
-      "model": "bodybuilder",
-      "short_name": "bodybuilder"
-    },
-    {
-      "full_name": "kilo/openrouter/free",
-      "provider": "openrouter",
-      "model": "free",
-      "short_name": "free"
-    },
-    {
-      "full_name": "kilo/perplexity/sonar",
-      "provider": "perplexity",
-      "model": "sonar",
-      "short_name": "sonar"
-    },
-    {
-      "full_name": "kilo/perplexity/sonar-deep-research",
-      "provider": "perplexity",
-      "model": "sonar-deep-research",
-      "short_name": "sonar-deep-research"
-    },
-    {
-      "full_name": "kilo/perplexity/sonar-pro",
-      "provider": "perplexity",
-      "model": "sonar-pro",
-      "short_name": "sonar-pro"
-    },
-    {
-      "full_name": "kilo/perplexity/sonar-pro-search",
-      "provider": "perplexity",
-      "model": "sonar-pro-search",
-      "short_name": "sonar-pro-search"
-    },
-    {
-      "full_name": "kilo/perplexity/sonar-reasoning-pro",
-      "provider": "perplexity",
-      "model": "sonar-reasoning-pro",
-      "short_name": "sonar-reasoning-pro"
-    },
-    {
-      "full_name": "kilo/prime-intellect/intellect-3",
-      "provider": "prime-intellect",
-      "model": "intellect-3",
-      "short_name": "intellect-3"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-2.5-72b-instruct",
-      "provider": "qwen",
-      "model": "qwen-2.5-72b-instruct",
-      "short_name": "qwen-2.5-72b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-2.5-7b-instruct",
-      "provider": "qwen",
-      "model": "qwen-2.5-7b-instruct",
-      "short_name": "qwen-2.5-7b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-2.5-coder-32b-instruct",
-      "provider": "qwen",
-      "model": "qwen-2.5-coder-32b-instruct",
-      "short_name": "qwen-2.5-coder-32b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-2.5-vl-7b-instruct",
-      "provider": "qwen",
-      "model": "qwen-2.5-vl-7b-instruct",
-      "short_name": "qwen-2.5-vl-7b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-max",
-      "provider": "qwen",
-      "model": "qwen-max",
-      "short_name": "qwen-max"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-plus",
-      "provider": "qwen",
-      "model": "qwen-plus",
-      "short_name": "qwen-plus"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-plus-2025-07-28",
-      "provider": "qwen",
-      "model": "qwen-plus-2025-07-28",
-      "short_name": "qwen-plus-2025-07-28"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-plus-2025-07-28:thinking",
-      "provider": "qwen",
-      "model": "qwen-plus-2025-07-28:thinking",
-      "short_name": "qwen-plus-2025-07-28"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-turbo",
-      "provider": "qwen",
-      "model": "qwen-turbo",
-      "short_name": "qwen-turbo"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-vl-max",
-      "provider": "qwen",
-      "model": "qwen-vl-max",
-      "short_name": "qwen-vl-max"
-    },
-    {
-      "full_name": "kilo/qwen/qwen-vl-plus",
-      "provider": "qwen",
-      "model": "qwen-vl-plus",
-      "short_name": "qwen-vl-plus"
-    },
-    {
-      "full_name": "kilo/qwen/qwen2.5-coder-7b-instruct",
-      "provider": "qwen",
-      "model": "qwen2.5-coder-7b-instruct",
-      "short_name": "qwen2.5-coder-7b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen2.5-vl-32b-instruct",
-      "provider": "qwen",
-      "model": "qwen2.5-vl-32b-instruct",
-      "short_name": "qwen2.5-vl-32b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen2.5-vl-72b-instruct",
-      "provider": "qwen",
-      "model": "qwen2.5-vl-72b-instruct",
-      "short_name": "qwen2.5-vl-72b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-14b",
-      "provider": "qwen",
-      "model": "qwen3-14b",
-      "short_name": "qwen3-14b"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-235b-a22b",
-      "provider": "qwen",
-      "model": "qwen3-235b-a22b",
-      "short_name": "qwen3-235b-a22b"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-235b-a22b-2507",
-      "provider": "qwen",
-      "model": "qwen3-235b-a22b-2507",
-      "short_name": "qwen3-235b-a22b-2507"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-235b-a22b-thinking-2507",
-      "provider": "qwen",
-      "model": "qwen3-235b-a22b-thinking-2507",
-      "short_name": "qwen3-235b-a22b-thinking-2507"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-30b-a3b",
-      "provider": "qwen",
-      "model": "qwen3-30b-a3b",
-      "short_name": "qwen3-30b-a3b"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-30b-a3b-instruct-2507",
-      "provider": "qwen",
-      "model": "qwen3-30b-a3b-instruct-2507",
-      "short_name": "qwen3-30b-a3b-instruct-2507"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-30b-a3b-thinking-2507",
-      "provider": "qwen",
-      "model": "qwen3-30b-a3b-thinking-2507",
-      "short_name": "qwen3-30b-a3b-thinking-2507"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-32b",
-      "provider": "qwen",
-      "model": "qwen3-32b",
-      "short_name": "qwen3-32b"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-8b",
-      "provider": "qwen",
-      "model": "qwen3-8b",
-      "short_name": "qwen3-8b"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-coder",
-      "provider": "qwen",
-      "model": "qwen3-coder",
-      "short_name": "qwen3-coder"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-coder-30b-a3b-instruct",
-      "provider": "qwen",
-      "model": "qwen3-coder-30b-a3b-instruct",
-      "short_name": "qwen3-coder-30b-a3b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-coder-flash",
-      "provider": "qwen",
-      "model": "qwen3-coder-flash",
-      "short_name": "qwen3-coder-flash"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-coder-next",
-      "provider": "qwen",
-      "model": "qwen3-coder-next",
-      "short_name": "qwen3-coder-next"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-coder-plus",
-      "provider": "qwen",
-      "model": "qwen3-coder-plus",
-      "short_name": "qwen3-coder-plus"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-coder:exacto",
-      "provider": "qwen",
-      "model": "qwen3-coder:exacto",
-      "short_name": "qwen3-coder"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-max",
-      "provider": "qwen",
-      "model": "qwen3-max",
-      "short_name": "qwen3-max"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-max-thinking",
-      "provider": "qwen",
-      "model": "qwen3-max-thinking",
-      "short_name": "qwen3-max-thinking"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-next-80b-a3b-instruct",
-      "provider": "qwen",
-      "model": "qwen3-next-80b-a3b-instruct",
-      "short_name": "qwen3-next-80b-a3b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-next-80b-a3b-thinking",
-      "provider": "qwen",
-      "model": "qwen3-next-80b-a3b-thinking",
-      "short_name": "qwen3-next-80b-a3b-thinking"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-vl-235b-a22b-instruct",
-      "provider": "qwen",
-      "model": "qwen3-vl-235b-a22b-instruct",
-      "short_name": "qwen3-vl-235b-a22b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-vl-235b-a22b-thinking",
-      "provider": "qwen",
-      "model": "qwen3-vl-235b-a22b-thinking",
-      "short_name": "qwen3-vl-235b-a22b-thinking"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-vl-30b-a3b-instruct",
-      "provider": "qwen",
-      "model": "qwen3-vl-30b-a3b-instruct",
-      "short_name": "qwen3-vl-30b-a3b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-vl-30b-a3b-thinking",
-      "provider": "qwen",
-      "model": "qwen3-vl-30b-a3b-thinking",
-      "short_name": "qwen3-vl-30b-a3b-thinking"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-vl-32b-instruct",
-      "provider": "qwen",
-      "model": "qwen3-vl-32b-instruct",
-      "short_name": "qwen3-vl-32b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-vl-8b-instruct",
-      "provider": "qwen",
-      "model": "qwen3-vl-8b-instruct",
-      "short_name": "qwen3-vl-8b-instruct"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3-vl-8b-thinking",
-      "provider": "qwen",
-      "model": "qwen3-vl-8b-thinking",
-      "short_name": "qwen3-vl-8b-thinking"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3.5-122b-a10b",
-      "provider": "qwen",
-      "model": "qwen3.5-122b-a10b",
-      "short_name": "qwen3.5-122b-a10b"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3.5-27b",
-      "provider": "qwen",
-      "model": "qwen3.5-27b",
-      "short_name": "qwen3.5-27b"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3.5-35b-a3b",
-      "provider": "qwen",
-      "model": "qwen3.5-35b-a3b",
-      "short_name": "qwen3.5-35b-a3b"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3.5-397b-a17b",
-      "provider": "qwen",
-      "model": "qwen3.5-397b-a17b",
-      "short_name": "qwen3.5-397b-a17b"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3.5-flash-02-23",
-      "provider": "qwen",
-      "model": "qwen3.5-flash-02-23",
-      "short_name": "qwen3.5-flash-02-23"
-    },
-    {
-      "full_name": "kilo/qwen/qwen3.5-plus-02-15",
-      "provider": "qwen",
-      "model": "qwen3.5-plus-02-15",
-      "short_name": "qwen3.5-plus-02-15"
-    },
-    {
-      "full_name": "kilo/qwen/qwq-32b",
-      "provider": "qwen",
-      "model": "qwq-32b",
-      "short_name": "qwq-32b"
-    },
-    {
-      "full_name": "kilo/raifle/sorcererlm-8x22b",
-      "provider": "raifle",
-      "model": "sorcererlm-8x22b",
-      "short_name": "sorcererlm-8x22b"
-    },
-    {
-      "full_name": "kilo/relace/relace-apply-3",
-      "provider": "relace",
-      "model": "relace-apply-3",
-      "short_name": "relace-apply-3"
-    },
-    {
-      "full_name": "kilo/relace/relace-search",
-      "provider": "relace",
-      "model": "relace-search",
-      "short_name": "relace-search"
-    },
-    {
-      "full_name": "kilo/sao10k/l3-euryale-70b",
-      "provider": "sao10k",
-      "model": "l3-euryale-70b",
-      "short_name": "l3-euryale-70b"
-    },
-    {
-      "full_name": "kilo/sao10k/l3-lunaris-8b",
-      "provider": "sao10k",
-      "model": "l3-lunaris-8b",
-      "short_name": "l3-lunaris-8b"
-    },
-    {
-      "full_name": "kilo/sao10k/l3.1-70b-hanami-x1",
-      "provider": "sao10k",
-      "model": "l3.1-70b-hanami-x1",
-      "short_name": "l3.1-70b-hanami-x1"
-    },
-    {
-      "full_name": "kilo/sao10k/l3.1-euryale-70b",
-      "provider": "sao10k",
-      "model": "l3.1-euryale-70b",
-      "short_name": "l3.1-euryale-70b"
-    },
-    {
-      "full_name": "kilo/sao10k/l3.3-euryale-70b",
-      "provider": "sao10k",
-      "model": "l3.3-euryale-70b",
-      "short_name": "l3.3-euryale-70b"
-    },
-    {
-      "full_name": "kilo/stepfun/step-3.5-flash",
-      "provider": "stepfun",
-      "model": "step-3.5-flash",
-      "short_name": "step-3.5-flash"
-    },
-    {
-      "full_name": "kilo/stepfun/step-3.5-flash:free",
-      "provider": "stepfun",
-      "model": "step-3.5-flash:free",
-      "short_name": "step-3.5-flash"
-    },
-    {
-      "full_name": "kilo/switchpoint/router",
-      "provider": "switchpoint",
-      "model": "router",
-      "short_name": "router"
-    },
-    {
-      "full_name": "kilo/tencent/hunyuan-a13b-instruct",
-      "provider": "tencent",
-      "model": "hunyuan-a13b-instruct",
-      "short_name": "hunyuan-a13b-instruct"
-    },
-    {
-      "full_name": "kilo/thedrummer/cydonia-24b-v4.1",
-      "provider": "thedrummer",
-      "model": "cydonia-24b-v4.1",
-      "short_name": "cydonia-24b-v4.1"
-    },
-    {
-      "full_name": "kilo/thedrummer/rocinante-12b",
-      "provider": "thedrummer",
-      "model": "rocinante-12b",
-      "short_name": "rocinante-12b"
-    },
-    {
-      "full_name": "kilo/thedrummer/skyfall-36b-v2",
-      "provider": "thedrummer",
-      "model": "skyfall-36b-v2",
-      "short_name": "skyfall-36b-v2"
-    },
-    {
-      "full_name": "kilo/thedrummer/unslopnemo-12b",
-      "provider": "thedrummer",
-      "model": "unslopnemo-12b",
-      "short_name": "unslopnemo-12b"
-    },
-    {
-      "full_name": "kilo/tngtech/deepseek-r1t2-chimera",
-      "provider": "tngtech",
-      "model": "deepseek-r1t2-chimera",
-      "short_name": "deepseek-r1t2-chimera"
-    },
-    {
-      "full_name": "kilo/undi95/remm-slerp-l2-13b",
-      "provider": "undi95",
-      "model": "remm-slerp-l2-13b",
-      "short_name": "remm-slerp-l2-13b"
-    },
-    {
-      "full_name": "kilo/writer/palmyra-x5",
-      "provider": "writer",
-      "model": "palmyra-x5",
-      "short_name": "palmyra-x5"
-    },
-    {
-      "full_name": "kilo/x-ai/grok-3",
-      "provider": "x-ai",
-      "model": "grok-3",
-      "short_name": "grok-3"
-    },
-    {
-      "full_name": "kilo/x-ai/grok-3-beta",
-      "provider": "x-ai",
-      "model": "grok-3-beta",
-      "short_name": "grok-3-beta"
-    },
-    {
-      "full_name": "kilo/x-ai/grok-3-mini",
-      "provider": "x-ai",
-      "model": "grok-3-mini",
-      "short_name": "grok-3-mini"
-    },
-    {
-      "full_name": "kilo/x-ai/grok-3-mini-beta",
-      "provider": "x-ai",
-      "model": "grok-3-mini-beta",
-      "short_name": "grok-3-mini-beta"
-    },
-    {
-      "full_name": "kilo/x-ai/grok-4",
-      "provider": "x-ai",
-      "model": "grok-4",
-      "short_name": "grok-4"
-    },
-    {
-      "full_name": "kilo/x-ai/grok-4-fast",
-      "provider": "x-ai",
-      "model": "grok-4-fast",
-      "short_name": "grok-4-fast"
-    },
-    {
-      "full_name": "kilo/x-ai/grok-4.1-fast",
-      "provider": "x-ai",
-      "model": "grok-4.1-fast",
-      "short_name": "grok-4.1-fast"
-    },
-    {
-      "full_name": "kilo/x-ai/grok-code-fast-1",
-      "provider": "x-ai",
-      "model": "grok-code-fast-1",
-      "short_name": "grok-code-fast-1"
-    },
-    {
-      "full_name": "kilo/xiaomi/mimo-v2-flash",
-      "provider": "xiaomi",
-      "model": "mimo-v2-flash",
-      "short_name": "mimo-v2-flash"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-4-32b",
-      "provider": "z-ai",
-      "model": "glm-4-32b",
-      "short_name": "glm-4-32b"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-4.5",
-      "provider": "z-ai",
-      "model": "glm-4.5",
-      "short_name": "glm-4.5"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-4.5-air",
-      "provider": "z-ai",
-      "model": "glm-4.5-air",
-      "short_name": "glm-4.5-air"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-4.5v",
-      "provider": "z-ai",
-      "model": "glm-4.5v",
-      "short_name": "glm-4.5v"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-4.6",
-      "provider": "z-ai",
-      "model": "glm-4.6",
-      "short_name": "glm-4.6"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-4.6:exacto",
-      "provider": "z-ai",
-      "model": "glm-4.6:exacto",
-      "short_name": "glm-4.6"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-4.6v",
-      "provider": "z-ai",
-      "model": "glm-4.6v",
-      "short_name": "glm-4.6v"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-4.7",
-      "provider": "z-ai",
-      "model": "glm-4.7",
-      "short_name": "glm-4.7"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-4.7-flash",
-      "provider": "z-ai",
-      "model": "glm-4.7-flash",
-      "short_name": "glm-4.7-flash"
-    },
-    {
-      "full_name": "kilo/z-ai/glm-5",
-      "provider": "z-ai",
-      "model": "glm-5",
-      "short_name": "glm-5"
+  "timestamp": "2026-03-09T17:57:57.586190",
+  "total_models": 328,
+  "models": {
+    "ai21/jamba-large-1.7": {
+      "id": "ai21/jamba-large-1.7",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "aion-labs/aion-1.0": {
+      "id": "aion-labs/aion-1.0",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "aion-labs/aion-1.0-mini": {
+      "id": "aion-labs/aion-1.0-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "aion-labs/aion-2.0": {
+      "id": "aion-labs/aion-2.0",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "aion-labs/aion-rp-llama-3.1-8b": {
+      "id": "aion-labs/aion-rp-llama-3.1-8b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "alfredpros/codellama-7b-instruct-solidity": {
+      "id": "alfredpros/codellama-7b-instruct-solidity",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "alibaba/tongyi-deepresearch-30b-a3b": {
+      "id": "alibaba/tongyi-deepresearch-30b-a3b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "allenai/molmo-2-8b": {
+      "id": "allenai/molmo-2-8b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "allenai/olmo-2-0325-32b-instruct": {
+      "id": "allenai/olmo-2-0325-32b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "allenai/olmo-3-32b-think": {
+      "id": "allenai/olmo-3-32b-think",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "allenai/olmo-3-7b-instruct": {
+      "id": "allenai/olmo-3-7b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "allenai/olmo-3-7b-think": {
+      "id": "allenai/olmo-3-7b-think",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "allenai/olmo-3.1-32b-instruct": {
+      "id": "allenai/olmo-3.1-32b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "allenai/olmo-3.1-32b-think": {
+      "id": "allenai/olmo-3.1-32b-think",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "alpindale/goliath-120b": {
+      "id": "alpindale/goliath-120b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "amazon/nova-2-lite-v1": {
+      "id": "amazon/nova-2-lite-v1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "amazon/nova-lite-v1": {
+      "id": "amazon/nova-lite-v1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "amazon/nova-micro-v1": {
+      "id": "amazon/nova-micro-v1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "amazon/nova-premier-v1": {
+      "id": "amazon/nova-premier-v1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "amazon/nova-pro-v1": {
+      "id": "amazon/nova-pro-v1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthracite-org/magnum-v4-72b": {
+      "id": "anthracite-org/magnum-v4-72b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-3-haiku": {
+      "id": "anthropic/claude-3-haiku",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-3.5-haiku": {
+      "id": "anthropic/claude-3.5-haiku",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-3.5-sonnet": {
+      "id": "anthropic/claude-3.5-sonnet",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-3.7-sonnet": {
+      "id": "anthropic/claude-3.7-sonnet",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-3.7-sonnet:thinking": {
+      "id": "anthropic/claude-3.7-sonnet:thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-haiku-4.5": {
+      "id": "anthropic/claude-haiku-4.5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-opus-4": {
+      "id": "anthropic/claude-opus-4",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-opus-4.1": {
+      "id": "anthropic/claude-opus-4.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-opus-4.5": {
+      "id": "anthropic/claude-opus-4.5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-opus-4.6": {
+      "id": "anthropic/claude-opus-4.6",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-sonnet-4": {
+      "id": "anthropic/claude-sonnet-4",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-sonnet-4.5": {
+      "id": "anthropic/claude-sonnet-4.5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-sonnet-4.6": {
+      "id": "anthropic/claude-sonnet-4.6",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "arcee-ai/coder-large": {
+      "id": "arcee-ai/coder-large",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "arcee-ai/maestro-reasoning": {
+      "id": "arcee-ai/maestro-reasoning",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "arcee-ai/spotlight": {
+      "id": "arcee-ai/spotlight",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "arcee-ai/trinity-large-preview:free": {
+      "id": "arcee-ai/trinity-large-preview:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "arcee-ai/trinity-mini": {
+      "id": "arcee-ai/trinity-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "arcee-ai/virtuoso-large": {
+      "id": "arcee-ai/virtuoso-large",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "baidu/ernie-4.5-21b-a3b": {
+      "id": "baidu/ernie-4.5-21b-a3b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "baidu/ernie-4.5-21b-a3b-thinking": {
+      "id": "baidu/ernie-4.5-21b-a3b-thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "baidu/ernie-4.5-300b-a47b": {
+      "id": "baidu/ernie-4.5-300b-a47b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "baidu/ernie-4.5-vl-28b-a3b": {
+      "id": "baidu/ernie-4.5-vl-28b-a3b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "baidu/ernie-4.5-vl-424b-a47b": {
+      "id": "baidu/ernie-4.5-vl-424b-a47b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "bytedance-seed/seed-1.6": {
+      "id": "bytedance-seed/seed-1.6",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "bytedance-seed/seed-1.6-flash": {
+      "id": "bytedance-seed/seed-1.6-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "bytedance-seed/seed-2.0-mini": {
+      "id": "bytedance-seed/seed-2.0-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "bytedance/ui-tars-1.5-7b": {
+      "id": "bytedance/ui-tars-1.5-7b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "cohere/command-a": {
+      "id": "cohere/command-a",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "cohere/command-r-08-2024": {
+      "id": "cohere/command-r-08-2024",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "cohere/command-r-plus-08-2024": {
+      "id": "cohere/command-r-plus-08-2024",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "cohere/command-r7b-12-2024": {
+      "id": "cohere/command-r7b-12-2024",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "corethink:free": {
+      "id": "corethink:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepcogito/cogito-v2.1-671b": {
+      "id": "deepcogito/cogito-v2.1-671b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-chat": {
+      "id": "deepseek/deepseek-chat",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-chat-v3-0324": {
+      "id": "deepseek/deepseek-chat-v3-0324",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-chat-v3.1": {
+      "id": "deepseek/deepseek-chat-v3.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-r1": {
+      "id": "deepseek/deepseek-r1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-r1-0528": {
+      "id": "deepseek/deepseek-r1-0528",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-r1-distill-llama-70b": {
+      "id": "deepseek/deepseek-r1-distill-llama-70b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-r1-distill-qwen-32b": {
+      "id": "deepseek/deepseek-r1-distill-qwen-32b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-v3.1-terminus": {
+      "id": "deepseek/deepseek-v3.1-terminus",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-v3.1-terminus:exacto": {
+      "id": "deepseek/deepseek-v3.1-terminus:exacto",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-v3.2": {
+      "id": "deepseek/deepseek-v3.2",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-v3.2-exp": {
+      "id": "deepseek/deepseek-v3.2-exp",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-v3.2-speciale": {
+      "id": "deepseek/deepseek-v3.2-speciale",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "eleutherai/llemma_7b": {
+      "id": "eleutherai/llemma_7b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "essentialai/rnj-1-instruct": {
+      "id": "essentialai/rnj-1-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "giga-potato": {
+      "id": "giga-potato",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "giga-potato-thinking": {
+      "id": "giga-potato-thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-2.0-flash-001": {
+      "id": "google/gemini-2.0-flash-001",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-2.0-flash-lite-001": {
+      "id": "google/gemini-2.0-flash-lite-001",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-2.5-flash": {
+      "id": "google/gemini-2.5-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-2.5-flash-lite": {
+      "id": "google/gemini-2.5-flash-lite",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-2.5-flash-lite-preview-09-2025": {
+      "id": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-2.5-pro": {
+      "id": "google/gemini-2.5-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-2.5-pro-preview": {
+      "id": "google/gemini-2.5-pro-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-2.5-pro-preview-05-06": {
+      "id": "google/gemini-2.5-pro-preview-05-06",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-3-flash-preview": {
+      "id": "google/gemini-3-flash-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-3-pro-preview": {
+      "id": "google/gemini-3-pro-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-3.1-flash-lite-preview": {
+      "id": "google/gemini-3.1-flash-lite-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-3.1-pro-preview": {
+      "id": "google/gemini-3.1-pro-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-3.1-pro-preview-customtools": {
+      "id": "google/gemini-3.1-pro-preview-customtools",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemma-2-27b-it": {
+      "id": "google/gemma-2-27b-it",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemma-2-9b-it": {
+      "id": "google/gemma-2-9b-it",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemma-3-12b-it": {
+      "id": "google/gemma-3-12b-it",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemma-3-27b-it": {
+      "id": "google/gemma-3-27b-it",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemma-3-4b-it": {
+      "id": "google/gemma-3-4b-it",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemma-3n-e4b-it": {
+      "id": "google/gemma-3n-e4b-it",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "gryphe/mythomax-l2-13b": {
+      "id": "gryphe/mythomax-l2-13b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "ibm-granite/granite-4.0-h-micro": {
+      "id": "ibm-granite/granite-4.0-h-micro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "inception/mercury": {
+      "id": "inception/mercury",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "inception/mercury-2": {
+      "id": "inception/mercury-2",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "inception/mercury-coder": {
+      "id": "inception/mercury-coder",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "inflection/inflection-3-pi": {
+      "id": "inflection/inflection-3-pi",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "inflection/inflection-3-productivity": {
+      "id": "inflection/inflection-3-productivity",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "kilo-auto/free": {
+      "id": "kilo-auto/free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "kilo-auto/frontier": {
+      "id": "kilo-auto/frontier",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "kilo-auto/small": {
+      "id": "kilo-auto/small",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "kilo/auto": {
+      "id": "kilo/auto",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "kilo/auto-free": {
+      "id": "kilo/auto-free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "kilo/auto-small": {
+      "id": "kilo/auto-small",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "kwaipilot/kat-coder-pro": {
+      "id": "kwaipilot/kat-coder-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "liquid/lfm-2-24b-a2b": {
+      "id": "liquid/lfm-2-24b-a2b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "liquid/lfm-2.2-6b": {
+      "id": "liquid/lfm-2.2-6b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "liquid/lfm2-8b-a1b": {
+      "id": "liquid/lfm2-8b-a1b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mancer/weaver": {
+      "id": "mancer/weaver",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meituan/longcat-flash-chat": {
+      "id": "meituan/longcat-flash-chat",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3-70b-instruct": {
+      "id": "meta-llama/llama-3-70b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3-8b-instruct": {
+      "id": "meta-llama/llama-3-8b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3.1-405b": {
+      "id": "meta-llama/llama-3.1-405b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3.1-405b-instruct": {
+      "id": "meta-llama/llama-3.1-405b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3.1-70b-instruct": {
+      "id": "meta-llama/llama-3.1-70b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3.1-8b-instruct": {
+      "id": "meta-llama/llama-3.1-8b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3.2-11b-vision-instruct": {
+      "id": "meta-llama/llama-3.2-11b-vision-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3.2-1b-instruct": {
+      "id": "meta-llama/llama-3.2-1b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3.2-3b-instruct": {
+      "id": "meta-llama/llama-3.2-3b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-3.3-70b-instruct": {
+      "id": "meta-llama/llama-3.3-70b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-4-maverick": {
+      "id": "meta-llama/llama-4-maverick",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-4-scout": {
+      "id": "meta-llama/llama-4-scout",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-guard-2-8b": {
+      "id": "meta-llama/llama-guard-2-8b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-guard-3-8b": {
+      "id": "meta-llama/llama-guard-3-8b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "meta-llama/llama-guard-4-12b": {
+      "id": "meta-llama/llama-guard-4-12b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "microsoft/phi-4": {
+      "id": "microsoft/phi-4",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "microsoft/wizardlm-2-8x22b": {
+      "id": "microsoft/wizardlm-2-8x22b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "minimax/minimax-01": {
+      "id": "minimax/minimax-01",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "minimax/minimax-m1": {
+      "id": "minimax/minimax-m1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "minimax/minimax-m2": {
+      "id": "minimax/minimax-m2",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "minimax/minimax-m2-her": {
+      "id": "minimax/minimax-m2-her",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "minimax/minimax-m2.1": {
+      "id": "minimax/minimax-m2.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "minimax/minimax-m2.5": {
+      "id": "minimax/minimax-m2.5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "minimax/minimax-m2.5:free": {
+      "id": "minimax/minimax-m2.5:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/codestral-2508": {
+      "id": "mistralai/codestral-2508",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/devstral-2512": {
+      "id": "mistralai/devstral-2512",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/devstral-medium": {
+      "id": "mistralai/devstral-medium",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/devstral-small": {
+      "id": "mistralai/devstral-small",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/ministral-14b-2512": {
+      "id": "mistralai/ministral-14b-2512",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/ministral-3b-2512": {
+      "id": "mistralai/ministral-3b-2512",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/ministral-8b-2512": {
+      "id": "mistralai/ministral-8b-2512",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-7b-instruct-v0.1": {
+      "id": "mistralai/mistral-7b-instruct-v0.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-large": {
+      "id": "mistralai/mistral-large",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-large-2407": {
+      "id": "mistralai/mistral-large-2407",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-large-2411": {
+      "id": "mistralai/mistral-large-2411",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-large-2512": {
+      "id": "mistralai/mistral-large-2512",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-medium-3": {
+      "id": "mistralai/mistral-medium-3",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-medium-3.1": {
+      "id": "mistralai/mistral-medium-3.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-nemo": {
+      "id": "mistralai/mistral-nemo",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-saba": {
+      "id": "mistralai/mistral-saba",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-small-24b-instruct-2501": {
+      "id": "mistralai/mistral-small-24b-instruct-2501",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-small-3.1-24b-instruct": {
+      "id": "mistralai/mistral-small-3.1-24b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-small-3.2-24b-instruct": {
+      "id": "mistralai/mistral-small-3.2-24b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-small-creative": {
+      "id": "mistralai/mistral-small-creative",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mixtral-8x22b-instruct": {
+      "id": "mistralai/mixtral-8x22b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mixtral-8x7b-instruct": {
+      "id": "mistralai/mixtral-8x7b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/pixtral-large-2411": {
+      "id": "mistralai/pixtral-large-2411",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/voxtral-small-24b-2507": {
+      "id": "mistralai/voxtral-small-24b-2507",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "moonshotai/kimi-k2": {
+      "id": "moonshotai/kimi-k2",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "moonshotai/kimi-k2-0905": {
+      "id": "moonshotai/kimi-k2-0905",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "moonshotai/kimi-k2-0905:exacto": {
+      "id": "moonshotai/kimi-k2-0905:exacto",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "moonshotai/kimi-k2-thinking": {
+      "id": "moonshotai/kimi-k2-thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "moonshotai/kimi-k2.5": {
+      "id": "moonshotai/kimi-k2.5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "morph/morph-v3-fast": {
+      "id": "morph/morph-v3-fast",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "morph/morph-v3-large": {
+      "id": "morph/morph-v3-large",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "neversleep/llama-3.1-lumimaid-8b": {
+      "id": "neversleep/llama-3.1-lumimaid-8b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "neversleep/noromaid-20b": {
+      "id": "neversleep/noromaid-20b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nex-agi/deepseek-v3.1-nex-n1": {
+      "id": "nex-agi/deepseek-v3.1-nex-n1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nousresearch/hermes-2-pro-llama-3-8b": {
+      "id": "nousresearch/hermes-2-pro-llama-3-8b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nousresearch/hermes-3-llama-3.1-405b": {
+      "id": "nousresearch/hermes-3-llama-3.1-405b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nousresearch/hermes-3-llama-3.1-70b": {
+      "id": "nousresearch/hermes-3-llama-3.1-70b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nousresearch/hermes-4-405b": {
+      "id": "nousresearch/hermes-4-405b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nousresearch/hermes-4-70b": {
+      "id": "nousresearch/hermes-4-70b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nvidia/llama-3.1-nemotron-70b-instruct": {
+      "id": "nvidia/llama-3.1-nemotron-70b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
+      "id": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nvidia/nemotron-3-nano-30b-a3b": {
+      "id": "nvidia/nemotron-3-nano-30b-a3b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nvidia/nemotron-nano-12b-v2-vl": {
+      "id": "nvidia/nemotron-nano-12b-v2-vl",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nvidia/nemotron-nano-9b-v2": {
+      "id": "nvidia/nemotron-nano-9b-v2",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-3.5-turbo": {
+      "id": "openai/gpt-3.5-turbo",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-3.5-turbo-0613": {
+      "id": "openai/gpt-3.5-turbo-0613",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-3.5-turbo-16k": {
+      "id": "openai/gpt-3.5-turbo-16k",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-3.5-turbo-instruct": {
+      "id": "openai/gpt-3.5-turbo-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4": {
+      "id": "openai/gpt-4",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4-0314": {
+      "id": "openai/gpt-4-0314",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4-1106-preview": {
+      "id": "openai/gpt-4-1106-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4-turbo": {
+      "id": "openai/gpt-4-turbo",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4-turbo-preview": {
+      "id": "openai/gpt-4-turbo-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4.1": {
+      "id": "openai/gpt-4.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4.1-mini": {
+      "id": "openai/gpt-4.1-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4.1-nano": {
+      "id": "openai/gpt-4.1-nano",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o": {
+      "id": "openai/gpt-4o",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o-2024-05-13": {
+      "id": "openai/gpt-4o-2024-05-13",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o-2024-08-06": {
+      "id": "openai/gpt-4o-2024-08-06",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o-2024-11-20": {
+      "id": "openai/gpt-4o-2024-11-20",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o-audio-preview": {
+      "id": "openai/gpt-4o-audio-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o-mini": {
+      "id": "openai/gpt-4o-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o-mini-2024-07-18": {
+      "id": "openai/gpt-4o-mini-2024-07-18",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o-mini-search-preview": {
+      "id": "openai/gpt-4o-mini-search-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o-search-preview": {
+      "id": "openai/gpt-4o-search-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-4o:extended": {
+      "id": "openai/gpt-4o:extended",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5": {
+      "id": "openai/gpt-5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5-chat": {
+      "id": "openai/gpt-5-chat",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5-codex": {
+      "id": "openai/gpt-5-codex",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5-mini": {
+      "id": "openai/gpt-5-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5-nano": {
+      "id": "openai/gpt-5-nano",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5-pro": {
+      "id": "openai/gpt-5-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.1": {
+      "id": "openai/gpt-5.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.1-chat": {
+      "id": "openai/gpt-5.1-chat",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.1-codex": {
+      "id": "openai/gpt-5.1-codex",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.1-codex-max": {
+      "id": "openai/gpt-5.1-codex-max",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.1-codex-mini": {
+      "id": "openai/gpt-5.1-codex-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.2": {
+      "id": "openai/gpt-5.2",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.2-chat": {
+      "id": "openai/gpt-5.2-chat",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.2-codex": {
+      "id": "openai/gpt-5.2-codex",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.2-pro": {
+      "id": "openai/gpt-5.2-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.3-chat": {
+      "id": "openai/gpt-5.3-chat",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.3-codex": {
+      "id": "openai/gpt-5.3-codex",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.4": {
+      "id": "openai/gpt-5.4",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-5.4-pro": {
+      "id": "openai/gpt-5.4-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-audio": {
+      "id": "openai/gpt-audio",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-audio-mini": {
+      "id": "openai/gpt-audio-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-oss-120b": {
+      "id": "openai/gpt-oss-120b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-oss-120b:exacto": {
+      "id": "openai/gpt-oss-120b:exacto",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-oss-20b": {
+      "id": "openai/gpt-oss-20b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-oss-safeguard-20b": {
+      "id": "openai/gpt-oss-safeguard-20b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o1": {
+      "id": "openai/o1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o1-pro": {
+      "id": "openai/o1-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o3": {
+      "id": "openai/o3",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o3-deep-research": {
+      "id": "openai/o3-deep-research",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o3-mini": {
+      "id": "openai/o3-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o3-mini-high": {
+      "id": "openai/o3-mini-high",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o3-pro": {
+      "id": "openai/o3-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o4-mini": {
+      "id": "openai/o4-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o4-mini-deep-research": {
+      "id": "openai/o4-mini-deep-research",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/o4-mini-high": {
+      "id": "openai/o4-mini-high",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openrouter/bodybuilder": {
+      "id": "openrouter/bodybuilder",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openrouter/free": {
+      "id": "openrouter/free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "perplexity/sonar": {
+      "id": "perplexity/sonar",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "perplexity/sonar-deep-research": {
+      "id": "perplexity/sonar-deep-research",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "perplexity/sonar-pro": {
+      "id": "perplexity/sonar-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "perplexity/sonar-pro-search": {
+      "id": "perplexity/sonar-pro-search",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "perplexity/sonar-reasoning-pro": {
+      "id": "perplexity/sonar-reasoning-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "prime-intellect/intellect-3": {
+      "id": "prime-intellect/intellect-3",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-2.5-72b-instruct": {
+      "id": "qwen/qwen-2.5-72b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-2.5-7b-instruct": {
+      "id": "qwen/qwen-2.5-7b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-2.5-coder-32b-instruct": {
+      "id": "qwen/qwen-2.5-coder-32b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-2.5-vl-7b-instruct": {
+      "id": "qwen/qwen-2.5-vl-7b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-max": {
+      "id": "qwen/qwen-max",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-plus": {
+      "id": "qwen/qwen-plus",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-plus-2025-07-28": {
+      "id": "qwen/qwen-plus-2025-07-28",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-plus-2025-07-28:thinking": {
+      "id": "qwen/qwen-plus-2025-07-28:thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-turbo": {
+      "id": "qwen/qwen-turbo",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-vl-max": {
+      "id": "qwen/qwen-vl-max",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen-vl-plus": {
+      "id": "qwen/qwen-vl-plus",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen2.5-coder-7b-instruct": {
+      "id": "qwen/qwen2.5-coder-7b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen2.5-vl-32b-instruct": {
+      "id": "qwen/qwen2.5-vl-32b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen2.5-vl-72b-instruct": {
+      "id": "qwen/qwen2.5-vl-72b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-14b": {
+      "id": "qwen/qwen3-14b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-235b-a22b": {
+      "id": "qwen/qwen3-235b-a22b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-235b-a22b-2507": {
+      "id": "qwen/qwen3-235b-a22b-2507",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-235b-a22b-thinking-2507": {
+      "id": "qwen/qwen3-235b-a22b-thinking-2507",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-30b-a3b": {
+      "id": "qwen/qwen3-30b-a3b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-30b-a3b-instruct-2507": {
+      "id": "qwen/qwen3-30b-a3b-instruct-2507",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-30b-a3b-thinking-2507": {
+      "id": "qwen/qwen3-30b-a3b-thinking-2507",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-32b": {
+      "id": "qwen/qwen3-32b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-8b": {
+      "id": "qwen/qwen3-8b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-coder": {
+      "id": "qwen/qwen3-coder",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-coder-30b-a3b-instruct": {
+      "id": "qwen/qwen3-coder-30b-a3b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-coder-flash": {
+      "id": "qwen/qwen3-coder-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-coder-next": {
+      "id": "qwen/qwen3-coder-next",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-coder-plus": {
+      "id": "qwen/qwen3-coder-plus",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-coder:exacto": {
+      "id": "qwen/qwen3-coder:exacto",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-max": {
+      "id": "qwen/qwen3-max",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-max-thinking": {
+      "id": "qwen/qwen3-max-thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-next-80b-a3b-instruct": {
+      "id": "qwen/qwen3-next-80b-a3b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-next-80b-a3b-thinking": {
+      "id": "qwen/qwen3-next-80b-a3b-thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-vl-235b-a22b-instruct": {
+      "id": "qwen/qwen3-vl-235b-a22b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-vl-235b-a22b-thinking": {
+      "id": "qwen/qwen3-vl-235b-a22b-thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-vl-30b-a3b-instruct": {
+      "id": "qwen/qwen3-vl-30b-a3b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-vl-30b-a3b-thinking": {
+      "id": "qwen/qwen3-vl-30b-a3b-thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-vl-32b-instruct": {
+      "id": "qwen/qwen3-vl-32b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-vl-8b-instruct": {
+      "id": "qwen/qwen3-vl-8b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3-vl-8b-thinking": {
+      "id": "qwen/qwen3-vl-8b-thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3.5-122b-a10b": {
+      "id": "qwen/qwen3.5-122b-a10b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3.5-27b": {
+      "id": "qwen/qwen3.5-27b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3.5-35b-a3b": {
+      "id": "qwen/qwen3.5-35b-a3b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3.5-397b-a17b": {
+      "id": "qwen/qwen3.5-397b-a17b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3.5-flash-02-23": {
+      "id": "qwen/qwen3.5-flash-02-23",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3.5-plus-02-15": {
+      "id": "qwen/qwen3.5-plus-02-15",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwq-32b": {
+      "id": "qwen/qwq-32b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "raifle/sorcererlm-8x22b": {
+      "id": "raifle/sorcererlm-8x22b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "relace/relace-apply-3": {
+      "id": "relace/relace-apply-3",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "relace/relace-search": {
+      "id": "relace/relace-search",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "sao10k/l3-euryale-70b": {
+      "id": "sao10k/l3-euryale-70b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "sao10k/l3-lunaris-8b": {
+      "id": "sao10k/l3-lunaris-8b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "sao10k/l3.1-70b-hanami-x1": {
+      "id": "sao10k/l3.1-70b-hanami-x1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "sao10k/l3.1-euryale-70b": {
+      "id": "sao10k/l3.1-euryale-70b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "sao10k/l3.3-euryale-70b": {
+      "id": "sao10k/l3.3-euryale-70b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "stepfun/step-3.5-flash": {
+      "id": "stepfun/step-3.5-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "stepfun/step-3.5-flash:free": {
+      "id": "stepfun/step-3.5-flash:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "switchpoint/router": {
+      "id": "switchpoint/router",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "tencent/hunyuan-a13b-instruct": {
+      "id": "tencent/hunyuan-a13b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "thedrummer/cydonia-24b-v4.1": {
+      "id": "thedrummer/cydonia-24b-v4.1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "thedrummer/rocinante-12b": {
+      "id": "thedrummer/rocinante-12b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "thedrummer/skyfall-36b-v2": {
+      "id": "thedrummer/skyfall-36b-v2",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "thedrummer/unslopnemo-12b": {
+      "id": "thedrummer/unslopnemo-12b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "tngtech/deepseek-r1t2-chimera": {
+      "id": "tngtech/deepseek-r1t2-chimera",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "undi95/remm-slerp-l2-13b": {
+      "id": "undi95/remm-slerp-l2-13b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "upstage/solar-pro-3": {
+      "id": "upstage/solar-pro-3",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "writer/palmyra-x5": {
+      "id": "writer/palmyra-x5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-3": {
+      "id": "x-ai/grok-3",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-3-beta": {
+      "id": "x-ai/grok-3-beta",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-3-mini": {
+      "id": "x-ai/grok-3-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-3-mini-beta": {
+      "id": "x-ai/grok-3-mini-beta",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-4": {
+      "id": "x-ai/grok-4",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-4-fast": {
+      "id": "x-ai/grok-4-fast",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-4.1-fast": {
+      "id": "x-ai/grok-4.1-fast",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-code-fast-1": {
+      "id": "x-ai/grok-code-fast-1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "xiaomi/mimo-v2-flash": {
+      "id": "xiaomi/mimo-v2-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-4-32b": {
+      "id": "z-ai/glm-4-32b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-4.5": {
+      "id": "z-ai/glm-4.5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-4.5-air": {
+      "id": "z-ai/glm-4.5-air",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-4.5v": {
+      "id": "z-ai/glm-4.5v",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-4.6": {
+      "id": "z-ai/glm-4.6",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-4.6:exacto": {
+      "id": "z-ai/glm-4.6:exacto",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-4.6v": {
+      "id": "z-ai/glm-4.6v",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-4.7": {
+      "id": "z-ai/glm-4.7",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-4.7-flash": {
+      "id": "z-ai/glm-4.7-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-5": {
+      "id": "z-ai/glm-5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
     }
-  ]
+  }
 }

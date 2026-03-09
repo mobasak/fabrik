@@ -4,24 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added - Kilo Model Sync Script (2026-03-09)
+### Added - Kilo Model Sync with Auto-Scheduling (2026-03-09)
 
-**What:** Semi-automatic model discovery system for tracking Kilo CLI model changes.
+**What:** Semi-automatic model discovery with daily cron + WSL startup triggers.
 
 **Files:**
-- `scripts/kilo_model_sync.py` — NEW: Compares local cache vs Kilo CLI, reports new/removed/changed models
+- `scripts/kilo_model_sync.py` — Compares local cache vs Kilo CLI
+- `scripts/kilo_model_sync_startup.sh` — NEW: WSL startup hook (runs once per day)
 
-**Usage:**
-```bash
-python scripts/kilo_model_sync.py              # Report only
-python scripts/kilo_model_sync.py --sync       # Update local cache
-python scripts/kilo_model_sync.py --suggest    # Suggest new agents
-```
+**Automation:**
+- **Cron:** Daily at 11:59 AM (`59 11 * * *`)
+- **WSL Startup:** Runs on first terminal open each day (via ~/.bashrc)
+- **Logs:** `.droid/kilo_model_sync.log`
 
-**Schedule (recommended):**
-```bash
-0 6 * * * cd /opt/fabrik && python scripts/kilo_model_sync.py --sync >> .droid/model_sync.log
-```
+### Removed - Obsolete Kilo Files (2026-03-09)
+
+**What:** Archived 9 obsolete Kilo files (409KB) to `docs/archive/2026-03-09-kilo-obsolete-json/`.
+
+**Archived JSON (scripts/):**
+- `kilo_18_agents_complete.json` — Old agent version
+- `kilo_50_agents_new.json` — Intermediate version
+- `kilo_all_319_models_analyzed.json` — One-time analysis
+- `KILO_COMPLETE_AGENT_CATALOG.json` — One-time catalog
+- `kilo_comprehensive_db.json` — Old model database
+- `manual_pricing_data.json` — Now auto-fetched
+- `model_variants.json` — No longer needed
+
+**Archived Docs (docs/reference/kilo/):**
+- `KILO_EXTRACTION_SUMMARY.md` — One-time extraction notes
+- `KILO_IMPROVEMENTS_PROPOSAL.md` — Implemented proposal
 
 ### Added - Kilo Model Capabilities Reference (2026-03-09)
 
