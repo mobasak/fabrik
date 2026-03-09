@@ -47,13 +47,13 @@ fi
     echo "========================================" >> "$LOG_FILE"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] WSL Startup Sync" >> "$LOG_FILE"
     echo "========================================" >> "$LOG_FILE"
-    
+
     cd "$FABRIK_DIR"
     python3 scripts/kilo_model_sync.py --sync >> "$LOG_FILE" 2>&1
-    
+
     # Mark as run today
     echo "$TODAY" > "$LAST_RUN_FILE"
-    
+
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Sync complete" >> "$LOG_FILE"
 ) &
 

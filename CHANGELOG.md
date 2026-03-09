@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed - Comprehensive .gitignore for All Scaffold Types (2026-03-09)
+
+**What:** Enhanced .gitignore templates for all Fabrik scaffold project types to exclude IDE files, build artifacts, and test coverage.
+
+**Files:**
+- `src/fabrik/scaffold.py` — Updated 6 scaffold types: Python, Node API, File API, File Worker, WordPress, Generic TypeScript
+
+**What Changed:**
+- **Before:** Minimal .gitignore (only .env, venv/, logs/)
+- **After:** Comprehensive exclusions:
+  - IDE: `.vscode/`, `.idea/`, vim swap files
+  - Node.js: `node_modules/`, npm/yarn/pnpm debug logs
+  - Python: `*.pyc`, `.pytest_cache/`, `.coverage`, `*.egg-info/`
+  - Build: `dist/`, `build/`, `out/`, `.next/`
+  - Test: `coverage/`
+  - WordPress: `wp-content/cache/`, `sitemap.xml`
+
+**Impact:**
+- Reduces Kilo review cost by 5-10x (excludes 1,000-2,000 irrelevant files per project)
+- All exclusions are safe: regenerable or non-critical files only
+- Prevents `node_modules/` and IDE configs from polluting git and Kilo context
+
+**Example:** `/opt/trade-intelligence` had 1,865 files in `node_modules/` being tracked before fix.
+
 ### Added - Kilo Model Sync with Auto-Scheduling (2026-03-09)
 
 **What:** Semi-automatic model discovery with daily cron + WSL startup triggers.

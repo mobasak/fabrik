@@ -296,8 +296,41 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
 
     # Create .gitignore and .env.example
     (project_dir / ".gitignore").write_text(
-        ".env\nvenv/\n__pycache__/\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n.venv/\n"
-        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+        ".env\n"
+        "venv/\n"
+        "__pycache__/\n"
+        "logs/\n"
+        "data/\n"
+        ".tmp/\n"
+        ".cache/\n"
+        "output/\n"
+        "*.log\n"
+        ".venv/\n"
+        ".droid/kilo_usage.jsonl\n"
+        ".droid/reviews/\n"
+        ".droid/kilo_models_cache.json\n"
+        ".droid/.kilo_cache_last_refresh\n"
+        "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*~\n"
+        "\n"
+        "# Python\n"
+        "*.pyc\n"
+        "*.pyo\n"
+        "*.pyd\n"
+        ".Python\n"
+        "pip-log.txt\n"
+        "pip-delete-this-directory.txt\n"
+        ".pytest_cache/\n"
+        ".coverage\n"
+        "htmlcov/\n"
+        "dist/\n"
+        "build/\n"
+        "*.egg-info/\n"
     )
     # Example .env template with placeholder values (not real credentials)  # noqa: secrets
     (project_dir / ".env.example").write_text(
@@ -515,8 +548,38 @@ server.listen(PORT, () => {{
 
     # g) Overwrite .gitignore with Node-appropriate content
     (project_dir / ".gitignore").write_text(
-        "node_modules/\ndist/\n.env\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n"
-        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+        "node_modules/\n"
+        "dist/\n"
+        ".env\n"
+        "logs/\n"
+        "data/\n"
+        ".tmp/\n"
+        ".cache/\n"
+        "output/\n"
+        "*.log\n"
+        ".droid/kilo_usage.jsonl\n"
+        ".droid/reviews/\n"
+        ".droid/kilo_models_cache.json\n"
+        ".droid/.kilo_cache_last_refresh\n"
+        "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*~\n"
+        "\n"
+        "# Node.js\n"
+        "npm-debug.log*\n"
+        "yarn-debug.log*\n"
+        "yarn-error.log*\n"
+        ".pnpm-debug.log*\n"
+        "\n"
+        "# Build & Test\n"
+        "coverage/\n"
+        ".next/\n"
+        "out/\n"
+        "build/\n"
     )
 
 
@@ -592,8 +655,36 @@ DOWNLOAD_URL_EXPIRY_SECONDS=3600
 
     # g) Overwrite .gitignore with Node-appropriate content
     (project_dir / ".gitignore").write_text(
-        "node_modules/\ndist/\n.env\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n"
-        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+        "node_modules/\n"
+        "dist/\n"
+        ".env\n"
+        "logs/\n"
+        "data/\n"
+        ".tmp/\n"
+        ".cache/\n"
+        "output/\n"
+        "*.log\n"
+        ".droid/kilo_usage.jsonl\n"
+        ".droid/reviews/\n"
+        ".droid/kilo_models_cache.json\n"
+        ".droid/.kilo_cache_last_refresh\n"
+        "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*~\n"
+        "\n"
+        "# Node.js\n"
+        "npm-debug.log*\n"
+        "yarn-debug.log*\n"
+        "yarn-error.log*\n"
+        ".pnpm-debug.log*\n"
+        "\n"
+        "# Build & Test\n"
+        "coverage/\n"
+        "build/\n"
     )
 
 
@@ -689,8 +780,41 @@ R2_BUCKET=your-bucket-name
 
     # g) Overwrite .gitignore with Python-appropriate content
     (project_dir / ".gitignore").write_text(
-        ".env\nvenv/\n__pycache__/\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n.venv/\n"
-        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+        ".env\n"
+        "venv/\n"
+        "__pycache__/\n"
+        "logs/\n"
+        "data/\n"
+        ".tmp/\n"
+        ".cache/\n"
+        "output/\n"
+        "*.log\n"
+        ".venv/\n"
+        ".droid/kilo_usage.jsonl\n"
+        ".droid/reviews/\n"
+        ".droid/kilo_models_cache.json\n"
+        ".droid/.kilo_cache_last_refresh\n"
+        "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*~\n"
+        "\n"
+        "# Python\n"
+        "*.pyc\n"
+        "*.pyo\n"
+        "*.pyd\n"
+        ".Python\n"
+        "pip-log.txt\n"
+        "pip-delete-this-directory.txt\n"
+        ".pytest_cache/\n"
+        ".coverage\n"
+        "htmlcov/\n"
+        "dist/\n"
+        "build/\n"
+        "*.egg-info/\n"
     )
 
 
@@ -761,6 +885,29 @@ data/
 .droid/reviews/
 .droid/kilo_models_cache.json
 .droid/.kilo_cache_last_refresh
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# WordPress
+wp-content/cache/
+wp-content/backup-db/
+sitemap.xml
+sitemap.xml.gz
+
+# Node.js (for theme/plugin development)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+
+# Build & Test (theme/plugin development)
+coverage/
+dist/
+build/
 """
     )
 
@@ -905,8 +1052,38 @@ app.whenReady().then(createWindow);
 
     # f) Overwrite .gitignore with Node-appropriate content
     (project_dir / ".gitignore").write_text(
-        "node_modules/\ndist/\n.env\nlogs/\ndata/\n.tmp/\n.cache/\noutput/\n*.log\n"
-        ".droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+        "node_modules/\n"
+        "dist/\n"
+        ".env\n"
+        "logs/\n"
+        "data/\n"
+        ".tmp/\n"
+        ".cache/\n"
+        "output/\n"
+        "*.log\n"
+        ".droid/kilo_usage.jsonl\n"
+        ".droid/reviews/\n"
+        ".droid/kilo_models_cache.json\n"
+        ".droid/.kilo_cache_last_refresh\n"
+        "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*~\n"
+        "\n"
+        "# Node.js\n"
+        "npm-debug.log*\n"
+        "yarn-debug.log*\n"
+        "yarn-error.log*\n"
+        ".pnpm-debug.log*\n"
+        "\n"
+        "# Build & Test\n"
+        "coverage/\n"
+        ".next/\n"
+        "out/\n"
+        "build/\n"
     )
 
 
