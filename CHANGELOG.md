@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Kilo Model Capabilities Reference (2026-03-09)
+
+**What:** Comprehensive model capabilities documentation with pricing, context limits, and feature matrix.
+
+**Files:**
+- `docs/reference/kilo/KILO_MODEL_CAPABILITIES.md` — NEW: 328 models, 59 providers, full capability matrix
+- `scripts/kilo_47_agents_final.json` — Added 9 new agents (55 total)
+- `scripts/generate_kilo_agents.py` — Added GPT 5.x model name normalization
+- `~/.traycer/cli-agents/*.sh` — Regenerated all 55 agents
+
+**New Models Added:**
+- **Economy:** gpt-5-nano ($0.05/$0.40), gpt-5-mini ($0.25/$2.00), gpt-5.1-codex-mini ($0.25/$2.00)
+- **Standard:** o4-mini ($1.10/$4.40)
+- **Pro:** gpt-5.1-codex ($1.25/$10), gpt-5.1-codex-max ($1.25/$10), gpt-5.3-chat ($1.75/$14)
+- **Expert:** gpt-5.4 ($2.50/$15) — 1M context, unified Codex+GPT
+- **Apex:** gpt-5.4-pro ($30/$180) — Mission-critical, 1M+ context
+
+**Documentation Includes:**
+- Per-provider model tables with pricing
+- Capability icons (🧠 reasoning, 🔧 tools, 🖼️ image, 📎 attachments)
+- GPT-5.x family detailed breakdown
+- Anthropic Claude family reference
+- Google Gemini family reference
+- OpenAI o-series reasoning models
+- Free tier model recommendations
+
+### Changed - Traycer Report Writer Usage Example (2026-03-09)
+
+**What:** Documented realistic piping usage for the Traycer report writer script.
+
+**Files:**
+- `scripts/traycer_write_report.py` — Extended module docstring with a two-line Usage Example
+
+### Fixed - Traycer Report Block Enforcement (2026-03-08)
+
+**What:** Made report block output mandatory - tasks now fail with clear error if agent ignores template instructions.
+
+**Files:**
+- `scripts/generate_kilo_agents.py` — Modified report extraction logic (lines 288-314)
+- `~/.traycer/cli-agents/*.sh` — Regenerated all 46 agents with enforcement
+
+**What Changed:**
+- **Before:** Missing report block logged debug message, task succeeded anyway
+- **After:** Missing report block displays error banner and exits with code 1
+- Error message explains problem and suggests solutions (try higher-tier agent, enable debug, check template)
+- Prevents silent failures where tasks complete but reports aren't captured
+
+**Root Cause:** LLMs sometimes ignore "output only this block" instructions under conflicting prompts, even with strong templates.
+
+**Impact:** Ensures deterministic report generation for Traycer extension UI.
+
 ### Added - GPT 5.4 Model Support (2026-03-08)
 
 **What:** Added OpenAI GPT 5.4 variants to Kilo model catalog and tier routing.
@@ -19,13 +70,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed - Health Checker Docstring Conciseness (2026-03-08)
 
-**What:** Replaced verbose module docstring with concise 3-line version.
+**What:** Refined module docstring to a concise 4-line version.
 
 **Files:**
 - `scripts/health_checker.py` — Updated docstring (lines 3-11)
 
 **What Changed:**
-- Condensed docstring from 9 lines to 3 lines
+- Condensed docstring from verbose form to 4 concise lines
 - Covers: HTTP /health probe + DB TCP reachability check for cron/CI use
 - Includes all exit codes: 0 OK, 1 unexpected error, 2 config error, 3 HTTP unhealthy, 4 DB unreachable
 - No code changes - docstring only

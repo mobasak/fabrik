@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-07T19:05:00Z",
-  "total_agents": 46,
+  "timestamp": "2026-03-09T12:00:00Z",
+  "total_agents": 55,
   "tier_system": "Opus 4.6 Enhanced (Free/Economy/Standard/Pro/Expert/Apex/Specialist)",
   "pricing_complete": true,
   "agents": [
@@ -211,7 +211,7 @@
       "variant": "minimal",
       "specialty": "Fast multilingual",
       "input_per_1m": 0.07,
-      "output_per_1m": 0.40
+      "output_per_1m": 0.4
     },
     {
       "agent_id": "std-1",
@@ -221,8 +221,8 @@
       "use_case": "Code",
       "variant": "low",
       "specialty": "85% premium at 10% cost (DEFAULT STANDARD)",
-      "input_per_1m": 0.20,
-      "output_per_1m": 0.60
+      "input_per_1m": 0.2,
+      "output_per_1m": 0.6
     },
     {
       "agent_id": "std-2",
@@ -232,8 +232,8 @@
       "use_case": "Code",
       "variant": "high",
       "specialty": "Fast inference",
-      "input_per_1m": 0.20,
-      "output_per_1m": 0.50
+      "input_per_1m": 0.2,
+      "output_per_1m": 0.5
     },
     {
       "agent_id": "std-3",
@@ -276,8 +276,8 @@
       "use_case": "Code",
       "variant": "medium",
       "specialty": "Complex reasoning",
-      "input_per_1m": 0.30,
-      "output_per_1m": 0.90
+      "input_per_1m": 0.3,
+      "output_per_1m": 0.9
     },
     {
       "agent_id": "pro-1",
@@ -287,8 +287,8 @@
       "use_case": "Review",
       "variant": "high",
       "specialty": "Advanced reasoning (DEFAULT PRO)",
-      "input_per_1m": 1.00,
-      "output_per_1m": 3.20
+      "input_per_1m": 1.0,
+      "output_per_1m": 3.2
     },
     {
       "agent_id": "pro-2",
@@ -298,8 +298,8 @@
       "use_case": "Review",
       "variant": "high",
       "specialty": "Near-premium accuracy",
-      "input_per_1m": 1.20,
-      "output_per_1m": 3.60
+      "input_per_1m": 1.2,
+      "output_per_1m": 3.6
     },
     {
       "agent_id": "pro-3",
@@ -310,7 +310,7 @@
       "variant": "max",
       "specialty": "Code review",
       "input_per_1m": 1.75,
-      "output_per_1m": 14.00
+      "output_per_1m": 14.0
     },
     {
       "agent_id": "pro-4",
@@ -320,8 +320,8 @@
       "use_case": "Code",
       "variant": "high",
       "specialty": "Multi-modal",
-      "input_per_1m": 2.00,
-      "output_per_1m": 12.00
+      "input_per_1m": 2.0,
+      "output_per_1m": 12.0
     },
     {
       "agent_id": "pro-5",
@@ -331,8 +331,8 @@
       "use_case": "Review",
       "variant": "max",
       "specialty": "Massive context",
-      "input_per_1m": 2.00,
-      "output_per_1m": 6.00
+      "input_per_1m": 2.0,
+      "output_per_1m": 6.0
     },
     {
       "agent_id": "pro-6",
@@ -342,8 +342,8 @@
       "use_case": "Code",
       "variant": "high",
       "specialty": "Next-gen flagship",
-      "input_per_1m": 2.50,
-      "output_per_1m": 15.00
+      "input_per_1m": 2.5,
+      "output_per_1m": 15.0
     },
     {
       "agent_id": "expert-1",
@@ -353,8 +353,8 @@
       "use_case": "Code",
       "variant": "high",
       "specialty": "Fast coding (DEFAULT EXPERT)",
-      "input_per_1m": 3.00,
-      "output_per_1m": 15.00
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0
     },
     {
       "agent_id": "expert-2",
@@ -364,8 +364,8 @@
       "use_case": "Review",
       "variant": "max",
       "specialty": "Balanced review",
-      "input_per_1m": 3.00,
-      "output_per_1m": 15.00
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0
     },
     {
       "agent_id": "expert-3",
@@ -375,8 +375,8 @@
       "use_case": "Review",
       "variant": "max",
       "specialty": "Latest Sonnet",
-      "input_per_1m": 3.00,
-      "output_per_1m": 15.00
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0
     },
     {
       "agent_id": "expert-4",
@@ -386,8 +386,8 @@
       "use_case": "Review",
       "variant": "max",
       "specialty": "Extended thinking",
-      "input_per_1m": 3.50,
-      "output_per_1m": 17.50
+      "input_per_1m": 3.5,
+      "output_per_1m": 17.5
     },
     {
       "agent_id": "expert-5",
@@ -397,8 +397,8 @@
       "use_case": "Review",
       "variant": "max",
       "specialty": "Deep reasoning",
-      "input_per_1m": 5.00,
-      "output_per_1m": 25.00
+      "input_per_1m": 5.0,
+      "output_per_1m": 25.0
     },
     {
       "agent_id": "expert-6",
@@ -408,8 +408,8 @@
       "use_case": "Code",
       "variant": "max",
       "specialty": "Complex refactoring",
-      "input_per_1m": 5.00,
-      "output_per_1m": 25.00
+      "input_per_1m": 5.0,
+      "output_per_1m": 25.0
     },
     {
       "agent_id": "expert-7",
@@ -419,8 +419,8 @@
       "use_case": "Code",
       "variant": "high",
       "specialty": "Fast chain-of-thought",
-      "input_per_1m": 10.00,
-      "output_per_1m": 40.00
+      "input_per_1m": 10.0,
+      "output_per_1m": 40.0
     },
     {
       "agent_id": "apex-1",
@@ -430,8 +430,8 @@
       "use_case": "Review",
       "variant": "max",
       "specialty": "Deep analysis (DEFAULT APEX)",
-      "input_per_1m": 21.00,
-      "output_per_1m": 168.00
+      "input_per_1m": 21.0,
+      "output_per_1m": 168.0
     },
     {
       "agent_id": "apex-2",
@@ -441,8 +441,8 @@
       "use_case": "Review",
       "variant": "max",
       "specialty": "Flagship reasoning",
-      "input_per_1m": 35.00,
-      "output_per_1m": 140.00
+      "input_per_1m": 35.0,
+      "output_per_1m": 140.0
     },
     {
       "agent_id": "apex-3",
@@ -452,8 +452,8 @@
       "use_case": "Review",
       "variant": "max",
       "specialty": "Maximum reasoning depth",
-      "input_per_1m": 40.00,
-      "output_per_1m": 160.00
+      "input_per_1m": 40.0,
+      "output_per_1m": 160.0
     },
     {
       "agent_id": "spec-refactor",
@@ -509,6 +509,105 @@
       "specialty": "Code review only",
       "input_per_1m": 0.25,
       "output_per_1m": 0.75
+    },
+    {
+      "agent_id": "econ-10",
+      "model_name": "gpt-5-nano",
+      "full_name": "kilo/openai/gpt-5-nano",
+      "provider": "OpenAI",
+      "use_case": "Code",
+      "variant": "minimal",
+      "specialty": "Ultra-cheap GPT-5 for quick tasks",
+      "input_per_1m": 0.049999999999999996,
+      "output_per_1m": 0.39999999999999997
+    },
+    {
+      "agent_id": "econ-11",
+      "model_name": "gpt-5-mini",
+      "full_name": "kilo/openai/gpt-5-mini",
+      "provider": "OpenAI",
+      "use_case": "Code",
+      "variant": "low",
+      "specialty": "Lightweight GPT-5 with reasoning",
+      "input_per_1m": 0.25,
+      "output_per_1m": 2.0
+    },
+    {
+      "agent_id": "econ-12",
+      "model_name": "gpt-5.1-codex-mini",
+      "full_name": "kilo/openai/gpt-5.1-codex-mini",
+      "provider": "OpenAI",
+      "use_case": "Code",
+      "variant": "medium",
+      "specialty": "Efficient agentic coding",
+      "input_per_1m": 0.25,
+      "output_per_1m": 2.0
+    },
+    {
+      "agent_id": "std-7",
+      "model_name": "o4-mini",
+      "full_name": "kilo/openai/o4-mini",
+      "provider": "OpenAI",
+      "use_case": "Code",
+      "variant": "high",
+      "specialty": "Fast reasoning model",
+      "input_per_1m": 1.1,
+      "output_per_1m": 4.4
+    },
+    {
+      "agent_id": "pro-7",
+      "model_name": "gpt-5.1-codex",
+      "full_name": "kilo/openai/gpt-5.1-codex",
+      "provider": "OpenAI",
+      "use_case": "Code",
+      "variant": "high",
+      "specialty": "Agentic coding, long-context",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0
+    },
+    {
+      "agent_id": "pro-8",
+      "model_name": "gpt-5.1-codex-max",
+      "full_name": "kilo/openai/gpt-5.1-codex-max",
+      "provider": "OpenAI",
+      "use_case": "Code",
+      "variant": "max",
+      "specialty": "Extended agentic coding sessions",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0
+    },
+    {
+      "agent_id": "pro-9",
+      "model_name": "gpt-5.3-chat",
+      "full_name": "kilo/openai/gpt-5.3-chat",
+      "provider": "OpenAI",
+      "use_case": "Review",
+      "variant": "high",
+      "specialty": "Conversational code review",
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0
+    },
+    {
+      "agent_id": "expert-7",
+      "model_name": "gpt-5.4",
+      "full_name": "kilo/openai/gpt-5.4",
+      "provider": "OpenAI",
+      "use_case": "Code",
+      "variant": "max",
+      "specialty": "1M context, unified Codex+GPT",
+      "input_per_1m": 2.5,
+      "output_per_1m": 15.0
+    },
+    {
+      "agent_id": "apex-3",
+      "model_name": "gpt-5.4-pro",
+      "full_name": "kilo/openai/gpt-5.4-pro",
+      "provider": "OpenAI",
+      "use_case": "Review",
+      "variant": "max",
+      "specialty": "Mission-critical, 1M+ context",
+      "input_per_1m": 30.0,
+      "output_per_1m": 180.0
     }
   ]
 }

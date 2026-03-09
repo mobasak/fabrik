@@ -75,6 +75,16 @@ MODEL_NORMALIZE = {
     "codestral-test": "codestraltest",
     "codestral-translate": "codestraltranslate",
     "codestral-review": "codestralreview",
+    # GPT-5.x additions (2026-03-09)
+    "gpt-5-nano": "gpt5nano",
+    "gpt-5-mini": "gpt5mini",
+    "gpt-5.1-codex-mini": "gpt51codexmini",
+    "gpt-5.1-codex": "gpt51codex",
+    "gpt-5.1-codex-max": "gpt51codexmax",
+    "gpt-5.3-chat": "gpt53chat",
+    "gpt-5.4": "gpt54",
+    "gpt-5.4-pro": "gpt54pro",
+    "o4-mini": "o4mini",
 }
 
 
@@ -285,17 +295,32 @@ DURATION=$((END_TIME - START_TIME))
 # Display output to user (important for Traycer IDE visibility)
 echo "$OUTPUT"
 
-# Extract and write Traycer report if delimiters present
+# MANDATORY: Extract and write Traycer report (fail if missing)
 if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
     REPORT_WRITER="/opt/fabrik/scripts/traycer_write_report.py"
     if [ -f "$REPORT_WRITER" ]; then
         echo "$OUTPUT" | python3 "$REPORT_WRITER" --slug "${{TRAYCER_TASK_ID:-traycer-task}}" 2>&1 | grep "📝" >&2 || true
         [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Report delimiters found, report writer executed" >&2
     else
-        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Report writer not found at $REPORT_WRITER" >&2
+        echo "ERROR: Report writer not found at $REPORT_WRITER" >&2
+        exit 1
     fi
 else
-    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] No report delimiters in output" >&2
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+    echo "ERROR: Agent did not output required report block" >&2
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+    echo "" >&2
+    echo "The agent completed execution but failed to output the mandatory" >&2
+    echo "BEGIN_TRAYCER_REPORT_MD...END_TRAYCER_REPORT_MD block." >&2
+    echo "" >&2
+    echo "This indicates the LLM ignored template instructions." >&2
+    echo "" >&2
+    echo "Solutions:" >&2
+    echo "  1. Try a different agent tier (higher-tier models follow instructions better)" >&2
+    echo "  2. Enable KILO_DEBUG=1 to see full output" >&2
+    echo "  3. Check template at ~/.traycer/prompt-templates/" >&2
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+    exit 1
 fi
 
 # Handle timeout

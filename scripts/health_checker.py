@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-"""Health checker for cron/CI: HTTP /health probe + DB TCP reachability check.
-
-Exit codes: 0 OK, 1 unexpected error, 2 config error, 3 HTTP unhealthy, 4 DB unreachable.
+"""Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
+Validates service health responses and database host:port connectivity.
+Exit codes: 0 OK, 1 unexpected error, 2 config error,
+3 HTTP unhealthy, 4 DB unreachable.
 """
 
 from __future__ import annotations

@@ -8,6 +8,11 @@ Used by factory_wait.py to persist agent-generated reports for the Windsurf Repo
 Usage:
     python scripts/traycer_write_report.py < agent_stdout.txt
     python scripts/traycer_write_report.py --file agent_stdout.txt --slug task-name
+
+Usage Example:
+    # Pipe agent output directly to the report writer
+    kilo run --model gpt-5.1-codex-max "$PROMPT" | python scripts/traycer_write_report.py --slug my-task
+    factory_wait.py | python scripts/traycer_write_report.py
 """
 
 import argparse
