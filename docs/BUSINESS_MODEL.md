@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-05 13:28:33 -->
-<!-- Total projects: 37 -->
+<!-- Last synced: 2026-03-09 18:53:10 -->
+<!-- Total projects: 43 -->
 
 ### Production Services (5 projects)
 
@@ -104,7 +104,7 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure Tra... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (8 projects)
+### Active Development (9 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
@@ -114,10 +114,11 @@ With ~$50/month infrastructure cost:
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, and... | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-analysis** | Test project for scaffold validation | FastAPI | 🔨 Development | - | ✅ Current |
-| **trade-intelligence** | Multi-tenant web platform proxying bill-of-lading shipment data with vendor-native queries, struc... | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-gitignore-python** | Test Python .gitignore generation | FastAPI | 🔨 Development | - | ✅ Current |
+| **trade-intelligence** | Trade Intelligence is a comprehensive platform for searching and analyzing global shipment record... | FastAPI | 🔨 Development | - | ✅ Current |
 | **trading-core** | Live FX trading service connecting to Pepperstone/cTrader via cTrader Open API with crash-safe st... | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (13 projects)
+### Planning/Research (18 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
@@ -130,6 +131,11 @@ With ~$50/month infrastructure cost:
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. Users u... | Python | 🔨 Development | - | ✅ Current |
 | **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interfaces ... | Python | 🔨 Development | - | ✅ Current |
 | **proxy** | **Status:** Production Ready | Python | 🔨 Development | - | ✅ Current |
+| **test-gitignore-chromeext** | Test Chrome Extension .gitignore | Node.js | 🔨 Development | - | ✅ Current |
+| **test-gitignore-fileapi** | Test File API .gitignore | Express | 🔨 Development | - | ✅ Current |
+| **test-gitignore-fileworker** | Test File Worker .gitignore | Python | 🔨 Development | - | ✅ Current |
+| **test-gitignore-node** | Test Node .gitignore generation | Node.js | 🔨 Development | - | ✅ Current |
+| **test-gitignore-wordpress** | Test WordPress .gitignore generation | Unknown | 🔨 Development | - | ✅ Current |
 | **transcriber** | Internal API service providing audio transcription capabilities using Soniox and other provider b... | Unknown | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Orchestrates content creation across Twitter, YouTube, Blog, Email, and LinkedIn platforms. Featu... | Unknown | 🔨 Development | - | ✅ Current |
 | **ugc** | Production-grade web scraping system for extracting user-generated content from social media plat... | Unknown | 🔨 Development | - | ✅ Current |
