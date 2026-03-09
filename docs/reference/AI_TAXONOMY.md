@@ -1,8 +1,8 @@
-# AI TAXONOMY - Mainstream Categories (2025)
+# AI TAXONOMY - Mainstream Categories (2026)
 
-## Quick Reference (10-Line Summary)
+## Quick Reference
 
-**15 Categories → Subcategories → Tools**
+**16 Categories → Subcategories → Tools**
 
 1. **Speech/Audio**: Transcription (Soniox, Whisper), TTS (ElevenLabs), Voice Clone
 2. **Vision**: Image Gen (Midjourney, DALL·E), Video Gen (Runway), OCR (Tesseract)
@@ -19,10 +19,12 @@
 13. **Edge/Embedded**: TensorFlow Lite, on-device inference
 14. **Governance/Trust**: Content moderation, bias detection, LLaMA Guard
 15. **Generative Design**: Autodesk, nTopology, optimization
+16. **Long-Context**: Gemini 2.5 Pro (1M), Claude (200K), codebase analysis
 
-**3 Selection Rules:**
+**4 Selection Rules:**
 - Match task to category first (prevents wrong tool type)
 - Prefer specialized tools in category over general ones
+- Check Kilo CLI alternatives before external APIs
 - Document alternative considered + why not chosen
 
 ---
@@ -191,16 +193,54 @@
 
 ---
 
+## 16. LONG-CONTEXT AI (NEW)
+
+**Purpose:** Process extremely long documents, codebases, or conversations
+
+**Examples:** Gemini 2.5 Pro (1M), Claude 3.x (200K), GPT-5.x (128K-1M)
+
+**Use cases:** Codebase analysis, book summarization, long document QA, multi-file reasoning
+
+---
+
+## KILO CLI ALTERNATIVES BY CATEGORY
+
+Models available via `kilo run kilo/<provider>/<model>`:
+
+| Category | Kilo Coverage | Free Options | Paid Options |
+|----------|---------------|--------------|--------------|
+| **1. Speech/Audio** | ⚠️ 9 models | - | `google/gemini-2.0-flash-lite` $0.07/1M |
+| **2. Vision** | ✅ 70 models | `giga-potato` | `google/gemma-3-27b-it` $0.03/1M |
+| **3. Language** | ✅ 235 models | Many | Full range |
+| **4. Multimodal** | ✅ 70 models | `qwen/qwen3-vl-235b-thinking` | `bytedance-seed/seed-1.6-flash` $0.07/1M |
+| **5. Agentic** | ✅ 88 models | `giga-potato-thinking` | `nvidia/nemotron-nano-9b` $0.04/1M |
+| **6. Code** | ✅ 148 models | `minimax/minimax-m2.5:free` | Full range |
+| **7-15** | ❌ Specialized | Use domain tools | DataRobot, AlphaFold, etc. |
+
+**Kilo Capability Flags:**
+- `reasoning` — Multi-step thinking (88 models)
+- `toolcall` — Function calling for agents (148 models)
+- `input.image` — Vision understanding (70 models)
+- `input.audio` — Audio/speech input (9 models)
+- `input.video` — Video understanding (19 models)
+- `attachment` — File/document processing (70 models)
+
+**Sync models:** `python /opt/fabrik/scripts/kilo_model_sync.py --sync`
+
+---
+
 ## TOOL SELECTION WORKFLOW
 
 When starting AI project:
-1. **Identify category** from 15 above
+1. **Identify category** from 16 above
 2. **Identify subcategory** (e.g., Speech → Transcription)
-3. **Shortlist tools** from that subcategory
-4. **Document in project.yaml:** ai_category, ai_subcategory, ai_tools
-5. **Before-Writing-Code:** Justify chosen tool vs top alternative
+3. **Check Kilo alternatives** (see table above)
+4. **Shortlist tools** from that subcategory
+5. **Document in project.yaml:** ai_category, ai_subcategory, ai_tools
+6. **Before-Writing-Code:** Justify chosen tool vs top alternative
 
 **Common mistakes to avoid:**
 - Using general LLM for specialized task (e.g., GPT for transcription instead of Soniox)
 - Choosing tool before identifying category
 - Not documenting alternative considered
+- Using expensive model when free Kilo alternative exists
