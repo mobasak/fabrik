@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Kilo Model Sync Script (2026-03-09)
+
+**What:** Semi-automatic model discovery system for tracking Kilo CLI model changes.
+
+**Files:**
+- `scripts/kilo_model_sync.py` — NEW: Compares local cache vs Kilo CLI, reports new/removed/changed models
+
+**Usage:**
+```bash
+python scripts/kilo_model_sync.py              # Report only
+python scripts/kilo_model_sync.py --sync       # Update local cache
+python scripts/kilo_model_sync.py --suggest    # Suggest new agents
+```
+
+**Schedule (recommended):**
+```bash
+0 6 * * * cd /opt/fabrik && python scripts/kilo_model_sync.py --sync >> .droid/model_sync.log
+```
+
 ### Added - Kilo Model Capabilities Reference (2026-03-09)
 
 **What:** Comprehensive model capabilities documentation with pricing, context limits, and feature matrix.
