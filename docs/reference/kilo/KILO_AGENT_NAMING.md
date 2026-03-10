@@ -14,21 +14,21 @@ Kilo agent scripts in `~/.traycer/cli-agents/` use a **tier-based naming convent
 - Reasoning effort variant
 - Token pricing (input/output per 1M)
 
-**Key Feature:** Scripts are generated with sequential modification times so Traycer lists them in capability order (Free first → Apex last). Since Traycer lists newest-first, Free gets the newest mtime.
+**Key Feature:** Tier names are prefixed with `T1-` through `T7-` so Traycer's alphabetical sorting shows agents in capability order (T1-Free first → T7-Specialist last).
 
 ---
 
 ## Naming Format
 
 ```
-<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh
+<PREFIX><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh
 ```
 
 ### Components
 
 | Component | Description | Values |
 |-----------|-------------|--------|
-| `<TIER>` | Performance tier | `Free`, `Economy`, `Standard`, `Pro`, `Expert`, `Apex`, `Specialist` |
+| `<PREFIX>` | Tier with sort prefix | `T1-Free`, `T2-Economy`, `T3-Standard`, `T4-Pro`, `T5-Expert`, `T6-Apex`, `T7-Specialist` |
 | `<NN>` | Rank within tier | `00`, `01`, `02`, etc. (0-indexed) |
 | `<model>` | Normalized model name | `opus46`, `gpt53codex`, `gemini31pro`, `sonnet46`, etc. |
 | `<role>` | Agent purpose | `code`, `review` |
@@ -164,7 +164,7 @@ python /opt/fabrik/scripts/generate_kilo_agents.py
 ```
 
 This reads `/opt/fabrik/scripts/kilo_47_agents_final.json` and generates all agent scripts with:
-- **Sequential mtime**: Files timestamped so Free=newest, Apex=oldest (Traycer lists newest-first)
+- **Alphabetical sorting**: Tier prefixes (T1-T7) ensure correct capability order
 - **Duplicate prevention**: Skips unchanged files (updates mtime only)
 - **Orphan cleanup**: Removes .sh files not in current agent list
 

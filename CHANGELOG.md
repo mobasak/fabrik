@@ -4,17 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed - Kilo CLI Agent mtime Ordering for Traycer (2026-03-10)
+### Fixed - Kilo CLI Agent Sorting for Traycer (2026-03-10)
 
-**What:** Fixed mtime ordering so Traycer lists agents correctly: Free (least capable) first → Apex (most capable) last.
+**What:** Fixed agent sorting so Traycer lists agents correctly: Free (least capable) first → Specialist last.
 
 **Files:**
-- `scripts/generate_kilo_agents.py` — Reversed mtime assignment (Free=newest, Apex=oldest)
-- `docs/reference/kilo/KILO_AGENT_NAMING.md` — Updated documentation
+- `scripts/generate_kilo_agents.py` — Added T1-T7 tier prefixes for alphabetical sorting
+- `docs/reference/kilo/KILO_AGENT_NAMING.md` — Updated naming convention
 
 **What Changed:**
-- **Before:** All files had same mtime, random order in Traycer
-- **After:** Sequential mtime with Free=newest so Traycer's newest-first listing shows correct order
+- **Before:** `Free`, `Economy`, `Apex` etc. sorted alphabetically wrong (Apex before Economy before Free)
+- **After:** `T1-Free`, `T2-Economy`, ... `T7-Specialist` ensures correct alphabetical order
 
 ### Changed - Comprehensive .gitignore for All Scaffold Types (2026-03-09)
 

@@ -31,9 +31,29 @@ from pathlib import Path
 AGENTS_FILE = Path(__file__).parent / "kilo_47_agents_final.json"
 OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
 
-# Tier system: Opus 4.6 Enhanced (Free → Economy → Standard → Pro → Expert → Apex + Specialist)
-# Each model appears exactly once, numbered within tier by cost (cheapest first)
-TIER_ORDER = ["Free", "Economy", "Standard", "Pro", "Expert", "Apex", "Specialist"]
+# Tier system: Opus 4.6 Enhanced with numeric prefix for alphabetical sorting
+# Traycer sorts alphabetically, so we prefix with T1-T7 to ensure correct order:
+# T1-Free (least capable) → T7-Specialist (most specialized)
+TIER_ORDER = [
+    "T1-Free",
+    "T2-Economy",
+    "T3-Standard",
+    "T4-Pro",
+    "T5-Expert",
+    "T6-Apex",
+    "T7-Specialist",
+]
+
+# Map old tier names to new prefixed names
+TIER_PREFIX_MAP = {
+    "Free": "T1-Free",
+    "Economy": "T2-Economy",
+    "Standard": "T3-Standard",
+    "Pro": "T4-Pro",
+    "Expert": "T5-Expert",
+    "Apex": "T6-Apex",
+    "Specialist": "T7-Specialist",
+}
 
 # Model name normalization for filenames (keeps filenames readable)
 MODEL_NORMALIZE = {
@@ -108,21 +128,21 @@ def encode_price(price: float) -> str:
 
 def parse_agent_id(agent_id: str) -> tuple[str, str]:
     """
-    Parse agent_id into tier and identifier.
+    Parse agent_id into prefixed tier name and identifier.
 
     Examples:
-        'free-1' -> ('Free', '1')
-        'econ-3' -> ('Economy', '3')
-        'spec-refactor' -> ('Specialist', 'refactor')
+        'free-1' -> ('T1-Free', '1')
+        'econ-3' -> ('T2-Economy', '3')
+        'spec-refactor' -> ('T7-Specialist', 'refactor')
     """
     tier_map = {
-        "free": "Free",
-        "econ": "Economy",
-        "std": "Standard",
-        "pro": "Pro",
-        "expert": "Expert",
-        "apex": "Apex",
-        "spec": "Specialist",
+        "free": "T1-Free",
+        "econ": "T2-Economy",
+        "std": "T3-Standard",
+        "pro": "T4-Pro",
+        "expert": "T5-Expert",
+        "apex": "T6-Apex",
+        "spec": "T7-Specialist",
     }
 
     parts = agent_id.split("-", 1)
@@ -399,17 +419,20 @@ def main(dry_run: bool = False):
     # Order: Free (least capable) → Economy → Standard → Pro → Expert → Apex (most capable)
     agents_sorted = sorted(data["agents"], key=lambda a: get_tier_sort_key(a["agent_id"]))
 
-    # Track which files we generate (for orphan cleanup)
+    # Track which files we generate
     generated_files: set[str] = set()
     generated_count = 0
-    skipped_count = 0
 
-    # Base timestamp for mtime sequencing
-    # Traycer lists files newest-first, so:
-    # Free=newest mtime (appears first), Apex=oldest mtime (appears last)
-    # This ensures Traycer lists agents: least capable → most capable
+    # Delete ALL existing .sh files first to ensure clean filesystem order
+    # Traycer may sort by inode/creation order, not mtime
+    if not dry_run:
+        for existing_file in OUTPUT_DIR.glob("*.sh"):
+            existing_file.unlink()
+        print(f"  🗑 Cleared {OUTPUT_DIR} for clean regeneration")
+
+    # Base timestamp for mtime sequencing (backup ordering method)
     total_agents = len(agents_sorted)
-    base_time = time.time() - total_agents  # Start in past
+    base_time = time.time() - total_agents
 
     # Track rank within each tier
     tier_ranks = {}
@@ -462,22 +485,11 @@ def main(dry_run: bool = False):
                 output_cost=agent["output_per_1m"],
             )
 
-            # Duplicate prevention: skip if file exists with identical content
-            if filepath.exists() and filepath.read_text() == content:
-                skipped_count += 1
-                # Still set mtime for proper ordering (reversed: Free=newest)
-                file_mtime = base_time + (total_agents - generated_count)
-                os.utime(filepath, (file_mtime, file_mtime))
-                print(f"  ⏭ {filename} (unchanged, mtime updated)")
-                generated_count += 1
-                continue
-
-            # Write new/changed file
+            # Always write file (we deleted all files above for clean order)
             filepath.write_text(content)
             filepath.chmod(0o755)
 
-            # Set sequential mtime for Traycer ordering (newest-first listing)
-            # Free gets newest mtime (appears first), Apex gets oldest (appears last)
+            # Set mtime as backup ordering (Free=newest for newest-first listings)
             file_mtime = base_time + (total_agents - generated_count)
             os.utime(filepath, (file_mtime, file_mtime))
 
@@ -495,25 +507,12 @@ def main(dry_run: bool = False):
 
             generated_count += 1
 
-    # Orphan cleanup: remove .sh files not in current agent list
-    orphan_count = 0
-    if not dry_run:
-        for existing_file in OUTPUT_DIR.glob("*.sh"):
-            if existing_file.name not in generated_files:
-                existing_file.unlink()
-                print(f"  🗑 Removed orphan: {existing_file.name}")
-                orphan_count += 1
-
     if dry_run:
         print(f"\n[DRY-RUN] Would generate {generated_count} agent scripts in {OUTPUT_DIR}")
         print("[DRY-RUN] Run without --dry-run to actually create files")
     else:
         print(f"\n✅ Generated {generated_count} agent scripts in {OUTPUT_DIR}")
-        if skipped_count > 0:
-            print(f"   ⏭ {skipped_count} unchanged (mtime updated only)")
-        if orphan_count > 0:
-            print(f"   🗑 {orphan_count} orphans removed")
-        print("   📋 Files ordered by mtime: Free (newest) → Apex (oldest) for Traycer")
+        print("   📋 Files created in order: Free00 → Specialist04 (filesystem order)")
 
 
 if __name__ == "__main__":
