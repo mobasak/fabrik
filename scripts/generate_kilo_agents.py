@@ -8,6 +8,12 @@ detailed, self-documenting scripts in ~/.traycer/cli-agents/
 Naming format: {Tier}{NN}-{model}-{role}-{variant}-i{IN}-o{OUT}.sh
 Example: Economy02-deepseek32-code-medium-i027-o081.sh
 
+Features:
+    - Sequential mtime setting: Files are timestamped in capability order
+      (Free=oldest → Apex=newest) so Traycer lists them correctly
+    - Duplicate prevention: Skips regenerating identical files
+    - Orphan cleanup: Removes old .sh files not in current agent list
+
 Usage:
     python generate_kilo_agents.py [-h] [-d]
 
@@ -18,6 +24,8 @@ Options:
 
 import argparse
 import json
+import os
+import time
 from pathlib import Path
 
 AGENTS_FILE = Path(__file__).parent / "kilo_47_agents_final.json"
@@ -388,9 +396,18 @@ def main(dry_run: bool = False):
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Sort agents by tier order using the sort key function
+    # Order: Free (least capable) → Economy → Standard → Pro → Expert → Apex (most capable)
     agents_sorted = sorted(data["agents"], key=lambda a: get_tier_sort_key(a["agent_id"]))
 
+    # Track which files we generate (for orphan cleanup)
+    generated_files: set[str] = set()
     generated_count = 0
+    skipped_count = 0
+
+    # Base timestamp for mtime sequencing
+    # Files are stamped 1 second apart, oldest=Free, newest=Apex
+    # This ensures Traycer lists agents in capability order
+    base_time = time.time() - len(agents_sorted)  # Start in past
 
     # Track rank within each tier
     tier_ranks = {}
@@ -415,6 +432,9 @@ def main(dry_run: bool = False):
         filename = f"{tier_name}{rank:02d}-{model_normalized}-{role}-{variant}-i{input_encoded}-o{output_encoded}.sh"
         filepath = OUTPUT_DIR / filename
 
+        # Track this file for orphan cleanup
+        generated_files.add(filename)
+
         if dry_run:
             # Dry-run: show what would be generated
             print(f"[DRY-RUN] Would generate: {filename}")
@@ -424,8 +444,9 @@ def main(dry_run: bool = False):
                 f"          Pricing: ${agent['input_per_1m']:.3f}/1M in, ${agent['output_per_1m']:.3f}/1M out"
             )
             print(f"          Output: {filepath}")
+            generated_count += 1
         else:
-            # Generate script
+            # Generate script content
             content = generate_script_content(
                 tier_name=tier_name,
                 rank=rank,
@@ -438,8 +459,26 @@ def main(dry_run: bool = False):
                 input_cost=agent["input_per_1m"],
                 output_cost=agent["output_per_1m"],
             )
+
+            # Duplicate prevention: skip if file exists with identical content
+            if filepath.exists() and filepath.read_text() == content:
+                skipped_count += 1
+                # Still set mtime for proper ordering
+                file_mtime = base_time + generated_count
+                os.utime(filepath, (file_mtime, file_mtime))
+                print(f"  ⏭ {filename} (unchanged, mtime updated)")
+                generated_count += 1
+                continue
+
+            # Write new/changed file
             filepath.write_text(content)
             filepath.chmod(0o755)
+
+            # Set sequential mtime for Traycer ordering
+            # Earlier agents (Free) get older timestamps, later (Apex) get newer
+            file_mtime = base_time + generated_count
+            os.utime(filepath, (file_mtime, file_mtime))
+
             print(f"          Tier: {tier_name} #{rank:02d} | Role: {role} | Variant: {variant}")
             print(f"          Output: {filepath}")
 
@@ -452,14 +491,27 @@ def main(dry_run: bool = False):
             else:
                 print(f"  ✓ {filename}")
 
-        # Increment count for both dry-run and actual generation
-        generated_count += 1
+            generated_count += 1
+
+    # Orphan cleanup: remove .sh files not in current agent list
+    orphan_count = 0
+    if not dry_run:
+        for existing_file in OUTPUT_DIR.glob("*.sh"):
+            if existing_file.name not in generated_files:
+                existing_file.unlink()
+                print(f"  🗑 Removed orphan: {existing_file.name}")
+                orphan_count += 1
 
     if dry_run:
         print(f"\n[DRY-RUN] Would generate {generated_count} agent scripts in {OUTPUT_DIR}")
         print("[DRY-RUN] Run without --dry-run to actually create files")
     else:
         print(f"\n✅ Generated {generated_count} agent scripts in {OUTPUT_DIR}")
+        if skipped_count > 0:
+            print(f"   ⏭ {skipped_count} unchanged (mtime updated only)")
+        if orphan_count > 0:
+            print(f"   🗑 {orphan_count} orphans removed")
+        print("   📋 Files ordered by mtime: Free (oldest) → Apex (newest)")
 
 
 if __name__ == "__main__":

@@ -1,18 +1,20 @@
 # Kilo Agent Naming Convention
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-03-10
 
 ---
 
 ## Overview
 
 Kilo agent scripts in `~/.traycer/cli-agents/` use a **tier-based naming convention** that encodes:
-- Performance tier (Prime/Strong/Balanced/Economy)
+- Performance tier (Free/Economy/Standard/Pro/Expert/Apex/Specialist)
 - Rank within tier
 - Model identifier
 - Agent role (code/review)
 - Reasoning effort variant
 - Token pricing (input/output per 1M)
+
+**Key Feature:** Scripts are generated with sequential modification times so Traycer lists them in capability order (Free → Apex).
 
 ---
 
@@ -26,11 +28,11 @@ Kilo agent scripts in `~/.traycer/cli-agents/` use a **tier-based naming convent
 
 | Component | Description | Values |
 |-----------|-------------|--------|
-| `<TIER>` | Performance tier | `P` (Prime), `S` (Strong), `B` (Balanced), `E` (Economy) |
-| `<NN>` | Rank within tier | `01`, `02`, `03`, etc. |
-| `<model>` | Normalized model name | `opus46`, `gpt53codex`, `gemini31pro`, etc. |
+| `<TIER>` | Performance tier | `Free`, `Economy`, `Standard`, `Pro`, `Expert`, `Apex`, `Specialist` |
+| `<NN>` | Rank within tier | `00`, `01`, `02`, etc. (0-indexed) |
+| `<model>` | Normalized model name | `opus46`, `gpt53codex`, `gemini31pro`, `sonnet46`, etc. |
 | `<role>` | Agent purpose | `code`, `review` |
-| `<effort>` | Reasoning variant | `minimal`, `low`, `medium`, `high`, `max` |
+| `<effort>` | Reasoning variant | `auto`, `minimal`, `low`, `medium`, `high`, `max` |
 | `<IN>` | Input price per 1M | Encoded (price × 100, no decimals) |
 | `<OUT>` | Output price per 1M | Encoded (price × 100, no decimals) |
 
@@ -56,68 +58,87 @@ Kilo agent scripts in `~/.traycer/cli-agents/` use a **tier-based naming convent
 
 ## Tier Classification
 
-### 🔥 Prime Tier (P)
-**Premium models for mission-critical work**
-- Claude Opus 4.5/4.6
-- GPT-5.2-Pro
-- High cost, maximum reasoning
+### 🆓 Free Tier
+**Zero-cost models for prototyping**
+- kilo/auto (routing wrapper)
+- DeepSeek-R1, Minimax M2.1
+- GLM-4.7-Free, Kimi-K2.5
+- $0/1M input and output
 
-### 💪 Strong Tier (S)
+### 💸 Economy Tier
+**Budget-friendly, fast iteration**
+- Gemini-2.5-Flash, Minimax M2.5
+- GLM-4.7, DeepSeek-v3.2
+- GPT-5-nano, GPT-5-mini
+- $0.001-0.10/1M input
+
+### ⚖️ Standard Tier
+**Daily development workhorses**
+- Gemini-3-Flash, Gemini-2.5-Pro
+- O3-mini-high, O4-mini
+- GPT-5.1-Codex variants
+- $0.10-0.50/1M input
+
+### 💪 Pro Tier
 **Production-grade coding and review**
-- GPT-5.3-Codex, GPT-5.2
+- GPT-5.2, GPT-5.3-Codex
 - Gemini 3.1 Pro
 - Claude Sonnet 4.5/4.6
-- Balanced cost/performance
+- $0.50-3.00/1M input
 
-### ⚖ Balanced Tier (B)
-**Good performance, reasonable cost**
-- GPT-5.2-Codex
-- Gemini 3.1 CustomTools
-- GLM-5, Grok-4.1-Fast
-- Mid-tier pricing
+### 🔬 Expert Tier
+**Complex analysis and architecture**
+- Claude Opus 4.5/4.6
+- $3.00-10.00/1M input
 
-### 💸 Economy Tier (E)
-**Budget-friendly, fast iteration**
-- Gemini-3-Flash
-- Minimax M2.5
-- GLM-4.7-Flash
-- Seed-2.0-Mini
-- Minimal cost
+### 🔥 Apex Tier
+**Mission-critical decisions**
+- GPT-5.2-Pro, GPT-5.4-Pro
+- O1-Pro, O3-Pro
+- $15.00+/1M input
+
+### 🎯 Specialist Tier
+**Task-specific Codestral variants**
+- codestral-docs, codestral-refactor
+- codestral-review, codestral-test
+- Optimized for specific tasks
 
 ---
 
 ## Examples
 
-### Prime Tier
+### Free Tier
 ```bash
-P01-opus46-review-max-i500-o2500.sh      # Claude Opus 4.6 review
-P02-gpt52pro-review-max-i2100-o16800.sh  # GPT-5.2-Pro review
-P03-opus45-review-max-i500-o2500.sh      # Claude Opus 4.5 review
-```
-
-### Strong Tier
-```bash
-S01-gpt53codex-code-high-i002-o005.sh    # GPT-5.3-Codex code
-S02-gpt52-code-high-i002-o005.sh         # GPT-5.2 code
-S03-gemini31pro-code-high-i200-o1200.sh  # Gemini 3.1 Pro code
-S04-sonnet46-review-max-i300-o1500.sh    # Sonnet 4.6 review
-S05-sonnet45-review-max-i300-o1500.sh    # Sonnet 4.5 review
-```
-
-### Balanced Tier
-```bash
-B01-gpt52codex-code-high-i002-o005.sh    # GPT-5.2-Codex code
-B02-gemini31tools-code-high-i200-o1200.sh # Gemini 3.1 CustomTools
-B03-glm5-review-high-i100-o320.sh        # GLM-5 review
-B04-grok41fast-code-high-i020-o050.sh    # Grok-4.1-Fast code
+Free00-auto-code-auto-i000-o000.sh       # Kilo auto-router
+Free01-deepseekr1-code-max-i000-o000.sh  # DeepSeek-R1 code
+Free02-minimax21-code-medium-i000-o000.sh # Minimax M2.1 code
 ```
 
 ### Economy Tier
 ```bash
-E01-flash3-code-minimal-i001-o001.sh     # Gemini-3-Flash code
-E02-m25-code-low-i000-o001.sh            # Minimax M2.5 code
-E03-glm47flash-code-minimal-i007-o040.sh # GLM-4.7-Flash code
-E04-seed20mini-review-max-i003-o031.sh   # Seed-2.0-Mini review
+Economy00-flash25-code-minimal-i030-o250.sh  # Gemini-2.5-Flash code
+Economy09-deepseek32-code-medium-i025-o040.sh # DeepSeek v3.2 code
+Economy13-gpt5nano-code-minimal-i005-o040.sh  # GPT-5-nano code
+```
+
+### Pro Tier
+```bash
+Pro05-sonnet45-code-high-i300-o1500.sh   # Sonnet 4.5 code
+Pro06-sonnet46-review-max-i300-o1500.sh  # Sonnet 4.6 review
+Pro11-sonnet46-code-max-i300-o1500.sh    # Sonnet 4.6 code (max)
+Pro12-sonnet46-code-high-i300-o1500.sh   # Sonnet 4.6 code (high)
+```
+
+### Expert Tier
+```bash
+Expert00-opus45-review-max-i500-o2500.sh # Opus 4.5 review
+Expert01-opus46-code-max-i500-o2500.sh   # Opus 4.6 code
+```
+
+### Apex Tier
+```bash
+Apex00-gpt52pro-review-max-i2100-o16800.sh # GPT-5.2-Pro review
+Apex02-o3pro-review-max-i2000-o8000.sh     # O3-Pro review
 ```
 
 ---
@@ -129,6 +150,7 @@ E04-seed20mini-review-max-i003-o031.sh   # Seed-2.0-Mini review
 ✅ **Machine-parseable** - Stable format for automation
 ✅ **Visible pricing** - Know cost before using
 ✅ **Future-proof** - Handles new models/pricing
+✅ **Traycer-ordered** - mtime sequencing ensures correct listing order
 
 ---
 
@@ -136,12 +158,15 @@ E04-seed20mini-review-max-i003-o031.sh   # Seed-2.0-Mini review
 
 **Do NOT rename scripts manually.**
 
-Scripts are auto-generated from the pricing registry:
+Scripts are auto-generated from the agent registry:
 ```bash
 python /opt/fabrik/scripts/generate_kilo_agents.py
 ```
 
-This reads `/opt/fabrik/scripts/kilo_18_agents_complete.json` and generates all agent scripts with consistent naming.
+This reads `/opt/fabrik/scripts/kilo_47_agents_final.json` and generates all agent scripts with:
+- **Sequential mtime**: Files timestamped so Free=oldest, Apex=newest (Traycer ordering)
+- **Duplicate prevention**: Skips unchanged files (updates mtime only)
+- **Orphan cleanup**: Removes .sh files not in current agent list
 
 ---
 
@@ -163,6 +188,7 @@ Session IDs are maintained by Kilo CLI automatically. No explicit session tracki
 
 ## See Also
 
-- `/opt/fabrik/scripts/kilo_18_agents_complete.json` - Agent definitions
-- `/opt/fabrik/docs/reference/KILO_UPDATE_SCHEDULE.md` - Update process
-- `~/.traycer/cli-agents/save-plan-md.sh` - Plan saving utility
+- `/opt/fabrik/scripts/kilo_47_agents_final.json` - Agent definitions (57 agents)
+- `/opt/fabrik/scripts/generate_kilo_agents.py` - Script generator
+- `/opt/fabrik/docs/reference/kilo/KILO_MODEL_CAPABILITIES.md` - Model capabilities
+- `~/.traycer/cli-agents/` - Generated agent scripts
