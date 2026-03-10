@@ -24,7 +24,6 @@ Options:
 
 import argparse
 import json
-import os
 import time
 from pathlib import Path
 
@@ -430,10 +429,6 @@ def main(dry_run: bool = False):
             existing_file.unlink()
         print(f"  🗑 Cleared {OUTPUT_DIR} for clean regeneration")
 
-    # Base timestamp for mtime sequencing (backup ordering method)
-    total_agents = len(agents_sorted)
-    base_time = time.time() - total_agents
-
     # Track rank within each tier
     tier_ranks = {}
 
@@ -485,13 +480,13 @@ def main(dry_run: bool = False):
                 output_cost=agent["output_per_1m"],
             )
 
-            # Always write file (we deleted all files above for clean order)
+            # Small delay ensures filesystem creates files in correct order
+            # This guarantees inode order matches our desired sort order
+            time.sleep(0.02)  # 20ms delay between files
+
+            # Write file
             filepath.write_text(content)
             filepath.chmod(0o755)
-
-            # Set mtime as backup ordering (Free=newest for newest-first listings)
-            file_mtime = base_time + (total_agents - generated_count)
-            os.utime(filepath, (file_mtime, file_mtime))
 
             print(f"          Tier: {tier_name} #{rank:02d} | Role: {role} | Variant: {variant}")
             print(f"          Output: {filepath}")
