@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-09T19:23:39.366525",
-  "total_models": 328,
+  "timestamp": "2026-03-10T12:51:55.406561",
+  "total_models": 329,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -809,6 +809,11 @@
     },
     "moonshotai/kimi-k2.5": {
       "id": "moonshotai/kimi-k2.5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "morph-warp-grep-v2": {
+      "id": "morph-warp-grep-v2",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

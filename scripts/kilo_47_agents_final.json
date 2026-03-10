@@ -1,6 +1,6 @@
 {
   "timestamp": "2026-03-09T15:35:00Z",
-  "total_agents": 55,
+  "total_agents": 57,
   "tier_system": "Opus 4.6 Enhanced (Free/Economy/Standard/Pro/Expert/Apex/Specialist)",
   "pricing_complete": true,
   "agents": [
@@ -364,6 +364,28 @@
       "use_case": "Review",
       "variant": "max",
       "specialty": "Balanced review",
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0
+    },
+    {
+      "agent_id": "pro-11",
+      "model_name": "claude-sonnet-4.6",
+      "full_name": "kilo/anthropic/claude-sonnet-4.6",
+      "provider": "Anthropic",
+      "use_case": "Code",
+      "variant": "max",
+      "specialty": "Complex coding, refactoring",
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0
+    },
+    {
+      "agent_id": "pro-12",
+      "model_name": "claude-sonnet-4.6",
+      "full_name": "kilo/anthropic/claude-sonnet-4.6",
+      "provider": "Anthropic",
+      "use_case": "Code",
+      "variant": "high",
+      "specialty": "Thinking-level coding tasks",
       "input_per_1m": 3.0,
       "output_per_1m": 15.0
     },
