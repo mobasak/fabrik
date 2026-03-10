@@ -405,9 +405,11 @@ def main(dry_run: bool = False):
     skipped_count = 0
 
     # Base timestamp for mtime sequencing
-    # Files are stamped 1 second apart, oldest=Free, newest=Apex
-    # This ensures Traycer lists agents in capability order
-    base_time = time.time() - len(agents_sorted)  # Start in past
+    # Traycer lists files newest-first, so:
+    # Free=newest mtime (appears first), Apex=oldest mtime (appears last)
+    # This ensures Traycer lists agents: least capable → most capable
+    total_agents = len(agents_sorted)
+    base_time = time.time() - total_agents  # Start in past
 
     # Track rank within each tier
     tier_ranks = {}
@@ -463,8 +465,8 @@ def main(dry_run: bool = False):
             # Duplicate prevention: skip if file exists with identical content
             if filepath.exists() and filepath.read_text() == content:
                 skipped_count += 1
-                # Still set mtime for proper ordering
-                file_mtime = base_time + generated_count
+                # Still set mtime for proper ordering (reversed: Free=newest)
+                file_mtime = base_time + (total_agents - generated_count)
                 os.utime(filepath, (file_mtime, file_mtime))
                 print(f"  ⏭ {filename} (unchanged, mtime updated)")
                 generated_count += 1
@@ -474,9 +476,9 @@ def main(dry_run: bool = False):
             filepath.write_text(content)
             filepath.chmod(0o755)
 
-            # Set sequential mtime for Traycer ordering
-            # Earlier agents (Free) get older timestamps, later (Apex) get newer
-            file_mtime = base_time + generated_count
+            # Set sequential mtime for Traycer ordering (newest-first listing)
+            # Free gets newest mtime (appears first), Apex gets oldest (appears last)
+            file_mtime = base_time + (total_agents - generated_count)
             os.utime(filepath, (file_mtime, file_mtime))
 
             print(f"          Tier: {tier_name} #{rank:02d} | Role: {role} | Variant: {variant}")
@@ -511,7 +513,7 @@ def main(dry_run: bool = False):
             print(f"   ⏭ {skipped_count} unchanged (mtime updated only)")
         if orphan_count > 0:
             print(f"   🗑 {orphan_count} orphans removed")
-        print("   📋 Files ordered by mtime: Free (oldest) → Apex (newest)")
+        print("   📋 Files ordered by mtime: Free (newest) → Apex (oldest) for Traycer")
 
 
 if __name__ == "__main__":

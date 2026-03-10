@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Kilo CLI Agent mtime Ordering for Traycer (2026-03-10)
+
+**What:** Fixed mtime ordering so Traycer lists agents correctly: Free (least capable) first → Apex (most capable) last.
+
+**Files:**
+- `scripts/generate_kilo_agents.py` — Reversed mtime assignment (Free=newest, Apex=oldest)
+- `docs/reference/kilo/KILO_AGENT_NAMING.md` — Updated documentation
+
+**What Changed:**
+- **Before:** All files had same mtime, random order in Traycer
+- **After:** Sequential mtime with Free=newest so Traycer's newest-first listing shows correct order
+
 ### Changed - Comprehensive .gitignore for All Scaffold Types (2026-03-09)
 
 **What:** Enhanced .gitignore templates for all Fabrik scaffold project types to exclude IDE files, build artifacts, and test coverage.

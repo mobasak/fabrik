@@ -14,7 +14,7 @@ Kilo agent scripts in `~/.traycer/cli-agents/` use a **tier-based naming convent
 - Reasoning effort variant
 - Token pricing (input/output per 1M)
 
-**Key Feature:** Scripts are generated with sequential modification times so Traycer lists them in capability order (Free → Apex).
+**Key Feature:** Scripts are generated with sequential modification times so Traycer lists them in capability order (Free first → Apex last). Since Traycer lists newest-first, Free gets the newest mtime.
 
 ---
 
@@ -164,7 +164,7 @@ python /opt/fabrik/scripts/generate_kilo_agents.py
 ```
 
 This reads `/opt/fabrik/scripts/kilo_47_agents_final.json` and generates all agent scripts with:
-- **Sequential mtime**: Files timestamped so Free=oldest, Apex=newest (Traycer ordering)
+- **Sequential mtime**: Files timestamped so Free=newest, Apex=oldest (Traycer lists newest-first)
 - **Duplicate prevention**: Skips unchanged files (updates mtime only)
 - **Orphan cleanup**: Removes .sh files not in current agent list
 
