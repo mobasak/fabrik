@@ -9,10 +9,11 @@ Naming format: {Tier}{NN}-{model}-{role}-{variant}-i{IN}-o{OUT}.sh
 Example: Economy02-deepseek32-code-medium-i027-o081.sh
 
 Features:
-    - Sequential mtime setting: Files are timestamped in capability order
-      (Free=oldest → Apex=newest) so Traycer lists them correctly
-    - Duplicate prevention: Skips regenerating identical files
-    - Orphan cleanup: Removes old .sh files not in current agent list
+    - Routing policy integration: Reads ~/.traycer/routing-policy.yaml
+      to determine which agents are active vs disabled
+    - Active agents placed in ~/.traycer/cli-agents/
+    - Disabled agents placed in ~/.traycer/disabled-cli-agents/
+    - Sequential mtime setting for Traycer sorting
 
 Usage:
     python generate_kilo_agents.py [-h] [-d]
@@ -24,11 +25,21 @@ Options:
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
+try:
+    import yaml
+
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+
 AGENTS_FILE = Path(__file__).parent / "kilo_47_agents_final.json"
+ROUTING_POLICY_FILE = Path.home() / ".traycer" / "routing-policy.yaml"
 OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
+DISABLED_DIR = Path.home() / ".traycer" / "disabled-cli-agents"
 
 # Tier system: Opus 4.6 Enhanced with numeric prefix for alphabetical sorting
 # Traycer sorts alphabetically, so we prefix with T1-T7 to ensure correct order:
@@ -218,7 +229,7 @@ def generate_script_content(
     else:
         pricing_line = f"# Pricing: ${input_cost:.3f}/1M in, ${output_cost:.3f}/1M out"
 
-    return f"""#!/bin/sh
+    return f"""#!/bin/bash
 # ════════════════════════════════════════════════════════════════════════════
 # Kilo {role.capitalize()} Agent - {tier_name} Tier
 # ════════════════════════════════════════════════════════════════════════════
@@ -283,6 +294,10 @@ if [ "$KILO_DEBUG" = "1" ]; then
     echo "[DEBUG] Model: {full_name}" >&2
     echo "[DEBUG] TRAYCER_PROMPT length: ${{#TRAYCER_PROMPT}}" >&2
     echo "[DEBUG] TRAYCER_TASK_ID: $TRAYCER_TASK_ID" >&2
+    echo "[DEBUG] TRAYCER_PHASE_ID: $TRAYCER_PHASE_ID" >&2
+    echo "[DEBUG] TRAYCER_PHASE_BREAKDOWN_ID: $TRAYCER_PHASE_BREAKDOWN_ID" >&2
+    echo "[DEBUG] All TRAYCER vars:" >&2
+    env | grep TRAYCER >&2 || true
 fi
 
 # Handle both regular and large prompts
@@ -297,8 +312,11 @@ else
 fi
 
 # Save task context for Step 4 (kilo_code_review.py needs it)
+# Use unique filename per task to avoid conflicts with concurrent agents
 mkdir -p .droid/review-context
-printf '%s\\n' "$PROMPT" > .droid/review-context/task.md
+TASK_FILE=".droid/review-context/task-${{TRAYCER_TASK_ID:-${{TRAYCER_PHASE_ID:-$(date +%s)}}}}.md"
+printf '%s\\n' "$PROMPT" > "$TASK_FILE"
+[ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Task saved to: $TASK_FILE" >&2
 
 # Timeout protection (default 10 minutes)
 TIMEOUT="${{KILO_TIMEOUT:-600}}"
@@ -308,22 +326,35 @@ TIMEOUT="${{KILO_TIMEOUT:-600}}"
 USAGE_LOG="${{KILO_USAGE_LOG:-.droid/kilo_usage.jsonl}}"
 START_TIME=$(date +%s)
 
-# Run Kilo agent with timeout and capture output for report extraction
-OUTPUT=$(timeout "$TIMEOUT" kilo run --format json --auto \\
+# Temp file for capturing output while streaming
+OUTPUT_FILE=$(mktemp)
+trap "rm -f $OUTPUT_FILE" EXIT
+
+# Session title for Kilo (uses PHASE_ID for continuity within same phase)
+SESSION_TITLE="${{TRAYCER_PHASE_ID:-${{TRAYCER_TASK_ID:-kilo-session}}}}"
+[ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Kilo session title: $SESSION_TITLE" >&2
+
+# Run Kilo agent with streaming output (tee shows real-time AND captures)
+# Use --format default for readable streaming, not JSON
+# --title sets session name for potential continuation
+timeout "$TIMEOUT" kilo run --format default --auto \\
     --model {full_name} \\
     --variant {variant} \\
     --agent {role} \\
-    "$PROMPT" 2>&1)
+    --title "$SESSION_TITLE" \\
+    "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
 
-EXIT_CODE=$?
+EXIT_CODE=${{PIPESTATUS[0]}}
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
-# Display output to user (important for Traycer IDE visibility)
-echo "$OUTPUT"
+# Read captured output for report extraction
+OUTPUT=$(cat "$OUTPUT_FILE")
 
 # MANDATORY: Extract and write Traycer report (fail if missing)
+REPORT_FOUND=0
 if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
+    REPORT_FOUND=1
     REPORT_WRITER="/opt/fabrik/scripts/traycer_write_report.py"
     if [ -f "$REPORT_WRITER" ]; then
         echo "$OUTPUT" | python3 "$REPORT_WRITER" --slug "${{TRAYCER_TASK_ID:-traycer-task}}" 2>&1 | grep "📝" >&2 || true
@@ -369,8 +400,12 @@ if [ "$KILO_DEBUG" = "1" ]; then
     echo "[DEBUG] Duration: $DURATION seconds" >&2
 fi
 
-# Capture exit code and exit explicitly
-exit $EXIT_CODE
+# Exit logic: success if report found, otherwise use kilo's exit code
+if [ $REPORT_FOUND -eq 1 ]; then
+    exit 0
+else
+    exit $EXIT_CODE
+fi
 """
 
 
@@ -384,7 +419,7 @@ def validate_script(script_path: Path) -> list[str]:
     content = script_path.read_text()
 
     # Check shebang
-    if not content.startswith("#!/bin/sh"):
+    if not content.startswith("#!/bin/bash"):
         issues.append("Missing or incorrect shebang")
 
     # Check for exit statement
@@ -405,14 +440,55 @@ def validate_script(script_path: Path) -> list[str]:
     return issues
 
 
+def load_active_agents() -> set[str]:
+    """
+    Load active agent script names from routing-policy.yaml.
+    Returns set of script filenames that should be in the active folder.
+    """
+    if not YAML_AVAILABLE:
+        print("  ⚠ PyYAML not installed, all agents will be active")
+        return set()  # Empty = all active
+
+    if not ROUTING_POLICY_FILE.exists():
+        print(f"  ⚠ {ROUTING_POLICY_FILE} not found, all agents will be active")
+        return set()  # Empty = all active
+
+    try:
+        with open(ROUTING_POLICY_FILE) as f:
+            policy = yaml.safe_load(f)
+
+        active_scripts: set[str] = set()
+        agents_config = policy.get("agents", {})
+
+        for _role_name, agent_info in agents_config.items():
+            if isinstance(agent_info, dict):
+                script = agent_info.get("script", "")
+                active_status = agent_info.get("active", "always")
+                # Include both "always" and "conditional" as active
+                if active_status in ("always", "conditional") and script:
+                    active_scripts.add(script)
+
+        print(f"  📋 Routing policy loaded: {len(active_scripts)} active agents")
+        return active_scripts
+
+    except Exception as e:
+        print(f"  ⚠ Error loading routing policy: {e}")
+        return set()  # Empty = all active
+
+
 def main(dry_run: bool = False):
     # Load agent definitions
     with open(AGENTS_FILE) as f:
         data = json.load(f)
 
-    # Create output directory (skip in dry-run)
+    # Load routing policy to determine active vs disabled
+    active_scripts = load_active_agents()
+    use_routing = len(active_scripts) > 0
+
+    # Create output directories (skip in dry-run)
     if not dry_run:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        DISABLED_DIR.mkdir(parents=True, exist_ok=True)
 
     # Sort agents by tier order using the sort key function
     # Order: Free (least capable) → Economy → Standard → Pro → Expert → Apex (most capable)
@@ -420,14 +496,23 @@ def main(dry_run: bool = False):
 
     # Track which files we generate
     generated_files: set[str] = set()
-    generated_count = 0
+    active_count = 0
+    disabled_count = 0
 
-    # Delete ALL existing .sh files first to ensure clean filesystem order
-    # Traycer may sort by inode/creation order, not mtime
+    # Delete and recreate directories for clean ext4 hash table
+    # ext4 uses hash-based directory entries; only a fresh dir guarantees order
     if not dry_run:
-        for existing_file in OUTPUT_DIR.glob("*.sh"):
-            existing_file.unlink()
-        print(f"  🗑 Cleared {OUTPUT_DIR} for clean regeneration")
+        import shutil
+
+        # Recreate both directories (active and disabled are separate)
+        if OUTPUT_DIR.exists():
+            shutil.rmtree(OUTPUT_DIR)
+        if DISABLED_DIR.exists():
+            shutil.rmtree(DISABLED_DIR)
+
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        DISABLED_DIR.mkdir(parents=True, exist_ok=True)
+        print(f"  🗑 Recreated {OUTPUT_DIR} and {DISABLED_DIR}")
 
     # Track rank within each tier
     tier_ranks = {}
@@ -450,21 +535,29 @@ def main(dry_run: bool = False):
         variant = agent["variant"]
 
         filename = f"{tier_name}{rank:02d}-{model_normalized}-{role}-{variant}-i{input_encoded}-o{output_encoded}.sh"
-        filepath = OUTPUT_DIR / filename
+
+        # Determine if agent is active or disabled
+        is_active = not use_routing or filename in active_scripts
+        target_dir = OUTPUT_DIR if is_active else DISABLED_DIR
+        filepath = target_dir / filename
 
         # Track this file for orphan cleanup
         generated_files.add(filename)
 
         if dry_run:
             # Dry-run: show what would be generated
-            print(f"[DRY-RUN] Would generate: {filename}")
+            status = "ACTIVE" if is_active else "disabled"
+            print(f"[DRY-RUN] Would generate ({status}): {filename}")
             print(f"          Model: {agent['full_name']}")
             print(f"          Tier: {tier_name} #{rank:02d} | Role: {role} | Variant: {variant}")
             print(
                 f"          Pricing: ${agent['input_per_1m']:.3f}/1M in, ${agent['output_per_1m']:.3f}/1M out"
             )
             print(f"          Output: {filepath}")
-            generated_count += 1
+            if is_active:
+                active_count += 1
+            else:
+                disabled_count += 1
         else:
             # Generate script content
             content = generate_script_content(
@@ -480,14 +573,14 @@ def main(dry_run: bool = False):
                 output_cost=agent["output_per_1m"],
             )
 
-            # Small delay ensures filesystem creates files in correct order
-            # This guarantees inode order matches our desired sort order
-            time.sleep(0.02)  # 20ms delay between files
-
-            # Write file
+            # Write file with 1 second delay for Traycer timestamp ordering (active only)
+            if is_active:
+                time.sleep(1)
             filepath.write_text(content)
             filepath.chmod(0o755)
 
+            status_icon = "✓" if is_active else "○"
+            status_label = "" if is_active else " [disabled]"
             print(f"          Tier: {tier_name} #{rank:02d} | Role: {role} | Variant: {variant}")
             print(f"          Output: {filepath}")
 
@@ -498,16 +591,32 @@ def main(dry_run: bool = False):
                 for issue in validation_issues:
                     print(f"    - {issue}")
             else:
-                print(f"  ✓ {filename}")
+                print(f"  {status_icon} {filename}{status_label}")
 
-            generated_count += 1
+            if is_active:
+                active_count += 1
+            else:
+                disabled_count += 1
 
     if dry_run:
-        print(f"\n[DRY-RUN] Would generate {generated_count} agent scripts in {OUTPUT_DIR}")
+        print(
+            f"\n[DRY-RUN] Would generate {active_count} active + {disabled_count} disabled agents"
+        )
+        print(f"[DRY-RUN] Active: {OUTPUT_DIR}")
+        print(f"[DRY-RUN] Disabled: {DISABLED_DIR}")
         print("[DRY-RUN] Run without --dry-run to actually create files")
     else:
-        print(f"\n✅ Generated {generated_count} agent scripts in {OUTPUT_DIR}")
-        print("   📋 Files created in order: Free00 → Specialist04 (filesystem order)")
+        # Set timestamps for Traycer sorting (newest-first = T1-Free first)
+        # Only for active agents
+        files = sorted(OUTPUT_DIR.glob("*.sh"))
+        n = len(files)
+        for i, f in enumerate(files):
+            ts = n - i  # T1-Free00 gets highest timestamp (newest)
+            os.utime(f, (ts, ts))
+        print(f"\n✅ Generated {active_count} active + {disabled_count} disabled agents")
+        print(f"   📁 Active: {OUTPUT_DIR}")
+        print(f"   📁 Disabled: {DISABLED_DIR}")
+        print("   📋 Timestamps set: T1-Free=newest → T7-Specialist=oldest (Traycer sort)")
 
 
 if __name__ == "__main__":

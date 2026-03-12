@@ -4,6 +4,104 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Agent Routing Policy System (2026-03-12)
+
+**What:** Implemented cost-optimized agent routing with ticket classification and escalation paths.
+
+**Files:**
+- `~/.traycer/routing-policy.yaml` — NEW: Machine-readable routing configuration (source of truth)
+- `~/.traycer/routing-policy.md` — NEW: Human documentation for routing policy
+- `scripts/generate_kilo_agents.py` — Updated to read routing policy and place active/disabled agents
+- `scripts/kilo_47_agents_final.json` — 53 agents total (4 broken models removed earlier)
+
+**Agent Organization:**
+- **14 Active** agents in `~/.traycer/cli-agents/`
+- **39 Disabled** agents in `~/.traycer/disabled-cli-agents/`
+
+**Active Roster (12 always + 2 conditional):**
+
+| Role | Agent | Use Case |
+|------|-------|----------|
+| Router | `T1-Free00-auto` | Top-level orchestration |
+| Free Fallback | `T1-Free04-kimik2` | Emergency continuity |
+| Cheap Worker | `T2-Economy05-devstral` | Patches, small bugs |
+| Cheap Review | `T2-Economy11-qwen3235b` | PR audit, lint |
+| Cheap General | `T2-Economy14-gpt5mini` | Clear specs |
+| Cheap Code-Native | `T2-Economy15-gpt51codexmini` | Structured edits |
+| Mid Reasoning | `T3-Standard04-o4mini` | Debug escalation |
+| Premium Review | `T4-Pro06-sonnet46-review` | Architecture review |
+| Premium Alt Coder | `T4-Pro10-gpt54` | Tie-breaker |
+| Premium Code Max | `T4-Pro11-sonnet46-code-max` | Hard multi-step |
+| Premium Code High | `T4-Pro12-sonnet46-code-high` | Important tickets |
+| Final Escalation | `T5-Expert01-opus46` | Hardest blockers |
+| Docs Specialist | `T7-Specialist00-codestraldocs` | README, guides (conditional) |
+| Test Specialist | `T7-Specialist03-codestraltest` | Unit tests (conditional) |
+
+**Routing Policy:**
+- 6 ticket buckets: Patch, Structured, Debug, Ambiguous, Design, Audit
+- Default cheap model per bucket
+- Escalation paths with max attempts
+- Debug mode auto-enabled for debug/ambiguous/design buckets
+- Cost guardrails: never default to premium models
+
+**Debug Mode Policy:**
+- `KILO_DEBUG=0` by default (not global)
+- Auto-enable when: retry_count >= 2, bucket in [debug, ambiguous, design], previous attempt failed
+
+### Changed - Unified Agent Rule Management (2026-03-12)
+
+**What:** Unified rule loading for Windsurf Cascade and Kilo CLI agents to ensure both follow the same Fabrik rules from a single source.
+
+**Files:**
+- `scripts/generate_kilo_agents.py` — Changed shebang `#!/bin/sh` → `#!/bin/bash`; fixed exit code; unique task files per `TRAYCER_TASK_ID`
+- `scripts/kilo_47_agents_final.json` — Removed 4 broken models (53 agents now)
+- `src/fabrik/scaffold.py` — Added `opencode.json` creation in `_scaffold_shared()` and `fix_project()`
+- `docs/traycer/README.md` — Added "Agent Rule Architecture" section documenting Traycer/Kilo/Windsurf integration
+- `~/.config/kilo/opencode.json` — NEW: Global Kilo config with instructions
+- `~/.traycer/prompt-templates/*.md` — Simplified templates to remove duplicate R1-R11 rules
+
+**Models Removed (broken/unusable):**
+| Model | Reason |
+|-------|--------|
+| `kimi-k2.5` (T1-Free) | Returns empty output |
+| `qwen3-coder` (T1-Free) | Returns empty output |
+| `o1-pro` (T6-Apex) | Too slow (timeout >45s) |
+| `o3-pro` (T6-Apex) | Too slow (timeout >45s) |
+
+**Architecture:**
+```
+SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
+       │
+       ├── Windsurf Cascade → loads automatically
+       │
+       └── Kilo CLI → loads via opencode.json "instructions"
+              │
+              └── Traycer templates → task-specific only (no duplicate rules)
+```
+
+**What Changed:**
+- **Before:** Rules duplicated in Traycer templates (R1-R11) AND .windsurf/rules/, causing conflicts
+- **After:** Rules loaded once via `opencode.json` `"instructions"` config; templates contain only workflow steps
+- **Before:** Task saved to `task.md` (concurrent agent conflicts)
+- **After:** Task saved to `task-{TRAYCER_TASK_ID}.md` (unique per agent run)
+
+**Projects Updated:**
+- All 36 projects under `/opt/` (excluding `_*` and `google/`) now have:
+  - `AGENTS.md` symlinked to `/opt/fabrik/AGENTS.md`
+  - `.windsurf/rules/` symlinked to `/opt/fabrik/.windsurf/rules/`
+  - `opencode.json` with instructions config
+
+### Fixed - Kilo Agent Generator: ext4 Directory Reset and Timestamp Ordering (2026-03-11)
+
+**What:** Replaced per-file deletion with full directory recreation to guarantee clean ext4 hash table ordering, increased inter-file write delay to 1 second for reliable mtime separation, and added explicit `os.utime` normalization so Traycer sorts T1-Free first (newest) â T7-Specialist last (oldest).
+
+**Files:**
+- `scripts/generate_kilo_agents.py` â Use `shutil.rmtree` + `mkdir` instead of individual `unlink` calls; change delay from 20ms to 1s; set monotonic timestamps after generation
+
+**What Changed:**
+- **Before:** Deleted `.sh` files individually (inode reuse could break ext4 sort order); 20ms delay between writes; no post-generation timestamp normalization
+- **After:** Entire output directory recreated fresh; 1s mtime gap per file; `os.utime` assigns `ts = n - i` so Free agents get highest timestamps (Traycer newest-first = least-capable first)
+
 ### Fixed - Kilo CLI Agent Sorting for Traycer (2026-03-10)
 
 **What:** Fixed agent sorting so Traycer lists agents correctly: Free (least capable) first → Specialist last.

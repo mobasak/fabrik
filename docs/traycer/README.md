@@ -1,6 +1,6 @@
 # Traycer Templates (Integration Guide)
 
-**Last Updated:** 2026-02-24
+**Last Updated:** 2026-03-12
 
 Templates and instructions for using Traycer.ai with Fabrik's spec pipeline. Traycer runs as a **Windsurf extension** (Windows 11 Pro) connecting to the WSL environment.
 
@@ -12,6 +12,103 @@ Traycer is a spec-driven development orchestrator that:
 - Reads your specification and generates phased implementation plans.
 - Hands tasks to AI coding agents (like Cascade or droid exec).
 - Verifies task completion.
+
+---
+
+## Agent Rule Architecture (How Rules Flow)
+
+Fabrik uses a **single source of truth** for agent rules, ensuring both Windsurf Cascade and Kilo CLI agents follow identical guidelines.
+
+### Rule Sources
+
+| File/Directory | Purpose | Location |
+|----------------|---------|----------|
+| `.windsurf/rules/*.md` | Workspace rules (activation modes) | `/opt/fabrik/.windsurf/rules/` (symlinked to all projects) |
+| `AGENTS.md` | Agent briefing (9-step workflow, conventions) | `/opt/fabrik/AGENTS.md` (symlinked to all projects) |
+| `opencode.json` | Kilo instruction loading config | Each project root |
+
+### How Each Agent Loads Rules
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    SINGLE SOURCE OF TRUTH                        │
+│   /opt/fabrik/.windsurf/rules/*.md + /opt/fabrik/AGENTS.md      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+         ┌────────────────────┴────────────────────┐
+         │                                         │
+         ▼                                         ▼
+┌─────────────────────┐                 ┌─────────────────────┐
+│  WINDSURF CASCADE   │                 │      KILO CLI       │
+│                     │                 │                     │
+│ Auto-discovers:     │                 │ Loads via           │
+│ • .windsurf/rules/  │                 │ opencode.json:      │
+│ • AGENTS.md         │                 │ {                   │
+│                     │                 │   "instructions": [ │
+│ (Native behavior)   │                 │     ".windsurf/     │
+│                     │                 │      rules/*.md",   │
+│                     │                 │     "AGENTS.md"     │
+│                     │                 │   ]                 │
+│                     │                 │ }                   │
+└─────────────────────┘                 └─────────────────────┘
+                                                  │
+                                                  ▼
+                                        ┌─────────────────────┐
+                                        │      TRAYCER        │
+                                        │                     │
+                                        │ Passes task via:    │
+                                        │ • TRAYCER_PROMPT    │
+                                        │   (env var)         │
+                                        │                     │
+                                        │ Templates contain   │
+                                        │ ONLY workflow steps │
+                                        │ (no duplicate rules)│
+                                        └─────────────────────┘
+```
+
+### Traycer → Kilo Task Flow
+
+1. **Traycer submits task** via `TRAYCER_PROMPT` environment variable
+2. **CLI agent script** (`~/.traycer/cli-agents/*.sh`) receives prompt
+3. **Kilo CLI** loads instructions from `opencode.json` (rules from `.windsurf/rules/` and `AGENTS.md`)
+4. **Kilo executes** task with full rule context
+5. **Agent outputs** `BEGIN_TRAYCER_REPORT_MD...END_TRAYCER_REPORT_MD` block
+6. **Report writer** extracts and saves to `.droid/traycer-reports/`
+
+### Fabrik Scaffold Integration
+
+When creating a new project via `fabrik scaffold`:
+
+```bash
+fabrik scaffold python my-service
+```
+
+The scaffold automatically creates:
+- `AGENTS.md` → symlink to `/opt/fabrik/AGENTS.md`
+- `.windsurf/rules/` → symlink to `/opt/fabrik/.windsurf/rules/`
+- `opencode.json` → Kilo instruction config pointing to above files
+
+This ensures **every Fabrik project** has consistent agent rules from day one.
+
+### Why This Architecture?
+
+| Problem | Solution |
+|---------|----------|
+| Rules duplicated in Traycer templates | Templates now contain only workflow steps; rules loaded via `opencode.json` |
+| Windsurf and Kilo following different rules | Both load from same `.windsurf/rules/` and `AGENTS.md` |
+| New projects missing agent config | `fabrik scaffold` auto-creates `opencode.json` |
+| Concurrent agent conflicts | Task files now use unique names per `TRAYCER_TASK_ID` |
+
+### Agent Behavior Notes
+
+**Kilo agents CAN read files in the codebase.** When given a task, Kilo may:
+- Read referenced files (e.g., `web/db/schema.sql`)
+- Explore related files (e.g., `docs/development/plans/*.md`)
+- Search codebase with grep/glob
+
+This is **correct behavior** - agents need context to complete tasks properly.
+
+---
 
 ## Pricing & Usage Limits
 

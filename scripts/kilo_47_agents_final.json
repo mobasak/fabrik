@@ -1,6 +1,6 @@
 {
   "timestamp": "2026-03-09T15:35:00Z",
-  "total_agents": 57,
+  "total_agents": 53,
   "tier_system": "Opus 4.6 Enhanced (Free/Economy/Standard/Pro/Expert/Apex/Specialist)",
   "pricing_complete": true,
   "agents": [
@@ -49,17 +49,6 @@
       "output_per_1m": 0.0
     },
     {
-      "agent_id": "free-4",
-      "model_name": "kimi-k2.5",
-      "full_name": "kilo/moonshotai/kimi-k2.5:free",
-      "provider": "MoonShot",
-      "use_case": "Code",
-      "variant": "high",
-      "specialty": "Agentic capabilities, zero cost",
-      "input_per_1m": 0.0,
-      "output_per_1m": 0.0
-    },
-    {
       "agent_id": "free-5",
       "model_name": "kimi-k2",
       "full_name": "kilo/moonshotai/kimi-k2",
@@ -67,17 +56,6 @@
       "use_case": "Code",
       "variant": "high",
       "specialty": "Advanced tool use, zero cost",
-      "input_per_1m": 0.0,
-      "output_per_1m": 0.0
-    },
-    {
-      "agent_id": "free-6",
-      "model_name": "qwen3-coder",
-      "full_name": "kilo/qwen/qwen3-coder",
-      "provider": "Qwen",
-      "use_case": "Code",
-      "variant": "high",
-      "specialty": "Agentic coding, zero cost",
       "input_per_1m": 0.0,
       "output_per_1m": 0.0
     },
@@ -454,28 +432,6 @@
       "specialty": "Deep analysis (DEFAULT APEX)",
       "input_per_1m": 21.0,
       "output_per_1m": 168.0
-    },
-    {
-      "agent_id": "apex-1",
-      "model_name": "o1-pro",
-      "full_name": "kilo/openai/o1-pro",
-      "provider": "OpenAI",
-      "use_case": "Review",
-      "variant": "max",
-      "specialty": "Flagship reasoning",
-      "input_per_1m": 150.0,
-      "output_per_1m": 600.0
-    },
-    {
-      "agent_id": "apex-2",
-      "model_name": "o3-pro",
-      "full_name": "kilo/openai/o3-pro",
-      "provider": "OpenAI",
-      "use_case": "Review",
-      "variant": "max",
-      "specialty": "Maximum reasoning depth",
-      "input_per_1m": 20.0,
-      "output_per_1m": 80.0
     },
     {
       "agent_id": "spec-refactor",

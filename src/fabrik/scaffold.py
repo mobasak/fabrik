@@ -294,6 +294,18 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
     # AGENTS.md: symlink to master, fallback to copy
     _link_agents_md(project_dir)
 
+    # Create opencode.json for Kilo CLI instruction loading
+    # This ensures Kilo agents load the same rules as Windsurf Cascade
+    (project_dir / "opencode.json").write_text(
+        "{\n"
+        '  "$schema": "https://opencode.ai/config.json",\n'
+        '  "instructions": [\n'
+        '    ".windsurf/rules/*.md",\n'
+        '    "AGENTS.md"\n'
+        "  ]\n"
+        "}\n"
+    )
+
     # Create .gitignore and .env.example
     (project_dir / ".gitignore").write_text(
         ".env\n"
@@ -1251,6 +1263,20 @@ def fix_project(
         if not agents_link.exists() and not agents_link.is_symlink():
             _link_agents_md(project_path)
             added.append("AGENTS.md (symlink or copy)")
+
+        # Create opencode.json if missing (Kilo CLI instruction loading)
+        opencode_json = project_path / "opencode.json"
+        if not opencode_json.exists():
+            opencode_json.write_text(
+                "{\n"
+                '  "$schema": "https://opencode.ai/config.json",\n'
+                '  "instructions": [\n'
+                '    ".windsurf/rules/*.md",\n'
+                '    "AGENTS.md"\n'
+                "  ]\n"
+                "}\n"
+            )
+            added.append("opencode.json")
     else:
         # dry_run: accurately report what would be created/fixed
         # .windsurfrules
@@ -1276,5 +1302,9 @@ def fix_project(
                 added.append("AGENTS.md (symlink fix)")
         elif not agents.exists():
             added.append("AGENTS.md (symlink or copy)")
+
+        # opencode.json
+        if not (project_path / "opencode.json").exists():
+            added.append("opencode.json")
 
     return added
