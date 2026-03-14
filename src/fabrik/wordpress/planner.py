@@ -29,6 +29,7 @@ STAGE_KEYS: dict[str, list[str]] = {
     "settings": ["site", "brand", "languages"],
     "theme": ["brand", "theme"],
     "plugins": ["plugins", "preset"],
+    "languages": ["languages", "plugins"],
     "pages": ["pages", "brand", "languages"],
     "menus": ["navigation", "pages"],
     "forms": ["contact", "forms"],

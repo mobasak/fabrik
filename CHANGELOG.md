@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - WordPress settings stage editor provisioning and credentials artifact flow (2026-03-15)
+
+**What:** Restored Ticket 3 editor provisioning in the settings stage, including pre-flight user existence checks, secure `credentials.json` output, and regression tests for the required behavior branches.
+
+**Files:**
+- `src/fabrik/wordpress/stages/settings.py` - Added editor provisioning flow, pre-flight existence check, secure credentials artifact writing, and missing-email skip handling
+- `tests/wordpress/stages/test_settings.py` - Added Ticket 3 coverage for creation, existing-user skip, no-email skip, and credentials artifact permissions
+
+### Fixed - WordPress planner languages stage and multilingual plugin detection (2026-03-14)
+
+**What:** Added missing `languages` stage to planner STAGE_KEYS so idempotent skip logic works correctly, and replaced hardcoded WPML requirement with schema-driven multilingual plugin resolution.
+
+**Files:**
+- `src/fabrik/wordpress/planner.py` — Added `languages` entry to STAGE_KEYS
+- `src/fabrik/wordpress/stages/languages.py` — Derive multilingual plugin slug from spec config instead of hardcoding WPML
+- `tests/wordpress/stages/test_languages.py` — Added polylang plugin path tests
+- `tests/wordpress/test_deployer_baseline.py` — Updated baseline hash for new languages stage
+- `tests/wordpress/test_planner.py` — Fixed stage preservation assertion for spec_hash changes
+- `tests/wordpress/fixtures/ocoron_baseline.json` — Updated fixture with languages in steps_completed
+
 ### Added - Agent Routing Policy System (2026-03-12)
 
 **What:** Implemented cost-optimized agent routing with ticket classification and escalation paths.

@@ -120,10 +120,14 @@ def test_plan_preserves_container_name(mock_resolved_spec, temp_build_root):
         # Run plan
         planner.plan()
 
-        # Verify container_name and stages are preserved
+        # Verify container_name is preserved and stages are recomputed
         plan = json.loads(planner.plan_path.read_text(encoding="utf-8"))
         assert plan["container_name"] == "existing-container"
-        assert plan["stages"] == [{"name": "deploy", "status": "completed"}]
+        # Stages are recomputed from STAGE_KEYS when spec_hash changes
+        stage_names = [s["name"] for s in plan["stages"]]
+        assert "dns" in stage_names
+        assert "languages" in stage_names
+        assert all("input_hash" in s for s in plan["stages"])
         # But spec_hash should be updated
         assert plan["spec_hash"] == "abc123def456"
 

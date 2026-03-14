@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from fabrik.wordpress.deployer import SiteDeployer
 
-KNOWN_GOOD_HASH = "2f31292fe4ce705d8f45ecd38cb6e8a7f7574dd365ba1e63d107592d0a8ffd4e"
+KNOWN_GOOD_HASH = "decf1b4dd660fe5786b61f71437a7505bf1b76ee123baa1d4fb35b12fe3f3f70"
 
 
 @patch("subprocess.run")

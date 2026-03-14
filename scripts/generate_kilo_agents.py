@@ -287,6 +287,11 @@ def generate_script_content(
 {pricing_line}
 # ════════════════════════════════════════════════════════════════════════════
 
+# Error logging - captures errors to file for debugging when terminal closes
+AGENT_LOG="${{HOME}}/.traycer/agent-debug.log"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$AGENT_LOG"
+echo "[$(date -Iseconds)] Agent started: {tier_name}{rank:02d}-{model_normalized}-{role}-{variant}" >> "$AGENT_LOG"
+
 # Debug mode (KILO_DEBUG=1)
 if [ "$KILO_DEBUG" = "1" ]; then
     set -x  # Print all commands
@@ -311,6 +316,34 @@ else
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using TRAYCER_PROMPT environment variable" >&2
 fi
 
+# CRITICAL: Append Traycer report requirement to prompt
+# Without this, the LLM won't know to output the required report block
+REPORT_REQUIREMENT='
+
+---
+## MANDATORY: Output Report Block (Traycer Integration)
+
+After completing your task, you MUST output this exact block at the end:
+
+```
+BEGIN_TRAYCER_REPORT_MD
+STATUS: COMPLETE | PARTIAL | FAILED
+FILES: <comma-separated changed files or "none">
+FOLLOWED: <comma-separated rule IDs or "all">
+DEVIATED: <ID:reason; or "none">
+ENV: <new vars added to .env.example or "none">
+DB: <schema/migration changes or "none">
+CHECKS: FG_PRE=PASS|FAIL|SKIP, SELF_REVIEW=DONE|SKIP, KILO=PASS|SKIP, FG_POST=PASS|FAIL|SKIP
+VERIFY: <1-2 verification commands>
+END_TRAYCER_REPORT_MD
+```
+
+This report block is REQUIRED for Traycer integration. The task will fail without it.
+---
+'
+PROMPT="$PROMPT$REPORT_REQUIREMENT"
+[ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Appended Traycer report requirement to prompt" >&2
+
 # Save task context for Step 4 (kilo_code_review.py needs it)
 # Use unique filename per task to avoid conflicts with concurrent agents
 mkdir -p .droid/review-context
@@ -318,8 +351,8 @@ TASK_FILE=".droid/review-context/task-${{TRAYCER_TASK_ID:-${{TRAYCER_PHASE_ID:-$
 printf '%s\\n' "$PROMPT" > "$TASK_FILE"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Task saved to: $TASK_FILE" >&2
 
-# Timeout protection (default 10 minutes)
-TIMEOUT="${{KILO_TIMEOUT:-600}}"
+# Timeout protection (default 30 minutes)
+TIMEOUT="${{KILO_TIMEOUT:-1800}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Timeout: $TIMEOUT seconds" >&2
 
 # Cost tracking setup
@@ -361,6 +394,7 @@ if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
         [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Report delimiters found, report writer executed" >&2
     else
         echo "ERROR: Report writer not found at $REPORT_WRITER" >&2
+        echo "[$(date -Iseconds)] EXIT 1: Report writer not found" >> "$AGENT_LOG"
         exit 1
     fi
 else
@@ -378,6 +412,7 @@ else
     echo "  2. Enable KILO_DEBUG=1 to see full output" >&2
     echo "  3. Check template at ~/.traycer/prompt-templates/" >&2
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+    echo "[$(date -Iseconds)] EXIT 1: Missing report block. Kilo exit code was: $EXIT_CODE" >> "$AGENT_LOG"
     exit 1
 fi
 
