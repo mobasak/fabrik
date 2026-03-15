@@ -1,6 +1,6 @@
 # Traycer Templates (Integration Guide)
 
-**Last Updated:** 2026-03-12
+**Last Updated:** 2026-03-15
 
 Templates and instructions for using Traycer.ai with Fabrik's spec pipeline. Traycer runs as a **Windsurf extension** (Windows 11 Pro) connecting to the WSL environment.
 
@@ -504,7 +504,7 @@ Traycer uses a two-tier template system:
 ```markdown
 ---
 displayName: My Custom Template
-applicableFor: plan|userQuery|verification|review
+applicableFor: plan | user query | verification | review | generic
 ---
 
 Your custom instructions here...

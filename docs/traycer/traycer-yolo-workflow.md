@@ -209,8 +209,8 @@ Kilo Code agent passes: --session "$TRAYCER_TASK_ID"  ← SAME ID
 
 ### **Original Templates (Available)**
 
-- **Kilo Plan – Fabrik 9-Step** (180 lines) - More comprehensive, includes code examples
-- **Kilo Verification – Fabrik Fix Loop** (90 lines) - More detailed, includes checklists
+- **Execute** (180 lines) - More comprehensive, includes code examples
+- **Fix** (90 lines) - More detailed, includes checklists
 
 **Use case:** Manual workflows or when more guidance needed
 

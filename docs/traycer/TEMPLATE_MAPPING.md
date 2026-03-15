@@ -34,11 +34,11 @@ applicableFor: plan | user query | verification | review | generic
 
 | Template File | `applicableFor` | Handlebars | Traycer Tab | When Used |
 |---------------|-----------------|------------|-------------|-----------|
-| `Kilo Plan – Fabrik 9-Step.md` | `plan` | `{{planMarkdown}}` | Plan | Structured planning with full 9-step workflow |
-| `Kilo User Query – Fabrik Direct.md` | `user query` | `{{userQuery}}` | Plan (skip-plan) | Direct task handoff without plan generation |
-| `Kilo Epic – Direct Handoff.md` | `plan` | `{{planMarkdown}}` | Plan | Epic mode direct agent handoff for specs/tickets |
-| `Kilo Review – Fabrik Code Review.md` | `review` | `{{reviewComments}}` | Review | Fix issues from code review |
-| `Kilo Verification – Fabrik Fix Loop.md` | `verification` | `{{comments}}` | Verification | Fix issues from Traycer verification |
+| `Execute.md` | `plan` | `{{planMarkdown}}` | Plan | Structured planning with full 9-step workflow |
+| `Direct Execute.md` | `user query` | `{{userQuery}}` | Plan (skip-plan) | Direct task handoff without plan generation |
+| `Execute Epic.md` | `plan` | `{{planMarkdown}}` | Plan | Epic mode direct agent handoff for specs/tickets |
+| `Code Review.md` | `review` | `{{reviewComments}}` | Review | Fix issues from code review |
+| `Fix.md` | `verification` | `{{comments}}` | Verification | Fix issues from Traycer verification |
 | `Phased YOLO Execute.md` | `plan` | `{{planMarkdown}}` | Plan | Autonomous YOLO execution |
 | `Phased YOLO Review.md` | `review` | `{{reviewComments}}` | Review | YOLO mode code review fixes |
 | `Phased YOLO FixafterVerification.md` | `verification` | `{{comments}}` | Verification | YOLO mode verification fixes |
@@ -58,8 +58,8 @@ applicableFor: plan | user query | verification | review | generic
 ### 1. **Plan Mode** (Single-PR tasks)
 
 **Templates available:**
-- `Kilo Plan – Fabrik 9-Step.md` ✅ **Use for structured planning**
-- `Kilo User Query – Fabrik Direct.md` ✅ **Use with skip-plan checked**
+- `Execute.md` ✅ **Use for structured planning**
+- `Direct Execute.md` ✅ **Use with skip-plan checked**
 
 **How it works:**
 1. User describes task in Traycer Plan mode
@@ -74,7 +74,7 @@ applicableFor: plan | user query | verification | review | generic
 ### 2. **Phases Mode** (Multi-step projects)
 
 **Templates available:**
-- `Kilo Plan – Fabrik 9-Step.md` ✅ **Use for each phase**
+- `Execute.md` ✅ **Use for each phase**
 - `Phased YOLO Execute.md` ✅ **Use for YOLO automation**
 
 **YOLO Mode Configuration (3 tabs):**
@@ -87,8 +87,8 @@ applicableFor: plan | user query | verification | review | generic
 ### 3. **Review Mode** (Code audit/verification)
 
 **Templates available:**
-- `Kilo Review – Fabrik Code Review.md` ✅ **Use for code review fixes**
-- `Kilo Verification – Fabrik Fix Loop.md` ✅ **Use for verification fixes**
+- `Code Review.md` ✅ **Use for code review fixes**
+- `Fix.md` ✅ **Use for verification fixes**
 - `Phased YOLO Review.md` ✅ **Use for YOLO mode**
 
 **How it works:**
@@ -104,8 +104,8 @@ applicableFor: plan | user query | verification | review | generic
 ### 4. **Epic Mode** (Large initiatives)
 
 **Templates available:**
-- `Kilo Epic – Direct Handoff.md` ✅ **Use for direct agent handoff**
-- `Kilo Plan – Fabrik 9-Step.md` ✅ **Use for Phases/YOLO execution**
+- `Execute Epic.md` ✅ **Use for direct agent handoff**
+- `Execute.md` ✅ **Use for Phases/YOLO execution**
 
 **Execution options:**
 1. **Direct Agent Handoff**: Select specs/tickets → Assign agent + template → Agent implements
@@ -115,7 +115,7 @@ applicableFor: plan | user query | verification | review | generic
 **How direct handoff works:**
 1. User creates Epic with specs and tickets
 2. User selects tickets to hand off
-3. User assigns agent + `Kilo Epic – Direct Handoff.md` template
+3. User assigns agent + `Execute Epic.md` template
 4. Agent implements all assigned tickets
 5. Agent outputs report with item status
 
@@ -127,11 +127,11 @@ applicableFor: plan | user query | verification | review | generic
 
 | Template | `applicableFor` | Handlebars | Status |
 |----------|-----------------|------------|--------|
-| Kilo Plan – Fabrik 9-Step | `plan` | `{{planMarkdown}}` | **READY** |
-| Kilo User Query – Fabrik Direct | `user query` | `{{userQuery}}` | **READY** |
-| Kilo Epic – Direct Handoff | `plan` | `{{planMarkdown}}` | **READY** |
-| Kilo Review – Fabrik Code Review | `review` | `{{reviewComments}}` | **READY** |
-| Kilo Verification – Fabrik Fix Loop | `verification` | `{{comments}}` | **READY** |
+| Execute | `plan` | `{{planMarkdown}}` | **READY** |
+| Direct Execute | `user query` | `{{userQuery}}` | **READY** |
+| Execute Epic | `plan` | `{{planMarkdown}}` | **READY** |
+| Code Review | `review` | `{{reviewComments}}` | **READY** |
+| Fix | `verification` | `{{comments}}` | **READY** |
 | Phased YOLO Execute | `plan` | `{{planMarkdown}}` | **READY** |
 | Phased YOLO Review | `review` | `{{reviewComments}}` | **READY** |
 | Phased YOLO FixafterVerification | `verification` | `{{comments}}` | **READY** |
@@ -141,13 +141,13 @@ applicableFor: plan | user query | verification | review | generic
 ## Which Template Should You Use?
 
 ### For Plan Mode (with plan generation)
-**Use:** `Kilo Plan – Fabrik 9-Step.md`
+**Use:** `Execute.md`
 
 ### For Plan Mode (skip plan / direct task)
-**Use:** `Kilo User Query – Fabrik Direct.md`
+**Use:** `Direct Execute.md`
 
 ### For Phases Mode (Manual)
-**Use:** `Kilo Plan – Fabrik 9-Step.md` for each phase
+**Use:** `Execute.md` for each phase
 
 ### For Phases Mode (YOLO)
 | Tab | Template |
@@ -157,10 +157,10 @@ applicableFor: plan | user query | verification | review | generic
 | Verification | `Phased YOLO FixafterVerification.md` |
 
 ### For Epic Mode (Direct Handoff)
-**Use:** `Kilo Epic – Direct Handoff.md`
+**Use:** `Execute Epic.md`
 
 ### For Review Mode
-**Use:** `Kilo Review – Fabrik Code Review.md` or `Kilo Verification – Fabrik Fix Loop.md`
+**Use:** `Code Review.md` or `Fix.md`
 
 ---
 

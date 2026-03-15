@@ -1561,8 +1561,8 @@ config file references, health check behavior, and template placeholders.
 **What:** Corrected workflow descriptions in Kilo templates - coder agent runs gates and fixes issues itself (like Windsurf), not Traycer orchestrating.
 
 **Files:**
-- `~/.traycer/prompt-templates/Kilo Plan – Fabrik 9-Step.md` - Added correct 9-step workflow instructions
-- `~/.traycer/prompt-templates/Kilo User Query – Fabrik Direct.md` - Added workflow steps coder must execute
+- `~/.traycer/prompt-templates/Execute.md` - Added correct 9-step workflow instructions
+- `~/.traycer/prompt-templates/Direct Execute.md` - Added workflow steps coder must execute
 
 **Correct workflow:**
 1. Implement code
@@ -1576,10 +1576,10 @@ config file references, health check behavior, and template placeholders.
 **What:** Created 4 custom Traycer templates for Kilo agents integrating Fabrik's 9-step workflow and Cascade-like behavior patterns. Documented template directory structure (built-in vs custom).
 
 **Files:**
-- `~/.traycer/prompt-templates/Kilo Plan – Fabrik 9-Step.md` - Plan handoff template with project-aware patterns
-- `~/.traycer/prompt-templates/Kilo User Query – Fabrik Direct.md` - User query handoff template (lightweight)
-- `~/.traycer/prompt-templates/Kilo Verification – Fabrik Fix Loop.md` - Verification handoff template (fix-only)
-- `~/.traycer/prompt-templates/Kilo Review – Fabrik Code Review.md` - Review handoff template (fix-only)
+- `~/.traycer/prompt-templates/Execute.md` - Plan handoff template with project-aware patterns
+- `~/.traycer/prompt-templates/Direct Execute.md` - User query handoff template (lightweight)
+- `~/.traycer/prompt-templates/Fix.md` - Verification handoff template (fix-only)
+- `~/.traycer/prompt-templates/Code Review.md` - Review handoff template (fix-only)
 - `docs/traycer/README.md` - Added "Template Directory Structure" section
 
 **Cascade Behavior Patterns:**

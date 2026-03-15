@@ -125,9 +125,9 @@ The Traycer Report Panel is a VS Code/Windsurf extension that:
 │
 ~/.traycer/
 ├── prompt-templates/
-│   ├── Kilo Plan – Fabrik 9-Step.md           # Includes report block
-│   ├── Kilo Verification – YOLO Optimized.md  # Includes report block
-│   └── Kilo Review – Fabrik Code Review.md    # Includes report block
+│   ├── Execute.md                                   # Includes report block
+│   ├── Kilo Verification – YOLO Optimized.md          # Includes report block
+│   └── Code Review.md                                # Includes report block
 │
 ~/traycer-report-panel/                 # Extension source (not in repo)
 └── traycer-report-panel-0.2.0.vsix     # Installable extension
@@ -218,9 +218,9 @@ except Exception as e:
 **Location:** `~/.traycer/prompt-templates/`
 
 **Modified Templates:**
-1. `Kilo Plan – Fabrik 9-Step.md`
+1. `Execute.md`
 2. `Kilo Verification – YOLO Optimized.md`
-3. `Kilo Review – Fabrik Code Review.md`
+3. `Code Review.md`
 
 **Mandatory Section Added:**
 ```markdown
