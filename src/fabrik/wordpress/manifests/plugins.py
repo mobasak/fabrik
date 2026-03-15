@@ -41,6 +41,42 @@ def _normalize_plugin_name(plugin: str) -> str:
     return name.lower()
 
 
+def _zip_installed_slug(zip_path: str) -> str:
+    """
+    Derive the WordPress-installed plugin slug from a ZIP path.
+
+    WordPress installs a ZIP plugin into a directory whose name is the
+    base name of the ZIP without the extension, version suffix, and any
+    leading hash prefix.  This matches what ``wp plugin list`` reports in
+    the ``name`` column, which is what the plugins stage uses for its
+    ``installed`` lookup.
+
+    Examples::
+
+        "premium-plugin.zip"              -> "premium-plugin"
+        "path/to/custom-plugin.zip"       -> "custom-plugin"
+        "7aaUOmxu84su-my-plugin-1.2.3.zip" -> "my-plugin"
+
+    Args:
+        zip_path: Raw ZIP path or filename from the spec.
+
+    Returns:
+        Normalized installed plugin slug (lower-case, no version/hash).
+    """
+    # Use only the basename so that directory paths are ignored
+    basename = Path(zip_path).stem  # strips .zip extension
+
+    # Remove version numbers (e.g. -1.2.3 or -v1.2.3)
+    slug = re.sub(r"-v?\d+\.\d+(\.\d+)*", "", basename)
+
+    # Remove leading hash prefixes (e.g. "7aaUOmxu84su-").
+    # Require at least 8 characters to avoid stripping legitimate first words
+    # from hyphenated slugs like "premium-plugin".
+    slug = re.sub(r"^[a-zA-Z0-9]{8,}-", "", slug)
+
+    return slug.lower()
+
+
 def generate(resolved_spec: ResolvedSpec, build_dir: Path) -> Path:
     """
     Generate plugins.json manifest.
@@ -58,9 +94,15 @@ def generate(resolved_spec: ResolvedSpec, build_dir: Path) -> Path:
                 "slug": "contact-form-7",
                 "version": "5.8.4" | null,
                 "source": "wordpress.org" | "zip",
-                "zip_path": "path/to/plugin.zip" | null
+                "zip_path": "path/to/plugin.zip" | null,
+                "installed_slug": "contact-form-7"
             }
         ]
+
+    For ZIP plugins ``installed_slug`` is the normalized directory name that
+    WordPress creates when the ZIP is installed (no path, no ``.zip``, no
+    version suffix, no hash prefix).  For ``wordpress.org`` plugins it equals
+    ``slug``.
     """
     # Apply plugin rules to get final list
     loader = SpecLoader(resolved_spec.site_id)
@@ -99,12 +141,19 @@ def generate(resolved_spec: ResolvedSpec, build_dir: Path) -> Path:
         if not is_zip and normalized in version_lookup:
             version = version_lookup[normalized].get("version")
 
+        # Derive the slug that WordPress uses when the plugin is listed
+        # via `wp plugin list`.  For ZIP plugins the installed directory
+        # name is the base filename stripped of version/hash, which may
+        # differ from `slug` (the raw zip path).
+        installed_slug = _zip_installed_slug(slug) if is_zip else slug
+
         manifest.append(
             {
                 "slug": slug,
                 "version": version,
                 "source": source,
                 "zip_path": zip_path,
+                "installed_slug": installed_slug,
             }
         )
 

@@ -76,7 +76,7 @@ def _run_baseline_checks(
             ssl_passed = True
             ssl_detail = f"SSL certificate valid for {domain}"
             break
-        except (ssl.SSLError, OSError, socket.timeout) as exc:
+        except (TimeoutError, ssl.SSLError, OSError) as exc:
             ssl_detail = str(exc)
             logger.debug("SSL check attempt %d/%d failed: %s", attempt, max_attempts, exc)
             if attempt < max_attempts:

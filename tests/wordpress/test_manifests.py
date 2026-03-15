@@ -86,13 +86,19 @@ def test_plugins_manifest_valid_json(minimal_spec, tmp_path):
         assert "source" in entry
         assert entry["source"] in ["wordpress.org", "zip"]
         assert "zip_path" in entry
+        assert "installed_slug" in entry
 
         # zip_path is set only for zip sources
         if entry["source"] == "zip":
             assert entry["zip_path"] is not None
             assert entry["slug"].endswith(".zip")
+            # installed_slug must not contain a path or .zip extension
+            assert "/" not in entry["installed_slug"]
+            assert not entry["installed_slug"].endswith(".zip")
         else:
             assert entry["zip_path"] is None
+            # For wordpress.org plugins, installed_slug == slug
+            assert entry["installed_slug"] == entry["slug"]
 
 
 def test_pages_manifest_non_empty(minimal_spec, tmp_path):
@@ -197,6 +203,15 @@ def test_plugins_manifest_with_zip(tmp_path):
         assert plugin["slug"].endswith(".zip")
         assert plugin["zip_path"] == plugin["slug"]
         assert plugin["version"] is None
+        # installed_slug must be the normalized base name (no .zip, no path)
+        assert "installed_slug" in plugin
+        assert not plugin["installed_slug"].endswith(".zip")
+        assert "/" not in plugin["installed_slug"]
+
+    # Verify specific installed slugs
+    slug_map = {p["slug"]: p["installed_slug"] for p in zip_plugins}
+    assert slug_map["premium-plugin.zip"] == "premium-plugin"
+    assert slug_map["path/to/custom-plugin.zip"] == "custom-plugin"
 
 
 def test_menus_manifest_uses_navigation_fallback(tmp_path):

@@ -206,8 +206,13 @@ Next: Proceed to Step <N+1> / STOP
 |----------|------|-------------|
 | **Single-PR / Focused task** | **Plan** | Creates a detailed, actionable implementation plan. Best for tasks that fit in one PR. |
 | **Complex / Multi-step project** | **Phases** | Manages multiple phases across a project lifecycle to prevent context loss. Each phase is a discrete unit of work. |
-| **Feature with specs + tickets** | **Epic** | Driven by Workflows (default: Traycer Agile Workflow). Organizes work into mini-spec artifacts (Specs) and actionable Tickets. Ideal for features requiring requirements gathering, technical planning, and ticket breakdown. |
+| **Feature with specs + tickets** | **Epic** | Driven by Workflows (default: Traycer Agile Workflow). Organizes work into mini-spec artifacts (Specs) and actionable Tickets. Supports **direct agent handoff** — assign individual tickets or batch-select multiple specs/tickets and send directly to a coding agent. Execute via Phases, Smart YOLO (`/execute`), or direct handoff. |
 | **Code Audit / Verification** | **Review** | Structured workflow for code review tasks. |
+
+**Epic Mode Execution Options:**
+- **Direct Agent Handoff**: Select specs/tickets → Assign to agent with template → Agent implements directly
+- **Phases Execution**: Convert tickets to phases → Execute manually or with Regular YOLO
+- **Smart YOLO** (`/execute`): Orchestrator evolves Epic based on implementation learnings, dynamically adjusts agents/templates
 
 **Workflow-Driven Modes (Epic):**
 - **Traycer Agile Workflow** (default): 8-command, 3-gated-phase workflow for feature development (`/trigger_workflow` → `/epic-brief` → `/core-flows` → `/prd-validation` → `/tech-plan` → `/architecture-validation` → `/ticket-breakdown` → `/implementation-validation`)

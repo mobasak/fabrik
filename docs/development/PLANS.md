@@ -10,6 +10,7 @@ All feature/execution/design plans live in `docs/development/plans/`.
 <!-- AUTO-GENERATED:PLANS v2 | 2026-03-07T20:30 -->
 | Plan | Date | Status | Progress |
 |------|------|--------|----------|
+| [ocoron.com Deployment Without Content](plans/2026-03-15-ocoron-deployment-without-content.md) | 2026-03-15 | IN_PROGRESS | 1/8 ✓ |
 | *(Archived plans moved to `docs/archive/`)* | - | - | - |
 <!-- AUTO-GENERATED:PLANS:END -->
 

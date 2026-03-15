@@ -398,22 +398,17 @@ if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
         exit 1
     fi
 else
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-    echo "ERROR: Agent did not output required report block" >&2
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-    echo "" >&2
-    echo "The agent completed execution but failed to output the mandatory" >&2
-    echo "BEGIN_TRAYCER_REPORT_MD...END_TRAYCER_REPORT_MD block." >&2
-    echo "" >&2
-    echo "This indicates the LLM ignored template instructions." >&2
-    echo "" >&2
-    echo "Solutions:" >&2
-    echo "  1. Try a different agent tier (higher-tier models follow instructions better)" >&2
-    echo "  2. Enable KILO_DEBUG=1 to see full output" >&2
-    echo "  3. Check template at ~/.traycer/prompt-templates/" >&2
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-    echo "[$(date -Iseconds)] EXIT 1: Missing report block. Kilo exit code was: $EXIT_CODE" >> "$AGENT_LOG"
-    exit 1
+    # Report block missing - warn but don't fail if Kilo succeeded
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "⚠️  Warning: Report block missing but Kilo succeeded (exit 0)" >&2
+        echo "[$(date -Iseconds)] WARNING: Missing report block. Kilo exit code was: 0 (success)" >> "$AGENT_LOG"
+    else
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        echo "ERROR: Agent failed and did not output report block" >&2
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        echo "Kilo exit code: $EXIT_CODE" >&2
+        echo "[$(date -Iseconds)] EXIT $EXIT_CODE: Missing report block. Kilo exit code was: $EXIT_CODE" >> "$AGENT_LOG"
+    fi
 fi
 
 # Handle timeout

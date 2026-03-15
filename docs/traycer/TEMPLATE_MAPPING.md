@@ -1,6 +1,6 @@
 # Traycer Template Mapping & Usage Guide
 
-**Last Updated:** 2026-03-08
+**Last Updated:** 2026-03-15
 
 This document maps all Traycer prompt templates to their usage contexts and verifies correctness.
 
@@ -13,11 +13,18 @@ Templates use YAML frontmatter to declare their purpose:
 ```yaml
 ---
 displayName: Human-readable name shown in Traycer UI
-applicableFor: plan | userQuery | verification | review | epic
+applicableFor: plan | user query | verification | review | generic
 ---
 ```
 
-**Traycer uses `applicableFor` to filter templates** in the dropdown based on current mode.
+**Official Traycer template types:**
+- `plan` → Handlebars: `{{planMarkdown}}`
+- `user query` → Handlebars: `{{userQuery}}`
+- `verification` → Handlebars: `{{comments}}`
+- `review` → Handlebars: `{{reviewComments}}`
+- `generic` → Handlebars: `{{basePrompt}}`
+
+**Note:** Traycer does NOT support `applicableFor: all`, partials, or includes.
 
 ---
 
@@ -25,21 +32,22 @@ applicableFor: plan | userQuery | verification | review | epic
 
 ### Location: `~/.traycer/prompt-templates/`
 
-| Template File | `applicableFor` | Traycer Mode | When Used |
-|---------------|-----------------|--------------|-----------|
-| `Kilo Plan – 9-Step Workflow.md` | `plan` | **Plan** / **Phases** | Structured planning with full 9-step workflow |
-| `Kilo Plan – YOLO Optimized.md` | `plan` | **Plan** / **Phases** | Fast iteration planning (same workflow, lighter tone) |
-| `Kilo User Query – Direct.md` | `userQuery` | **All modes** | Direct task handoff to Kilo CLI agents |
-| `Kilo Verification – Fix Loop.md` | `verification` | **Review** | Fix issues found by Traycer verification |
-| `Kilo Verification – YOLO Optimized.md` | `verification` | **Review** | Fix verification issues (fast iteration) |
-| `Kilo Review – Code Review.md` | `review` | **Review** | Fix issues from external code review |
-| `_SHARED_REPORTING_REQUIREMENTS.md` | N/A | (Include file) | Shared delimiter/reporting rules |
+| Template File | `applicableFor` | Handlebars | Traycer Tab | When Used |
+|---------------|-----------------|------------|-------------|-----------|
+| `Kilo Plan – Fabrik 9-Step.md` | `plan` | `{{planMarkdown}}` | Plan | Structured planning with full 9-step workflow |
+| `Kilo User Query – Fabrik Direct.md` | `user query` | `{{userQuery}}` | Plan (skip-plan) | Direct task handoff without plan generation |
+| `Kilo Epic – Direct Handoff.md` | `plan` | `{{planMarkdown}}` | Plan | Epic mode direct agent handoff for specs/tickets |
+| `Kilo Review – Fabrik Code Review.md` | `review` | `{{reviewComments}}` | Review | Fix issues from code review |
+| `Kilo Verification – Fabrik Fix Loop.md` | `verification` | `{{comments}}` | Verification | Fix issues from Traycer verification |
+| `Phased YOLO Execute.md` | `plan` | `{{planMarkdown}}` | Plan | Autonomous YOLO execution |
+| `Phased YOLO Review.md` | `review` | `{{reviewComments}}` | Review | YOLO mode code review fixes |
+| `Phased YOLO FixafterVerification.md` | `verification` | `{{comments}}` | Verification | YOLO mode verification fixes |
 
 ### Built-in Traycer Templates
 
 | Template | Source | `applicableFor` | Notes |
 |----------|--------|-----------------|-------|
-| `Default` | Traycer built-in | `userQuery` | Generic prompt, no Fabrik conventions |
+| `Default` | Traycer built-in | `user query` | Generic prompt, no Fabrik conventions |
 
 **We cannot modify built-in templates.** Use custom templates instead.
 
@@ -49,168 +57,110 @@ applicableFor: plan | userQuery | verification | review | epic
 
 ### 1. **Plan Mode** (Single-PR tasks)
 
-**What Traycer shows:**
-- Default (built-in)
-- Kilo User Query – Fabrik Direct ✅ **Use this**
+**Templates available:**
+- `Kilo Plan – Fabrik 9-Step.md` ✅ **Use for structured planning**
+- `Kilo User Query – Fabrik Direct.md` ✅ **Use with skip-plan checked**
 
 **How it works:**
 1. User describes task in Traycer Plan mode
-2. Traycer lets you select template + Kilo CLI agent
+2. Traycer generates plan OR skips to direct handoff
 3. Agent receives task via `TRAYCER_PROMPT` env var
 4. Agent executes workflow (Steps 2-5)
 5. Agent outputs report with delimiters
 6. Traycer handles verification/sync/commit (Steps 6-9)
 
-**Template content:**
-- Step 2: Implementation
-- Step 2.5: Self-Review ✅
-- Step 3: Pre-Kilo Gate
-- Step 4: Kilo Review
-- Step 5: Post-Kilo Gate
-- Report delimiters ✅
-- Workflow boundary note ✅
-
 ---
 
 ### 2. **Phases Mode** (Multi-step projects)
 
-**What Traycer shows:**
-- Default (built-in)
-- Kilo User Query – Fabrik Direct ✅ **Use this**
+**Templates available:**
+- `Kilo Plan – Fabrik 9-Step.md` ✅ **Use for each phase**
+- `Phased YOLO Execute.md` ✅ **Use for YOLO automation**
 
-**How it works:**
-1. User describes feature in Traycer Phases mode
-2. Traycer breaks into phases (Phase 1, Phase 2, etc.)
-3. For each phase, user selects template + agent
-4. Agent executes that phase (Steps 2-5)
-5. Traycer verification after each phase
-6. Move to next phase after verification passes
-
-**Template content:**
-- Same as Plan mode (Kilo User Query – Fabrik Direct)
-- Works for individual phase execution
-- Each phase gets own report
+**YOLO Mode Configuration (3 tabs):**
+1. **Plan Tab**: Select execution agent + `Phased YOLO Execute.md`
+2. **Review Tab**: Select review agent + `Phased YOLO Review.md`
+3. **Verification Tab**: Select verification agent + `Phased YOLO FixafterVerification.md`
 
 ---
 
 ### 3. **Review Mode** (Code audit/verification)
 
-**What Traycer shows:**
-- Kilo Verification – Fabrik Fix Loop ✅ **Use for iterative fixes**
-- Kilo Verification – YOLO Optimized ✅ **Use for fast fixes**
-- Kilo Review – Fabrik Code Review ✅ **Use for external review feedback**
+**Templates available:**
+- `Kilo Review – Fabrik Code Review.md` ✅ **Use for code review fixes**
+- `Kilo Verification – Fabrik Fix Loop.md` ✅ **Use for verification fixes**
+- `Phased YOLO Review.md` ✅ **Use for YOLO mode**
 
 **How it works:**
 1. Traycer runs verification on codebase
 2. Finds issues (security, config, edge cases, docs)
-3. User assigns fixes to Kilo CLI agent with verification template
+3. User assigns fixes to agent with template
 4. Agent fixes issues and reports
 5. Traycer re-verifies
 6. Loop until clean
-
-**Template content:**
-- Focus on fixing existing issues
-- No Step 2.5 (not implementing new features)
-- Report delimiters ✅
-- Minimal changes philosophy
 
 ---
 
 ### 4. **Epic Mode** (Large initiatives)
 
-**What Traycer shows:**
-- (Unknown - need to test Epic mode)
-- Likely uses `applicableFor: epic` templates
+**Templates available:**
+- `Kilo Epic – Direct Handoff.md` ✅ **Use for direct agent handoff**
+- `Kilo Plan – Fabrik 9-Step.md` ✅ **Use for Phases/YOLO execution**
 
-**Status:** ⚠️ No epic-specific templates yet
+**Execution options:**
+1. **Direct Agent Handoff**: Select specs/tickets → Assign agent + template → Agent implements
+2. **Phases Execution**: Convert tickets to phases → Use Phases templates
+3. **Smart YOLO** (`/execute`): Orchestrator manages dynamically
 
-**Expected workflow:**
-1. Traycer breaks epic into specs + tickets
-2. Specs define requirements
-3. Tickets are implementation units
-4. Each ticket assigned to agent
-
-**Action needed:** Test Epic mode to see template requirements
+**How direct handoff works:**
+1. User creates Epic with specs and tickets
+2. User selects tickets to hand off
+3. User assigns agent + `Kilo Epic – Direct Handoff.md` template
+4. Agent implements all assigned tickets
+5. Agent outputs report with item status
 
 ---
 
 ## Template Correctness Verification
 
-### ✅ Complete Templates (Ready to Use)
+### ✅ All Templates Ready
 
-| Template | Step 2.5 | Delimiters | Workflow | Status |
-|----------|----------|------------|----------|--------|
-| Kilo User Query – Fabrik Direct | ✅ Yes | ✅ Yes | ✅ Steps 2-5 only | **READY** |
-| Kilo Verification – Fabrik Fix Loop | N/A (fix mode) | ✅ Yes | ✅ Fix loop | **READY** |
-| Kilo Verification – YOLO Optimized | N/A (fix mode) | ✅ Yes | ✅ Fix loop | **READY** |
-| Kilo Review – Fabrik Code Review | N/A (fix mode) | ✅ Yes | ✅ Fix loop | **READY** |
-
-### ⚠️ Needs Minor Improvement
-
-| Template | Issue | Impact |
-|----------|-------|--------|
-| Kilo Plan – Fabrik 9-Step | Missing workflow boundary note | Low - works but less explicit |
-| Kilo Plan – YOLO Optimized | Missing workflow boundary note | Low - works but less explicit |
-
-**Note:** Plan templates work correctly but don't explicitly state "Traycer handles Steps 6-9". Not critical since they're only used when Traycer manages the workflow anyway.
+| Template | `applicableFor` | Handlebars | Status |
+|----------|-----------------|------------|--------|
+| Kilo Plan – Fabrik 9-Step | `plan` | `{{planMarkdown}}` | **READY** |
+| Kilo User Query – Fabrik Direct | `user query` | `{{userQuery}}` | **READY** |
+| Kilo Epic – Direct Handoff | `plan` | `{{planMarkdown}}` | **READY** |
+| Kilo Review – Fabrik Code Review | `review` | `{{reviewComments}}` | **READY** |
+| Kilo Verification – Fabrik Fix Loop | `verification` | `{{comments}}` | **READY** |
+| Phased YOLO Execute | `plan` | `{{planMarkdown}}` | **READY** |
+| Phased YOLO Review | `review` | `{{reviewComments}}` | **READY** |
+| Phased YOLO FixafterVerification | `verification` | `{{comments}}` | **READY** |
 
 ---
 
 ## Which Template Should You Use?
 
-### For Traycer Plan/Phases Mode
-**Use:** `Kilo User Query – Fabrik Direct`
-- Full 9-step workflow
-- Step 2.5 Self-Review
-- Clear boundary (AI stops at Step 5)
-- Report delimiters for Windsurf panel
+### For Plan Mode (with plan generation)
+**Use:** `Kilo Plan – Fabrik 9-Step.md`
 
-**Don't use:** `Default` (no Fabrik conventions, no workflow)
+### For Plan Mode (skip plan / direct task)
+**Use:** `Kilo User Query – Fabrik Direct.md`
 
----
+### For Phases Mode (Manual)
+**Use:** `Kilo Plan – Fabrik 9-Step.md` for each phase
 
-### For Traycer Review Mode (Verification Issues)
-**Use:** `Kilo Verification – Fabrik Fix Loop` (iterative) or `Kilo Verification – YOLO Optimized` (fast)
-- Focused on fixing verification findings
-- Minimal changes philosophy
-- Report delimiters
+### For Phases Mode (YOLO)
+| Tab | Template |
+|-----|----------|
+| Plan | `Phased YOLO Execute.md` |
+| Review | `Phased YOLO Review.md` |
+| Verification | `Phased YOLO FixafterVerification.md` |
 
----
+### For Epic Mode (Direct Handoff)
+**Use:** `Kilo Epic – Direct Handoff.md`
 
-### For External Code Review Feedback
-**Use:** `Kilo Review – Fabrik Code Review`
-- Addresses BLOCKER/MAJOR/MINOR issues
-- Security/config/edge/docs categories
-- Report delimiters
-
----
-
-## Testing Plan
-
-1. **Plan Mode:** Test with simple task (utility function)
-2. **Phases Mode:** Test with multi-step feature (health monitoring)
-3. **Review Mode:** Trigger verification, assign fixes
-4. **Epic Mode:** Test epic breakdown (if applicable)
-
-**Verify after each test:**
-```bash
-# Check report was written
-ls -lht .droid/traycer-reports/ | head -3
-cat .droid/traycer-reports/latest.md
-
-# Check Report Panel updated
-# (Should auto-open in Windsurf when report written)
-```
-
----
-
-## Next Steps
-
-1. ✅ Document complete (this file)
-2. 🔄 User testing templates with Traycer Phases mode
-3. ⏳ Observe Kilo CLI agent responses
-4. ⏳ Update templates if issues found
-5. ⏳ Test Epic mode (determine template needs)
+### For Review Mode
+**Use:** `Kilo Review – Fabrik Code Review.md` or `Kilo Verification – Fabrik Fix Loop.md`
 
 ---
 
@@ -218,5 +168,4 @@ cat .droid/traycer-reports/latest.md
 
 - Workflow authority: `/opt/fabrik/AGENTS.md`
 - CLI agent generation: `/opt/fabrik/scripts/generate_kilo_agents.py`
-- Report writer: `/opt/fabrik/scripts/traycer_write_report.py`
 - Template location: `~/.traycer/prompt-templates/`
