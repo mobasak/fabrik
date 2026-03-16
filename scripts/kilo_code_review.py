@@ -1713,9 +1713,8 @@ def build_kilo_command(
         raise ValueError(f"Invalid agent: {agent}")
 
     # Validate session_id format (must be UUID-like or Kilo session format)
-    if session_id:
-        if not re.match(r"^[a-zA-Z0-9_-]{1,64}$", session_id):
-            raise ValueError(f"Invalid session_id format: {session_id}")
+    if session_id and not re.match(r"^[a-zA-Z0-9_-]{1,64}$", session_id):
+        raise ValueError(f"Invalid session_id format: {session_id}")
 
     args = [kilo_path, "run", "--format", "json", "--auto"]
     args.extend(["--model", cli_model])
