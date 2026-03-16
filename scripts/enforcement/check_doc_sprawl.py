@@ -6,7 +6,7 @@ Enforcement timing: Step 3 (pre-kilo) and Step 5 (post-kilo) via final_gate.py
 Policy:
 - ALLOW: Edits to tracked .md files (git tracked)
 - ALLOW: New files matching exact allowlists (root + docs scaffold)
-- ALLOW: New files matching strict patterns (plans, archive, review context)
+- ALLOW: New files matching strict patterns (plans, archive)
 - BLOCK: All other new .md files
 
 Philosophy: Systematic default-deny prevents sprawl. All legitimate new docs

@@ -256,9 +256,7 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 3) Feature/Execution plans: See **Planning** section above.
 4) Every new plan MUST be added to `docs/development/PLANS.md`.
 5) Do NOT create new folders under `docs/` except via existing structure.
-6) If you add a module under `src/`, ensure a reference doc exists:
-   - `docs/reference/<module>.md`
-   - If missing, run `docs_updater.py --sync`.
+6) If you add a module under `src/`, ensure documentation coverage exists in the current scaffolded/reference system. Update existing docs or run `docs_updater.py --sync`; do not create ad hoc new reference markdown files unless the anti-sprawl policy explicitly allows it.
 7) NEVER edit inside `<!-- AUTO-GENERATED:* -->` blocks.
    - Run `docs_updater.py --sync` instead.
 8) All changes MUST keep `make docs-check` passing.
@@ -287,7 +285,7 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 1. **Edits to tracked files** - Any .md file already in git (modify existing docs)
 2. **Root allowlist (CLOSED):** INDEX.md, README.md, CHANGELOG.md, AGENTS.md
 3. **Docs scaffold (CLOSED):** docs/README.md, docs/QUICKSTART.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/BUSINESS_MODEL.md, docs/FEATURES.md, docs/.doc-policy.md, docs/development/PLANS.md, docs/archive/README.md
-4. **Plan documents:** `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates required) - Only new docs owner creates manually
+4. **Plan documents:** `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates required) - New dated plan files are allowed as part of the planning workflow
 5. **Archive documents:** `docs/archive/**/*.md` (any depth) - Agents may automatically archive completed plans
 
 **BLOCKED:**
@@ -343,7 +341,7 @@ Then:
 
 **Key points:**
 - **Pass the task/plan on initial review** - Kilo needs it for SPEC verification
-- Use inline plan text (`--plan "description"`) or unique timestamped file if needed
+- Use inline plan text (`--plan "description"`) or an already tracked plan/document. Do not create ad hoc review-context markdown files
 - I fix issues, not Kilo (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
 - Fix ALL severities, not just BLOCKER/MAJOR
 - Use `--session continue` for subsequent reviews (maintains context)
