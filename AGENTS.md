@@ -277,25 +277,28 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 - Run `python /opt/fabrik/scripts/sync_projects.py` to update
 - Automatically syncs on `fabrik scaffold` completion
 
-### Documentation Anti-Sprawl Policy (SYSTEMATIC DEFAULT-DENY - 2026-03-16)
+### Documentation Anti-Sprawl Policy (STRUCTURAL DEFAULT-DENY - 2026-03-16)
 
-**Policy:** All new .md files BLOCKED except explicit allowlists and patterns.
+**Policy:** All new .md files BLOCKED except explicit allowlists and structural patterns.
 
 **Enforcement timing:** Step 3 (pre-kilo) and Step 5 (post-kilo) via `final_gate.py`
 
-**ALLOWED new .md files:**
+**ALWAYS ALLOWED:**
 
 1. **Edits to tracked files** - Any .md file already in git (modify existing docs)
 2. **Root allowlist (CLOSED):** INDEX.md, README.md, CHANGELOG.md, AGENTS.md
 3. **Docs scaffold (CLOSED):** docs/README.md, docs/QUICKSTART.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/BUSINESS_MODEL.md, docs/FEATURES.md, docs/.doc-policy.md, docs/development/PLANS.md, docs/archive/README.md
-4. **Strict patterns:**
-   - `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates required)
-   - `docs/archive/**/*.md` (any depth, including direct children)
-   - `.droid/review-context/<name>.md` (direct children only, no subdirs)
+4. **Plan documents:** `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates required) - Only new docs owner creates manually
+5. **Archive documents:** `docs/archive/**/*.md` (any depth) - Agents may automatically archive completed plans
 
 **BLOCKED:**
-- All other new .md files in repo
-- Especially: docs/traycer/* (update existing), docs/infrastructure/* (use TROUBLESHOOTING.md), docs/operations/* (use DEPLOYMENT.md), random docs/*.md
+- `.droid/review-context/*.md` - Agent artifacts should not be auto-created
+- `docs/traycer/*` - Update existing guides only
+- `docs/infrastructure/*` - Use TROUBLESHOOTING.md
+- `docs/operations/*` - Use DEPLOYMENT.md
+- All other new .md files anywhere in repo
+
+**Rationale:** No approval mechanism needed. Plans are the only new docs created manually. Archives support automatic plan lifecycle. All other documentation updates existing scaffolded files.
 
 **Enforcement:** Runs at Step 3 & 5, blocks with specific suggestions.
 

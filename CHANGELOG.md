@@ -4,18 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed - Systematic default-deny policy for new .md files (2026-03-16)
+### Changed - Structural default-deny policy for new .md files (2026-03-16)
 
-**What:** Replaced partial blocklist with systematic default-deny for ALL new markdown files. Only explicit allowlists and strict patterns permitted.
+**What:** Replaced partial blocklist with structural default-deny for ALL new markdown files. Only explicit allowlists and structural patterns permitted. No approval mechanism needed.
 
 **Policy:** Block all new .md files except:
 - Edits to git-tracked files (any .md in git)
 - Root allowlist (CLOSED): INDEX.md, README.md, CHANGELOG.md, AGENTS.md
 - Docs scaffold allowlist (CLOSED): docs/README.md, docs/QUICKSTART.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/BUSINESS_MODEL.md, docs/FEATURES.md, docs/.doc-policy.md, docs/development/PLANS.md, docs/archive/README.md
-- Strict patterns:
-  * `docs/development/plans/YYYY-MM-DD-plan-*.md` (zero-padded dates required)
-  * `docs/archive/**/*.md` (any depth allowed, including direct children)
-  * `.droid/review-context/*.md` (direct children only, no subdirs)
+- Structural patterns:
+  * `docs/development/plans/YYYY-MM-DD-plan-*.md` (zero-padded dates) - Owner creates these manually
+  * `docs/archive/**/*.md` (any depth) - Agents may automatically archive completed plans
+
+**Blocked patterns:**
+- `.droid/review-context/*.md` - Agent artifacts should not be auto-created
 
 **Git-based detection:** Uses `git rev-parse --show-toplevel` to find repo root, then `git ls-files --error-unmatch` to distinguish tracked (allow edits) vs untracked (check allowlists).
 

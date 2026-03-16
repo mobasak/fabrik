@@ -170,14 +170,14 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 
 ---
 
-## Anti-Sprawl Enforcement (SYSTEMATIC DEFAULT-DENY - 2026-03-16)
+## Anti-Sprawl Enforcement (STRUCTURAL DEFAULT-DENY - 2026-03-16)
 
-**POLICY:** All new .md files BLOCKED except explicit allowlists/patterns.
+**POLICY:** All new .md files BLOCKED except explicit allowlists and structural patterns.
 
 **Before creating ANY .md file:**
 1. Check if updating tracked file (allowed)
 2. Check allowlists (root + docs scaffold)
-3. Check strict patterns (plans, archive, review context)
+3. Check structural patterns (plans, archive only)
 4. If none match → BLOCKED
 
 **Root allowlist (CLOSED):**
@@ -186,11 +186,13 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 **Docs scaffold allowlist (CLOSED):**
 - docs/.doc-policy.md, docs/README.md, docs/QUICKSTART.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/BUSINESS_MODEL.md, docs/FEATURES.md, docs/development/PLANS.md, docs/archive/README.md
 
-**Allowed patterns (STRICT):**
-- `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates required)
-- `docs/archive/**/*.md` (any depth, including direct children)
-- `.droid/review-context/<name>.md` (direct children only, no subdirs)
+**Allowed structural patterns:**
+- `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates) - Owner creates these manually
+- `docs/archive/**/*.md` (any depth) - Agents may archive completed plans
+
+**BLOCKED patterns:**
+- `.droid/review-context/*.md` - Agent artifacts should not be auto-created
 
 **Git-tracked edits:** Always allowed (modify existing docs freely)
 
-**Enforcement:** Step 3 & 5 via final_gate.py. Specific suggestions on block.
+**Enforcement:** Step 3 & 5 via final_gate.py. No approval mechanism needed.

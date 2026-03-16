@@ -47,13 +47,13 @@ ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
 # Allowed patterns for new files - STRICT matchers
 ALLOWED_PATTERNS = [
     # Dated plan documents: docs/development/plans/YYYY-MM-DD-plan-<name>.md
+    # These are the only new docs the owner creates manually
     re.compile(r"^docs/development/plans/\d{4}-\d{2}-\d{2}-plan-.+\.md$"),
     # Archive at ANY depth: docs/archive/**/*.md (but not docs/archive.md itself)
     # Allows: docs/archive/foo.md, docs/archive/2026/03/foo.md
     # Blocks: docs/archive.md
+    # Rationale: Agents may automatically archive completed plans
     re.compile(r"^docs/archive/(?!$).+\.md$"),
-    # Review context - direct children only: .droid/review-context/*.md
-    re.compile(r"^\.droid/review-context/[^/]+\.md$"),
 ]
 
 
@@ -109,15 +109,12 @@ def get_suggestion(path_str: str) -> str:
     if path_str.startswith("docs/"):
         return "UPDATE existing docs/*.md (see docs/.doc-policy.md). New docs files limited to scaffold set."
 
+    if path_str.startswith(".droid/review-context/"):
+        return "Review context files (.droid/review-context/*.md) are blocked. Agent artifacts should not be auto-created."
+
     if "/" not in path_str:  # root level
         root_list = ", ".join(sorted(ALLOWED_NEW_ROOT_DOCS))
         return f"Root .md files limited to: {root_list}"
-
-    if (
-        path_str.startswith(".droid/review-context/")
-        and "/" in path_str[len(".droid/review-context/") :]
-    ):
-        return "Review context files must be direct children: .droid/review-context/<name>.md (no subdirs)"
 
     return "New .md files blocked by default-deny policy. Update existing docs or use allowed patterns."
 
