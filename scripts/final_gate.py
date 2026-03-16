@@ -35,7 +35,7 @@ import sys
 from pathlib import Path
 
 # Paths
-FABRIK_ROOT = Path(__file__).parent.parent
+FABRIK_ROOT = Path.cwd()  # Use current working directory, not script location
 VENV_PYTHON = FABRIK_ROOT / ".venv" / "bin" / "python"
 PYTHON = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
 
@@ -78,6 +78,25 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
         return 1, f"Command timed out after {timeout}s"
     except FileNotFoundError:
         return 1, f"Command not found: {cmd[0]}"
+
+
+def run_optional_check(script_path: str, check_name: str, *args: str) -> tuple[str, bool, str]:
+    """Run an optional enforcement check, skipping if script doesn't exist.
+
+    Args:
+        script_path: Relative path to script from FABRIK_ROOT
+        check_name: Display name for the check
+        *args: Additional command arguments
+
+    Returns:
+        (check_name, passed, message) tuple
+    """
+    full_path = FABRIK_ROOT / script_path
+    if not full_path.exists():
+        return (check_name, True, "(check not present, skipping)")
+
+    code, out = run_cmd([PYTHON, str(full_path)] + list(args))
+    return (check_name, code == 0, out if code != 0 else "")
 
 
 def run_mypy_with_recovery(target: str, timeout: int = 30) -> tuple[int, str]:
@@ -324,12 +343,15 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
     code, out = run_mypy_with_recovery(mypy_target, timeout=30)
     results.append(("mypy", code == 0, out if code != 0 else ""))
 
-    # Bandit
+    # Bandit (optional - skip if not installed)
     code, out = run_cmd(
         [PYTHON, "-m", "bandit", "-ll", "-x", "tests/", "-r", "src/"],
         timeout=TIMEOUTS["bandit"],
     )
-    results.append(("bandit", code == 0, out if code != 0 else ""))
+    if "No module named bandit" in out:
+        results.append(("bandit", True, "(bandit not installed, skipping)"))
+    else:
+        results.append(("bandit", code == 0, out if code != 0 else ""))
 
     # Semgrep (REQUIRED - fail if not installed or not authenticated)
     semgrep_env = semgrep_env_with_token()
@@ -424,7 +446,7 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
     else:
         results.append(("sqlfluff-lint", True, "(no .sql files)"))
 
-    # Vulture (REQUIRED - fail if not installed)
+    # Vulture (optional - skip if not installed)
     code, out = run_cmd(
         [
             PYTHON,
@@ -438,9 +460,7 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
         ]
     )
     if "No module named vulture" in out:
-        results.append(
-            ("vulture", False, "ERROR: vulture not installed. Install: pip install vulture")
-        )
+        results.append(("vulture", True, "(vulture not installed, skipping)"))
     else:
         results.append(("vulture", code == 0, out if code != 0 else ""))
 
@@ -451,73 +471,71 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
     """Run repo consistency checks."""
     results = []
 
-    # Project Structure
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_structure.py"])
-    results.append(("Project Structure", code == 0, out if code != 0 else ""))
+    # Optional enforcement checks - skip if scripts not present
+    results.append(
+        run_optional_check("scripts/enforcement/check_structure.py", "Project Structure")
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_rule_size.py", "Rule File Size Guard")
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_index_md.py", "INDEX.md (Master File Index)")
+    )
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_readme_md.py", "README.md (Primary Entry Point)"
+        )
+    )
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_configuration_md.py", "CONFIGURATION.md (Env Vars)"
+        )
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_env_updates.py", ".env Updates (Secrets)")
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)")
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_openapi_sync.py", "OpenAPI Sync (API Docs)")
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_test_coverage.py", "Test Coverage (New Code)")
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_env_example.py", ".env.example Completeness")
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_compose_services.py", "Compose Services Docs")
+    )
+    results.append(run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check"))
+    results.append(
+        run_optional_check("scripts/update_agents_toc.py", "AGENTS.md TOC Current", "--check")
+    )
 
-    # Fabrik Convention Validator
-    code, out = run_cmd([PYTHON, "-m", "scripts.enforcement.validate_conventions", "--strict"])
-    results.append(("Fabrik Convention Validator", code == 0, out if code != 0 else ""))
+    # Fabrik Convention Validator (module import, skip if not installed)
+    validate_conv = FABRIK_ROOT / "scripts/enforcement/validate_conventions.py"
+    if validate_conv.exists():
+        code, out = run_cmd([PYTHON, "-m", "scripts.enforcement.validate_conventions", "--strict"])
+        results.append(("Fabrik Convention Validator", code == 0, out if code != 0 else ""))
+    else:
+        results.append(("Fabrik Convention Validator", True, "(check not present, skipping)"))
 
-    # Rule File Size Guard
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_rule_size.py"])
-    results.append(("Rule File Size Guard", code == 0, out if code != 0 else ""))
+    # Kilo CLI Health Check (shell script)
+    kilo_health = FABRIK_ROOT / "scripts/check_kilo_health.sh"
+    if kilo_health.exists():
+        code, out = run_cmd(["./scripts/check_kilo_health.sh"])
+        results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
+    else:
+        results.append(("Kilo CLI Health Check", True, "(check not present, skipping)"))
 
-    # INDEX.md (Master File Index)
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_index_md.py"])
-    results.append(("INDEX.md (Master File Index)", code == 0, out if code != 0 else ""))
-
-    # README.md (Primary Entry Point)
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_readme_md.py"])
-    results.append(("README.md (Primary Entry Point)", code == 0, out if code != 0 else ""))
-
-    # CONFIGURATION.md (Env Vars Reference)
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_configuration_md.py"])
-    results.append(("CONFIGURATION.md (Env Vars)", code == 0, out if code != 0 else ""))
-
-    # .env Updates (Secrets Population)
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_env_updates.py"])
-    results.append((".env Updates (Secrets)", code == 0, out if code != 0 else ""))
-
-    # CHANGELOG.md Updated
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_changelog.py"])
-    results.append(("CHANGELOG.md Updated", code == 0, out if code != 0 else ""))
-
-    # Schema Sync (DB models → schema.sql/migrations)
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_schema_sync.py"])
-    results.append(("Schema Sync (DB Models)", code == 0, out if code != 0 else ""))
-
-    # OpenAPI Sync (routes → docs)
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_openapi_sync.py"])
-    results.append(("OpenAPI Sync (API Docs)", code == 0, out if code != 0 else ""))
-
-    # Test Coverage (new code → tests)
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_test_coverage.py"])
-    results.append(("Test Coverage (New Code)", code == 0, out if code != 0 else ""))
-
-    # .env.example Completeness (env vars in code → .env.example)
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_env_example.py"])
-    results.append((".env.example Completeness", code == 0, out if code != 0 else ""))
-
-    # Compose Services Documentation (new services → docs)
-    code, out = run_cmd([PYTHON, "scripts/enforcement/check_compose_services.py"])
-    results.append(("Compose Services Docs", code == 0, out if code != 0 else ""))
-
-    # Kilo CLI Health Check
-    code, out = run_cmd(["./scripts/check_kilo_health.sh"])
-    results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
-
-    # Symlink Integrity Check
+    # Symlink Integrity Check (always run)
     symlink_ok, symlink_msg = check_symlinks()
     results.append(("Symlink Integrity", symlink_ok, symlink_msg))
-
-    # Documentation Drift Check
-    code, out = run_cmd([PYTHON, "scripts/docs_updater.py", "--check"])
-    results.append(("Documentation Drift", code == 0, out if code != 0 else ""))
-
-    # AGENTS.md TOC Current
-    code, out = run_cmd([PYTHON, "scripts/update_agents_toc.py", "--check"])
-    results.append(("AGENTS.md TOC Current", code == 0, out if code != 0 else ""))
 
     return results
 

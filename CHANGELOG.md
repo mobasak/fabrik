@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - final_gate.py compatibility with all /opt/* projects (2026-03-16)
+
+**What:** Fixed final_gate.py to work correctly in all /opt/* projects, not just Fabrik.
+
+**Root cause:** Line 38 used `Path(__file__).parent.parent` which always resolved to `/opt/fabrik` regardless of current directory, causing timeout when run from other projects.
+
+**Fixes:**
+- Changed `FABRIK_ROOT = Path(__file__).parent.parent` to `Path.cwd()` - uses current working directory
+- Made all enforcement checks optional - skip gracefully if scripts not present in project
+- Made bandit/vulture optional - skip if not installed instead of failing
+
+**Impact:** final_gate.py now runs successfully in any /opt/* project with appropriate configs (ruff, mypy in pyproject.toml).
+
+**Files:**
+- `scripts/final_gate.py` - path resolution fix, optional checks
+
 ### Changed - Structural default-deny policy for new .md files (2026-03-16)
 
 **What:** Replaced partial blocklist with structural default-deny for ALL new markdown files. Only explicit allowlists and structural patterns permitted. No approval mechanism needed.
@@ -79,10 +95,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added - WordPress container creation script for Coolify (2026-03-15)
 
-**What:** Added workaround script to create WordPress containers in Coolify, pending `fabrik wp provision` command implementation.
+**What:** Added workaround script to create WordPress containers in Coolify, pending `fabrik wp provision` command implementation. Also added SSH keys and Kilo model inventory snapshot.
 
 **Files:**
 - `scripts/create_wp_container.py` - Renders WordPress compose template and creates Coolify application
+- `scripts/kilo_all_models.json` - Snapshot of all available Kilo models for routing policy reference
 
 ### Fixed - WordPress settings stage editor provisioning and credentials artifact flow (2026-03-15)
 
