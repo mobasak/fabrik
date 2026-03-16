@@ -252,7 +252,7 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 ## Documentation Rules
 
 1) **VERIFY before creating:** Check `INDEX.md` (root) and existing folders before creating new files.
-2) Do NOT create markdown files in repo root (except INDEX.md, README.md, CHANGELOG.md, AGENTS.md, PORTS.md, LICENSE.md).
+2) New markdown files are BLOCKED except: root allowlist (INDEX.md, README.md, CHANGELOG.md, AGENTS.md), scaffold files, plans, archives. See **Documentation Anti-Sprawl Policy** below.
 3) Feature/Execution plans: See **Planning** section above.
 4) Every new plan MUST be added to `docs/development/PLANS.md`.
 5) Do NOT create new folders under `docs/` except via existing structure.
@@ -263,9 +263,8 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
    - Run `docs_updater.py --sync` instead.
 8) All changes MUST keep `make docs-check` passing.
 
-**docs/ root allowlist (standard files):**
-- `QUICKSTART.md`, `CONFIGURATION.md`, `TROUBLESHOOTING.md`, `BUSINESS_MODEL.md`
-- `SERVICES.md`, `FABRIK_OVERVIEW.md`, `ENVIRONMENT_VARIABLES.md`
+**docs/ root files (scaffold-created only):**
+- `README.md`, `QUICKSTART.md`, `CONFIGURATION.md`, `TROUBLESHOOTING.md`, `BUSINESS_MODEL.md`, `FEATURES.md`, `.doc-policy.md`, `development/PLANS.md`, `archive/README.md`
 
 **Configuration pattern (NO DUPLICATION):**
 - `.env.example` = AUTHORITATIVE variable reference (self-documenting with inline comments)
@@ -323,9 +322,9 @@ python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 **Kilo Code Review Workflow:**
 
 ```bash
-# Initial review: pass the task/plan for SPEC verification
+# Initial review: pass the task/plan for SPEC verification (inline or file)
 python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
-  --plan .droid/review-context/task.md \
+  --plan "Inline task description here..." \
   --review-agent ask \
   --output json
 
@@ -344,7 +343,7 @@ Then:
 
 **Key points:**
 - **Pass the task/plan on initial review** - Kilo needs it for SPEC verification
-- Save task to `.droid/review-context/task.md` (not in `docs/development/plans/`)
+- Use inline plan text (`--plan "description"`) or unique timestamped file if needed
 - I fix issues, not Kilo (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
 - Fix ALL severities, not just BLOCKER/MAJOR
 - Use `--session continue` for subsequent reviews (maintains context)
@@ -603,23 +602,24 @@ services:
 
 ### Document Location Rules (ENFORCED)
 
-**Root-level `.md` files allowed:**
-- `README.md`, `CHANGELOG.md`, `AGENTS.md`, `PORTS.md`, `LICENSE.md`
+**Root-level `.md` files allowed (CLOSED):**
+- `INDEX.md`, `README.md`, `CHANGELOG.md`, `AGENTS.md`
 
-**All other docs (not in allowlist below) MUST go in `docs/` subdirectories:**
+**New `.md` files:** See **Documentation Anti-Sprawl Policy** section above for complete enforcement rules.
 
-| Directory | Purpose |
-|-----------|---------|
-| `docs/guides/` | How-to guides |
-| `docs/reference/` | API/CLI reference |
-| `docs/operations/` | Ops runbooks |
-| `docs/development/` | Plans, specs |
-| `docs/development/plans/` | Execution plans |
-| `docs/archive/` | Archived docs |
+**docs/ structure (UPDATE existing files, do NOT create new):**
+
+| Directory | Purpose | Policy |
+|-----------|---------|--------|
+| `docs/` (root) | Scaffold files only | UPDATE existing |
+| `docs/traycer/` | Traycer integration | UPDATE existing |
+| `docs/development/plans/` | Execution plans | NEW allowed (dated format) |
+| `docs/archive/` | Archived docs | NEW allowed (agents archive) |
 
 **Forbidden:**
 - Creating `.md` files in `specs/`, `proposals/`, or other non-standard directories
 - Creating `.md` files in `src/`, `scripts/`, `tests/`, `config/`
+- Creating new `.md` in `.droid/review-context/`
 
 This is enforced by `scripts/enforcement/check_structure.py` and pre-commit hook.
 
