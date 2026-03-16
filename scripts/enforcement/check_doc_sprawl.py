@@ -47,7 +47,7 @@ ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
 # Allowed patterns for new files - STRICT matchers
 ALLOWED_PATTERNS = [
     # Dated plan documents: docs/development/plans/YYYY-MM-DD-plan-<name>.md
-    # These are the only new docs the owner creates manually
+    # New dated plan files are allowed as part of the planning workflow
     re.compile(r"^docs/development/plans/\d{4}-\d{2}-\d{2}-plan-.+\.md$"),
     # Archive at ANY depth: docs/archive/**/*.md (but not docs/archive.md itself)
     # Allows: docs/archive/foo.md, docs/archive/2026/03/foo.md
