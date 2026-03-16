@@ -14,6 +14,7 @@ Features:
     - Active agents placed in ~/.traycer/cli-agents/
     - Disabled agents placed in ~/.traycer/disabled-cli-agents/
     - Sequential mtime setting for Traycer sorting
+    - Auto-generates ~/.traycer/routing-policy.md from YAML source of truth
 
 Usage:
     python generate_kilo_agents.py [-h] [-d]
@@ -38,6 +39,7 @@ except ImportError:
 
 AGENTS_FILE = Path(__file__).parent / "kilo_47_agents_final.json"
 ROUTING_POLICY_FILE = Path.home() / ".traycer" / "routing-policy.yaml"
+ROUTING_POLICY_MD = Path.home() / ".traycer" / "routing-policy.md"
 OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
 DISABLED_DIR = Path.home() / ".traycer" / "disabled-cli-agents"
 
@@ -351,8 +353,8 @@ TASK_FILE=".droid/review-context/task-${{TRAYCER_TASK_ID:-${{TRAYCER_PHASE_ID:-$
 printf '%s\\n' "$PROMPT" > "$TASK_FILE"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Task saved to: $TASK_FILE" >&2
 
-# Timeout protection (default 30 minutes)
-TIMEOUT="${{KILO_TIMEOUT:-1800}}"
+# Timeout protection (default 120 minutes)
+TIMEOUT="${{KILO_TIMEOUT:-7200}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Timeout: $TIMEOUT seconds" >&2
 
 # Cost tracking setup
@@ -506,6 +508,250 @@ def load_active_agents() -> set[str]:
         return set()  # Empty = all active
 
 
+def generate_routing_policy_md(policy: dict) -> str:
+    """
+    Generate routing-policy.md content from routing-policy.yaml data.
+    This keeps the MD in sync with the YAML source of truth.
+    """
+    from datetime import datetime
+
+    agents = policy.get("agents", {})
+    buckets = policy.get("buckets", {})
+    guardrails = policy.get("guardrails", {})
+    escalation = policy.get("escalation", {})
+    defaults = policy.get("defaults", {})
+
+    # Count active agents
+    always_active = sum(
+        1 for a in agents.values() if isinstance(a, dict) and a.get("active") == "always"
+    )
+    conditional = sum(
+        1 for a in agents.values() if isinstance(a, dict) and a.get("active") == "conditional"
+    )
+
+    # Build agent roster table
+    always_rows = []
+    conditional_rows = []
+    for role_name, agent_info in agents.items():
+        if not isinstance(agent_info, dict):
+            continue
+        script = agent_info.get("script", "")
+        role = agent_info.get("role", "")
+        do_not = agent_info.get("do_not_use_for", "")
+        active = agent_info.get("active", "always")
+        row = f"| {role_name.replace('_', ' ').title()} | `{script}` | {role} | {do_not} |"
+        if active == "always":
+            always_rows.append(row)
+        else:
+            conditional_rows.append(
+                f"| {role_name.replace('_', ' ').title()} | `{script}` | {agent_info.get('role', '')} |"
+            )
+
+    # Build bucket routing tables
+    bucket_tables = []
+    for bucket_name, bucket_info in buckets.items():
+        if not isinstance(bucket_info, dict):
+            continue
+        desc = bucket_info.get("description", "")
+        default_agent = bucket_info.get("default", "")
+        escalate_list = bucket_info.get("escalate", [])
+        debug_on = bucket_info.get("debug_on", False)
+
+        table = f"### {bucket_name.upper()} ({desc})\n\n"
+        table += "| Attempt | Agent | Why |\n|---------|-------|-----|\n"
+        table += f"| 1 | `{default_agent}` | Default for {bucket_name} |\n"
+        for i, agent in enumerate(escalate_list, start=2):
+            table += f"| {i} | `{agent}` | Escalation |\n"
+        if debug_on:
+            table += "\n**Debug mode:** Enabled automatically"
+        bucket_tables.append(table)
+
+    # Build guardrails section
+    never_default = guardrails.get("never_default_to", [])
+    daily_workers = guardrails.get("daily_workers", [])
+    premium_conditions = guardrails.get("premium_only_when", [])
+
+    # Build escalation triggers
+    triggers = escalation.get("triggers", [])
+    do_not_escalate = escalation.get("do_not_escalate_for", [])
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    md_content = f"""# Traycer Agent Routing Policy
+
+**Last Updated:** {today}
+**Source of Truth:** `routing-policy.yaml`
+
+> ⚠️ **AUTO-GENERATED FILE** - Do not edit manually. Edit `routing-policy.yaml` and regenerate.
+
+> Route each ticket to the **cheapest agent likely to finish it correctly**, then escalate only on clear failure signals.
+
+---
+
+## Quick Reference
+
+```text
+DEFAULTS
+- patch/debug: devstral
+- structured repo edit: gpt51codexmini
+- clear general feature: gpt5mini
+- cheap review: qwen3235b-review
+- ambiguous debug: o4mini
+- premium coding: sonnet46-code-high
+- premium alt coder: gpt54-code-max
+- deepest premium coding: sonnet46-code-max
+- premium review: sonnet46-review
+- final hardest escalation: opus46
+
+ESCALATE WHEN
+- 2 failed attempts
+- unclear root cause
+- security/auth/money/migration/concurrency risk
+- repo-wide impact
+- review finds correctness issues
+
+NEVER DEFAULT TO
+{chr(10).join("- " + a for a in never_default)}
+```
+
+---
+
+## Agent Roster
+
+### Always Active ({always_active})
+
+| Role | Agent | Primary Use | Do NOT Use For |
+|------|-------|-------------|----------------|
+{chr(10).join(always_rows)}
+
+### Conditional Active ({conditional})
+
+| Role | Agent | Enable When |
+|------|-------|-------------|
+{chr(10).join(conditional_rows)}
+
+---
+
+## Ticket Classification
+
+Before selecting a model, classify the ticket into one of {len(buckets)} buckets:
+
+| Bucket | Description |
+|--------|-------------|
+{chr(10).join(f"| **{name.title()}** | {info.get('description', '')} |" for name, info in buckets.items() if isinstance(info, dict))}
+
+---
+
+## Routing Tables
+
+{chr(10).join(bucket_tables)}
+
+---
+
+## Debug Mode Policy
+
+Debug mode (`KILO_DEBUG=1`) is **OFF by default**.
+
+### Enable automatically when:
+
+{chr(10).join("- " + c for c in guardrails.get("enable_debug_when", []))}
+
+### Why not global?
+
+- Noisier logs
+- Larger outputs
+- Harder signal extraction
+
+---
+
+## Escalation Rules
+
+### Escalate when:
+
+{chr(10).join("- " + t for t in triggers)}
+
+### Do NOT escalate for:
+
+{chr(10).join("- " + d for d in do_not_escalate) if do_not_escalate else "- Imperfect but functional output → retry with tighter instructions first"}
+
+---
+
+## Retry Policy
+
+| Attempt | Action |
+|---------|--------|
+| 1st | Cheap correct-fit model |
+| 2nd | Same tier, different model (only if style mismatch) |
+| 3rd+ | Escalate one tier |
+
+### Max attempts before human review:
+
+| Ticket Type | Max Attempts |
+|-------------|--------------|
+{chr(10).join(f"| {name.title()} | {defaults.get('max_attempts', {}).get(name, 3)} |" for name in buckets)}
+
+---
+
+## Cost Guardrails
+
+### Never default to:
+
+{chr(10).join("- `" + a + "`" for a in never_default)}
+
+### Daily worker pool (use for majority):
+
+{chr(10).join("- `" + a + "`" for a in daily_workers)}
+
+### Premium only when:
+
+{chr(10).join("- " + c for c in premium_conditions)}
+
+---
+
+## File Locations
+
+| File | Purpose |
+|------|---------|
+| `~/.traycer/routing-policy.yaml` | Machine-readable source of truth |
+| `~/.traycer/routing-policy.md` | Human documentation (auto-generated) |
+| `~/.traycer/cli-agents/` | Active agents (visible to Traycer) |
+| `~/.traycer/disabled-cli-agents/` | Disabled agents (hidden from Traycer) |
+"""
+    return md_content
+
+
+def update_routing_policy_md(dry_run: bool = False) -> bool:
+    """
+    Update routing-policy.md from routing-policy.yaml.
+    Returns True if successful, False otherwise.
+    """
+    if not YAML_AVAILABLE:
+        print("  ⚠ PyYAML not installed, cannot generate routing-policy.md")
+        return False
+
+    if not ROUTING_POLICY_FILE.exists():
+        print(f"  ⚠ {ROUTING_POLICY_FILE} not found, cannot generate routing-policy.md")
+        return False
+
+    try:
+        with open(ROUTING_POLICY_FILE) as f:
+            policy = yaml.safe_load(f)
+
+        md_content = generate_routing_policy_md(policy)
+
+        if dry_run:
+            print(f"[DRY-RUN] Would update {ROUTING_POLICY_MD}")
+        else:
+            ROUTING_POLICY_MD.write_text(md_content)
+            print(f"  📝 Updated {ROUTING_POLICY_MD} from YAML")
+
+        return True
+
+    except Exception as e:
+        print(f"  ⚠ Error generating routing-policy.md: {e}")
+        return False
+
+
 def main(dry_run: bool = False):
     # Load agent definitions
     with open(AGENTS_FILE) as f:
@@ -647,6 +893,9 @@ def main(dry_run: bool = False):
         print(f"   📁 Active: {OUTPUT_DIR}")
         print(f"   📁 Disabled: {DISABLED_DIR}")
         print("   📋 Timestamps set: T1-Free=newest → T7-Specialist=oldest (Traycer sort)")
+
+    # Update routing-policy.md from YAML (keeps documentation in sync)
+    update_routing_policy_md(dry_run=dry_run)
 
 
 if __name__ == "__main__":

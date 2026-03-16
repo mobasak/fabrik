@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - WSL2 DNS resolution and increased CLI agent timeout to 120 minutes (2026-03-16)
+
+**What:** Applied permanent fix for WSL2 DNS resolution failure affecting Kilo CLI and Node.js applications. Increased default Kilo CLI agent timeout from 60 to 120 minutes to support large document reviews with multi-pass analysis.
+
+**DNS Fix:**
+- Created `/etc/wsl.conf` with `generateResolvConf = false`
+- Created static `/etc/resolv.conf` with Cloudflare (1.1.1.1) and Google (8.8.8.8) DNS
+- Made `/etc/resolv.conf` immutable with `chattr +i`
+- Resolves Microsoft WSL issue #4277 (getaddrinfo() failures)
+
+**Timeout Increase:**
+- Updated `KILO_TIMEOUT` default from 3600s (60 min) to 7200s (120 min)
+- Regenerated all 14 active + 39 disabled CLI agents
+- Supports large architectural documents (500+ lines) with multi-pass review
+
+**Files:**
+- `scripts/generate_kilo_agents.py` - Changed timeout from 3600 to 7200 seconds
+- `docs/infrastructure/WSL2-DNS-FIX.md` - Complete DNS fix documentation
+- `docs/traycer/AGENT-TIMEOUT-POLICY.md` - Agent timeout policy and rationale
+- `/etc/wsl.conf` - WSL2 network configuration
+- `/etc/resolv.conf` - Static DNS configuration
+
+### Changed - Increase CLI agent timeout to 60 minutes and document exit codes (2026-03-16)
+
+**What:** Increased default Kilo CLI agent timeout from 30 to 60 minutes. Added troubleshooting documentation for exit codes 124 (timeout) and 1 (failure).
+
+**Files:**
+- `scripts/generate_kilo_agents.py` - Changed `KILO_TIMEOUT:-1800` to `KILO_TIMEOUT:-3600`
+- `docs/traycer/TRAYCER-KILO-AGENTS-GUIDE.md` - Added "Troubleshooting: Exit Codes" section
+
+### Changed - Auto-generate routing-policy.md from YAML source of truth (2026-03-16)
+
+**What:** Updated `generate_kilo_agents.py` to auto-generate `~/.traycer/routing-policy.md` from `~/.traycer/routing-policy.yaml`. YAML is the single source of truth; MD is now auto-generated documentation.
+
+**Files:**
+- `scripts/generate_kilo_agents.py` - Added `generate_routing_policy_md()` and `update_routing_policy_md()` functions, call at end of `main()`
+
+### Added - WordPress container creation script for Coolify (2026-03-15)
+
+**What:** Added workaround script to create WordPress containers in Coolify, pending `fabrik wp provision` command implementation.
+
+**Files:**
+- `scripts/create_wp_container.py` - Renders WordPress compose template and creates Coolify application
+
 ### Fixed - WordPress settings stage editor provisioning and credentials artifact flow (2026-03-15)
 
 **What:** Restored Ticket 3 editor provisioning in the settings stage, including pre-flight user existence checks, secure `credentials.json` output, and regression tests for the required behavior branches.
