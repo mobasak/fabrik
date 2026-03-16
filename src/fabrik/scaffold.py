@@ -278,13 +278,26 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
             shutil.copy(script_src, script_dest)
             os.chmod(script_dest, 0o755)  # noqa: S103  # nosec B103
 
-    # Copy core Fabrik scripts for project independence
-    # These enable local quality gates without absolute paths to Fabrik
-    core_scripts = ["final_gate.py", "kilo_code_review.py"]
+    # Copy ALL Fabrik scripts for complete project independence
+    # Projects should be fully functional without absolute paths to Fabrik
+
+    # Core quality gate scripts
+    core_scripts = [
+        "final_gate.py",
+        "kilo_code_review.py",
+        "docs_updater.py",
+        "update_agents_toc.py",
+    ]
     for script_name in core_scripts:
         fabrik_script = FABRIK_ROOT / "scripts" / script_name
         if fabrik_script.exists():
             shutil.copy(fabrik_script, project_dir / "scripts" / script_name)
+
+    # Copy entire enforcement directory
+    fabrik_enforcement = FABRIK_ROOT / "scripts" / "enforcement"
+    project_enforcement = project_dir / "scripts" / "enforcement"
+    if fabrik_enforcement.exists():
+        shutil.copytree(fabrik_enforcement, project_enforcement, dirs_exist_ok=True)
 
     # Symlink windsurfrules (legacy) and .windsurf/rules/ (authoritative)
     # Fail fast if fabrik targets are missing - environment is broken

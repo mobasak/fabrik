@@ -4,18 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed - Scaffold copies core scripts for project independence (2026-03-16)
+### Changed - Scaffold copies ALL scripts for complete independence (2026-03-16)
 
-**What:** Fabrik scaffold now copies core quality gate scripts to new projects, enabling them to run independently without absolute paths to Fabrik.
+**What:** Fabrik scaffold now copies ALL quality gate and enforcement scripts to new projects. Projects are completely self-contained and function independently without requiring Fabrik to exist.
 
 **Changes:**
-- `src/fabrik/scaffold.py` - Added code to copy `final_gate.py` and `kilo_code_review.py` during project creation
+- `src/fabrik/scaffold.py` - Copy all enforcement scripts (26 files) + core scripts (4 files) during project creation
 - `scripts/kilo_code_review.py` - Fixed SIM102 ruff violation (combined nested if statements)
 
-**Impact:** New projects scaffolded with `fabrik scaffold` can run `python scripts/final_gate.py` locally without requiring `/opt/fabrik` to exist.
+**Impact:** New projects have complete quality enforcement without absolute paths to `/opt/fabrik`. All 30 scripts copied automatically.
+
+**Scripts copied:**
+- Core: `final_gate.py`, `kilo_code_review.py`, `docs_updater.py`, `update_agents_toc.py`
+- Enforcement: All 26 scripts from `scripts/enforcement/` (changelog, health, env vars, docs, ports, structure, etc.)
 
 **Files:**
-- `src/fabrik/scaffold.py` - copy core scripts during `_scaffold_shared()`
+- `src/fabrik/scaffold.py` - copy ALL scripts during `_scaffold_shared()`
 - `scripts/kilo_code_review.py` - ruff fix
 
 ### Fixed - final_gate.py compatibility with all /opt/* projects (2026-03-16)
