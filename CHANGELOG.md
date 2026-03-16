@@ -4,44 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added - Documentation anti-sprawl enforcement (ENHANCED 2026-03-16)
+### Changed - Systematic default-deny policy for new .md files (2026-03-16)
 
-**What:** Implemented 4-layer enforcement system to prevent creating new markdown files in tracked doc directories. AI agents must update existing docs instead of creating new ones.
+**What:** Replaced partial blocklist with systematic default-deny for ALL new markdown files. Only explicit allowlists and strict patterns permitted.
 
-**Enforcement timing:** Step 3 (pre-kilo) and Step 5 (post-kilo) via `final_gate.py`, NOT at commit time (pre-commit runs only 4 blockers).
+**Policy:** Block all new .md files except:
+- Edits to git-tracked files (any .md in git)
+- Root allowlist (CLOSED): INDEX.md, README.md, CHANGELOG.md, AGENTS.md
+- Docs scaffold allowlist (CLOSED): docs/README.md, docs/QUICKSTART.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/BUSINESS_MODEL.md, docs/FEATURES.md, docs/.doc-policy.md, docs/development/PLANS.md, docs/archive/README.md
+- Strict patterns:
+  * `docs/development/plans/YYYY-MM-DD-plan-*.md` (zero-padded dates required)
+  * `docs/archive/**/*.md` (any depth allowed, including direct children)
+  * `.droid/review-context/*.md` (direct children only, no subdirs)
 
-**Enforcement Layers:**
-1. **final_gate.py (Step 3 & 5)** - Blocks new .md files in protected dirs with smart suggestions
-2. **Windsurf rules** - Topic → file mapping for AI agents
-3. **AGENTS.md** - Workflow guidance + template awareness
-4. **Scaffold template** - Auto-deployed to all projects
+**Git-based detection:** Uses `git rev-parse --show-toplevel` to find repo root, then `git ls-files --error-unmatch` to distinguish tracked (allow edits) vs untracked (check allowlists).
 
-**Enhanced keyword matching:**
-- Fuzzy matching algorithm (exact/boundary/substring/partial scoring)
-- Section header analysis (scans existing ## and ### headers)
-- Confidence scoring with threshold (minimum 0.5)
-- Weighted scoring: keywords (2x), sections (1.5x)
-- Example output: "Matched: kw:dns, kw:wsl, sec:connection issues (score: 4.5)"
+**Optimizations:**
+- Cached repo root for efficiency (single call per check_file invocation)
+- Normalized suffix case for cross-platform compatibility (.md, .MD, .Md all handled)
+- Windows path normalization (backslash to forward slash)
 
-**Scaffold integration:**
-- `fabrik scaffold` auto-deploys `docs/.doc-policy.md` to new projects
-- Deployed to 27 existing /opt/* projects (excludes _* inactive)
-- All projects now have master docs reference
+**Blocked areas:**
+- docs/traycer/* (force updates to existing)
+- docs/infrastructure/* (use TROUBLESHOOTING.md)
+- docs/operations/* (use DEPLOYMENT.md)
+- Random docs/*.md outside scaffold set
+- Root *.md outside allowlist
 
-**Blocked directories:**
-- `docs/infrastructure/` → Use `docs/TROUBLESHOOTING.md`
-- `docs/operations/` → Use `docs/DEPLOYMENT.md`
-- `docs/traycer/` → Update existing guides only
-- `docs/` root → Only 11 allowed files
+**Previous approach:** Partial blocklist + fuzzy keyword matching (removed in favor of systematic default-deny)
 
 **Files:**
-- `scripts/enforcement/check_doc_sprawl.py` - Enhanced fuzzy matching + section analysis
-- `scripts/deploy_doc_policy.py` - Deployment script for existing projects
-- `src/fabrik/scaffold.py` - Auto-deploys policy to new projects
-- `.windsurf/rules/40-documentation.md` - Anti-sprawl rules + topic mapping table
-- `AGENTS.md` - Documentation Anti-Sprawl Policy section (updated with template awareness)
-- `scripts/enforcement/validate_conventions.py` - Integration into validator
-- `templates/docs/.doc-policy.md` - Scaffold template
+- `scripts/enforcement/check_doc_sprawl.py` - Complete rewrite with default-deny, git repo root resolution
+- `AGENTS.md` - Systematic policy documentation
+- `.windsurf/rules/40-documentation.md` - Updated policy rules
 
 ### Fixed - WSL2 DNS resolution and increased CLI agent timeout to 120 minutes (2026-03-16)
 

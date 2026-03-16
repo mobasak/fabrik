@@ -1,271 +1,171 @@
 #!/usr/bin/env python3
-"""Prevent documentation sprawl - update existing docs, don't create new ones.
+"""Default-deny policy for new .md files - systematic anti-sprawl enforcement.
 
 Enforcement timing: Step 3 (pre-kilo) and Step 5 (post-kilo) via final_gate.py
-NOT at commit time - pre-commit only runs 4 blockers.
 
-Enforcement layers:
-1. final_gate.py (Step 3 & 5) - Blocks new .md files in protected dirs
-2. AI agent rules - Guides to correct file with topic mapping
-3. Kilo review - Checks if update vs create was appropriate
+Policy:
+- ALLOW: Edits to tracked .md files (git tracked)
+- ALLOW: New files matching exact allowlists (root + docs scaffold)
+- ALLOW: New files matching strict patterns (plans, archive, review context)
+- BLOCK: All other new .md files
 
-Philosophy: Documentation consolidation prevents sprawl and keeps information findable.
+Philosophy: Systematic default-deny prevents sprawl. All legitimate new docs
+must match explicit allowlist or pattern.
 """
 
 import re
+import subprocess
 from pathlib import Path
 
 from .validate_conventions import CheckResult, Severity
 
-# ENHANCED: Scan actual section headers + keywords + aliases
-MASTER_DOCS = {
-    "docs/TROUBLESHOOTING.md": {
-        "keywords": [
-            "infrastructure",
-            "network",
-            "dns",
-            "ssh",
-            "wsl",
-            "wsl2",
-            "connection",
-            "timeout",
-            "error",
-            "fail",
-            "resolve",
-            "resolution",
-            "nameserver",
-            "ping",
-            "curl",
-            "socket",
-            "port",
-        ],
-        "sections": [],  # Will be populated by scanning file
-    },
-    "docs/DEPLOYMENT.md": {
-        "keywords": [
-            "coolify",
-            "docker",
-            "vps",
-            "deploy",
-            "deployment",
-            "container",
-            "compose",
-            "healthcheck",
-            "dockerfile",
-            "image",
-            "build",
-            "service",
-        ],
-        "sections": [],
-    },
-    "docs/CONFIGURATION.md": {
-        "keywords": [
-            "env",
-            "config",
-            "configuration",
-            "credentials",
-            "secrets",
-            "api",
-            "variable",
-            "key",
-            "token",
-            "password",
-        ],
-        "sections": [],
-    },
-    "docs/traycer/TRAYCER-KILO-AGENTS-GUIDE.md": {
-        "keywords": [
-            "kilo",
-            "agent",
-            "timeout",
-            "traycer",
-            "cli",
-            "review",
-            "model",
-            "gpt",
-            "claude",
-            "gemini",
-        ],
-        "sections": [],
-    },
-}
+# Root level - CLOSED allowlist
+ALLOWED_NEW_ROOT_DOCS = frozenset(
+    {
+        "INDEX.md",
+        "README.md",
+        "CHANGELOG.md",
+        "AGENTS.md",
+    }
+)
 
-# Completely blocked directories (use parent doc instead)
-BLOCKED_DIRS = {
-    "docs/infrastructure/",
-    "docs/operations/",
-}
+# Docs scaffold-created files - CLOSED allowlist
+ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
+    {
+        "docs/.doc-policy.md",
+        "docs/README.md",
+        "docs/QUICKSTART.md",
+        "docs/CONFIGURATION.md",
+        "docs/TROUBLESHOOTING.md",
+        "docs/BUSINESS_MODEL.md",
+        "docs/FEATURES.md",
+        "docs/development/PLANS.md",
+        "docs/archive/README.md",
+    }
+)
 
-# Allowed files in docs/ root
-ALLOWED_DOCS_ROOT = {
-    "README.md",
-    "QUICKSTART.md",
-    "CONFIGURATION.md",
-    "TROUBLESHOOTING.md",
-    "BUSINESS_MODEL.md",
-    "SERVICES.md",
-    "DEPLOYMENT.md",
-    "EXTERNAL_SYSTEMS.md",
-    "FAQ.md",
-    "FEATURES.md",
-    "TESTING.md",
-}
+# Allowed patterns for new files - STRICT matchers
+ALLOWED_PATTERNS = [
+    # Dated plan documents: docs/development/plans/YYYY-MM-DD-plan-<name>.md
+    re.compile(r"^docs/development/plans/\d{4}-\d{2}-\d{2}-plan-.+\.md$"),
+    # Archive at ANY depth: docs/archive/**/*.md (but not docs/archive.md itself)
+    # Allows: docs/archive/foo.md, docs/archive/2026/03/foo.md
+    # Blocks: docs/archive.md
+    re.compile(r"^docs/archive/(?!$).+\.md$"),
+    # Review context - direct children only: .droid/review-context/*.md
+    re.compile(r"^\.droid/review-context/[^/]+\.md$"),
+]
 
 
-def _extract_sections(file_path: str) -> list[str]:
-    """Extract markdown section headers from a file."""
-    sections = []
+def get_repo_root() -> Path:
+    """Get git repository root directory."""
     try:
-        content = Path(file_path).read_text(encoding="utf-8")
-        # Match ## Header or ### Header patterns
-        pattern = r"^#{2,3}\s+(.+)$"
-        for match in re.finditer(pattern, content, re.MULTILINE):
-            sections.append(match.group(1).strip().lower())
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return Path(result.stdout.strip())
     except Exception:
         pass
-    return sections
+    # Fallback to current directory if git fails
+    return Path.cwd()
 
 
-def _fuzzy_score(keyword: str, text: str) -> float:
-    """Calculate fuzzy match score (0.0-1.0).
-
-    Scoring:
-    - Exact match: 1.0
-    - Word boundary match: 0.8
-    - Substring match: 0.5
-    - Partial match: 0.3
-    """
-    keyword = keyword.lower()
-    text = text.lower()
-
-    if keyword == text:
-        return 1.0
-    if f" {keyword} " in f" {text} " or text.startswith(keyword) or text.endswith(keyword):
-        return 0.8
-    if keyword in text:
-        return 0.5
-    # Partial match (at least 50% of keyword found)
-    if len(keyword) >= 4:
-        partial_len = len(keyword) // 2
-        if keyword[:partial_len] in text or keyword[partial_len:] in text:
-            return 0.3
-    return 0.0
+def is_tracked(rel_path: Path, repo_root: Path) -> bool:
+    """Check if file is tracked in git (repo-relative path)."""
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", str(rel_path)],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0
+    except Exception:
+        # If git fails (not a repo, etc.), treat as untracked
+        return False
 
 
-def find_best_match(new_filename: str) -> tuple[str | None, str]:
-    """ENHANCED: Find best existing file using fuzzy matching + section analysis."""
-    filename_lower = new_filename.lower().replace("-", " ").replace("_", " ")
+def get_suggestion(path_str: str) -> str:
+    """Provide helpful suggestion based on blocked path."""
+    if path_str.startswith("docs/development/plans/"):
+        if not re.match(r"\d{4}-\d{2}-\d{2}", path_str.split("/")[-1]):
+            return "Use format: docs/development/plans/YYYY-MM-DD-plan-<name>.md (zero-padded date)"
+        return "Plan filename must start with YYYY-MM-DD-plan-"
 
-    # Lazy load sections on first run
-    for doc_path, doc_data in MASTER_DOCS.items():
-        if not doc_data["sections"] and Path(doc_path).exists():
-            doc_data["sections"] = _extract_sections(doc_path)
+    if path_str.startswith("docs/traycer/"):
+        return "UPDATE existing docs/traycer/*.md files instead. New files blocked."
 
-    best_match = None
-    best_score = 0.0
-    matched_items = []
+    if path_str.startswith("docs/infrastructure/"):
+        return "UPDATE docs/TROUBLESHOOTING.md instead. docs/infrastructure/ is blocked."
 
-    for master_doc, doc_data in MASTER_DOCS.items():
-        score = 0.0
-        matches = []
+    if path_str.startswith("docs/operations/"):
+        return "UPDATE docs/DEPLOYMENT.md instead. docs/operations/ is blocked."
 
-        # Score against keywords (weighted 2x)
-        for keyword in doc_data["keywords"]:
-            kw_score = _fuzzy_score(keyword, filename_lower)
-            if kw_score > 0:
-                score += kw_score * 2.0
-                matches.append(f"kw:{keyword}")
+    if path_str.startswith("docs/"):
+        return "UPDATE existing docs/*.md (see docs/.doc-policy.md). New docs files limited to scaffold set."
 
-        # Score against existing sections (weighted 1.5x)
-        for section in doc_data["sections"]:
-            sec_score = _fuzzy_score(section, filename_lower)
-            if sec_score > 0:
-                score += sec_score * 1.5
-                matches.append(f"sec:{section}")
+    if "/" not in path_str:  # root level
+        root_list = ", ".join(sorted(ALLOWED_NEW_ROOT_DOCS))
+        return f"Root .md files limited to: {root_list}"
 
-        if score > best_score:
-            best_score = score
-            best_match = master_doc
-            matched_items = matches[:3]  # Top 3 matches
+    if (
+        path_str.startswith(".droid/review-context/")
+        and "/" in path_str[len(".droid/review-context/") :]
+    ):
+        return "Review context files must be direct children: .droid/review-context/<name>.md (no subdirs)"
 
-    if best_match and best_score >= 0.5:  # Minimum confidence threshold
-        reason = f"Matched: {', '.join(matched_items)} (score: {best_score:.1f})"
-        return best_match, reason
-
-    return None, ""
+    return "New .md files blocked by default-deny policy. Update existing docs or use allowed patterns."
 
 
 def check_file(file_path: Path) -> list[CheckResult]:
-    """Block new docs in protected directories, suggest existing files."""
+    """Default-deny policy: block all new .md except explicit allowlist/patterns."""
     results = []
 
-    if file_path.suffix != ".md":
+    # Normalize suffix case for cross-platform compatibility
+    if file_path.suffix.lower() != ".md":
         return results
 
+    # Cache repo root for efficiency
+    repo_root = get_repo_root()
+
     try:
-        rel_path = file_path.relative_to(Path.cwd())
+        rel_path = file_path.relative_to(repo_root)
     except ValueError:
         return results
 
-    path_str = str(rel_path)
+    path_str = str(rel_path).replace("\\", "/")  # Normalize for Windows
 
-    # Check completely blocked directories
-    for blocked_dir in BLOCKED_DIRS:
-        if path_str.startswith(blocked_dir):
-            parent_doc = (
-                "docs/TROUBLESHOOTING.md"
-                if "infrastructure" in blocked_dir
-                else "docs/DEPLOYMENT.md"
-            )
+    # ALLOW: Tracked files (edits to existing docs)
+    if is_tracked(rel_path, repo_root):
+        return results
 
-            results.append(
-                CheckResult(
-                    check_name="doc_sprawl",
-                    severity=Severity.ERROR,
-                    message=f"BLOCKED: Directory '{blocked_dir}' does not allow new files",
-                    file_path=str(rel_path),
-                    fix_hint=f"UPDATE {parent_doc} instead. Add a new section for your content.",
-                )
-            )
+    # ALLOW: Root allowlist (exact match)
+    if path_str in ALLOWED_NEW_ROOT_DOCS:
+        return results
+
+    # ALLOW: Docs scaffold files (exact match)
+    if path_str in ALLOWED_NEW_DOCS_SCAFFOLD:
+        return results
+
+    # ALLOW: Pattern matches (strict)
+    for pattern in ALLOWED_PATTERNS:
+        if pattern.match(path_str):
             return results
 
-    # Check docs/ root - only allowed files
-    if path_str.startswith("docs/") and "/" not in path_str[5:]:  # File directly in docs/
-        if file_path.name not in ALLOWED_DOCS_ROOT:
-            results.append(
-                CheckResult(
-                    check_name="doc_sprawl",
-                    severity=Severity.ERROR,
-                    message=f"BLOCKED: '{file_path.name}' not in allowed docs/ root files",
-                    file_path=str(rel_path),
-                    fix_hint=f"Update one of: {', '.join(sorted(ALLOWED_DOCS_ROOT)[:3])}...",
-                )
-            )
-            return results
-
-    # Auto-detect best match for other protected areas
-    if path_str.startswith("docs/traycer/"):
-        # Check if new file (not in git or empty)
-        is_new = not file_path.exists() or file_path.stat().st_size == 0
-
-        if is_new:
-            best_match, reason = find_best_match(file_path.stem)
-
-            if best_match:
-                fix_hint = f"UPDATE {best_match} instead. {reason}"
-            else:
-                fix_hint = (
-                    "Update docs/traycer/TRAYCER-KILO-AGENTS-GUIDE.md or docs/traycer/README.md"
-                )
-
-            results.append(
-                CheckResult(
-                    check_name="doc_sprawl",
-                    severity=Severity.ERROR,
-                    message=f"BLOCKED: New doc '{file_path.name}' in protected traycer/ directory",
-                    file_path=str(rel_path),
-                    fix_hint=fix_hint,
-                )
-            )
+    # BLOCK: Everything else (default-deny)
+    results.append(
+        CheckResult(
+            check_name="doc_sprawl",
+            severity=Severity.ERROR,
+            message=f"BLOCKED: New .md file '{file_path.name}' not in allowlist or allowed patterns (default-deny)",
+            file_path=path_str,
+            fix_hint=get_suggestion(path_str),
+        )
+    )
 
     return results

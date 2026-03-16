@@ -170,25 +170,27 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 
 ---
 
-## Anti-Sprawl Enforcement (MANDATORY - 2026-03-16)
+## Anti-Sprawl Enforcement (SYSTEMATIC DEFAULT-DENY - 2026-03-16)
 
-**RULE:** Update existing docs, NEVER create new .md files in:
-- `docs/infrastructure/` - **COMPLETELY BLOCKED**
-- `docs/operations/` - **COMPLETELY BLOCKED**
-- `docs/traycer/` - Only update existing guides
-- `docs/` (root) - Only 11 standard files allowed
+**POLICY:** All new .md files BLOCKED except explicit allowlists/patterns.
 
-**Before documenting anything:**
-1. Run: `grep -r "keyword" docs/*.md docs/traycer/*.md`
-2. Find existing section to update
-3. Add your content there
+**Before creating ANY .md file:**
+1. Check if updating tracked file (allowed)
+2. Check allowlists (root + docs scaffold)
+3. Check strict patterns (plans, archive, review context)
+4. If none match → BLOCKED
 
-**Topic → File Quick Reference:**
-| Topic | File | Section Hint |
-|-------|------|--------------|
-| DNS, WSL, network issues | `docs/TROUBLESHOOTING.md` | ## DNS Issues or ## Connection Issues |
-| Kilo timeout, agents | `docs/traycer/TRAYCER-KILO-AGENTS-GUIDE.md` | ## Timeouts or ## Troubleshooting |
-| Docker, Coolify, VPS | `docs/DEPLOYMENT.md` | ## Coolify or ## Docker |
-| Environment variables | `docs/CONFIGURATION.md` | Relevant service section |
+**Root allowlist (CLOSED):**
+- INDEX.md, README.md, CHANGELOG.md, AGENTS.md
 
-**Enforcement:** `scripts/enforcement/check_doc_sprawl.py` blocks at final_gate (Step 3 & 5)
+**Docs scaffold allowlist (CLOSED):**
+- docs/.doc-policy.md, docs/README.md, docs/QUICKSTART.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/BUSINESS_MODEL.md, docs/FEATURES.md, docs/development/PLANS.md, docs/archive/README.md
+
+**Allowed patterns (STRICT):**
+- `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates required)
+- `docs/archive/**/*.md` (any depth, including direct children)
+- `.droid/review-context/<name>.md` (direct children only, no subdirs)
+
+**Git-tracked edits:** Always allowed (modify existing docs freely)
+
+**Enforcement:** Step 3 & 5 via final_gate.py. Specific suggestions on block.

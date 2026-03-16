@@ -277,45 +277,27 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 - Run `python /opt/fabrik/scripts/sync_projects.py` to update
 - Automatically syncs on `fabrik scaffold` completion
 
-### Documentation Anti-Sprawl Policy (2026-03-16)
+### Documentation Anti-Sprawl Policy (SYSTEMATIC DEFAULT-DENY - 2026-03-16)
 
-**NEVER create new .md files in tracked doc directories.** Update existing files instead.
+**Policy:** All new .md files BLOCKED except explicit allowlists and patterns.
 
-**Templates available:** All /opt/* projects have `docs/.doc-policy.md` with master docs list and workflow.
+**Enforcement timing:** Step 3 (pre-kilo) and Step 5 (post-kilo) via `final_gate.py`
 
-**Enforcement timing:** Step 3 (pre-kilo) and Step 5 (post-kilo) via `final_gate.py`, NOT at commit time.
+**ALLOWED new .md files:**
 
-**Blocked directories:**
-- `docs/infrastructure/` → Use `docs/TROUBLESHOOTING.md`
-- `docs/operations/` → Use `docs/DEPLOYMENT.md`
+1. **Edits to tracked files** - Any .md file already in git (modify existing docs)
+2. **Root allowlist (CLOSED):** INDEX.md, README.md, CHANGELOG.md, AGENTS.md
+3. **Docs scaffold (CLOSED):** docs/README.md, docs/QUICKSTART.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/BUSINESS_MODEL.md, docs/FEATURES.md, docs/.doc-policy.md, docs/development/PLANS.md, docs/archive/README.md
+4. **Strict patterns:**
+   - `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates required)
+   - `docs/archive/**/*.md` (any depth, including direct children)
+   - `.droid/review-context/<name>.md` (direct children only, no subdirs)
 
-**Protected directories (update existing files only):**
-- `docs/traycer/` → Update guide files
-- `docs/` → Only 11 standard files allowed
+**BLOCKED:**
+- All other new .md files in repo
+- Especially: docs/traycer/* (update existing), docs/infrastructure/* (use TROUBLESHOOTING.md), docs/operations/* (use DEPLOYMENT.md), random docs/*.md
 
-**Workflow:**
-1. Read `docs/.doc-policy.md` for master docs list
-2. Identify topic (e.g., "DNS fix")
-3. Search existing docs: `grep -r "DNS" docs/*.md`
-4. Find best match (e.g., `TROUBLESHOOTING.md ## DNS Issues`)
-5. Add new section or update existing section
-
-**Smart detection:** `check_doc_sprawl.py` uses fuzzy matching + section analysis to suggest the best file.
-
-**Enforcement:** Runs at Step 3 & 5 (pre/post-kilo gates), blocks with helpful hints like:
-```
-BLOCKED: New doc 'wsl-dns-fix.md' in protected traycer/ directory
-UPDATE docs/TROUBLESHOOTING.md instead. Matched: kw:dns, kw:wsl (score: 4.0)
-```
-
-**Existing docs structure:**
-- `docs/guides/` - How-to guides
-- `docs/reference/` - Technical reference
-- `docs/operations/` - Ops runbooks
-- `docs/development/plans/` - Plan documents
-- `docs/archive/` - Archived/completed docs
-
-Violations will fail CI and must be fixed before merge.
+**Enforcement:** Runs at Step 3 & 5, blocks with specific suggestions.
 
 ---
 
