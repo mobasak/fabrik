@@ -4,27 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added - Documentation anti-sprawl enforcement (2026-03-16)
+### Added - Documentation anti-sprawl enforcement (ENHANCED 2026-03-16)
 
 **What:** Implemented 4-layer enforcement system to prevent creating new markdown files in tracked doc directories. AI agents must update existing docs instead of creating new ones.
 
-**Enforcement Layers:**
-1. **final_gate.py** - Blocks new .md files in protected dirs (docs/infrastructure/, docs/operations/, docs/traycer/)
-2. **Windsurf rules** - Topic → file mapping for AI agents
-3. **AGENTS.md** - Workflow guidance (search → find → update)
-4. **Scaffold template** - Doc policy for new projects
+**Enforcement timing:** Step 3 (pre-kilo) and Step 5 (post-kilo) via `final_gate.py`, NOT at commit time (pre-commit runs only 4 blockers).
 
-**Auto-detection:**
-- Smart keyword matching suggests which existing file to update
-- Blocked directories: docs/infrastructure/ (use TROUBLESHOOTING.md), docs/operations/ (use DEPLOYMENT.md)
-- Protected: docs/traycer/ (update existing guides)
+**Enforcement Layers:**
+1. **final_gate.py (Step 3 & 5)** - Blocks new .md files in protected dirs with smart suggestions
+2. **Windsurf rules** - Topic → file mapping for AI agents
+3. **AGENTS.md** - Workflow guidance + template awareness
+4. **Scaffold template** - Auto-deployed to all projects
+
+**Enhanced keyword matching:**
+- Fuzzy matching algorithm (exact/boundary/substring/partial scoring)
+- Section header analysis (scans existing ## and ### headers)
+- Confidence scoring with threshold (minimum 0.5)
+- Weighted scoring: keywords (2x), sections (1.5x)
+- Example output: "Matched: kw:dns, kw:wsl, sec:connection issues (score: 4.5)"
+
+**Scaffold integration:**
+- `fabrik scaffold` auto-deploys `docs/.doc-policy.md` to new projects
+- Deployed to 27 existing /opt/* projects (excludes _* inactive)
+- All projects now have master docs reference
+
+**Blocked directories:**
+- `docs/infrastructure/` → Use `docs/TROUBLESHOOTING.md`
+- `docs/operations/` → Use `docs/DEPLOYMENT.md`
+- `docs/traycer/` → Update existing guides only
+- `docs/` root → Only 11 allowed files
 
 **Files:**
-- `scripts/enforcement/check_doc_sprawl.py` - Enforcement check with auto-detection
+- `scripts/enforcement/check_doc_sprawl.py` - Enhanced fuzzy matching + section analysis
+- `scripts/deploy_doc_policy.py` - Deployment script for existing projects
+- `src/fabrik/scaffold.py` - Auto-deploys policy to new projects
 - `.windsurf/rules/40-documentation.md` - Anti-sprawl rules + topic mapping table
-- `AGENTS.md` - Documentation Anti-Sprawl Policy section
+- `AGENTS.md` - Documentation Anti-Sprawl Policy section (updated with template awareness)
 - `scripts/enforcement/validate_conventions.py` - Integration into validator
-- `templates/docs/.doc-policy.md` - Scaffold template for new projects
+- `templates/docs/.doc-policy.md` - Scaffold template
 
 ### Fixed - WSL2 DNS resolution and increased CLI agent timeout to 120 minutes (2026-03-16)
 

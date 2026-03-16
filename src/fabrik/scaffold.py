@@ -349,6 +349,11 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
         f"# {name} Configuration\n# Required\nPORT=8000\nLOG_LEVEL=INFO\n\n# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n"  # noqa: secrets
     )
 
+    # Copy documentation policy template
+    doc_policy_src = FABRIK_ROOT / "templates" / "docs" / ".doc-policy.md"
+    if doc_policy_src.exists():
+        (project_dir / "docs" / ".doc-policy.md").write_text(doc_policy_src.read_text())
+
     # Create PLANS.md inline (no template file)
     (project_dir / "docs" / "development" / "PLANS.md").write_text(
         f"""# Development Plans

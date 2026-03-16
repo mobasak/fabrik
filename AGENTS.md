@@ -281,6 +281,10 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 
 **NEVER create new .md files in tracked doc directories.** Update existing files instead.
 
+**Templates available:** All /opt/* projects have `docs/.doc-policy.md` with master docs list and workflow.
+
+**Enforcement timing:** Step 3 (pre-kilo) and Step 5 (post-kilo) via `final_gate.py`, NOT at commit time.
+
 **Blocked directories:**
 - `docs/infrastructure/` → Use `docs/TROUBLESHOOTING.md`
 - `docs/operations/` → Use `docs/DEPLOYMENT.md`
@@ -290,13 +294,19 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 - `docs/` → Only 11 standard files allowed
 
 **Workflow:**
-1. Identify topic (e.g., "DNS fix")
-2. Search existing docs: `grep -r "DNS" docs/*.md`
-3. Find best match (e.g., `TROUBLESHOOTING.md ## DNS Issues`)
-4. Add new section or update existing section
-5. Run `final_gate.py` - will block if you created new file
+1. Read `docs/.doc-policy.md` for master docs list
+2. Identify topic (e.g., "DNS fix")
+3. Search existing docs: `grep -r "DNS" docs/*.md`
+4. Find best match (e.g., `TROUBLESHOOTING.md ## DNS Issues`)
+5. Add new section or update existing section
 
-**Enforcement:** `check_doc_sprawl.py` at Step 3 (pre-kilo gate)
+**Smart detection:** `check_doc_sprawl.py` uses fuzzy matching + section analysis to suggest the best file.
+
+**Enforcement:** Runs at Step 3 & 5 (pre/post-kilo gates), blocks with helpful hints like:
+```
+BLOCKED: New doc 'wsl-dns-fix.md' in protected traycer/ directory
+UPDATE docs/TROUBLESHOOTING.md instead. Matched: kw:dns, kw:wsl (score: 4.0)
+```
 
 **Existing docs structure:**
 - `docs/guides/` - How-to guides
