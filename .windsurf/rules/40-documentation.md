@@ -167,3 +167,28 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 - NO variable tables in CONFIGURATION.md
 
 **Enforcement:** `check_configuration_md.py` verifies `.env.example` has comment blocks
+
+---
+
+## Anti-Sprawl Enforcement (MANDATORY - 2026-03-16)
+
+**RULE:** Update existing docs, NEVER create new .md files in:
+- `docs/infrastructure/` - **COMPLETELY BLOCKED**
+- `docs/operations/` - **COMPLETELY BLOCKED**
+- `docs/traycer/` - Only update existing guides
+- `docs/` (root) - Only 11 standard files allowed
+
+**Before documenting anything:**
+1. Run: `grep -r "keyword" docs/*.md docs/traycer/*.md`
+2. Find existing section to update
+3. Add your content there
+
+**Topic → File Quick Reference:**
+| Topic | File | Section Hint |
+|-------|------|--------------|
+| DNS, WSL, network issues | `docs/TROUBLESHOOTING.md` | ## DNS Issues or ## Connection Issues |
+| Kilo timeout, agents | `docs/traycer/TRAYCER-KILO-AGENTS-GUIDE.md` | ## Timeouts or ## Troubleshooting |
+| Docker, Coolify, VPS | `docs/DEPLOYMENT.md` | ## Coolify or ## Docker |
+| Environment variables | `docs/CONFIGURATION.md` | Relevant service section |
+
+**Enforcement:** `scripts/enforcement/check_doc_sprawl.py` blocks at final_gate (Step 3 & 5)

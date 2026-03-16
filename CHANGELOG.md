@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Documentation anti-sprawl enforcement (2026-03-16)
+
+**What:** Implemented 4-layer enforcement system to prevent creating new markdown files in tracked doc directories. AI agents must update existing docs instead of creating new ones.
+
+**Enforcement Layers:**
+1. **final_gate.py** - Blocks new .md files in protected dirs (docs/infrastructure/, docs/operations/, docs/traycer/)
+2. **Windsurf rules** - Topic → file mapping for AI agents
+3. **AGENTS.md** - Workflow guidance (search → find → update)
+4. **Scaffold template** - Doc policy for new projects
+
+**Auto-detection:**
+- Smart keyword matching suggests which existing file to update
+- Blocked directories: docs/infrastructure/ (use TROUBLESHOOTING.md), docs/operations/ (use DEPLOYMENT.md)
+- Protected: docs/traycer/ (update existing guides)
+
+**Files:**
+- `scripts/enforcement/check_doc_sprawl.py` - Enforcement check with auto-detection
+- `.windsurf/rules/40-documentation.md` - Anti-sprawl rules + topic mapping table
+- `AGENTS.md` - Documentation Anti-Sprawl Policy section
+- `scripts/enforcement/validate_conventions.py` - Integration into validator
+- `templates/docs/.doc-policy.md` - Scaffold template for new projects
+
 ### Fixed - WSL2 DNS resolution and increased CLI agent timeout to 120 minutes (2026-03-16)
 
 **What:** Applied permanent fix for WSL2 DNS resolution failure affecting Kilo CLI and Node.js applications. Increased default Kilo CLI agent timeout from 60 to 120 minutes to support large document reviews with multi-pass analysis.

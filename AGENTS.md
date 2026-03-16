@@ -277,6 +277,27 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 - Run `python /opt/fabrik/scripts/sync_projects.py` to update
 - Automatically syncs on `fabrik scaffold` completion
 
+### Documentation Anti-Sprawl Policy (2026-03-16)
+
+**NEVER create new .md files in tracked doc directories.** Update existing files instead.
+
+**Blocked directories:**
+- `docs/infrastructure/` → Use `docs/TROUBLESHOOTING.md`
+- `docs/operations/` → Use `docs/DEPLOYMENT.md`
+
+**Protected directories (update existing files only):**
+- `docs/traycer/` → Update guide files
+- `docs/` → Only 11 standard files allowed
+
+**Workflow:**
+1. Identify topic (e.g., "DNS fix")
+2. Search existing docs: `grep -r "DNS" docs/*.md`
+3. Find best match (e.g., `TROUBLESHOOTING.md ## DNS Issues`)
+4. Add new section or update existing section
+5. Run `final_gate.py` - will block if you created new file
+
+**Enforcement:** `check_doc_sprawl.py` at Step 3 (pre-kilo gate)
+
 **Existing docs structure:**
 - `docs/guides/` - How-to guides
 - `docs/reference/` - Technical reference

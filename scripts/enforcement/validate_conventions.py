@@ -107,6 +107,13 @@ def run_check_plan_quality(file_path: Path) -> list[CheckResult]:
     return check_file(file_path)
 
 
+def run_check_doc_sprawl(file_path: Path) -> list[CheckResult]:
+    """Check documentation anti-sprawl (prevent new files in protected dirs)."""
+    from .check_doc_sprawl import check_file
+
+    return check_file(file_path)
+
+
 def run_check_deps_sync(file_path: Path) -> list[CheckResult]:
     """Check dependency sync between pyproject.toml and requirements.txt."""
     from .check_deps_sync import check_file
@@ -156,10 +163,11 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
     if suffix in (".py", ".ts", ".tsx", ".js", ".yaml", ".yml"):
         results.extend(run_check_ports(file_path))
 
-    # Markdown files - check plan conventions
+    # Markdown files - check plan conventions and doc sprawl
     if suffix == ".md":
         results.extend(run_check_plans(file_path))
         results.extend(run_check_plan_quality(file_path))
+        results.extend(run_check_doc_sprawl(file_path))  # Anti-sprawl enforcement
         # Check if tasks.md needs update when phase docs change
         if "phase" in name:
             from .check_tasks_updated import check_file as check_tasks
