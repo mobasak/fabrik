@@ -137,6 +137,7 @@ SHARED_DIRS = [
     ".cache",
     "output",
     ".droid/review-context",  # Kilo/Traycer review context directory
+    ".droid/traycer-reports",  # Traycer report files directory
 ]
 
 _PYTHON_API_DIRS = ["src"]
@@ -145,6 +146,39 @@ SCRIPT_FILES = ["runc", "rund", "rundsh", "runk", "sync_cascade_backup.sh", "syn
 
 # Master AGENTS.md location
 FABRIK_AGENTS_MD = FABRIK_ROOT / "AGENTS.md"
+
+# Canonical .droid/ gitignore block — shared across all scaffold types
+# Runtime files written by:
+#   - kilo_code_review.py: reviews/, kilo_models_cache.json, .kilo_cache_last_refresh
+#   - generate_kilo_agents.py shell scripts: kilo_usage.jsonl
+#   - docs_updater.py: docs_queue/, docs_log/
+#   - traycer_write_report.py: traycer-reports/*.md
+_DROID_GITIGNORE_BLOCK = (
+    ".droid/kilo_usage.jsonl\n"
+    ".droid/reviews/\n"
+    ".droid/kilo_models_cache.json\n"
+    ".droid/.kilo_cache_last_refresh\n"
+    ".droid/docs_queue/\n"
+    ".droid/docs_log/\n"
+    ".droid/traycer-reports/*.md\n"
+)
+
+# Canonical .droid/.gitignore content — used by scaffold and fix_project()
+_DROID_DIR_GITIGNORE = (
+    "# Kilo/Traycer runtime files — do not commit\n"
+    "*\n"
+    "!.gitignore\n"
+    "!review-context/\n"
+    "!review-context/**\n"
+    "!traycer-reports/\n"
+    "!traycer-reports/.gitignore\n"
+    "traycer-reports/*.md\n"
+)
+
+# Canonical .droid/traycer-reports/.gitignore content
+_TRAYCER_REPORTS_GITIGNORE = (
+    "# Traycer report files — committed .gitignore, reports are gitignored\n*.md\n!.gitignore\n"
+)
 
 
 def _ensure_symlink(link_path: Path, target: Path) -> bool:
@@ -238,15 +272,14 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
         (project_dir / d).mkdir(parents=True, exist_ok=True)
 
     # Write .droid/ files: gitignore keeps review-context/, blocks runtime files
-    (project_dir / ".droid" / ".gitignore").write_text(
-        "# Kilo/Traycer runtime files — do not commit\n"
-        "*\n"
-        "!.gitignore\n"
-        "!review-context/\n"
-        "!review-context/**\n"
-    )
+    (project_dir / ".droid" / ".gitignore").write_text(_DROID_DIR_GITIGNORE)
     # .gitkeep so git tracks the empty review-context/ directory
     (project_dir / ".droid" / "review-context" / ".gitkeep").write_text("")
+
+    # Create traycer-reports/ with its own .gitignore
+    traycer_reports_dir = project_dir / ".droid" / "traycer-reports"
+    traycer_reports_dir.mkdir(parents=True, exist_ok=True)
+    (traycer_reports_dir / ".gitignore").write_text(_TRAYCER_REPORTS_GITIGNORE)
 
     package_name = _get_package_name(name)
 
@@ -338,12 +371,7 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
         ".cache/\n"
         "output/\n"
         "*.log\n"
-        ".venv/\n"
-        ".droid/kilo_usage.jsonl\n"
-        ".droid/reviews/\n"
-        ".droid/kilo_models_cache.json\n"
-        ".droid/.kilo_cache_last_refresh\n"
-        "\n"
+        ".venv/\n" + _DROID_GITIGNORE_BLOCK + "\n"
         "# IDE\n"
         ".vscode/\n"
         ".idea/\n"
@@ -594,12 +622,7 @@ server.listen(PORT, () => {{
         ".tmp/\n"
         ".cache/\n"
         "output/\n"
-        "*.log\n"
-        ".droid/kilo_usage.jsonl\n"
-        ".droid/reviews/\n"
-        ".droid/kilo_models_cache.json\n"
-        ".droid/.kilo_cache_last_refresh\n"
-        "\n"
+        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
         "# IDE\n"
         ".vscode/\n"
         ".idea/\n"
@@ -701,12 +724,7 @@ DOWNLOAD_URL_EXPIRY_SECONDS=3600
         ".tmp/\n"
         ".cache/\n"
         "output/\n"
-        "*.log\n"
-        ".droid/kilo_usage.jsonl\n"
-        ".droid/reviews/\n"
-        ".droid/kilo_models_cache.json\n"
-        ".droid/.kilo_cache_last_refresh\n"
-        "\n"
+        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
         "# IDE\n"
         ".vscode/\n"
         ".idea/\n"
@@ -827,12 +845,7 @@ R2_BUCKET=your-bucket-name
         ".cache/\n"
         "output/\n"
         "*.log\n"
-        ".venv/\n"
-        ".droid/kilo_usage.jsonl\n"
-        ".droid/reviews/\n"
-        ".droid/kilo_models_cache.json\n"
-        ".droid/.kilo_cache_last_refresh\n"
-        "\n"
+        ".venv/\n" + _DROID_GITIGNORE_BLOCK + "\n"
         "# IDE\n"
         ".vscode/\n"
         ".idea/\n"
@@ -911,42 +924,36 @@ R2_BUCKET=fabrik-backups
 
     # f) Overwrite .gitignore with WordPress-appropriate content
     (project_dir / ".gitignore").write_text(
-        """.env
-wp-content/uploads/
-wp-content/upgrade/
-logs/
-data/
-.tmp/
-.cache/
-*.log
-.droid/kilo_usage.jsonl
-.droid/reviews/
-.droid/kilo_models_cache.json
-.droid/.kilo_cache_last_refresh
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# WordPress
-wp-content/cache/
-wp-content/backup-db/
-sitemap.xml
-sitemap.xml.gz
-
-# Node.js (for theme/plugin development)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-
-# Build & Test (theme/plugin development)
-coverage/
-dist/
-build/
-"""
+        ".env\n"
+        "wp-content/uploads/\n"
+        "wp-content/upgrade/\n"
+        "logs/\n"
+        "data/\n"
+        ".tmp/\n"
+        ".cache/\n"
+        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*~\n"
+        "\n"
+        "# WordPress\n"
+        "wp-content/cache/\n"
+        "wp-content/backup-db/\n"
+        "sitemap.xml\n"
+        "sitemap.xml.gz\n"
+        "\n"
+        "# Node.js (for theme/plugin development)\n"
+        "node_modules/\n"
+        "npm-debug.log*\n"
+        "yarn-debug.log*\n"
+        "\n"
+        "# Build & Test (theme/plugin development)\n"
+        "coverage/\n"
+        "dist/\n"
+        "build/\n"
     )
 
 
@@ -1098,12 +1105,7 @@ app.whenReady().then(createWindow);
         ".tmp/\n"
         ".cache/\n"
         "output/\n"
-        "*.log\n"
-        ".droid/kilo_usage.jsonl\n"
-        ".droid/reviews/\n"
-        ".droid/kilo_models_cache.json\n"
-        ".droid/.kilo_cache_last_refresh\n"
-        "\n"
+        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
         "# IDE\n"
         ".vscode/\n"
         ".idea/\n"
@@ -1303,6 +1305,32 @@ def fix_project(
                 "}\n"
             )
             added.append("opencode.json")
+
+        # Ensure .droid/ structure is current
+        droid_dir = project_path / ".droid"
+        droid_dir.mkdir(exist_ok=True)
+
+        # .droid/.gitignore — create or update
+        droid_gitignore = droid_dir / ".gitignore"
+        if not droid_gitignore.exists() or droid_gitignore.read_text() != _DROID_DIR_GITIGNORE:
+            droid_gitignore.write_text(_DROID_DIR_GITIGNORE)
+            added.append(".droid/.gitignore (created/updated)")
+
+        # .droid/review-context/ + .gitkeep
+        review_ctx = droid_dir / "review-context"
+        review_ctx.mkdir(exist_ok=True)
+        gitkeep = review_ctx / ".gitkeep"
+        if not gitkeep.exists():
+            gitkeep.write_text("")
+            added.append(".droid/review-context/.gitkeep")
+
+        # .droid/traycer-reports/ + .gitignore
+        traycer_reports = droid_dir / "traycer-reports"
+        traycer_reports.mkdir(exist_ok=True)
+        tr_gitignore = traycer_reports / ".gitignore"
+        if not tr_gitignore.exists() or tr_gitignore.read_text() != _TRAYCER_REPORTS_GITIGNORE:
+            tr_gitignore.write_text(_TRAYCER_REPORTS_GITIGNORE)
+            added.append(".droid/traycer-reports/.gitignore (created/updated)")
     else:
         # dry_run: accurately report what would be created/fixed
         # .windsurfrules
@@ -1332,5 +1360,19 @@ def fix_project(
         # opencode.json
         if not (project_path / "opencode.json").exists():
             added.append("opencode.json")
+
+        # .droid/ structure dry_run reporting
+        droid_dir = project_path / ".droid"
+        droid_gitignore = droid_dir / ".gitignore"
+        if not droid_gitignore.exists() or droid_gitignore.read_text() != _DROID_DIR_GITIGNORE:
+            added.append(".droid/.gitignore (created/updated)")
+
+        review_ctx_gitkeep = droid_dir / "review-context" / ".gitkeep"
+        if not review_ctx_gitkeep.exists():
+            added.append(".droid/review-context/.gitkeep")
+
+        tr_gitignore = droid_dir / "traycer-reports" / ".gitignore"
+        if not tr_gitignore.exists() or tr_gitignore.read_text() != _TRAYCER_REPORTS_GITIGNORE:
+            added.append(".droid/traycer-reports/.gitignore (created/updated)")
 
     return added

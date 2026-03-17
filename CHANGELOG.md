@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Scaffold .droid/ gitignore consistency (2026-03-17)
+
+**What:** Consolidated all .droid/ gitignore entries into DRY constants and added traycer-reports/ scaffolding.
+
+**Changes:**
+- **TICKET-1:** Extracted `_DROID_GITIGNORE_BLOCK` constant used by all 6 scaffold write sites
+- **TICKET-2:** Added `.droid/traycer-reports/` directory scaffolding with proper .gitignore
+- **TICKET-3:** Updated Fabrik master `.droid/.gitignore` with deny-all + explicit allowlist
+- **TICKET-4:** Added `fix_project()` repairs for .droid/ structure using DRY constants
+
+**Files:**
+- `src/fabrik/scaffold.py` - Constants, traycer-reports scaffolding, fix_project() repairs
+- `.droid/.gitignore` - Updated with traycer-reports/ allowlist
+
 ### Added - Kilo Terminal Runner v13 implementation (2026-03-17)
 
 **What:** Full implementation of plan v13 for the Kilo Terminal Runner rich TUI.
