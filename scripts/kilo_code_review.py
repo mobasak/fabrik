@@ -4058,7 +4058,9 @@ async def review_loop(
 
                 usage.add_review(review_result)
             finally:
-                config.variant = original_variant  # Always restore
+                # Always restore original state to prevent leaks across iterations
+                config.variant = original_variant
+                config.model = original_model
 
             # Capture session ID from Kilo response for subsequent calls
             # Validate to prevent path traversal via malicious/corrupted response
