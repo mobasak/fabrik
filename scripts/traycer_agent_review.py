@@ -32,7 +32,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from scripts.kilo_code_review import KiloReviewConfig, review_loop
+# Bootstrap for direct-file execution (python /opt/fabrik/scripts/traycer_agent_review.py)
+# This ensures 'scripts' package is importable regardless of invocation method
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.kilo_code_review import KiloReviewConfig, review_loop  # noqa: E402
 
 
 def run_final_gate() -> dict[str, Any]:
