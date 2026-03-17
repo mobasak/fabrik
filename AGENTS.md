@@ -317,35 +317,64 @@ python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
 # If you changed code in src/, scripts/, update relevant docs/
 ```
 
-**Kilo Code Review Workflow:**
+**Kilo Code Review Workflow (Staged-First with Scoped Sessions):**
 
 ```bash
-# Initial review: pass the task/plan for SPEC verification (inline or file)
-python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
-  --plan "Inline task description here..." \
+# Set stable review ID once per cycle (use feature name + date)
+export REVIEW_ID="feat-$(date +%Y%m%d)-<feature-slug>"
+
+# Stage intended files before initial review
+git add <intended_files>
+
+# Initial review: staged commit candidate
+python /opt/fabrik/scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "Short micro-spec here..." \
   --review-agent ask \
   --output json
 
-# Subsequent reviews: use --session continue (Kilo maintains context)
-python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
+# Follow-up loops: verify command (lighter than full review)
+python /opt/fabrik/scripts/kilo_code_review.py verify <changed_files> \
   --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --fixes "What was fixed" \
+  --review-agent ask \
+  --output json
+
+# Final risky-branch check: staged again (only if needed)
+python /opt/fabrik/scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --review-agent ask \
   --output json
 ```
 
-Then:
-1. Read JSON output - check `verdict` and `issues`
-2. Fix ALL issues myself (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
-3. Get another review with `--session continue`
-4. Repeat 2-3 until `verdict=PASS` (max 5 iterations)
-5. Report to user what was done
+**Session Scoping (NEW - 2026-03-17):**
+- Sessions scoped by: `project_root + git_branch + tracked_review_id`
+- `--tracked-review-id` **REQUIRED** with `--session continue`
+- Prevents cross-repo/branch session pollution
+- Issue state persisted: `.droid/reviews/<tracked_review_id>_issues.json`
+- Open issues reused across iterations
+- Auto-close is conservative: only for staged, single-batch, non-verify, auto-fix runs
+
+**Workflow:**
+1. **Stage intended files** - review commit candidate, not arbitrary file sets
+2. **Initial staged review** - full SPEC verification
+3. Fix ALL open issues (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
+4. **Verify with --verify-mode** - lighter follow-up check
+5. Repeat verify until verdict=PASS (max 5 iterations)
+6. **Final staged review** - only if risky/cross-module changes
 
 **Key points:**
-- **Pass the task/plan on initial review** - Kilo needs it for SPEC verification
-- Use inline plan text (`--plan "description"`) or an already tracked plan/document. Do not create ad hoc review-context markdown files
+- **Staged-first** - review the actual commit candidate surface
+- **Verify-mode for intermediate loops** - cheaper, focused on fixes
+- Use inline plan text (`--plan "description"`) - simpler, no file management
+- **Set REVIEW_ID once** - keep same ID across all iterations in the cycle
+- **Do not assume unseen issues are fixed** unless full-scope staged single-batch
+- Reserve generic `review <files>` for deliberate partial/WIP review only
+- Reserve `--review-mode full` for narrow high-risk files only
 - I fix issues, not Kilo (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
-- Fix ALL severities, not just BLOCKER/MAJOR
-- Use `--session continue` for subsequent reviews (maintains context)
-- Max 5 iterations before stopping
 
 **Sequence (Traycer-managed):**
 ```

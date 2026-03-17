@@ -60,20 +60,55 @@ Use Traycer's built-in verifier as the review surface.
 
 ### Non-Traycer Tasks: Kilo Code Review (Fallback)
 
-**Two-phase workflow (Kilo review + Final Gate):**
+**Staged-first workflow with scoped sessions (2026-03-17):**
 
 ```bash
-# Initial review: pass the task/plan for SPEC verification
-python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
-  --plan .droid/review-context/task.md \
+# Set stable review ID once per cycle
+export REVIEW_ID="feat-$(date +%Y%m%d)-<feature-slug>"
+
+# Stage intended files before initial review
+git add <intended_files>
+
+# Initial pass: staged commit candidate
+python /opt/fabrik/scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "Brief task description" \
   --review-agent ask \
   --output json
 
-# Subsequent reviews: use --session continue (Kilo maintains context)
-python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
+# Intermediate passes: verify command (lighter)
+python /opt/fabrik/scripts/kilo_code_review.py verify <changed_files> \
   --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --fixes "What was fixed" \
+  --review-agent ask \
+  --output json
+
+# Final risky-branch check: staged again (only if needed)
+python /opt/fabrik/scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
   --output json
 ```
+
+**Critical:** `--tracked-review-id` is MANDATORY with `--session continue`. Without it:
+```
+ValueError: --tracked-review-id is required with --session continue
+```
+
+**Session Scoping:**
+- Sessions scoped by: `project_root + git_branch + tracked_review_id`
+- Prevents cross-repo/branch session pollution
+- Issue state: `.droid/reviews/<tracked_review_id>_issues.json`
+- Open issues reused across iterations
+- Auto-close is conservative: only for staged, single-batch, non-verify, auto-fix runs
+
+**Review Mode Selection:**
+- **staged** (recommended): Initial pass, final risky-branch check
+- **verify** (command): Intermediate fix loops (cheaper, focused - use after manual fixes)
+- **review <files>**: Manual WIP review, deliberate partial review only
+- **--mode full**: Full file review (default for review command)
 
 **Phase 1: Kilo AI Review (Strict Enforcement - 2026-03-05)**
 
@@ -94,11 +129,12 @@ python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
 - **Doc/Verify Modes**: Skip plan coverage validation (no plan in prompt)
 
 **Then I MUST:**
-1. Read JSON output - check `verdict` and `issues`
-2. Fix ALL issues myself (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
-3. Get another review with `--session continue`
-4. Repeat 2-3 until `verdict=PASS` (max 5 iterations)
-5. Report to user what was done
+1. **Initial staged review** - check `verdict` and `issues` in JSON output
+2. Fix ALL open issues myself (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
+3. **Verify with verify command** - lighter follow-up check on fixes
+4. Repeat verify until `verdict=PASS` (max 5 iterations)
+5. **Final staged review** - only if risky/cross-module changes
+6. Report to user what was done
 
 **Phase 2: Final Gate (MANDATORY before commit)**
 
@@ -125,12 +161,16 @@ Sync-only coverage (Step 7 / --sync):
 - Sync Cascade Backup
 
 **Key points:**
+- **Stage intended files first** - review commit candidate, not arbitrary file sets
+- **Staged for initial pass** - full SPEC verification
+- **verify command for intermediate loops** - cheaper, focused on fixes only
 - **Pass the task/plan on initial review** - Kilo needs it for SPEC verification
-- Save task to `.droid/review-context/task.md` (not in `docs/development/plans/`)
+- Use inline plan text (`--plan "description"`) - simpler, no file management
+- **Set REVIEW_ID once** - keep same ID across all fix iterations
+- **Only open issues matter** - do not assume unseen issues are fixed unless full-scope
 - I fix Kilo issues, not Kilo auto-fix (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
 - Fix ALL severities, not just BLOCKER/MAJOR
-- Use `--session continue` for subsequent reviews (maintains context)
-- Max 5 iterations before stopping
+- Max 5 verify iterations before stopping
 - If still failing after 5 iterations, escalate model or request plan clarification
 
 **Output format after each step:**

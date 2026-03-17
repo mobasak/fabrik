@@ -58,12 +58,46 @@ trigger: always_on
 
 **When NOT using Traycer:** Use Kilo CLI directly for code review.
 
-```bash
-# Review changed files
-python /opt/fabrik/scripts/kilo_code_review.py review <files> --output json
+**Staged-first workflow with scoped sessions (2026-03-17):**
 
-# Continue session (maintains context)
-python /opt/fabrik/scripts/kilo_code_review.py review <files> --session continue
+```bash
+# Set stable review ID once per cycle
+export REVIEW_ID="feat-$(date +%Y%m%d)-<feature-slug>"
+
+# Stage intended files before initial review
+git add <intended_files>
+
+# Initial pass: staged commit candidate
+python /opt/fabrik/scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "Brief task description" \
+  --review-agent ask \
+  --output json
+
+# Intermediate passes: verify-mode (lighter)
+python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --verify-mode \
+  --fixes-description "What was fixed" \
+  --review-agent ask \
+  --output json
 ```
+
+**Session Scoping:**
+- Sessions scoped by: `project_root + git_branch + tracked_review_id`
+- `--tracked-review-id` REQUIRED with `--session continue`
+- Prevents cross-repo/branch session pollution
+- Issue state persisted to `.droid/reviews/<tracked_review_id>_issues.json`
+- Open issues reused across iterations
+
+**Review Mode Selection:**
+- **staged**: Initial pass, final risky-branch check
+- **verify-mode**: Intermediate fix loops (cheaper, focused)
+- **review <files>**: Manual WIP review only
+- **--review-mode full**: Narrow high-risk files only
+
+**Recommendation:** Stage intended files semantically before calling reviewer.
 
 **See:** `.windsurf/rules/50-code-review.md` for complete 9-step workflow
