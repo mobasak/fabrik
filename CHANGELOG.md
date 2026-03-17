@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - Gated multi-pass review, PASS max-variant verification, and audit writes with opt-in flags (default OFF)
 - Limited model escalation to 1 fallback maximum (simplified from deep tier chain)
 - Added prompt degradation: full mode auto-degrades to diff_only if oversized
+- Added retry logic for incomplete/garbled JSONL responses (no step_finish, too many parse errors)
 - Fixed verification usage accounting (`usage.add_review(verify_result)`)
 - Fixed config.variant state leak with try/finally wrapper
 - Fixed config.model state leak: escalation now restores original model in finally block

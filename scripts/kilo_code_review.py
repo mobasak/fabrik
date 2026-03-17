@@ -2007,6 +2007,16 @@ def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval):
     return (b"".join(stdout_chunks), b"".join(stderr_chunks), proc.returncode)
 
 
+def _is_retryable_parse_failure(exc: Exception) -> bool:
+    """Check if a parse failure is retryable (incomplete/garbled JSONL)."""
+    msg = str(exc)
+    retryable_markers = (
+        "no step_finish event received",
+        "Too many parse errors",
+    )
+    return any(marker in msg for marker in retryable_markers)
+
+
 async def run_kilo(
     prompt: str,
     config: KiloReviewConfig,
@@ -2110,7 +2120,19 @@ async def run_kilo(
             if config.verbose:
                 print(f"[KILO] Output: {len(output)} chars", file=sys.stderr)
 
-            return parse_kilo_jsonl(output)
+            try:
+                return parse_kilo_jsonl(output)
+            except RuntimeError as e:
+                last_exception = e
+                if _is_retryable_parse_failure(e) and attempt < MAX_RETRIES - 1:
+                    wait_time = 2**attempt
+                    print(
+                        f"⏳ Kilo incomplete/garbled response ({e}). Retrying in {wait_time}s...",
+                        file=sys.stderr,
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                raise
 
         except TimeoutError as e:
             last_exception = e
