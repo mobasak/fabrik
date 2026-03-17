@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - Added prompt degradation: full mode auto-degrades to diff_only if oversized
 - Fixed verification usage accounting (`usage.add_review(verify_result)`)
 - Fixed config.variant state leak with try/finally wrapper
+- Fixed config.model state leak: escalation now restores original model in finally block
 
 **Impact:**
 - Long-running reviews no longer killed prematurely (monitors progress, not wall-clock)

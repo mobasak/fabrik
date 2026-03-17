@@ -3991,6 +3991,8 @@ async def review_loop(
 
             # PHASE 1: Review (with adaptive variant and model error retry)
             # Temporarily override variant for this iteration
+            # Save original model to prevent escalation state leak
+            original_model = config.model
             original_variant = config.variant
             config.variant = current_variant
 
