@@ -26,6 +26,7 @@ trigger: always_on
 - Final Gate is the authority for deterministic checks.
 - Semgrep is best-effort: skipped if not installed or not authenticated.
 - Do not rely on .gitignore as a security control (pre-commit blockers still apply).
+- **When using Kilo review continuation, always provide a stable tracked review ID; never rely on a global latest session.**
 
 **If I skip these steps, the user should call me out.**
 ---
@@ -132,6 +133,24 @@ async def health():
 | Hardcoded localhost | `os.getenv()` |
 | Alpine base images | `python:3.12-slim-bookworm` |
 | Class-level config | Function-level loading |
+| Bare `pip install` | `/opt/fabrik/.venv/bin/pip install` |
+
+### PEP 668: WSL/Debian Venv Requirement (CRITICAL)
+
+WSL and modern Debian block system-wide pip installs. **NEVER** run bare `pip install`.
+
+```bash
+# WRONG - will fail with "externally-managed-environment"
+pip install textual
+
+# CORRECT - use Fabrik master venv
+/opt/fabrik/.venv/bin/pip install textual
+
+# CORRECT - project-specific venv
+/opt/<project>/.venv/bin/pip install textual
+```
+
+The Fabrik master venv (`/opt/fabrik/.venv/`) hosts cross-project tools like `kilo_terminal_runner.py`.
 ---
 
 ## Cascade Behavior Rules (STRICT)

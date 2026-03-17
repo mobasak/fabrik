@@ -75,12 +75,11 @@ python /opt/fabrik/scripts/kilo_code_review.py staged \
   --review-agent ask \
   --output json
 
-# Intermediate passes: verify-mode (lighter)
-python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
+# Intermediate passes: verify command (lighter)
+python /opt/fabrik/scripts/kilo_code_review.py verify <changed_files> \
   --session continue \
   --tracked-review-id "$REVIEW_ID" \
-  --verify-mode \
-  --fixes-description "What was fixed" \
+  --fixes "What was fixed" \
   --review-agent ask \
   --output json
 ```
@@ -94,9 +93,9 @@ python /opt/fabrik/scripts/kilo_code_review.py review <changed_files> \
 
 **Review Mode Selection:**
 - **staged**: Initial pass, final risky-branch check
-- **verify-mode**: Intermediate fix loops (cheaper, focused)
+- **verify** (command): Intermediate fix loops (cheaper, focused - use after manual fixes)
 - **review <files>**: Manual WIP review only
-- **--review-mode full**: Narrow high-risk files only
+- **--mode full**: Full file review (default for review command)
 
 **Recommendation:** Stage intended files semantically before calling reviewer.
 

@@ -181,26 +181,60 @@ Next: Proceed to Step 3 (Final Gate Pre-Kilo)
 - Edge cases (null handling, race conditions)
 - Logic bugs (incorrect algorithms)
 
-**Workflow:**
+**Workflow (Staged-First with Scoped Sessions - 2026-03-17):**
 
 ```bash
-# Initial review with task context
-python scripts/kilo_code_review.py review <files> \
-  --plan .droid/review-context/task.md \
+# Set stable review ID once per cycle
+export REVIEW_ID="feat-$(date +%Y%m%d)-<feature-slug>"
+
+# Stage intended files before initial review
+git add <intended_files>
+
+# Initial pass: staged commit candidate
+python scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "Brief task description" \
   --review-agent ask \
   --output json
 
-# Subsequent reviews (maintains context)
-python scripts/kilo_code_review.py review <files> \
+# Intermediate passes: verify-mode (lighter)
+python scripts/kilo_code_review.py review <changed_files> \
   --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --verify-mode \
+  --fixes-description "What was fixed" \
+  --review-agent ask \
+  --output json
+
+# Final risky-branch check: staged again (only if needed)
+python scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
   --output json
 ```
 
+**Session Scoping:**
+- Sessions scoped by: `project_root + git_branch + tracked_review_id`
+- `--tracked-review-id` REQUIRED with `--session continue`
+- Prevents cross-repo/branch session pollution
+- Issue state persisted to `.droid/reviews/<tracked_review_id>_issues.json`
+- Open issues reused across iterations
+- Auto-close is conservative: only for staged, single-batch, non-verify, auto-fix runs
+
+**Review Mode Selection:**
+- **staged** (recommended): Initial pass, final risky-branch check
+- **verify-mode**: Intermediate fix loops (cheaper, focused on fixes)
+- **review <files>**: Manual WIP review, deliberate partial review only
+- **--review-mode full**: Narrow high-risk files only
+
 **Loop:**
-1. Read JSON output — check `verdict` and `issues`
-2. Fix ALL issues (BLOCKER, MAJOR, MINOR) — coder fixes, not Kilo
-3. Re-review with `--session continue`
-4. Repeat until `verdict=PASS` (max 5 iterations)
+1. **Stage intended files** — review commit candidate
+2. **Initial staged review** — check `verdict` and `issues`
+3. Fix ALL open issues (BLOCKER, MAJOR, MINOR) — coder fixes, not Kilo
+4. **Verify with --verify-mode** — lighter follow-up
+5. Repeat verify until `verdict=PASS` (max 5 iterations)
+6. **Final staged review** — only if risky/cross-module changes
 
 **Cost:** ~$0.03-0.40 per review (vs ~$1-2 for auto-fix)
 

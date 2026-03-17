@@ -622,6 +622,7 @@ services:
 2. **Health checks must test dependencies** — Not just return `{"status": "ok"}`
 3. **Env vars not set at import time** — Load config in functions, not class-level
 4. **Test in Docker before deploying** — `docker compose up` locally first
+5. **Never bare `pip install`** — WSL/Debian uses PEP 668. Use `/opt/fabrik/.venv/bin/pip install` or project venv
 
 ## Documentation Rules (MUST)
 

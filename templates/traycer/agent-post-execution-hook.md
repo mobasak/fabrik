@@ -31,13 +31,27 @@ SELF-REVIEW COMPLETE:
 
 ### Step 2: Run Auto-Review Workflow
 
+The review script internally follows the **staged-first / verify-mode workflow**:
+
+**Internal Flow:**
+1. **Deterministic gate** - runs `final_gate.py` (pre-Kilo)
+2. **Staged initial review** - full SPEC verification on commit candidate
+3. **Scoped continuation** - maintains session across iterations
+4. **Verify-mode follow-up loops** - lighter checks focused on fixes
+5. **Persisted open issues** - reused across iterations
+6. **Post-Kilo gate** - runs `final_gate.py` again
+
 Execute the following command:
 
 ```bash
+# Set review ID (use Traycer-provided or generate stable recognizable ID)
+REVIEW_ID="${TRAYCER_REVIEW_ID:-feat-$(date +%Y%m%d)-<slug>}"
+
 python /opt/fabrik/scripts/traycer_agent_review.py \
     --task "Your task description here" \
     --files <file1> <file2> ... \
     --self-review "Your self-review report above" \
+    --tracked-review-id "$REVIEW_ID" \
     --session-id "${SESSION_ID}" \
     --output json
 ```
@@ -46,8 +60,17 @@ python /opt/fabrik/scripts/traycer_agent_review.py \
 - `--task`: One-line description of what you implemented
 - `--files`: Space-separated list of files you modified
 - `--self-review`: The self-review report you generated
+- `--tracked-review-id`: Stable review cycle ID (required for scoped sessions)
 - `--session-id`: Your session ID (environment variable or generated)
 - `--output`: Use `json` for programmatic parsing or `text` for human-readable
+
+**Session Scoping (NEW - 2026-03-17):**
+- Sessions scoped by: `project_root + git_branch + tracked_review_id`
+- `--tracked-review-id` **REQUIRED** with `--session continue`
+- Prevents cross-repo/branch session pollution
+- Issue state persisted to `.droid/reviews/<tracked_review_id>_issues.json`
+- Open issues reused across iterations
+- Auto-close is conservative: only for staged, single-batch, non-verify, auto-fix runs
 
 ### Step 3: Interpret Results
 
