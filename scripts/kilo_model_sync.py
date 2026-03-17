@@ -46,8 +46,26 @@ TIER_THRESHOLDS = [
 
 
 def find_kilo_executable() -> str | None:
-    """Find kilo executable."""
-    for path in ["/home/ozgur/.npm-global/bin/kilo", "/home/ozgur/.kilo/bin/kilo", "kilo"]:
+    """Find kilo executable.
+
+    Search order:
+        1. KILO_BIN env var (explicit override)
+        2. ~/.npm-global/bin/kilo (npm global install)
+        3. ~/.kilo/bin/kilo (kilo self-install)
+        4. kilo (PATH lookup)
+    """
+    import os
+
+    candidates = [
+        os.getenv("KILO_BIN"),  # Explicit override
+        str(Path.home() / ".npm-global" / "bin" / "kilo"),
+        str(Path.home() / ".kilo" / "bin" / "kilo"),
+        "kilo",  # PATH fallback
+    ]
+
+    for path in candidates:
+        if not path:
+            continue
         try:
             subprocess.run([path, "--version"], capture_output=True, timeout=5)
             return path
@@ -390,10 +408,37 @@ def update_local_cache(remote: list[dict[str, Any]]) -> None:
 
 def main() -> int:
     """Main entry point."""
-    args = sys.argv[1:]
-    do_sync = "--sync" in args
-    do_plan = "--plan" in args
-    do_apply = "--apply" in args
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Kilo Model Sync - Semi-automatic model discovery and sync.",
+        epilog="Examples:\n"
+        "  %(prog)s              # Report only\n"
+        "  %(prog)s --sync       # Update kilo_all_models.json\n"
+        "  %(prog)s --plan       # Generate proposed agent changes\n"
+        "  %(prog)s --apply      # Apply changes after review\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--sync",
+        action="store_true",
+        help="Update kilo_all_models.json with current models",
+    )
+    parser.add_argument(
+        "--plan",
+        action="store_true",
+        help="Generate proposed agent changes",
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply changes (update agents, regenerate scripts)",
+    )
+
+    args = parser.parse_args()
+    do_sync = args.sync
+    do_plan = args.plan
+    do_apply = args.apply
 
     print(f"Kilo Model Sync - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)

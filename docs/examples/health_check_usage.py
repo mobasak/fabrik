@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
 
-from health_checker import main, EXIT_OK, EXIT_HTTP_UNHEALTHY, EXIT_DB_UNREACHABLE, EXIT_CONFIG
+from health_checker import EXIT_CONFIG, EXIT_DB_UNREACHABLE, EXIT_HTTP_UNHEALTHY, EXIT_OK, main
 
 
 def example_http_check():

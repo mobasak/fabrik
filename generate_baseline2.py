@@ -1,7 +1,8 @@
-import json
 import dataclasses
-import os
 import hashlib
+import json
+import os
+
 from fabrik.wordpress.deployer import SiteDeployer
 
 os.environ.clear()

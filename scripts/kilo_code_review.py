@@ -934,15 +934,37 @@ HIGH_RISK_FILENAMES = [
 # Pre-computed lowercase set for O(1) filename lookups
 _HIGH_RISK_FILENAMES_LOWER = {f.lower() for f in HIGH_RISK_FILENAMES}
 
-# Extend high-risk paths from env var (comma-separated, added to defaults)
-_env_high_risk = os.getenv("KILO_HIGH_RISK_PATHS")
-if _env_high_risk:
-    _extra_paths = [p.strip() for p in _env_high_risk.split(",") if p.strip()]
-    HIGH_RISK_DIR_PREFIXES.extend(_extra_paths)
-    print(
-        f"[ROUTING] Extended high-risk paths with {len(_extra_paths)} entries from KILO_HIGH_RISK_PATHS",
-        file=sys.stderr,
-    )
+# Flag to track if high-risk paths have been initialized from env
+_high_risk_paths_initialized = False
+
+
+def _init_high_risk_paths(*, verbose: bool = False) -> None:
+    """
+    Extend high-risk paths from KILO_HIGH_RISK_PATHS env var.
+
+    Called from main() (with verbose=True) and review_loop() (with verbose=False)
+    to support both CLI and programmatic flows without import-time side effects.
+
+    Args:
+        verbose: If True, print routing message to stderr. Only enabled for CLI flow.
+
+    Idempotent: safe to call multiple times.
+    """
+    global _high_risk_paths_initialized
+    if _high_risk_paths_initialized:
+        return
+    _high_risk_paths_initialized = True
+
+    env_high_risk = os.getenv("KILO_HIGH_RISK_PATHS")
+    if env_high_risk:
+        extra_paths = [p.strip() for p in env_high_risk.split(",") if p.strip()]
+        HIGH_RISK_DIR_PREFIXES.extend(extra_paths)
+        if verbose:
+            print(
+                f"[ROUTING] Extended high-risk paths with {len(extra_paths)} entries from KILO_HIGH_RISK_PATHS",
+                file=sys.stderr,
+            )
+
 
 # Default models for routing
 MODEL_CHEAP = "kilo/google/gemini-3-flash-preview"
@@ -1833,7 +1855,6 @@ def build_kilo_command(
     variant: str,
     session_id: str | None = None,
     file_paths: list[Path] | None = None,
-    prompt: str | None = None,
 ) -> list[str]:
     """Build the kilo CLI command with strict input validation."""
     import re
@@ -1893,10 +1914,6 @@ def build_kilo_command(
                     file=sys.stderr,
                 )
                 continue
-
-    # Add prompt as positional argument (Kilo CLI expects prompt as argument, not stdin)
-    if prompt:
-        args.append(prompt)
 
     return args
 
@@ -2201,26 +2218,31 @@ async def run_kilo(
         variant=config.variant,
         session_id=config.session_id or "",
         file_paths=file_paths,
-        prompt=prompt,  # Pass prompt as positional argument
     )
 
     if config.verbose:
-        print(
-            f"[KILO] Running: {' '.join(cmd[:10])}... ({len(prompt)} char prompt)", file=sys.stderr
-        )
+        print(f"[KILO] Running: {' '.join(cmd)}", file=sys.stderr)
 
     # Retry loop for transient failures
     last_exception: Exception | None = None
     for attempt in range(MAX_RETRIES):
         try:
-            # Start monitored process (no stdin needed - prompt is in args)
+            # Start monitored process
             process = subprocess.Popen(
                 cmd,
-                stdin=subprocess.DEVNULL,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 shell=False,
             )
+
+            # Write prompt to stdin
+            try:
+                if process.stdin:
+                    process.stdin.write(prompt.encode("utf-8"))
+                    process.stdin.close()
+            except (BrokenPipeError, OSError):
+                pass  # Process may have exited early
 
             # Monitor in executor for async compatibility
             import concurrent.futures
@@ -4044,6 +4066,9 @@ async def review_loop(
        c. Repeat until clean or max iterations
     3. Return final report
     """
+    # Initialize high-risk paths for programmatic callers (no stderr output)
+    _init_high_risk_paths(verbose=False)
+
     # Initialize session with scoped resolution
     project_root = str(get_project_root())
     git_branch = get_current_git_branch()
@@ -5120,6 +5145,10 @@ def run_precommit(files: list[Path], max_iterations: int = MAX_PRECOMMIT_ITERATI
 
 async def main() -> int:
     """Main entry point."""
+    # Initialize high-risk paths from env var (deferred from module level to avoid side effects)
+    # CLI gets verbose=True to show routing message; programmatic calls use verbose=False
+    _init_high_risk_paths(verbose=True)
+
     args = parse_args()
 
     # Handle stats command (no async needed)

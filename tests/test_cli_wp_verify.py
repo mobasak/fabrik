@@ -1,11 +1,10 @@
-from click.testing import CliRunner
-import pytest
-from pathlib import Path
-import json
+from unittest.mock import MagicMock, patch
+
 import yaml
-from unittest.mock import patch, MagicMock
+from click.testing import CliRunner
 
 from fabrik.cli import cli
+
 
 def test_wp_verify_missing_spec_uses_blueprint(tmp_path):
     runner = CliRunner()

@@ -17,20 +17,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.kilo_code_review import (
-    REVIEW_RESULT_SCHEMA,
-    SECURITY_SENSITIVE_PATHS,
     RISK_DIFF_SIZE_THRESHOLD,
+    SECURITY_SENSITIVE_PATHS,
     ReviewIssue,
-    ReviewResult,
     assess_review_risk,
     extract_plan_requirements,
-    format_requirements_for_prompt,
     parse_review_output,
     validate_evidence,
     validate_plan_coverage,
     validate_review_schema,
 )
-
 
 # =============================================================================
 # SCENARIO 1: Schema Validation Enforces All Required Fields

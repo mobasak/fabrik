@@ -11,14 +11,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FABRIK_DIR="/opt/fabrik"
+FABRIK_DIR="${FABRIK_ROOT:-/opt/fabrik}"
 LOG_DIR="$FABRIK_DIR/.droid"
 LOG_FILE="$LOG_DIR/kilo_model_sync.log"
-LOCK_FILE="/tmp/kilo_model_sync.lock"
+LOCK_FILE="$FABRIK_DIR/.tmp/kilo_model_sync.lock"
 LAST_RUN_FILE="$LOG_DIR/.kilo_sync_last_run"
 
-# Ensure log directory exists
+# Ensure directories exist
 mkdir -p "$LOG_DIR"
+mkdir -p "$FABRIK_DIR/.tmp"
 
 # Prevent concurrent runs
 if [ -f "$LOCK_FILE" ]; then

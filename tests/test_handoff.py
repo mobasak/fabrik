@@ -1,8 +1,9 @@
-import pytest
-from pathlib import Path
 import json
+
 import yaml
+
 from fabrik.wordpress.handoff import generate_handoff
+
 
 def test_generate_handoff_plugin_count(tmp_path):
     site_id = "test-plugins.com"
@@ -27,7 +28,7 @@ def test_generate_handoff_plugin_count(tmp_path):
 
     handoff_path = generate_handoff(site_id, build_dir)
 
-    with open(handoff_path, "r") as f:
+    with open(handoff_path) as f:
         content = f.read()
 
     # effective plugins: (base | add) - skip = (plugin-a, plugin-b, plugin-c) - plugin-a = (plugin-b, plugin-c) => 2
@@ -52,7 +53,7 @@ def test_generate_handoff_plugin_count_list(tmp_path):
 
     handoff_path = generate_handoff(site_id, build_dir)
 
-    with open(handoff_path, "r") as f:
+    with open(handoff_path) as f:
         content = f.read()
 
     # effective plugins: 2

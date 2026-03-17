@@ -1,10 +1,9 @@
 import os
-import subprocess
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fabrik.drivers.wordpress import ContainerResolver, ContainerNotFoundError
+from fabrik.drivers.wordpress import ContainerNotFoundError, ContainerResolver
 
 
 @patch("subprocess.run")

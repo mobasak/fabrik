@@ -1,6 +1,7 @@
-import json
 import dataclasses
+import json
 import os
+
 from fabrik.wordpress.deployer import SiteDeployer
 
 os.environ.pop("WP_ADMIN_PASSWORD", None)

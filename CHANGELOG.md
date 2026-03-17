@@ -4,17 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed - Kilo code review subprocess and error handling (2026-03-17)
+### Fixed - High-risk path init available to programmatic callers (2026-03-18)
 
-**What:** Fixed two critical issues causing kilo_code_review.py to hang indefinitely:
+**What:** Made `_init_high_risk_paths()` available to both CLI and programmatic flows (like `review_loop()`) without import-time side effects.
 
-1. **Prompt passing:** Changed from stdin pipe to positional argument (Kilo CLI expects prompt as argument)
-2. **Error handling:** Added parsing for `type: "error"` events from Kilo API to surface actual error messages
-
-**Root cause:** When Kilo API has connectivity issues, it returns `{"type":"error",...}` but the parser ignored these and waited for `step_finish` event that never came, causing 120s idle timeout.
+**Changes:**
+1. Added `verbose` parameter to `_init_high_risk_paths()` - CLI gets `verbose=True`, programmatic gets `verbose=False`
+2. Added call to `_init_high_risk_paths(verbose=False)` in `review_loop()` for programmatic callers
+3. Added 4 tests validating silent import contract and CLI-only routing logging
 
 **Files:**
-- `scripts/kilo_code_review.py` - Fixed `build_kilo_command()` to accept prompt, `run_kilo()` to pass prompt as arg, `parse_kilo_jsonl()` to handle error events
+- `scripts/kilo_code_review.py` - verbose parameter, review_loop() init call
+- `tests/test_kilo_review_validation.py` - 4 new tests for import side-effect regression
+
+### Fixed - Eliminate hardcoded user paths in kilo_model_sync (2026-03-18)
+
+**What:** Removed hardcoded `/home/ozgur` and `/tmp/` paths from model sync scripts.
+
+**Changes:**
+1. `kilo_model_sync.py`: Added `KILO_BIN` env var support, replaced hardcoded paths with `Path.home()`
+2. `kilo_model_sync.py`: Replaced `sys.argv` parsing with `argparse` (adds `--help`)
+3. `kilo_model_sync_startup.sh`: `FABRIK_DIR` now uses `${FABRIK_ROOT:-/opt/fabrik}`
+4. `kilo_model_sync_startup.sh`: Lock file moved from `/tmp/` to `$FABRIK_DIR/.tmp/`
+
+**Files:**
+- `scripts/kilo_model_sync.py` - KILO_BIN env var, Path.home(), argparse
+- `scripts/kilo_model_sync_startup.sh` - FABRIK_ROOT env var, .tmp/ lock file
+
+### Fixed - Kilo code review error handling and module side effects (2026-03-18)
+
+**What:** Fixed critical issues in kilo_code_review.py:
+
+1. **Error handling:** Added parsing for `type: "error"` events from Kilo API to surface actual error messages instead of generic "no step_finish" errors
+2. **Module side effects:** Moved `KILO_HIGH_RISK_PATHS` env var reading from module level to `_init_high_risk_paths()` called from `main()` to prevent stderr pollution on import
+
+**Root cause:** When Kilo API has connectivity issues, it returns `{"type":"error",...}` but the parser ignored these and waited for `step_finish` event that never came.
+
+**Files:**
+- `scripts/kilo_code_review.py` - Added error event handling in `parse_kilo_jsonl()`, moved high-risk paths init to function
 
 ### Fixed - Traycer review import and verify-command documentation (2026-03-17)
 

@@ -8,9 +8,7 @@ Tests coverage:
 - validate_plan_coverage() - Plan requirement coverage validation
 """
 
-import pytest
 from scripts.kilo_code_review import (
-    REVIEW_RESULT_SCHEMA,
     ReviewIssue,
     extract_plan_requirements,
     format_requirements_for_prompt,
@@ -18,7 +16,6 @@ from scripts.kilo_code_review import (
     validate_plan_coverage,
     validate_review_schema,
 )
-
 
 # =============================================================================
 # validate_review_schema() Tests
@@ -612,3 +609,174 @@ def test_format_requirements_for_prompt_empty():
     formatted = format_requirements_for_prompt([])
     assert "No explicit requirements" in formatted
     assert "at least 1 general coverage entry" in formatted
+
+
+# =============================================================================
+# Import Side-Effect Tests (Silent Import Contract)
+# =============================================================================
+
+
+def test_import_silent_no_stderr_with_env_var(monkeypatch):
+    """
+    Importing kilo_code_review emits no stderr even when KILO_HIGH_RISK_PATHS is set.
+
+    This validates the fix for module-level side effects that broke JSON parsing
+    in traycer_agent_review.py when the module was imported.
+    """
+    import importlib
+    import io
+    import sys
+
+    # Set env var that would trigger routing message if printed at import time
+    monkeypatch.setenv("KILO_HIGH_RISK_PATHS", "test/path1,test/path2")
+
+    # Reset module state to force re-initialization
+    import scripts.kilo_code_review as kcr
+
+    # Reset the initialization flag to simulate fresh import
+    original_flag = kcr._high_risk_paths_initialized
+    kcr._high_risk_paths_initialized = False
+
+    # Capture stderr during re-initialization attempt via import
+    captured_stderr = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = captured_stderr
+
+    try:
+        # Reload module - should NOT print anything
+        importlib.reload(kcr)
+        stderr_output = captured_stderr.getvalue()
+    finally:
+        sys.stderr = old_stderr
+        # Restore original state
+        kcr._high_risk_paths_initialized = original_flag
+
+    # Verify no stderr output on import
+    assert stderr_output == "", (
+        f"Import should be silent but got stderr: {stderr_output!r}"
+    )
+
+
+def test_cli_main_emits_routing_message_with_env_var(monkeypatch):
+    """
+    CLI main() emits routing message when KILO_HIGH_RISK_PATHS env var is set.
+
+    This validates that the verbose=True path in main() still produces the
+    expected routing log for CLI users.
+    """
+    import io
+    import sys
+
+    from scripts.kilo_code_review import _init_high_risk_paths
+
+    # Set env var
+    monkeypatch.setenv("KILO_HIGH_RISK_PATHS", "custom/security,custom/auth")
+
+    # Reset module state
+    import scripts.kilo_code_review as kcr
+
+    original_flag = kcr._high_risk_paths_initialized
+    original_prefixes = kcr.HIGH_RISK_DIR_PREFIXES.copy()
+    kcr._high_risk_paths_initialized = False
+
+    # Capture stderr
+    captured_stderr = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = captured_stderr
+
+    try:
+        # Call with verbose=True (simulates CLI flow)
+        _init_high_risk_paths(verbose=True)
+        stderr_output = captured_stderr.getvalue()
+    finally:
+        sys.stderr = old_stderr
+        # Restore original state
+        kcr._high_risk_paths_initialized = original_flag
+        kcr.HIGH_RISK_DIR_PREFIXES.clear()
+        kcr.HIGH_RISK_DIR_PREFIXES.extend(original_prefixes)
+
+    # Verify routing message was printed
+    assert "[ROUTING]" in stderr_output, (
+        f"CLI should emit [ROUTING] message but got: {stderr_output!r}"
+    )
+    assert "KILO_HIGH_RISK_PATHS" in stderr_output
+    assert "2 entries" in stderr_output
+
+
+def test_programmatic_init_silent_with_env_var(monkeypatch):
+    """
+    Programmatic _init_high_risk_paths(verbose=False) emits no stderr.
+
+    This validates that review_loop() and other programmatic callers
+    get silent initialization.
+    """
+    import io
+    import sys
+
+    from scripts.kilo_code_review import _init_high_risk_paths
+
+    # Set env var
+    monkeypatch.setenv("KILO_HIGH_RISK_PATHS", "programmatic/path")
+
+    # Reset module state
+    import scripts.kilo_code_review as kcr
+
+    original_flag = kcr._high_risk_paths_initialized
+    original_prefixes = kcr.HIGH_RISK_DIR_PREFIXES.copy()
+    kcr._high_risk_paths_initialized = False
+
+    # Capture stderr
+    captured_stderr = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = captured_stderr
+
+    try:
+        # Call with verbose=False (simulates programmatic flow like review_loop)
+        _init_high_risk_paths(verbose=False)
+        stderr_output = captured_stderr.getvalue()
+    finally:
+        sys.stderr = old_stderr
+        # Restore original state
+        kcr._high_risk_paths_initialized = original_flag
+        kcr.HIGH_RISK_DIR_PREFIXES.clear()
+        kcr.HIGH_RISK_DIR_PREFIXES.extend(original_prefixes)
+
+    # Verify no stderr output
+    assert stderr_output == "", (
+        f"Programmatic init should be silent but got stderr: {stderr_output!r}"
+    )
+
+
+def test_init_high_risk_paths_idempotent(monkeypatch):
+    """
+    _init_high_risk_paths() is idempotent - multiple calls don't duplicate paths.
+    """
+    from scripts.kilo_code_review import _init_high_risk_paths
+
+    monkeypatch.setenv("KILO_HIGH_RISK_PATHS", "idempotent/test")
+
+    import scripts.kilo_code_review as kcr
+
+    original_flag = kcr._high_risk_paths_initialized
+    original_prefixes = kcr.HIGH_RISK_DIR_PREFIXES.copy()
+    kcr._high_risk_paths_initialized = False
+
+    try:
+        # Call multiple times
+        _init_high_risk_paths(verbose=False)
+        count_after_first = kcr.HIGH_RISK_DIR_PREFIXES.count("idempotent/test")
+
+        _init_high_risk_paths(verbose=False)
+        count_after_second = kcr.HIGH_RISK_DIR_PREFIXES.count("idempotent/test")
+
+        _init_high_risk_paths(verbose=True)  # Even with different verbose flag
+        count_after_third = kcr.HIGH_RISK_DIR_PREFIXES.count("idempotent/test")
+
+        # Path should only be added once
+        assert count_after_first == 1, "Path should be added once"
+        assert count_after_second == 1, "Second call should be idempotent"
+        assert count_after_third == 1, "Third call should be idempotent"
+    finally:
+        kcr._high_risk_paths_initialized = original_flag
+        kcr.HIGH_RISK_DIR_PREFIXES.clear()
+        kcr.HIGH_RISK_DIR_PREFIXES.extend(original_prefixes)

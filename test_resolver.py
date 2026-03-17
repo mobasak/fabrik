@@ -1,4 +1,3 @@
-import os
 class ContainerResolver:
     def __init__(self, site_name: str):
         self.site_name = site_name

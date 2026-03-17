@@ -3,10 +3,9 @@
 import json
 import ssl
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
 from fabrik.wordpress.stages import verify
 
@@ -47,7 +46,7 @@ def test_verify_all_pass(minimal_spec, mock_wp, mock_api, tmp_path):
     verify_report_path = tmp_path / "reports" / "verify-report.json"
     assert verify_report_path.exists()
 
-    with open(verify_report_path, "r") as f:
+    with open(verify_report_path) as f:
         report = json.load(f)
 
     assert report["overall"] == "pass"
@@ -102,7 +101,7 @@ def test_verify_one_fail(minimal_spec, mock_wp, mock_api, tmp_path):
     verify_report_path = tmp_path / "reports" / "verify-report.json"
     assert verify_report_path.exists()
 
-    with open(verify_report_path, "r") as f:
+    with open(verify_report_path) as f:
         report = json.load(f)
 
     assert report["overall"] == "fail"
@@ -186,7 +185,7 @@ def test_verify_network_error(minimal_spec, mock_wp, mock_api, tmp_path):
     verify_report_path = tmp_path / "reports" / "verify-report.json"
     assert verify_report_path.exists()
 
-    with open(verify_report_path, "r") as f:
+    with open(verify_report_path) as f:
         report = json.load(f)
 
     assert report["overall"] == "fail"
@@ -225,7 +224,7 @@ def test_verify_report_written_correctly(minimal_spec, mock_wp, mock_api, tmp_pa
     verify_report_path = tmp_path / "reports" / "verify-report.json"
     assert verify_report_path.exists()
 
-    with open(verify_report_path, "r") as f:
+    with open(verify_report_path) as f:
         report = json.load(f)
 
     # Required keys
@@ -456,9 +455,7 @@ def test_baseline_sitemap_first_url(minimal_spec, mock_wp, mock_api, tmp_path):
         resp.headers = {"location": ""}
         if "/wp-sitemap.xml" in url:
             resp.status_code = 200
-        elif "/sitemap_index.xml" in url:
-            resp.status_code = 404
-        elif "/sitemap.xml" in url:
+        elif "/sitemap_index.xml" in url or "/sitemap.xml" in url:
             resp.status_code = 404
         else:
             resp.status_code = 200
