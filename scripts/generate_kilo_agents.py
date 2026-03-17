@@ -370,26 +370,39 @@ SESSION_TITLE="${{TRAYCER_PHASE_ID:-${{TRAYCER_TASK_ID:-kilo-session}}}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Kilo session title: $SESSION_TITLE" >&2
 
 # Run Kilo agent with streaming output
-# Use kilo_terminal_runner.py if available (rich TUI with proper ANSI handling)
-# Fall back to tee-based streaming if runner unavailable
+# Use kilo_terminal_runner.py for rich TUI when conditions are met
+# Fall back to tee-based streaming otherwise
 RUNNER_SCRIPT="/opt/fabrik/scripts/kilo_terminal_runner.py"
 RUNNER_PYTHON="/opt/fabrik/.venv/bin/python3"
+KILO_RICH_UI="${{KILO_RICH_UI:-1}}"
 
 # Fall back to system python3 if venv not available
 if [ ! -x "$RUNNER_PYTHON" ]; then
     RUNNER_PYTHON="python3"
 fi
 
-if [ -f "$RUNNER_SCRIPT" ] && command -v "$RUNNER_PYTHON" >/dev/null 2>&1; then
+# Shell-side preflight: check env var, runner exists, python available, TTY
+USE_RICH_UI=0
+if [ "$KILO_RICH_UI" = "1" ] && \\
+   [ -f "$RUNNER_SCRIPT" ] && \\
+   command -v "$RUNNER_PYTHON" >/dev/null 2>&1 && \\
+   [ -t 1 ]; then
+    USE_RICH_UI=1
+fi
+
+if [ "$USE_RICH_UI" = "1" ]; then
     # Use rich terminal runner (handles ANSI stripping for capture, PTY for proper output)
-    # Shell timeout wraps the runner; runner's --timeout is display-only
+    # Timeout wraps kilo run (not runner) for symmetric semantics with plain mode
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using kilo_terminal_runner.py with $RUNNER_PYTHON" >&2
-    timeout "$TIMEOUT" "$RUNNER_PYTHON" "$RUNNER_SCRIPT" \\
+    "$RUNNER_PYTHON" "$RUNNER_SCRIPT" \\
         --output "$OUTPUT_FILE" \\
         --agent "{tier_name}{rank:02d}-{model_normalized}" \\
         --model "{full_name}" \\
+        --role "{role}" \\
+        --variant "{variant}" \\
+        --session-title "$SESSION_TITLE" \\
         --timeout "$TIMEOUT" \\
-        -- kilo run --format default --auto \\
+        -- timeout "$TIMEOUT" kilo run --format default --auto \\
             --model {full_name} \\
             --variant {variant} \\
             --agent {role} \\
@@ -398,7 +411,7 @@ if [ -f "$RUNNER_SCRIPT" ] && command -v "$RUNNER_PYTHON" >/dev/null 2>&1; then
     EXIT_CODE=$?
 else
     # Fallback: tee-based streaming (shows real-time AND captures)
-    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Fallback to tee (runner unavailable)" >&2
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Plain mode (KILO_RICH_UI=$KILO_RICH_UI, tty=$([ -t 1 ] && echo yes || echo no))" >&2
     timeout "$TIMEOUT" kilo run --format default --auto \\
         --model {full_name} \\
         --variant {variant} \\
@@ -418,8 +431,13 @@ REPORT_FOUND=0
 if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
     REPORT_FOUND=1
     REPORT_WRITER="/opt/fabrik/scripts/traycer_write_report.py"
+    # Reuse RUNNER_PYTHON for consistency (same venv as runner)
+    REPORT_PYTHON="$RUNNER_PYTHON"
+    if [ ! -x "$REPORT_PYTHON" ]; then
+        REPORT_PYTHON="python3"
+    fi
     if [ -f "$REPORT_WRITER" ]; then
-        echo "$OUTPUT" | python3 "$REPORT_WRITER" --slug "${{TRAYCER_TASK_ID:-traycer-task}}" 2>&1 | grep "📝" >&2 || true
+        echo "$OUTPUT" | "$REPORT_PYTHON" "$REPORT_WRITER" --slug "${{TRAYCER_TASK_ID:-traycer-task}}" 2>&1 | grep "📝" >&2 || true
         [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Report delimiters found, report writer executed" >&2
     else
         echo "ERROR: Report writer not found at $REPORT_WRITER" >&2

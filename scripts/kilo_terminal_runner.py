@@ -79,6 +79,10 @@ class StreamingSanitizer:
         tail = self.decoder.decode(b"", final=True)
         for char in tail:
             self._process_char(char)
+        # Handle pending CR at EOF (edge case: stream ends with bare CR)
+        if self.pending_cr:
+            self.pending_cr = False
+            self.line_buffer = []
         result = self._flush_complete_lines()
         if self.line_buffer:
             result += "".join(self.line_buffer)
@@ -179,6 +183,102 @@ class DisplayHandler:
         return self.decoder.decode(b"", final=True)
 
 
+class DisplayAnsiBuffer:
+    """
+    ANSI sequence buffer for display rendering.
+
+    Ensures complete ANSI sequences are passed to Rich's AnsiDecoder.
+    Holds incomplete sequences until next chunk arrives.
+
+    Uses local state per scan (not persistent) because the retained buffer
+    already contains the incomplete introducer bytes that need rescanning.
+    """
+
+    def __init__(self):
+        self.buffer = ""
+        self.safe_end = 0  # Index up to which buffer is safe to emit
+
+    def feed(self, text: str) -> str:
+        """Feed text, return ANSI-safe portion for rendering."""
+        self.buffer += text
+        self._scan()
+        if self.safe_end > 0:
+            safe = self.buffer[: self.safe_end]
+            self.buffer = self.buffer[self.safe_end :]
+            self.safe_end = 0
+            return safe
+        return ""
+
+    def flush(self) -> str:
+        """Flush remaining buffer at EOF."""
+        result = self.buffer
+        self.buffer = ""
+        self.safe_end = 0
+        return result
+
+    def _scan(self) -> None:
+        """Scan buffer and mark safe_end at last complete sequence boundary."""
+        # Use local state - buffer already contains incomplete introducers
+        state = State.NORMAL
+        i = 0
+        last_safe = 0
+        while i < len(self.buffer):
+            char = self.buffer[i]
+
+            if state == State.NORMAL:
+                if char == "\x1b":
+                    state = State.ESC
+                else:
+                    last_safe = i + 1
+
+            elif state == State.ESC:
+                if char == "[":
+                    state = State.CSI
+                elif char == "]":
+                    state = State.OSC
+                elif char in "()":
+                    state = State.ESC_PAREN
+                elif char == "#":
+                    state = State.ESC_HASH
+                elif char in "78=>cDEHMNOPVWXZ\\^_":
+                    # Single-char ESC sequences - complete
+                    state = State.NORMAL
+                    last_safe = i + 1
+                else:
+                    # Unknown ESC sequence, treat as complete
+                    state = State.NORMAL
+                    last_safe = i + 1
+
+            elif state == State.CSI:
+                # CSI ends with byte in 0x40-0x7E range
+                if 0x40 <= ord(char) <= 0x7E:
+                    state = State.NORMAL
+                    last_safe = i + 1
+
+            elif state == State.OSC:
+                if char == "\x07":  # BEL terminates OSC
+                    state = State.NORMAL
+                    last_safe = i + 1
+                elif char == "\x1b":
+                    state = State.OSC_ESC
+
+            elif state == State.OSC_ESC:
+                if char == "\\":  # ESC \ terminates OSC
+                    state = State.NORMAL
+                    last_safe = i + 1
+                else:
+                    state = State.OSC
+
+            elif state in (State.ESC_PAREN, State.ESC_HASH):
+                # These consume one more char then complete
+                state = State.NORMAL
+                last_safe = i + 1
+
+            i += 1
+
+        self.safe_end = last_safe
+
+
 # =============================================================================
 # PTY SUBPROCESS RUNNER
 # =============================================================================
@@ -188,6 +288,7 @@ def run_with_pexpect(
     command: list[str],
     raw_output_path: str,
     ui_callback,
+    ui_flush_callback=None,
 ) -> int:
     """Run command via PTY, streaming to UI and capture file."""
     import pexpect
@@ -214,7 +315,13 @@ def run_with_pexpect(
             except pexpect.EOF:
                 break
 
-        display.flush()
+        # Flush remaining display text and notify UI
+        display_tail = display.flush()
+        if display_tail:
+            ui_callback(display_tail)
+        if ui_flush_callback:
+            ui_flush_callback()
+
         tail = capture.flush()
         if tail:
             f.write(tail)
@@ -255,7 +362,12 @@ def run_plain_mode(command: list[str], raw_output_path: str) -> int:
             except pexpect.EOF:
                 break
 
-        display.flush()
+        # Flush remaining display text
+        display_tail = display.flush()
+        if display_tail:
+            sys.stdout.write(display_tail)
+            sys.stdout.flush()
+
         tail = capture.flush()
         if tail:
             f.write(tail)
@@ -272,7 +384,7 @@ TEXTUAL_AVAILABLE = False
 try:
     from textual.app import App, ComposeResult
     from textual.containers import Vertical
-    from textual.widgets import Footer, Header, RichLog, Static
+    from textual.widgets import RichLog, Static
 
     TEXTUAL_AVAILABLE = True
 except ImportError:
@@ -280,6 +392,7 @@ except ImportError:
 
 
 if TEXTUAL_AVAILABLE:
+    from rich.ansi import AnsiDecoder
 
     class KiloRunnerApp(App):
         """Textual app for Kilo terminal output."""
@@ -303,33 +416,51 @@ if TEXTUAL_AVAILABLE:
         #traycer-pane.visible {
             display: block;
         }
+        #status-info {
+            height: 1;
+            background: $surface;
+            padding: 0 1;
+            color: $text-muted;
+        }
         """
 
-        BINDINGS = [("q", "quit", "Quit")]
+        BINDINGS: list = []  # No manual quit - wait for child process completion
 
         def __init__(
             self,
             agent_name: str = "",
             model: str = "",
+            role: str = "",
+            variant: str = "",
+            session_title: str = "",
             timeout_display: int = 0,
+            output_path: str = "",
             **kwargs,
         ):
             super().__init__(**kwargs)
             self.agent_name = agent_name
             self.model = model
+            self.role = role
+            self.variant = variant
+            self.session_title = session_title
             self.timeout_display = timeout_display
+            self.output_path = output_path
             self.start_time = time.time()
             self.exit_code: int | None = None
             self.traycer_detected = False
+            self.in_traycer_report = False
+            self.ansi_decoder = AnsiDecoder()
+            self.display_ansi_buffer = DisplayAnsiBuffer()  # Stateful ANSI buffer
+            self.ui_line_buffer = ""  # Chunk-safe line buffering for Traycer detection
+            self.traycer_buffer: list[str] = []  # Preserve report formatting
 
         def compose(self) -> ComposeResult:
-            yield Header()
             yield Static(self._build_header_info(), id="header-info")
             yield Vertical(
                 RichLog(id="transcript", highlight=True, markup=True),
                 RichLog(id="traycer-pane"),
             )
-            yield Footer()
+            yield Static(self._build_status_info(), id="status-info")
 
         def _build_header_info(self) -> str:
             elapsed = int(time.time() - self.start_time)
@@ -337,29 +468,108 @@ if TEXTUAL_AVAILABLE:
             parts = [f"Agent: {self.agent_name or 'unknown'}"]
             if self.model:
                 parts.append(f"Model: {self.model}")
+            if self.role:
+                parts.append(f"Role: {self.role}")
+            if self.variant:
+                parts.append(f"Variant: {self.variant}")
             parts.append(f"Elapsed: {mins:02d}:{secs:02d}")
+            if self.session_title:
+                parts.append(f"Session: {self.session_title}")
+            return " | ".join(parts)
+
+        def _build_status_info(self) -> str:
+            parts = []
+            if self.output_path:
+                parts.append(f"Raw: {self.output_path}")
+            exit_str = str(self.exit_code) if self.exit_code is not None else "running"
+            parts.append(f"Exit: {exit_str}")
+            parts.append(f"Report: {'YES' if self.traycer_detected else 'NO'}")
             if self.timeout_display:
                 parts.append(f"Timeout: {self.timeout_display}s")
             return " | ".join(parts)
 
         def on_mount(self) -> None:
-            self.set_interval(1.0, self._update_elapsed)
+            self.set_interval(1.0, self._update_ui)
 
-        def _update_elapsed(self) -> None:
-            header = self.query_one("#header-info", Static)
-            header.update(self._build_header_info())
+        def _update_ui(self) -> None:
+            self.query_one("#header-info", Static).update(self._build_header_info())
+            self.query_one("#status-info", Static).update(self._build_status_info())
 
         def append_output(self, text: str) -> None:
-            log = self.query_one("#transcript", RichLog)
-            log.write(text)
-            if not self.traycer_detected and "BEGIN_TRAYCER_REPORT_MD" in text:
-                self.traycer_detected = True
-                pane = self.query_one("#traycer-pane", RichLog)
-                pane.add_class("visible")
-                pane.write("[bold green]Traycer Report Detected[/]")
+            """Append output to transcript and detect/display Traycer report."""
+            transcript = self.query_one("#transcript", RichLog)
+            traycer = self.query_one("#traycer-pane", RichLog)
+
+            # Chunk-safe ANSI buffering via stateful parser
+            safe_text = self.display_ansi_buffer.feed(text)
+
+            # Decode ANSI sequences for proper rendering in transcript
+            if safe_text:
+                for segment in self.ansi_decoder.decode(safe_text):
+                    transcript.write(segment)
+
+            # Normalize line endings for UI parsing: CR+LF -> LF, bare CR -> remove
+            normalized = text.replace("\r\n", "\n").replace("\r", "")
+            self.ui_line_buffer += normalized
+            lines = self.ui_line_buffer.split("\n")
+            self.ui_line_buffer = lines.pop()  # Keep partial tail for next chunk
+
+            # Process only complete lines for Traycer detection
+            for line in lines:
+                if "BEGIN_TRAYCER_REPORT_MD" in line:
+                    self.traycer_detected = True
+                    self.in_traycer_report = True
+                    self.traycer_buffer = []
+                    traycer.add_class("visible")
+                    self._update_ui()  # Refresh status to show Report: YES
+                    continue
+
+                if "END_TRAYCER_REPORT_MD" in line:
+                    self.in_traycer_report = False
+                    continue
+
+                if self.in_traycer_report:
+                    # Buffer report lines (including empty) and render with preserved formatting
+                    self.traycer_buffer.append(line)
+                    traycer.clear()
+                    traycer.write("\n".join(self.traycer_buffer))
 
         def set_exit_code(self, code: int) -> None:
             self.exit_code = code
+            self._update_ui()  # Refresh status to show final exit code
+
+        def flush_pending_ui(self) -> None:
+            """Flush any pending UI buffers at EOF."""
+            try:
+                transcript = self.query_one("#transcript", RichLog)
+                traycer = self.query_one("#traycer-pane", RichLog)
+
+                # Flush remaining ANSI buffer via stateful parser
+                remaining = self.display_ansi_buffer.flush()
+                if remaining:
+                    for segment in self.ansi_decoder.decode(remaining):
+                        transcript.write(segment)
+
+                # Process final partial line for Traycer detection
+                if self.ui_line_buffer:
+                    line = self.ui_line_buffer
+                    self.ui_line_buffer = ""
+
+                    if "BEGIN_TRAYCER_REPORT_MD" in line:
+                        self.traycer_detected = True
+                        self.in_traycer_report = True
+                        self.traycer_buffer = []
+                        traycer.add_class("visible")
+                        self._update_ui()
+                    elif "END_TRAYCER_REPORT_MD" in line:
+                        self.in_traycer_report = False
+                    elif self.in_traycer_report:
+                        self.traycer_buffer.append(line)
+                        traycer.clear()
+                        traycer.write("\n".join(self.traycer_buffer))
+            except Exception as e:
+                # Log but don't crash - raw output file is already complete
+                print(f"[RUNNER] flush_pending_ui warning: {e}", file=sys.stderr)
 
 
 # =============================================================================
@@ -371,6 +581,11 @@ def check_fallback_conditions() -> tuple[bool, str]:
     """Check if we should fall back to plain mode."""
     if not TEXTUAL_AVAILABLE:
         return True, "textual not available"
+    # Validate pexpect availability early
+    try:
+        import pexpect  # noqa: F401
+    except ImportError:
+        return True, "pexpect not available"
     if not sys.stdout.isatty():
         return True, "stdout is not a TTY"
     try:
@@ -392,6 +607,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", "-o", required=True, help="Raw output file path")
     parser.add_argument("--agent", default="", help="Agent name (display only)")
     parser.add_argument("--model", default="", help="Model name (display only)")
+    parser.add_argument("--role", default="", help="Role (display only)")
+    parser.add_argument("--variant", default="", help="Variant (display only)")
+    parser.add_argument("--session-title", default="", help="Session title (display only)")
     parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds (display only)")
     parser.add_argument("--plain", action="store_true", help="Force plain mode (no TUI)")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to run")
@@ -429,34 +647,39 @@ def main() -> int:
         return run_plain_mode(command, str(output_path))
 
     # Run with Textual UI
+    from threading import Thread
+
     app = KiloRunnerApp(
         agent_name=args.agent,
         model=args.model,
+        role=args.role,
+        variant=args.variant,
+        session_title=args.session_title,
         timeout_display=args.timeout,
+        output_path=str(output_path),
     )
 
     exit_code = 0
 
-    async def run_subprocess():
+    def worker():
+        """Background thread for PTY subprocess - keeps UI responsive."""
         nonlocal exit_code
-        exit_code = run_with_pexpect(
-            command,
-            str(output_path),
-            app.append_output,
-        )
-        app.set_exit_code(exit_code)
-        app.exit()
+        try:
+            exit_code = run_with_pexpect(
+                command,
+                str(output_path),
+                lambda text: app.call_from_thread(app.append_output, text),
+                lambda: app.call_from_thread(app.flush_pending_ui),
+            )
+        except Exception as e:
+            exit_code = 1
+            app.call_from_thread(app.append_output, f"\n[RUNNER ERROR] {e}\n")
+        finally:
+            app.call_from_thread(app.set_exit_code, exit_code)
+            app.call_from_thread(app.exit)
 
-    import asyncio
-
-    async def run_app():
-        nonlocal exit_code
-        # Run subprocess in background
-        task = asyncio.create_task(run_subprocess())
-        await app.run_async()
-        await task
-
-    asyncio.run(run_app())
+    Thread(target=worker, daemon=True).start()
+    app.run()
     return exit_code
 
 

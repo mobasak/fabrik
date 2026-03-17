@@ -4,6 +4,127 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Kilo Terminal Runner v13 implementation (2026-03-17)
+
+**What:** Full implementation of plan v13 for the Kilo Terminal Runner rich TUI.
+
+**Changes:**
+
+1. **Generator shell preflight** (`scripts/generate_kilo_agents.py`):
+   - Added `KILO_RICH_UI` env var check (default: 1, set to 0 to disable)
+   - Added `[ -t 1 ]` TTY check before using rich UI
+   - Shell owns first-layer fallback decision
+   - Passes `--role`, `--variant`, `--session-title` to runner
+
+2. **Background thread for PTY** (`scripts/kilo_terminal_runner.py`):
+   - Replaced asyncio task with `Thread(target=worker, daemon=True)`
+   - Uses `app.call_from_thread()` for UI updates from worker
+   - Keeps UI responsive while subprocess streams output
+
+3. **Traycer pane shows report content**:
+   - Added `in_traycer_report` state tracking
+   - Scans for `BEGIN_TRAYCER_REPORT_MD` / `END_TRAYCER_REPORT_MD`
+   - Displays actual report block in dedicated pane, not just detection message
+
+4. **Enriched header metadata**:
+   - Added `--role`, `--variant`, `--session-title` CLI args
+   - Header displays: Agent | Model | Role | Variant | Elapsed | Timeout | Session
+
+5. **ANSI decode for transcript**:
+   - Uses `rich.ansi.AnsiDecoder` for proper terminal-style rendering
+   - Transcript pane renders colors and formatting correctly
+
+6. **EOF pending-CR hardening**:
+   - `flush()` now clears `pending_cr` flag before final output
+   - Prevents stale line buffer state if stream ends with bare CR
+
+**Files:**
+- `scripts/generate_kilo_agents.py` - Shell preflight with KILO_RICH_UI + TTY check
+- `scripts/kilo_terminal_runner.py` - Background thread, Traycer content, ANSI decode, header fields
+
+### Fixed - Update all documentation with staged-first / verify-mode workflow (2026-03-17)
+
+**What:** Corrected all agent documentation, templates, and workflow guides to use **staged-first / verify-mode pattern** (the actual recommended workflow), not generic `review <files>` pattern.
+
+**Problem:** After implementing scoped sessions, I updated docs with `--tracked-review-id` but used the **WRONG command pattern**. I documented:
+```bash
+python scripts/kilo_code_review.py review <changed_files> \
+  --tracked-review-id "$REVIEW_ID" ...
+```
+
+But the actual recommended workflow is:
+1. **staged** for initial pass (review commit candidate)
+2. **verify-mode** for intermediate fix loops
+3. **staged** again only for final risky-branch checks
+
+This created drift between documentation and actual implementation:
+- Agents would use generic `review <files>` instead of `staged`
+- No mention of `--verify-mode` for intermediate loops
+- Missing guidance on when to use each review mode
+- Templates instructed agents to review arbitrary file sets instead of staged commit candidates
+
+**Files Updated:**
+
+**Core Docs (5 files):**
+1. `AGENTS.md` (lines 320-378) - Replaced with staged-first workflow, added review mode selection
+2. `.windsurf/rules/50-code-review.md` (lines 61-175) - Replaced with staged/verify pattern, updated "Then I MUST" and "Key points" sections
+3. `docs/guides/DEVELOPMENT_WORKFLOW.md` (lines 184-237) - Updated Step 4 with staged-first examples and review mode selection
+4. `.windsurf/rules/90-automation.md` (lines 57-103) - Updated Kilo fallback with staged-first pattern
+5. `.windsurf/rules/00-critical.md` (line 29) - Added note: "always provide a stable tracked review ID; never rely on a global latest session"
+
+**Traycer Templates (8 files):**
+6. `~/.traycer/prompt-templates/Direct Execute.md` (lines 43-78) - Replaced with staged/verify workflow, added session scoping note
+7. `~/.traycer/prompt-templates/Execute Epic.md` (lines 55-89) - Replaced with staged/verify per item, added Epic-specific guidance
+8. `~/.traycer/prompt-templates/Phased YOLO Execute.md` (line 64) - Added clarification that Traycer controls scoped review separately
+9. `~/.traycer/prompt-templates/Phased YOLO Review.md` (line 48) - Added note about persisted open issue state managed by Traycer
+10. `~/.traycer/prompt-templates/Phased YOLO FixafterVerification.md` (line 52) - Added note that Traycer controls re-verification
+11. `~/.traycer/prompt-templates/Fix.md` (line 34) - Added note about persisted issue state and Traycer-controlled cycles
+12. `templates/traycer/agent-post-execution-hook.md` (lines 32-73) - Added internal workflow explanation, improved REVIEW_ID generation
+13. `docs/reference/kilo/KILO-TOKEN-LEAN-WORKFLOW.md` - **MOVED** from `docs/guides/` (was in wrong location)
+
+**Staged-First Pattern Applied:**
+```bash
+export REVIEW_ID="feat-$(date +%Y%m%d)-<feature-slug>"
+git add <intended_files>
+
+# Initial: staged commit candidate
+python scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "..." --output json
+
+# Intermediate: verify-mode (lighter)
+python scripts/kilo_code_review.py review <files> \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --verify-mode \
+  --fixes-description "..." --output json
+```
+
+**Review Mode Selection Added:**
+- **staged**: Initial pass, final risky-branch check
+- **verify-mode**: Intermediate fix loops (cheaper, focused)
+- **review <files>**: Manual WIP review, deliberate partial review only
+- **--review-mode full**: Narrow high-risk files only
+
+**Session Scoping Details Added:**
+- Sessions scoped by: `project_root + git_branch + tracked_review_id`
+- `--tracked-review-id` REQUIRED with `--session continue`
+- Issue state: `.droid/reviews/<tracked_review_id>_issues.json`
+- Open issues reused across iterations
+- Auto-close conservative: only for staged, single-batch, non-verify, auto-fix runs
+
+**Impact:**
+- All agents now follow correct staged-first / verify-mode workflow
+- Templates instruct agents to stage intended files before review
+- Epic templates specify staging ONLY files for current item (prevents over-review)
+- Phased YOLO templates clarified that Traycer controls review cycles
+- Documentation matches actual `kilo_code_review.py` implementation
+- Clear guidance on when to use each review mode
+
+**File Location Fix:**
+- Moved `KILO-TOKEN-LEAN-WORKFLOW.md` from `docs/guides/` to `docs/reference/kilo/` (proper location with other Kilo reference docs)
+
 ### Fixed - Tighten issue auto-close to prevent scope-based false positives (2026-03-17)
 
 **What:** Prevent marking issues as "fixed" when they're out of scope, not actually resolved.
