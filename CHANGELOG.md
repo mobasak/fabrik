@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Complete session scoping and issue persistence wiring (2026-03-17)
+
+**What:** Fixed incomplete config wiring, issue persistence field bug, and missing loop integration for scoped sessions and issue tracking.
+
+**Fixes:**
+- Added `tracked_review_id` field to `KiloReviewConfig` dataclass (was missing, causing hasattr() smell)
+- Wired `tracked_review_id=args.tracked_review_id` in config construction
+- Fixed issue persistence bug: `issue.get("fix")` → `issue.get("fix_hint")` (was losing fix hints)
+- Removed `hasattr(config, "tracked_review_id")` check, use typed field directly
+- Added `update_issue_state()` call in review_loop after each iteration (was not wired)
+- Initialize `previous_issues` from `get_open_issues()` when tracked_review_id present (was not used)
+
+**Impact:**
+- Config typing enforces tracked_review_id contract (no dynamic attribute attachment)
+- Fix hints now correctly persisted in issue state files
+- Issue tracking actually integrated into review loop (not just on paper)
+- Open issues from previous iterations feed into coder context
+
+**Files:**
+- `scripts/kilo_code_review.py` - Config field added, issue persistence bug fixed, loop integration complete
+
 ### Added - Scoped session continuation and issue-state persistence (2026-03-17)
 
 **What:** Replaced global "latest session" continuation with scoped session resolution. Added issue tracking across iterations with automatic status management.

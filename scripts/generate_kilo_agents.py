@@ -369,17 +369,38 @@ trap "rm -f $OUTPUT_FILE" EXIT
 SESSION_TITLE="${{TRAYCER_PHASE_ID:-${{TRAYCER_TASK_ID:-kilo-session}}}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Kilo session title: $SESSION_TITLE" >&2
 
-# Run Kilo agent with streaming output (tee shows real-time AND captures)
-# Use --format default for readable streaming, not JSON
-# --title sets session name for potential continuation
-timeout "$TIMEOUT" kilo run --format default --auto \\
-    --model {full_name} \\
-    --variant {variant} \\
-    --agent {role} \\
-    --title "$SESSION_TITLE" \\
-    "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
+# Run Kilo agent with streaming output
+# Use kilo_terminal_runner.py if available (rich TUI with proper ANSI handling)
+# Fall back to tee-based streaming if runner unavailable
+RUNNER_SCRIPT="/opt/fabrik/scripts/kilo_terminal_runner.py"
 
-EXIT_CODE=${{PIPESTATUS[0]}}
+if [ -f "$RUNNER_SCRIPT" ] && command -v python3 >/dev/null 2>&1; then
+    # Use rich terminal runner (handles ANSI stripping for capture, PTY for proper output)
+    # Shell timeout wraps the runner; runner's --timeout is display-only
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using kilo_terminal_runner.py" >&2
+    timeout "$TIMEOUT" python3 "$RUNNER_SCRIPT" \\
+        --output "$OUTPUT_FILE" \\
+        --agent "{tier_name}{rank:02d}-{model_normalized}" \\
+        --model "{full_name}" \\
+        --timeout "$TIMEOUT" \\
+        -- kilo run --format default --auto \\
+            --model {full_name} \\
+            --variant {variant} \\
+            --agent {role} \\
+            --title "$SESSION_TITLE" \\
+            "$PROMPT"
+    EXIT_CODE=$?
+else
+    # Fallback: tee-based streaming (shows real-time AND captures)
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Fallback to tee (runner unavailable)" >&2
+    timeout "$TIMEOUT" kilo run --format default --auto \\
+        --model {full_name} \\
+        --variant {variant} \\
+        --agent {role} \\
+        --title "$SESSION_TITLE" \\
+        "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
+    EXIT_CODE=${{PIPESTATUS[0]}}
+fi
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 

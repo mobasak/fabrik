@@ -381,6 +381,7 @@ class KiloReviewConfig:
     # Session management
     session_id: str | None = None
     persist_session: bool = True
+    tracked_review_id: str | None = None  # Stable review cycle ID for scoped sessions
 
     # Output
     output_dir: Path = field(default_factory=lambda: SESSION_DIR)
@@ -1453,7 +1454,7 @@ def update_issue_state(
                 "category": issue.get("category", ""),
                 "severity": issue.get("severity", ""),
                 "why": issue.get("why", ""),
-                "fix_hint": issue.get("fix", ""),
+                "fix_hint": issue.get("fix_hint", ""),
                 "first_seen_iteration": iteration,
                 "last_seen_iteration": iteration,
             }
@@ -4030,7 +4031,7 @@ async def review_loop(
     git_branch = get_current_git_branch()
 
     if config.session_id == "continue":
-        if not hasattr(config, "tracked_review_id") or not config.tracked_review_id:
+        if not config.tracked_review_id:
             raise ValueError("--tracked-review-id is required with --session continue")
 
         existing = get_scoped_session(
@@ -4116,7 +4117,16 @@ async def review_loop(
             summary=f"Pre-review validation failed: {len(validation_issues)} issue(s) found",
         )
 
+    # Initialize previous_issues from persisted state if tracked_review_id is present
     previous_issues: list[dict[str, Any]] | None = None
+    if config.tracked_review_id:
+        previous_issues = get_open_issues(config.tracked_review_id)
+        if previous_issues:
+            print(
+                f"[ISSUE STATE] Loaded {len(previous_issues)} open issues from previous iterations",
+                file=sys.stderr,
+            )
+
     previous_verdict: str | None = None  # Track last review verdict for max variant decision
     iteration = 0
     issue_history: dict[str, int] = {}  # Track repeated issues for false positive detection
@@ -4294,6 +4304,14 @@ async def review_loop(
             session_state.last_used_at = datetime.now(UTC).isoformat()
             session_state.last_verdict = review_result.verdict
             session_state.last_issues = [i.to_dict() for i in review_result.issues]
+
+            # Update issue-state persistence
+            if config.tracked_review_id:
+                update_issue_state(
+                    tracked_review_id=config.tracked_review_id,
+                    current_issues=[i.to_dict() for i in review_result.issues],
+                    iteration=iteration,
+                )
 
             # Check if clean
             if review_result.verdict == "PASS":
@@ -5115,6 +5133,7 @@ async def main() -> int:
         review_agent=args.review_agent,
         fix_agent=args.fix_agent,
         session_id=args.session,
+        tracked_review_id=getattr(args, "tracked_review_id", None),
         output_format=args.output,
         verbose=args.verbose,
         traycer_plan=load_plan(getattr(args, "plan", None)),
