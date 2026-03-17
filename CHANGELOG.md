@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed - Token-lean Kilo review workflow with monitored execution (2026-03-17)
+
+**What:** Replaced arbitrary timeout-based Kilo execution with active process monitoring. Made default workflow token-efficient by disabling expensive multi-pass reviews and verification steps.
+
+**Changes:**
+- `scripts/kilo_code_review.py` - Replaced `subprocess.run(timeout=...)` with `Popen + _monitor_process()` that tracks stdout/stderr growth
+- Default `review_mode` changed from `"full"` to `"diff_only"` (token-efficient)
+- Default `verify_high_risk` changed from `True` to `False` (no auto-verification)
+- Added 6 env vars: `KILO_IDLE_TIMEOUT` (120s), `KILO_HARD_TIMEOUT` (1200s), `KILO_POLL_INTERVAL` (1s), `KILO_ENABLE_MULTI_PASS` (0), `KILO_ENABLE_PASS_VERIFY` (0), `KILO_ENABLE_AUDIT` (0)
+- Gated multi-pass review, PASS max-variant verification, and audit writes with opt-in flags (default OFF)
+- Limited model escalation to 1 fallback maximum (simplified from deep tier chain)
+- Added prompt degradation: full mode auto-degrades to diff_only if oversized
+- Fixed verification usage accounting (`usage.add_review(verify_result)`)
+- Fixed config.variant state leak with try/finally wrapper
+
+**Impact:**
+- Long-running reviews no longer killed prematurely (monitors progress, not wall-clock)
+- Hung/silent processes still terminated via idle timeout
+- Token savings: ~75% reduction for PASS cases (no auto-multi-pass, no auto-verification)
+- Solo developer workflow optimized for speed and cost
+
+**Files:**
+- `scripts/kilo_code_review.py` - 110 lines added (_monitor_process), rewritten run_kilo, config defaults, gating logic
+
 ### Changed - Scaffold copies ALL scripts for complete independence (2026-03-16)
 
 **What:** Fabrik scaffold now copies ALL quality gate and enforcement scripts to new projects. Projects are completely self-contained and function independently without requiring Fabrik to exist.

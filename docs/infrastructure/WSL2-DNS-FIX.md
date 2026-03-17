@@ -1,7 +1,7 @@
 # WSL2 DNS Resolution Fix
 
-**Date:** 2026-03-16  
-**Status:** ✅ APPLIED  
+**Date:** 2026-03-16
+**Status:** ✅ APPLIED
 **Affects:** All WSL2 environments running Fabrik
 
 ---
@@ -136,5 +136,5 @@ wsl --shutdown
 
 **2026-03-16 14:20 UTC+03:00**
 
-Applied by: Cascade AI Agent  
+Applied by: Cascade AI Agent
 Verified by: Kilo CLI connectivity test

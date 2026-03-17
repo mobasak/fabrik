@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-09 18:53:10 -->
-<!-- Total projects: 43 -->
+<!-- Last synced: 2026-03-17 00:15:06 -->
+<!-- Total projects: 39 -->
 
 ### Production Services (5 projects)
 
@@ -104,7 +104,7 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure Tra... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (9 projects)
+### Active Development (11 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
@@ -113,12 +113,14 @@ With ~$50/month infrastructure cost:
 | **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C c... | Python | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, and... | FastAPI | 🔨 Development | - | ✅ Current |
+| **seo** | A FastAPI-based service for generating SEO keywords and long-tail keyword variations to power AI ... | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-analysis** | Test project for scaffold validation | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-gitignore-python** | Test Python .gitignore generation | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-full-scaffold** | Test full enforcement copy | FastAPI | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | Trade Intelligence is a comprehensive platform for searching and analyzing global shipment record... | FastAPI | 🔨 Development | - | ✅ Current |
 | **trading-core** | Live FX trading service connecting to Pepperstone/cTrader via cTrader Open API with crash-safe st... | FastAPI | 🔨 Development | - | ✅ Current |
+| **triggered-content-orchestration** | Orchestrates content creation across Twitter, YouTube, Blog, Email, and LinkedIn platforms. Featu... | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (18 projects)
+### Planning/Research (12 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
@@ -131,15 +133,9 @@ With ~$50/month infrastructure cost:
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. Users u... | Python | 🔨 Development | - | ✅ Current |
 | **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interfaces ... | Python | 🔨 Development | - | ✅ Current |
 | **proxy** | **Status:** Production Ready | Python | 🔨 Development | - | ✅ Current |
-| **test-gitignore-chromeext** | Test Chrome Extension .gitignore | Node.js | 🔨 Development | - | ✅ Current |
-| **test-gitignore-fileapi** | Test File API .gitignore | Express | 🔨 Development | - | ✅ Current |
-| **test-gitignore-fileworker** | Test File Worker .gitignore | Python | 🔨 Development | - | ✅ Current |
-| **test-gitignore-node** | Test Node .gitignore generation | Node.js | 🔨 Development | - | ✅ Current |
-| **test-gitignore-wordpress** | Test WordPress .gitignore generation | Unknown | 🔨 Development | - | ✅ Current |
 | **transcriber** | Internal API service providing audio transcription capabilities using Soniox and other provider b... | Unknown | 🔨 Development | - | ✅ Current |
-| **triggered-content-orchestration** | Orchestrates content creation across Twitter, YouTube, Blog, Email, and LinkedIn platforms. Featu... | Unknown | 🔨 Development | - | ✅ Current |
 | **ugc** | Production-grade web scraping system for extracting user-generated content from social media plat... | Unknown | 🔨 Development | - | ✅ Current |
-| **web-scraper** | Python-based web scraper using Scrapy and Playwright to extract full content to JSONLines format ... | Unknown | 🔨 Development | - | ✅ Current |
+| **web-scraper** | Python-based web scraper using Scrapy and Playwright to extract full content to JSONLines format ... | Flask | 🔨 Development | - | ✅ Current |
 
 ### Shell Projects (11 projects)
 

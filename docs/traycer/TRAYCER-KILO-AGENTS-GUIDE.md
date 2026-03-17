@@ -1,6 +1,6 @@
 # Kilo Agents for Traycer Epic Planning
 
-**Last Updated:** 2026-03-07
+**Last Updated:** 2026-03-16
 **Purpose:** Configure Traycer to use maximum-thinking Kilo agents for plan discussions
 
 ---
@@ -346,6 +346,56 @@ kilo_review(
 ```
 
 **Note:** Direct model specification bypasses strategy-based routing.
+
+---
+
+## Troubleshooting: Exit Codes
+
+When a Kilo CLI agent terminates, Traycer reports the exit code. Here are the common exit codes and their fixes:
+
+### Exit Code 124: Timeout
+
+| Aspect | Details |
+|--------|---------|
+| **Cause** | Task exceeded the agent's timeout limit |
+| **Default** | 60 minutes (3600 seconds) |
+| **Symptom** | `The terminal process "/bin/bash" terminated with exit code: 124` |
+
+**Fixes:**
+1. **Environment variable** (temporary): `export KILO_TIMEOUT=7200` (2 hours)
+2. **Regenerate agents** with higher default: Edit `generate_kilo_agents.py` → change `KILO_TIMEOUT:-3600` → run script
+
+**Root cause:** Complex tasks (large codebases, many files, multi-step operations) can exceed the timeout.
+
+### Exit Code 1: Agent Failed
+
+| Aspect | Details |
+|--------|---------|
+| **Cause** | Agent encountered an error but Kilo API call succeeded |
+| **Symptom** | `The terminal process "/bin/bash" terminated with exit code: 1` |
+
+**Common causes:**
+1. **Missing Traycer report block** — Agent didn't output `BEGIN_TRAYCER_REPORT_MD...END_TRAYCER_REPORT_MD`
+2. **Kilo API error** — Model not found, rate limit, auth failure
+3. **Script error** — Missing dependencies, path issues
+
+**Fixes:**
+1. Check agent logs for actual error message
+2. Verify `KILO_API_KEY` is set and valid
+3. Verify model name is correct in agent script
+4. For missing report block: Agent scripts now handle this gracefully (exit 0 if Kilo succeeded)
+
+### Exit Code 0: Success
+
+Agent completed successfully. Traycer will parse the output and proceed.
+
+### Timeout Configuration
+
+| Mode | Timeout Control | How to Set |
+|------|-----------------|------------|
+| **Direct Handoff** | `KILO_TIMEOUT` env var | `export KILO_TIMEOUT=3600` |
+| **Smart YOLO** | Per-phase via Traycer UI | YOLO tab → timeout field |
+| **Agent default** | Built into agent script | Regenerate agents |
 
 ---
 

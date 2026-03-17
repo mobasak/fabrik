@@ -37,7 +37,6 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 import uuid
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -64,16 +63,6 @@ MAX_DIFF_SIZE = 15_000  # 15KB
 
 # Max prompt size (bytes) to prevent memory exhaustion
 MAX_PROMPT_SIZE = 100_000  # 100KB
-
-# Timeout configuration for monitored Kilo execution
-KILO_IDLE_TIMEOUT = int(os.getenv("KILO_IDLE_TIMEOUT", "120"))  # seconds without output
-KILO_HARD_TIMEOUT = int(os.getenv("KILO_HARD_TIMEOUT", "1200"))  # absolute max runtime
-KILO_POLL_INTERVAL = float(os.getenv("KILO_POLL_INTERVAL", "1.0"))  # monitor check interval
-
-# Feature flags (expensive features opt-in, default OFF)
-KILO_ENABLE_MULTI_PASS = os.getenv("KILO_ENABLE_MULTI_PASS", "0") == "1"
-KILO_ENABLE_PASS_VERIFY = os.getenv("KILO_ENABLE_PASS_VERIFY", "0") == "1"
-KILO_ENABLE_AUDIT = os.getenv("KILO_ENABLE_AUDIT", "0") == "1"
 
 # Valid Kilo agents
 VALID_AGENTS = {
@@ -370,7 +359,7 @@ class KiloReviewConfig:
     # Review scope
     max_files_per_batch: int = MAX_FILES_PER_BATCH
     max_lines_per_file: int = MAX_LINES_PER_FILE
-    review_mode: str = "diff_only"  # full, diff_only, staged
+    review_mode: str = "full"  # full, diff_only, staged
 
     # Iteration control
     max_iterations: int = 3
@@ -401,7 +390,7 @@ class KiloReviewConfig:
     strategy: str | None = None  # free, economy, standard, premium, critical
     max_cost: float | None = None  # Stop escalation at budget cap
     no_escalate: bool = False  # Stay at initial tier
-    verify_high_risk: bool = False  # Auto-verify PASS on high-risk code
+    verify_high_risk: bool = True  # Auto-verify PASS on high-risk code
 
 
 @dataclass
@@ -1900,113 +1889,6 @@ def parse_kilo_jsonl(output: str) -> dict[str, Any]:
         raise RuntimeError(f"Failed to parse Kilo JSONL output: {e}") from e
 
 
-def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval):
-    """
-    Monitor subprocess with liveness checking.
-
-    Uses reader threads to avoid blocking on pipe reads.
-    Tracks BOTH stdout AND stderr growth to detect progress.
-
-    Args:
-        proc: subprocess.Popen instance
-        idle_timeout: seconds without output before killing
-        hard_timeout: absolute max seconds before killing
-        poll_interval: seconds between health checks
-
-    Returns:
-        (stdout_bytes, stderr_bytes, returncode)
-
-    Raises:
-        TimeoutError: if idle or hard timeout exceeded
-    """
-    import queue
-    import threading
-
-    stdout_queue = queue.Queue()
-    stderr_queue = queue.Queue()
-
-    def reader_thread(stream, q):
-        """Read stream in chunks, push to queue."""
-        try:
-            while True:
-                chunk = stream.read(8192)
-                if not chunk:
-                    break
-                q.put(("data", chunk))
-        except Exception as e:
-            q.put(("error", e))
-        finally:
-            q.put(("eof", None))
-
-    # Start reader threads
-    stdout_thread = threading.Thread(target=reader_thread, args=(proc.stdout, stdout_queue))
-    stderr_thread = threading.Thread(target=reader_thread, args=(proc.stderr, stderr_queue))
-    stdout_thread.daemon = True
-    stderr_thread.daemon = True
-    stdout_thread.start()
-    stderr_thread.start()
-
-    # Monitor loop
-    start_time = time.time()
-    last_output_time = start_time
-    stdout_chunks = []
-    stderr_chunks = []
-
-    while proc.poll() is None:
-        time.sleep(poll_interval)
-
-        got_output = False
-
-        # Drain stdout queue
-        while not stdout_queue.empty():
-            msg_type, data = stdout_queue.get_nowait()
-            if msg_type == "data":
-                stdout_chunks.append(data)
-                got_output = True
-
-        # Drain stderr queue - ALSO counts as progress
-        while not stderr_queue.empty():
-            msg_type, data = stderr_queue.get_nowait()
-            if msg_type == "data":
-                stderr_chunks.append(data)
-                got_output = True  # stderr counts as progress too
-
-        if got_output:
-            last_output_time = time.time()
-
-        # Check timeouts
-        elapsed = time.time() - start_time
-        idle = time.time() - last_output_time
-
-        if idle > idle_timeout:
-            proc.kill()
-            proc.wait()
-            raise TimeoutError(f"Idle timeout: no output for {idle:.0f}s (limit {idle_timeout}s)")
-
-        if elapsed > hard_timeout:
-            proc.kill()
-            proc.wait()
-            raise TimeoutError(
-                f"Hard timeout: total runtime {elapsed:.0f}s (limit {hard_timeout}s)"
-            )
-
-    # Collect remaining output
-    stdout_thread.join(timeout=2)
-    stderr_thread.join(timeout=2)
-
-    while not stdout_queue.empty():
-        msg_type, data = stdout_queue.get_nowait()
-        if msg_type == "data":
-            stdout_chunks.append(data)
-
-    while not stderr_queue.empty():
-        msg_type, data = stderr_queue.get_nowait()
-        if msg_type == "data":
-            stderr_chunks.append(data)
-
-    return (b"".join(stdout_chunks), b"".join(stderr_chunks), proc.returncode)
-
-
 async def run_kilo(
     prompt: str,
     config: KiloReviewConfig,
@@ -2015,32 +1897,38 @@ async def run_kilo(
     timeout: int | None = None,
 ) -> dict[str, Any]:
     """
-    Execute Kilo CLI with monitored process execution.
-
-    Monitors process health via output growth (stdout/stderr), not just wall-clock.
-    Kills only if truly hung (no output) or hard limit exceeded.
+    Execute Kilo CLI and return parsed result.
 
     Args:
         prompt: The prompt to send to Kilo
         config: Review configuration
         agent: Kilo agent to use (ask, code, etc.)
         file_paths: Files to attach via --file
-        timeout: Hard timeout override in seconds (default: KILO_HARD_TIMEOUT env)
+        timeout: Command timeout in seconds (default: KILO_REVIEW_TIMEOUT env var or 300)
 
     Returns:
         Parsed result dict with 'result', 'session_id', 'input_tokens', etc.
     """
-    # Timeout configuration
-    idle_timeout = KILO_IDLE_TIMEOUT
-    hard_timeout = timeout if timeout is not None else KILO_HARD_TIMEOUT
-    poll_interval = KILO_POLL_INTERVAL
-
-    # Prompt size check removed - caller handles degradation
+    if timeout is None:
+        try:
+            timeout = int(os.getenv("KILO_REVIEW_TIMEOUT", "300"))
+        except ValueError:
+            print(
+                f"Warning: Invalid KILO_REVIEW_TIMEOUT value '{os.getenv('KILO_REVIEW_TIMEOUT')}', using default 300s",
+                file=sys.stderr,
+            )
+            timeout = 300
+    # Validate prompt size to prevent memory exhaustion
+    if not isinstance(prompt, str):
+        raise ValueError(f"Prompt must be string, got {type(prompt).__name__}")
+    if len(prompt) > MAX_PROMPT_SIZE:
+        raise ValueError(f"Prompt too large: {len(prompt)} bytes (max {MAX_PROMPT_SIZE})")
 
     kilo_path = find_kilo_executable()
     if not kilo_path:
         raise RuntimeError("Kilo executable not found. Is it installed?")
 
+    # Ensure model is set (should always be set by route_to_model before this point)
     if config.model is None:
         raise RuntimeError("config.model is None - model routing failed")
 
@@ -2056,71 +1944,93 @@ async def run_kilo(
     if config.verbose:
         print(f"[KILO] Running: {' '.join(cmd)}", file=sys.stderr)
 
-    # Retry loop for transient failures
+    # Retry loop with exponential backoff for transient failures
     last_exception: Exception | None = None
     for attempt in range(MAX_RETRIES):
         try:
-            # Start monitored process
-            process = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=False,
-            )
-
-            # Write prompt to stdin
-            try:
-                process.stdin.write(prompt.encode("utf-8"))
-                process.stdin.close()
-            except (BrokenPipeError, OSError):
-                pass  # Process may have exited early
-
-            # Monitor in executor for async compatibility
+            # Use synchronous subprocess for reliability on Windows
+            # Run in thread pool to keep async interface
             import concurrent.futures
+
+            def run_subprocess():
+                result = subprocess.run(
+                    cmd,
+                    input=prompt.encode("utf-8"),
+                    capture_output=True,
+                    timeout=timeout,
+                    shell=False,  # Never use shell=True to prevent command injection
+                )
+                return result
 
             loop = asyncio.get_event_loop()
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                stdout, stderr, returncode = await loop.run_in_executor(
-                    executor,
-                    _monitor_process,
-                    process,
-                    idle_timeout,
-                    hard_timeout,
-                    poll_interval,
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(executor, run_subprocess),
+                    timeout=timeout + 10,  # Extra buffer for executor overhead
                 )
 
-            # Check for retryable failures
-            if returncode in RETRYABLE_EXIT_CODES and attempt < MAX_RETRIES - 1:
-                wait_time = 2**attempt
+            stdout = result.stdout
+            stderr = result.stderr
+
+            # Check for retryable failures (timeout or service unavailable)
+            if result.returncode in RETRYABLE_EXIT_CODES and attempt < MAX_RETRIES - 1:
+                wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                error_msg = stderr.decode("utf-8", errors="replace")[:200]
                 print(
-                    f"⏳ Kilo transient failure (exit {returncode}). Retrying in {wait_time}s...",
+                    f"⏳ Kilo transient failure (exit {result.returncode}). "
+                    f"Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
                     file=sys.stderr,
                 )
+                if config.verbose:
+                    print(f"[RETRY] Error: {error_msg}", file=sys.stderr)
                 await asyncio.sleep(wait_time)
                 continue
 
-            if returncode != 0:
-                error_msg = stderr.decode("utf-8", errors="replace")[:200]
+            if result.returncode != 0:
+                error_msg = stderr.decode("utf-8", errors="replace")
+                # Truncate and redact secrets to prevent leaking sensitive data in logs
+                error_msg = error_msg[:200]
                 error_msg = _redact_secrets(error_msg)
-                raise RuntimeError(f"Kilo failed (exit {returncode}): {error_msg}")
+                raise RuntimeError(f"Kilo failed (exit {result.returncode}): {error_msg}")
 
             output = stdout.decode("utf-8", errors="replace")
 
             if config.verbose:
                 print(f"[KILO] Output: {len(output)} chars", file=sys.stderr)
+                if stderr:
+                    stderr_text = stderr.decode("utf-8", errors="replace")
+                    if stderr_text.strip() and "error" in stderr_text.lower():
+                        print(f"[KILO] Stderr: {stderr_text[:300]}", file=sys.stderr)
 
+            # Parse and return result
             return parse_kilo_jsonl(output)
 
+        except subprocess.TimeoutExpired as e:
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:
+                wait_time = 2**attempt
+                print(
+                    f"⏳ Kilo timeout. Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
+                    file=sys.stderr,
+                )
+                await asyncio.sleep(wait_time)
+                continue
+            raise RuntimeError(f"Kilo timed out after {timeout}s (tried {MAX_RETRIES} times)")
         except TimeoutError as e:
             last_exception = e
             if attempt < MAX_RETRIES - 1:
                 wait_time = 2**attempt
-                print(f"⏳ Kilo timeout ({e}). Retrying...", file=sys.stderr)
+                print(
+                    f"⏳ Kilo async timeout. Retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})...",
+                    file=sys.stderr,
+                )
                 await asyncio.sleep(wait_time)
                 continue
-            raise RuntimeError(f"Kilo timed out: {e}")
+            raise RuntimeError(
+                f"Kilo async timeout after {timeout + 10}s (tried {MAX_RETRIES} times)"
+            )
 
+    # If we exhausted retries, raise the last exception
     if last_exception:
         raise last_exception
     raise RuntimeError("Kilo call failed after all retries")
@@ -3398,41 +3308,6 @@ async def _run_single_batch_review(
             diff_content=diff_section,
         )
 
-    # Check prompt size and degrade if needed
-    if len(prompt) > MAX_PROMPT_SIZE:
-        if config.review_mode == "full":
-            # Degrade to diff_only and rebuild
-            print(
-                f"⚠️  Prompt too large ({len(prompt)} bytes), degrading to diff_only",
-                file=sys.stderr,
-            )
-            config = replace(config, review_mode="diff_only")
-
-            # Rebuild diff section with diff_only mode
-            diff_content = get_diff_content(files_to_review, include_staged=True)
-            diff_section = f"DIFF:\n```diff\n{diff_content}\n```" if diff_content else ""
-
-            # Rebuild prompt with diff_only
-            prompt = REVIEW_PROMPT_TEMPLATE.format(
-                iteration_number=iteration,
-                previous_issues=prev_issues_str,
-                traycer_plan=plan_str,
-                requirements_section=requirements_section,
-                gate_results=gate_results_str,
-                files_list=files_list,
-                diff_content=diff_section,
-            )
-
-            # Check again after degradation
-            if len(prompt) > MAX_PROMPT_SIZE:
-                raise ValueError(
-                    f"Prompt still too large after degrading to diff_only: "
-                    f"{len(prompt)} > {MAX_PROMPT_SIZE}"
-                )
-        else:
-            # Already diff_only or other mode, can't degrade further
-            raise ValueError(f"Prompt too large: {len(prompt)} > {MAX_PROMPT_SIZE}")
-
     # Attempt 1: Run Kilo
     result = await run_kilo(
         prompt=prompt,
@@ -3762,8 +3637,8 @@ async def run_review(
     # Assess risk for multi-pass decision
     risk_assessment = assess_review_risk(files, diff_content)
 
-    # Route based on risk (gated by KILO_ENABLE_MULTI_PASS)
-    if KILO_ENABLE_MULTI_PASS and risk_assessment["requires_multi_pass"]:
+    # Route based on risk
+    if risk_assessment["requires_multi_pass"]:
         print(
             f"[RISK] {risk_assessment['risk_level'].upper()} risk detected: {', '.join(risk_assessment['triggers'])}",
             file=sys.stderr,
@@ -3994,69 +3869,54 @@ async def review_loop(
             original_variant = config.variant
             config.variant = current_variant
 
-            try:
-                # Model error retry loop - limited to 1 fallback for fast solo workflow
-                max_model_retries = 3
-                model_escalation_count = 0
-                max_model_escalations = 1  # One fallback only
-                review_result = None
-                for _ in range(max_model_retries):
-                    try:
-                        review_result = await run_review(
-                            files=files,
-                            config=config,
-                            iteration=iteration,
-                            previous_issues=previous_issues,
-                        )
-                        break  # Success, exit retry loop
-                    except Exception as model_error:
-                        # Track failed model
-                        if config.model:
-                            escalation_state.failed_models.add(config.model)
-                        print(
-                            f"  [MODEL ERROR] {config.model} failed: {model_error}",
-                            file=sys.stderr,
-                        )
+            # Model error retry loop - try models until success or path exhausted
+            max_model_retries = 3
+            review_result = None
+            for _ in range(max_model_retries):
+                try:
+                    review_result = await run_review(
+                        files=files,
+                        config=config,
+                        iteration=iteration,
+                        previous_issues=previous_issues,
+                    )
+                    break  # Success, exit retry loop
+                except Exception as model_error:
+                    # Track failed model
+                    if config.model:
+                        escalation_state.failed_models.add(config.model)
+                    print(
+                        f"  [MODEL ERROR] {config.model} failed: {model_error}",
+                        file=sys.stderr,
+                    )
 
-                        # Check if escalation is allowed
-                        if config.no_escalate:
-                            print("  [ABORT] --no-escalate set, not retrying", file=sys.stderr)
-                            raise
+                    # Check if escalation is allowed
+                    if config.no_escalate:
+                        print("  [ABORT] --no-escalate set, not retrying", file=sys.stderr)
+                        raise
 
-                        # Check escalation limit (1 fallback max)
-                        if model_escalation_count >= max_model_escalations:
-                            print(
-                                "  [ABORT] Model escalation limit reached (1 fallback max)",
-                                file=sys.stderr,
-                            )
-                            raise
+                    # Try next model in escalation path
+                    next_model, next_tier = get_next_model_from_state(escalation_state)
+                    if not next_model:
+                        print("  [ABORT] No more models in escalation path", file=sys.stderr)
+                        raise
 
-                        # Try next model in escalation path
-                        next_model, next_tier = get_next_model_from_state(escalation_state)
-                        if not next_model:
-                            print("  [ABORT] No more models in escalation path", file=sys.stderr)
-                            raise
+                    print(
+                        f"  [ESCALATE] Retrying with {next_model} ({next_tier} tier)",
+                        file=sys.stderr,
+                    )
+                    config.model = next_model
+                    escalation_state.current_tier_idx = (
+                        ESCALATION_PATHS.get(escalation_state.strategy, []).index(next_tier)
+                        if next_tier in ESCALATION_PATHS.get(escalation_state.strategy, [])
+                        else escalation_state.current_tier_idx
+                    )
 
-                        # Increment ONLY after getting valid next_model
-                        model_escalation_count += 1
+            if review_result is None:
+                raise RuntimeError("All models in escalation path failed")
 
-                        print(
-                            f"  [ESCALATE] Retrying with {next_model} ({next_tier} tier) (escalation {model_escalation_count}/{max_model_escalations})",
-                            file=sys.stderr,
-                        )
-                        config.model = next_model
-                        escalation_state.current_tier_idx = (
-                            ESCALATION_PATHS.get(escalation_state.strategy, []).index(next_tier)
-                            if next_tier in ESCALATION_PATHS.get(escalation_state.strategy, [])
-                            else escalation_state.current_tier_idx
-                        )
-
-                if review_result is None:
-                    raise RuntimeError("All models in escalation path failed")
-
-                usage.add_review(review_result)
-            finally:
-                config.variant = original_variant  # Always restore
+            config.variant = original_variant  # Restore
+            usage.add_review(review_result)
 
             # Capture session ID from Kilo response for subsequent calls
             # Validate to prevent path traversal via malicious/corrupted response
@@ -4112,13 +3972,7 @@ async def review_loop(
                 # Skip final-gate when auto_fix=False (e.g. `review` command) since
                 # no fixes happen between iterations — re-reviewing unchanged code
                 # with max variant would waste tokens with no benefit.
-                # Gated by KILO_ENABLE_PASS_VERIFY (default OFF)
-                if (
-                    KILO_ENABLE_PASS_VERIFY
-                    and current_variant != "max"
-                    and iteration < effective_max
-                    and config.auto_fix
-                ):
+                if current_variant != "max" and iteration < effective_max and config.auto_fix:
                     # Record PASS so next iteration triggers final_gate max verification
                     previous_verdict = review_result.verdict
                     print(
@@ -4170,7 +4024,7 @@ async def review_loop(
                             previous_issues=None,
                         )
                         config.model = original_model  # Restore original
-                        usage.add_review(verify_result)
+                        usage.add_review_call(verify_result.usage)
 
                         if verify_result.verdict == "FAIL" and verify_result.issues:
                             # Cheap model missed issues! Log for quality tracking
@@ -4196,13 +4050,12 @@ async def review_loop(
                                 "model_initial": original_model,
                                 "model_verification": verify_model,
                             }
-                            if KILO_ENABLE_AUDIT:
-                                try:
-                                    METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
-                                    with open(METRICS_FILE, "a") as f:
-                                        f.write(json.dumps(quality_entry) + "\n")
-                                except OSError as e:
-                                    print(f"  [METRICS] Failed to write: {e}", file=sys.stderr)
+                            try:
+                                METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
+                                with open(METRICS_FILE, "a") as f:
+                                    f.write(json.dumps(quality_entry) + "\n")
+                            except OSError as e:
+                                print(f"  [METRICS] Failed to write: {e}", file=sys.stderr)
 
                             # Use verification result and skip PASS return
                             review_result = verify_result
@@ -4214,33 +4067,31 @@ async def review_loop(
                     # 5% AUDIT SAMPLING (Per Spec Phase 5)
                     # =================================================================
                     # Random sampling of PASS verdicts for quality monitoring
-                    # Gated by KILO_ENABLE_AUDIT (default OFF)
-                    if KILO_ENABLE_AUDIT:
-                        import random
+                    import random
 
-                        if random.random() < AUDIT_SAMPLE_RATE:
-                            audit_entry = {
-                                "timestamp": datetime.now().isoformat(),
-                                "session_id": config.session_id or local_session_id,
-                                "files": [str(f) for f in files_reviewed],
-                                "tier": escalation_state.get_current_tier(),
-                                "model": config.model,
-                                "risk_level": escalation_state.risk_level,
-                                "verdict": "PASS",
-                                "iterations": iteration,
-                                "verification_performed": escalation_state.verification_performed,
-                                "false_negative_detected": escalation_state.false_negative_detected,
-                            }
-                            try:
-                                AUDIT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-                                with open(AUDIT_LOG_FILE, "a") as f:
-                                    f.write(json.dumps(audit_entry) + "\n")
-                                print(
-                                    "  [AUDIT] Sampled PASS verdict for quality monitoring",
-                                    file=sys.stderr,
-                                )
-                            except OSError as e:
-                                print(f"  [AUDIT] Failed to write audit log: {e}", file=sys.stderr)
+                    if random.random() < AUDIT_SAMPLE_RATE:
+                        audit_entry = {
+                            "timestamp": datetime.now().isoformat(),
+                            "session_id": config.session_id or local_session_id,
+                            "files": [str(f) for f in files_reviewed],
+                            "tier": escalation_state.get_current_tier(),
+                            "model": config.model,
+                            "risk_level": escalation_state.risk_level,
+                            "verdict": "PASS",
+                            "iterations": iteration,
+                            "verification_performed": escalation_state.verification_performed,
+                            "false_negative_detected": escalation_state.false_negative_detected,
+                        }
+                        try:
+                            AUDIT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+                            with open(AUDIT_LOG_FILE, "a") as f:
+                                f.write(json.dumps(audit_entry) + "\n")
+                            print(
+                                "  [AUDIT] Sampled PASS verdict for quality monitoring",
+                                file=sys.stderr,
+                            )
+                        except OSError as e:
+                            print(f"  [AUDIT] Failed to write audit log: {e}", file=sys.stderr)
 
                     # Definitive PASS (either max-variant verification or at iteration limit)
                     session_state.status = "completed"

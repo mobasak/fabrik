@@ -1,6 +1,6 @@
 # Traycer Agent Timeout Policy
 
-**Last Updated:** 2026-03-16  
+**Last Updated:** 2026-03-16
 **Default Timeout:** 120 minutes (7200 seconds)
 
 ---
@@ -28,14 +28,14 @@ All Traycer CLI agents are configured with a **120-minute default timeout**.
 
 ### Previous Timeout Issues
 
-**2026-03-16 12:31** - Initial agents had 30-minute timeout  
-**Problem:** WordPress integration doc (984 lines) timed out during Kilo review  
-**Root cause:** Multi-pass review (2x general + security) × 4 models = exceeded 30 min  
+**2026-03-16 12:31** - Initial agents had 30-minute timeout
+**Problem:** WordPress integration doc (984 lines) timed out during Kilo review
+**Root cause:** Multi-pass review (2x general + security) × 4 models = exceeded 30 min
 
-**2026-03-16 13:14** - Increased to 60 minutes  
-**Problem:** Still insufficient for very large documents with full escalation  
+**2026-03-16 13:14** - Increased to 60 minutes
+**Problem:** Still insufficient for very large documents with full escalation
 
-**2026-03-16 14:24** - Increased to 120 minutes  
+**2026-03-16 14:24** - Increased to 120 minutes
 **Status:** ✅ Sufficient for all current use cases
 
 ---
@@ -58,7 +58,7 @@ export KILO_TIMEOUT=14400
 
 ### Location
 
-**File:** `/opt/fabrik/scripts/generate_kilo_agents.py`  
+**File:** `/opt/fabrik/scripts/generate_kilo_agents.py`
 **Line:** 357
 
 ```python
