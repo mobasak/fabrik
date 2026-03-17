@@ -4319,7 +4319,12 @@ async def review_loop(
             if config.tracked_review_id:
                 # Only auto-close unseen issues for full-scope auto-fix reviews
                 # Conservative: do NOT auto-close for verify mode, partial scope, or batched runs
-                allow_auto_close = config.auto_fix and not config.verify_mode
+                allow_auto_close = (
+                    config.auto_fix
+                    and not config.verify_mode
+                    and config.review_mode == "staged"
+                    and len(files) <= config.max_files_per_batch
+                )
                 update_issue_state(
                     tracked_review_id=config.tracked_review_id,
                     current_issues=[i.to_dict() for i in review_result.issues],

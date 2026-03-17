@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Tighten issue auto-close to prevent scope-based false positives (2026-03-17)
+
+**What:** Prevent marking issues as "fixed" when they're out of scope, not actually resolved.
+
+**Fix:**
+- Changed auto-close condition from `config.auto_fix and not config.verify_mode`
+- To: `config.auto_fix and not config.verify_mode and config.review_mode == "staged" and len(files) <= config.max_files_per_batch`
+- Prevents auto-close on: narrowed file subsets, subsystem slices, partial staged sets, multi-batch runs
+
+**Impact:**
+- Auto-close only triggers for full-scope staged reviews (commit-candidate surface)
+- Avoids false "fixed" status when issue is out of current review scope
+- Single-batch check prevents accidental closure from batched/sliced runs
+
+**Files:**
+- `scripts/kilo_code_review.py` - Tightened auto-close gate condition
+
 ### Fixed - Strengthen config typing and prevent aggressive issue auto-close (2026-03-17)
 
 **What:** Final fixes to remove dynamic attribute access and prevent issue state corruption on partial/batched iterations.
