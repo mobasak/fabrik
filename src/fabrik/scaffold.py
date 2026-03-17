@@ -393,9 +393,9 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
         "build/\n"
         "*.egg-info/\n"
     )
-    # Example .env template with placeholder values (not real credentials)  # noqa: secrets
+    # Example .env template with placeholder values (not real credentials)
     (project_dir / ".env.example").write_text(
-        f"# {name} Configuration\n# Required\nPORT=8000\nLOG_LEVEL=INFO\n\n# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n"  # noqa: secrets
+        f"# {name} Configuration\n# Required\nPORT=8000\nLOG_LEVEL=INFO\n\n# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n"
     )
 
     # Copy documentation policy template
@@ -1206,6 +1206,33 @@ def validate_project(
     return present, missing
 
 
+def _patch_droid_block(content: str, canonical: str) -> str:
+    """Replace .droid/ entries in .gitignore with canonical block.
+
+    Handles two cases:
+    1. .droid/ entries exist (scattered or contiguous) → replace with canonical
+    2. No .droid/ entries → append canonical block at end
+
+    Args:
+        content: Current .gitignore file content
+        canonical: Canonical .droid/ gitignore block (_DROID_GITIGNORE_BLOCK)
+
+    Returns:
+        Updated .gitignore content
+    """
+    lines = content.splitlines(keepends=True)
+    droid_indices = {i for i, line in enumerate(lines) if line.strip().startswith(".droid/")}
+
+    if not droid_indices:
+        # No .droid/ entries — append canonical block
+        return content.rstrip("\n") + "\n" + canonical
+
+    # Remove all .droid/ lines and insert canonical block at position of first one
+    first_droid = min(droid_indices)
+    filtered_lines = [line for i, line in enumerate(lines) if i not in droid_indices]
+    return "".join(filtered_lines[:first_droid]) + canonical + "".join(filtered_lines[first_droid:])
+
+
 def fix_project(
     project_path: Path,
     dry_run: bool = False,
@@ -1331,6 +1358,15 @@ def fix_project(
         if not tr_gitignore.exists() or tr_gitignore.read_text() != _TRAYCER_REPORTS_GITIGNORE:
             tr_gitignore.write_text(_TRAYCER_REPORTS_GITIGNORE)
             added.append(".droid/traycer-reports/.gitignore (created/updated)")
+
+        # Update root .gitignore .droid/ block if outdated
+        root_gitignore = project_path / ".gitignore"
+        if root_gitignore.exists():
+            current_content = root_gitignore.read_text()
+            updated_content = _patch_droid_block(current_content, _DROID_GITIGNORE_BLOCK)
+            if updated_content != current_content:
+                root_gitignore.write_text(updated_content)
+                added.append(".gitignore (.droid/ block updated)")
     else:
         # dry_run: accurately report what would be created/fixed
         # .windsurfrules
@@ -1374,5 +1410,13 @@ def fix_project(
         tr_gitignore = droid_dir / "traycer-reports" / ".gitignore"
         if not tr_gitignore.exists() or tr_gitignore.read_text() != _TRAYCER_REPORTS_GITIGNORE:
             added.append(".droid/traycer-reports/.gitignore (created/updated)")
+
+        # Root .gitignore dry_run reporting
+        root_gitignore = project_path / ".gitignore"
+        if root_gitignore.exists():
+            current_content = root_gitignore.read_text()
+            updated_content = _patch_droid_block(current_content, _DROID_GITIGNORE_BLOCK)
+            if updated_content != current_content:
+                added.append(".gitignore (.droid/ block updated)")
 
     return added

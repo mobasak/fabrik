@@ -190,8 +190,8 @@ def main() -> int:
     parser.add_argument(
         "--metrics",
         type=Path,
-        default=Path(".droid/kilo_metrics.jsonl"),
-        help="Path to metrics file (default: .droid/kilo_metrics.jsonl)",
+        default=Path(".droid/kilo_metrics.jsonl"),  # Reserved: no script writes this yet
+        help="Path to metrics JSONL file (reserved for future kilo metrics collection)",
     )
     parser.add_argument(
         "--format",

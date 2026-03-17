@@ -4,19 +4,43 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed - Scaffold .droid/ gitignore consistency (2026-03-17)
+### Fixed - Scaffold .droid/ gitignore refactoring and propagation (2026-03-17)
 
-**What:** Consolidated all .droid/ gitignore entries into DRY constants and added traycer-reports/ scaffolding.
+**What:** Complete refactoring of .droid/ gitignore coverage with DRY constants, root .gitignore patching, and propagation to all 50 projects.
 
-**Changes:**
+**Initial Phase (TICKET-1 through TICKET-4):**
 - **TICKET-1:** Extracted `_DROID_GITIGNORE_BLOCK` constant used by all 6 scaffold write sites
 - **TICKET-2:** Added `.droid/traycer-reports/` directory scaffolding with proper .gitignore
 - **TICKET-3:** Updated Fabrik master `.droid/.gitignore` with deny-all + explicit allowlist
 - **TICKET-4:** Added `fix_project()` repairs for .droid/ structure using DRY constants
 
+**Evidence-Based Corrections:**
+- **DEFECT-1:** Added missing `docs_updater.py` runtime dirs (`.droid/docs_queue/`, `.droid/docs_log/`) to gitignore block
+- **DEFECT-2:** Removed 3 phantom entries (`kilo_metrics.jsonl`, `review_sessions.jsonl`, `review_audits.jsonl`) that no script writes
+- Added `_DROID_DIR_GITIGNORE` and `_TRAYCER_REPORTS_GITIGNORE` module-level constants for DRY compliance
+
+**Root .gitignore Propagation:**
+- Implemented `_patch_droid_block()` helper to replace/append canonical block in project root .gitignore
+- Extended `fix_project()` to automatically patch root .gitignore when outdated (non-dry-run + dry-run paths)
+- Applied fixes to all 50 projects in /opt/ via `fabrik fix` batch command
+
+**Test Coverage:**
+- Created `tests/test_scaffold.py` with 13 passing unit tests covering:
+  - `_DROID_GITIGNORE_BLOCK` constant correctness
+  - `_patch_droid_block()` edge cases (append, replace scattered, no-op)
+  - `fix_project()` .droid/ structure repair
+  - `fix_project()` root .gitignore patching
+
+**Documentation:**
+- Added reserved comment to `scripts/kilo_cost_report.py` for metrics file (not written by any script yet)
+- Verified `docs_updater.py` FABRIK_ROOT behavior (centralized queue is intentional design)
+
 **Files:**
-- `src/fabrik/scaffold.py` - Constants, traycer-reports scaffolding, fix_project() repairs
+- `src/fabrik/scaffold.py` - Added 3 constants, _patch_droid_block() helper, fix_project() root .gitignore patching
+- `tests/test_scaffold.py` - 13 unit tests for gitignore coverage and fix_project() behavior
+- `scripts/kilo_cost_report.py` - Reserved comment for metrics file
 - `.droid/.gitignore` - Updated with traycer-reports/ allowlist
+- All 50 projects in /opt/ - Root .gitignore updated with canonical .droid/ block
 
 ### Added - Kilo Terminal Runner v13 implementation (2026-03-17)
 
