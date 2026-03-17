@@ -362,13 +362,13 @@ python /opt/fabrik/scripts/kilo_code_review.py staged \
 1. **Stage intended files** - review commit candidate, not arbitrary file sets
 2. **Initial staged review** - full SPEC verification
 3. Fix ALL open issues (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
-4. **Verify with --verify-mode** - lighter follow-up check
+4. **Verify with verify command** - lighter follow-up check
 5. Repeat verify until verdict=PASS (max 5 iterations)
 6. **Final staged review** - only if risky/cross-module changes
 
 **Key points:**
 - **Staged-first** - review the actual commit candidate surface
-- **Verify-mode for intermediate loops** - cheaper, focused on fixes
+- **verify command for intermediate loops** - cheaper, focused on fixes
 - Use inline plan text (`--plan "description"`) - simpler, no file management
 - **Set REVIEW_ID once** - keep same ID across all iterations in the cycle
 - **Do not assume unseen issues are fixed** unless full-scope staged single-batch
