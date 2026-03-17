@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Scoped session continuation and issue-state persistence (2026-03-17)
+
+**What:** Replaced global "latest session" continuation with scoped session resolution. Added issue tracking across iterations with automatic status management.
+
+**Changes:**
+- `scripts/kilo_code_review.py` - Added `project_root`, `git_branch`, `tracked_review_id` to SessionState
+- Added `get_current_git_branch()` helper to detect current branch
+- Added `get_scoped_session()` resolver: finds sessions by project_root + git_branch + tracked_review_id
+- Added `--tracked-review-id` CLI argument (required for `--session continue`)
+- Updated `review_loop()` to require tracked_review_id for continuation, reject cross-repo/branch sessions
+- Added issue-state persistence: `.droid/reviews/<tracked_review_id>_issues.json`
+- Added `issue_key()`, `load_issue_state()`, `save_issue_state()`, `update_issue_state()`, `get_open_issues()` helpers
+- Issue lifecycle tracking: open → fixed (automatic), manual: rejected, false_positive
+
+**Impact:**
+- Sessions no longer accidentally resume another repo/branch's session
+- Issue tracking prevents duplicate reporting across iterations
+- Coder prompts can filter for open issues only
+- Provides historical context for review cycles
+
+**Files:**
+- `scripts/kilo_code_review.py` - SessionState extended, scoped session resolver, issue persistence system
+- `docs/guides/KILO-TOKEN-LEAN-WORKFLOW.md` - Staged workflow, scoped sessions, issue tracking, micro-spec format, semantic batching, verify mode
+
 ### Changed - Token-lean Kilo review workflow with monitored execution (2026-03-17)
 
 **What:** Replaced arbitrary timeout-based Kilo execution with active process monitoring. Made default workflow token-efficient by disabling expensive multi-pass reviews and verification steps.

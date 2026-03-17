@@ -1,0 +1,6 @@
+# Dependencies for kilo_terminal_runner.py
+# Rich terminal UI for Kilo CLI agent wrappers
+
+textual>=0.61,<1.0
+rich>=13.7,<14.0
+pexpect>=4.9,<5.0

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -563,6 +564,11 @@ class SessionState:
     usage: dict[str, Any]
     last_verdict: str | None = None
     last_issues: list[dict[str, Any]] = field(default_factory=list)
+
+    # Scoped session resolution fields
+    project_root: str = ""
+    git_branch: str = ""
+    tracked_review_id: str | None = None
 
 
 @dataclass
@@ -1361,6 +1367,117 @@ def get_project_root() -> Path:
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
             _PROJECT_ROOT = Path.cwd()
     return _PROJECT_ROOT
+
+
+def get_current_git_branch() -> str:
+    """Get current git branch name."""
+    try:
+        git_path = shutil.which("git")
+        if not git_path:
+            return "unknown"
+        result = subprocess.run(
+            [git_path, "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return "unknown"
+
+
+def issue_key(tracked_review_id: str, issue: dict[str, Any]) -> str:
+    """Generate stable key for issue tracking across iterations."""
+    base = "|".join(
+        [
+            tracked_review_id,
+            issue.get("file", ""),
+            issue.get("lines", ""),
+            issue.get("category", ""),
+            issue.get("why", "")[:120],
+        ]
+    )
+    return hashlib.sha1(base.encode("utf-8")).hexdigest()
+
+
+def get_issue_state_file(tracked_review_id: str) -> Path:
+    """Get path to issue state file for a review cycle."""
+    return Path(".droid/reviews") / f"{tracked_review_id}_issues.json"
+
+
+def load_issue_state(tracked_review_id: str) -> dict[str, Any]:
+    """Load issue state for a review cycle."""
+    state_file = get_issue_state_file(tracked_review_id)
+    if not state_file.exists():
+        return {"tracked_review_id": tracked_review_id, "issues": {}}
+
+    try:
+        return json.loads(state_file.read_text())
+    except Exception:
+        return {"tracked_review_id": tracked_review_id, "issues": {}}
+
+
+def save_issue_state(tracked_review_id: str, state: dict[str, Any]) -> None:
+    """Save issue state for a review cycle."""
+    state_file = get_issue_state_file(tracked_review_id)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(state, indent=2))
+
+
+def update_issue_state(
+    tracked_review_id: str,
+    current_issues: list[dict[str, Any]],
+    iteration: int,
+) -> None:
+    """Update issue state after a review iteration."""
+    state = load_issue_state(tracked_review_id)
+    issues = state.get("issues", {})
+
+    # Track seen issues in this iteration
+    seen_keys = set()
+
+    for issue in current_issues:
+        key = issue_key(tracked_review_id, issue)
+        seen_keys.add(key)
+
+        if key in issues:
+            # Update existing issue
+            issues[key]["last_seen_iteration"] = iteration
+        else:
+            # New issue
+            issues[key] = {
+                "status": "open",
+                "file": issue.get("file", ""),
+                "lines": issue.get("lines", ""),
+                "category": issue.get("category", ""),
+                "severity": issue.get("severity", ""),
+                "why": issue.get("why", ""),
+                "fix_hint": issue.get("fix", ""),
+                "first_seen_iteration": iteration,
+                "last_seen_iteration": iteration,
+            }
+
+    # Mark previously open issues as fixed if not seen
+    for key, issue_data in issues.items():
+        if issue_data["status"] == "open" and key not in seen_keys:
+            issue_data["status"] = "fixed"
+
+    state["issues"] = issues
+    save_issue_state(tracked_review_id, state)
+
+
+def get_open_issues(tracked_review_id: str) -> list[dict[str, Any]]:
+    """Get only open issues for a review cycle."""
+    state = load_issue_state(tracked_review_id)
+    issues = state.get("issues", {})
+
+    open_issues = []
+    for issue_data in issues.values():
+        if issue_data["status"] == "open":
+            open_issues.append(issue_data)
+
+    return open_issues
 
 
 def should_refresh_model_cache() -> bool:
@@ -2806,6 +2923,40 @@ def get_cumulative_usage() -> dict[str, Any]:
     return stats
 
 
+def get_scoped_session(
+    project_root: str,
+    git_branch: str,
+    tracked_review_id: str,
+) -> SessionState | None:
+    """Get session scoped by project_root, git_branch, and tracked_review_id."""
+    SESSION_DIR.mkdir(parents=True, exist_ok=True)
+
+    candidates: list[SessionState] = []
+    for session_file in SESSION_DIR.glob("*/session_state.json"):
+        try:
+            data = json.loads(session_file.read_text())
+            sess = SessionState(**data)
+        except Exception:
+            continue
+
+        if sess.status != "in_progress":
+            continue
+        if sess.project_root != project_root:
+            continue
+        if sess.git_branch != git_branch:
+            continue
+        if sess.tracked_review_id != tracked_review_id:
+            continue
+
+        candidates.append(sess)
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda s: s.last_used_at, reverse=True)
+    return candidates[0]
+
+
 def get_latest_session() -> SessionState | None:
     """Get the most recent session (for --session continue)."""
     if not SESSION_DIR.exists():
@@ -3874,21 +4025,34 @@ async def review_loop(
        c. Repeat until clean or max iterations
     3. Return final report
     """
-    # Initialize session
-    # Note: Don't pre-generate session IDs - let Kilo create them
-    # We'll capture the session ID from Kilo's response and use it for subsequent calls
-    if config.session_id == "continue":
-        existing = get_latest_session()
-        if existing and existing.status == "in_progress":
-            config.session_id = existing.session_id
-            print(f"Continuing session: {config.session_id}", file=sys.stderr)
-        else:
-            config.session_id = None  # Let Kilo create new session
-    elif not config.session_id:
-        config.session_id = None  # Let Kilo create new session
+    # Initialize session with scoped resolution
+    project_root = str(get_project_root())
+    git_branch = get_current_git_branch()
 
-    # Track the session ID we'll use for persistence (will be set after first Kilo call)
-    local_session_id = config.session_id or f"local_{uuid.uuid4().hex[:16]}"
+    if config.session_id == "continue":
+        if not hasattr(config, "tracked_review_id") or not config.tracked_review_id:
+            raise ValueError("--tracked-review-id is required with --session continue")
+
+        existing = get_scoped_session(
+            project_root=project_root,
+            git_branch=git_branch,
+            tracked_review_id=config.tracked_review_id,
+        )
+
+        if existing:
+            config.session_id = existing.session_id
+            print(f"Continuing scoped session: {config.session_id}", file=sys.stderr)
+            print(f"  Project: {project_root}", file=sys.stderr)
+            print(f"  Branch: {git_branch}", file=sys.stderr)
+            print(f"  Review ID: {config.tracked_review_id}", file=sys.stderr)
+        else:
+            config.session_id = f"review_{uuid.uuid4().hex[:12]}"
+            print(f"No existing session found, creating new: {config.session_id}", file=sys.stderr)
+    elif not config.session_id:
+        config.session_id = f"review_{uuid.uuid4().hex[:12]}"
+
+    # Track the session ID we'll use for persistence
+    local_session_id = config.session_id
 
     # ==========================================================================
     # TIERED MODEL ROUTING (Cost-Aware Escalation)
@@ -3978,6 +4142,9 @@ async def review_loop(
         iteration=0,
         status="in_progress",
         usage={},
+        project_root=project_root,
+        git_branch=git_branch,
+        tracked_review_id=getattr(config, "tracked_review_id", None),
     )
 
     try:
@@ -4631,6 +4798,10 @@ Examples:
         "--fix-agent", default="code", choices=list(VALID_AGENTS), help="Agent for fix phase"
     )
     common.add_argument("--session", help="Session ID (use 'continue' for latest)")
+    common.add_argument(
+        "--tracked-review-id",
+        help="Stable review cycle ID used to scope session continuation",
+    )
     common.add_argument(
         "--output", default="text", choices=["json", "text", "markdown"], help="Output format"
     )

@@ -1,6 +1,6 @@
 # Kilo Token-Lean Workflow Guide
 
-**Last Updated:** 2026-03-17  
+**Last Updated:** 2026-03-17
 **Status:** Production Ready
 
 ## Overview
@@ -122,6 +122,64 @@ python scripts/kilo_code_review.py review <files> \
 - Context from unmodified code is essential
 - Diff-only mode produces incomplete reviews
 
+### Recommended Workflow (Staged Review)
+
+**Use `staged` for the main reviewer surface instead of `diff_only`:**
+
+```bash
+# 1. Coder implements
+# 2. Run final_gate.py (deterministic checks)
+python /opt/fabrik/scripts/final_gate.py
+
+# 3. Stage intended files only
+git add <files>
+
+# 4. Initial staged review
+export REVIEW_ID="feat-auth-$(date +%Y%m%d)"
+python scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "Brief micro-spec" \
+  --review-agent ask \
+  --output json
+
+# 5. Coder fixes issues
+
+# 6. Verify fixes (lighter than full review)
+python scripts/kilo_code_review.py review \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --verify-mode \
+  --fixes-description "Fixed auth validation edge case" \
+  --review-agent ask \
+  --output json
+
+# 7. Repeat verify if needed
+
+# 8. Run final_gate.py again
+python /opt/fabrik/scripts/final_gate.py
+
+# 9. Commit
+git commit -m "feat: implement auth validation"
+```
+
+### Scoped Session Continuation
+
+**Sessions are now scoped by:**
+- **Project root** (git repository)
+- **Git branch** (prevents cross-branch pollution)
+- **Tracked review ID** (stable cycle identifier)
+
+**Required for continuation:**
+```bash
+--session continue --tracked-review-id "$REVIEW_ID"
+```
+
+**Without `--tracked-review-id`, continuation will fail:**
+```
+ValueError: --tracked-review-id is required with --session continue
+```
+
 ### Daily Usage Pattern
 
 ```bash
@@ -131,9 +189,10 @@ python scripts/kilo_code_review.py review <files> \
   --review-agent ask \
   --output json
 
-# Continue session if issues found
+# Continue session if issues found (REQUIRES tracked-review-id)
 python scripts/kilo_code_review.py review <files> \
   --session continue \
+  --tracked-review-id "$REVIEW_ID" \
   --output json
 
 # Repeat until verdict=PASS (max 5 iterations recommended)
@@ -257,7 +316,7 @@ export KILO_HARD_TIMEOUT=2400
 
 ### "Kilo timeout" vs "Idle timeout"
 
-**Idle timeout (⏳):** No output for 120s → process hung  
+**Idle timeout (⏳):** No output for 120s → process hung
 **Hard timeout:** Absolute max runtime exceeded (1200s)
 
 Both are retried automatically (up to MAX_RETRIES).
@@ -288,11 +347,219 @@ Both are retried automatically (up to MAX_RETRIES).
 
 ## Production Status
 
-**Version:** Commit 5a1fcab  
-**Status:** ✅ PRODUCTION READY  
-**Token Efficiency:** ~75% reduction vs. previous defaults  
-**Reliability:** Monitors process health, no premature kills  
-**State Safety:** No config leaks across iterations  
+**Version:** Commit 5a1fcab
+**Status:** ✅ PRODUCTION READY
+**Token Efficiency:** ~75% reduction vs. previous defaults
+**Reliability:** Monitors process health, no premature kills
+**State Safety:** No config leaks across iterations
+
+---
+
+---
+
+## Issue-State Persistence
+
+**Automatic issue tracking across iterations:**
+
+### Storage Location
+```
+.droid/reviews/<tracked_review_id>_issues.json
+```
+
+### Issue Lifecycle
+
+| Status | Meaning |
+|--------|---------|
+| `open` | Issue still present in latest review |
+| `fixed` | Previously open, now absent from review |
+| `rejected` | Manually marked as false positive |
+
+### Issue Key Generation
+
+Issues are fingerprinted by:
+- `tracked_review_id`
+- `file`
+- `lines`
+- `category`
+- `why` (first 120 chars)
+
+### Workflow Integration
+
+```bash
+# Get only open issues for coder feedback
+python -c "
+from scripts.kilo_code_review import get_open_issues
+issues = get_open_issues('$REVIEW_ID')
+for issue in issues:
+    print(f'{issue[\"file\"]}:{issue[\"lines\"]} - {issue[\"why\"]}')
+"
+```
+
+**Benefits:**
+- No duplicate issue reporting across iterations
+- Tracks when issues are fixed
+- Provides historical context
+- Enables focused coder prompts (open issues only)
+
+---
+
+## Micro-Spec Format (Plan Input)
+
+**Pass concise specs, not full plans:**
+
+### Recommended Format
+
+```text
+Objective:
+<one sentence>
+
+Non-goals:
+- ...
+- ...
+
+Requirements:
+REQ-1: ...
+REQ-2: ...
+REQ-3: ...
+
+Acceptance checks:
+- ...
+- ...
+
+Touched modules:
+- path/a
+- path/b
+```
+
+### DO NOT Pass
+
+- Brainstorm text
+- Roadmap sections
+- Rationale/history
+- Alternatives considered
+- Long architectural discussions
+
+**Why:** The script extracts numbered requirements (`REQ-*`, bullets) for plan coverage validation. Long plans inflate prompt size without adding review value.
+
+---
+
+## Semantic Batching (Caller Responsibility)
+
+**Group files by subsystem before calling the script:**
+
+### Recommended Buckets
+
+```bash
+# Auth/Security files
+python scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "Auth module spec" \
+  $(git diff --cached --name-only | grep -E 'auth|security')
+
+# Backend/API files
+python scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "API spec" \
+  $(git diff --cached --name-only | grep -E 'api|routes')
+
+# Frontend/UI files
+python scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "UI spec" \
+  $(git diff --cached --name-only | grep -E 'frontend|components')
+```
+
+**Rule:** If >5 staged files span unrelated areas, do NOT send them as one mixed batch.
+
+**Why:** The script batches numerically. Better semantic grouping happens in the caller.
+
+---
+
+## Reviewer Setting Freeze (Per Cycle)
+
+**Keep settings constant within one `tracked_review_id`:**
+
+### Frozen Settings
+
+- `review_agent`
+- `strategy`
+- `variant`
+- Optional: `model`
+
+### Enforcement Pattern
+
+```bash
+# First review in cycle
+export REVIEW_ID="feat-xyz"
+export REVIEW_AGENT="ask"
+export STRATEGY="economy"
+export VARIANT="high"
+
+python scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --review-agent "$REVIEW_AGENT" \
+  --strategy "$STRATEGY" \
+  --variant "$VARIANT" \
+  --plan "..."
+
+# Subsequent reviews MUST use same settings
+python scripts/kilo_code_review.py review \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --review-agent "$REVIEW_AGENT" \
+  --strategy "$STRATEGY" \
+  --variant "$VARIANT" \
+  --verify-mode
+```
+
+**Why:** Prevents reviewer drift between cycles, ensures consistent review quality.
+
+---
+
+## Verify Mode (Intermediate Loops)
+
+**Do NOT rerun full review after every small fix:**
+
+### When to Use Verify
+
+- After minor fixes (1-3 issues)
+- When fix is localized to one module
+- When previous review was recent (<1 hour)
+
+### When to Use Full Review
+
+- Auth/security/migrations/infra changed
+- Fix touched multiple modules
+- Previous findings were architectural
+- >24 hours since last review
+
+### Usage Pattern
+
+```bash
+# First pass: full staged review
+python scripts/kilo_code_review.py staged \
+  --tracked-review-id "$REVIEW_ID" \
+  --plan "..." \
+  --output json
+
+# Middle passes: verify only
+python scripts/kilo_code_review.py review \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --verify-mode \
+  --fixes-description "Fixed validation edge case in auth.py:45" \
+  --output json
+
+# Final risky pass: staged again if needed
+python scripts/kilo_code_review.py staged \
+  --session continue \
+  --tracked-review-id "$REVIEW_ID" \
+  --output json
+```
 
 ---
 
@@ -300,4 +567,4 @@ Both are retried automatically (up to MAX_RETRIES).
 
 - Implementation: `scripts/kilo_code_review.py`
 - CHANGELOG: Entry dated 2026-03-17
-- Commit history: efb2763 → 36f361d → 6640382 → 5a1fcab
+- Commit history: efb2763 → 36f361d → 6640382 → 5a1fcab → 9324b32
