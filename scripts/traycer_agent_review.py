@@ -32,10 +32,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from scripts.kilo_code_review import KiloReviewConfig, run_review
+from scripts.kilo_code_review import KiloReviewConfig, review_loop
 
 
 def run_final_gate() -> dict[str, Any]:
@@ -139,39 +136,22 @@ async def run_kilo_review(
     config = KiloReviewConfig(
         traycer_plan=task_description,
         review_agent="ask",  # Use Kilo's default reviewer agent
-        fix_agent=None,
         session_id=None,  # Let Kilo create new session (separate from coder)
         max_iterations=1,  # Single review pass (agent will fix and re-run if needed)
         review_mode="diff_only",  # Review only diff
         output_format="json",
     )
 
-    # Run review (only 1 iteration - agent handles fixing)
-    review_result = await run_review(
-        files=changed_files,
-        config=config,
-        iteration=1,
-        previous_issues=None,
-    )
+    review_result = await review_loop(files=changed_files, config=config)
 
     return {
         "verdict": review_result.verdict,
         "summary": review_result.summary,
-        "issues": [
-            {
-                "severity": issue.severity,
-                "category": issue.category,
-                "file": issue.file,
-                "lines": issue.lines,
-                "why": issue.why,
-                "fix_hint": issue.fix_hint,
-            }
-            for issue in review_result.issues
-        ],
+        "issues": review_result.remaining_issues,
         "session_id": review_result.session_id or "unknown",
-        "cost": review_result.cost,
-        "input_tokens": review_result.input_tokens,
-        "output_tokens": review_result.output_tokens,
+        "cost": review_result.usage.get("cost_usd", 0.0),
+        "input_tokens": review_result.usage.get("input_tokens", 0),
+        "output_tokens": review_result.usage.get("output_tokens", 0),
     }
 
 
@@ -409,7 +389,7 @@ async def main() -> int:
         final_status = "PASSED"
         exit_code = 0
 
-    result = {
+    result: dict[str, Any] = {
         "workflow": "traycer_agent_auto_review",
         "coder_session_id": args.session_id,
         "task": args.task,

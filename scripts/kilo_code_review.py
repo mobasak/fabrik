@@ -1833,6 +1833,7 @@ def build_kilo_command(
     variant: str,
     session_id: str | None = None,
     file_paths: list[Path] | None = None,
+    prompt: str | None = None,
 ) -> list[str]:
     """Build the kilo CLI command with strict input validation."""
     import re
@@ -1892,6 +1893,10 @@ def build_kilo_command(
                     file=sys.stderr,
                 )
                 continue
+
+    # Add prompt as positional argument (Kilo CLI expects prompt as argument, not stdin)
+    if prompt:
+        args.append(prompt)
 
     return args
 
@@ -1981,6 +1986,13 @@ def parse_kilo_jsonl(output: str) -> dict[str, Any]:
                 session_id = obj["session_id"]
 
             event_type = obj.get("type", "")
+
+            # Handle error events from Kilo (e.g., network issues, model not found)
+            if event_type == "error":
+                error_data = obj.get("error", {})
+                error_name = error_data.get("name", "UnknownError")
+                error_msg = error_data.get("data", {}).get("message", str(error_data))
+                raise RuntimeError(f"Kilo API error ({error_name}): {error_msg}")
 
             if event_type == "text":
                 # Text can be in obj["text"] or obj["part"]["text"]
@@ -2189,30 +2201,26 @@ async def run_kilo(
         variant=config.variant,
         session_id=config.session_id or "",
         file_paths=file_paths,
+        prompt=prompt,  # Pass prompt as positional argument
     )
 
     if config.verbose:
-        print(f"[KILO] Running: {' '.join(cmd)}", file=sys.stderr)
+        print(
+            f"[KILO] Running: {' '.join(cmd[:10])}... ({len(prompt)} char prompt)", file=sys.stderr
+        )
 
     # Retry loop for transient failures
     last_exception: Exception | None = None
     for attempt in range(MAX_RETRIES):
         try:
-            # Start monitored process
+            # Start monitored process (no stdin needed - prompt is in args)
             process = subprocess.Popen(
                 cmd,
-                stdin=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 shell=False,
             )
-
-            # Write prompt to stdin
-            try:
-                process.stdin.write(prompt.encode("utf-8"))
-                process.stdin.close()
-            except (BrokenPipeError, OSError):
-                pass  # Process may have exited early
 
             # Monitor in executor for async compatibility
             import concurrent.futures

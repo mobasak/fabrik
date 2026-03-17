@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Kilo code review subprocess and error handling (2026-03-17)
+
+**What:** Fixed two critical issues causing kilo_code_review.py to hang indefinitely:
+
+1. **Prompt passing:** Changed from stdin pipe to positional argument (Kilo CLI expects prompt as argument)
+2. **Error handling:** Added parsing for `type: "error"` events from Kilo API to surface actual error messages
+
+**Root cause:** When Kilo API has connectivity issues, it returns `{"type":"error",...}` but the parser ignored these and waited for `step_finish` event that never came, causing 120s idle timeout.
+
+**Files:**
+- `scripts/kilo_code_review.py` - Fixed `build_kilo_command()` to accept prompt, `run_kilo()` to pass prompt as arg, `parse_kilo_jsonl()` to handle error events
+
+### Fixed - Traycer review import and verify-command documentation (2026-03-17)
+
+**What:** Fixed the Traycer auto-review wrapper to call the actual `review_loop()` API, and corrected stale review examples that still documented nonexistent `review --verify-mode` flags.
+
+**Files:**
+- `scripts/traycer_agent_review.py` - Replaced broken `run_review` import/path hack with direct `review_loop()` usage and proper `FinalReport` mapping
+- `docs/guides/DEVELOPMENT_WORKFLOW.md` - Replaced invalid `review --verify-mode --fixes-description` example with `verify --fixes`
+- `docs/reference/kilo/KILO-TOKEN-LEAN-WORKFLOW.md` - Updated verify-loop examples to use the real `verify` subcommand and `--fixes`
+
 ### Fixed - Scaffold .droid/ gitignore refactoring and propagation (2026-03-17)
 
 **What:** Complete refactoring of .droid/ gitignore coverage with DRY constants, root .gitignore patching, and propagation to all 50 projects.

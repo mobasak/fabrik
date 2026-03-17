@@ -146,11 +146,10 @@ python scripts/kilo_code_review.py staged \
 # 5. Coder fixes issues
 
 # 6. Verify fixes (lighter than full review)
-python scripts/kilo_code_review.py review \
+python scripts/kilo_code_review.py verify <changed_files> \
   --session continue \
   --tracked-review-id "$REVIEW_ID" \
-  --verify-mode \
-  --fixes-description "Fixed auth validation edge case" \
+  --fixes "Fixed auth validation edge case" \
   --review-agent ask \
   --output json
 
@@ -507,13 +506,13 @@ python scripts/kilo_code_review.py staged \
   --plan "..."
 
 # Subsequent reviews MUST use same settings
-python scripts/kilo_code_review.py review \
+python scripts/kilo_code_review.py verify <changed_files> \
   --session continue \
   --tracked-review-id "$REVIEW_ID" \
   --review-agent "$REVIEW_AGENT" \
   --strategy "$STRATEGY" \
   --variant "$VARIANT" \
-  --verify-mode
+  --fixes "Describe what changed"
 ```
 
 **Why:** Prevents reviewer drift between cycles, ensures consistent review quality.
@@ -547,11 +546,10 @@ python scripts/kilo_code_review.py staged \
   --output json
 
 # Middle passes: verify only
-python scripts/kilo_code_review.py review \
+python scripts/kilo_code_review.py verify <changed_files> \
   --session continue \
   --tracked-review-id "$REVIEW_ID" \
-  --verify-mode \
-  --fixes-description "Fixed validation edge case in auth.py:45" \
+  --fixes "Fixed validation edge case in auth.py:45" \
   --output json
 
 # Final risky pass: staged again if needed

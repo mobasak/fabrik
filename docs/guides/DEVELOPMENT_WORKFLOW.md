@@ -198,12 +198,11 @@ python scripts/kilo_code_review.py staged \
   --review-agent ask \
   --output json
 
-# Intermediate passes: verify-mode (lighter)
-python scripts/kilo_code_review.py review <changed_files> \
+# Intermediate passes: verify command (lighter)
+python scripts/kilo_code_review.py verify <changed_files> \
   --session continue \
   --tracked-review-id "$REVIEW_ID" \
-  --verify-mode \
-  --fixes-description "What was fixed" \
+  --fixes "What was fixed" \
   --review-agent ask \
   --output json
 
@@ -224,7 +223,7 @@ python scripts/kilo_code_review.py staged \
 
 **Review Mode Selection:**
 - **staged** (recommended): Initial pass, final risky-branch check
-- **verify-mode**: Intermediate fix loops (cheaper, focused on fixes)
+- **verify**: Intermediate fix loops (cheaper, focused on fixes)
 - **review <files>**: Manual WIP review, deliberate partial review only
 - **--review-mode full**: Narrow high-risk files only
 
@@ -232,7 +231,7 @@ python scripts/kilo_code_review.py staged \
 1. **Stage intended files** — review commit candidate
 2. **Initial staged review** — check `verdict` and `issues`
 3. Fix ALL open issues (BLOCKER, MAJOR, MINOR) — coder fixes, not Kilo
-4. **Verify with --verify-mode** — lighter follow-up
+4. **Verify with `verify`** — lighter follow-up
 5. Repeat verify until `verdict=PASS` (max 5 iterations)
 6. **Final staged review** — only if risky/cross-module changes
 
