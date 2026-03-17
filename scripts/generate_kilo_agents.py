@@ -373,12 +373,18 @@ SESSION_TITLE="${{TRAYCER_PHASE_ID:-${{TRAYCER_TASK_ID:-kilo-session}}}}"
 # Use kilo_terminal_runner.py if available (rich TUI with proper ANSI handling)
 # Fall back to tee-based streaming if runner unavailable
 RUNNER_SCRIPT="/opt/fabrik/scripts/kilo_terminal_runner.py"
+RUNNER_PYTHON="/opt/fabrik/.venv/bin/python3"
 
-if [ -f "$RUNNER_SCRIPT" ] && command -v python3 >/dev/null 2>&1; then
+# Fall back to system python3 if venv not available
+if [ ! -x "$RUNNER_PYTHON" ]; then
+    RUNNER_PYTHON="python3"
+fi
+
+if [ -f "$RUNNER_SCRIPT" ] && command -v "$RUNNER_PYTHON" >/dev/null 2>&1; then
     # Use rich terminal runner (handles ANSI stripping for capture, PTY for proper output)
     # Shell timeout wraps the runner; runner's --timeout is display-only
-    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using kilo_terminal_runner.py" >&2
-    timeout "$TIMEOUT" python3 "$RUNNER_SCRIPT" \\
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using kilo_terminal_runner.py with $RUNNER_PYTHON" >&2
+    timeout "$TIMEOUT" "$RUNNER_PYTHON" "$RUNNER_SCRIPT" \\
         --output "$OUTPUT_FILE" \\
         --agent "{tier_name}{rank:02d}-{model_normalized}" \\
         --model "{full_name}" \\

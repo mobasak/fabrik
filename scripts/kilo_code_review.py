@@ -1430,8 +1430,17 @@ def update_issue_state(
     tracked_review_id: str,
     current_issues: list[dict[str, Any]],
     iteration: int,
+    allow_auto_fix_close: bool = False,
 ) -> None:
-    """Update issue state after a review iteration."""
+    """
+    Update issue state after a review iteration.
+
+    Args:
+        tracked_review_id: Review cycle ID
+        current_issues: Issues found in this iteration
+        iteration: Current iteration number
+        allow_auto_fix_close: If True, mark unseen issues as fixed (safe only for full-scope reviews)
+    """
     state = load_issue_state(tracked_review_id)
     issues = state.get("issues", {})
 
@@ -1459,10 +1468,11 @@ def update_issue_state(
                 "last_seen_iteration": iteration,
             }
 
-    # Mark previously open issues as fixed if not seen
-    for key, issue_data in issues.items():
-        if issue_data["status"] == "open" and key not in seen_keys:
-            issue_data["status"] = "fixed"
+    # Mark previously open issues as fixed if not seen (only when safe)
+    if allow_auto_fix_close:
+        for key, issue_data in issues.items():
+            if issue_data["status"] == "open" and key not in seen_keys:
+                issue_data["status"] = "fixed"
 
     state["issues"] = issues
     save_issue_state(tracked_review_id, state)
@@ -4154,7 +4164,7 @@ async def review_loop(
         usage={},
         project_root=project_root,
         git_branch=git_branch,
-        tracked_review_id=getattr(config, "tracked_review_id", None),
+        tracked_review_id=config.tracked_review_id,
     )
 
     try:
@@ -4307,10 +4317,14 @@ async def review_loop(
 
             # Update issue-state persistence
             if config.tracked_review_id:
+                # Only auto-close unseen issues for full-scope auto-fix reviews
+                # Conservative: do NOT auto-close for verify mode, partial scope, or batched runs
+                allow_auto_close = config.auto_fix and not config.verify_mode
                 update_issue_state(
                     tracked_review_id=config.tracked_review_id,
                     current_issues=[i.to_dict() for i in review_result.issues],
                     iteration=iteration,
+                    allow_auto_fix_close=allow_auto_close,
                 )
 
             # Check if clean
@@ -5133,7 +5147,7 @@ async def main() -> int:
         review_agent=args.review_agent,
         fix_agent=args.fix_agent,
         session_id=args.session,
-        tracked_review_id=getattr(args, "tracked_review_id", None),
+        tracked_review_id=args.tracked_review_id,
         output_format=args.output,
         verbose=args.verbose,
         traycer_plan=load_plan(getattr(args, "plan", None)),

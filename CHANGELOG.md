@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Strengthen config typing and prevent aggressive issue auto-close (2026-03-17)
+
+**What:** Final fixes to remove dynamic attribute access and prevent issue state corruption on partial/batched iterations.
+
+**Fixes:**
+- Removed `getattr(config, "tracked_review_id", None)` in SessionState creation, use direct `config.tracked_review_id`
+- Removed `getattr(args, "tracked_review_id", None)` in config construction, use direct `args.tracked_review_id`
+- Added `allow_auto_fix_close` parameter to `update_issue_state()` (default: False)
+- Gate auto-close logic: only mark unseen issues as "fixed" when `allow_auto_fix_close=True`
+- Call site uses `allow_auto_close = config.auto_fix and not config.verify_mode` (conservative)
+
+**Impact:**
+- Config typing fully enforced, no dynamic attribute lookups
+- Prevents false "fixed" status on partial/batched/verify-mode iterations
+- Safe auto-close only for full-scope auto-fix reviews
+- Issue state remains accurate across different review contexts
+
+**Files:**
+- `scripts/kilo_code_review.py` - Removed getattr() calls, added conservative auto-close gating
+
 ### Fixed - Complete session scoping and issue persistence wiring (2026-03-17)
 
 **What:** Fixed incomplete config wiring, issue persistence field bug, and missing loop integration for scoped sessions and issue tracking.
