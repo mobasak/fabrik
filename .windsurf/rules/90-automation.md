@@ -6,7 +6,7 @@ trigger: always_on
 
 # Automation Rules
 
-**Activation:** Manual (use `@90-automation` to invoke)
+**Activation:** Always On
 **Purpose:** Traycer YOLO automation, Fabrik skills
 
 ---

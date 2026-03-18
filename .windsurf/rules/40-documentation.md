@@ -1,10 +1,10 @@
 ---
-trigger: always_on
----
-# Documentation Rules
-
 activation: glob
 globs: ["*.md", "docs/**/*", "specs/**/*"]
+description: Documentation rules, plan documents, writing style
+---
+
+# Documentation Rules
 
 ---
 
