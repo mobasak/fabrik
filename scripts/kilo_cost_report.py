@@ -136,48 +136,6 @@ def generate_filetype_breakdown(metrics: list[dict[str, Any]]) -> list[dict[str,
     return breakdown
 
 
-def format_report_text(summary: dict[str, Any], model_breakdown: list[dict[str, Any]]) -> str:
-    """Format report as human-readable text."""
-    lines = []
-    lines.append("=" * 60)
-    lines.append("KILO COST REPORT")
-    lines.append("=" * 60)
-    lines.append("")
-    lines.append("SUMMARY")
-    lines.append("-" * 60)
-    lines.append(f"Total Runs:        {summary['total_runs']}")
-    lines.append(f"Total Cost:        ${summary['total_cost']:.2f}")
-    lines.append(f"  Review Cost:     ${summary['review_cost']:.2f}")
-    lines.append(f"  Fix Cost:        ${summary['fix_cost']:.2f}")
-    lines.append(f"Total Tokens:      {summary['total_tokens']:,}")
-    lines.append(f"Avg Cost/Run:      ${summary['avg_cost_per_run']:.4f}")
-    lines.append("")
-    lines.append("MODEL BREAKDOWN")
-    lines.append("-" * 60)
-    lines.append(f"{'Model':<40} {'Runs':<8} {'Cost':<10} {'Avg/Run':<10}")
-    lines.append("-" * 60)
-    for model in model_breakdown:
-        lines.append(
-            f"{model['model']:<40} {model['runs']:<8} ${model['total_cost']:<9.2f} ${model['avg_cost_per_run']:<9.4f}"
-        )
-    lines.append("=" * 60)
-    return "\n".join(lines)
-
-
-def format_report_json(
-    summary: dict[str, Any],
-    model_breakdown: list[dict[str, Any]],
-    filetype_breakdown: list[dict[str, Any]],
-) -> str:
-    """Format report as JSON."""
-    report = {
-        "summary": summary,
-        "by_model": model_breakdown,
-        "by_filetype": filetype_breakdown,
-    }
-    return json.dumps(report, indent=2)
-
-
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Analyze Kilo usage and costs")
@@ -230,7 +188,12 @@ def main() -> int:
 
     # Output
     if args.format == "json":
-        print(format_report_json(summary, model_breakdown, filetype_breakdown))
+        report = {
+            "summary": summary,
+            "by_model": model_breakdown,
+            "by_filetype": filetype_breakdown,
+        }
+        print(json.dumps(report, indent=2))
     else:
         # Text output: show summary always, model/filetype based on flags
         lines = []

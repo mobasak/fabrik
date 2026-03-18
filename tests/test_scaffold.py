@@ -86,14 +86,14 @@ class TestScaffoldGitignoreCoverage:
         "project_type",
         ["python-api", "node-api", "file-api", "file-worker", "wordpress", "docusaurus"],
     )
-    def test_scaffold_uses_droid_gitignore_block(self, project_type, tmp_path, monkeypatch):
+    def test_scaffold_uses_droid_gitignore_block(self, project_type, tmp_path):
         """Verify all 6 scaffold types use _DROID_GITIGNORE_BLOCK constant."""
-        # Scaffold the project (creates in CWD)
-        monkeypatch.chdir(tmp_path)
+        # Scaffold the project with explicit base to avoid writing to /opt/
         create_project(
             name="test-project",
             project_type=project_type,
             description="Test project",
+            base=tmp_path,
         )
 
         project_dir = tmp_path / "test-project"
@@ -248,13 +248,13 @@ class TestFixProjectRootGitignorePatch:
 class TestTracerReportsScaffolding:
     """Test traycer-reports/ directory scaffolding."""
 
-    def test_traycer_reports_created_in_scaffold(self, tmp_path, monkeypatch):
+    def test_traycer_reports_created_in_scaffold(self, tmp_path):
         """Verify traycer-reports/ is created with correct .gitignore."""
-        monkeypatch.chdir(tmp_path)
         create_project(
             name="test-project",
             project_type="python-api",
             description="Test",
+            base=tmp_path,
         )
 
         project_dir = tmp_path / "test-project"
@@ -269,13 +269,13 @@ class TestTracerReportsScaffolding:
         assert "*.md" in content
         assert "!.gitignore" in content
 
-    def test_droid_gitignore_allows_traycer_reports(self, tmp_path, monkeypatch):
+    def test_droid_gitignore_allows_traycer_reports(self, tmp_path):
         """Verify .droid/.gitignore allows traycer-reports/.gitignore tracking."""
-        monkeypatch.chdir(tmp_path)
         create_project(
             name="test-project",
             project_type="python-api",
             description="Test",
+            base=tmp_path,
         )
 
         project_dir = tmp_path / "test-project"

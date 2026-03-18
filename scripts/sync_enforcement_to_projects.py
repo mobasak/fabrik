@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
-"""Sync enforcement scripts to all /opt projects for Fabrik compliance."""
+"""Sync enforcement scripts to all /opt projects for Fabrik compliance.
 
+Supports:
+- --dry-run: Report what would be copied without writing anything
+- --backup: Create timestamped backups before overwriting
+- --force: Skip hash comparison and always overwrite
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
 import shutil
 import sys
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 FABRIK_ROOT = Path("/opt/fabrik")
@@ -12,42 +24,247 @@ OPT_ROOT = Path("/opt")
 CORE_SCRIPTS = ["final_gate.py", "kilo_code_review.py", "docs_updater.py", "update_agents_toc.py"]
 
 
-def sync_scripts_to_project(project_dir: Path) -> tuple[bool, str]:
-    """Sync all enforcement scripts to a project."""
+@dataclass
+class SyncResult:
+    """Result of syncing a single file."""
+
+    action: str  # COPY, SKIP, WARN, BACKUP, ERROR
+    source: Path
+    destination: Path
+    reason: str = ""
+
+
+@dataclass
+class ProjectSyncResult:
+    """Result of syncing all files to a project."""
+
+    project: Path
+    success: bool
+    message: str
+    files: list[SyncResult] = field(default_factory=list)
+
+
+def compute_file_hash(path: Path) -> str:
+    """Compute MD5 hash of a file."""
+    hasher = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def create_backup(path: Path) -> Path:
+    """Create timestamped backup of a file."""
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_path = path.with_suffix(f"{path.suffix}.backup.{timestamp}")
+    shutil.copy2(path, backup_path)
+    return backup_path
+
+
+def sync_single_file(
+    source: Path,
+    destination: Path,
+    *,
+    dry_run: bool = False,
+    backup: bool = False,
+    force: bool = False,
+) -> SyncResult:
+    """Sync a single file with hash comparison and optional backup.
+
+    Args:
+        source: Source file path
+        destination: Destination file path
+        dry_run: If True, report only without writing
+        backup: If True, create timestamped backup before overwriting
+        force: If True, skip hash comparison and always overwrite
+
+    Returns:
+        SyncResult with action taken and details
+    """
+    # Destination doesn't exist - always copy
+    if not destination.exists():
+        if dry_run:
+            return SyncResult("COPY", source, destination, "new file")
+        shutil.copy2(source, destination)
+        return SyncResult("COPY", source, destination, "new file")
+
+    # --force: skip all checks, always overwrite
+    if force:
+        if dry_run:
+            return SyncResult("COPY", source, destination, "forced overwrite")
+        if backup:
+            backup_path = create_backup(destination)
+            shutil.copy2(source, destination)
+            return SyncResult("COPY", source, destination, f"forced (backup: {backup_path.name})")
+        shutil.copy2(source, destination)
+        return SyncResult("COPY", source, destination, "forced overwrite")
+
+    # Compare hashes
+    source_hash = compute_file_hash(source)
+    dest_hash = compute_file_hash(destination)
+
+    if source_hash == dest_hash:
+        return SyncResult("SKIP", source, destination, "identical")
+
+    # Hashes differ - check mtime
+    source_mtime = source.stat().st_mtime
+    dest_mtime = destination.stat().st_mtime
+
+    if dest_mtime > source_mtime:
+        return SyncResult("WARN", source, destination, "destination newer")
+
+    # Source is newer - proceed with copy
+    if dry_run:
+        return SyncResult("COPY", source, destination, "will overwrite")
+
+    if backup:
+        backup_path = create_backup(destination)
+        result = SyncResult(
+            "COPY", source, destination, f"overwritten (backup: {backup_path.name})"
+        )
+    else:
+        result = SyncResult("COPY", source, destination, "overwritten")
+
+    shutil.copy2(source, destination)
+    return result
+
+
+def sync_scripts_to_project(
+    project_dir: Path,
+    *,
+    dry_run: bool = False,
+    backup: bool = False,
+    force: bool = False,
+) -> ProjectSyncResult:
+    """Sync all enforcement scripts to a project.
+
+    Args:
+        project_dir: Target project directory
+        dry_run: If True, report only without writing
+        backup: If True, create timestamped backup before overwriting
+        force: If True, skip hash comparison and always overwrite
+
+    Returns:
+        ProjectSyncResult with detailed file-level results
+    """
     scripts_dir = project_dir / "scripts"
+    file_results: list[SyncResult] = []
+
+    # Create scripts directory if needed
+    if not dry_run:
+        try:
+            scripts_dir.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            return ProjectSyncResult(project_dir, False, "SKIP (no write permission)")
 
     try:
-        scripts_dir.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
-        return False, "SKIP (no write permission)"
-
-    try:
-        # Copy core scripts
+        # Sync core scripts
         for script_name in CORE_SCRIPTS:
-            fabrik_script = FABRIK_ROOT / "scripts" / script_name
-            if fabrik_script.exists():
-                shutil.copy(fabrik_script, scripts_dir / script_name)
+            source = FABRIK_ROOT / "scripts" / script_name
+            if source.exists():
+                destination = scripts_dir / script_name
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
 
-        # Copy enforcement directory
+        # Sync enforcement directory
         fabrik_enforcement = FABRIK_ROOT / "scripts" / "enforcement"
         project_enforcement = scripts_dir / "enforcement"
+
         if fabrik_enforcement.exists():
-            shutil.copytree(fabrik_enforcement, project_enforcement, dirs_exist_ok=True)
+            if not dry_run:
+                project_enforcement.mkdir(parents=True, exist_ok=True)
 
-        return True, "OK"
+            for source in fabrik_enforcement.rglob("*"):
+                if source.is_file():
+                    relative = source.relative_to(fabrik_enforcement)
+                    destination = project_enforcement / relative
+
+                    if not dry_run:
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+
+                    result = sync_single_file(
+                        source, destination, dry_run=dry_run, backup=backup, force=force
+                    )
+                    file_results.append(result)
+
+        # Summarize
+        copy_count = sum(1 for r in file_results if r.action in ("COPY", "BACKUP"))
+        skip_count = sum(1 for r in file_results if r.action == "SKIP")
+        warn_count = sum(1 for r in file_results if r.action == "WARN")
+
+        if warn_count > 0:
+            msg = f"OK ({copy_count} copied, {skip_count} skipped, {warn_count} warnings)"
+        else:
+            msg = f"OK ({copy_count} copied, {skip_count} skipped)"
+
+        return ProjectSyncResult(project_dir, True, msg, file_results)
+
     except PermissionError:
-        return False, "SKIP (no write permission)"
+        return ProjectSyncResult(project_dir, False, "SKIP (no write permission)", file_results)
     except Exception as e:
-        return False, str(e)
+        return ProjectSyncResult(project_dir, False, str(e), file_results)
 
 
-def main():
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Sync enforcement scripts to all /opt projects for Fabrik compliance.",
+        epilog="Examples:\n"
+        "  %(prog)s --dry-run     # Report what would be copied\n"
+        "  %(prog)s --backup      # Create backups before overwriting\n"
+        "  %(prog)s --force       # Force overwrite even if destination is newer\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would be copied without writing anything",
+    )
+    parser.add_argument(
+        "--backup",
+        action="store_true",
+        help="Create timestamped .backup.YYYYMMDD-HHMMSS copies before overwriting",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip hash comparison and always overwrite (for explicit full-sync)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show per-file details",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
     """Sync scripts to all /opt projects (excluding _* folders)."""
+    args = parse_args()
+
+    if args.dry_run:
+        print("DRY-RUN MODE: No files will be written\n")
+
+    # Folders to exclude (not real projects)
+    exclude_folders = {
+        ".factory",
+        ".ssh",
+        "web_scraper",  # Deprecated, use web-scraper
+    }
+
+    # Discover projects
     projects = []
     for project_dir in OPT_ROOT.iterdir():
         if not project_dir.is_dir():
             continue
         if project_dir.name.startswith("_"):
+            continue
+        if project_dir.name.startswith("."):
+            continue  # Skip all hidden folders
+        if project_dir.name in exclude_folders:
             continue
         if project_dir == FABRIK_ROOT:
             continue
@@ -58,19 +275,54 @@ def main():
 
     success_count = 0
     fail_count = 0
+    total_copied = 0
+    total_skipped = 0
+    total_warnings = 0
 
     for project_dir in sorted(projects):
-        success, msg = sync_scripts_to_project(project_dir)
-        status = "✓" if success else "✗"
-        print(f"{status} {project_dir.name:40} {msg}")
+        result = sync_scripts_to_project(
+            project_dir,
+            dry_run=args.dry_run,
+            backup=args.backup,
+            force=args.force,
+        )
 
-        if success:
+        status = "✓" if result.success else "✗"
+        print(f"{status} {project_dir.name:40} {result.message}")
+
+        # Always show safety decisions (SKIP/WARN), show all details in verbose mode
+        if result.files:
+            for fr in result.files:
+                # Always print safety decisions with canonical phrases
+                if fr.action == "WARN":
+                    print(f"  WARN (destination newer): {fr.destination.name}")
+                elif fr.action == "SKIP":
+                    print(f"  SKIP (identical): {fr.destination.name}")
+                elif args.verbose:
+                    action_icon = {
+                        "COPY": "  →",
+                        "BACKUP": "  ↻",
+                        "ERROR": "  ✗",
+                    }.get(fr.action, "  ?")
+                    print(f"{action_icon} {fr.destination.name}: {fr.reason}")
+
+        if result.success:
             success_count += 1
+            total_copied += sum(1 for r in result.files if r.action in ("COPY", "BACKUP"))
+            total_skipped += sum(1 for r in result.files if r.action == "SKIP")
+            total_warnings += sum(1 for r in result.files if r.action == "WARN")
         else:
             fail_count += 1
 
     print()
-    print(f"Results: {success_count} synced, {fail_count} failed")
+    summary = f"Results: {success_count} projects synced, {fail_count} failed"
+    summary += f" | Files: {total_copied} copied, {total_skipped} skipped"
+    if total_warnings > 0:
+        summary += f", {total_warnings} warnings (use --force to overwrite)"
+    print(summary)
+
+    if args.dry_run:
+        print("\nDRY-RUN: No files were modified")
 
     return 0 if fail_count == 0 else 1
 

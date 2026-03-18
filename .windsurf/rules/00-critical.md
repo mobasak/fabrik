@@ -189,6 +189,16 @@ Before I finish ANY coding task, I MUST verify:
 
 ---
 
+## Terminal Selection (CRITICAL)
+
+**NEVER use "legacy terminal" in Windsurf IDE** - it hangs on certain commands.
+
+When running commands, always use the standard terminal. If Windsurf shows "Using legacy terminal", the command may hang indefinitely. This is an IDE issue, not a code issue.
+
+**If a command appears stuck:** Cancel and re-run in a proper terminal.
+
+---
+
 ## Fast Context (Windsurf RAG)
 
 **Force quick codebase search:** `Cmd+Enter` (Mac) / `Ctrl+Enter` (Win/Linux)

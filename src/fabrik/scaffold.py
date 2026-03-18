@@ -1400,7 +1400,9 @@ def fix_project(
         # .droid/ structure dry_run reporting
         droid_dir = project_path / ".droid"
         droid_gitignore = droid_dir / ".gitignore"
-        if not droid_gitignore.exists() or droid_gitignore.read_text() != _DROID_DIR_GITIGNORE:
+        if not droid_gitignore.exists() or (
+            droid_gitignore.exists() and droid_gitignore.read_text() != _DROID_DIR_GITIGNORE
+        ):
             added.append(".droid/.gitignore (created/updated)")
 
         review_ctx_gitkeep = droid_dir / "review-context" / ".gitkeep"
@@ -1408,7 +1410,9 @@ def fix_project(
             added.append(".droid/review-context/.gitkeep")
 
         tr_gitignore = droid_dir / "traycer-reports" / ".gitignore"
-        if not tr_gitignore.exists() or tr_gitignore.read_text() != _TRAYCER_REPORTS_GITIGNORE:
+        if not tr_gitignore.exists() or (
+            tr_gitignore.exists() and tr_gitignore.read_text() != _TRAYCER_REPORTS_GITIGNORE
+        ):
             added.append(".droid/traycer-reports/.gitignore (created/updated)")
 
         # Root .gitignore dry_run reporting

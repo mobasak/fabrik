@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Dry-run and hash-based safety for sync_enforcement_to_projects (2026-03-18)
+
+**What:** Added safety features to prevent silent overwrites of newer files in child projects.
+
+**Changes:**
+1. Added `--dry-run` flag - reports what would be copied without writing
+2. Added `--backup` flag - creates timestamped `.backup.YYYYMMDD-HHMMSS` before overwriting
+3. Added `--force` flag - skips hash comparison for explicit full-sync
+4. Added MD5 hash comparison - skips identical files, warns on newer destinations
+5. Added `-v/--verbose` flag for per-file details
+
+**Files:**
+- `scripts/sync_enforcement_to_projects.py` - complete rewrite with safety features
+
 ### Fixed - High-risk path init available to programmatic callers (2026-03-18)
 
 **What:** Made `_init_high_risk_paths()` available to both CLI and programmatic flows (like `review_loop()`) without import-time side effects.

@@ -27,7 +27,10 @@ Options:
 import argparse
 import json
 import os
-import time
+import shutil
+import sys
+import tempfile
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -806,11 +809,6 @@ def main(dry_run: bool = False):
     active_scripts = load_active_agents()
     use_routing = len(active_scripts) > 0
 
-    # Create output directories (skip in dry-run)
-    if not dry_run:
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        DISABLED_DIR.mkdir(parents=True, exist_ok=True)
-
     # Sort agents by tier order using the sort key function
     # Order: Free (least capable) → Economy → Standard → Pro → Expert → Apex (most capable)
     agents_sorted = sorted(data["agents"], key=lambda a: get_tier_sort_key(a["agent_id"]))
@@ -820,53 +818,187 @@ def main(dry_run: bool = False):
     active_count = 0
     disabled_count = 0
 
-    # Delete and recreate directories for clean ext4 hash table
-    # ext4 uses hash-based directory entries; only a fresh dir guarantees order
+    # Atomic write pattern: backup, write to temp, validate, rename
+    # Initialize temp dir variables for exception handling
+    tmp_active: Path | None = None
+    tmp_disabled: Path | None = None
+
     if not dry_run:
-        import shutil
+        # Ensure ~/.traycer exists for mkdtemp (but NOT OUTPUT_DIR/DISABLED_DIR yet)
+        traycer_dir = Path.home() / ".traycer"
+        traycer_dir.mkdir(parents=True, exist_ok=True)
 
-        # Recreate both directories (active and disabled are separate)
+        # Step 1: Backup existing OUTPUT_DIR with rotation (keep 3 newest)
+        # Only backup if OUTPUT_DIR already exists (skip on first run)
         if OUTPUT_DIR.exists():
-            shutil.rmtree(OUTPUT_DIR)
-        if DISABLED_DIR.exists():
-            shutil.rmtree(DISABLED_DIR)
+            ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+            backup_path = traycer_dir / f"cli-agents.backup.{ts}"
+            shutil.copytree(OUTPUT_DIR, backup_path)
+            print(f"  💾 Backed up to {backup_path}")
 
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        DISABLED_DIR.mkdir(parents=True, exist_ok=True)
-        print(f"  🗑 Recreated {OUTPUT_DIR} and {DISABLED_DIR}")
+            # Rotate: keep only 3 newest backups
+            backups = sorted(
+                traycer_dir.glob("cli-agents.backup.*"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            for old_backup in backups[3:]:
+                shutil.rmtree(old_backup)
+                print(f"  🗑 Rotated old backup: {old_backup.name}")
+        else:
+            print("  ℹ First run - no existing agents to backup")
 
-    # Track rank within each tier
-    tier_ranks = {}
+        # Step 2: Create temp directories and write atomically
+        # Entire block wrapped in try/except to cleanup temp dirs on any failure
+        try:
+            tmp_active = Path(tempfile.mkdtemp(dir=traycer_dir, prefix=".cli-agents-tmp-"))
+            tmp_disabled = Path(tempfile.mkdtemp(dir=traycer_dir, prefix=".disabled-agents-tmp-"))
+            print(f"  📝 Writing to temp dirs: {tmp_active.name}, {tmp_disabled.name}")
 
-    for agent in agents_sorted:
-        agent_id = agent["agent_id"]
-        tier_name, identifier = parse_agent_id(agent_id)
+            # Track rank within each tier
+            tier_ranks: dict[str, int] = {}
 
-        # Increment rank for this tier
-        if tier_name not in tier_ranks:
-            tier_ranks[tier_name] = 0
-        tier_ranks[tier_name] += 1
-        rank = tier_ranks[tier_name] - 1  # 0-indexed for first agent
+            for agent in agents_sorted:
+                agent_id = agent["agent_id"]
+                tier_name, identifier = parse_agent_id(agent_id)
 
-        # Build detailed filename
-        model_normalized = normalize_model_name(agent["model_name"])
-        input_encoded = encode_price(agent["input_per_1m"])
-        output_encoded = encode_price(agent["output_per_1m"])
-        role = agent["use_case"].lower()
-        variant = agent["variant"]
+                # Increment rank for this tier
+                if tier_name not in tier_ranks:
+                    tier_ranks[tier_name] = 0
+                tier_ranks[tier_name] += 1
+                rank = tier_ranks[tier_name] - 1  # 0-indexed for first agent
 
-        filename = f"{tier_name}{rank:02d}-{model_normalized}-{role}-{variant}-i{input_encoded}-o{output_encoded}.sh"
+                # Build detailed filename
+                model_normalized = normalize_model_name(agent["model_name"])
+                input_encoded = encode_price(agent["input_per_1m"])
+                output_encoded = encode_price(agent["output_per_1m"])
+                role = agent["use_case"].lower()
+                variant = agent["variant"]
 
-        # Determine if agent is active or disabled
-        is_active = not use_routing or filename in active_scripts
-        target_dir = OUTPUT_DIR if is_active else DISABLED_DIR
-        filepath = target_dir / filename
+                filename = f"{tier_name}{rank:02d}-{model_normalized}-{role}-{variant}-i{input_encoded}-o{output_encoded}.sh"
 
-        # Track this file for orphan cleanup
-        generated_files.add(filename)
+                # Determine if agent is active or disabled
+                is_active = not use_routing or filename in active_scripts
+                target_dir = tmp_active if is_active else tmp_disabled
+                filepath = target_dir / filename
 
-        if dry_run:
-            # Dry-run: show what would be generated
+                # Track this file for orphan cleanup
+                generated_files.add(filename)
+
+                # Generate script content
+                content = generate_script_content(
+                    tier_name=tier_name,
+                    rank=rank,
+                    model_name=agent["model_name"],
+                    full_name=agent["full_name"],
+                    provider=agent["provider"],
+                    use_case=agent["use_case"],
+                    variant=agent["variant"],
+                    specialty=agent["specialty"],
+                    input_cost=agent["input_per_1m"],
+                    output_cost=agent["output_per_1m"],
+                )
+
+                filepath.write_text(content)
+                filepath.chmod(0o755)
+
+                status_icon = "✓" if is_active else "○"
+                status_label = "" if is_active else " [disabled]"
+                print(
+                    f"          Tier: {tier_name} #{rank:02d} | Role: {role} | Variant: {variant}"
+                )
+                print(f"          Output: {filepath}")
+
+                # Validate generated script
+                validation_issues = validate_script(filepath)
+                if validation_issues:
+                    print(f"  ⚠ {filename} - Validation issues:")
+                    for issue in validation_issues:
+                        print(f"    - {issue}")
+                else:
+                    print(f"  {status_icon} {filename}{status_label}")
+
+                if is_active:
+                    active_count += 1
+                else:
+                    disabled_count += 1
+
+            # Step 3: Pre-rename validation gate
+            validation_failures = []
+            for tmp_dir in [tmp_active, tmp_disabled]:
+                for script_path in tmp_dir.glob("*.sh"):
+                    issues = validate_script(script_path)
+                    if issues:
+                        validation_failures.append((script_path.name, issues))
+
+            if validation_failures:
+                print("\n❌ Validation failed - aborting atomic rename:")
+                for name, issues in validation_failures:
+                    print(f"  {name}:")
+                    for issue in issues:
+                        print(f"    - {issue}")
+                # Cleanup temp dirs, leave original untouched
+                shutil.rmtree(tmp_active, ignore_errors=True)
+                shutil.rmtree(tmp_disabled, ignore_errors=True)
+                sys.exit(1)
+
+            # Step 4: Atomic rename (original dirs untouched until this point)
+            if OUTPUT_DIR.exists():
+                shutil.rmtree(OUTPUT_DIR)
+            tmp_active.rename(OUTPUT_DIR)
+
+            if DISABLED_DIR.exists():
+                shutil.rmtree(DISABLED_DIR)
+            tmp_disabled.rename(DISABLED_DIR)
+
+            # Set timestamps for Traycer sorting (newest-first = T1-Free first)
+            files = sorted(OUTPUT_DIR.glob("*.sh"))
+            n = len(files)
+            for i, f in enumerate(files):
+                mtime = n - i  # T1-Free00 gets highest timestamp (newest)
+                os.utime(f, (mtime, mtime))
+            print(f"\n✅ Generated {active_count} active + {disabled_count} disabled agents")
+            print(f"   📁 Active: {OUTPUT_DIR}")
+            print(f"   📁 Disabled: {DISABLED_DIR}")
+            print("   📋 Timestamps set: T1-Free=newest → T7-Specialist=oldest (Traycer sort)")
+
+        except Exception as e:
+            # Cleanup temp dirs on any failure, backup remains for recovery
+            if tmp_active is not None:
+                shutil.rmtree(tmp_active, ignore_errors=True)
+            if tmp_disabled is not None:
+                shutil.rmtree(tmp_disabled, ignore_errors=True)
+            print(f"\n❌ Write/rename failed: {e}")
+            print("   Backup preserved for manual recovery.")
+            raise
+
+    else:
+        # Dry-run path: no file writes
+        tier_ranks: dict[str, int] = {}
+
+        for agent in agents_sorted:
+            agent_id = agent["agent_id"]
+            tier_name, identifier = parse_agent_id(agent_id)
+
+            if tier_name not in tier_ranks:
+                tier_ranks[tier_name] = 0
+            tier_ranks[tier_name] += 1
+            rank = tier_ranks[tier_name] - 1
+
+            model_normalized = normalize_model_name(agent["model_name"])
+            input_encoded = encode_price(agent["input_per_1m"])
+            output_encoded = encode_price(agent["output_per_1m"])
+            role = agent["use_case"].lower()
+            variant = agent["variant"]
+
+            filename = f"{tier_name}{rank:02d}-{model_normalized}-{role}-{variant}-i{input_encoded}-o{output_encoded}.sh"
+
+            is_active = not use_routing or filename in active_scripts
+            target_dir = OUTPUT_DIR if is_active else DISABLED_DIR
+            filepath = target_dir / filename
+
+            generated_files.add(filename)
+
             status = "ACTIVE" if is_active else "disabled"
             print(f"[DRY-RUN] Would generate ({status}): {filename}")
             print(f"          Model: {agent['full_name']}")
@@ -879,65 +1011,13 @@ def main(dry_run: bool = False):
                 active_count += 1
             else:
                 disabled_count += 1
-        else:
-            # Generate script content
-            content = generate_script_content(
-                tier_name=tier_name,
-                rank=rank,
-                model_name=agent["model_name"],
-                full_name=agent["full_name"],
-                provider=agent["provider"],
-                use_case=agent["use_case"],
-                variant=agent["variant"],
-                specialty=agent["specialty"],
-                input_cost=agent["input_per_1m"],
-                output_cost=agent["output_per_1m"],
-            )
 
-            # Write file with 1 second delay for Traycer timestamp ordering (active only)
-            if is_active:
-                time.sleep(1)
-            filepath.write_text(content)
-            filepath.chmod(0o755)
-
-            status_icon = "✓" if is_active else "○"
-            status_label = "" if is_active else " [disabled]"
-            print(f"          Tier: {tier_name} #{rank:02d} | Role: {role} | Variant: {variant}")
-            print(f"          Output: {filepath}")
-
-            # Validate generated script
-            validation_issues = validate_script(filepath)
-            if validation_issues:
-                print(f"  ⚠ {filename} - Validation issues:")
-                for issue in validation_issues:
-                    print(f"    - {issue}")
-            else:
-                print(f"  {status_icon} {filename}{status_label}")
-
-            if is_active:
-                active_count += 1
-            else:
-                disabled_count += 1
-
-    if dry_run:
         print(
             f"\n[DRY-RUN] Would generate {active_count} active + {disabled_count} disabled agents"
         )
         print(f"[DRY-RUN] Active: {OUTPUT_DIR}")
         print(f"[DRY-RUN] Disabled: {DISABLED_DIR}")
         print("[DRY-RUN] Run without --dry-run to actually create files")
-    else:
-        # Set timestamps for Traycer sorting (newest-first = T1-Free first)
-        # Only for active agents
-        files = sorted(OUTPUT_DIR.glob("*.sh"))
-        n = len(files)
-        for i, f in enumerate(files):
-            ts = n - i  # T1-Free00 gets highest timestamp (newest)
-            os.utime(f, (ts, ts))
-        print(f"\n✅ Generated {active_count} active + {disabled_count} disabled agents")
-        print(f"   📁 Active: {OUTPUT_DIR}")
-        print(f"   📁 Disabled: {DISABLED_DIR}")
-        print("   📋 Timestamps set: T1-Free=newest → T7-Specialist=oldest (Traycer sort)")
 
     # Update routing-policy.md from YAML (keeps documentation in sync)
     update_routing_policy_md(dry_run=dry_run)
