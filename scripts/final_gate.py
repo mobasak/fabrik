@@ -726,6 +726,22 @@ def run_iteration(check_only: bool, run_sync: bool) -> list[tuple[str, bool, str
     for name, passed, out in results:
         print_step(name, passed, out)
 
+    # Phase 2.5: AI fixes for static check failures (if enabled)
+    if not check_only and os.getenv("FINAL_GATE_AI_FIX") == "1":
+        failed_tools = [
+            name for name, passed, _ in results if not passed and name in ("mypy", "ruff")
+        ]
+        if failed_tools:
+            print(
+                f"\n{BLUE}[AI FIX] Attempting cheap_fix_agent for: {', '.join(failed_tools)}{RESET}"
+            )
+            for tool in failed_tools:
+                success, msg = run_ai_fixes(tool)
+                if success:
+                    print(f"  {GREEN}✓ {tool}: {msg[:80]}{RESET}")
+                else:
+                    print(f"  {YELLOW}⚠ {tool}: {msg[:80]}{RESET}")
+
     # Phase 3: Consistency checks
     print_header("PHASE 3: REPO CONSISTENCY")
     results = run_consistency_checks()

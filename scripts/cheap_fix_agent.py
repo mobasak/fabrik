@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Cheap Fix Agent - Uses Gemini 2.5 Flash for fast, low-cost automated fixes.
+"""Cheap Fix Agent - Uses Gemini 2.5 Flash for fast, low-cost MECHANICAL fixes only.
 
 This script provides cheap automation for:
-- Lint fixes that ruff can't auto-fix
-- Type hint additions/fixes
-- TODO implementations
-- Docstring generation
+- Lint fixes that ruff can't auto-fix (e.g., unused imports, ambiguous names)
+- Type hint fixes (e.g., missing return types, wrong annotations)
+- Docstring additions for missing docstrings
+
+SCOPE: Mechanical fixes ONLY. No logic changes, no TODO implementations, no refactoring.
 
 Usage:
     # Fix a specific file
@@ -145,7 +146,9 @@ Rules:
 1. Output ONLY the fixed line(s), nothing else
 2. Keep the same indentation
 3. Do not add explanations
-4. If removing a line, output: DELETE_LINE {issue.line}"""
+4. If removing a line, output: DELETE_LINE {issue.line}
+5. MECHANICAL FIXES ONLY - no logic changes, no refactoring, no TODO implementations
+6. Only fix the specific error mentioned, nothing else"""
 
     if dry_run:
         print(f"Would fix: {issue.file}:{issue.line} [{issue.code}] {issue.message}")

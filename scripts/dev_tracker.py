@@ -254,11 +254,35 @@ def report_gates() -> None:
     conn.close()
 
 
+def report_issues() -> None:
+    """Show agent issues summary."""
+    conn = get_db()
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # Get issue counts by type
+    rows = conn.execute(
+        """SELECT json_extract(data, '$.issue_type') as issue_type, COUNT(*) as cnt
+           FROM events WHERE ts LIKE ? AND event_type = 'agent_issue'
+           GROUP BY issue_type ORDER BY cnt DESC""",
+        (f"{today}%",),
+    ).fetchall()
+
+    print(f"\n⚠️ Agent Issues ({today}):")
+    if rows:
+        for r in rows:
+            print(f"   {r['issue_type']}: {r['cnt']}")
+    else:
+        print("   No issues recorded today")
+
+    conn.close()
+
+
 def report_workflow() -> None:
     """Show full workflow analysis."""
     report_summary()
     report_costs()
     report_gates()
+    report_issues()
 
 
 def run_query(sql: str) -> None:
@@ -280,6 +304,25 @@ def run_query(sql: str) -> None:
     conn.close()
 
 
+def log_agent_issue(issue_type: str, message: str, agent: str | None = None) -> None:
+    """Log an issue encountered by a Kilo CLI agent.
+
+    Usage from agent scripts:
+        python dev_tracker.py issue timeout "Model kilo/google/gemini-3-flash timed out"
+        python dev_tracker.py issue model_not_found "kilo/mistral/devstral-small"
+        python dev_tracker.py issue rate_limit "Plan generation rate limited"
+    """
+    data = json.dumps(
+        {
+            "issue_type": issue_type,
+            "message": message,
+            "agent": agent or os.getenv("TRAYCER_AGENT_NAME", "unknown"),
+            "model": os.getenv("KILO_MODEL", "unknown"),
+        }
+    )
+    log_event("agent_issue", data)
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -289,6 +332,11 @@ def main() -> int:
 
     if cmd == "log" and len(sys.argv) >= 4:
         log_event(sys.argv[2], sys.argv[3])
+    elif cmd == "issue" and len(sys.argv) >= 3:
+        # Quick issue logging: python dev_tracker.py issue <type> [message]
+        issue_type = sys.argv[2]
+        message = sys.argv[3] if len(sys.argv) > 3 else ""
+        log_agent_issue(issue_type, message)
     elif cmd == "import":
         import_jsonl()
     elif cmd == "report":
@@ -301,6 +349,8 @@ def main() -> int:
             report_gates()
         elif report_type == "workflow":
             report_workflow()
+        elif report_type == "issues":
+            report_issues()
         else:
             print(f"Unknown report: {report_type}")
             return 1

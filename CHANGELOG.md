@@ -6,16 +6,25 @@ All notable changes to this project will be documented in this file.
 
 ### Added - Cheap Fix Agent for low-cost AI automation (2026-03-19)
 
-**What:** New script using Gemini 2.5 Flash for cheap automated fixes (lint, type hints, task comments).
+**What:** New script using Gemini 2.5 Flash for cheap MECHANICAL fixes only.
+**Scope:** Lint fixes, type hint fixes, docstring additions. NO logic changes, NO refactoring.
 **Features:**
 - `fix` - Fix a specific issue in a file
 - `fix-from-output` - Fix issues from mypy/ruff output
 - `batch` - Batch fix all issues in a file
 - `test` - Verify agent connectivity
-**Integration:** Optional hook in `final_gate.py` via `FINAL_GATE_AI_FIX=1` env var
+**Integration:** Auto-runs in `final_gate.py` Phase 2.5 when `FINAL_GATE_AI_FIX=1` is set
 **Files:**
-- `scripts/cheap_fix_agent.py` - New script (~370 lines)
-- `scripts/final_gate.py` - Added `run_ai_fixes()` hook
+- `scripts/cheap_fix_agent.py` - New script (~380 lines)
+- `scripts/final_gate.py` - Integrated AI fix into iteration loop
+
+### Added - Agent issue tracking in dev_tracker.py (2026-03-19)
+
+**What:** Active issue recording for Kilo CLI agents.
+**Usage:** `python dev_tracker.py issue <type> "<message>"`
+**Reports:** `python dev_tracker.py report issues`
+**Files:**
+- `scripts/dev_tracker.py` - Added `log_agent_issue()` and `report_issues()`
 
 ### Added - TUI copy/save keybindings + auto-save for kilo_terminal_runner (2026-03-18)
 
