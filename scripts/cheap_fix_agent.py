@@ -115,13 +115,41 @@ class Issue(NamedTuple):
     message: str
 
 
-def run_kilo(prompt: str, timeout: int = 30) -> tuple[bool, str]:
-    """Run Kilo with Gemini 2.5 Flash and return (success, output)."""
+def log_issue_auto(issue_type: str, message: str) -> None:
+    """Auto-log issue to dev_tracker if available."""
+    tracker = Path(__file__).parent / "dev_tracker.py"
+    if tracker.exists():
+        try:
+            subprocess.run(
+                [sys.executable, str(tracker), "issue", issue_type, message],
+                capture_output=True,
+                timeout=5,
+            )
+        except Exception:
+            pass  # Best effort
+
+
+# Fallback models for retry logic
+FALLBACK_MODELS = [
+    "kilo/google/gemini-2.5-flash",  # Primary (cheapest)
+    "kilo/google/gemini-2.5-pro",  # Fallback 1
+]
+
+
+def run_kilo(prompt: str, timeout: int = 30, model: str | None = None) -> tuple[bool, str]:
+    """Run Kilo with Gemini 2.5 Flash and return (success, output).
+
+    Features:
+    - Timeout protection (default 30s)
+    - Auto-logs timeout/errors to dev_tracker
+    - Retry with fallback model on failure
+    """
+    model = model or MODEL
     cmd = [
         "kilo",
         "run",
         "--model",
-        MODEL,
+        model,
         "--agent",
         "code",
         "--variant",
@@ -138,11 +166,43 @@ def run_kilo(prompt: str, timeout: int = 30) -> tuple[bool, str]:
             timeout=timeout,
             cwd=Path.cwd(),
         )
-        return result.returncode == 0, result.stdout + result.stderr
+        output = result.stdout + result.stderr
+
+        # Auto-detect and log rate limits
+        if "rate limit" in output.lower() or "quota" in output.lower():
+            log_issue_auto("rate_limit", f"{model}: {output[:100]}")
+            return False, output
+
+        # Auto-detect model not found
+        if "not found" in output.lower() or "invalid model" in output.lower():
+            log_issue_auto("model_not_found", f"{model}")
+            return False, output
+
+        return result.returncode == 0, output
     except subprocess.TimeoutExpired:
-        return False, "Timeout"
+        log_issue_auto("timeout", f"{model} timed out after {timeout}s")
+        return False, f"Timeout after {timeout}s"
+    except FileNotFoundError:
+        log_issue_auto("kilo_not_found", "kilo CLI not installed")
+        return False, "kilo CLI not found"
     except Exception as e:
+        log_issue_auto("error", f"{model}: {e}")
         return False, str(e)
+
+
+def run_kilo_with_retry(prompt: str, timeout: int = 30) -> tuple[bool, str]:
+    """Run Kilo with automatic retry on fallback models."""
+    for model in FALLBACK_MODELS:
+        success, output = run_kilo(prompt, timeout=timeout, model=model)
+        if success:
+            return True, output
+        # If timeout or rate limit, try next model
+        if "timeout" in output.lower() or "rate limit" in output.lower():
+            print("  Retrying with fallback model...")
+            continue
+        # Other errors, return immediately
+        return False, output
+    return False, "All models failed"
 
 
 def parse_mypy_output(output: str) -> list[Issue]:
