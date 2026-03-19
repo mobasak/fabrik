@@ -97,6 +97,9 @@ def run_ai_fixes(tool: str) -> tuple[bool, str]:
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None) -> tuple[int, str]:
     """Run a command and return (returncode, output)."""
     timeout = timeout or TIMEOUTS["default"]
+    # Pass FABRIK_ROOT to enforcement scripts so they know the correct project root
+    env = os.environ.copy()
+    env["FABRIK_ROOT"] = str(FABRIK_ROOT)
     try:
         result = subprocess.run(
             cmd,
@@ -104,6 +107,7 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=env,
         )
         output = result.stdout + result.stderr
         return result.returncode, output.strip()

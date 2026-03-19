@@ -34,6 +34,76 @@ from typing import NamedTuple
 MODEL = "kilo/google/gemini-2.5-flash"
 VARIANT = "minimal"
 
+# WHITELIST: Only these error codes are allowed (mechanical fixes only)
+# Mypy codes that are mechanical (type annotations, unused ignores)
+ALLOWED_MYPY_CODES = {
+    "unused-ignore",  # Unused type: ignore comment
+    "redundant-cast",  # Redundant cast
+    "no-any-return",  # Return type needs annotation
+    "attr-defined",  # Attribute not defined (often type annotation issue)
+    "arg-type",  # Argument type mismatch
+    "return-value",  # Return value type mismatch
+    "assignment",  # Assignment type mismatch
+    "name-defined",  # Name not defined (import issue)
+    "import",  # Import error
+    "var-annotated",  # Missing variable annotation
+}
+
+# Ruff codes that are mechanical (formatting, imports, naming)
+ALLOWED_RUFF_CODES = {
+    "F401",  # Unused import
+    "F841",  # Unused variable
+    "E501",  # Line too long
+    "E741",  # Ambiguous variable name
+    "W291",  # Trailing whitespace
+    "W292",  # No newline at end of file
+    "W293",  # Blank line contains whitespace
+    "I001",  # Import sorting
+    "UP",  # pyupgrade (all UP codes are mechanical)
+    "ANN",  # Type annotations (all ANN codes)
+}
+
+# Maximum lines a fix can add (prevents logic additions)
+MAX_FIX_LINES = 3
+
+
+def is_allowed_code(code: str) -> bool:
+    """Check if error code is in the mechanical-only whitelist."""
+    # Check exact match
+    if code in ALLOWED_MYPY_CODES or code in ALLOWED_RUFF_CODES:
+        return True
+    # Check prefix match for ruff (e.g., UP001 matches UP)
+    return any(code.startswith(prefix) for prefix in ALLOWED_RUFF_CODES)
+
+
+def validate_fix(original_line: str, fix: str) -> tuple[bool, str]:
+    """Validate that fix is mechanical only.
+
+    Returns (is_valid, reason).
+    """
+    fix_lines = fix.splitlines()
+
+    # Rule 1: Fix cannot add more than MAX_FIX_LINES lines
+    if len(fix_lines) > MAX_FIX_LINES:
+        return False, f"Fix adds {len(fix_lines)} lines (max {MAX_FIX_LINES})"
+
+    # Rule 2: Fix cannot add new function/class definitions
+    for line in fix_lines:
+        stripped = line.strip()
+        if stripped.startswith("def ") or stripped.startswith("class "):
+            if "def " not in original_line and "class " not in original_line:
+                return False, "Fix adds new function/class definition"
+
+    # Rule 3: Fix cannot add control flow (if adding new logic)
+    new_keywords = {"if ", "for ", "while ", "try:", "except ", "with "}
+    for line in fix_lines:
+        stripped = line.strip()
+        for kw in new_keywords:
+            if stripped.startswith(kw) and kw not in original_line:
+                return False, f"Fix adds control flow ({kw.strip()})"
+
+    return True, "OK"
+
 
 class Issue(NamedTuple):
     """Represents a code issue to fix."""
@@ -129,9 +199,19 @@ def read_context(file_path: str, line: int, context: int = 5) -> str:
 
 def fix_issue(issue: Issue, dry_run: bool = False) -> tuple[bool, str]:
     """Fix a single issue using Gemini 2.5 Flash."""
+    # GATE 1: Only allow whitelisted error codes (mechanical fixes only)
+    if not is_allowed_code(issue.code):
+        return False, f"Code '{issue.code}' not in mechanical whitelist - skipped"
+
     context = read_context(issue.file, issue.line)
     if not context:
         return False, f"Could not read {issue.file}"
+
+    # Get original line for validation
+    try:
+        original_line = Path(issue.file).read_text().splitlines()[issue.line - 1]
+    except (IndexError, OSError):
+        original_line = ""
 
     prompt = f"""Fix this {issue.code} error in {issue.file} at line {issue.line}.
 
@@ -156,9 +236,23 @@ Rules:
 
     success, output = run_kilo(prompt)
     if success:
-        # Parse and apply the fix
+        # GATE 2: Validate the fix is mechanical only
+        fix = _extract_fix(output)
+        is_valid, reason = validate_fix(original_line, fix)
+        if not is_valid:
+            return False, f"Fix rejected: {reason}"
+        # Apply the validated fix
         return apply_fix(issue, output)
     return False, output
+
+
+def _extract_fix(kilo_output: str) -> str:
+    """Extract fix code from Kilo output."""
+    code_match = re.search(r"```(?:python)?\n?(.*?)\n?```", kilo_output, re.DOTALL)
+    if code_match:
+        return code_match.group(1).strip()
+    lines = [ln for ln in kilo_output.splitlines() if ln.strip() and not ln.startswith(">")]
+    return "\n".join(lines[-3:]) if lines else ""
 
 
 def apply_fix(issue: Issue, kilo_output: str) -> tuple[bool, str]:
