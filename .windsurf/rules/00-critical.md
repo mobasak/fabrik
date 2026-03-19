@@ -6,27 +6,33 @@ trigger: always_on
 
 # Critical Rules (ALWAYS ACTIVE)
 
-## ⚠️ MANDATORY WORKFLOW
+## ⚠️ MANDATORY WORKFLOW (Simplified March 2026)
 
-**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO → FINAL_GATE → TRAYCER_VERIFY → SYNC → COMMIT**
+**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → CHEAP_REVIEW → TRAYCER_VERIFY → COMMIT**
 
-1. Step 2.5 (Self-Review): Coding AI reviews own work before gates (MANDATORY)
-2. Step 3 (Pre-Kilo): `python /opt/fabrik/scripts/final_gate.py` → all PASS
-3. Step 4 (Kilo loop): fix until verdict=PASS (diff-scoped)
-4. Step 5 (Post-Kilo): `python /opt/fabrik/scripts/final_gate.py` → all PASS
-5. Step 6 (Traycer verification): must PASS
-6. Step 7 (Sync only): `python /opt/fabrik/scripts/final_gate.py --sync`
-7. Step 8 (Commit): pre-commit runs ONLY 4 blockers:
-   - check-added-large-files
-   - check-merge-conflict
-   - detect-private-key
-   - forbid-secrets
+| Step | Action | Gate |
+|------|--------|------|
+| 1 | Traycer Plan | Spec exists with requirements |
+| 2 | Coder Implements | Code only what phase requires |
+| 2.5 | Self-Review | Coding AI reviews own work (MANDATORY) |
+| 3 | Final Gate | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
+| 4 | Cheap Review | Context-aware reviewer (optional, use `reviewer_selector.py`) |
+| 5 | Traycer Verify | Traycer verifier passes |
+| 6 | Commit | pre-commit runs 4 blockers only |
+
+**Reviewer Selection (context-aware):**
+```bash
+# Auto-select cheapest capable reviewer based on diff
+python /opt/fabrik/scripts/reviewer_selector.py auto
+
+# Tiers: quick ($0.02), standard ($0.05), complex ($0.12), security ($0.30)
+```
 
 **Notes:**
-- Final Gate is the authority for deterministic checks.
+- Final Gate is the authority for deterministic checks (single pass, not pre+post).
+- Cheap review is optional - Traycer verify handles spec compliance.
 - Semgrep is best-effort: skipped if not installed or not authenticated.
-- Do not rely on .gitignore as a security control (pre-commit blockers still apply).
-- **When using Kilo review continuation, always provide a stable tracked review ID; never rely on a global latest session.**
+- Pre-commit runs ONLY 4 blockers: large-files, merge-conflict, private-key, secrets.
 
 **If I skip these steps, the user should call me out.**
 ---

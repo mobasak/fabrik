@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""Context-Aware Reviewer Selector - Picks cheapest capable reviewer for task.
+
+Usage:
+    # Auto-select based on diff size and file types
+    python reviewer_selector.py auto
+
+    # Get reviewer for specific tier
+    python reviewer_selector.py tier quick
+    python reviewer_selector.py tier standard
+    python reviewer_selector.py tier complex
+    python reviewer_selector.py tier security
+
+    # List all reviewers with costs
+    python reviewer_selector.py list
+
+Based on March 2026 benchmarks:
+- Terminal-Bench 2.0: https://tbench.ai/leaderboard/terminal-bench/2.0
+- Chatbot Arena: https://openlm.ai/chatbot-arena/
+- SWE-Bench: https://www.marc0.dev/en/leaderboard
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+
+# Reviewer tiers (sorted by cost, cheapest first)
+# Format: (model_id, cost_per_review_estimate, capabilities, elo_score)
+REVIEWERS = {
+    "quick": [
+        # For lint, format, simple type fixes
+        ("kilo/google/gemini-3.1-flash-lite-preview", 0.02, "fast, 1M context", 1421),
+        ("kilo/google/gemini-2.5-flash-lite", 0.03, "fast, reasoning", 1412),
+        ("kilo/stepfun/step-3.5-flash", 0.02, "free tier available", 1387),
+    ],
+    "standard": [
+        # For regular PRs, feature work
+        ("kilo/deepseek/deepseek-v3.2", 0.05, "73% SWE-bench, reasoning", 1418),
+        ("kilo/z-ai/glm-4.7", 0.06, "strong reasoning", 1445),
+        ("kilo/minimax/minimax-m2.5", 0.08, "80.2% SWE-bench, open-weight", 1408),
+    ],
+    "complex": [
+        # For complex logic, refactoring
+        ("kilo/z-ai/glm-5", 0.12, "77.8% SWE-bench, 744B params", 1452),
+        ("kilo/qwen/qwen3-max", 0.15, "strong coding", 1443),
+        ("kilo/moonshotai/kimi-k2.5", 0.12, "front-end specialist", 1451),
+    ],
+    "security": [
+        # For security-critical, API changes
+        ("kilo/anthropic/claude-sonnet-4.6", 0.30, "79.6% SWE-bench, reasoning", 1446),
+        ("kilo/google/gemini-3.1-pro-preview", 0.25, "80.6% SWE-bench, #1 terminal", 1505),
+    ],
+    "architecture": [
+        # For architecture, design review
+        ("kilo/anthropic/claude-opus-4.6", 0.50, "80.8% SWE-bench, 1M context", 1490),
+        ("kilo/openai/gpt-5.4", 0.40, "75.1% terminal, computer use", 1485),
+    ],
+}
+
+# File patterns that suggest higher review tier
+SECURITY_PATTERNS = [
+    "auth",
+    "login",
+    "password",
+    "secret",
+    "key",
+    "token",
+    "crypt",
+    "security",
+    "permission",
+    "role",
+    "admin",
+    ".env",
+    "credential",
+]
+COMPLEX_PATTERNS = [
+    "refactor",
+    "migration",
+    "schema",
+    "model",
+    "database",
+    "api",
+    "service",
+    "controller",
+    "handler",
+    "middleware",
+]
+
+
+def get_staged_files() -> list[str]:
+    """Get list of staged files."""
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        capture_output=True,
+        text=True,
+    )
+    return [f for f in result.stdout.strip().split("\n") if f]
+
+
+def get_diff_size() -> int:
+    """Get total lines changed in staged diff."""
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--stat"],
+        capture_output=True,
+        text=True,
+    )
+    # Parse last line like "3 files changed, 50 insertions(+), 10 deletions(-)"
+    lines = result.stdout.strip().split("\n")
+    if not lines:
+        return 0
+    last_line = lines[-1]
+    total = 0
+    if "insertion" in last_line:
+        import re
+
+        match = re.search(r"(\d+) insertion", last_line)
+        if match:
+            total += int(match.group(1))
+    if "deletion" in last_line:
+        import re
+
+        match = re.search(r"(\d+) deletion", last_line)
+        if match:
+            total += int(match.group(1))
+    return total
+
+
+def detect_tier(files: list[str], diff_size: int) -> str:
+    """Auto-detect appropriate review tier based on context."""
+    files_lower = " ".join(files).lower()
+
+    # Security tier if touching security-related files
+    if any(p in files_lower for p in SECURITY_PATTERNS):
+        return "security"
+
+    # Complex tier for large diffs or model/API changes
+    if diff_size > 300 or any(p in files_lower for p in COMPLEX_PATTERNS):
+        return "complex"
+
+    # Standard tier for medium diffs
+    if diff_size > 50:
+        return "standard"
+
+    # Quick tier for small changes
+    return "quick"
+
+
+def select_reviewer(tier: str) -> tuple[str, float, str, int]:
+    """Select best reviewer for tier (first = cheapest)."""
+    reviewers = REVIEWERS.get(tier, REVIEWERS["standard"])
+    return reviewers[0]
+
+
+def list_all_reviewers() -> None:
+    """Print all reviewers with costs."""
+    print("\n=== REVIEWER CATALOG (March 2026) ===\n")
+    for tier, reviewers in REVIEWERS.items():
+        print(f"## {tier.upper()} TIER")
+        for model, cost, caps, elo in reviewers:
+            print(f"  {model}")
+            print(f"    Cost: ~${cost:.2f}/review | Elo: {elo} | {caps}")
+        print()
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 1
+
+    cmd = sys.argv[1]
+
+    if cmd == "auto":
+        files = get_staged_files()
+        diff_size = get_diff_size()
+        tier = detect_tier(files, diff_size)
+        model, cost, caps, elo = select_reviewer(tier)
+        print(f"TIER: {tier}")
+        print(f"FILES: {len(files)} ({diff_size} lines)")
+        print(f"REVIEWER: {model}")
+        print(f"COST: ~${cost:.2f}")
+        print(f"ELO: {elo}")
+        # Output just the model for piping
+        return 0
+
+    elif cmd == "tier" and len(sys.argv) >= 3:
+        tier = sys.argv[2]
+        if tier not in REVIEWERS:
+            print(f"Unknown tier: {tier}")
+            print(f"Available: {', '.join(REVIEWERS.keys())}")
+            return 1
+        model, cost, caps, elo = select_reviewer(tier)
+        print(model)
+        return 0
+
+    elif cmd == "list":
+        list_all_reviewers()
+        return 0
+
+    elif cmd == "model":
+        # Just output the model for the auto tier (for piping)
+        files = get_staged_files()
+        diff_size = get_diff_size()
+        tier = detect_tier(files, diff_size)
+        model, _, _, _ = select_reviewer(tier)
+        print(model)
+        return 0
+
+    else:
+        print(__doc__)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
