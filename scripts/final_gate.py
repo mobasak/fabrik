@@ -66,25 +66,35 @@ MAX_ITERATIONS = 3
 CHEAP_FIX_AGENT = Path(__file__).parent / "cheap_fix_agent.py"
 
 
-def run_ai_fixes(tool: str) -> tuple[bool, str]:
+def run_ai_fixes(tool: str, tool_output: str | None = None) -> tuple[bool, str]:
     """Run cheap_fix_agent to fix issues from a tool (mypy/ruff).
 
-    Only runs if FINAL_GATE_AI_FIX=1 is set.
+    Args:
+        tool: "mypy" or "ruff"
+        tool_output: Pre-captured output (avoids re-running tool)
+
     Returns (success, message).
     """
-    if os.getenv("FINAL_GATE_AI_FIX") != "1":
-        return False, "AI fix disabled (set FINAL_GATE_AI_FIX=1 to enable)"
-
     if not CHEAP_FIX_AGENT.exists():
         return False, f"cheap_fix_agent.py not found at {CHEAP_FIX_AGENT}"
 
+    # Build command with optional --output flag
+    cmd = [sys.executable, str(CHEAP_FIX_AGENT), "fix-from-output", "--tool", tool]
+
+    # Pass tool output via environment variable (avoids re-running tool)
+    env = os.environ.copy()
+    env["FABRIK_ROOT"] = str(FABRIK_ROOT)
+    if tool_output:
+        env["TOOL_OUTPUT"] = tool_output
+
     try:
         result = subprocess.run(
-            [sys.executable, str(CHEAP_FIX_AGENT), "fix-from-output", "--tool", tool],
+            cmd,
             cwd=FABRIK_ROOT,
             capture_output=True,
             text=True,
             timeout=120,
+            env=env,
         )
         output = (result.stdout + result.stderr).strip()
         return result.returncode == 0, output
@@ -732,15 +742,17 @@ def run_iteration(check_only: bool, run_sync: bool) -> list[tuple[str, bool, str
 
     # Phase 2.5: AI fixes for static check failures (if enabled)
     if not check_only and os.getenv("FINAL_GATE_AI_FIX") == "1":
+        # Collect failed tools WITH their output (avoids re-running tools)
         failed_tools = [
-            name for name, passed, _ in results if not passed and name in ("mypy", "ruff")
+            (name, out) for name, passed, out in results if not passed and name in ("mypy", "ruff")
         ]
         if failed_tools:
+            tool_names = [t[0] for t in failed_tools]
             print(
-                f"\n{BLUE}[AI FIX] Attempting cheap_fix_agent for: {', '.join(failed_tools)}{RESET}"
+                f"\n{BLUE}[AI FIX] Attempting cheap_fix_agent for: {', '.join(tool_names)}{RESET}"
             )
-            for tool in failed_tools:
-                success, msg = run_ai_fixes(tool)
+            for tool, tool_output in failed_tools:
+                success, msg = run_ai_fixes(tool, tool_output)
                 if success:
                     print(f"  {GREEN}✓ {tool}: {msg[:80]}{RESET}")
                 else:

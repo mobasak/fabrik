@@ -323,6 +323,84 @@ def log_agent_issue(issue_type: str, message: str, agent: str | None = None) -> 
     log_event("agent_issue", data)
 
 
+def check_cross_project_pollution() -> list[dict]:
+    """Detect cross-project pollution in git status.
+
+    Returns list of pollution issues found.
+    """
+    import subprocess
+
+    cwd = Path.cwd()
+    issues = []
+
+    # Get git status
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return issues
+
+        for line in result.stdout.splitlines():
+            if not line.strip():
+                continue
+            # Parse git status line: XY filename
+            status = line[:2]
+            filepath = line[3:].strip()
+
+            # Check if file belongs to another project
+            full_path = cwd / filepath
+            try:
+                resolved = full_path.resolve()
+                # Check if file is outside current project
+                if not str(resolved).startswith(str(cwd.resolve())):
+                    issues.append(
+                        {
+                            "type": "external_file",
+                            "file": filepath,
+                            "resolved": str(resolved),
+                            "status": status,
+                        }
+                    )
+                # Check for symlinks pointing outside
+                if full_path.is_symlink():
+                    target = full_path.readlink()
+                    if not str(target).startswith(str(cwd)):
+                        issues.append(
+                            {
+                                "type": "external_symlink",
+                                "file": filepath,
+                                "target": str(target),
+                                "status": status,
+                            }
+                        )
+            except (OSError, ValueError):
+                continue
+
+    except subprocess.TimeoutExpired:
+        pass
+
+    # Log pollution if found
+    if issues:
+        data = json.dumps(
+            {
+                "issue_type": "cross_project_pollution",
+                "project": str(cwd),
+                "polluted_files": issues,
+            }
+        )
+        log_event("agent_issue", data)
+        print(f"⚠️ Cross-project pollution detected: {len(issues)} files")
+        for issue in issues:
+            print(f"   {issue['type']}: {issue['file']}")
+
+    return issues
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -356,6 +434,11 @@ def main() -> int:
             return 1
     elif cmd == "query" and len(sys.argv) >= 3:
         run_query(sys.argv[2])
+    elif cmd == "pollution":
+        issues = check_cross_project_pollution()
+        if not issues:
+            print("✓ No cross-project pollution detected")
+        return 1 if issues else 0
     else:
         print(__doc__)
         return 1

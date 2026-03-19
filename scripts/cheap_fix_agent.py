@@ -25,6 +25,7 @@ Speed: ~3-5 seconds per fix
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -318,8 +319,34 @@ def delete_line(file_path: str, line_num: int) -> tuple[bool, str]:
         return False, str(e)
 
 
-def fix_from_tool_output(tool: str, dry_run: bool = False) -> int:
-    """Run a tool and fix all issues it reports."""
+def get_staged_files() -> set[str]:
+    """Get list of staged files (coder's work to protect)."""
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            capture_output=True,
+            text=True,
+            cwd=Path.cwd(),
+        )
+        return set(result.stdout.strip().splitlines()) if result.returncode == 0 else set()
+    except Exception:
+        return set()
+
+
+def fix_from_tool_output(
+    tool: str,
+    dry_run: bool = False,
+    tool_output: str | None = None,
+    staged_only: bool = True,
+) -> int:
+    """Fix issues from tool output.
+
+    Args:
+        tool: "mypy" or "ruff"
+        dry_run: If True, don't apply fixes
+        tool_output: Pre-captured output (avoids re-running tool)
+        staged_only: If True, only fix issues in staged files (protects coder's work)
+    """
     if tool == "mypy":
         cmd = ["mypy", ".", "--no-error-summary"]
         parser = parse_mypy_output
@@ -330,15 +357,39 @@ def fix_from_tool_output(tool: str, dry_run: bool = False) -> int:
         print(f"Unknown tool: {tool}")
         return 1
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path.cwd())
-        issues = parser(result.stdout + result.stderr)
-    except Exception as e:
-        print(f"Error running {tool}: {e}")
-        return 1
+    # Use provided output, env var, or run tool
+    if tool_output:
+        output = tool_output
+    elif os.environ.get("TOOL_OUTPUT"):
+        output = os.environ["TOOL_OUTPUT"]
+        print(f"Using pre-captured {tool} output (no re-run)")
+    else:
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path.cwd())
+            output = result.stdout + result.stderr
+        except Exception as e:
+            print(f"Error running {tool}: {e}")
+            return 1
+
+    issues = parser(output)
 
     if not issues:
         print(f"No issues found by {tool}")
+        return 0
+
+    # Filter to staged files only (protect coder's work)
+    if staged_only:
+        staged = get_staged_files()
+        if staged:
+            original_count = len(issues)
+            issues = [
+                i for i in issues if i.file in staged or any(i.file.endswith(f) for f in staged)
+            ]
+            if len(issues) < original_count:
+                print(f"Filtered to staged files: {len(issues)}/{original_count} issues")
+
+    if not issues:
+        print("No issues in staged files")
         return 0
 
     print(f"Found {len(issues)} issues from {tool}")
