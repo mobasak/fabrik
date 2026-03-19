@@ -424,7 +424,10 @@ if TEXTUAL_AVAILABLE:
         }
         """
 
-        BINDINGS: list = []  # No manual quit - wait for child process completion
+        BINDINGS = [
+            ("ctrl+y", "copy_output", "Copy transcript to clipboard"),
+            ("ctrl+s", "save_transcript", "Save transcript to file"),
+        ]
 
         def __init__(
             self,
@@ -486,6 +489,7 @@ if TEXTUAL_AVAILABLE:
             parts.append(f"Report: {'YES' if self.traycer_detected else 'NO'}")
             if self.timeout_display:
                 parts.append(f"Timeout: {self.timeout_display}s")
+            parts.append("Ctrl+Y=Copy | Ctrl+S=Save")
             return " | ".join(parts)
 
         def on_mount(self) -> None:
@@ -537,6 +541,54 @@ if TEXTUAL_AVAILABLE:
         def set_exit_code(self, code: int) -> None:
             self.exit_code = code
             self._update_ui()  # Refresh status to show final exit code
+
+        def action_copy_output(self) -> None:
+            """Copy raw output to clipboard (Ctrl+Y)."""
+            try:
+                if self.output_path and Path(self.output_path).exists():
+                    content = Path(self.output_path).read_text(encoding="utf-8")
+                    import subprocess
+
+                    # Try xclip first (X11), then xsel, then wl-copy (Wayland)
+                    for cmd in [
+                        ["xclip", "-selection", "clipboard"],
+                        ["xsel", "--clipboard", "--input"],
+                        ["wl-copy"],
+                    ]:
+                        try:
+                            proc = subprocess.run(
+                                cmd, input=content, text=True, capture_output=True, timeout=5
+                            )
+                            if proc.returncode == 0:
+                                self.notify(
+                                    f"✓ Copied {len(content)} chars to clipboard",
+                                    severity="information",
+                                )
+                                return
+                        except (FileNotFoundError, subprocess.TimeoutExpired):
+                            continue
+                    self.notify(
+                        "✗ No clipboard tool found (xclip/xsel/wl-copy)", severity="warning"
+                    )
+                else:
+                    self.notify("✗ Output file not ready yet", severity="warning")
+            except Exception as e:
+                self.notify(f"✗ Copy failed: {e}", severity="error")
+
+        def action_save_transcript(self) -> None:
+            """Save transcript to timestamped file (Ctrl+S)."""
+            try:
+                if self.output_path and Path(self.output_path).exists():
+                    content = Path(self.output_path).read_text(encoding="utf-8")
+                    timestamp = time.strftime("%Y%m%d-%H%M%S")
+                    save_path = Path(".droid") / f"transcript-{timestamp}.txt"
+                    save_path.parent.mkdir(parents=True, exist_ok=True)
+                    save_path.write_text(content, encoding="utf-8")
+                    self.notify(f"✓ Saved to {save_path}", severity="information")
+                else:
+                    self.notify("✗ Output file not ready yet", severity="warning")
+            except Exception as e:
+                self.notify(f"✗ Save failed: {e}", severity="error")
 
         def flush_pending_ui(self) -> None:
             """Flush any pending UI buffers at EOF."""
@@ -680,6 +732,27 @@ def main() -> int:
 
     Thread(target=worker, daemon=True).start()
     app.run()
+
+    # Ensure terminal is fully reset after Textual exits
+    # This helps IDE terminals detect process completion
+    sys.stdout.write("\033[?1049l")  # Exit alternate screen buffer
+    sys.stdout.write("\033[0m")  # Reset all attributes
+    sys.stdout.flush()
+
+    # Auto-save transcript to .droid/ for analysis after TUI closes
+    try:
+        if output_path.exists():
+            content = output_path.read_text(encoding="utf-8")
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            agent_slug = args.agent.replace(" ", "-")[:30] if args.agent else "unknown"
+            save_dir = Path(".droid/transcripts")
+            save_dir.mkdir(parents=True, exist_ok=True)
+            save_file = save_dir / f"{timestamp}-{agent_slug}-exit{exit_code}.txt"
+            save_file.write_text(content, encoding="utf-8")
+            print(f"[RUNNER] Transcript saved: {save_file}", file=sys.stderr)
+    except Exception as e:
+        print(f"[RUNNER] Auto-save failed: {e}", file=sys.stderr)
+
     return exit_code
 
 

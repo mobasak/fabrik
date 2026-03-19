@@ -68,26 +68,45 @@ This document describes the complete Phased YOLO workflow for Fabrik using custo
 
 **How agents maintain context across handoffs:**
 
+Traycer provides two key environment variables:
+- `TRAYCER_TASK_ID` - Stable across entire task lifecycle
+- `TRAYCER_PHASE_ID` - Changes per phase breakdown
+
 ```bash
-# Traycer sets environment variable for the phase
-export TRAYCER_TASK_ID="abc-123-def-456"
+# Agent script determines session title (from generate_kilo_agents.py)
+SESSION_TITLE="${TRAYCER_PHASE_ID:-${TRAYCER_TASK_ID:-kilo-session}}"
 
-# Plan handoff - First invocation
-Kilo Code agent passes: --session "$TRAYCER_TASK_ID"
-└─ Kilo stores: .droid/.droid_sessions.json["abc-123-def-456"]
+# Implementation handoff - Phase A
+export TRAYCER_TASK_ID="a1c68353-f282-45d7-8ef5-e1f9262d6c31"
+export TRAYCER_PHASE_ID="17112c9f-a4d8-4899-a638-3d321650e77e"
+kilo run --session-title "$SESSION_TITLE" ...  # Uses PHASE_ID
 
-# Verification handoff - Second invocation
-Kilo Code agent passes: --session "$TRAYCER_TASK_ID"  ← SAME ID
-└─ Kilo loads: .droid/.droid_sessions.json["abc-123-def-456"]
+# Verification fix handoff - SAME Phase A
+export TRAYCER_TASK_ID="a1c68353-f282-45d7-8ef5-e1f9262d6c31"  # SAME
+export TRAYCER_PHASE_ID="17112c9f-a4d8-4899-a638-3d321650e77e"  # SAME
+kilo run --session-title "$SESSION_TITLE" ...  # SAME session
+
+# Next phase handoff - Phase B (NEW session)
+export TRAYCER_TASK_ID="a1c68353-f282-45d7-8ef5-e1f9262d6c31"  # SAME
+export TRAYCER_PHASE_ID="d6722e85-1bf6-42cd-b71b-274a35023787"  # NEW
+kilo run --session-title "$SESSION_TITLE" ...  # NEW session
 ```
 
-**Result:** Agent remembers:
+**Session Scoping:**
+| Scope | Session ID Source | When Same |
+|-------|-------------------|------------|
+| Within phase | `TRAYCER_PHASE_ID` | Implementation + Verification fix |
+| Across phases | `TRAYCER_TASK_ID` | Only if PHASE_ID missing |
+
+**Result within a phase:** Agent remembers:
 - Original plan
 - Implementation decisions
-- Step 4 self-review findings
-- Now fixing Traycer's verification comments
+- Files modified
+- Verification comments being fixed
 
-**Critical:** Use the **SAME agent** in both Plan and Verification tabs to maintain session continuity.
+**Across phases:** Sessions are isolated (new PHASE_ID = new session).
+
+**Critical:** Use the **SAME agent** in both Plan and Verification tabs to maintain session continuity within a phase.
 
 ---
 

@@ -297,6 +297,14 @@ AGENT_LOG="${{HOME}}/.traycer/agent-debug.log"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$AGENT_LOG"
 echo "[$(date -Iseconds)] Agent started: {tier_name}{rank:02d}-{model_normalized}-{role}-{variant}" >> "$AGENT_LOG"
 
+# Always log Traycer context for workflow analysis
+echo "[$(date -Iseconds)] TRAYCER_TASK_ID=$TRAYCER_TASK_ID" >> "$AGENT_LOG"
+echo "[$(date -Iseconds)] TRAYCER_PHASE_ID=$TRAYCER_PHASE_ID" >> "$AGENT_LOG"
+echo "[$(date -Iseconds)] TRAYCER_WORKFLOW=$TRAYCER_WORKFLOW" >> "$AGENT_LOG"
+echo "[$(date -Iseconds)] TRAYCER_HANDOFF_TYPE=$TRAYCER_HANDOFF_TYPE" >> "$AGENT_LOG"
+echo "[$(date -Iseconds)] PROMPT_LENGTH=${{#TRAYCER_PROMPT}}" >> "$AGENT_LOG"
+env | grep -E "^TRAYCER_" >> "$AGENT_LOG" 2>/dev/null || true
+
 # Debug mode (KILO_DEBUG=1)
 if [ "$KILO_DEBUG" = "1" ]; then
     set -x  # Print all commands
@@ -320,6 +328,11 @@ else
     PROMPT="$TRAYCER_PROMPT"
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using TRAYCER_PROMPT environment variable" >&2
 fi
+
+# Fix tilde expansion: Traycer (Windows) sends ~/.traycer/ but Kilo may run as different user
+# Replace ~/ and ~/.traycer/ with $HOME equivalents so paths resolve correctly
+PROMPT="${{PROMPT//\\~\\/.traycer\\//${{HOME}}/.traycer/}}"
+[ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Fixed tilde paths in prompt" >&2
 
 # CRITICAL: Append Traycer report requirement to prompt
 # Without this, the LLM won't know to output the required report block
@@ -405,7 +418,7 @@ if [ "$USE_RICH_UI" = "1" ]; then
         --variant "{variant}" \\
         --session-title "$SESSION_TITLE" \\
         --timeout "$TIMEOUT" \\
-        -- timeout "$TIMEOUT" kilo run --format default --auto \\
+        -- timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
             --model {full_name} \\
             --variant {variant} \\
             --agent {role} \\
@@ -415,7 +428,7 @@ if [ "$USE_RICH_UI" = "1" ]; then
 else
     # Fallback: tee-based streaming (shows real-time AND captures)
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Plain mode (KILO_RICH_UI=$KILO_RICH_UI, tty=$([ -t 1 ] && echo yes || echo no))" >&2
-    timeout "$TIMEOUT" kilo run --format default --auto \\
+    timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
         --model {full_name} \\
         --variant {variant} \\
         --agent {role} \\

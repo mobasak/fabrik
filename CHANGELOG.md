@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - TUI copy/save keybindings + auto-save for kilo_terminal_runner (2026-03-18)
+
+**What:** Added keyboard shortcuts and automatic transcript persistence for debugging after TUI closes.
+
+**Features:**
+- `Ctrl+Y` - Copy full transcript to clipboard (tries xclip, xsel, wl-copy)
+- `Ctrl+S` - Save transcript to `.droid/transcript-YYYYMMDD-HHMMSS.txt`
+- **Auto-save on exit** - Transcripts saved to `.droid/transcripts/<timestamp>-<agent>-exit<code>.txt`
+
+**Files:**
+- `scripts/kilo_terminal_runner.py` - Added BINDINGS, action methods, auto-save on exit
+
+### Added - Enhanced Traycer context logging in CLI agents (2026-03-18)
+
+**What:** CLI agents now log all Traycer environment variables to help analyze workflow types and handoff sequences.
+
+**Logged:**
+- `TRAYCER_TASK_ID`, `TRAYCER_PHASE_ID`, `TRAYCER_WORKFLOW`, `TRAYCER_HANDOFF_TYPE`
+- All `TRAYCER_*` environment variables
+- Prompt length
+
+**Files:**
+- `scripts/generate_kilo_agents.py` - Added always-on Traycer context logging
+- `~/.traycer/cli-agents/*.sh` - All agents regenerated with enhanced logging
+
+### Fixed - Tilde expansion in CLI agent prompts (2026-03-18)
+
+**What:** Fixed path resolution bug where `~/.traycer/` in Traycer prompts expanded to `/root/.traycer/` instead of the user's home directory, causing yolo_artifacts file creation to fail.
+
+**Root Cause:** Traycer (Windows IDE extension) injects `~/.traycer/yolo_artifacts/<uuid>.json` into the prompt. When Kilo CLI executes, the `~` was being interpreted in a context where `$HOME` resolved to `/root/` instead of `/home/ozgur/`.
+
+**Fix:** Added tilde expansion normalization in generated CLI agent scripts:
+```bash
+PROMPT="${PROMPT//\~\/.traycer\//${HOME}/.traycer/}"
+```
+
+**Impact:** All 14 active CLI agents now correctly resolve `~/.traycer/` paths regardless of execution context. This fixes Smart YOLO and Phased YOLO task completion tracking.
+
+**Files:**
+- `scripts/generate_kilo_agents.py` - Added tilde expansion fix (lines 324-327)
+- `~/.traycer/cli-agents/*.sh` - All agents regenerated with fix
+
 ### Added - Dry-run and hash-based safety for sync_enforcement_to_projects (2026-03-18)
 
 **What:** Added safety features to prevent silent overwrites of newer files in child projects.

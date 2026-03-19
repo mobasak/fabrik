@@ -586,6 +586,28 @@
       "specialty": "Mission-critical, 1M+ context",
       "input_per_1m": 30.0,
       "output_per_1m": 180.0
+    },
+    {
+      "agent_id": "pro-5",
+      "model_name": "gemini-3.1-pro-preview",
+      "full_name": "kilo/google/gemini-3.1-pro-preview",
+      "provider": "Google",
+      "use_case": "Review",
+      "variant": "max",
+      "specialty": "Thorough review with deep reasoning",
+      "input_per_1m": 2.0,
+      "output_per_1m": 12.0
+    },
+    {
+      "agent_id": "pro-6",
+      "model_name": "gemini-3.1-pro-preview",
+      "full_name": "kilo/google/gemini-3.1-pro-preview",
+      "provider": "Google",
+      "use_case": "Code",
+      "variant": "high",
+      "specialty": "Cost-effective coding with good reasoning",
+      "input_per_1m": 2.0,
+      "output_per_1m": 12.0
     }
   ]
 }

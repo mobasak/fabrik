@@ -610,6 +610,39 @@ def stage_changes() -> tuple[bool, str]:
     return code == 0, out
 
 
+def log_gate_issues(results: list[tuple[str, bool, str]], gate_type: str) -> None:
+    """Log failed checks to .droid/gate_issues.jsonl for analysis.
+
+    Args:
+        results: List of (check_name, passed, output) tuples
+        gate_type: 'pre_kilo' or 'post_kilo'
+    """
+    import json
+    from datetime import datetime
+
+    failed = [(name, output) for name, passed, output in results if not passed]
+    if not failed:
+        return
+
+    log_dir = FABRIK_ROOT / ".droid"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "gate_issues.jsonl"
+
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "gate_type": gate_type,
+        "project": str(FABRIK_ROOT),
+        "issues": [{"check": name, "output": output[:500]} for name, output in failed],
+    }
+
+    with open(log_file, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+    print(
+        f"  {YELLOW}📝 Logged {len(failed)} issues to .droid/gate_issues.jsonl ({gate_type}){RESET}"
+    )
+
+
 def get_git_status_hash() -> str:
     """Get hash of current git status (to detect file changes)."""
     code, out = run_cmd(["git", "status", "--porcelain"])
@@ -633,6 +666,11 @@ def parse_args() -> argparse.Namespace:
         "--sync",
         action="store_true",
         help="Run sync steps only (Step 7 - no quality checks)",
+    )
+    parser.add_argument(
+        "--post-kilo",
+        action="store_true",
+        help="Log issues caught (for post-Kilo analysis). Logs to .droid/gate_issues.jsonl",
     )
     # Note: --no-sync removed - default now never syncs (use --sync explicitly for Step 7)
     return parser.parse_args()
@@ -741,6 +779,10 @@ def main() -> int:
     # Summary first (to know if we should stage)
     passed_count = len([r for r in all_results if r[1]])
     failed = [r for r in all_results if not r[1]]
+
+    # Log issues if --post-kilo flag is set (for future analysis)
+    if args.post_kilo and failed:
+        log_gate_issues(all_results, "post_kilo")
 
     # Auto-stage only if no failures AND fix mode AND staging enabled
     if not args.check and not args.no_stage and not failed:
