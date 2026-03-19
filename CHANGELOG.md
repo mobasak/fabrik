@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Cheap Fix Agent for low-cost AI automation (2026-03-19)
+
+**What:** New script using Gemini 2.5 Flash for cheap automated fixes (lint, type hints, task comments).
+**Features:**
+- `fix` - Fix a specific issue in a file
+- `fix-from-output` - Fix issues from mypy/ruff output
+- `batch` - Batch fix all issues in a file
+- `test` - Verify agent connectivity
+**Integration:** Optional hook in `final_gate.py` via `FINAL_GATE_AI_FIX=1` env var
+**Files:**
+- `scripts/cheap_fix_agent.py` - New script (~370 lines)
+- `scripts/final_gate.py` - Added `run_ai_fixes()` hook
+
 ### Added - TUI copy/save keybindings + auto-save for kilo_terminal_runner (2026-03-18)
 
 **What:** Added keyboard shortcuts and automatic transcript persistence for debugging after TUI closes.

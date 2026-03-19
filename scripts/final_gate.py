@@ -30,6 +30,8 @@ Iterates up to 3 times until clean. Auto-stages changes only if all checks pass.
 """
 
 import argparse
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -59,6 +61,37 @@ TIMEOUTS = {
 
 # Max fix iterations to prevent infinite loops
 MAX_ITERATIONS = 3
+
+# AI fix agent (enabled via FINAL_GATE_AI_FIX=1)
+CHEAP_FIX_AGENT = Path(__file__).parent / "cheap_fix_agent.py"
+
+
+def run_ai_fixes(tool: str) -> tuple[bool, str]:
+    """Run cheap_fix_agent to fix issues from a tool (mypy/ruff).
+
+    Only runs if FINAL_GATE_AI_FIX=1 is set.
+    Returns (success, message).
+    """
+    if os.getenv("FINAL_GATE_AI_FIX") != "1":
+        return False, "AI fix disabled (set FINAL_GATE_AI_FIX=1 to enable)"
+
+    if not CHEAP_FIX_AGENT.exists():
+        return False, f"cheap_fix_agent.py not found at {CHEAP_FIX_AGENT}"
+
+    try:
+        result = subprocess.run(
+            [sys.executable, str(CHEAP_FIX_AGENT), "fix-from-output", "--tool", tool],
+            cwd=FABRIK_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        output = (result.stdout + result.stderr).strip()
+        return result.returncode == 0, output
+    except subprocess.TimeoutExpired:
+        return False, "AI fix timed out"
+    except Exception as e:
+        return False, str(e)
 
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None) -> tuple[int, str]:
@@ -156,8 +189,6 @@ def semgrep_env_with_token() -> dict[str, str] | None:
 
     Reads ~/.semgrep/settings.yml without requiring PyYAML.
     """
-    import os
-    import re
 
     settings_path = Path.home() / ".semgrep" / "settings.yml"
     if not settings_path.exists():
