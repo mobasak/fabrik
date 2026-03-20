@@ -27,6 +27,8 @@ trigger: always_on
 | `fabrik-postgres` | "database", "postgres" |
 | `fabrik-documentation` | "docs", "readme", "update docs" |
 
+**If multiple skills match, invoke the most specific one. If uncertain, invoke and report.**
+
 ---
 
 ## Traycer YOLO Automation

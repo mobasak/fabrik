@@ -156,32 +156,3 @@ Every plan MUST include review checkpoints:
 
 **EVIDENCE:** <expected output>
 ```
-
----
-
-## Violations
-
-**Violations:**
-- Do NOT implement without plan approval
-- Do NOT skip Step 2.5 self-review
-- Do NOT proceed to Step 3 without self-review report
-- Do NOT skip final_gate before Kilo review
-- Do NOT proceed with BLOCKER/MAJOR issues
-- Do NOT skip post-Kilo final_gate
-- Do NOT commit without Step 7 passing
-
-**If user catches me skipping review:**
-- I must acknowledge the violation
-- Run the skipped review immediately
-- Fix issues before continuing
-
----
-
-## Scope
-
-This protocol applies to:
-- All projects under `/opt/`
-- All Cascade agents working in this workspace
-- All file modifications (edit, multi_edit, write_to_file, Create)
-
-Symlinked via `.windsurfrules` to all project roots.

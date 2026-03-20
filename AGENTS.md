@@ -1,46 +1,59 @@
 # Fabrik Project Agent Briefing
 
-**Last Updated:** 2026-02-24
+**Last Updated:** 2026-03-20
 
 > Traycer is the planning authority. Kilo CLI or Windsurf Cascade is the coding executor.
+
+## Quick Navigation
+
+**Coder AI:** Read sections marked `[CODER AI]` and `[ALL AGENTS]`. Skip `[TRAYCER ONLY]`, `[REVIEWER]`, `[FIXER]`.
+
+**Reviewer:** Read sections marked `[REVIEWER]` and `[ALL AGENTS]`. Skip `[TRAYCER ONLY]`, `[CODER AI]`, `[FIXER]`.
+
+**Fixer:** Read sections marked `[FIXER]` and `[ALL AGENTS]`. Skip `[TRAYCER ONLY]`, `[CODER AI]`, `[REVIEWER]`.
+
+**Traycer:** Read all sections.
+
+---
 
 <!-- AUTO-GENERATED:TOC:START -->
 <!-- This section is auto-generated. Do not edit manually. Run: python scripts/update_agents_toc.py -->
 ## Table of Contents
-- [Authority Model](#authority-model)
-- [Execution Protocol (9-Step Agile Flow)](#execution-protocol-9-step-agile-flow)
-- [Planning (Required for Non-Trivial Work)](#planning-required-for-non-trivial-work)
-- [Traycer Mode Selection](#traycer-mode-selection)
-- [Traycer Mode (When Task is Traycer-Managed)](#traycer-mode-when-task-is-traycer-managed)
-- [Documentation Rules](#documentation-rules)
-- [⚠️ MANDATORY WORKFLOW (ALL AI AGENTS)](#⚠️-mandatory-workflow-all-ai-agents)
-- [Sensitive Data Protection (CRITICAL)](#sensitive-data-protection-critical)
-- [Security Gates (MANDATORY - Runs 3 Times Per Phase)](#security-gates-mandatory-runs-3-times-per-phase)
-- [Windsurf Cascade Users](#windsurf-cascade-users)
-- [Build & Test](#build-test)
-- [Run Locally](#run-locally)
-- [Architecture Overview](#architecture-overview)
-- [SaaS Projects (MANDATORY)](#saas-projects-mandatory)
-- [Project Layout](#project-layout)
-- [Conventions & Patterns](#conventions-patterns)
-- [Security](#security)
-- [Deployment](#deployment)
-- [Gotchas](#gotchas)
-- [Documentation Rules (MUST)](#documentation-rules-must)
+- [Quick Navigation](#quick-navigation)
+- [[TRAYCER ONLY] Authority Model](#traycer-only-authority-model)
+- [[ALL AGENTS] Orientation — Do This First (MANDATORY)](#all-agents-orientation-—-do-this-first-mandatory)
+- [[ALL AGENTS] Environment Context](#all-agents-environment-context)
+- [[ALL AGENTS] Execution Protocol (7-Step Agile Flow)](#all-agents-execution-protocol-7-step-agile-flow)
+- [[TRAYCER ONLY] Traycer Mode Selection](#traycer-only-traycer-mode-selection)
+- [[TRAYCER ONLY] Traycer Mode (When Task is Traycer-Managed)](#traycer-only-traycer-mode-when-task-is-traycer-managed)
+- [[ALL AGENTS] Documentation Rules](#all-agents-documentation-rules)
+- [[ALL AGENTS] ⚠️ MANDATORY WORKFLOW](#all-agents-⚠️-mandatory-workflow)
+- [[ALL AGENTS] Sensitive Data Protection (CRITICAL)](#all-agents-sensitive-data-protection-critical)
+- [[ALL AGENTS] Security Gates (MANDATORY)](#all-agents-security-gates-mandatory)
+- [[ALL AGENTS] Build & Test](#all-agents-build-test)
+- [[CODER AI] Run Locally](#coder-ai-run-locally)
+- [[CODER AI] Architecture Overview](#coder-ai-architecture-overview)
+- [[CODER AI] SaaS Projects (MANDATORY)](#coder-ai-saas-projects-mandatory)
+- [[CODER AI] Project Layout](#coder-ai-project-layout)
+- [[ALL AGENTS] Conventions & Patterns](#all-agents-conventions-patterns)
+- [[ALL AGENTS] Security](#all-agents-security)
+- [[CODER AI] Deployment](#coder-ai-deployment)
+- [[ALL AGENTS] Gotchas](#all-agents-gotchas)
+- [[ALL AGENTS] Documentation Rules (MUST)](#all-agents-documentation-rules-must)
 - [Feature Name](#feature-name)
-- [Execution Modes (Fabrik Lifecycle)](#execution-modes-fabrik-lifecycle)
-- [Traycer CLI Agent Auto-Review Integration](#traycer-cli-agent-auto-review-integration)
-- [Traycer Report Panel (Windsurf Extension)](#traycer-report-panel-windsurf-extension)
-- [VPS Deployment (Coolify)](#vps-deployment-coolify)
-- [GitHub Actions Workflows](#github-actions-workflows)
-- [Fabrik Skills (Convention Enforcement)](#fabrik-skills-convention-enforcement)
-- [MCP (Model Context Protocol)](#mcp-model-context-protocol)
-- [Droid Hooks](#droid-hooks)
-- [Agent Readiness Checklist](#agent-readiness-checklist)
-- [Writing Effective Prompts](#writing-effective-prompts)
+- [[TRAYCER ONLY] Execution Modes (Fabrik Lifecycle)](#traycer-only-execution-modes-fabrik-lifecycle)
+- [[TRAYCER ONLY] Traycer CLI Agent Auto-Review Integration](#traycer-only-traycer-cli-agent-auto-review-integration)
+- [[TRAYCER ONLY] Traycer Report Panel (Windsurf Extension)](#traycer-only-traycer-report-panel-windsurf-extension)
+- [[TRAYCER ONLY] VPS Deployment (Coolify)](#traycer-only-vps-deployment-coolify)
+- [[TRAYCER ONLY] GitHub Actions Workflows](#traycer-only-github-actions-workflows)
+- [[TRAYCER ONLY] Fabrik Skills (Convention Enforcement)](#traycer-only-fabrik-skills-convention-enforcement)
+- [[TRAYCER ONLY] MCP (Model Context Protocol)](#traycer-only-mcp-model-context-protocol)
+- [[TRAYCER ONLY] Droid Hooks](#traycer-only-droid-hooks)
+- [[CODER AI] Agent Readiness Checklist](#coder-ai-agent-readiness-checklist)
+- [[CODER AI] Writing Effective Prompts](#coder-ai-writing-effective-prompts)
 <!-- AUTO-GENERATED:TOC:END -->
 
-## Authority Model
+## [TRAYCER ONLY] Authority Model
 
 - You write content.
 - Deterministic gates enforce structure.
@@ -49,45 +62,60 @@
 
 ### Traycer Planning Authority
 
-**Traycer is the planning authority.** If Traycer is used:
-- No other agent may create/modify plans except by updating the Traycer-managed plan artifact
-- All planning happens in Traycer (Phases)
-- Traycer produces the managed plan
-- Traycer's built-in verifier is the primary verification/review surface
-- Coding agents only execute steps from the Traycer-managed plan
-- No agent may create `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, or `implementation-plan-template.md` in any project — these patterns are retired. Traycer Phases are the planning authority.
+**Traycer is the planning authority.**
+- All planning happens in Traycer
+- Coding agents execute steps from the Traycer-managed plan
+- Traycer's verifier confirms SPEC compliance
 
-## Execution Protocol (9-Step Agile Flow)
+---
+
+## [ALL AGENTS] Orientation — Do This First (MANDATORY)
+
+**Scan before you act.** Read the full project structure from root before generating anything.
+
+**Do not** recreate `.venv`, `node_modules/`, or replace existing Docker configuration unless explicitly instructed.
+
+---
+
+## [ALL AGENTS] Environment Context
+
+**Runtime:** WSL (Ubuntu). Linux paths and commands only. Never assume Windows tooling.
+
+**Structure:** Project scaffold is fixed. Work within it — do not reorganize, flatten, or add top-level directories without explicit instruction.
+
+**Task execution:** Architectural decisions, base images, and tool choices are resolved before coding begins — they are not your concern. Follow the plan verbatim. State any assumption explicitly before acting on it.
+
+**Deployment:** Linux VPS via container orchestration, optionally Supabase. ARM-compatible builds by default.
+- Base images: `python:3.12-slim-bookworm`, `node:22-bookworm-slim`
+
+**PEP 668:** Never run bare `pip install`. Always use the project-specific venv (e.g., `/opt/<project>/.venv/bin/pip install`).
+
+**Conflicts:** If the task contradicts what exists in the project, stop and report to Traycer for re-planning.
+
+---
+
+## [ALL AGENTS] Execution Protocol (7-Step Agile Flow)
 
 **Token-optimized workflow: deterministic checks before LLM review.**
 
-| Step | Action | Command / Gate |
-|------|--------|----------------|
-| **1** | **Traycer Plan** | Plan exists with spec, edge cases, env vars, DB changes |
-| **2** | **Coder Implements** | Code only what phase requires, follow spec strictly |
-| **3** | **Final Gate (Pre-Kilo)** | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
-| **4** | **Kilo Review Loop** | Fix ALL issues until verdict=PASS (diff-scoped) |
-| **5** | **Final Gate (Post-Kilo)** | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
-| **6** | **Traycer Verification** | Traycer verifier passes |
-| **7** | **Sync Only** | `python /opt/fabrik/scripts/final_gate.py --sync` → sync extensions/backup |
-| **8** | **Traycer Commit** | Pre-commit runs 4 blockers only |
-| **9** | **Next Phase** | Move to next Traycer phase |
+| Step | Who | Action | Gate |
+|------|-----|--------|------|
+| **1** | **Traycer** | Creates plan | Spec exists with spec, edge cases, env vars, DB changes |
+| **2** | **Coder AI** | Implements code | Code only what phase requires, follow spec strictly |
+| **2.5** | **Coder AI** | Self-review | Reviews own work (MANDATORY) |
+| **3** | **Coder AI** | Final Gate | `python scripts/final_gate.py` → all PASS |
+| **4** | **Coder AI** | Kilo Review | `python scripts/kilo_code_review.py staged --plan "..."` → report issues |
+| **5** | **Coder AI** | Fixes issues | Fix reported issues, re-run review until PASS |
+| **6** | **Traycer** | Verifies | Traycer verifier confirms SPEC compliance |
+| **7** | **Traycer** | Commits | Pre-commit runs 4 blockers only |
 
 ### Step Details
 
 **Step 1 - Traycer Plan:** Ensure plan includes functional spec, edge cases, required env vars, DB changes, docs impact. Do NOT start if spec is vague.
 
-**Step 2 - Coder Implements:** Use Gemini 3.1 Pro High Thinking (1x). Implement only phase scope. Escalate to Sonnet 4.5 Thinking (3x) if stuck.
+**Step 2 - Coder AI Implements:** Implement only phase scope. Follow spec strictly.
 
-**Step 2.5 - Self-Review (MANDATORY - Implemented 2026-03-06):** Before running pre-kilo, coding AI MUST review its own implementation.
-
-**For Traycer CLI Agents:** Agent performs structured self-review via separate Kilo call:
-1. Agent re-reads original task/spec completely
-2. Agent checks each requirement against code changes
-3. Agent verifies edge cases are handled
-4. Agent confirms environment variables documented
-5. Agent confirms database changes documented
-6. Agent generates structured self-review report
+**Step 2.5 - Self-Review (MANDATORY):** Before running final_gate, Coder AI MUST review its own implementation.
 
 **Self-Review Format (Required):**
 ```
@@ -99,57 +127,32 @@ SELF-REVIEW COMPLETE:
 ⚠ Potential issues: [list concerns or "None identified"]
 ```
 
-**For Manual Review (non-Traycer):**
-1. Re-read the plan/spec completely
-2. Check each requirement against code changes
-3. Verify edge cases are handled
-4. Confirm env vars/DB changes documented
-5. Report findings in structured format:
+**Violations:** Proceeding to Step 3 without self-review = FORBIDDEN.
 
-```
-SELF-REVIEW COMPLETE:
-✓ All spec requirements implemented
-✓ Edge cases handled: <list or "N/A">
-✓ Env vars documented: <list or "N/A">
-✓ DB changes documented: <list or "N/A">
-⚠ Potential issues: <list or "None identified">
-
-Next: Proceed to Step 3 (Final Gate Pre-Kilo)
-```
-
-**Violations:** Proceeding to Step 3 without self-review = FORBIDDEN. Self-review report missing required sections = STOP.
-
-**Step 3 - Final Gate (Pre-Kilo):** Catches deterministic failures BEFORE spending Kilo tokens.
+**Step 3 - Final Gate:** Catches deterministic failures BEFORE spending Kilo tokens.
 Checks include:
 - Auto-fix: trailing whitespace, EOF newline, ruff-format, ruff --fix
 - Static: ruff, mypy, bandit, semgrep (best-effort), check yaml, check json, sqlfluff, vulture
 - Consistency: structure, conventions, rule size, model names sync, changelog, kilo health
 
-**Step 4 - Kilo Review (Strict Enforcement - 2026-03-05):** 6-layer enforcement pipeline. Reviews diff with:
-1. Pre-review gates (final_gate.py results injected into prompt)
-2. Risk assessment (security paths + diff size → triggers multi-pass if needed)
-3. Plan extraction (REQ-#, numbered, bulleted requirements)
-4. Schema validation (strict JSON, NO auto-fill, invalid → BLOCKER)
-5. Evidence validation (BLOCKER/MAJOR must have structured evidence: file_line, diff, tool_output, missing, multi_file, external)
-6. Plan coverage validation (all requirements must be addressed, skip for doc/verify modes)
+**Step 4 - Kilo Review (March 2026 - Report-Only Default):** Single command with automatic features:
+```bash
+python /opt/fabrik/scripts/kilo_code_review.py staged --plan "task description" --output json
+```
 
-Coder fixes ALL issues (BLOCKER, MAJOR, MINOR). Repeat until verdict=PASS. Retry logic: 1 attempt with JSON skeleton if schema fails. Token accounting: sums ALL attempts. Multi-pass: 2 passes (general + security-focused) for high-risk changes.
+**Automatic features:**
+- **Risk Detection**: Scans file paths + diff size → determines risk level
+- **Model Selection**: Risk level → cheapest capable model (no manual `--model` needed)
+- **Variant Selection**: Risk level → appropriate thinking depth
+- **Session Isolation**: Auto-generates `tracked_review_id` from project+branch+date
 
-**Step 5 - Final Gate (Post-Kilo):** Ensures Kilo fixes didn't break deterministic rules.
+**Default is report-only** — Coder fixes ALL issues (BLOCKER, MAJOR, MINOR). Repeat until verdict=PASS.
 
-**Step 6 - Traycer Verification:** If issues found, return to Step 3.
+**Step 5 - Coder Fixes:** Fix reported issues, re-run Kilo review until PASS (max 5 iterations).
 
-**Step 7 - Sync Only:** Runs sync steps only (extensions, backup). No duplicate checks—Step 5 already verified everything.
+**Step 6 - Traycer Verification:** Traycer verifier confirms SPEC compliance. If issues found, return to Step 3.
 
-**Step 8 - Traycer Commit:** Runs only 4 blockers: check-added-large-files, check-merge-conflict, detect-private-key, forbid-secrets.
-
-### Why This Works
-
-- Deterministic issues caught early (saves tokens)
-- LLM tokens used only for reasoning problems
-- No repeated lint/security cycles inside Kilo
-- No commit friction
-- No duplicated gates
+**Step 7 - Traycer Commit:** Runs only 4 blockers: check-added-large-files, check-merge-conflict, detect-private-key, forbid-secrets.
 
 **Step Output Format (MANDATORY after each step):**
 ```
@@ -163,42 +166,21 @@ Next: Proceed to Step <N+1> / STOP
 
 **Violations:**
 - Do NOT implement without plan approval
+- Do NOT skip Step 2.5 self-review
+- Do NOT proceed to Step 3 without self-review report
 - Do NOT skip final_gate before Kilo review
 - Do NOT proceed with BLOCKER/MAJOR issues
 - Do NOT skip post-Kilo final_gate
 - Do NOT commit without Step 7 passing
 
----
-
-## Planning (Required for Non-Trivial Work)
-
-> ⚠️ **Archived templates (2026-02-25):** `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, and `implementation-plan-template.md` have been archived to `docs/archive/2026-02-25-pre-traycer-templates/`. Do NOT recreate them. Use Traycer Phases for all planning.
-
-**If Traycer is used:** Planning happens in Traycer Phases. The plan is exported to `docs/development/plans/` and indexed in `docs/development/PLANS.md`. Coding agents only execute steps from the Traycer-managed plan.
-
-**If Traycer is NOT used:** Create a plan document before implementing any feature or fix.
-
-### Plan Location & Naming
-- Location: `docs/development/plans/`
-- Filename: `YYYY-MM-DD-plan-<name>.md` (e.g., `2026-01-14-plan-feature-auth.md`)
-
-### Plan Lifecycle
-1. **Create** plan in `docs/development/plans/`
-2. **Add** to `docs/development/PLANS.md` index
-3. **Update** `**Status:**` as work progresses
-4. **Check boxes** as items complete
-5. **Archive** when COMPLETE → move to `docs/archive/`
-
-### Required Plan Sections
-- `**Status:**` line (NOT_STARTED, IN_PROGRESS, PARTIAL, COMPLETE, NOT_DONE)
-- `## Goal` - One-line description
-- `## DONE WHEN` - Checkboxes for completion criteria
-- `## Out of Scope` - What's excluded
-- `## Steps` - Implementation steps
+**If user catches you skipping review:**
+- Acknowledge the violation
+- Run the skipped review immediately
+- Fix issues before continuing
 
 ---
 
-## Traycer Mode Selection
+## [TRAYCER ONLY] Traycer Mode Selection
 
 **When planning work with Traycer, choose the appropriate mode based on task complexity:**
 
@@ -219,43 +201,24 @@ Next: Proceed to Step <N+1> / STOP
 - **Traycer Refactoring Workflow**: 4-command workflow for safe refactoring (`/trigger-workflow` → `/plan-refactor` → `/ticket-breakdown` → `/verification`)
 - **Custom Workflows**: Create your own command sequences tailored to your methodology
 
-**For complete workflow details**, see:
-- [`docs/traycer/README.md`](docs/traycer/README.md) - Traycer integration guide
-- [`docs/traycer/traycer-agile-workflow.md`](docs/traycer/traycer-agile-workflow.md) - Detailed Agile Workflow reference
-- [`docs/traycer/traycer-refactoring-workflow.md`](docs/traycer/traycer-refactoring-workflow.md) - Detailed Refactoring Workflow reference
-- [`docs/guides/DEVELOPMENT_WORKFLOW.md`](docs/guides/DEVELOPMENT_WORKFLOW.md) - How Traycer fits into Fabrik's 9-step workflow
+---
+
+## [TRAYCER ONLY] Traycer Mode (When Task is Traycer-Managed)
+
+1. **Context Preservation** — Traycer carries forward file mappings, decisions, and rationale across phases. Rely on the provided spec.
+2. **Follow steps exactly in order** — Only execute steps from the managed plan.
+3. **Do NOT redesign or change scope** — If changes needed, pause and request plan update from Traycer.
+4. **One step at a time** — Complete current step before moving to next.
+5. **After each step:** Show Evidence + Gate result.
+6. **If a Gate fails** → STOP and report to Traycer for re-planning.
 
 ---
 
-## Traycer Mode (When Task is Traycer-Managed)
-
-When executing a Traycer-managed plan via the **Windsurf Extension**:
-
-1. **Traycer runs as an IDE Extension** — It connects directly to your WSL environment via CLI agents (`~/.traycer/cli-agents/`).
-2. **Context Preservation** — Traycer automatically carries forward file mappings, decisions, and rationale across phases. Do not re-analyze the entire architecture if you are executing a later phase; rely on the provided spec.
-3. **Async Job Submission** — Traycer submits plans using `factory_submit.py` and waits for execution using `factory_wait.py` inside `/opt/fabrik/`.
-4. **Follow steps exactly in order** — Only execute steps from the managed plan.
-5. **Do NOT redesign or change scope** — If changes needed, pause and request plan update from Traycer.
-6. **One step at a time** — Complete current step before moving to next.
-7. **After each step:** Show Evidence + Gate result (use Step Output Format above).
-8. **If a Gate fails** → STOP and report to Traycer for re-planning.
-
-**Forbidden actions in Traycer Mode:**
-- Reordering steps
-- Expanding scope beyond the plan
-- Modifying plan steps without Traycer approval
-- Creating alternative plans or workarounds
-- Skipping verification steps
-
----
-
-## Documentation Rules
+## [ALL AGENTS] Documentation Rules
 
 1) **VERIFY before creating:** Check `INDEX.md` (root) and existing folders before creating new files.
-2) New markdown files are BLOCKED except: root allowlist (INDEX.md, README.md, CHANGELOG.md, AGENTS.md), scaffold files, plans, archives. See **Documentation Anti-Sprawl Policy** below.
-3) Feature/Execution plans: See **Planning** section above.
-4) Every new plan MUST be added to `docs/development/PLANS.md`.
-5) Do NOT create new folders under `docs/` except via existing structure.
+2) New markdown files are BLOCKED except: root allowlist (INDEX.md, README.md, CHANGELOG.md, AGENTS.md), scaffold files, plans, archives.
+3) Do NOT create new folders under `docs/` except via existing structure.
 6) If you add a module under `src/`, ensure documentation coverage exists in the current scaffolded/reference system. Update existing docs or run `docs_updater.py --sync`; do not create ad hoc new reference markdown files unless the anti-sprawl policy explicitly allows it.
 7) NEVER edit inside `<!-- AUTO-GENERATED:* -->` blocks.
    - Run `docs_updater.py --sync` instead.
@@ -301,96 +264,84 @@ When executing a Traycer-managed plan via the **Windsurf Extension**:
 
 ---
 
-## ⚠️ MANDATORY WORKFLOW (ALL AI AGENTS)
+## [ALL AGENTS] ⚠️ MANDATORY WORKFLOW
 
-**Before finishing ANY coding task, you MUST:**
+**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO_REVIEW → FIX → TRAYCER_VERIFY → COMMIT**
+
+| Step | Who | Action | Gate |
+|------|-----|--------|------|
+| **1** | **Traycer** | Creates plan | Spec exists with spec, edge cases, env vars, DB changes |
+| **2** | **Coder AI** | Implements code | Code only what phase requires, follow spec strictly |
+| **2.5** | **Coder AI** | Self-review | Review own code: ✓ spec ✓ edge cases ✓ env vars ✓ DB ⚠ issues |
+| **3** | **Coder AI** | Final Gate | `python scripts/final_gate.py` → all PASS |
+| **4** | **Coder AI** | Kilo Review | `python scripts/kilo_code_review.py staged --plan "..."` → report issues |
+| **5** | **Coder AI** | Fixes issues | Fix reported issues, re-run Kilo review until PASS |
+| **6** | **Traycer** | Verifies | Traycer verifier confirms SPEC compliance |
+| **7** | **Traycer** | Commits | Pre-commit runs 4 blockers only |
+
+> **Note:** When Traycer is not available, fall back to manual plan creation.
+
+### Kilo Review (March 2026 - Simplified)
 
 ```bash
-# 1. Run enforcement check
-python3 -m scripts.enforcement.validate_conventions --strict <changed_files>
-
-# 2. Trigger code review (if significant changes)
-# Traycer-managed: Run Traycer verification (primary)
-# Otherwise: python /opt/fabrik/scripts/kilo_code_review.py review <files> --output json
-
-# 3. Update documentation
-# If you changed code in src/, scripts/, update relevant docs/
-```
-
-**Kilo Code Review Workflow (Staged-First with Scoped Sessions):**
-
-```bash
-# Set stable review ID once per cycle (use feature name + date)
-export REVIEW_ID="feat-$(date +%Y%m%d)-<feature-slug>"
-
-# Stage intended files before initial review
+# Stage files, then run review (all routing is automatic)
 git add <intended_files>
-
-# Initial review: staged commit candidate
-python /opt/fabrik/scripts/kilo_code_review.py staged \
-  --session continue \
-  --tracked-review-id "$REVIEW_ID" \
-  --plan "Short micro-spec here..." \
-  --review-agent ask \
-  --output json
-
-# Follow-up loops: verify command (lighter than full review)
-python /opt/fabrik/scripts/kilo_code_review.py verify <changed_files> \
-  --session continue \
-  --tracked-review-id "$REVIEW_ID" \
-  --fixes "What was fixed" \
-  --review-agent ask \
-  --output json
-
-# Final risky-branch check: staged again (only if needed)
-python /opt/fabrik/scripts/kilo_code_review.py staged \
-  --session continue \
-  --tracked-review-id "$REVIEW_ID" \
-  --review-agent ask \
-  --output json
+python /opt/fabrik/scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
 
-**Session Scoping (NEW - 2026-03-17):**
-- Sessions scoped by: `project_root + git_branch + tracked_review_id`
-- `--tracked-review-id` **REQUIRED** with `--session continue`
-- Prevents cross-repo/branch session pollution
-- Issue state persisted: `.droid/reviews/<tracked_review_id>_issues.json`
-- Open issues reused across iterations
-- Auto-close is conservative: only for staged, single-batch, non-verify, auto-fix runs
+**What happens automatically:**
+1. **Risk Detection**: Scans file paths + diff size
+   - `auth/`, `security/`, `payment`, secrets → **critical**
+   - `src/`, `scripts/`, >400 lines → **high**
+   - Normal code → **medium**
+   - Docs only → **low**
 
-**Workflow:**
-1. **Stage intended files** - review commit candidate, not arbitrary file sets
-2. **Initial staged review** - full SPEC verification
-3. Fix ALL open issues (BLOCKER, MAJOR, MINOR) - I fix, not Kilo
-4. **Verify with verify command** - lighter follow-up check
-5. Repeat verify until verdict=PASS (max 5 iterations)
-6. **Final staged review** - only if risky/cross-module changes
+2. **Model Selection**: Risk → Strategy → Tier → Model
+   - low → free → Free tier (minimax, glm-4.7-free)
+   - medium → economy → Economy tier (gemini-flash-lite)
+   - high → standard → Balanced tier (glm-4.7)
+   - critical → premium → Strong tier (glm-5, claude-sonnet)
+
+3. **Variant Selection**: Risk → Thinking depth
+   - low → `low` variant (~10s, cheapest)
+   - medium/high → `high` variant (~20s, best value)
+   - critical → `max` variant (~40s, deepest)
+
+4. **Session Isolation**: Auto-generated `tracked_review_id`
+   - Hash of `project_root + git_branch + date`
+   - Same project/branch/day = same session = continuity
+   - Different project/branch/day = different session = no mixing
+
+**Review Commands:**
+- **staged**: Review git staged files (most common)
+- **changed**: Review all changed files
+- **review <files>**: Review specific files
+- **verify <files> --fixes "..."**: Verify manual fixes (cheaper)
 
 **Key points:**
-- **Staged-first** - review the actual commit candidate surface
-- **verify command for intermediate loops** - cheaper, focused on fixes
-- Use inline plan text (`--plan "description"`) - simpler, no file management
-- **Set REVIEW_ID once** - keep same ID across all iterations in the cycle
-- **Do not assume unseen issues are fixed** unless full-scope staged single-batch
-- Reserve generic `review <files>` for deliberate partial/WIP review only
-- Reserve `--review-mode full` for narrow high-risk files only
-- I fix issues, not Kilo (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
+- **Default is report-only** - Coder fixes issues, not Kilo
+- **Model selection is automatic** - no manual `--model` needed
+- **Session isolation is automatic** - no manual `--tracked-review-id` needed
+- Use `--fix` only if you want Kilo to auto-fix (costs more)
+- Fix ALL severities (BLOCKER, MAJOR, MINOR)
+- Max 5 iterations before escalating or stopping
+- **Traycer commits, not Coder** - Coder only implements and fixes
 
 **Sequence (Traycer-managed):**
 ```
-Code → Final Gate → Kilo loop → Final Gate → Traycer verification → Sync (--sync) → Commit
+Code → Self-Review → Final Gate → Kilo loop → Traycer verification → Commit
 ```
 
 **Sequence (Non-Traycer):**
 ```
-Code → Final Gate → Kilo loop until PASS → Final Gate → Sync (--sync) → Commit
+Code → Self-Review → Final Gate → Kilo loop until PASS → Commit
 ```
 
-**Violation:** Committing without Step 7 (`python /opt/fabrik/scripts/final_gate.py --sync`) PASS.
+**Violation:** Committing without Traycer verification (Step 6) or Final Gate PASS.
 
 ---
 
-## Sensitive Data Protection (CRITICAL)
+## [ALL AGENTS] Sensitive Data Protection (CRITICAL)
 
 **Before modifying files with credentials/secrets:**
 - `.env`, `.env.*` (not `.env.example`)
@@ -409,19 +360,16 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 
 ---
 
-## Security Gates (MANDATORY - Runs 3 Times Per Phase)
+## [ALL AGENTS] Security Gates (MANDATORY)
 
-**Final Gate runs twice, then sync-only once:**
+**Final Gate runs at Step 3, then again after fixes if needed:**
 
 ```bash
 # Step 3 - Before Kilo review (catches deterministic failures, saves tokens)
 python /opt/fabrik/scripts/final_gate.py
 
-# Step 5 - After Kilo review (ensures Kilo fixes didn't break rules)
+# After fixing Kilo issues - re-run before re-review
 python /opt/fabrik/scripts/final_gate.py
-
-# Step 7 - Sync only (no duplicate checks)
-python /opt/fabrik/scripts/final_gate.py --sync
 ```
 
 **What Final Gate checks:**
@@ -466,18 +414,7 @@ python /opt/fabrik/scripts/final_gate.py --sync
 
 ---
 
-## Windsurf Cascade Users
-
-For IDE-specific rules, see `.windsurf/rules/`:
-- `00-critical.md` — Security, env vars, ports (Always On)
-- `10-python.md` — FastAPI patterns (*.py glob)
-- `20-typescript.md` — Next.js patterns (*.ts, *.tsx glob)
-- `30-ops.md` — Docker/deployment (Always On)
-- `40-documentation.md` — Plan documents, writing style (Always On)
-- `50-code-review.md` — Execution protocol, PLAN→APPROVE→IMPLEMENT→REVIEW→FIX→VALIDATE→NEXT (Always On)
-- `90-automation.md` — Traycer YOLO automation, Fabrik skills (Always On)
-
-## Build & Test
+## [ALL AGENTS] Build & Test
 
 ```bash
 # Python projects
@@ -495,7 +432,7 @@ docker compose logs -f              # Follow logs
 docker compose down                 # Stop services
 ```
 
-## Run Locally
+## [CODER AI] Run Locally
 
 ```bash
 # Most projects use uvicorn
@@ -508,7 +445,7 @@ uvicorn src.main:app --reload --port 8000
 curl http://localhost:8000/health
 ```
 
-## Architecture Overview
+## [CODER AI] Architecture Overview
 
 Fabrik projects follow a consistent pattern:
 
@@ -516,7 +453,7 @@ Fabrik projects follow a consistent pattern:
 - **VPS (prod)** → Coolify-managed Docker Compose, `postgres-main` container
 - **Every project ships as one Compose app** — web + worker + optional services
 
-## SaaS Projects (MANDATORY)
+## [CODER AI] SaaS Projects (MANDATORY)
 
 **When starting ANY SaaS, web app, or dashboard project, ALWAYS use the SaaS skeleton:**
 
@@ -532,7 +469,7 @@ npm run dev
 
 **Customize:** `lib/config/site.ts` for branding, `app/(marketing)/` for content.
 
-## Project Layout
+## [CODER AI] Project Layout
 
 ```
 /opt/<project>/
@@ -551,7 +488,7 @@ npm run dev
 └── AGENTS.md              # This file (symlinked)
 ```
 
-## Conventions & Patterns
+## [ALL AGENTS] Conventions & Patterns
 
 ### Environment Variables (CRITICAL)
 
@@ -591,7 +528,7 @@ class Config:
     DB_URL = f"postgresql://{os.getenv('DB_USER')}:..."  # Fails!
 ```
 
-## Security
+## [ALL AGENTS] Security
 
 - **Never commit `.env`** — Use `.env.example` as template
 - **All credentials in TWO places:**
@@ -600,7 +537,7 @@ class Config:
 - **CSPRNG passwords**: 32 chars, alphanumeric only
 - **No hardcoded secrets** — Always use env vars
 
-## Deployment
+## [CODER AI] Deployment
 
 Target: **Coolify on VPS via Docker Compose**
 
@@ -616,15 +553,15 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
 ```
 
-## Gotchas
+## [ALL AGENTS] Gotchas
 
 1. **Never use `/tmp/`** — Use project-local `.tmp/` instead (data survives restarts)
 2. **Health checks must test dependencies** — Not just return `{"status": "ok"}`
 3. **Env vars not set at import time** — Load config in functions, not class-level
 4. **Test in Docker before deploying** — `docker compose up` locally first
-5. **Never bare `pip install`** — WSL/Debian uses PEP 668. Use `/opt/fabrik/.venv/bin/pip install` or project venv
+5. **Never bare `pip install`** — WSL/Debian uses PEP 668. Always use project-specific venv
 
-## Documentation Rules (MUST)
+## [ALL AGENTS] Documentation Rules (MUST)
 
 **Every code change requires documentation update.** No exceptions.
 
@@ -692,7 +629,7 @@ command --example
 - [ ] New features documented?
 - [ ] Removed features archived or deleted from docs?
 
-## Execution Modes (Fabrik Lifecycle)
+## [TRAYCER ONLY] Execution Modes (Fabrik Lifecycle)
 
 | Mode | Task Type | Model | Reasoning | Autonomy |
 |------|-----------|-------|-----------|----------|
@@ -708,14 +645,14 @@ command --example
 
 **Mixed Models:** Use premium models with high reasoning for planning (`spec`), fast models for implementation (`code`).
 
-**Code Review:** See `.windsurf/rules/50-code-review.md` for complete 9-step workflow with Kilo CLI.
+**Code Review:** See `.windsurf/rules/50-code-review.md` for complete 7-step workflow with Kilo CLI.
 
-## Traycer CLI Agent Auto-Review Integration
+## [TRAYCER ONLY] Traycer CLI Agent Auto-Review Integration
 
 **Last Updated:** 2026-03-06
 **Status:** Implemented in Free (9), Economy (8), and Balanced (6) tiers = 23 total agents
 
-**Purpose:** Enable Traycer CLI agents to automatically run the complete 9-step review workflow with mandatory self-review.
+**Purpose:** Enable Traycer CLI agents to automatically run the complete 7-step review workflow with mandatory self-review.
 
 **Location:**
 - Fixed agents: `/opt/fabrik/scripts/traycer_agents_fixed/`
@@ -811,7 +748,7 @@ python /opt/fabrik/scripts/traycer_agent_review.py \
 
 ---
 
-## Traycer Report Panel (Windsurf Extension)
+## [TRAYCER ONLY] Traycer Report Panel (Windsurf Extension)
 
 **Last Updated:** 2026-03-06
 **Status:** Implemented and available for all Fabrik projects
@@ -873,11 +810,11 @@ Covers:
 
 ---
 
-## VPS Deployment (Coolify)
+## [TRAYCER ONLY] VPS Deployment (Coolify)
 
 **Deployment:** Use Fabrik CLI (`fabrik apply`) for deployment automation to Coolify.
 
-## GitHub Actions Workflows
+## [TRAYCER ONLY] GitHub Actions Workflows
 
 Location: `.github/workflows/`
 
@@ -890,7 +827,7 @@ Location: `.github/workflows/`
 
 **Setup:** Add `FACTORY_API_KEY` to repository secrets.
 
-## Fabrik Skills (Convention Enforcement)
+## [TRAYCER ONLY] Fabrik Skills (Convention Enforcement)
 
 Location: `.factory/skills/`
 
@@ -907,7 +844,7 @@ Skills define Fabrik's coding conventions and project patterns.
 | `fabrik-watchdog` | "watchdog", "monitor", "auto-restart" | Service monitoring scripts |
 | `fabrik-postgres` | "database", "postgres", "migration" | PostgreSQL + pgvector setup |
 
-## MCP (Model Context Protocol)
+## [TRAYCER ONLY] MCP (Model Context Protocol)
 
 MCP servers extend AI capabilities with external tools. Config: `~/.factory/mcp.json`
 
@@ -924,7 +861,7 @@ Template: `/opt/fabrik/templates/scaffold/factory-mcp.json`
 
 Full documentation: `docs/reference/droid-exec-usage.md` §18
 
-## Droid Hooks
+## [TRAYCER ONLY] Droid Hooks
 
 Hooks execute at various points in droid's lifecycle. Location: `/opt/fabrik/.factory/hooks/`
 
@@ -940,7 +877,7 @@ Template: `/opt/fabrik/templates/scaffold/factory-hooks.json`
 
 Full documentation: `docs/reference/droid-exec-usage.md` §19
 
-## Agent Readiness Checklist
+## [CODER AI] Agent Readiness Checklist
 
 Fabrik projects target **Level 3+ (Standardized)** readiness.
 
@@ -974,7 +911,7 @@ Fabrik projects target **Level 3+ (Standardized)** readiness.
 
 ---
 
-## Writing Effective Prompts
+## [CODER AI] Writing Effective Prompts
 
 **Full guide:** `docs/reference/droid-exec-usage.md` §27-31
 

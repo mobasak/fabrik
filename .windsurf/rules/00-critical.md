@@ -39,41 +39,13 @@ trigger: always_on
 
 **PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO_REVIEW → FIX → TRAYCER_VERIFY → COMMIT**
 
-| Step | Who | Action | Gate |
-|------|-----|--------|------|
-| 1 | **Traycer** | Creates plan | Spec exists with requirements |
-| 2 | **Cascade** | Implements code | Code only what phase requires |
-| 2.5 | **Cascade** | Self-review | Reviews own work (MANDATORY) |
-| 3 | **Cascade** | Final Gate | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
-| 4 | **Cascade** | Kilo Review | `python scripts/kilo_code_review.py staged --plan "..."` → report issues |
-| 5 | **Cascade** | Fixes issues | Fix reported issues, re-run review until PASS |
-| 6 | **Traycer** | Verifies | Traycer verifier confirms SPEC compliance |
-| 7 | **Traycer** | Commits | Pre-commit runs 4 blockers only |
+Full protocol in `.windsurf/rules/50-code-review.md` — follow it without exception.
 
-**Kilo Review (report-only by default):**
-```bash
-# Auto-selects model based on risk level (no manual selection needed)
-python /opt/fabrik/scripts/kilo_code_review.py staged --plan "task description" --output json
-
-# Risk → Model routing (automatic):
-# - low (docs only) → Free tier (minimax, glm-4.7-free)
-# - medium (normal code) → Economy tier (gemini-flash-lite)
-# - high (src/, scripts/, >400 lines) → Balanced tier (glm-4.7)
-# - critical (auth/, security/, secrets) → Strong tier (glm-5, claude-sonnet)
-```
-
-**Key Changes (March 2026):**
-- `kilo_code_review.py` replaces `reviewer_selector.py` (archived)
-- Default is **report-only** - Cascade fixes issues, not Kilo
-- Model selection is **automatic** based on file paths and diff size
-- Session isolation is **automatic** (no manual `--tracked-review-id` needed)
-- Use `--fix` flag only if you want Kilo to auto-fix (costs more)
-
-**Notes:**
-- Final Gate runs deterministic checks (lint, type check, security scan)
-- Kilo Review runs AI review (SPEC compliance, edge cases, security)
-- **Traycer commits, not Cascade** — Cascade only implements and fixes
-- Pre-commit runs ONLY 4 blockers: large-files, merge-conflict, private-key, secrets
+**Key points:**
+- Step 2.5 self-review is MANDATORY before gates
+- Cascade fixes issues, not Kilo (report-only by default)
+- Model selection is automatic based on file paths and diff size
+- Traycer commits, not Cascade
 
 **If I skip these steps, the user should call me out.**
 ---
@@ -229,10 +201,11 @@ The Fabrik master venv (`/opt/fabrik/.venv/`) hosts cross-project tools like `ki
 ## Self-Check Before Responding
 
 Before I finish ANY coding task, I MUST verify:
+- [ ] Step 2.5 self-review completed and reported
 - [ ] No hardcoded localhost/secrets
-- [ ] Documentation updated if code changed
-- [ ] Enforcement check passed
-- [ ] Review triggered or manually done
+- [ ] Documentation updated (README.md features + CHANGELOG.md)
+- [ ] final_gate.py passed
+- [ ] Kilo review passed or issues fixed
 
 ---
 
