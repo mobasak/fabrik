@@ -141,6 +141,13 @@ done
 ## ARM64 Requirement
 
 VPS1 uses ARM64 (aarch64). Verify image support:
+
+**Before building images:**
+
 ```bash
 python /opt/fabrik/scripts/container_images.py check-arch <image:tag>
 ```
+
+Ensures base images support ARM64 (required for Apple Silicon + modern cloud).
+
+**If script missing:** Check `prebuilt-app-containers.md` manually or skip and flag.

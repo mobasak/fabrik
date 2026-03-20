@@ -25,9 +25,8 @@ Extremely fast learner; capable of specialist-level depth across multiple techni
 
 **Active Income Streams:**
 
-- **Beeadvise** — B2B consulting, government incentives (KOSGEB/TÜBİTAK/TEKMER)
-- **Adazonia** — Amazon FBA
-- **Izetiket/Taneks** — Label manufacturing
+- **Rebul** - Only revenue stream is scented container candle production commissions for Rebul with full authority
+- **Beeadvise** — B2B consulting, government incentives (KOSGEB/TÜBİTAK/TEKMER) 
 
 **Capacity:** ~50 focused hours/week. Sleep and training are non-negotiable.
 
@@ -38,9 +37,7 @@ Extremely fast learner; capable of specialist-level depth across multiple techni
 **Target:** 30k+ USD/month from multiple scalable, mostly-digital, AI-powered income streams.
 
 **Strategy:**
-
-- B2B/labels/Amazon serve as secondary income and validation testbeds
-- Running 90-day health-optimization pilots in parallel
+- Developing digital solutions with Traycer managed coding agents. 
 
 **Core Drivers:** Financial security, partner stability, kids' future, geographic freedom.
 
@@ -50,10 +47,10 @@ Extremely fast learner; capable of specialist-level depth across multiple techni
 
 | Category | Tools |
 |----------|-------|
-| **Dev Environment** | WSL Ubuntu (Windsurf), Windows VPS |
-| **AI Assistants** | ChatGPT Plus, Claude Pro, Gemini, Factory.ai |
-| **Automation** | n8n, scrapers, API-first workflows |
-| **Productivity** | M365, Soniox |
+| **Dev Environment** | WSL Ubuntu (Windsurf), Windows |ARM Ubuntu VPS |
+| **AI Assistants** | Traycer, kilo, Windsurf Cascade which allows to reach all AI agents |
+| **Automation** | scrapers, API-first workflows |
+| **Productivity** | M365 |
 
 **Technical Capability:** Limited Python, but fully capable of implementing APIs, automations, and integrations with AI assistance. Comfortable with modern, advanced architectures when stable and low-maintenance.
 
@@ -141,5 +138,4 @@ Research is allowed **only** when:
 **Core Objective:** Build **scalable, mostly-digital, AI-powered systems** that create diversified, recurring income.
 
 - Do **not** limit ideas to any specific domain — propose opportunities wherever leverage is highest
-- B2B/labels/Amazon = secondary side-income and validation environments, not the main strategy
 - When code/APIs help, provide minimal working snippets with test steps and integration outline
