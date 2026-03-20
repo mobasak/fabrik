@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-19T00:08:36.486535",
-  "total_models": 334,
+  "timestamp": "2026-03-20T12:35:11.647754",
+  "total_models": 335,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -812,11 +812,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "morph-warp-grep-v2": {
-      "id": "morph-warp-grep-v2",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "morph/morph-v3-fast": {
       "id": "morph/morph-v3-fast",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1189,16 +1184,6 @@
     },
     "openrouter/free": {
       "id": "openrouter/free",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "openrouter/healer-alpha": {
-      "id": "openrouter/healer-alpha",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "openrouter/hunter-alpha": {
-      "id": "openrouter/hunter-alpha",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1619,6 +1604,26 @@
     },
     "xiaomi/mimo-v2-flash": {
       "id": "xiaomi/mimo-v2-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "xiaomi/mimo-v2-omni": {
+      "id": "xiaomi/mimo-v2-omni",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "xiaomi/mimo-v2-omni:free": {
+      "id": "xiaomi/mimo-v2-omni:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "xiaomi/mimo-v2-pro": {
+      "id": "xiaomi/mimo-v2-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "xiaomi/mimo-v2-pro:free": {
+      "id": "xiaomi/mimo-v2-pro:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

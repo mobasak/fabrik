@@ -1,12 +1,13 @@
 ---
 activation: always_on
-description: Traycer YOLO automation, Fabrik skills
+description: Traycer YOLO automation and Fabrik skills (Windsurf Cascade only)
 trigger: always_on
 ---
 
 # Automation Rules
 
 **Activation:** Always On
+**Scope:** These rules apply to **Windsurf Cascade** agents working on any project under `/opt/`.
 **Purpose:** Traycer YOLO automation, Fabrik skills
 
 ---
@@ -54,82 +55,60 @@ trigger: always_on
 
 ---
 
-## Kilo CLI Code Review (Fallback)
+## Kilo CLI Code Review (March 2026)
 
-**When NOT using Traycer:** Use Kilo CLI directly for code review.
-
-**Staged-first workflow with scoped sessions (2026-03-17):**
+**Single command, automatic model selection, report-only by default:**
 
 ```bash
-# Set stable review ID once per cycle
-export REVIEW_ID="feat-$(date +%Y%m%d)-<feature-slug>"
-
-# Stage intended files before initial review
+# Stage files and run review (all routing is automatic)
 git add <intended_files>
-
-# Initial pass: staged commit candidate
-python /opt/fabrik/scripts/kilo_code_review.py staged \
-  --session continue \
-  --tracked-review-id "$REVIEW_ID" \
-  --plan "Brief task description" \
-  --review-agent ask \
-  --output json
-
-# Intermediate passes: verify command (lighter)
-python /opt/fabrik/scripts/kilo_code_review.py verify <changed_files> \
-  --session continue \
-  --tracked-review-id "$REVIEW_ID" \
-  --fixes "What was fixed" \
-  --review-agent ask \
-  --output json
+python /opt/fabrik/scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
 
-**Session Scoping:**
-- Sessions scoped by: `project_root + git_branch + tracked_review_id`
-- `--tracked-review-id` REQUIRED with `--session continue`
-- Prevents cross-repo/branch session pollution
-- Issue state persisted to `.droid/reviews/<tracked_review_id>_issues.json`
-- Open issues reused across iterations
+**Automatic Features:**
+- **Risk Detection**: Scans file paths + diff size → determines risk level
+- **Model Selection**: Risk level → cheapest capable model
+- **Variant Selection**: Risk level → appropriate thinking depth
+- **Session Isolation**: Auto-generates `tracked_review_id` from project+branch+date
 
-**Review Mode Selection:**
-- **staged**: Initial pass, final risky-branch check
-- **verify** (command): Intermediate fix loops (cheaper, focused - use after manual fixes)
-- **review <files>**: Manual WIP review only
-- **--mode full**: Full file review (default for review command)
+**Review Commands:**
+- **staged**: Review git staged files (most common)
+- **changed**: Review all changed files
+- **review <files>**: Review specific files
+- **verify <files> --fixes "..."**: Verify manual fixes (cheaper)
 
-**Recommendation:** Stage intended files semantically before calling reviewer.
+**Flags:**
+- `--plan "..."`: Task description for SPEC compliance checking
+- `--output json`: Machine-readable output
+- `--fix`: Enable Kilo auto-fix (default: report-only)
+- `--model <id>`: Override auto-selected model
+- `--variant <level>`: Override auto-selected variant (low/high/max)
 
-**See:** `.windsurf/rules/50-code-review.md` for complete 6-step workflow
+**See:** `.windsurf/rules/50-code-review.md` for complete workflow
 
 ---
 
-## Context-Aware Reviewer Selection (March 2026)
+## Tiered Model Routing (Built into kilo_code_review.py)
 
-**Auto-select cheapest capable reviewer based on task complexity:**
+**Model selection is automatic based on risk level:**
 
-```bash
-# Auto-detect tier and select reviewer
-python /opt/fabrik/scripts/reviewer_selector.py auto
+| Risk Level | Trigger | Strategy | Starting Tier | Models |
+|------------|---------|----------|---------------|--------|
+| **low** | Docs only | free | Free | minimax, glm-4.7-free |
+| **medium** | Normal code | economy | Economy | gemini-flash-lite |
+| **high** | src/, scripts/, >400 lines | standard | Balanced | glm-4.7, gpt-5.2-codex |
+| **critical** | auth/, security/, secrets | premium | Strong | glm-5, claude-sonnet-4.6 |
 
-# Get model name for piping
-MODEL=$(python /opt/fabrik/scripts/reviewer_selector.py model)
+**Variant Selection (Thinking Depth):**
 
-# List all tiers and costs
-python /opt/fabrik/scripts/reviewer_selector.py list
-```
+| Risk Level | Variant | Time | Cost |
+|------------|---------|------|------|
+| low | `low` | ~10s | Cheapest |
+| medium | `high` | ~20s | Best value |
+| high | `high` | ~20s | Best value |
+| critical | `max` | ~40s | Deepest |
 
-**Reviewer Tiers (based on Terminal-Bench 2.0, Chatbot Arena, SWE-Bench):**
-
-| Tier | Cost/Review | Models | Use Case |
-|------|-------------|--------|----------|
-| **quick** | $0.02 | gemini-3.1-flash-lite, step-3.5-flash | Lint, format, simple fixes |
-| **standard** | $0.05 | deepseek-v3.2, glm-4.7, minimax-m2.5 | Regular PRs, features |
-| **complex** | $0.12 | glm-5, qwen3-max, kimi-k2.5 | Refactoring, logic changes |
-| **security** | $0.30 | claude-sonnet-4.6, gemini-3.1-pro | Security-critical, API |
-| **architecture** | $0.50 | claude-opus-4.6, gpt-5.4 | Design review, architecture |
-
-**Selection Logic:**
-- Security patterns (auth, token, key) → security tier
-- Large diffs (>300 lines) or model/API changes → complex tier
-- Medium diffs (>50 lines) → standard tier
-- Small changes → quick tier
+**Escalation on Failure:**
+- Model timeout/error → try next model in tier
+- Tier exhausted → escalate to next tier
+- Max 1 fallback escalation per review

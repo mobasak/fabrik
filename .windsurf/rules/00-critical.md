@@ -1,38 +1,79 @@
 ---
 activation: always_on
-description: Critical Fabrik rules - ALWAYS enforced
+description: Critical Fabrik rules - ALWAYS enforced (Windsurf Cascade only)
 trigger: always_on
 ---
 
 # Critical Rules (ALWAYS ACTIVE)
 
-## ⚠️ MANDATORY WORKFLOW (Simplified March 2026)
+**Scope:** These rules apply to **Windsurf Cascade** agents working on any project under `/opt/`. Not for Kilo CLI agents.
 
-**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → CHEAP_REVIEW → TRAYCER_VERIFY → COMMIT**
+---
 
-| Step | Action | Gate |
-|------|--------|------|
-| 1 | Traycer Plan | Spec exists with requirements |
-| 2 | Coder Implements | Code only what phase requires |
-| 2.5 | Self-Review | Coding AI reviews own work (MANDATORY) |
-| 3 | Final Gate | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
-| 4 | Cheap Review | Context-aware reviewer (optional, use `reviewer_selector.py`) |
-| 5 | Traycer Verify | Traycer verifier passes |
-| 6 | Commit | pre-commit runs 4 blockers only |
+## Orientation — Do This First (MANDATORY)
 
-**Reviewer Selection (context-aware):**
+**Scan before you act.** Read the full project structure from root. Locate and read any present:
+- `README.md`, `AGENTS.md`
+- `docker-compose.yml`, `Dockerfile`
+- `.env.example`, `pyproject.toml`, `package.json`, `requirements.txt`
+
+**Do not generate anything until this scan is complete.**
+
+**Do not** recreate `.venv` or replace existing Docker configuration unless explicitly instructed.
+
+---
+
+## Environment Context
+
+**Runtime is WSL (Ubuntu).** Linux paths and commands only. Never assume Windows tooling.
+
+**Follow the project scaffold structure verbatim.** Do not reorganize, flatten, or add directories.
+
+**All architectural decisions, base images, and tool choices are resolved before you start** — execute the plan as given. Do not expand scope silently.
+
+**Target deployment:** Linux VPS + container orchestration, optionally Supabase. ARM-compatible builds by default.
+
+**If anything in the task contradicts what exists in the project, stop and report.** Do not silently overwrite.
+
+## ⚠️ MANDATORY WORKFLOW (March 2026)
+
+**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO_REVIEW → FIX → TRAYCER_VERIFY → COMMIT**
+
+| Step | Who | Action | Gate |
+|------|-----|--------|------|
+| 1 | **Traycer** | Creates plan | Spec exists with requirements |
+| 2 | **Cascade** | Implements code | Code only what phase requires |
+| 2.5 | **Cascade** | Self-review | Reviews own work (MANDATORY) |
+| 3 | **Cascade** | Final Gate | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
+| 4 | **Cascade** | Kilo Review | `python scripts/kilo_code_review.py staged --plan "..."` → report issues |
+| 5 | **Cascade** | Fixes issues | Fix reported issues, re-run review until PASS |
+| 6 | **Traycer** | Verifies | Traycer verifier confirms SPEC compliance |
+| 7 | **Traycer** | Commits | Pre-commit runs 4 blockers only |
+
+**Kilo Review (report-only by default):**
 ```bash
-# Auto-select cheapest capable reviewer based on diff
-python /opt/fabrik/scripts/reviewer_selector.py auto
+# Auto-selects model based on risk level (no manual selection needed)
+python /opt/fabrik/scripts/kilo_code_review.py staged --plan "task description" --output json
 
-# Tiers: quick ($0.02), standard ($0.05), complex ($0.12), security ($0.30)
+# Risk → Model routing (automatic):
+# - low (docs only) → Free tier (minimax, glm-4.7-free)
+# - medium (normal code) → Economy tier (gemini-flash-lite)
+# - high (src/, scripts/, >400 lines) → Balanced tier (glm-4.7)
+# - critical (auth/, security/, secrets) → Strong tier (glm-5, claude-sonnet)
 ```
 
+**Key Changes (March 2026):**
+- `kilo_code_review.py` replaces `reviewer_selector.py` (archived)
+- Default is **report-only** - Cascade fixes issues, not Kilo
+- Model selection is **automatic** based on file paths and diff size
+- Session isolation is **automatic** (no manual `--tracked-review-id` needed)
+- Use `--fix` flag only if you want Kilo to auto-fix (costs more)
+
 **Notes:**
-- Final Gate is the authority for deterministic checks (single pass, not pre+post).
-- Cheap review is optional - Traycer verify handles spec compliance.
-- Semgrep is best-effort: skipped if not installed or not authenticated.
-- Pre-commit runs ONLY 4 blockers: large-files, merge-conflict, private-key, secrets.
+- Final Gate runs deterministic checks (lint, type check, security scan)
+- Kilo Review runs AI review (SPEC compliance, edge cases, security)
+- **Traycer commits, not Cascade** — Cascade only implements and fixes
+- Pre-commit runs ONLY 4 blockers: large-files, merge-conflict, private-key, secrets
 
 **If I skip these steps, the user should call me out.**
 ---

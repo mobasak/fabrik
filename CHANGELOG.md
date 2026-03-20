@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed - kilo_code_review.py default to report-only mode (2026-03-19)
+
+**What:** Changed default behavior from auto-fix to report-only. Calling agents (Windsurf Cascade, Kilo CLI) now receive issue reports and fix them themselves.
+
+**Workflow:** Review AI reports issues → Calling agent fixes → Re-runs review
+
+**CLI Changes:**
+- `staged` command: Now report-only by default. Use `--fix` to enable auto-fix.
+- `changed` command: Same as above.
+- Removed `--no-fix` flag (no longer needed since report-only is default).
+
+### Fixed - kilo_code_review.py session ID handling (2026-03-19)
+
+**What:** Fixed critical bug where kilo_code_review.py was passing locally-generated session IDs to `--session` flag, causing Kilo CLI to fail with "Session not found" error.
+
+**Root Cause:** The script generated local session IDs (e.g., `ses_abc123`) for internal tracking and passed them to Kilo's `--session` flag. But `--session` is for continuing EXISTING Kilo sessions, not creating new ones.
+
+**Fix:** Only pass `--session` when we have a real Kilo-returned session ID (length > 20 chars).
+
+**Also Added:**
+- Auto-variant selection based on risk level (low→low, medium→high, critical→max)
+- Updated TIER_MODELS with validated models from benchmarks
+- Archived `reviewer_selector.py` (functionality merged into kilo_code_review.py)
+
+**Files:**
+- `scripts/kilo_code_review.py` - Session ID fix + report-only default + auto-variant
+- `scripts/archive/reviewer_selector.py.archived-20260319` - Archived
+- `docs/reference/ai_agent_prompt_directives.md` - New prompt directives reference
+- `docs/reference/kilo/REVIEWER_BENCHMARK_RESULTS.md` - Benchmark results
+
 ### Added - Cheap Fix Agent for low-cost AI automation (2026-03-19)
 
 **What:** New script using Gemini 2.5 Flash for cheap MECHANICAL fixes only.

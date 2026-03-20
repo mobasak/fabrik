@@ -14,10 +14,10 @@ Usage:
     # List all reviewers with costs
     python reviewer_selector.py list
 
-Based on March 2026 benchmarks:
+Based on March 2026 benchmarks and actual Kilo testing:
 - Terminal-Bench 2.0: https://tbench.ai/leaderboard/terminal-bench/2.0
 - Chatbot Arena: https://openlm.ai/chatbot-arena/
-- SWE-Bench: https://www.marc0.dev/en/leaderboard
+- Actual Kilo reviews: See docs/reference/kilo/REVIEWER_BENCHMARK_RESULTS.md
 """
 
 from __future__ import annotations
@@ -30,15 +30,16 @@ import sys
 REVIEWERS = {
     "quick": [
         # For lint, format, simple type fixes
-        ("kilo/google/gemini-3.1-flash-lite-preview", 0.02, "fast, 1M context", 1421),
-        ("kilo/google/gemini-2.5-flash-lite", 0.03, "fast, reasoning", 1412),
-        ("kilo/stepfun/step-3.5-flash", 0.02, "free tier available", 1387),
+        # VALIDATED: 16s avg, 95%+ accuracy on lint/security/arch
+        ("kilo/google/gemini-3.1-flash-lite-preview", 0.02, "16s avg, 95%+ accuracy", 1421),
+        ("kilo/minimax/minimax-m2.1", 0.01, "cheapest, untested", 1380),
     ],
     "standard": [
         # For regular PRs, feature work
-        ("kilo/deepseek/deepseek-v3.2", 0.05, "73% SWE-bench, reasoning", 1418),
-        ("kilo/z-ai/glm-4.7", 0.06, "strong reasoning", 1445),
-        ("kilo/minimax/minimax-m2.5", 0.08, "80.2% SWE-bench, open-weight", 1408),
+        # glm-4.7: Best value at $0.008/msg from actual usage
+        ("kilo/z-ai/glm-4.7", 0.01, "best value, 90%+ accuracy", 1445),
+        ("kilo/z-ai/glm-4.7-flash", 0.008, "faster variant", 1430),
+        # NOTE: deepseek-v3.2 REMOVED - too slow (109s per review)
     ],
     "complex": [
         # For complex logic, refactoring
@@ -48,7 +49,8 @@ REVIEWERS = {
     ],
     "security": [
         # For security-critical, API changes
-        ("kilo/anthropic/claude-sonnet-4.6", 0.30, "79.6% SWE-bench, reasoning", 1446),
+        # VALIDATED: 100% accuracy on security vuln detection
+        ("kilo/anthropic/claude-sonnet-4.6", 0.04, "100% security accuracy", 1446),
         ("kilo/google/gemini-3.1-pro-preview", 0.25, "80.6% SWE-bench, #1 terminal", 1505),
     ],
     "architecture": [

@@ -376,7 +376,7 @@ class KiloReviewConfig:
     # Iteration control
     max_iterations: int = 3
     min_severity: str = "MAJOR"  # BLOCKER, MAJOR, MINOR
-    auto_fix: bool = True
+    auto_fix: bool = False  # Default: report-only. Calling agent fixes issues.
 
     # Session management
     session_id: str | None = None
@@ -766,38 +766,69 @@ MODEL_FALLBACK_CHAIN = [
 #   --max-cost 1.00      Stop escalating at budget cap
 #   --no-escalate        Stay at initial tier
 
+# =============================================================================
+# VALIDATED TIER_MODELS (March 2026 Benchmarks)
+# =============================================================================
+# Models tested with actual Kilo reviews on lint, security, architecture files.
+# See: docs/reference/kilo/REVIEWER_BENCHMARK_RESULTS.md
+#
+# VARIANT RECOMMENDATIONS:
+#   - minimal: Skip for reviews (too shallow)
+#   - low: Quick lint checks only (~10s, lowest cost)
+#   - high: Standard reviews (~20s, best quality/cost) [DEFAULT]
+#   - max: Complex/security reviews (~40s, highest quality)
+#
 TIER_MODELS = {
     "Free": [
+        # Untested free tier models
         "kilo/minimax/minimax-m2.1",
         "kilo/zhipu/glm-4.7-free",
-        "kilo/moonshot/kimi-k2.5",
         "kilo/qwen/qwen3-coder",
-        "kilo/deepseek/deepseek-r1",
     ],
     "Economy": [
+        # VALIDATED: 16s, 95%+ accuracy, $0.02/review
+        "kilo/google/gemini-3.1-flash-lite-preview",
         "kilo/google/gemini-3-flash-preview",
-        "kilo/mistral/devstral-small",
-        "kilo/zhipu/glm-4.7-flash",
-        "kilo/deepseek/deepseek-v3",
+        "kilo/z-ai/glm-4.7-flash",
     ],
     "Balanced": [
+        # VALIDATED: glm-4.7 best value at $0.008/msg, 90%+ accuracy
+        "kilo/z-ai/glm-4.7",
         "kilo/openai/gpt-5.2-codex",
-        "kilo/zhipu/glm-5",
         "kilo/xai/grok-4.1-fast",
-        "kilo/openai/gpt-5.2-chat",
     ],
     "Strong": [
+        # VALIDATED: glm-5 21s, 100% accuracy, $0.05/review
+        "kilo/z-ai/glm-5",
+        # VALIDATED: claude-sonnet 100% security accuracy
         "kilo/anthropic/claude-sonnet-4.6",
         "kilo/openai/gpt-5.4",
-        "kilo/openai/gpt-5.3-codex",
         "kilo/google/gemini-3.1-pro-preview",
     ],
     "Prime": [
         "kilo/anthropic/claude-opus-4.6",
         "kilo/openai/gpt-5.4-pro",
-        "kilo/openai/gpt-5.2-pro",
     ],
 }
+
+# Variant recommendations per risk level (auto-selected)
+VARIANT_BY_RISK = {
+    "low": "low",  # Fast lint checks
+    "medium": "high",  # Standard reviews (default)
+    "high": "high",  # Security/complex reviews
+    "critical": "max",  # Mission-critical code
+}
+
+
+def get_auto_variant(risk_level: str, user_variant: str | None = None) -> str:
+    """Get appropriate variant based on risk level.
+
+    User-specified variant takes precedence.
+    """
+    if user_variant and user_variant != "high":  # high is default, so auto-select
+        return user_variant
+    return VARIANT_BY_RISK.get(risk_level, "high")
+
 
 ESCALATION_PATHS = {
     "free": ["Free", "Economy", "Balanced"],  # Per spec
@@ -816,10 +847,10 @@ RISK_TO_STRATEGY = {
 
 TIER_ESTIMATED_COST = {
     "Free": 0.0,
-    "Economy": 0.02,
-    "Balanced": 0.50,
-    "Strong": 3.00,
-    "Prime": 5.00,
+    "Economy": 0.02,  # gemini-flash-lite: $0.02/review
+    "Balanced": 0.01,  # glm-4.7: $0.008/msg (best value)
+    "Strong": 0.05,  # glm-5: $0.05, sonnet: $0.04
+    "Prime": 0.50,  # opus: $0.08+ per review
 }
 
 
@@ -1006,12 +1037,13 @@ _PROJECT_ROOT: Path | None = None
 def _is_valid_session_id(session_id: str) -> bool:
     """Validate session_id format to prevent path traversal.
 
-    Accepts alphanumeric, underscores, hyphens, and dots (for Kilo ses_xxx format).
-    Rejects path separators, parent refs (..), and overly long values.
+    Accepts alphanumeric, underscores, and hyphens.
+    Rejects dots (path traversal risk), path separators, and overly long values.
     """
     import re
 
-    return bool(re.match(r"^[a-zA-Z0-9_.\-]{1,128}$", session_id))
+    # No dots allowed - prevents .. path traversal
+    return bool(re.match(r"^[a-zA-Z0-9_-]{1,128}$", session_id))
 
 
 def should_escalate_to_opus(diff_files: list[str] | list[Path]) -> tuple[bool, str]:
@@ -1886,7 +1918,11 @@ def build_kilo_command(
     if agent and agent in VALID_AGENTS:
         args.extend(["--agent", agent])
 
-    if session_id:
+    # Only pass --session for REAL Kilo sessions (returned from previous Kilo calls)
+    # Kilo sessions always start with "ses_" prefix and are returned in step_finish events
+    # Do NOT pass locally-generated tracking IDs - they don't exist in Kilo's DB
+    if session_id and session_id.startswith("ses_") and len(session_id) > 20:
+        # Real Kilo session IDs are longer (e.g., ses_2fa04657affervfKa7bqDLCufy)
         args.extend(["--session", session_id])
 
     if file_paths:
@@ -2236,10 +2272,11 @@ async def run_kilo(
                 shell=False,
             )
 
-            # Write prompt to stdin
+            # Write prompt to stdin - must flush before close to ensure delivery
             try:
                 if process.stdin:
                     process.stdin.write(prompt.encode("utf-8"))
+                    process.stdin.flush()  # Ensure data is sent to subprocess
                     process.stdin.close()
             except (BrokenPipeError, OSError):
                 pass  # Process may have exited early
@@ -3656,9 +3693,11 @@ async def _run_single_batch_review(
     )
     attempt_results.append(result)
 
-    # Update session ID from Kilo response
-    if result.get("session_id") and not config.session_id:
-        config.session_id = result["session_id"]
+    # Update session ID from Kilo response (capture real Kilo session ID)
+    # Check length because local tracking IDs are shorter (20 chars) than real Kilo sessions (30+ chars)
+    kilo_session = result.get("session_id", "")
+    if kilo_session and len(kilo_session) > 20 and kilo_session != config.session_id:
+        config.session_id = kilo_session
 
     # Parse strict (NO auto-fill)
     review_result = parse_review_output(result["result"])
@@ -4073,10 +4112,16 @@ async def review_loop(
     project_root = str(get_project_root())
     git_branch = get_current_git_branch()
 
-    if config.session_id == "continue":
-        if not config.tracked_review_id:
-            raise ValueError("--tracked-review-id is required with --session continue")
+    # Auto-generate tracked_review_id if not provided (prevents session mixing)
+    # Uses deterministic hash of project+branch+date for same-day continuity
+    if not config.tracked_review_id:
+        import hashlib
 
+        today = datetime.now().strftime("%Y%m%d")
+        scope_key = f"{project_root}:{git_branch}:{today}"
+        config.tracked_review_id = f"auto_{hashlib.sha256(scope_key.encode()).hexdigest()[:12]}"
+
+    if config.session_id == "continue":
         existing = get_scoped_session(
             project_root=project_root,
             git_branch=git_branch,
@@ -4090,10 +4135,10 @@ async def review_loop(
             print(f"  Branch: {git_branch}", file=sys.stderr)
             print(f"  Review ID: {config.tracked_review_id}", file=sys.stderr)
         else:
-            config.session_id = f"review_{uuid.uuid4().hex[:12]}"
+            config.session_id = f"ses_{uuid.uuid4().hex[:16]}"
             print(f"No existing session found, creating new: {config.session_id}", file=sys.stderr)
     elif not config.session_id:
-        config.session_id = f"review_{uuid.uuid4().hex[:12]}"
+        config.session_id = f"ses_{uuid.uuid4().hex[:16]}"
 
     # Track the session ID we'll use for persistence
     local_session_id = config.session_id
@@ -4117,7 +4162,19 @@ async def review_loop(
         total_diff_lines=total_diff_lines,
     )
     config.model = selected_model
+
+    # Auto-select variant based on risk level (user override takes precedence)
+    original_variant = config.variant
+    config.variant = get_auto_variant(
+        risk_level, original_variant if original_variant != "high" else None
+    )
+
     log_tiered_routing(files, selected_model, tier, strategy_used, risk_level)
+    if config.variant != original_variant:
+        print(
+            f"[ROUTING] Variant: {config.variant} (auto-selected for {risk_level} risk)",
+            file=sys.stderr,
+        )
 
     # Initialize escalation state for tracking
     escalation_state = EscalationState(
@@ -4304,17 +4361,18 @@ async def review_loop(
                 config.variant = original_variant
                 config.model = original_model
 
-            # Capture session ID from Kilo response for subsequent calls
+            # Capture real Kilo session ID for subsequent calls (enables --session flag)
+            # Real Kilo sessions are longer (30+ chars) than our local tracking IDs (20 chars)
             # Validate to prevent path traversal via malicious/corrupted response
-            if review_result.session_id and not config.session_id:
-                if _is_valid_session_id(review_result.session_id):
-                    config.session_id = review_result.session_id
-                    local_session_id = review_result.session_id
-                    session_state.session_id = review_result.session_id
+            kilo_session = review_result.session_id or ""
+            if kilo_session and len(kilo_session) > 20 and kilo_session != config.session_id:
+                if _is_valid_session_id(kilo_session):
+                    config.session_id = kilo_session
+                    session_state.session_id = kilo_session
                 else:
                     print(
                         f"Warning: Invalid session_id from Kilo response: "
-                        f"{review_result.session_id!r}, ignoring",
+                        f"{kilo_session!r}, ignoring",
                         file=sys.stderr,
                     )
 
@@ -4944,21 +5002,29 @@ Examples:
 
     # staged command
     staged_parser = subparsers.add_parser(
-        "staged", parents=[common], help="Review git staged files"
+        "staged", parents=[common], help="Review git staged files (report-only by default)"
     )
     staged_parser.add_argument(
-        "--max-iterations", type=int, default=3, help="Max review-fix cycles"
+        "--max-iterations", type=int, default=3, help="Max review-fix cycles (only with --fix)"
     )
-    staged_parser.add_argument("--no-fix", action="store_true", help="Don't auto-fix, just report")
+    staged_parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Enable auto-fix by Kilo code agent (default: report-only)",
+    )
 
     # changed command
     changed_parser = subparsers.add_parser(
-        "changed", parents=[common], help="Review git changed files"
+        "changed", parents=[common], help="Review git changed files (report-only by default)"
     )
     changed_parser.add_argument(
-        "--max-iterations", type=int, default=3, help="Max review-fix cycles"
+        "--max-iterations", type=int, default=3, help="Max review-fix cycles (only with --fix)"
     )
-    changed_parser.add_argument("--no-fix", action="store_true", help="Don't auto-fix, just report")
+    changed_parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Enable auto-fix by Kilo code agent (default: report-only)",
+    )
 
     # verify command (cheaper workflow: review-only → manual fix → verify)
     verify_parser = subparsers.add_parser(
@@ -5254,7 +5320,8 @@ async def main() -> int:
         config.auto_fix = True
     elif args.command in ("staged", "changed"):
         config.max_iterations = getattr(args, "max_iterations", 3)
-        config.auto_fix = not getattr(args, "no_fix", False)
+        # Default: report-only. Use --fix to enable auto-fix by Kilo code agent.
+        config.auto_fix = getattr(args, "fix", False)
     elif args.command == "verify":
         config.max_iterations = 1
         config.auto_fix = False

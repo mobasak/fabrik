@@ -189,6 +189,7 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 **Allowed structural patterns:**
 - `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates) - Owner creates these manually
 - `docs/archive/**/*.md` (any depth) - Agents may archive completed plans
+- `docs/reference/**/*.md` (any depth) - Technical reference documentation (APIs, benchmarks, directives)
 
 **BLOCKED patterns:**
 - `.droid/review-context/*.md` - Agent artifacts should not be auto-created

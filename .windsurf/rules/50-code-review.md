@@ -6,21 +6,22 @@ trigger: always_on
 
 # Execution Protocol (MANDATORY)
 
-## The Flow: PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → CHEAP_REVIEW → VERIFY → COMMIT
+## The Flow: PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO_REVIEW → FIX → TRAYCER_VERIFY → COMMIT
 
 **This applies to ALL tasks in /opt/* projects.**
 
-| Step | Action | Gate |
-|------|--------|------|
-| **1** | **Traycer Plan** | Plan exists with spec, edge cases, env vars, DB changes |
-| **2** | **Coder Implements** | Code only what phase requires, follow spec strictly |
-| **2.5** | **Self-Review (MANDATORY)** | Review own code: ✓ spec ✓ edge cases ✓ env vars ✓ DB ⚠ issues |
-| **3** | **Final Gate** | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
-| **4** | **Cheap Review** | Context-aware reviewer (optional, see below) |
-| **5** | **Traycer Verify** | Traycer verifier passes |
-| **6** | **Commit** | Pre-commit runs 4 blockers only |
+| Step | Who | Action | Gate |
+|------|-----|--------|------|
+| **1** | **Traycer** | Creates plan | Spec exists with spec, edge cases, env vars, DB changes |
+| **2** | **Cascade** | Implements code | Code only what phase requires, follow spec strictly |
+| **2.5** | **Cascade** | Self-review | Review own code: ✓ spec ✓ edge cases ✓ env vars ✓ DB ⚠ issues |
+| **3** | **Cascade** | Final Gate | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
+| **4** | **Cascade** | Kilo Review | `python scripts/kilo_code_review.py staged --plan "..."` → report issues |
+| **5** | **Cascade** | Fixes issues | Fix reported issues, re-run Kilo review until PASS |
+| **6** | **Traycer** | Verifies | Traycer verifier confirms SPEC compliance |
+| **7** | **Traycer** | Commits | Pre-commit runs 4 blockers only |
 
-> **Note:** When Traycer is not available, fall back to manual plan creation and cheap review.
+> **Note:** When Traycer is not available, fall back to manual plan creation.
 
 ## Gates Contract (Simplified March 2026)
 
@@ -47,79 +48,92 @@ Enforces ONLY 4 absolute blockers:
 
 **Immediately after writing/editing code, I MUST:**
 
-### Traycer-Managed Tasks (Primary)
-
-Use Traycer's built-in verifier as the review surface.
-
-### Non-Traycer Tasks: Cheap Review (Fallback)
-
-**Staged-first workflow with scoped sessions (2026-03-17):**
+### Kilo Review Workflow (Report-Only Default)
 
 ```bash
-# Set stable review ID once per cycle
-export REVIEW_ID="feat-$(date +%Y%m%d)-<feature-slug>"
-
-# Stage intended files before initial review
+# Stage files, then run review (session isolation is automatic)
 git add <intended_files>
-
-# Initial pass: staged commit candidate
-python /opt/fabrik/scripts/kilo_code_review.py staged \
-  --session continue \
-  --tracked-review-id "$REVIEW_ID" \
-  --plan "Brief task description" \
-  --review-agent ask \
-  --output json
-
-# Intermediate passes: verify command (lighter)
-python /opt/fabrik/scripts/kilo_code_review.py verify <changed_files> \
-  --session continue \
-  --tracked-review-id "$REVIEW_ID" \
-  --fixes "What was fixed" \
-  --review-agent ask \
-  --output json
+python /opt/fabrik/scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
 
-**Session Scoping:**
-- Sessions scoped by: `project_root + git_branch + tracked_review_id`
-- Prevents cross-repo/branch session pollution
-- Issue state: `.droid/reviews/<tracked_review_id>_issues.json`
-- Open issues reused across iterations
-- Auto-close is conservative: only for staged, single-batch, non-verify, auto-fix runs
+**What happens automatically:**
+1. **Risk Detection**: Scans file paths + diff size
+   - `auth/`, `security/`, `payment`, secrets → **critical**
+   - `src/`, `scripts/`, >400 lines → **high**
+   - Normal code → **medium**
+   - Docs only → **low**
+
+2. **Model Selection**: Risk → Strategy → Tier → Model
+   - low → free → Free tier (minimax, glm-4.7-free)
+   - medium → economy → Economy tier (gemini-flash-lite)
+   - high → standard → Balanced tier (glm-4.7)
+   - critical → premium → Strong tier (glm-5, claude-sonnet)
+
+3. **Variant Selection**: Risk → Thinking depth
+   - low → `low` variant (~10s, cheapest)
+   - medium/high → `high` variant (~20s, best value)
+   - critical → `max` variant (~40s, deepest)
+
+4. **Session Isolation**: Auto-generated `tracked_review_id`
+   - Hash of `project_root + git_branch + date`
+   - Same project/branch/day = same session = continuity
+   - Different project/branch/day = different session = no mixing
 
 **Review Mode Selection:**
-- **staged**: Initial pass, final risky-branch check
-- **verify** (command): Intermediate fix loops (cheaper, focused - use after manual fixes)
-- **review <files>**: Manual WIP review, deliberate partial review only
-- **--mode full**: Full file review (default for review command)
-
-**Recommendation:** Stage intended files semantically before calling reviewer.
-
-**See:** `.windsurf/rules/90-automation.md` for complete reviewer selection guide
+- **staged**: Review git staged files (default, most common)
+- **changed**: Review all changed files (unstaged too)
+- **review <files>**: Review specific files
+- **verify <files> --fixes "..."**: Verify manual fixes (cheaper)
 
 **Key points:**
-- **Stage intended files first** - review commit candidate, not arbitrary file sets
-- **Staged for initial pass** - full SPEC verification
-- **verify command for intermediate loops** - cheaper, focused on fixes only
-- **Pass the task/plan on initial review** - Kilo needs it for SPEC verification
-- Use inline plan text (`--plan "description"`) - simpler, no file management
-- **Set REVIEW_ID once** - keep same ID across all fix iterations
-- **Only open issues matter** - do not assume unseen issues are fixed unless full-scope
-- I fix Kilo issues, not Kilo auto-fix (cheaper: review ~$0.03-0.40 vs auto-fix ~$1-2)
-- Fix ALL severities, not just BLOCKER/MAJOR
-- Max 5 verify iterations before stopping
-- If still failing after 5 iterations, escalate model or request plan clarification
+- **Default is report-only** - I fix issues, not Kilo
+- **Model selection is automatic** - no manual `--model` needed
+- **Session isolation is automatic** - no manual `--tracked-review-id` needed
+- Use `--fix` only if you want Kilo to auto-fix (costs more)
+- Fix ALL severities (BLOCKER, MAJOR, MINOR)
+- Max 5 iterations before escalating or stopping
+- **Traycer commits, not Cascade** - I only implement and fix
 
 **Output format after each step:**
 ```
 STEP <N> STATUS: PASS / FAIL
 Changed files:
 - <path>
-Traycer verifier findings:
+Kilo review findings:
 <findings or "No issues">
 Gate output:
 <command result>
 Next: Proceed to Step <N+1> / STOP (issues remain)
 ```
+
+---
+
+## Violations
+
+**Violations:**
+- Do NOT implement without plan approval
+- Do NOT skip Step 2.5 self-review
+- Do NOT proceed to Step 3 without self-review report
+- Do NOT skip final_gate before Kilo review
+- Do NOT proceed with BLOCKER/MAJOR issues
+- Do NOT skip post-Kilo final_gate
+- Do NOT commit without Step 7 passing
+
+**If user catches me skipping review:**
+- I must acknowledge the violation
+- Run the skipped review immediately
+- Fix issues before continuing
+
+---
+
+## Scope
+
+This protocol applies to:
+- All projects under `/opt/`
+- All Cascade agents working in this workspace
+- All file modifications (edit, multi_edit, write_to_file, Create)
+
+Symlinked via `.windsurfrules` to all project roots.
 
 ---
 
