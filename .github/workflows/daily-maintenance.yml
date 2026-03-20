@@ -32,9 +32,9 @@ jobs:
       - name: Get recent changes
         run: |
           # Get files modified in the last 7 days
-          git log --since="7 days ago" --name-only --pretty=format: | sort -u | grep -v '^$' > recent_changes.txt
+          git log --since="7 days ago" --name-only --pretty=format: | sort -u | grep -v '^$' > recent_changes.txt || true
           echo "Files modified in last 7 days:"
-          cat recent_changes.txt
+          cat recent_changes.txt || echo "(No changes in the last 7 days)"
 
       - name: Update documentation
         env:
