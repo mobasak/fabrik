@@ -1,6 +1,6 @@
 # Traycer Template Mapping & Usage Guide
 
-**Last Updated:** 2026-03-15
+**Last Updated:** 2026-03-20
 
 This document maps all Traycer prompt templates to their usage contexts and verifies correctness.
 
@@ -32,16 +32,16 @@ applicableFor: plan | user query | verification | review | generic
 
 ### Location: `~/.traycer/prompt-templates/`
 
-| Template File | `applicableFor` | Handlebars | Traycer Tab | When Used |
-|---------------|-----------------|------------|-------------|-----------|
-| `Execute.md` | `plan` | `{{planMarkdown}}` | Plan | Structured planning with full 9-step workflow |
-| `Direct Execute.md` | `user query` | `{{userQuery}}` | Plan (skip-plan) | Direct task handoff without plan generation |
-| `Execute Epic.md` | `plan` | `{{planMarkdown}}` | Plan | Epic mode direct agent handoff for specs/tickets |
-| `Code Review.md` | `review` | `{{reviewComments}}` | Review | Fix issues from code review |
-| `Fix.md` | `verification` | `{{comments}}` | Verification | Fix issues from Traycer verification |
-| `Phased YOLO Execute.md` | `plan` | `{{planMarkdown}}` | Plan | Autonomous YOLO execution |
-| `Phased YOLO Review.md` | `review` | `{{reviewComments}}` | Review | YOLO mode code review fixes |
-| `Phased YOLO FixafterVerification.md` | `verification` | `{{comments}}` | Verification | YOLO mode verification fixes |
+| Template File | `applicableFor` | Handlebars | Traycer Tab | When Used | Directives |
+|---------------|-----------------|------------|-------------|-----------|------------|
+| `Execute by Coder.md` | `plan` | `{{planMarkdown}}` | Plan | Structured planning with full workflow | Coder [D1–D6] |
+| `Direct Execute by Coder.md` | `user query` | `{{userQuery}}` | Plan (skip-plan) | Direct task handoff without plan generation | Coder [D1–D6] |
+| `Execute Epic.md` | `plan` | `{{planMarkdown}}` | Plan | Epic mode direct agent handoff for specs/tickets | Coder [D1–D7] |
+| `Reviewer.md` | `review` | `{{reviewComments}}` | Review | Code review — report findings only | Reviewer [D1–D4] |
+| `Fix.md` | `verification` | `{{comments}}` | Verification | Fix issues from Traycer verification | Fixer [D1–D4] |
+| `Phased YOLO Execute by Coder.md` | `plan` | `{{planMarkdown}}` | Plan | Autonomous YOLO execution | Coder [D1–D7] |
+| `Phased YOLO Review.md` | `review` | `{{reviewComments}}` | Review | YOLO mode code review fixes | Fixer [D1–D5] |
+| `Phased YOLO FixafterVerification.md` | `verification` | `{{comments}}` | Verification | YOLO mode verification fixes | Fixer [D1–D5] |
 
 ### Built-in Traycer Templates
 
@@ -58,8 +58,8 @@ applicableFor: plan | user query | verification | review | generic
 ### 1. **Plan Mode** (Single-PR tasks)
 
 **Templates available:**
-- `Execute.md` ✅ **Use for structured planning**
-- `Direct Execute.md` ✅ **Use with skip-plan checked**
+- `Execute by Coder.md` ✅ **Use for structured planning**
+- `Direct Execute by Coder.md` ✅ **Use with skip-plan checked**
 
 **How it works:**
 1. User describes task in Traycer Plan mode
@@ -74,20 +74,20 @@ applicableFor: plan | user query | verification | review | generic
 ### 2. **Phases Mode** (Multi-step projects)
 
 **Templates available:**
-- `Execute.md` ✅ **Use for each phase**
-- `Phased YOLO Execute.md` ✅ **Use for YOLO automation**
+- `Execute by Coder.md` ✅ **Use for each phase**
+- `Phased YOLO Execute by Coder.md` ✅ **Use for YOLO automation**
 
 **YOLO Mode Configuration (3 tabs):**
-1. **Plan Tab**: Select execution agent + `Phased YOLO Execute.md`
-2. **Review Tab**: Select review agent + `Phased YOLO Review.md`
-3. **Verification Tab**: Select verification agent + `Phased YOLO FixafterVerification.md`
+1. **Plan Tab**: Select Coder agent + `Phased YOLO Execute by Coder.md`
+2. **Review Tab**: Select Fixer agent + `Phased YOLO Review.md` (fixes review issues)
+3. **Verification Tab**: Select Fixer agent + `Phased YOLO FixafterVerification.md`
 
 ---
 
 ### 3. **Review Mode** (Code audit/verification)
 
 **Templates available:**
-- `Code Review.md` ✅ **Use for code review fixes**
+- `Reviewer.md` ✅ **Use for code review**
 - `Fix.md` ✅ **Use for verification fixes**
 - `Phased YOLO Review.md` ✅ **Use for YOLO mode**
 
@@ -105,7 +105,7 @@ applicableFor: plan | user query | verification | review | generic
 
 **Templates available:**
 - `Execute Epic.md` ✅ **Use for direct agent handoff**
-- `Execute.md` ✅ **Use for Phases/YOLO execution**
+- `Execute by Coder.md` ✅ **Use for Phases/YOLO execution**
 
 **Execution options:**
 1. **Direct Agent Handoff**: Select specs/tickets → Assign agent + template → Agent implements
@@ -127,12 +127,12 @@ applicableFor: plan | user query | verification | review | generic
 
 | Template | `applicableFor` | Handlebars | Status |
 |----------|-----------------|------------|--------|
-| Execute | `plan` | `{{planMarkdown}}` | **READY** |
-| Direct Execute | `user query` | `{{userQuery}}` | **READY** |
+| Execute by Coder | `plan` | `{{planMarkdown}}` | **READY** |
+| Direct Execute by Coder | `user query` | `{{userQuery}}` | **READY** |
 | Execute Epic | `plan` | `{{planMarkdown}}` | **READY** |
-| Code Review | `review` | `{{reviewComments}}` | **READY** |
+| Reviewer | `review` | `{{reviewComments}}` | **READY** |
 | Fix | `verification` | `{{comments}}` | **READY** |
-| Phased YOLO Execute | `plan` | `{{planMarkdown}}` | **READY** |
+| Phased YOLO Execute by Coder | `plan` | `{{planMarkdown}}` | **READY** |
 | Phased YOLO Review | `review` | `{{reviewComments}}` | **READY** |
 | Phased YOLO FixafterVerification | `verification` | `{{comments}}` | **READY** |
 
@@ -141,18 +141,18 @@ applicableFor: plan | user query | verification | review | generic
 ## Which Template Should You Use?
 
 ### For Plan Mode (with plan generation)
-**Use:** `Execute.md`
+**Use:** `Execute by Coder.md`
 
 ### For Plan Mode (skip plan / direct task)
-**Use:** `Direct Execute.md`
+**Use:** `Direct Execute by Coder.md`
 
 ### For Phases Mode (Manual)
-**Use:** `Execute.md` for each phase
+**Use:** `Execute by Coder.md` for each phase
 
 ### For Phases Mode (YOLO)
 | Tab | Template |
 |-----|----------|
-| Plan | `Phased YOLO Execute.md` |
+| Plan | `Phased YOLO Execute by Coder.md` |
 | Review | `Phased YOLO Review.md` |
 | Verification | `Phased YOLO FixafterVerification.md` |
 
@@ -160,7 +160,7 @@ applicableFor: plan | user query | verification | review | generic
 **Use:** `Execute Epic.md`
 
 ### For Review Mode
-**Use:** `Code Review.md` or `Fix.md`
+**Use:** `Reviewer.md` or `Fix.md`
 
 ---
 

@@ -1,6 +1,6 @@
 # Traycer Templates (Integration Guide)
 
-**Last Updated:** 2026-03-15
+**Last Updated:** 2026-03-20
 
 Templates and instructions for using Traycer.ai with Fabrik's spec pipeline. Traycer runs as a **Windsurf extension** (Windows 11 Pro) connecting to the WSL environment.
 
@@ -512,7 +512,7 @@ Your custom instructions here...
 {{planMarkdown}}  # or {{userQuery}}, {{comments}}, {{reviewComments}}
 ```
 
-**Fabrik Custom Templates:** Located in `~/.traycer/prompt-templates/Kilo*.md`, these templates integrate Fabrik's 9-step workflow and conventions into Traycer handoffs.
+**Fabrik Custom Templates:** Located in `~/.traycer/prompt-templates/`, these templates integrate Fabrik's workflow and conventions into Traycer handoffs. See `docs/traycer/TEMPLATE_MAPPING.md` for the full inventory.
 
 ## Phase Management & Automation
 

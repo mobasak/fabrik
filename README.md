@@ -174,8 +174,8 @@ Smart YOLO (Epic):      Orchestrator evolves Epic based on learnings
 **Integration with Fabrik:**
 - Submits plans via `factory_submit.py` (async job submission)
 - Waits for completion via `factory_wait.py`
-- Uses custom Kilo templates at `~/.traycer/prompt-templates/Kilo*.md`
-- Integrates 9-step workflow into handoffs
+- Uses custom templates at `~/.traycer/prompt-templates/` (see `docs/traycer/TEMPLATE_MAPPING.md`)
+- Integrates workflow into handoffs
 
 ---
 

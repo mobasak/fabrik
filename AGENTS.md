@@ -178,11 +178,16 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 
 ### Prompt Templates (Pass to Spawned Agents)
 
-| Agent | Template |
-|-------|----------|
-| Coder | `Phased YOLO Execute by Coder.md` |
-| Reviewer / Fixer | `Phased YOLO Review.md` |
-| Post-verification Fixer | `Phased YOLO FixafterVerification.md` |
+| Agent | Mode | Template |
+|-------|------|----------|
+| Coder | Plan | `Execute by Coder.md` |
+| Coder | Plan (skip-plan) | `Direct Execute by Coder.md` |
+| Coder | Epic | `Execute Epic.md` |
+| Coder | YOLO | `Phased YOLO Execute by Coder.md` |
+| Reviewer | Manual | `Reviewer.md` |
+| Fixer | Manual | `Fix.md` |
+| Fixer | YOLO (Review tab) | `Phased YOLO Review.md` |
+| Fixer | YOLO (Verification tab) | `Phased YOLO FixafterVerification.md` |
 
 ### Traycer Execution Rules
 1. Carry forward file mappings, decisions, and rationale across phases

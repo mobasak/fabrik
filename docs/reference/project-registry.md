@@ -1,3 +1,5 @@
+> ⚠️ **DEPRECATED (2026-03-20):** This file is no longer maintained. The authoritative project list is auto-generated in [`docs/BUSINESS_MODEL.md`](../BUSINESS_MODEL.md) under `<!-- AUTO-GENERATED:PROJECTS -->`. Run `python /opt/fabrik/scripts/sync_projects.py` to refresh.
+
 # Project Registry
 
 > **Master inventory of all projects under /opt with status, dependencies, and deployment roadmap.**

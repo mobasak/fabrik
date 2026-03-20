@@ -23,7 +23,7 @@
 
 ### Gap #1: No Self-Review in Traycer Prompts ❌
 
-**File:** `~/.traycer/prompt-templates/Execute.md`
+**File:** `~/.traycer/prompt-templates/Execute by Coder.md`
 **Line:** 138
 
 **Current:**
@@ -102,7 +102,7 @@ if [ "$TRAYCER_AUTO_REVIEW" = "1" ] && [ $EXIT_CODE -eq 0 ]; then
 
 ### Fix #1: Update Traycer Prompt Template
 
-**File:** `~/.traycer/prompt-templates/Execute.md`
+**File:** `~/.traycer/prompt-templates/Execute by Coder.md`
 
 **Add after line 138:**
 ```markdown
