@@ -37,9 +37,11 @@ trigger: always_on
 
 ## ⚠️ MANDATORY WORKFLOW (March 2026)
 
-**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO_REVIEW → FIX → TRAYCER_VERIFY → COMMIT**
+**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO_REVIEW → FIX → VERIFY → COMMIT**
 
-Full protocol in `.windsurf/rules/50-code-review.md` — follow it without exception.
+**Workflow authority:** `AGENTS.md` section `[ALL AGENTS] Mandatory Workflow` — single source of truth for both Cascade and Kilo CLI.
+
+**Quick reference:** `.windsurf/rules/50-code-review.md` has Cascade-specific commands.
 
 **Key points:**
 - Step 2.5 self-review is MANDATORY before gates
@@ -63,6 +65,8 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 ```
 
 **Then verify backup exists before proceeding.**
+
+**To restore:** `cp <file>.backup.<timestamp> <file>`
 
 **Violations:**
 - Modifying `.env` without backup = STOP immediately
@@ -133,8 +137,10 @@ async def health():
 ## Security Gates
 
 ### Credentials Storage (TWO PLACES)
-1. Project `.env` - local use
+1. Project `.env` - primary (local use)
 2. `/opt/fabrik/.env` - master backup
+
+**Sync rule:** Project `.env` is primary. After any credential change, manually sync to `/opt/fabrik/.env`.
 
 ### Password Policy (CSPRNG)
 - Length: 32 characters
@@ -177,7 +183,7 @@ The Fabrik master venv (`/opt/fabrik/.venv/`) hosts cross-project tools like `ki
 | Rule | Description |
 |------|-------------|
 | **Check before create** | ALWAYS verify file exists (`ls`, `find`, `read_file`) before `write_to_file` |
-| **Present before execute** | Present solution/plan first, wait for user approval, then execute |
+| **Present before execute** | Present solution/plan first, wait for user approval, then execute. **Exception:** Read-only commands (`ls`, `cat`, `find`, `grep`, `head`, `tail`) do not require approval. |
 | **No unsolicited advice** | Never suggest breaks, lifestyle tips, or non-task commentary |
 
 **Violations:**
@@ -198,14 +204,38 @@ The Fabrik master venv (`/opt/fabrik/.venv/`) hosts cross-project tools like `ki
 
 ---
 
+## Database Schema Convention
+
+**All database changes MUST be documented in `db/schema.sql`:**
+- New tables, columns, indexes → add CREATE statements
+- Include date comments for each change
+- This file is the source of truth for DB structure
+
+```sql
+-- db/schema.sql example
+-- 2026-03-20: Added users table
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Self-review checkpoint:** Confirm database changes added to `db/schema.sql`.
+
+---
+
 ## Self-Check Before Responding
 
 Before I finish ANY coding task, I MUST verify:
 - [ ] Step 2.5 self-review completed and reported
 - [ ] No hardcoded localhost/secrets
 - [ ] Documentation updated (README.md features + CHANGELOG.md)
+- [ ] Database changes added to `db/schema.sql`
 - [ ] final_gate.py passed
 - [ ] Kilo review passed or issues fixed
+
+**Do not proceed to COMMIT if any item above is unchecked.**
 
 ---
 

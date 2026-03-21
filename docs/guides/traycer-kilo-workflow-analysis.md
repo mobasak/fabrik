@@ -1,12 +1,29 @@
 # Traycer→Kilo Coder Self-Review Workflow Analysis
 
 **Date:** 2026-03-06
-**Last Updated:** 2026-03-06
-**Status:** PARTIALLY IMPLEMENTED - NEEDS FIXES
+**Last Updated:** 2026-03-20
+**Status:** ARCHIVED — Issues resolved, document is historical only
 
 ---
 
-## User's Intended Workflow
+## ⚠️ ARCHIVED DOCUMENT
+
+**This document is historical.** The issues described below have been resolved.
+
+**Current source of truth:**
+- **Workflow:** `AGENTS.md` → `[ALL AGENTS] Mandatory Workflow`
+- **Templates:** `docs/traycer/TEMPLATE_MAPPING.md`
+- **Architecture:** `docs/traycer/README.md`
+
+**Do not use this document for guidance.** It is preserved for historical reference only.
+
+---
+
+# ARCHIVED CONTENT BELOW
+
+---
+
+## User's Intended Workflow (Historical)
 
 1. **Traycer calls Kilo CLI coder agents** (via shell scripts)
 2. **Coder agent codes** (implements the task)

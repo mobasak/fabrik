@@ -1,6 +1,6 @@
 # Traycer Report Panel
 
-**Last Updated:** 2026-03-06
+**Last Updated:** 2026-03-20
 
 > **Purpose:** Windsurf extension that displays Traycer CLI agent execution reports with full history browsing.
 

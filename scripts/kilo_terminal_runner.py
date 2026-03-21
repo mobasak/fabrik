@@ -310,7 +310,9 @@ def run_with_pexpect(
                         f.write(capture_text)
                         f.flush()
             except pexpect.TIMEOUT:
-                if not child.isalive():
+                # Check if process exited - use eof() which is more reliable than isalive()
+                # isalive() can return True if child processes still running
+                if child.eof() or not child.isalive():
                     break
             except pexpect.EOF:
                 break
@@ -326,6 +328,8 @@ def run_with_pexpect(
         if tail:
             f.write(tail)
 
+    # Wait for process to fully terminate and get exit status
+    child.wait()
     child.close()
     return child.exitstatus if child.exitstatus is not None else (child.signalstatus or 1)
 
@@ -357,7 +361,8 @@ def run_plain_mode(command: list[str], raw_output_path: str) -> int:
                         f.write(cap)
                         f.flush()
             except pexpect.TIMEOUT:
-                if not child.isalive():
+                # Check if process exited - use eof() which is more reliable than isalive()
+                if child.eof() or not child.isalive():
                     break
             except pexpect.EOF:
                 break
@@ -372,6 +377,8 @@ def run_plain_mode(command: list[str], raw_output_path: str) -> int:
         if tail:
             f.write(tail)
 
+    # Wait for process to fully terminate and get exit status
+    child.wait()
     child.close()
     return child.exitstatus if child.exitstatus is not None else (child.signalstatus or 1)
 
@@ -696,50 +703,51 @@ def main() -> int:
 
     if should_fallback:
         print(f"[RUNNER] Plain mode: {reason}", file=sys.stderr)
-        return run_plain_mode(command, str(output_path))
+        exit_code = run_plain_mode(command, str(output_path))
+    else:
+        # Run with Textual UI
+        from threading import Thread
 
-    # Run with Textual UI
-    from threading import Thread
+        app = KiloRunnerApp(
+            agent_name=args.agent,
+            model=args.model,
+            role=args.role,
+            variant=args.variant,
+            session_title=args.session_title,
+            timeout_display=args.timeout,
+            output_path=str(output_path),
+        )
 
-    app = KiloRunnerApp(
-        agent_name=args.agent,
-        model=args.model,
-        role=args.role,
-        variant=args.variant,
-        session_title=args.session_title,
-        timeout_display=args.timeout,
-        output_path=str(output_path),
-    )
+        exit_code = 0
 
-    exit_code = 0
+        def worker():
+            """Background thread for PTY subprocess - keeps UI responsive."""
+            nonlocal exit_code
+            try:
+                exit_code = run_with_pexpect(
+                    command,
+                    str(output_path),
+                    lambda text: app.call_from_thread(app.append_output, text),
+                    lambda: app.call_from_thread(app.flush_pending_ui),
+                )
+            except Exception as e:
+                exit_code = 1
+                app.call_from_thread(app.append_output, f"\n[RUNNER ERROR] {e}\n")
+            finally:
+                app.call_from_thread(app.set_exit_code, exit_code)
+                app.call_from_thread(app.exit)
 
-    def worker():
-        """Background thread for PTY subprocess - keeps UI responsive."""
-        nonlocal exit_code
-        try:
-            exit_code = run_with_pexpect(
-                command,
-                str(output_path),
-                lambda text: app.call_from_thread(app.append_output, text),
-                lambda: app.call_from_thread(app.flush_pending_ui),
-            )
-        except Exception as e:
-            exit_code = 1
-            app.call_from_thread(app.append_output, f"\n[RUNNER ERROR] {e}\n")
-        finally:
-            app.call_from_thread(app.set_exit_code, exit_code)
-            app.call_from_thread(app.exit)
+        Thread(target=worker, daemon=True).start()
+        app.run()
 
-    Thread(target=worker, daemon=True).start()
-    app.run()
-
-    # Ensure terminal is fully reset after Textual exits
-    # This helps IDE terminals detect process completion
-    sys.stdout.write("\033[?1049l")  # Exit alternate screen buffer
-    sys.stdout.write("\033[0m")  # Reset all attributes
-    sys.stdout.flush()
+        # Ensure terminal is fully reset after Textual exits
+        # This helps IDE terminals detect process completion
+        sys.stdout.write("\033[?1049l")  # Exit alternate screen buffer
+        sys.stdout.write("\033[0m")  # Reset all attributes
+        sys.stdout.flush()
 
     # Auto-save transcript to .droid/ for analysis after TUI closes
+    save_file = None
     try:
         if output_path.exists():
             content = output_path.read_text(encoding="utf-8")
@@ -752,6 +760,30 @@ def main() -> int:
             print(f"[RUNNER] Transcript saved: {save_file}", file=sys.stderr)
     except Exception as e:
         print(f"[RUNNER] Auto-save failed: {e}", file=sys.stderr)
+
+    # Auto-log to dev_tracker.db for centralized metrics
+    try:
+        import json
+        import subprocess
+
+        event_data = json.dumps(
+            {
+                "agent": args.agent or "unknown",
+                "exit_code": exit_code,
+                "model": args.model or "unknown",
+                "role": args.role or "unknown",
+                "transcript_file": str(save_file) if save_file else str(output_path),
+            }
+        )
+        tracker_script = Path(__file__).parent / "dev_tracker.py"
+        if tracker_script.exists():
+            subprocess.run(
+                [sys.executable, str(tracker_script), "log", "agent_run", event_data],
+                capture_output=True,
+                timeout=5,
+            )
+    except Exception as e:
+        print(f"[RUNNER] dev_tracker log failed: {e}", file=sys.stderr)
 
     return exit_code
 

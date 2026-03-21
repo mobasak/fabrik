@@ -133,6 +133,7 @@ SHARED_DIRS = [
     "tests",
     "logs",
     "data",
+    "db",  # Database schema directory
     ".tmp",
     ".cache",
     "output",
@@ -349,12 +350,12 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
     _link_agents_md(project_dir)
 
     # Create opencode.json for Kilo CLI instruction loading
-    # This ensures Kilo agents load the same rules as Windsurf Cascade
+    # Kilo loads AGENTS.md only (patterns via pointers inside AGENTS.md)
+    # Cascade reads .windsurf/rules/ separately via auto-discovery
     (project_dir / "opencode.json").write_text(
         "{\n"
         '  "$schema": "https://opencode.ai/config.json",\n'
         '  "instructions": [\n'
-        '    ".windsurf/rules/*.md",\n'
         '    "AGENTS.md"\n'
         "  ]\n"
         "}\n"
@@ -438,6 +439,46 @@ Obsolete or completed docs for {name}.
 | Date | Topic | Description |
 |------|-------|-------------|
 | (none) | - | - |
+"""
+    )
+
+    # Create db/schema.sql - source of truth for database schema
+    (project_dir / "db" / "schema.sql").write_text(
+        f"""-- Database Schema
+-- Project: {name}
+-- Last Updated: {today}
+--
+-- This file tracks all database schema changes.
+-- Agents MUST update this file when making database changes.
+--
+-- Usage:
+--   - Add new tables/columns with CREATE statements
+--   - Document changes with comments including date
+--   - Keep this file as the source of truth for DB structure
+
+-- =============================================================================
+-- TABLES
+-- =============================================================================
+
+-- Example:
+-- CREATE TABLE IF NOT EXISTS users (
+--     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--     email VARCHAR(255) UNIQUE NOT NULL,
+--     created_at TIMESTAMPTZ DEFAULT NOW(),
+--     updated_at TIMESTAMPTZ DEFAULT NOW()
+-- );
+
+-- =============================================================================
+-- INDEXES
+-- =============================================================================
+
+-- Example:
+-- CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- =============================================================================
+-- CHANGE LOG
+-- =============================================================================
+-- {today}: Initial schema created
 """
     )
 

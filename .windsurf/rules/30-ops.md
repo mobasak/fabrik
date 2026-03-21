@@ -68,6 +68,9 @@ services:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      postgres-main:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
       interval: 30s
@@ -97,12 +100,15 @@ Before deploying to Coolify:
 - [ ] compose.yaml uses coolify network
 - [ ] Service added to /opt/fabrik/docs/SERVICES.md
 - [ ] Watchdog script created
+- [ ] `.dockerignore` present (excludes `.env`, `.git`, `.venv`, `node_modules`)
 
 ---
 
 ## Watchdog Requirement
 
-Every service MUST have a watchdog script:
+Every service MUST have a watchdog script.
+
+**Scope:** Runs on VPS host, not inside container. Uses systemd or cron on host.
 
 ```bash
 #!/bin/bash

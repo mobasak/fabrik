@@ -4,6 +4,17 @@
 
 This document maps all Traycer prompt templates to their usage contexts and verifies correctness.
 
+## Rule Loading Architecture
+
+**Templates reference `AGENTS.md` only** — not `.windsurf/rules/`.
+
+| Agent Type | Rule Source | Loaded Via |
+|------------|-------------|------------|
+| Kilo CLI (Traycer) | `AGENTS.md` | `opencode.json` |
+| Windsurf Cascade | `.windsurf/rules/` | Auto-discovery |
+
+**Workflow lives in `AGENTS.md` `[ALL AGENTS]` section** — both agents follow the same workflow.
+
 ---
 
 ## Template Metadata System
@@ -67,7 +78,7 @@ applicableFor: plan | user query | verification | review | generic
 3. Agent receives task via `TRAYCER_PROMPT` env var
 4. Agent executes workflow (Steps 2-5)
 5. Agent outputs report with delimiters
-6. Traycer handles verification/sync/commit (Steps 6-9)
+6. Traycer handles verification/commit (Steps 6-7)
 
 ---
 

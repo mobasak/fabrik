@@ -15,63 +15,48 @@ Traycer is a spec-driven development orchestrator that:
 
 ---
 
-## Agent Rule Architecture (How Rules Flow)
+## Agent Rule Architecture (No Duplication)
 
-Fabrik uses a **single source of truth** for agent rules, ensuring both Windsurf Cascade and Kilo CLI agents follow identical guidelines.
+Fabrik uses a **separation of concerns** architecture where each agent type reads from ONE source, with the workflow defined in a single location.
 
 ### Rule Sources
 
-| File/Directory | Purpose | Location |
-|----------------|---------|----------|
-| `.windsurf/rules/*.md` | Workspace rules (activation modes) | `/opt/fabrik/.windsurf/rules/` (symlinked to all projects) |
-| `AGENTS.md` | Agent briefing (9-step workflow, conventions) | `/opt/fabrik/AGENTS.md` (symlinked to all projects) |
-| `opencode.json` | Kilo instruction loading config | Each project root |
+| Source | Who Reads | Content |
+|--------|-----------|---------|
+| `AGENTS.md` | Kilo CLI (via opencode.json) | Workflow, role directives, environment context |
+| `.windsurf/rules/*.md` | Cascade (auto-discovery) | Language patterns, IDE behavior, pointer to workflow |
+
+**Workflow lives in `AGENTS.md` `[ALL AGENTS]` section** — single source of truth for both agents.
 
 ### How Each Agent Loads Rules
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    SINGLE SOURCE OF TRUTH                        │
-│   /opt/fabrik/.windsurf/rules/*.md + /opt/fabrik/AGENTS.md      │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-         ┌────────────────────┴────────────────────┐
-         │                                         │
-         ▼                                         ▼
-┌─────────────────────┐                 ┌─────────────────────┐
-│  WINDSURF CASCADE   │                 │      KILO CLI       │
-│                     │                 │                     │
-│ Auto-discovers:     │                 │ Loads via           │
-│ • .windsurf/rules/  │                 │ opencode.json:      │
-│ • AGENTS.md         │                 │ {                   │
-│                     │                 │   "instructions": [ │
-│ (Native behavior)   │                 │     ".windsurf/     │
-│                     │                 │      rules/*.md",   │
-│                     │                 │     "AGENTS.md"     │
-│                     │                 │   ]                 │
-│                     │                 │ }                   │
-└─────────────────────┘                 └─────────────────────┘
-                                                  │
-                                                  ▼
-                                        ┌─────────────────────┐
-                                        │      TRAYCER        │
-                                        │                     │
-                                        │ Passes task via:    │
-                                        │ • TRAYCER_PROMPT    │
-                                        │   (env var)         │
-                                        │                     │
-                                        │ Templates contain   │
-                                        │ ONLY workflow steps │
-                                        │ (no duplicate rules)│
-                                        └─────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                                                                           │
+│  .windsurf/rules/                         AGENTS.md                       │
+│  (Cascade auto-reads)                     (Kilo reads via opencode.json)  │
+│  ─────────────────────                    ─────────────────────────────── │
+│                                                                           │
+│  00-critical ────► IDE behavior           [TRAYCER ONLY] ──► Planning     │
+│  10-python ──────► Python patterns        [CODER] ──────────► Directives  │
+│  20-typescript ──► TS/Next.js patterns    [REVIEWER] ───────► Directives  │
+│  30-ops ─────────► Docker patterns        [FIXER] ──────────► Directives  │
+│  40-documentation► Doc rules              [ALL AGENTS] ─────► Workflow    │
+│  50-code-review ─► POINTER to workflow                       + Patterns   │
+│  90-automation ──► YOLO/skills                               (pointers)   │
+│                                                                           │
+│  CASCADE does NOT read AGENTS.md          KILO reads AGENTS.md only       │
+│  (workflow via 50-code-review pointer)    (patterns via file pointers)    │
+│                                                                           │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Traycer → Kilo Task Flow
 
 1. **Traycer submits task** via `TRAYCER_PROMPT` environment variable
 2. **CLI agent script** (`~/.traycer/cli-agents/*.sh`) receives prompt
-3. **Kilo CLI** loads instructions from `opencode.json` (rules from `.windsurf/rules/` and `AGENTS.md`)
-4. **Kilo executes** task with full rule context
+3. **Kilo CLI** loads instructions from `opencode.json` → `AGENTS.md`
+4. **Kilo executes** task with workflow from `AGENTS.md`
 5. **Agent outputs** `BEGIN_TRAYCER_REPORT_MD...END_TRAYCER_REPORT_MD` block
 6. **Report writer** extracts and saves to `.droid/traycer-reports/`
 
@@ -86,7 +71,7 @@ fabrik scaffold python my-service
 The scaffold automatically creates:
 - `AGENTS.md` → symlink to `/opt/fabrik/AGENTS.md`
 - `.windsurf/rules/` → symlink to `/opt/fabrik/.windsurf/rules/`
-- `opencode.json` → Kilo instruction config pointing to above files
+- `opencode.json` → points to `AGENTS.md` only (Kilo reads this)
 
 This ensures **every Fabrik project** has consistent agent rules from day one.
 
@@ -94,10 +79,10 @@ This ensures **every Fabrik project** has consistent agent rules from day one.
 
 | Problem | Solution |
 |---------|----------|
-| Rules duplicated in Traycer templates | Templates now contain only workflow steps; rules loaded via `opencode.json` |
-| Windsurf and Kilo following different rules | Both load from same `.windsurf/rules/` and `AGENTS.md` |
-| New projects missing agent config | `fabrik scaffold` auto-creates `opencode.json` |
-| Concurrent agent conflicts | Task files now use unique names per `TRAYCER_TASK_ID` |
+| Workflow duplicated in multiple files | Workflow lives in `AGENTS.md` only; `.windsurf/rules/50-code-review.md` is a pointer |
+| Agents reading same content twice | Cascade reads `.windsurf/rules/`, Kilo reads `AGENTS.md` (with pointers to patterns) |
+| Different rules for different agents | Same workflow, different delivery mechanism |
+| Templates duplicating rules | Templates contain only workflow steps and report format |
 
 ### Agent Behavior Notes
 
@@ -1278,7 +1263,7 @@ Fabrik uses **Custom CLI Agents** for async job submission:
 - `Factory Wait (async).sh` — Monitors jobs via `/opt/fabrik/factory_wait.py`
 - `Factory AI.sh` — Direct execution wrapper
 
-These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 9-step workflow.
+These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 7-step workflow.
 
 ## AGENTS.md Integration (Project-Specific Context)
 
@@ -1496,16 +1481,16 @@ cd /opt/fabrik && python factory_wait.py "$TRAYCER_TASK_ID"
 cd /opt/fabrik && droid exec --auto medium "$TRAYCER_PROMPT"
 ```
 
-These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 9-step workflow.
+These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 7-step workflow.
 
 ### Kilo Code Review Custom CLI Agents
 
 Fabrik uses three Kilo-powered code review agents for iterative quality checking within Traycer workflows:
 
-**Kilo Review.sh** - Initial review with SPEC verification:
+**Kilo Review.sh** - Initial review with staged-first workflow:
 ```bash
 #!/bin/bash
-# Initial code review with task/plan context
+# Initial code review using staged-first workflow (canonical)
 # Saves TRAYCER_PROMPT to .droid/review-context/task.md for SPEC verification
 # Output: JSON with verdict, issues, and review stats
 
@@ -1514,22 +1499,18 @@ cd /opt/fabrik || exit 2
 mkdir -p .droid/review-context
 echo "$TRAYCER_PROMPT" > .droid/review-context/task.md
 
-CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR HEAD | tr '\n' ' ')
-if [ -z "$CHANGED_FILES" ]; then
-    echo '{"verdict": "PASS", "summary": "No files changed", "issues": [], "notes": [], "stats": {}}'
-    exit 0
-fi
+# Stage files before review (staged-first workflow)
+git add -A
 
-python scripts/kilo_code_review.py review $CHANGED_FILES \
+python /opt/fabrik/scripts/kilo_code_review.py staged \
     --plan .droid/review-context/task.md \
-    --review-agent ask \
     --output json
 ```
 
 **Kilo Re-Review.sh** - Session continuity for iterative review:
 ```bash
 #!/bin/bash
-# Continue session after manual fixes
+# Continue session after manual fixes using staged --session continue
 # Uses session continuity to maintain context from initial review
 # Verifies previous issues are resolved
 
@@ -1542,9 +1523,8 @@ if [ -z "$CHANGED_FILES" ]; then
     exit 0
 fi
 
-python scripts/kilo_code_review.py review $CHANGED_FILES \
+python /opt/fabrik/scripts/kilo_code_review.py staged \
     --session continue \
-    --review-agent ask \
     --output json
 ```
 
@@ -1589,7 +1569,7 @@ python scripts/kilo_code_review.py auto-fix $CHANGED_FILES \
 - `EDGE` - Null handling, error paths, race conditions
 - `DOCS` - Documentation updates needed
 
-**Integration with Fabrik 9-Step Workflow:**
+**Integration with Fabrik 7-Step Workflow:**
 
 ```text
 Step 3: final_gate.py (Pre-Kilo)

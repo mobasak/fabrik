@@ -41,12 +41,21 @@ description: Documentation rules, plan documents, writing style
 ```markdown
 ## [Unreleased]
 
-### Added/Changed/Fixed - <Brief Title> (YYYY-MM-DD)
-
-**What:** One-line description
-
+### Added - User Authentication (2026-03-21)
+**What:** JWT-based login and session management
 **Files:**
-- `path/to/file.py` - what changed
+- `src/auth.py` - new auth module
+- `src/api/users.py` - login/logout endpoints
+
+### Changed - Database Connection Pool (2026-03-20)
+**What:** Increased pool size from 5 to 20 for better concurrency
+**Files:**
+- `src/db.py` - pool_size parameter
+
+### Fixed - Health Endpoint Timeout (2026-03-19)
+**What:** Added 5s timeout to prevent hanging health checks
+**Files:**
+- `src/main.py` - health() function
 ```
 
 **No exceptions.** This is enforced by `docs_updater.py`.
@@ -79,11 +88,15 @@ For Traycer-managed work:
 - Coding agents only execute steps from the Traycer-managed plan
 
 ### Required Plan Sections
-- `**Status:**` line (NOT_STARTED, IN_PROGRESS, PARTIAL, COMPLETE, NOT_DONE)
+- `**Status:**` line (NOT_STARTED, IN_PROGRESS, PARTIAL, COMPLETE, BLOCKED)
 - `## Goal` - One-line description
 - `## DONE WHEN` - Checkboxes for completion criteria
 - `## Out of Scope` - What's excluded
 - `## Steps` - Implementation steps
+
+**Status definitions:**
+- **PARTIAL** = some steps done, work ongoing
+- **BLOCKED** = attempted but cannot proceed (document blocker)
 
 ---
 
@@ -195,5 +208,7 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 - `.droid/review-context/*.md` - Agent artifacts should not be auto-created
 
 **Git-tracked edits:** Always allowed (modify existing docs freely)
+
+**Escape hatch:** If a legitimate file is needed outside the allowlist, STOP and ask Traycer to update the allowlist first. Do not create workarounds.
 
 **Enforcement:** Step 3 & 5 via final_gate.py. No approval mechanism needed.

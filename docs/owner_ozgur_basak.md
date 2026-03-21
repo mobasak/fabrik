@@ -26,7 +26,7 @@ Extremely fast learner; capable of specialist-level depth across multiple techni
 **Active Income Streams:**
 
 - **Rebul** - Only revenue stream is scented container candle production commissions for Rebul with full authority
-- **Beeadvise** — B2B consulting, government incentives (KOSGEB/TÜBİTAK/TEKMER) 
+- **Beeadvise** — B2B consulting, government incentives (KOSGEB/TÜBİTAK/TEKMER)
 
 **Capacity:** ~50 focused hours/week. Sleep and training are non-negotiable.
 
@@ -37,7 +37,7 @@ Extremely fast learner; capable of specialist-level depth across multiple techni
 **Target:** 30k+ USD/month from multiple scalable, mostly-digital, AI-powered income streams.
 
 **Strategy:**
-- Developing digital solutions with Traycer managed coding agents. 
+- Developing digital solutions with Traycer managed coding agents.
 
 **Core Drivers:** Financial security, partner stability, kids' future, geographic freedom.
 

@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Chrome extension and mobile UI rule sets (2026-03-21)
+
+**What:** Added distilled Windsurf rule files for Chrome extension and mobile UI work covering platform constraints, state management, navigation, accessibility, performance, and completion checklists.
+
+**Files:**
+- `.windsurf/rules/70-chrome-ext.md` - new Chrome extension UI guidance for MV3 projects
+- `.windsurf/rules/80-mobile.md` - new Android and iOS UI guidance for mobile projects
+
+### Added - always-on SaaS UI rule set for frontend work (2026-03-21)
+
+**What:** Added a distilled Windsurf rule file for SaaS UI work covering navigation, component layering, required component states, performance budgets, accessibility, optimistic UI, and microcopy.
+
+**Files:**
+- `.windsurf/rules/60-saas-ui.md` - new always-on frontend UI guidance
+
 ### Changed - kilo_code_review.py default to report-only mode (2026-03-19)
 
 **What:** Changed default behavior from auto-fix to report-only. Calling agents (Windsurf Cascade, Kilo CLI) now receive issue reports and fix them themselves.

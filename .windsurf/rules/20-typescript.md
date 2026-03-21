@@ -20,7 +20,7 @@ cp -r /opt/fabrik/templates/saas-skeleton /opt/<project-name>
 cd /opt/<project-name>
 npm install
 cp .env.example .env
-npm run dev
+npm run dev  # Dev only! Use `npm run build && npm start` for production.
 ```
 
 **Template includes:**
@@ -63,6 +63,23 @@ export function Card({ title, count = 0 }: Props) {
 }
 ```
 
+### Server vs Client Components
+
+**Default is Server Component.** Add `'use client'` only when using:
+- React hooks (`useState`, `useEffect`, etc.)
+- Browser APIs (`window`, `document`, `localStorage`)
+- Event handlers (`onClick`, `onChange`, etc.)
+
+```tsx
+// Client component (needs directive)
+'use client';
+import { useState } from 'react';
+export function Counter() { ... }
+
+// Server component (no directive needed)
+export function StaticCard() { ... }
+```
+
 ---
 
 ## API Routes (App Router)
@@ -72,14 +89,30 @@ export function Card({ title, count = 0 }: Props) {
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
-  const items = await fetchItems();
-  return NextResponse.json(items);
+  try {
+    const items = await fetchItems();
+    return NextResponse.json(items);
+  } catch (error) {
+    console.error('Failed to fetch items:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch items' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const item = await createItem(body);
-  return NextResponse.json(item, { status: 201 });
+  try {
+    const body = await request.json();
+    const item = await createItem(body);
+    return NextResponse.json(item, { status: 201 });
+  } catch (error) {
+    console.error('Failed to create item:', error);
+    return NextResponse.json(
+      { error: 'Failed to create item' },
+      { status: 500 }
+    );
+  }
 }
 ```
 
@@ -146,6 +179,8 @@ For UI-heavy projects, use this iterative design-to-code workflow:
 - Use existing shadcn/ui components when possible (reduces custom code)
 - For Chrome extensions: Include popup dimensions in design reference
 - For mobile: Specify target devices (iOS, Android, or both)
+
+**Done when:** Matches mockup at 1280px desktop and 375px mobile.
 
 **Example Prompt:**
 ```

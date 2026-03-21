@@ -17,8 +17,18 @@ trigger: glob
 ### Entry Point
 ```python
 # src/main.py
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
-app = FastAPI(title="ServiceName")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: connect DB, load models, etc.
+    await db.connect()
+    yield
+    # Shutdown: cleanup
+    await db.disconnect()
+
+app = FastAPI(title="ServiceName", lifespan=lifespan)
 
 @app.get("/health")
 async def health():
@@ -27,6 +37,8 @@ async def health():
     return {"status": "ok"}
 ```
 
+**Note:** Use `lifespan` context manager, not deprecated `@app.on_event("startup")`.
+
 ### Router Structure
 ```python
 # src/api/items.py
@@ -34,16 +46,42 @@ from fastapi import APIRouter, Depends
 router = APIRouter(prefix="/items", tags=["items"])
 
 @router.get("/")
-async def list_items(db: Session = Depends(get_db)):
-    return await db.query(Item).all()
+async def list_items(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Item))
+    return result.scalars().all()
 ```
+
+**Note:** Use either sync SQLAlchemy or `sqlalchemy.ext.asyncio` — do not mix `async def` with sync `.query().all()`.
 
 ---
 
 ## Config Loading (CRITICAL)
 
 ```python
-# CORRECT - load at runtime
+# PREFERRED - Pydantic BaseSettings (FastAPI-idiomatic)
+from functools import lru_cache
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    db_host: str = "localhost"
+    db_port: int = 5432
+    db_name: str = "app"
+
+    class Config:
+        env_file = ".env"
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+# Usage in routes
+@app.get("/items")
+async def list_items(settings: Settings = Depends(get_settings)):
+    ...
+```
+
+```python
+# ALSO CORRECT - simple function-level loading
 def get_db_url() -> str:
     host = os.getenv('DB_HOST', 'localhost')
     port = os.getenv('DB_PORT', '5432')

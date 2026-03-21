@@ -120,6 +120,9 @@ Run `python /opt/fabrik/scripts/sync_projects.py` to refresh.
 | Architecture | `docs/reference/architecture.md` | Fabrik CLI internals and deployment flow |
 | Port Allocations | `PORTS.md` | Assigning ports to new services |
 | Traycer Workflows | `docs/traycer/README.md` | Traycer integration, YOLO modes |
+| SaaS UI Patterns | `docs/reference/Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md` | Planning SaaS frontend UI |
+| Chrome Extension UI | `docs/reference/Modern GUI Approaches for Chrome Extensionst.md` | Planning Chrome extensions |
+| Mobile UI | `docs/reference/Modern Mobile GUI Approaches for Android and iOS.md` | Planning mobile apps (Android/iOS) |
 | ~~Project Registry~~ | `docs/reference/project-registry.md` | ⚠️ DEPRECATED — use `BUSINESS_MODEL.md` |
 
 ### Planning Constraints
@@ -154,7 +157,7 @@ Before creating any plan, verify:
 - [ ] Functional spec (exact behavior, not goals)
 - [ ] Edge cases (boundaries, null paths, failure states)
 - [ ] Required env vars (new or changed)
-- [ ] DB changes (schema, migrations)
+- [ ] DB changes (update `db/schema.sql`)
 - [ ] Docs impact (CHANGELOG, README features table)
 - [ ] Out of scope (explicitly stated)
 
@@ -178,16 +181,30 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 
 ### Prompt Templates (Pass to Spawned Agents)
 
-| Agent | Mode | Template |
-|-------|------|----------|
-| Coder | Plan | `Execute by Coder.md` |
-| Coder | Plan (skip-plan) | `Direct Execute by Coder.md` |
-| Coder | Epic | `Execute Epic.md` |
-| Coder | YOLO | `Phased YOLO Execute by Coder.md` |
-| Reviewer | Manual | `Reviewer.md` |
-| Fixer | Manual | `Fix.md` |
-| Fixer | YOLO (Review tab) | `Phased YOLO Review.md` |
-| Fixer | YOLO (Verification tab) | `Phased YOLO FixafterVerification.md` |
+**Location:** `~/.traycer/prompt-templates/`
+
+| Template | Role | applicableFor | Used In | Input Variable |
+|----------|------|---------------|---------|----------------|
+| `Coder-for-Plan-Mode.md` | CODER | plan | Plan mode (standard) | `{{planMarkdown}}` |
+| `Coder-for-Phased-Epic-Modes.md` | CODER | plan | Phased YOLO, Epic mode | `{{planMarkdown}}` |
+| `Fix-After-Review.md` | FIXER | review | After Kilo review finds issues | `{{reviewComments}}` |
+| `Fix-After-Verification.md` | FIXER | verification | After Traycer verification fails | `{{comments}}` |
+
+**Workflow Stage → Template Mapping:**
+
+```
+PLAN MODE (standard):
+  Step 2 (Implement) → Coder-for-Plan-Mode.md
+  Step 4 (Kilo Review) → kilo_code_review.py (script, not template)
+  Step 5 (Fix) → Fix-After-Review.md
+  Step 6 (Verify fail) → Fix-After-Verification.md
+
+PHASED YOLO / EPIC MODE:
+  Step 2 (Implement) → Coder-for-Phased-Epic-Modes.md
+  Step 4 (Kilo Review) → kilo_code_review.py (script, not template)
+  Step 5 (Fix) → Fix-After-Review.md
+  Step 6 (Verify fail) → Fix-After-Verification.md
+```
 
 ### Traycer Execution Rules
 1. Carry forward file mappings, decisions, and rationale across phases
@@ -204,7 +221,7 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 
 | Step | Who | Gate |
 |------|-----|------|
-| 1 — Plan | Traycer | Spec: requirements, edge cases, env vars, DB changes, docs impact |
+| 1 — Plan | Traycer | Spec: requirements, edge cases, env vars, `db/schema.sql`, docs impact |
 | 2 — Implement | Coder | Phase scope only |
 | 2.5 — Self-review | Coder | MANDATORY before Final Gate |
 | 3 — Final Gate | Coder | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
@@ -276,39 +293,26 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 
 ---
 
-## [ALL AGENTS] Code Patterns (Authoritative)
+## [ALL AGENTS] Code Patterns
 
-### Python / FastAPI
-```python
-# Config — always function-level, never class/module-level
-def get_db_url() -> str:
-    return f"postgresql://{os.getenv('DB_HOST','localhost')}:{os.getenv('DB_PORT','5432')}/db"
+**Read the relevant pattern file based on your task:**
 
-# Health — always test real dependencies
-@app.get("/health")
-async def health():
-    await db.execute("SELECT 1")
-    return {"status": "ok", "db": "connected"}
+| If working on... | Read this file |
+|------------------|----------------|
+| Python / FastAPI | `.windsurf/rules/10-python.md` |
+| TypeScript / Next.js | `.windsurf/rules/20-typescript.md` |
+| Docker / Compose | `.windsurf/rules/30-ops.md` |
+| Documentation | `.windsurf/rules/40-documentation.md` |
+| SaaS Web UI | `.windsurf/rules/60-saas-ui.md` |
+| Chrome Extension | `.windsurf/rules/70-chrome-ext.md` |
+| Mobile (Android/iOS) | `.windsurf/rules/80-mobile.md` |
 
-# Temp files — never /tmp/
-TEMP_DIR = Path(__file__).parent.parent / ".tmp"
-```
-
-### Docker
-```dockerfile
-FROM python:3.12-slim-bookworm
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
-```
-
-### compose.yaml
-```yaml
-networks:
-  coolify:
-    external: true
-environment:
-  - DB_HOST=postgres-main   # service name, never localhost
-```
+**Universal rules (always apply):**
+- **Config:** Function-level loading, never class/module-level. Always `os.getenv()` / `process.env`.
+- **Health:** Must test real dependencies (`SELECT 1`, not just return `{"status": "ok"}`).
+- **Temp files:** Use project `.tmp/`, never `/tmp/`.
+- **Base images:** `python:3.12-slim-bookworm` / `node:22-bookworm-slim`. Never Alpine.
+- **Networks:** Use service names (`postgres-main`), never `localhost` in Docker.
 
 ---
 
@@ -327,11 +331,12 @@ environment:
 > These directives are enforced. Violating any = workflow failure.
 
 1. **D1 — Completeness:** Complete the full implementation — do not stub, skip, or leave TODOs.
-2. **D2 — No Hallucination:** Do not hallucinate APIs, methods, or library features. If you are unsure whether something exists, say so.
+2. **D2 — No Hallucination:** Do not hallucinate APIs, methods, or library features. If unsure, verify in codebase first or skip that part.
 3. **D3 — Verified Imports:** Only use functions and imports you can confirm exist in this codebase or the specified library version.
 4. **D4 — Production Quality:** Write production-ready code — not prototype or demo quality.
 5. **D5 — Task Focus:** Focus exclusively on the task. Do not refactor unrelated code.
 6. **D6 — Self-Review:** Before returning, review your own output for correctness, completeness, and consistency.
+7. **D7 — No Clarification:** Do not ask for clarification — make the best reasonable interpretation and proceed.
 
 ### Project Scaffold
 
@@ -344,11 +349,6 @@ environment:
 - Every project lives at `/opt/<project>/` with pre-created `.venv`, Dockerfile, `compose.yaml`, `.env.example`
 - Use the project's `.venv` — never bare `pip install`
 - Docker patterns: `python:3.12-slim-bookworm` / `node:22-bookworm-slim` base images, never Alpine
-
-### Windsurf Cascade Users
-
-- **Terminal selection:** Never use "legacy terminal" in Windsurf IDE — it hangs on certain commands. If Windsurf shows "Using legacy terminal", cancel and re-run in a proper terminal.
-- **Check before create:** Always verify a file exists (`ls`, `find`, `read_file`) before creating it with `write_to_file`. Attempting to create a file that already exists = stop and acknowledge error.
 
 ---
 
