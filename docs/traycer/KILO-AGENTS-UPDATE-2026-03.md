@@ -271,7 +271,7 @@ python /opt/fabrik/scripts/generate_kilo_agents.py
 ## What Changed Under the Hood
 
 ### generate_kilo_agents.py
-- **AGENTS_FILE:** `kilo_47_agents_final.json` (was `kilo_50_agents_new.json`)
+- **AGENTS_FILE:** `kilo_47_agents_final.json` (was `kilo_selected_agents_new.json`)
 - **TIER_ORDER:** `["Free", "Economy", "Standard", "Pro", "Expert", "Apex", "Specialist"]`
 - **Naming:** Uses `agent_id` directly from JSON (e.g., `free-1`, `econ-3`)
 - **No normalization:** Agent ID is canonical, no complex filename encoding

@@ -69,7 +69,7 @@ trigger: always_on
 **Quick reference for Cascade:**
 ```bash
 git add <intended_files>
-python /opt/fabrik/scripts/kilo_code_review.py staged --plan "task description" --output json
+python scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
 
 **See `AGENTS.md`** for complete workflow, model routing, and session management.

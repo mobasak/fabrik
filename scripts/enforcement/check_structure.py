@@ -14,6 +14,7 @@ ALLOWED_ROOT_MD = {
     "CHANGELOG.md",
     "tasks.md",
     "AGENTS.md",
+    "AGENTS-compact.md",
     "PORTS.md",
     "LICENSE.md",
 }

@@ -343,23 +343,26 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
     if not fabrik_windsurf_rules.exists():
         raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {fabrik_windsurf_rules}")
 
-    _ensure_symlink(project_dir / ".windsurfrules", fabrik_windsurfrules)
-    _ensure_symlink(project_dir / ".windsurf" / "rules", fabrik_windsurf_rules)
+    # Copy .windsurfrules (no symlinks - workspace isolation)
+    shutil.copy(fabrik_windsurfrules, project_dir / ".windsurfrules")
 
-    # AGENTS.md: symlink to master, fallback to copy
-    _link_agents_md(project_dir)
+    # Copy .windsurf/rules/ directory (no symlinks - workspace isolation)
+    windsurf_target = project_dir / ".windsurf" / "rules"
+    if windsurf_target.exists():
+        shutil.rmtree(windsurf_target)
+    shutil.copytree(fabrik_windsurf_rules, windsurf_target)
 
-    # Create opencode.json for Kilo CLI instruction loading
-    # Kilo loads AGENTS.md only (patterns via pointers inside AGENTS.md)
-    # Cascade reads .windsurf/rules/ separately via auto-discovery
-    (project_dir / "opencode.json").write_text(
-        "{\n"
-        '  "$schema": "https://opencode.ai/config.json",\n'
-        '  "instructions": [\n'
-        '    "AGENTS.md"\n'
-        "  ]\n"
-        "}\n"
-    )
+    # Copy AGENTS.md (no symlinks - workspace isolation)
+    if FABRIK_AGENTS_MD.exists():
+        shutil.copy(FABRIK_AGENTS_MD, project_dir / "AGENTS.md")
+
+    # Copy AGENTS-compact.md (no symlinks - workspace isolation)
+    fabrik_compact = FABRIK_ROOT / "AGENTS-compact.md"
+    if fabrik_compact.exists():
+        shutil.copy(fabrik_compact, project_dir / "AGENTS-compact.md")
+
+    # Copy opencode.json from fabrik master (single source of truth)
+    shutil.copy(FABRIK_ROOT / "opencode.json", project_dir / "opencode.json")
 
     # Create .gitignore and .env.example
     (project_dir / ".gitignore").write_text(
@@ -399,10 +402,53 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
         f"# {name} Configuration\n# Required\nPORT=8000\nLOG_LEVEL=INFO\n\n# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n"
     )
 
-    # Copy documentation policy template
-    doc_policy_src = FABRIK_ROOT / "templates" / "docs" / ".doc-policy.md"
-    if doc_policy_src.exists():
-        (project_dir / "docs" / ".doc-policy.md").write_text(doc_policy_src.read_text())
+    # Copy entire templates/docs/ directory to project
+    fabrik_docs_templates = FABRIK_ROOT / "templates" / "docs"
+    project_docs_templates = project_dir / "templates" / "docs"
+    if fabrik_docs_templates.exists():
+        shutil.copytree(fabrik_docs_templates, project_docs_templates, dirs_exist_ok=True)
+
+    # Copy templates/saas-skeleton/ for reference (used in 20-typescript.md)
+    fabrik_saas_skeleton = FABRIK_ROOT / "templates" / "saas-skeleton"
+    project_saas_skeleton = project_dir / "templates" / "saas-skeleton"
+    if fabrik_saas_skeleton.exists():
+        shutil.copytree(fabrik_saas_skeleton, project_saas_skeleton, dirs_exist_ok=True)
+
+    # Create PORTS.md (every project tracks its own ports)
+    (project_dir / "PORTS.md").write_text(
+        f"""# {name} Port Allocations
+
+**Last Updated:** {today}
+
+This document tracks port allocations for {name} services to prevent conflicts.
+
+---
+
+## Port Ranges
+
+| Range | Purpose | Environment |
+|-------|---------|-------------|
+| 3000-3099 | Frontend apps (Node.js) | WSL & VPS |
+| 5000-5099 | Python services (misc) | WSL only |
+| 8000-8099 | Python APIs (FastAPI) | WSL & VPS |
+| 8100-8199 | Workers & background services | WSL & VPS |
+
+---
+
+## Current Allocations
+
+| Port | Service | URL/Purpose |
+|------|---------|-------------|
+| TBD | Main service | Add your allocations here |
+
+---
+
+## Notes
+
+- Register all ports in this file before using them
+- Check this file before adding new services to avoid conflicts
+"""
+    )
 
     # Create PLANS.md inline (no template file)
     (project_dir / "docs" / "development" / "PLANS.md").write_text(
@@ -1349,30 +1395,44 @@ def fix_project(
         if not windsurf_rules_target.exists():
             raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {windsurf_rules_target}")
 
-        if _ensure_symlink(project_path / ".windsurfrules", windsurfrules_target):
-            added.append(".windsurfrules (symlink)")
+        # Copy .windsurfrules (remove symlink if exists)
+        windsurfrules_path = project_path / ".windsurfrules"
+        if windsurfrules_path.is_symlink():
+            windsurfrules_path.unlink()
+        shutil.copy(windsurfrules_target, windsurfrules_path)
+        added.append(".windsurfrules (copied)")
 
-        if _ensure_symlink(project_path / ".windsurf" / "rules", windsurf_rules_target):
-            added.append(".windsurf/rules (symlink)")
+        # Copy .windsurf/rules/ directory (remove symlink if exists)
+        windsurf_rules_path = project_path / ".windsurf" / "rules"
+        if windsurf_rules_path.is_symlink():
+            windsurf_rules_path.unlink()
+        elif windsurf_rules_path.exists():
+            shutil.rmtree(windsurf_rules_path)
+        shutil.copytree(windsurf_rules_target, windsurf_rules_path)
+        added.append(".windsurf/rules (copied)")
 
-        agents_link = project_path / "AGENTS.md"
-        if not agents_link.exists() and not agents_link.is_symlink():
-            _link_agents_md(project_path)
-            added.append("AGENTS.md (symlink or copy)")
+        # Copy AGENTS.md (remove symlink if exists)
+        agents_path = project_path / "AGENTS.md"
+        if agents_path.is_symlink():
+            agents_path.unlink()
+        if FABRIK_AGENTS_MD.exists():
+            shutil.copy(FABRIK_AGENTS_MD, agents_path)
+            added.append("AGENTS.md (copied)")
 
-        # Create opencode.json if missing (Kilo CLI instruction loading)
-        opencode_json = project_path / "opencode.json"
-        if not opencode_json.exists():
-            opencode_json.write_text(
-                "{\n"
-                '  "$schema": "https://opencode.ai/config.json",\n'
-                '  "instructions": [\n'
-                '    ".windsurf/rules/*.md",\n'
-                '    "AGENTS.md"\n'
-                "  ]\n"
-                "}\n"
-            )
-            added.append("opencode.json")
+        # Copy AGENTS-compact.md (remove symlink if exists)
+        compact_path = project_path / "AGENTS-compact.md"
+        compact_target = FABRIK_ROOT / "AGENTS-compact.md"
+        if compact_path.is_symlink():
+            compact_path.unlink()
+        if compact_target.exists():
+            shutil.copy(compact_target, compact_path)
+            added.append("AGENTS-compact.md (copied)")
+
+        # Always refresh opencode.json from master (single source of truth)
+        fabrik_opencode = FABRIK_ROOT / "opencode.json"
+        if fabrik_opencode.exists():
+            shutil.copy(fabrik_opencode, project_path / "opencode.json")
+            added.append("opencode.json (refreshed from master)")
 
         # Ensure .droid/ structure is current
         droid_dir = project_path / ".droid"
@@ -1410,33 +1470,23 @@ def fix_project(
                 added.append(".gitignore (.droid/ block updated)")
     else:
         # dry_run: accurately report what would be created/fixed
-        # .windsurfrules
-        link = project_path / ".windsurfrules"
-        if link.is_symlink():
-            if Path(link.resolve()) != Path(windsurfrules_target.resolve()):
-                added.append(".windsurfrules (symlink fix)")
-        elif not link.exists():
-            added.append(".windsurfrules (symlink)")
+        # .windsurfrules - always copied (symlink migration)
+        added.append(".windsurfrules (copied)")
 
-        # .windsurf/rules
-        link = project_path / ".windsurf" / "rules"
-        if link.is_symlink():
-            if Path(link.resolve()) != Path(windsurf_rules_target.resolve()):
-                added.append(".windsurf/rules (symlink fix)")
-        elif not link.exists():
-            added.append(".windsurf/rules (symlink)")
+        # .windsurf/rules - always copied (symlink migration)
+        added.append(".windsurf/rules (copied)")
 
-        # AGENTS.md
-        agents = project_path / "AGENTS.md"
-        if agents.is_symlink():
-            if Path(agents.resolve()) != Path(FABRIK_AGENTS_MD.resolve()):
-                added.append("AGENTS.md (symlink fix)")
-        elif not agents.exists():
-            added.append("AGENTS.md (symlink or copy)")
+        # AGENTS.md - always copied (symlink migration)
+        if FABRIK_AGENTS_MD.exists():
+            added.append("AGENTS.md (copied)")
 
-        # opencode.json
-        if not (project_path / "opencode.json").exists():
-            added.append("opencode.json")
+        # AGENTS-compact.md - always copied (symlink migration)
+        if (FABRIK_ROOT / "AGENTS-compact.md").exists():
+            added.append("AGENTS-compact.md (copied)")
+
+        # opencode.json — always refresh
+        if (FABRIK_ROOT / "opencode.json").exists():
+            added.append("opencode.json (refresh from master)")
 
         # .droid/ structure dry_run reporting
         droid_dir = project_path / ".droid"

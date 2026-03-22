@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """Check that new src/ modules have corresponding documentation."""
 
-import os
 from pathlib import Path
 
-FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
-
-from .validate_conventions import CheckResult, Severity  # noqa: E402
+from .validate_conventions import CheckResult, Severity
 
 
 def check_new_module_docs(changed_files: list[Path]) -> list[CheckResult]:
@@ -19,7 +16,8 @@ def check_new_module_docs(changed_files: list[Path]) -> list[CheckResult]:
         List of check results
     """
     results: list[CheckResult] = []
-    docs_dir = FABRIK_ROOT / "docs"
+    # Check project's own docs/
+    docs_dir = Path.cwd() / "docs"
     readme_path = docs_dir / "INDEX.md"
 
     # Find new module directories (containing __init__.py)

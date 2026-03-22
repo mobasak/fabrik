@@ -2,10 +2,10 @@
 """
 Generate Kilo CLI Agent Scripts (Opus 4.6 Enhanced System)
 
-Reads agent definitions from kilo_47_agents_final.json and generates
+Reads agent definitions from kilo_selected_agents.json and generates
 detailed, self-documenting scripts in ~/.traycer/cli-agents/
 
-Naming format: {Tier}{NN}-{model}-{role}-{variant}-i{IN}-o{OUT}.sh
+Naming format: {Tier}{NN}-{model}-{variant}-i{IN}-o{OUT}.sh (unified, no -code-/-review-)
 Example: Economy02-deepseek32-code-medium-i027-o081.sh
 
 Features:
@@ -40,7 +40,7 @@ try:
 except ImportError:
     YAML_AVAILABLE = False
 
-AGENTS_FILE = Path(__file__).parent / "kilo_47_agents_final.json"
+AGENTS_FILE = Path(__file__).parent / "kilo_selected_agents.json"
 ROUTING_POLICY_FILE = Path.home() / ".traycer" / "routing-policy.yaml"
 ROUTING_POLICY_MD = Path.home() / ".traycer" / "routing-policy.md"
 OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
@@ -205,11 +205,15 @@ def generate_script_content(
     output_cost: float,
 ) -> str:
     """Generate shell script content for a Kilo agent."""
-    role = use_case.lower()
+    # Unified agents: all use --auto mode (can do both code and review)
+    # No role in filename - all agents are unified
     model_normalized = normalize_model_name(model_name)
     input_encoded = encode_price(input_cost)
     output_encoded = encode_price(output_cost)
-    script_name = f"{tier_name}{rank:02d}-{model_normalized}-{role}-{variant}-i{input_encoded}-o{output_encoded}.sh"
+    # Unified naming: no -code-/-review- in filename
+    script_name = (
+        f"{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}.sh"
+    )
 
     # Generate kilo/auto routing documentation if applicable
     auto_routing_docs = ""
@@ -236,13 +240,13 @@ def generate_script_content(
 
     return f"""#!/bin/bash
 # ════════════════════════════════════════════════════════════════════════════
-# Kilo {role.capitalize()} Agent - {tier_name} Tier
+# Kilo Agent - {tier_name} Tier (Unified --auto mode)
 # ════════════════════════════════════════════════════════════════════════════
 #
 # 📛 SCRIPT NAME: {script_name}
 #
 # 📋 NAMING CONVENTION EXPLAINED:
-#   Format: <TIER><NN>-<model>-<role>-<variant>-i<IN>-o<OUT>.sh
+#   Format: <TIER><NN>-<model>-<variant>-i<IN>-o<OUT>.sh (unified, no -code-/-review-)
 #
 #   <TIER>    = Agent tier (quality/cost bracket)
 #               Free     = $0 - Zero-cost (sandbox, rapid iteration)
@@ -258,10 +262,6 @@ def generate_script_content(
 #   <model>   = Normalized model name
 #               Examples: deepseek32, opus46, flash25, gpt52pro, o3pro
 #
-#   <role>    = Agent purpose
-#               code   = Code generation, refactoring, implementation
-#               review = Code review, security analysis, verification
-#
 #   <variant> = Effort level (affects token budget, not price per token)
 #               auto    = Automatic mode-based selection
 #               minimal = Quick tasks, simple code
@@ -274,10 +274,10 @@ def generate_script_content(
 #   o<OUT>    = Output cost per 1M tokens × 100 (e.g., o081 = $0.81/1M)
 #
 #   Examples:
-#     Free00-auto-code-auto-i000-o000.sh → Auto router
-#     Economy02-deepseek32-code-medium-i027-o081.sh → DeepSeek v3.2
-#     Expert06-opus46-code-max-i500-o2500.sh → Claude Opus 4.6
-#     Apex03-o3pro-review-max-i4000-o16000.sh → OpenAI o3-pro
+#     T1-Free00-auto-auto-i000-o000.sh → Auto router
+#     T2-Economy02-deepseek32-medium-i027-o081.sh → DeepSeek v3.2
+#     T5-Expert01-opus46-max-i500-o2500.sh → Claude Opus 4.6
+#     T6-Apex03-o3pro-max-i4000-o16000.sh → OpenAI o3-pro
 #{auto_routing_docs}
 #
 # ════════════════════════════════════════════════════════════════════════════
@@ -286,7 +286,7 @@ def generate_script_content(
 # Tier: {tier_name} #{rank:02d}
 # Model: {model_name} ({provider})
 # Full Name: {full_name}
-# Role: {role.capitalize()}
+# Mode: Unified (--auto handles code/review automatically)
 # Variant: {variant}
 # Specialty: {specialty}
 {pricing_line}
@@ -295,7 +295,7 @@ def generate_script_content(
 # Error logging - captures errors to file for debugging when terminal closes
 AGENT_LOG="${{HOME}}/.traycer/agent-debug.log"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$AGENT_LOG"
-echo "[$(date -Iseconds)] Agent started: {tier_name}{rank:02d}-{model_normalized}-{role}-{variant}" >> "$AGENT_LOG"
+echo "[$(date -Iseconds)] Agent started: {tier_name}{rank:02d}-{model_normalized}-{variant}" >> "$AGENT_LOG"
 
 # Always log Traycer context for workflow analysis
 echo "[$(date -Iseconds)] TRAYCER_TASK_ID=$TRAYCER_TASK_ID" >> "$AGENT_LOG"
@@ -308,7 +308,7 @@ env | grep -E "^TRAYCER_" >> "$AGENT_LOG" 2>/dev/null || true
 # Debug mode (KILO_DEBUG=1)
 if [ "$KILO_DEBUG" = "1" ]; then
     set -x  # Print all commands
-    echo "[DEBUG] Agent: {tier_name}{rank:02d}-{model_normalized}-{role}-{variant}" >&2
+    echo "[DEBUG] Agent: {tier_name}{rank:02d}-{model_normalized}-{variant}" >&2
     echo "[DEBUG] Model: {full_name}" >&2
     echo "[DEBUG] TRAYCER_PROMPT length: ${{#TRAYCER_PROMPT}}" >&2
     echo "[DEBUG] TRAYCER_TASK_ID: $TRAYCER_TASK_ID" >&2
@@ -414,14 +414,13 @@ if [ "$USE_RICH_UI" = "1" ]; then
         --output "$OUTPUT_FILE" \\
         --agent "{tier_name}{rank:02d}-{model_normalized}" \\
         --model "{full_name}" \\
-        --role "{role}" \\
+        --role "unified" \\
         --variant "{variant}" \\
         --session-title "$SESSION_TITLE" \\
         --timeout "$TIMEOUT" \\
         -- timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
             --model {full_name} \\
             --variant {variant} \\
-            --agent {role} \\
             --title "$SESSION_TITLE" \\
             "$PROMPT"
     EXIT_CODE=$?
@@ -431,7 +430,6 @@ else
     timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
         --model {full_name} \\
         --variant {variant} \\
-        --agent {role} \\
         --title "$SESSION_TITLE" \\
         "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
     EXIT_CODE=${{PIPESTATUS[0]}}
@@ -476,14 +474,14 @@ fi
 
 # Handle timeout
 if [ $EXIT_CODE -eq 124 ]; then
-    echo '{{"error": "timeout", "duration": '$TIMEOUT', "agent": "{tier_name}{rank:02d}-{model_normalized}-{role}-{variant}-i{input_encoded}-o{output_encoded}"}}' >&2
+    echo '{{"error": "timeout", "duration": '$TIMEOUT', "agent": "{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}"}}' >&2
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Task timed out after $TIMEOUT seconds" >&2
 fi
 
 # Cost tracking (if enabled)
 if [ -n "$KILO_TRACK_COST" ]; then
     mkdir -p "$(dirname "$USAGE_LOG")"
-    echo "{{\"timestamp\":\"$(date -Iseconds)\",\"agent\":\"{tier_name}{rank:02d}-{role}-{variant}-i{input_encoded}-o{output_encoded}\",\"model\":\"{full_name}\",\"task_id\":\"$TRAYCER_TASK_ID\",\"exit_code\":$EXIT_CODE,\"duration\":$DURATION}}" >> "$USAGE_LOG"
+    echo '{{"timestamp":"$(date -Iseconds)","agent":"{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}","model":"{full_name}","task_id":"$TRAYCER_TASK_ID","exit_code":$EXIT_CODE,"duration":$DURATION}}' >> "$USAGE_LOG"
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Usage logged to $USAGE_LOG" >&2
 fi
 
@@ -885,10 +883,9 @@ def main(dry_run: bool = False):
                 model_normalized = normalize_model_name(agent["model_name"])
                 input_encoded = encode_price(agent["input_per_1m"])
                 output_encoded = encode_price(agent["output_per_1m"])
-                role = agent["use_case"].lower()
                 variant = agent["variant"]
 
-                filename = f"{tier_name}{rank:02d}-{model_normalized}-{role}-{variant}-i{input_encoded}-o{output_encoded}.sh"
+                filename = f"{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}.sh"
 
                 # Determine if agent is active or disabled
                 is_active = not use_routing or filename in active_scripts
@@ -905,7 +902,7 @@ def main(dry_run: bool = False):
                     model_name=agent["model_name"],
                     full_name=agent["full_name"],
                     provider=agent["provider"],
-                    use_case=agent["use_case"],
+                    use_case="unified",
                     variant=agent["variant"],
                     specialty=agent["specialty"],
                     input_cost=agent["input_per_1m"],
@@ -918,7 +915,7 @@ def main(dry_run: bool = False):
                 status_icon = "✓" if is_active else "○"
                 status_label = "" if is_active else " [disabled]"
                 print(
-                    f"          Tier: {tier_name} #{rank:02d} | Role: {role} | Variant: {variant}"
+                    f"          Tier: {tier_name} #{rank:02d} | Mode: unified | Variant: {variant}"
                 )
                 print(f"          Output: {filepath}")
 
@@ -1001,10 +998,9 @@ def main(dry_run: bool = False):
             model_normalized = normalize_model_name(agent["model_name"])
             input_encoded = encode_price(agent["input_per_1m"])
             output_encoded = encode_price(agent["output_per_1m"])
-            role = agent["use_case"].lower()
             variant = agent["variant"]
 
-            filename = f"{tier_name}{rank:02d}-{model_normalized}-{role}-{variant}-i{input_encoded}-o{output_encoded}.sh"
+            filename = f"{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}.sh"
 
             is_active = not use_routing or filename in active_scripts
             target_dir = OUTPUT_DIR if is_active else DISABLED_DIR
@@ -1015,7 +1011,7 @@ def main(dry_run: bool = False):
             status = "ACTIVE" if is_active else "disabled"
             print(f"[DRY-RUN] Would generate ({status}): {filename}")
             print(f"          Model: {agent['full_name']}")
-            print(f"          Tier: {tier_name} #{rank:02d} | Role: {role} | Variant: {variant}")
+            print(f"          Tier: {tier_name} #{rank:02d} | Mode: unified | Variant: {variant}")
             print(
                 f"          Pricing: ${agent['input_per_1m']:.3f}/1M in, ${agent['output_per_1m']:.3f}/1M out"
             )

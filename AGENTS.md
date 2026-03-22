@@ -50,10 +50,8 @@
 
 ### Project Scaffold
 
-Every new project starts from `/opt/<project>/` with pre-configured: folder structure, `.venv`, Dockerfile, `compose.yaml`, `.env.example`.
+Every new project starts from `/opt/<project>/` with pre-configured: folder structure, `.venv`, Dockerfile, `compose.yaml`, `.env.example`, plan templates (`templates/docs/`), and SaaS skeleton (`templates/saas-skeleton/`).
 
-- Templates: `/opt/fabrik/templates/` (python-api, node-api, saas-skeleton, etc.)
-- SaaS: `/opt/fabrik/templates/saas-skeleton/` (Next.js 14 + TypeScript + Tailwind)
 - Prebuilt containers: `docs/reference/prebuilt-app-containers.md` — check before writing custom code
 
 ### Tech Stack Defaults
@@ -104,7 +102,7 @@ Every new project starts from `/opt/<project>/` with pre-configured: folder stru
 ### Active Projects
 
 Full auto-generated project list (39 projects) in `docs/BUSINESS_MODEL.md` under `<!-- AUTO-GENERATED:PROJECTS -->`.
-Run `python /opt/fabrik/scripts/sync_projects.py` to refresh.
+Run `python scripts/sync_projects.py` to refresh (Fabrik project only - child projects don't have this script).
 
 ### Reference Documents
 
@@ -210,8 +208,8 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 | 1 — Plan | Traycer | Spec: requirements, edge cases, env vars, DB changes, docs impact |
 | 2 — Implement | Coder | Phase scope only |
 | 2.5 — Self-review | Coder | MANDATORY before Final Gate |
-| 3 — Final Gate | Coder | `python /opt/fabrik/scripts/final_gate.py` → all PASS |
-| 4 — Kilo Review | Reviewer | `python /opt/fabrik/scripts/kilo_code_review.py staged --plan "..."` |
+| 3 — Final Gate | Coder | `python scripts/final_gate.py` → all PASS |
+| 4 — Kilo Review | Reviewer | `python scripts/kilo_code_review.py staged --plan "..."` |
 | 5 — Fix | Fixer | All severities fixed, re-run until verdict=PASS |
 | 6 — Verify | Traycer | SPEC compliance confirmed |
 | 7 — Commit | Traycer | 4 blockers only: large-files, merge-conflict, private-key, secrets |
@@ -238,7 +236,7 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 
 ### Final Gate (Steps 3 and 5)
 ```bash
-python /opt/fabrik/scripts/final_gate.py
+python scripts/final_gate.py
 ```
 Runs: auto-fix formatting → static analysis (ruff, mypy, bandit, semgrep) → repo consistency.
 Fix all failures. Re-run until PASS. Do not proceed with failures.
@@ -246,7 +244,7 @@ Fix all failures. Re-run until PASS. Do not proceed with failures.
 ### Kilo Review (Step 4 — Report-Only Default)
 ```bash
 git add <intended_files>
-python /opt/fabrik/scripts/kilo_code_review.py staged --plan "task description" --output json
+python scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
 Automatic: risk detection → model selection → variant selection → session isolation.
 Fix ALL severities (BLOCKER, MAJOR, MINOR). Max 5 iterations before escalating to Traycer.
@@ -320,7 +318,7 @@ environment:
 - **CHANGELOG.md:** Entry required for every code change. Format: `### Added/Changed/Fixed — Title (YYYY-MM-DD)`
 - **README.md features table:** Every new feature added with ✅/🚧/❌ status
 - **New `.md` files:** Blocked outside allowlist. Allowed: root files, scaffold docs, `docs/development/plans/YYYY-MM-DD-plan-<n>.md`, `docs/archive/**`
-- **AUTO-GENERATED blocks:** Never edit manually. Run `python /opt/fabrik/scripts/sync_projects.py`
+- **AUTO-GENERATED blocks:** Never edit manually. Run `python scripts/sync_projects.py` (Fabrik project only)
 - **`.env.example`:** Authoritative variable reference. `docs/CONFIGURATION.md` is a guide only — no variable tables there.
 
 ---
@@ -338,8 +336,8 @@ environment:
 
 ### Project Scaffold
 
-- SaaS skeleton: `/opt/fabrik/templates/saas-skeleton/` — Next.js 14 + TypeScript + Tailwind
-- Other templates available at `/opt/fabrik/templates/` (python-api, node-api, etc.)
+- SaaS skeleton: `templates/saas-skeleton/` — Next.js 14 + TypeScript + Tailwind (project-local)
+- Plan templates: `templates/docs/` — PLAN_TEMPLATE.md, EXECUTION_PLAN_TEMPLATE.md (project-local)
 - Check `docs/reference/prebuilt-app-containers.md` before building custom infrastructure code
 
 ### Project Layout
@@ -392,8 +390,8 @@ environment:
 ## [TRAYCER ONLY] Infrastructure & Deployment
 
 **Deployment:** `fabrik apply` → Coolify
-**Secrets:** Project `.env` AND `/opt/fabrik/.env` (master backup)
-**ARM check:** `python /opt/fabrik/scripts/container_images.py check-arch <image:tag>`
+**Secrets:** Project `.env` (primary)
+**ARM check:** `python scripts/container_images.py check-arch <image:tag>` (Fabrik project only - child projects use Docker Hub docs)
 
 ### Microservice URLs
 
@@ -431,7 +429,7 @@ If multiple skills match — invoke the most specific. If uncertain — invoke a
 
 ### MCP Servers
 
-Config: `~/.factory/mcp.json` | Template: `/opt/fabrik/templates/scaffold/factory-mcp.json`
+Config: `~/.factory/mcp.json` (Fabrik only - child projects don't use MCP)
 
 | Server | Purpose |
 |--------|---------|
@@ -441,7 +439,9 @@ Config: `~/.factory/mcp.json` | Template: `/opt/fabrik/templates/scaffold/factor
 | `stripe` | Payments |
 | `linear` | Issue tracking |
 
-### Droid Hooks (`/opt/fabrik/.factory/hooks/`)
+### Droid Hooks
+
+(Fabrik project only - child projects don't use Factory hooks)
 
 | Hook | Purpose |
 |------|---------|
@@ -454,4 +454,3 @@ Config: `~/.factory/mcp.json` | Template: `/opt/fabrik/templates/scaffold/factor
 ---
 
 *Complements: `.windsurfrules` (Windsurf Cascade-specific rules)*
-*Symlink: `ln -s /opt/fabrik/AGENTS.md AGENTS.md`*

@@ -164,7 +164,7 @@ alembic downgrade -1
 - [ ] All required env vars documented
 - [ ] Health endpoint implemented
 - [ ] Database migrations ready
-- [ ] Port registered in `/opt/fabrik/PORTS.md`
+- [ ] Port registered in `PORTS.md`
 
 ### After Deploy
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=Watch /opt project .env files and auto-consolidate
+After=network.target
+
+[Service]
+Type=simple
+User=ozgur
+WorkingDirectory=/opt/fabrik
+ExecStart=/opt/fabrik/scripts/watch_env_changes.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

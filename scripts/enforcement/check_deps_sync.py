@@ -9,12 +9,9 @@ This prevents divergent dependency sets across different install methods.
 Uses tomllib (Python 3.11+ stdlib) for robust TOML parsing.
 """
 
-import os
 from pathlib import Path
 
 from .validate_conventions import CheckResult, Severity
-
-FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 
 
 def _norm_pkg(name: str) -> str:

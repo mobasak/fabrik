@@ -47,7 +47,7 @@ Execute the following command:
 # Set review ID (use Traycer-provided or generate stable recognizable ID)
 REVIEW_ID="${TRAYCER_REVIEW_ID:-feat-$(date +%Y%m%d)-<slug>}"
 
-python /opt/fabrik/scripts/traycer_agent_review.py \
+python scripts/traycer_agent_review.py \
     --task "Your task description here" \
     --files <file1> <file2> ... \
     --self-review "Your self-review report above" \
@@ -190,7 +190,7 @@ import json
 
 result = subprocess.run([
     "python",
-    "/opt/fabrik/scripts/traycer_agent_review.py",
+    "scripts/traycer_agent_review.py",
     "--task", task_description,
     "--files", *changed_files,
     "--self-review", self_review,
@@ -222,7 +222,7 @@ elif review_data["final_status"].startswith("FAILED"):
    Add as final instruction block:
    ```
    After completing implementation, you MUST run the auto-review workflow
-   following the template in /opt/fabrik/templates/traycer/agent-post-execution-hook.md
+   following the template in templates/traycer/agent-post-execution-hook.md
    ```
 
 2. **Traycer Prompt Templates:**
@@ -237,7 +237,7 @@ elif review_data["final_status"].startswith("FAILED"):
    ```yaml
    # In Traycer config
    post_execution_hook:
-     script: /opt/fabrik/scripts/traycer_agent_review.py
+     script: scripts/traycer_agent_review.py
      args:
        - --task
        - "{{ task }}"

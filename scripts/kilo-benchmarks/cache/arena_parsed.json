@@ -1,0 +1,2276 @@
+{
+  "source": "openlm.ai",
+  "url": "https://openlm.ai/chatbot-arena/",
+  "scraped_at": "2026-03-22T17:16:34.510149",
+  "total_entries": 252,
+  "entries": [
+    {
+      "rank": 1,
+      "model": "Claude Opus 4.6 Thinking",
+      "score": 1545,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 2,
+      "model": "GPT-5.4-high",
+      "score": 1538,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 3,
+      "model": "Claude Opus 4.6",
+      "score": 1535,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 4,
+      "model": "Gemini-3.1-Pro",
+      "score": 1531,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 5,
+      "model": "Grok-4.20",
+      "score": 1518,
+      "provider": "xAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 6,
+      "model": "Claude Sonnet 4.6 Thinking",
+      "score": 1511,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 7,
+      "model": "Claude Opus 4.5 (thinking-32k)",
+      "score": 1510,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 10,
+      "model": "Gemini-3-Pro",
+      "score": 1501,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 11,
+      "model": "Claude Sonnet 4.6",
+      "score": 1500,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 13,
+      "model": "Claude Opus 4.5",
+      "score": 1496,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 17,
+      "model": "Seed2.0 Pro",
+      "score": 1490,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 18,
+      "model": "Qwen3.5-Max",
+      "score": 1490,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 19,
+      "model": "Claude Sonnet 4.5 (thinking-32k)",
+      "score": 1485,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 20,
+      "model": "Grok-4.1-Thinking",
+      "score": 1483,
+      "provider": "xAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 23,
+      "model": "Kimi-K2.5-Thinking \u2705",
+      "score": 1480,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 24,
+      "model": "Claude Opus 4.1 (thinking-16k)",
+      "score": 1475,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 25,
+      "model": "Gemini-3-Flash",
+      "score": 1470,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 26,
+      "model": "GPT-5.2-high",
+      "score": 1470,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 28,
+      "model": "GPT-5.4",
+      "score": 1468,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 29,
+      "model": "Qwen3-Max",
+      "score": 1468,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 31,
+      "model": "GPT-5.1-high",
+      "score": 1466,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 35,
+      "model": "GPT-5.2",
+      "score": 1465,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 36,
+      "model": "Gemini-2.5-Pro",
+      "score": 1465,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 37,
+      "model": "Claude Opus 4.1",
+      "score": 1465,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 40,
+      "model": "Claude Sonnet 4.5",
+      "score": 1464,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 41,
+      "model": "Grok-4.1",
+      "score": 1463,
+      "provider": "xAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 44,
+      "model": "Qwen3.5-397B-A17B \u2705",
+      "score": 1462,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 45,
+      "model": "ERNIE-5.0",
+      "score": 1461,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 46,
+      "model": "GLM-5 \u2705",
+      "score": 1461,
+      "provider": "Zhipu",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 47,
+      "model": "LongCat-Flash-Chat",
+      "score": 1461,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 51,
+      "model": "GLM-4.7",
+      "score": 1460,
+      "provider": "Zhipu",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 52,
+      "model": "GPT-5-high",
+      "score": 1460,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 54,
+      "model": "GLM-4.6",
+      "score": 1458,
+      "provider": "Zhipu",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 55,
+      "model": "Qwen3-VL-235B-A22B-Instruct",
+      "score": 1457,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 56,
+      "model": "Qwen3-235B-A22B-Instruct-2507",
+      "score": 1457,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 57,
+      "model": "Qwen3-Next-80B-A3B-Instruct",
+      "score": 1456,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 58,
+      "model": "Grok-4",
+      "score": 1453,
+      "provider": "xAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 62,
+      "model": "GPT-5.1",
+      "score": 1450,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 63,
+      "model": "Kimi-K2-Thinking",
+      "score": 1450,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 64,
+      "model": "Mistral Large 3",
+      "score": 1450,
+      "provider": "Mistral",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 65,
+      "model": "GLM-4.5",
+      "score": 1448,
+      "provider": "Zhipu",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 66,
+      "model": "Minimax-M2.7",
+      "score": 1448,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 71,
+      "model": "Qwen3-235B-A22B-Thinking-2507",
+      "score": 1442,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 73,
+      "model": "MiMo-V2-Pro",
+      "score": 1441,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 74,
+      "model": "o3-2025-04-16",
+      "score": 1441,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 75,
+      "model": "Grok-4-Fast",
+      "score": 1441,
+      "provider": "xAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 77,
+      "model": "Qwen-VL-Max-2025-08-13",
+      "score": 1440,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 78,
+      "model": "Grok-3-Preview-02-24",
+      "score": 1439,
+      "provider": "xAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 80,
+      "model": "DeepSeek-V3.2-Thinking",
+      "score": 1438,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 81,
+      "model": "DeepSeek-V3.1-Thinking",
+      "score": 1437,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 82,
+      "model": "DeepSeek-R1-0528",
+      "score": 1436,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 83,
+      "model": "Minimax-M2.5",
+      "score": 1436,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 84,
+      "model": "Claude Haiku 4.5",
+      "score": 1436,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 85,
+      "model": "ChatGPT-4o-latest (2025-03-26)",
+      "score": 1434,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 86,
+      "model": "Claude Opus 4 (thinking-16k)",
+      "score": 1434,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 87,
+      "model": "Step-3.5-Flash",
+      "score": 1433,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 89,
+      "model": "Qwen3-VL-235B-A22B-Thinking",
+      "score": 1432,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 91,
+      "model": "DeepSeek-V3.2",
+      "score": 1431,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 92,
+      "model": "Amazon-Nova-Chat-11-10",
+      "score": 1431,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 94,
+      "model": "DeepSeek-V3.1",
+      "score": 1430,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 95,
+      "model": "Minimax-M2.1",
+      "score": 1430,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 101,
+      "model": "Qwen3-30B-A3B-Instruct-2507",
+      "score": 1425,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 105,
+      "model": "Gemini-3.1-Flash-Lite",
+      "score": 1421,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 106,
+      "model": "GPT-5-chat",
+      "score": 1421,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 109,
+      "model": "Gemini-2.5-Flash",
+      "score": 1420,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 112,
+      "model": "GPT-4.5-Preview",
+      "score": 1419,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 113,
+      "model": "Hunyuan-Vision-1.5-Thinking",
+      "score": 1419,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 114,
+      "model": "GPT-5-mini",
+      "score": 1419,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 126,
+      "model": "Mistral Medium 3.1",
+      "score": 1412,
+      "provider": "Mistral",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 127,
+      "model": "Claude Sonnet 4 (thinking-32k)",
+      "score": 1412,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 129,
+      "model": "MiMo-V2-Flash",
+      "score": 1411,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 131,
+      "model": "GLM-4.5-Air",
+      "score": 1410,
+      "provider": "Zhipu",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 132,
+      "model": "Hunyuan-T1-20250711",
+      "score": 1409,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 134,
+      "model": "MAI-1-Preview",
+      "score": 1406,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 135,
+      "model": "Qwen3-Coder-480B-A35B-Instruct",
+      "score": 1406,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 136,
+      "model": "Claude Opus 4",
+      "score": 1405,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 137,
+      "model": "Kimi-K2-0905-Preview",
+      "score": 1403,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 140,
+      "model": "Kimi-K2-0711-Preview",
+      "score": 1402,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 142,
+      "model": "Nemotron-3-Super-120B-A12B",
+      "score": 1401,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 144,
+      "model": "Step-3",
+      "score": 1400,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 147,
+      "model": "Gemini-2.0-Pro-Exp-02-05",
+      "score": 1398,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 148,
+      "model": "gpt-oss-120b",
+      "score": 1398,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 149,
+      "model": "Gemini-2.0-Flash-Thinking-Exp-01-21",
+      "score": 1397,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 151,
+      "model": "GPT-4.1-2025-04-14",
+      "score": 1396,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 152,
+      "model": "Qwen3-235B-A22B",
+      "score": 1394,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 153,
+      "model": "DeepSeek-V3-0324",
+      "score": 1391,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 154,
+      "model": "Hunyuan-Turbos-20250416",
+      "score": 1390,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 156,
+      "model": "Mistral Medium 3",
+      "score": 1387,
+      "provider": "Mistral",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 158,
+      "model": "o4-mini-2025-04-16",
+      "score": 1385,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 159,
+      "model": "Claude Sonnet 4",
+      "score": 1384,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 163,
+      "model": "DeepSeek-R1",
+      "score": 1382,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 167,
+      "model": "Grok-3-mini-high",
+      "score": 1380,
+      "provider": "xAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 168,
+      "model": "o3-mini-high",
+      "score": 1380,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 170,
+      "model": "o1-2024-12-17",
+      "score": 1378,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 174,
+      "model": "INTELLECT-3",
+      "score": 1376,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 175,
+      "model": "Qwen3-32B",
+      "score": 1376,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 178,
+      "model": "Qwen2.5-Max",
+      "score": 1373,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 179,
+      "model": "Gemini-2.0-Flash-Exp",
+      "score": 1371,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 180,
+      "model": "gpt-oss-20b",
+      "score": 1371,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 182,
+      "model": "GPT-4.1-mini-2025-04-14",
+      "score": 1370,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 185,
+      "model": "Minimax-M1",
+      "score": 1369,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 191,
+      "model": "o1-mini",
+      "score": 1366,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 192,
+      "model": "GPT-5-nano",
+      "score": 1363,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 194,
+      "model": "Gemini-2.5-Flash-Lite",
+      "score": 1362,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 195,
+      "model": "Step-1o-Turbo-202506",
+      "score": 1361,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 196,
+      "model": "Mistral-Small-3.2-2506",
+      "score": 1361,
+      "provider": "Mistral",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 197,
+      "model": "o3-mini",
+      "score": 1361,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 199,
+      "model": "Llama-3.3-Nemotron-Super-49B-v1.5",
+      "score": 1359,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 202,
+      "model": "Gemma-3-27B-it",
+      "score": 1356,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 204,
+      "model": "Claude 3.7 Sonnet (thinking-32k)",
+      "score": 1355,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 207,
+      "model": "QwQ-32B",
+      "score": 1351,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 209,
+      "model": "Qwen3-30B-A3B",
+      "score": 1346,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 210,
+      "model": "Llama-3.1-Nemotron-Ultra-253B-v1",
+      "score": 1345,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 212,
+      "model": "Claude 3.7 Sonnet",
+      "score": 1341,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 214,
+      "model": "Claude 3.5 Sonnet (20241022)",
+      "score": 1340,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 216,
+      "model": "Qwen-Plus-0125",
+      "score": 1339,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 219,
+      "model": "Gemini-2.0-Flash-Lite",
+      "score": 1338,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 222,
+      "model": "DeepSeek-V3",
+      "score": 1337,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 223,
+      "model": "Amazon-Nova-Chat-05-14",
+      "score": 1337,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 224,
+      "model": "Command A (03-2025)",
+      "score": 1336,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 226,
+      "model": "Gemma-3-12B-it",
+      "score": 1335,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 227,
+      "model": "Hunyuan-Turbo-0110",
+      "score": 1335,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 231,
+      "model": "GLM-4-Plus-0111",
+      "score": 1332,
+      "provider": "Zhipu",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 235,
+      "model": "OLMo-3-32b-think",
+      "score": 1327,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 238,
+      "model": "Step-2-16K-Exp",
+      "score": 1321,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 239,
+      "model": "Yi-Lightning",
+      "score": 1321,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 241,
+      "model": "Gemini-1.5-Pro-002",
+      "score": 1320,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 242,
+      "model": "Llama-3.3-Nemotron-Super-49B-v1",
+      "score": 1320,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 243,
+      "model": "Athene-v2-Chat-72B",
+      "score": 1320,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 247,
+      "model": "Deepseek-v2.5-1210",
+      "score": 1316,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 251,
+      "model": "Llama-4-Maverick-17B-128E-Instruct",
+      "score": 1312,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 252,
+      "model": "GPT-4.1-nano-2025-04-14",
+      "score": 1312,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 254,
+      "model": "Hunyuan-Large-2025-02-10",
+      "score": 1311,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 259,
+      "model": "Claude 3.5 Sonnet (20240620)",
+      "score": 1309,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 261,
+      "model": "GPT-4o-2024-05-13",
+      "score": 1307,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 262,
+      "model": "magistral-medium-2506",
+      "score": 1307,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 264,
+      "model": "Deepseek-v2.5",
+      "score": 1306,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 265,
+      "model": "Grok-2-08-13",
+      "score": 1305,
+      "provider": "xAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 266,
+      "model": "Gemma-3n-e4b-it",
+      "score": 1304,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 269,
+      "model": "Qwen2.5-72B-Instruct",
+      "score": 1302,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 271,
+      "model": "GLM-4-Plus",
+      "score": 1301,
+      "provider": "Zhipu",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 272,
+      "model": "GPT-4o-mini-2024-07-18",
+      "score": 1300,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 274,
+      "model": "Llama-3.1-405B-Instruct-bf16",
+      "score": 1299,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 276,
+      "model": "Hunyuan-Large-Vision",
+      "score": 1298,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 279,
+      "model": "Qwen-Max-0919",
+      "score": 1296,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 280,
+      "model": "Mistral-Small-3.1-24B-Instruct-2503",
+      "score": 1295,
+      "provider": "Mistral",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 282,
+      "model": "Gemma-3-4B-it",
+      "score": 1293,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 286,
+      "model": "Llama-3.1-405B-Instruct-fp8",
+      "score": 1292,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 289,
+      "model": "Gemini-1.5-Flash-002",
+      "score": 1290,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 290,
+      "model": "Llama-4-Scout-17B-16E-Instruct",
+      "score": 1290,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 292,
+      "model": "Llama-3.1-Nemotron-70B-Instruct",
+      "score": 1289,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 293,
+      "model": "Hunyuan-Standard-2025-02-10",
+      "score": 1289,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 296,
+      "model": "Claude 3.5 Haiku (20241022)",
+      "score": 1287,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 298,
+      "model": "Yi-Lightning-lite",
+      "score": 1286,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 299,
+      "model": "Deepseek-Coder-v2-0724",
+      "score": 1286,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 304,
+      "model": "Mistral-Large-2411",
+      "score": 1284,
+      "provider": "Mistral",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 306,
+      "model": "Grok-2-mini-08-13",
+      "score": 1283,
+      "provider": "xAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 307,
+      "model": "Amazon Nova Pro 1.0",
+      "score": 1282,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 309,
+      "model": "GPT-4-Turbo-2024-04-09",
+      "score": 1280,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 311,
+      "model": "Llama-3.3-70B-Instruct",
+      "score": 1279,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 312,
+      "model": "Qwen2.5-Coder-32B-Instruct",
+      "score": 1279,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 319,
+      "model": "Athene-70B",
+      "score": 1274,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 326,
+      "model": "GPT-4-1106-preview",
+      "score": 1269,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 327,
+      "model": "Claude 3 Opus",
+      "score": 1269,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 329,
+      "model": "Llama-3.1-70B-Instruct",
+      "score": 1268,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 332,
+      "model": "GPT-4-0125-preview",
+      "score": 1266,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 336,
+      "model": "Qwen-Plus-0828",
+      "score": 1263,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 339,
+      "model": "Llama-3.1-Tulu-3-70B",
+      "score": 1260,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 340,
+      "model": "Deepseek-v2-API-0628",
+      "score": 1260,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 341,
+      "model": "DeepSeek-Coder-V2-Instruct",
+      "score": 1259,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 344,
+      "model": "Amazon Nova Lite 1.0",
+      "score": 1253,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 345,
+      "model": "Reka-Core-20240904",
+      "score": 1252,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 348,
+      "model": "Mistral-Small-3-24B-Instruct-2501",
+      "score": 1251,
+      "provider": "Mistral",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 350,
+      "model": "Reka-Core-20240722",
+      "score": 1250,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 353,
+      "model": "Jamba-1.5-Large",
+      "score": 1244,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 354,
+      "model": "Hunyuan-Standard-256K",
+      "score": 1244,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 359,
+      "model": "Phi-4",
+      "score": 1242,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 364,
+      "model": "Yi-Large",
+      "score": 1238,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 366,
+      "model": "GLM-4-0520",
+      "score": 1237,
+      "provider": "Zhipu",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 368,
+      "model": "Gemma-2-27B-it",
+      "score": 1236,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 372,
+      "model": "Gemma-2-9B-it-SimPO",
+      "score": 1233,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 373,
+      "model": "Command R+ (08-2024)",
+      "score": 1233,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 375,
+      "model": "Claude 3 Sonnet",
+      "score": 1232,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 376,
+      "model": "Gemini-1.5-Flash-8B-001",
+      "score": 1231,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 377,
+      "model": "Llama-3.1-Nemotron-51B-Instruct",
+      "score": 1231,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 380,
+      "model": "Nemotron-4-340B-Instruct",
+      "score": 1229,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 381,
+      "model": "Aya-Expanse-32B",
+      "score": 1229,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 383,
+      "model": "Amazon Nova Micro 1.0",
+      "score": 1228,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 387,
+      "model": "Reka-Flash-20240904",
+      "score": 1225,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 388,
+      "model": "Llama-3-70B-Instruct",
+      "score": 1224,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 390,
+      "model": "OLMo-2-0325-32B-Instruct",
+      "score": 1223,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 395,
+      "model": "Ministral-8B-2410",
+      "score": 1219,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 397,
+      "model": "Reka-Flash-20240722",
+      "score": 1218,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 404,
+      "model": "Gemma-2-9B-it",
+      "score": 1213,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 408,
+      "model": "Command R+ (04-2024)",
+      "score": 1209,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 409,
+      "model": "GLM-4-0116",
+      "score": 1209,
+      "provider": "Zhipu",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 412,
+      "model": "Qwen2-72B-Instruct",
+      "score": 1208,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 413,
+      "model": "Claude 3 Haiku",
+      "score": 1208,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 414,
+      "model": "Qwen-Max-0428",
+      "score": 1208,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 418,
+      "model": "Llama-3.1-8B-Instruct",
+      "score": 1203,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 422,
+      "model": "Llama-3.1-Tulu-3-8B",
+      "score": 1200,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 427,
+      "model": "Jamba-1.5-Mini",
+      "score": 1197,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 429,
+      "model": "Command R (08-2024)",
+      "score": 1195,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 433,
+      "model": "Aya-Expanse-8B",
+      "score": 1193,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 435,
+      "model": "Qwen1.5-110B-Chat",
+      "score": 1192,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 437,
+      "model": "Granite-3.1-8B-Instruct",
+      "score": 1191,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 446,
+      "model": "Yi-1.5-34B-Chat",
+      "score": 1181,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 449,
+      "model": "InternLM2.5-20B-chat",
+      "score": 1179,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 451,
+      "model": "Claude-1",
+      "score": 1178,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 453,
+      "model": "Qwen1.5-72B-Chat",
+      "score": 1175,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 454,
+      "model": "Mixtral-8x22b-Instruct-v0.1",
+      "score": 1175,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 457,
+      "model": "Mistral Medium",
+      "score": 1172,
+      "provider": "Mistral",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 459,
+      "model": "Llama-3-8B-Instruct",
+      "score": 1171,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 462,
+      "model": "Command R (04-2024)",
+      "score": 1169,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 468,
+      "model": "Granite-3.1-2B-Instruct",
+      "score": 1166,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 470,
+      "model": "GPT-3.5-Turbo-0613",
+      "score": 1164,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 472,
+      "model": "Gemma-2-2b-it",
+      "score": 1163,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 473,
+      "model": "Qwen1.5-32B-Chat",
+      "score": 1163,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 475,
+      "model": "Claude-2.0",
+      "score": 1160,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 480,
+      "model": "Claude-2.1",
+      "score": 1158,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 481,
+      "model": "Gemini-1.0-Pro-001",
+      "score": 1155,
+      "provider": "Google",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 482,
+      "model": "Starling-LM-7B-beta",
+      "score": 1151,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 483,
+      "model": "Zephyr-ORPO-141b-A35b-v0.1",
+      "score": 1150,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 484,
+      "model": "Qwen2.5-VL-32B-Instruct",
+      "score": 1149,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 486,
+      "model": "Phi-3-Medium-4k-Instruct",
+      "score": 1146,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 493,
+      "model": "Qwen1.5-14B-Chat",
+      "score": 1144,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 495,
+      "model": "DBRX-Instruct-Preview",
+      "score": 1141,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 497,
+      "model": "Mixtral-8x7B-Instruct-v0.1",
+      "score": 1138,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 498,
+      "model": "GPT-3.5-Turbo-0314",
+      "score": 1138,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 503,
+      "model": "Claude-Instant-1",
+      "score": 1136,
+      "provider": "Anthropic",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 508,
+      "model": "Yi-34B-Chat",
+      "score": 1134,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 511,
+      "model": "Tulu-2-DPO-70B",
+      "score": 1127,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 514,
+      "model": "WizardLM-70B-v1.0",
+      "score": 1126,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 516,
+      "model": "Phi-3-Small-8k-Instruct",
+      "score": 1123,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 518,
+      "model": "Llama-2-70B-chat",
+      "score": 1122,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 521,
+      "model": "Nous-Hermes-2-Mixtral-8x7B-DPO",
+      "score": 1119,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 522,
+      "model": "OpenChat-3.5-0106",
+      "score": 1119,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 523,
+      "model": "Step-1o-Vision-32k (highres)",
+      "score": 1119,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 524,
+      "model": "Llama-3.2-3B-Instruct",
+      "score": 1118,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 527,
+      "model": "Granite-3.0-8B-Instruct",
+      "score": 1115,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 529,
+      "model": "Starling-LM-7B-alpha",
+      "score": 1114,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 530,
+      "model": "Vicuna-33B",
+      "score": 1113,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 531,
+      "model": "DeepSeek-LLM-67B-Chat",
+      "score": 1111,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 532,
+      "model": "Qwen1.5-7B-Chat",
+      "score": 1110,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 533,
+      "model": "Snowflake Arctic Instruct",
+      "score": 1109,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 536,
+      "model": "NV-Llama2-70B-SteerLM-Chat",
+      "score": 1106,
+      "provider": "Meta",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 537,
+      "model": "Gemma-1.1-7B-it",
+      "score": 1105,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 539,
+      "model": "Granite-3.0-2B-Instruct",
+      "score": 1104,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 540,
+      "model": "Qwen2.5-VL-72B-Instruct",
+      "score": 1104,
+      "provider": "Alibaba",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 542,
+      "model": "OpenChat-3.5",
+      "score": 1103,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 544,
+      "model": "Phi-3-Mini-4k-Instruct",
+      "score": 1102,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 546,
+      "model": "OpenHermes-2.5-Mistral-7B",
+      "score": 1100,
+      "provider": "OpenAI",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    }
+  ]
+}

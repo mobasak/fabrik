@@ -31,14 +31,14 @@ Both Cascade and Kilo CLI agents follow the same 7-step workflow:
 
 ```bash
 # Step 3: Final Gate
-python /opt/fabrik/scripts/final_gate.py
+python scripts/final_gate.py
 
 # Step 4: Kilo Review (if non-trivial)
 # Verify diff before staging
 git diff <intended_files>           # Review changes
 git add <intended_files>            # Stage
 git diff --staged                   # Verify staged matches intent
-python /opt/fabrik/scripts/kilo_code_review.py staged --plan "task description" --output json
+python scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
 
 ### Key Reminders

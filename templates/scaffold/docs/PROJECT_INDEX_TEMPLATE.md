@@ -14,7 +14,7 @@
 | **INDEX.md** | This file - master index of all files | Add/remove files from project | Step 3 (ERROR) |
 | **README.md** | Primary entry point - features, quick start, architecture, tech stack | New features, tech changes, setup changes | Step 3 (ERROR) |
 | **CHANGELOG.md** | Change history - what/why/when | Every code change | Step 3 (ERROR) |
-| **AGENTS.md** | AI agent briefing (symlink to /opt/fabrik/AGENTS.md) | Never edit (managed by Fabrik) | N/A |
+| **AGENTS.md** | AI agent briefing | Read-only (copied from Fabrik scaffold) | N/A |
 | **.env.example** | Secrets template - structure of required API keys, passwords, config | New secrets/credentials needed | Step 3 (ERROR) |
 | **.env** | Actual secrets - NEVER COMMIT | When user provides secrets, AI writes here | N/A |
 | **requirements.txt** | Python dependencies | New packages imported | Step 3 (ERROR) |
@@ -23,7 +23,7 @@
 | **compose.yaml** | Docker Compose orchestration | Service config, networks, volumes change | Step 5 (WARN) |
 | **.pre-commit-config.yaml** | Git hooks config | Add new quality checks | Manual |
 | **.gitignore** | Git exclusions | New file patterns to ignore | Manual |
-| **.windsurfrules** | Windsurf rules (symlink to /opt/fabrik/windsurfrules) | Never edit (managed by Fabrik) | N/A |
+| **.windsurfrules** | Windsurf rules shim | Read-only (copied from Fabrik scaffold) | N/A |
 
 ---
 

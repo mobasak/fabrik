@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-21T16:04:42.011475",
-  "total_models": 335,
+  "timestamp": "2026-03-22T12:51:42.453490",
+  "total_models": 332,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -347,16 +347,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "giga-potato": {
-      "id": "giga-potato",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "giga-potato-thinking": {
-      "id": "giga-potato-thinking",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "google/gemini-2.0-flash-001": {
       "id": "google/gemini-2.0-flash-001",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -504,21 +494,6 @@
     },
     "kilo-auto/small": {
       "id": "kilo-auto/small",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "kilo/auto": {
-      "id": "kilo/auto",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "kilo/auto-free": {
-      "id": "kilo/auto-free",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "kilo/auto-small": {
-      "id": "kilo/auto-small",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -782,6 +757,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "mistralai/pixtral-12b": {
+      "id": "mistralai/pixtral-12b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "mistralai/pixtral-large-2411": {
       "id": "mistralai/pixtral-large-2411",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -854,6 +834,11 @@
     },
     "nvidia/llama-3.1-nemotron-70b-instruct": {
       "id": "nvidia/llama-3.1-nemotron-70b-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "nvidia/llama-3.1-nemotron-ultra-253b-v1": {
+      "id": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

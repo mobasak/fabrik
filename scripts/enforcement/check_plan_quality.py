@@ -10,14 +10,13 @@ Enforces that plan files in docs/development/plans/ contain:
 This complements check_plans.py which only validates naming convention.
 """
 
-import os
 import re
 from pathlib import Path
 
 from .validate_conventions import CheckResult, Severity
 
-FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
-PLAN_DIR = FABRIK_ROOT / "docs" / "development" / "plans"
+# Check project's own plans directory
+PLAN_DIR = Path.cwd() / "docs" / "development" / "plans"
 
 # Required sections for plan documents
 REQUIRED_SECTIONS = [

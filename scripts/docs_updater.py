@@ -85,11 +85,11 @@ def _stream_reader(stream, output_queue: Queue, name: str) -> None:
         output_queue.put((name, None))  # Signal EOF
 
 
-# Configuration via environment variables (Fabrik convention)
-FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
-DOCS_QUEUE_DIR = Path(os.getenv("FABRIK_DOCS_QUEUE", FABRIK_ROOT / ".droid" / "docs_queue"))
-DOCS_LOG_DIR = Path(os.getenv("FABRIK_DOCS_LOG", FABRIK_ROOT / ".droid" / "docs_log"))
-CONFIG_FILE = Path(os.getenv("FABRIK_MODELS_CONFIG", FABRIK_ROOT / "config" / "models.yaml"))
+# Configuration - operate on current project
+PROJECT_ROOT = Path.cwd()
+DOCS_QUEUE_DIR = Path(os.getenv("FABRIK_DOCS_QUEUE", PROJECT_ROOT / ".droid" / "docs_queue"))
+DOCS_LOG_DIR = Path(os.getenv("FABRIK_DOCS_LOG", PROJECT_ROOT / ".droid" / "docs_log"))
+CONFIG_FILE = Path(os.getenv("FABRIK_MODELS_CONFIG", PROJECT_ROOT / "config" / "models.yaml"))
 PID_FILE = DOCS_QUEUE_DIR / "docs_updater.pid"
 
 # Batch settings
@@ -350,7 +350,7 @@ def run_docs_update(files: list[str]) -> dict[str, Any]:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            cwd=str(FABRIK_ROOT),
+            cwd=str(PROJECT_ROOT),
         )
 
         # Initialize ProcessMonitor if available
@@ -593,10 +593,10 @@ def update_single_file(file_path: str) -> None:
 # Documentation Structure Automation (docs-automation plan)
 # =============================================================================
 
-PLANS_DIR = FABRIK_ROOT / "docs" / "development" / "plans"
-PLANS_INDEX = FABRIK_ROOT / "docs" / "development" / "PLANS.md"
-README_PATH = FABRIK_ROOT / "docs" / "INDEX.md"
-TEMPLATE_PATH = FABRIK_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE.md"
+PLANS_DIR = PROJECT_ROOT / "docs" / "development" / "plans"
+PLANS_INDEX = PROJECT_ROOT / "docs" / "development" / "PLANS.md"
+README_PATH = PROJECT_ROOT / "docs" / "INDEX.md"
+TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE.md"
 
 # All docs that need staleness/completeness checks
 MANUAL_DOCS = [
@@ -646,13 +646,13 @@ def is_public_module(p: Path) -> bool:
 
 def detect_new_modules() -> list[Path]:
     """Find public src/fabrik/*/ without docs/reference/*.md."""
-    base = FABRIK_ROOT / "src" / "fabrik"
+    base = PROJECT_ROOT / "src" / "fabrik"
     if not base.exists():
         return []
     mods = []
     for d in base.iterdir():
         if d.is_dir() and is_public_module(d):
-            ref = FABRIK_ROOT / "docs" / "reference" / f"{d.name}.md"
+            ref = PROJECT_ROOT / "docs" / "reference" / f"{d.name}.md"
             if not ref.exists():
                 mods.append(d)
     return mods
@@ -687,7 +687,7 @@ def replace_block(
 
 def generate_docs_structure_tree() -> str:
     """Generate indented tree string of docs/ directory with comments."""
-    docs_dir = FABRIK_ROOT / "docs"
+    docs_dir = PROJECT_ROOT / "docs"
     if not docs_dir.exists():
         return "docs/ (not found)"
 
@@ -910,7 +910,7 @@ def validate_plan_consistency() -> list[str]:
 
 def create_module_stub(module: Path) -> bool:
     """Create reference doc stub for a module. Returns True if created."""
-    out = FABRIK_ROOT / "docs" / "reference" / f"{module.name}.md"
+    out = PROJECT_ROOT / "docs" / "reference" / f"{module.name}.md"
     if out.exists():
         return False
 
@@ -960,7 +960,7 @@ from fabrik.{module.name} import ...
 def check_stub_completeness() -> list[str]:
     """Check that reference docs aren't just empty stubs."""
     issues = []
-    ref_dir = FABRIK_ROOT / "docs" / "reference"
+    ref_dir = PROJECT_ROOT / "docs" / "reference"
     if not ref_dir.exists():
         return issues
 
@@ -969,7 +969,7 @@ def check_stub_completeness() -> list[str]:
         for marker in STUB_MARKERS:
             if marker in content:
                 issues.append(
-                    f"Incomplete stub: {doc.relative_to(FABRIK_ROOT)} (contains '{marker[:20]}...')"
+                    f"Incomplete stub: {doc.relative_to(PROJECT_ROOT)} (contains '{marker[:20]}...')"
                 )
                 break
     return issues
@@ -978,7 +978,7 @@ def check_stub_completeness() -> list[str]:
 def check_link_integrity() -> list[str]:
     """Check all internal markdown links are valid."""
     issues = []
-    docs_dir = FABRIK_ROOT / "docs"
+    docs_dir = PROJECT_ROOT / "docs"
     if not docs_dir.exists():
         return issues
 
@@ -1032,7 +1032,7 @@ def check_link_integrity() -> list[str]:
             # Resolve relative path
             if link_path.startswith("/"):
                 # Absolute from repo root
-                target = FABRIK_ROOT / link_path.lstrip("/")
+                target = PROJECT_ROOT / link_path.lstrip("/")
             else:
                 # Handle anchor in path
                 path_part = link_path.split("#")[0]
@@ -1042,7 +1042,7 @@ def check_link_integrity() -> list[str]:
 
             if not target.exists():
                 issues.append(
-                    f"Broken link in {doc.relative_to(FABRIK_ROOT)}: [{link_text}]({link_path})"
+                    f"Broken link in {doc.relative_to(PROJECT_ROOT)}: [{link_text}]({link_path})"
                 )
     return issues
 
@@ -1054,7 +1054,7 @@ def check_staleness() -> list[str]:
     last_updated_re = re.compile(r"\*\*Last Updated:\*\*\s*(\d{4}-\d{2}-\d{2})")
 
     for doc_path in MANUAL_DOCS:
-        full_path = FABRIK_ROOT / doc_path
+        full_path = PROJECT_ROOT / doc_path
         if not full_path.exists():
             continue
         content = full_path.read_text()
@@ -1193,7 +1193,7 @@ def run_custom_prompt(prompt: str, files_to_check: list[str] | None = None) -> d
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            cwd=str(FABRIK_ROOT),
+            cwd=str(PROJECT_ROOT),
         )
 
         monitor = None

@@ -1,16 +1,18 @@
 # Windsurf Cascade Project Rules (Shim)
-# Legacy compatibility: projects may symlink this file into repo root as .windsurfrules
-#   ln -s /opt/fabrik/windsurfrules .windsurfrules
 
-# DEPRECATION NOTICE
-# This file is a compatibility shim. Authoritative rules live in:
-#   /opt/fabrik/.windsurf/rules/
+# Windsurf Cascade Project Rules
 
-## Traycer-Managed Override
-If a task is Traycer-managed, defer to:
+## Rule Location
+
+Authoritative rules are in `.windsurf/rules/` directory.
+
+## For Traycer-Managed Tasks
+
+Defer to:
 - AGENTS.md
 - .windsurf/rules/*
 
-## Canonical Rule Sources (DO NOT DUPLICATE HERE)
-- Workspace rules directory (authoritative): /opt/fabrik/.windsurf/rules/
-- Global rules (optional, per-user): global_rules.md (Windsurf global)
+## Canonical Rule Sources
+
+- Project rules: `.windsurf/rules/` (this project)
+- Global rules: `global_rules.md` (Windsurf global, optional)

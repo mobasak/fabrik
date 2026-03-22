@@ -1,0 +1,536 @@
+{
+  "timestamp": "2026-03-22T15:30:00Z",
+  "total_agents": 43,
+  "tier_system": "Unified via --auto (Free/Economy/Standard/Pro/Expert/Apex/Specialist)",
+  "pricing_complete": true,
+  "benchmark_date": "2026-03-22",
+  "discarded_models": {
+    "_note": "DO NOT RE-ADD THESE MODELS. They were benchmarked and found unsuitable.",
+    "deepseek-r1": {
+      "reason": "TIMEOUT >60s - Reasoning model, too slow for code tasks",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Creates valid code but 60s+ response time unusable for routine tasks"
+    },
+    "kimi-k2": {
+      "reason": "TIMEOUT >30s - Unreliable response times via Kilo CLI",
+      "benchmark_date": "2026-03-22",
+      "test_result": "No file created within timeout"
+    },
+    "glm-5": {
+      "reason": "TIMEOUT >20s - Too slow despite being newer model",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Terminated after 20s, no response"
+    },
+    "glm-5-turbo": {
+      "reason": "TIMEOUT >20s - 'Turbo' name misleading, still slow",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Terminated after 20s, no response"
+    },
+    "glm-4.7": {
+      "reason": "TIMEOUT >20s - Slower than glm-4.5-air",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Terminated after 20s, no response"
+    },
+    "glm-4.7-flash": {
+      "reason": "TIMEOUT >20s - 'Flash' name misleading, actually slow",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Terminated after 20s, no response"
+    },
+    "mimo-v2-pro:free": {
+      "reason": "TIMEOUT >35s - No response from Xiaomi model",
+      "benchmark_date": "2026-03-22",
+      "test_result": "No output within timeout"
+    },
+    "step-3.5-flash:free": {
+      "reason": "SLOW 35s+ and over-engineers - Creates unnecessary extra files",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Created src/__init__.py for simple function request"
+    },
+    "nemotron-3-super:free": {
+      "reason": "SLOW ~30s - Works but 4x slower than best free models",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Valid output but too slow for routine use"
+    },
+    "minimax-m2.5:free": {
+      "reason": "SLOW ~25s - Works but 3x slower than best free models",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Valid code with type hints but too slow"
+    },
+    "minimax-m2.1": {
+      "reason": "SUPERSEDED - minimax-m2.5 exists, both too slow anyway",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Not benchmarked, superseded by m2.5"
+    },
+    "giga-potato": {
+      "reason": "EVALUATION ONLY - Low capability, not production ready",
+      "benchmark_date": "2026-03-22",
+      "test_result": "Kilo internal test model"
+    }
+  },
+  "agents": [
+    {
+      "agent_id": "free-0",
+      "model_name": "auto",
+      "full_name": "kilo/kilo/auto",
+      "provider": "kilo",
+      "variant": "auto",
+      "specialty": "Meta-router, automatic model selection",
+      "input_per_1m": 0.0,
+      "output_per_1m": 0.0
+    },
+    {
+      "agent_id": "free-1",
+      "model_name": "grok-code-fast",
+      "full_name": "kilo/x-ai/grok-code-fast-1:optimized:free",
+      "provider": "X-AI",
+      "variant": "high",
+      "specialty": "FASTEST free model (8s), clean code, error handling",
+      "input_per_1m": 0.0,
+      "output_per_1m": 0.0,
+      "benchmark": "8s, compiles, type hints, error handling"
+    },
+    {
+      "agent_id": "free-2",
+      "model_name": "trinity-large",
+      "full_name": "kilo/arcee-ai/trinity-large-preview:free",
+      "provider": "Arcee",
+      "variant": "high",
+      "specialty": "Fast free model (8s), good quality code",
+      "input_per_1m": 0.0,
+      "output_per_1m": 0.0,
+      "benchmark": "8s, compiles, type hints, error handling"
+    },
+    {
+      "agent_id": "free-3",
+      "model_name": "glm-4.5-air",
+      "full_name": "kilo/z-ai/glm-4.5-air",
+      "provider": "Z-AI",
+      "variant": "minimal",
+      "specialty": "Reliable free model (12s), balanced",
+      "input_per_1m": 0.0,
+      "output_per_1m": 0.0,
+      "benchmark": "12s, compiles, type hints",
+      "arena_elo": 1410
+    },
+    {
+      "agent_id": "econ-0",
+      "model_name": "gpt-5-nano",
+      "full_name": "kilo/openai/gpt-5-nano",
+      "provider": "OpenAI",
+      "variant": "minimal",
+      "specialty": "Ultra-cheap GPT-5 for quick tasks",
+      "input_per_1m": 0.05,
+      "output_per_1m": 0.4,
+      "arena_elo": 1363,
+      "tbench_accuracy": 7.0
+    },
+    {
+      "agent_id": "econ-1",
+      "model_name": "devstral-small",
+      "full_name": "kilo/mistralai/devstral-small",
+      "provider": "Mistral",
+      "variant": "low",
+      "specialty": "85% premium quality at 10% cost",
+      "input_per_1m": 0.1,
+      "output_per_1m": 0.3
+    },
+    {
+      "agent_id": "econ-2",
+      "model_name": "seed-2.0-mini",
+      "full_name": "kilo/bytedance-seed/seed-2.0-mini",
+      "provider": "ByteDance",
+      "variant": "max",
+      "specialty": "Efficient reasoning",
+      "input_per_1m": 0.1,
+      "output_per_1m": 0.4
+    },
+    {
+      "agent_id": "econ-3",
+      "model_name": "llama-4-maverick",
+      "full_name": "kilo/meta-llama/llama-4-maverick",
+      "provider": "Meta",
+      "variant": "medium",
+      "specialty": "Complex reasoning",
+      "input_per_1m": 0.15,
+      "output_per_1m": 0.6
+    },
+    {
+      "agent_id": "econ-4",
+      "model_name": "grok-4-fast",
+      "full_name": "kilo/x-ai/grok-4-fast",
+      "provider": "X-AI",
+      "variant": "high",
+      "specialty": "Fast inference",
+      "input_per_1m": 0.2,
+      "output_per_1m": 0.5,
+      "arena_elo": 1441
+    },
+    {
+      "agent_id": "econ-5",
+      "model_name": "grok-4.1-fast",
+      "full_name": "kilo/x-ai/grok-4.1-fast",
+      "provider": "X-AI",
+      "variant": "high",
+      "specialty": "Newer fast inference",
+      "input_per_1m": 0.2,
+      "output_per_1m": 0.5
+    },
+    {
+      "agent_id": "econ-6",
+      "model_name": "gpt-5-mini",
+      "full_name": "kilo/openai/gpt-5-mini",
+      "provider": "OpenAI",
+      "variant": "low",
+      "specialty": "Lightweight GPT-5 with reasoning",
+      "input_per_1m": 0.25,
+      "output_per_1m": 2.0,
+      "arena_elo": 1419,
+      "tbench_accuracy": 22.2
+    },
+    {
+      "agent_id": "econ-7",
+      "model_name": "gpt-5.1-codex-mini",
+      "full_name": "kilo/openai/gpt-5.1-codex-mini",
+      "provider": "OpenAI",
+      "variant": "medium",
+      "specialty": "Efficient agentic coding",
+      "input_per_1m": 0.25,
+      "output_per_1m": 2.0,
+      "tbench_accuracy": 43.1
+    },
+    {
+      "agent_id": "econ-8",
+      "model_name": "deepseek-v3.2",
+      "full_name": "kilo/deepseek/deepseek-v3.2",
+      "provider": "DeepSeek",
+      "variant": "medium",
+      "specialty": "Code analysis, good value",
+      "input_per_1m": 0.25,
+      "output_per_1m": 0.4,
+      "arena_elo": 1431,
+      "tbench_accuracy": 39.6
+    },
+    {
+      "agent_id": "econ-9",
+      "model_name": "gemini-2.5-flash",
+      "full_name": "kilo/google/gemini-2.5-flash",
+      "provider": "Google",
+      "variant": "minimal",
+      "specialty": "Fast prototyping",
+      "input_per_1m": 0.3,
+      "output_per_1m": 2.5,
+      "arena_elo": 1420,
+      "tbench_accuracy": 15.4
+    },
+    {
+      "agent_id": "econ-10",
+      "model_name": "codestral",
+      "full_name": "kilo/mistralai/codestral-2508",
+      "provider": "Mistral",
+      "variant": "low",
+      "specialty": "Specialized code generation",
+      "input_per_1m": 0.3,
+      "output_per_1m": 0.9
+    },
+    {
+      "agent_id": "econ-11",
+      "model_name": "qwen3.5-397b",
+      "full_name": "kilo/qwen/qwen3.5-397b-a17b",
+      "provider": "Qwen",
+      "variant": "max",
+      "specialty": "Massive context, cheap",
+      "input_per_1m": 0.39,
+      "output_per_1m": 2.34
+    },
+    {
+      "agent_id": "econ-12",
+      "model_name": "qwen3-235b",
+      "full_name": "kilo/qwen/qwen3-235b-a22b",
+      "provider": "Qwen",
+      "variant": "high",
+      "specialty": "Near-premium accuracy",
+      "input_per_1m": 0.455,
+      "output_per_1m": 1.82
+    },
+    {
+      "agent_id": "std-0",
+      "model_name": "gemini-3-flash-preview",
+      "full_name": "kilo/google/gemini-3-flash-preview",
+      "provider": "Google",
+      "variant": "minimal",
+      "specialty": "Fast with good reasoning",
+      "input_per_1m": 0.5,
+      "output_per_1m": 3.0
+    },
+    {
+      "agent_id": "std-1",
+      "model_name": "o3-mini-high",
+      "full_name": "kilo/openai/o3-mini-high",
+      "provider": "OpenAI",
+      "variant": "high",
+      "specialty": "Fast chain-of-thought",
+      "input_per_1m": 1.1,
+      "output_per_1m": 4.4,
+      "arena_elo": 1380
+    },
+    {
+      "agent_id": "std-2",
+      "model_name": "o4-mini",
+      "full_name": "kilo/openai/o4-mini",
+      "provider": "OpenAI",
+      "variant": "high",
+      "specialty": "Fast reasoning model",
+      "input_per_1m": 1.1,
+      "output_per_1m": 4.4,
+      "arena_elo": 2025
+    },
+    {
+      "agent_id": "std-3",
+      "model_name": "gpt-5.1-codex",
+      "full_name": "kilo/openai/gpt-5.1-codex",
+      "provider": "OpenAI",
+      "variant": "high",
+      "specialty": "Agentic coding, long-context",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "tbench_accuracy": 36.9
+    },
+    {
+      "agent_id": "std-4",
+      "model_name": "gpt-5.1-codex-max",
+      "full_name": "kilo/openai/gpt-5.1-codex-max",
+      "provider": "OpenAI",
+      "variant": "max",
+      "specialty": "Extended agentic coding sessions",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "tbench_accuracy": 60.4
+    },
+    {
+      "agent_id": "std-5",
+      "model_name": "gemini-2.5-pro",
+      "full_name": "kilo/google/gemini-2.5-pro",
+      "provider": "Google",
+      "variant": "high",
+      "specialty": "Next-gen flagship, good value",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "arena_elo": 1465,
+      "tbench_accuracy": 16.4
+    },
+    {
+      "agent_id": "pro-0",
+      "model_name": "gpt-5.2",
+      "full_name": "kilo/openai/gpt-5.2",
+      "provider": "OpenAI",
+      "variant": "high",
+      "specialty": "General coding",
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0,
+      "arena_elo": 1465,
+      "tbench_accuracy": 54.0
+    },
+    {
+      "agent_id": "pro-1",
+      "model_name": "gpt-5.2-codex",
+      "full_name": "kilo/openai/gpt-5.2-codex",
+      "provider": "OpenAI",
+      "variant": "high",
+      "specialty": "Code generation",
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0,
+      "tbench_accuracy": 66.5
+    },
+    {
+      "agent_id": "pro-2",
+      "model_name": "gpt-5.3-codex",
+      "full_name": "kilo/openai/gpt-5.3-codex",
+      "provider": "OpenAI",
+      "variant": "high",
+      "specialty": "Advanced code generation",
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0,
+      "tbench_accuracy": 64.7
+    },
+    {
+      "agent_id": "pro-3",
+      "model_name": "gpt-5.2-chat",
+      "full_name": "kilo/openai/gpt-5.2-chat",
+      "provider": "OpenAI",
+      "variant": "max",
+      "specialty": "Conversational code review",
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0
+    },
+    {
+      "agent_id": "pro-4",
+      "model_name": "gpt-5.3-chat",
+      "full_name": "kilo/openai/gpt-5.3-chat",
+      "provider": "OpenAI",
+      "variant": "high",
+      "specialty": "Advanced conversational",
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0
+    },
+    {
+      "agent_id": "pro-5",
+      "model_name": "gemini-3.1-pro-preview",
+      "full_name": "kilo/google/gemini-3.1-pro-preview",
+      "provider": "Google",
+      "variant": "high",
+      "specialty": "Best overall (Elo 1505), multi-modal",
+      "input_per_1m": 2.0,
+      "output_per_1m": 12.0
+    },
+    {
+      "agent_id": "pro-6",
+      "model_name": "gpt-5.4",
+      "full_name": "kilo/openai/gpt-5.4",
+      "provider": "OpenAI",
+      "variant": "max",
+      "specialty": "1M context, unified Codex+GPT",
+      "input_per_1m": 2.5,
+      "output_per_1m": 15.0,
+      "arena_elo": 1468,
+      "tbench_accuracy": 81.8
+    },
+    {
+      "agent_id": "pro-7",
+      "model_name": "claude-sonnet-4.5",
+      "full_name": "kilo/anthropic/claude-sonnet-4.5",
+      "provider": "Anthropic",
+      "variant": "high",
+      "specialty": "Fast premium coding",
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "arena_elo": 1464,
+      "tbench_accuracy": 40.1
+    },
+    {
+      "agent_id": "pro-8",
+      "model_name": "claude-sonnet-4.6",
+      "full_name": "kilo/anthropic/claude-sonnet-4.6",
+      "provider": "Anthropic",
+      "variant": "max",
+      "specialty": "Complex coding, refactoring",
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "arena_elo": 1500
+    },
+    {
+      "agent_id": "pro-9",
+      "model_name": "claude-3.7-sonnet",
+      "full_name": "kilo/anthropic/claude-3.7-sonnet",
+      "provider": "Anthropic",
+      "variant": "max",
+      "specialty": "Latest Sonnet, hybrid reasoning",
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "arena_elo": 1341
+    },
+    {
+      "agent_id": "pro-10",
+      "model_name": "claude-3.7-sonnet:thinking",
+      "full_name": "kilo/anthropic/claude-3.7-sonnet:thinking",
+      "provider": "Anthropic",
+      "variant": "max",
+      "specialty": "Extended thinking mode",
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0
+    },
+    {
+      "agent_id": "expert-0",
+      "model_name": "claude-opus-4.5",
+      "full_name": "kilo/anthropic/claude-opus-4.5",
+      "provider": "Anthropic",
+      "variant": "max",
+      "specialty": "Deep reasoning",
+      "input_per_1m": 5.0,
+      "output_per_1m": 25.0,
+      "arena_elo": 1496,
+      "tbench_accuracy": 51.7
+    },
+    {
+      "agent_id": "expert-1",
+      "model_name": "claude-opus-4.6",
+      "full_name": "kilo/anthropic/claude-opus-4.6",
+      "provider": "Anthropic",
+      "variant": "max",
+      "specialty": "Top-tier reasoning (Elo 1490)",
+      "input_per_1m": 5.0,
+      "output_per_1m": 25.0,
+      "arena_elo": 1535,
+      "tbench_accuracy": 58.0
+    },
+    {
+      "agent_id": "apex-0",
+      "model_name": "gpt-5.2-pro",
+      "full_name": "kilo/openai/gpt-5.2-pro",
+      "provider": "OpenAI",
+      "variant": "max",
+      "specialty": "Deep analysis, mission-critical",
+      "input_per_1m": 5.0,
+      "output_per_1m": 40.0
+    },
+    {
+      "agent_id": "apex-1",
+      "model_name": "gpt-5.4-pro",
+      "full_name": "kilo/openai/gpt-5.4-pro",
+      "provider": "OpenAI",
+      "variant": "max",
+      "specialty": "Ultimate capability, 1M+ context",
+      "input_per_1m": 7.5,
+      "output_per_1m": 60.0
+    },
+    {
+      "agent_id": "spec-refactor",
+      "model_name": "codestral-refactor",
+      "full_name": "kilo/mistralai/codestral-2508",
+      "provider": "Mistral",
+      "variant": "low",
+      "specialty": "Refactoring only",
+      "input_per_1m": 0.3,
+      "output_per_1m": 0.9
+    },
+    {
+      "agent_id": "spec-docs",
+      "model_name": "codestral-docs",
+      "full_name": "kilo/mistralai/codestral-2508",
+      "provider": "Mistral",
+      "variant": "minimal",
+      "specialty": "Documentation only",
+      "input_per_1m": 0.3,
+      "output_per_1m": 0.9
+    },
+    {
+      "agent_id": "spec-test",
+      "model_name": "codestral-test",
+      "full_name": "kilo/mistralai/codestral-2508",
+      "provider": "Mistral",
+      "variant": "low",
+      "specialty": "Test generation only",
+      "input_per_1m": 0.3,
+      "output_per_1m": 0.9
+    },
+    {
+      "agent_id": "spec-translate",
+      "model_name": "codestral-translate",
+      "full_name": "kilo/mistralai/codestral-2508",
+      "provider": "Mistral",
+      "variant": "low",
+      "specialty": "Language translation only",
+      "input_per_1m": 0.3,
+      "output_per_1m": 0.9
+    },
+    {
+      "agent_id": "spec-review",
+      "model_name": "codestral-review",
+      "full_name": "kilo/mistralai/codestral-2508",
+      "provider": "Mistral",
+      "variant": "low",
+      "specialty": "Code review only",
+      "input_per_1m": 0.3,
+      "output_per_1m": 0.9
+    }
+  ]
+}

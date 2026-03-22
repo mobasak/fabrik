@@ -4,6 +4,190 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed - Complete workspace isolation: ZERO /opt/fabrik references (2026-03-22)
+
+**What:** Achieved 100% workspace isolation. Child projects have ZERO functional references to `/opt/fabrik/`. Each project is completely self-contained.
+
+**Why:** AI coding agents must not know parent directory exists. Complete isolation prevents context leakage, file access across projects, and dependency on Fabrik infrastructure.
+
+**All /opt/fabrik references removed from:**
+
+**Scripts (9 files):**
+- `scripts/enforcement/check_plans.py` - Check own plans/, not Fabrik's
+- `scripts/enforcement/check_docs.py` - Check own docs/, not Fabrik's
+- `scripts/enforcement/check_plan_quality.py` - Check own plans/, not Fabrik's
+- `scripts/enforcement/check_rule_size.py` - Check own .windsurf/rules/, not Fabrik's
+- `scripts/enforcement/check_ports.py` - Check own PORTS.md only, no cross-project fallback
+- `scripts/enforcement/check_changelog.py` - Use PROJECT_ROOT not FABRIK_ROOT
+- `scripts/enforcement/check_deps_sync.py` - Removed unused FABRIK_ROOT
+- `scripts/enforcement/check_env_contract.py` - Removed unused FABRIK_ROOT
+- `scripts/docs_updater.py` - All FABRIK_ROOT → PROJECT_ROOT (19 occurrences)
+
+**Rule files (4 files):**
+- `.windsurfrules` - Removed Fabrik path documentation
+- `.windsurf/rules/00-critical.md` - Removed master .env, master .venv, .codeiumignore references
+- `.windsurf/rules/30-ops.md` - Removed master .env and SERVICES.md references
+- `.windsurf/rules/40-documentation.md` - Removed Fabrik PLANS.md link
+
+**Documentation (2 files):**
+- `AGENTS.md` - Removed master .env, Droid hooks paths
+- Template files (6) - Removed all Fabrik references from PROJECT_INDEX_TEMPLATE.md, CONFIGURATION_TEMPLATE.md, DEPLOYMENT_TEMPLATE.md, etc.
+
+**Scaffold (1 file):**
+- `src/fabrik/scaffold.py` - PORTS.md generated without cross-project reference
+
+**Impact:**
+- **Before:** 103 /opt/fabrik references in child projects
+- **After:** 0 functional references (4 harmless: project description metadata + historical comment)
+- Projects are 100% standalone - no master .env, no master PORTS.md, no cross-project validation
+- Each project validates only its own files
+- Complete workspace isolation for AI agents
+
+### Changed - Kilo CLI context: Explicit rule list (2026-03-22)
+
+**What:** Replaced `.windsurf/rules/*.md` glob with explicit Kilo-safe rule list in `opencode.json`.
+
+**Why:** Prevent Kilo CLI from loading Cascade-only behavior rules that are irrelevant and confusing for non-Cascade agents.
+
+**Files:**
+- `opencode.json` - Explicit list of 7 shared domain rules + AGENTS files
+
+**Excluded from Kilo CLI context:**
+- `.windsurf/rules/00-critical.md` - Cascade behavior rules (terminal selection, check-before-create, present-before-execute)
+- `.windsurf/rules/50-code-review.md` - Cascade-specific review commands
+- `.windsurf/rules/90-automation.md` - Fabrik skills auto-invocation, YOLO commands
+
+**Included (Kilo-safe):**
+- `.windsurf/rules/10-python.md` - Python/FastAPI patterns
+- `.windsurf/rules/20-typescript.md` - TypeScript/Next.js patterns
+- `.windsurf/rules/30-ops.md` - Docker/Compose patterns
+- `.windsurf/rules/40-documentation.md` - Documentation rules
+- `.windsurf/rules/60-saas-ui.md` - SaaS UI patterns
+- `.windsurf/rules/70-chrome-ext.md` - Chrome extension patterns
+- `.windsurf/rules/80-mobile.md` - Mobile app patterns
+
+**Impact:** Kilo CLI agents now receive only relevant shared coding patterns, no Cascade-specific behavior rules.
+
+### Added - Auto-consolidate .env files on changes (2026-03-22)
+
+**What:** Created file watcher that automatically runs `consolidate_envs.py` when any `/opt/*/.env` file is modified.
+
+**Files:**
+- `scripts/watch_env_changes.sh` - inotify-based watcher
+- `infrastructure/env-watcher.service` - systemd service
+
+**Activation:** `sudo systemctl enable /opt/fabrik/infrastructure/env-watcher.service && sudo systemctl start env-watcher`
+
+### Added - Scaffold creates PORTS.md in all projects (2026-03-22)
+
+**What:** `fabrik scaffold` now creates `PORTS.md` with port range guidelines in every new project.
+
+**Why:** Each project needs its own port registry. Projects were missing this file.
+
+**Changes:** `src/fabrik/scaffold.py:410-443` - PORTS.md template generation
+
+### Added - Templates copied to all projects (2026-03-22)
+
+**What:** Scaffold now copies `templates/docs/` and `templates/saas-skeleton/` to every project.
+
+**Why:** Projects must be self-contained. No references to `/opt/fabrik/templates/`.
+
+**Changes:**
+- `src/fabrik/scaffold.py:405-415` - Copy templates to project
+- `.windsurf/rules/20-typescript.md` - Reference `templates/saas-skeleton` (project-local)
+- `.windsurf/rules/40-documentation.md` - Reference `templates/docs/PLAN_TEMPLATE.md` (project-local)
+- `AGENTS.md` - Removed Fabrik-specific template paths
+- `docs/traycer/PLAN_OUTPUT_LOCATION.md` - Documented: Traycer plans go to project folder
+
+**Impact:** Every project has plan templates and SaaS skeleton locally. No Fabrik dependencies.
+
+### Changed - Fixed hardcoded script paths to project-relative (2026-03-22)
+
+**What:** Replaced all hardcoded `/opt/fabrik/scripts/` references with project-relative `scripts/` paths in documentation and rule files.
+
+**Why:** Hardcoded absolute paths defeated workspace isolation - even with copied files, agents were instructed to access `/opt/fabrik/` scripts instead of using local copies.
+
+**Changes:**
+- `AGENTS-compact.md` - `scripts/final_gate.py`, `scripts/kilo_code_review.py` (3 references)
+- `AGENTS.md` - workflow table, gate commands, sync_projects note (4 references)
+- `.windsurf/rules/50-code-review.md` - Final Gate and Kilo Review commands (2 references)
+- `.windsurf/rules/90-automation.md` - Kilo review quick reference (1 reference)
+- `.windsurf/rules/40-documentation.md` - sync_projects note (1 reference)
+- `.windsurf/rules/30-ops.md` - container_images.py note (1 reference)
+
+**Intentionally preserved /opt/fabrik references:**
+- Master .env backup (`/opt/fabrik/.env`) - security requirement
+- Master venv (`/opt/fabrik/.venv/`) - cross-project tools (kilo_terminal_runner.py)
+- Template paths (`/opt/fabrik/templates/`) - scaffold source
+- FABRIK_ROOT in enforcement scripts - cross-project validation
+- .codeiumignore paths - IDE configuration
+
+**Impact:** Agents now use project-local scripts. No more instructions to access parent `/opt/fabrik/` directory. Complete workspace isolation achieved.
+
+**Files:**
+- `AGENTS-compact.md`, `AGENTS.md`, `.windsurf/rules/*.md` - path fixes
+
+### Changed - Replaced symlinks with copies for workspace isolation (2026-03-22)
+
+**What:** Eliminated all symlinks between child projects and `/opt/fabrik/`. Projects now receive copied files instead of symlinks to prevent context leakage when AI coding agents resolve file paths.
+
+**Why:** Symlinks exposed `/opt/fabrik/` directory structure to AI agents working in child projects. When Kilo CLI resolved `.windsurf/rules/*.md` glob, it discovered parent directory existence, creating risk of unintended file access across project boundaries.
+
+**Changes:**
+- `scaffold.py::_scaffold_shared()` - copies instead of symlinks (4 files: .windsurfrules, .windsurf/rules/, AGENTS.md, AGENTS-compact.md)
+- `scaffold.py::fix_project()` - migrates existing symlinks to copies, handles both real and dry-run paths
+- `final_gate.py::check_symlinks()` - deprecated, now always returns True (no symlinks to validate)
+- Migration executed on 7 active projects (translator, dns-manager, captcha, proxy, file-api, image-broker, emailgateway)
+
+**Impact:** Each project now has isolated copies of configuration files. Updates to `/opt/fabrik/` rules require running `fabrik fix` to propagate changes. Projects cannot accidentally access `/opt/fabrik/` internals via symlink resolution.
+
+**Files:**
+- `src/fabrik/scaffold.py` - symlink → copy migration logic
+- `scripts/final_gate.py` - deprecated symlink validation
+
+### Added - Confirmation demand for rule visibility (2026-03-22)
+
+**What:** Added mandatory first-output confirmation to make rule-skipping visible in both Windsurf Cascade and Kilo CLI workflows.
+
+**Changes:**
+- `.windsurf/rules/00-critical.md` - added `MANDATORY FIRST OUTPUT` section after frontmatter (highest salience)
+- All 4 Traycer prompt templates - added `.windsurf/rules/` reference + `FIRST ACTION` confirmation demand
+
+**Impact:** Coding agents must output `RULES ACTIVE: [ROLE] | [3 rules] | final_gate.py required` before any code changes. Non-compliance becomes immediately visible.
+
+**Files:**
+- `.windsurf/rules/00-critical.md` - confirmation demand for Cascade agents
+- `~/.traycer/prompt-templates/Coder-for-Plan-Mode.md` - +2 lines (now 36)
+- `~/.traycer/prompt-templates/Coder-for-Phased-Epic-Modes.md` - +2 lines (now 36)
+- `~/.traycer/prompt-templates/Fix-After-Review.md` - +2 lines (now 36)
+- `~/.traycer/prompt-templates/Fix-After-Verification.md` - +2 lines (now 36)
+
+### Added - Compact enforcement gate propagation to child projects (2026-03-22)
+
+**What:** Updated scaffolding and fix systems to propagate `AGENTS-compact.md` symlink and correct `opencode.json` to all child projects (new and existing).
+
+**Changes:**
+- `scaffold.py::_scaffold_shared()` - now creates AGENTS-compact.md symlink and copies opencode.json from master (single source of truth)
+- `scaffold.py::fix_project()` - always refreshes opencode.json from master, creates AGENTS-compact.md symlink if missing
+- `final_gate.py::check_symlinks()` - validates AGENTS-compact.md symlink in child projects
+
+**Impact:** `fabrik scaffold` and `fabrik fix` now ensure all projects have AGENTS-compact.md symlink and up-to-date opencode.json.
+
+**Files:**
+- `src/fabrik/scaffold.py` - propagation logic for AGENTS-compact.md + opencode.json refresh
+- `scripts/final_gate.py` - symlink validation for AGENTS-compact.md
+
+### Added - Compact enforcement gate for Kilo CLI agents (2026-03-22)
+
+**What:** Created `AGENTS-compact.md` (≤25 lines) as a high-salience enforcement gate for Kilo CLI agents. Updated `opencode.json` to load compact gate first, then all `.windsurf/rules/*.md` via glob, then full `AGENTS.md`.
+
+**Why:** Ensures mandatory confirmation output (`RULES ACTIVE: ...`) appears before any action, hard stops and mandatory steps load at highest priority, and coding pattern rules auto-include future additions.
+
+**Files:**
+- `AGENTS-compact.md` - new compact enforcement gate (22 lines)
+- `opencode.json` - updated instruction loading order (3 entries: compact gate → windsurf rules glob → full AGENTS.md)
+- `scripts/enforcement/check_structure.py` - added AGENTS-compact.md to allowed root markdown files
+
 ### Added - Chrome extension and mobile UI rule sets (2026-03-21)
 
 **What:** Added distilled Windsurf rule files for Chrome extension and mobile UI work covering platform constraints, state management, navigation, accessibility, performance, and completion checklists.
@@ -730,7 +914,7 @@ SINGLE SOURCE: .windsurf/rules/*.md + AGENTS.md
 
 **Archived JSON (scripts/):**
 - `kilo_18_agents_complete.json` — Old agent version
-- `kilo_50_agents_new.json` — Intermediate version
+- `kilo_selected_agents_new.json` — Intermediate version
 - `kilo_all_319_models_analyzed.json` — One-time analysis
 - `KILO_COMPLETE_AGENT_CATALOG.json` — One-time catalog
 - `kilo_comprehensive_db.json` — Old model database

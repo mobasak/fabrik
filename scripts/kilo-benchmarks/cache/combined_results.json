@@ -1,0 +1,110 @@
+{
+  "scraped_at": "2026-03-22T16:32:25.866915",
+  "results": {
+    "terminal_bench": {
+      "count": 115,
+      "top_5": [
+        {
+          "rank": 1,
+          "model": "Claude Opus 4.6",
+          "score": 81.8,
+          "provider": "ForgeCode",
+          "extra": {
+            "metric": "accuracy_percent",
+            "agent": "ForgeCode"
+          }
+        },
+        {
+          "rank": 2,
+          "model": "GPT-5.4",
+          "score": 81.8,
+          "provider": "ForgeCode",
+          "extra": {
+            "metric": "accuracy_percent",
+            "agent": "ForgeCode"
+          }
+        },
+        {
+          "rank": 3,
+          "model": "Gemini 3.1 Pro",
+          "score": 80.2,
+          "provider": "TongAgents",
+          "extra": {
+            "metric": "accuracy_percent",
+            "agent": "TongAgents"
+          }
+        },
+        {
+          "rank": 4,
+          "model": "Gemini 3.1 Pro",
+          "score": 78.4,
+          "provider": "ForgeCode",
+          "extra": {
+            "metric": "accuracy_percent",
+            "agent": "ForgeCode"
+          }
+        },
+        {
+          "rank": 5,
+          "model": "GPT-5.3-Codex",
+          "score": 78.4,
+          "provider": "SageAgent",
+          "extra": {
+            "metric": "accuracy_percent",
+            "agent": "SageAgent"
+          }
+        }
+      ]
+    },
+    "chatbot_arena": {
+      "count": 252,
+      "top_5": [
+        {
+          "rank": 1,
+          "model": "Claude Opus 4.6 Thinking",
+          "score": 1545,
+          "provider": "Anthropic",
+          "extra": {
+            "metric": "elo_rating"
+          }
+        },
+        {
+          "rank": 2,
+          "model": "GPT-5.4-high",
+          "score": 1538,
+          "provider": "OpenAI",
+          "extra": {
+            "metric": "elo_rating"
+          }
+        },
+        {
+          "rank": 3,
+          "model": "Claude Opus 4.6",
+          "score": 1535,
+          "provider": "Anthropic",
+          "extra": {
+            "metric": "elo_rating"
+          }
+        },
+        {
+          "rank": 4,
+          "model": "Gemini-3.1-Pro",
+          "score": 1531,
+          "provider": "Google",
+          "extra": {
+            "metric": "elo_rating"
+          }
+        },
+        {
+          "rank": 5,
+          "model": "Grok-4.20",
+          "score": 1518,
+          "provider": "xAI",
+          "extra": {
+            "metric": "elo_rating"
+          }
+        }
+      ]
+    }
+  }
+}

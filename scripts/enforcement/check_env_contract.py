@@ -11,13 +11,10 @@ Violations:
 - WARN: Variable in .env.example not documented in CONFIGURATION.md
 """
 
-import os
 import re
 from pathlib import Path
 
 from .validate_conventions import CheckResult, Severity
-
-FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 
 # Patterns to extract env vars
 ENV_EXAMPLE_PATTERN = re.compile(r"^([A-Z][A-Z0-9_]+)=", re.MULTILINE)

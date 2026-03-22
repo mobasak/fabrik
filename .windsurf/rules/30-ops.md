@@ -95,10 +95,10 @@ Before deploying to Coolify:
 - [ ] HEALTHCHECK instruction present
 - [ ] Health endpoint tests actual dependencies
 - [ ] All env vars documented in .env.example
-- [ ] Credentials in project .env AND /opt/fabrik/.env
+- [ ] Credentials in project .env
 - [ ] Port registered in PORTS.md
 - [ ] compose.yaml uses coolify network
-- [ ] Service added to /opt/fabrik/docs/SERVICES.md
+- [ ] Service added to docs/SERVICES.md
 - [ ] Watchdog script created
 - [ ] `.dockerignore` present (excludes `.env`, `.git`, `.venv`, `node_modules`)
 
@@ -151,9 +151,11 @@ VPS1 uses ARM64 (aarch64). Verify image support:
 **Before building images:**
 
 ```bash
-python /opt/fabrik/scripts/container_images.py check-arch <image:tag>
+python scripts/container_images.py check-arch <image:tag>  # Fabrik project only
 ```
 
 Ensures base images support ARM64 (required for Apple Silicon + modern cloud).
+
+**Note:** Child projects don't have this script - use Docker Hub/registry docs to verify ARM64 support.
 
 **If script missing:** Check `prebuilt-app-containers.md` manually or skip and flag.

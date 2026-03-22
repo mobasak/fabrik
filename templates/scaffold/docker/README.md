@@ -1,6 +1,6 @@
 # Docker Templates
 
-Templates for container-first development. These complement the existing templates in `/opt/fabrik/templates/`.
+Templates for container-first development.
 
 ## Files
 
@@ -17,14 +17,9 @@ Templates for container-first development. These complement the existing templat
 ## Usage
 
 ```bash
-# For a Python project
-cp /opt/fabrik/templates/docker/Dockerfile.python /opt/myproject/Dockerfile
-cp /opt/fabrik/templates/docker/compose.yaml.template /opt/myproject/compose.yaml
-cp /opt/fabrik/templates/docker/compose.dev.yaml.template /opt/myproject/compose.dev.yaml
-cp /opt/fabrik/templates/docker/dockerignore.template /opt/myproject/.dockerignore
-cp /opt/fabrik/templates/docker/Makefile.python /opt/myproject/Makefile
-
-# Then customize the files (entry point, port, env vars)
+# Files are already included when using 'fabrik scaffold'
+# If you need to regenerate, use:
+fabrik scaffold <project-name> --type python-api
 ```
 
 ## Container-First Principle

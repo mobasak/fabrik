@@ -4,9 +4,13 @@ description: Critical Fabrik rules - ALWAYS enforced (Windsurf Cascade only)
 trigger: always_on
 ---
 
+## ⚠️ MANDATORY FIRST OUTPUT
+Before any tool use or code, output:
+`RULES ACTIVE: CASCADE | [3 rules from this file you will follow]`
+
 # Critical Rules (ALWAYS ACTIVE)
 
-**Scope:** These rules apply to **Windsurf Cascade** agents working on any project under `/opt/`. Not for Kilo CLI agents.
+**Scope:** These rules apply to **Windsurf Cascade** agents.
 
 ---
 
@@ -136,11 +140,11 @@ async def health():
 
 ## Security Gates
 
-### Credentials Storage (TWO PLACES)
-1. Project `.env` - primary (local use)
-2. `/opt/fabrik/.env` - master backup
+### Credentials Storage
 
-**Sync rule:** Project `.env` is primary. After any credential change, manually sync to `/opt/fabrik/.env`.
+Project `.env` - primary (local use)
+
+**Backup:** Manually backup `.env` to secure location if needed.
 
 ### Password Policy (CSPRNG)
 - Length: 32 characters
@@ -158,7 +162,7 @@ async def health():
 | Hardcoded localhost | `os.getenv()` |
 | Alpine base images | `python:3.12-slim-bookworm` |
 | Class-level config | Function-level loading |
-| Bare `pip install` | `/opt/fabrik/.venv/bin/pip install` |
+| Bare `pip install` | `/opt/<project>/.venv/bin/pip install` |
 
 ### PEP 668: WSL/Debian Venv Requirement (CRITICAL)
 
@@ -168,14 +172,11 @@ WSL and modern Debian block system-wide pip installs. **NEVER** run bare `pip in
 # WRONG - will fail with "externally-managed-environment"
 pip install textual
 
-# CORRECT - use Fabrik master venv
-/opt/fabrik/.venv/bin/pip install textual
-
 # CORRECT - project-specific venv
 /opt/<project>/.venv/bin/pip install textual
 ```
 
-The Fabrik master venv (`/opt/fabrik/.venv/`) hosts cross-project tools like `kilo_terminal_runner.py`.
+Each project has its own `.venv` for complete isolation.
 ---
 
 ## Cascade Behavior Rules (STRICT)
@@ -256,7 +257,7 @@ When running commands, always use the standard terminal. If Windsurf shows "Usin
 Uses SWE-grep models for parallel code retrieval (up to 8 tool calls/turn).
 
 **Optimize indexing with `.codeiumignore`:**
-- Project-level: `/opt/fabrik/.codeiumignore`
+- Project-level: `.codeiumignore` (project root)
 - Global: `~/.codeium/.codeiumignore`
 
 Excluded from index: `.venv/`, `node_modules/`, `.droid/` queues, build artifacts.

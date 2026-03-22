@@ -16,7 +16,7 @@ trigger: glob
 
 **Always start from the SaaS skeleton:**
 ```bash
-cp -r /opt/fabrik/templates/saas-skeleton /opt/<project-name>
+cp -r templates/saas-skeleton /opt/<project-name>
 cd /opt/<project-name>
 npm install
 cp .env.example .env

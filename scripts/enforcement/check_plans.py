@@ -7,14 +7,13 @@ Enforces:
 Note: Index completeness is enforced by docs_updater.py --check (single authority).
 """
 
-import os
 import re
 from pathlib import Path
 
 from .validate_conventions import CheckResult, Severity
 
-FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
-PLAN_DIR = FABRIK_ROOT / "docs" / "development" / "plans"
+# Check project's own plans directory
+PLAN_DIR = Path.cwd() / "docs" / "development" / "plans"
 # New format: YYYY-MM-DD-plan-<name>.md (e.g., 2026-01-14-plan-feature-name.md)
 # Also accept legacy format for backward compatibility: YYYY-MM-DD-<slug>.md
 PLAN_NAME_NEW_RE = re.compile(r"\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+\.md$")

@@ -219,9 +219,10 @@ def main() -> int:
         print("Please add a real entry under ## [Unreleased]")
         return 1
 
+    # Run git log from project root to get commit history
+    os.chdir(Path.cwd())
     return 0
 
 
 if __name__ == "__main__":
-    os.chdir(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
     sys.exit(main())

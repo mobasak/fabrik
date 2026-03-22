@@ -74,7 +74,7 @@ description: Documentation rules, plan documents, writing style
 
 ### Plan Lifecycle
 1. **Create** plan in `docs/development/plans/`
-2. **Add** to [docs/development/PLANS.md](cci:7://file:///opt/fabrik/docs/development/PLANS.md:0:0-0:0) index
+2. **Add** to `docs/development/PLANS.md` index
 3. **Update** `**Status:**` as work progresses
 4. **Check boxes** as items complete
 5. **Archive** when COMPLETE → move to `docs/archive/`
@@ -103,7 +103,7 @@ For Traycer-managed work:
 ## Plan Document Types
 
 ### 1. Exploration Plans (Phase A)
-Use [templates/docs/PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templates/docs/PLAN_TEMPLATE.md:0:0-0:0) for **research and design** phase:
+Use `templates/docs/PLAN_TEMPLATE.md` for **research and design** phase:
 - The Problem
 - The Solution
 - What We're Building
@@ -112,7 +112,7 @@ Use [templates/docs/PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templates/docs/
 - Timeline
 
 ### 2. Execution Plans (Phase B)
-Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templates/docs/EXECUTION_PLAN_TEMPLATE.md:0:0-0:0) for **locked implementation**:
+Use `templates/docs/EXECUTION_PLAN_TEMPLATE.md` for **locked implementation**:
 - Task Metadata (goal, done-when, out-of-scope)
 - Constraints
 - Canonical Gate
@@ -153,7 +153,7 @@ Use [templates/docs/EXECUTION_PLAN_TEMPLATE.md](cci:7://file:///opt/fabrik/templ
 
 **Sync Triggers:**
 1. **Automatic:** `fabrik scaffold` completion (post-hook in `src/fabrik/cli.py`)
-2. **Manual:** `python /opt/fabrik/scripts/sync_projects.py`
+2. **Manual:** `python scripts/sync_projects.py` (Fabrik project only)
 
 **What it does:**
 - Scans all `/opt/*` projects (excludes `_*` prefixes)

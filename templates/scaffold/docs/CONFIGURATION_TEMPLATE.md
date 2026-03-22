@@ -75,7 +75,7 @@ DATABASE_URL=postgresql://localhost:5432/myapp_dev
 
 **Default:** 8000
 
-**Conflicts?** See `/opt/fabrik/PORTS.md` for registry. Update if needed.
+**Conflicts?** See `PORTS.md` for project port registry. Update if needed.
 
 ---
 
@@ -148,7 +148,7 @@ cat .env | grep -v '^#' | grep -v '^$'
 **DO:**
 - Use strong, unique passwords (32+ chars)
 - Rotate API keys every 90 days
-- Store backups in `/opt/fabrik/.env`
+- Store backups in secure location
 
 **DON'T:**
 - Commit `.env` to git
@@ -170,7 +170,7 @@ Before deploying:
 
 - [ ] `.env` created from `.env.example`
 - [ ] All required credentials obtained
-- [ ] Port registered in `/opt/fabrik/PORTS.md`
+- [ ] Port registered in `PORTS.md`
 - [ ] Database accessible (if used)
 - [ ] Health endpoint returns 200: `curl http://localhost:${PORT}/health`
 - [ ] Logs writing to expected location

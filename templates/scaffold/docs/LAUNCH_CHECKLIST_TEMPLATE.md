@@ -138,4 +138,3 @@ If critical issues found:
 ---
 
 **Template Version:** 1.0.0
-**Source:** `/opt/fabrik/templates/docs/LAUNCH_CHECKLIST_TEMPLATE.md`

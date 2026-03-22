@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """Check that .windsurf/rules/*.md files stay under 12KB limit."""
 
-import os
 import sys
 from pathlib import Path
 
-FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 MAX_SIZE_BYTES = 12288  # 12KB
 
 
 def main() -> int:
     """Check rule file sizes."""
-    rules_dir = FABRIK_ROOT / ".windsurf" / "rules"
+    # Check project's own .windsurf/rules/
+    rules_dir = Path.cwd() / ".windsurf" / "rules"
 
     if not rules_dir.exists():
         return 0

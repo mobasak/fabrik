@@ -590,47 +590,14 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
 
 
 def check_symlinks() -> tuple[bool, str]:
-    """Check that required symlinks exist and point to correct targets.
+    """Deprecated - projects now use copied files for workspace isolation.
 
-    Note: Skipped for /opt/fabrik itself (the source, not a consumer).
-    Only validates symlinks in child projects.
+    Previously validated symlinks to /opt/fabrik. Now files are copied to prevent
+    context leakage between projects when using AI coding agents.
 
     Returns:
-        (success, error_message)
+        (success, error_message) - always returns True
     """
-    # Skip for fabrik root - it's the source, not a consumer
-    if str(FABRIK_ROOT) == "/opt/fabrik":
-        return True, ""
-
-    symlinks = [
-        (".windsurfrules", "/opt/fabrik/windsurfrules"),
-        (".windsurf/rules", "/opt/fabrik/.windsurf/rules"),
-    ]
-
-    errors = []
-    for symlink, expected_target in symlinks:
-        link_path = FABRIK_ROOT / symlink
-        target_path = Path(expected_target)
-
-        if not link_path.exists():
-            # Not an error - symlink may not be required
-            continue
-
-        if not link_path.is_symlink():
-            errors.append(f"{symlink}: exists but is not a symlink")
-            continue
-
-        try:
-            resolved = link_path.resolve()
-            expected = target_path.resolve()
-
-            if resolved != expected:
-                errors.append(f"{symlink}: points to {resolved}, expected {expected}")
-        except OSError as e:
-            errors.append(f"{symlink}: cannot resolve - {e}")
-
-    if errors:
-        return False, "\n".join(errors)
     return True, ""
 
 
