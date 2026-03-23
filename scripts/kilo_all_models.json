@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-22T12:51:42.453490",
-  "total_models": 332,
+  "timestamp": "2026-03-23T14:06:03.846308",
+  "total_models": 329,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -37,11 +37,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "allenai/molmo-2-8b": {
-      "id": "allenai/molmo-2-8b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "allenai/olmo-2-0325-32b-instruct": {
       "id": "allenai/olmo-2-0325-32b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -49,16 +44,6 @@
     },
     "allenai/olmo-3-32b-think": {
       "id": "allenai/olmo-3-32b-think",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "allenai/olmo-3-7b-instruct": {
-      "id": "allenai/olmo-3-7b-instruct",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "allenai/olmo-3-7b-think": {
-      "id": "allenai/olmo-3-7b-think",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

@@ -148,6 +148,35 @@ def compute_perf_per_dollar(elo: int | None, input_cost: float, output_cost: flo
     return round(elo / blended, 2)
 
 
+def extract_variant(model_id: str, name: str) -> str:
+    """
+    Extract thinking variant from model ID or name.
+
+    Returns: 'standard', 'thinking', or 'thinking-extended'
+
+    Examples:
+        'anthropic/claude-opus-4.6:thinking' -> 'thinking'
+        'Claude Opus 4.6 Thinking' -> 'thinking'
+        'Claude Opus 4.5 (thinking-32k)' -> 'thinking-extended'
+        'anthropic/claude-opus-4.6' -> 'standard'
+    """
+    combined = f"{model_id} {name}".lower()
+
+    # Check for extended thinking variants
+    if "thinking-32k" in combined or "thinking-extended" in combined:
+        return "thinking-extended"
+
+    # Check for thinking suffix in api_id (e.g., :thinking)
+    if ":thinking" in model_id.lower():
+        return "thinking"
+
+    # Check for thinking in name
+    if "thinking" in combined:
+        return "thinking"
+
+    return "standard"
+
+
 def sync_from_kilo() -> None:
     """Sync agent data from Kilo CLI."""
     models = fetch_kilo_models()
@@ -186,6 +215,7 @@ def sync_from_kilo() -> None:
 
         # Compute derived fields
         task_tier = compute_task_tier(input_cost, output_cost, context_k, is_agentic)
+        variant = extract_variant(model_id, name)
 
         # Check if exists
         cursor.execute("SELECT id FROM agents WHERE id = ?", (model_id,))
@@ -205,6 +235,7 @@ def sync_from_kilo() -> None:
                     has_tools = ?,
                     is_agentic = ?,
                     task_tier = ?,
+                    variant = ?,
                     last_verified = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
@@ -220,6 +251,7 @@ def sync_from_kilo() -> None:
                     has_tools,
                     is_agentic,
                     task_tier,
+                    variant,
                     date.today().isoformat(),
                     model_id,
                 ),
@@ -232,8 +264,8 @@ def sync_from_kilo() -> None:
                     id, api_id, name, provider,
                     input_cost_per_m, output_cost_per_m,
                     context_window_k, has_vision, has_tools, is_agentic,
-                    task_tier, last_verified
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    task_tier, variant, last_verified
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     model_id,
@@ -247,6 +279,7 @@ def sync_from_kilo() -> None:
                     has_tools,
                     is_agentic,
                     task_tier,
+                    variant,
                     date.today().isoformat(),
                 ),
             )

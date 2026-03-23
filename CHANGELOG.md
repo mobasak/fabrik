@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - opencode.json enforcement check (2026-03-23)
+
+**What:** Added deterministic validation for `opencode.json` Kilo-safe instruction list to prevent policy drift.
+
+**Why:** Without enforcement, future edits could accidentally reintroduce `.windsurf/rules/*.md` glob or include Cascade-only rules like `00-critical.md`, breaking Kilo/Cascade separation. This hardening ensures the approved allowlist stays intact.
+
+**Files:**
+- `scripts/enforcement/check_opencode_json.py` - Validates exact match with Kilo-safe allowlist and ordering
+- `scripts/final_gate.py` - Wired into consistency checks (runs on every gate)
+
+**Impact:** Regressions in opencode.json now fail final_gate.py early, preventing silent policy drift.
+
 ### Changed - Complete workspace isolation: ZERO /opt/fabrik references (2026-03-22)
 
 **What:** Achieved 100% workspace isolation. Child projects have ZERO functional references to `/opt/fabrik/`. Each project is completely self-contained.

@@ -528,6 +528,11 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
         run_optional_check("scripts/enforcement/check_rule_size.py", "Rule File Size Guard")
     )
     results.append(
+        run_optional_check(
+            "scripts/enforcement/check_opencode_json.py", "opencode.json (Kilo-Safe Rules)"
+        )
+    )
+    results.append(
         run_optional_check("scripts/enforcement/check_index_md.py", "INDEX.md (Master File Index)")
     )
     results.append(
