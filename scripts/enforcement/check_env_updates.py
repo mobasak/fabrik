@@ -20,13 +20,12 @@ def check_env_updates(repo_root: Path, changed_files: list[str]) -> tuple[bool, 
         return True, []  # No .env.example = nothing to check
 
     # If .env.example was updated, check if .env exists
-    if ".env.example" in changed_files:
-        if not env_path.exists():
-            errors.append(
-                "WARNING: .env.example updated but .env doesn't exist.\n"
-                "If user provided secrets, AI should create .env file with actual values."
-            )
-            # Warning only - don't fail (user might provide secrets later)
+    if ".env.example" in changed_files and not env_path.exists():
+        errors.append(
+            "WARNING: .env.example updated but .env doesn't exist.\n"
+            "If user provided secrets, AI should create .env file with actual values."
+        )
+        # Warning only - don't fail (user might provide secrets later)
 
     # Check if .env.example has new variables that aren't in .env
     if env_path.exists():

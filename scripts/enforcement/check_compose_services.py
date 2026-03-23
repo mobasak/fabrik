@@ -59,9 +59,8 @@ def get_new_services(filepath: str) -> set[str]:
                 if match:
                     services.add(match.group(1))
 
-                if line.startswith("+") and not line.startswith("+ ") and ":" in line:
-                    if not line.strip().startswith("#"):
-                        in_services_block = False
+                if line.startswith("+") and not line.startswith("+ ") and ":" in line and not line.strip().startswith("#"):
+                    in_services_block = False
 
     except (OSError, subprocess.SubprocessError):
         pass

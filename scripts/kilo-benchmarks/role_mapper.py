@@ -40,48 +40,57 @@ KILO_VARIANT = "max"
 ROLES = ["coding", "reviewing", "fixing", "documentation", "testing"]
 
 SYSTEM_PROMPT = """You are an expert AI model selector for a software development workflow.
-You will receive a JSON list of AI models with their specifications and benchmark scores.
-Your task: Assign each role exactly 3 agents (priority 1=best, 2=fallback, 3=emergency).
+You will receive a JSON list of AI models with specifications and benchmark scores.
+Your task: Assign each role exactly 5 agents (priority 1-5).
 
-## Roles and Selection Criteria
+## Priority Scale
+- Priority 1: best capability, cost irrelevant — for hardest tasks
+- Priority 2: high capability, cost secondary
+- Priority 3: balanced capability and cost (perf_per_dollar matters)
+- Priority 4: cost-efficient, adequate capability
+- Priority 5: cheapest adequate model — must still meet min_elo floor
+
+## Roles and Criteria
 
 ### coding (implement features, write new code)
-- **Primary:** tbench_accuracy (coding benchmark)
-- **Secondary:** arena_elo (general intelligence)
-- **Required:** has_tools=1 AND is_agentic=1
-- **Balance:** Performance over cost, but consider perf_per_dollar for fallbacks
+- Primary: tbench_accuracy
+- Secondary: arena_elo
+- Required: has_tools=1 AND is_agentic=1
+- Priority 4-5: perf_per_dollar > 500, still needs has_tools=1
 
-### reviewing (code review, find bugs, security)
-- **Primary:** arena_elo (reasoning ability)
-- **Secondary:** has_vision=1 (can review screenshots/diagrams)
-- **Required:** Strong reasoning, prefer is_agentic=1
-- **Balance:** Quality over cost - reviews are high-stakes
+### reviewing (code review, bugs, security)
+- Primary: arena_elo
+- Secondary: has_vision=1
+- Prefer: is_agentic=1
+- Priority 1-2: highest elo available, cost irrelevant
 
 ### fixing (debug, fix issues, refactor)
-- **Primary:** tbench_accuracy + arena_elo combined
-- **Required:** has_tools=1 AND is_agentic=1
-- **Prefer:** Models known for debugging capability
+- Primary: tbench_accuracy + arena_elo combined
+- Required: has_tools=1 AND is_agentic=1
+- Priority 4-5: perf_per_dollar > 300
 
 ### documentation (docs, comments, READMEs)
-- **Primary:** perf_per_dollar (cost-efficiency first)
-- **Required:** arena_elo > 1350 (must be coherent)
-- **Prefer:** Good context_window_k for large docs
+- Primary: perf_per_dollar
+- Required: arena_elo >= 1350
+- Prefer: high context_window_k
+- Priority 1-2 still cost-optimized — no expensive models here
 
 ### testing (write tests, test plans, QA)
-- **Primary:** tbench_accuracy (needs code understanding)
-- **Required:** has_tools=1 AND is_agentic=1
-- **Secondary:** perf_per_dollar (tests run frequently)
+- Primary: tbench_accuracy
+- Required: has_tools=1 AND is_agentic=1
+- Secondary: perf_per_dollar (tests run frequently)
+- Priority 3-5: perf_per_dollar > 500
 
-## Rules
+## Hard Rules
 1. SKIP any agent where both arena_elo AND tbench_accuracy are null.
-2. Each role gets exactly 3 agents (priority 1, 2, 3).
-3. Only use agents with status='active'.
-4. No provider may appear more than once per role (diversify tiers).
-5. No single agent_id may appear more than 2 times across ALL roles combined.
-6. Set min_elo as recommended minimum for this role.
+2. Each role gets exactly 5 agents, one per priority level.
+3. Only status='active' agents.
+4. No provider may appear more than once per role.
+5. No single agent_id may appear more than 3 times across ALL roles combined.
+6. Set min_elo as your recommended runtime floor for that role.
 
-## Output Format
-Return ONLY valid JSON, no markdown fences, no explanation outside the JSON:
+## Output
+Return ONLY valid JSON, no markdown fences:
 {"assignments": [{"role": "...", "agent_id": "...", "priority": 1, "min_elo": 1400, "reason": "..."}]}"""
 
 
@@ -242,7 +251,7 @@ Here are {len(candidates)} AI models to analyze:
 
 {json.dumps(candidates, indent=2)}
 
-Assign each of the 5 roles exactly 3 agents (priority 1, 2, 3).
+Assign each of the 5 roles exactly 5 agents (priority 1, 2, 3, 4, 5).
 Return valid JSON only - no markdown, no explanation."""
 
     log(f"Calling Kilo with model: {KILO_MODEL} (variant: {KILO_VARIANT})")
@@ -313,10 +322,25 @@ Return valid JSON only - no markdown, no explanation."""
     return json.loads(full_text[start:end])
 
 
-def apply_assignments(assignments: list[dict], assigned_by: str) -> tuple[int, int]:
-    """Apply role assignments to database."""
+def archive_current_assignments(cursor: sqlite3.Cursor) -> int:
+    """Archive current role assignments to history before overwriting."""
+    cursor.execute("""
+        INSERT INTO agent_roles_history (role, agent_id, priority, reason, min_elo, assigned_by, assigned_at)
+        SELECT role, agent_id, priority, reason, min_elo, assigned_by, assigned_at
+        FROM agent_roles
+    """)
+    return cursor.rowcount
+
+
+def apply_assignments(assignments: list[dict], assigned_by: str) -> tuple[int, int, int]:
+    """Apply role assignments to database, archiving previous assignments."""
     conn = get_connection()
     cursor = conn.cursor()
+
+    # Archive existing assignments before clearing
+    archived = archive_current_assignments(cursor)
+    if archived > 0:
+        log(f"Archived {archived} previous assignments to history")
 
     # Clear existing assignments
     cursor.execute("DELETE FROM agent_roles")
@@ -356,7 +380,7 @@ def apply_assignments(assignments: list[dict], assigned_by: str) -> tuple[int, i
     conn.commit()
     conn.close()
 
-    return inserted, skipped
+    return inserted, skipped, archived
 
 
 def show_assignments() -> None:
@@ -368,9 +392,10 @@ def show_assignments() -> None:
             SELECT
                 r.role, r.priority, a.id, a.name, a.arena_elo,
                 a.tbench_accuracy, a.input_cost_per_m, a.output_cost_per_m,
-                a.perf_per_dollar, r.reason, r.assigned_by
+                a.perf_per_dollar, a.has_vision, a.blocked, r.reason, r.assigned_by
             FROM agent_roles r
             JOIN agents a ON a.id = r.agent_id
+            WHERE a.blocked = 0
             ORDER BY r.role, r.priority
         """)
     except sqlite3.OperationalError:
@@ -385,18 +410,21 @@ def show_assignments() -> None:
     current_role = None
     assigned_by = None
     for row in cursor.fetchall():
-        role, pri, agent_id, name, elo, tbench, cin, cout, ppd, reason, by = row
+        role, pri, agent_id, name, elo, tbench, cin, cout, ppd, has_vision, blocked, reason, by = (
+            row
+        )
 
         if role != current_role:
             print(f"\n[{role.upper()}]")
             current_role = role
 
         assigned_by = by
+        vision_str = " [vision]" if has_vision else ""
         elo_str = str(elo) if elo else "n/a"
         tbench_str = f"{tbench:.1f}%" if tbench else "n/a"
         ppd_str = f"{ppd:.0f}" if ppd else "n/a"
 
-        print(f"  #{pri} {name}")
+        print(f"  #{pri} {name}{vision_str}")
         print(
             f"      elo={elo_str} | tbench={tbench_str} | ${cin}/${cout} per 1M | perf/$={ppd_str}"
         )
@@ -457,8 +485,8 @@ def main() -> int:
         return 0
 
     # Apply to database
-    inserted, skipped = apply_assignments(assignments, KILO_MODEL)
-    log(f"Applied {inserted} assignments, skipped {skipped}")
+    inserted, skipped, archived = apply_assignments(assignments, KILO_MODEL)
+    log(f"Applied {inserted} assignments, skipped {skipped}, archived {archived}")
 
     # Show results
     show_assignments()

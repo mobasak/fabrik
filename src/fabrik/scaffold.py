@@ -409,10 +409,16 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
         shutil.copytree(fabrik_docs_templates, project_docs_templates, dirs_exist_ok=True)
 
     # Copy templates/saas-skeleton/ for reference (used in 20-typescript.md)
+    # Exclude build artifacts to prevent session poisoning (.next contains hardcoded /opt/fabrik paths)
     fabrik_saas_skeleton = FABRIK_ROOT / "templates" / "saas-skeleton"
     project_saas_skeleton = project_dir / "templates" / "saas-skeleton"
     if fabrik_saas_skeleton.exists():
-        shutil.copytree(fabrik_saas_skeleton, project_saas_skeleton, dirs_exist_ok=True)
+        shutil.copytree(
+            fabrik_saas_skeleton,
+            project_saas_skeleton,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(".next", "node_modules", ".turbo", "dist", "build"),
+        )
 
     # Create PORTS.md (every project tracks its own ports)
     (project_dir / "PORTS.md").write_text(
@@ -590,7 +596,12 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
     package_dir.mkdir(parents=True, exist_ok=True)
     (package_dir / "__init__.py").write_text("")
     (package_dir / "main.py").write_text(
-        f'''"""Main entry point for {name}."""\nimport os\nfrom contextlib import asynccontextmanager\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\n\n@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    """Application lifespan handler."""\n    # Startup: initialize resources here\n    yield\n    # Shutdown: cleanup resources here\n\n\napp = FastAPI(title="{name}", lifespan=lifespan)\n\n\n@app.get("/health")\nasync def health():\n    """Health check - tests actual dependencies, returns non-200 on failure."""\n    db_url = os.getenv("DATABASE_URL")\n    deps = {{}}\n    all_ok = True\n\n    # Database check (only if configured)\n    if db_url:\n        try:\n            # TODO: Replace with actual async DB ping when DB is added\n            # Example: await db.execute("SELECT 1")\n            deps["database"] = "configured"\n        except Exception as e:\n            deps["database"] = f"error: {{str(e)}}"\n            all_ok = False\n    else:\n        deps["database"] = "not_configured"\n\n    status_code = 200 if all_ok else 503\n    return JSONResponse(\n        content={{\n            "service": "{name}",\n            "status": "ok" if all_ok else "degraded",\n            "dependencies": deps,\n        }},\n        status_code=status_code,\n    )\n\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
+        f'''"""Main entry point for {name}."""\nimport os\nfrom contextlib import asynccontextmanager\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\n\n@asynccontextmanager
+async def lifespan(app: FastAPI):  # noqa: ARG001
+    """Application lifespan handler."""
+    # Startup: initialize resources here
+    yield
+    # Shutdown: cleanup resources here\n\n\napp = FastAPI(title="{name}", lifespan=lifespan)\n\n\n@app.get("/health")\nasync def health():\n    """Health check - tests actual dependencies, returns non-200 on failure."""\n    db_url = os.getenv("DATABASE_URL")\n    deps = {{}}\n    all_ok = True\n\n    # Database check (only if configured)\n    if db_url:\n        try:\n            # TODO: Replace with actual async DB ping when DB is added\n            # Example: await db.execute("SELECT 1")\n            deps["database"] = "configured"\n        except Exception as e:\n            deps["database"] = f"error: {{str(e)}}"\n            all_ok = False\n    else:\n        deps["database"] = "not_configured"\n\n    status_code = 200 if all_ok else 503\n    return JSONResponse(\n        content={{\n            "service": "{name}",\n            "status": "ok" if all_ok else "degraded",\n            "dependencies": deps,\n        }},\n        status_code=status_code,\n    )\n\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
     )
 
     # Create basic test

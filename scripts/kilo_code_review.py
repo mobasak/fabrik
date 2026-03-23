@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import hashlib
 import json
 import os
@@ -3290,12 +3291,11 @@ def validate_plan_coverage(
 
     # Check for missing/partial status without detailed evidence
     for item in coverage:
-        if item["status"] in ("missing", "partial"):
-            if not item.get("evidence") or len(item["evidence"]) < 10:
-                violations.append(
-                    f"Coverage item marked '{item['status']}' lacks detailed evidence: "
-                    f"{item['requirement'][:40]}..."
-                )
+        if item["status"] in ("missing", "partial") and (not item.get("evidence") or len(item["evidence"]) < 10):
+            violations.append(
+                f"Coverage item marked '{item['status']}' lacks detailed evidence: "
+                f"{item['requirement'][:40]}..."
+            )
 
     return len(violations) == 0, violations
 
@@ -3901,7 +3901,7 @@ async def run_multi_pass_review(
     config: KiloReviewConfig,
     iteration: int,
     previous_issues: list[dict[str, Any]] | None = None,
-    risk_assessment: dict[str, Any] | None = None,
+    risk_assessment: dict[str, Any] | None = None,  # noqa: ARG001
 ) -> ReviewResult:
     """
     Multi-pass review: general + security-focused.
@@ -5235,10 +5235,8 @@ async def main() -> int:
     max_cost_str = os.getenv("KILO_MAX_COST")
     max_cost = getattr(args, "max_cost", None)
     if max_cost is None and max_cost_str:
-        try:
+        with contextlib.suppress(ValueError):
             max_cost = float(max_cost_str)
-        except ValueError:
-            pass
 
     # Get verify_high_risk from args or env var (default: True per spec)
     verify_high_risk_arg = getattr(args, "verify_high_risk", None)

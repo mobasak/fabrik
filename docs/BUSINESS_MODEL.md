@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-22 18:04:25 -->
-<!-- Total projects: 40 -->
+<!-- Last synced: 2026-03-23 15:04:42 -->
+<!-- Total projects: 42 -->
 
 ### Production Services (5 projects)
 
@@ -104,7 +104,7 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure Tra... | Python | ✅ Production | https://translator.vps1.ocoron.com | ⚠️ Needs update |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (12 projects)
+### Active Development (14 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold Status |
 |---------|---------|-------|--------|-----|------------------|
@@ -116,6 +116,8 @@ With ~$50/month infrastructure cost:
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, and... | FastAPI | 🔨 Development | - | ✅ Current |
 | **seo** | A FastAPI-based service for generating SEO keywords and long-tail keyword variations to power AI ... | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-coolify** | Coolify deployment readiness test | FastAPI | 🔨 Development | - | ⚠️ Needs update |
+| **test-final** | Final complete test - all fixes applied | FastAPI | 🔨 Development | - | ⚠️ Needs update |
+| **test-session-check** | Session poisoning audit - verify no Fabrik references | FastAPI | 🔨 Development | - | ⚠️ Needs update |
 | **test-zero-refs** | Complete workspace isolation verification - expect ZERO /opt/fabrik references | FastAPI | 🔨 Development | - | ⚠️ Needs update |
 | **trade-intelligence** | Trade Intelligence is a comprehensive platform for searching and analyzing global shipment record... | FastAPI | 🔨 Development | - | ✅ Current |
 | **trading-core** | Live FX trading service connecting to Pepperstone/cTrader via cTrader Open API with crash-safe st... | FastAPI | 🔨 Development | - | ✅ Current |

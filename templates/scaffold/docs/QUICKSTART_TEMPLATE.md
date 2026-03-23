@@ -1,5 +1,7 @@
 # Quick Start
 
+**Last Updated:** YYYY-MM-DD
+
 Get [Project Name] running in 5 minutes.
 
 ## Prerequisites

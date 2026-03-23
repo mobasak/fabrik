@@ -1,5 +1,7 @@
 # [Project Name]
 
+**Last Updated:** YYYY-MM-DD
+
 [One-line description]
 
 [![Status](https://img.shields.io/badge/status-active-green)]()

@@ -860,7 +860,7 @@ def generate_plans_table() -> str:
     return "\n".join(lines)
 
 
-def sync_plans_index(dry_run: bool = False) -> tuple[bool, str]:
+def sync_plans_index() -> tuple[bool, str]:
     """PLANS.md sync is obsolete (Traycer owns plans/indexing)."""
     return False, "Skipped (Traycer-managed)"
 
@@ -932,7 +932,7 @@ def create_module_stub(module: Path) -> bool:
 ## Usage
 
 ```python
-from fabrik.{module.name} import ...
+from {PROJECT_ROOT.name}.{module.name} import ...
 ```
 
 ## Configuration

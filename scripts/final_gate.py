@@ -595,14 +595,90 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
 
 
 def check_symlinks() -> tuple[bool, str]:
-    """Deprecated - projects now use copied files for workspace isolation.
+    """Validate governance files are local copies, not symlinks.
 
-    Previously validated symlinks to /opt/fabrik. Now files are copied to prevent
-    context leakage between projects when using AI coding agents.
+    Checks that critical governance artifacts (AGENTS.md, AGENTS-compact.md,
+    opencode.json, .windsurfrules, .windsurf/rules/) are copied files, not
+    symlinks. This enforces workspace isolation for AI coding agents.
+
+    Self-exemption: When running inside /opt/fabrik itself, check is skipped.
+
+    Governance files checked:
+    - AGENTS.md
+    - AGENTS-compact.md
+    - opencode.json
+    - .windsurfrules
+    - .windsurf/rules/ (directory, checked recursively)
 
     Returns:
-        (success, error_message) - always returns True
+        tuple: (is_valid, error_message)
+            - (True, "") if all files are local copies or source repo
+            - (False, "<failures>") with per-file failure messages
     """
+    fabrik_master = Path("/opt/fabrik")
+
+    # Self-exemption: skip check when running inside /opt/fabrik itself
+    if FABRIK_ROOT.resolve() == fabrik_master.resolve():
+        return True, "(source repo — isolation check skipped)"
+
+    # Governance files to validate
+    governance_files = [
+        "AGENTS.md",
+        "AGENTS-compact.md",
+        "opencode.json",
+        ".windsurfrules",
+        ".windsurf/rules",
+    ]
+
+    failures = []
+
+    def is_under_fabrik(target_path: Path) -> bool:
+        """Path-aware check if target is under /opt/fabrik."""
+        try:
+            target_path.resolve().relative_to(fabrik_master.resolve())
+            return True
+        except ValueError:
+            return False
+
+    for rel_path in governance_files:
+        path = FABRIK_ROOT / rel_path
+
+        # Check 1: File/directory exists
+        if not path.exists():
+            failures.append(f"{rel_path}: missing (governance file not found)")
+            continue
+
+        # Check 2: Is it a symlink? (FAIL on ANY symlink)
+        if path.is_symlink():
+            resolved = path.resolve()
+            if is_under_fabrik(resolved):
+                failures.append(
+                    f"{rel_path}: symlink → {resolved} (points to /opt/fabrik — isolation broken)"
+                )
+            else:
+                failures.append(
+                    f"{rel_path}: symlink → {resolved} (governance must be local copies, not symlinks)"
+                )
+            continue
+
+        # Check 3: If .windsurf/rules is a directory, recursively check descendants
+        if rel_path == ".windsurf/rules" and path.is_dir():
+            for descendant in path.rglob("*"):
+                if descendant.is_symlink():
+                    resolved = descendant.resolve()
+                    rel_descendant = descendant.relative_to(FABRIK_ROOT)
+                    if is_under_fabrik(resolved):
+                        failures.append(
+                            f"{rel_descendant}: symlink → {resolved} (points to /opt/fabrik — isolation broken)"
+                        )
+                    else:
+                        failures.append(
+                            f"{rel_descendant}: symlink → {resolved} (governance must be local copies, not symlinks)"
+                        )
+
+    if failures:
+        return False, "\n".join(failures)
+
     return True, ""
 
 

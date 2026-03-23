@@ -1,5 +1,7 @@
 # Troubleshooting Guide
 
+**Last Updated:** YYYY-MM-DD
+
 Common issues and solutions for [Project Name].
 
 ## Quick Diagnostics
