@@ -1,6 +1,6 @@
 # Fabrik Scaffold Specification
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-03-23
 
 > Complete specification for project creation, templates, deployment, and management in the Fabrik ecosystem.
 
@@ -181,7 +181,7 @@ fabrik templates
 
 When you run `fabrik scaffold my-project -d "My description"`, the following structure is created:
 
-#### Actual Project Tree (22 directories, 35 files)
+#### Actual Project Tree (184 directories, 333 files)
 
 ```
 /opt/my-project/
@@ -190,66 +190,122 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   └── review-context/
 │       └── .gitkeep                 # Tracked placeholder for Traycer plans
 ├── .cache/                          # Cache directory (gitignored)
+├── .tmp/                            # Temp files (gitignored, NOT /tmp/)
+├── .windsurf/
+│   └── rules/                       # Windsurf IDE rules (10 files)
+│       ├── 00-critical.md           # IDE behavior, forbidden actions
+│       ├── 10-python.md             # Python/FastAPI patterns
+│       ├── 20-typescript.md         # TypeScript/Next.js patterns
+│       ├── 30-ops.md                # Docker/Compose patterns
+│       ├── 40-documentation.md      # Documentation rules
+│       ├── 50-code-review.md        # Workflow pointer
+│       ├── 60-saas-ui.md            # SaaS UI patterns
+│       ├── 70-chrome-ext.md         # Chrome extension patterns
+│       ├── 80-mobile.md             # Mobile app patterns
+│       └── 90-automation.md         # YOLO modes, Fabrik skills
 ├── config/                          # Configuration files
 ├── data/                            # Data files (gitignored)
 ├── docs/
-│   ├── archive/
-│   │   └── README.md                # Archive index
-│   ├── development/
-│   │   ├── plans/                   # Plan documents directory
-│   │   └── PLANS.md                 # Plans index
+│   ├── archive/                     # Archived documents
+│   ├── development/                 # Development plans
 │   ├── guides/                      # How-to guides
 │   ├── operations/                  # Ops runbooks
 │   ├── reference/                   # Technical reference
 │   ├── BUSINESS_MODEL.md            # Business context
-│   ├── CONFIGURATION.md             # Config reference
+│   ├── CONFIGURATION.md             # Config reference (env vars)
 │   ├── QUICKSTART.md                # Getting started
 │   ├── README.md                    # Docs index
 │   └── TROUBLESHOOTING.md           # Common issues
 ├── logs/                            # Log files (gitignored)
 ├── output/                          # Output files (gitignored)
+├── scripts/
+│   ├── enforcement/                 # Quality gate checks (27 scripts)
+│   │   ├── check_changelog.py       # CHANGELOG.md updated
+│   │   ├── check_compose_services.py
+│   │   ├── check_configuration_md.py
+│   │   ├── check_deps_sync.py
+│   │   ├── check_doc_sprawl.py
+│   │   ├── check_docker.py
+│   │   ├── check_docs.py
+│   │   ├── check_env_contract.py
+│   │   ├── check_env_example.py
+│   │   ├── check_env_updates.py
+│   │   ├── check_env_vars.py
+│   │   ├── check_health.py
+│   │   ├── check_index_md.py
+│   │   ├── check_openapi_sync.py
+│   │   ├── check_opencode_json.py
+│   │   ├── check_plan_quality.py
+│   │   ├── check_plans.py
+│   │   ├── check_ports.py
+│   │   ├── check_readme_md.py
+│   │   ├── check_rule_size.py
+│   │   ├── check_schema_sync.py
+│   │   ├── check_secrets.py
+│   │   ├── check_structure.py
+│   │   ├── check_test_coverage.py
+│   │   ├── check_watchdog.py
+│   │   └── validate_conventions.py
+│   ├── docs_updater.py              # Documentation drift checker
+│   ├── final_gate.py                # Pre-commit quality gate (928 lines)
+│   ├── kilo_code_review.py          # AI code review (5528 lines)
+│   ├── update_agents_toc.py         # AGENTS.md TOC updater
+│   ├── runc                         # Check job status
+│   ├── rund                         # Run detached command
+│   ├── rundsh                       # Shell into container
+│   ├── runk                         # Kill job
+│   ├── sync_cascade_backup.sh       # Backup Cascade session
+│   └── sync_extensions.sh           # Sync Windsurf extensions
 ├── src/
 │   └── my_project/                  # Main Python package
 │       ├── __init__.py
 │       └── main.py                  # FastAPI entry point
+├── templates/
+│   ├── docs/                        # Documentation templates
+│   │   ├── .doc-policy.md
+│   │   ├── EXECUTION_PLAN_TEMPLATE.md
+│   │   ├── FEATURES_TEMPLATE.md
+│   │   ├── MODULE_REFERENCE_TEMPLATE.md
+│   │   └── PLAN_TEMPLATE.md
+│   └── saas-skeleton/               # Full SaaS starter (Next.js)
+│       ├── app/                     # Next.js app router
+│       ├── components/              # React components
+│       ├── lib/                     # Utilities
+│       ├── types/                   # TypeScript types
+│       ├── Dockerfile
+│       ├── compose.yaml
+│       └── package.json
 ├── tests/
 │   ├── __init__.py
 │   └── test_health.py               # Health endpoint test
-├── .tmp/                            # Temp files (gitignored, NOT /tmp/)
-├── .windsurf/
-│   └── rules -> /opt/fabrik/.windsurf/rules  # Symlink
-├── AGENTS.md -> /opt/fabrik/AGENTS.md        # Symlink
+├── AGENTS.md                        # Copied from /opt/fabrik/AGENTS.md
 ├── CHANGELOG.md                     # Version history
 ├── compose.yaml                     # Docker Compose config
-├── compose.dev.yaml                 # Dev overlay (hot reload via bind mount)
-├── .dockerignore                    # Excludes venv/.git from Docker builds
+├── compose.dev.yaml                 # Dev overlay (hot reload)
+├── .dockerignore                    # Excludes venv/.git from builds
 ├── Dockerfile                       # Production Docker build
 ├── .env.example                     # Env var template
 ├── .gitignore                       # Git ignore patterns
+├── INDEX.md                         # Master file index
+├── Makefile                         # Shortcuts: make dev, test, review
+├── opencode.json                    # Kilo CLI configuration
+├── PORTS.md                         # Port allocation registry
 ├── .pre-commit-config.yaml          # Pre-commit hooks
 ├── pyproject.toml                   # Python project config
-├── Makefile                         # Shortcuts: make dev, make test, make review
 ├── README.md                        # Project overview
 ├── requirements.txt                 # Python dependencies
-├── scripts/
-│   ├── runc                         # Run container (production mode)
-│   ├── rund                         # Run container (hot reload / dev mode)
-│   ├── rundsh                       # Shell into running container
-│   ├── runk                         # Kill running container
-│   ├── sync_cascade_backup.sh       # Backup Cascade session
-│   └── sync_extensions.sh           # Sync Windsurf extensions
-└── .windsurfrules -> /opt/fabrik/windsurfrules  # Symlink (legacy)
+└── .windsurfrules                   # Copied from /opt/fabrik/windsurfrules
 ```
 
-#### Files Created (32)
+#### Files Created (70+)
 
 | File | Source Template | Purpose |
 |------|-----------------|---------|
 | **Root Files** | | |
 | `README.md` | `docs/PROJECT_README_TEMPLATE.md` | Project overview |
 | `CHANGELOG.md` | `docs/CHANGELOG_TEMPLATE.md` | Version history |
-| `AGENTS.md` | Symlink → `/opt/fabrik/AGENTS.md` | AI agent instructions |
-| `.windsurfrules` | Symlink → `/opt/fabrik/windsurfrules` | Legacy rules shim |
+| `AGENTS.md` | Copied from `/opt/fabrik/AGENTS.md` | AI agent instructions |
+| `.windsurfrules` | Copied from `/opt/fabrik/windsurfrules` | Legacy rules shim |
 | `.gitignore` | Generated inline | Git ignore patterns |
 | `.env.example` | Generated inline | Env var template |
 | `requirements.txt` | Generated inline | Python dependencies |
@@ -257,61 +313,118 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `compose.yaml` | `docker/compose.yaml.template` | Docker Compose config |
 | `pyproject.toml` | `python/pyproject.toml.template` | Python project config |
 | `.pre-commit-config.yaml` | `pre-commit-config.yaml` | Pre-commit hooks |
+| `INDEX.md` | Generated inline | Master file index |
+| `PORTS.md` | Generated inline | Port allocation registry |
+| `opencode.json` | Copied from Fabrik | Kilo CLI configuration |
 | **Documentation** | | |
 | `docs/README.md` | `docs/DOCS_INDEX_TEMPLATE.md` | Docs index |
 | `docs/QUICKSTART.md` | `docs/QUICKSTART_TEMPLATE.md` | Getting started |
 | `docs/CONFIGURATION.md` | `docs/CONFIGURATION_TEMPLATE.md` | Config reference |
 | `docs/TROUBLESHOOTING.md` | `docs/TROUBLESHOOTING_TEMPLATE.md` | Common issues |
 | `docs/BUSINESS_MODEL.md` | `docs/BUSINESS_MODEL_TEMPLATE.md` | Business context |
-| `docs/development/Phase1.md` | `docs/PHASE_TEMPLATE.md` | Phase 1 roadmap |
-| `docs/development/PLANS.md` | Generated inline | Plans index |
-| `docs/archive/README.md` | Generated inline | Archive index |
 | **Source Code** | | |
 | `src/<package>/main.py` | Generated inline | FastAPI entry point |
 | `src/<package>/__init__.py` | Generated inline | Package init |
 | `tests/__init__.py` | Generated inline | Tests package |
 | `tests/test_health.py` | Generated inline | Health endpoint test |
-| **Kilo / Dev Tooling** | | |
+| **Quality Gates** | | |
+| `scripts/final_gate.py` | Copied from Fabrik | Pre-commit quality checks (928 lines) |
+| `scripts/kilo_code_review.py` | Copied from Fabrik | AI code review (5528 lines) |
+| `scripts/docs_updater.py` | Copied from Fabrik | Documentation drift checker |
+| `scripts/update_agents_toc.py` | Copied from Fabrik | AGENTS.md TOC updater |
+| **Enforcement Scripts (27)** | | |
+| `scripts/enforcement/*.py` | Copied from Fabrik | Individual quality gate checks |
+| **Dev Tooling** | | |
 | `Makefile` | `docker/Makefile.python` | Dev shortcuts (`make dev`, `make test`, `make review`) |
 | `compose.dev.yaml` | `docker/compose.dev.yaml.template` | Dev overlay with bind-mount hot reload |
 | `.dockerignore` | `docker/dockerignore.template` | Excludes `.venv`, `.git`, `__pycache__` from Docker context |
 | `.droid/.gitignore` | Generated inline | Blocks Kilo runtime files; tracks `review-context/` |
 | `.droid/review-context/.gitkeep` | Generated inline | Ensures `review-context/` is committed |
-| `scripts/runc` | `scripts/runc` | Run container (production) — executable |
-| `scripts/rund` | `scripts/rund` | Run container with hot reload — executable |
-| `scripts/rundsh` | `scripts/rundsh` | Shell into container — executable |
-| `scripts/runk` | `scripts/runk` | Kill container — executable |
-| `scripts/sync_cascade_backup.sh` | `scripts/sync_cascade_backup.sh` | Backup Cascade session — executable |
-| `scripts/sync_extensions.sh` | `scripts/sync_extensions.sh` | Sync Windsurf extensions — executable |
+| `scripts/runc` | `scripts/runc` | Check detached job status |
+| `scripts/rund` | `scripts/rund` | Run command in detached mode |
+| `scripts/rundsh` | `scripts/rundsh` | Shell into container |
+| `scripts/runk` | `scripts/runk` | Kill detached job |
+| `scripts/sync_cascade_backup.sh` | `scripts/sync_cascade_backup.sh` | Backup Cascade session |
+| `scripts/sync_extensions.sh` | `scripts/sync_extensions.sh` | Sync Windsurf extensions |
+| **Windsurf Rules (10)** | | |
+| `.windsurf/rules/00-critical.md` | Copied from Fabrik | IDE behavior, forbidden actions |
+| `.windsurf/rules/10-python.md` | Copied from Fabrik | Python/FastAPI patterns |
+| `.windsurf/rules/20-typescript.md` | Copied from Fabrik | TypeScript/Next.js patterns |
+| `.windsurf/rules/30-ops.md` | Copied from Fabrik | Docker/Compose patterns |
+| `.windsurf/rules/40-documentation.md` | Copied from Fabrik | Documentation rules |
+| `.windsurf/rules/50-code-review.md` | Copied from Fabrik | Workflow pointer |
+| `.windsurf/rules/60-saas-ui.md` | Copied from Fabrik | SaaS UI patterns |
+| `.windsurf/rules/70-chrome-ext.md` | Copied from Fabrik | Chrome extension patterns |
+| `.windsurf/rules/80-mobile.md` | Copied from Fabrik | Mobile app patterns |
+| `.windsurf/rules/90-automation.md` | Copied from Fabrik | YOLO modes, Fabrik skills |
+| **Templates** | | |
+| `templates/docs/*.md` | Copied from Fabrik | Documentation templates (5 files) |
+| `templates/saas-skeleton/` | Copied from Fabrik | Full Next.js SaaS starter |
 
-#### Symlinks Created (3)
+#### No Symlinks — All Files Copied
 
-| Link | Target | Purpose |
+**All governance files are COPIED (not symlinked) for workspace isolation:**
+
+| File | Source | Purpose |
 |------|--------|---------|
-| `AGENTS.md` | `/opt/fabrik/AGENTS.md` | Shared agent instructions |
-| `.windsurfrules` | `/opt/fabrik/windsurfrules` | Legacy rules (shim) |
-| `.windsurf/rules/` | `/opt/fabrik/.windsurf/rules/` | Authoritative IDE rules |
+| `AGENTS.md` | `/opt/fabrik/AGENTS.md` | AI agent instructions |
+| `AGENTS-compact.md` | `/opt/fabrik/AGENTS-compact.md` | Compact agent instructions |
+| `.windsurfrules` | `/opt/fabrik/windsurfrules` | Legacy rules shim |
+| `.windsurf/rules/*` | `/opt/fabrik/.windsurf/rules/` | Windsurf IDE rules (10 files) |
+| `opencode.json` | `/opt/fabrik/opencode.json` | Kilo CLI configuration |
+
+**Why copied, not symlinked:** Prevents AI agents in child projects from discovering `/opt/fabrik` parent directory (session isolation).
 
 #### Generated Code Examples
 
-**`src/<package>/main.py`** (FastAPI with health check):
+**`src/<package>/main.py`** (FastAPI with proper health check):
 ```python
+"""Main entry point for my-project."""
+import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-import os
 
-app = FastAPI(title="my-project")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):  # noqa: ARG001
+    """Application lifespan handler."""
+    # Startup: initialize resources here
+    yield
+    # Shutdown: cleanup resources here
+
+
+app = FastAPI(title="my-project", lifespan=lifespan)
+
 
 @app.get("/health")
 async def health():
+    """Health check - tests actual dependencies, returns non-200 on failure."""
     db_url = os.getenv("DATABASE_URL")
-    configured = db_url is not None and db_url.strip() != ""
-    return JSONResponse(content={
-        "service": "my-project",
-        "status": "ok",
-        "configured": configured,
-        "note": "Add real dependency checks when service uses them."
-    }, status_code=200)
+    deps = {}
+    all_ok = True
+
+    # Database check (only if configured)
+    if db_url:
+        try:
+            # TODO: Replace with actual async DB ping when DB is added
+            deps["database"] = "configured"
+        except Exception as e:
+            deps["database"] = f"error: {str(e)}"
+            all_ok = False
+    else:
+        deps["database"] = "not_configured"
+
+    status_code = 200 if all_ok else 503
+    return JSONResponse(
+        content={
+            "service": "my-project",
+            "status": "ok" if all_ok else "degraded",
+            "dependencies": deps,
+        },
+        status_code=status_code,
+    )
+
 
 @app.get("/")
 async def root():

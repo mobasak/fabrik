@@ -1,6 +1,6 @@
 # Kilo AI Agent System Documentation
 
-**Last Updated:** 2026-03-01
+**Last Updated:** 2026-03-23
 
 This directory contains all documentation for the Kilo AI agent system used in Fabrik for code generation and review.
 
@@ -33,14 +33,14 @@ This directory contains all documentation for the Kilo AI agent system used in F
 | **Balanced** | Cost-effective, good performance | `Balanced04-grok41fast-code-high-i020-o050.sh` |
 | **Economy** | Budget-friendly, fast iteration | `Economy01-flash3-code-minimal-i000-o001.sh` |
 
-### Data Files (scripts/)
+### Data Files
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `kilo_18_agents_complete.json` | **AUTHORITATIVE** pricing manifest | Active |
-| `kilo_all_models.json` | Complete catalog (319 models) | Active |
-| `kilo_comprehensive_db.json` | Model database with capabilities | Active |
-| `manual_pricing_data.json` | Manual pricing for 12 models | Active |
+| `scripts/kilo-benchmarks/kilo_agents.db` | **AUTHORITATIVE** SQLite database | Active |
+| `scripts/kilo-benchmarks/kilo_all_agents.json` | Complete catalog (319+ models) | Active |
+| `scripts/kilo-benchmarks/assignments.json` | Current role assignments | Active |
+| `scripts/kilo-benchmarks/README.md` | Database documentation | Active |
 
 ### Scripts (scripts/)
 
@@ -53,14 +53,15 @@ This directory contains all documentation for the Kilo AI agent system used in F
 | `kilo_agent_health.sh` | Verify agent integrity (executable, shebang, syntax) |
 | `extract_pricing.py` | Extract input/output pricing |
 
-### Recent Enhancements (2026-03-01)
+### Recent Enhancements (2026-03-23)
 
 | Feature | Location | Description |
 |---------|----------|-------------|
+| **Escalation Fix** | `kilo_code_review.py` | Fixed `'str' object has no attribute 'get'` crash in `format_gate_results_compact` |
+| **DB-Driven Selection** | `scripts/kilo-benchmarks/` | SQLite-based model selection with role assignments |
+| **Live Streaming** | `kilo_docs_enforcer.py` | Real-time AI output streaming in verbose mode |
+| **Doc Auto-Generation** | `kilo_docs_enforcer.py` | Generates missing docs using Kilo agents |
 | **Mypy Recovery** | `final_gate.py` | Auto-clears cache on timeout, retries with --no-incremental |
-| **Retry Logic** | `kilo_code_review.py` | (Coming Soon) Exponential backoff for transient failures |
-| **Pre-Review Validation** | `kilo_code_review.py` | (Coming Soon) Fail-fast checks before API call |
-| **Infinite Loop Fix** | `kilo_code_review.py` | (Coming Soon) Detects stuck ruff --fix, exits cleanly |
 | **Cost Tracking** | `.droid/kilo_metrics.jsonl` | Per-model/filetype performance metrics |
 
 ### Active Agents (~/.traycer/cli-agents/)

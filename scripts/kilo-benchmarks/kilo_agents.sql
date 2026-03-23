@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS agents (
     -- Status
     status TEXT DEFAULT 'active',           -- active / discarded / deprecated
     discard_reason TEXT,                    -- why discarded (if applicable)
+    blocked INTEGER DEFAULT 0,              -- 1 = excluded from selection (slow/bad)
+    block_reason TEXT,                      -- why blocked (e.g., "Too slow (109s)")
     
     -- Metadata
     fallback_model_id TEXT,                 -- FK to cheaper fallback
@@ -139,26 +141,28 @@ FROM agents
 ORDER BY arena_elo DESC NULLS LAST;
 
 -- Agent role assignments (AI-generated)
+-- Priority 1-5: best to cheapest adequate
+-- Complexity routing happens at runtime via agent_selector.py
 CREATE TABLE IF NOT EXISTS agent_roles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     role TEXT NOT NULL,                      -- coding / reviewing / fixing / documentation / testing
     agent_id TEXT NOT NULL,                  -- FK to agents.id
-    priority INTEGER DEFAULT 1,              -- 1=primary, 2=fallback, 3=emergency
+    priority INTEGER NOT NULL,               -- 1=best, 2=high, 3=balanced, 4=cost-efficient, 5=cheapest
     reason TEXT,                             -- AI explanation for this assignment
     min_elo INTEGER,                         -- recommended minimum elo for this role
     assigned_by TEXT,                        -- model that made the assignment
     assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (agent_id) REFERENCES agents(id),
-    UNIQUE(role, priority)                   -- only one agent per role+priority
+    UNIQUE(role, priority)                   -- exactly one agent per role+priority
 );
 
 CREATE INDEX IF NOT EXISTS idx_roles_role ON agent_roles(role);
 CREATE INDEX IF NOT EXISTS idx_roles_agent ON agent_roles(agent_id);
 
--- View: Current role assignments with agent details
+-- View: Current role assignments with agent details (excludes blocked)
 CREATE VIEW IF NOT EXISTS v_role_assignments AS
-SELECT 
+SELECT
     r.role,
     r.priority,
     a.id as agent_id,
@@ -173,10 +177,29 @@ SELECT
     a.has_tools,
     a.is_agentic,
     a.perf_per_dollar,
+    a.blocked,
+    a.block_reason,
     r.reason,
     r.assigned_by,
     r.assigned_at
 FROM agent_roles r
 JOIN agents a ON a.id = r.agent_id
-WHERE a.status = 'active'
+WHERE a.status = 'active' AND a.blocked = 0
 ORDER BY r.role, r.priority;
+
+-- Agent role history (archived assignments)
+CREATE TABLE IF NOT EXISTS agent_roles_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    priority INTEGER NOT NULL,
+    reason TEXT,
+    min_elo INTEGER,
+    assigned_by TEXT,
+    assigned_at TIMESTAMP NOT NULL,
+    archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES agents(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_roles_history_role ON agent_roles_history(role);
+CREATE INDEX IF NOT EXISTS idx_roles_history_date ON agent_roles_history(archived_at);

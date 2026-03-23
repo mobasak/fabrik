@@ -14,9 +14,9 @@ trigger: always_on
 
 **The canonical workflow is defined in `AGENTS.md` section `[ALL AGENTS] Mandatory Workflow`.**
 
-Both Cascade and Kilo CLI agents follow the same 7-step workflow:
+Both Cascade and Kilo CLI agents follow the same 8-step workflow:
 
-**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO_REVIEW → FIX → VERIFY → COMMIT**
+**PLAN → IMPLEMENT → SELF_REVIEW → KILO_REVIEW → DOCUMENTATOR → FINAL_GATE → VERIFY → COMMIT**
 
 **Do NOT duplicate workflow details here.** Read `AGENTS.md` for:
 - Step-by-step execution protocol
@@ -30,20 +30,25 @@ Both Cascade and Kilo CLI agents follow the same 7-step workflow:
 ### After Writing Code
 
 ```bash
-# Step 3: Final Gate
-python scripts/final_gate.py
-
-# Step 4: Kilo Review (if non-trivial)
-# Verify diff before staging
+# Step 3: Kilo Review (report-only)
 git diff <intended_files>           # Review changes
 git add <intended_files>            # Stage
 git diff --staged                   # Verify staged matches intent
 python scripts/kilo_code_review.py staged --plan "task description" --output json
+# Fix any Kilo findings
+
+# Step 4: Documentator
+python scripts/kilo_docs_enforcer.py --auto-generate --verbose
+git add CHANGELOG.md docs/reference/*.md
+python scripts/kilo_docs_enforcer.py --enforce
+
+# Step 5: Final Gate
+python scripts/final_gate.py
 ```
 
 ### Key Reminders
 
-- **Step 2.5 self-review is MANDATORY** before gates
+- **Step 2.5 self-review is MANDATORY** before Kilo Review
 - **I fix issues, not Kilo** (report-only by default)
 - **Traycer commits, not Cascade** — I only implement and fix
 - **Max 5 review iterations** before escalating

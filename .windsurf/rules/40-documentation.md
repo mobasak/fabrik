@@ -58,7 +58,12 @@ description: Documentation rules, plan documents, writing style
 - `src/main.py` - health() function
 ```
 
-**No exceptions.** This is enforced by `docs_updater.py`.
+**No exceptions.** This is enforced by `final_gate.py` via `check_changelog.py`.
+
+**Automated generation (Step 4):**
+- In the Kilo CLI workflow, DOCUMENTATOR auto-generates CHANGELOG entries at Step 4
+- In the Cascade workflow, Cascade runs `python scripts/kilo_docs_enforcer.py --auto-generate`
+- Manual writing is valid but automated generation is the default path
 
 **Relationship to README.md:**
 - **CHANGELOG** = *when* things changed (historical record)

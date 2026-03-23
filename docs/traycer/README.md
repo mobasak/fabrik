@@ -1680,10 +1680,26 @@ Check for errors and verify the CLI tool is installed and in your PATH.
 │ 1. Open project in Traycer within Windsurf                      │
 │ 2. Use plan templates to generate phases/tasks                  │
 │ 3. For each task:                                               │
-│    - Traycer hands to execution agent (via cli-agents scripts)  │
-│    - Agent executes inside /opt/fabrik                          │
-│    - Agent undergoes FINAL_GATE and KILO Review                 │
-│    - Traycer verifies completion                                │
-│    - Mark done, next task                                       │
+│                                                                 │
+│    Kilo CLI (YOLO) workflow:                                    │
+│    - Traycer hands to Coder (mid-tier: GPT 5.4, Gemini 3.1)    │
+│    - Coder implements + self-reviews                            │
+│    - KILO Review produces report (report-only, never fixes)     │
+│    - Coder fixes Kilo findings                                  │
+│    - DOCUMENTATOR auto-generates docs (cheap agents)            │
+│    - FINAL_GATE validates code + docs (one pass)                │
+│    - Traycer verifies SPEC compliance                           │
+│    - If verify fails → FIXER (expensive) fixes → re-verify     │
+│    - Traycer commits                                            │
+│                                                                 │
+│    Cascade (interactive) workflow:                               │
+│    - User copies Traycer plan into Cascade chat                 │
+│    - Cascade implements + self-reviews                          │
+│    - Cascade runs KILO Review, fixes findings itself            │
+│    - Cascade runs DOCUMENTATOR (kilo_docs_enforcer.py)          │
+│    - Cascade runs FINAL_GATE (code + docs, one pass)            │
+│    - Traycer verifies SPEC compliance                           │
+│    - If verify fails → Cascade fixes → re-verify               │
+│    - Traycer commits                                            │
 └─────────────────────────────────────────────────────────────────┘
 ```

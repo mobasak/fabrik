@@ -36,18 +36,18 @@ trigger: always_on
 
 ## Traycer YOLO Automation
 
-**Traycer YOLO** enables autonomous development following the 7-step workflow defined in `AGENTS.md`.
+**Traycer YOLO** enables autonomous development following the 8-step workflow defined in `AGENTS.md`.
 
 ### Smart YOLO Mode
 - **Use when:** Single-phase tasks with clear scope
-- **How it works:** Traycer plans, codes, runs gates, optional review, commits
-- **7-step enforcement:** Automatic (per `AGENTS.md` workflow)
+- **How it works:** Traycer plans, codes, runs gates, DOCUMENTATOR auto-generates docs, commits
+- **8-step enforcement:** Automatic (per `AGENTS.md` workflow)
 
 ### Phased YOLO Mode
 - **Use when:** Multi-phase features (complex refactoring, new modules)
 - **How it works:** Traycer breaks into phases, runs YOLO per phase
 - **Context preservation:** Carries forward decisions across phases via Traycer's phase state
-- **7-step enforcement:** Per phase (prevents drift)
+- **8-step enforcement:** Per phase (prevents drift)
 
 **See:** `docs/traycer/traycer-yolo-workflow.md` for context preservation mechanism.
 

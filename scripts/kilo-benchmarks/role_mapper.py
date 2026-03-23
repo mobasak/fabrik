@@ -61,6 +61,7 @@ Your task: Assign each role exactly 5 agents (priority 1-5).
 ### reviewing (code review, bugs, security)
 - Primary: arena_elo
 - Secondary: has_vision=1
+- Required: has_reasoning=1 (models without reasoning capability cannot do code review)
 - Prefer: is_agentic=1
 - Priority 1-2: highest elo available, cost irrelevant
 
@@ -139,10 +140,11 @@ def get_candidates() -> list[dict[str, Any]]:
         SELECT
             id, name, provider,
             input_cost_per_m, output_cost_per_m,
-            context_window_k, has_vision, has_tools, is_agentic,
+            context_window_k, has_vision, has_tools, is_agentic, has_reasoning,
             arena_elo, tbench_accuracy, task_tier, perf_per_dollar, status
         FROM agents
         WHERE status = 'active'
+          AND blocked = 0
           AND (arena_elo IS NOT NULL OR tbench_accuracy IS NOT NULL OR task_tier >= 2)
           AND input_cost_per_m >= 0
         ORDER BY

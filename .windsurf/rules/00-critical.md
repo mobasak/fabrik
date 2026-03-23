@@ -41,15 +41,16 @@ Before any tool use or code, output:
 
 ## ⚠️ MANDATORY WORKFLOW (March 2026)
 
-**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO_REVIEW → FIX → VERIFY → COMMIT**
+**PLAN → IMPLEMENT → SELF_REVIEW → KILO_REVIEW → DOCUMENTATOR → FINAL_GATE → VERIFY → COMMIT**
 
 **Workflow authority:** `AGENTS.md` section `[ALL AGENTS] Mandatory Workflow` — single source of truth for both Cascade and Kilo CLI.
 
 **Quick reference:** `.windsurf/rules/50-code-review.md` has Cascade-specific commands.
 
 **Key points:**
-- Step 2.5 self-review is MANDATORY before gates
-- Cascade fixes issues, not Kilo (report-only by default)
+- Step 2.5 self-review is MANDATORY before Kilo Review
+- Cascade fixes Kilo findings and verification issues itself — no separate FIXER
+- Step 4 DOCUMENTATOR auto-generates docs — Cascade runs `kilo_docs_enforcer.py`
 - Model selection is automatic based on file paths and diff size
 - Traycer commits, not Cascade
 
@@ -231,10 +232,10 @@ CREATE TABLE IF NOT EXISTS users (
 Before I finish ANY coding task, I MUST verify:
 - [ ] Step 2.5 self-review completed and reported
 - [ ] No hardcoded localhost/secrets
-- [ ] Documentation updated (README.md features + CHANGELOG.md)
 - [ ] Database changes added to `db/schema.sql`
-- [ ] final_gate.py passed
-- [ ] Kilo review passed or issues fixed
+- [ ] Kilo review passed or issues fixed (Step 3)
+- [ ] DOCUMENTATOR ran (`kilo_docs_enforcer.py --auto-generate` + `--enforce`) (Step 4)
+- [ ] final_gate.py passed (Step 5 — runs once after DOCUMENTATOR)
 
 **Do not proceed to COMMIT if any item above is unchecked.**
 

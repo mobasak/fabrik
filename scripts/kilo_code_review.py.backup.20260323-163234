@@ -48,15 +48,6 @@ from typing import Any
 
 from jsonschema import Draft7Validator
 
-# DB-driven model selection (replaces hardcoded TIER_MODELS and REASONING_MODELS)
-sys.path.insert(0, str(Path(__file__).parent / "kilo-benchmarks"))
-from db_models import (
-    get_fallback_chain,
-    get_tier_models,
-    has_reasoning,
-    is_model_blocked,
-)
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -153,25 +144,6 @@ SECURITY_SENSITIVE_PATHS = {
     "certificate",
 }
 RISK_DIFF_SIZE_THRESHOLD = 500  # lines changed
-
-# Progress event prefix (for agent-to-agent communication)
-PROGRESS_PREFIX = "[KILO_PROGRESS]"
-
-
-def emit_progress(event: str, **kwargs) -> None:
-    """
-    Emit a progress event for calling agents (Kilo CLI or Cascade) to parse.
-
-    Events are JSON objects prefixed with PROGRESS_PREFIX for easy filtering.
-    Calling agents can grep for this prefix and parse the JSON.
-
-    Example output:
-        [KILO_PROGRESS] {"event": "model_start", "model": "claude-opus-4.6", "attempt": 1}
-        [KILO_PROGRESS] {"event": "escalation", "from": "claude-opus-4.6", "to": "gemini-3.1-pro"}
-        [KILO_PROGRESS] {"event": "complete", "model": "gemini-3.1-pro", "verdict": "PASS"}
-    """
-    data = {"event": event, "timestamp": datetime.now(UTC).isoformat(), **kwargs}
-    print(f"{PROGRESS_PREFIX} {json.dumps(data)}", file=sys.stderr, flush=True)
 
 
 # =============================================================================
@@ -702,7 +674,21 @@ MODEL_SUCCESSORS = {
 }
 
 # Models that support reasoning (required for code review)
-# Now checked via has_reasoning() from db_models - queries DB directly
+REASONING_MODELS = {
+    "kilo/anthropic/claude-opus-4.6",
+    "kilo/anthropic/claude-sonnet-4.6",
+    "kilo/anthropic/claude-opus-4.5",
+    "kilo/anthropic/claude-sonnet-4.5",
+    "kilo/openai/gpt-5.2-codex",
+    "kilo/openai/gpt-5.1-codex-max",
+    "kilo/openai/gpt-5.3-codex",
+    "kilo/openai/gpt-5.3-codex-spark",
+    "kilo/openai/o3",
+    "kilo/openai/o3-mini",
+    "kilo/google/gemini-2.5-pro",
+    "kilo/google/gemini-3-flash-preview",
+    "kilo/google/gemini-3.1-pro-preview",
+}
 
 # =============================================================================
 # BACKUP MODELS & FALLBACK CHAIN
@@ -752,17 +738,18 @@ BACKUP_MODELS = {
     "kilo/google/gemini-3-flash-preview": (0.75, 3.0, "Speed fallback"),
 }
 
-# Fallback chain cache (loaded from DB once per process)
-_FALLBACK_CHAIN_CACHE: list[str] | None = None
-
-
-def _load_fallback_chain() -> list[str]:
-    """Load fallback chain from DB (reviewing role, priority order)."""
-    global _FALLBACK_CHAIN_CACHE
-    if _FALLBACK_CHAIN_CACHE is None:
-        _FALLBACK_CHAIN_CACHE = get_fallback_chain("reviewing")
-    return _FALLBACK_CHAIN_CACHE
-
+# Ordered fallback chain (tried in order if model unavailable)
+MODEL_FALLBACK_CHAIN = [
+    "kilo/anthropic/claude-opus-4.6",  # 1. Primary - best quality
+    "kilo/openai/gpt-5.3-codex",  # 2. Opus-like quality, cheaper
+    "kilo/anthropic/claude-sonnet-4.6",  # 3. Cheaper Anthropic
+    "kilo/openai/gpt-5.2-codex",  # 4. OpenAI alternative
+    "kilo/google/gemini-3.1-pro-preview",  # 5. Heavy reasoning
+    "kilo/openai/gpt-5.3-codex-spark",  # 6. Fast iteration
+    "kilo/openai/o3-mini",  # 7. Fast reasoning
+    "kilo/google/gemini-2.5-pro",  # 8. Next-gen Google
+    "kilo/google/gemini-3-flash-preview",  # 9. Speed fallback
+]
 
 # =============================================================================
 # TIERED MODEL SELECTION (Cost-Aware Escalation)
@@ -781,30 +768,49 @@ def _load_fallback_chain() -> list[str]:
 #   --no-escalate        Stay at initial tier
 
 # =============================================================================
-# DB-DRIVEN TIER MODELS (from kilo_agents.db)
+# VALIDATED TIER_MODELS (March 2026 Benchmarks)
 # =============================================================================
-# Models loaded from agent_roles table for 'reviewing' role.
-# Source of truth: scripts/kilo-benchmarks/kilo_agents.db
-# Blocked models are automatically excluded.
+# Models tested with actual Kilo reviews on lint, security, architecture files.
+# See: docs/reference/kilo/REVIEWER_BENCHMARK_RESULTS.md
 #
-# VARIANT RECOMMENDATIONS (thinking depth, not model-specific):
+# VARIANT RECOMMENDATIONS:
 #   - minimal: Skip for reviews (too shallow)
 #   - low: Quick lint checks only (~10s, lowest cost)
 #   - high: Standard reviews (~20s, best quality/cost) [DEFAULT]
 #   - max: Complex/security reviews (~40s, highest quality)
 #
-
-# Cache for DB-loaded tier models (loaded once per process)
-_TIER_MODELS_CACHE: dict[str, list[str]] | None = None
-
-
-def _load_tier_models() -> dict[str, list[str]]:
-    """Load tier models from DB (cached)."""
-    global _TIER_MODELS_CACHE
-    if _TIER_MODELS_CACHE is None:
-        _TIER_MODELS_CACHE = get_tier_models("reviewing")
-    return _TIER_MODELS_CACHE
-
+TIER_MODELS = {
+    "Free": [
+        # Untested free tier models
+        "kilo/minimax/minimax-m2.1",
+        "kilo/zhipu/glm-4.7-free",
+        "kilo/qwen/qwen3-coder",
+    ],
+    "Economy": [
+        # VALIDATED: 16s, 95%+ accuracy, $0.02/review
+        "kilo/google/gemini-3.1-flash-lite-preview",
+        "kilo/google/gemini-3-flash-preview",
+        "kilo/z-ai/glm-4.7-flash",
+    ],
+    "Balanced": [
+        # VALIDATED: glm-4.7 best value at $0.008/msg, 90%+ accuracy
+        "kilo/z-ai/glm-4.7",
+        "kilo/openai/gpt-5.2-codex",
+        "kilo/xai/grok-4.1-fast",
+    ],
+    "Strong": [
+        # VALIDATED: glm-5 21s, 100% accuracy, $0.05/review
+        "kilo/z-ai/glm-5",
+        # VALIDATED: claude-sonnet 100% security accuracy
+        "kilo/anthropic/claude-sonnet-4.6",
+        "kilo/openai/gpt-5.4",
+        "kilo/google/gemini-3.1-pro-preview",
+    ],
+    "Prime": [
+        "kilo/anthropic/claude-opus-4.6",
+        "kilo/openai/gpt-5.4-pro",
+    ],
+}
 
 # Variant recommendations per risk level (auto-selected)
 VARIANT_BY_RISK = {
@@ -825,14 +831,12 @@ def get_auto_variant(risk_level: str, user_variant: str | None = None) -> str:
     return VARIANT_BY_RISK.get(risk_level, "high")
 
 
-# Escalation paths: strategy → list of tiers to try
-# Uses tier names for compatibility, maps to DB priorities internally
 ESCALATION_PATHS = {
-    "free": ["Free", "Economy", "Balanced"],  # Start cheap
-    "economy": ["Economy", "Balanced", "Strong"],  # Start economy
-    "standard": ["Balanced", "Strong", "Prime"],  # Start balanced
-    "premium": ["Strong", "Prime"],  # Start strong
-    "critical": ["Prime"],  # Only best
+    "free": ["Free", "Economy", "Balanced"],  # Per spec
+    "economy": ["Economy", "Balanced", "Strong"],  # Per spec
+    "standard": ["Balanced", "Strong", "Prime"],
+    "premium": ["Strong", "Prime"],
+    "critical": ["Prime"],
 }
 
 RISK_TO_STRATEGY = {
@@ -842,28 +846,21 @@ RISK_TO_STRATEGY = {
     "critical": "premium",
 }
 
-# Tier cost estimates (for budget checks)
 TIER_ESTIMATED_COST = {
     "Free": 0.0,
-    "Economy": 0.02,
-    "Balanced": 0.01,
-    "Strong": 0.05,
-    "Prime": 0.50,
+    "Economy": 0.02,  # gemini-flash-lite: $0.02/review
+    "Balanced": 0.01,  # glm-4.7: $0.008/msg (best value)
+    "Strong": 0.05,  # glm-5: $0.05, sonnet: $0.04
+    "Prime": 0.50,  # opus: $0.08+ per review
 }
 
 
 def get_tier_model(tier: str, failed_models: set[str] | None = None) -> str | None:
-    """Get first available model from tier, skipping failed ones.
-
-    Models are loaded from DB (reviewing role assignments).
-    Blocked models are already excluded by DB query.
-    """
+    """Get first available model from tier, skipping failed ones."""
     if failed_models is None:
         failed_models = set()
-
-    tier_models = _load_tier_models()
-    for model in tier_models.get(tier, []):
-        if model not in failed_models and not is_model_blocked(model):
+    for model in TIER_MODELS.get(tier, []):
+        if model not in failed_models:
             return model
     return None
 
@@ -1754,8 +1751,8 @@ def get_validated_model(model: str) -> str:
     # Check for successor
     validated = check_model_deprecation(model)
 
-    # Validate model has reasoning capability - auto-select if not (DB-driven)
-    if not has_reasoning(validated):
+    # Validate model has reasoning capability - auto-select if not
+    if validated not in REASONING_MODELS:
         fallback = _DEFAULT_MODEL_FALLBACK
         print(
             f"[KILO] Model {validated} lacks reasoning capability. Auto-selecting {fallback}",
@@ -1787,9 +1784,8 @@ def get_model_with_fallback(preferred: str, failed_models: set[str] | None = Non
     if failed_models is None:
         failed_models = set()
 
-    # Build candidate list starting with preferred (fallback chain from DB)
-    fallback_chain = _load_fallback_chain()
-    candidates = [preferred] + [m for m in fallback_chain if m != preferred]
+    # Build candidate list starting with preferred
+    candidates = [preferred] + [m for m in MODEL_FALLBACK_CHAIN if m != preferred]
 
     for model in candidates:
         if model not in failed_models:
@@ -2048,9 +2044,6 @@ def parse_kilo_jsonl(output: str) -> dict[str, Any]:
             # Handle error events from Kilo (e.g., network issues, model not found)
             if event_type == "error":
                 error_data = obj.get("error", {})
-                # Handle both dict and string error formats
-                if isinstance(error_data, str):
-                    raise RuntimeError(f"Kilo API error: {error_data}")
                 error_name = error_data.get("name", "UnknownError")
                 error_msg = error_data.get("data", {}).get("message", str(error_data))
                 raise RuntimeError(f"Kilo API error ({error_name}): {error_msg}")
@@ -2101,9 +2094,9 @@ def parse_kilo_jsonl(output: str) -> dict[str, Any]:
         raise RuntimeError(f"Failed to parse Kilo JSONL output: {e}") from e
 
 
-def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_output=False):
+def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval):
     """
-    Monitor subprocess with liveness checking and optional streaming.
+    Monitor subprocess with liveness checking.
 
     Uses reader threads to avoid blocking on pipe reads.
     Tracks BOTH stdout AND stderr growth to detect progress.
@@ -2113,7 +2106,6 @@ def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_out
         idle_timeout: seconds without output before killing
         hard_timeout: absolute max seconds before killing
         poll_interval: seconds between health checks
-        stream_output: if True, stream JSONL text events to stderr in real-time
 
     Returns:
         (stdout_bytes, stderr_bytes, returncode)
@@ -2153,7 +2145,6 @@ def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_out
     last_output_time = start_time
     stdout_chunks = []
     stderr_chunks = []
-    text_buffer = ""  # For streaming text extraction
 
     while proc.poll() is None:
         time.sleep(poll_interval)
@@ -2166,25 +2157,6 @@ def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_out
             if msg_type == "data":
                 stdout_chunks.append(data)
                 got_output = True
-
-                # Stream text events in real-time (extract from JSONL)
-                if stream_output:
-                    text_buffer += data.decode("utf-8", errors="replace")
-                    # Parse complete JSONL lines
-                    while "\n" in text_buffer:
-                        line, text_buffer = text_buffer.split("\n", 1)
-                        if line.strip():
-                            try:
-                                obj = json.loads(line)
-                                # Extract and print text events
-                                if obj.get("type") == "text":
-                                    text = obj.get("text", "") or obj.get("part", {}).get(
-                                        "text", ""
-                                    )
-                                    if text:
-                                        print(text, end="", file=sys.stderr, flush=True)
-                            except json.JSONDecodeError:
-                                pass  # Not valid JSON, skip
 
         # Drain stderr queue - ALSO counts as progress
         while not stderr_queue.empty():
@@ -2203,15 +2175,11 @@ def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_out
         if idle > idle_timeout:
             proc.kill()
             proc.wait()
-            if stream_output:
-                print(f"\n[TIMEOUT] Idle: no output for {idle:.0f}s", file=sys.stderr)
             raise TimeoutError(f"Idle timeout: no output for {idle:.0f}s (limit {idle_timeout}s)")
 
         if elapsed > hard_timeout:
             proc.kill()
             proc.wait()
-            if stream_output:
-                print(f"\n[TIMEOUT] Hard limit: {elapsed:.0f}s", file=sys.stderr)
             raise TimeoutError(
                 f"Hard timeout: total runtime {elapsed:.0f}s (limit {hard_timeout}s)"
             )
@@ -2229,9 +2197,6 @@ def _monitor_process(proc, idle_timeout, hard_timeout, poll_interval, stream_out
         msg_type, data = stderr_queue.get_nowait()
         if msg_type == "data":
             stderr_chunks.append(data)
-
-    if stream_output:
-        print("", file=sys.stderr)  # Newline after streaming
 
     return (b"".join(stdout_chunks), b"".join(stderr_chunks), proc.returncode)
 
@@ -2320,9 +2285,6 @@ async def run_kilo(
             # Monitor in executor for async compatibility
             import concurrent.futures
 
-            # Stream output when verbose - lets you watch the agent work
-            stream_output = config.verbose
-
             loop = asyncio.get_event_loop()
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 stdout, stderr, returncode = await loop.run_in_executor(
@@ -2332,7 +2294,6 @@ async def run_kilo(
                     idle_timeout,
                     hard_timeout,
                     poll_interval,
-                    stream_output,
                 )
 
             # Check for retryable failures
@@ -2491,31 +2452,6 @@ BLOCKING RULES (HARD)
 - BLOCKER: exploitable security issue, data loss, breaks core functionality, secrets exposure.
 - MAJOR: spec violation, likely runtime failure, incorrect behavior in main path.
 - MINOR: non-critical improvement, optional docs, small cleanups not required by spec.
-
-**COMPLETE EXAMPLE (use this exact structure):**
-```json
-{{
-  "verdict": "FAIL",
-  "summary": "SQL injection vulnerability in user input handling.",
-  "issues": [
-    {{
-      "severity": "BLOCKER",
-      "category": "SECURITY",
-      "file": "src/db.py",
-      "lines": "L45-L48",
-      "why": "User input directly concatenated into SQL query enables injection attacks.",
-      "fix_hint": "Use parameterized queries with cursor.execute(sql, params).",
-      "snippet": "cursor.execute(f\"SELECT * FROM users WHERE id = {{user_id}}\")",
-      "evidence": {{"type": "diff", "ref": "src/db.py:L45-L48"}}
-    }}
-  ],
-  "plan_coverage": [
-    {{"requirement": "Add user lookup endpoint", "status": "satisfied", "evidence": "src/api.py:L20-L30"}}
-  ],
-  "notes": [],
-  "stats": {{"files_reviewed": 2, "lines_changed": 45, "issues_by_severity": {{"BLOCKER": 1, "MAJOR": 0, "MINOR": 0}}}}
-}}
-```
 
 FILES TO REVIEW:
 {files_list}
@@ -3398,12 +3334,7 @@ def run_pre_review_gates() -> dict[str, Any]:
         return {
             "overall": "FAIL",
             "summary": "0/0 checks (script not found)",
-            "failures": [
-                {
-                    "check": "script_exists",
-                    "error": "scripts/final_gate.py not found - pre-review gates are required",
-                }
-            ],
+            "failures": ["scripts/final_gate.py not found - pre-review gates are required"],
             "warnings": [],
             "raw_output": "",
         }
@@ -4367,49 +4298,24 @@ async def review_loop(
             config.variant = current_variant
 
             try:
-                # Model error retry loop - try up to 4 fallbacks (all 5 assigned models)
+                # Model error retry loop - limited to 1 fallback for fast solo workflow
                 max_model_retries = 3
                 model_escalation_count = 0
-                max_model_escalations = 4  # Try all 5 assigned reviewing models
+                max_model_escalations = 1  # One fallback only
                 review_result = None
-                for model_attempt in range(max_model_retries):
+                for _ in range(max_model_retries):
                     try:
-                        # Emit progress: model starting
-                        emit_progress(
-                            "model_start",
-                            model=config.model,
-                            attempt=model_attempt + 1,
-                            iteration=iteration,
-                            escalation=model_escalation_count,
-                        )
-
                         review_result = await run_review(
                             files=files,
                             config=config,
                             iteration=iteration,
                             previous_issues=previous_issues,
                         )
-
-                        # Emit progress: model succeeded
-                        emit_progress(
-                            "model_success",
-                            model=config.model,
-                            verdict=review_result.verdict if review_result else "UNKNOWN",
-                        )
                         break  # Success, exit retry loop
                     except Exception as model_error:
                         # Track failed model
                         if config.model:
                             escalation_state.failed_models.add(config.model)
-
-                        # Emit progress: model failed
-                        emit_progress(
-                            "model_failed",
-                            model=config.model,
-                            reason=str(model_error)[:200],
-                            escalation=model_escalation_count,
-                        )
-
                         print(
                             f"  [MODEL ERROR] {config.model} failed: {model_error}",
                             file=sys.stderr,
@@ -4417,20 +4323,13 @@ async def review_loop(
 
                         # Check if escalation is allowed
                         if config.no_escalate:
-                            emit_progress("abort", reason="no_escalate_flag")
                             print("  [ABORT] --no-escalate set, not retrying", file=sys.stderr)
                             raise
 
-                        # Check escalation limit
+                        # Check escalation limit (1 fallback max)
                         if model_escalation_count >= max_model_escalations:
-                            emit_progress(
-                                "abort",
-                                reason="escalation_limit",
-                                tried=model_escalation_count,
-                                max=max_model_escalations,
-                            )
                             print(
-                                f"  [ABORT] Model escalation limit reached ({max_model_escalations} fallbacks tried)",
+                                "  [ABORT] Model escalation limit reached (1 fallback max)",
                                 file=sys.stderr,
                             )
                             raise
@@ -4438,22 +4337,11 @@ async def review_loop(
                         # Try next model in escalation path
                         next_model, next_tier = get_next_model_from_state(escalation_state)
                         if not next_model:
-                            emit_progress("abort", reason="no_more_models")
                             print("  [ABORT] No more models in escalation path", file=sys.stderr)
                             raise
 
                         # Increment ONLY after getting valid next_model
                         model_escalation_count += 1
-
-                        # Emit progress: escalating to next model
-                        emit_progress(
-                            "escalation",
-                            from_model=config.model,
-                            to_model=next_model,
-                            tier=next_tier,
-                            escalation=model_escalation_count,
-                            max_escalations=max_model_escalations,
-                        )
 
                         print(
                             f"  [ESCALATE] Retrying with {next_model} ({next_tier} tier) (escalation {model_escalation_count}/{max_model_escalations})",
@@ -4683,16 +4571,6 @@ async def review_loop(
                     if config.persist_session:
                         save_session(session_state)
 
-                    # Emit progress: review complete
-                    emit_progress(
-                        "complete",
-                        status="CLEAN",
-                        verdict="PASS",
-                        model=config.model,
-                        iterations=iteration,
-                        files_count=len(files_reviewed),
-                    )
-
                     return FinalReport(
                         status="CLEAN",
                         verdict="PASS",
@@ -4749,14 +4627,6 @@ async def review_loop(
                     if config.persist_session:
                         save_session(session_state)
 
-                    emit_progress(
-                        "complete",
-                        status="ERROR",
-                        verdict="FAIL",
-                        model=config.model,
-                        reason="no_issues_on_fail",
-                    )
-
                     return FinalReport(
                         status="ERROR",
                         verdict="FAIL",
@@ -4775,15 +4645,6 @@ async def review_loop(
                 session_state.usage = asdict(usage)
                 if config.persist_session:
                     save_session(session_state)
-
-                emit_progress(
-                    "complete",
-                    status="CLEAN",
-                    verdict="PASS",
-                    model=config.model,
-                    iterations=iteration,
-                    minor_issues=len(review_result.issues),
-                )
 
                 return FinalReport(
                     status="CLEAN",
@@ -4804,14 +4665,6 @@ async def review_loop(
                 session_state.usage = asdict(usage)
                 if config.persist_session:
                     save_session(session_state)
-
-                emit_progress(
-                    "complete",
-                    status="NEEDS_FIX",
-                    verdict="FAIL",
-                    model=config.model,
-                    issues_count=len(review_result.issues),
-                )
 
                 return FinalReport(
                     status="NEEDS_FIX",

@@ -3,10 +3,12 @@
 Discover all available Kilo agents and save to kilo_all_agents.json.
 
 This creates a comprehensive catalog of ALL available Kilo models (~332)
-with pricing, provider info, and capabilities.
+with pricing, provider info, and capabilities including reasoning.
 
 Usage:
-    python scripts/discover_kilo_agents.py
+    python scripts/kilo-benchmarks/discover_kilo_agents.py
+
+When updating: Also update README.md in this folder.
 """
 
 import json
@@ -15,23 +17,57 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-FABRIK_ROOT = Path(__file__).parent.parent
-ALL_AGENTS_JSON = FABRIK_ROOT / "scripts" / "kilo_all_agents.json"
+SCRIPT_DIR = Path(__file__).parent
+ALL_AGENTS_JSON = SCRIPT_DIR / "kilo_all_agents.json"
 
 
 def log(msg: str) -> None:
     print(f"[kilo-discover] {msg}")
 
 
-def get_all_models() -> list[str]:
-    """Get all available Kilo models."""
+def get_all_models_verbose() -> list[dict]:
+    """Get all available Kilo models with full metadata."""
     result = subprocess.run(
-        ["kilo", "models"],
+        ["kilo", "models", "--verbose"],
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=120,
     )
-    models = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+
+    models = []
+    current_model = None
+    json_lines = []
+    brace_depth = 0
+
+    for line in result.stdout.split("\n"):
+        line_stripped = line.strip()
+
+        # Model ID line (starts with kilo/)
+        if line_stripped.startswith("kilo/") and brace_depth == 0:
+            current_model = line_stripped
+            continue
+
+        # Count braces in this line
+        open_braces = line.count("{")
+        close_braces = line.count("}")
+
+        # Start or continue JSON block
+        if open_braces > 0 or brace_depth > 0:
+            if brace_depth == 0 and open_braces > 0:
+                json_lines = []
+            json_lines.append(line)
+            brace_depth += open_braces - close_braces
+
+            # Complete JSON block
+            if brace_depth == 0 and json_lines:
+                try:
+                    data = json.loads("\n".join(json_lines))
+                    data["full_name"] = current_model or f"kilo/{data.get('id', 'unknown')}"
+                    models.append(data)
+                except json.JSONDecodeError as e:
+                    log(f"Failed to parse JSON for {current_model}: {e}")
+                json_lines = []
+
     return models
 
 
@@ -89,15 +125,66 @@ def parse_model_info(full_name: str) -> dict:
 
 
 def main() -> int:
-    log("Discovering all Kilo agents...")
+    log("Discovering all Kilo agents with full metadata...")
 
-    models = get_all_models()
-    log(f"Found {len(models)} models")
+    raw_models = get_all_models_verbose()
+    log(f"Found {len(raw_models)} models with metadata")
 
     agents = []
-    for full_name in models:
-        info = parse_model_info(full_name)
-        agents.append(info)
+    reasoning_count = 0
+    for model_data in raw_models:
+        full_name = model_data.get("full_name", "")
+        basic_info = parse_model_info(full_name)
+
+        # Extract ALL capabilities from verbose output
+        caps = model_data.get("capabilities", {})
+        input_caps = caps.get("input", {})
+        output_caps = caps.get("output", {})
+        cost = model_data.get("cost", {})
+        cache_cost = cost.get("cache", {})
+        limit = model_data.get("limit", {})
+
+        agent = {
+            **basic_info,
+            "name": model_data.get("name", basic_info["model_name"]),
+            "status": model_data.get("status", "unknown"),
+            "release_date": model_data.get("release_date"),
+            # Core capabilities
+            "has_reasoning": caps.get("reasoning", False),
+            "has_tools": caps.get("toolcall", False),
+            "has_attachment": caps.get("attachment", False),
+            "has_temperature": caps.get("temperature", False),
+            "has_interleaved": caps.get("interleaved", False),
+            # Input modalities
+            "input_text": input_caps.get("text", False),
+            "input_image": input_caps.get("image", False),
+            "input_audio": input_caps.get("audio", False),
+            "input_video": input_caps.get("video", False),
+            "input_pdf": input_caps.get("pdf", False),
+            # Output modalities
+            "output_text": output_caps.get("text", False),
+            "output_image": output_caps.get("image", False),
+            "output_audio": output_caps.get("audio", False),
+            "output_video": output_caps.get("video", False),
+            # Cost (per token)
+            "input_cost": cost.get("input", 0),
+            "output_cost": cost.get("output", 0),
+            "cache_read_cost": cache_cost.get("read", 0),
+            "cache_write_cost": cache_cost.get("write", 0),
+            # Limits
+            "context_window": limit.get("context", 0),
+            "max_output": limit.get("output", 0),
+            # Variants (for thinking modes etc)
+            "variants": model_data.get("variants", {}),
+            # Raw capabilities for future use
+            "_raw_capabilities": caps,
+        }
+        agents.append(agent)
+
+        if agent["has_reasoning"]:
+            reasoning_count += 1
+
+    log(f"Models with reasoning: {reasoning_count}/{len(agents)}")
 
     # Group by provider for stats
     providers = {}

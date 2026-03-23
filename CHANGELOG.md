@@ -4,6 +4,80 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Complete Workflow Documentation (2026-03-23)
+
+**What:** Created comprehensive workflow documentation for all major automation scripts.
+
+**New files:**
+- `docs/workflows/KILO_REVIEW_WORKFLOW.md` (~400 lines) — Full documentation for `kilo_code_review.py`
+  - Commands reference, workflow steps, model selection & escalation
+  - Session management, review schema, configuration options
+  - Environment variables, exit codes, troubleshooting
+  
+- `docs/workflows/FINAL_GATE_WORKFLOW.md` (~350 lines) — Full documentation for `final_gate.py`
+  - All 4 workflow phases documented
+  - Complete enforcement scripts reference (27 checks)
+  - Configuration, exit codes, troubleshooting
+
+**Moved:**
+- `docs/reference/kilo/kilo-benchmarks.md` → `docs/workflows/KILO_AGENT_MANAGEMENT.md`
+  - Renamed for clarity: covers agent discovery, benchmarking, role assignment
+
+**Updated:**
+- `docs/reference/fabrik-scaffold-specs.md` — Updated to reflect current scaffold output (2026-03-23)
+  - New project tree showing all 184 directories, 333 files
+  - Added enforcement scripts, quality gates, templates sections
+  - Updated Files Created table (70+ files vs old 32)
+  - Updated generated code examples to match current output
+  - **Fixed:** Removed incorrect symlink claims — all files are COPIED (not symlinked)
+
+**Workflow docs now cover:**
+- KILO_REVIEW_WORKFLOW.md — AI code review workflow
+- KILO_AGENT_MANAGEMENT.md — Agent discovery, benchmarking, role assignment
+- FINAL_GATE_WORKFLOW.md — Pre-commit quality gates
+- DOCUMENTATOR_WORKFLOW.md — Documentation generation (existing)
+
+### Fixed - Kilo code review escalation crash on missing final_gate.py (2026-03-23)
+
+**What:** Fixed `'str' object has no attribute 'get'` error that caused all models in escalation path to fail instantly.
+
+**Root cause:** In `run_pre_review_gates()`, when `scripts/final_gate.py` was not found, the `failures` list contained a plain string instead of the expected dict structure `{"check": "...", "error": "..."}`.
+
+**Fix:** Changed line 3401 in `kilo_code_review.py`:
+```python
+# Before (broken)
+"failures": ["scripts/final_gate.py not found - pre-review gates are required"]
+
+# After (fixed)
+"failures": [{"check": "script_exists", "error": "scripts/final_gate.py not found..."}]
+```
+
+**Verification:** All 5 reviewing models now run successfully through escalation test.
+
+### Added - Kilo Documentation Enforcer with Auto-Generation (2026-03-23)
+
+**What:** Professional-grade documentation enforcement + auto-generation using Kilo CLI with dynamic agent selection.
+
+**New script:** `scripts/kilo_docs_enforcer.py` (~1,399 lines)
+- **Detection:** Analyzes git diff for documentation triggers
+- **Enforcement:** Blocks commits if required docs missing (CRITICAL/MAJOR/MINOR severity)
+- **Auto-generation:** Generates missing docs using Kilo agents from `kilo_agents.db`
+- Dynamic agent selection: complexity → agent priority → model selection
+- 11 comprehensive trigger patterns (new functions, endpoints, env vars, breaking changes, etc.)
+- 3 prompt templates (CHANGELOG, API docs, env var docs) with fallback to generic
+- Supports `--detect`, `--enforce`, `--auto-generate` modes (text/JSON output)
+- Configurable via KILO_DOCS_THRESHOLD env var
+- Full async Kilo CLI integration with retries, timeouts, fallback chains
+- **Live streaming:** `--verbose` mode streams AI generation in real-time (like kilo_review)
+- **Non-blocking monitoring:** Threaded queue-based process monitoring (prevents hangs)
+
+**Trigger coverage:**
+- CRITICAL: new public API, endpoints, env vars, breaking changes, CLI args (blocks merge)
+- MAJOR: large code changes, schema changes, error handling, Docker changes
+- MINOR: refactoring, test coverage, performance optimizations
+
+**Integration:** Designed for Traycer workflow Phase 2 (after code passes, before final verification).
+
 ### Fixed - Session poisoning: removed all /opt/fabrik leaks from scaffolded projects (2026-03-23)
 
 **What:** Eliminated all pathways for AI agents in child projects to discover `/opt/fabrik` parent directory.

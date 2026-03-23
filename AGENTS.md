@@ -17,6 +17,7 @@
 | **Coder** | `[CODER]` + `[ALL AGENTS]` sections | `[TRAYCER ONLY]`, `[REVIEWER]`, `[FIXER]` |
 | **Reviewer** | `[REVIEWER]` + `[ALL AGENTS]` sections | `[TRAYCER ONLY]`, `[CODER]`, `[FIXER]` |
 | **Fixer** | `[FIXER]` + `[ALL AGENTS]` sections | `[TRAYCER ONLY]`, `[CODER]`, `[REVIEWER]` |
+| **Documentator** | `[ALL AGENTS]` sections + Step 4 | `[TRAYCER ONLY]`, `[CODER]`, `[REVIEWER]`, `[FIXER]` |
 
 **Coding agents receive their execution instructions via prompt templates, not this file.**
 
@@ -201,18 +202,28 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 
 ## [ALL AGENTS] Mandatory Workflow
 
-**PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → KILO_REVIEW → FIX → VERIFY → COMMIT**
+**PLAN → IMPLEMENT → SELF_REVIEW → KILO_REVIEW → DOCUMENTATOR → FINAL_GATE → VERIFY → COMMIT**
 
 | Step | Who | Gate |
 |------|-----|------|
 | 1 — Plan | Traycer | Spec: requirements, edge cases, env vars, DB changes, docs impact |
-| 2 — Implement | Coder | Phase scope only |
-| 2.5 — Self-review | Coder | MANDATORY before Final Gate |
-| 3 — Final Gate | Coder | `python scripts/final_gate.py` → all PASS |
-| 4 — Kilo Review | Reviewer | `python scripts/kilo_code_review.py staged --plan "..."` |
-| 5 — Fix | Fixer | All severities fixed, re-run until verdict=PASS |
+| 2 — Implement | Coder (mid-tier) / Cascade | Phase scope only |
+| 2.5 — Self-review | Coder / Cascade | MANDATORY before Kilo Review |
+| 3 — Kilo Review | Reviewer (report-only) | `python scripts/kilo_code_review.py staged --plan "..."` — findings only, never fixes |
+| 3b — Fix review findings | Coder / Cascade | CODER fixes all Kilo review findings (BLOCKER, MAJOR, MINOR) |
+| **4 — Documentator** | **Documentator (cheap)** | **`python scripts/kilo_docs_enforcer.py --auto-generate` → `--enforce`** |
+| 5 — Final Gate | Coder / Cascade | `python scripts/final_gate.py` → all PASS (code + docs) |
 | 6 — Verify | Traycer | SPEC compliance confirmed |
 | 7 — Commit | Traycer | 4 blockers only: large-files, merge-conflict, private-key, secrets |
+
+**Conditional FIXER loop** (triggered only when Step 6 VERIFY fails):
+
+| Workflow | Who Fixes | Trigger |
+|----------|-----------|--------|
+| Kilo CLI (YOLO) | Fixer (expensive, separate agent) | Receives Traycer verification comments |
+| Cascade (interactive) | Cascade itself (fixer role) | User relays Traycer verification comments in chat |
+
+After fix → Traycer re-verifies. Loop until PASS, then proceed to Step 7.
 
 **Traycer commits. Coding agents never commit.**
 **Skipping any step = workflow must stop and the step re-run.**
@@ -234,20 +245,30 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 
 ## [ALL AGENTS] Security & Quality Gates
 
-### Final Gate (Steps 3 and 5)
-```bash
-python scripts/final_gate.py
-```
-Runs: auto-fix formatting → static analysis (ruff, mypy, bandit, semgrep) → repo consistency.
-Fix all failures. Re-run until PASS. Do not proceed with failures.
-
-### Kilo Review (Step 4 — Report-Only Default)
+### Kilo Review (Step 3 — Report-Only)
 ```bash
 git add <intended_files>
 python scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
 Automatic: risk detection → model selection → variant selection → session isolation.
-Fix ALL severities (BLOCKER, MAJOR, MINOR). Max 5 iterations before escalating to Traycer.
+**Reviewer AI never fixes** — findings only. CODER fixes all severities (BLOCKER, MAJOR, MINOR).
+Max 5 iterations before escalating to Traycer.
+
+### Documentator (Step 4)
+```bash
+python scripts/kilo_docs_enforcer.py --auto-generate
+git add CHANGELOG.md docs/reference/*.md docs/CONFIGURATION.md .env.example
+python scripts/kilo_docs_enforcer.py --enforce
+```
+Auto-generates: CHANGELOG entries, API docs, env var docs. Uses cheap agents from `kilo_agents.db`.
+
+### Final Gate (Step 5)
+```bash
+python scripts/final_gate.py
+```
+Runs: auto-fix formatting → static analysis (ruff, mypy, bandit, semgrep) → repo consistency.
+**Runs once after DOCUMENTATOR** — validates both code quality AND documentation.
+Fix all failures. Re-run until PASS. Do not proceed with failures.
 
 ### Enforcement Scripts (`scripts/enforcement/`)
 

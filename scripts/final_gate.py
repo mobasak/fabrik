@@ -5,14 +5,14 @@ Final Gate - Deterministic checks for coder AI before Traycer commit.
 Catches deterministic failures BEFORE expensive LLM review (Kilo).
 Saves tokens by not letting Kilo analyze lint/syntax/convention errors.
 
-Workflow Usage (9-Step Agile Flow):
+Workflow Usage (7-Step AGENTS.md Flow):
     Step 3: python scripts/final_gate.py            # Pre-Kilo (deterministic cleanup)
     Step 5: python scripts/final_gate.py            # Post-Kilo (verify Kilo fixes)
-    Step 7: python scripts/final_gate.py --sync     # Sync-only (docs side-effects)
+    --sync: Manual utility only (not part of 7-step workflow)
 
 All Flags:
     (default)    Fix mode, no sync (Steps 3/5 - main quality gate)
-    --sync       Sync-only mode (Step 7 - no quality checks, just sync)
+    --sync       Sync-only mode (manual utility - no quality checks, just sync)
     --check      CI mode - no fixes, no sync (read-only verification)
     --no-stage   Don't auto-stage modified files
 

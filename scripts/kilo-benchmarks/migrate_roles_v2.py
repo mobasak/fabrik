@@ -13,11 +13,6 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 
-# Models to block with reasons (from benchmark results)
-BLOCKED_MODELS = {
-    "deepseek/deepseek-v3.2": "Too slow (109s per review) - REMOVED from benchmarks",
-}
-
 
 def log(msg: str) -> None:
     print(f"[migrate] {msg}")
@@ -119,7 +114,9 @@ def run_migration() -> None:
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_roles_history_role ON agent_roles_history(role)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_roles_history_date ON agent_roles_history(archived_at)")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_roles_history_date ON agent_roles_history(archived_at)"
+    )
 
     # Restore history data
     cursor.execute("""
@@ -132,22 +129,8 @@ def run_migration() -> None:
 
     conn.commit()
 
-    # Step 5: Block known slow models
-    log("Step 5: Blocking known slow/problematic models...")
-    for model_id, reason in BLOCKED_MODELS.items():
-        cursor.execute(
-            "UPDATE agents SET blocked = 1, block_reason = ? WHERE id = ?",
-            (reason, model_id),
-        )
-        if cursor.rowcount > 0:
-            log(f"  Blocked: {model_id} ({reason})")
-        else:
-            log(f"  Model not found: {model_id}")
-
-    conn.commit()
-
-    # Step 6: Update v_role_assignments view
-    log("Step 6: Updating v_role_assignments view...")
+    # Step 5: Update v_role_assignments view
+    log("Step 5: Updating v_role_assignments view...")
     cursor.execute("DROP VIEW IF EXISTS v_role_assignments")
     cursor.execute("""
         CREATE VIEW v_role_assignments AS
