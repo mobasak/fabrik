@@ -17,6 +17,8 @@ GOOD_PATTERNS = [
     r"\.ping\(",
     r"check.*connection",
     r"test.*db",
+    r"\.health\(",  # Client.health() calls (e.g., CoolifyClient, DNSClient)
+    r"check_coolify|check_dns",  # Fabrik-specific health check functions
 ]
 
 

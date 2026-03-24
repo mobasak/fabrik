@@ -236,6 +236,50 @@ semgrep --config auto src/
 - Documentation only
 - Config files only
 
+#### check_test_proposal.py
+
+**Purpose:** Enforce One-Test Rule from Solo-Dev Creed (Step 2.5 Decision-Grade Audit).
+
+**When triggered:**
+- After Step 2.5 Internal Audit
+- During Step 5 Final Gate (this script)
+- Validates that agents documented test justification BEFORE implementation
+
+**Validates presence of:**
+- `One-Test Rule` heading or section
+- `Given` — Initial state
+- `When` — Action taken
+- `Then` — Expected result
+
+**Location checked:** `docs/development/plans/` (latest plan file)
+
+**Skipped when:** No plans directory or no plan files exist
+
+**Why this matters:**
+- **Forces High-Leverage Thinking:** Solo developers avoid low-value "coverage" tests
+- **Prevents Forgotten Context:** Documents how to verify core logic for future maintenance
+- **Ensures AI Discipline:** Stops agents from prioritizing "clean code" over correctness
+- **Zero-Speculation:** Eliminates need to "guess" how to test during implementation
+
+**Example format:**
+```markdown
+## One-Test Rule
+
+**Why:** Database connection pooling is the highest risk area — if pool exhausts,
+entire API becomes unresponsive. This test verifies graceful degradation.
+
+**Contract:**
+- **Given:** Connection pool at max capacity (10/10 connections)
+- **When:** New API request arrives
+- **Then:** Request waits up to 5s, then returns 503 with retry-after header
+- **Mocked:** Database responses (simulate slow queries)
+- **Real:** Connection pool manager, timeout logic
+```
+
+**Exit codes:**
+- `0` — Proposal found or no plan exists
+- `1` — Plan exists but missing required keywords
+
 #### check_structure.py
 
 **Purpose:** Validate project follows Fabrik directory structure.

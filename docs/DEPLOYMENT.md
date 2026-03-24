@@ -161,8 +161,8 @@ Fabrik uses **dns-manager** service for automated domain management (supports bo
 - **Auto-configured:** DNS A records are created automatically when deploying with a domain in the spec
 
 **Required env vars:**
-- Namecheap: `NAMECHEAP_API_URL` (service-based)
-- Cloudflare: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`
+- DNS Manager: `DNS_MANAGER_URL` (service-based, handles Namecheap + Cloudflare)
+- Or direct Cloudflare: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`
 
 No manual DNS configuration needed - dns-manager handles record creation for both providers.
 

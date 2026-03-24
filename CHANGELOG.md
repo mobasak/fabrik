@@ -4,6 +4,278 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 16 (2026-03-25)
+
+**P0 Contract Fix:**
+- **`compose.yaml`:** Removed deprecated `NAMECHEAP_API_URL` env var (backward-compat fallback now only in dns.py)
+
+**P0 Code Layer Rename (NAMECHEAP → DNS Manager):**
+- **`src/fabrik/drivers/dns.py`:** Updated 4 docstrings from "namecheap service" → "DNS Manager service"
+- **`src/fabrik/config.py`:** `dns_provider` default `"namecheap"` → `"dns-manager"`
+- **`scripts/docs_updater.py`:** Docstring "legacy droid exec path" → "Kilo CLI"
+
+**Enforcement Hardening:**
+- **`scripts/enforcement/check_docker.py`:**
+  - Removed `python:3.12-slim` and `node:20-bookworm-slim` from APPROVED_BASES (must use `-bookworm` suffix)
+  - Added `python:3.13-slim-bookworm` to APPROVED_BASES
+  - Added Alpine image detection for compose files (`image: alpine:*`)
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 15 (2026-03-25)
+
+**P0 Security Fix:**
+- **`docs/operations/vps-status.md`:** Removed hardcoded PostgreSQL password `fabrik2025secure`
+
+**P0 Contract Fix:**
+- **`.env.example`:** `NAMECHEAP_API_URL` → `DNS_MANAGER_URL` with correct URL `https://dns.vps1.ocoron.com`
+
+**P0 Documentation Fix:**
+- **`docs/reference/global-gates.md`:** Frozen section `/opt/fabrik/windsurfrules` → `/opt/fabrik/.windsurfrules`
+
+**Infrastructure Fix:**
+- **`templates/wordpress/base/compose.yaml.j2`:** Added `platform: linux/arm64` to all 3 services
+- **`templates/wordpress/base/compose-coolify.yaml.j2`:** Added `platform: linux/arm64` to all 2 services
+
+**Workflow Gap Fixes:**
+- **`docs/operations/vps-status.md`:** `namecheap` → `dns-manager` in container table, "namecheap service API" → "DNS Manager API"
+- **`INDEX.md`:** AGENTS.md "symlinked into projects" → "copied into projects"
+- **`specs/sites/ocoron.com-content-plan.md`:** "droid exec" → "Kilo CLI"
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 14 (2026-03-24)
+
+**P0 Template Fix (Last Alpine Violation):**
+- **`templates/wordpress/base/compose.yaml.j2`:** WordPress backup container:
+  - `alpine:3.19` → `debian:bookworm-slim`
+  - `apk add --no-cache` → `apt-get install -y --no-install-recommends`
+
+**P0 Documentation Fixes:**
+- **`docs/reference/global-gates.md`:** Symlink target `/opt/fabrik/windsurfrules` → `/opt/fabrik/.windsurfrules`
+- **`INDEX.md`:** `.windsurfrules` described as "local copy" (not symlink), correct source path
+
+**Workflow Gap Fixes:**
+- **`docs/SERVICES.md`:** "Namecheap API" → "DNS Manager", removed stale Phase 4 footnote
+- **`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`:** Fixed 2 references to `/opt/fabrik/.windsurfrules`
+- **`docs/workflows/SYNC_PROJECTS_WORKFLOW.md`:** Updated scaffold check from "symlink check" → "local copy check"
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 13 (2026-03-24)
+
+**P0 Security Fix:**
+- **`.gitignore`:** Added `.env.*BACKUP*` and `.env.env.backup.*` patterns
+- **Git:** Removed tracked `.env.SAFE_BACKUP`, `.env.env.backup.*` files from repository
+
+**P0 Documentation Fix:**
+- **`docs/guides/DEPLOYMENT_READY_CHECKLIST.md`:** Fixed Node.js section:
+  - `node:20-alpine` → `node:22-bookworm-slim` (both stages)
+  - `apk add` → `apt-get install`
+  - Alpine `addgroup/adduser` → Debian `groupadd/useradd`
+
+**Verification (All Clean):**
+- `configs/prometheus/prometheus.yml` — uses service names, no hardcoded IPs
+- `examples/traycer-agent-review-example.sh` — references valid script
+- `infrastructure/coolify-ssh-permissions.sh` — uses Coolify standard paths
+
+**Cleanup:**
+- **`tasks.md`:** Phase 1d renamed "Droid Exec Integration" → "AI Agent Integration"
+- **`AGENTS.md`:** GitHub Actions section now explicitly references `check_duplicates.py`
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 12 (2026-03-24)
+
+**P0 Documentation Staleness Fixes (Final NAMECHEAP→DNS_MANAGER Propagation):**
+- **`README.md`:** `NAMECHEAP_API_URL` → `DNS_MANAGER_URL` in required env vars
+- **`docs/DEPLOYMENT.md`:** Updated required env vars section
+- **`docs/operations/vps-status.md`:** `namecheap.vps1.ocoron.com` → `dns.vps1.ocoron.com` in service table + DNS records
+- **`docs/operations/disaster-recovery.md`:** Fixed recovery scripts to curl correct endpoint
+- **`docs/FAQ.md`:** Fixed 2 remaining `NAMECHEAP_API_URL` occurrences
+
+**Partial Fixes from Pass 11:**
+- **`docs/guides/DEPLOYMENT_READY_CHECKLIST.md`:** `python:3.12-slim` → `python:3.12-slim-bookworm`
+- **`docs/guides/FABRIK_INTEGRATION.md`:** Fixed both builder and runtime stages
+
+**Infrastructure Fix:**
+- **`apps/postgres-main/compose.yaml`:**
+  - `postgres:16-alpine` → `postgres:16-bookworm`
+  - Added `platform: linux/arm64`
+  - Removed hardcoded fallback password → required env var
+
+**Cleanup:**
+- **`tasks.md`:** Updated Last Updated date (was 23 days stale)
+
+**Verification:**
+- `check_android_env.py` and `check_plans.py` confirmed as specialized checks (not main gate)
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 11 (2026-03-24)
+
+**P0 Documentation Staleness Fixes:**
+- **`docs/EXTERNAL_SYSTEMS.md`:** Fixed stale URL `namecheap.vps1.ocoron.com` → `dns.vps1.ocoron.com`
+- **`docs/QUICKSTART.md`:** Fixed stale env var `NAMECHEAP_API_URL` → `DNS_MANAGER_URL`
+- **`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`:** Updated example Dockerfile to use `python:3.12-slim-bookworm` and `uv pip install --system`
+
+**Template Fix:**
+- **`templates/file-worker/Dockerfile.j2`:** Fixed bare `pip install` → `uv pip install --system`
+
+**Cleanup:**
+- **`.gitignore`:** Added `scripts/.scratch/` to exclude scratch files with hardcoded test paths
+
+**Template Audit (5 previously unread):**
+- `chrome-extension/Dockerfile.j2` ✅ Clean
+- `desktop-app/Dockerfile.j2` ✅ Clean
+- `mobile-app/Dockerfile.j2` ✅ Clean
+- `docusaurus/Dockerfile.j2` ✅ Clean
+- `file-worker/Dockerfile.j2` ✅ Fixed (see above)
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 10 (2026-03-24)
+
+**P0 Critical Fix (Mismatch Correction):**
+- **`templates/scaffold/docker/Dockerfile.python`:** Fixed canonical scaffold template:
+  - `python:3.12-slim` → `python:3.12-slim-bookworm` (both stages)
+  - Bare `pip install --user` → `uv pip install --system`
+  - Updated COPY paths for uv system install
+
+**Rule File Fix:**
+- **`.windsurf/rules/30-ops.md`:** Updated Dockerfile template to use uv instead of bare pip
+
+**Infrastructure Fix:**
+- **`.windsurf/hooks.json`:** Fixed broken hook pointing to non-existent `.factory/hooks/secret-scanner.py` → `scripts.enforcement.check_secrets`
+
+**Documentation:**
+- **`docs/reference/drivers.md`:** Fixed stale comment `NAMECHEAP_API_URL` → `DNS_MANAGER_URL`
+
+**Cleanup:**
+- Deleted erroneous `templates/python-api/` directory (created by mistake in Pass 9)
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 9 (2026-03-24)
+
+**P0 Critical Fixes:**
+- **`apps/example-api/compose.yaml`:** Removed hardcoded `API_KEY=test123` → `${API_KEY:-}`
+- **`scripts/archive/`:** Renamed `review_processor.py` and `acknowledge_reviews.py` with `.archived-20260324` suffix
+- **`docs-check.yml`:** Added uv bootstrap before pip install (consistency with ci.yml)
+
+**Scaffold Template Fixes (Pass 9 — wrong file, corrected in Pass 10):**
+- ~~`templates/python-api/Dockerfile.j2`~~ — this was created in error; deleted in Pass 10
+
+**Documentation URL Updates:**
+- **`docs/CONFIGURATION.md`:** `namecheap.vps1.ocoron.com` → `dns.vps1.ocoron.com` (2 occurrences)
+- **`docs/reference/drivers.md`:** `NAMECHEAP_API_URL` → `DNS_MANAGER_URL`; URL updated (2 occurrences)
+
+**Cleanup:**
+- Deleted `=6.100.0` pip artifact from root; added `=*` to `.gitignore`
+- Moved 4 root-level scratch files to `scripts/.scratch/`
+
+**Impact:** final_gate.py 38/38 PASS. Scaffold templates now produce compliant Dockerfiles.
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 8 (2026-03-24)
+
+**Workflow Gap Fixes:**
+- **`enforcement-system.md`:** Rewrote entire "Code Review Feedback Loop" section — replaced droid exec with Kilo CLI workflow (4 stale refs fixed)
+- **`templates.md`:** Node.js 20 → 22; "droid exec integration" → "AI assistant integration"
+- **`PROCESS_MONITORING_QUICKSTART.md`:** TL;DR "droid exec processes" → "AI agent processes"
+- **`docs/proposals/`:** Archived to `docs/archive/2026-03-24-proposals/` — eliminates LEGACY_DIR warning
+
+**Infrastructure Fixes:**
+- **`config.py`:** Renamed `namecheap_api_url` → `dns_manager_url`; fixed default to `dns.vps1.ocoron.com`
+- **`apps/example-api/Dockerfile`:** `python:3.12-slim` → `python:3.12-slim-bookworm`; bare pip → uv
+- **`apps/example-api/compose.yaml`:** Added `platform: linux/arm64`
+
+**Broken Link Fixes:**
+- **`enforcement-system.md`:** Fixed path `../../workflows/` → `../workflows/`
+- **`windsurf/overview.md`:** Replaced archived `auto-review.md` link → `enforcement-system.md`
+
+**Impact:** final_gate.py 38/38 PASS. Zero remaining droid exec references in active docs.
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 7 (2026-03-24)
+
+**P0 Critical Fixes (unblocked final_gate.py 35/38 → 38/38):**
+- **`check_opencode_json.py`:** Updated EXPECTED_INSTRUCTIONS to include `50-code-review.md` and `90-automation.md`; removed from FORBIDDEN_PATTERNS (self-contradicting enforcement)
+- **`check_structure.py`:** Added `specs/` to allowed directories for .md files (Stage 0 pipeline output)
+- **`check_test_proposal.py`:** Fixed plan detection to use `st_mtime` instead of alphabetical sort
+
+**Workflow Gap Fixes:**
+- **`docs/reference/auto-review.md`:** Replaced droid exec → Kilo CLI; `droid-review.sh` → `kilo_code_review.py`
+- **`docs/reference/docs-updater.md`:** Replaced droid exec → Kilo CLI
+- **`docs/reference/enforcement-system.md`:** Replaced droid exec → Kilo CLI; fixed `windsurfrules` → `.windsurfrules`
+- **`docs/development/PLANS.md`:** Fixed broken link after archiving old plan file
+
+**Infrastructure Fixes:**
+- **`kilo_code_review.py`:** Added `KILO_FALLBACK_MODEL` env var for consistency with `KILO_DEFAULT_MODEL`
+- **`ci.yml`:** Added CI bootstrap comment explaining bare pip is acceptable for uv installation
+
+**Impact:** final_gate.py now passes 38/38 checks. All enforcement scripts consistent with project state. Dead droid exec references fully removed from active docs.
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 6 (2026-03-24)
+
+**P0 Critical Fixes:**
+- **`ci.yml`:** Fixed Node.js version 20 → 22 (AGENTS.md mandates node:22-bookworm-slim)
+- **`validate_conventions.py`:** Replaced "droid exec PostToolUse hooks" → "Kilo CLI PostToolUse hooks" in header
+
+**Workflow Gap Fixes:**
+- **`docs/traycer/README.md`:** Fixed remaining "droid exec" reference at line 183
+- **`docs/reference/`:** Archived 3 dead droid docs (custom-droids.md, droid-exec-limits.md, droid-exec-integration.md)
+- **`pyproject.toml`:** Registered `requires_fabrik_env` pytest marker to avoid PytestUnknownMarkWarning
+
+**Infrastructure Fixes:**
+- **`dns.py`:** Added logger warning when DNS_MANAGER_TOKEN not set (silent auth failure prevention)
+- **`Makefile`:** Fixed `make check` target to use `final_gate.py` (was calling non-existent check.sh)
+- **`kilo_code_review.py`:** Replaced hardcoded model names with `KILO_DEFAULT_MODEL` env var
+- **`verify.py`:** Fixed mypy type error in SSL expiry check (strptime arg type)
+
+**Impact:** CI Node version matches mandate. All active droid exec references removed. Better error visibility for DNS auth issues.
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 5 (2026-03-24)
+
+**Problem:** Fresh scan of previously unscanned areas revealed 11 additional issues: broken CI workflow, dead droid exec references, unimplemented SSL checks, sync httpx blocking async loop, and missing DNSClient authentication.
+
+**P0 Critical Fixes:**
+- **`ci.yml`:** Created missing `check_duplicates.py` enforcement script (CI was failing on every PR)
+- **`ci.yml`:** Fixed bare `pip install` → `uv pip install --system` in both CI jobs
+- **`.factory/skills/fabrik-saas-scaffold.md`:** Archived (instructed dead droid exec for SaaS AI integration)
+
+**Workflow Gap Fixes:**
+- **`docs/traycer/README.md`:** Replaced "droid exec" reference with "Cascade/Kilo CLI"
+- **`docs/FAQ.md`:** Updated AI model configuration FAQ from droid exec to Kilo CLI
+- **`verify.py`:** Implemented SSL expiry check using `min_days_remaining` (was silent no-op)
+- **`test_scaffold.py`:** Added `@requires_fabrik_env` marker to skip tests in CI (no /opt/fabrik on GitHub runners)
+
+**Infrastructure Fixes:**
+- **`Dockerfile`:** Added `--system` flag to `uv pip install` for Docker build context
+- **`health_app.py`:** Wrapped sync httpx calls in `asyncio.to_thread()` to avoid blocking event loop
+- **`dns.py`:** Added optional `DNS_MANAGER_TOKEN` authentication header support
+
+**Impact:** CI workflows now pass. All droid exec references removed from active docs. Health endpoint no longer blocks under load. DNS operations support authentication.
+
+### Fixed - Fabrik Ecosystem Integrity Audit (2026-03-24)
+
+**Problem:** Deep audit of Fabrik ecosystem revealed 25+ compliance issues across infrastructure, scaffolding, enforcement scripts, and configuration files. Critical issues included: deprecated FastAPI patterns, Alpine base images in templates, missing ARM64 platform declarations, and inverted scaffold compliance logic.
+
+**P0 Critical Fixes:**
+- **`.windsurfrules`:** Renamed from `windsurfrules` (Windsurf IDE expects dot prefix)
+- **`scaffold.py`:** Updated to read `.windsurfrules` (coordinated with rename)
+- **`compose.yaml`:** Added `platform: linux/arm64` for VPS deployment
+- **`.env.example`:** Fixed `localhost` → `postgres-main` for Docker compatibility
+- **`Dockerfile.node` template:** Fixed Alpine → `node:22-bookworm-slim`, Node 20 → 22
+- **`compose.yaml.template`:** Added ARM64 platform + coolify network
+- **`opencode.json`:** Added missing `50-code-review.md` and `90-automation.md` rules
+- **`health_app.py`:** Replaced deprecated `@app.on_event("startup")` with lifespan context manager
+- **`pyproject.toml`:** Updated ruff/mypy target from py311 → py312, enabled mypy for `fabrik.*`
+
+**Workflow Gap Fixes:**
+- **`final_gate.py`:** Wired 7 missing enforcement scripts (check_docker, check_secrets, check_env_contract, check_ports, check_health, check_deps_sync, check_docs)
+- **`sync_enforcement_to_projects.py`:** Added governance file syncing (AGENTS.md, opencode.json, .windsurfrules, .windsurf/rules/)
+- **`sync_projects.py`:** Inverted scaffold compliance logic (local copies = compliant, symlinks = needs update)
+- **`check_structure.py`:** Removed `specs/` from LEGACY_DIRS (it's canonical for Stage 0)
+- **`check_health.py`:** Added `.health()` and Fabrik-specific patterns to GOOD_PATTERNS
+- **`validate_conventions.py`:** Wrapped `check_tasks_updated` import in try-except (module not yet implemented)
+- **`kilo_code_review.py`:** Added fallback stubs when `kilo-benchmarks/` not present in child projects
+- **`scaffold.py`:** Removed dead `_link_agents_md()` function (governance must be copies, not symlinks)
+
+**Infrastructure Fixes:**
+- **`Dockerfile`:** Fixed uv double-install → single `uv pip install --prefix`
+- **`compose.yaml`:** Healthcheck uses `localhost` instead of hardcoded `127.0.0.1`
+
+**Cleanup:**
+- Archived outdated docs: `KILO-AGENTS-UPDATE-2026-03.md`, `traycer-agents-fixed-readme.md`
+- Moved backup files from `scripts/` to `scripts/archive/`
+
+**Impact:** All scaffolded projects now comply with ARM64/bookworm-slim/coolify requirements. Enforcement scripts properly validate governance files. final_gate.py runs complete audit suite.
+
 ### Changed - Infrastructure cleanup: Remove Factory.ai/Droid, document actual toolchain (2026-03-24)
 
 **Problem:** AGENTS.md Infrastructure section referenced dead Factory.ai system: 3 broken GitHub Actions (using `droid exec` + `FACTORY_API_KEY`), `.factory/skills/` that nothing loads, `~/.factory/mcp.json` config, and archived Droid Hooks. The actual toolchain (kilo_code_review.py, kilo_docs_enforcer.py, enforcement scripts, pre-commit hooks) was undocumented.

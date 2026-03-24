@@ -59,7 +59,7 @@ python -m fabrik.config --verify
 **Why this approach:** Fabrik uses a deployed microservice instead of direct API calls.
 
 **Architecture:**
-- `namecheap` service runs at `https://namecheap.vps1.ocoron.com`
+- DNS Manager service runs at `https://dns.vps1.ocoron.com`
 - Handles DNS record creation/updates
 - No need for individual API keys per project
 
@@ -223,7 +223,7 @@ docker exec -it myapp psql $DATABASE_URL
 **Fix:**
 ```bash
 # Check service health
-curl https://namecheap.vps1.ocoron.com/health
+curl https://dns.vps1.ocoron.com/health
 
 # Fallback: Use direct API
 NAMECHEAP_API_USER=youruser

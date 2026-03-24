@@ -49,13 +49,33 @@ from typing import Any
 from jsonschema import Draft7Validator
 
 # DB-driven model selection (replaces hardcoded TIER_MODELS and REASONING_MODELS)
-sys.path.insert(0, str(Path(__file__).parent / "kilo-benchmarks"))
-from db_models import (
-    get_fallback_chain,
-    get_tier_models,
-    has_reasoning,
-    is_model_blocked,
-)
+# Handle missing kilo-benchmarks/ when script is synced to child projects
+_kilo_benchmarks_path = Path(__file__).parent / "kilo-benchmarks"
+if _kilo_benchmarks_path.exists():
+    sys.path.insert(0, str(_kilo_benchmarks_path))
+    from db_models import (
+        get_fallback_chain,
+        get_tier_models,
+        has_reasoning,
+        is_model_blocked,
+    )
+else:
+    # Fallback stubs when kilo-benchmarks/ not present (child projects)
+    # Use env vars for models, with reasonable fallbacks
+    _DEFAULT_MODEL = os.getenv("KILO_DEFAULT_MODEL", "anthropic:claude-sonnet-4-5-20250929")
+    _FALLBACK_MODEL = os.getenv("KILO_FALLBACK_MODEL", "openai:gpt-4.1")
+
+    def get_fallback_chain(role: str) -> list[str]:
+        return [_DEFAULT_MODEL, _FALLBACK_MODEL]
+
+    def get_tier_models(role: str) -> dict[str, list[str]]:
+        return {"default": [_DEFAULT_MODEL]}
+
+    def has_reasoning(model: str) -> bool:
+        return "thinking" in model or "o1" in model or "o3" in model
+
+    def is_model_blocked(model: str) -> bool:
+        return False
 
 # =============================================================================
 # CONFIGURATION

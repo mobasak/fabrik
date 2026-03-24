@@ -471,5 +471,5 @@ Each ticket:
 - [Traycer Integration Guide](README.md)
 - [Traycer YOLO Workflow](traycer-yolo-workflow.md)
 - [Traycer Refactoring Workflow](traycer-refactoring-workflow.md)
-- [Development Workflow](../guides/DEVELOPMENT_WORKFLOW.md)
+- [Mandatory Workflow](../../AGENTS.md) — See `[ALL AGENTS] Mandatory Workflow` section
 - [AGENTS.md](../../AGENTS.md)

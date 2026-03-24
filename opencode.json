@@ -6,9 +6,11 @@
     ".windsurf/rules/20-typescript.md",
     ".windsurf/rules/30-ops.md",
     ".windsurf/rules/40-documentation.md",
+    ".windsurf/rules/50-code-review.md",
     ".windsurf/rules/60-saas-ui.md",
     ".windsurf/rules/70-chrome-ext.md",
     ".windsurf/rules/80-mobile.md",
+    ".windsurf/rules/90-automation.md",
     "AGENTS.md"
   ]
 }

@@ -7,6 +7,7 @@ so Coolify healthchecks and Uptime Kuma can detect upstream outages.
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, status
@@ -18,7 +19,17 @@ from fabrik.drivers.dns import DNSClient
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Fabrik", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup/shutdown events."""
+    # Startup: ensure runtime directories exist
+    ensure_directories()
+    yield
+    # Shutdown: nothing to clean up
+
+
+app = FastAPI(title="Fabrik", version="0.1.0", lifespan=lifespan)
 
 
 def _normalize_status(payload: Any) -> tuple[str, dict[str, Any]]:
@@ -41,12 +52,11 @@ def _normalize_status(payload: Any) -> tuple[str, dict[str, Any]]:
     return ("healthy" if healthy else "unhealthy"), details
 
 
-def check_coolify() -> dict[str, Any]:
-    """Ping Coolify's health endpoint.
+def _check_coolify_sync() -> dict[str, Any]:
+    """Ping Coolify's health endpoint (sync version for thread offload).
 
     Returns a dict with `status` (healthy/unhealthy) and details/error.
     """
-
     try:
         client = CoolifyClient()
         response = client.health()
@@ -57,9 +67,8 @@ def check_coolify() -> dict[str, Any]:
         return {"status": "unhealthy", "error": str(exc)}
 
 
-def check_dns() -> dict[str, Any]:
-    """Ping DNS manager health endpoint."""
-
+def _check_dns_sync() -> dict[str, Any]:
+    """Ping DNS manager health endpoint (sync version for thread offload)."""
     try:
         client = DNSClient()
         response = client.health()
@@ -70,19 +79,16 @@ def check_dns() -> dict[str, Any]:
         return {"status": "unhealthy", "error": str(exc)}
 
 
-@app.on_event("startup")
-async def _startup() -> None:
-    """Ensure runtime directories exist for logs/cache."""
-
-    ensure_directories()
-
-
 @app.get("/health")
 async def health() -> JSONResponse:
     """Aggregate health across Coolify and DNS dependencies."""
+    import asyncio
 
-    coolify_status = check_coolify()
-    dns_status = check_dns()
+    # Run sync httpx calls in thread pool to avoid blocking the event loop
+    coolify_status, dns_status = await asyncio.gather(
+        asyncio.to_thread(_check_coolify_sync),
+        asyncio.to_thread(_check_dns_sync),
+    )
 
     checks = {"coolify": coolify_status, "dns": dns_status}
     all_healthy = all(entry.get("status") == "healthy" for entry in checks.values())

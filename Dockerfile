@@ -10,13 +10,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     ca-certificates \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir --prefix /install .
+RUN uv pip install --system --no-cache --prefix /install .
 
 
 FROM python:3.12-slim-bookworm AS runtime

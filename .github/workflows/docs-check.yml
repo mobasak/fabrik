@@ -31,7 +31,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pyyaml
+          # CI bootstrap: bare pip acceptable here (no uv available yet)
+          pip install uv
+          uv pip install --system pyyaml
 
       - name: Run docs check
         run: |

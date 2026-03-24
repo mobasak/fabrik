@@ -1,1 +1,18 @@
-/opt/fabrik/windsurfrules
+# Windsurf Cascade Project Rules (Shim)
+
+# Windsurf Cascade Project Rules
+
+## Rule Location
+
+Authoritative rules are in `.windsurf/rules/` directory.
+
+## For Traycer-Managed Tasks
+
+Defer to:
+- AGENTS.md
+- .windsurf/rules/*
+
+## Canonical Rule Sources
+
+- Project rules: `.windsurf/rules/` (this project)
+- Global rules: `global_rules.md` (Windsurf global, optional)

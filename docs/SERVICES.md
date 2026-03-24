@@ -26,11 +26,10 @@ fabrik plan my-api      # Execute and exit
 |---------|----------|---------|----------|
 | **Coolify** | Yes | Container deployment | None |
 | **PostgreSQL** | Yes | Database (via Coolify) | None |
-| **Namecheap API** | Yes* | DNS management | Cloudflare (Phase 4) |
+| **DNS Manager** | Yes | DNS management | — |
 | **Backblaze B2** | Yes | Backup storage | None |
 | **Redis** | Optional | Caching | Works without |
 
-*Required until Phase 4 Cloudflare migration.
 
 ## VPS Services (Managed by Coolify)
 

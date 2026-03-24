@@ -125,10 +125,12 @@ class PostconditionChecker:
         return PostconditionResult(name, CheckResult.FAIL, "Max retries exceeded")
 
     def check_ssl(self, name: str = "ssl_valid") -> PostconditionResult:
-        """Verify SSL certificate is valid."""
+        """Verify SSL certificate is valid and not expiring soon."""
+        from datetime import UTC, datetime
+
         config = self._get_check_config(name)
         domain = config.get("domain", "")
-        # TODO: implement SSL expiry check using min_days_remaining
+        min_days = config.get("min_days_remaining", 14)  # Default: warn if <14 days
 
         if not domain:
             return PostconditionResult(name, CheckResult.SKIP, "No domain configured")
@@ -146,7 +148,46 @@ class PostconditionChecker:
                             {"domain": domain},
                         )
 
-                    # Check expiry would go here
+                    # Check expiry
+                    not_after_raw = cert.get("notAfter", "")
+                    not_after = str(not_after_raw) if not_after_raw else ""
+                    if not_after:
+                        # Parse SSL date format: 'Mar 24 23:59:59 2026 GMT'
+                        expiry = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+                        expiry = expiry.replace(tzinfo=UTC)
+                        now = datetime.now(UTC)
+                        days_remaining = (expiry - now).days
+
+                        if days_remaining < 0:
+                            return PostconditionResult(
+                                name,
+                                CheckResult.FAIL,
+                                f"SSL certificate EXPIRED for {domain}",
+                                {"domain": domain, "expired": not_after},
+                            )
+                        if days_remaining < min_days:
+                            return PostconditionResult(
+                                name,
+                                CheckResult.FAIL,
+                                f"SSL expires in {days_remaining} days (threshold: {min_days})",
+                                {
+                                    "domain": domain,
+                                    "days_remaining": days_remaining,
+                                    "expires": not_after,
+                                },
+                            )
+
+                        return PostconditionResult(
+                            name,
+                            CheckResult.PASS,
+                            f"SSL valid for {domain} ({days_remaining} days remaining)",
+                            {
+                                "domain": domain,
+                                "days_remaining": days_remaining,
+                                "expires": not_after,
+                            },
+                        )
+
                     return PostconditionResult(
                         name,
                         CheckResult.PASS,

@@ -1,6 +1,7 @@
 services:
   wordpress:
     image: wordpress:{{ php_version | default('php8.2') }}-apache
+    platform: linux/arm64
     restart: unless-stopped
     environment:
       WORDPRESS_DB_HOST: db
@@ -31,6 +32,7 @@ services:
 
   db:
     image: mariadb:10.11
+    platform: linux/arm64
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: "{{ db_root_password }}"

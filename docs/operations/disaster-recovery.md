@@ -264,7 +264,7 @@ cd /opt/duplicati && docker compose up -d
 # - proxy.vps1.ocoron.com → NEW_IP
 # - captcha.vps1.ocoron.com → NEW_IP
 # - translator.vps1.ocoron.com → NEW_IP
-# - namecheap.vps1.ocoron.com → NEW_IP
+# - dns.vps1.ocoron.com → NEW_IP
 # - emailgateway.vps1.ocoron.com → NEW_IP
 # - status.vps1.ocoron.com → NEW_IP
 # - backup.vps1.ocoron.com → NEW_IP
@@ -279,7 +279,7 @@ docker ps
 # Test each service
 curl -s https://proxy.vps1.ocoron.com/health
 curl -s https://translator.vps1.ocoron.com/health
-curl -s https://namecheap.vps1.ocoron.com/health
+curl -s https://dns.vps1.ocoron.com/health
 curl -s https://emailgateway.vps1.ocoron.com/health
 
 # Access Coolify

@@ -127,13 +127,16 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
         return 1, f"Command not found: {cmd[0]}"
 
 
-def run_optional_check(script_path: str, check_name: str, *args: str) -> tuple[str, bool, str]:
+def run_optional_check(
+    script_path: str, check_name: str, *args: str, module: str | None = None
+) -> tuple[str, bool, str]:
     """Run an optional enforcement check, skipping if script doesn't exist.
 
     Args:
         script_path: Relative path to script from FABRIK_ROOT
         check_name: Display name for the check
         *args: Additional command arguments
+        module: If provided, run as 'python -m <module>' instead of direct script
 
     Returns:
         (check_name, passed, message) tuple
@@ -142,7 +145,10 @@ def run_optional_check(script_path: str, check_name: str, *args: str) -> tuple[s
     if not full_path.exists():
         return (check_name, True, "(check not present, skipping)")
 
-    code, out = run_cmd([PYTHON, str(full_path)] + list(args))
+    if module:
+        code, out = run_cmd([PYTHON, "-m", module] + list(args))
+    else:
+        code, out = run_cmd([PYTHON, str(full_path)] + list(args))
     return (check_name, code == 0, out if code != 0 else "")
 
 
@@ -568,6 +574,42 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
     )
     results.append(
         run_optional_check("scripts/enforcement/check_compose_services.py", "Compose Services Docs")
+    )
+    # Infrastructure enforcement checks (ARM64, secrets, ports, health)
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_docker.py", "Docker (ARM64, No-Alpine, HEALTHCHECK)"
+        )
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_secrets.py", "Secrets (Zero Hardcoding)")
+    )
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_env_contract.py",
+            ".env Contract Sync",
+            module="scripts.enforcement.check_env_contract",
+        )
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_ports.py", "Port Registration (PORTS.md)")
+    )
+    results.append(
+        run_optional_check("scripts/enforcement/check_health.py", "Health Endpoint Validation")
+    )
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_deps_sync.py",
+            "Dependencies Sync",
+            module="scripts.enforcement.check_deps_sync",
+        )
+    )
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_docs.py",
+            "Documentation Completeness",
+            module="scripts.enforcement.check_docs",
+        )
     )
     results.append(run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check"))
     results.append(

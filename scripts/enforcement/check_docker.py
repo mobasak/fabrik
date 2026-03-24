@@ -11,12 +11,14 @@ COMPOSE_PORT_PATTERN = re.compile(r'["\']\$\{?PORT[^}]*\}?:(\d+)["\']|["\'](\d+)
 
 APPROVED_BASES = [
     "python:3.12-slim-bookworm",
-    "python:3.12-slim",
+    "python:3.13-slim-bookworm",
     "node:22-bookworm-slim",
-    "node:20-bookworm-slim",
     "debian:bookworm-slim",
     "ubuntu:24.04",
 ]
+
+# Pattern to detect Alpine in compose image: directives
+COMPOSE_ALPINE_PATTERN = re.compile(r"image:\s*['\"]?alpine", re.IGNORECASE)
 
 
 def check_compose_arm64(file_path: Path) -> list:
@@ -62,7 +64,7 @@ def check_compose_arm64(file_path: Path) -> list:
             CheckResult(
                 check_name="docker_arm64",
                 severity=Severity.ERROR,
-                message=f"Platform specified but not ARM64-compatible (VPS requires linux/arm64)",
+                message="Platform specified but not ARM64-compatible (VPS requires linux/arm64)",
                 file_path=str(file_path),
                 line_number=line_num,
                 fix_hint="Change to 'platform: linux/arm64'",
@@ -79,10 +81,31 @@ def check_file(file_path: Path) -> list:
     results = []
     name = file_path.name.lower()
 
-    # Check compose files for ARM64
+    # Check compose files for ARM64 and Alpine images
     if name in ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"):
         results.extend(check_compose_arm64(file_path))
-        # Don't return yet, continue to check ports/networking below
+        # Check for Alpine images in compose files
+        try:
+            content = file_path.read_text(encoding="utf-8")
+            if COMPOSE_ALPINE_PATTERN.search(content):
+                line_num = 1
+                for i, line in enumerate(content.splitlines(), 1):
+                    if COMPOSE_ALPINE_PATTERN.search(line):
+                        line_num = i
+                        break
+                results.append(
+                    CheckResult(
+                        check_name="docker",
+                        severity=Severity.ERROR,
+                        message="Alpine image detected in compose file. Use Debian/Ubuntu for ARM64.",
+                        file_path=str(file_path),
+                        line_number=line_num,
+                        fix_hint="Use debian:bookworm-slim or specific -bookworm-slim variants",
+                    )
+                )
+        except (OSError, UnicodeDecodeError):
+            pass
+        return results
 
     # Only check Dockerfiles for the rest
     if name != "dockerfile" and not name.endswith(".dockerfile"):

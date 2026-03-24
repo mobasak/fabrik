@@ -5,11 +5,14 @@ This client calls the dns-manager service at VPS (dns.vps1.ocoron.com),
 which provides unified access to both Namecheap and Cloudflare DNS.
 """
 
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -24,10 +27,10 @@ class DNSRecord:
 
 class DNSClient:
     """
-    DNS management client that wraps the namecheap API service.
+    DNS management client that wraps the DNS Manager service API.
 
-    The namecheap service is deployed at VPS and handles:
-    - Namecheap API authentication
+    The DNS Manager service is deployed at VPS and handles:
+    - Multi-provider DNS authentication (Namecheap, Cloudflare)
     - Rate limiting
     - Safe record merging (doesn't overwrite existing records)
 
@@ -44,23 +47,42 @@ class DNSClient:
         domains = dns.list_domains()
     """
 
-    def __init__(self, base_url: str | None = None, timeout: float = 30.0):
+    def __init__(
+        self,
+        base_url: str | None = None,
+        token: str | None = None,
+        timeout: float = 30.0,
+    ):
         """
         Initialize DNS client.
 
         Args:
             base_url: DNS Manager service URL. Defaults to DNS_MANAGER_URL env var
                      or https://dns.vps1.ocoron.com
+            token: API token for authentication. Defaults to DNS_MANAGER_TOKEN env var.
+                   If not set, requests are made without authentication (for local/dev use).
             timeout: Request timeout in seconds
         """
         self.base_url = base_url or os.getenv(
             "DNS_MANAGER_URL", os.getenv("NAMECHEAP_API_URL", "https://dns.vps1.ocoron.com")
         )
+        self.token = token or os.getenv("DNS_MANAGER_TOKEN")
         self.timeout = timeout
-        self._client = httpx.Client(timeout=timeout)
+
+        # Build headers - include auth if token is available
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        else:
+            logger.warning(
+                "DNS_MANAGER_TOKEN not set — DNS requests will be unauthenticated. "
+                "Set DNS_MANAGER_TOKEN in .env for production use."
+            )
+
+        self._client = httpx.Client(timeout=timeout, headers=headers)
 
     def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
-        """Make HTTP request to namecheap service."""
+        """Make HTTP request to DNS Manager service."""
         url = f"{self.base_url}{endpoint}"
         response = self._client.request(method, url, **kwargs)
         response.raise_for_status()
@@ -71,7 +93,7 @@ class DNSClient:
     # =========================================================================
 
     def health(self) -> dict[str, Any]:
-        """Check namecheap service health."""
+        """Check DNS Manager service health."""
         return self._request("GET", "/health")
 
     def get_rate_limit(self) -> dict[str, Any]:
@@ -135,7 +157,7 @@ class DNSClient:
         Add A record for subdomain.
 
         This is the most common operation - point subdomain.domain.com to an IP.
-        Uses the namecheap service's safe merge logic.
+        Uses the DNS Manager service's safe merge logic.
 
         Args:
             domain: Base domain (e.g., "ocoron.com")

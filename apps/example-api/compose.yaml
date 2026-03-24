@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    platform: linux/arm64
     container_name: example-api
     restart: unless-stopped
     labels:
@@ -16,7 +17,7 @@ services:
       - DEBUG=false
       - PYTHONUNBUFFERED=1
       - TZ=UTC
-      - API_KEY=test123
+      - API_KEY=${API_KEY:-}
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/main}
     deploy:
       resources:

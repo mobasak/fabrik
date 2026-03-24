@@ -23,6 +23,10 @@ OPT_ROOT = Path("/opt")
 # Scripts to copy
 CORE_SCRIPTS = ["final_gate.py", "kilo_code_review.py", "docs_updater.py", "update_agents_toc.py"]
 
+# Governance files to sync (validated by final_gate.py check_symlinks())
+GOVERNANCE_FILES = ["AGENTS.md", "AGENTS-compact.md", "opencode.json", ".windsurfrules"]
+GOVERNANCE_DIRS = [".windsurf/rules"]
+
 
 @dataclass
 class SyncResult:
@@ -188,6 +192,37 @@ def sync_scripts_to_project(
                         source, destination, dry_run=dry_run, backup=backup, force=force
                     )
                     file_results.append(result)
+
+        # Sync governance files (AGENTS.md, opencode.json, .windsurfrules)
+        for gov_file in GOVERNANCE_FILES:
+            source = FABRIK_ROOT / gov_file
+            if source.exists():
+                destination = project_dir / gov_file
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
+
+        # Sync governance directories (.windsurf/rules/)
+        for gov_dir in GOVERNANCE_DIRS:
+            source_dir = FABRIK_ROOT / gov_dir
+            if source_dir.exists():
+                dest_dir = project_dir / gov_dir
+                if not dry_run:
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+
+                for source in source_dir.rglob("*"):
+                    if source.is_file():
+                        relative = source.relative_to(source_dir)
+                        destination = dest_dir / relative
+
+                        if not dry_run:
+                            destination.parent.mkdir(parents=True, exist_ok=True)
+
+                        result = sync_single_file(
+                            source, destination, dry_run=dry_run, backup=backup, force=force
+                        )
+                        file_results.append(result)
 
         # Summarize
         copy_count = sum(1 for r in file_results if r.action in ("COPY", "BACKUP"))

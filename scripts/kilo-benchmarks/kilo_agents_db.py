@@ -325,15 +325,20 @@ def update_benchmarks() -> None:
             keys.extend([short.lower(), normalize(short)])
         return keys
 
+    # Build arena_map with MAX ELO per model
     arena_map = {}
     for entry in arena:
+        elo = int(entry.score)
         for key in get_match_keys(entry.model):
-            arena_map[key] = int(entry.score)
+            if key not in arena_map or elo > arena_map[key]:
+                arena_map[key] = elo  # Keep BEST ELO per model
 
+    # Build tbench_map with MAX score per model (different agents get different scores)
     tbench_map = {}
     for entry in tbench:
         for key in get_match_keys(entry.model):
-            tbench_map[key] = entry.score
+            if key not in tbench_map or entry.score > tbench_map[key]:
+                tbench_map[key] = entry.score  # Keep BEST score per model
 
     # Update agents
     cursor.execute("SELECT id, name FROM agents")

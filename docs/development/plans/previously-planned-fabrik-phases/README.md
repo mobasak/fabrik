@@ -18,6 +18,6 @@ These phase documents represent the original Fabrik implementation plan. They ha
 ## Current Planning Approach
 
 As of 2026-02-25, Fabrik uses **Traycer Phases** for all planning. See:
-- [Development Workflow Guide](../../../guides/DEVELOPMENT_WORKFLOW.md)
+- [AGENTS.md](../../../../AGENTS.md) — See `[ALL AGENTS] Mandatory Workflow` section
 - [Traycer Integration](../../../traycer/README.md)
 - [Active Plans Index](../../PLANS.md)

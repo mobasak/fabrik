@@ -70,11 +70,11 @@ Wraps the already-deployed namecheap service at VPS. Does NOT call Namecheap API
 ```python
 from fabrik.drivers.dns import DNSClient
 
-# Initialize (uses NAMECHEAP_API_URL env var or default)
+# Initialize (uses DNS_MANAGER_URL env var or default)
 dns = DNSClient()
 
 # Or specify URL explicitly
-dns = DNSClient(base_url="https://namecheap.vps1.ocoron.com")
+dns = DNSClient(base_url="https://dns.vps1.ocoron.com")
 
 # Add subdomain (most common operation)
 dns.add_subdomain("ocoron.com", "myapp.vps1", "172.93.160.197")
@@ -235,7 +235,7 @@ All credentials are stored in `/opt/fabrik/.env`:
 
 ```bash
 # DNS
-NAMECHEAP_API_URL=https://namecheap.vps1.ocoron.com
+DNS_MANAGER_URL=https://dns.vps1.ocoron.com
 
 # Coolify
 COOLIFY_API_URL=http://172.93.160.197:8000

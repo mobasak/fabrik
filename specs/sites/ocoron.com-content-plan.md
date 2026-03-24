@@ -255,7 +255,7 @@ Each service page follows this template:
 
 ## Content Generation Process
 
-### Phase 1: AI Generation (droid exec)
+### Phase 1: AI Generation (Kilo CLI)
 1. Generate service page content from Services Draft
 2. Generate homepage copy
 3. Generate About page draft

@@ -23,7 +23,7 @@
 | **compose.yaml** | Docker Compose orchestration | Service config, networks, volumes change | Step 5 (WARN) |
 | **.pre-commit-config.yaml** | Git hooks config | Add new quality checks | Manual |
 | **.gitignore** | Git exclusions | New file patterns to ignore | Manual |
-| **.windsurfrules** | Windsurf rules (symlink to /opt/fabrik/windsurfrules) | Never edit (managed by Fabrik) | N/A |
+| **.windsurfrules** | Windsurf rules (local copy from /opt/fabrik/.windsurfrules) | Never edit (managed by Fabrik) | N/A |
 
 ---
 
@@ -116,7 +116,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ├── README.md                        # Project overview
 ├── CHANGELOG.md                     # Version history
 ├── INDEX.md                         # THIS FILE - Master file index + docs navigation
-├── AGENTS.md                        # AI agent briefing (symlinked into projects)
+├── AGENTS.md                        # AI agent briefing (copied into projects)
 ├── Makefile                         # Common dev/ops targets
 ├── compose.yaml                     # Root Docker Compose (postgres-main + services)
 ├── pyproject.toml                   # Python package config (ruff, mypy, pytest)

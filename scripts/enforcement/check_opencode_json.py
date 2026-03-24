@@ -14,24 +14,25 @@ import sys
 from pathlib import Path
 
 # Expected Kilo-safe instruction list in exact order
+# NOTE: 50-code-review.md and 90-automation.md are intentionally included for Kilo agents
 EXPECTED_INSTRUCTIONS = [
     "AGENTS-compact.md",
     ".windsurf/rules/10-python.md",
     ".windsurf/rules/20-typescript.md",
     ".windsurf/rules/30-ops.md",
     ".windsurf/rules/40-documentation.md",
+    ".windsurf/rules/50-code-review.md",
     ".windsurf/rules/60-saas-ui.md",
     ".windsurf/rules/70-chrome-ext.md",
     ".windsurf/rules/80-mobile.md",
+    ".windsurf/rules/90-automation.md",
     "AGENTS.md",
 ]
 
 # Forbidden files that must never appear in opencode.json
 FORBIDDEN_PATTERNS = [
     ".windsurf/rules/*.md",  # The glob we replaced
-    ".windsurf/rules/00-critical.md",  # Cascade-only
-    ".windsurf/rules/50-code-review.md",  # Cascade-only
-    ".windsurf/rules/90-automation.md",  # Cascade-only
+    ".windsurf/rules/00-critical.md",  # Cascade-only (critical rules too verbose for Kilo)
 ]
 
 

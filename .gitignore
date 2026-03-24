@@ -3,6 +3,8 @@
 .env.local
 .env.*.local
 .env.backup.*
+.env.*BACKUP*
+.env.env.backup.*
 
 # Python
 __pycache__/
@@ -45,6 +47,9 @@ data/
 output/
 logs/
 
+# Scratch files (moved from root, contain hardcoded test paths)
+scripts/.scratch/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -71,3 +76,5 @@ scripts/.droid_models_cache.json
 # Backup files (not for version control)
 windsurf-memories/
 .hypothesis/
+# Pip install artifacts
+=*

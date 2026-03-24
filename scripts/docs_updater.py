@@ -313,7 +313,7 @@ Start by reading the changed files, then update CHANGELOG.md first, then other r
 
 
 def run_docs_update(files: list[str]) -> dict[str, Any]:
-    """Run the documentation update using AI CLI (legacy droid exec path)."""
+    """Run the documentation update using Kilo CLI."""
     if not files:
         return {"success": True, "result": "No files to process"}
 

@@ -542,5 +542,5 @@ Each ticket should include:
 - [Traycer Integration Guide](README.md)
 - [Traycer Agile Workflow](traycer-agile-workflow.md)
 - [Traycer YOLO Workflow](traycer-yolo-workflow.md)
-- [Development Workflow](../guides/DEVELOPMENT_WORKFLOW.md)
+- [Mandatory Workflow](../../AGENTS.md) — See `[ALL AGENTS] Mandatory Workflow` section
 - [AGENTS.md](../../AGENTS.md)

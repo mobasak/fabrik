@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
-Generate Kilo CLI Agent Scripts (Opus 4.6 Enhanced System)
+Generate Kilo CLI Agent Scripts from kilo_agents.db
 
-Reads agent definitions from kilo_selected_agents.json and generates
-detailed, self-documenting scripts in ~/.traycer/cli-agents/
+Reads agent role assignments from kilo_agents.db (coding and fixing roles)
+and generates self-documenting shell scripts in ~/.traycer/cli-agents/
 
-Naming format: {Tier}{NN}-{model}-{variant}-i{IN}-o{OUT}.sh (unified, no -code-/-review-)
-Example: Economy02-deepseek32-code-medium-i027-o081.sh
+Naming format: code&fix-{priority}-{model}-{variant}-o{OUT}-ppd{PPD}.sh
+Example: code&fix-1-opus46-max-o2500-ppd077.sh
 
 Features:
-    - Routing policy integration: Reads ~/.traycer/routing-policy.yaml
-      to determine which agents are active vs disabled
-    - Active agents placed in ~/.traycer/cli-agents/
-    - Disabled agents placed in ~/.traycer/disabled-cli-agents/
+    - Reads from SQLite database (kilo_agents.db)
+    - Only generates coding and fixing role agents (70%+ TBench)
+    - Deduplicates agents that appear in both roles with same variant
     - Sequential mtime setting for Traycer sorting
-    - Auto-generates ~/.traycer/routing-policy.md from YAML source of truth
+    - Atomic writes with backup rotation
 
 Usage:
     python generate_kilo_agents.py [-h] [-d]
@@ -25,277 +24,225 @@ Options:
 """
 
 import argparse
-import json
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
 
-try:
-    import yaml
-
-    YAML_AVAILABLE = True
-except ImportError:
-    YAML_AVAILABLE = False
-
-AGENTS_FILE = Path(__file__).parent / "kilo_selected_agents.json"
-ROUTING_POLICY_FILE = Path.home() / ".traycer" / "routing-policy.yaml"
-ROUTING_POLICY_MD = Path.home() / ".traycer" / "routing-policy.md"
+DB_PATH = Path(__file__).parent / "kilo-benchmarks" / "kilo_agents.db"
 OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
 DISABLED_DIR = Path.home() / ".traycer" / "disabled-cli-agents"
 
-# Tier system: Opus 4.6 Enhanced with numeric prefix for alphabetical sorting
-# Traycer sorts alphabetically, so we prefix with T1-T7 to ensure correct order:
-# T1-Free (least capable) → T7-Specialist (most specialized)
-TIER_ORDER = [
-    "T1-Free",
-    "T2-Economy",
-    "T3-Standard",
-    "T4-Pro",
-    "T5-Expert",
-    "T6-Apex",
-    "T7-Specialist",
-]
-
-# Map old tier names to new prefixed names
-TIER_PREFIX_MAP = {
-    "Free": "T1-Free",
-    "Economy": "T2-Economy",
-    "Standard": "T3-Standard",
-    "Pro": "T4-Pro",
-    "Expert": "T5-Expert",
-    "Apex": "T6-Apex",
-    "Specialist": "T7-Specialist",
-}
-
-# Model name normalization for filenames (keeps filenames readable)
+# Model name normalization for filenames
 MODEL_NORMALIZE = {
-    "auto": "auto",
-    "deepseek-r1": "deepseekr1",
-    "minimax-m2.1": "minimax21",
-    "glm-4.7-free": "glm47free",
-    "glm-4.7": "glm47",
-    "kimi-k2.5": "kimik25",
-    "kimi-k2": "kimik2",
-    "qwen3-coder": "qwen3coder",
-    "trinity-large": "trinity",
-    "glm-4.5-air": "glm45air",
-    "giga-potato": "gigapotato",
-    "gemini-3-flash-preview": "flash3",
-    "gemini-2.5-flash": "flash25",
-    "minimax-m2.5": "m25",
+    "claude-opus-4.6": "opus46",
+    "claude-opus-4.5": "opus45",
+    "claude-sonnet-4.6": "sonnet46",
+    "claude-sonnet-4.5": "sonnet45",
+    "gpt-5.4": "gpt54",
+    "gpt-5.3-codex": "gpt53codex",
+    "gpt-5.3-chat": "gpt53chat",
     "gpt-5.2": "gpt52",
     "gpt-5.2-codex": "gpt52codex",
-    "gpt-5.3-codex": "gpt53codex",
-    "seed-2.0-mini": "seed20mini",
-    "glm-4.7-flash": "glm47flash",
-    "devstral-small": "devstral",
-    "grok-4.1-fast": "grok41fast",
-    "codestral": "codestral",
-    "grok-4-fast": "grok4fast",
-    "deepseek-v3.2": "deepseek32",
-    "llama-4-maverick": "llama4mav",
-    "glm-5": "glm5",
-    "qwen3-235b": "qwen3235b",
-    "gpt-5.2-chat": "gpt52chat",
     "gemini-3.1-pro-preview": "gemini31pro",
-    "qwen3.5-397b": "qwen35397b",
+    "gemini-3-pro-preview": "gemini3pro",
     "gemini-2.5-pro": "gemini25pro",
-    "claude-sonnet-4.5": "sonnet45",
-    "claude-sonnet-4.6": "sonnet46",
-    "claude-3.7-sonnet": "sonnet37",
-    "claude-3.7-sonnet:thinking": "sonnet37think",
-    "claude-opus-4.5": "opus45",
-    "claude-opus-4.6": "opus46",
-    "o3-mini-high": "o3minihigh",
-    "gpt-5.2-pro": "gpt52pro",
-    "o1-pro": "o1pro",
-    "o3-pro": "o3pro",
-    "codestral-refactor": "codestralrefactor",
-    "codestral-docs": "codestraldocs",
-    "codestral-test": "codestraltest",
-    "codestral-translate": "codestraltranslate",
-    "codestral-review": "codestralreview",
-    # GPT-5.x additions (2026-03-09)
-    "gpt-5-nano": "gpt5nano",
-    "gpt-5-mini": "gpt5mini",
-    "gpt-5.1-codex-mini": "gpt51codexmini",
-    "gpt-5.1-codex": "gpt51codex",
-    "gpt-5.1-codex-max": "gpt51codexmax",
-    "gpt-5.3-chat": "gpt53chat",
-    "gpt-5.4": "gpt54",
-    "gpt-5.4-pro": "gpt54pro",
     "o4-mini": "o4mini",
+    "o3-mini-high": "o3minihigh",
+}
+
+# Variant assignment by priority (coding/fixing are high-stakes tasks)
+VARIANT_BY_PRIORITY = {
+    1: "max",  # Top agent: full reasoning
+    2: "max",  # Premium: maximize accuracy
+    3: "high",  # Fallback: good balance
+    4: "high",  # Budget fallback: still solid
+    5: "high",  # Extended fallback
 }
 
 
-def normalize_model_name(model: str) -> str:
-    """Normalize model name for filename."""
-    return MODEL_NORMALIZE.get(model, model.replace(".", "").replace("-", "").replace(":", ""))
+def normalize_model_name(model_id: str) -> str:
+    """Normalize model ID to short filename-safe string."""
+    # Try direct lookup first
+    if model_id in MODEL_NORMALIZE:
+        return MODEL_NORMALIZE[model_id]
+
+    # Extract model part from full kilo path (e.g., kilo/anthropic/claude-opus-4.6)
+    if "/" in model_id:
+        model_id = model_id.split("/")[-1]
+
+    if model_id in MODEL_NORMALIZE:
+        return MODEL_NORMALIZE[model_id]
+
+    # Fallback: clean up the name
+    return model_id.replace(".", "").replace("-", "").replace(":", "")[:12]
 
 
 def encode_price(price: float) -> str:
     """Encode price as integer cents (multiply by 100)."""
-    return f"{int(price * 100):03d}"
+    return f"{int(price * 100):04d}"
 
 
-def parse_agent_id(agent_id: str) -> tuple[str, str]:
+def get_agents_from_db() -> list[dict]:
     """
-    Parse agent_id into prefixed tier name and identifier.
-
-    Examples:
-        'free-1' -> ('T1-Free', '1')
-        'econ-3' -> ('T2-Economy', '3')
-        'spec-refactor' -> ('T7-Specialist', 'refactor')
+    Read coding and fixing role assignments from kilo_agents.db.
+    Returns list of agent dicts with role, priority, and agent details.
     """
-    tier_map = {
-        "free": "T1-Free",
-        "econ": "T2-Economy",
-        "std": "T3-Standard",
-        "pro": "T4-Pro",
-        "expert": "T5-Expert",
-        "apex": "T6-Apex",
-        "spec": "T7-Specialist",
-    }
+    if not DB_PATH.exists():
+        print(f"❌ Database not found: {DB_PATH}")
+        sys.exit(1)
 
-    parts = agent_id.split("-", 1)
-    if len(parts) != 2:
-        return ("Unknown", agent_id)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
 
-    tier_abbrev, identifier = parts
-    tier_name = tier_map.get(tier_abbrev, "Unknown")
-    return (tier_name, identifier)
-
-
-def get_tier_sort_key(agent_id: str) -> tuple[int, int | str]:
+    # Get coding and fixing agents with their details
+    query = """
+        SELECT
+            r.role,
+            r.priority,
+            a.id as agent_id,
+            a.name,
+            a.api_id,
+            a.provider,
+            a.input_cost_per_m,
+            a.output_cost_per_m,
+            a.arena_elo,
+            a.tbench_accuracy,
+            a.has_vision,
+            a.has_reasoning,
+            a.perf_per_dollar
+        FROM agent_roles r
+        JOIN agents a ON a.id = r.agent_id
+        WHERE r.role IN ('coding', 'fixing')
+        ORDER BY r.role, r.priority
     """
-    Generate sort key for agents to ensure tier-based ordering.
 
-    Returns:
-        (tier_index, identifier) where identifier is int for numbered agents, str for named
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+
+    agents = []
+    for row in rows:
+        agents.append(
+            {
+                "role": row["role"],
+                "priority": row["priority"],
+                "agent_id": row["agent_id"],
+                "name": row["name"],
+                "api_id": row["api_id"],
+                "provider": row["provider"],
+                "input_price": row["input_cost_per_m"] or 0.0,
+                "output_price": row["output_cost_per_m"] or 0.0,
+                "arena_elo": row["arena_elo"],
+                "tbench_accuracy": row["tbench_accuracy"],
+                "has_vision": row["has_vision"],
+                "has_thinking": row["has_reasoning"],
+                "ppd": row["perf_per_dollar"],
+            }
+        )
+
+    return agents
+
+
+def deduplicate_agents(agents: list[dict]) -> list[dict]:
     """
-    tier_name, identifier = parse_agent_id(agent_id)
+    Deduplicate agents that appear in both coding and fixing with same variant.
+    Returns list with combined role 'code&fix' for duplicates.
+    """
+    # Group by (api_id, variant)
+    seen = {}
+    result = []
 
-    try:
-        tier_index = TIER_ORDER.index(tier_name)
-    except ValueError:
-        tier_index = 999  # Unknown tiers go last
+    for agent in agents:
+        variant = VARIANT_BY_PRIORITY.get(agent["priority"], "high")
+        key = (agent["api_id"], variant)
 
-    # Try to parse identifier as int for proper numeric sorting
-    try:
-        identifier_key: int | str = int(identifier)
-    except ValueError:
-        identifier_key = identifier
+        if key in seen:
+            # Already seen - mark as code&fix if different role
+            existing = seen[key]
+            if existing["role"] != agent["role"]:
+                existing["role"] = "code&fix"
+            # Keep the lower priority number (higher ranking)
+            if agent["priority"] < existing["priority"]:
+                existing["priority"] = agent["priority"]
+        else:
+            agent_copy = agent.copy()
+            agent_copy["variant"] = variant
+            seen[key] = agent_copy
+            result.append(agent_copy)
 
-    return (tier_index, identifier_key)
+    # Sort by priority
+    result.sort(key=lambda x: x["priority"])
+    return result
 
 
-def generate_script_content(
-    tier_name: str,
-    rank: int,
-    model_name: str,
-    full_name: str,
-    provider: str,
-    use_case: str,
-    variant: str,
-    specialty: str,
-    input_cost: float,
-    output_cost: float,
-) -> str:
+def generate_script_content(agent: dict) -> str:
     """Generate shell script content for a Kilo agent."""
-    # Unified agents: all use --auto mode (can do both code and review)
-    # No role in filename - all agents are unified
-    model_normalized = normalize_model_name(model_name)
-    input_encoded = encode_price(input_cost)
-    output_encoded = encode_price(output_cost)
-    # Unified naming: no -code-/-review- in filename
+    role = agent["role"]
+    priority = agent["priority"]
+    api_id = agent["api_id"]
+    model_normalized = normalize_model_name(api_id)
+    variant = agent["variant"]
+    output_encoded = encode_price(agent["output_price"])
+    ppd = agent["ppd"] or 0
+    ppd_str = f"{int(ppd):03d}" if ppd else "---"
+
+    # Build filename
     script_name = (
-        f"{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}.sh"
+        f"{role}-{priority}-{model_normalized}-{variant}-o{output_encoded}-ppd{ppd_str}.sh"
     )
 
-    # Generate kilo/auto routing documentation if applicable
-    auto_routing_docs = ""
-    if model_name == "auto":
-        auto_routing_docs = """#
-# ⚙️  KILO/AUTO ROUTING MECHANISM:
-# This agent uses kilo/auto which automatically routes to the best model based on mode:
-#   - Review mode  → claude-opus-4.6   ($5.00/1M in, $25.00/1M out)
-#   - Code mode    → claude-sonnet-4.5 ($3.00/1M in, $15.00/1M out)
-#
-# The routing happens server-side in Kilo CLI. This script just passes --model kilo/auto.
-# The actual model selection is transparent to this script.
-#
-# ⚠️  PRICING NOTE:
-# Filename shows i000-o000 because kilo/auto itself has no fixed price.
-# ACTUAL COSTS depend on which model is selected (see above).
-# Expect $3-5/1M input and $15-25/1M output depending on task complexity."""
+    # Format display values
+    elo_display = str(int(agent["arena_elo"])) if agent["arena_elo"] else "—"
+    tbench_display = f"{agent['tbench_accuracy']:.1f}%" if agent["tbench_accuracy"] else "—"
+    vision_display = "✅" if agent["has_vision"] else "—"
+    thinking_display = "✅" if agent["has_thinking"] else "—"
 
-    # Build pricing line
-    if model_name == "auto":
-        pricing_line = "# Pricing: VARIABLE (see routing above)"
-    else:
-        pricing_line = f"# Pricing: ${input_cost:.3f}/1M in, ${output_cost:.3f}/1M out"
-
-    return f"""#!/bin/bash
+    return f'''#!/bin/bash
 # ════════════════════════════════════════════════════════════════════════════
-# Kilo Agent - {tier_name} Tier (Unified --auto mode)
+# Kilo Agent - {role.upper()} (Priority #{priority})
 # ════════════════════════════════════════════════════════════════════════════
 #
 # 📛 SCRIPT NAME: {script_name}
 #
-# 📋 NAMING CONVENTION EXPLAINED:
-#   Format: <TIER><NN>-<model>-<variant>-i<IN>-o<OUT>.sh (unified, no -code-/-review-)
+# 📋 NAMING CONVENTION:
+#   Format: <role>-<priority>-<model>-<variant>-o<OUT>-ppd<PPD>.sh
 #
-#   <TIER>    = Agent tier (quality/cost bracket)
-#               Free     = $0 - Zero-cost (sandbox, rapid iteration)
-#               Economy  = $0.001-0.10 - Quick tasks (docs, tests, small edits)
-#               Standard = $0.10-0.50 - Daily development (default implementation)
-#               Pro      = $0.50-3.00 - Production code (code review, refactoring)
-#               Expert   = $3.00-10.00 - Complex analysis (architecture, security)
-#               Apex     = $20-40 - Mission-critical (Epic planning, critical decisions)
-#               Specialist = Task-specific Codestral variants (refactor, docs, test)
-#
-#   <NN>      = Rank within tier (01-99, ordered by cost)
-#
-#   <model>   = Normalized model name
-#               Examples: deepseek32, opus46, flash25, gpt52pro, o3pro
-#
-#   <variant> = Effort level (affects token budget, not price per token)
-#               auto    = Automatic mode-based selection
-#               minimal = Quick tasks, simple code
-#               low     = Basic functionality
-#               medium  = Standard complexity
-#               high    = Complex logic, edge cases
-#               max     = Deep reasoning, security-critical
-#
-#   i<IN>     = Input cost per 1M tokens × 100 (e.g., i027 = $0.27/1M)
-#   o<OUT>    = Output cost per 1M tokens × 100 (e.g., o081 = $0.81/1M)
-#
-#   Examples:
-#     T1-Free00-auto-auto-i000-o000.sh → Auto router
-#     T2-Economy02-deepseek32-medium-i027-o081.sh → DeepSeek v3.2
-#     T5-Expert01-opus46-max-i500-o2500.sh → Claude Opus 4.6
-#     T6-Apex03-o3pro-max-i4000-o16000.sh → OpenAI o3-pro
-#{auto_routing_docs}
+#   <role>     = Agent role (code&fix = coding + fixing combined)
+#   <priority> = Rank within role (1 = best, 4 = fallback)
+#   <model>    = Normalized model name
+#   <variant>  = Thinking mode (max = full reasoning, high = balanced)
+#   o<OUT>     = Output cost per 1M tokens × 100 (e.g., o2500 = $25.00/1M)
+#   ppd<PPD>   = Performance Per Dollar score (higher = better value)
 #
 # ════════════════════════════════════════════════════════════════════════════
 # AGENT DETAILS
 # ════════════════════════════════════════════════════════════════════════════
-# Tier: {tier_name} #{rank:02d}
-# Model: {model_name} ({provider})
-# Full Name: {full_name}
-# Mode: Unified (--auto handles code/review automatically)
+# Role: {role} (Priority #{priority})
+# Model: {agent["name"]} ({agent["provider"]})
+# Model ID: {api_id}
 # Variant: {variant}
-# Specialty: {specialty}
-{pricing_line}
+#
+# BENCHMARKS:
+#   Arena ELO: {elo_display}
+#   TBench Accuracy: {tbench_display}
+#   Vision: {vision_display}
+#   Thinking: {thinking_display}
+#
+# PRICING:
+#   Input: ${agent["input_price"]:.2f}/1M tokens
+#   Output: ${agent["output_price"]:.2f}/1M tokens
+#   PPD: {ppd_str}
 # ════════════════════════════════════════════════════════════════════════════
 
 # Error logging - captures errors to file for debugging when terminal closes
 AGENT_LOG="${{HOME}}/.traycer/agent-debug.log"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$AGENT_LOG"
-echo "[$(date -Iseconds)] Agent started: {tier_name}{rank:02d}-{model_normalized}-{variant}" >> "$AGENT_LOG"
+echo "[$(date -Iseconds)] Agent started: {role}-{priority}-{model_normalized}-{variant}" >> "$AGENT_LOG"
 
 # Always log Traycer context for workflow analysis
 echo "[$(date -Iseconds)] TRAYCER_TASK_ID=$TRAYCER_TASK_ID" >> "$AGENT_LOG"
@@ -307,35 +254,28 @@ env | grep -E "^TRAYCER_" >> "$AGENT_LOG" 2>/dev/null || true
 
 # Debug mode (KILO_DEBUG=1)
 if [ "$KILO_DEBUG" = "1" ]; then
-    set -x  # Print all commands
-    echo "[DEBUG] Agent: {tier_name}{rank:02d}-{model_normalized}-{variant}" >&2
-    echo "[DEBUG] Model: {full_name}" >&2
+    set -x
+    echo "[DEBUG] Agent: {role}-{priority}-{model_normalized}-{variant}" >&2
+    echo "[DEBUG] Model: {agent["name"]}" >&2
     echo "[DEBUG] TRAYCER_PROMPT length: ${{#TRAYCER_PROMPT}}" >&2
     echo "[DEBUG] TRAYCER_TASK_ID: $TRAYCER_TASK_ID" >&2
     echo "[DEBUG] TRAYCER_PHASE_ID: $TRAYCER_PHASE_ID" >&2
-    echo "[DEBUG] TRAYCER_PHASE_BREAKDOWN_ID: $TRAYCER_PHASE_BREAKDOWN_ID" >&2
-    echo "[DEBUG] All TRAYCER vars:" >&2
-    env | grep TRAYCER >&2 || true
 fi
 
 # Handle both regular and large prompts
 if [ -n "$TRAYCER_PROMPT_TMP_FILE" ] && [ -f "$TRAYCER_PROMPT_TMP_FILE" ]; then
-    # For large prompts - read from temp file
     PROMPT=$(cat "$TRAYCER_PROMPT_TMP_FILE")
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using TRAYCER_PROMPT_TMP_FILE: $TRAYCER_PROMPT_TMP_FILE" >&2
 else
-    # For regular prompts - use environment variable
     PROMPT="$TRAYCER_PROMPT"
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using TRAYCER_PROMPT environment variable" >&2
 fi
 
 # Fix tilde expansion: Traycer (Windows) sends ~/.traycer/ but Kilo may run as different user
-# Replace ~/ and ~/.traycer/ with $HOME equivalents so paths resolve correctly
 PROMPT="${{PROMPT//\\~\\/.traycer\\//${{HOME}}/.traycer/}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Fixed tilde paths in prompt" >&2
 
 # CRITICAL: Append Traycer report requirement to prompt
-# Without this, the LLM won't know to output the required report block
 REPORT_REQUIREMENT='
 
 ---
@@ -363,7 +303,6 @@ PROMPT="$PROMPT$REPORT_REQUIREMENT"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Appended Traycer report requirement to prompt" >&2
 
 # Save task context for Step 4 (kilo_code_review.py needs it)
-# Use unique filename per task to avoid conflicts with concurrent agents
 mkdir -p .droid/review-context
 TASK_FILE=".droid/review-context/task-${{TRAYCER_TASK_ID:-${{TRAYCER_PHASE_ID:-$(date +%s)}}}}.md"
 printf '%s\\n' "$PROMPT" > "$TASK_FILE"
@@ -386,8 +325,6 @@ SESSION_TITLE="${{TRAYCER_PHASE_ID:-${{TRAYCER_TASK_ID:-kilo-session}}}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Kilo session title: $SESSION_TITLE" >&2
 
 # Run Kilo agent with streaming output
-# Use kilo_terminal_runner.py for rich TUI when conditions are met
-# Fall back to tee-based streaming otherwise
 RUNNER_SCRIPT="/opt/fabrik/scripts/kilo_terminal_runner.py"
 RUNNER_PYTHON="/opt/fabrik/.venv/bin/python3"
 KILO_RICH_UI="${{KILO_RICH_UI:-1}}"
@@ -407,28 +344,25 @@ if [ "$KILO_RICH_UI" = "1" ] && \\
 fi
 
 if [ "$USE_RICH_UI" = "1" ]; then
-    # Use rich terminal runner (handles ANSI stripping for capture, PTY for proper output)
-    # Timeout wraps kilo run (not runner) for symmetric semantics with plain mode
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using kilo_terminal_runner.py with $RUNNER_PYTHON" >&2
     "$RUNNER_PYTHON" "$RUNNER_SCRIPT" \\
         --output "$OUTPUT_FILE" \\
-        --agent "{tier_name}{rank:02d}-{model_normalized}" \\
-        --model "{full_name}" \\
-        --role "unified" \\
+        --agent "{role}-{priority}-{model_normalized}" \\
+        --model "{agent["name"]}" \\
+        --role "{role}" \\
         --variant "{variant}" \\
         --session-title "$SESSION_TITLE" \\
         --timeout "$TIMEOUT" \\
         -- timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
-            --model {full_name} \\
+            --model {api_id} \\
             --variant {variant} \\
             --title "$SESSION_TITLE" \\
             "$PROMPT"
     EXIT_CODE=$?
 else
-    # Fallback: tee-based streaming (shows real-time AND captures)
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Plain mode (KILO_RICH_UI=$KILO_RICH_UI, tty=$([ -t 1 ] && echo yes || echo no))" >&2
     timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
-        --model {full_name} \\
+        --model {api_id} \\
         --variant {variant} \\
         --title "$SESSION_TITLE" \\
         "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
@@ -445,7 +379,6 @@ REPORT_FOUND=0
 if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
     REPORT_FOUND=1
     REPORT_WRITER="/opt/fabrik/scripts/traycer_write_report.py"
-    # Reuse RUNNER_PYTHON for consistency (same venv as runner)
     REPORT_PYTHON="$RUNNER_PYTHON"
     if [ ! -x "$REPORT_PYTHON" ]; then
         REPORT_PYTHON="python3"
@@ -459,7 +392,6 @@ if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
         exit 1
     fi
 else
-    # Report block missing - warn but don't fail if Kilo succeeded
     if [ $EXIT_CODE -eq 0 ]; then
         echo "⚠️  Warning: Report block missing but Kilo succeeded (exit 0)" >&2
         echo "[$(date -Iseconds)] WARNING: Missing report block. Kilo exit code was: 0 (success)" >> "$AGENT_LOG"
@@ -474,14 +406,14 @@ fi
 
 # Handle timeout
 if [ $EXIT_CODE -eq 124 ]; then
-    echo '{{"error": "timeout", "duration": '$TIMEOUT', "agent": "{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}"}}' >&2
+    echo '{{"error": "timeout", "duration": '$TIMEOUT', "agent": "{role}-{priority}-{model_normalized}-{variant}"}}' >&2
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Task timed out after $TIMEOUT seconds" >&2
 fi
 
 # Cost tracking (if enabled)
 if [ -n "$KILO_TRACK_COST" ]; then
     mkdir -p "$(dirname "$USAGE_LOG")"
-    echo '{{"timestamp":"$(date -Iseconds)","agent":"{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}","model":"{full_name}","task_id":"$TRAYCER_TASK_ID","exit_code":$EXIT_CODE,"duration":$DURATION}}' >> "$USAGE_LOG"
+    echo '{{"timestamp":"$(date -Iseconds)","agent":"{role}-{priority}-{model_normalized}-{variant}","model":"{api_id}","task_id":"$TRAYCER_TASK_ID","exit_code":$EXIT_CODE,"duration":$DURATION}}' >> "$USAGE_LOG"
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Usage logged to $USAGE_LOG" >&2
 fi
 
@@ -497,11 +429,11 @@ if [ $REPORT_FOUND -eq 1 ]; then
 else
     exit $EXIT_CODE
 fi
-"""
+'''
 
 
 def validate_script(script_path: Path) -> list[str]:
-    """Validate generated shell script"""
+    """Validate generated shell script."""
     issues = []
 
     if not script_path.exists():
@@ -509,15 +441,9 @@ def validate_script(script_path: Path) -> list[str]:
 
     content = script_path.read_text()
 
-    # Check shebang
     if not content.startswith("#!/bin/bash"):
         issues.append("Missing or incorrect shebang")
 
-    # Check for exit statement
-    if "exit $EXIT_CODE" not in content and "exit $?" not in content:
-        issues.append("Missing explicit exit statement")
-
-    # Check for required env var handling
     if "TRAYCER_PROMPT" not in content:
         issues.append("Missing TRAYCER_PROMPT handling")
 
@@ -531,321 +457,35 @@ def validate_script(script_path: Path) -> list[str]:
     return issues
 
 
-def load_active_agents() -> set[str]:
-    """
-    Load active agent script names from routing-policy.yaml.
-    Returns set of script filenames that should be in the active folder.
-    """
-    if not YAML_AVAILABLE:
-        print("  ⚠ PyYAML not installed, all agents will be active")
-        return set()  # Empty = all active
-
-    if not ROUTING_POLICY_FILE.exists():
-        print(f"  ⚠ {ROUTING_POLICY_FILE} not found, all agents will be active")
-        return set()  # Empty = all active
-
-    try:
-        with open(ROUTING_POLICY_FILE) as f:
-            policy = yaml.safe_load(f)
-
-        active_scripts: set[str] = set()
-        agents_config = policy.get("agents", {})
-
-        for _role_name, agent_info in agents_config.items():
-            if isinstance(agent_info, dict):
-                script = agent_info.get("script", "")
-                active_status = agent_info.get("active", "always")
-                # Include both "always" and "conditional" as active
-                if active_status in ("always", "conditional") and script:
-                    active_scripts.add(script)
-
-        print(f"  📋 Routing policy loaded: {len(active_scripts)} active agents")
-        return active_scripts
-
-    except Exception as e:
-        print(f"  ⚠ Error loading routing policy: {e}")
-        return set()  # Empty = all active
-
-
-def generate_routing_policy_md(policy: dict) -> str:
-    """
-    Generate routing-policy.md content from routing-policy.yaml data.
-    This keeps the MD in sync with the YAML source of truth.
-    """
-    from datetime import datetime
-
-    agents = policy.get("agents", {})
-    buckets = policy.get("buckets", {})
-    guardrails = policy.get("guardrails", {})
-    escalation = policy.get("escalation", {})
-    defaults = policy.get("defaults", {})
-
-    # Count active agents
-    always_active = sum(
-        1 for a in agents.values() if isinstance(a, dict) and a.get("active") == "always"
-    )
-    conditional = sum(
-        1 for a in agents.values() if isinstance(a, dict) and a.get("active") == "conditional"
-    )
-
-    # Build agent roster table
-    always_rows = []
-    conditional_rows = []
-    for role_name, agent_info in agents.items():
-        if not isinstance(agent_info, dict):
-            continue
-        script = agent_info.get("script", "")
-        role = agent_info.get("role", "")
-        do_not = agent_info.get("do_not_use_for", "")
-        active = agent_info.get("active", "always")
-        row = f"| {role_name.replace('_', ' ').title()} | `{script}` | {role} | {do_not} |"
-        if active == "always":
-            always_rows.append(row)
-        else:
-            conditional_rows.append(
-                f"| {role_name.replace('_', ' ').title()} | `{script}` | {agent_info.get('role', '')} |"
-            )
-
-    # Build bucket routing tables
-    bucket_tables = []
-    for bucket_name, bucket_info in buckets.items():
-        if not isinstance(bucket_info, dict):
-            continue
-        desc = bucket_info.get("description", "")
-        default_agent = bucket_info.get("default", "")
-        escalate_list = bucket_info.get("escalate", [])
-        debug_on = bucket_info.get("debug_on", False)
-
-        table = f"### {bucket_name.upper()} ({desc})\n\n"
-        table += "| Attempt | Agent | Why |\n|---------|-------|-----|\n"
-        table += f"| 1 | `{default_agent}` | Default for {bucket_name} |\n"
-        for i, agent in enumerate(escalate_list, start=2):
-            table += f"| {i} | `{agent}` | Escalation |\n"
-        if debug_on:
-            table += "\n**Debug mode:** Enabled automatically"
-        bucket_tables.append(table)
-
-    # Build guardrails section
-    never_default = guardrails.get("never_default_to", [])
-    daily_workers = guardrails.get("daily_workers", [])
-    premium_conditions = guardrails.get("premium_only_when", [])
-
-    # Build escalation triggers
-    triggers = escalation.get("triggers", [])
-    do_not_escalate = escalation.get("do_not_escalate_for", [])
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    md_content = f"""# Traycer Agent Routing Policy
-
-**Last Updated:** {today}
-**Source of Truth:** `routing-policy.yaml`
-
-> ⚠️ **AUTO-GENERATED FILE** - Do not edit manually. Edit `routing-policy.yaml` and regenerate.
-
-> Route each ticket to the **cheapest agent likely to finish it correctly**, then escalate only on clear failure signals.
-
----
-
-## Quick Reference
-
-```text
-DEFAULTS
-- patch/debug: devstral
-- structured repo edit: gpt51codexmini
-- clear general feature: gpt5mini
-- cheap review: qwen3235b-review
-- ambiguous debug: o4mini
-- premium coding: sonnet46-code-high
-- premium alt coder: gpt54-code-max
-- deepest premium coding: sonnet46-code-max
-- premium review: sonnet46-review
-- final hardest escalation: opus46
-
-ESCALATE WHEN
-- 2 failed attempts
-- unclear root cause
-- security/auth/money/migration/concurrency risk
-- repo-wide impact
-- review finds correctness issues
-
-NEVER DEFAULT TO
-{chr(10).join("- " + a for a in never_default)}
-```
-
----
-
-## Agent Roster
-
-### Always Active ({always_active})
-
-| Role | Agent | Primary Use | Do NOT Use For |
-|------|-------|-------------|----------------|
-{chr(10).join(always_rows)}
-
-### Conditional Active ({conditional})
-
-| Role | Agent | Enable When |
-|------|-------|-------------|
-{chr(10).join(conditional_rows)}
-
----
-
-## Ticket Classification
-
-Before selecting a model, classify the ticket into one of {len(buckets)} buckets:
-
-| Bucket | Description |
-|--------|-------------|
-{chr(10).join(f"| **{name.title()}** | {info.get('description', '')} |" for name, info in buckets.items() if isinstance(info, dict))}
-
----
-
-## Routing Tables
-
-{chr(10).join(bucket_tables)}
-
----
-
-## Debug Mode Policy
-
-Debug mode (`KILO_DEBUG=1`) is **OFF by default**.
-
-### Enable automatically when:
-
-{chr(10).join("- " + c for c in guardrails.get("enable_debug_when", []))}
-
-### Why not global?
-
-- Noisier logs
-- Larger outputs
-- Harder signal extraction
-
----
-
-## Escalation Rules
-
-### Escalate when:
-
-{chr(10).join("- " + t for t in triggers)}
-
-### Do NOT escalate for:
-
-{chr(10).join("- " + d for d in do_not_escalate) if do_not_escalate else "- Imperfect but functional output → retry with tighter instructions first"}
-
----
-
-## Retry Policy
-
-| Attempt | Action |
-|---------|--------|
-| 1st | Cheap correct-fit model |
-| 2nd | Same tier, different model (only if style mismatch) |
-| 3rd+ | Escalate one tier |
-
-### Max attempts before human review:
-
-| Ticket Type | Max Attempts |
-|-------------|--------------|
-{chr(10).join(f"| {name.title()} | {defaults.get('max_attempts', {}).get(name, 3)} |" for name in buckets)}
-
----
-
-## Cost Guardrails
-
-### Never default to:
-
-{chr(10).join("- `" + a + "`" for a in never_default)}
-
-### Daily worker pool (use for majority):
-
-{chr(10).join("- `" + a + "`" for a in daily_workers)}
-
-### Premium only when:
-
-{chr(10).join("- " + c for c in premium_conditions)}
-
----
-
-## File Locations
-
-| File | Purpose |
-|------|---------|
-| `~/.traycer/routing-policy.yaml` | Machine-readable source of truth |
-| `~/.traycer/routing-policy.md` | Human documentation (auto-generated) |
-| `~/.traycer/cli-agents/` | Active agents (visible to Traycer) |
-| `~/.traycer/disabled-cli-agents/` | Disabled agents (hidden from Traycer) |
-"""
-    return md_content
-
-
-def update_routing_policy_md(dry_run: bool = False) -> bool:
-    """
-    Update routing-policy.md from routing-policy.yaml.
-    Returns True if successful, False otherwise.
-    """
-    if not YAML_AVAILABLE:
-        print("  ⚠ PyYAML not installed, cannot generate routing-policy.md")
-        return False
-
-    if not ROUTING_POLICY_FILE.exists():
-        print(f"  ⚠ {ROUTING_POLICY_FILE} not found, cannot generate routing-policy.md")
-        return False
-
-    try:
-        with open(ROUTING_POLICY_FILE) as f:
-            policy = yaml.safe_load(f)
-
-        md_content = generate_routing_policy_md(policy)
-
-        if dry_run:
-            print(f"[DRY-RUN] Would update {ROUTING_POLICY_MD}")
-        else:
-            ROUTING_POLICY_MD.write_text(md_content)
-            print(f"  📝 Updated {ROUTING_POLICY_MD} from YAML")
-
-        return True
-
-    except Exception as e:
-        print(f"  ⚠ Error generating routing-policy.md: {e}")
-        return False
-
-
 def main(dry_run: bool = False):
-    # Load agent definitions
-    with open(AGENTS_FILE) as f:
-        data = json.load(f)
+    print("🔄 Reading agents from kilo_agents.db...")
 
-    # Load routing policy to determine active vs disabled
-    active_scripts = load_active_agents()
-    use_routing = len(active_scripts) > 0
+    # Get agents from database
+    agents = get_agents_from_db()
+    print(f"   Found {len(agents)} coding/fixing role assignments")
 
-    # Sort agents by tier order using the sort key function
-    # Order: Free (least capable) → Economy → Standard → Pro → Expert → Apex (most capable)
-    agents_sorted = sorted(data["agents"], key=lambda a: get_tier_sort_key(a["agent_id"]))
+    # Deduplicate agents with same model and variant
+    agents = deduplicate_agents(agents)
+    print(f"   After deduplication: {len(agents)} unique agents")
 
-    # Track which files we generate
-    generated_files: set[str] = set()
-    active_count = 0
-    disabled_count = 0
+    if not agents:
+        print("❌ No coding/fixing agents found in database")
+        sys.exit(1)
 
-    # Atomic write pattern: backup, write to temp, validate, rename
-    # Initialize temp dir variables for exception handling
-    tmp_active: Path | None = None
-    tmp_disabled: Path | None = None
+    # Track generated files
+    generated_count = 0
 
     if not dry_run:
-        # Ensure ~/.traycer exists for mkdtemp (but NOT OUTPUT_DIR/DISABLED_DIR yet)
+        # Ensure ~/.traycer exists
         traycer_dir = Path.home() / ".traycer"
         traycer_dir.mkdir(parents=True, exist_ok=True)
 
-        # Step 1: Backup existing OUTPUT_DIR with rotation (keep 3 newest)
-        # Only backup if OUTPUT_DIR already exists (skip on first run)
+        # Backup existing OUTPUT_DIR with rotation (keep 3 newest)
         if OUTPUT_DIR.exists():
             ts = datetime.now().strftime("%Y%m%d-%H%M%S")
             backup_path = traycer_dir / f"cli-agents.backup.{ts}"
             shutil.copytree(OUTPUT_DIR, backup_path)
-            print(f"  💾 Backed up to {backup_path}")
+            print(f"   💾 Backed up to {backup_path}")
 
             # Rotate: keep only 3 newest backups
             backups = sorted(
@@ -855,185 +495,91 @@ def main(dry_run: bool = False):
             )
             for old_backup in backups[3:]:
                 shutil.rmtree(old_backup)
-                print(f"  🗑 Rotated old backup: {old_backup.name}")
-        else:
-            print("  ℹ First run - no existing agents to backup")
+                print(f"   🗑 Rotated old backup: {old_backup.name}")
 
-        # Step 2: Create temp directories and write atomically
-        # Entire block wrapped in try/except to cleanup temp dirs on any failure
+        # Create temp directory for atomic writes
+        tmp_dir = Path(tempfile.mkdtemp(dir=traycer_dir, prefix=".cli-agents-tmp-"))
+
         try:
-            tmp_active = Path(tempfile.mkdtemp(dir=traycer_dir, prefix=".cli-agents-tmp-"))
-            tmp_disabled = Path(tempfile.mkdtemp(dir=traycer_dir, prefix=".disabled-agents-tmp-"))
-            print(f"  📝 Writing to temp dirs: {tmp_active.name}, {tmp_disabled.name}")
-
-            # Track rank within each tier
-            tier_ranks: dict[str, int] = {}
-
-            for agent in agents_sorted:
-                agent_id = agent["agent_id"]
-                tier_name, identifier = parse_agent_id(agent_id)
-
-                # Increment rank for this tier
-                if tier_name not in tier_ranks:
-                    tier_ranks[tier_name] = 0
-                tier_ranks[tier_name] += 1
-                rank = tier_ranks[tier_name] - 1  # 0-indexed for first agent
-
-                # Build detailed filename
-                model_normalized = normalize_model_name(agent["model_name"])
-                input_encoded = encode_price(agent["input_per_1m"])
-                output_encoded = encode_price(agent["output_per_1m"])
+            for agent in agents:
+                role = agent["role"]
+                priority = agent["priority"]
+                model_normalized = normalize_model_name(agent["api_id"])
                 variant = agent["variant"]
+                output_encoded = encode_price(agent["output_price"])
+                ppd = agent["ppd"] or 0
+                ppd_str = f"{int(ppd):03d}" if ppd else "---"
 
-                filename = f"{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}.sh"
+                filename = f"{role}-{priority}-{model_normalized}-{variant}-o{output_encoded}-ppd{ppd_str}.sh"
+                filepath = tmp_dir / filename
 
-                # Determine if agent is active or disabled
-                is_active = not use_routing or filename in active_scripts
-                target_dir = tmp_active if is_active else tmp_disabled
-                filepath = target_dir / filename
-
-                # Track this file for orphan cleanup
-                generated_files.add(filename)
-
-                # Generate script content
-                content = generate_script_content(
-                    tier_name=tier_name,
-                    rank=rank,
-                    model_name=agent["model_name"],
-                    full_name=agent["full_name"],
-                    provider=agent["provider"],
-                    use_case="unified",
-                    variant=agent["variant"],
-                    specialty=agent["specialty"],
-                    input_cost=agent["input_per_1m"],
-                    output_cost=agent["output_per_1m"],
-                )
-
+                content = generate_script_content(agent)
                 filepath.write_text(content)
                 filepath.chmod(0o755)
 
-                status_icon = "✓" if is_active else "○"
-                status_label = "" if is_active else " [disabled]"
-                print(
-                    f"          Tier: {tier_name} #{rank:02d} | Mode: unified | Variant: {variant}"
-                )
-                print(f"          Output: {filepath}")
-
-                # Validate generated script
-                validation_issues = validate_script(filepath)
-                if validation_issues:
-                    print(f"  ⚠ {filename} - Validation issues:")
-                    for issue in validation_issues:
-                        print(f"    - {issue}")
-                else:
-                    print(f"  {status_icon} {filename}{status_label}")
-
-                if is_active:
-                    active_count += 1
-                else:
-                    disabled_count += 1
-
-            # Step 3: Pre-rename validation gate
-            validation_failures = []
-            for tmp_dir in [tmp_active, tmp_disabled]:
-                for script_path in tmp_dir.glob("*.sh"):
-                    issues = validate_script(script_path)
-                    if issues:
-                        validation_failures.append((script_path.name, issues))
-
-            if validation_failures:
-                print("\n❌ Validation failed - aborting atomic rename:")
-                for name, issues in validation_failures:
-                    print(f"  {name}:")
+                # Validate
+                issues = validate_script(filepath)
+                if issues:
+                    print(f"   ⚠ {filename} - Validation issues:")
                     for issue in issues:
-                        print(f"    - {issue}")
-                # Cleanup temp dirs, leave original untouched
-                shutil.rmtree(tmp_active, ignore_errors=True)
-                shutil.rmtree(tmp_disabled, ignore_errors=True)
-                sys.exit(1)
+                        print(f"      - {issue}")
+                else:
+                    print(f"   ✓ {filename}")
 
-            # Step 4: Atomic rename (original dirs untouched until this point)
+                generated_count += 1
+
+            # Atomic rename
             if OUTPUT_DIR.exists():
                 shutil.rmtree(OUTPUT_DIR)
-            tmp_active.rename(OUTPUT_DIR)
+            tmp_dir.rename(OUTPUT_DIR)
 
-            if DISABLED_DIR.exists():
-                shutil.rmtree(DISABLED_DIR)
-            tmp_disabled.rename(DISABLED_DIR)
-
-            # Set timestamps for Traycer sorting (newest-first = T1-Free first)
+            # Set timestamps for Traycer sorting (priority 1 = newest)
             files = sorted(OUTPUT_DIR.glob("*.sh"))
             n = len(files)
             for i, f in enumerate(files):
-                mtime = n - i  # T1-Free00 gets highest timestamp (newest)
+                mtime = n - i
                 os.utime(f, (mtime, mtime))
-            print(f"\n✅ Generated {active_count} active + {disabled_count} disabled agents")
-            print(f"   📁 Active: {OUTPUT_DIR}")
-            print(f"   📁 Disabled: {DISABLED_DIR}")
-            print("   📋 Timestamps set: T1-Free=newest → T7-Specialist=oldest (Traycer sort)")
+
+            print(f"\n✅ Generated {generated_count} agent scripts")
+            print(f"   📁 Output: {OUTPUT_DIR}")
 
         except Exception as e:
-            # Cleanup temp dirs on any failure, backup remains for recovery
-            if tmp_active is not None:
-                shutil.rmtree(tmp_active, ignore_errors=True)
-            if tmp_disabled is not None:
-                shutil.rmtree(tmp_disabled, ignore_errors=True)
-            print(f"\n❌ Write/rename failed: {e}")
-            print("   Backup preserved for manual recovery.")
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            print(f"\n❌ Write failed: {e}")
             raise
 
     else:
-        # Dry-run path: no file writes
-        tier_ranks: dict[str, int] = {}
-
-        for agent in agents_sorted:
-            agent_id = agent["agent_id"]
-            tier_name, identifier = parse_agent_id(agent_id)
-
-            if tier_name not in tier_ranks:
-                tier_ranks[tier_name] = 0
-            tier_ranks[tier_name] += 1
-            rank = tier_ranks[tier_name] - 1
-
-            model_normalized = normalize_model_name(agent["model_name"])
-            input_encoded = encode_price(agent["input_per_1m"])
-            output_encoded = encode_price(agent["output_per_1m"])
+        # Dry-run mode
+        for agent in agents:
+            role = agent["role"]
+            priority = agent["priority"]
+            model_normalized = normalize_model_name(agent["api_id"])
             variant = agent["variant"]
+            output_encoded = encode_price(agent["output_price"])
+            ppd = agent["ppd"] or 0
+            ppd_str = f"{int(ppd):03d}" if ppd else "---"
 
-            filename = f"{tier_name}{rank:02d}-{model_normalized}-{variant}-i{input_encoded}-o{output_encoded}.sh"
-
-            is_active = not use_routing or filename in active_scripts
-            target_dir = OUTPUT_DIR if is_active else DISABLED_DIR
-            filepath = target_dir / filename
-
-            generated_files.add(filename)
-
-            status = "ACTIVE" if is_active else "disabled"
-            print(f"[DRY-RUN] Would generate ({status}): {filename}")
-            print(f"          Model: {agent['full_name']}")
-            print(f"          Tier: {tier_name} #{rank:02d} | Mode: unified | Variant: {variant}")
-            print(
-                f"          Pricing: ${agent['input_per_1m']:.3f}/1M in, ${agent['output_per_1m']:.3f}/1M out"
+            filename = (
+                f"{role}-{priority}-{model_normalized}-{variant}-o{output_encoded}-ppd{ppd_str}.sh"
             )
-            print(f"          Output: {filepath}")
-            if is_active:
-                active_count += 1
-            else:
-                disabled_count += 1
 
-        print(
-            f"\n[DRY-RUN] Would generate {active_count} active + {disabled_count} disabled agents"
-        )
-        print(f"[DRY-RUN] Active: {OUTPUT_DIR}")
-        print(f"[DRY-RUN] Disabled: {DISABLED_DIR}")
-        print("[DRY-RUN] Run without --dry-run to actually create files")
+            print(f"[DRY-RUN] Would generate: {filename}")
+            print(f"          Model: {agent['name']} ({agent['provider']})")
+            print(f"          Role: {role} (Priority #{priority})")
+            print(f"          Variant: {variant}")
+            print(
+                f"          TBench: {agent['tbench_accuracy']:.1f}%"
+                if agent["tbench_accuracy"]
+                else "          TBench: —"
+            )
+            generated_count += 1
 
-    # Update routing-policy.md from YAML (keeps documentation in sync)
-    update_routing_policy_md(dry_run=dry_run)
+        print(f"\n[DRY-RUN] Would generate {generated_count} agent scripts")
+        print(f"[DRY-RUN] Output: {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate Kilo CLI Agent Scripts")
+    parser = argparse.ArgumentParser(description="Generate Kilo CLI Agent Scripts from DB")
     parser.add_argument(
         "-d", "--dry-run", action="store_true", help="Dry-run mode (do not write files)"
     )

@@ -113,7 +113,7 @@ COOLIFY_API_URL=https://coolify.vps1.ocoron.com
 COOLIFY_API_TOKEN=your-token-here
 
 # DNS Provider (choose one)
-NAMECHEAP_API_URL=https://dns.vps1.ocoron.com  # Service-based
+DNS_MANAGER_URL=https://dns.vps1.ocoron.com  # Service-based
 # OR
 CLOUDFLARE_API_TOKEN=your-token
 CLOUDFLARE_ZONE_ID=your-zone-id
@@ -148,7 +148,7 @@ B2_BUCKET_NAME=fabrik-backups
 Fabrik includes a dns-manager microservice that handles both Namecheap and Cloudflare:
 
 ```bash
-NAMECHEAP_API_URL=https://dns.vps1.ocoron.com
+DNS_MANAGER_URL=https://dns.vps1.ocoron.com
 ```
 
 **Option 2: Direct Cloudflare API**
@@ -553,18 +553,19 @@ docker rm <container-name>
 
 ## Configuration
 
-### How do I change the default AI model for droid exec?
+### How do I change the default AI model for Kilo CLI?
+
+Kilo CLI uses automatic model routing based on task type. To override:
 
 ```bash
-# Edit Factory.ai settings
-nano ~/.factory/settings.json
+# Set preferred model in environment
+export KILO_MODEL="claude-sonnet-4-5-20250929"
 
-{
-  "defaultModel": "claude-sonnet-4-5-20250929"
-}
+# Or use --model flag
+kilo run --model claude-sonnet-4-5-20250929 "your task"
 ```
 
-**Available models:** See `config/models.yaml` for current list
+**Available models:** Run `kilo models` to see current list
 
 ### Where do I find service URLs?
 

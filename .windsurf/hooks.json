@@ -10,7 +10,7 @@
     },
     {
       "event": "post_write_code",
-      "command": "python3 /opt/fabrik/.factory/hooks/secret-scanner.py",
+      "command": "python3 -m scripts.enforcement.check_secrets",
       "description": "Scan for hardcoded secrets after writing",
       "timeout": 10,
       "cwd": "/opt/fabrik"

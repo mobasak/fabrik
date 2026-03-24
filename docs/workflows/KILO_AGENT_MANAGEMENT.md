@@ -325,16 +325,72 @@ source /opt/fabrik/scripts/wsl_startup_hook.sh
 [ -f /opt/fabrik/scripts/kilo_model_sync_startup.sh ] && /opt/fabrik/scripts/kilo_model_sync_startup.sh
 ```
 
-**What runs on WSL start (daily, non-blocking):**
+**What runs on WSL start (daily, non-blocking, chained):**
 1. `kilo_agents_db.py sync` — Refresh agent list from Kilo CLI
 2. `kilo_agents_db.py update` — Update benchmark scores
 3. `kilo_agents_db.py snapshot` — Archive current state
 4. `kilo_agents_db.py export` — Export to JSON caches
-5. `kilo_model_sync.py --sync` — Sync model metadata
+5. `generate_kilo_agents.py` — **Generate Traycer CLI agent scripts**
+6. `kilo_model_sync.py --sync` — Sync model metadata
 
 **Lock files prevent duplicate runs:** `/tmp/.fabrik_daily_YYYYMMDD`
 
 **Logs:** `/opt/fabrik/scripts/kilo-benchmarks/cache/update.log`
+
+---
+
+## Traycer CLI Agent Generation
+
+`generate_kilo_agents.py` reads coding/fixing role assignments from `kilo_agents.db` and generates Traycer CLI agent scripts in `~/.traycer/cli-agents/`.
+
+### Naming Convention
+
+```
+code&fix-{priority}-{model}-{variant}-o{OUT}-ppd{PPD}.sh
+```
+
+| Component | Description |
+|-----------|-------------|
+| `code&fix` | Role (combined coding+fixing if same variant) |
+| `{priority}` | Priority rank (1=best, 4=fallback) |
+| `{model}` | Normalized model name (e.g., `opus46`, `gpt54`) |
+| `{variant}` | Thinking mode (`max` or `high`) |
+| `o{OUT}` | Output cost per 1M tokens × 100 |
+| `ppd{PPD}` | Performance Per Dollar score |
+
+### Variant Strategy
+
+| Priority | Variant | Rationale |
+|----------|---------|-----------|
+| 1-2 | `max` | Top agents — full reasoning for accuracy |
+| 3-4 | `high` | Fallback agents — balanced cost/quality |
+
+### Deduplication
+
+Agents appearing in both coding and fixing with same variant are combined into a single `code&fix-*` script.
+
+### Manual Run
+
+```bash
+# Dry run
+python /opt/fabrik/scripts/generate_kilo_agents.py --dry-run
+
+# Generate scripts
+python /opt/fabrik/scripts/generate_kilo_agents.py
+```
+
+### Output
+
+Scripts are generated in `~/.traycer/cli-agents/`:
+
+```
+code&fix-1-opus46-max-o2500-ppd076.sh      # Opus 4.6 (coding #1, fixing #1)
+coding-2-gpt54-max-o1500-ppd123.sh         # GPT-5.4 (coding #2)
+fixing-2-gemini31pro-max-o1200-ppd161.sh   # Gemini 3.1 Pro (fixing #2)
+coding-3-gemini31pro-high-o1200-ppd161.sh  # Gemini 3.1 Pro (coding #3)
+fixing-3-gpt54-high-o1500-ppd123.sh        # GPT-5.4 (fixing #3)
+code&fix-4-gpt53codex-high-o1400-ppd---.sh # GPT-5.3-Codex (coding #4, fixing #4)
+```
 
 ---
 
@@ -459,31 +515,29 @@ The 120-second **idle timeout** triggers when:
 
 | Role | Pri | Agent | ELO | TBench | Vision | Thinking | $/M In | $/M Out | PPD |
 |------|-----|-------|-----|--------|--------|----------|--------|---------|-----|
-| coding | 1 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
-| coding | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 74.8% | ✅ | ✅ | $2.00 | $12.00 | 161 |
-| coding | 3 | Anthropic: Claude Opus 4.6 | 1535 | 58.0% | ✅ | ✅ | $5.00 | $25.00 | 77 |
-| coding | 4 | MiniMax: MiniMax M2.5 | 1436 | 42.2% | — | ✅ | $0.20 | $1.17 | 1548 |
-| coding | 5 | DeepSeek: DeepSeek V3.2 Exp | 1431 | 39.6% | — | ✅ | $0.27 | $0.41 | 3816 |
-| documentation | 1 | xAI: Grok 4 Fast | 1441 | — | ✅ | ✅ | $0.20 | $0.50 | 3391 |
-| documentation | 2 | Google: Gemini 2.0 Flash | 1371 | — | ✅ | — | $0.10 | $0.40 | 4218 |
-| documentation | 3 | Xiaomi: MiMo-V2-Flash | 1411 | — | — | ✅ | $0.09 | $0.29 | 5879 |
-| documentation | 4 | StepFun: Step 3.5 Flash | 1433 | — | — | ✅ | $0.10 | $0.30 | 5732 |
-| documentation | 5 | OpenAI: gpt-oss-20b | 1371 | 3.1% | — | ✅ | $0.03 | $0.11 | 15233 |
-| fixing | 1 | Google: Gemini 3.1 Pro Preview | 1531 | 74.8% | ✅ | ✅ | $2.00 | $12.00 | 161 |
-| fixing | 2 | Anthropic: Claude Opus 4.6 | 1535 | 58.0% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| coding | 1 | Anthropic: Claude Opus 4.6 | 1535 | 81.8% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| coding | 2 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
+| coding | 3 | Google: Gemini 3.1 Pro Preview | 1531 | 80.2% | ✅ | ✅ | $2.00 | $12.00 | 161 |
+| coding | 4 | OpenAI: GPT-5.3-Codex | — | 78.4% | ✅ | ✅ | $1.75 | $14.00 | — |
+| documentation | 1 | OpenAI: gpt-oss-20b | 1371 | 3.4% | — | ✅ | $0.03 | $0.11 | 15233 |
+| documentation | 2 | OpenAI: gpt-oss-120b | 1398 | 18.7% | — | ✅ | $0.04 | $0.19 | 9182 |
+| documentation | 3 | StepFun: Step 3.5 Flash | 1433 | — | — | ✅ | $0.10 | $0.30 | 5732 |
+| documentation | 4 | Google: Gemini 2.0 Flash | 1371 | — | ✅ | — | $0.10 | $0.40 | 4218 |
+| documentation | 5 | xAI: Grok 4 Fast | 1441 | — | ✅ | ✅ | $0.20 | $0.50 | 3391 |
+| fixing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 81.8% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| fixing | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 80.2% | ✅ | ✅ | $2.00 | $12.00 | 161 |
 | fixing | 3 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
-| fixing | 4 | Z.ai: GLM 4.7 | 1460 | 33.3% | — | ✅ | $0.39 | $1.75 | 1035 |
-| fixing | 5 | MoonshotAI: Kimi K2 Thinking | 1450 | 35.7% | — | ✅ | $0.47 | $2.00 | 896 |
-| reviewing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 58.0% | ✅ | ✅ | $5.00 | $25.00 | 77 |
-| reviewing | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 74.8% | ✅ | ✅ | $2.00 | $12.00 | 161 |
-| reviewing | 3 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
-| reviewing | 4 | xAI: Grok 4 | 1453 | 23.1% | ✅ | ✅ | $3.00 | $15.00 | 121 |
-| reviewing | 5 | Qwen: Qwen3 VL 235B A22B Thinking | 1432 | — | ✅ | ✅ | $0.26 | $2.60 | 711 |
-| testing | 1 | Google: Gemini 3 Pro Preview | 1501 | 56.0% | ✅ | ✅ | $2.00 | $12.00 | 158 |
-| testing | 2 | OpenAI: GPT-5.2 | 1465 | 54.0% | ✅ | ✅ | $1.75 | $14.00 | 134 |
-| testing | 3 | MiniMax: MiniMax M2.5 | 1436 | 42.2% | — | ✅ | $0.20 | $1.17 | 1548 |
-| testing | 4 | DeepSeek: DeepSeek V3.2 Exp | 1431 | 39.6% | — | ✅ | $0.27 | $0.41 | 3816 |
-| testing | 5 | MoonshotAI: Kimi K2 Thinking | 1450 | 35.7% | — | ✅ | $0.47 | $2.00 | 896 |
+| fixing | 4 | OpenAI: GPT-5.3-Codex | — | 78.4% | ✅ | ✅ | $1.75 | $14.00 | — |
+| reviewing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 81.8% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| reviewing | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 80.2% | ✅ | ✅ | $2.00 | $12.00 | 161 |
+| reviewing | 3 | Google: Gemini 3 Pro Preview | 1501 | 69.4% | ✅ | ✅ | $2.00 | $12.00 | 158 |
+| reviewing | 4 | Anthropic: Claude Sonnet 4.6 | 1500 | — | ✅ | ✅ | $3.00 | $15.00 | 125 |
+| reviewing | 5 | Anthropic: Claude Opus 4.5 | 1496 | 63.1% | ✅ | ✅ | $5.00 | $25.00 | 75 |
+| testing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 81.8% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| testing | 2 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
+| testing | 3 | Google: Gemini 3 Flash Preview | 1470 | 64.3% | ✅ | ✅ | $0.50 | $3.00 | 619 |
+| testing | 4 | MiniMax: MiniMax M2.5 | 1436 | 42.2% | — | ✅ | $0.20 | $1.17 | 1548 |
+| testing | 5 | DeepSeek: DeepSeek V3.2 Exp | 1431 | 39.6% | — | ✅ | $0.27 | $0.41 | 3816 |
 
 ---
 

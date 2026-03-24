@@ -11,7 +11,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -21,8 +21,12 @@ jobs:
       - name: Install jscpd
         run: npm install -g jscpd
 
+      - name: Install uv
+        # CI bootstrap: bare pip acceptable here (no uv available yet)
+        run: pip install uv
+
       - name: Install Python dependencies
-        run: pip install -e ".[dev]"
+        run: uv pip install --system -e ".[dev]"
 
       - name: Run duplicate check
         run: python -m scripts.enforcement.check_duplicates --report duplicate-report.json
@@ -44,8 +48,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install uv
+        # CI bootstrap: bare pip acceptable here (no uv available yet)
+        run: pip install uv
+
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv pip install --system -e ".[dev]"
 
       - name: Ingest token log
         run: |

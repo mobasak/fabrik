@@ -219,16 +219,19 @@ def categorize_project(path: Path, status: str) -> str:
 
 
 def check_scaffold_compliance(path: Path) -> str:
-    """Check if project uses latest Fabrik scaffold"""
-    # Simple check: does .windsurfrules exist and is it a symlink?
+    """Check if project uses latest Fabrik scaffold.
+
+    Governance files must be LOCAL COPIES, not symlinks.
+    This aligns with final_gate.py check_symlinks() which fails on symlinks.
+    """
     windsurfrules = path / ".windsurfrules"
 
     if not windsurfrules.exists():
         return "❌ No scaffold"
     elif windsurfrules.is_symlink():
-        return "✅ Current"
+        return "⚠️ Needs update (symlink, should be copy)"
     else:
-        return "⚠️ Needs update"
+        return "✅ Current"
 
 
 def generate_catalog_markdown(projects: list[Project]) -> str:

@@ -43,7 +43,7 @@ build-backend = "hatchling.build"
 packages = ["src/fabrik"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 100
 src = ["src"]
 
@@ -58,7 +58,7 @@ ignore = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = false
 warn_return_any = false
 warn_unused_configs = true
@@ -76,13 +76,12 @@ exclude = [
 module = ["rich.*", "yaml.*", "httpx.*", "dotenv.*", "psutil.*", "uptime_kuma_api.*"]
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = "fabrik.*"
-ignore_errors = true
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
+markers = [
+    "requires_fabrik_env: marks tests requiring /opt/fabrik environment (skipped in CI)",
+]
 
 [tool.hypothesis]
 database = ".hypothesis"

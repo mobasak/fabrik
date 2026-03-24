@@ -27,13 +27,13 @@ def check_proposal() -> bool:
         print("INFO: No plans directory found - skipping One-Test Rule check")
         return True
 
-    # Find latest plan
-    plans = sorted(plans_dir.glob("*.md"))
+    # Find latest plan by modification time (not alphabetical)
+    plans = list(plans_dir.glob("*.md"))
     if not plans:
         print("INFO: No plan files found - skipping One-Test Rule check")
         return True
 
-    latest_plan = plans[-1]
+    latest_plan = max(plans, key=lambda p: p.stat().st_mtime)
     content = latest_plan.read_text()
 
     # Required keywords for One-Test Rule proposal

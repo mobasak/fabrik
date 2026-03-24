@@ -1,6 +1,7 @@
 services:
   wordpress:
     image: wordpress:{{ php_version | default('php8.2') }}-apache
+    platform: linux/arm64
     container_name: {{ name }}-wordpress
     restart: unless-stopped
     env_file:
@@ -31,6 +32,7 @@ services:
 
   db:
     image: mariadb:10.11
+    platform: linux/arm64
     container_name: {{ name }}-db
     restart: unless-stopped
     env_file:
@@ -51,7 +53,8 @@ services:
       retries: 5
 
   backup:
-    image: alpine:3.19
+    image: debian:bookworm-slim
+    platform: linux/arm64
     container_name: {{ name }}-backup
     restart: unless-stopped
     env_file:
@@ -75,7 +78,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        apk add --no-cache mariadb-client aws-cli gzip
+        apt-get update && apt-get install -y --no-install-recommends mariadb-client awscli gzip && rm -rf /var/lib/apt/lists/*
         echo "0 3 * * * /scripts/backup.sh daily" >> /etc/crontabs/root
         echo "0 4 * * 0 /scripts/backup.sh weekly" >> /etc/crontabs/root
         crond -f -l 2

@@ -10,7 +10,7 @@
 |----------|-------|------|----------|
 | **`saas-skeleton`** | **Next.js 14 + Tailwind + SSE** | **3000** | **SaaS apps, dashboards, web apps** |
 | `python-api` | Python 3.12 + FastAPI/Uvicorn | 8000 | REST APIs, microservices |
-| `node-api` | Node.js 20 | 3000 | Express/Fastify APIs |
+| `node-api` | Node.js 22 | 3000 | Express/Fastify APIs |
 | `next-tailwind` | Next.js 14 + Tailwind CSS | 3000 | Full-stack web apps, SSR |
 
 ---
@@ -25,7 +25,7 @@
 - Next.js 14 + TypeScript + Tailwind CSS
 - Marketing pages (landing, pricing, FAQ, terms, privacy)
 - App pages (dashboard, settings, job workflow)
-- SSE streaming + ChatUI for droid exec integration
+- SSE streaming + ChatUI for AI assistant integration
 - Supabase-ready auth patterns
 
 **Quick Start:**

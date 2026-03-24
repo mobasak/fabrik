@@ -277,12 +277,51 @@ def report_issues() -> None:
     conn.close()
 
 
+def report_savings() -> None:
+    """Show token savings from deterministic fixes.
+
+    Each auto-fix (whitespace, EOF, formatting) prevents ~500 tokens
+    of LLM retry logic. This gamifies keeping the codebase clean.
+    """
+    conn = get_db()
+
+    # Get total auto_fixed count from pre_kilo events
+    rows = conn.execute(
+        """SELECT
+             COALESCE(SUM(json_extract(data, '$.auto_fixed')), 0) as total_fixes,
+             COUNT(*) as gate_runs
+           FROM events
+           WHERE event_type = 'pre_kilo'
+             AND json_extract(data, '$.auto_fixed') IS NOT NULL"""
+    ).fetchone()
+
+    total_fixes = int(rows["total_fixes"] or 0)
+    gate_runs = int(rows["gate_runs"] or 0)
+
+    # Estimate: 1 deterministic fix = ~500 tokens of prompt/response avoided
+    tokens_saved = total_fixes * 500
+    # Estimate cost at $0.01 per 1k tokens (Flash/Pro blend)
+    cost_avoided = (tokens_saved / 1000) * 0.01
+
+    print("\n💾 Token Savings (Deterministic Fixes):")
+    print(f"   Gate runs analyzed: {gate_runs}")
+    print(f"   Auto-fixes applied: {total_fixes}")
+    print(f"   Estimated tokens saved: ~{tokens_saved:,}")
+    print(f"   Estimated cost avoided: ${cost_avoided:.2f}")
+    print()
+    print("   Why: Each deterministic fix (whitespace, EOF, formatting)")
+    print("   prevents ~500 tokens of LLM retry logic.")
+
+    conn.close()
+
+
 def report_workflow() -> None:
     """Show full workflow analysis."""
     report_summary()
     report_costs()
     report_gates()
     report_issues()
+    report_savings()
 
 
 def run_query(sql: str) -> None:
@@ -429,6 +468,8 @@ def main() -> int:
             report_workflow()
         elif report_type == "issues":
             report_issues()
+        elif report_type == "savings":
+            report_savings()
         else:
             print(f"Unknown report: {report_type}")
             return 1

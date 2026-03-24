@@ -1146,7 +1146,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 - **Captcha API** (`https://captcha.vps1.ocoron.com`) - CAPTCHA solving
 - **Translator API** (`https://translator.vps1.ocoron.com`) - Translation services
 - **Email Gateway** (`https://emailgateway.vps1.ocoron.com`) - Email routing
-- **Namecheap Service** (`https://namecheap.vps1.ocoron.com`) - DNS management
+- **DNS Manager** (`https://dns.vps1.ocoron.com`) - DNS management
 - **Image Broker** (`https://images.vps1.ocoron.com`) - Stock photo search
 - **Uptime Kuma** (`https://status.vps1.ocoron.com`) - Status monitoring
 - **Netdata** (`https://netdata.vps1.ocoron.com`) - System monitoring

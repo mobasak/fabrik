@@ -34,7 +34,7 @@ Required symlinks for all projects:
 
 | Symlink | Target |
 |---------|--------|
-| `.windsurfrules` | `/opt/fabrik/windsurfrules` |
+| `.windsurfrules` | `/opt/fabrik/.windsurfrules` |
 | `.windsurf/rules` | `/opt/fabrik/.windsurf/rules` |
 
 **Failure behavior:**
@@ -60,7 +60,7 @@ Required symlinks for all projects:
 
 These files define the authoritative rule architecture and must not be restructured:
 
-- `/opt/fabrik/windsurfrules`
+- `/opt/fabrik/.windsurfrules`
 - `/opt/fabrik/.windsurf/rules/`
 - `src/fabrik/scaffold.py` (create_project / fix_project logic)
 

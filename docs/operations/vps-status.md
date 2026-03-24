@@ -201,7 +201,7 @@ All standard Ubuntu cron jobs — nothing custom.
 | proxy | internal (via Traefik) | ✅ Running | `/health` ✅ |
 | captcha | internal (via Traefik) | ✅ Running | `/` returns service info ✅ |
 | translator | internal (via Traefik) | ✅ Running | `/health` ✅ (deepl active) |
-| namecheap | internal (via Traefik) | ✅ Running | `/health` ✅ |
+| dns-manager | internal (via Traefik) | ✅ Running | `/health` ✅ |
 | emailgateway | internal (via Traefik) | ✅ Running | `/health` ✅ |
 | netdata | internal (via Traefik) | ✅ Running | `/api/v1/info` ✅ |
 | redis-main | internal | ✅ Running | `redis-cli ping` ✅ |
@@ -286,9 +286,9 @@ All standard Ubuntu cron jobs — nothing custom.
 Host: postgres-main (inside coolify network)
 Port: 5432
 User: postgres
-Password: fabrik2025secure
+Password: <see .env or Coolify secrets>
 Database: fabrik
-Internal URL: postgres://postgres:fabrik2025secure@postgres-main:5432/fabrik
+Internal URL: postgres://postgres:<PASSWORD>@postgres-main:5432/fabrik
 ```
 
 ---
@@ -328,7 +328,7 @@ Traefik → coolify network → services (internal, no host ports)
 | proxy | https://proxy.vps1.ocoron.com | http://proxy:8000 |
 | captcha | https://captcha.vps1.ocoron.com | http://captcha:8000 |
 | translator | https://translator.vps1.ocoron.com | http://translator:8000 |
-| namecheap | https://namecheap.vps1.ocoron.com | http://namecheap:8001 |
+| dns-manager | https://dns.vps1.ocoron.com | http://dns-manager:8001 |
 | emailgateway | https://emailgateway.vps1.ocoron.com | http://emailgateway:3000 |
 | netdata | https://status.vps1.ocoron.com (auth required) | http://netdata:19999 |
 | duplicati | https://backup.vps1.ocoron.com | http://duplicati:8200 |
@@ -366,14 +366,14 @@ Traefik → coolify network → services (internal, no host ports)
 
 ### 6. ~~Configure DNS Records~~ ✅ Done
 
-DNS A records created via namecheap service API:
+DNS A records created via DNS Manager API:
 
 | Subdomain | IP | Status |
 |-----------|----|----|
 | proxy.vps1.ocoron.com | 172.93.160.197 | ✅ |
 | captcha.vps1.ocoron.com | 172.93.160.197 | ✅ |
 | translator.vps1.ocoron.com | 172.93.160.197 | ✅ |
-| namecheap.vps1.ocoron.com | 172.93.160.197 | ✅ |
+| dns.vps1.ocoron.com | 172.93.160.197 | ✅ |
 | emailgateway.vps1.ocoron.com | 172.93.160.197 | ✅ |
 
 ### 7. Deploy Tier 2 Services (Pending)

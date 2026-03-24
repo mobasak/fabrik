@@ -3,8 +3,8 @@
 **Date:** 2026-03-07
 **Total Agents:** 46 (down from 65 duplicates)
 **Tier System:** Opus 4.6 Enhanced (Free → Economy → Standard → Pro → Expert → Apex + Specialist)
-**Naming:** Detailed `{Tier}{NN}-{model}-{role}-{variant}-i{IN}-o{OUT}.sh` format
-**Example:** `Economy02-deepseek32-code-medium-i027-o081.sh`
+**Naming:** Role-priority format `{role}-{priority}-{model}-{variant}-o{OUT}-ppd{PPD}.sh`
+**Example:** `code&fix-1-opus46-max-o2500-ppd076.sh`
 
 ---
 
@@ -148,28 +148,29 @@
 
 ## Naming Convention
 
-**Format:** `{Tier}{NN}-{model}-{role}-{variant}-i{IN}-o{OUT}.sh`
+**Format:** `{role}-{priority}-{model}-{variant}-o{OUT}-ppd{PPD}.sh`
 
 **Components:**
-- `{Tier}` = Tier name (Free, Economy, Standard, Pro, Expert, Apex, Specialist)
-- `{NN}` = Rank within tier (00-99, cost-ordered)
-- `{model}` = Normalized model name (e.g., deepseek32, opus46, flash25)
-- `{role}` = code or review
-- `{variant}` = auto, minimal, low, medium, high, max
-- `i{IN}` = Input cost per 1M tokens × 100 (e.g., i027 = $0.27/1M)
-- `o{OUT}` = Output cost per 1M tokens × 100 (e.g., o081 = $0.81/1M)
+- `{role}` = `coding`, `fixing`, or `code&fix` (combined when agent handles both)
+- `{priority}` = Priority rank (1=best, 4=fallback)
+- `{model}` = Normalized model name (e.g., `opus46`, `gpt54`, `gemini31pro`)
+- `{variant}` = Thinking mode (`max` for priority 1-2, `high` for 3-4)
+- `o{OUT}` = Output cost per 1M tokens × 100 (e.g., o2500 = $25/1M)
+- `ppd{PPD}` = Performance Per Dollar score (e.g., ppd076 = 0.76)
 
 **Examples:**
-- `Free00-auto-code-auto-i000-o000.sh` → Auto router, free
-- `Economy02-deepseek32-code-medium-i027-o081.sh` → DeepSeek v3.2, $0.27/1M in
-- `Expert05-opus46-code-max-i500-o2500.sh` → Claude Opus 4.6, $5/1M in
-- `Apex02-o3pro-review-max-i4000-o16000.sh` → OpenAI o3-pro, $40/1M in
+- `code&fix-1-opus46-max-o2500-ppd076.sh` → Opus 4.6 (coding #1, fixing #1)
+- `coding-2-gpt54-max-o1500-ppd123.sh` → GPT-5.4 (coding #2)
+- `fixing-2-gemini31pro-max-o1200-ppd161.sh` → Gemini 3.1 Pro (fixing #2)
+- `coding-3-gemini31pro-high-o1200-ppd161.sh` → Gemini 3.1 Pro (coding #3)
+- `fixing-3-gpt54-high-o1500-ppd123.sh` → GPT-5.4 (fixing #3)
+- `code&fix-4-gpt53codex-high-o1400-ppd---.sh` → GPT-5.3-Codex (coding #4, fixing #4)
 
 **Benefits:**
-- Model identity visible at a glance
-- Cost visible without looking up docs
-- Provider implicit in model name
-- Role and variant clear for task matching
+- Role visible immediately (coding/fixing/both)
+- Priority indicates quality tier (1=best)
+- Cost and PPD visible for budget decisions
+- Deduplication: agents in both roles with same variant → `code&fix`
 
 ---
 

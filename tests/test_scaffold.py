@@ -1,5 +1,8 @@
 """Tests for scaffold.py gitignore and .droid/ structure."""
 
+import os
+from pathlib import Path
+
 import pytest
 
 from fabrik.scaffold import (
@@ -9,6 +12,14 @@ from fabrik.scaffold import (
     _patch_droid_block,
     create_project,
     fix_project,
+)
+
+# Skip tests that require full fabrik environment (templates at /opt/fabrik)
+# These tests can only run locally where /opt/fabrik exists
+FABRIK_ROOT = Path("/opt/fabrik")
+requires_fabrik_env = pytest.mark.skipif(
+    not FABRIK_ROOT.exists() or os.getenv("CI") == "true",
+    reason="Requires full fabrik environment at /opt/fabrik (not available in CI)",
 )
 
 
@@ -79,6 +90,7 @@ class TestPatchDroidBlock:
         assert result.count(".droid/kilo_usage.jsonl") == 1  # Not duplicated
 
 
+@requires_fabrik_env
 class TestScaffoldGitignoreCoverage:
     """Test all scaffold types write correct .gitignore content."""
 

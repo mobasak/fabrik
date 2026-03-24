@@ -57,9 +57,9 @@ class Config:
         self.coolify_server_uuid = get_env("COOLIFY_SERVER_UUID")  # VPS to deploy to
         self.coolify_project_uuid = get_env("COOLIFY_PROJECT_UUID")  # Default project
 
-        # DNS (Namecheap service API)
-        self.dns_provider = get_env("DNS_PROVIDER", "namecheap")
-        self.namecheap_api_url = get_env("NAMECHEAP_API_URL", "https://namecheap.vps1.ocoron.com")
+        # DNS (DNS Manager service API)
+        self.dns_provider = get_env("DNS_PROVIDER", "dns-manager")
+        self.dns_manager_url = get_env("DNS_MANAGER_URL", "https://dns.vps1.ocoron.com")
 
         # Logging
         self.log_level = get_env("LOG_LEVEL", "INFO")

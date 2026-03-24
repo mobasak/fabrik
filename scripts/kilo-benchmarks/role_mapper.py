@@ -59,6 +59,8 @@ Your task: Assign each role exactly 5 agents (priority 1-5).
 - Primary: tbench_accuracy
 - Secondary: arena_elo
 - Required: has_tools=1 AND is_agentic=1
+- **HARD MINIMUM: tbench_accuracy >= 70.0** — NO exceptions, skip agents below this threshold
+- **INCLUDE ALL agents meeting the 70% threshold** — if 4 agents meet it, assign all 4
 - Priority 4-5: perf_per_dollar > 500, still needs has_tools=1
 
 ### reviewing (code review, bugs, security)
@@ -71,6 +73,8 @@ Your task: Assign each role exactly 5 agents (priority 1-5).
 ### fixing (debug, fix issues, refactor)
 - Primary: tbench_accuracy + arena_elo combined
 - Required: has_tools=1 AND is_agentic=1
+- **HARD MINIMUM: tbench_accuracy >= 70.0** — NO exceptions, skip agents below this threshold
+- **INCLUDE ALL agents meeting the 70% threshold** — if 4 agents meet it, assign all 4
 - Priority 4-5: perf_per_dollar > 300
 
 ### documentation (docs, comments, READMEs)
@@ -87,11 +91,11 @@ Your task: Assign each role exactly 5 agents (priority 1-5).
 
 ## Hard Rules
 1. SKIP any agent where both arena_elo AND tbench_accuracy are null.
-2. Each role gets exactly 5 agents, one per priority level.
+2. Each role gets UP TO 5 agents. If hard minimums cannot be met, assign fewer agents. DO NOT assign agents below hard minimums just to fill slots.
 3. Only status='active' agents.
-4. No provider may appear more than once per role.
-5. No single agent_id may appear more than 3 times across ALL roles combined.
-6. Set min_elo as your recommended runtime floor for that role.
+4. Set min_elo as your recommended runtime floor for that role.
+5. **CRITICAL: For coding and fixing roles, tbench_accuracy >= 70.0 is MANDATORY. Any agent below 70% tbench MUST be skipped for these roles.**
+6. The SAME agent CAN appear in multiple roles. Multiple agents from the SAME provider CAN appear in the same role if they both meet criteria.
 
 ## Output
 Return ONLY valid JSON, no markdown fences:
@@ -139,21 +143,30 @@ def ensure_roles_table() -> None:
 def get_candidates() -> list[dict[str, Any]]:
     """Get candidate agents for role assignment."""
     conn = get_connection()
+    # Use UNION to ensure high-tbench agents (>=70%) are always included for coding/fixing
+    # Then add top agents by combined score for other roles
     cursor = conn.execute("""
-        SELECT
+        SELECT DISTINCT
             id, name, provider,
             input_cost_per_m, output_cost_per_m,
             context_window_k, has_vision, has_tools, is_agentic, has_reasoning,
             arena_elo, tbench_accuracy, task_tier, perf_per_dollar, status
-        FROM agents
-        WHERE status = 'active'
-          AND blocked = 0
-          AND (arena_elo IS NOT NULL OR tbench_accuracy IS NOT NULL OR task_tier >= 2)
-          AND input_cost_per_m >= 0
-        ORDER BY
-            COALESCE(arena_elo, 0) DESC,
-            COALESCE(tbench_accuracy, 0) DESC
-        LIMIT 60
+        FROM (
+            -- Always include high-tbench agents (critical for coding/fixing 70% minimum)
+            SELECT * FROM agents
+            WHERE status = 'active' AND blocked = 0 AND tbench_accuracy >= 70.0
+            UNION
+            -- Add top agents by combined score
+            SELECT * FROM (
+                SELECT * FROM agents
+                WHERE status = 'active' AND blocked = 0
+                  AND (arena_elo IS NOT NULL OR tbench_accuracy IS NOT NULL OR task_tier >= 2)
+                  AND input_cost_per_m >= 0
+                ORDER BY (COALESCE(tbench_accuracy, 0) * 15 + COALESCE(arena_elo, 0)) DESC
+                LIMIT 80
+            )
+        )
+        ORDER BY (COALESCE(tbench_accuracy, 0) * 15 + COALESCE(arena_elo, 0)) DESC
     """)
 
     cols = [d[0] for d in cursor.description]
@@ -384,6 +397,10 @@ def apply_assignments(assignments: list[dict], assigned_by: str) -> tuple[int, i
     # Clear existing assignments
     cursor.execute("DELETE FROM agent_roles")
 
+    # Pre-filter: Enforce 70% minimum for coding/fixing roles
+    tbench_min_roles = {"coding", "fixing"}
+    tbench_min_threshold = 70.0
+
     inserted = 0
     skipped = 0
 
@@ -400,11 +417,20 @@ def apply_assignments(assignments: list[dict], assigned_by: str) -> tuple[int, i
             continue
 
         # Verify agent exists
-        cursor.execute("SELECT 1 FROM agents WHERE id = ?", (agent_id,))
-        if not cursor.fetchone():
+        cursor.execute("SELECT tbench_accuracy FROM agents WHERE id = ?", (agent_id,))
+        row = cursor.fetchone()
+        if not row:
             log(f"  SKIP: Agent not found: {agent_id}")
             skipped += 1
             continue
+
+        # Enforce 70% minimum for coding/fixing roles
+        if role in tbench_min_roles:
+            tbench = row[0]
+            if tbench is None or tbench < tbench_min_threshold:
+                log(f"  SKIP: {agent_id} below 70% tbench ({tbench}) for {role}")
+                skipped += 1
+                continue
 
         cursor.execute(
             """

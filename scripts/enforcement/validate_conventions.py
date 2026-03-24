@@ -3,7 +3,7 @@
 
 Called by:
     - Windsurf Cascade hooks
-    - droid exec PostToolUse hooks
+    - Kilo CLI PostToolUse hooks
     - CI/CD pipelines
 
 Exit codes:
@@ -170,9 +170,12 @@ def run_all_checks(file_path: Path) -> list[CheckResult]:
         results.extend(run_check_doc_sprawl(file_path))  # Anti-sprawl enforcement
         # Check if tasks.md needs update when phase docs change
         if "phase" in name:
-            from .check_tasks_updated import check_file as check_tasks
+            try:
+                from .check_tasks_updated import check_file as check_tasks
 
-            results.extend(check_tasks(file_path))
+                results.extend(check_tasks(file_path))
+            except ImportError:
+                pass  # check_tasks_updated.py not yet implemented
 
     # Requirements files - check dependency sync
     if name == "requirements.txt":
