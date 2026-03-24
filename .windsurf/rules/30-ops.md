@@ -17,8 +17,8 @@ description: Docker standards, deployment, infrastructure
 
 | Use Case | Base Image |
 |----------|------------|
-| Python apps | `python:3.12-slim-bookworm` |
-| Node.js apps | `node:22-bookworm-slim` |
+| Python apps | `python:<current-stable>-slim-bookworm` |
+| Node.js apps | `node:<current-LTS>-bookworm-slim` |
 | General | `debian:bookworm-slim` |
 
 **Why not Alpine:** glibc compatibility, ARM64 support, pre-built wheels.
@@ -28,19 +28,20 @@ description: Docker standards, deployment, infrastructure
 ## Dockerfile Template
 
 ```dockerfile
-FROM python:3.12-slim-bookworm AS builder
+FROM python:<current-stable>-slim-bookworm AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system --no-cache -r requirements.txt
 
-FROM python:3.12-slim-bookworm
+FROM python:<current-stable>-slim-bookworm
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 curl && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+COPY --from=builder /usr/local/lib/python3.x/site-packages /usr/local/lib/python3.x/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 COPY . .
 
 # HEALTHCHECK is REQUIRED

@@ -166,13 +166,13 @@ async def detailed_health():
 ## Dockerfile Template
 
 ```dockerfile
-FROM python:3.12-slim AS builder
+FROM python:<current-stable>-slim-bookworm AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-FROM python:3.12-slim
+FROM python:<current-stable>-slim-bookworm
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /root/.local /root/.local

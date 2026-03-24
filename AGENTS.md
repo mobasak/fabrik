@@ -64,7 +64,7 @@ Every new project starts from `/opt/<project>/` with pre-configured: folder stru
 | Database | PostgreSQL 16 (VPS, Coolify-managed) | Supabase for managed auth/realtime/pgvector |
 | Background jobs | PostgreSQL jobs table + worker | Redis queue for high throughput |
 | AI/LLM | Kilo CLI free tiers → OpenAI/Anthropic APIs | Self-hosted only if justified |
-| Base images | `python:3.12-slim-bookworm`, `node:22-bookworm-slim` | Never Alpine |
+| Base images | `python:<current-stable>-slim-bookworm`, `node:<current-LTS>-bookworm-slim` | Never Alpine |
 | PDF | Gotenberg (self-hosted) | WeasyPrint for simple cases |
 | Search | MeiliSearch (self-hosted) | PostgreSQL FTS for simple cases |
 | Notifications | Apprise (self-hosted) | Direct API for single-channel |
@@ -225,7 +225,7 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 | Frontend | Next.js 14 + TypeScript + Tailwind | — |
 | Backend | Python + FastAPI + Uvicorn | Node.js for web-adjacent workers |
 | Database | PostgreSQL 16 (Coolify-managed) | Supabase for managed auth/realtime/pgvector |
-| Base images | `python:3.12-slim-bookworm` / `node:22-bookworm-slim` | Never Alpine |
+| Base images | `python:<current-stable>-slim-bookworm` / `node:<current-LTS>-bookworm-slim` | Never Alpine |
 | Platform | `linux/arm64` | Never x86-only |
 | Hosting | Coolify on ARM64 VPS | — |
 | Domains | `*.vps1.ocoron.com` | — |
@@ -268,7 +268,7 @@ After fix → Traycer re-verifies. Loop until PASS, then proceed to Step 7.
 - **Scaffold:** Fixed structure — do not reorganize, flatten, or add top-level directories.
 - **pip:** Never bare `pip install`. Always `/opt/<project>/.venv/bin/pip install`
 - **Env vars:** Never hardcode. Always `os.getenv('KEY', 'default')`
-- **Base images:** `python:3.12-slim-bookworm` / `node:22-bookworm-slim`. Never Alpine.
+- **Base images:** `python:<current-stable>-slim-bookworm` / `node:<current-LTS>-bookworm-slim`. Never Alpine. Check actual Dockerfiles in `templates/scaffold/docker/` for pinned versions.
 - **Deployment:** Linux VPS via Coolify. ARM-compatible builds required.
 - **Ports:** Python 8000–8099 / Frontend 3000–3099. Register new ports in `PORTS.md`.
 - **Conflicts:** If task contradicts project state — stop and return to Traycer. Do not silently overwrite.
@@ -350,7 +350,7 @@ TEMP_DIR = Path(__file__).parent.parent / ".tmp"
 
 ### Docker
 ```dockerfile
-FROM python:3.12-slim-bookworm
+FROM python:<current-stable>-slim-bookworm  # See templates/scaffold/docker/ for pinned version
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 ```
@@ -397,7 +397,7 @@ environment:
 
 - Every project lives at `/opt/<project>/` with pre-created `.venv`, Dockerfile, `compose.yaml`, `.env.example`
 - Use the project's `.venv` — never bare `pip install`
-- Docker patterns: `python:3.12-slim-bookworm` / `node:22-bookworm-slim` base images, never Alpine
+- Docker patterns: `python:<current-stable>-slim-bookworm` / `node:<current-LTS>-bookworm-slim` base images, never Alpine. See `templates/scaffold/docker/` for pinned versions
 
 ### Windsurf Cascade Users
 
@@ -458,7 +458,7 @@ environment:
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push / PR | Duplicate check + KPI schema validation |
+| `ci.yml` | Push / PR | `check_duplicates.py` (jscpd wrapper) + KPI schema validation |
 | `docs-check.yml` | Push to main (src/docs/scripts) | Documentation drift detection via `docs_updater.py --check` |
 
 ### Quality Gates (Local Scripts)

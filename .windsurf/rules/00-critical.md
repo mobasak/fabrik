@@ -185,7 +185,7 @@ Project `.env` - primary (local use)
 |--------|-------------|
 | `/tmp/` directory | Project `.tmp/` |
 | Hardcoded localhost | `os.getenv()` |
-| Alpine base images | `python:3.12-slim-bookworm` |
+| Alpine base images | `python:<current-stable>-slim-bookworm` |
 | Class-level config | Function-level loading |
 | Bare `pip install` | `/opt/<project>/.venv/bin/pip install` |
 

@@ -111,7 +111,7 @@ For each project, you need these files. Check off as you add them:
 # Build: docker build -t myproject .
 # Run: docker run -p 8000:8000 --env-file .env myproject
 
-FROM python:3.12-slim AS builder
+FROM python:<current-stable>-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -126,7 +126,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Production stage
-FROM python:3.12-slim
+FROM python:<current-stable>-slim-bookworm
 
 WORKDIR /app
 
@@ -166,7 +166,7 @@ CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 # Build: docker build -t myproject .
 # Run: docker run -p 3000:3000 --env-file .env myproject
 
-FROM node:20-alpine AS builder
+FROM node:<current-LTS>-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -181,12 +181,12 @@ COPY . .
 RUN npm run build --if-present
 
 # Production stage
-FROM node:20-alpine
+FROM node:<current-LTS>-bookworm-slim
 
 WORKDIR /app
 
 # Install curl for health checks
-RUN apk add --no-cache curl
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 # Copy from builder
 COPY --from=builder /app/node_modules ./node_modules
@@ -194,7 +194,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN groupadd --gid 1001 nodejs && useradd --uid 1001 --gid nodejs nodejs
 USER nodejs
 
 # Health check

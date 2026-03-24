@@ -299,7 +299,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 ├── pyproject.toml                   # Python project config
 ├── README.md                        # Project overview
 ├── requirements.txt                 # Python dependencies
-└── .windsurfrules                   # Copied from /opt/fabrik/windsurfrules
+└── .windsurfrules                   # Copied from /opt/fabrik/.windsurfrules
 ```
 
 #### Files Created (70+)
@@ -310,7 +310,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `README.md` | `docs/PROJECT_README_TEMPLATE.md` | Project overview |
 | `CHANGELOG.md` | `docs/CHANGELOG_TEMPLATE.md` | Version history |
 | `AGENTS.md` | Copied from `/opt/fabrik/AGENTS.md` | AI agent instructions |
-| `.windsurfrules` | Copied from `/opt/fabrik/windsurfrules` | Legacy rules shim |
+| `.windsurfrules` | Copied from `/opt/fabrik/.windsurfrules` | Windsurf rules shim |
 | `.gitignore` | Generated inline | Git ignore patterns |
 | `.env.example` | Generated inline | Env var template |
 | `requirements.txt` | Generated inline | Python dependencies |
@@ -774,7 +774,7 @@ npm run dev
 ### Python Dockerfile
 
 Multi-stage build with:
-- Base: `python:3.12-slim` (NOT Alpine)
+- Base: `python:<current-stable>-slim-bookworm` (NOT Alpine, NOT plain slim)
 - Non-root user
 - Health check
 - Entry point customization
@@ -782,19 +782,20 @@ Multi-stage build with:
 **Template:** `@/opt/fabrik/templates/scaffold/docker/Dockerfile.python`
 
 ```dockerfile
-FROM python:3.12-slim AS builder
+FROM python:<current-stable>-slim-bookworm AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system --no-cache -r requirements.txt
 
-FROM python:3.12-slim
+FROM python:<current-stable>-slim-bookworm
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 curl && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+COPY --from=builder /usr/local/lib/python3.x/site-packages /usr/local/lib/python3.x/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 COPY . .
 
 RUN useradd -m appuser && chown -R appuser:appuser /app
@@ -990,8 +991,8 @@ class Config:
 
 | Use Case | Base Image |
 |----------|------------|
-| Python apps | `python:3.12-slim-bookworm` |
-| Node.js apps | `node:22-bookworm-slim` |
+| Python apps | `python:<current-stable>-slim-bookworm` |
+| Node.js apps | `node:<current-LTS>-bookworm-slim` |
 | General | `debian:bookworm-slim` |
 
 **Never use Alpine** — glibc compatibility, ARM64 support, pre-built wheels.
