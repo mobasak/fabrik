@@ -1,6 +1,6 @@
 # Process Monitoring Quick Start
 
-> **TL;DR**: Use `ProcessMonitor` to detect stuck `droid exec` processes without killing legitimate long-running tasks.
+> **TL;DR**: Use `ProcessMonitor` to detect stuck AI agent processes without killing legitimate long-running tasks.
 
 ## Installation
 
@@ -69,7 +69,7 @@ if time.time() - last_check >= monitor.check_interval:
 
 ## Complete Example
 
-See `/opt/fabrik/docs/examples/droid_runner_integration_example.py` for full integration.
+See the ProcessMonitor class in `/opt/fabrik/scripts/process_monitor.py` for full integration.
 
 ## Configuration
 
@@ -308,19 +308,17 @@ if process.poll() is None:
 
 - **Design Document**: `/opt/fabrik/docs/reference/LONG_COMMAND_MONITORING.md`
 - **Full Implementation**: `/opt/fabrik/scripts/process_monitor.py`
-- **Integration Example**: `/opt/fabrik/docs/examples/droid_runner_integration_example.py`
 - **Test Suite**: `/opt/fabrik/scripts/test_process_monitor.py`
 
 ## Next Steps
 
 1. Review design document for detailed rationale
 2. Run test suite to validate setup
-3. Integrate ProcessMonitor into droid_runner.py
-4. Test with real droid exec workloads
-5. Tune thresholds based on observations
+3. Integrate ProcessMonitor into long-running scripts
+4. Tune thresholds based on observations
 
 ---
 
-**Author**: Droid (Factory AI)
+**Author**: Fabrik
 **Date**: 2026-01-04
 **Status**: Production Ready

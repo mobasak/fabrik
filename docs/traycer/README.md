@@ -10,7 +10,7 @@ Traycer is a spec-driven development orchestrator that:
 - Runs as an IDE Extension (Windsurf).
 - Interacts with WSL via CLI agents located in `~/.traycer/cli-agents/`.
 - Reads your specification and generates phased implementation plans.
-- Hands tasks to AI coding agents (like Cascade or droid exec).
+- Hands tasks to AI coding agents (Cascade for interactive work, Kilo CLI for automated tasks).
 - Verifies task completion.
 
 ---
@@ -180,7 +180,7 @@ Traycer prevents agent drift and preserves human intent using **Spec-Driven Deve
 | Single-PR / Focused task | **Plan** | Creates a detailed, actionable implementation plan. |
 | Complex / Multi-step project | **Phases** (Epic Mode) | Manages specs and tickets across a project lifecycle to prevent context loss. |
 | Code Audit / Verification | **Review** | Structured workflow for code review tasks. |
-| Trivial change (< 5 files) | *Skip Traycer* | Use `droid exec` directly. |
+| Trivial change (< 5 files) | *Skip Traycer* | Use Cascade or Kilo CLI directly. |
 
 ## WSL Environment Architecture
 
@@ -1392,14 +1392,10 @@ codex "$TRAYCER_PROMPT"
 gemini "$TRAYCER_PROMPT"
 ```
 
-**Factory Droid CLI (Fabrik Integration):**
+**Kilo CLI (Fabrik Integration):**
 ```bash
 #!/bin/sh
-# Basic execution
-droid exec "$TRAYCER_PROMPT"
-
-# With auto-run level
-droid exec --auto medium "$TRAYCER_PROMPT"
+kilo run "$TRAYCER_PROMPT"
 ```
 
 **Cline CLI:**
@@ -1458,30 +1454,7 @@ Custom CLI agents are particularly useful for:
 
 ### Fabrik Custom CLI Agents
 
-Fabrik uses three Custom CLI Agents for async job submission with Traycer:
-
-**Factory Submit (async).sh:**
-```bash
-#!/bin/sh
-# Submits jobs to /opt/fabrik/factory_submit.py
-cd /opt/fabrik && python factory_submit.py "$TRAYCER_PROMPT"
-```
-
-**Factory Wait (async).sh:**
-```bash
-#!/bin/sh
-# Monitors jobs via /opt/fabrik/factory_wait.py
-cd /opt/fabrik && python factory_wait.py "$TRAYCER_TASK_ID"
-```
-
-**Factory AI.sh:**
-```bash
-#!/bin/sh
-# Direct execution wrapper
-cd /opt/fabrik && droid exec --auto medium "$TRAYCER_PROMPT"
-```
-
-These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 8-step workflow.
+CLI agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 8-step workflow.
 
 ### Kilo Code Review Custom CLI Agents
 

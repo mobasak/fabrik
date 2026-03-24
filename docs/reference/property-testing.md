@@ -41,8 +41,7 @@ HYPOTHESIS_PROFILE=thorough pytest tests/test_properties.py -v
 | Function | Module | Invariant |
 |----------|--------|-----------|
 | `_get_package_name(name)` | `src/fabrik/scaffold.py` | `result == name.replace("-", "_")`, `len(result) == len(name)` |
-| `recommend_model(cat)` | `scripts/droid_models.py` | Result in `TASK_MODEL_MAP[cat]` or equals `DEFAULT_MODEL` |
-| `get_default_model()` | `scripts/droid_models.py` | Non-empty string, key in `config/models.yaml["models"]` |
+| `select_model(role, tier)` | `scripts/generate_kilo_agents.py` | Returns valid model ID from agent database |
 
 ## Example Test
 

@@ -9,7 +9,7 @@
 The enforcement system validates code against Fabrik conventions at multiple points:
 - **Windsurf hooks** (`.windsurf/hooks.json`) — runs before/after Cascade edits
 - **Pre-commit** (git hooks) — blocks bad commits
-- **Post-edit** (droid hooks) — runs after droid exec edits
+- **Post-edit** (Kilo hooks) — runs after Kilo CLI edits
 - **Manual** — run anytime via CLI
 
 ### Windsurf Cascade Hooks
@@ -38,13 +38,13 @@ Located in `.windsurf/hooks.json`:
 | `10-python.md` | `glob: **/*.py` | FastAPI patterns |
 | `20-typescript.md` | `glob: **/*.ts, **/*.tsx` | Next.js patterns |
 | `30-ops.md` | `glob: **/Dockerfile, **/compose.yaml` | Docker standards |
-| `90-automation.md` | `manual` | droid exec reference |
+| `90-automation.md` | `manual` | Kilo CLI automation |
 
 All rule files use YAML frontmatter for structured activation metadata.
 
 ### Legacy windsurfrules
 
-The monolithic `windsurfrules` file (50KB) is deprecated but maintained for backward compatibility with existing project symlinks. New projects should use `.windsurf/rules/` instead.
+The monolithic `.windsurfrules` file is deprecated. New projects should use `.windsurf/rules/` instead.
 
 ---
 
@@ -154,7 +154,6 @@ Added to `.pre-commit-config.yaml`:
 
 | Hook | Purpose | Auto-fix? |
 |------|---------|----------|
-| `sync-droid-models` | Keep model names consistent across droid_tasks.py, AGENTS.md, docs | No |
 | `fabrik-conventions` | Check for hardcoded localhost, secrets, health endpoints, Docker issues | No |
 | `rule-file-size` | Ensure `.windsurf/rules/*.md` < 12KB | No |
 | `changelog-check` | Require CHANGELOG.md updates for code changes | No |
@@ -189,7 +188,7 @@ def run_precommit(files: list[Path], max_iterations: int = 5) -> bool:
 | `10-python.md` | 2.3KB | `**/*.py` | FastAPI patterns |
 | `20-typescript.md` | 2.0KB | `**/*.ts` | Next.js patterns |
 | `30-ops.md` | 3.1KB | Dockerfile, compose | Docker standards |
-| `90-automation.md` | 2.6KB | Manual | droid exec reference |
+| `90-automation.md` | 2.6KB | Manual | Kilo CLI automation |
 
 **Size limit:** Each file must be <12KB (enforced by `check_rule_size.py`)
 
@@ -211,53 +210,38 @@ pytest tests/test_enforcement.py -v
 
 ## Code Review Feedback Loop
 
-For **droid exec only** (not Cascade), automatic code review is available:
+Automatic code review is available via **Kilo CLI** as part of the 8-step workflow (Step 3):
 
 ### Components
 
 | Script | Purpose |
-|--------|---------|
-| `~/.factory/hooks/fabrik-code-review.py` | PostToolUse hook - queues reviews |
-| `scripts/review_processor.py` | Processes queue, runs dual-model review, updates docs |
-| `scripts/acknowledge_reviews.py` | CLI to manage pending reviews |
-| `~/.factory/hooks/fabrik-session-reviews.py` | SessionStart hook - shows pending |
+|--------|--------|
+| `scripts/kilo_code_review.py` | Runs AI code review on staged changes |
+| `scripts/kilo_docs_enforcer.py` | Auto-generates and enforces documentation |
 
 ### Flow
 
 ```
-droid exec edit → queue review → review_processor.py processes → next session sees issues
+Code edit → git add → kilo_code_review.py staged → fix findings → commit
 ```
 
 ### Usage
 
 ```bash
-# Start review processor (background)
-python3 scripts/review_processor.py --daemon &
+# Review staged changes
+python scripts/kilo_code_review.py staged --plan "task description" --output json
 
-# List pending reviews
-ls /opt/fabrik/.droid/review_results/
+# Auto-generate docs
+python scripts/kilo_docs_enforcer.py --auto-generate --verbose
 ```
 
-### Limitation
+### Integration
 
-**This only works for droid exec.** Cascade (Windsurf) does not trigger `.factory/hooks.json`.
-
----
-
-## Hook rollback utility
-
-Use when a hook consolidation or update corrupts local hook settings. Restores the latest backups for hooks and settings.
-
-```bash
-./scripts/rollback_hooks.sh
-```
-
-- Restores `~/.factory/hooks.json` from the newest `~/.factory/backups/hooks.json.bak.*`
-- If present, also restores `~/.factory/settings.json` from `~/.factory/backups/settings.json.bak.*`
+**Works with both Cascade and Kilo CLI.** The 8-step workflow in AGENTS.md defines when to run reviews.
 
 ---
 
 ## See Also
 
 - [AGENTS.md](../../AGENTS.md) — Cross-agent briefing
-- [hooks-and-skills-guide.md](hooks-and-skills-guide.md) — Hook configuration
+- [Final Gate Workflow](../workflows/FINAL_GATE_WORKFLOW.md) — Pre-commit quality gate

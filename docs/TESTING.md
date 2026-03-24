@@ -72,8 +72,8 @@ python -c "from scripts.test_process_monitor import test_quick_exit; test_quick_
 # Test health endpoints (requires services running)
 curl http://localhost:8000/health
 
-# Test droid runner
-python scripts/droid_runner.py run --prompt "What is 2+2?" --auto low -o json
+# Test Kilo CLI
+kilo run "What is 2+2?"
 ```
 
 ---
@@ -273,8 +273,8 @@ ruff format .
 ## CI/CD Integration
 
 Tests run automatically on:
-- Pull requests (via `droid-review.yml`)
-- Push to main (via `daily-maintenance.yml`)
+- Pull requests (via `ci.yml`)
+- Push to main (via `docs-check.yml`)
 
 ### Pre-commit Checks
 

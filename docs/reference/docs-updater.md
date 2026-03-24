@@ -23,7 +23,7 @@ The documentation updater is a **separate workflow** from code review:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  1. You edit code (via Cascade or droid exec)                   │
+│  1. You edit code (via Cascade or Kilo CLI)                     │
 │     ↓                                                           │
 │  2. Post-edit hook detects change in src/, scripts/, etc.       │
 │     ↓                                                           │
@@ -63,7 +63,7 @@ After the docs updater runs, you see changes in Windsurf exactly like Cascade ed
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  docs/reference/droid-exec-usage.md                         ✎   │
+│  docs/reference/enforcement-system.md                       ✎   │
 │                                                                  │
 │  502 │ ### Health Endpoints                                      │
 │  503 │                                                           │
@@ -84,23 +84,7 @@ After the docs updater runs, you see changes in Windsurf exactly like Cascade ed
 
 ## Components
 
-### 1. Hook: `fabrik-post-edit-docs.py`
-
-Location: `~/.factory/hooks/fabrik-post-edit-docs.py`
-
-Triggers on file edits in:
-- `src/`
-- `scripts/`
-- `lib/`
-- `api/`
-- `fabrik/`
-
-Skips:
-- `docs/` (no recursive triggers)
-- `test_*.py` (test files)
-- `__pycache__`, `node_modules`
-
-### 2. Processor: `docs_updater.py`
+### `docs_updater.py`
 
 Location: `/opt/fabrik/scripts/docs_updater.py`
 
@@ -112,10 +96,7 @@ python scripts/docs_updater.py
 python scripts/docs_updater.py --daemon
 
 # Update docs for specific file
-python scripts/docs_updater.py --file scripts/droid_runner.py
-
-# Integrated with droid-review.sh
-./scripts/droid-review.sh --update-docs src/file.py
+python scripts/docs_updater.py --file src/fabrik/scaffold.py
 
 # Structure enforcement (CI modes)
 python scripts/docs_updater.py --check      # Validate, fail on drift (exit code 1)
@@ -165,7 +146,7 @@ Pending tasks are stored as JSON files:
 ```json
 {
   "task_id": "20260105_120000_12345",
-  "file_path": "scripts/droid_runner.py",
+  "file_path": "src/fabrik/scaffold.py",
   "tool_name": "Edit",
   "session_id": "abc123",
   "queued_at": "2026-01-05T12:00:00",
@@ -190,21 +171,13 @@ Completed tasks and update logs are stored here for audit.
 | `FABRIK_ROOT` | `/opt/fabrik` | Root directory |
 | `FABRIK_DOCS_QUEUE` | `$FABRIK_ROOT/.droid/docs_queue` | Queue directory |
 | `FABRIK_DOCS_LOG` | `$FABRIK_ROOT/.droid/docs_log` | Log directory |
-| `FABRIK_MODELS_CONFIG` | `$FABRIK_ROOT/config/models.yaml` | Model config |
-| `FABRIK_NOTIFY_SCRIPT` | `~/.factory/hooks/notify.sh` | Notification script |
 
 ### Model Configuration
 
-In `config/models.yaml`:
+Models are auto-selected by Kilo CLI. Override with `KILO_DEFAULT_MODEL` environment variable.
 
 ```yaml
-scenarios:
-  documentation:
-    description: "Documentation updates, README maintenance, API docs"
-    primary: gemini-3-flash-preview
-    alternatives:
-      - glm-4.7
-      - claude-haiku-4-5-20251001
+# No manual model config needed — Kilo CLI handles model selection
     notes: "Low-cost model for docs (0.2x). Escalate to haiku for complex API docs."
 ```
 
@@ -250,43 +223,24 @@ Message: `📄 Documentation updated for X files - check Windsurf diff view`
 
 ### Docs not updating?
 
-1. Check if hook is registered:
+1. Run structure check manually:
    ```bash
-   grep "fabrik-post-edit-docs" ~/.factory/settings.json
+   python scripts/docs_updater.py --check
    ```
 
-2. Check queue for pending tasks:
+2. Sync missing stubs:
    ```bash
-   ls /opt/fabrik/.droid/docs_queue/
+   python scripts/docs_updater.py --sync
    ```
 
-3. Run processor manually:
+3. Preview changes:
    ```bash
-   python /opt/fabrik/scripts/docs_updater.py
+   python scripts/docs_updater.py --dry-run
    ```
-
-4. Check logs:
-   ```bash
-   ls /opt/fabrik/.droid/docs_log/
-   cat /opt/fabrik/.droid/docs_log/update_*.json | jq .
-   ```
-
-### Want to disable?
-
-Remove the hook from `~/.factory/settings.json`:
-```json
-// Remove this block:
-{
-  "type": "command",
-  "command": "/home/ozgur/.factory/hooks/fabrik-post-edit-docs.py",
-  "timeout": 5
-}
-```
 
 ---
 
 ## See Also
 
-- [Auto Review System](auto-review.md) - Code review workflow
-- .env.example (authoritative variable reference) - All env vars
+- [Enforcement System](enforcement-system.md) - Convention enforcement scripts
 - [AGENTS.md](../../AGENTS.md) - Documentation conventions

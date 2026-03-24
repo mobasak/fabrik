@@ -14,7 +14,7 @@
 
 Full verbose specs for Kilo models are managed by:
 - **Config:** `config/models.yaml` (local model configuration)
-- **Update command:** `python scripts/droid_models.py sync`
+- **Update command:** `python scripts/kilo_model_sync.py`
 - **Contains:** id, name, cost tiers, limits, capabilities, variants
 
 ---

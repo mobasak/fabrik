@@ -873,7 +873,7 @@ Available in `@/opt/fabrik/templates/scaffold/docs/`:
   "autonomyLevel": "auto-high",
   "diffMode": "github",
   "specSaveEnabled": true,
-  "specSaveDir": ".factory/docs",
+  "specSaveDir": ".droid/docs",
   "enableHooks": true,
   "commandAllowlist": ["git push", "pip install", "docker compose", ...],
   "commandDenylist": ["rm -rf /", "dd of=/dev", ...]

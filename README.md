@@ -113,7 +113,7 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
 │   (WSL ~/.traycer)  │  • Phases: Multi-step context preservation
 └──────────┬──────────┘  • Plan/Review/Spec modes
            │
-           │ factory_submit.py / factory_wait.py
+           │ CLI agents (~/.traycer/cli-agents/)
            ▼
 ┌─────────────────────┐
 │  Coding Agents      │  • Windsurf Cascade (Gemini 3.1 Pro High Thinking)
@@ -172,10 +172,9 @@ Smart YOLO (Epic):      Orchestrator evolves Epic based on learnings
 ```
 
 **Integration with Fabrik:**
-- Submits plans via `factory_submit.py` (async job submission)
-- Waits for completion via `factory_wait.py`
-- Uses custom templates at `~/.traycer/prompt-templates/` (see `docs/traycer/TEMPLATE_MAPPING.md`)
-- Integrates workflow into handoffs
+- Uses CLI agents in `~/.traycer/cli-agents/` for Kilo CLI execution
+- Uses custom templates at `~/.traycer/prompt-templates/`
+- Integrates 8-step workflow into handoffs
 
 ---
 
@@ -371,20 +370,19 @@ class ProvisionState(str, Enum):
 
 **10+ Fabrik skills** define project conventions and patterns.
 
-**Location:** `.factory/skills/` and `~/.factory/skills/`
+**Location:** `.windsurf/rules/` (Cascade rules) + `scripts/enforcement/` (check scripts)
 
-| Skill | Triggers | What It Does |
-|-------|----------|-------------|
-| `fabrik-saas-scaffold` | "SaaS", "web app", "dashboard" | Copies SaaS skeleton template, customizes config |
-| `fabrik-scaffold` | "new project", "create service" | Full project structure with ALL conventions |
-| `fabrik-docker` | "dockerfile", "compose" | ARM64 Debian images, HEALTHCHECK, Traefik labels |
-| `fabrik-health-endpoint` | "health", "healthcheck" | `/health` that tests DB, not fake "ok" |
-| `fabrik-config` | "config", "environment" | `os.getenv()` patterns, `.env.example` template |
-| `fabrik-api-endpoint` | "endpoint", "route", "API" | FastAPI + Pydantic patterns |
-| `fabrik-watchdog` | "watchdog", "monitor" | Service monitoring scripts with auto-restart |
-| `fabrik-postgres` | "database", "postgres" | PostgreSQL + pgvector setup |
+| Pattern | Triggers | Enforced By |
+|---------|----------|-------------|
+| SaaS scaffold | "SaaS", "web app", "dashboard" | `scaffold.py` + `20-typescript.md` |
+| Docker standards | "dockerfile", "compose" | `check_docker.py` + `30-ops.md` |
+| Health endpoints | "health", "healthcheck" | `check_health.py` + `00-critical.md` |
+| Config patterns | "config", "environment" | `check_env_contract.py` + `00-critical.md` |
+| API endpoints | "endpoint", "route", "API" | `validate_conventions.py` + `10-python.md` |
+| Watchdog scripts | "watchdog", "monitor" | `check_watchdog.py` + `30-ops.md` |
+| Database schema | "database", "postgres" | `check_schema_sync.py` + `00-critical.md` |
 
-**Enforcement:** Skills are documented in `.factory/skills/*.md` and define Fabrik's coding conventions.
+**Enforcement:** Windsurf Cascade reads `.windsurf/rules/` for AI behavior. `scripts/final_gate.py` runs 27 enforcement scripts.
 
 ---
 

@@ -181,17 +181,17 @@ postconditions:
 For high-risk changes, use multi-model review:
 
 ```bash
-# Implementation review
-droid exec -m gpt-5.2 "Review changes in src/fabrik/..."
+# Staged code review (Step 3 in workflow)
+python scripts/kilo_code_review.py staged --plan "Review changes" --output json
 
-# Security review
-droid exec -m claude-sonnet-4-5-20250929 "Red-team review..."
+# Documentation enforcement (Step 4)
+python scripts/kilo_docs_enforcer.py --auto-generate --verbose
 
-# Test generation
-droid exec -m gemini-3-flash-preview "Generate edge case tests..."
+# Final gate (Step 5)
+python scripts/final_gate.py
 ```
 
-This is **optional** and manual - not enforced in CI.
+The 8-step workflow in AGENTS.md defines the full review cycle.
 
 ---
 
@@ -212,4 +212,4 @@ This framework was designed through multi-model consensus (GPT-5.2, Claude Sonne
 
 - [DEPLOYMENT.md](../DEPLOYMENT.md) - Deployment process
 - [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) - Common issues
-- [PROJECT_WORKFLOW.md](../guides/PROJECT_WORKFLOW.md) - Project workflow
+- [Fabrik Scaffold Workflow](../workflows/FABRIK_SCAFFOLD_WORKFLOW.md) - Project creation workflow
