@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""KPI Tracker CLI for managing droid execution metrics.
+"""KPI Tracker CLI for managing AI execution metrics.
 
 Usage:
     python scripts/kpi_tracker.py summary [--since DATE] [--until DATE] [--model MODEL] [--format table|json|csv]
@@ -451,7 +451,7 @@ def cmd_sanitize(args: argparse.Namespace) -> int:
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="KPI Tracker CLI for managing droid execution metrics",
+        description="KPI Tracker CLI for managing AI execution metrics",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")

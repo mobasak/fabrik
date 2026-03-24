@@ -1,6 +1,6 @@
 """Fabrik Convention Enforcement Scripts.
 
-Shared validation layer called by both Windsurf Cascade and droid exec hooks.
+Shared validation layer called by Windsurf Cascade hooks and pre-commit checks.
 
 Exit codes:
     0 = pass (all checks passed)

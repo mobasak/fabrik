@@ -65,7 +65,7 @@ if sys.platform.startswith("linux"):
 else:
     fcntl = None  # type: ignore[assignment]
 
-# Import ProcessMonitor for droid exec monitoring
+# Import ProcessMonitor for subprocess monitoring
 try:
     from process_monitor import ProcessMonitor
 
@@ -313,7 +313,7 @@ Start by reading the changed files, then update CHANGELOG.md first, then other r
 
 
 def run_docs_update(files: list[str]) -> dict[str, Any]:
-    """Run the documentation update using droid exec."""
+    """Run the documentation update using AI CLI (legacy droid exec path)."""
     if not files:
         return {"success": True, "result": "No files to process"}
 
@@ -722,8 +722,7 @@ def generate_docs_structure_tree() -> str:
         "auto-review.md": "Automatic code review system",
         "docs-updater.md": "Automatic documentation updater",
         "fabrik-cli-reference.md": "Fabrik CLI command reference",
-        "droid-exec-usage.md": "Core droid exec usage",
-        "enforcement-system.md": "Convention enforcement (check scripts, rules)",
+                "enforcement-system.md": "Convention enforcement (check scripts, rules)",
         "hooks-and-skills-guide.md": "Hook and skill usage guide",
         "drivers.md": "Fabrik driver API (Coolify, DNS, etc.)",
         "orchestrator.md": "Deployment orchestrator module",
@@ -1162,7 +1161,7 @@ def load_prompt_from_file(file_path: str) -> str:
 
 
 def run_custom_prompt(prompt: str, files_to_check: list[str] | None = None) -> dict[str, Any]:
-    """Run droid exec with a custom prompt, optionally referencing files."""
+    """Run AI CLI with a custom prompt, optionally referencing files (legacy path)."""
     model = get_docs_model()
 
     # If files are provided, prepend them to the prompt

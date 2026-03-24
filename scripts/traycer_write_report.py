@@ -3,7 +3,7 @@
 Traycer Report Writer
 
 Extracts report markdown from agent stdout and writes to .droid/traycer-reports/latest.md.
-Used by factory_wait.py to persist agent-generated reports for the Windsurf Report Panel.
+Used to persist agent-generated reports for the Windsurf Report Panel.
 
 Usage:
     python scripts/traycer_write_report.py < agent_stdout.txt
@@ -12,7 +12,7 @@ Usage:
 Usage Example:
     # Pipe agent output directly to the report writer
     kilo run --model gpt-5.1-codex-max "$PROMPT" | python scripts/traycer_write_report.py --slug my-task
-    factory_wait.py | python scripts/traycer_write_report.py
+    kilo run "$PROMPT" | python scripts/traycer_write_report.py --slug my-task
 """
 
 import argparse

@@ -124,8 +124,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ├── .env.example                     # Master env var template
 ├── PORTS.md                         # Port registry for all services
 ├── tasks.md                         # Active task tracker
-├── factory_submit.py                # Traycer async job submission
-├── factory_wait.py                  # Traycer async job wait/poll
 ├── apps/                            # Deployable application containers
 │   ├── example-api/                 # Example FastAPI service (Dockerfile, compose.yaml)
 │   └── postgres-main/               # Shared PostgreSQL instance (compose.yaml)
