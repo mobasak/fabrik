@@ -473,7 +473,7 @@ nano .env
 **Required:**
 - `VPS_HOST`, `VPS_USER` - SSH access to your VPS
 - `COOLIFY_API_URL`, `COOLIFY_API_TOKEN` - Coolify API
-- `NAMECHEAP_API_URL` or `CLOUDFLARE_API_TOKEN` - DNS provider
+- `DNS_MANAGER_URL` or `CLOUDFLARE_API_TOKEN` - DNS provider
 
 ### Create Your First Project
 
@@ -745,7 +745,7 @@ fabrik scaffold my-service
 - **[Configuration](docs/CONFIGURATION.md)** - Credentials, architecture, troubleshooting
 - **[Deployment](docs/DEPLOYMENT.md)** - Deployment strategies, DNS, SSL
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Debug guides
-- **[Development Workflow](docs/guides/DEVELOPMENT_WORKFLOW.md)** - How Traycer fits into 9-step workflow
+- **[AGENTS.md](AGENTS.md)** - 8-step mandatory workflow (Traycer + Kilo + Cascade)
 
 ### Reference
 

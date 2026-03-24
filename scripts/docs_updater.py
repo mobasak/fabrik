@@ -5,7 +5,7 @@ Fabrik Documentation Updater
 Automatically updates documentation when code changes are detected.
 Uses low-cost AI models to analyze changes and write updates directly to doc files.
 
-This is SEPARATE from the code review workflow (review_processor.py).
+This is SEPARATE from the code review workflow (kilo_code_review.py).
 
 Workflow:
 1. Post-edit hook detects code change
@@ -703,17 +703,12 @@ def generate_docs_structure_tree() -> str:
         "FAQ.md": "Frequently asked questions",
         "EXTERNAL_SYSTEMS.md": "External service dependencies",
         "FEATURES.md": "Feature list",
-        "ENVIRONMENT_VARIABLES.md": "Complete env var reference",
-        "FABRIK_OVERVIEW.md": "What Fabrik is and what it does",
-        "ROADMAP_ACTIVE.md": "Current priorities, backlog, future plans",
         "BUSINESS_MODEL.md": "Monetization strategy",
         "owner_ozgur_basak.md": "Owner profile & AI instructions",
         "guides/": "Step-by-step guides and tutorials",
-        "PROJECT_WORKFLOW.md": "Start here - new/existing project workflow",
         "FABRIK_INTEGRATION.md": "Build Fabrik-compatible microservices",
         "domain-hosting-automation.md": "Domain + hosting automation",
         "DEPLOYMENT_READY_CHECKLIST.md": "Make projects deployment-ready",
-        "DEVELOPMENT_WORKFLOW.md": "How Traycer fits into Fabrik's 9-step workflow",
         "EXCEL_FILE_GENERATION.md": "Excel file generation guide",
         "traycer-free-tier-agents-testing.md": "Traycer free-tier agent testing",
         "traycer-kilo-workflow-analysis.md": "Traycer + Kilo workflow analysis",
@@ -742,7 +737,6 @@ def generate_docs_structure_tree() -> str:
         "stack.md": "Technology stack & tools inventory",
         "technology-stack-decision-guide.md": "Tech decision flowchart",
         "templates.md": "Available deployment templates",
-        "spec-pipeline.md": "Spec pipeline (idea -> scope -> spec)",
         "trueforge-images.md": "Trueforge image catalog",
         "uptime-kuma.md": "Uptime Kuma runbook",
         "traycer-evaluation.md": "Traycer integration evaluation",
@@ -827,7 +821,13 @@ def generate_docs_structure_tree() -> str:
 
             if item.is_dir():
                 # Skip expanding archive/ and trajectories/ (too noisy)
-                skip_dirs = {"archive", "trajectories", "archived", "previously-planned-fabrik-phases", "issues"}
+                skip_dirs = {
+                    "archive",
+                    "trajectories",
+                    "archived",
+                    "previously-planned-fabrik-phases",
+                    "issues",
+                }
                 if item.name not in skip_dirs:
                     new_prefix = prefix + ("    " if is_last else "│   ")
                     walk(item, new_prefix)

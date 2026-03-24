@@ -53,9 +53,10 @@ EXCLUDED_DIRS = {
 
 # Legacy directories to warn about (should be migrated)
 LEGACY_DIRS = {
-    "specs",
     "proposals",
 }
+# Note: specs/ is NOT legacy - it's the canonical location for Stage 0 pipeline
+# outputs (specs/<project>/00-idea.md, 01-scope.md, 02-spec.md) per AGENTS.md
 
 
 def check_structure(project_root: Path, files: list[str] | None = None) -> list[dict]:
@@ -136,8 +137,12 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
                     "TROUBLESHOOTING.md",
                     "BUSINESS_MODEL.md",
                     "SERVICES.md",
-                    "FABRIK_OVERVIEW.md",
-                    "ENVIRONMENT_VARIABLES.md",
+                    "DEPLOYMENT.md",
+                    "EXTERNAL_SYSTEMS.md",
+                    "FAQ.md",
+                    "FEATURES.md",
+                    "TESTING.md",
+                    "owner_ozgur_basak.md",
                 }:
                     violations.append(
                         {
@@ -181,6 +186,10 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         # Check .windsurf (allowed for rule files)
         elif parts[0] == ".windsurf":
             pass  # Windsurf rule files allowed
+
+        # Check specs/ (Stage 0 pipeline output - allowed)
+        elif parts[0] == "specs":
+            pass  # Spec pipeline files allowed
 
         # Other locations
         else:
