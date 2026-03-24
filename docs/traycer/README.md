@@ -1258,11 +1258,7 @@ These agents currently have **extension-only interfaces** and require manual han
 
 ### Fabrik Integration
 
-Fabrik uses **Custom CLI Agents** for async job submission:
-- `Factory Submit (async).sh` — Submits jobs to `/opt/fabrik/factory_submit.py`
-- `Factory Wait (async).sh` — Monitors jobs via `/opt/fabrik/factory_wait.py`
-- `Factory AI.sh` — Direct execution wrapper
-
+Fabrik uses **Custom CLI Agents** for Kilo CLI execution and code review.
 These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 8-step workflow.
 
 ## AGENTS.md Integration (Project-Specific Context)
@@ -1360,7 +1356,7 @@ Custom CLI agents can be created in two different scopes:
 1. **Open Manage CLI Agents** — Click the three dots on the top of the sidebar → "Manage CLI Agents"
 2. **Click Add CLI Agent** — Click "Add CLI Agent" button
 3. **Choose scope** — Select **User** (personal) or **Workspace** (project-specific)
-4. **CLI Agent Name** — Provide a descriptive name (e.g., "Claude Dangerous", "Factory Submit")
+4. **CLI Agent Name** — Provide a descriptive name (e.g., "Claude Dangerous", "Kilo Review")
 5. **Add CLI Agent Command** — Add your custom command to the created file and save
 
 ### Popular CLI Agents

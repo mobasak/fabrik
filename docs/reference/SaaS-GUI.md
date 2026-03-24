@@ -1,7 +1,7 @@
 ## IMPLEMENTED ✅
 
 **Template location:** `templates/saas-skeleton/`
-**Droid skill:** `.factory/skills/fabrik-saas-scaffold.md`
+**Enforcement:** `.windsurf/rules/20-typescript.md` + `scripts/enforcement/`
 
 ---
 

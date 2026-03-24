@@ -20,7 +20,7 @@ Located in `.windsurf/hooks.json`:
 {
   "hooks": [
     {"event": "post_write_code", "command": "python3 -m scripts.enforcement.validate_conventions --strict --git-diff", "cwd": "/opt/fabrik"},
-    {"event": "post_write_code", "command": "python3 /opt/fabrik/.factory/hooks/secret-scanner.py"}
+    {"event": "post_write_code", "command": "python3 -m scripts.enforcement.check_secrets", "cwd": "/opt/fabrik"}
   ]
 }
 ```

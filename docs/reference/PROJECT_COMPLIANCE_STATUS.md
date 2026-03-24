@@ -380,7 +380,6 @@ A project is **100% Fabrik-compliant** when ALL of the following are true:
 **Code Violations (13 total in actual code):**
 - ❌ 7 hardcoded localhost (admin_tools.py, add_service.py, db_proxy_manager_api.py, etc.)
 - ❌ 5 /tmp/ usage (diagnose_youtube*.py files)
-- ❌ 1 tempfile module (factory_wait.py)
 
 **Specific violations:**
 ```

@@ -35,8 +35,8 @@ Every project under `/opt/` MUST have:
 │   ├── development/             # Contributor docs
 │   └── archive/                 # Obsolete docs (dated)
 │
-├── .factory/                    # AI agent context (optional)
-│   └── context.md
+├── .windsurf/                   # AI agent rules (Cascade)
+│   └── rules/
 │
 └── .ops/                        # Operational runbooks (optional)
     └── runbooks/
