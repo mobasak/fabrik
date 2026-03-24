@@ -12,35 +12,27 @@ trigger: always_on
 
 ---
 
-## Fabrik Skills (Auto-Invoked)
+## Fabrik Behavior Patterns
 
-| Skill | Triggers On |
-|-------|-------------|
-| `fabrik-saas-scaffold` | "SaaS", "web app", "dashboard" |
-| `fabrik-scaffold` | "new project", "create service" |
-| `fabrik-docker` | "dockerfile", "compose", "deploy" |
-| `fabrik-health-endpoint` | "health", "healthcheck" |
-| `fabrik-config` | "config", "environment" |
-| `fabrik-preflight` | "preflight", "deploy ready" |
-| `fabrik-api-endpoint` | "endpoint", "route", "API" |
-| `fabrik-watchdog` | "watchdog", "monitor" |
-| `fabrik-postgres` | "database", "postgres" |
-| `fabrik-documentation` | "docs", "readme", "update docs" |
+When triggered, apply the corresponding rules from `.windsurf/rules/` and enforcement scripts:
 
-**Skill priority (when multiple match):**
-1. Most specific to task (e.g., `fabrik-health-endpoint` over `fabrik-api-endpoint`)
-2. Infrastructure skills before code skills
-3. If still uncertain, present options to user first — do not auto-invoke.
+| Trigger Keywords | Rules File | Enforcement | Action |
+|-----------------|-----------|-------------|--------|
+| "new project", "create service" | — | — | Run `fabrik scaffold <name> --type <type>` |
+| "SaaS", "web app", "dashboard" | `20-typescript.md` | — | Run `fabrik scaffold <name> --type saas-skeleton` |
+| "dockerfile", "compose", "deploy" | `30-ops.md` | `check_docker.py` | Follow ARM64 + bookworm-slim + HEALTHCHECK patterns |
+| "health", "healthcheck" | `00-critical.md`, `10-python.md` | `check_health.py` | Health endpoints MUST test actual dependencies |
+| "config", "environment" | `00-critical.md`, `10-python.md` | `check_env_contract.py` | No hardcoded values, function-level loading |
+| "endpoint", "route", "API" | `10-python.md` | `validate_conventions.py` | Type hints, Pydantic models, proper HTTP status codes |
+| "database", "postgres" | `00-critical.md` | `check_schema_sync.py` | Schema changes → `db/schema.sql` or migration |
+| "watchdog", "monitor" | `30-ops.md` | `check_watchdog.py` | Services MUST have `scripts/watchdog*.sh` |
+| "docs", "readme", "update docs" | `40-documentation.md` | `check_changelog.py`, `check_docs.py` | Run `kilo_docs_enforcer.py --auto-generate` |
+| "preflight", "deploy ready" | — | All 27 scripts | Run `python scripts/final_gate.py` |
 
-### Fabrik Preflight Skill
-**Trigger:** User asks "ready to deploy", "preflight", or during Step 5 (Final Gate).
-**Action:** Execute enforcement suite:
-```bash
-python scripts/enforcement/check_docker.py
-python scripts/enforcement/check_secrets.py
-python scripts/enforcement/check_env_contract.py
-```
-**Failure in any script = STOP.** Fix all errors before proceeding.
+**Priority (when multiple match):**
+1. Most specific to task
+2. Infrastructure patterns before code patterns
+3. If uncertain, present options to user first — do not auto-invoke.
 
 ---
 

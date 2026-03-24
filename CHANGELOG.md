@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed - Infrastructure cleanup: Remove Factory.ai/Droid, document actual toolchain (2026-03-24)
+
+**Problem:** AGENTS.md Infrastructure section referenced dead Factory.ai system: 3 broken GitHub Actions (using `droid exec` + `FACTORY_API_KEY`), `.factory/skills/` that nothing loads, `~/.factory/mcp.json` config, and archived Droid Hooks. The actual toolchain (kilo_code_review.py, kilo_docs_enforcer.py, enforcement scripts, pre-commit hooks) was undocumented.
+
+**Solution:**
+
+**AGENTS.md `[TRAYCER ONLY] Infrastructure & Deployment`:**
+- **GitHub Actions:** Replaced 4 dead/wrong entries with 2 real ones (`ci.yml`, `docs-check.yml`)
+- **Quality Gates:** New section documenting `kilo_code_review.py` (Step 3), `kilo_docs_enforcer.py` (Step 4), `final_gate.py` (Step 5)
+- **Enforcement Scripts:** New section listing all 27 scripts by category (Docker, Secrets, Config, Health, Database, Watchdog, Docs, Structure, Code)
+- **Pre-commit Hooks:** New section documenting `.pre-commit-config.yaml` blockers
+- **Fabrik Behavior Patterns:** Replaced "Fabrik Skills" table with trigger → rules file → enforcement script → CLI command mapping
+- **MCP:** Updated from `~/.factory/mcp.json` to `opencode.json` (Kilo CLI)
+- **Removed:** Droid Hooks section (replaced by pre-commit + enforcement), `FACTORY_API_KEY` reference
+
+**`.windsurf/rules/90-automation.md`:**
+- Replaced "Fabrik Skills (Auto-Invoked)" table with "Fabrik Behavior Patterns" dispatch table matching AGENTS.md
+
+**Deleted (3 dead Factory.ai GitHub Actions):**
+- `.github/workflows/droid-review.yml` — replaced by `scripts/kilo_code_review.py`
+- `.github/workflows/update-docs.yml` — replaced by `scripts/kilo_docs_enforcer.py`
+- `.github/workflows/security-scanner.yml` — replaced by `scripts/enforcement/check_secrets.py` + `final_gate.py`
+
+**`docs/reference/hooks-and-skills-guide.md`:**
+- Added deprecation notice pointing to current toolchain
+
 ### Changed - Scaffold copies spec-pipeline + Remove droid exec (2026-03-24)
 
 **Problem:** New projects created via `fabrik scaffold` did not include the Spec Pipeline templates. Also, all spec-pipeline docs referenced the deprecated `droid exec` command (removed from Kilo CLI).

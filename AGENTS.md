@@ -458,52 +458,65 @@ environment:
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `droid-review.yml` | PR opened/updated | Automated code review |
-| `update-docs.yml` | Push to main | Auto-update docs |
-| `security-scanner.yml` | Weekly Mon 9AM | Vulnerability + secrets scan |
-| `daily-maintenance.yml` | Daily 3AM | Docs and test updates |
+| `ci.yml` | Push / PR | Duplicate check + KPI schema validation |
+| `docs-check.yml` | Push to main (src/docs/scripts) | Documentation drift detection via `docs_updater.py --check` |
 
-Setup: Add `FACTORY_API_KEY` to repository secrets.
+### Quality Gates (Local Scripts)
 
-### Fabrik Skills (Cascade Auto-Invoked)
+These run locally during the mandatory workflow (Steps 3-5), not as GitHub Actions.
 
-| Skill | Triggers On |
-|-------|-------------|
-| `fabrik-saas-scaffold` | "SaaS", "web app", "dashboard" |
-| `fabrik-scaffold` | "new project", "create service" |
-| `fabrik-docker` | "dockerfile", "compose", "deploy" |
-| `fabrik-health-endpoint` | "health", "healthcheck" |
-| `fabrik-config` | "config", "environment" |
-| `fabrik-api-endpoint` | "endpoint", "route", "API" |
-| `fabrik-postgres` | "database", "postgres" |
-| `fabrik-watchdog` | "watchdog", "monitor" |
+| Script | Workflow Step | Purpose |
+|--------|-------------|---------|
+| `scripts/kilo_code_review.py` | Step 3: Kilo Review | AI-powered code review — reviews staged changes, reports BLOCKER/MAJOR/MINOR findings. Multi-model support. |
+| `scripts/kilo_docs_enforcer.py` | Step 4: Documentator | AI documentation enforcement — auto-generates CHANGELOG entries, README features. Calls AI documentator agents. |
+| `scripts/final_gate.py` | Step 5: Final Gate | Orchestrates 27 enforcement scripts in `scripts/enforcement/`. All must pass before commit. |
 
-If multiple skills match — invoke the most specific. If uncertain — invoke and report.
+### Enforcement Scripts (`scripts/enforcement/`)
 
-### MCP Servers
+Run by `final_gate.py`. Each checks one convention:
 
-Config: `~/.factory/mcp.json` (Fabrik only - child projects don't use MCP)
+| Category | Scripts | What They Enforce |
+|----------|---------|-------------------|
+| **Docker** | `check_docker.py` | No Alpine, HEALTHCHECK required, ARM64 platform, port consistency |
+| **Secrets** | `check_secrets.py` | No hardcoded API keys, passwords, private keys |
+| **Config** | `check_env_contract.py`, `check_env_vars.py`, `check_env_updates.py`, `check_env_example.py` | .env.example ↔ compose.yaml ↔ CONFIGURATION.md sync |
+| **Health** | `check_health.py` | Health endpoints must test actual dependencies (not fake `{"status": "ok"}`) |
+| **Database** | `check_schema_sync.py` | Model changes require schema.sql or migration update |
+| **Watchdog** | `check_watchdog.py` | Services with compose.yaml must have `scripts/watchdog*.sh` |
+| **Docs** | `check_changelog.py`, `check_docs.py`, `check_doc_sprawl.py`, `check_readme_md.py`, `check_index_md.py` | CHANGELOG updated, no doc sprawl, README/INDEX present |
+| **Structure** | `check_structure.py`, `check_ports.py`, `check_deps_sync.py`, `check_configuration_md.py` | Project structure, port registration, dependency sync |
+| **Code** | `validate_conventions.py`, `check_opencode_json.py`, `check_plan_quality.py` | Fabrik conventions, Kilo CLI config, plan quality |
 
-| Server | Purpose |
-|--------|---------|
-| `playwright` | E2E browser testing |
-| `sentry` | Error tracking |
-| `supabase` | Database management |
-| `stripe` | Payments |
-| `linear` | Issue tracking |
+### Pre-commit Hooks
 
-### Droid Hooks
-
-(Fabrik project only - child projects don't use Factory hooks)
+Minimal blockers at commit time (`.pre-commit-config.yaml`):
 
 | Hook | Purpose |
 |------|---------|
-| `fabrik-conventions.py` | Validates conventions |
-| `secret-scanner.py` | Detects hardcoded secrets |
-| `format-python.sh` | Auto-formats Python with ruff |
-| `protect-files.sh` | Blocks edits to .env, credentials |
-| `session-context.py` | Loads project context on session start |
+| `check-added-large-files` | Blocks files > 500KB |
+| `check-merge-conflict` | Blocks unresolved conflicts |
+| `detect-private-key` | Blocks private key files |
+| `forbid-secrets` | Blocks `.env`, `.pem`, `.key`, `secrets/` from commit |
 
----
+### Fabrik Behavior Patterns
 
-*Complements: `.windsurfrules` (Windsurf Cascade-specific rules)*
+These patterns are enforced via `.windsurf/rules/` (for AI agents) and `scripts/enforcement/` (automated):
+
+| Pattern | Rules File | Enforcement Script | CLI Command |
+|---------|-----------|-------------------|-------------|
+| Project scaffolding | — | — | `fabrik scaffold <name> --type <type>` |
+| SaaS scaffolding | `20-typescript.md` | — | `fabrik scaffold <name> --type saas-skeleton` |
+| Docker conventions | `30-ops.md` | `check_docker.py` | — |
+| Health endpoints | `00-critical.md`, `10-python.md` | `check_health.py` | — |
+| Config / env vars | `00-critical.md`, `10-python.md` | `check_env_contract.py` | — |
+| API patterns | `10-python.md` | `validate_conventions.py` | — |
+| Database / schema | `00-critical.md` | `check_schema_sync.py` | — |
+| Watchdog scripts | `30-ops.md` | `check_watchdog.py` | — |
+| Documentation | `40-documentation.md` | `check_changelog.py`, `check_docs.py` | `kilo_docs_enforcer.py` |
+| Deploy preflight | — | All 27 scripts via `final_gate.py` | — |
+
+### MCP Servers
+
+Config: `opencode.json` (project-level) or `~/.config/kilo/opencode.json` (global)
+
+MCP servers are configured per-project as needed. See [Kilo CLI MCP docs](https://kilo.ai/docs/automate/mcp/using-in-cli) for setup.

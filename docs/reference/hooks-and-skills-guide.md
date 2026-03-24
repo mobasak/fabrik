@@ -1,8 +1,16 @@
 # Fabrik Hooks and Skills Guide
 
-> Complete reference for all Factory hooks and skills used in Fabrik automation.
+> ⚠️ **DEPRECATED (March 2026):** This document describes the old Factory.ai hooks and `.factory/skills/` system which is no longer active. All behavior described here has been migrated to:
+> - **AI rules:** `.windsurf/rules/` (for Windsurf Cascade) + `AGENTS.md` (for Kilo CLI)
+> - **Enforcement:** `scripts/enforcement/` (27 scripts) orchestrated by `scripts/final_gate.py`
+> - **Code review:** `scripts/kilo_code_review.py` (AI-powered, replaces droid-review)
+> - **Documentation:** `scripts/kilo_docs_enforcer.py` (AI documentator, replaces update-docs)
+> - **Pre-commit:** `.pre-commit-config.yaml` (replaces Factory hooks)
+> - **Scaffolding:** `fabrik scaffold` CLI command (replaces fabrik-scaffold skill)
+>
+> See `AGENTS.md` section `[TRAYCER ONLY] Infrastructure & Deployment` for the current toolchain.
 
-Last updated: 2025-01-03
+Last updated: 2025-01-03 (deprecated 2026-03-24)
 
 ---
 
