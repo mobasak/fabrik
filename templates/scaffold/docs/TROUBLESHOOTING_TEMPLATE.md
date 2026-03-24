@@ -38,11 +38,15 @@ Missing dependencies, port conflicts, or incorrect Python version.
 **Solution:**
 
 ```bash
-# Ensure virtual environment is active
-source .venv/bin/activate
+# CRITICAL: Use project-specific .venv (PEP 668 compliance)
+/opt/<project>/.venv/bin/python -m uvicorn src.<package_name>.main:app --reload
 
-# Reinstall dependencies
-pip install -r requirements.txt
+# Or activate venv first
+source /opt/<project>/.venv/bin/activate
+uvicorn src.<package_name>.main:app --reload
+
+# Reinstall dependencies (NEVER use bare pip)
+/opt/<project>/.venv/bin/pip install -r requirements.txt
 
 # Check port availability
 lsof -i :8000
@@ -50,6 +54,8 @@ lsof -i :8000
 # Try different port
 uvicorn src.<package_name>.main:app --reload --port 8001
 ```
+
+**⚠️ PEP 668:** WSL/Debian block system-wide pip. Always use `/opt/<project>/.venv/bin/pip`, never bare `pip install`.
 
 **Prevention:**
 
@@ -126,7 +132,11 @@ Use the package name (e.g., `trading_core`) not `src` in imports.
 **Solution:**
 
 ```bash
-source .venv/bin/activate
+# Use project-specific venv (REQUIRED on WSL/Debian)
+/opt/<project>/.venv/bin/pip install fastapi
+
+# Or activate first
+source /opt/<project>/.venv/bin/activate
 pip install fastapi
 ```
 
@@ -184,12 +194,35 @@ LOG_LEVEL=DEBUG uvicorn src.<package_name>.main:app --reload
 
 ---
 
+## Enforcement Scripts (Pre-Commit Quality Gates)
+
+If builds fail, run these checks manually:
+
+```bash
+# From Fabrik root
+python scripts/final_gate.py
+
+# Individual checks
+python scripts/enforcement/check_secrets.py
+python scripts/enforcement/check_env_contract.py
+python scripts/enforcement/check_compose_services.py
+python scripts/enforcement/check_changelog.py
+```
+
+**Common failures:**
+- `check_secrets.py` → Remove hardcoded API keys/passwords
+- `check_env_contract.py` → Add missing vars to `.env.example`
+- `check_compose_services.py` → Fix service name typos (`localhost` → `postgres-main`)
+- `check_changelog.py` → Add entry to `CHANGELOG.md` for this change
+
+---
+
 ## Getting More Help
 
 ### Enable Debug Logging
 
 ```bash
-LOG_LEVEL=DEBUG uvicorn src.<package_name>.main:app --reload
+LOG_LEVEL=DEBUG /opt/<project>/.venv/bin/python -m uvicorn src.<package_name>.main:app --reload
 ```
 
 ### Collect Debug Info

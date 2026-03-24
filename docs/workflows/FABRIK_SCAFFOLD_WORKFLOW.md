@@ -1050,6 +1050,6 @@ class Config:
 ## See Also
 
 - [Project Workflow Guide](../guides/PROJECT_WORKFLOW.md)
-- [Fabrik CLI Reference](fabrik-cli-reference.md)
+- [Fabrik CLI Reference](../reference/fabrik-cli-reference.md)
 - [.env.example](../../.env.example)
 - [Python Production Standards](../../templates/scaffold/PYTHON_PRODUCTION_STANDARDS.md)

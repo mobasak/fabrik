@@ -4,6 +4,76 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Kilo Benchmark Automation & Docs Enforcer Improvements (2026-03-24)
+
+**role_mapper.py:**
+- Added fallback chain for consulting agents: Gemini 3.1 Pro → GPT 5.4 → Claude Opus 4.6 (all max thinking)
+- Added auto-update of `docs/workflows/KILO_AGENT_MANAGEMENT.md` Final Assignment Table after successful assignments
+- Table now shows: Role, Pri, Agent, ELO, TBench, Vision, Thinking, **$/M In**, **$/M Out**, PPD columns
+
+**kilo_docs_enforcer.py:**
+- Fixed large_code_change detection (skip in main loop, handle separately with threshold)
+- Added content quality validation and retry with fallback agents
+- Improved .env.example appending with deduplication
+- Added `_strip_markdown_fences()` to handle models wrapping output in code fences
+
+**Blocked agents:**
+- `qwen/qwen3-235b-a22b-2507` — Ignores documentation prompts, outputs conversational text
+
+**Moved:**
+- `docs/reference/fabrik-scaffold-specs.md` → `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`
+
+### Changed - Documentation Templates Aligned with Fabrik Workflow (2026-03-24)
+
+**Updated all templates in `templates/scaffold/docs/` for mandatory workflow compliance:**
+
+**CHANGELOG_TEMPLATE.md:**
+- Updated format to `### Category — Title (YYYY-MM-DD)` (Fabrik-specific)
+- Added Documentator automation note (auto-generated entries)
+- Added workflow integration section
+
+**DEPLOYMENT_TEMPLATE.md:**
+- Added ARM64 compatibility requirement and check
+- Replaced generic steps with `fabrik apply` workflow
+- Added FORBIDDEN section: Alpine base images, hardcoded localhost
+- Updated Docker Compose examples with service health dependencies
+
+**CONFIGURATION_TEMPLATE.md:**
+- Made PORTS.md registration MANDATORY (not optional)
+- Added FORBIDDEN section: hardcoded localhost in compose.yaml
+- Added enforcement for `${VAR:?required}` pattern
+- Added ARM64 compatibility to checklist
+
+**TROUBLESHOOTING_TEMPLATE.md:**
+- Added enforcement scripts section (`final_gate.py`, `check_*.py`)
+- Updated all pip commands to use `/opt/<project>/.venv/bin/pip` (PEP 668)
+- Added PEP 668 warning (WSL/Debian block system-wide pip)
+- Added common enforcement script failures
+
+**API_REFERENCE_TEMPLATE.md:**
+- Added Documentator automation note (Step 4 auto-generates API docs)
+
+**DATABASE_SCHEMA_TEMPLATE.md:**
+- Added pgvector section (vector embeddings for AI/LLM)
+- Added JSONB section (agent memory, flexible schema)
+- Added "When to use" guidance
+
+**PLAN_TEMPLATE.md (NEW):**
+- Created comprehensive planning template with Quality Gate checklist
+- Includes: functional spec, edge cases, env vars, DB changes, docs impact
+- Integrated 8-step mandatory workflow checkpoints
+- Success criteria tied to Final Gate and Kilo Review
+
+**LAUNCH_CHECKLIST_TEMPLATE.md:**
+- Replaced generic code quality checks with mandatory workflow steps
+- Added Step 3: Kilo Review (AI code review)
+- Added Step 4: Documentator (auto-generate docs)
+- Added Step 5: Final Gate (pre-commit quality checks)
+- Added workflow sign-off table (8 steps)
+- Version bumped to 2.0.0 (Fabrik Workflow Integrated)
+
+**Impact:** New projects scaffolded with `fabrik new` will have workflow-aligned documentation templates that prevent agents from hallucinating or skipping mandatory gates.
+
 ### Added - Complete Workflow Documentation (2026-03-23)
 
 **What:** Created comprehensive workflow documentation for all major automation scripts.

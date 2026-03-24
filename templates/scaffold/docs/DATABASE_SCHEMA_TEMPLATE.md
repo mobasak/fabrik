@@ -108,3 +108,33 @@ CREATE TRIGGER set_updated_at
 - All timestamps use `TIMESTAMPTZ` (timezone-aware)
 - UUIDs preferred over sequential IDs for primary keys
 - Schema changes must be documented in `db/schema.sql`
+
+### Default Considerations for AI/LLM Features
+
+**pgvector (vector embeddings):**
+```sql
+-- Enable extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Store embeddings (1536 dimensions for OpenAI text-embedding-3-small)
+ALTER TABLE documents ADD COLUMN embedding vector(1536);
+
+-- Index for similarity search
+CREATE INDEX idx_documents_embedding ON documents USING ivfflat (embedding vector_cosine_ops);
+```
+
+**JSONB (flexible schema for agent memory):**
+```sql
+-- Metadata storage
+ALTER TABLE sessions ADD COLUMN metadata JSONB DEFAULT '{}';
+
+-- Index for JSONB queries
+CREATE INDEX idx_sessions_metadata ON sessions USING gin (metadata);
+
+-- Query example
+SELECT * FROM sessions WHERE metadata->>'status' = 'active';
+```
+
+**When to use:**
+- **pgvector:** Semantic search, RAG, recommendation systems
+- **JSONB:** Agent state, conversation history, dynamic config

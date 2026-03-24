@@ -442,4 +442,4 @@ git commit -m "feat: description"
 
 - [AGENTS.md](../../AGENTS.md) — Agent instructions
 - [Kilo Reference](../reference/kilo/README.md) — Kilo CLI details
-- [Fabrik Scaffold Specs](../reference/fabrik-scaffold-specs.md) — Scaffold structure
+- [Fabrik Scaffold Workflow](../workflows/FABRIK_SCAFFOLD_WORKFLOW.md) — Scaffold structure

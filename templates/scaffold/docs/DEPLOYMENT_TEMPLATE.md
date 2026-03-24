@@ -23,7 +23,9 @@
 | web | 8000 | Internal | /health | Main API |
 | worker | - | - | - | Background jobs |
 
-**Note:** In production, Coolify proxy handles external routing (80/443). Internal ports are not exposed.
+**Note:** In production, Coolify proxy (Traefik) handles external routing (80/443). Internal ports are not exposed.
+
+**🔒 ARM64 Compatibility:** VPS is ARM64 (aarch64). All Docker images MUST support `linux/arm64`.
 
 ---
 
@@ -51,7 +53,9 @@
 services:
   web:
     build:
-      context: ./services/api
+      context: .
+      dockerfile: Dockerfile
+    image: [project-name]:latest
     environment:
       - DATABASE_URL=${DATABASE_URL:?}
       - SECRET_KEY=${SECRET_KEY:?}
@@ -63,36 +67,61 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
 
   worker:
     build:
-      context: ./services/worker
+      context: .
+      dockerfile: Dockerfile
     environment:
       - DATABASE_URL=${DATABASE_URL:?}
     depends_on:
-      - web
+      web:
+        condition: service_healthy
+    restart: unless-stopped
 ```
+
+**⚠️ FORBIDDEN:**
+- **Alpine base images** — Use `python:3.12-slim-bookworm` or `node:22-bookworm-slim`
+- **Hardcoded `localhost`** in `DATABASE_URL` — Use service names (`postgres-main`, `redis`)
+- **Missing health checks** — All services MUST have `/health` endpoint that tests dependencies
 
 ---
 
 ## Deployment Steps
 
-### First Time (Coolify)
+### First Time — Automated via `fabrik apply`
 
-1. Create new application in Coolify
+```bash
+# From Fabrik root
+fabrik apply [project-name]
+
+# What this does:
+# 1. Registers subdomain DNS (Namecheap/Cloudflare)
+# 2. Creates Coolify application via API
+# 3. Configures Docker Compose build
+# 4. Sets environment variables from .env.example
+# 5. Configures domain + SSL (Let's Encrypt)
+# 6. Adds health check to Uptime Kuma
+# 7. Deploys application
+```
+
+**Manual fallback (if `fabrik apply` unavailable):**
+
+1. Create new application in Coolify UI (coolify.vps1.ocoron.com)
 2. Select "Docker Compose" build pack
 3. Connect GitHub repository
 4. Set environment variables in Coolify UI
-5. Add domain (Coolify handles SSL via Let's Encrypt)
+5. Add domain `[project].vps1.ocoron.com` (SSL auto-configured)
 6. Deploy
 
 ### Updates
 
 ```bash
-# Push to GitHub triggers auto-deploy (if configured)
+# Push to GitHub triggers auto-deploy (if webhook configured)
 git push origin main
 
-# Or manual deploy via Coolify UI
+# Or manual deploy via Coolify UI → Deployments → Deploy
 ```
 
 ---

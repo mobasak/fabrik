@@ -584,6 +584,28 @@ def check_doc_updated_in_commit(doc_path: str, staged_files: list[str]) -> bool:
     return doc_path in staged_files
 
 
+def _strip_markdown_fences(content: str) -> str:
+    """
+    Strip markdown code fences from model output.
+
+    Some models (e.g., Step 3.5 Flash) wrap their output in ```markdown ... ```
+    which breaks content validation. This strips such fences while preserving
+    the actual content.
+    """
+    stripped = content.strip()
+    # Check for opening fence with optional language tag
+    if stripped.startswith("```"):
+        lines = stripped.split("\n")
+        # Remove opening fence line
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        # Remove closing fence if present
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        return "\n".join(lines).strip()
+    return content
+
+
 def get_doc_complexity(doc_path: str) -> ComplexityLevel:
     """Determine complexity level for documentation type."""
     for pattern, complexity in DOC_COMPLEXITY_MAP.items():
@@ -1801,6 +1823,10 @@ Write clear, concise documentation suitable for developers.
 
     content = result["result"]
 
+    # Strip markdown code fences if model wrapped output in ```markdown ... ```
+    # This is common with some models (e.g., Step 3.5 Flash)
+    content = _strip_markdown_fences(content)
+
     # Validate raw model output BEFORE adding any prefix.
     # This ensures conversational replies (e.g. "Sure, here's...") are caught
     # before a forced prefix like "###" masks them.
@@ -1829,7 +1855,7 @@ Write clear, concise documentation suitable for developers.
                     file_paths=[PROJECT_ROOT / v.source_file for v in requirement.triggers[:5]],
                     verbose=verbose,
                 )
-                content = retry_result["result"]
+                content = _strip_markdown_fences(retry_result["result"])
                 retry_valid, retry_reason = validate_generated_content(content, doc_path)
                 if not retry_valid:
                     raise RuntimeError(
@@ -1864,7 +1890,15 @@ Write clear, concise documentation suitable for developers.
     elif "CHANGELOG" in doc_path:
         if not content.lstrip().startswith("###"):
             content = "### " + content
-    elif "docs/reference/" in doc_path or (".md" in doc_path and "reference" in doc_path) or "CONFIGURATION" in doc_path or "MIGRATION" in doc_path or "database/schema" in doc_path or "TROUBLESHOOTING" in doc_path or doc_path in ("README.md", "docs/QUICKSTART.md"):
+    elif (
+        "docs/reference/" in doc_path
+        or (".md" in doc_path and "reference" in doc_path)
+        or "CONFIGURATION" in doc_path
+        or "MIGRATION" in doc_path
+        or "database/schema" in doc_path
+        or "TROUBLESHOOTING" in doc_path
+        or doc_path in ("README.md", "docs/QUICKSTART.md")
+    ):
         if not content.lstrip().startswith("##"):
             content = "## " + content
 

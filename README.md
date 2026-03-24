@@ -483,7 +483,7 @@ nano .env
 # Option 1: Full project structure (recommended for development)
 fabrik scaffold my-api -d "User authentication API"
 # Creates complete structure with docs, tests, Docker, pre-commit hooks
-# See: docs/reference/fabrik-scaffold-specs.md
+# See: docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
 
 # Option 2: Deployment spec only (for existing projects)
 fabrik new my-api --template python-api --domain api.example.com

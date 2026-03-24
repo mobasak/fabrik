@@ -4,6 +4,8 @@
 
 API documentation for the `{module_name}` module.
 
+**⚙️ AUTO-GENERATED:** New functions/classes are documented by `kilo_docs_enforcer.py` (Documentator agent, Step 4 in mandatory workflow). Manual edits are preserved.
+
 ---
 
 ## Overview

@@ -32,11 +32,14 @@ from typing import Any
 SCRIPT_DIR = Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "kilo_agents.db"
 
-# Use Gemini 3.1 Pro with max thinking variant for deep analysis
-# Kilo CLI format: kilo/provider/model
-# Thinking mode: --variant max (extended reasoning)
-KILO_MODEL = "kilo/google/gemini-3.1-pro-preview"
-KILO_VARIANT = "max"
+# Fallback chain for consulting agents (all with max thinking mode)
+# Order: Gemini 3.1 Pro → GPT 5.4 → Claude Opus 4.6
+KILO_MODELS = [
+    ("kilo/google/gemini-3.1-pro-preview", "max"),
+    ("kilo/openai/gpt-5.4", "max"),
+    ("kilo/anthropic/claude-opus-4.6", "max"),
+]
+KILO_VARIANT = "max"  # Default variant for all models
 ROLES = ["coding", "reviewing", "fixing", "documentation", "testing"]
 
 SYSTEM_PROMPT = """You are an expert AI model selector for a software development workflow.
@@ -238,8 +241,16 @@ def parse_kilo_jsonl(output: str) -> dict[str, Any]:
     }
 
 
-def call_kilo(candidates: list[dict]) -> dict[str, Any]:
-    """Call Kilo CLI with Gemini 3.1 Pro (max thinking) to analyze and assign roles."""
+def call_kilo(candidates: list[dict]) -> tuple[dict[str, Any], str]:
+    """
+    Call Kilo CLI with fallback chain to analyze and assign roles.
+
+    Tries models in order: Gemini 3.1 Pro → GPT 5.4 → Claude Opus 4.6
+    All with max thinking mode.
+
+    Returns:
+        Tuple of (result dict, model that succeeded)
+    """
     kilo_path = find_kilo_executable()
     if not kilo_path:
         raise RuntimeError("Kilo executable not found. Is it installed?")
@@ -256,72 +267,98 @@ Here are {len(candidates)} AI models to analyze:
 Assign each of the 5 roles exactly 5 agents (priority 1, 2, 3, 4, 5).
 Return valid JSON only - no markdown, no explanation."""
 
-    log(f"Calling Kilo with model: {KILO_MODEL} (variant: {KILO_VARIANT})")
     log(f"Analyzing {len(candidates)} candidate agents...")
 
-    # Build command (pattern from kilo_code_review.py)
-    cmd = [
-        kilo_path,
-        "run",
-        "--format",
-        "json",
-        "--auto",
-        "--model",
-        KILO_MODEL,
-        "--variant",
-        KILO_VARIANT,
-    ]
+    last_error = None
+    for model, variant in KILO_MODELS:
+        log(f"Trying model: {model} (variant: {variant})")
 
-    # Execute with stdin prompt using communicate() which handles stdin properly
-    try:
-        process = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=False,
-        )
-        stdout, stderr = process.communicate(
-            input=prompt.encode("utf-8"),
-            timeout=300,  # 5 min for thinking
-        )
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.communicate()  # Clean up
-        raise RuntimeError("Kilo CLI timed out after 300 seconds")
+        # Build command (pattern from kilo_code_review.py)
+        cmd = [
+            kilo_path,
+            "run",
+            "--format",
+            "json",
+            "--auto",
+            "--model",
+            model,
+            "--variant",
+            variant,
+        ]
 
-    if process.returncode != 0:
-        error_msg = stderr.decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"Kilo failed (exit {process.returncode}): {error_msg}")
+        # Execute with stdin prompt using communicate() which handles stdin properly
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=False,
+            )
+            stdout, stderr = process.communicate(
+                input=prompt.encode("utf-8"),
+                timeout=300,  # 5 min for thinking
+            )
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()  # Clean up
+            last_error = f"Timeout after 300s with {model}"
+            log(f"  FAILED: {last_error}")
+            continue
 
-    output = stdout.decode("utf-8", errors="replace")
-    log(f"Received {len(output)} chars from Kilo")
+        if process.returncode != 0:
+            error_msg = stderr.decode("utf-8", errors="replace")[:500]
+            last_error = f"Exit {process.returncode} with {model}: {error_msg}"
+            log(f"  FAILED: {last_error}")
+            continue
 
-    # Parse JSONL output
-    parsed = parse_kilo_jsonl(output)
-    log(f"Cost: ${parsed['cost']:.4f} ({parsed['input_tokens']} in, {parsed['output_tokens']} out)")
+        output = stdout.decode("utf-8", errors="replace")
+        log(f"Received {len(output)} chars from Kilo")
 
-    # Extract JSON from result
-    full_text = parsed["result"]
+        # Parse JSONL output
+        try:
+            parsed = parse_kilo_jsonl(output)
+            log(
+                f"Cost: ${parsed['cost']:.4f} ({parsed['input_tokens']} in, {parsed['output_tokens']} out)"
+            )
+        except RuntimeError as e:
+            last_error = f"Parse error with {model}: {e}"
+            log(f"  FAILED: {last_error}")
+            continue
 
-    # Strip markdown fences if present
-    if "```" in full_text:
-        parts = full_text.split("```")
-        for part in parts:
-            part = part.strip()
-            if part.startswith("json"):
-                part = part[4:].strip()
-            if part.startswith("{"):
-                full_text = part
-                break
+        # Extract JSON from result
+        full_text = parsed["result"]
 
-    # Find JSON object
-    start = full_text.find("{")
-    end = full_text.rfind("}") + 1
-    if start == -1 or end == 0:
-        raise ValueError(f"No JSON found in response: {full_text[:500]}")
+        # Strip markdown fences if present
+        if "```" in full_text:
+            parts = full_text.split("```")
+            for part in parts:
+                part = part.strip()
+                if part.startswith("json"):
+                    part = part[4:].strip()
+                if part.startswith("{"):
+                    full_text = part
+                    break
 
-    return json.loads(full_text[start:end])
+        # Find JSON object
+        start = full_text.find("{")
+        end = full_text.rfind("}") + 1
+        if start == -1 or end == 0:
+            last_error = f"No JSON in response from {model}"
+            log(f"  FAILED: {last_error}")
+            continue
+
+        try:
+            result = json.loads(full_text[start:end])
+            log(f"SUCCESS with {model}")
+            return result, model
+        except json.JSONDecodeError as e:
+            last_error = f"Invalid JSON from {model}: {e}"
+            log(f"  FAILED: {last_error}")
+            continue
+
+    # All models failed
+    raise RuntimeError(f"All models failed. Last error: {last_error}")
 
 
 def archive_current_assignments(cursor: sqlite3.Cursor) -> int:
@@ -439,6 +476,107 @@ def show_assignments() -> None:
     conn.close()
 
 
+def update_kilo_agent_management_md(used_model: str) -> None:
+    """
+    Update KILO_AGENT_MANAGEMENT.md with the Final Assignment Table.
+
+    Automatically updates the ## Final Assignment Table section with current
+    assignments from the database.
+    """
+    import re
+
+    doc_path = (
+        Path(__file__).parent.parent.parent / "docs" / "workflows" / "KILO_AGENT_MANAGEMENT.md"
+    )
+    if not doc_path.exists():
+        log(f"WARNING: {doc_path} not found, skipping doc update")
+        return
+
+    conn = get_connection()
+    try:
+        cursor = conn.execute("""
+            SELECT
+                r.role, r.priority, a.name, a.provider, a.arena_elo,
+                a.tbench_accuracy, a.has_vision, a.has_reasoning, a.perf_per_dollar,
+                a.input_cost_per_m, a.output_cost_per_m
+            FROM agent_roles r
+            JOIN agents a ON a.id = r.agent_id
+            WHERE a.blocked = 0
+            ORDER BY r.role, r.priority
+        """)
+        rows = cursor.fetchall()
+    except Exception as e:
+        log(f"WARNING: Failed to query assignments: {e}")
+        conn.close()
+        return
+    conn.close()
+
+    if not rows:
+        log("WARNING: No assignments found, skipping doc update")
+        return
+
+    # Build the new table content
+    today = datetime.now().strftime("%Y-%m-%d")
+    table_lines = [
+        f"## Final Assignment Table ({today})",
+        "",
+        f"**Source:** `kilo_agents.db` agent_roles table | **Assigned by:** `{used_model}`",
+        "",
+        "| Role | Pri | Agent | ELO | TBench | Vision | Thinking | $/M In | $/M Out | PPD |",
+        "|------|-----|-------|-----|--------|--------|----------|--------|---------|-----|",
+    ]
+
+    for role, pri, name, _provider, elo, tbench, vision, reasoning, ppd, cost_in, cost_out in rows:
+        elo_str = str(elo) if elo else "—"
+        tbench_str = f"{tbench:.1f}%" if tbench else "—"
+        vision_str = "✅" if vision else "—"
+        reasoning_str = "✅" if reasoning else "—"
+        cost_in_str = f"${cost_in:.2f}" if cost_in else "—"
+        cost_out_str = f"${cost_out:.2f}" if cost_out else "—"
+        ppd_str = f"{ppd:.0f}" if ppd else "—"
+        table_lines.append(
+            f"| {role} | {pri} | {name} | {elo_str} | {tbench_str} | {vision_str} | {reasoning_str} | {cost_in_str} | {cost_out_str} | {ppd_str} |"
+        )
+
+    table_lines.append("")
+    table_lines.append("---")
+    table_lines.append("")
+    new_table = "\n".join(table_lines)
+
+    # Read current doc
+    content = doc_path.read_text()
+
+    # Find and replace the Final Assignment Table section
+    # Pattern: ## Final Assignment Table ... until next ## or ---\n\n## or end of file
+    pattern = r"## Final Assignment Table \([^)]+\).*?(?=\n## Query Current Assignments|\Z)"
+    match = re.search(pattern, content, re.DOTALL)
+
+    if match:
+        # Replace existing section
+        new_content = (
+            content[: match.start()]
+            + new_table
+            + "\n## Query Current Assignments"
+            + content[match.end() :]
+        )
+        # Clean up if Query section was duplicated
+        new_content = re.sub(
+            r"(## Query Current Assignments\n+)+", "## Query Current Assignments\n\n", new_content
+        )
+    else:
+        # Append before Query section or at end
+        query_match = re.search(r"\n## Query Current Assignments", content)
+        if query_match:
+            new_content = (
+                content[: query_match.start()] + "\n" + new_table + content[query_match.start() :]
+            )
+        else:
+            new_content = content.rstrip() + "\n\n" + new_table
+
+    doc_path.write_text(new_content)
+    log(f"Updated {doc_path.name} with {len(rows)} assignments")
+
+
 def main() -> int:
     import argparse
 
@@ -463,9 +601,9 @@ def main() -> int:
         log("ERROR: No candidate agents found")
         return 1
 
-    # Call AI for analysis
+    # Call AI for analysis (with fallback chain)
     try:
-        result = call_kilo(candidates)
+        result, used_model = call_kilo(candidates)
     except Exception as e:
         log(f"ERROR: {e}")
         return 1
@@ -474,12 +612,12 @@ def main() -> int:
     assignments = result.get("assignments", [])
     analysis = result.get("analysis", "")
 
-    log(f"AI returned {len(assignments)} assignments")
+    log(f"AI returned {len(assignments)} assignments (via {used_model})")
     if analysis:
         log(f"Analysis: {analysis[:200]}...")
 
     if args.dry_run:
-        print("\n=== DRY RUN - Would assign: ===")
+        print(f"\n=== DRY RUN (model: {used_model}) - Would assign: ===")
         for a in assignments:
             print(f"  {a['role']}#{a['priority']}: {a['agent_id']}")
             if a.get("reason"):
@@ -487,11 +625,14 @@ def main() -> int:
         return 0
 
     # Apply to database
-    inserted, skipped, archived = apply_assignments(assignments, KILO_MODEL)
+    inserted, skipped, archived = apply_assignments(assignments, used_model)
     log(f"Applied {inserted} assignments, skipped {skipped}, archived {archived}")
 
     # Show results
     show_assignments()
+
+    # Auto-update KILO_AGENT_MANAGEMENT.md with Final Assignment Table
+    update_kilo_agent_management_md(used_model)
 
     log(f"Done ({datetime.now().isoformat()})")
     return 0

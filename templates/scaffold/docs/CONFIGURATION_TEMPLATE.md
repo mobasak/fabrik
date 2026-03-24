@@ -73,9 +73,19 @@ DATABASE_URL=postgresql://localhost:5432/myapp_dev
 
 ### Port Selection
 
-**Default:** 8000
+**Default:** 8000 (Python services use 8000-8099, frontend uses 3000-3099)
 
-**Conflicts?** See `PORTS.md` for project port registry. Update if needed.
+**⚠️ MANDATORY:** Before using ANY port, register it in `PORTS.md` at project root.
+
+**Conflicts?** Check `PORTS.md` first. If port is taken, choose next available in range.
+
+```bash
+# Check PORTS.md before starting
+grep "8000" PORTS.md
+
+# Add your service
+echo "| 8000 | [project-name] | Main API |" >> PORTS.md
+```
 
 ---
 
@@ -103,9 +113,15 @@ LOG_LEVEL=INFO
 LOG_FORMAT=json
 DEBUG_MODE=false
 DATABASE_URL=postgresql://myapp:${DB_PASSWORD}@postgres-main:5432/myapp
+REDIS_URL=redis://redis:6379/0
 ```
 
 **Why:** Container networking, structured logs for aggregation, security hardening.
+
+**🔒 FORBIDDEN in compose.yaml:**
+- ❌ `localhost` or `127.0.0.1` — Use service names (`postgres-main`, `redis`)
+- ❌ Hardcoded credentials — Use `${VARIABLE}` or `${VARIABLE:?required}`
+- ❌ Missing `?required` for critical vars — Add `${DATABASE_URL:?}` to fail fast
 
 ---
 
@@ -170,8 +186,10 @@ Before deploying:
 
 - [ ] `.env` created from `.env.example`
 - [ ] All required credentials obtained
-- [ ] Port registered in `PORTS.md`
+- [ ] **Port registered in `PORTS.md`** (MANDATORY — deployment may fail otherwise)
 - [ ] Database accessible (if used)
-- [ ] Health endpoint returns 200: `curl http://localhost:${PORT}/health`
+- [ ] Health endpoint returns 200 AND tests DB: `curl http://localhost:${PORT}/health`
+- [ ] No hardcoded `localhost` in `compose.yaml` (use service names)
 - [ ] Logs writing to expected location
 - [ ] Environment-specific settings verified (dev vs prod)
+- [ ] ARM64 compatibility confirmed (base images use `-slim-bookworm`, not Alpine)

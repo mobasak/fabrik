@@ -65,6 +65,16 @@
       "reason": "EVALUATION ONLY - Low capability, not production ready",
       "benchmark_date": "2026-03-22",
       "test_result": "Kilo internal test model"
+    },
+    "deepseek-v3.2": {
+      "reason": "TIMEOUT >109s - Too slow for code review tasks",
+      "benchmark_date": "2026-03-24",
+      "test_result": "Valid output but 109s response time unusable for routine tasks. Blocked in DB."
+    },
+    "qwen3-235b-a22b-2507": {
+      "reason": "IGNORES PROMPTS - Outputs conversational text instead of documentation",
+      "benchmark_date": "2026-03-24",
+      "test_result": "Outputs 'I'm ready to assist...' instead of following documentation prompts. Failed quality checks in 4/4 scenarios (05, 06, 07, 10). Blocked in DB."
     }
   },
   "agents": [

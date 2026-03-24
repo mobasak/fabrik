@@ -4,6 +4,43 @@
 
 This document covers tools for managing AI agents in `scripts/kilo-benchmarks/`.
 
+## Database Statistics
+
+| Metric | Value |
+|--------|-------|
+| Total Agents | 332 |
+| Active | 332 |
+| With Reasoning | 157 |
+| Blocked | 2 |
+
+### Blocked Agents
+
+| Agent ID | Name | Reason |
+|----------|------|--------|
+| `qwen/qwen3-235b-a22b-2507` | Qwen3 235B A22B Instruct 2507 | Ignores documentation prompts - outputs conversational "I'm ready to assist" |
+| `deepseek/deepseek-v3.2` | DeepSeek V3.2 | Too slow (109s per review) |
+
+To manage blocked agents: `python manage_blocked.py list|block|unblock`
+
+### Latest Test Results (2026-03-24)
+
+**Documentator Agent Tests:** 40/40 passed | 496s total
+
+| Scenario | File | Agent Used | Complexity | Time |
+|----------|------|------------|------------|------|
+| 01 | new_public_function | StepFun: Step 3.5 Flash | medium | 17s |
+| 02 | new_class | Xiaomi: MiMo-V2-Flash | complex | 14s |
+| 03 | new_endpoint | StepFun: Step 3.5 Flash | medium | 37s |
+| 04 | new_env_var | StepFun: Step 3.5 Flash | medium | 28s |
+| 05 | breaking_change | Xiaomi: MiMo-V2-Flash | complex | 22s |
+| 06 | schema_change | Xiaomi: MiMo-V2-Flash | complex | 100s |
+| 07 | large_change | Xiaomi: MiMo-V2-Flash | complex | 60s |
+| 08 | combined | StepFun: Step 3.5 Flash | medium | 138s |
+| 09 | docker_change | StepFun: Step 3.5 Flash | medium | 14s |
+| 10 | cli_command | Xiaomi: MiMo-V2-Flash | complex | 66s |
+
+**Agent selection logic:** `complex` → priority 1-2 agents, `medium` → priority 3-4, `simple` → priority 5
+
 ## Architecture
 
 ```
@@ -395,49 +432,37 @@ The 120-second **idle timeout** triggers when:
 
 ---
 
-## Final Assignment Table (2026-03-23)
+## Final Assignment Table (2026-03-24)
 
-**Source:** `kilo_agents.db` role_assignments table
+**Source:** `kilo_agents.db` agent_roles table | **Assigned by:** `kilo/google/gemini-3.1-pro-preview`
 
-### Reviewing Role
-
-| Pri | Model | Provider | Elo | Tier | Status |
-|-----|-------|----------|-----|------|--------|
-| 1 | Claude Opus 4.6 | anthropic | 1535 | Prime | ✅ Tested |
-| 2 | Gemini 3.1 Pro Preview | google | 1531 | Strong | ✅ Tested |
-| 3 | GPT-5.4 | openai | 1468 | Balanced | ✅ Tested |
-| 4 | Grok 4 | x-ai | 1453 | Economy | ✅ Tested |
-| 5 | Qwen3 VL 235B Thinking | qwen | 1432 | Economy | ✅ Tested |
-
-### Coding Role
-
-| Pri | Model | Provider | TBench | Tier | Status |
-|-----|-------|----------|--------|------|--------|
-| 1 | GPT-5.4 | openai | 81.8% | Prime | ✅ Tested |
-| 2 | Claude Sonnet 4.5 | anthropic | 40.1% | Strong | ✅ Tested |
-| 3 | Gemini 3.1 Flash Lite | google | ~ | Balanced | ✅ Tested |
-| 4 | MiniMax M2.5 | minimax | 42.2% | Economy | ✅ Tested |
-| 5 | DeepSeek V3.2 Exp | deepseek | 39.6% | Economy | ✅ Tested |
-
-### Fixing Role
-
-| Pri | Model | Provider | Elo | Tier | Status |
-|-----|-------|----------|-----|------|--------|
-| 1 | Claude Sonnet 4.5 | anthropic | 1464 | Prime | ✅ Tested |
-| 2 | GPT-5.4 | openai | 1468 | Strong | ✅ Tested |
-| 3 | Gemini 3.1 Flash | google | 1470 | Balanced | ✅ Tested |
-| 4 | GLM 4.7 | z-ai | 1460 | Economy | ✅ Tested |
-| 5 | Kimi K2 Thinking | moonshotai | 1450 | Economy | ✅ Tested |
-
-### Documentation Role
-
-| Pri | Model | Provider | $/Perf | Tier | Status |
-|-----|-------|----------|--------|------|--------|
-| 1 | Qwen3 235B Instruct | qwen | 15709 | Economy | ✅ Tested |
-| 2 | GPT-OSS-20B | openai | 15233 | Economy | ✅ Tested |
-| 3 | MiMo V2 Flash | xiaomi | 5879 | Economy | ✅ Tested (borderline) |
-| 4 | Claude Haiku 3.5 | anthropic | 359 | Balanced | Active |
-| 5 | Grok 4 Fast | x-ai | 3391 | Economy | ✅ Tested |
+| Role | Pri | Agent | ELO | TBench | Vision | Thinking | $/M In | $/M Out | PPD |
+|------|-----|-------|-----|--------|--------|----------|--------|---------|-----|
+| coding | 1 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
+| coding | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 74.8% | ✅ | ✅ | $2.00 | $12.00 | 161 |
+| coding | 3 | Anthropic: Claude Opus 4.6 | 1535 | 58.0% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| coding | 4 | MiniMax: MiniMax M2.5 | 1436 | 42.2% | — | ✅ | $0.20 | $1.17 | 1548 |
+| coding | 5 | DeepSeek: DeepSeek V3.2 Exp | 1431 | 39.6% | — | ✅ | $0.27 | $0.41 | 3816 |
+| documentation | 1 | xAI: Grok 4 Fast | 1441 | — | ✅ | ✅ | $0.20 | $0.50 | 3391 |
+| documentation | 2 | Google: Gemini 2.0 Flash | 1371 | — | ✅ | — | $0.10 | $0.40 | 4218 |
+| documentation | 3 | Xiaomi: MiMo-V2-Flash | 1411 | — | — | ✅ | $0.09 | $0.29 | 5879 |
+| documentation | 4 | StepFun: Step 3.5 Flash | 1433 | — | — | ✅ | $0.10 | $0.30 | 5732 |
+| documentation | 5 | OpenAI: gpt-oss-20b | 1371 | 3.1% | — | ✅ | $0.03 | $0.11 | 15233 |
+| fixing | 1 | Google: Gemini 3.1 Pro Preview | 1531 | 74.8% | ✅ | ✅ | $2.00 | $12.00 | 161 |
+| fixing | 2 | Anthropic: Claude Opus 4.6 | 1535 | 58.0% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| fixing | 3 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
+| fixing | 4 | Z.ai: GLM 4.7 | 1460 | 33.3% | — | ✅ | $0.39 | $1.75 | 1035 |
+| fixing | 5 | MoonshotAI: Kimi K2 Thinking | 1450 | 35.7% | — | ✅ | $0.47 | $2.00 | 896 |
+| reviewing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 58.0% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| reviewing | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 74.8% | ✅ | ✅ | $2.00 | $12.00 | 161 |
+| reviewing | 3 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
+| reviewing | 4 | xAI: Grok 4 | 1453 | 23.1% | ✅ | ✅ | $3.00 | $15.00 | 121 |
+| reviewing | 5 | Qwen: Qwen3 VL 235B A22B Thinking | 1432 | — | ✅ | ✅ | $0.26 | $2.60 | 711 |
+| testing | 1 | Google: Gemini 3 Pro Preview | 1501 | 56.0% | ✅ | ✅ | $2.00 | $12.00 | 158 |
+| testing | 2 | OpenAI: GPT-5.2 | 1465 | 54.0% | ✅ | ✅ | $1.75 | $14.00 | 134 |
+| testing | 3 | MiniMax: MiniMax M2.5 | 1436 | 42.2% | — | ✅ | $0.20 | $1.17 | 1548 |
+| testing | 4 | DeepSeek: DeepSeek V3.2 Exp | 1431 | 39.6% | — | ✅ | $0.27 | $0.41 | 3816 |
+| testing | 5 | MoonshotAI: Kimi K2 Thinking | 1450 | 35.7% | — | ✅ | $0.47 | $2.00 | 896 |
 
 ---
 

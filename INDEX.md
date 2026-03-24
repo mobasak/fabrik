@@ -408,7 +408,7 @@ docs/
 │   ├── enforcement-system.md       # Convention enforcement (check scripts, rules)
 │   ├── exampleconsultancysitemap.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
-│   ├── fabrik-scaffold-specs.md
+│   ├── fabrik-scaffold-specs.md     # MOVED → docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
 │   ├── file-api-deployment.md      # File API deployment guide
 │   ├── global-gates.md             # Global gate definitions
 │   ├── hooks-and-skills-guide.md   # Hook and skill usage guide
