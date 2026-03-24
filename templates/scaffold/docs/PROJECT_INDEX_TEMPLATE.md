@@ -67,6 +67,29 @@
 
 ---
 
+## Documentation Structure Map
+
+<!-- AUTO-GENERATED:STRUCTURE:START -->
+<!-- Run `python scripts/docs_updater.py --sync` to regenerate this section -->
+```text
+docs/
+├── QUICKSTART.md
+├── CONFIGURATION.md
+├── TROUBLESHOOTING.md
+├── BUSINESS_MODEL.md
+├── FEATURES.md
+├── README.md
+├── archive
+├── development
+│   └── PLANS.md
+├── guides
+├── operations
+└── reference
+```
+<!-- AUTO-GENERATED:STRUCTURE:END -->
+
+---
+
 ## Enforcement Gates
 
 ### Step 3: Pre-Kilo Gate (`python scripts/final_gate.py`)
