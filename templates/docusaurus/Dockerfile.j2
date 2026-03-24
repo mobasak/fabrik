@@ -1,17 +1,12 @@
-# Step 1: Build Windows .exe on ARM64 Linux
+# Step 1: Build Static Site
 FROM node:22-bookworm-slim AS builder
-
-# Install wine and dependencies for cross-platform packaging
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wine mono-devel ca-certificates && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 
-# Step 2: Distribution Hub (Runtime)
+# Step 2: Runtime Environment
 FROM node:22-bookworm-slim
 WORKDIR /app
 
@@ -19,17 +14,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
-ENV PORT=8000
+ENV PORT=3000
 
 EXPOSE ${PORT}
 
 # Mandatory Healthcheck for Final Gate
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:${PORT}/health || exit 1
+  CMD curl -f http://localhost:${PORT}/ || exit 1
 
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json ./
 RUN npm install --omit=dev
 
-# Serves the static .exe installers for users
-CMD ["node", "dist/server.js"]
+CMD ["npm", "run", "serve", "--", "--host", "0.0.0.0", "--port", "3000"]

@@ -536,6 +536,9 @@ def run_consistency_checks() -> list[tuple[str, bool, str]]:
         run_optional_check("scripts/enforcement/check_index_md.py", "INDEX.md (Master File Index)")
     )
     results.append(
+        run_optional_check("scripts/enforcement/check_test_proposal.py", "One-Test Rule Proposal")
+    )
+    results.append(
         run_optional_check(
             "scripts/enforcement/check_readme_md.py", "README.md (Primary Entry Point)"
         )

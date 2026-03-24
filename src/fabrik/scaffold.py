@@ -402,11 +402,7 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
         f"# {name} Configuration\n# Required\nPORT=8000\nLOG_LEVEL=INFO\n\n# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n"
     )
 
-    # Copy entire templates/docs/ directory to project
-    fabrik_docs_templates = FABRIK_ROOT / "templates" / "docs"
-    project_docs_templates = project_dir / "templates" / "docs"
-    if fabrik_docs_templates.exists():
-        shutil.copytree(fabrik_docs_templates, project_docs_templates, dirs_exist_ok=True)
+    # Note: templates/docs/ removed - templates/scaffold/docs/ is the canonical source
 
     # Copy templates/saas-skeleton/ for reference (used in 20-typescript.md)
     # Exclude build artifacts to prevent session poisoning (.next contains hardcoded /opt/fabrik paths)

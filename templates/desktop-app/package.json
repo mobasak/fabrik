@@ -1,28 +1,34 @@
 {
-  "name": "desktop-app",
+  "name": "fabrik-desktop-app",
   "version": "1.0.0",
   "description": "Electron desktop app template",
   "main": "electron/main.js",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder",
-    "dev": "electron . --dev"
+    "dev": "electron .",
+    "build": "electron-builder --win",
+    "gate": "python3 scripts/final_gate.py"
   },
   "build": {
-    "appId": "com.example.desktopapp",
+    "appId": "com.fabrik.{{ spec.id }}",
     "productName": "{{ spec.id }}",
+    "win": {
+      "target": "nsis",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
     "directories": {
       "output": "dist"
-    },
-    "files": [
-      "electron/**/*",
-      "dist/**/*"
-    ]
+    }
   },
   "dependencies": {
-    "electron": "^28.0.0"
+    "electron-updater": "^6.1.7"
   },
   "devDependencies": {
-    "electron-builder": "^24.6.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.0",
+    "typescript": "^5.4.5"
   }
 }

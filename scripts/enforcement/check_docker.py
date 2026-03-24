@@ -19,6 +19,59 @@ APPROVED_BASES = [
 ]
 
 
+def check_compose_arm64(file_path: Path) -> list:
+    """Check compose.yaml for ARM64 platform specification."""
+    from .validate_conventions import CheckResult, Severity
+
+    results = []
+    name = file_path.name.lower()
+
+    # Only check compose files
+    if name not in ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"):
+        return results
+
+    try:
+        content = file_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return results
+
+    # Check if file has build: directive (custom images)
+    if "build:" not in content:
+        return results  # Pre-built images only, skip platform check
+
+    # Check for platform: linux/arm64
+    if "platform: linux/arm64" not in content and "platform:" not in content:
+        results.append(
+            CheckResult(
+                check_name="docker_arm64",
+                severity=Severity.ERROR,
+                message="Missing 'platform: linux/arm64' in compose file with build directive",
+                file_path=str(file_path),
+                line_number=1,
+                fix_hint="Add 'platform: linux/arm64' under services that use build: (VPS is ARM64)",
+            )
+        )
+    elif "platform:" in content and "linux/arm64" not in content:
+        # Has platform but wrong value
+        line_num = 1
+        for i, line in enumerate(content.splitlines(), 1):
+            if "platform:" in line.lower():
+                line_num = i
+                break
+        results.append(
+            CheckResult(
+                check_name="docker_arm64",
+                severity=Severity.ERROR,
+                message=f"Platform specified but not ARM64-compatible (VPS requires linux/arm64)",
+                file_path=str(file_path),
+                line_number=line_num,
+                fix_hint="Change to 'platform: linux/arm64'",
+            )
+        )
+
+    return results
+
+
 def check_file(file_path: Path) -> list:
     """Check Docker files for convention violations."""
     from .validate_conventions import CheckResult, Severity
@@ -26,7 +79,12 @@ def check_file(file_path: Path) -> list:
     results = []
     name = file_path.name.lower()
 
-    # Only check Dockerfiles
+    # Check compose files for ARM64
+    if name in ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"):
+        results.extend(check_compose_arm64(file_path))
+        # Don't return yet, continue to check ports/networking below
+
+    # Only check Dockerfiles for the rest
     if name != "dockerfile" and not name.endswith(".dockerfile"):
         return results
 

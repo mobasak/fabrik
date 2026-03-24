@@ -34,6 +34,7 @@ declare -A DETECT_RESULTS
 declare -A ENFORCE_RESULTS
 declare -A AUTOGEN_RESULTS
 declare -A SCENARIO_TIMES
+declare -A SCENARIO_AGENTS
 
 run_scenario() {
     local num="$1"
@@ -117,11 +118,14 @@ run_scenario() {
     # Run auto-generate (dry-run or live) — capture exit status explicitly
     local autogen_result="PASS"
     local autogen_exit=0
+    local agent_used="(dry-run)"
     if [ "$LIVE_MODE" = true ]; then
         echo "  🔄 AUTO-GENERATE: Running live..."
         local autogen_tmpfile
         autogen_tmpfile=$(mktemp)
         python "$ENFORCER" --auto-generate --verbose --project-root "$TARGET" >"$autogen_tmpfile" 2>&1 || autogen_exit=$?
+        # Extract agent name from output
+        agent_used=$(grep -oP '\[DOC GEN\] Agent: \K[^$]+' "$autogen_tmpfile" | head -1 || echo "unknown")
         # Show truncated preview
         head -20 "$autogen_tmpfile"
         rm -f "$autogen_tmpfile"
@@ -130,7 +134,7 @@ run_scenario() {
             FAIL=$((FAIL + 1))
             autogen_result="FAIL"
         else
-            echo "  ✅ AUTO-GENERATE: Succeeded"
+            echo "  ✅ AUTO-GENERATE: Succeeded (Agent: $agent_used)"
             PASS=$((PASS + 1))
         fi
     else
@@ -146,6 +150,7 @@ run_scenario() {
         fi
     fi
     AUTOGEN_RESULTS[$num]="$autogen_result"
+    SCENARIO_AGENTS[$num]="$agent_used"
 
     # Reset: restore repo to clean initial-commit state before next scenario
     # Order matters: unstage first, then restore working tree, then clean untracked
@@ -189,18 +194,21 @@ echo "==============================="
 
 # Summary table
 echo ""
-echo "┌────────┬────────────────────────────────┬────────┬─────────┬─────────┬───────┐"
-echo "│ Scenario│ File                           │ Detect │ Enforce │ AutoGen │ Time  │"
-echo "├────────┼────────────────────────────────┼────────┼─────────┼─────────┼───────┤"
+echo "┌────────┬────────────────────────────────┬────────┬─────────┬─────────┬───────┬────────────────────────────┐"
+echo "│ Scenario│ File                           │ Detect │ Enforce │ AutoGen │ Time  │ Agent                      │"
+echo "├────────┼────────────────────────────────┼────────┼─────────┼─────────┼───────┼────────────────────────────┤"
 for i in 01 02 03 04 05 06 07 08 09 10; do
     name="${SCENARIO_NAMES[$i]:-?}"
     detect="${DETECT_RESULTS[$i]:-?}"
     enforce="${ENFORCE_RESULTS[$i]:-?}"
     autogen="${AUTOGEN_RESULTS[$i]:-?}"
     time_s="${SCENARIO_TIMES[$i]:-0}"
-    printf "│ %-7s│ %-31s│ %-7s│ %-8s│ %-8s│ %-5ss│\n" "$i" "$name" "$detect" "$enforce" "$autogen" "$time_s"
+    agent="${SCENARIO_AGENTS[$i]:-(dry-run)}"
+    # Truncate agent name to 26 chars for display
+    agent_short="${agent:0:26}"
+    printf "│ %-7s│ %-31s│ %-7s│ %-8s│ %-8s│ %-5ss│ %-26s │\n" "$i" "$name" "$detect" "$enforce" "$autogen" "$time_s" "$agent_short"
 done
-echo "└────────┴────────────────────────────────┴────────┴─────────┴─────────┴───────┘"
+echo "└────────┴────────────────────────────────┴────────┴─────────┴─────────┴───────┴────────────────────────────┘"
 echo ""
 echo "Total time: ${TOTAL_TIME}s"
 

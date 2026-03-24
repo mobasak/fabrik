@@ -32,6 +32,16 @@ trigger: always_on
 2. Infrastructure skills before code skills
 3. If still uncertain, present options to user first — do not auto-invoke.
 
+### Fabrik Preflight Skill
+**Trigger:** User asks "ready to deploy", "preflight", or during Step 5 (Final Gate).
+**Action:** Execute enforcement suite:
+```bash
+python scripts/enforcement/check_docker.py
+python scripts/enforcement/check_secrets.py
+python scripts/enforcement/check_env_contract.py
+```
+**Failure in any script = STOP.** Fix all errors before proceeding.
+
 ---
 
 ## Traycer YOLO Automation

@@ -24,22 +24,22 @@ To manage blocked agents: `python manage_blocked.py list|block|unblock`
 
 ### Latest Test Results (2026-03-24)
 
-**Documentator Agent Tests:** 40/40 passed | 496s total
+**Documentator Agent Tests:** 40/40 passed | 303s total
 
-| Scenario | File | Agent Used | Complexity | Time |
-|----------|------|------------|------------|------|
-| 01 | new_public_function | StepFun: Step 3.5 Flash | medium | 17s |
-| 02 | new_class | Xiaomi: MiMo-V2-Flash | complex | 14s |
-| 03 | new_endpoint | StepFun: Step 3.5 Flash | medium | 37s |
-| 04 | new_env_var | StepFun: Step 3.5 Flash | medium | 28s |
-| 05 | breaking_change | Xiaomi: MiMo-V2-Flash | complex | 22s |
-| 06 | schema_change | Xiaomi: MiMo-V2-Flash | complex | 100s |
-| 07 | large_change | Xiaomi: MiMo-V2-Flash | complex | 60s |
-| 08 | combined | StepFun: Step 3.5 Flash | medium | 138s |
-| 09 | docker_change | StepFun: Step 3.5 Flash | medium | 14s |
-| 10 | cli_command | Xiaomi: MiMo-V2-Flash | complex | 66s |
+| Scenario | File | Agent Used | Time |
+|----------|------|------------|------|
+| 01 | new_public_function | xAI: Grok 4 Fast | 20s |
+| 02 | new_class | xAI: Grok 4 Fast | 22s |
+| 03 | new_endpoint | Xiaomi: MiMo-V2-Flash | 28s |
+| 04 | new_env_var | Xiaomi: MiMo-V2-Flash | 26s |
+| 05 | breaking_change | xAI: Grok 4 Fast | 38s |
+| 06 | schema_change | xAI: Grok 4 Fast | 32s |
+| 07 | large_change | xAI: Grok 4 Fast | 45s |
+| 08 | combined | Xiaomi: MiMo-V2-Flash | 51s |
+| 09 | docker_change | Xiaomi: MiMo-V2-Flash | 6s |
+| 10 | cli_command | xAI: Grok 4 Fast | 35s |
 
-**Agent selection logic:** `complex` → priority 1-2 agents, `medium` → priority 3-4, `simple` → priority 5
+**Agent selection:** Automatic based on complexity routing. Blocked agents (Qwen3, DeepSeek V3.2) excluded.
 
 ## Architecture
 
@@ -314,6 +314,27 @@ Task complexity determines which priority agents are tried:
 5. **Test** — Manual testing, results logged in `AGENT_TESTING.md`
 6. **Block** — `manage_blocked.py` to exclude problematic agents
 7. **Select** — `agent_selector.py` for runtime agent selection
+
+### WSL Startup Automation
+
+The entire workflow runs automatically on WSL startup via `.bashrc` hooks:
+
+```bash
+# In ~/.bashrc (add these lines):
+source /opt/fabrik/scripts/wsl_startup_hook.sh
+[ -f /opt/fabrik/scripts/kilo_model_sync_startup.sh ] && /opt/fabrik/scripts/kilo_model_sync_startup.sh
+```
+
+**What runs on WSL start (daily, non-blocking):**
+1. `kilo_agents_db.py sync` — Refresh agent list from Kilo CLI
+2. `kilo_agents_db.py update` — Update benchmark scores
+3. `kilo_agents_db.py snapshot` — Archive current state
+4. `kilo_agents_db.py export` — Export to JSON caches
+5. `kilo_model_sync.py --sync` — Sync model metadata
+
+**Lock files prevent duplicate runs:** `/tmp/.fabrik_daily_YYYYMMDD`
+
+**Logs:** `/opt/fabrik/scripts/kilo-benchmarks/cache/update.log`
 
 ---
 

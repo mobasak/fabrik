@@ -2,13 +2,18 @@
   "name": "{{ name }}-docs",
   "version": "0.0.1",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "build": "docusaurus build",
     "serve": "docusaurus serve",
     "clear": "docusaurus clear",
-    "gen-api": "docusaurus gen-api-docs all"
+    "gen-api": "docusaurus gen-api-docs all",
+    "gate": "python3 scripts/final_gate.py"
   },
   "dependencies": {
     "@docusaurus/core": "^3.7.0",
@@ -18,17 +23,16 @@
     "docusaurus-theme-openapi-docs": "^4.3.0",
     "prism-react-renderer": "^2.4.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.3.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "^3.7.0",
-    "@docusaurus/types": "^3.7.0"
+    "@docusaurus/types": "^3.7.0",
+    "typescript": "^5.4.5"
   },
   "browserslist": {
     "production": [">0.5%", "not dead", "not op_mini all"],
     "development": ["last 3 chrome version", "last 3 firefox version", "last 5 safari version"]
-  },
-  "engines": {
-    "node": ">=18.0"
   }
 }

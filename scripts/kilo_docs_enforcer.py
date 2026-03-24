@@ -40,6 +40,7 @@ import argparse
 import asyncio
 import concurrent.futures
 import contextlib
+import difflib
 import json
 import os
 import re
@@ -225,6 +226,52 @@ DOCUMENTATION_TRIGGERS: dict[str, DocTrigger] = {
         exclude_paths=[],
         description="Docker configuration change requires documentation",
         file_filters=["Dockerfile", "compose.yaml", "compose.yml"],
+    ),
+    # TypeScript/JavaScript triggers
+    "new_ts_function": DocTrigger(
+        name="new_ts_function",
+        pattern=r"^\+\s*(?:export\s+)?(?:async\s+)?function\s+[a-z][a-zA-Z0-9_]*\(",
+        severity="CRITICAL",
+        required_docs=["docs/reference/{module}.md", "CHANGELOG.md"],
+        exclude_paths=["tests/", "node_modules/", "__tests__/"],
+        description="New TypeScript function requires documentation",
+        file_filters=["*.ts", "*.tsx"],
+    ),
+    "new_ts_interface": DocTrigger(
+        name="new_ts_interface",
+        pattern=r"^\+\s*(?:export\s+)?interface\s+[A-Z][a-zA-Z0-9_]*",
+        severity="MAJOR",
+        required_docs=["docs/reference/{module}.md"],
+        exclude_paths=["tests/", "node_modules/"],
+        description="New Interface requires schema documentation",
+        file_filters=["*.ts", "*.tsx"],
+    ),
+    "new_ts_type": DocTrigger(
+        name="new_ts_type",
+        pattern=r"^\+\s*(?:export\s+)?type\s+[A-Z][a-zA-Z0-9_]*\s*=",
+        severity="MAJOR",
+        required_docs=["docs/reference/{module}.md"],
+        exclude_paths=["tests/", "node_modules/"],
+        description="New Type alias requires documentation",
+        file_filters=["*.ts", "*.tsx"],
+    ),
+    "new_react_component": DocTrigger(
+        name="new_react_component",
+        pattern=r"^\+\s*(?:export\s+)?(?:default\s+)?(?:function|const)\s+[A-Z][a-zA-Z0-9_]*",
+        severity="MAJOR",
+        required_docs=["docs/reference/{module}.md", "CHANGELOG.md"],
+        exclude_paths=["tests/", "node_modules/"],
+        description="New React component requires documentation",
+        file_filters=["*.tsx", "*.jsx"],
+    ),
+    "new_npm_dependency": DocTrigger(
+        name="new_npm_dependency",
+        pattern=r'^\+\s*"[a-z0-9@/-]+"\s*:\s*"[\^~]?\d+',
+        severity="MAJOR",
+        required_docs=["README.md"],
+        exclude_paths=[],
+        description="New NPM package requires installation docs update",
+        file_filters=["package.json"],
     ),
 }
 
@@ -1557,14 +1604,38 @@ Now generate the troubleshooting guide section. Start your output with "##" and 
 ##"""
 
 
-def validate_generated_content(content: str, doc_path: str) -> tuple[bool, str]:
+def _calculate_code_echo_ratio(content: str, requirement: DocRequirement) -> float:
     """
-    Validate generated documentation content quality.
+    Calculate how much the output 'echoes' the raw input code.
+
+    Returns a ratio 0.0-1.0 where higher means more similar (bad).
+    """
+    raw_source = "\n".join([v.matched_line for v in requirement.triggers])
+    return difflib.SequenceMatcher(None, raw_source, content).ratio()
+
+
+def validate_generated_content(
+    content: str,
+    doc_path: str,
+    requirement: DocRequirement | None = None,
+) -> tuple[bool, str]:
+    """
+    Production-grade documentation validation.
+
+    Checks for:
+    1. Minimum length and markdown formatting
+    2. Conversational fillers and AI "monologues"
+    3. Unresolved placeholders (e.g., [Insert Description])
+    4. Semantic relevance (ensuring trigger identifiers are present)
+    5. Code echo detection (prevent 1:1 copying of source)
+    6. .env format strictness
 
     Returns:
         (is_valid, reason) — True if content passes quality checks.
     """
-    # Minimum length check
+    stripped_content = content.strip()
+
+    # --- 1. Minimum Length Check ---
     min_lengths = {
         "CHANGELOG": 50,
         "docs/reference/": 100,
@@ -1577,10 +1648,22 @@ def validate_generated_content(content: str, doc_path: str) -> tuple[bool, str]:
             min_len = length
             break
 
-    if len(content.strip()) < min_len:
-        return False, f"Content too short ({len(content.strip())} chars, minimum {min_len})"
+    if len(stripped_content) < min_len:
+        return False, f"Content too short ({len(stripped_content)} chars, minimum {min_len})"
 
-    # Check for conversational text (agent ignored instructions)
+    # --- 2. Placeholder Detection (Lazy Agent Check) ---
+    placeholder_patterns = [
+        (r"\[(Insert|Describe|Enter|Add|Your)[^\]]*\]", "bracketed placeholder"),
+        (r"<(insert|describe|add|your)[^>]*>", "angle bracket placeholder"),
+        (r"TODO:\s*\w", "TODO marker"),  # Must have content after TODO:
+        (r"FIXME:\s*\w", "FIXME marker"),
+        (r"INSERT_HERE", "INSERT_HERE marker"),
+    ]
+    for pattern, description in placeholder_patterns:
+        if re.search(pattern, stripped_content, re.IGNORECASE):
+            return False, f"Unresolved placeholder detected: {description}"
+
+    # --- 3. Conversational Filter ---
     bad_starts = [
         "I ",
         "I'm ",
@@ -1596,13 +1679,13 @@ def validate_generated_content(content: str, doc_path: str) -> tuple[bool, str]:
         "Great",
         "Absolutely",
         "Yes,",
+        "I've updated",
+        "I have generated",
     ]
-    first_line = content.strip().split("\n")[0].strip()
+    first_line = stripped_content.split("\n")[0].strip()
 
     # Normalize by stripping a leading markdown heading prefix (e.g. "### " or "## ")
-    # so that conversational replies like "### Sure, here's..." are still caught.
     normalized_first_line = re.sub(r"^#{2,}\s*", "", first_line).strip()
-    # Also strip env-file comment prefix for .env.example validation
     if doc_path == ".env.example":
         normalized_first_line = re.sub(r"^#\s*={3}\s*", "", normalized_first_line).strip()
 
@@ -1610,51 +1693,91 @@ def validate_generated_content(content: str, doc_path: str) -> tuple[bool, str]:
         if normalized_first_line.startswith(phrase):
             return (
                 False,
-                f"Conversational output detected: starts with '{phrase}' (after heading prefix)",
+                f"Conversational output detected: starts with '{phrase}'",
             )
 
-    # Validate .env.example format: strict line-by-line check.
-    # Every nonblank line must be either a comment (#) or a valid KEY=value assignment.
-    # Reject markdown bullets, fenced code blocks, table syntax, headings, etc.
+    # --- 4. Monologue Filtering (Thought Leakage) ---
+    # These are AI-specific phrases that should never appear in documentation
+    monologue_markers = [
+        "Note to developer:",  # More specific - needs colon
+        "As you requested",
+        "I will now",
+        "Let's start by",
+        "(Note to self",
+        "<thought>",
+        "I have generated",
+        "Here is the documentation",
+    ]
+    for marker in monologue_markers:
+        if marker.lower() in stripped_content.lower():
+            return False, f"Internal AI monologue detected: '{marker}'"
+
+    # --- 5. Semantic Relevance (Identifier Verification) ---
+    # Only check for primary triggers in API reference docs
+    # Skip for CHANGELOG (summaries), schema docs, etc.
+    primary_triggers = {"new_public_function", "new_class", "new_endpoint", "new_cli_command"}
+    skip_identifier_check = {".env.example", "CHANGELOG.md", "README.md", "docs/QUICKSTART.md"}
+    if requirement and not any(skip in doc_path for skip in skip_identifier_check):
+        for violation in requirement.triggers:
+            # Only verify identifiers for primary trigger types
+            if violation.trigger_name not in primary_triggers:
+                continue
+            # Extract func/class name with word boundary: "def my_func(" -> "my_func"
+            # Requires space after def/class to avoid matching "default"
+            match = re.search(
+                r"(?:def |class |getenv\(['\"])([a-zA-Z_][a-zA-Z0-9_]*)",
+                violation.matched_line,
+            )
+            if match:
+                identifier = match.group(1)
+                # Only check identifiers >3 chars to avoid false positives
+                if len(identifier) > 3 and identifier not in stripped_content:
+                    return (
+                        False,
+                        f"Identifier '{identifier}' not mentioned in generated docs",
+                    )
+
+    # --- 6. Code Echo Detection (Plagiarism Check) ---
+    if requirement and doc_path != ".env.example" and len(requirement.triggers) > 0:
+        echo_ratio = _calculate_code_echo_ratio(stripped_content, requirement)
+        if echo_ratio > 0.85:
+            return (
+                False,
+                f"Output is {echo_ratio:.0%} similar to source code (echoing)",
+            )
+
+    # --- 7. .env.example Format Validation ---
     if doc_path == ".env.example":
         has_env_var = False
         invalid_lines: list[tuple[int, str]] = []
         for line_idx, line in enumerate(content.split("\n"), start=1):
             stripped = line.strip()
-            # Blank lines are always OK
             if not stripped:
                 continue
-            # Comments (lines starting with #) are OK
             if stripped.startswith("#"):
                 continue
-            # Valid KEY=value assignment (key must be uppercase/underscore/digits)
             if re.match(r"^[A-Z_][A-Z0-9_]*=", stripped):
                 has_env_var = True
                 continue
-            # Everything else is invalid for a .env file
             invalid_lines.append((line_idx, stripped))
 
         if not has_env_var:
             return False, "No KEY=value lines found — expected .env format, not markdown"
 
         if invalid_lines:
-            # Report first few invalid lines
             examples = "; ".join(f"line {n}: '{text[:60]}'" for n, text in invalid_lines[:3])
             return (
                 False,
                 f"Invalid .env content: {len(invalid_lines)} line(s) are not comments "
                 f"or KEY=value assignments ({examples})",
             )
-
-        # For .env files, skip the markdown marker check below
         return True, "OK"
 
-    # Check for excessive code fences: if >80% of content is inside fences,
-    # the model likely outputted the template example instead of generating fresh content.
+    # --- 8. Code Fence Check (Template Echo) ---
     fence_lines = 0
     total_lines = 0
     in_fence = False
-    for line in content.strip().split("\n"):
+    for line in stripped_content.split("\n"):
         total_lines += 1
         if line.strip().startswith("```"):
             in_fence = not in_fence
@@ -1667,7 +1790,7 @@ def validate_generated_content(content: str, doc_path: str) -> tuple[bool, str]:
             f"Content is >80% code fences ({fence_lines}/{total_lines} lines) — likely template echo",
         )
 
-    # Check for expected markdown markers
+    # --- 9. Markdown Formatting Check ---
     has_markdown = any(marker in content for marker in ["###", "##", "**", "- ", "```"])
     if not has_markdown:
         return False, "No markdown formatting detected"
@@ -1830,7 +1953,7 @@ Write clear, concise documentation suitable for developers.
     # Validate raw model output BEFORE adding any prefix.
     # This ensures conversational replies (e.g. "Sure, here's...") are caught
     # before a forced prefix like "###" masks them.
-    is_valid, reason = validate_generated_content(content, doc_path)
+    is_valid, reason = validate_generated_content(content, doc_path, requirement)
     if not is_valid:
         print(
             f"⚠️ Quality check failed for {doc_path} (agent: {agent_info['name']}): {reason}",

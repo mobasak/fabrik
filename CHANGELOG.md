@@ -74,6 +74,312 @@ All notable changes to this project will be documented in this file.
 
 **Impact:** New projects scaffolded with `fabrik new` will have workflow-aligned documentation templates that prevent agents from hallucinating or skipping mandatory gates.
 
+### Changed - Enforcement Scripts & Agent Quickstart (2026-03-24)
+
+**check_docker.py:**
+- Added `check_compose_arm64()` function to enforce `platform: linux/arm64` in compose.yaml
+- ERROR severity if compose file has `build:` directive but missing ARM64 platform
+- ERROR severity if platform specified but not ARM64-compatible
+- Validates VPS ARM64 requirement at pre-commit time
+
+**QUICKSTART_TEMPLATE.md:**
+- Replaced generic user guide with agent-specific execution guide
+- Added "Mandatory First Output" compliance string (RULES ACTIVE: [ROLE] | ...)
+- Documents 8-step workflow with exact commands for each step
+- Enforces PEP 668 compliance (all pip commands use `/opt/<project>/.venv/bin/pip`)
+- References prebuilt-app-containers.md to prevent reinventing infrastructure
+- Lists common enforcement scripts for troubleshooting
+- Clarifies agent roles: Coders execute, never plan; Traycer commits, Coders don't
+
+**Verification:**
+- Confirmed `final_gate.py` calls 27 enforcement checks via `run_optional_check()`
+- `check_docker.py` and `check_secrets.py` integrated via `validate_conventions.py` framework
+- All enforcement scripts return CheckResult objects with severity, message, fix_hint
+
+**Impact:** Agents receive compliance-first documentation at project creation. ARM64 violations caught at pre-commit, not at deploy-time.
+
+### Changed - Windsurf Rules Enhanced for Agent Discipline (2026-03-24)
+
+**Updated `.windsurf/rules/` for tighter workflow enforcement:**
+
+**00-critical.md:**
+- Improved MANDATORY FIRST OUTPUT to require listing 3 specific rules (forces file parsing)
+- Added Step 2.5 Internal Audit checklist (5 items) - actionable pre-Kilo Review checks
+- Checklist: Zero hardcoding, Infrastructure (-slim-bookworm + HEALTHCHECK), ARM64 platform, Dependencies sync, Port registration
+
+**30-ops.md:**
+- Added `platform: linux/arm64` to compose.yaml template with enforcement comment
+- Comment links to check_docker.py compliance requirement
+
+**50-code-review.md:**
+- Added Step 2.5 Internal Audit checklist at top (before automated tools)
+- Expanded Step 5 Final Gate section showing enforcement suite execution
+- Listed 4 core checks: check_docker.py, check_secrets.py, check_env_contract.py, +24 additional
+
+**90-automation.md:**
+- Defined Fabrik Preflight skill logic (was listed but not implemented)
+- Trigger: "ready to deploy", "preflight", or Step 5
+- Action: Execute check_docker.py, check_secrets.py, check_env_contract.py
+- Failure = STOP (explicit stop condition)
+
+**Impact:** Cascade agents now have actionable checklists at every workflow gate. Rules enforce the enforcement scripts we built today.
+
+### Fixed - Code Review Workflow Commands (2026-03-24)
+
+**50-code-review.md:**
+- Restored git workflow commands in Step 3 (Kilo Review) that were incorrectly removed
+- Added back: `git diff`, `git diff --staged` for verification before review
+- Maintains full workflow: review → stage → verify → run kilo_code_review.py
+
+### Changed - SaaS Skeleton 100% Aligned with Modern UI Patterns (2026-03-24)
+
+**templates/saas-skeleton/package.json:**
+- Added `sonner: ^1.4.0` for toast notifications
+
+**templates/saas-skeleton/app/layout.tsx:**
+- Added Sonner `<Toaster>` component (position: top-right, richColors, closeButton)
+- Enables mandatory UI states per Modern SaaS UI Patterns: Success, Error, Loading notifications
+- Comment documents purpose: "Enables mandatory Success, Error, Loading states per UI patterns"
+
+**Impact:** SaaS skeleton now 100% aligned with Gemini's recommendations and UI pattern requirements. All new projects have toast notifications out-of-the-box.
+
+### Changed - SaaS Skeleton Enhanced with Complete shadcn/ui Design System (2026-03-24)
+
+**templates/saas-skeleton/app/globals.css:**
+- Added complete shadcn/ui CSS variable set (card, popover, secondary, accent, input, ring)
+- Updated primary color to Fabrik Blue (221.2 83.2% 53.3%) for brand consistency
+- Added font feature settings for improved text rendering (rlig, calt)
+- Complete light/dark mode color palettes meeting WCAG 2.2 AA contrast ratios
+- All variables use HSL format for seamless Tailwind integration
+
+**templates/saas-skeleton/tailwind.config.ts:**
+- Extended color mappings: card, popover, secondary, accent, input, ring
+- All color objects include DEFAULT + foreground pairs for accessibility
+- Added darkMode: ["class"] for theme switching support
+- Added container configuration (center: true, padding: 2rem, max-width: 1400px)
+- Added keyframes for accordion animations (accordion-down, accordion-up)
+- Added animation utilities for mandatory Loading/Success states
+- Uses `satisfies Config` for full TypeScript type safety and IntelliSense
+
+**templates/saas-skeleton/package.json:**
+- Added `tailwindcss-animate: ^1.0.7` for animation plugin support
+
+**Existing UI Patterns (Already Implemented):**
+- ✅ AppShell.tsx: Stable side nav with active state highlighting
+- ✅ Dashboard page: StatCard pattern with responsive grid (1-4 columns)
+- ✅ Empty state components with clear CTAs
+- ✅ lib/utils.ts: cn() utility for Tailwind class merging
+- ✅ Route groups: (app) for authenticated, (marketing) for public pages
+
+**Impact:** SaaS skeleton now has production-ready design system. Agents can use full shadcn/ui component palette with proper color tokens. All UI states (empty, loading, error, success, disabled) are visually supported.
+
+### Fixed - SaaS Skeleton Step 2.5 Audit Violations (2026-03-24)
+
+**Critical issues found during final review:**
+
+**templates/saas-skeleton/Dockerfile:**
+- Added `HEALTHCHECK` using Node.js built-in http module (no curl dependency)
+- Tests `/api/health` endpoint with 30s interval, 10s timeout, 40s start period
+- Compliance: check_docker.py now passes
+
+**templates/saas-skeleton/compose.yaml:**
+- Added `platform: linux/arm64` to web service build
+- Comment documents VPS ARM64 requirement
+- Compliance: check_docker.py now passes
+
+**templates/saas-skeleton/lib/config/site.ts:**
+- Removed hardcoded `http://localhost:3000` from url field
+- Changed to empty string (enables relative URLs in same-origin contexts)
+- Environment variable `NEXT_PUBLIC_APP_URL` still supported for absolute URLs
+- Compliance: check_secrets.py now passes
+
+**Impact:** SaaS skeleton now passes all Step 2.5 Internal Audit checks. Template is deployment-ready for ARM64 VPS.
+
+### Fixed - Chrome Extension Template Enforcement Compliance (2026-03-24)
+
+**Critical issues found per Gemini 3.1 Pro audit:**
+
+**templates/chrome-extension/compose.yaml.j2:**
+- Added `platform: linux/arm64` for VPS compatibility
+- Added complete `healthcheck` block (curl test on /health endpoint)
+- Added `ports` mapping with PORT env var (${PORT:-8000})
+- Added `environment` section for NODE_ENV and PORT
+- Added `networks.coolify.external: true` to join existing mesh
+- Compliance: check_docker.py now passes
+
+**templates/chrome-extension/Dockerfile.j2:**
+- Added `HEALTHCHECK` instruction with curl (apt-get install curl in production stage)
+- Added `ENV PORT=8000` for explicit port configuration
+- Added `EXPOSE ${PORT}` for port documentation
+- Added `--no-audit --no-fund` flags to npm ci for faster builds
+- Compliance: check_docker.py now passes
+
+**templates/chrome-extension/package.json:**
+- Added `engines` field requiring Node >=22.0.0, npm >=10.0.0
+- Added `gate` script: "python3 scripts/final_gate.py" for preflight checks
+- Prevents version drift between WSL dev and VPS deployment
+
+**templates/chrome-extension/defaults.yaml:**
+- Added `PORT: 8000` to default environment variables
+
+**Impact:** Chrome extension template now passes check_docker.py and is deployment-ready. Automated coding agents can safely use this template without manual intervention.
+
+### Fixed - Desktop App Template for Cross-Platform Windows Builds (2026-03-24)
+
+**Critical issues found per Gemini 3.1 Pro audit:**
+
+**templates/desktop-app/compose.yaml.j2:**
+- Added `platform: linux/arm64` for VPS compatibility
+- Added complete `healthcheck` block (curl test on /health endpoint)
+- Added `ports` mapping with PORT env var (${PORT:-8000})
+- Added `environment` section for NODE_ENV and PORT
+- Added `networks.coolify.external: true` to join existing mesh
+- Compliance: check_docker.py now passes
+
+**templates/desktop-app/Dockerfile.j2:**
+- Added wine + mono-devel in builder stage for Linux-to-Windows cross-compilation
+- Added `HEALTHCHECK` instruction with curl
+- Added `ENV PORT=8000` for explicit port configuration
+- Added `EXPOSE ${PORT}` for port documentation
+- Added `--no-audit --no-fund` flags to npm ci for faster builds
+- Runtime stage serves static .exe installers as distribution hub
+- Compliance: check_docker.py now passes
+
+**templates/desktop-app/package.json:**
+- Added `engines` field requiring Node >=22.0.0, npm >=10.0.0
+- Added `gate` script: "python3 scripts/final_gate.py" for preflight checks
+- Changed build target to `--win` (NSIS installer)
+- Added `electron-updater` dependency for auto-update from VPS
+- Added `typescript` devDependency
+- Updated appId to `com.fabrik.{{ spec.id }}` pattern
+- Prevents version drift between WSL dev and VPS deployment
+
+**templates/desktop-app/defaults.yaml:**
+- Added `PORT: 8000` to default environment variables
+
+**templates/desktop-app/electron/main.js:**
+- NEW FILE: Secure Electron main process pattern
+- `nodeIntegration: false` + `contextIsolation: true` for security
+- Integrated `electron-updater` for automatic updates from VPS distribution hub
+- Standard window lifecycle management
+
+**Architecture:** VPS acts as Build & Distribution Hub. ARM64 Ubuntu compiles Windows .exe using wine, then serves installers via web server for user downloads.
+
+**Impact:** Desktop app template now supports cross-platform Windows builds on ARM64 VPS. Full automation-ready with check_docker.py compliance.
+
+### Fixed - Removed Duplicate Template Directory (2026-03-24)
+
+**Problem:** `templates/docs/` contained outdated versions of planning templates (106-line PLAN_TEMPLATE.md) that conflicted with canonical versions in `templates/scaffold/docs/` (193-line PLAN_TEMPLATE.md with Quality Gate).
+
+**Actions:**
+- Archived `templates/docs/` to `templates/.archive/legacy-docs-2026-03-24/` (5 files preserved)
+- Removed `templates/docs/` copy logic from `src/fabrik/scaffold.py` (lines 405-409)
+- Added comment: "templates/docs/ removed - templates/scaffold/docs/ is the canonical source"
+
+**Archived files:**
+- `.doc-policy.md` — Documentation policy
+- `EXECUTION_PLAN_TEMPLATE.md` — Traycer execution plan (old format)
+- `FEATURES_TEMPLATE.md` — Feature docs with marketing copy
+- `MODULE_REFERENCE_TEMPLATE.md` — Simple module reference
+- `PLAN_TEMPLATE.md` — OLD VERSION (106 lines, no Quality Gate)
+
+**Impact:** Single source of truth for templates. New projects get correct templates via `templates/scaffold/docs/`. No version confusion.
+
+### Fixed - Docusaurus Template for ARM64 + Node 22 Compliance (2026-03-24)
+
+**Critical issues found per Gemini 3.1 Pro audit:**
+
+**templates/docusaurus/package.json.j2:**
+- Updated `engines` to require Node >=22.0.0, npm >=10.0.0
+- Added `gate` script: "python3 scripts/final_gate.py" for preflight checks
+- Added `tailwind-merge` dependency for utility class merging
+- Added `typescript` devDependency for type safety
+- Moved engines field to top for visibility
+- Prevents version drift between WSL dev and VPS deployment
+
+**templates/docusaurus/compose.yaml.j2:**
+- ❌ **CRITICAL FIX:** Changed from `image: node:20-alpine` to `build: .` with proper Dockerfile
+- Added `platform: linux/arm64` for VPS compatibility
+- Added `restart: unless-stopped` for production stability
+- Added `ports` mapping with PORT env var (${PORT:-3000})
+- Added `environment` section for NODE_ENV and PORT
+- Changed healthcheck from `wget` (Alpine) to `curl` (Debian)
+- Added `start_period: 40s` to healthcheck for graceful startup
+- Compliance: check_docker.py now passes (was using forbidden Alpine)
+
+**templates/docusaurus/Dockerfile.j2:**
+- NEW FILE: Multi-stage build for ARM64 compliance
+- Builder stage: `node:22-bookworm-slim` (No Alpine)
+- Added `npm ci --no-audit --no-fund` for faster builds
+- Runtime stage: Installs curl for healthcheck
+- Added `HEALTHCHECK` instruction testing root path
+- Added `ENV PORT=3000` and `EXPOSE ${PORT}`
+- Copies built static site from builder stage
+- Compliance: check_docker.py now passes
+
+**templates/docusaurus/sidebars.js.j2:**
+- NEW FILE: Separates instructional guides from API reference
+- `guideSidebar` auto-generates from `/docs/` directory
+- `apiSidebar` references OpenAPI-generated sidebar
+- Follows Gemini's pattern for documentation architecture
+
+**templates/docusaurus/defaults.yaml:**
+- NEW FILE: Standard environment defaults
+- `PORT: 3000` (frontend range)
+- `NODE_ENV: production`
+- `TZ: UTC`
+
+**templates/docusaurus/AGENTS.md.j2:**
+- Added mandatory workflow section with `npm run gate` requirement
+- Added documentation patterns (guides vs API reference)
+- Added explicit warning: DO NOT edit `/docs/api/` manually
+- Added OpenAPI regeneration command: `npm run gen-api`
+- Clarified auto-generated sidebar behavior
+
+**Architecture:** Docusaurus sites now build static HTML from OpenAPI specs, deploy to ARM64 VPS via Coolify, serve interactive API reference with testing capabilities.
+
+**Impact:** Docusaurus template now passes check_docker.py (No Alpine violation fixed). Full automation-ready with Node 22 enforcement and proper multi-stage builds.
+
+### Added - Solo-Dev Meta Review Logic (2026-03-24)
+
+**Problem:** Current workflow focused on mechanical compliance (ARM64, No Alpine) but lacked architectural rigor to catch design flaws before implementation.
+
+**Solution:** Injected Gemini 3.1 Pro's Solo-Dev Meta Review logic into core rules and enforcement suite per user directive.
+
+**.windsurf/rules/00-critical.md:**
+- **Orientation section:** Added mandatory planning requirements
+  - Key Invariants & Contracts (e.g., "API errors return JSON body")
+  - Failure Modes (concrete "what-if" scenarios)
+  - Acceptance Criteria (5–10 testable bullets)
+- **Step 2.5 Internal Audit:** Split into Mechanical + Decision-Grade sections
+  - Decision-Grade Audit: Error handling gaps, complexity hotspots, One-Test Rule
+  - One-Test Rule: Propose exactly ONE test with highest risk reduction
+  - Must document: Why, Given/When/Then, Mocked vs. Real
+
+**.windsurf/rules/50-code-review.md:**
+- Added Solo-Dev Creed (Global Constraints) section
+  - No Speculation: State assumptions explicitly or stop and ask
+  - One-Test Rule Enforcement: Every change needs test justification
+  - Real-World Breakage Review: Trigger, Symptom, Root Cause, Detection
+  - No stylistic bikeshedding: Prefer correctness over "clean code" aesthetics
+  - Minimalist Refactors: No unsolicited changes unless in approved plan
+
+**scripts/enforcement/check_test_proposal.py:**
+- NEW FILE: Enforces One-Test Rule compliance
+- Checks `docs/development/plans/` for required keywords
+- Validates presence of: "One-Test Rule", "Given", "When", "Then"
+- Provides format example on failure
+- Exit code 0 if proposal found or no plan exists, 1 if missing
+
+**scripts/final_gate.py:**
+- Added `check_test_proposal.py` to Phase 3 consistency checks
+- Now runs between CHANGELOG check and Fabrik validator
+- Enforces that agents document test justification before proceeding
+
+**Architecture:** This upgrade transforms Fabrik from "Is the code valid?" to "Is the code right?" by forcing agents to justify architectural decisions and test strategies before writing a single line of code.
+
+**Impact:** Prevents over-engineering, reduces bikeshedding, enforces decision-grade thinking. Solo-developer workflow now optimized for correctness and safety over exhaustive coverage.
+
 ### Added - Complete Workflow Documentation (2026-03-23)
 
 **What:** Created comprehensive workflow documentation for all major automation scripts.

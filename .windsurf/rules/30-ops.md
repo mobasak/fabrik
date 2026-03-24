@@ -60,6 +60,7 @@ CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT}"]
 services:
   api:
     build: .
+    platform: linux/arm64  # MANDATORY for check_docker.py compliance (VPS is ARM64)
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     environment:

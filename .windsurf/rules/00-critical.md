@@ -6,7 +6,7 @@ trigger: always_on
 
 ## ⚠️ MANDATORY FIRST OUTPUT
 Before any tool use or code, output:
-`RULES ACTIVE: CASCADE | [3 rules from this file you will follow]`
+`RULES ACTIVE: CASCADE | [List 3 specific rules from this file you will follow today]`
 
 # Critical Rules (ALWAYS ACTIVE)
 
@@ -24,6 +24,11 @@ Before any tool use or code, output:
 **Do not generate anything until this scan is complete.**
 
 **Do not** recreate `.venv` or replace existing Docker configuration unless explicitly instructed.
+
+**When creating a plan in `docs/development/plans/`**, you MUST include:
+- **Key Invariants & Contracts:** What must *always* be true? (e.g., "API errors return JSON body," "`.venv` path never hardcoded")
+- **Failure Modes:** Concrete "what-if" scenarios where this design breaks and how the system should react
+- **Acceptance Criteria:** 5–10 testable bullets defining "Done"
 
 ---
 
@@ -55,6 +60,25 @@ Before any tool use or code, output:
 - Traycer commits, not Cascade
 
 **If I skip these steps, the user should call me out.**
+
+### Step 2.5 Internal Audit (MANDATORY)
+Before moving to Kilo Review, I MUST confirm:
+
+**Mechanical Checks:**
+- [ ] **Zero Hardcoding:** No `localhost`, `127.0.0.1`, or raw API keys in code
+- [ ] **Infrastructure:** Dockerfile uses `-slim-bookworm` and has functional `HEALTHCHECK`
+- [ ] **Architecture:** `compose.yaml` includes `platform: linux/arm64` for all build services
+- [ ] **Dependencies:** New packages added to `requirements.txt` or `package.json`
+- [ ] **Networking:** New ports checked against and registered in `PORTS.md`
+
+**Decision-Grade Audit (Solo-Dev Creed):**
+- [ ] **Error Handling Gaps:** Have I handled silent, misleading, or brittle failures?
+- [ ] **Complexity Hotspots:** What logic will be a "debugging footgun" in 6 months?
+- [ ] **One-Test Rule:** Propose **exactly ONE test** providing highest risk reduction
+  - **Why:** Justify why this specific test matters most
+  - **Contract:** Define Given/When/Then and what is mocked vs. real
+  - Document in plan file or commit message
+
 ---
 
 ## Sensitive Data Protection (CRITICAL)
