@@ -1,6 +1,6 @@
 # Final Gate Workflow
 
-**Last Updated:** 2026-03-23
+**Last Updated:** 2026-03-24
 
 > Complete workflow documentation for `scripts/final_gate.py` — deterministic quality checks after DOCUMENTATOR and before Traycer verification and commit.
 
@@ -137,6 +137,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 | **Rule File Size** | `check_rule_size.py` | `.windsurf/rules/` < 50KB each |
 | **opencode.json** | `check_opencode_json.py` | Kilo-safe rules validation |
 | **INDEX.md** | `check_index_md.py` | Master file index current |
+| **One-Test Rule Proposal** | `check_test_proposal.py` | Step 2.5 test justification documented |
 | **README.md** | `check_readme_md.py` | Primary entry point valid |
 | **CONFIGURATION.md** | `check_configuration_md.py` | Env vars documented |
 | **.env Updates** | `check_env_updates.py` | Secrets not in git |
