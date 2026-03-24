@@ -35,5 +35,5 @@ Windsurf + Cascade is our primary development environment. Optimizing it:
 
 ## Related
 
-- [Auto Review System](../auto-review.md)
-- [Documentation Updater](../docs-updater.md)
+- [Final Gate Workflow](../../workflows/FINAL_GATE_WORKFLOW.md)
+- [AGENTS.md](../../../AGENTS.md)

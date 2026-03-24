@@ -158,4 +158,4 @@ fabrik templates
 ## See Also
 - [QUICKSTART.md](../QUICKSTART.md) - Get started with Fabrik
 - .env.example - Configuration reference
-- [docs-updater.md](docs-updater.md) - Automatic documentation updater
+- [FINAL_GATE_WORKFLOW.md](../workflows/FINAL_GATE_WORKFLOW.md) - Quality gate workflow
