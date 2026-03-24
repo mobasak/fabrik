@@ -387,21 +387,15 @@ docs/
 │   ├── DOCUMENTATION_STANDARD.md   # Documentation standards and conventions
 │   ├── EXTENSIONS.md
 │   ├── PLANNING_REFERENCES.md      # INDEX for AI planning phases
-│   ├── PROCESS_MONITORING_QUICKSTART.md # Process monitor setup
-│   ├── PROJECT_COMPLIANCE_STATUS.md
 │   ├── SaaS-GUI.md                 # SaaS skeleton GUI guide
 │   ├── ai.md
 │   ├── architecture.md             # System architecture overview
-│   ├── auto-review.md              # Automatic code review system
-│   ├── docs-updater.md             # Automatic documentation updater
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
-│   ├── enforcement-system.md       # Convention enforcement (check scripts, rules)
 │   ├── exampleconsultancysitemap.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-scaffold-specs.md     # MOVED → docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
 │   ├── file-api-deployment.md      # File API deployment guide
 │   ├── global-gates.md             # Global gate definitions
-│   ├── hooks-and-skills-guide.md   # Hook and skill usage guide
 │   ├── kilo
 │   │   ├── KILO_AGENT_NAMING.md
 │   │   ├── KILO_AGENT_SELECTION_GUIDE.md
@@ -416,11 +410,9 @@ docs/
 │   │   ├── KILO_USAGE_GUIDE.md
 │   │   └── README.md               # Documentation index (Legacy)
 │   ├── kpi-schema.md
-│   ├── mcp-config.md               # MCP server configuration reference
 │   ├── orchestrator.md             # Deployment orchestrator module
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── project-registry.md         # Master inventory of all /opt projects
-│   ├── property-testing.md
 │   ├── provisioner.md
 │   ├── roadmap.md                  # Complete 8-phase roadmap summary
 │   ├── stack.md                    # Technology stack & tools inventory
@@ -429,7 +421,6 @@ docs/
 │   ├── templates.md                # Available deployment templates
 │   ├── trueforge-images.md         # Trueforge image catalog
 │   ├── uptime-kuma.md              # Uptime Kuma runbook
-│   ├── verification-framework.md   # 3-lane verification system
 │   ├── windsurf                    # Windsurf IDE optimization
 │   │   ├── cascade-guide.md
 │   │   ├── cascade-models.md
@@ -471,7 +462,6 @@ docs/
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | How to deploy services to VPS |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
-| [TESTING.md](docs/TESTING.md) | How to run and write tests |
 | [FAQ.md](docs/FAQ.md) | Frequently asked questions |
 | [.env.example](.env.example) | Environment variable reference (AUTHORITATIVE with inline comments) |
 
@@ -487,9 +477,7 @@ docs/
 | [SaaS-GUI.md](docs/reference/SaaS-GUI.md) | SaaS skeleton template guide |
 | [CRITICAL_RULES.md](docs/reference/CRITICAL_RULES.md) | Non-negotiable execution rules |
 | [DOCUMENTATION_STANDARD.md](docs/reference/DOCUMENTATION_STANDARD.md) | Documentation standards and conventions |
-| [verification-framework.md](docs/reference/verification-framework.md) | 3-lane verification system |
 | [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |
-| [enforcement-system.md](docs/reference/enforcement-system.md) | Convention enforcement scripts and rules |
 
 **SaaS Template:** `templates/saas-skeleton/` — Next.js + Tailwind + SSE streaming for AI chat integration
 
@@ -537,9 +525,7 @@ docs/
 
 | Document | Purpose |
 |----------|--------|
-| [enforcement-system.md](docs/reference/enforcement-system.md) | Convention enforcement — check scripts, rules, pre-commit |
 | [AGENTS.md](AGENTS.md) | Agent briefing for AI coding assistants (Kilo CLI, Traycer) |
-| [auto-review.md](docs/reference/auto-review.md) | Automatic code review system |
 | [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |
 | [kilo_docs_enforcer.py](scripts/kilo_docs_enforcer.py) | AI documentation enforcement |
 | [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (27 enforcement scripts) |
