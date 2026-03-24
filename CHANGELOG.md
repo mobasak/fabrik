@@ -4,6 +4,69 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed - Scaffold copies spec-pipeline + Remove droid exec (2026-03-24)
+
+**Problem:** New projects created via `fabrik scaffold` did not include the Spec Pipeline templates. Also, all spec-pipeline docs referenced the deprecated `droid exec` command (removed from Kilo CLI).
+
+**Solution:**
+
+**src/fabrik/scaffold.py:**
+- Added `templates/spec-pipeline/` copy to `_scaffold_shared()` — every new project now gets the Traycer Stage 0 discovery pipeline (4 files: 00-idea-prompt.md, 01-scope-prompt.md, 02-spec-prompt.md, README.md)
+
+**templates/spec-pipeline/ (all 4 files):**
+- Replaced all `droid exec` references with correct Kilo CLI syntax: `kilo run "message"`
+- Traycer commands listed first as preferred method (`/discover`, `/scope`, `/spec`)
+- Kilo CLI commands use `kilo run` non-interactive mode (e.g., `kilo run "Discover idea: ..."`)
+
+**docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:**
+- Added `templates/spec-pipeline/` to project tree output, files table, and template locations
+- Updated `Last Updated` to 2026-03-24
+
+**Impact:** New projects now include discovery pipeline templates out of the box. All documentation uses correct Kilo CLI 1.0 syntax.
+
+### Added - Spec Pipeline Integration into Traycer Workflow (2026-03-24)
+
+**Problem:** Traycer could jump into implementation planning without structured discovery. No formal process to validate ideas, lock scope, or produce a Single Source of Truth (SSoT) before coding starts.
+
+**Solution:** Integrated the existing Spec Pipeline (`templates/spec-pipeline/`) into Traycer's authority model as Stage 0: Discovery & Definition.
+
+**AGENTS.md:**
+- Added **Stage 0: Discovery & Definition** to `[TRAYCER ONLY] Authority Model & Orchestration`
+- Three pre-planning stages: `/discover` (idea) → `/scope` (boundaries) → `/spec` (SSoT)
+- **Stack Auto-Injection:** Traycer auto-populates Fabrik Stack Defaults during Stage 0.3 (Next.js 14, FastAPI, bookworm-slim, ARM64, Coolify)
+- **Plan Quality Gate** now requires `specs/<project>/02-spec.md` to exist before handoff to Coder
+- **Enforcement:** Traycer rejects implementation tasks if spec is missing or incomplete
+- Updated `Last Updated` date to 2026-03-24
+
+**templates/spec-pipeline/02-spec-prompt.md:**
+- Injected Fabrik Stack Defaults table into Stack Profile section (auto-populated with ARM64, bookworm-slim, Coolify defaults)
+- Added **One-Test Rule** section (Section 10) to spec output format
+- Added `final_gate.py` to Quality Gates checklist
+- Added solo-dev capacity constraint (`~50 focused hours/week`)
+- Added Traycer `/spec` command alongside Kilo CLI command
+- Updated Traycer Compatibility → Traycer Integration (SSoT enforcement)
+
+**templates/spec-pipeline/00-idea-prompt.md:**
+- Added Traycer `/discover` command alongside `droid exec idea`
+
+**templates/spec-pipeline/01-scope-prompt.md:**
+- Added Traycer `/scope` command alongside `droid exec scope`
+- Added solo-dev capacity constraint to MVP boundary step
+
+**templates/spec-pipeline/README.md:**
+- Promoted Traycer from "Optional" integration to **Primary** orchestrator
+- Updated pipeline diagram with Stage 0.1/0.2/0.3 numbering and dual commands
+- Added Stack Auto-Injection reference table
+- Added new "Why This Works" entries: Plan Quality Gate enforcement, owner alignment
+
+**Architecture:** This formalizes the discovery process:
+1. `/discover <idea>` — Traycer interviews owner, extracts pain points and personas
+2. `/scope <project>` — Traycer presents IN/OUT table, respects 50h/week capacity
+3. `/spec <project>` — Traycer generates SSoT with auto-injected Stack Defaults + One-Test Rule
+4. Execution — Traycer converts `02-spec.md` into Phased YOLO or Epic plan
+
+**Impact:** Traycer is now a Product Strategist, not just a plan generator. Context preservation across discovery stages prevents "context drift". Mechanical stop-gaps (Plan Quality Gate) ensure Traycer never plans in a vacuum.
+
 ### Added - Kilo Benchmark Automation & Docs Enforcer Improvements (2026-03-24)
 
 **role_mapper.py:**
@@ -726,6 +789,82 @@ All notable changes to this project will be documented in this file.
 ```
 
 **Impact:** Node API template now passes full `final_gate.py` enforcement (ARM64, Node 22, HEALTHCHECK). Complete production-ready microservice with Express.js, security defaults, and Clean Architecture. Ready for immediate Coolify deployment on Ubuntu ARM VPS.
+
+### Fixed - Python API Template FastAPI Kit (2026-03-24)
+
+**Problem:** python-api template had P0 violations (missing ARM64, conditional healthcheck, no source code, missing workflow docs).
+
+**Solution:** Complete FastAPI microservice template with tenant isolation, Pydantic validation, and security defaults.
+
+**templates/python-api/Dockerfile.j2:**
+- Updated to explicit `python:3.12-slim-bookworm` (was `python:3.12-slim`)
+- Already had HEALTHCHECK (compliant)
+- Already had non-root user (appuser:1000) for security
+
+**templates/python-api/compose.yaml.j2:**
+- Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
+- Made healthcheck mandatory (was conditional): defaults to `/health`
+- Traefik labels for HTTPS/SSL via Let's Encrypt
+- Environment variable templating for Postgres, Redis
+
+**templates/python-api/AGENTS.md.j2:**
+- Replaced basic docs with comprehensive agent briefing
+- Mandatory workflow: `python scripts/final_gate.py` before commit
+- **Step 2.5 Python-Specific Audit:** Tenant invariant, async safety, error mapping, type hints, dependency injection
+- One-Test Rule example: Cross-tenant data leakage prevention
+- Clean Architecture structure documentation
+- FastAPI best practices (Pydantic, async/await, dependency injection, CORS)
+- Tenant isolation code example with dependency injection
+
+**Source Code (NEW):**
+
+**main.py:**
+- Complete FastAPI application with mandatory `/health` endpoint
+- CORS middleware with environment-based configuration
+- Pydantic models for type-safe request/response
+- Example tenant isolation with dependency injection pattern
+- Example resource endpoint demonstrating tenant filtering
+- Global exception handler (hides tracebacks in production)
+- Binds to `0.0.0.0:8000` for Docker compatibility
+
+**requirements.txt:**
+- FastAPI 0.109.0, Uvicorn with ASGI server
+- Pydantic 2.5.3 for validation, Pydantic Settings for config
+- Security: python-jose, passlib for JWT/auth
+- Optional dependencies commented (SQLAlchemy, Redis, pytest, ruff, mypy)
+
+**.env.example:**
+- Environment variable template (ENVIRONMENT, PORT, DATABASE_URL, REDIS_URL)
+- Security variables (SECRET_KEY, ALGORITHM, TOKEN_EXPIRE)
+- CORS origins configuration
+- API key placeholder
+
+**.gitignore:**
+- Standard Python ignores (__pycache__, *.pyc, venv, .env)
+- IDE files (.vscode, .idea)
+- Test artifacts (.pytest_cache, .coverage)
+
+**Architecture:** Python API template provides complete FastAPI starter with:
+- FastAPI for modern async Python APIs
+- Pydantic for data validation and settings
+- Dependency injection for clean architecture
+- Tenant isolation pattern for multi-tenant SaaS
+- Type hints for automatic OpenAPI docs
+- Security-first defaults (CORS, exception handling, non-root user)
+- Production-ready Docker setup with health monitoring
+
+**One-Test Rule Example:**
+```markdown
+**Why:** Highest leverage risk is cross-tenant data leakage
+**Contract:**
+- Given: Authenticated request from Tenant A
+- When: Fetching resource belonging to Tenant B
+- Then: API returns 404 Not Found or 403 Forbidden
+- Mocked: Database session/engine
+- Real: Dependency injection logic, SQLAlchemy filters, Pydantic models
+```
+
+**Impact:** Python API template now passes full `final_gate.py` enforcement (ARM64, Python 3.12 bookworm, HEALTHCHECK). Complete production-ready FastAPI microservice with tenant isolation, Pydantic validation, and security defaults. Ready for immediate Coolify deployment on Ubuntu ARM VPS.
 
 ### Added - Complete Workflow Documentation (2026-03-23)
 

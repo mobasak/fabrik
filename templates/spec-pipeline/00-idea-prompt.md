@@ -1,6 +1,6 @@
 # Idea Discovery Prompt
 
-**Task Type:** `droid exec idea "<your idea>"`
+**Task Type:** **Traycer:** `/discover <idea>` | **Kilo CLI:** `kilo run "Discover idea: <your idea>"`
 
 ---
 
@@ -70,7 +70,7 @@ After exploring the idea, produce this structured output:
 - [Things we need to figure out]
 
 ## Next Step
-Run `droid exec scope` to define IN/OUT boundaries.
+Run `/scope <project>` (Traycer) or `kilo run "Define scope for <project>"` to define IN/OUT boundaries.
 ```
 
 ---
@@ -78,8 +78,10 @@ Run `droid exec scope` to define IN/OUT boundaries.
 ## Usage
 
 ```bash
-# Start idea discovery
-droid exec idea "Voice-controlled home automation for elderly users"
+# Start idea discovery (Traycer — preferred)
+/discover "Voice-controlled home automation for elderly users"
+
+# Start idea discovery (Kilo CLI)
+kilo run "Discover idea: Voice-controlled home automation for elderly users"
 
 # Output saved to: specs/<project>/00-idea.md
-```

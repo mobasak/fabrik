@@ -1,6 +1,6 @@
 # Scope Definition Prompt
 
-**Task Type:** `droid exec scope "<project-name>"`
+**Task Type:** **Traycer:** `/scope <project>` | **Kilo CLI:** `kilo run "Define scope for <project>"`
 
 **Prerequisite:** Must have `specs/<project>/00-idea.md`
 
@@ -21,6 +21,8 @@ What is the ONE thing this product must do to be valuable?
 
 ### Step 2: Define MVP Boundary
 What's the minimum set of features for the first usable version?
+
+> **Solo-dev constraint:** Owner has ~50 focused hours/week. Scope accordingly.
 
 ### Step 3: Explicit Exclusions
 What will we NOT build (even if it seems obvious)?
@@ -91,7 +93,7 @@ What might we add later, but explicitly defer?
 ---
 
 ## Next Step
-Run `droid exec spec "<project>"` to generate full specification.
+Run `/spec <project>` (Traycer) or `kilo run "Generate spec for <project>"` to generate full specification.
 ```
 
 ---
@@ -99,8 +101,11 @@ Run `droid exec spec "<project>"` to generate full specification.
 ## Usage
 
 ```bash
-# Define scope from idea
-droid exec scope "my-project"
+# Define scope from idea (Traycer — preferred)
+/scope "my-project"
+
+# Define scope from idea (Kilo CLI)
+kilo run "Define scope for my-project"
 
 # Reads: specs/my-project/00-idea.md
 # Output: specs/my-project/01-scope.md

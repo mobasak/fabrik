@@ -1,6 +1,6 @@
 # Full Specification Prompt
 
-**Task Type:** `droid exec spec "<project-name>"`
+**Task Type:** **Traycer:** `/spec <project>` | **Kilo CLI:** `kilo run "Generate spec for <project>"`
 
 **Prerequisites:**
 - `specs/<project>/00-idea.md`
@@ -45,15 +45,21 @@ Generate a complete specification with these sections:
 
 ## 2. Stack Profile
 
-| Component | Choice | Rationale |
-|-----------|--------|-----------|
-| Frontend | [e.g., Next.js 14] | [Why] |
-| Backend | [e.g., FastAPI] | [Why] |
-| Database | [e.g., PostgreSQL] | [Why] |
-| Auth | [e.g., Supabase Auth] | [Why] |
-| Hosting | [e.g., Coolify/VPS] | [Why] |
+> **Auto-injected Fabrik Defaults** — override only with justification.
+
+| Component | Default | Choice | Rationale |
+|-----------|---------|--------|-----------|
+| Frontend | Next.js 14 + TypeScript + Tailwind | [Confirm or override] | [Why] |
+| Backend | Python + FastAPI + Uvicorn | [Confirm or override] | [Why] |
+| Database | PostgreSQL 16 (Coolify-managed) | [Confirm or override] | [Why] |
+| Auth | [Supabase Auth / Custom JWT] | [Choose] | [Why] |
+| Base images | `python:3.12-slim-bookworm` / `node:22-bookworm-slim` | **No Alpine** | ARM64 stability |
+| Platform | `linux/arm64` | **Mandatory** | Ubuntu ARM VPS |
+| Hosting | Coolify on ARM64 VPS | [Confirm] | [Why] |
+| Domains | `*.vps1.ocoron.com` | [Subdomain choice] | [Why] |
 
 **Time Horizon:** [X days to MVP]
+**Owner Capacity:** ~50 focused hours/week (solo developer)
 
 ---
 
@@ -157,11 +163,28 @@ Generate a complete specification with these sections:
 - [ ] All tests pass
 - [ ] No TypeScript errors
 - [ ] Health endpoint returns 200
-- [ ] Can deploy to VPS
+- [ ] `python scripts/final_gate.py` passes
+- [ ] Can deploy to VPS via Coolify
 
 ---
 
-## 10. Implementation Phases
+## 10. One-Test Rule
+
+> Define the single highest-leverage test that prevents the most critical failure mode.
+
+**Risk:** [e.g., Cross-tenant data leakage, unauthorized access, data corruption]
+**Why this test:** [Why this is the highest-risk scenario]
+
+**Contract:**
+- **Given:** [Preconditions]
+- **When:** [Action taken]
+- **Then:** [Expected outcome]
+- **Mocked:** [What is simulated]
+- **Real:** [What is tested for real]
+
+---
+
+## 11. Implementation Phases
 
 ### Phase 1: Foundation
 - Project scaffolding
@@ -180,7 +203,7 @@ Generate a complete specification with these sections:
 ---
 
 ## Next Step
-Run `droid exec plan` or use Traycer to generate implementation plan.
+Use Traycer to convert this spec into a `Phased YOLO` or `Epic` implementation plan.
 ```
 
 ---
@@ -188,8 +211,11 @@ Run `droid exec plan` or use Traycer to generate implementation plan.
 ## Usage
 
 ```bash
-# Generate full spec from idea + scope
-droid exec spec "my-project"
+# Generate full spec (Traycer — preferred)
+/spec "my-project"
+
+# Generate full spec (Kilo CLI)
+kilo run "Generate spec for my-project"
 
 # Reads: specs/my-project/00-idea.md, specs/my-project/01-scope.md
 # Output: specs/my-project/02-spec.md
@@ -197,7 +223,10 @@ droid exec spec "my-project"
 
 ---
 
-## Traycer Compatibility
+## Traycer Integration
 
-The output format is designed to work with Traycer's plan template.
-Traycer can read `specs/<project>/02-spec.md` and generate a phased implementation plan.
+Traycer is the primary orchestrator for the spec pipeline (see `AGENTS.md` Stage 0).
+During Stage 0.3, Traycer auto-injects Fabrik Stack Defaults into the Stack Profile section.
+The output `02-spec.md` is the **Single Source of Truth (SSoT)** — Traycer converts it into a `Phased YOLO` or `Epic` plan.
+
+**Enforcement:** Traycer will reject implementation tasks if `specs/<project>/02-spec.md` is missing or incomplete.

@@ -1,6 +1,6 @@
 # Fabrik Scaffold Specification
 
-**Last Updated:** 2026-03-23
+**Last Updated:** 2026-03-24
 
 > Complete specification for project creation, templates, deployment, and management in the Fabrik ecosystem.
 
@@ -267,14 +267,19 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── FEATURES_TEMPLATE.md
 │   │   ├── MODULE_REFERENCE_TEMPLATE.md
 │   │   └── PLAN_TEMPLATE.md
-│   └── saas-skeleton/               # Full SaaS starter (Next.js)
-│       ├── app/                     # Next.js app router
-│       ├── components/              # React components
-│       ├── lib/                     # Utilities
-│       ├── types/                   # TypeScript types
-│       ├── Dockerfile
-│       ├── compose.yaml
-│       └── package.json
+│   ├── saas-skeleton/               # Full SaaS starter (Next.js)
+│   │   ├── app/                     # Next.js app router
+│   │   ├── components/              # React components
+│   │   ├── lib/                     # Utilities
+│   │   ├── types/                   # TypeScript types
+│   │   ├── Dockerfile
+│   │   ├── compose.yaml
+│   │   └── package.json
+│   └── spec-pipeline/               # Traycer Stage 0 discovery (4 files)
+│       ├── 00-idea-prompt.md        # Idea capture prompt
+│       ├── 01-scope-prompt.md       # IN/OUT boundary prompt
+│       ├── 02-spec-prompt.md        # Full spec generation prompt
+│       └── README.md                # Pipeline overview
 ├── tests/
 │   ├── __init__.py
 │   └── test_health.py               # Health endpoint test
@@ -360,6 +365,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | **Templates** | | |
 | `templates/docs/*.md` | Copied from Fabrik | Documentation templates (5 files) |
 | `templates/saas-skeleton/` | Copied from Fabrik | Full Next.js SaaS starter |
+| `templates/spec-pipeline/` | Copied from Fabrik | Traycer Stage 0 discovery pipeline (4 files) |
 
 #### No Symlinks — All Files Copied
 
@@ -584,6 +590,7 @@ fabrik sync-models
 ├── chrome-extension/   # Browser extension
 ├── mobile-app/         # React Native
 ├── desktop-app/        # Electron
+├── spec-pipeline/      # Traycer Stage 0 discovery pipeline
 └── traycer/            # Traycer integration
 ```
 
@@ -1041,7 +1048,7 @@ class Config:
 - `@/opt/fabrik/src/fabrik/cli.py` - CLI implementation
 
 ### Guides
-- `@/opt/fabrik/docs/guides/PROJECT_WORKFLOW.md` - Project workflow guide
+- `@/opt/fabrik/AGENTS.md` - Agent briefing and mandatory workflow
 - `@/opt/fabrik/docs/reference/fabrik-cli-reference.md` - CLI reference
 - `@/opt/fabrik/AGENTS.md` - Main agent briefing
 
@@ -1049,7 +1056,7 @@ class Config:
 
 ## See Also
 
-- [Project Workflow Guide](../guides/PROJECT_WORKFLOW.md)
+- [AGENTS.md](../../AGENTS.md) - Mandatory workflow reference
 - [Fabrik CLI Reference](../reference/fabrik-cli-reference.md)
 - [.env.example](../../.env.example)
 - [Python Production Standards](../../templates/scaffold/PYTHON_PRODUCTION_STANDARDS.md)

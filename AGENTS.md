@@ -1,6 +1,6 @@
 # AGENTS.md — Fabrik Operating Manual
 
-**Last Updated:** 2026-03-20
+**Last Updated:** 2026-03-24
 **Read by:** Traycer (full file) | Coding agents (via prompt templates — see Quick Navigation)
 **Referenced by:** Prompt templates via `opencode.json` rules loading
 
@@ -153,6 +153,7 @@ Before creating any plan, verify:
 | Fixer | Kilo CLI | Fixes review and verification findings |
 
 ### Plan Quality Gate — Do NOT hand off to Coder without:
+- [ ] `specs/<project>/02-spec.md` exists and is complete (Stage 0 output)
 - [ ] Functional spec (exact behavior, not goals)
 - [ ] Edge cases (boundaries, null paths, failure states)
 - [ ] Required env vars (new or changed)
@@ -197,6 +198,37 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 3. One step at a time — complete current step before moving to next
 4. After each step: show Evidence + Gate result
 5. If a Gate fails → STOP and re-plan
+
+### Stage 0: Discovery & Definition (Pre-Planning)
+
+**Traycer MUST NOT generate an implementation plan until a project has passed through the Discovery Pipeline.**
+
+| Stage | Command | Traycer Output | Goal |
+|-------|---------|----------------|------|
+| 0.1: Idea | `/discover <idea>` | `specs/<project>/00-idea.md` | Extract pain points, user personas, solution direction |
+| 0.2: Scope | `/scope <project>` | `specs/<project>/01-scope.md` | Define P0 "Must Haves" and explicit "Out of Scope" |
+| 0.3: Spec | `/spec <project>` | `specs/<project>/02-spec.md` | Create the Single Source of Truth (SSoT) |
+
+**How it works:**
+
+1. **Discovery Mode:** Use `templates/spec-pipeline/00-idea-prompt.md` to interview the owner. Output `specs/<project>/00-idea.md`.
+2. **Boundary Mode:** Use `templates/spec-pipeline/01-scope-prompt.md` to lock MVP boundaries. Respect the owner's ~50 focused hours/week capacity. Output `specs/<project>/01-scope.md`.
+3. **SSoT Mode:** Use `templates/spec-pipeline/02-spec-prompt.md` to define technical architecture (Data Model, API, One-Test Rule). Auto-inject Fabrik Stack Defaults into the Stack Profile. Output `specs/<project>/02-spec.md`.
+4. **Execution Mode:** Convert `specs/<project>/02-spec.md` into a `Phased YOLO` or `Epic` plan.
+
+**Enforcement:** Traycer will reject implementation tasks if `specs/<project>/02-spec.md` is missing or incomplete.
+
+**Stack Auto-Injection:** During Stage 0.3, Traycer injects these Fabrik defaults into the spec's Stack Profile:
+
+| Component | Default | Override When |
+|-----------|---------|---------------|
+| Frontend | Next.js 14 + TypeScript + Tailwind | — |
+| Backend | Python + FastAPI + Uvicorn | Node.js for web-adjacent workers |
+| Database | PostgreSQL 16 (Coolify-managed) | Supabase for managed auth/realtime/pgvector |
+| Base images | `python:3.12-slim-bookworm` / `node:22-bookworm-slim` | Never Alpine |
+| Platform | `linux/arm64` | Never x86-only |
+| Hosting | Coolify on ARM64 VPS | — |
+| Domains | `*.vps1.ocoron.com` | — |
 
 ---
 

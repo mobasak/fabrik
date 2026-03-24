@@ -416,6 +416,12 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
             ignore=shutil.ignore_patterns(".next", "node_modules", ".turbo", "dist", "build"),
         )
 
+    # Copy templates/spec-pipeline/ for Traycer discovery workflow (Stage 0)
+    fabrik_spec_pipeline = FABRIK_ROOT / "templates" / "spec-pipeline"
+    project_spec_pipeline = project_dir / "templates" / "spec-pipeline"
+    if fabrik_spec_pipeline.exists():
+        shutil.copytree(fabrik_spec_pipeline, project_spec_pipeline, dirs_exist_ok=True)
+
     # Create PORTS.md (every project tracks its own ports)
     (project_dir / "PORTS.md").write_text(
         f"""# {name} Port Allocations
