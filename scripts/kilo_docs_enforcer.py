@@ -249,74 +249,165 @@ KILO_POLL_INTERVAL = 1
 MAX_RETRIES = 3
 RETRYABLE_EXIT_CODES = {137, 143}  # SIGKILL, SIGTERM
 
+# =============================================================================
+# TEMPLATE LOADING
+# =============================================================================
+
+# Maps doc path patterns to template filenames
+DOC_TEMPLATE_MAP: dict[str, str] = {
+    "CHANGELOG.md": "CHANGELOG_TEMPLATE.md",
+    "docs/reference/": "API_REFERENCE_TEMPLATE.md",
+    "docs/CONFIGURATION.md": "CONFIGURATION_TEMPLATE.md",
+    "docs/MIGRATION.md": "MIGRATION_TEMPLATE.md",
+    "docs/database/schema.md": "DATABASE_SCHEMA_TEMPLATE.md",
+    "docs/TROUBLESHOOTING.md": "TROUBLESHOOTING_TEMPLATE.md",
+    "docs/QUICKSTART.md": "QUICKSTART_TEMPLATE.md",
+    "README.md": "PROJECT_README_TEMPLATE.md",
+    ".env.example": "ENV_EXAMPLE_TEMPLATE.md",
+}
+
+# Module-level cache for loaded templates
+_template_cache: dict[str, str] = {}
+
+
+def load_template(template_name: str) -> str:
+    """
+    Load a documentation template by name.
+
+    Resolves template path from:
+    1. SCRIPT_DIR.parent / "templates" / "scaffold" / "docs" / template_name
+    2. SCRIPT_DIR.parent / "templates" / "docs" / template_name (fallback)
+
+    Returns the template content as a string, or empty string if not found.
+    Caches loaded templates to avoid repeated disk reads.
+    """
+    if template_name in _template_cache:
+        return _template_cache[template_name]
+
+    search_paths = [
+        SCRIPT_DIR.parent / "templates" / "scaffold" / "docs" / template_name,
+        SCRIPT_DIR.parent / "templates" / "docs" / template_name,
+    ]
+
+    for path in search_paths:
+        if path.is_file():
+            try:
+                content = path.read_text(encoding="utf-8")
+                _template_cache[template_name] = content
+                return content
+            except OSError:
+                continue
+
+    _template_cache[template_name] = ""
+    return ""
+
+
+def get_template_for_doc(doc_path: str) -> str:
+    """
+    Get the template content for a given doc path.
+
+    Matches doc_path against DOC_TEMPLATE_MAP patterns and loads
+    the corresponding template.
+
+    Returns template content or empty string if no match.
+    """
+    for pattern, template_name in DOC_TEMPLATE_MAP.items():
+        if pattern in doc_path or doc_path.endswith(pattern):
+            return load_template(template_name)
+    return ""
+
 
 # =============================================================================
 # GIT HELPERS
 # =============================================================================
 
 
-def get_git_root() -> Path | None:
-    """Get git repository root."""
+def get_git_root(cwd: Path | None = None) -> Path | None:
+    """Get git repository root.
+
+    Args:
+        cwd: Directory to run git in. Defaults to PROJECT_ROOT.
+    """
     try:
         git_path = shutil.which("git")
         if not git_path:
             return None
+        run_cwd = str(cwd) if cwd else str(PROJECT_ROOT)
         result = subprocess.run(
             [git_path, "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
             check=True,
+            cwd=run_cwd,
         )
         return Path(result.stdout.strip())
     except subprocess.CalledProcessError:
         return None
 
 
-def get_staged_diff() -> str:
-    """Get git diff of staged changes."""
+def get_staged_diff(cwd: Path | None = None) -> str:
+    """Get git diff of staged changes.
+
+    Args:
+        cwd: Directory to run git in. Defaults to PROJECT_ROOT.
+    """
     try:
         git_path = shutil.which("git")
         if not git_path:
             return ""
+        run_cwd = str(cwd) if cwd else str(PROJECT_ROOT)
         result = subprocess.run(
             [git_path, "diff", "--cached", "--unified=3"],
             capture_output=True,
             text=True,
             check=True,
+            cwd=run_cwd,
         )
         return result.stdout
     except subprocess.CalledProcessError:
         return ""
 
 
-def get_staged_files() -> list[str]:
-    """Get list of staged file paths."""
+def get_staged_files(cwd: Path | None = None) -> list[str]:
+    """Get list of staged file paths.
+
+    Args:
+        cwd: Directory to run git in. Defaults to PROJECT_ROOT.
+    """
     try:
         git_path = shutil.which("git")
         if not git_path:
             return []
+        run_cwd = str(cwd) if cwd else str(PROJECT_ROOT)
         result = subprocess.run(
             [git_path, "diff", "--cached", "--name-only"],
             capture_output=True,
             text=True,
             check=True,
+            cwd=run_cwd,
         )
         return [f for f in result.stdout.strip().split("\n") if f]
     except subprocess.CalledProcessError:
         return []
 
 
-def get_diff_stats() -> tuple[int, int]:
-    """Get total lines added and removed."""
+def get_diff_stats(cwd: Path | None = None) -> tuple[int, int]:
+    """Get total lines added and removed.
+
+    Args:
+        cwd: Directory to run git in. Defaults to PROJECT_ROOT.
+    """
     try:
         git_path = shutil.which("git")
         if not git_path:
             return 0, 0
+        run_cwd = str(cwd) if cwd else str(PROJECT_ROOT)
         result = subprocess.run(
             [git_path, "diff", "--cached", "--numstat"],
             capture_output=True,
             text=True,
             check=True,
+            cwd=run_cwd,
         )
         added, removed = 0, 0
         for line in result.stdout.strip().split("\n"):
@@ -413,7 +504,7 @@ def analyze_diff_for_triggers(diff: str, staged_files: list[str]) -> list[DocVio
 
     # Special case: large_code_change trigger requires threshold check
     threshold = int(os.getenv("KILO_DOCS_THRESHOLD", "50"))
-    added, removed = get_diff_stats()
+    added, removed = get_diff_stats(cwd=PROJECT_ROOT)
     if added + removed > threshold:
         # Check if any non-doc, non-test files changed
         code_files = [
@@ -1037,6 +1128,9 @@ CHANGELOG_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a CHANGELOG entry generator.
 4. Be specific and technical for developers
 5. Include relevant file/function names
 
+**Reference Structure (follow this format):**
+{template_structure}
+
 **BAD output (NEVER do this):**
 ```
 I can help you write a changelog entry. What would you like to document?
@@ -1071,6 +1165,9 @@ API_DOCS_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a documentation generator. Yo
 4. Document exceptions raised
 5. Cross-reference related functions
 6. Use clear, concise language
+
+**Reference Structure (follow this format):**
+{template_structure}
 
 **BAD output (NEVER do this):**
 ```
@@ -1119,6 +1216,9 @@ ENV_VAR_DOCS_PROMPT_TEMPLATE = """SYSTEM ROLE: You are an environment variable d
 3. Specify if required or optional
 4. Show example values
 
+**Reference Structure (follow this format):**
+{template_structure}
+
 **BAD output (NEVER do this):**
 ```
 I'm ready to help document your environment variables.
@@ -1137,6 +1237,302 @@ I'm ready to help document your environment variables.
 Now generate the documentation. Start your output with "###" and continue:
 
 ###"""
+
+MIGRATION_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a migration guide generator. You output ONLY markdown documentation for migration guides. You NEVER output conversational text, greetings, or explanations. Your entire output is a valid migration guide.
+
+**Git Diff:**
+{git_diff}
+
+**Breaking Changes Detected:**
+{violations}
+
+**Requirements:**
+1. Document all breaking changes with before/after code examples
+2. Provide numbered, atomic migration steps
+3. Include rollback procedure
+4. List affected components with impact level
+5. Include deprecation timeline if applicable
+
+**Reference Structure (follow this format):**
+{template_structure}
+
+**BAD output (NEVER do this):**
+```
+I'd be happy to help you create a migration guide for these changes.
+```
+
+**GOOD output (ALWAYS do this):**
+```markdown
+## Breaking Changes
+
+### Renamed `process_payment` to `execute_payment`
+
+**Before:**
+```python
+result = process_payment(order_id, amount)
+```
+
+**After:**
+```python
+result = execute_payment(order_id, amount, currency="USD")
+```
+
+## Migration Steps
+
+1. Update all calls to `process_payment` to use `execute_payment`
+2. Add the required `currency` parameter to each call
+```
+
+Now generate the migration guide. Start your output with "##" and continue:
+
+##"""
+
+SCHEMA_DOCS_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a database schema documentation generator. You output ONLY markdown documentation for database schemas. You NEVER output conversational text, greetings, or explanations. Your entire output is valid schema documentation.
+
+**Source Files:**
+{source_files}
+
+**Git Diff:**
+{git_diff}
+
+**Schema Changes Detected:**
+{violations}
+
+**Requirements:**
+1. Document all table changes (new tables, columns, indexes)
+2. Include column types, nullability, defaults, and descriptions
+3. Document relationships and foreign keys
+4. Include migration SQL for the changes
+5. Note data integrity constraints
+
+**Reference Structure (follow this format):**
+{template_structure}
+
+**BAD output (NEVER do this):**
+```
+Let me help you document your database schema changes.
+```
+
+**GOOD output (ALWAYS do this):**
+```markdown
+## Tables
+
+### users
+
+**Purpose:** Stores user account information.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | UUID | NO | `gen_random_uuid()` | Primary key |
+| `email` | VARCHAR(255) | NO | — | User email address |
+```
+
+Now generate the schema documentation. Start your output with "##" and continue:
+
+##"""
+
+README_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a README/documentation updater. You output ONLY the markdown section(s) that need to be added or updated. You NEVER output conversational text, greetings, or explanations. Your entire output is valid markdown.
+
+**Current File:** {doc_path}
+
+**Git Diff:**
+{git_diff}
+
+**Changes Requiring Documentation:**
+{violations}
+
+**Requirements:**
+1. Document new features, endpoints, or CLI commands
+2. Include usage examples with code blocks
+3. Update feature lists and tables
+4. Be specific and technical for developers
+5. Follow the existing document structure
+
+**Reference Structure (follow this format):**
+{template_structure}
+
+**BAD output (NEVER do this):**
+```
+Here's an updated section for your README with the new changes.
+```
+
+**GOOD output (ALWAYS do this):**
+```markdown
+## New Feature: User Authentication
+
+JWT-based authentication for all API endpoints.
+
+### Usage
+
+```bash
+curl -X POST http://localhost:8000/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{{"username": "admin", "password": "secret"}}'
+```
+```
+
+Now generate the documentation section. Start your output with "##" and continue:
+
+##"""
+
+ENV_FILE_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a .env.example file generator. You output ONLY environment variable definitions in KEY=value format with comment lines. You NEVER output markdown, conversational text, greetings, or explanations. Your output is a valid .env file.
+
+**Source Files:**
+{source_files}
+
+**Git Diff:**
+{git_diff}
+
+**Environment Variables Found:**
+{violations}
+
+**Format Rules:**
+1. Section headers: # === Section Name ===
+2. Each variable gets a comment: # Description (Required/Optional, Default: value)
+3. Variable format: KEY=default_value
+4. Group by category
+5. Blank line between sections
+6. NO markdown formatting — this is a .env file, not markdown
+
+**Reference Structure (follow this format):**
+{template_structure}
+
+**BAD output (NEVER do this):**
+```
+### `DATABASE_URL`
+- **Type:** string
+```
+
+**GOOD output (ALWAYS do this):**
+```
+# === Database ===
+
+# PostgreSQL host (Required in production, Default: localhost)
+DB_HOST=localhost
+
+# PostgreSQL port (Optional, Default: 5432)
+DB_PORT=5432
+```
+
+Now generate the .env.example entries. Start your output with "# ===" and continue:
+
+# ==="""
+
+
+CONFIGURATION_GUIDE_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a configuration guide generator. You output ONLY markdown documentation for a configuration guide. You NEVER output conversational text, greetings, or explanations. Your entire output is valid markdown.
+
+**IMPORTANT:** `.env.example` is the AUTHORITATIVE variable reference. This configuration guide documents HOW to configure the service and WHY certain configurations exist — it does NOT list individual variables.
+
+**Source Files:**
+{source_files}
+
+**Git Diff:**
+{git_diff}
+
+**Changes Requiring Documentation:**
+{violations}
+
+**Requirements:**
+1. Document HOW to get credentials for new services/APIs
+2. Explain environment-specific setup differences (dev vs production)
+3. Document architecture context and configuration philosophy
+4. Reference `.env.example` for the actual variable list — do NOT duplicate variable tables here
+5. Include troubleshooting tips for configuration problems
+6. Follow the existing document structure
+
+**Reference Structure (follow this format):**
+{template_structure}
+
+**BAD output (NEVER do this):**
+```
+### `DATABASE_URL`
+- **Type:** string
+- **Required:** Yes
+```
+
+**GOOD output (ALWAYS do this):**
+```markdown
+## Getting Credentials
+
+### Database Access
+
+**Why needed:** The service stores user session data and API logs.
+
+**Options:**
+
+**Shared postgres-main (recommended):**
+```bash
+DATABASE_URL=postgresql://myapp:password@postgres-main:5432/myapp
+```
+
+**Local PostgreSQL:**
+```bash
+DATABASE_URL=postgresql://localhost:5432/myapp_dev
+```
+
+All variables are documented in `.env.example` with inline comments.
+```
+
+Now generate the configuration guide section. Start your output with "##" and continue:
+
+##"""
+
+TROUBLESHOOTING_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a troubleshooting guide generator. You output ONLY markdown documentation for a troubleshooting guide. You NEVER output conversational text, greetings, or explanations. Your entire output is valid markdown with issue/cause/solution structure.
+
+**Source Files:**
+{source_files}
+
+**Git Diff:**
+{git_diff}
+
+**Changes Requiring Documentation:**
+{violations}
+
+**Requirements:**
+1. Document each issue with: Symptoms, Cause, Solution, Prevention
+2. Include specific error messages users might encounter
+3. Provide actionable diagnostic commands
+4. Include code examples for fixes
+5. Group by issue category (startup, runtime, configuration, performance)
+6. Follow the existing document structure
+
+**Reference Structure (follow this format):**
+{template_structure}
+
+**BAD output (NEVER do this):**
+```
+Here are some tips for debugging your application. You might want to check the logs.
+```
+
+**GOOD output (ALWAYS do this):**
+```markdown
+## Common Issues
+
+### Issue: Service returns 500 on /api/process
+
+**Symptoms:**
+- HTTP 500 response from `/api/process` endpoint
+- Error in logs: `RuntimeError: Worker pool exhausted`
+
+**Cause:**
+All background workers are busy processing long-running tasks.
+
+**Solution:**
+```bash
+# Increase worker pool size
+WORKER_POOL_SIZE=10 uvicorn src.main:app --reload
+
+# Or check current worker status
+curl http://localhost:8000/health | jq .workers
+```
+
+**Prevention:**
+Set `WORKER_POOL_SIZE` in `.env` to match expected concurrent load.
+```
+
+Now generate the troubleshooting guide section. Start your output with "##" and continue:
+
+##"""
 
 
 def validate_generated_content(content: str, doc_path: str) -> tuple[bool, str]:
@@ -1174,12 +1570,19 @@ def validate_generated_content(content: str, doc_path: str) -> tuple[bool, str]:
         "I'd be happy",
         "Let me",
         "Certainly",
+        "Thank you",
+        "Great",
+        "Absolutely",
+        "Yes,",
     ]
     first_line = content.strip().split("\n")[0].strip()
 
     # Normalize by stripping a leading markdown heading prefix (e.g. "### " or "## ")
     # so that conversational replies like "### Sure, here's..." are still caught.
     normalized_first_line = re.sub(r"^#{2,}\s*", "", first_line).strip()
+    # Also strip env-file comment prefix for .env.example validation
+    if doc_path == ".env.example":
+        normalized_first_line = re.sub(r"^#\s*={3}\s*", "", normalized_first_line).strip()
 
     for phrase in bad_starts:
         if normalized_first_line.startswith(phrase):
@@ -1187,6 +1590,60 @@ def validate_generated_content(content: str, doc_path: str) -> tuple[bool, str]:
                 False,
                 f"Conversational output detected: starts with '{phrase}' (after heading prefix)",
             )
+
+    # Validate .env.example format: strict line-by-line check.
+    # Every nonblank line must be either a comment (#) or a valid KEY=value assignment.
+    # Reject markdown bullets, fenced code blocks, table syntax, headings, etc.
+    if doc_path == ".env.example":
+        has_env_var = False
+        invalid_lines: list[tuple[int, str]] = []
+        for line_idx, line in enumerate(content.split("\n"), start=1):
+            stripped = line.strip()
+            # Blank lines are always OK
+            if not stripped:
+                continue
+            # Comments (lines starting with #) are OK
+            if stripped.startswith("#"):
+                continue
+            # Valid KEY=value assignment (key must be uppercase/underscore/digits)
+            if re.match(r"^[A-Z_][A-Z0-9_]*=", stripped):
+                has_env_var = True
+                continue
+            # Everything else is invalid for a .env file
+            invalid_lines.append((line_idx, stripped))
+
+        if not has_env_var:
+            return False, "No KEY=value lines found — expected .env format, not markdown"
+
+        if invalid_lines:
+            # Report first few invalid lines
+            examples = "; ".join(f"line {n}: '{text[:60]}'" for n, text in invalid_lines[:3])
+            return (
+                False,
+                f"Invalid .env content: {len(invalid_lines)} line(s) are not comments "
+                f"or KEY=value assignments ({examples})",
+            )
+
+        # For .env files, skip the markdown marker check below
+        return True, "OK"
+
+    # Check for excessive code fences: if >80% of content is inside fences,
+    # the model likely outputted the template example instead of generating fresh content.
+    fence_lines = 0
+    total_lines = 0
+    in_fence = False
+    for line in content.strip().split("\n"):
+        total_lines += 1
+        if line.strip().startswith("```"):
+            in_fence = not in_fence
+            fence_lines += 1
+        elif in_fence:
+            fence_lines += 1
+    if total_lines > 5 and fence_lines / total_lines > 0.8:
+        return (
+            False,
+            f"Content is >80% code fences ({fence_lines}/{total_lines} lines) — likely template echo",
+        )
 
     # Check for expected markdown markers
     has_markdown = any(marker in content for marker in ["###", "##", "**", "- ", "```"])
@@ -1244,33 +1701,78 @@ async def generate_documentation_for_file(
         for v in requirement.triggers[:10]
     )
 
+    # Load template content for the doc type
+    template_structure = get_template_for_doc(doc_path)
+    source_files = "\n".join({v.source_file for v in requirement.triggers})
+
     if "CHANGELOG" in doc_path:
         prompt = CHANGELOG_PROMPT_TEMPLATE.format(
             git_diff=git_diff[:2000],
             violations=violations_text,
+            template_structure=template_structure or "(no template available)",
         )
-    elif "docs/reference/" in doc_path or ".md" in doc_path and "reference" in doc_path:
-        source_files = "\n".join({v.source_file for v in requirement.triggers})
+    elif "docs/reference/" in doc_path or (".md" in doc_path and "reference" in doc_path):
         prompt = API_DOCS_PROMPT_TEMPLATE.format(
             source_files=source_files,
             git_diff=git_diff[:3000],
             violations=violations_text,
+            template_structure=template_structure or "(no template available)",
         )
-    elif "CONFIGURATION" in doc_path or ".env.example" in doc_path:
-        source_files = "\n".join({v.source_file for v in requirement.triggers})
-        prompt = ENV_VAR_DOCS_PROMPT_TEMPLATE.format(
+    elif doc_path == ".env.example":
+        # .env.example uses a dedicated env-file-format prompt (not markdown)
+        prompt = ENV_FILE_PROMPT_TEMPLATE.format(
             source_files=source_files,
             git_diff=git_diff[:2000],
             violations=violations_text,
+            template_structure=template_structure or "(no template available)",
+        )
+    elif "CONFIGURATION" in doc_path:
+        prompt = CONFIGURATION_GUIDE_PROMPT_TEMPLATE.format(
+            source_files=source_files,
+            git_diff=git_diff[:2000],
+            violations=violations_text,
+            template_structure=template_structure or "(no template available)",
+        )
+    elif "MIGRATION" in doc_path:
+        prompt = MIGRATION_PROMPT_TEMPLATE.format(
+            git_diff=git_diff[:2000],
+            violations=violations_text,
+            template_structure=template_structure or "(no template available)",
+        )
+    elif "database/schema" in doc_path:
+        prompt = SCHEMA_DOCS_PROMPT_TEMPLATE.format(
+            source_files=source_files,
+            git_diff=git_diff[:3000],
+            violations=violations_text,
+            template_structure=template_structure or "(no template available)",
+        )
+    elif "TROUBLESHOOTING" in doc_path:
+        prompt = TROUBLESHOOTING_PROMPT_TEMPLATE.format(
+            source_files=source_files,
+            git_diff=git_diff[:2000],
+            violations=violations_text,
+            template_structure=template_structure or "(no template available)",
+        )
+    elif doc_path in ("README.md", "docs/QUICKSTART.md"):
+        prompt = README_PROMPT_TEMPLATE.format(
+            doc_path=doc_path,
+            git_diff=git_diff[:2000],
+            violations=violations_text,
+            template_structure=template_structure or "(no template available)",
         )
     else:
-        # Generic documentation prompt
+        # Generic documentation prompt with template if available
+        template_section = ""
+        if template_structure:
+            template_section = (
+                f"\n\n**Reference Structure (follow this format):**\n{template_structure}"
+            )
         prompt = f"""Document the following code changes for {doc_path}:
 
 {git_diff[:2000]}
 
 Triggered by:
-{violations_text}
+{violations_text}{template_section}
 
 Write clear, concise documentation suitable for developers.
 """
@@ -1280,13 +1782,14 @@ Write clear, concise documentation suitable for developers.
         print(f"[DOC GEN] Agent: {agent_info['name']}", file=sys.stderr)
         print(f"[DOC GEN] Complexity: {complexity}, Variant: {variant}", file=sys.stderr)
 
-    # Call Kilo
+    # Call Kilo — resolve source files relative to PROJECT_ROOT so that
+    # --project-root actually controls which files are attached.
     result = await run_kilo(
         prompt=prompt,
         model=agent_info["api_id"],
         agent="ask",
         variant=variant,
-        file_paths=[Path(v.source_file) for v in requirement.triggers[:5]],
+        file_paths=[PROJECT_ROOT / v.source_file for v in requirement.triggers[:5]],
         verbose=verbose,
     )
 
@@ -1323,7 +1826,7 @@ Write clear, concise documentation suitable for developers.
                     model=retry_agent["api_id"],
                     agent="ask",
                     variant=retry_variant,
-                    file_paths=[Path(v.source_file) for v in requirement.triggers[:5]],
+                    file_paths=[PROJECT_ROOT / v.source_file for v in requirement.triggers[:5]],
                     verbose=verbose,
                 )
                 content = retry_result["result"]
@@ -1352,15 +1855,18 @@ Write clear, concise documentation suitable for developers.
 
     # Normalize prefix: only add the forced prefix if the model didn't already emit it.
     # This avoids duplication like "### ### Added" when the model follows instructions.
-    if "CHANGELOG" in doc_path:
+    # .env.example is NOT markdown — skip prefix normalization entirely.
+    if doc_path == ".env.example":
+        # Strip any accidental markdown that the model may have produced
+        if content.lstrip().startswith("#") and not content.lstrip().startswith("# ==="):
+            # Model likely produced markdown instead of env format — prefix with section header
+            content = "# === New Variables ===\n\n" + content
+    elif "CHANGELOG" in doc_path:
         if not content.lstrip().startswith("###"):
             content = "### " + content
-    elif "docs/reference/" in doc_path or ("reference" in doc_path and ".md" in doc_path):
+    elif "docs/reference/" in doc_path or (".md" in doc_path and "reference" in doc_path) or "CONFIGURATION" in doc_path or "MIGRATION" in doc_path or "database/schema" in doc_path or "TROUBLESHOOTING" in doc_path or doc_path in ("README.md", "docs/QUICKSTART.md"):
         if not content.lstrip().startswith("##"):
             content = "## " + content
-    elif "CONFIGURATION" in doc_path or ".env.example" in doc_path:
-        if not content.lstrip().startswith("###"):
-            content = "### " + content
 
     return content
 
@@ -1402,6 +1908,43 @@ async def auto_generate_all_docs(
     return generated, failures
 
 
+def _strip_orphaned_comments(lines: list[str]) -> list[str]:
+    """Strip orphaned comment blocks from .env content.
+
+    After duplicate key removal, comment blocks (one or more consecutive
+    ``#`` lines) that are not followed by a KEY=value assignment are
+    considered orphaned and are removed.  Section headers (``# === ... ===``)
+    without a subsequent variable are also removed.
+
+    This prevents misleading comments from being appended to .env.example
+    when the variable they described was already present.
+    """
+    result: list[str] = []
+    comment_buffer: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            # Blank line: flush comment buffer (they are still "pending")
+            # but keep the blank line itself
+            comment_buffer.append(line)
+            continue
+        if stripped.startswith("#"):
+            # Accumulate comments
+            comment_buffer.append(line)
+            continue
+        # Non-blank, non-comment line — this is a KEY=value line.
+        # Flush the preceding comment buffer (they belong to this variable).
+        if comment_buffer:
+            result.extend(comment_buffer)
+            comment_buffer = []
+        result.append(line)
+
+    # Any remaining comment_buffer has no following variable — drop it
+    # (these are orphaned comments).
+    return result
+
+
 def write_generated_docs(generated: dict[str, str], dry_run: bool = False) -> list[str]:
     """
     Write generated documentation to files.
@@ -1432,6 +1975,38 @@ def write_generated_docs(generated: dict[str, str], dry_run: bool = False) -> li
                     file_path.write_text(new_content)
                 else:
                     file_path.write_text(content)
+            elif doc_path == ".env.example" and file_path.exists():
+                # Append new variables with deduplication
+                existing = file_path.read_text()
+                existing_keys = set()
+                for line in existing.split("\n"):
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#") and "=" in stripped:
+                        key = stripped.split("=", 1)[0].strip()
+                        existing_keys.add(key)
+
+                # Filter out variables that already exist
+                new_lines = []
+                for line in content.split("\n"):
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#") and "=" in stripped:
+                        key = stripped.split("=", 1)[0].strip()
+                        if key in existing_keys:
+                            continue  # Skip duplicate
+                    new_lines.append(line)
+
+                # Strip orphaned comment blocks: remove trailing comment-only
+                # lines that remain after duplicate key removal (comments that
+                # described a removed variable and are now misleading).
+                cleaned_lines = _strip_orphaned_comments(new_lines)
+
+                new_content = "\n".join(cleaned_lines).strip()
+                if new_content:
+                    file_path.write_text(existing.rstrip() + "\n\n" + new_content + "\n")
+                else:
+                    # All vars already exist — nothing to append
+                    print(f"ℹ️ {doc_path}: all variables already present, no changes needed")
+                    continue
             else:
                 file_path.write_text(content)
 
@@ -1476,27 +2051,51 @@ async def main() -> int:
     parser.add_argument(
         "--dry-run", action="store_true", help="Show what would be generated without writing"
     )
+    parser.add_argument(
+        "--project-root",
+        type=str,
+        default=None,
+        help="Explicit project root directory (default: current working directory)",
+    )
 
     args = parser.parse_args()
+
+    # Override PROJECT_ROOT if --project-root is given
+    global PROJECT_ROOT
+    if args.project_root:
+        PROJECT_ROOT = Path(args.project_root).resolve()
+        if not PROJECT_ROOT.is_dir():
+            print(
+                f"Error: --project-root '{args.project_root}' is not a directory", file=sys.stderr
+            )
+            return 2
 
     # Default to enforce mode if no mode specified
     if not args.detect and not args.enforce and not args.auto_generate:
         args.enforce = True
 
-    # Get git root
-    git_root = get_git_root()
+    # Get git root — scoped to PROJECT_ROOT
+    git_root = get_git_root(cwd=PROJECT_ROOT)
     if not git_root:
         print("Error: Not in a git repository", file=sys.stderr)
         return 2
 
-    # Get staged files and diff
-    staged_files = get_staged_files()
+    # Validate that the discovered git root matches PROJECT_ROOT
+    if git_root.resolve() != PROJECT_ROOT.resolve():
+        print(
+            f"Warning: git root ({git_root}) differs from PROJECT_ROOT ({PROJECT_ROOT}). "
+            f"Using PROJECT_ROOT as the working directory for git commands.",
+            file=sys.stderr,
+        )
+
+    # Get staged files and diff — scoped to PROJECT_ROOT
+    staged_files = get_staged_files(cwd=PROJECT_ROOT)
     if not staged_files:
         if args.verbose:
             print("No staged files - nothing to check", file=sys.stderr)
         return 0
 
-    diff = get_staged_diff()
+    diff = get_staged_diff(cwd=PROJECT_ROOT)
     if not diff:
         if args.verbose:
             print("No diff found", file=sys.stderr)
@@ -1525,14 +2124,26 @@ async def main() -> int:
             if not check_doc_updated_in_commit(doc_path, staged_files)
         }
 
-        generated, failures = await auto_generate_all_docs(
-            requirements, diff, staged_files, args.verbose
-        )
-
         # If nothing needed generation in the first place, report accurately
         if not docs_needing_generation:
             print("\n✓ All required documentation already staged")
             return 0
+
+        # --dry-run: true no-side-effects mode.  Report which docs would be
+        # generated without calling generate_documentation_for_file() / run_kilo().
+        if args.dry_run:
+            print(f"\n[DRY RUN] Would generate {len(docs_needing_generation)} file(s):")
+            for doc_path, req in docs_needing_generation.items():
+                trigger_names = ", ".join(sorted({t.trigger_name for t in req.triggers}))
+                print(
+                    f"  - {doc_path} [{req.severity}] "
+                    f"({len(req.triggers)} trigger(s): {trigger_names})"
+                )
+            return 0
+
+        generated, failures = await auto_generate_all_docs(
+            requirements, diff, staged_files, args.verbose
+        )
 
         # Report failures loudly
         if failures:
@@ -1544,15 +2155,11 @@ async def main() -> int:
 
         # Write successfully generated docs
         if generated:
-            written = write_generated_docs(generated, dry_run=args.dry_run)
-
-            if args.dry_run:
-                print(f"\n[DRY RUN] Would generate {len(generated)} file(s)")
-            else:
-                print(f"\n✓ Generated {len(written)} documentation file(s)")
-                print("\nNext steps:")
-                print("  git add " + " ".join(written))
-                print("  python scripts/kilo_docs_enforcer.py --enforce")
+            written = write_generated_docs(generated, dry_run=False)
+            print(f"\n✓ Generated {len(written)} documentation file(s)")
+            print("\nNext steps:")
+            print("  git add " + " ".join(written))
+            print("  python scripts/kilo_docs_enforcer.py --enforce")
 
         # Fail if any required docs could not be generated
         if failures:

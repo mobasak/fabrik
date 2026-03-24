@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
   - Commands reference, workflow steps, model selection & escalation
   - Session management, review schema, configuration options
   - Environment variables, exit codes, troubleshooting
-  
+
 - `docs/workflows/FINAL_GATE_WORKFLOW.md` (~350 lines) — Full documentation for `final_gate.py`
   - All 4 workflow phases documented
   - Complete enforcement scripts reference (27 checks)

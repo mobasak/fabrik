@@ -100,7 +100,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 ### Phase 1: Auto-Fix Formatting
 
-**Runs in:** Fix mode (default)  
+**Runs in:** Fix mode (default)
 **Skipped in:** `--check` mode
 
 | Check | Action | Files Affected |

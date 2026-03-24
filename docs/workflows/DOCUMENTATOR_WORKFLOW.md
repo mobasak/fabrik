@@ -10,7 +10,7 @@
 
 ## Overview
 
-Automated documentation generation using Kilo CLI agents from `kilo_agents.db`. 
+Automated documentation generation using Kilo CLI agents from `kilo_agents.db`.
 
 **Tested:**
 - ✅ Detection: Analyzes git diff, identifies missing docs

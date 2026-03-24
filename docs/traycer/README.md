@@ -1263,7 +1263,7 @@ Fabrik uses **Custom CLI Agents** for async job submission:
 - `Factory Wait (async).sh` — Monitors jobs via `/opt/fabrik/factory_wait.py`
 - `Factory AI.sh` — Direct execution wrapper
 
-These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 7-step workflow.
+These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 8-step workflow.
 
 ## AGENTS.md Integration (Project-Specific Context)
 
@@ -1481,7 +1481,7 @@ cd /opt/fabrik && python factory_wait.py "$TRAYCER_TASK_ID"
 cd /opt/fabrik && droid exec --auto medium "$TRAYCER_PROMPT"
 ```
 
-These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 7-step workflow.
+These agents are configured in `~/.traycer/cli-agents/` and enable YOLO Mode automation with Fabrik's 8-step workflow.
 
 ### Kilo Code Review Custom CLI Agents
 
@@ -1569,20 +1569,20 @@ python scripts/kilo_code_review.py auto-fix $CHANGED_FILES \
 - `EDGE` - Null handling, error paths, race conditions
 - `DOCS` - Documentation updates needed
 
-**Integration with Fabrik 7-Step Workflow:**
+**Integration with Fabrik 8-Step Workflow:**
 
 ```text
-Step 3: final_gate.py (Pre-Kilo)
-  ↓
-Step 4: Kilo Review (Initial)           ← Use "Kilo Review" agent
+Step 3: Kilo Review (Initial)           ← Use "Kilo Review" agent
   ↓
   Coder fixes issues manually
   ↓
-Step 4: Kilo Re-Review (Verify fixes)   ← Use "Kilo Re-Review" agent
+Step 3: Kilo Re-Review (Verify fixes)   ← Use "Kilo Re-Review" agent
   ↓
   Repeat until verdict=PASS
   ↓
-Step 5: final_gate.py (Post-Kilo)
+Step 4: DOCUMENTATOR (auto-generate docs)
+  ↓
+Step 5: final_gate.py (code + docs)
 ```
 
 **Session Management:**
