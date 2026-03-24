@@ -180,235 +180,87 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-03-01T23:42 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-03-24T23:34 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
 ├── CONFIGURATION.md                # Environment variables and settings
 ├── DEPLOYMENT.md                   # How to deploy services to VPS
+├── EXTERNAL_SYSTEMS.md             # External service dependencies
 ├── FAQ.md                          # Frequently asked questions
+├── FEATURES.md                     # Feature list
 ├── QUICKSTART.md                   # Get Fabrik running in 5 minutes
 ├── SERVICES.md                     # External services Fabrik depends on
-├── TESTING.md                      # How to run and write tests
 ├── TROUBLESHOOTING.md              # Common issues & solutions
+├── architecture
+│   └── WORDPRESS-MODULE-INTEGRATION.md # WordPress module integration
 ├── archive                         # Archived and completed documentation
-│   ├── 2026-01-04-analysis-reports
-│   │   ├── ARCHITECTURE_ANALYSIS.md
-│   │   └── DOCUMENTATION_AUDIT.md
-│   ├── 2026-01-08-critical-rules-legacy.md
-│   ├── 2026-01-08-documentation-standard-legacy.md
-│   ├── 2026-01-08-folder-file-structure-legacy.md
-│   ├── 2026-01-08-long-command-monitoring-design.md
-│   ├── 2026-01-08-project-management-guide-legacy.md
-│   ├── 2026-01-08-workflows-legacy.md
-│   ├── 2026-02-25-pre-traycer-templates
-│   │   ├── PHASE_TEMPLATE.md
-│   │   ├── README.md               # Documentation index (Legacy)
-│   │   ├── TASKS_TEMPLATE.md
-│   │   └── implementation-plan-template.md
-│   ├── 2026-02-26-INDEX.md.archived
-│   ├── 2026-02-26-doc-consolidation
-│   │   ├── ENVIRONMENT_VARIABLES.md # Complete env var reference
-│   │   ├── FABRIK_OVERVIEW.md      # What Fabrik is and what it does
-│   │   └── ROADMAP_ACTIVE.md       # Current priorities, backlog, future plans
-│   ├── 2026-02-27-droid-exec-cleanup
-│   │   ├── droid-exec-usage.md     # Core droid exec usage
-│   │   └── spec-pipeline.md        # Spec pipeline (idea -> scope -> spec)
-│   ├── 2026-02-28-kilo-redundant
-│   │   ├── kilo-agents.md          # Kilo agent configuration and usage
-│   │   ├── kilo-ai-documentation.md
-│   │   ├── kilo-code-review.md     # Kilo code review workflow
-│   │   ├── kilo-complete-reference.md # Complete Kilo reference
-│   │   └── kilo-files.md           # Kilo file handling reference
-│   ├── 2026-03-01-kilo-enhancement-context
-│   │   ├── 2026-02-28-phase2-retry-logic.md
-│   │   ├── 2026-02-28-phase3-context.md
-│   │   ├── 2026-02-28-phase3-cost-report.md
-│   │   ├── 2026-02-28-phase3-metrics.md
-│   │   ├── 2026-02-28-phase3-prevalidation.md
-│   │   ├── 2026-02-28-phase6-context.md
-│   │   ├── 2026-02-28-phase8-context.md
-│   │   ├── 2026-02-28-phase9-context.md
-│   │   ├── 2026-03-01-fix-kilo-hang.md
-│   │   ├── 2026-03-01-kilo-agent-health.md
-│   │   ├── 2026-03-01-opus-fix-kilo-scope-errors.md
-│   │   ├── 2026-03-01-phase3-prevalidation.md
-│   │   ├── 2026-03-01-phase4-script-validation.md
-│   │   ├── OPUS_FIX_GUIDE.md
-│   │   └── POST_MORTEM_2026-03-01_kilo_hang.md
-│   ├── CASCADE_MEMORIES_EXPORT_PART1.md
-│   ├── CASCADE_MEMORIES_EXPORT_PART2.md
-│   ├── CASCADE_MEMORIES_EXPORT_PART3.md
-│   ├── CASCADE_RULES_EXPORT_GLOBAL.md
-│   ├── CASCADE_RULES_EXPORT_WORKSPACE_PART1.md
-│   ├── CASCADE_RULES_EXPORT_WORKSPACE_PART2.md
-│   ├── CASCADE_RULES_EXPORT_WORKSPACE_PART3.md
-│   ├── CASCADE_RULES_EXPORT_WORKSPACE_PART4.md
-│   ├── CASCADE_RULES_EXPORT_WORKSPACE_PART5.md
-│   ├── building-interactive-apps-with-droid-exec.md
-│   ├── droid-cli-reference-hook-reference.md
-│   ├── droid-exec-headless.md
-│   ├── factory-enterprise.md
-│   ├── factory-hooks.md
-│   ├── factory-skills.md
-│   ├── factoryai-power-user-settings.md
-│   ├── previousresearchfordigitalmarketingstack.md
-│   ├── trajectories
-│   │   └── 2026-01-13-droid-core-improvements.md
-│   └── traycer-specs
-│       ├── 2025-11-14-traycer-factory-connection-test-enhancement.md
-│       ├── 2025-11-14-traycer-factory-connection-test-execution.md
-│       ├── 2025-11-14-traycer-factory-connection-test-re-validation-report.md
-│       ├── 2025-11-14-traycer-factory-connection-test.md
-│       └── 2025-11-15-traycer-factory-sanity-check-test-suite.md
 ├── design                          # System design and architecture proposals
-│   └── CASCADE-DROID-STRATEGY.md
 ├── development                     # Active development plans and specs
 │   ├── PLANS.md                    # Development plans index
 │   └── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
-│       ├── 2026-02-27-phase-priority-analysis.md
-│       ├── 2026-02-28-weekend-blitz-execution.md
-│       ├── 2026-03-01-plan-cost-aware-escalation.md
-│       ├── AI_OPERATING_CONSTITUTION
-│       │   ├── AI_OPERATING_CONSTITUTION.md
-│       │   ├── README.md           # Documentation index (Legacy)
-│       │   ├── WINDSURFRULES_PATCH.md
-│       │   ├── WhatsApp Image 2026-01-13 at 13.07.17.jpeg
-│       │   ├── stage1_discovery_prompt.md
-│       │   ├── stage2_traycer_prompt.md
-│       │   └── stage3_cascade_execution.md
-│       ├── Optimizing Workflows Across AI Coding Platforms for Fast, Low-Cost, Near-Flawless Code.md
 │       ├── archived
-│       │   ├── 2025-01-03-droid-validation
-│       │   │   └── droid-validation-report.md
-│       │   ├── 2025-12-27_FUTURE_WORK.md
-│       │   ├── 2025-12-27_WHATS_NEXT.md
-│       │   ├── 2025-12-27_future-development.md
-│       │   ├── 2026-01-04-monitoring-design
-│       │   │   ├── DROID_RUNNER_MONITORING.md
-│       │   │   └── LONG_COMMAND_MONITORING.md
-│       │   ├── 2026-01-05-design-docs
-│       │   │   ├── ai-review-prompt.md
-│       │   │   ├── windsurf-fabrik-final-strategy.md
-│       │   │   ├── windsurf-fabrik-integration-details.md
-│       │   │   └── windsurf-fabrik-integration.md
-│       │   ├── 2026-01-07-completed-plans
-│       │   │   ├── 2026-01-07-docs-automation.md
-│       │   │   ├── 2026-01-07-mypy-drivers-fix.md
-│       │   │   └── 2026-01-08-droid-scripts-consolidation.md
-│       │   ├── 2026-01-14-plan-docker-compose.md
-│       │   ├── 2026-02-15-plan-workflow-optimization.md
-│       │   ├── 2026-02-16-plan-gap01-duplicate-detection.md
-│       │   ├── 2026-02-16-plan-gap02-windsurf-workflows.md
-│       │   ├── 2026-02-16-plan-gap03-mcp-server-config.md
-│       │   ├── 2026-02-16-plan-gap04-kpi-dashboard.md
-│       │   ├── 2026-02-16-plan-gap06-custom-droids.md
-│       │   ├── 2026-02-16-plan-gap07-traycer-integration.md
-│       │   ├── 2026-02-16-plan-gap08-property-testing.md
-│       │   ├── 2026-02-16-plan-gap09-pipeline-orchestrator.md
-│       │   ├── 2026-02-16-spec-gap01-duplicate-detection.md
-│       │   ├── 2026-02-16-spec-gap02-windsurf-workflows.md
-│       │   ├── 2026-02-16-spec-gap03-mcp-server-config.md
-│       │   ├── 2026-02-16-spec-gap04-kpi-dashboard.md
-│       │   ├── 2026-02-16-spec-gap06-custom-droids.md
-│       │   ├── 2026-02-16-spec-gap07-traycer-integration.md
-│       │   ├── 2026-02-16-spec-gap08-property-testing.md
-│       │   ├── 2026-02-16-spec-gap09-pipeline-orchestrator.md
-│       │   ├── ChatGPT-Plan Document Critique.md
-│       │   ├── PM_INCORPORATION_PLAN.md
-│       │   └── README.md           # Documentation index (Legacy)
-│       ├── fix-fabrik-compliance-issues
-│       │   ├── 2026-01-07-scaffold-fix-plan.md
-│       │   ├── 2026-01-07-update-docs-updater-features.md
-│       │   ├── 2026-01-09-fabrik-codebase-improvements.md
-│       │   ├── 2026-01-09-fixes-00-index.md
-│       │   ├── 2026-01-09-fixes-01-core.md
-│       │   ├── 2026-01-09-fixes-02-drivers.md
-│       │   ├── 2026-01-09-fixes-03-orchestrator.md
-│       │   ├── 2026-01-09-fixes-04-scripts.md
-│       │   ├── 2026-01-09-fixes-05-enforcement.md
-│       │   ├── 2026-01-09-fixes-06-wordpress.md
-│       │   ├── 2026-01-09-plan-review-index.md
-│       │   └── README.md           # Documentation index (Legacy)
+│       ├── issues
 │       └── previously-planned-fabrik-phases
-│           ├── 2026-02-27-phase1-verification.md
-│           ├── 2026-02-27-phase10-verification.md
-│           ├── 2026-02-27-phase2-verification.md
-│           ├── 2026-02-27-phase3-verification.md
-│           ├── 2026-02-27-phase4-verification.md
-│           ├── 2026-02-27-phase5-verification.md
-│           ├── 2026-02-27-phase6-verification.md
-│           ├── 2026-02-27-phase7-verification.md
-│           ├── 2026-02-27-phase8-verification.md
-│           ├── 2026-02-27-phase9-verification.md
-│           ├── Phase1.md
-│           ├── Phase1b.md
-│           ├── Phase1c.md
-│           ├── Phase1d.md
-│           ├── Phase2.md
-│           ├── Phase3.md
-│           ├── Phase4.md
-│           ├── Phase5.md
-│           ├── Phase6.md
-│           ├── Phase7.md
-│           ├── Phase8.md
-│           ├── README.md           # Documentation index (Legacy)
-│           ├── phase10-execution.md
-│           ├── phase10-fixes-execution.md
-│           ├── phase10.md
-│           ├── phase1b-setup.md
-│           ├── phase1b-test-results.md
-│           ├── phase9.md
-│           └── previously_planned_ideas.md
 ├── examples                        # Example code and configuration
+│   └── health_check_usage.py
 ├── guides                          # Step-by-step guides and tutorials
 │   ├── DEPLOYMENT_READY_CHECKLIST.md # Make projects deployment-ready
-│   ├── DEVELOPMENT_WORKFLOW.md     # How Traycer fits into Fabrik's 9-step workflow
+│   ├── EXCEL_FILE_GENERATION.md    # Excel file generation guide
 │   ├── FABRIK_INTEGRATION.md       # Build Fabrik-compatible microservices
-│   ├── PROJECT_WORKFLOW.md         # Start here - new/existing project workflow
-│   └── domain-hosting-automation.md # Domain + hosting automation
+│   ├── domain-hosting-automation.md # Domain + hosting automation
+│   ├── traycer-free-tier-agents-testing.md # Traycer free-tier agent testing
+│   └── traycer-kilo-workflow-analysis.md # Traycer + Kilo workflow analysis
+├── infrastructure                  # Infrastructure docs
+│   └── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
 ├── operations                      # Operational runbooks and VPS state
 │   ├── backup-strategy.md          # VPS backup strategy
 │   ├── coolify-migration.md        # Coolify migration procedures
 │   ├── disaster-recovery.md        # Backup and recovery procedures
 │   ├── duplicati-setup.md          # Duplicati backup configuration
-│   ├── n8n-webhooks.md
+│   ├── n8n-webhooks.md             # n8n webhook configuration
 │   ├── vps-status.md               # Current VPS state and configuration
 │   └── vps-urls.md                 # All deployed service URLs
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions
-├── proposals                       # Project and feature proposals
-│   └── document-management-system.md
 ├── reference                       # Technical reference and module documentation
 │   ├── AI_TAXONOMY.md              # AI categories & tool selection
-│   ├── CASCADE_BACKUP_GUIDE.md
-│   ├── CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md
 │   ├── CRITICAL_RULES.md           # Non-negotiable execution rules
 │   ├── DATABASE_STRATEGY.md        # Database selection
 │   ├── DOCUMENTATION_STANDARD.md   # Documentation standards and conventions
 │   ├── EXTENSIONS.md
+│   ├── Modern GUI Approaches for Chrome Extensionst.md
+│   ├── Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md
+│   ├── Modern Mobile GUI Approaches for Android and iOS.md
 │   ├── PLANNING_REFERENCES.md      # INDEX for AI planning phases
 │   ├── SaaS-GUI.md                 # SaaS skeleton GUI guide
 │   ├── ai.md
+│   ├── ai_agent_prompt_directives.html
+│   ├── ai_agent_prompt_directives.md # AI agent prompt directives
 │   ├── architecture.md             # System architecture overview
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
 │   ├── exampleconsultancysitemap.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
-│   ├── fabrik-scaffold-specs.md     # MOVED → docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
 │   ├── file-api-deployment.md      # File API deployment guide
 │   ├── global-gates.md             # Global gate definitions
+│   ├── health-monitoring.md        # Health monitoring patterns
+│   ├── image
+│   │   └── AI_TAXONOMY
 │   ├── kilo
+│   │   ├── KILO-TOKEN-LEAN-WORKFLOW.md # Kilo token-lean workflow
 │   │   ├── KILO_AGENT_NAMING.md
 │   │   ├── KILO_AGENT_SELECTION_GUIDE.md
 │   │   ├── KILO_CLI_REFERENCE.md
-│   │   ├── KILO_EXTRACTION_SUMMARY.md
-│   │   ├── KILO_IMPROVEMENTS_PROPOSAL.md
+│   │   ├── KILO_MODEL_CAPABILITIES.md # Kilo model capabilities
 │   │   ├── KILO_MODEL_SELECTION.md
 │   │   ├── KILO_PERFORMANCE_TUNING.md
 │   │   ├── KILO_PLATFORM_FEATURES.md
 │   │   ├── KILO_TROUBLESHOOTING.md
 │   │   ├── KILO_UPDATE_SCHEDULE.md
 │   │   ├── KILO_USAGE_GUIDE.md
-│   │   └── README.md               # Documentation index (Legacy)
+│   │   ├── README.md               # Documentation index (Legacy)
+│   │   ├── REVIEWER_BENCHMARK_RESULTS.md # Reviewer benchmark results
+│   │   ├── kilo-benchmarks-testing.md # Kilo benchmarks testing
+│   │   └── kilo-complete-reference.md # Complete Kilo reference
 │   ├── kpi-schema.md
 │   ├── orchestrator.md             # Deployment orchestrator module
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
@@ -430,23 +282,43 @@ docs/
 │   │   └── recommended-extensions.md
 │   ├── wordpress                   # WordPress technical docs
 │   │   ├── architecture.md         # System architecture overview
+│   │   ├── deployment-workflow.md  # WordPress deployment workflow
 │   │   ├── fixes.md                # Critical fixes
 │   │   ├── pages-idempotency.md    # Page creation idempotency
 │   │   ├── plugin-evaluation.md    # WordPress plugin evaluation criteria
 │   │   ├── plugin-stack.md         # Curated WordPress plugin stack
 │   │   └── site-specification.md   # Site spec YAML format
-│   └── wordpress.md
+│   └── wordpress.md                # WordPress module overview
 ├── trajectories
-└── traycer
-    ├── README.md                   # Documentation index (Legacy)
-    ├── templates
-    │   ├── plan_template.md
-    │   ├── task_execution_template.md
-    │   └── verification_template.md
-    ├── traycer-agile-workflow.md   # 8-command Traycer Agile Workflow reference
-    ├── traycer-evaluation.md       # Traycer integration evaluation
-    ├── traycer-refactoring-workflow.md # 4-command Traycer Refactoring Workflow reference
-    └── traycer-yolo-workflow.md
+├── traycer
+│   ├── AGENT-TIMEOUT-POLICY.md     # Agent timeout policy
+│   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
+│   ├── QUICKSTART-MCP-KILO.md      # MCP Kilo quickstart
+│   ├── README.md                   # Documentation index (Legacy)
+│   ├── TEMPLATE_MAPPING.md         # Template mapping
+│   ├── TRAYCER-KILO-AGENTS-GUIDE.md # Traycer Kilo agents guide
+│   ├── TRAYCER-KILO-DIRECT-CLI.md  # Traycer Kilo direct CLI
+│   ├── epic-kilo-integration.md    # Epic Kilo integration
+│   ├── kilo_selected_agents.md     # Kilo selected agents
+│   ├── mcp-kilo-setup-guide.md     # MCP Kilo setup guide
+│   ├── templates
+│   │   ├── plan_template.md
+│   │   ├── task_execution_template.md
+│   │   └── verification_template.md
+│   ├── traycer-agile-workflow.md   # 8-command Traycer Agile Workflow reference
+│   ├── traycer-evaluation.md       # Traycer integration evaluation
+│   ├── traycer-refactoring-workflow.md # 4-command Traycer Refactoring Workflow reference
+│   └── traycer-yolo-workflow.md
+└── workflows                       # Workflow documentation
+    ├── DEV_TRACKER_WORKFLOW.md     # Development tracker workflow
+    ├── DOCUMENTATOR_WORKFLOW.md    # Documentator workflow
+    ├── FABRIK_SCAFFOLD_WORKFLOW.md # Fabrik scaffold workflow
+    ├── FINAL_GATE_WORKFLOW.md      # Final gate workflow
+    ├── HEALTH_CHECKER_WORKFLOW.md  # Health checker workflow
+    ├── KILO_AGENT_MANAGEMENT.md    # Kilo agent management
+    ├── KILO_REVIEW_WORKFLOW.md     # Kilo review workflow
+    ├── SYNC_ENFORCEMENT_WORKFLOW.md # Sync enforcement workflow
+    └── SYNC_PROJECTS_WORKFLOW.md   # Sync projects workflow
 ```
 <!-- AUTO-GENERATED:STRUCTURE:END -->
 
@@ -504,11 +376,10 @@ docs/
 
 | Document | Purpose |
 |----------|--------|
-| [PROJECT_WORKFLOW.md](docs/guides/PROJECT_WORKFLOW.md) | **Start here** — New/existing project workflow |
 | [FABRIK_INTEGRATION.md](docs/guides/FABRIK_INTEGRATION.md) | Build Fabrik-compatible microservices |
 | [domain-hosting-automation.md](docs/guides/domain-hosting-automation.md) | Full domain + hosting automation |
 | [DEPLOYMENT_READY_CHECKLIST.md](docs/guides/DEPLOYMENT_READY_CHECKLIST.md) | Make any project deployment-ready |
-| [DEVELOPMENT_WORKFLOW.md](docs/guides/DEVELOPMENT_WORKFLOW.md) | How Traycer fits into Fabrik's 9-step workflow |
+| [EXCEL_FILE_GENERATION.md](docs/guides/EXCEL_FILE_GENERATION.md) | Excel file generation guide |
 
 ### WordPress
 
@@ -552,12 +423,24 @@ docs/
 **Scripts:** `scripts/docs_updater.py`, `scripts/container_images.py`, `scripts/enforcement/validate_conventions.py`
 **Workflows:** `.github/workflows/` (ci.yml, docs-check.yml)
 
+### Workflows
+
+| Document | Purpose |
+|----------|--------|
+| [FINAL_GATE_WORKFLOW.md](docs/workflows/FINAL_GATE_WORKFLOW.md) | Final gate quality checks |
+| [KILO_REVIEW_WORKFLOW.md](docs/workflows/KILO_REVIEW_WORKFLOW.md) | Kilo code review workflow |
+| [DOCUMENTATOR_WORKFLOW.md](docs/workflows/DOCUMENTATOR_WORKFLOW.md) | Documentator workflow |
+| [FABRIK_SCAFFOLD_WORKFLOW.md](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) | Fabrik scaffold workflow |
+| [KILO_AGENT_MANAGEMENT.md](docs/workflows/KILO_AGENT_MANAGEMENT.md) | Kilo agent management |
+| [HEALTH_CHECKER_WORKFLOW.md](docs/workflows/HEALTH_CHECKER_WORKFLOW.md) | Health checker workflow |
+| [SYNC_ENFORCEMENT_WORKFLOW.md](docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md) | Sync enforcement workflow |
+| [SYNC_PROJECTS_WORKFLOW.md](docs/workflows/SYNC_PROJECTS_WORKFLOW.md) | Sync projects workflow |
+| [DEV_TRACKER_WORKFLOW.md](docs/workflows/DEV_TRACKER_WORKFLOW.md) | Development tracker workflow |
+
 ### Project Context
 
 | Document | Purpose |
 |----------|--------|
-| [FABRIK_OVERVIEW.md](docs/FABRIK_OVERVIEW.md) | What Fabrik is and what it does |
-| [ROADMAP_ACTIVE.md](docs/ROADMAP_ACTIVE.md) | Current priorities, backlog, future plans |
 | [BUSINESS_MODEL.md](docs/BUSINESS_MODEL.md) | Monetization strategy |
 | [owner_ozgur_basak.md](docs/owner_ozgur_basak.md) | Owner profile & AI instructions |
 | [project-registry.md](docs/reference/project-registry.md) | Master inventory of all /opt projects |

@@ -595,7 +595,7 @@ def update_single_file(file_path: str) -> None:
 
 PLANS_DIR = PROJECT_ROOT / "docs" / "development" / "plans"
 PLANS_INDEX = PROJECT_ROOT / "docs" / "development" / "PLANS.md"
-README_PATH = PROJECT_ROOT / "docs" / "INDEX.md"
+README_PATH = PROJECT_ROOT / "INDEX.md"
 TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE.md"
 
 # All docs that need staleness/completeness checks
@@ -698,8 +698,11 @@ def generate_docs_structure_tree() -> str:
         "CONFIGURATION.md": "Environment variables and settings",
         "DEPLOYMENT.md": "How to deploy services to VPS",
         "SERVICES.md": "External services Fabrik depends on",
+        "TESTING.md": "How to run and write tests",
         "TROUBLESHOOTING.md": "Common issues & solutions",
         "FAQ.md": "Frequently asked questions",
+        "EXTERNAL_SYSTEMS.md": "External service dependencies",
+        "FEATURES.md": "Feature list",
         "ENVIRONMENT_VARIABLES.md": "Complete env var reference",
         "FABRIK_OVERVIEW.md": "What Fabrik is and what it does",
         "ROADMAP_ACTIVE.md": "Current priorities, backlog, future plans",
@@ -711,12 +714,21 @@ def generate_docs_structure_tree() -> str:
         "domain-hosting-automation.md": "Domain + hosting automation",
         "DEPLOYMENT_READY_CHECKLIST.md": "Make projects deployment-ready",
         "DEVELOPMENT_WORKFLOW.md": "How Traycer fits into Fabrik's 9-step workflow",
+        "EXCEL_FILE_GENERATION.md": "Excel file generation guide",
+        "traycer-free-tier-agents-testing.md": "Traycer free-tier agent testing",
+        "traycer-kilo-workflow-analysis.md": "Traycer + Kilo workflow analysis",
         "TRAYCER_YOLO_WORKFLOW.md": "Traycer YOLO (fast-path) workflow guide",
         "reference/": "Technical reference and module documentation",
         "CRITICAL_RULES.md": "Non-negotiable execution rules",
         "DOCUMENTATION_STANDARD.md": "Documentation standards and conventions",
         "SaaS-GUI.md": "SaaS skeleton GUI guide",
         "architecture.md": "System architecture overview",
+        "property-testing.md": "Property-based testing with Hypothesis",
+        "verification-framework.md": "3-lane verification system",
+        "health-monitoring.md": "Health monitoring patterns",
+        "ai_agent_prompt_directives.md": "AI agent prompt directives",
+        "wordpress.md": "WordPress module overview",
+        "deployment-workflow.md": "WordPress deployment workflow",
         "fabrik-cli-reference.md": "Fabrik CLI command reference",
         "drivers.md": "Fabrik driver API (Coolify, DNS, etc.)",
         "orchestrator.md": "Deployment orchestrator module",
@@ -735,6 +747,10 @@ def generate_docs_structure_tree() -> str:
         "uptime-kuma.md": "Uptime Kuma runbook",
         "traycer-evaluation.md": "Traycer integration evaluation",
         "global-gates.md": "Global gate definitions",
+        "kilo-benchmarks-testing.md": "Kilo benchmarks testing",
+        "KILO_MODEL_CAPABILITIES.md": "Kilo model capabilities",
+        "KILO-TOKEN-LEAN-WORKFLOW.md": "Kilo token-lean workflow",
+        "REVIEWER_BENCHMARK_RESULTS.md": "Reviewer benchmark results",
         "windsurf/": "Windsurf IDE optimization",
         "wordpress/": "WordPress technical docs",
         "plugin-evaluation.md": "WordPress plugin evaluation criteria",
@@ -748,6 +764,15 @@ def generate_docs_structure_tree() -> str:
         "kilo-files.md": "Kilo file handling reference",
         "traycer-agile-workflow.md": "8-command Traycer Agile Workflow reference",
         "traycer-refactoring-workflow.md": "4-command Traycer Refactoring Workflow reference",
+        "AGENT-TIMEOUT-POLICY.md": "Agent timeout policy",
+        "epic-kilo-integration.md": "Epic Kilo integration",
+        "kilo_selected_agents.md": "Kilo selected agents",
+        "mcp-kilo-setup-guide.md": "MCP Kilo setup guide",
+        "PLAN_OUTPUT_LOCATION.md": "Plan output location",
+        "QUICKSTART-MCP-KILO.md": "MCP Kilo quickstart",
+        "TEMPLATE_MAPPING.md": "Template mapping",
+        "TRAYCER-KILO-AGENTS-GUIDE.md": "Traycer Kilo agents guide",
+        "TRAYCER-KILO-DIRECT-CLI.md": "Traycer Kilo direct CLI",
         "operations/": "Operational runbooks and VPS state",
         "vps-status.md": "Current VPS state and configuration",
         "vps-urls.md": "All deployed service URLs",
@@ -755,10 +780,24 @@ def generate_docs_structure_tree() -> str:
         "duplicati-setup.md": "Duplicati backup configuration",
         "backup-strategy.md": "VPS backup strategy",
         "coolify-migration.md": "Coolify migration procedures",
+        "n8n-webhooks.md": "n8n webhook configuration",
         "development/": "Active development plans and specs",
         "PLANS.md": "Development plans index",
         "plans/": "Plan documents (YYYY-MM-DD-plan-*.md)",
+        "infrastructure/": "Infrastructure docs",
+        "WSL2-DNS-FIX.md": "WSL2 DNS resolution fix",
+        "WORDPRESS-MODULE-INTEGRATION.md": "WordPress module integration",
         "archive/": "Archived and completed documentation",
+        "workflows/": "Workflow documentation",
+        "DEV_TRACKER_WORKFLOW.md": "Development tracker workflow",
+        "DOCUMENTATOR_WORKFLOW.md": "Documentator workflow",
+        "FABRIK_SCAFFOLD_WORKFLOW.md": "Fabrik scaffold workflow",
+        "FINAL_GATE_WORKFLOW.md": "Final gate workflow",
+        "HEALTH_CHECKER_WORKFLOW.md": "Health checker workflow",
+        "KILO_AGENT_MANAGEMENT.md": "Kilo agent management",
+        "KILO_REVIEW_WORKFLOW.md": "Kilo review workflow",
+        "SYNC_ENFORCEMENT_WORKFLOW.md": "Sync enforcement workflow",
+        "SYNC_PROJECTS_WORKFLOW.md": "Sync projects workflow",
         "design/": "System design and architecture proposals",
         "examples/": "Example code and configuration",
         "proposals/": "Project and feature proposals",
@@ -787,8 +826,11 @@ def generate_docs_structure_tree() -> str:
             tree.append(line)
 
             if item.is_dir():
-                new_prefix = prefix + ("    " if is_last else "│   ")
-                walk(item, new_prefix)
+                # Skip expanding archive/ and trajectories/ (too noisy)
+                skip_dirs = {"archive", "trajectories", "archived", "previously-planned-fabrik-phases", "issues"}
+                if item.name not in skip_dirs:
+                    new_prefix = prefix + ("    " if is_last else "│   ")
+                    walk(item, new_prefix)
 
     walk(docs_dir)
     tree_str = "\n".join(tree)
@@ -983,7 +1025,7 @@ def check_link_integrity() -> list[str]:
     skip_files = (
         "droid-exec-headless.md",
         "building-interactive-apps-with-droid-exec.md",
-        "factory-hooks.md",
+        "n8n-webhooks.md",
         "factoryai-power-user-settings.md",
         "factory-skills.md",
         "factory-enterprise.md",
