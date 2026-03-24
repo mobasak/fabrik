@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    platform: linux/arm64  # Mandatory for ARM64 VPS
     container_name: {{ spec.id }}
     restart: unless-stopped
 
@@ -49,6 +50,8 @@ services:
       start_period: 10s
 {% endif %}
 
+    ports:
+      - "{{ env.get('PORT', '3000') }}:{{ env.get('PORT', '3000') }}"
     expose:
       - "{{ env.get('PORT', '3000') }}"
 

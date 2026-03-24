@@ -103,10 +103,11 @@ app.post('/api/files/upload-url', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: `File too large. Max: ${MAX_FILE_SIZE / 1024 / 1024}MB` });
     }
 
-    // Generate unique key
+    // Generate unique key with sanitized filename (prevent path traversal)
+    const safeFilename = filename.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+    const ext = path.extname(safeFilename);
     const fileId = uuidv4();
-    const ext = filename.split('.').pop() || '';
-    const r2Key = `uploads/${req.tenantId}/${fileId}${ext ? '.' + ext : ''}`;
+    const r2Key = `uploads/${req.tenantId}/${fileId}${ext}`;
 
     // Create file record in Supabase (pending status)
     const { data: fileRecord, error: dbError } = await supabase

@@ -1,7 +1,23 @@
 services:
   {{ spec.id }}:
     build: .
+    platform: linux/arm64  # Mandatory for ARM64 VPS
     container_name: {{ spec.id }}
     restart: unless-stopped
+    
+    environment:
+      - NODE_ENV={{ env.get('NODE_ENV', 'production') }}
+      - TZ={{ env.get('TZ', 'UTC') }}
+    
+    healthcheck:  # Required for Coolify orchestration
+      test: ["CMD", "curl", "-f", "http://localhost:8081/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
     networks:
       - coolify
+
+networks:
+  coolify:
+    external: true

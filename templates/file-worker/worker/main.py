@@ -18,6 +18,9 @@ import boto3
 import structlog
 from supabase import Client, create_client
 
+# Heartbeat file for Docker HEALTHCHECK
+HEARTBEAT_FILE = Path("/tmp/worker_heartbeat")
+
 # Configure logging
 structlog.configure(
     processors=[
@@ -276,6 +279,9 @@ def main():
         futures = {}
 
         while not shutdown_requested:
+            # Update heartbeat for Docker HEALTHCHECK
+            HEARTBEAT_FILE.touch()
+
             # Clean up completed futures
             done = [f for f in futures if f.done()]
             for f in done:

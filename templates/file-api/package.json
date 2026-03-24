@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "gate": "python3 scripts/final_gate.py"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.490.0",
@@ -16,6 +17,6 @@
     "uuid": "^9.0.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.0.0"
   }
 }

@@ -1,0 +1,113 @@
+# {{ spec.name }} Mobile App - Agent Briefing
+
+> Instructions for AI coding agents (Windsurf Cascade, Kilo CLI, etc.)
+
+## Mandatory Workflow
+
+**Before any commit, you MUST pass the Final Gate:**
+```bash
+python scripts/final_gate.py
+```
+
+## Planning Rules
+
+All plans in `docs/development/plans/` MUST include the **One-Test Rule**:
+- **Why:** High-leverage risk coverage (e.g., Metro Bundler Configuration, R2 Upload Orchestration)
+- **Contract:** Given/When/Then with explicit mocked vs. real components
+- **Example:** "Given a fresh clone, the Metro Bundler must successfully build the JS bundle for Android without dependency errors"
+
+## Development Environment
+
+**Integrated Android Studio + WSL Setup:**
+- Engine (Windows Host): Android Studio Panda2 for SDK Manager and AVD emulators
+- Workspace (WSL/Windsurf): Code and AI agents live here
+- Factory (Ubuntu ARM VPS): Distribution & CI server for automated testing and APK versioning
+
+**Verify Android SDK bridge:**
+```bash
+python scripts/enforcement/check_android_env.py
+```
+
+## Build & Test
+
+```bash
+# Install dependencies
+npm install
+
+# Run Metro bundler
+npm start
+
+# Android (requires Android SDK in Windows)
+npm run android
+
+# iOS (requires macOS)
+npm run ios
+
+# Tests
+npm test
+
+# Lint
+npm run lint
+
+# Final gate check
+npm run gate
+```
+
+## Clean Architecture Structure
+
+```
+src/
+├── api/              # Data Layer: API clients (Supabase, S3)
+├── assets/           # Static files: Images, fonts, icons
+├── components/       # Presentation Layer: Global UI primitives
+├── core/             # Shared Layer: Constants, themes, configuration
+├── features/         # Domain Layer: Feature-based modules
+│   └── files/        # Example feature directory
+│       ├── components/  # Feature-specific UI
+│       ├── hooks/       # Feature-specific logic (Data fetching, State)
+│       ├── screens/     # High-level screen components
+│       ├── services/    # Business logic / Use cases
+│       └── types.ts     # Feature-specific TypeScript interfaces
+├── navigation/       # Routing: Stack and Tab navigators
+├── store/            # Global State: Context providers or Zustand/Redux
+└── utils/            # Helper functions: Formatters, validators
+```
+
+## Step 2.5 Internal Audit (Mobile-Specific)
+
+Before Kilo Review, verify:
+- [ ] **Strict Typing:** All navigation parameters and API responses explicitly typed
+- [ ] **Hook Isolation:** Complex screen logic moved into custom hooks (e.g., `useFileUpload`)
+- [ ] **Native Module Bloat:** No unnecessary native dependencies
+- [ ] **Permission Over-privilege:** Request only necessary Android/iOS permissions
+- [ ] **Metro Bundler:** Test bundle generation with `npx react-native bundle`
+
+## Security
+
+- No hardcoded API keys or tokens
+- Use environment variables for all config
+- Validate all user inputs before API calls
+- Run as non-root user in production containers
+
+## Mobile One-Test Rule Example
+
+```markdown
+## One-Test Rule
+
+**Why:** The biggest risk in automated mobile deployment is a broken Metro Bundler 
+configuration or native module mismatch.
+
+**Contract:**
+- **Given:** A fresh environment with the current package.json
+- **When:** The agent executes `npx react-native bundle --platform android --dev false`
+- **Then:** It must produce a valid index.bundle without syntax or dependency errors
+- **Mocked:** Native hardware APIs (Camera, GPS, etc.)
+- **Real:** Metro bundler, TypeScript compiler, React Native packager
+```
+
+## Conventions
+
+- **Feature-based modules:** Keep related code together in `src/features/*`
+- **Type-safe navigation:** All routes defined in `src/navigation/types.ts`
+- **Custom hooks:** Extract complex logic from screens
+- **No "Massive Component" syndrome:** Max 200 lines per screen component

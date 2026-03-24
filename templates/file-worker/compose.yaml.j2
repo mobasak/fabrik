@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    platform: linux/arm64  # Mandatory for ARM64 VPS
     container_name: {{ spec.id }}
     restart: unless-stopped
 
@@ -37,6 +38,12 @@ services:
         limits:
           memory: {{ resources.memory }}
           cpus: '{{ resources.cpu }}'
+
+    healthcheck:
+      test: ["CMD", "find", "/tmp/worker_heartbeat", "-mmin", "-2"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
     networks:
       - coolify

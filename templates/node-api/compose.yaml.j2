@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    platform: linux/arm64  # Mandatory for Ubuntu ARM VPS
     container_name: {{ spec.id }}
     restart: unless-stopped
     {% if spec.expose.http and not spec.expose.internal_only %}
@@ -35,13 +36,11 @@ services:
         limits:
           memory: {{ resources.memory }}
           cpus: '{{ resources.cpu }}'
-    {% if health %}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000{{ health.path }}"]
-      interval: {{ health.interval }}
-      timeout: {{ health.timeout }}
-      retries: {{ health.retries }}
-    {% endif %}
+    healthcheck:  # Mandatory for Coolify orchestration
+      test: ["CMD", "curl", "-f", "http://localhost:3000{{ health.path if health else '/health' }}"]
+      interval: {{ health.interval if health else '30s' }}
+      timeout: {{ health.timeout if health else '10s' }}
+      retries: {{ health.retries if health else 3 }}
     networks:
       - coolify
 

@@ -1,56 +1,107 @@
-# {{ spec.name }} - Agent Briefing
+# {{ spec.name }} API - Agent Briefing
 
-> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+> Instructions for AI coding agents (Windsurf Cascade, Kilo CLI, etc.)
+
+## Mandatory Workflow
+
+**Before any commit, you MUST pass the Final Gate:**
+```bash
+npm run gate
+```
+
+## Step 2.5: Internal Audit (API Specific)
+
+Before Kilo Review, verify:
+- [ ] **Invariant Check:** Does every endpoint enforce tenant isolation (if multi-tenant)?
+- [ ] **Silent Failures:** Are database errors caught and mapped to proper HTTP status codes instead of crashing?
+- [ ] **Complexity Hotspots:** Identify logic that will be debugging footguns in 6 months
+- [ ] **Error Responses:** All errors return JSON body (no plain text 500s)
+- [ ] **Health Endpoint:** `/health` returns 200 with status object
+- [ ] **Binding:** Server binds to `0.0.0.0` not `localhost` (Docker requirement)
+
+## One-Test Rule
+
+**Why:** Prevent unauthorized cross-tenant data access (if multi-tenant) or unauthorized resource access.
+
+**Contract:**
+- **Given:** A request from User A with a valid authentication token
+- **When:** Attempting to access resource ID belonging to User B
+- **Then:** The API must return `403 Forbidden` or `404 Not Found` (not the resource data)
+- **Mocked:** Authentication middleware, Database layer
+- **Real:** Authorization logic, Express route handlers
 
 ## Build & Test
 
 ```bash
 npm install
-npm run test
-npm run lint
+npm start      # Production mode
+npm run dev    # Development with watch mode
+npm run gate   # Final gate enforcement
 ```
 
 ## Run Locally
 
 ```bash
 npm run dev
-curl http://localhost:3000/health
+# API available at http://localhost:3000
+# Health check: http://localhost:3000/health
 ```
 
-## Docker
+## Docker Deployment
 
 ```bash
 docker compose up -d
 docker compose logs -f
 ```
 
-## droid exec Quick Reference
+## Project Structure (Clean Architecture)
 
-```bash
-# Read-only analysis
-droid exec "Analyze this Node.js API"
-
-# Development
-droid exec --auto medium "Add new endpoint"
-
-# Full autonomy
-droid exec --auto high "Fix issues, run tests, commit"
-
-# Spec mode
-droid exec --use-spec "Add WebSocket support"
+```
+├── src/
+│   ├── index.js       # Entry point with health endpoint
+│   ├── routes/        # API route definitions
+│   │   └── api.js     # Example API routes
+│   ├── middleware/    # Express middleware
+│   │   ├── auth.js    # Authentication
+│   │   ├── validate.js # Input validation
+│   │   └── errors.js  # Error handling
+│   ├── services/      # Business logic layer
+│   │   └── user.js    # Example service
+│   └── utils/         # Helper functions
+│       └── logger.js  # Logging utility
+├── package.json       # Dependencies + gate script
+├── Dockerfile         # Production build
+└── compose.yaml       # Deployment config
 ```
 
-### Key Flags
+## API Best Practices
 
-| Flag | Purpose |
-|------|---------|
-| `--auto low/medium/high` | Autonomy level |
-| `--use-spec` | Plan before code |
-| `-m <model>` | Model selection |
+- **RESTful conventions**: GET/POST/PUT/DELETE with proper status codes
+- **JSON responses**: All responses in JSON format (even errors)
+- **Error handling**: Centralized error middleware
+- **Input validation**: Validate all request bodies and params
+- **Security headers**: Use Helmet for HTTP security headers
+- **Rate limiting**: Implement for public endpoints
+- **Logging**: Use Morgan or Winston for request logging
 
 ## Conventions
 
-### Environment Variables
+- Environment variables for all config (no hardcoding)
+- Express.js for routing
+- Async/await for asynchronous operations
+- Proper HTTP status codes (200, 201, 400, 401, 403, 404, 500)
+- Health check endpoint always available
+
+## Security
+
+- **Helmet** for HTTP security headers
+- **Input validation** on all endpoints (prevent injection)
+- **Environment variables** for secrets (never hardcode)
+- **Non-root user** in Docker (appuser:1000)
+- **CORS** properly configured
+- **Rate limiting** for public endpoints
+
+## Environment Variables
 
 ```javascript
 // CORRECT

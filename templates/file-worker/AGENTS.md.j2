@@ -2,6 +2,20 @@
 
 > Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
 
+## Mandatory Workflow
+
+**Before any commit, you MUST pass the Final Gate:**
+```bash
+python scripts/final_gate.py
+```
+
+## Planning Rules
+
+All plans in `docs/development/plans/` MUST include the **One-Test Rule**:
+- **Why:** High-leverage risk coverage (e.g., Job State Management, Tenant Isolation)
+- **Contract:** Given/When/Then with explicit mocked vs. real components
+- **Example:** Job claiming logic - verify status updates even on processing failure
+
 ## Build & Test
 
 ```bash

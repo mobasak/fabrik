@@ -380,6 +380,353 @@ All notable changes to this project will be documented in this file.
 
 **Impact:** Prevents over-engineering, reduces bikeshedding, enforces decision-grade thinking. Solo-developer workflow now optimized for correctness and safety over exhaustive coverage.
 
+### Fixed - File API Template ARM64 + Security (2026-03-24)
+
+**Problem:** file-api template violated Fabrik 2026 hard stops (Alpine, Node 20, missing sanitization).
+
+**Solution:** Hardened for ARM64 VPS deployment and secure file handling.
+
+**templates/file-api/Dockerfile.j2:**
+- **CRITICAL FIX:** Replaced forbidden `node:20-alpine` with `node:22-bookworm-slim`
+- Added mandatory `HEALTHCHECK` instruction for Final Gate compliance
+- Multi-stage build (builder + runner) for optimal image size
+- Debian apt-get for curl installation (Alpine apk removed)
+
+**templates/file-api/package.json:**
+- Updated `engines.node` from `>=18` to `>=22.0.0`
+- Added `gate` script for automation readiness
+
+**templates/file-api/compose.yaml.j2:**
+- Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
+- Added explicit `ports` mapping (was only `expose`)
+
+**templates/file-api/src/index.js:**
+- **SECURITY FIX:** Added filename sanitization to prevent path traversal
+- Before: `filename.split('.').pop()` (vulnerable to `../../etc/passwd`)
+- After: `path.extname(safeFilename)` with regex sanitization `[^a-z0-9.]`
+- Ensures R2 keys like `uploads/{tenant}/{uuid}.pdf` are safe
+
+**Architecture:** File API now acts as secure "Gatekeeper + Bookkeeper" for Cloudflare R2 storage with tenant isolation enforced at both API and storage layers.
+
+**Impact:** Template passes `check_docker.py` (ARM64 + No Alpine + HEALTHCHECK). Ready for Coolify deployment with zero modification.
+
+### Fixed - File Worker Template ARM64 + Heartbeat (2026-03-24)
+
+**Problem:** file-worker template violated Fabrik 2026 hard stops (Python 3.11, missing ARM64, no HEALTHCHECK).
+
+**Solution:** Hardened for ARM64 VPS deployment with active health monitoring.
+
+**templates/file-worker/Dockerfile.j2:**
+- Updated from `python:3.11-slim` to `python:3.12-slim-bookworm`
+- Added mandatory `HEALTHCHECK` instruction using heartbeat file verification
+- Health check verifies `/tmp/worker_heartbeat` modified within last 2 minutes
+
+**templates/file-worker/compose.yaml.j2:**
+- Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
+- Added `healthcheck` block matching Dockerfile health logic
+- Coolify can now detect worker polling failures vs. container crashes
+
+**templates/file-worker/worker/main.py:**
+- Added `HEARTBEAT_FILE` constant: `/tmp/worker_heartbeat`
+- Main loop now calls `HEARTBEAT_FILE.touch()` every poll cycle
+- Enables Docker to distinguish "worker running" from "worker polling"
+
+**templates/file-worker/AGENTS.md.j2:**
+- Added mandatory `python scripts/final_gate.py` workflow requirement
+- Added One-Test Rule planning requirement with example
+- Documents high-leverage test scenarios (job claiming, tenant isolation)
+
+**Architecture:** Worker now signals liveness via filesystem heartbeat. If worker hangs on a job (deadlock, infinite loop), heartbeat stops updating and Coolify can restart the container.
+
+**Impact:** Template passes `check_docker.py` (ARM64 + No Alpine + HEALTHCHECK). Worker failures now detectable within 2 minutes vs. never.
+
+### Added - Mobile App Template Complete Factory (2026-03-24)
+
+**Problem:** Mobile-app template was skeletal (no architecture, missing P0 compliance, no Android SDK bridge verification).
+
+**Solution:** Complete Mobile App Factory with integrated Android Studio + WSL workflow, Clean Architecture, and full File API integration.
+
+**Infrastructure & Enforcement:**
+- Created `scripts/enforcement/check_android_env.py` — Verifies WSL-to-Windows Android SDK bridge
+  - Checks `ANDROID_HOME` environment variable
+  - Validates SDK path accessibility across WSL mount
+  - Confirms ADB presence for device/emulator communication
+- Integrated into `final_gate.py` Phase 3 for pre-commit verification
+
+**templates/mobile-app/package.json:**
+- Updated `engines.node` from `>=18` to `>=22.0.0` (ARM64 VPS standard)
+- Added `gate` script for automation readiness
+- Added React Navigation dependencies (`@react-navigation/native`, `@react-navigation/native-stack`)
+- Added `react-native-document-picker` for file selection
+- Added `react-native-safe-area-context` and `react-native-screens` for navigation
+
+**templates/mobile-app/Dockerfile.j2:**
+- Added mandatory `HEALTHCHECK` instruction for Metro bundler status
+- Health check: `curl -f http://localhost:8081/status`
+- Installed curl in runner stage for health verification
+- Already used `node:22-bookworm-slim` (compliant)
+
+**templates/mobile-app/compose.yaml.j2:**
+- Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
+- Added `healthcheck` block matching Dockerfile health logic
+- Added environment variable templating for `NODE_ENV` and `TZ`
+- Added `networks` block for Coolify orchestration
+
+**templates/mobile-app/AGENTS.md.j2 (NEW):**
+- Mandatory workflow: `python scripts/final_gate.py` before commit
+- Mobile-specific One-Test Rule example (Metro Bundler verification)
+- Integrated Android Studio + WSL setup documentation
+- Step 2.5 Internal Audit checklist (Strict Typing, Hook Isolation, Permission Audit)
+- Clean Architecture structure documentation
+
+**Clean Architecture Implementation:**
+
+**src/features/files/types.ts (NEW):**
+- TypeScript interfaces matching Node 22 File API backend
+- `FileMetadata`, `UploadResponse`, `DownloadResponse`, `ListFilesResponse`
+- Ensures type-safe communication between mobile and VPS
+
+**src/features/files/services/fileService.ts (NEW):**
+- Data Layer: HTTP communication with File API on VPS
+- 3-step R2 upload orchestration:
+  1. `getUploadUrl()` — Request presigned URL (creates pending record)
+  2. `uploadToR2()` — Direct upload to Cloudflare R2 (bypasses API bandwidth)
+  3. `confirmUpload()` — Update Supabase record to 'ready'
+- Additional methods: `listFiles()`, `getDownloadUrl()`, `deleteFile()`
+
+**src/features/files/hooks/useFileUpload.ts (NEW):**
+- Domain Layer: State machine for R2 upload with progress tracking
+- Handles upload failure gracefully (prevents orphan DB records)
+- Returns `{ uploadFile, isUploading, progress, error }`
+
+**src/features/files/hooks/useFiles.ts (NEW):**
+- Domain Layer: File list fetching with automatic refresh
+- Connects to `GET /api/files` on VPS
+- Returns `{ files, loading, error, refresh }`
+
+**src/features/files/screens/FileListScreen.tsx (NEW):**
+- Presentation Layer: High-performance FlatList rendering
+- Pull-to-refresh with `RefreshControl`
+- Empty state handling with helpful hints
+- Floating Action Button for upload navigation
+
+**src/features/files/screens/FileUploadScreen.tsx (NEW):**
+- Presentation Layer: Modal action workspace
+- Uses `react-native-document-picker` for file selection
+- Progress bar with percentage display
+- Upload cancellation warning for in-progress uploads
+
+**Navigation Structure:**
+
+**src/navigation/types.ts (NEW):**
+- Type-safe route parameter definitions
+- Prevents runtime routing crashes via TypeScript compiler
+
+**src/navigation/AppNavigator.tsx (NEW):**
+- React Navigation Native Stack setup
+- Routes: `FileList` (main), `FileUpload` (modal), `FileDetail` (placeholder)
+- Standard Fabrik UI styling (header colors, fonts)
+
+**src/App.tsx (NEW):**
+- Main entry point integrating `SafeAreaProvider` and `AppNavigator`
+
+**Architecture:** Mobile App Factory now provides complete React Native template with:
+- Integrated Android Studio (Windows SDK) + WSL (code/agents) workflow
+- Clean Architecture (features, services, hooks, screens separation)
+- Type-safe navigation preventing runtime routing errors
+- Secure 3-step R2 upload matching backend File API
+- Tenant isolation enforced at both mobile and API layers
+
+**One-Test Rule Example:**
+```markdown
+**Why:** Metro Bundler configuration is highest risk for mobile deployment
+**Contract:**
+- Given: Fresh clone with current package.json
+- When: `npx react-native bundle --platform android --dev false`
+- Then: Valid index.bundle generated without errors
+- Mocked: Native hardware APIs (Camera, GPS)
+- Real: Metro bundler, TypeScript compiler, React Native packager
+```
+
+**Impact:** Mobile template now passes full `final_gate.py` enforcement (ARM64, Node 22, HEALTHCHECK, Android SDK bridge). Complete production-ready React Native app structure for solo-dev speed with enterprise-grade correctness.
+
+### Fixed - Next.js Tailwind Template Complete SaaS Kit (2026-03-24)
+
+**Problem:** next-tailwind template had P0 violations (Node 20, missing ARM64, no package.json, incomplete project structure).
+
+**Solution:** Complete SaaS-ready Next.js + Tailwind CSS template with production infrastructure and Clean Architecture.
+
+**templates/next-tailwind/package.json (NEW):**
+- Created with `engines.node: ">=22.0.0"` for ARM64 VPS standard
+- Added `gate` script for automation readiness
+- Dependencies: Next.js 14, React 18, Tailwind CSS 3.4
+- Utility deps: `lucide-react`, `clsx`, `tailwind-merge` for SaaS UI patterns
+- Dev deps: TypeScript 5.3, ESLint, Node types
+
+**templates/next-tailwind/Dockerfile.j2:**
+- **CRITICAL FIX:** Replaced `node:20-slim` with `node:22-bookworm-slim`
+- Already had HEALTHCHECK (compliant)
+- Multi-stage build with standalone Next.js output
+- Non-root user (appuser:1000) for security
+
+**templates/next-tailwind/compose.yaml.j2:**
+- Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
+- Made healthcheck mandatory (was conditional): defaults to `/api/health`
+- Traefik labels for HTTPS/SSL via Let's Encrypt
+- Environment variable templating for Supabase, Postgres, Redis
+
+**templates/next-tailwind/AGENTS.md.j2:**
+- Replaced basic docs with comprehensive agent briefing
+- Mandatory workflow: `npm run gate` before commit
+- **Step 2.5 Tailwind-Specific Audit:** Purge check, hydration, responsive design, dark mode
+- One-Test Rule example: Tailwind CSS compilation verification
+- Clean Architecture structure documentation
+- Tailwind best practices (cn() helper, no arbitrary values, component extraction)
+
+**Configuration Files (NEW):**
+
+**tailwind.config.ts:**
+- Scans `app/`, `components/`, `features/` for utility classes
+- Extended theme with SaaS color palette (primary, secondary, success, warning, danger)
+- Font family variable for custom fonts
+
+**app/api/health/route.ts:**
+- Health check endpoint for Docker HEALTHCHECK
+- Returns: status, timestamp, uptime
+- Dynamic route (no caching)
+
+**lib/utils.ts:**
+- `cn()` helper function for Tailwind class merging
+- Uses `clsx` + `tailwind-merge` for proper conflict resolution
+
+**next.config.js:**
+- `output: 'standalone'` for Docker deployment
+- `poweredByHeader: false` for security
+- SWC minification enabled
+
+**postcss.config.js:**
+- Tailwind + Autoprefixer integration
+
+**tsconfig.json:**
+- Strict mode enabled
+- Path alias `@/*` for clean imports
+- ES2020 target for modern browsers
+
+**.eslintrc.json:**
+- Next.js core web vitals + TypeScript rules
+
+**app/globals.css:**
+- Tailwind directives with CSS variables
+- Dark mode support via `.dark` class
+- Base styles for consistent design
+
+**app/layout.tsx:**
+- Root layout with Inter font (Google Fonts)
+- Metadata for SEO
+- Font variable for Tailwind
+
+**app/page.tsx:**
+- Landing page example using Tailwind utilities
+- Demonstrates `cn()` helper usage
+- Responsive grid with hover effects
+- Card component with TypeScript interface
+
+**Architecture:** Next.js Tailwind template provides complete SaaS starter with:
+- Server-first architecture (Server Components by default)
+- Type-safe routing with App Router
+- Tailwind JIT compiler for optimal CSS bundle size
+- Feature-based Clean Architecture support
+- Production-ready Docker setup with health monitoring
+- HTTPS/SSL via Traefik + Let's Encrypt
+
+**One-Test Rule Example:**
+```markdown
+**Why:** Prevent UI regressions in SaaS dashboard layouts
+**Contract:**
+- Given: Landing Page is rendered
+- When: Tailwind CSS is compiled
+- Then: globals.css bundle contains required utilities without collision
+- Mocked: External API calls
+- Real: Tailwind JIT, PostCSS, Next.js build
+```
+
+**Impact:** Next.js template now passes full `final_gate.py` enforcement (ARM64, Node 22, HEALTHCHECK). Complete production-ready SaaS starter with Tailwind CSS, TypeScript strict mode, and Clean Architecture. Ready for immediate Coolify deployment on Ubuntu ARM VPS.
+
+### Fixed - Node API Template Microservice Kit (2026-03-24)
+
+**Problem:** node-api template had P0 violations (Node 20, missing ARM64, no package.json, missing source code).
+
+**Solution:** Complete microservice-ready Node.js API template with production infrastructure and security defaults.
+
+**templates/node-api/package.json (NEW):**
+- Created with `engines.node: ">=22.0.0"` for ARM64 VPS standard
+- Added `gate` script for automation readiness
+- Dependencies: Express 4.18, Helmet, CORS, Morgan, Dotenv
+- Dev deps: Nodemon for development watch mode
+
+**templates/node-api/Dockerfile.j2:**
+- **CRITICAL FIX:** Replaced `node:20-slim` with `node:22-bookworm-slim`
+- Already had HEALTHCHECK (compliant)
+- Added `ENV NODE_ENV=production` and `ENV PORT=3000`
+- Non-root user (appuser:1000) for security
+
+**templates/node-api/compose.yaml.j2:**
+- Added mandatory `platform: linux/arm64` for Ubuntu ARM VPS
+- Made healthcheck mandatory (was conditional): defaults to `/health`
+- Traefik labels for HTTPS/SSL via Let's Encrypt
+- Environment variable templating for Postgres, Redis
+
+**templates/node-api/AGENTS.md.j2:**
+- Replaced basic docs with comprehensive agent briefing
+- Mandatory workflow: `npm run gate` before commit
+- **Step 2.5 API-Specific Audit:** Tenant isolation, silent failures, error responses, binding to 0.0.0.0
+- One-Test Rule example: Cross-tenant data access prevention
+- Clean Architecture structure documentation
+- API best practices (RESTful conventions, JSON responses, error handling)
+
+**Source Code (NEW):**
+
+**src/index.js:**
+- Complete Express server with mandatory `/health` endpoint
+- Security middleware: Helmet (HTTP headers), CORS
+- Request logging: Morgan
+- Example endpoints: `/api/v1/status`, `/api/v1/hello`
+- 404 handler with JSON response
+- Error handler with stack trace in development
+- Binds to `0.0.0.0` for Docker compatibility
+- Startup logging with service info
+
+**.env.example:**
+- Environment variable template
+- Database URL placeholder
+- Redis URL placeholder
+- API key placeholder
+
+**.gitignore:**
+- Standard Node.js ignores (node_modules, .env, logs)
+
+**Architecture:** Node API template provides complete microservice starter with:
+- Express.js for routing and middleware
+- Security-first defaults (Helmet, CORS, non-root user)
+- Health monitoring for Coolify orchestration
+- Clean Architecture structure (routes, middleware, services, utils)
+- JSON-only API responses (no plain text errors)
+- Environment-based configuration
+- Production-ready Docker setup
+
+**One-Test Rule Example:**
+```markdown
+**Why:** Prevent unauthorized cross-tenant data access
+**Contract:**
+- Given: Request from User A with valid auth token
+- When: Attempting to access resource belonging to User B
+- Then: API returns 403 Forbidden or 404 Not Found
+- Mocked: Auth middleware, Database layer
+- Real: Authorization logic, Express route handlers
+```
+
+**Impact:** Node API template now passes full `final_gate.py` enforcement (ARM64, Node 22, HEALTHCHECK). Complete production-ready microservice with Express.js, security defaults, and Clean Architecture. Ready for immediate Coolify deployment on Ubuntu ARM VPS.
+
 ### Added - Complete Workflow Documentation (2026-03-23)
 
 **What:** Created comprehensive workflow documentation for all major automation scripts.

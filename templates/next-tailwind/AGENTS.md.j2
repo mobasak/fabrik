@@ -1,14 +1,44 @@
 # {{ spec.name }} - Agent Briefing
 
-> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+> Instructions for AI coding agents (Windsurf Cascade, Kilo CLI, etc.)
+
+## Mandatory Workflow
+
+**Before any commit, you MUST pass the Final Gate:**
+```bash
+npm run gate
+```
+
+## Step 2.5: Internal Audit (Tailwind Specific)
+
+Before Kilo Review, verify:
+- [ ] **Purge Check:** Verify Tailwind classes are correctly detected in `tailwind.config.ts`
+- [ ] **Isolation:** Ensure UI components use the `components/` or `features/` directory
+- [ ] **Hydration:** Check for SSR vs Client Component mismatches
+- [ ] **No Inline Styles:** All styling via Tailwind utility classes (no `style={{}}`)
+- [ ] **Responsive Design:** Mobile-first approach with `sm:`, `md:`, `lg:` breakpoints
+- [ ] **Dark Mode:** If implemented, verify `dark:` variants work correctly
+
+## One-Test Rule
+
+**Why:** Prevent UI regressions in critical SaaS dashboard layouts.
+
+**Contract:**
+- **Given:** The Landing Page is rendered
+- **When:** Tailwind CSS is compiled
+- **Then:** The `globals.css` bundle must contain the required utility classes without collision
+- **Mocked:** External API calls
+- **Real:** Tailwind JIT compiler, PostCSS, Next.js build
 
 ## Build & Test
 
 ```bash
 npm install
-npm run dev
-npm run build
-npm run lint
+npm run dev      # Development server
+npm run build    # Production build
+npm run start    # Production server
+npm run lint     # ESLint check
+npm run gate     # Final gate enforcement
 ```
 
 ## Run Locally
@@ -18,33 +48,47 @@ npm run dev
 # Open http://localhost:3000
 ```
 
-## Docker
+## Docker Deployment
 
 ```bash
 docker compose up -d
 docker compose logs -f
 ```
 
-## droid exec Quick Reference
+## Project Structure (Clean Architecture)
 
-```bash
-droid exec "Analyze this Next.js project"
-droid exec --auto medium "Add new page with Tailwind styling"
-droid exec --use-spec "Add authentication"
 ```
+├── app/              # Next.js App Router
+│   ├── api/          # API routes (health, etc.)
+│   ├── (routes)/     # Page routes
+│   └── layout.tsx    # Root layout
+├── components/       # Reusable UI components
+│   ├── ui/           # Primitive components (Button, Input)
+│   └── layouts/      # Layout components (Header, Footer)
+├── features/         # Feature-based modules (if using)
+│   └── auth/         # Example: authentication feature
+│       ├── components/
+│       ├── hooks/
+│       └── types.ts
+├── lib/              # Utilities and helpers
+│   ├── utils.ts      # Tailwind merge helpers
+│   └── cn.ts         # Class name helper
+├── public/           # Static assets
+├── tailwind.config.ts  # Tailwind configuration
+└── compose.yaml      # Deployment config
+```
+
+## Tailwind Best Practices
+
+- **Use `cn()` helper** for conditional classes: `cn('base-class', condition && 'active-class')`
+- **Avoid arbitrary values** unless absolutely necessary: `w-[123px]` should be `w-32`
+- **Group related utilities**: `flex items-center justify-between`
+- **Extract repeating patterns** to components or `@apply` in CSS
 
 ## Conventions
 
-- Use Tailwind CSS for styling
-- Environment variables for config
-- TypeScript strict mode
-
-## Project Structure
-
-```
-├── app/           # Next.js App Router pages
-├── components/    # React components
-├── lib/           # Utilities
-├── Dockerfile     # Production build
-└── compose.yaml   # Deployment config
-```
+- TypeScript strict mode enabled
+- Environment variables for all config
+- Tailwind CSS for all styling (no CSS modules)
+- Server Components by default, Client Components only when needed (`'use client'`)
+- API routes for backend logic (no server actions in UI components)
