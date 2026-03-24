@@ -331,7 +331,7 @@ ssh vps "cd /opt/SERVICE && docker compose up -d"
 ### dns-manager
 - **DB:** None (stateless)
 - **Volumes:** None
-- **Env:** NAMECHEAP_API_KEY, NAMECHEAP_API_USER
+- **Env:** DNS_MANAGER_TOKEN (internal: NAMECHEAP_API_KEY, NAMECHEAP_API_USER)
 
 ### translator
 - **DB:** postgres-main

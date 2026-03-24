@@ -68,7 +68,7 @@ python scripts/container_images.py pull nginx:alpine
 | Uptime Kuma | Official | `louislam/uptime-kuma` | Uptime monitoring |
 | Coolify | Official | Self-managed | Deployment control plane |
 | PostgreSQL | Official | `postgres:16` | Shared database |
-| Redis | Official | `redis:7-alpine` | Caching |
+| Redis | Official | `redis:7-bookworm` | Caching |
 | Traefik | Official | `traefik:v3` | Reverse proxy (via Coolify) |
 
 ### External Services
@@ -85,7 +85,7 @@ python scripts/container_images.py pull nginx:alpine
 | fabrik-proxy | `/opt/proxy` | Python/FastAPI | 8000 | Proxy management (Webshare.io) |
 | fabrik-captcha | `/opt/captcha` | Python/FastAPI | 8000 | Captcha solving (Anti-Captcha) |
 | fabrik-translator | `/opt/translator` | Python/FastAPI | 8000 | Translation (DeepL, Azure) |
-| fabrik-dns-manager | `/opt/namecheap` | Python/FastAPI | 8001 | DNS management (Namecheap API) |
+| fabrik-dns-manager | `/opt/dns-manager` | Python/FastAPI | 8001 | DNS management (Namecheap, Cloudflare) |
 | fabrik-emailgateway | `/opt/emailgateway` | Node.js/Fastify | 3000 | Email sending (Resend, SES) |
 | fabrik-file-api | `/opt/file-api` | Python/FastAPI | 8000 | File operations API |
 | fabrik-file-worker | `/opt/file-worker` | Python | - | Background file processing |
@@ -706,7 +706,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 | Image | Purpose | Impact |
 |-------|---------|--------|
 | `browserless/chrome` ✅ | Headless browser farm | Scale Playwright automation |
-| `redis:7-alpine` ✅ | Job queue | Replace DB polling with proper queue |
+| `redis:7-bookworm` ✅ | Job queue | Replace DB polling with proper queue |
 
 ---
 

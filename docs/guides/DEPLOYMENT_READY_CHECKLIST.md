@@ -710,4 +710,4 @@ docker stop test && docker rm test
 
 - Project Registry: `/opt/fabrik/docs/reference/project-registry.md`
 - Stack Reference: `/opt/fabrik/docs/reference/stack.md`
-- Windsurfrules: `/opt/fabrik/windsurfrules` (compliance trigger)
+- Windsurfrules: `/opt/fabrik/.windsurfrules` (compliance trigger)

@@ -12,7 +12,7 @@
 |-----------|-------|
 | **Backup Tool** | Duplicati |
 | **Web UI** | https://backup.vps1.ocoron.com |
-| **Password** | `fabrik2025` |
+| **Password** | See `DUPLICATI_PASSWORD` in `.env` |
 | **Storage Backend** | Backblaze B2 |
 | **Bucket** | `vps1-ocoron-backups` |
 | **Schedule** | Daily (configurable in UI) |
@@ -22,8 +22,8 @@
 
 | Field | Value |
 |-------|-------|
-| Account ID | `0044e7ca36a086b0000000001` |
-| Application Key | `K004hcjQVRBA8hLY0uZzzKEYg4crlq8` |
+| Account ID | `<stored in password manager>` |
+| Application Key | `<stored in password manager>` |
 | Key Name | `vps1-b2-app-key` |
 
 ---
@@ -48,7 +48,7 @@
 | captcha | `/opt/captcha/` | `compose.yaml`, `.env` |
 | emailgateway | `/opt/emailgateway/` | `compose.yaml`, `.env` |
 | translator | `/opt/translator/` | `compose.yaml`, `.env` |
-| namecheap | `/opt/namecheap/` | `compose.yaml`, `.env` |
+| dns-manager | `/opt/dns-manager/` | `compose.yaml`, `.env` |
 | proxy | `/opt/proxy/` | `compose.yaml`, `.env` |
 | redis | `/opt/redis/` | `compose.yaml` |
 | netdata | `/opt/netdata/` | `compose.yaml` |
@@ -171,8 +171,8 @@ curl https://rclone.org/install.sh | sudo bash
 
 # Configure B2
 sudo rclone config create b2 b2 \
-  account='0044e7ca36a086b0000000001' \
-  key='K004hcjQVRBA8hLY0uZzzKEYg4crlq8'
+  account='<B2_ACCOUNT_ID from password manager>' \
+  key='<B2_APPLICATION_KEY from password manager>'
 
 # Verify access
 sudo rclone ls b2:vps1-ocoron-backups/ | head -5
@@ -200,7 +200,7 @@ sudo rclone copy b2:vps1-ocoron-backups/LATEST/ /var/restore/ --progress
 
 ```bash
 # Create /opt structure
-sudo mkdir -p /opt/{traefik,captcha,emailgateway,translator,namecheap,proxy,redis,netdata,duplicati}
+sudo mkdir -p /opt/{traefik,captcha,emailgateway,translator,dns-manager,proxy,redis,netdata,duplicati}
 
 # Restore from backup (adjust paths based on backup structure)
 # If using Duplicati backup, install Duplicati first and use its restore
@@ -223,13 +223,13 @@ docker volume create proxy_postgres_data
 docker run --rm \
   -v coolify-db:/data \
   -v /var/restore/docker-volumes/coolify-db/_data:/backup:ro \
-  alpine cp -a /backup/. /data/
+  debian:bookworm-slim cp -a /backup/. /data/
 
 # Restore proxy_postgres_data
 docker run --rm \
   -v proxy_postgres_data:/data \
   -v /var/restore/docker-volumes/proxy_postgres_data/_data:/backup:ro \
-  alpine cp -a /backup/. /data/
+  debian:bookworm-slim cp -a /backup/. /data/
 ```
 
 ### Step 9: Start Services (10 min)
@@ -245,7 +245,7 @@ cd /opt/redis && docker compose up -d
 cd /opt/proxy && docker compose up -d
 cd /opt/captcha && docker compose up -d
 cd /opt/translator && docker compose up -d
-cd /opt/namecheap && docker compose up -d
+cd /opt/dns-manager && docker compose up -d
 cd /opt/emailgateway && docker compose up -d
 
 # Start monitoring
@@ -257,7 +257,7 @@ cd /opt/duplicati && docker compose up -d
 
 ```bash
 # Update DNS A records to point to new VPS IP
-# Use namecheap service or Namecheap web console
+# Use dns-manager service or Namecheap web console
 
 # Records to update:
 # - vps1.ocoron.com → NEW_IP
@@ -333,7 +333,7 @@ curl -s https://emailgateway.vps1.ocoron.com/health
 |---------|---------|
 | GreenCloud (VPS) | Support ticket |
 | Backblaze B2 | support@backblaze.com |
-| Namecheap (DNS) | Support ticket |
+| Namecheap (Domain Registrar) | Support ticket |
 
 ---
 

@@ -102,7 +102,7 @@ This saves weeks of development time by deploying existing solutions instead of 
 | Image | Purpose | Impact |
 |-------|---------|--------|
 | `browserless/chrome` ✅ | Headless browser farm | Scale Playwright automation |
-| `redis:7-alpine` ✅ | Job queue | Replace DB polling with proper queue |
+| `redis:7-bookworm` ✅ | Job queue | Replace DB polling with proper queue |
 
 ---
 

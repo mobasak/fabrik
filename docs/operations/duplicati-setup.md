@@ -1,7 +1,7 @@
 # Duplicati Backup Setup Guide
 
 **URL:** https://backup.vps1.ocoron.com
-**Password:** `fabrik2025`
+**Password:** See `DUPLICATI_PASSWORD` in `.env`
 **Status:** ✅ Fully configured with postgres-main included (2025-12-23)
 **Restart Policy:** `always` (survives reboots)
 
@@ -30,7 +30,7 @@
 | **Name** | VPS Complete Backup |
 | **ID** | 1 |
 | **Destination** | B2: `vps1-ocoron-backups/duplicati/` |
-| **Encryption** | AES-256 (passphrase: `fabrik2025backup`) |
+| **Encryption** | AES-256 (passphrase: see `DUPLICATI_ENCRYPTION_KEY` in `.env`) |
 | **Retention** | 7 versions |
 | **Schedule** | Daily 02:00 |
 | **Source Size** | ~16 GB |
@@ -67,7 +67,7 @@ docker run -d \
   --name duplicati \
   --restart unless-stopped \
   --network coolify \
-  -e SETTINGS_ENCRYPTION_KEY=fabrik2025duplicati \
+  -e SETTINGS_ENCRYPTION_KEY=$DUPLICATI_SETTINGS_KEY \
   -v duplicati_duplicati-config:/config \
   -v /var/backups:/backups \
   -v /opt:/source/opt:ro \
@@ -89,8 +89,8 @@ docker run -d \
 
 Fresh container created with:
 - Restart policy: `always`
-- Password: `fabrik2025`
-- Settings encryption key: `fabrik2025duplicati`
+- Password: See `DUPLICATI_PASSWORD` in `.env`
+- Settings encryption key: See `DUPLICATI_SETTINGS_KEY` in `.env`
 - All three source mounts configured
 - Backup job imported via ServerUtil CLI
 
@@ -101,7 +101,7 @@ docker run -d \
   --network coolify \
   -e PUID=0 \
   -e PGID=0 \
-  -e SETTINGS_ENCRYPTION_KEY=fabrik2025duplicati \
+  -e SETTINGS_ENCRYPTION_KEY=$DUPLICATI_SETTINGS_KEY \
   -v duplicati_duplicati-config:/config \
   -v /var/backups:/backups \
   -v /opt:/source/opt:ro \
@@ -154,7 +154,7 @@ Duplicati can be managed via `duplicati-server-util` inside the container:
 
 ```bash
 # Login (saves persistent token)
-ssh vps "sudo docker exec duplicati /app/duplicati/duplicati-server-util login --password=fabrik2025 --settings-encryption-key=fabrik2025duplicati"
+ssh vps "sudo docker exec duplicati /app/duplicati/duplicati-server-util login --password=\$DUPLICATI_PASSWORD --settings-encryption-key=\$DUPLICATI_SETTINGS_KEY"
 
 # List backups
 ssh vps "sudo docker exec duplicati /app/duplicati/duplicati-server-util list-backups"
@@ -174,7 +174,7 @@ ssh vps "sudo docker exec duplicati /app/duplicati/duplicati-server-util import 
 ## Step 1: Login (Web UI)
 
 1. Open https://backup.vps1.ocoron.com
-2. Enter password: `fabrik2025`
+2. Enter password: See `DUPLICATI_PASSWORD` in `.env`
 3. Click "OK"
 
 ---
@@ -194,7 +194,7 @@ ssh vps "sudo docker exec duplicati /app/duplicati/duplicati-server-util import 
 | Name | `VPS Daily Backup` |
 | Description | `Full VPS backup to B2 - configs, volumes, databases` |
 | Encryption | AES-256 (recommended) |
-| Passphrase | `fabrik2025backup` (SAVE THIS - needed for restore!) |
+| Passphrase | See `DUPLICATI_ENCRYPTION_KEY` in `.env` (SAVE THIS - needed for restore!) |
 
 Click **"Next"**
 
@@ -229,7 +229,7 @@ Click **"Next"**
 /source/opt/captcha/
 /source/opt/emailgateway/
 /source/opt/translator/
-/source/opt/namecheap/
+/source/opt/dns-manager/
 /source/opt/proxy/
 /source/opt/redis/
 /source/opt/netdata/
@@ -376,8 +376,8 @@ See: [disaster-recovery.md](disaster-recovery.md)
 | Item | Value |
 |------|-------|
 | Web UI URL | https://backup.vps1.ocoron.com |
-| Web UI Password | `fabrik2025` |
-| Encryption Passphrase | `fabrik2025backup` |
+| Web UI Password | See `DUPLICATI_PASSWORD` in `.env` |
+| Encryption Passphrase | See `DUPLICATI_ENCRYPTION_KEY` in `.env` |
 | B2 Account ID | `0044e7ca36a086b0000000001` |
 | B2 Application Key | `K004hcjQVRBA8hLY0uZzzKEYg4crlq8` |
 | B2 Bucket | `vps1-ocoron-backups` |

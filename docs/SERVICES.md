@@ -319,17 +319,17 @@ import httpx
 DNS_MANAGER_URL = os.getenv("DNS_MANAGER_URL", "http://localhost:8001")
 
 # List domains
-response = httpx.get(f"{DNS_MANAGER_URL}/api/namecheap/domains")
+response = httpx.get(f"{DNS_MANAGER_URL}/api/dns/domains")
 domains = response.json()
 
 # Add subdomain (A record)
 response = httpx.post(
-    f"{DNS_MANAGER_URL}/api/namecheap/dns/ocoron.com/subdomain",
+    f"{DNS_MANAGER_URL}/api/dns/ocoron.com/subdomain",
     json={"subdomain": "myapp", "ip": "172.93.160.197"}
 )
 
 # Get all DNS records for a domain
-response = httpx.get(f"{DNS_MANAGER_URL}/api/namecheap/dns/ocoron.com")
+response = httpx.get(f"{DNS_MANAGER_URL}/api/dns/ocoron.com")
 records = response.json()
 ```
 
@@ -337,10 +337,10 @@ records = response.json()
 
 | Operation | Method | Endpoint |
 |-----------|--------|----------|
-| List domains | GET | `/api/namecheap/domains` |
-| Get DNS records | GET | `/api/namecheap/dns/{domain}` |
-| Add subdomain | POST | `/api/namecheap/dns/{domain}/subdomain` |
-| Add record | POST | `/api/namecheap/dns/{domain}/records` |
+| List domains | GET | `/api/dns/domains` |
+| Get DNS records | GET | `/api/dns/{domain}` |
+| Add subdomain | POST | `/api/dns/{domain}/subdomain` |
+| Add record | POST | `/api/dns/{domain}/records` |
 
 ### Environment Setup
 

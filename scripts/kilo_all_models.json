@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-24T00:28:04.702564",
-  "total_models": 329,
+  "timestamp": "2026-03-25T00:52:45.895687",
+  "total_models": 326,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -522,11 +522,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "meta-llama/llama-3.1-405b": {
-      "id": "meta-llama/llama-3.1-405b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "meta-llama/llama-3.1-70b-instruct": {
       "id": "meta-llama/llama-3.1-70b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -739,11 +734,6 @@
     },
     "mistralai/mixtral-8x7b-instruct": {
       "id": "mistralai/mixtral-8x7b-instruct",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "mistralai/pixtral-12b": {
-      "id": "mistralai/pixtral-12b",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1199,11 +1189,6 @@
     },
     "qwen/qwen-2.5-coder-32b-instruct": {
       "id": "qwen/qwen-2.5-coder-32b-instruct",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "qwen/qwen-2.5-vl-7b-instruct": {
-      "id": "qwen/qwen-2.5-vl-7b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

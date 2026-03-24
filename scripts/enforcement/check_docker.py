@@ -17,8 +17,8 @@ APPROVED_BASES = [
     "ubuntu:24.04",
 ]
 
-# Pattern to detect Alpine in compose image: directives
-COMPOSE_ALPINE_PATTERN = re.compile(r"image:\s*['\"]?alpine", re.IGNORECASE)
+# Pattern to detect Alpine in compose image: directives (including -alpine tags)
+COMPOSE_ALPINE_PATTERN = re.compile(r"image:\s*['\"]?(?:alpine|[^'\"\s]*-alpine)", re.IGNORECASE)
 
 
 def check_compose_arm64(file_path: Path) -> list:

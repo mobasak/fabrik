@@ -54,7 +54,7 @@ python -m fabrik.config --verify
 4. Copy token (shown once)
 5. Server/Project UUIDs auto-detected on first run
 
-### DNS - Namecheap Service
+### DNS Manager Service
 
 **Why this approach:** Fabrik uses a deployed microservice instead of direct API calls.
 
@@ -64,7 +64,7 @@ python -m fabrik.config --verify
 - No need for individual API keys per project
 
 **Local development only:**
-If running namecheap service locally, you need direct Namecheap API credentials (see `.env.example`).
+If running DNS Manager locally, you need direct provider API credentials (see `.env.example`).
 
 ### Backblaze B2
 
@@ -104,10 +104,10 @@ If running namecheap service locally, you need direct Namecheap API credentials 
 
 ### DNS Provider Choice
 
-**Development:** Use namecheap service (no local credentials needed)
+**Development:** Use DNS Manager service (no local credentials needed)
 
 **Production options:**
-1. **Namecheap service** (current) - Centralized, simple
+1. **DNS Manager service** (current) - Centralized, multi-provider
 2. **Cloudflare** (Phase 4+) - Better API, faster propagation, free tier
 
 **Migration path:** Set `CLOUDFLARE_*` vars, Fabrik auto-switches.
@@ -216,7 +216,7 @@ psql $DATABASE_URL
 docker exec -it myapp psql $DATABASE_URL
 ```
 
-### Namecheap service 404
+### DNS Manager service 404
 
 **Cause:** Service not deployed or wrong URL.
 
@@ -225,10 +225,10 @@ docker exec -it myapp psql $DATABASE_URL
 # Check service health
 curl https://dns.vps1.ocoron.com/health
 
-# Fallback: Use direct API
-NAMECHEAP_API_USER=youruser
-NAMECHEAP_API_KEY=yourkey
-NAMECHEAP_CLIENT_IP=your-ip
+# Fallback: Direct Namecheap API (used internally by dns-manager)
+# These are configured in dns-manager's .env, not in application code
+# NAMECHEAP_API_USER=youruser
+# NAMECHEAP_API_KEY=yourkey
 ```
 
 ---
@@ -272,7 +272,7 @@ python -c "import secrets, string; print(''.join(secrets.choice(string.ascii_let
 
 ### Changing DNS Provider
 
-**Namecheap → Cloudflare:**
+**Switch to Cloudflare:**
 ```bash
 # 1. Get Cloudflare credentials
 # 2. Add to .env:
@@ -282,7 +282,7 @@ CLOUDFLARE_ZONE_ID=xxx
 # 3. Fabrik auto-detects and switches
 ```
 
-**Rollback:** Remove `CLOUDFLARE_*` vars, falls back to Namecheap.
+**Rollback:** Remove `CLOUDFLARE_*` vars, falls back to default provider.
 
 ---
 

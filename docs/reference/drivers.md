@@ -63,7 +63,7 @@ CLOUDFLARE_ZONE_ID_OCORON=b3494f947c71683f94b6afe1331a1ba6
 
 ## DNS Client
 
-Wraps the already-deployed namecheap service at VPS. Does NOT call Namecheap API directly.
+Wraps the DNS Manager service deployed at VPS. Supports multiple providers (Namecheap, Cloudflare).
 
 ### Usage
 

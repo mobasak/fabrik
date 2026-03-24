@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 20 (2026-03-25)
+
+**Security (Credential Exposure):**
+- **`docs/operations/disaster-recovery.md`:** Redacted real B2 Account ID and Application Key from 2 locations (lines 25-26, 174-175)
+
+**P0 Critical (No-Alpine Violation):**
+- **`docs/operations/disaster-recovery.md`:** `alpine` → `debian:bookworm-slim` in Docker volume restore commands (lines 226, 232)
+
+**Polish:**
+- **`docs/operations/disaster-recovery.md`:** "Namecheap (DNS)" → "Namecheap (Domain Registrar)" in Emergency Contacts
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 19 (2026-03-25)
+
+**P0 Critical (Recovery Scripts):**
+- **`docs/operations/disaster-recovery.md`:** Fixed 3 `namecheap` refs in recovery scripts (mkdir, cd, comment) → `dns-manager`
+- **`docs/SERVICES.md`:** `/api/namecheap/` → `/api/dns/` in 7 API path references
+- **`docs/CONFIGURATION.md`:** Clarified NAMECHEAP_API_USER/KEY as internal to dns-manager
+- **`docs/reference/stack.md`:** "Namecheap API" → "DNS Manager (via dns-manager)" in External APIs table
+
+**Workflow Gaps:**
+- **`docs/operations/coolify-migration.md`:** Updated dns-manager env vars section
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 18 (2026-03-25)
+
+**P0 Security (Hardcoded Credentials Removed):**
+- **`docs/operations/disaster-recovery.md`:** `fabrik2025` password → env var reference
+- **`docs/operations/duplicati-setup.md`:** Removed 8 hardcoded credentials (`fabrik2025`, `fabrik2025backup`, `fabrik2025duplicati`) → env var references
+
+**P0 Path Fixes:**
+- **`docs/operations/disaster-recovery.md`:** `/opt/namecheap/` → `/opt/dns-manager/` in service table
+- **`docs/operations/duplicati-setup.md`:** `/source/opt/namecheap/` → `/source/opt/dns-manager/` in backup paths
+- **`docs/guides/DEPLOYMENT_READY_CHECKLIST.md`:** `/opt/fabrik/windsurfrules` → `/opt/fabrik/.windsurfrules`
+
+**Partial Fixes Completed:**
+- **`docs/reference/prebuilt-app-containers.md`:** `redis:7-alpine` → `redis:7-bookworm` (Phase 9 table, line 709)
+- **`docs/development/plans/previously-planned-fabrik-phases/phase9.md`:** `redis:7-alpine` → `redis:7-bookworm`
+
+### Fixed - Fabrik Ecosystem Integrity Audit Pass 17 (2026-03-25)
+
+**Documentation Cleanup (7 items):**
+- **`docs/reference/drivers.md`:** "namecheap service" → "DNS Manager service"
+- **`docs/reference/stack.md`:** `/opt/namecheap` → `/opt/dns-manager`
+- **`docs/reference/prebuilt-app-containers.md`:** `/opt/namecheap` → `/opt/dns-manager`, `redis:7-alpine` → `redis:7-bookworm`
+- **`docs/CONFIGURATION.md`:** Updated 8 Namecheap references to DNS Manager
+- **`docs/reference/kilo/kilo-complete-reference.md`:** "droid exec" → "deprecated" in cost comparisons
+
+**Enforcement Hardening:**
+- **`scripts/enforcement/check_docker.py`:** Alpine pattern now catches `-alpine` tagged images (e.g., `redis:7-alpine`)
+
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 16 (2026-03-25)
 
 **P0 Contract Fix:**

@@ -887,14 +887,14 @@ Total Cost = (Input Tokens × Input Rate) + (Output Tokens × Output Rate)
 
 Cache reads are typically 50% of input cost.
 
-### Cost Comparison: Kilo vs Factory (droid exec)
+### Cost Comparison: Kilo vs Factory (Deprecated)
 
 | Provider | Pricing Model | Cost per 1M Tokens |
 |----------|---------------|-------------------|
-| **Factory (droid exec)** | Subscription | $1.00 (flat rate) |
+| **Factory (deprecated)** | Subscription | $1.00 (flat rate) |
 | **Kilo** | Pay-per-use | Varies by model |
 
-**Factory:** $200 for 200M tokens = **$1.00 per 1M tokens**
+**Factory (deprecated):** $200 for 200M tokens = **$1.00 per 1M tokens**
 
 ### Per-Operation Cost Examples
 
@@ -902,7 +902,7 @@ Based on CV extraction test (same prompt, same model family):
 
 | Provider | Model | Tokens Used | Cost |
 |----------|-------|-------------|------|
-| Droid Exec | gemini-3-flash-preview | 18,862 | $0.0189 |
+| Factory (deprecated) | gemini-3-flash-preview | 18,862 | $0.0189 |
 | Kilo (high) | kilo/google/gemini-3-flash-preview | 8,802 | $0.0157 |
 
 **Kilo advantage:** 17% cheaper, 53% fewer tokens, better quality
@@ -1096,7 +1096,7 @@ try:
     result = await _run_kilo(...)
 except DroidExecTimeout as e:
     logger.error(f"Kilo timed out: {e}")
-    # Fallback to droid exec
+    # Handle timeout
 except DroidExecError as e:
     logger.error(f"Kilo failed: {e}")
     # Handle error
