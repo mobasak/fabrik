@@ -129,7 +129,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ├── apps/                            # Deployable application containers
 │   ├── example-api/                 # Example FastAPI service (Dockerfile, compose.yaml)
 │   └── postgres-main/               # Shared PostgreSQL instance (compose.yaml)
-├── config/                          # Runtime configuration files (Fabrik CLI)
+├── config/                          # Runtime configuration files
 │   └── platform.yaml.example        # Platform config template
 ├── configs/                         # Runtime service configs (deployed services)
 │   ├── loki/                        # Loki log aggregation config
@@ -147,7 +147,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── docs_updater.py              # Auto-update docs structure
 │   ├── kilo_code_review.py          # Kilo-based code review runner
 │   ├── enforcement/                 # Convention check scripts (check_*.py)
-│   ├── droid/                       # Batch refactoring scripts
 │   └── utils/                       # Shared script utilities
 ├── specs/                           # YAML specs and planning documents
 │   └── infrastructure/              # Infrastructure service YAML specs (Phase 9)
@@ -170,11 +169,8 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── prompts/                     # Prompt templates for AI commands
 │   └── docs/                        # Document templates
 ├── tests/                           # Test suite
-├── .factory/                        # Factory AI workspace config
-│   ├── hooks/                       # Lifecycle hooks
-│   └── skills/                      # Auto-invoked skills
 ├── .github/                         # GitHub Actions CI/CD
-│   └── workflows/                   # ci.yml, droid-review.yml, etc.
+│   └── workflows/                   # ci.yml, docs-check.yml
 └── .windsurf/                       # Windsurf IDE config
     ├── hooks.json
     ├── rules/                       # 00-critical, 10-python, etc.
@@ -367,7 +363,6 @@ docs/
 │           ├── phase9.md
 │           └── previously_planned_ideas.md
 ├── examples                        # Example code and configuration
-│   └── droid_runner_integration_example.py
 ├── guides                          # Step-by-step guides and tutorials
 │   ├── DEPLOYMENT_READY_CHECKLIST.md # Make projects deployment-ready
 │   ├── DEVELOPMENT_WORKFLOW.md     # How Traycer fits into Fabrik's 9-step workflow
@@ -400,11 +395,8 @@ docs/
 │   ├── ai.md
 │   ├── architecture.md             # System architecture overview
 │   ├── auto-review.md              # Automatic code review system
-│   ├── custom-droids.md
 │   ├── docs-updater.md             # Automatic documentation updater
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
-│   ├── droid-exec-integration.md
-│   ├── droid-exec-limits.md
 │   ├── enforcement-system.md       # Convention enforcement (check scripts, rules)
 │   ├── exampleconsultancysitemap.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
@@ -543,29 +535,16 @@ docs/
 | [site-specification.md](docs/reference/wordpress/site-specification.md) | Site spec YAML format |
 | [plugin-evaluation.md](docs/reference/wordpress/plugin-evaluation.md) | WordPress plugin evaluation criteria |
 
-### Droid Automation
+### Quality Gates & Code Review
 
 | Document | Purpose |
 |----------|--------|
 | [enforcement-system.md](docs/reference/enforcement-system.md) | Convention enforcement — check scripts, rules, pre-commit |
-| [AGENTS.md](AGENTS.md) | Agent briefing for AI coding assistants |
-| [factory-settings.json](templates/scaffold/factory-settings.json) | Factory settings template |
-| [factory-hooks.json](templates/scaffold/factory-hooks.json) | Hooks configuration template |
-| [factory-mcp.json](templates/scaffold/factory-mcp.json) | MCP servers template |
+| [AGENTS.md](AGENTS.md) | Agent briefing for AI coding assistants (Kilo CLI, Traycer) |
 | [auto-review.md](docs/reference/auto-review.md) | Automatic code review system |
-| [mcp-config.md](docs/reference/mcp-config.md) | MCP server configuration reference |
-| [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo-based code review runner |
-| [acknowledge_reviews.py](scripts/acknowledge_reviews.py) | Review acknowledgement script |
-| [review_processor.py](scripts/review_processor.py) | Review result processor |
-
-### Kilo Code Review
-
-| Document | Purpose |
-|----------|--------|
-| [kilo-agents.md](docs/reference/kilo-agents.md) | Kilo agent configuration and usage |
-| [kilo-code-review.md](docs/reference/kilo-code-review.md) | Kilo code review workflow |
-| [kilo-complete-reference.md](docs/reference/kilo-complete-reference.md) | Complete Kilo reference |
-| [kilo-files.md](docs/reference/kilo-files.md) | Kilo file handling reference |
+| [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |
+| [kilo_docs_enforcer.py](scripts/kilo_docs_enforcer.py) | AI documentation enforcement |
+| [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (27 enforcement scripts) |
 
 ### Traycer Documentation
 
@@ -587,7 +566,7 @@ docs/
 - `config/models.yaml` → `config/.archive/2026-02-27-droid-exec-cleanup/`
 
 **Scripts:** `scripts/docs_updater.py`, `scripts/container_images.py`, `scripts/enforcement/validate_conventions.py`
-**Workflows:** `.github/workflows/` (security-scanner, daily-maintenance)
+**Workflows:** `.github/workflows/` (ci.yml, docs-check.yml)
 
 ### Project Context
 
