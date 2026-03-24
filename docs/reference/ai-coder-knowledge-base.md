@@ -187,7 +187,7 @@ async def health():
 **Severity:** ERROR
 
 **Triggers (requires CHANGELOG.md update):**
-- Changes in `src/`, `scripts/`, `templates/`, `.factory/`, `.github/`
+- Changes in `src/`, `scripts/`, `templates/`, `.windsurf/`, `.github/`
 - New files created
 - Changes exceeding 10 lines
 
