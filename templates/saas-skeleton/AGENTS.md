@@ -1,6 +1,6 @@
 # SaaS Skeleton - Agent Briefing
 
-> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+> Instructions for AI coding agents (Windsurf Cascade, Kilo CLI, Traycer)
 
 ## Build & Test
 
@@ -26,32 +26,20 @@ docker compose up -d
 docker compose logs -f
 ```
 
-## droid exec Quick Reference
+## Kilo CLI Quick Reference
 
 ```bash
 # Read-only analysis
-droid exec "Analyze this Next.js project"
+kilo run "Analyze this Next.js project"
 
 # Development
-droid exec --auto medium "Add new API endpoint for user profile"
+kilo run "Add new API endpoint for user profile"
 
-# Full autonomy
-droid exec --auto high "Fix TypeScript errors and run build"
-
-# Planning:
-# - Traycer-managed tasks: planning happens in Traycer Phases; do NOT use --use-spec to create plans.
-# - Non-Traycer tasks only (fallback):
-droid exec --use-spec "Add Stripe subscription integration"
+# Planning (Traycer — preferred):
+# Traycer-managed tasks: planning happens in Traycer Phases
+# /yolo smart "Fix TypeScript errors and run build"
+# /yolo phased "Add Stripe subscription integration"
 ```
-
-### Key Flags
-
-| Flag | Purpose |
-|------|---------|
-| `--auto low/medium/high` | Autonomy level |
-| `--use-spec` | Plan before code |
-| `-m <model>` | Model selection |
-| `-o stream-json` | Real-time output |
 
 ## Project Structure
 
@@ -64,7 +52,7 @@ droid exec --use-spec "Add Stripe subscription integration"
 ├── components/
 │   ├── shell/           # AppShell
 │   ├── common/          # Reusable UI
-│   └── chat/            # ChatUI for droid exec
+│   └── chat/            # ChatUI
 ├── lib/                 # Utilities and config
 ├── Dockerfile           # Production build
 └── compose.yaml         # Coolify deployment

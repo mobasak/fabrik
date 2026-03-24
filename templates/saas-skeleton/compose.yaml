@@ -11,8 +11,6 @@ services:
       - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-SaaS App}
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - DROID_MODEL_ID=${DROID_MODEL_ID:-gemini-3-flash-preview}
-      - DROID_REASONING=${DROID_REASONING:-low}
     ports:
       - "3000:3000"
     healthcheck:

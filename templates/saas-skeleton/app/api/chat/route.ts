@@ -14,18 +14,11 @@ export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const model = process.env.DROID_MODEL_ID || "gemini-3-flash-preview";
-      const reasoning = process.env.DROID_REASONING;
-
-      const args = ["exec", "--output-format", "debug", "-m", model];
-      if (reasoning) args.push("-r", reasoning);
-
       const fullPrompt = systemPrompt
         ? `${systemPrompt}\n\nUser: ${message}`
         : message;
-      args.push(fullPrompt);
 
-      const proc = spawn("droid", args, {
+      const proc = spawn("kilo", ["run", fullPrompt], {
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -42,7 +35,7 @@ export async function POST(request: NextRequest) {
       });
 
       proc.stderr.on("data", (chunk: Buffer) => {
-        console.error("droid stderr:", chunk.toString());
+        console.error("kilo stderr:", chunk.toString());
       });
 
       proc.on("close", (code) => {

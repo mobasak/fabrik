@@ -1,6 +1,6 @@
 # {{ name }} Docs - Agent Briefing
 
-> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+> Instructions for AI coding agents (Windsurf Cascade, Kilo CLI, Traycer)
 
 ## Mandatory Workflow
 
@@ -33,19 +33,17 @@ docker compose up -d
 docker compose logs -f
 ```
 
-## droid exec Quick Reference
+## Kilo CLI Quick Reference
 
 ```bash
 # Read-only analysis
-droid exec "Analyze this Docusaurus site"
+kilo run "Analyze this Docusaurus site"
 
 # Development
-droid exec --auto medium "Add new documentation page"
+kilo run "Add new documentation page"
 
-# Planning:
-# - Traycer-managed tasks: planning happens in Traycer Phases; do NOT use --use-spec.
-# - Non-Traycer tasks only (fallback):
-droid exec --use-spec "Restructure documentation sections"
+# Planning (Traycer — preferred):
+# /yolo smart "Restructure documentation sections"
 ```
 
 ## Documentation Patterns

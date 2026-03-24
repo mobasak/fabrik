@@ -1,6 +1,6 @@
 # WordPress - Agent Briefing
 
-> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+> Instructions for AI coding agents (Windsurf Cascade, Kilo CLI, Traycer)
 
 ## Run Locally
 
@@ -10,15 +10,12 @@ docker compose logs -f
 # Open http://localhost:8080
 ```
 
-## droid exec Quick Reference
+## Kilo CLI Quick Reference
 
 ```bash
-droid exec "Analyze this WordPress setup"
-droid exec --auto medium "Add custom post type"
-# Planning:
-# - Traycer-managed tasks: planning happens in Traycer Phases; do NOT use --use-spec.
-# - Non-Traycer tasks only (fallback):
-droid exec --use-spec "Create child theme"
+kilo run "Analyze this WordPress setup"
+kilo run "Add custom post type"
+# Traycer: /yolo smart "Create child theme"
 ```
 
 ## Docker Commands

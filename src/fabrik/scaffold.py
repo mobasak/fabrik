@@ -225,24 +225,6 @@ def _validate_project_name(name: str) -> None:
         raise ValueError(f"Project name too long: {len(name)} chars (max 50)")
 
 
-def _link_agents_md(project_dir: Path) -> None:
-    """Symlink AGENTS.md to master, fallback to copy if master unavailable."""
-    link_path = project_dir / "AGENTS.md"
-    if FABRIK_AGENTS_MD.exists():
-        try:
-            link_path.symlink_to(FABRIK_AGENTS_MD)
-        except OSError:
-            # Symlink failed, copy instead
-            shutil.copy(FABRIK_AGENTS_MD, link_path)
-    else:
-        # Master not found, copy template
-        template = TEMPLATE_DIR / "AGENTS.md"
-        if template.exists():
-            shutil.copy(template, link_path)
-        else:
-            link_path.write_text(f"# AGENTS.md\n\nSee {FABRIK_AGENTS_MD} for full briefing.\n")
-
-
 def _install_pre_commit(project_dir: Path) -> bool:
     """Copy pre-commit config and install hooks. Returns True if successful."""
     # Copy config file
@@ -333,13 +315,13 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
     if fabrik_enforcement.exists():
         shutil.copytree(fabrik_enforcement, project_enforcement, dirs_exist_ok=True)
 
-    # Symlink windsurfrules (legacy) and .windsurf/rules/ (authoritative)
+    # Copy .windsurfrules and .windsurf/rules/ (authoritative)
     # Fail fast if fabrik targets are missing - environment is broken
-    fabrik_windsurfrules = FABRIK_ROOT / "windsurfrules"
+    fabrik_windsurfrules = FABRIK_ROOT / ".windsurfrules"
     fabrik_windsurf_rules = FABRIK_ROOT / ".windsurf" / "rules"
 
     if not fabrik_windsurfrules.exists():
-        raise FileNotFoundError(f"Missing fabrik windsurfrules: {fabrik_windsurfrules}")
+        raise FileNotFoundError(f"Missing fabrik .windsurfrules: {fabrik_windsurfrules}")
     if not fabrik_windsurf_rules.exists():
         raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {fabrik_windsurf_rules}")
 
@@ -614,6 +596,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
 
 
 _SAAS_SKIP_FILES = {"AGENTS.md", "pyproject.toml", "requirements.txt"}
+_SAAS_SKIP_DIRS = {"node_modules", ".next", ".turbo", "dist", "build", "__pycache__"}
 
 
 def _scaffold_saas_skeleton(
@@ -625,6 +608,10 @@ def _scaffold_saas_skeleton(
             continue
 
         rel = src.relative_to(SAAS_SKELETON_DIR)
+
+        # Skip build artifact directories
+        if any(part in _SAAS_SKIP_DIRS for part in rel.parts):
+            continue
 
         # Skip excluded filenames
         if src.name in _SAAS_SKIP_FILES:
@@ -1397,14 +1384,14 @@ def fix_project(
 
         added.append(f)
 
-    # Ensure symlinks exist
-    windsurfrules_target = FABRIK_ROOT / "windsurfrules"
+    # Ensure governance files exist
+    windsurfrules_target = FABRIK_ROOT / ".windsurfrules"
     windsurf_rules_target = FABRIK_ROOT / ".windsurf" / "rules"
 
     if not dry_run:
         # Fail fast if fabrik targets are missing - environment is broken
         if not windsurfrules_target.exists():
-            raise FileNotFoundError(f"Missing fabrik windsurfrules: {windsurfrules_target}")
+            raise FileNotFoundError(f"Missing fabrik .windsurfrules: {windsurfrules_target}")
         if not windsurf_rules_target.exists():
             raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {windsurf_rules_target}")
 
