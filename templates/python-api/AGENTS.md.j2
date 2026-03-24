@@ -1,77 +1,153 @@
-# {{ spec.name }} - Agent Briefing
+# {{ spec.name }} API - Agent Briefing
 
-> Instructions for AI coding agents (droid exec, Cursor, Windsurf, etc.)
+> Instructions for AI coding agents (Windsurf Cascade, Kilo CLI, etc.)
+
+## Mandatory Workflow
+
+**Before any commit, you MUST pass the Final Gate:**
+```bash
+python scripts/final_gate.py
+```
+
+## Step 2.5: Internal Audit (Python/FastAPI Specific)
+
+Before Kilo Review, verify:
+- [ ] **Tenant Invariant:** Does every database query include a `tenant_id` filter (if multi-tenant)?
+- [ ] **Async Safety:** Are there any blocking I/O calls in async routes? (Use `await` or `run_in_executor`)
+- [ ] **Error Mapping:** Do 500 errors expose internal tracebacks? (They shouldn't in production)
+- [ ] **Type Hints:** All functions have proper type annotations for Pydantic validation
+- [ ] **Dependency Injection:** Database sessions use FastAPI dependencies, not globals
+- [ ] **Health Endpoint:** `/health` endpoint tests actual dependencies (DB, Redis)
+
+## One-Test Rule
+
+**Why:** Highest leverage risk is Cross-Tenant Data Leakage (if multi-tenant) or unauthorized data access.
+
+**Contract:**
+- **Given:** An authenticated request from Tenant A (or User A)
+- **When:** Fetching a resource ID belonging to Tenant B (or User B)
+- **Then:** The API must return `404 Not Found` or `403 Forbidden` (not the resource data)
+- **Mocked:** Database session/engine
+- **Real:** Dependency injection logic, SQLAlchemy filters, Pydantic models
 
 ## Build & Test
 
 ```bash
-pip install -e .
-pytest
-ruff check .
-mypy .
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000  # Development
+python scripts/final_gate.py          # Final gate check
+pytest                                # Run tests
+ruff check .                          # Lint
+mypy .                                # Type check
 ```
 
 ## Run Locally
 
 ```bash
 uvicorn main:app --reload --port 8000
-curl http://localhost:8000/health
+# API: http://localhost:8000
+# Docs: http://localhost:8000/docs
+# Health: http://localhost:8000/health
 ```
 
-## Docker
+## Docker Deployment
 
 ```bash
 docker compose up -d
 docker compose logs -f
 ```
 
-## droid exec Quick Reference
+## Project Structure (Clean Architecture)
 
-```bash
-# Read-only analysis
-droid exec "Analyze this FastAPI project"
-
-# Development
-droid exec --auto medium "Add new endpoint for {{ spec.name }}"
-
-# Full autonomy
-droid exec --auto high "Fix issues and run tests"
-
-# Spec mode for features
-droid exec --use-spec "Add authentication middleware"
+```
+├── main.py            # FastAPI app entry point
+├── api/               # API routes
+│   ├── v1/            # API version 1
+│   │   ├── endpoints/ # Route handlers
+│   │   └── deps.py    # Dependencies (auth, db session)
+├── core/              # Core functionality
+│   ├── config.py      # Settings (Pydantic BaseSettings)
+│   └── security.py    # Auth utilities
+├── models/            # SQLAlchemy models
+├── schemas/           # Pydantic schemas (request/response)
+├── services/          # Business logic layer
+└── requirements.txt   # Dependencies
 ```
 
-### Key Flags
+## FastAPI Best Practices
 
-| Flag | Purpose |
-|------|---------|
-| `--auto low/medium/high` | Autonomy level |
-| `--use-spec` | Plan before code |
-| `-m <model>` | Model selection |
+- **Pydantic for validation**: All request/response bodies use Pydantic models
+- **Dependency injection**: Use `Depends()` for DB sessions, auth, pagination
+- **Async everywhere**: Use `async def` for all routes, `await` for I/O
+- **Type hints**: Required for automatic OpenAPI docs
+- **Error handling**: Use HTTPException with proper status codes
+- **CORS**: Configure explicitly, don't use `allow_origins=["*"]` in production
 
 ## Conventions
 
 ### Environment Variables (CRITICAL)
 
 ```python
-# CORRECT
-DB_HOST = os.getenv('DB_HOST', 'localhost')
+# CORRECT - Pydantic Settings
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    database_url: str
+    redis_url: str
+    secret_key: str
+    
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
 
 # WRONG
-DB_HOST = 'localhost'  # Hardcoded!
+DATABASE_URL = "postgresql://localhost/db"  # Hardcoded!
 ```
 
-### Health Checks
+### Health Checks (Test Dependencies)
 
 ```python
 @app.get("/health")
-async def health():
-    await db.execute("SELECT 1")  # Test actual dependency
-    return {"status": "ok", "db": "connected"}
+async def health(db: Session = Depends(get_db)):
+    # Test actual database connection
+    await db.execute(text("SELECT 1"))
+    return {
+        "status": "ok",
+        "db": "connected",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+```
+
+### Tenant Isolation (Multi-Tenant APIs)
+
+```python
+# Dependency to get current tenant
+async def get_current_tenant(token: str = Depends(oauth2_scheme)) -> str:
+    # Decode JWT, validate, extract tenant_id
+    return tenant_id
+
+# CORRECT - Filter by tenant
+@app.get("/api/v1/resources/{resource_id}")
+async def get_resource(
+    resource_id: str,
+    tenant_id: str = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    resource = db.query(Resource).filter(
+        Resource.id == resource_id,
+        Resource.tenant_id == tenant_id  # ← CRITICAL for isolation
+    ).first()
+    if not resource:
+        raise HTTPException(status_code=404, detail="Not found")
+    return resource
 ```
 
 ## Security
 
-- Never commit `.env`
-- CSPRNG passwords: 32 chars, alphanumeric
-- No hardcoded secrets
+- **Never commit `.env`** files
+- **CSPRNG passwords**: 32 chars, alphanumeric, use `secrets.token_urlsafe()`
+- **No hardcoded secrets** (use environment variables + Pydantic Settings)
+- **SQL injection**: Use SQLAlchemy ORM, never raw SQL with f-strings
+- **Rate limiting**: Use `slowapi` for public endpoints
+- **HTTPS only**: Set `secure=True` for cookies in production

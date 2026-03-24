@@ -1,0 +1,27 @@
+# FastAPI and ASGI server
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Database (optional - uncomment if needed)
+# sqlalchemy==2.0.25
+# asyncpg==0.29.0  # For PostgreSQL
+# psycopg2-binary==2.9.9  # Alternative PostgreSQL driver
+
+# Redis (optional - uncomment if needed)
+# redis==5.0.1
+
+# Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# HTTP client (optional)
+# httpx==0.26.0
+
+# Development tools (optional)
+# pytest==7.4.4
+# pytest-asyncio==0.23.3
+# ruff==0.1.14
+# mypy==1.8.0
