@@ -349,6 +349,13 @@ RUNNER_SCRIPT="/opt/fabrik/scripts/kilo_terminal_runner.py"
 RUNNER_PYTHON="/opt/fabrik/.venv/bin/python3"
 KILO_RICH_UI="${{KILO_RICH_UI:-1}}"
 
+# Force plain mode under Traycer — Textual TUI alternate screen buffer
+# corrupts Windsurf shell integration, blocking post-kilo script execution
+if [ -n "$TRAYCER_TASK_ID" ]; then
+    KILO_RICH_UI=0
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Traycer detected — forcing plain mode (no TUI)" >&2
+fi
+
 # Fall back to system python3 if venv not available
 if [ ! -x "$RUNNER_PYTHON" ]; then
     RUNNER_PYTHON="python3"
