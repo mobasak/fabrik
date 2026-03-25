@@ -9,6 +9,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from fabrik.config import FABRIK_ROOT
 
 # Reserved project names that conflict with system dirs or packages
@@ -246,6 +248,37 @@ def _install_pre_commit(project_dir: Path) -> bool:
     else:
         # pre-commit not available, but config is copied
         return True
+
+
+def _next_available_port(port_range: tuple[int, int] = (8000, 8099)) -> int:
+    """Find next unused port by reading the aggregated registry.
+
+    Falls back to 8000 if registry doesn't exist yet (first project).
+    """
+    registry_path = FABRIK_ROOT / "data" / "projects.yaml"
+    if not registry_path.exists():
+        return port_range[0]
+    try:
+        data = yaml.safe_load(registry_path.read_text()) or {}
+        used_ports: set[int] = set()
+        for proj in data.get("projects", {}).values():
+            # Support both old 'port' (int) and new 'ports' (list)
+            ports_val = proj.get("ports", [])
+            if isinstance(ports_val, list):
+                for p in ports_val:
+                    used_ports.add(int(p))
+            elif ports_val:
+                used_ports.add(int(ports_val))
+            # Legacy fallback
+            p = proj.get("port")
+            if p:
+                used_ports.add(int(p))
+        for port in range(port_range[0], port_range[1] + 1):
+            if port not in used_ports:
+                return port
+        return port_range[1] + 1  # Overflow
+    except Exception:
+        return port_range[0]
 
 
 def _scaffold_shared(project_dir: Path, name: str, description: str, today: str) -> None:
@@ -516,6 +549,42 @@ Obsolete or completed docs for {name}.
 -- =============================================================================
 -- {today}: Initial schema created
 """
+    )
+
+    # Create project.yaml — per-project metadata (source of truth)
+    # Auto-allocate host port from registry to prevent conflicts
+    host_port = _next_available_port()
+    project_yaml = {
+        "name": name,
+        "type": "python-api",  # overwritten by create_project if different
+        "description": description,
+        "created": today,
+        "status": "development",
+        "category": "active",
+        # Deployment — ports is a list of host ports this project binds
+        "url": None,
+        "domain": None,
+        "ports": [host_port],
+        # Extended metadata
+        "external_systems": [],
+        "monthly_cost": 0,
+        "dependencies": [],
+        "tags": [],
+    }
+    (project_dir / "project.yaml").write_text(
+        "# Project metadata — source of truth\n"
+        "# Created by: fabrik scaffold\n"
+        "# Updated by: project owner or fabrik scan\n"
+        "#\n"
+        "# Fields:\n"
+        "#   status: development | ready | production | archived\n"
+        "#   category: production | active | planning | shell\n"
+        "#   ports: list of host ports this project binds (must be unique across /opt)\n"
+        "#   external_systems: list of external services (e.g. supabase, stripe, cloudflare-r2)\n"
+        "#   monthly_cost: estimated USD/month\n"
+        "#   dependencies: other /opt project names this depends on\n"
+        "#   tags: free-form labels\n\n"
+        + yaml.dump(project_yaml, default_flow_style=False, sort_keys=False)
     )
 
     # Git bootstrap: initialize repo so type-specific scaffolders run inside a git repo.
@@ -1231,6 +1300,26 @@ _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
 }
 
 
+def _post_scaffold_sync(project_dir: Path) -> None:
+    """Post-scaffold hook: update project registry and BUSINESS_MODEL.md.
+
+    Runs sync_projects.py to pick up the new project. Failure is non-fatal
+    (scaffold already succeeded).
+    """
+    sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
+    if not sync_script.exists():
+        return
+    try:
+        subprocess.run(
+            ["python3", str(sync_script)],
+            cwd=str(FABRIK_ROOT),
+            capture_output=True,
+            timeout=30,
+        )
+    except Exception:
+        pass  # Non-fatal — scaffold already succeeded
+
+
 def create_project(
     name: str,
     description: str,
@@ -1264,12 +1353,27 @@ def create_project(
 
     scaffolder(project_dir, name, description, preset=preset)
 
+    # Patch project.yaml with actual type and port (type-specific scaffolders may change port)
+    project_yaml_path = project_dir / "project.yaml"
+    if project_yaml_path.exists():
+        content = project_yaml_path.read_text()
+        content = content.replace("type: python-api", f"type: {project_type}")
+        # Set correct port range for Node.js types (3000-3099)
+        if project_type in ("node-api", "file-api", "saas-skeleton"):
+            node_port = _next_available_port(port_range=(3000, 3099))
+            # Replace the Python-range port that was initially assigned
+            content = re.sub(r"- \d{4,5}", f"- {node_port}", content, count=1)
+        project_yaml_path.write_text(content)
+
     # Final commit after all files (shared + type-specific) are in place so the
     # initial snapshot is complete and clean.
     subprocess.run(["git", "add", "."], cwd=project_dir, capture_output=True)
     subprocess.run(
         ["git", "commit", "-q", "-m", "Initial commit"], cwd=project_dir, capture_output=True
     )
+
+    # Post-scaffold hook: sync project registry
+    _post_scaffold_sync(project_dir)
 
     return project_dir
 

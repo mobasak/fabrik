@@ -21,6 +21,9 @@ Usage:
 Options:
     -h, --help     Show this help message and exit
     -d, --dry-run  Dry-run mode (do not write files)
+
+Workflow Doc: docs/workflows/KILO_AGENT_MANAGEMENT.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 import argparse
@@ -275,13 +278,29 @@ fi
 PROMPT="${{PROMPT//\\~\\/.traycer\\//${{HOME}}/.traycer/}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Fixed tilde paths in prompt" >&2
 
+# Log working directory for debugging (Traycer sets CWD to project directory)
+echo "[$(date -Iseconds)] CWD=$(pwd)" >> "$AGENT_LOG"
+[ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] CWD: $(pwd)" >&2
+
 # CRITICAL: Append Traycer report requirement to prompt
 REPORT_REQUIREMENT='
 
 ---
 ## MANDATORY: Output Report Block (Traycer Integration)
 
-After completing your task, you MUST output this exact block at the end:
+After completing your task, you MUST follow the 8-step workflow from AGENTS.md:
+1. Implement → 2.5 Self-review → 3. Kilo Review → 4. **Documentator (DO NOT SKIP)** → 5. Final Gate
+
+**Step 3: Kilo Review** — `kilo_code_review.py staged` auto-stages ALL uncommitted files. Just run it.
+
+**Step 4 is MANDATORY.** Run these commands before Final Gate:
+```bash
+python scripts/kilo_docs_enforcer.py --auto-generate --verbose
+git add -A
+python scripts/kilo_docs_enforcer.py --enforce
+```
+
+Then output this exact block at the end:
 
 ```
 BEGIN_TRAYCER_REPORT_MD
@@ -291,12 +310,13 @@ FOLLOWED: <comma-separated rule IDs or "all">
 DEVIATED: <ID:reason; or "none">
 ENV: <new vars added to .env.example or "none">
 DB: <schema/migration changes or "none">
-CHECKS: FG_PRE=PASS|FAIL|SKIP, SELF_REVIEW=DONE|SKIP, KILO=PASS|SKIP, FG_POST=PASS|FAIL|SKIP
+CHECKS: FG_PRE=PASS|FAIL|SKIP, SELF_REVIEW=DONE|SKIP, KILO=PASS|SKIP, DOCS=PASS|SKIP, FG_POST=PASS|FAIL|SKIP
 VERIFY: <1-2 verification commands>
 END_TRAYCER_REPORT_MD
 ```
 
 This report block is REQUIRED for Traycer integration. The task will fail without it.
+If DOCS=SKIP, you MUST provide a justification.
 ---
 '
 PROMPT="$PROMPT$REPORT_REQUIREMENT"
@@ -384,8 +404,15 @@ if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
         REPORT_PYTHON="python3"
     fi
     if [ -f "$REPORT_WRITER" ]; then
-        echo "$OUTPUT" | "$REPORT_PYTHON" "$REPORT_WRITER" --slug "${{TRAYCER_TASK_ID:-traycer-task}}" 2>&1 | grep "📝" >&2 || true
-        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Report delimiters found, report writer executed" >&2
+        REPORT_ERR=$(echo "$OUTPUT" | "$REPORT_PYTHON" "$REPORT_WRITER" --slug "${{TRAYCER_TASK_ID:-traycer-task}}" 2>&1)
+        REPORT_RC=$?
+        if [ $REPORT_RC -ne 0 ] || ! echo "$REPORT_ERR" | grep -q "\U0001f4dd"; then
+            echo "\u26a0\ufe0f  Report writer issue (exit=$REPORT_RC): $REPORT_ERR" >&2
+            echo "[$(date -Iseconds)] REPORT_WRITER_ERROR: exit=$REPORT_RC output=$REPORT_ERR" >> "$AGENT_LOG"
+        else
+            echo "$REPORT_ERR" | grep "\U0001f4dd" >&2
+        fi
+        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Report writer exit=$REPORT_RC" >&2
     else
         echo "ERROR: Report writer not found at $REPORT_WRITER" >&2
         echo "[$(date -Iseconds)] EXIT 1: Report writer not found" >> "$AGENT_LOG"

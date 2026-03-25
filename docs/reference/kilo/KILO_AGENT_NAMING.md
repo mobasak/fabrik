@@ -173,7 +173,7 @@ This reads `/opt/fabrik/scripts/kilo_47_agents_final.json` and generates all age
 ## Script Structure
 
 Each agent script:
-1. Saves task context to `.droid/review-context/task.md`
+1. Saves task context to `.droid/review-context/task-${TRAYCER_TASK_ID}.md` (unique per task)
 2. Calls `kilo run` with appropriate model/variant/agent
 3. Uses `--format json --auto` for Traycer integration
 4. Passes `$TRAYCER_PROMPT` from environment

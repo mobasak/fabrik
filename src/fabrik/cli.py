@@ -665,20 +665,19 @@ def projects(status: str | None, sync: bool):
 @cli.command()
 @click.option("--base", "-b", default="/opt", help="Base path to scan")
 def scan(base: str):
-    """Scan /opt for projects and update registry."""
-    from fabrik.registry import ProjectRegistry
+    """Scan /opt for projects and update registry + BUSINESS_MODEL.md."""
+    import subprocess
 
-    registry = ProjectRegistry()
-    click.echo(f"🔍 Scanning {base}...")
+    sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
+    if not sync_script.exists():
+        click.echo(f"ERROR: {sync_script} not found")
+        raise SystemExit(1)
 
-    new = registry.scan(Path(base))
-    registry.save()
-
-    click.echo(f"   ✅ Found {len(registry.projects)} projects")
-    if new:
-        click.echo(f"   🆕 New: {', '.join(new)}")
-    click.echo()
-    click.echo(f"Registry saved to: {registry.path}")
+    result = subprocess.run(
+        ["python3", str(sync_script)],
+        cwd=str(FABRIK_ROOT),
+    )
+    raise SystemExit(result.returncode)
 
 
 @cli.command()

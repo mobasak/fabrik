@@ -4,6 +4,9 @@
 Validates service health responses and database host:port connectivity.
 Exit codes: 0 OK, 1 unexpected error, 2 config error,
 3 HTTP unhealthy, 4 DB unreachable.
+
+Workflow Doc: docs/workflows/HEALTH_CHECKER_WORKFLOW.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 from __future__ import annotations

@@ -9,6 +9,9 @@ Usage:
     python scripts/update_agents_toc.py              # Update AGENTS.md
     python scripts/update_agents_toc.py --check      # Verify TOC is current (exit 1 if stale)
     python scripts/update_agents_toc.py --dry-run    # Preview changes without writing
+
+Workflow Doc: docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md (AGENTS.md maintenance)
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 import argparse

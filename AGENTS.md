@@ -279,9 +279,11 @@ After fix → Traycer re-verifies. Loop until PASS, then proceed to Step 7.
 
 ### Kilo Review (Step 3 — Report-Only)
 ```bash
-git add <intended_files>
+git add -A                          # CRITICAL: stage ALL uncommitted files, not just yours
+git diff --staged --name-only       # Verify staged matches intent
 python scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
+**⚠️ NEVER `git add` only your files** — other tools (final_gate, sync_projects, scaffold) may have modified files too. Review ALL changes or risk missing issues.
 Automatic: risk detection → model selection → variant selection → session isolation.
 **Reviewer AI never fixes** — findings only. CODER fixes all severities (BLOCKER, MAJOR, MINOR).
 Max 5 iterations before escalating to Traycer.

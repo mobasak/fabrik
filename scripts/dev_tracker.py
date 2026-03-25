@@ -7,6 +7,9 @@ Usage:
     dev_tracker.py import
     dev_tracker.py report [summary|costs|gates|workflow]
     dev_tracker.py query "<sql>"
+
+Workflow Doc: docs/workflows/DEV_TRACKER_WORKFLOW.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 import json

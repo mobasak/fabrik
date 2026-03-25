@@ -1460,19 +1460,20 @@ Fabrik uses three Kilo-powered code review agents for iterative quality checking
 ```bash
 #!/bin/bash
 # Initial code review using staged-first workflow (canonical)
-# Saves TRAYCER_PROMPT to .droid/review-context/task.md for SPEC verification
+# Saves TRAYCER_PROMPT to unique task file for SPEC verification
 # Output: JSON with verdict, issues, and review stats
+# NOTE: Traycer sets CWD to project directory — no cd needed
 
 set -e
-cd /opt/fabrik || exit 2
 mkdir -p .droid/review-context
-echo "$TRAYCER_PROMPT" > .droid/review-context/task.md
+TASK_FILE=".droid/review-context/task-${TRAYCER_TASK_ID:-${TRAYCER_PHASE_ID:-$(date +%s)}}.md"
+echo "$TRAYCER_PROMPT" > "$TASK_FILE"
 
 # Stage files before review (staged-first workflow)
 git add -A
 
 python /opt/fabrik/scripts/kilo_code_review.py staged \
-    --plan .droid/review-context/task.md \
+    --plan "$TASK_FILE" \
     --output json
 ```
 
@@ -1484,7 +1485,7 @@ python /opt/fabrik/scripts/kilo_code_review.py staged \
 # Verifies previous issues are resolved
 
 set -e
-cd /opt/fabrik || exit 2
+# NOTE: Traycer sets CWD to project directory — no cd needed
 
 CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR HEAD | tr '\n' ' ')
 if [ -z "$CHANGED_FILES" ]; then
@@ -1505,9 +1506,10 @@ python /opt/fabrik/scripts/kilo_code_review.py staged \
 # Use sparingly for high-value automation
 
 set -e
-cd /opt/fabrik || exit 2
+# NOTE: Traycer sets CWD to project directory — no cd needed
 mkdir -p .droid/review-context
-echo "$TRAYCER_PROMPT" > .droid/review-context/task.md
+TASK_FILE=".droid/review-context/task-${TRAYCER_TASK_ID:-${TRAYCER_PHASE_ID:-$(date +%s)}}.md"
+echo "$TRAYCER_PROMPT" > "$TASK_FILE"
 
 CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR HEAD | tr '\n' ' ')
 if [ -z "$CHANGED_FILES" ]; then
@@ -1516,7 +1518,7 @@ if [ -z "$CHANGED_FILES" ]; then
 fi
 
 python scripts/kilo_code_review.py auto-fix $CHANGED_FILES \
-    --plan .droid/review-context/task.md \
+    --plan "$TASK_FILE" \
     --max-iterations 5 \
     --review-agent ask \
     --fix-agent code \

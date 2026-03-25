@@ -41,17 +41,18 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 3002 | grafana | specs/infrastructure/monitoring-stack.yaml | https://monitor.vps1.ocoron.com |
 | 5678 | n8n | specs/infrastructure/n8n.yaml | https://auto.vps1.ocoron.com |
 
-### Fabrik Microservices (VPS)
+### Fabrik Microservices (VPS Host Ports)
 
-| Port | Service | Project | URL |
-|------|---------|---------|-----|
-| 8000 | Translator API | /opt/translator | https://translator.vps1.ocoron.com |
-| 8000 | Captcha Solver | /opt/captcha | https://captcha.vps1.ocoron.com |
-| 8000 | Proxy Manager | /opt/proxy | https://proxy.vps1.ocoron.com |
-| 8001 | DNS Manager | /opt/dns-manager | https://dns.vps1.ocoron.com |
-| 8004 | File API | /opt/file-api | https://files-api.vps1.ocoron.com |
-| 8010 | Image Broker | /opt/image-broker | https://images.vps1.ocoron.com |
-| 3000 | Email Gateway | /opt/emailgateway | https://email.vps1.ocoron.com |
+| Host Port | Service | Project | URL |
+|-----------|---------|---------|-----|
+| 18011 | Captcha Solver | /opt/captcha | https://captcha.vps1.ocoron.com |
+| 18012 | Translator API | /opt/translator | https://translator.vps1.ocoron.com |
+| 18013 | Proxy Manager | /opt/proxy | https://proxy.vps1.ocoron.com |
+| 18014 | DNS Manager | /opt/dns-manager | https://dns.vps1.ocoron.com |
+| 18015 | File API | /opt/file-api | https://files-api.vps1.ocoron.com |
+| 18016 | Image Broker | /opt/image-broker | https://images.vps1.ocoron.com |
+| 18017 | Email Gateway | /opt/emailgateway | https://email.vps1.ocoron.com |
+| 18018 | Email Reader | /opt/email-reader | — |
 
 ### Development Services (WSL Only)
 
@@ -72,6 +73,56 @@ If you encounter a port conflict:
 4. Update the service's `.env` and `compose.yaml`
 
 ---
+
+
+<!-- AUTO-GENERATED:PORTS:START -->
+<!-- Last synced: 2026-03-25 12:46:02 -->
+
+### Project Port Allocations (from project.yaml)
+
+| Port | Project | Type | Path |
+|------|---------|------|------|
+| 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
+| 8000 | **ComplianceOps** | unknown | /opt/ComplianceOps |
+| 8001 | **Reference_Creator** | unknown | /opt/Reference_Creator |
+| 8002 | **apidoccreator** | unknown | /opt/apidoccreator |
+| 8003 | **apps** | unknown | /opt/apps |
+| 8004 | **brand-identiy-creator** | unknown | /opt/brand-identiy-creator |
+| 8005 | **candle** | python-api | /opt/candle |
+| 8006 | **exam-coach** | unknown | /opt/exam-coach |
+| 8007 | **file-worker** | python-api | /opt/file-worker |
+| 8008 | **gmailaccountcreator** | unknown | /opt/gmailaccountcreator |
+| 8009 | **image-generation** | unknown | /opt/image-generation |
+| 8010 | **iterative_image_editor** | python-api | /opt/iterative_image_editor |
+| 8011 | **job-agent** | python-api | /opt/job-agent |
+| 8012 | **llm_batch_processor** | python-api | /opt/llm_batch_processor |
+| 8013 | **marketing-argumant-generator** | unknown | /opt/marketing-argumant-generator |
+| 8014 | **namecheap** | unknown | /opt/namecheap |
+| 8015 | **proposal-creator** | python-api | /opt/proposal-creator |
+| 8016 | **seo** | python-api | /opt/seo |
+| 8017 | **supplement-tracker-advisor** | unknown | /opt/supplement-tracker-advisor |
+| 8018 | **test-coolify** | python-api | /opt/test-coolify |
+| 8019 | **test-final** | python-api | /opt/test-final |
+| 8020 | **test-session-check** | python-api | /opt/test-session-check |
+| 8021 | **test-zero-refs** | python-api | /opt/test-zero-refs |
+| 8022 | **trade-intelligence** | python-api | /opt/trade-intelligence |
+| 8023 | **trading-core** | python-api | /opt/trading-core |
+| 8024 | **transcriber** | unknown | /opt/transcriber |
+| 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
+| 8026 | **ugc** | unknown | /opt/ugc |
+| 8027 | **web-scraper** | python-api | /opt/web-scraper |
+| 8028 | **web_scraper** | unknown | /opt/web_scraper |
+| 8029 | **youtube** | python-api | /opt/youtube |
+| 18011 | **captcha** | python-api | /opt/captcha |
+| 18012 | **translator** | python-api | /opt/translator |
+| 18013 | **proxy** | automation | /opt/proxy |
+| 18014 | **dns-manager** | python-api | /opt/dns-manager |
+| 18015 | **file-api** | node-api | /opt/file-api |
+| 18016 | **image-broker** | python-api | /opt/image-broker |
+| 18017 | **emailgateway** | node-api | /opt/emailgateway |
+| 18018 | **email-reader** | python-api | /opt/email-reader |
+
+<!-- AUTO-GENERATED:PORTS:END -->
 
 ## Notes
 

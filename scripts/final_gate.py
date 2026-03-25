@@ -27,6 +27,9 @@ Sync steps (--sync mode only):
 
 Default never runs sync. Use --sync explicitly for Step 7.
 Iterates up to 3 times until clean. Auto-stages changes only if all checks pass.
+
+Workflow Doc: docs/workflows/FINAL_GATE_WORKFLOW.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 import argparse

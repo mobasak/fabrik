@@ -32,6 +32,9 @@ Exit codes:
     0 - All required documentation present or updated
     1 - Missing required documentation (CRITICAL or MAJOR severity)
     2 - Error (git unavailable, database error, etc.)
+
+Workflow Doc: docs/workflows/DOCUMENTATOR_WORKFLOW.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 from __future__ import annotations
@@ -560,16 +563,19 @@ def analyze_diff_for_triggers(diff: str, staged_files: list[str]) -> list[DocVio
             if not any(skip in f for skip in ["tests/", "test_", "docs/", ".md", ".txt"])
         ]
         if code_files and not any(v.trigger_name == "large_code_change" for v in violations):
-            violations.append(
-                DocViolation(
-                    trigger_name="large_code_change",
-                    severity="MAJOR",
-                    source_file=", ".join(code_files[:3]),
-                    matched_line=f"{added} additions, {removed} deletions",
-                    required_docs=["CHANGELOG.md"],
-                    description=f"Large code change ({added + removed} lines) requires CHANGELOG entry",
+            # Create one violation per source file (max 5) so each source_file
+            # is a valid single path for Kilo --file flag attachment.
+            for cf in code_files[:5]:
+                violations.append(
+                    DocViolation(
+                        trigger_name="large_code_change",
+                        severity="MAJOR",
+                        source_file=cf,
+                        matched_line=f"{added} additions, {removed} deletions",
+                        required_docs=["CHANGELOG.md"],
+                        description=f"Large code change ({added + removed} lines) requires CHANGELOG entry",
+                    )
                 )
-            )
 
     return violations
 

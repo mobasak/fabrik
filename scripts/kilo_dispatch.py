@@ -33,6 +33,9 @@ Usage:
         --agent "code&fix-1-opus46-max-o2500-ppd076.sh" \
         --task-file docs/development/plans/my-plan.md \
         --template plan
+
+Workflow Doc: docs/workflows/KILO_DISPATCH_WORKFLOW.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 from __future__ import annotations

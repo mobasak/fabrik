@@ -25,6 +25,9 @@ Exit codes:
     0 - Review passed (PASS verdict)
     1 - Review failed (FAIL verdict with issues remaining)
     2 - Error (Kilo unavailable, invalid input, etc.)
+
+Workflow Doc: docs/workflows/KILO_REVIEW_WORKFLOW.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 from __future__ import annotations
@@ -5439,6 +5442,27 @@ async def main() -> int:
         files = collect_files(args.files)
         config.review_mode = getattr(args, "mode", "full")
     elif args.command == "staged":
+        # ENFORCE: auto-stage ALL changes before review (agents miss unstaged files)
+        unstaged_before = get_changed_files()
+        staged_before = get_staged_files()
+        unstaged_only = [f for f in unstaged_before if f not in staged_before]
+        if unstaged_only:
+            print(
+                f"\n📌 Auto-staging {len(unstaged_only)} unstaged file(s) for complete review:",
+                file=sys.stderr,
+            )
+            for uf in unstaged_only[:10]:
+                print(f"   + {uf.name}", file=sys.stderr)
+            if len(unstaged_only) > 10:
+                print(f"   ... and {len(unstaged_only) - 10} more", file=sys.stderr)
+            git_path = shutil.which("git")
+            if git_path:
+                subprocess.run(
+                    [git_path, "add", "-A"],
+                    capture_output=True,
+                    check=False,
+                )
+                print("   ✓ All changes staged.\n", file=sys.stderr)
         files = get_staged_files()
         config.review_mode = "staged"
     elif args.command == "changed":

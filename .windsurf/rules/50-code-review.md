@@ -37,11 +37,11 @@ Both Cascade and Kilo CLI agents follow the same 8-step workflow:
 
 ### Step 3: Kilo Review (Report-Only)
 ```bash
-git diff <intended_files>           # Review changes
-git add <intended_files>            # Stage
-git diff --staged                   # Verify staged matches intent
+git add -A                          # CRITICAL: stage ALL uncommitted files, not just yours
+git diff --staged --name-only       # Verify staged matches intent
 python scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
+**⚠️ NEVER `git add` only your files** — other tools (final_gate, sync_projects, scaffold) may have modified files too. Review ALL changes or risk missing issues.
 *I fix all findings (BLOCKER, MAJOR, MINOR) myself—no separate FIXER role in Cascade*.
 
 ### Step 4: Documentator

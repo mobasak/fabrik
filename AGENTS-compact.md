@@ -14,7 +14,7 @@ Before taking ANY action, output: `RULES ACTIVE: [CODER|FIXER|REVIEWER] | [Never
 ## MANDATORY STEPS
 1. **Implement** — code changes for current phase/ticket only
 2. **Self-review** — check hardcoded values, imports, env vars, db/schema.sql updates
-3. **Kilo review** — `python scripts/kilo_code_review.py staged --plan "..." --output json`
+3. **Kilo review** — `git add -A` first (stage ALL files, not just yours), then `python scripts/kilo_code_review.py staged --plan "..." --output json`
 3b. **Fix review findings** — fix all Kilo review findings (BLOCKER, MAJOR, MINOR)
 4. **Documentator** — `python scripts/kilo_docs_enforcer.py --auto-generate` then `--enforce`
 5. **Final gate** — `python scripts/final_gate.py` → all PASS required

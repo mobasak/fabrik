@@ -1,8 +1,10 @@
 # Fabrik Scaffold Specification
 
-**Last Updated:** 2026-03-24
+**Last Updated:** 2026-03-25
 
 > Complete specification for project creation, templates, deployment, and management in the Fabrik ecosystem.
+>
+> **Coders:** When modifying `src/fabrik/scaffold.py` or `src/fabrik/cli.py`, update this workflow doc to match.
 
 ---
 
@@ -296,6 +298,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 ├── opencode.json                    # Kilo CLI configuration
 ├── PORTS.md                         # Port allocation registry
 ├── .pre-commit-config.yaml          # Pre-commit hooks
+├── project.yaml                     # Project metadata (source of truth)
 ├── pyproject.toml                   # Python project config
 ├── README.md                        # Project overview
 ├── requirements.txt                 # Python dependencies
@@ -320,6 +323,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `.pre-commit-config.yaml` | `pre-commit-config.yaml` | Pre-commit hooks |
 | `INDEX.md` | Generated inline | Master file index |
 | `PORTS.md` | Generated inline | Port allocation registry |
+| `project.yaml` | Generated inline | Project metadata — source of truth for sync |
 | `opencode.json` | Copied from Fabrik | Kilo CLI configuration |
 | **Documentation** | | |
 | `docs/README.md` | `docs/DOCS_INDEX_TEMPLATE.md` | Docs index |
@@ -475,10 +479,15 @@ python-dotenv>=1.0.0
 
 After file creation, `fabrik scaffold` also:
 
-1. **Git init** - Initializes git repository
-2. **Branch creation** - Creates and switches to `mobasak/<project-name>` branch
-3. **Pre-commit install** - Copies config and runs `pre-commit install`
-4. **Initial commit** - Stages all files and commits "Initial commit"
+1. **project.yaml** - Creates per-project metadata file (name, type, status, port, cost, tags, etc.)
+2. **Git init** - Initializes git repository
+3. **Branch creation** - Creates and switches to `mobasak/<project-name>` branch
+4. **Pre-commit install** - Copies config and runs `pre-commit install`
+5. **Type patching** - Updates `project.yaml` with actual project type and port
+6. **Initial commit** - Stages all files and commits "Initial commit"
+7. **Project sync** - Runs `sync_projects.py` to register the new project in `data/projects.yaml` and `docs/BUSINESS_MODEL.md`
+
+> See [Sync Projects Workflow](SYNC_PROJECTS_WORKFLOW.md) for details on `project.yaml` schema and sync mechanism.
 
 #### Kilo Workflow Integration
 
@@ -486,7 +495,7 @@ After file creation, `fabrik scaffold` also:
 
 | Path | Purpose |
 |------|---------|
-| `.droid/review-context/` | Where Traycer saves plan artifacts (`task.md`) |
+| `.droid/review-context/` | Where agents save plan artifacts (`task-${TRAYCER_TASK_ID}.md`, unique per task) |
 | `.droid/.gitignore` | Commits `review-context/` only; blocks runtime files |
 | `.droid/review-context/.gitkeep` | Ensures directory is tracked by git |
 
@@ -1055,9 +1064,45 @@ class Config:
 
 ---
 
+## Fabrik CLI Reference
+
+All CLI commands implemented in `src/fabrik/cli.py`:
+
+### Project Creation & Management
+
+| Command | Description |
+|---------|-------------|
+| `fabrik scaffold <name>` | Create new project with full structure + `project.yaml` |
+| `fabrik new <name>` | Create deployment spec from template |
+| `fabrik scan` | Scan `/opt/*`, update registry + BUSINESS_MODEL.md |
+| `fabrik projects` | List all tracked projects |
+| `fabrik validate <path>` | Validate project structure |
+| `fabrik fix <path>` | Auto-fix missing files |
+
+### Deployment
+
+| Command | Description |
+|---------|-------------|
+| `fabrik apply <spec>` | Deploy to Coolify |
+| `fabrik plan <spec>` | Preview deployment (dry run) |
+| `fabrik status <spec>` | Check deployment status |
+| `fabrik logs <spec>` | View deployment logs |
+| `fabrik destroy <spec>` | Remove deployment |
+| `fabrik verify <domain>` | Verify deployed service |
+
+### Utilities
+
+| Command | Description |
+|---------|-------------|
+| `fabrik templates` | List available templates |
+| `fabrik sync-models` | Sync model names across configs |
+
+---
+
 ## See Also
 
 - [AGENTS.md](../../AGENTS.md) - Mandatory workflow reference
+- [Sync Projects Workflow](SYNC_PROJECTS_WORKFLOW.md) - Project tracking & registry
 - [Fabrik CLI Reference](../reference/fabrik-cli-reference.md)
 - [.env.example](../../.env.example)
 - [Python Production Standards](../../templates/scaffold/PYTHON_PRODUCTION_STANDARDS.md)

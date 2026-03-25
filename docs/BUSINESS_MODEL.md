@@ -91,70 +91,61 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-23 22:00:15 -->
-<!-- Total projects: 43 -->
+<!-- Last synced: 2026-03-25 12:46:02 -->
+<!-- Total projects: 39 -->
 
 ### Production Services (5 projects)
 
-| Project | Purpose | Stack | Status | URL | Scaffold Status |
-|---------|---------|-------|--------|-----|------------------|
-| **captcha** | A REST API service for solving captchas. Other applications can call this service to solve reCAPT... | Python | ✅ Production | https://captcha.vps1.ocoron.com | ⚠️ Needs update |
-| **dns-manager** | A comprehensive toolkit for automating Namecheap domain management. Provides three integration me... | Python | ✅ Production | https://dns.vps1.ocoron.com | ⚠️ Needs update |
-| **file-api** | Presigned URL service for Cloudflare R2 file uploads/downloads. | Express | ✅ Production | https://files-api.vps1.ocoron.com | ⚠️ Needs update |
-| **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure Tra... | Python | ✅ Production | https://translator.vps1.ocoron.com | ⚠️ Needs update |
+| Project | Purpose | Stack | Status | URL | Scaffold |
+|---------|---------|-------|--------|-----|----------|
+| **captcha** | A REST API service for solving captchas. Other applications can call this service to solve reCA... | Python | ✅ Production | https://captcha.vps1.ocoron.com | ✅ Current |
+| **dns-manager** | Python SDK, CLI, and REST API for managing Namecheap domains, DNS, SSL, and more. | Python | ✅ Production | https://dns.vps1.ocoron.com | ✅ Current |
+| **file-api** | Presigned URL service for Cloudflare R2 file uploads/downloads. | Express | ✅ Production | https://files-api.vps1.ocoron.com | ✅ Current |
+| **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (15 projects)
+### Active Development (14 projects)
 
-| Project | Purpose | Stack | Status | URL | Scaffold Status |
-|---------|---------|-------|--------|-----|------------------|
-| **calendar-orchestration-engine** | Orchestrates calendar events across multiple providers with automated conflict resolution, schedu... | Python | 🔨 Development | - | ✅ Current |
+| Project | Purpose | Stack | Status | URL | Scaffold |
+|---------|---------|-------|--------|-----|----------|
+| **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | - | ✅ Current |
 | **candle** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
-| **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, idem... | Fastify | 🔨 Development | - | ⚠️ Needs update |
-| **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C c... | Python | 🔨 Development | - | ⚠️ Needs update |
+| **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, id... | Fastify | 🔨 Development | - | ✅ Current |
+| **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C... | Python | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
-| **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, and... | FastAPI | 🔨 Development | - | ✅ Current |
-| **seo** | A FastAPI-based service for generating SEO keywords and long-tail keyword variations to power AI ... | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-coolify** | Coolify deployment readiness test | FastAPI | 🔨 Development | - | ⚠️ Needs update |
-| **test-final** | Final complete test - all fixes applied | FastAPI | 🔨 Development | - | ⚠️ Needs update |
-| **test-scaffold-analysis** | Test project for documentation analysis | FastAPI | 🔨 Development | - | ⚠️ Needs update |
-| **test-session-check** | Session poisoning audit - verify no Fabrik references | FastAPI | 🔨 Development | - | ⚠️ Needs update |
-| **test-zero-refs** | Complete workspace isolation verification - expect ZERO /opt/fabrik references | FastAPI | 🔨 Development | - | ⚠️ Needs update |
-| **trade-intelligence** | Trade Intelligence is a comprehensive platform for searching and analyzing global shipment record... | FastAPI | 🔨 Development | - | ✅ Current |
-| **trading-core** | Live FX trading service connecting to Pepperstone/cTrader via cTrader Open API with crash-safe st... | FastAPI | 🔨 Development | - | ✅ Current |
-| **triggered-content-orchestration** | Orchestrates content creation across Twitter, YouTube, Blog, Email, and LinkedIn platforms. Featu... | FastAPI | 🔨 Development | - | ✅ Current |
+| **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
+| **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-coolify** | Coolify deployment readiness test | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-final** | **Last Updated:** 2026-03-23 | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-session-check** | Session poisoning audit - verify no Fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-zero-refs** | Complete workspace isolation verification - expect ZERO /opt/fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
+| **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | - | ✅ Current |
+| **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
+| **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | - | ✅ Current |
 
 ### Planning/Research (20 projects)
 
-| Project | Purpose | Stack | Status | URL | Scaffold Status |
-|---------|---------|-------|--------|-----|------------------|
-| **ComplianceOps** | ComplianceOps is an async compliance service platform designed for HealthTech startups. It provid... | Unknown | 🔨 Development | - | ✅ Current |
+| Project | Purpose | Stack | Status | URL | Scaffold |
+|---------|---------|-------|--------|-----|----------|
+| **ComplianceOps** | Async compliance service platform for HealthTech startups. | Unknown | 🔨 Development | - | ✅ Current |
 | **Reference_Creator** | Reference_Creator project | Unknown | 🔨 Development | - | ✅ Current |
-| **apidoccreator** | CLI tool that visits documentation URLs, extracts relevant content, cleans and parses it, and pro... | Unknown | 🔨 Development | - | ✅ Current |
+| **apidoccreator** | Automated API documentation reference creator from URLs using web crawling. | Unknown | 🔨 Development | - | ✅ Current |
 | **apps** | apps project | Unknown | 🔨 Development | - | ✅ Current |
-| **brand-identiy-creator** | Brand Identity Creator is an internal web-based tool that automates brand identity creation using... | Unknown | 🔨 Development | - | ✅ Current |
-| **email-reader** | - **Purpose:** Extract login codes or verification URLs from emails | Python | 🔨 Development | - | ✅ Current |
+| **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | Unknown | 🔨 Development | - | ✅ Current |
+| **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | - | ✅ Current |
 | **exam-coach** | exam-coach project | Unknown | 🔨 Development | - | ✅ Current |
 | **file-worker** | file-worker project | Python | 🔨 Development | - | ✅ Current |
 | **gmailaccountcreator** | gmailaccountcreator project | Unknown | 🔨 Development | - | ✅ Current |
-| **image-generation** | Comprehensive product photography solution providing platform-specific image requirements (Instag... | Unknown | 🔨 Development | - | ✅ Current |
-| **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. Users u... | Python | 🔨 Development | - | ✅ Current |
-| **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interfaces ... | Python | 🔨 Development | - | ✅ Current |
+| **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Unknown | 🔨 Development | - | ✅ Current |
+| **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | - | ✅ Current |
+| **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interface... | Python | 🔨 Development | - | ✅ Current |
 | **marketing-argumant-generator** | marketing-argumant-generator project | Unknown | 🔨 Development | - | ✅ Current |
 | **namecheap** | namecheap project | Unknown | 🔨 Development | - | ✅ Current |
-| **proxy** | **Status:** Production Ready | Python | 🔨 Development | - | ⚠️ Needs update |
+| **proxy** | **Status:** Production Ready | Python | 🔨 Development | - | ✅ Current |
 | **supplement-tracker-advisor** | supplement-tracker-advisor project | Unknown | 🔨 Development | - | ✅ Current |
-| **transcriber** | Internal API service providing audio transcription capabilities using Soniox and other provider b... | Unknown | 🔨 Development | - | ✅ Current |
-| **ugc** | Production-grade web scraping system for extracting user-generated content from social media plat... | Unknown | 🔨 Development | - | ✅ Current |
-| **web-scraper** | Python-based web scraper using Scrapy and Playwright to extract full content to JSONLines format ... | Flask | 🔨 Development | - | ✅ Current |
+| **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Unknown | 🔨 Development | - | ✅ Current |
+| **ugc** | User-generated content data scraping system for social media platforms. | Unknown | 🔨 Development | - | ✅ Current |
+| **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
 | **web_scraper** | web_scraper project | Unknown | 🔨 Development | - | ✅ Current |
-
-### Shell Projects (3 projects)
-
-| Project | Purpose | Stack | Status | URL | Scaffold Status |
-|---------|---------|-------|--------|-----|------------------|
-| **.factory** | No description available | Unknown | 🔨 Development | - | ❌ No scaffold |
-| **.ssh** | No description available | Unknown | 🔨 Development | - | ❌ No scaffold |
-| **google** | No description available | Unknown | 🔨 Development | - | ✅ Current |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

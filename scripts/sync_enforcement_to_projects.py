@@ -5,6 +5,9 @@ Supports:
 - --dry-run: Report what would be copied without writing anything
 - --backup: Create timestamped backups before overwriting
 - --force: Skip hash comparison and always overwrite
+
+Workflow Doc: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 from __future__ import annotations
@@ -85,6 +88,14 @@ def sync_single_file(
     Returns:
         SyncResult with action taken and details
     """
+    # Replace symlinks with real copies (symlinks break workspace isolation)
+    if destination.is_symlink():
+        if dry_run:
+            return SyncResult("COPY", source, destination, "replacing symlink with copy")
+        destination.unlink()
+        shutil.copy2(source, destination)
+        return SyncResult("COPY", source, destination, "replaced symlink with copy")
+
     # Destination doesn't exist - always copy
     if not destination.exists():
         if dry_run:
@@ -208,7 +219,12 @@ def sync_scripts_to_project(
             source_dir = FABRIK_ROOT / gov_dir
             if source_dir.exists():
                 dest_dir = project_dir / gov_dir
-                if not dry_run:
+                # Replace directory symlinks with real directories
+                if dest_dir.is_symlink():
+                    if not dry_run:
+                        dest_dir.unlink()
+                        dest_dir.mkdir(parents=True, exist_ok=True)
+                elif not dry_run:
                     dest_dir.mkdir(parents=True, exist_ok=True)
 
                 for source in source_dir.rglob("*"):

@@ -132,7 +132,7 @@ kilo run --session-title "$SESSION_TITLE" ...  # NEW session
    - Re-run until all checks PASS
 
    Step 4: Kilo Review (Self-Review)
-   - Run: python scripts/kilo_code_review.py review <files> --plan .droid/review-context/task.md --review-agent ask --output json
+   - Run: python scripts/kilo_code_review.py review <files> --plan .droid/review-context/task-${TRAYCER_TASK_ID}.md --review-agent ask --output json
    - Read JSON verdict and issues
    - Fix ALL issues (BLOCKER, MAJOR, MINOR)
    - Re-review with --session continue until verdict=PASS
@@ -258,24 +258,59 @@ kilo run --session-title "$SESSION_TITLE" ...  # NEW session
 
 ---
 
+## Traycer Integration Contract
+
+**These invariants MUST be maintained in all agent scripts and documentation:**
+
+### 1. Working Directory
+- **Traycer sets CWD to the project directory** before invoking agent scripts
+- Agent scripts MUST use relative paths for `.droid/`, `scripts/`, etc.
+- NEVER override CWD or add project-root detection — it's already correct
+- This enables multi-instance: each Traycer instance runs in its own project
+
+### 2. Unique Task Files (CRITICAL)
+- Task context MUST use unique filenames: `task-${TRAYCER_TASK_ID}.md`
+- **NEVER use a shared `task.md`** — concurrent agents WILL overwrite each other
+- Format: `.droid/review-context/task-${TRAYCER_TASK_ID:-${TRAYCER_PHASE_ID:-$(date +%s)}}.md`
+
+### 3. Multi-Instance Safety
+- Multiple Traycer/Kilo/Windsurf instances can run simultaneously on different projects
+- Per-run isolation: `$OUTPUT_FILE=$(mktemp)` — unique temp file per run
+- Per-project isolation: `.droid/` is relative to CWD (project directory)
+- Per-task isolation: `TRAYCER_TASK_ID` (UUID) and `TRAYCER_PHASE_ID` (UUID)
+- Report files: timestamped + UUID slug, `latest.md` written atomically via `rename()`
+- Shared log: `~/.traycer/agent-debug.log` is append-only (interleaved but harmless)
+
+### 4. Completion Detection
+- Traycer waits for the agent shell script process to exit
+- Exit code 0 = success, non-zero = failure
+- Traycer does its OWN code analysis for verification (not dependent on report files)
+- `.droid/traycer-reports/latest.md` is for the Windsurf Report Panel display only
+
+### 5. Error Visibility
+- Agent scripts MUST log errors to `~/.traycer/agent-debug.log`
+- NEVER use `|| true` to swallow errors from critical operations (report writer, gate scripts)
+- Capture exit codes and stderr; log failures explicitly
+
+---
+
 ## What's Factual vs Inferred
 
-### **Factual (From Documentation):**
+### **Factual (Confirmed):**
 - ✅ Traycer generates plans
 - ✅ Traycer wraps content with templates
 - ✅ Traycer hands off to CLI agents
-- ✅ Traycer verifies implementation
+- ✅ Traycer verifies implementation (its own AI analysis)
 - ✅ Verification handoff sends issues back to agents
-- ✅ Session ID maintained via `TRAYCER_TASK_ID`
+- ✅ Session ID maintained via `TRAYCER_TASK_ID` / `TRAYCER_PHASE_ID`
 - ✅ Agents are shell scripts in `~/.traycer/cli-agents/`
+- ✅ Traycer sets CWD to project directory
+- ✅ Traycer detects completion via process exit code
+- ✅ Task files use unique names per TRAYCER_TASK_ID
 
-### **Inferred (Not Explicitly Documented):**
-- ❓ How Traycer detects agent completion (assumed: process exit code)
+### **Inferred:**
 - ❓ Whether execution is synchronous or asynchronous (assumed: blocking)
-- ❓ How timeout is enforced
-- ❓ Exact signal for success vs failure
-
-**Note:** These will be validated during test execution.
+- ❓ How timeout is enforced by Traycer IDE (agent scripts have their own timeout)
 
 ---
 
@@ -318,7 +353,7 @@ Before running YOLO mode:
 
 4. **Session Continuity:**
    - Check `.droid/.droid_sessions.json` - should have entry for `TRAYCER_TASK_ID`
-   - Check `.droid/review-context/task.md` - should have original plan
+   - Check `.droid/review-context/task-${TRAYCER_TASK_ID}.md` - should have original plan
 
 ---
 

@@ -10,6 +10,9 @@ Usage:
 
 Fallback:
     If Textual import fails or terminal too small, falls back to plain mode.
+
+Workflow Doc: docs/workflows/KILO_AGENT_MANAGEMENT.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 from __future__ import annotations

@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Traycer Integration & Agent Script Reliability (2026-03-25)
+
+**Report Writer Error Visibility:**
+- **`scripts/generate_kilo_agents.py`:** Replaced `|| true` error swallowing with proper error capture and logging to `~/.traycer/agent-debug.log`
+- **`scripts/traycer_write_report.py`:** Simplified `_resolve_project_root()` — CWD is primary (Traycer sets it), git-root as failsafe only
+
+**Step 4 (Documentator) Enforcement:**
+- **`scripts/generate_kilo_agents.py`:** Added explicit Step 4 instructions and `DOCS=PASS|SKIP` tracking to agent report block
+
+**Documentation — Unique Task Files & CWD Contract:**
+- **`docs/traycer/traycer-yolo-workflow.md`:** Added "Traycer Integration Contract" section (5 invariants: CWD, unique files, multi-instance, completion, error visibility)
+- **`docs/traycer/README.md`:** Fixed 3 example scripts — removed `cd /opt/fabrik`, replaced shared `task.md` with unique `task-${TRAYCER_TASK_ID}.md`
+- **`docs/reference/kilo/KILO_AGENT_NAMING.md`:** Fixed task file description
+- **`docs/workflows/KILO_DISPATCH_WORKFLOW.md`:** Fixed dispatch flow diagram — unique temp files, CWD notes
+- **`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`:** Fixed `.droid/review-context/` description
+
 ### Fixed - Fabrik Ecosystem Integrity Audit Pass 20 (2026-03-25)
 
 **Security (Credential Exposure):**

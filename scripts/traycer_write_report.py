@@ -81,6 +81,39 @@ def extract_report(content: str) -> str | None:
     return None
 
 
+def _resolve_project_root() -> Path:
+    """Resolve the project root directory for writing reports.
+
+    Traycer sets CWD to the project directory when invoking agents,
+    so Path.cwd() is the primary source. Git root is a failsafe only.
+    """
+    # CWD is set by Traycer to the project directory — primary source
+    cwd = Path.cwd()
+
+    # Sanity check: CWD should have a .droid/ or .git/ directory
+    if (cwd / ".git").exists() or (cwd / ".droid").exists():
+        return cwd
+
+    # Failsafe: try git root if CWD doesn't look like a project
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            git_root = Path(result.stdout.strip())
+            if git_root.is_dir():
+                return git_root
+    except Exception:
+        pass
+
+    return cwd
+
+
 def write_report_atomic(report_dir: Path, slug: str, content: str) -> None:
     """
     Write report to timestamped file and atomic latest.md symlink.
@@ -138,9 +171,9 @@ def main() -> int:
         # Resolve slug and write
         slug = resolve_slug(args.slug)
 
-        # Use current working directory (project root where Traycer runs the agent)
-        # This allows reports to work in any /opt/* project, not just /opt/fabrik/
-        repo_root = Path.cwd()
+        # Resolve project root — multiple strategies to handle CWD mismatch
+        # when Traycer invokes Kilo CLI from /home/ozgur or /tmp
+        repo_root = _resolve_project_root()
         report_dir = repo_root / ".droid" / "traycer-reports"
 
         write_report_atomic(report_dir, slug, report)
