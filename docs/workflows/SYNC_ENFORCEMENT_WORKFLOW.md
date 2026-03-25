@@ -12,6 +12,18 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 
 ## What Gets Synced
 
+### Governance Files
+
+| File/Dir | Purpose |
+|----------|--------|
+| `AGENTS.md` | Agent workflow rules |
+| `AGENTS-compact.md` | Compact reference |
+| `opencode.json` | Kilo-safe rules |
+| `.windsurfrules` | Windsurf shim |
+| `.windsurf/rules/` | Cascade rule files (recursive) |
+
+**Auto-sync trigger:** Pre-commit hook in `/opt/fabrik/.pre-commit-config.yaml` runs sync when any governance file is committed. No cron needed.
+
 ### Core Scripts
 
 | Script | Purpose |
@@ -70,6 +82,7 @@ For each file:
 3. **Backup Option** — Creates `.backup.YYYYMMDD-HHMMSS` before overwriting
 4. **Dry Run** — Preview changes without writing
 5. **Permission Check** — Skips projects without write access
+6. **Symlink Replacement** — Replaces file and directory symlinks with real copies (workspace isolation)
 
 ---
 
@@ -96,7 +109,7 @@ Results: 37 projects synced, 1 failed | Files: 8 copied, 917 skipped, 1 warnings
 |---------|---------|
 | After updating enforcement scripts | `python scripts/sync_enforcement_to_projects.py` |
 | Before major releases | `python scripts/sync_enforcement_to_projects.py --force` |
-| Weekly maintenance | Add to cron or WSL startup |
+| On governance file commit | **Automatic** via pre-commit hook in fabrik |
 
 ---
 

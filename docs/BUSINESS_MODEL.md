@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-25 12:46:02 -->
-<!-- Total projects: 39 -->
+<!-- Last synced: 2026-03-25 14:14:23 -->
+<!-- Total projects: 38 -->
 
 ### Production Services (5 projects)
 
@@ -123,7 +123,7 @@ With ~$50/month infrastructure cost:
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (20 projects)
+### Planning/Research (19 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -146,6 +146,11 @@ With ~$50/month infrastructure cost:
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Unknown | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Unknown | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
-| **web_scraper** | web_scraper project | Unknown | 🔨 Development | - | ✅ Current |
+
+### Recently Removed (1 projects)
+
+| Project | Note |
+|---------|------|
+| ~~web_scraper~~ | Folder deleted since last scan |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

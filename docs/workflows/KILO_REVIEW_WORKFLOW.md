@@ -57,7 +57,7 @@
 
 | Scenario | Command | Notes |
 |----------|---------|-------|
-| **Step 4 of AGENTS.md workflow** | `python scripts/kilo_code_review.py staged --plan "..."` | After final_gate passes |
+| **Step 3 of AGENTS.md workflow** | `python scripts/kilo_code_review.py staged --plan "..."` | After self-review (Step 2.5) |
 | Review specific files | `python scripts/kilo_code_review.py review src/file.py` | Direct file review |
 | Review all changes | `python scripts/kilo_code_review.py changed` | Working tree changes |
 | Continue previous session | `python scripts/kilo_code_review.py staged --session continue` | Preserves context |
@@ -428,8 +428,8 @@ PLAN → IMPLEMENT → SELF_REVIEW → KILO_REVIEW → DOCUMENTATOR → FINAL_GA
 
 ```bash
 # After self-review (Step 2.5)
-git add <intended_files>
-git diff --staged                   # Verify staged matches intent
+git add -A                          # Stage ALL uncommitted files (auto-staged by kilo_code_review.py too)
+git diff --staged --name-only       # Verify staged matches intent
 python scripts/kilo_code_review.py staged --plan "task description" --output json
 # Fix any findings reported
 ```
