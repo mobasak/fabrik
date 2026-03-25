@@ -391,6 +391,12 @@ fi
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
+# Preserve full session output for troubleshooting (belt-and-suspenders with runner's save)
+mkdir -p .droid/transcripts
+BACKUP_TRANSCRIPT=".droid/transcripts/$(date +%Y%m%d-%H%M%S)-{role}-{priority}-{model_normalized}-exit$EXIT_CODE-raw.txt"
+cp "$OUTPUT_FILE" "$BACKUP_TRANSCRIPT" 2>/dev/null && \
+    echo "[$(date -Iseconds)] Transcript backup: $BACKUP_TRANSCRIPT (${{#OUTPUT_FILE}} bytes)" >> "$AGENT_LOG"
+
 # Read captured output for report extraction
 OUTPUT=$(cat "$OUTPUT_FILE")
 
