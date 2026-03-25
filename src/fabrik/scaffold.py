@@ -334,8 +334,10 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
     core_scripts = [
         "final_gate.py",
         "kilo_code_review.py",
+        "kilo_docs_enforcer.py",
         "docs_updater.py",
         "update_agents_toc.py",
+        "health_checker.py",
     ]
     for script_name in core_scripts:
         fabrik_script = FABRIK_ROOT / "scripts" / script_name

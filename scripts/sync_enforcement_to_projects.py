@@ -24,7 +24,14 @@ FABRIK_ROOT = Path("/opt/fabrik")
 OPT_ROOT = Path("/opt")
 
 # Scripts to copy
-CORE_SCRIPTS = ["final_gate.py", "kilo_code_review.py", "docs_updater.py", "update_agents_toc.py"]
+CORE_SCRIPTS = [
+    "final_gate.py",
+    "kilo_code_review.py",
+    "kilo_docs_enforcer.py",
+    "docs_updater.py",
+    "update_agents_toc.py",
+    "health_checker.py",
+]
 
 # Governance files to sync (validated by final_gate.py check_symlinks())
 GOVERNANCE_FILES = ["AGENTS.md", "AGENTS-compact.md", "opencode.json", ".windsurfrules"]

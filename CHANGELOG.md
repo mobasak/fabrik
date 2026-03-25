@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Missing Scaffold Scripts (2026-03-25)
+
+**Root Cause:** `kilo_docs_enforcer.py` and `health_checker.py` were missing from both `CORE_SCRIPTS` in `sync_enforcement_to_projects.py` and `core_scripts` in `scaffold.py`. This caused all 38 child projects to lack the Step 4 DOCUMENTATOR script.
+
+- **`scripts/sync_enforcement_to_projects.py`:** Added `kilo_docs_enforcer.py` and `health_checker.py` to `CORE_SCRIPTS`
+- **`src/fabrik/scaffold.py`:** Added same scripts to scaffold `core_scripts` list
+- **`docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md`:** Updated Core Scripts table to match
+
 ### Fixed - Traycer Integration & Agent Script Reliability (2026-03-25)
 
 **Report Writer Error Visibility:**

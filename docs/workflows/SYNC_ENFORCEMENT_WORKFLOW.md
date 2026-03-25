@@ -30,8 +30,10 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 |--------|---------|
 | `final_gate.py` | Pre/post Kilo gate checks |
 | `kilo_code_review.py` | Kilo CLI review integration |
+| `kilo_docs_enforcer.py` | Step 4 DOCUMENTATOR (detect, generate, enforce) |
 | `docs_updater.py` | Documentation maintenance |
 | `update_agents_toc.py` | AGENTS.md table of contents |
+| `health_checker.py` | HTTP + DB health probes |
 
 ### Enforcement Directory
 
