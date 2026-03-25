@@ -69,6 +69,8 @@ class StreamingSanitizer:
         self.line_buffer: list[str] = []
         self.output_lines: list[str] = []
         self.pending_cr = False  # Track pending CR for CR+LF handling
+        self.partial_written = 0  # Track partial line_buffer chars already flushed to disk
+        self._skip_partial_prefix = 0  # Chars to skip in next _flush_complete_lines
 
     def feed(self, chunk: bytes) -> str:
         """Feed raw bytes, return sanitized text."""
@@ -103,11 +105,15 @@ class StreamingSanitizer:
                 if char == "\n":
                     # CR+LF = line ending, output current line
                     self.output_lines.append("".join(self.line_buffer))
+                    if self.partial_written > 0:
+                        self._skip_partial_prefix = self.partial_written
                     self.line_buffer = []
+                    self.partial_written = 0
                     return
                 else:
                     # CR alone = clear line (progress bar), then process current char
                     self.line_buffer = []
+                    self.partial_written = 0
                     # Fall through to process current char
 
             if char == "\x1b":
@@ -118,7 +124,10 @@ class StreamingSanitizer:
             elif char == "\n":
                 # LF alone = line ending
                 self.output_lines.append("".join(self.line_buffer))
+                if self.partial_written > 0:
+                    self._skip_partial_prefix = self.partial_written
                 self.line_buffer = []
+                self.partial_written = 0
             elif char in ("\x07", "\x0e", "\x0f"):
                 pass
             elif char == "\x08":
@@ -165,6 +174,12 @@ class StreamingSanitizer:
             return ""
         result = "\n".join(self.output_lines) + "\n"
         self.output_lines = []
+        # If partial content was already written to disk on a TIMEOUT flush,
+        # the first line in result is a continuation — just append the newline
+        if self._skip_partial_prefix > 0:
+            # The partial content is already on disk; just write what's new
+            result = result[self._skip_partial_prefix:]
+            self._skip_partial_prefix = 0
         return result
 
 
@@ -313,6 +328,12 @@ def run_with_pexpect(
                         f.write(capture_text)
                         f.flush()
             except pexpect.TIMEOUT:
+                # Flush incomplete line buffer on idle so output file stays current
+                if capture.line_buffer and len(capture.line_buffer) > capture.partial_written:
+                    new_chars = "".join(capture.line_buffer[capture.partial_written:])
+                    f.write(new_chars)
+                    f.flush()
+                    capture.partial_written = len(capture.line_buffer)
                 # Check if process exited - use eof() which is more reliable than isalive()
                 # isalive() can return True if child processes still running
                 if child.eof() or not child.isalive():
@@ -364,6 +385,12 @@ def run_plain_mode(command: list[str], raw_output_path: str) -> int:
                         f.write(cap)
                         f.flush()
             except pexpect.TIMEOUT:
+                # Flush incomplete line buffer on idle so output file stays current
+                if capture.line_buffer and len(capture.line_buffer) > capture.partial_written:
+                    new_chars = "".join(capture.line_buffer[capture.partial_written:])
+                    f.write(new_chars)
+                    f.flush()
+                    capture.partial_written = len(capture.line_buffer)
                 # Check if process exited - use eof() which is more reliable than isalive()
                 if child.eof() or not child.isalive():
                     break
