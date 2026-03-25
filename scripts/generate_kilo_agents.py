@@ -374,7 +374,7 @@ if [ "$USE_RICH_UI" = "1" ]; then
         --session-title "$SESSION_TITLE" \\
         --timeout "$TIMEOUT" \\
         -- timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
-            --model {api_id} \\
+            --model kilo/{api_id} \\
             --variant {variant} \\
             --title "$SESSION_TITLE" \\
             "$PROMPT"
@@ -382,7 +382,7 @@ if [ "$USE_RICH_UI" = "1" ]; then
 else
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Plain mode (KILO_RICH_UI=$KILO_RICH_UI, tty=$([ -t 1 ] && echo yes || echo no))" >&2
     timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
-        --model {api_id} \\
+        --model kilo/{api_id} \\
         --variant {variant} \\
         --title "$SESSION_TITLE" \\
         "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
@@ -440,7 +440,7 @@ fi
 # Cost tracking (if enabled)
 if [ -n "$KILO_TRACK_COST" ]; then
     mkdir -p "$(dirname "$USAGE_LOG")"
-    echo '{{"timestamp":"$(date -Iseconds)","agent":"{role}-{priority}-{model_normalized}-{variant}","model":"{api_id}","task_id":"$TRAYCER_TASK_ID","exit_code":$EXIT_CODE,"duration":$DURATION}}' >> "$USAGE_LOG"
+    echo '{{"timestamp":"$(date -Iseconds)","agent":"{role}-{priority}-{model_normalized}-{variant}","model":"kilo/{api_id}","task_id":"$TRAYCER_TASK_ID","exit_code":$EXIT_CODE,"duration":$DURATION}}' >> "$USAGE_LOG"
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Usage logged to $USAGE_LOG" >&2
 fi
 
