@@ -178,7 +178,7 @@ class StreamingSanitizer:
         # the first line in result is a continuation — just append the newline
         if self._skip_partial_prefix > 0:
             # The partial content is already on disk; just write what's new
-            result = result[self._skip_partial_prefix:]
+            result = result[self._skip_partial_prefix :]
             self._skip_partial_prefix = 0
         return result
 
@@ -330,7 +330,7 @@ def run_with_pexpect(
             except pexpect.TIMEOUT:
                 # Flush incomplete line buffer on idle so output file stays current
                 if capture.line_buffer and len(capture.line_buffer) > capture.partial_written:
-                    new_chars = "".join(capture.line_buffer[capture.partial_written:])
+                    new_chars = "".join(capture.line_buffer[capture.partial_written :])
                     f.write(new_chars)
                     f.flush()
                     capture.partial_written = len(capture.line_buffer)
@@ -387,7 +387,7 @@ def run_plain_mode(command: list[str], raw_output_path: str) -> int:
             except pexpect.TIMEOUT:
                 # Flush incomplete line buffer on idle so output file stays current
                 if capture.line_buffer and len(capture.line_buffer) > capture.partial_written:
-                    new_chars = "".join(capture.line_buffer[capture.partial_written:])
+                    new_chars = "".join(capture.line_buffer[capture.partial_written :])
                     f.write(new_chars)
                     f.flush()
                     capture.partial_written = len(capture.line_buffer)

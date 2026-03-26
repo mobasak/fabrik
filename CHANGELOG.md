@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Health Summary Script (2026-03-25)
+- Add `scan_health(root: Path)` function in `scripts/health_summary.py` to scan `/opt/*` projects for essential scaffold files and determine status based on missing count thresholds (healthy: 0, warnings: 1-2, missing: 3+)
+- Add `print_table(results)` function in `scripts/health_summary.py` to output aligned table of project health with status labels and missing files, plus summary counts
+- Add `main()` function in `scripts/health_summary.py` with argparse support for `--json` output, custom `--base` directory, and exit code 1 on health issues
+- Add exclusion logic via `_is_excluded(name)` using fnmatch patterns from `sync_projects` or defaults (`_*`, `.*`, `fabrik`, `__pycache__`, `venv`, `google`)
+- Add essential files check list in `scripts/health_summary.py`: `AGENTS.md`, `.env.example`, `project.yaml`, `compose.yaml`, `Dockerfile`, `.windsurf/rules/00-critical.md`
+- Add new documentation file `docs/workflows/HEALTH_SUMMARY_WORKFLOW.md` with overview, essential files, status thresholds, exclusion rules, CLI usage, and exit codes
+
+
+
 ### Fixed - Missing Scaffold Scripts (2026-03-25)
 
 **Root Cause:** `kilo_docs_enforcer.py` and `health_checker.py` were missing from both `CORE_SCRIPTS` in `sync_enforcement_to_projects.py` and `core_scripts` in `scaffold.py`. This caused all 38 child projects to lack the Step 4 DOCUMENTATOR script.

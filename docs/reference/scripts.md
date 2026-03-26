@@ -356,3 +356,49 @@ python scripts/sync_projects.py --dry-run
 # Apply changes to BUSINESS_MODEL.md
 python scripts/sync_projects.py
 ```
+
+---
+
+## scan_health
+
+**Signature:**
+
+```python
+def scan_health(root: Path = Path("/opt")) -> list[dict[str, object]]:
+```
+
+**Description:** Scans project directories and reports scaffold health status by checking for essential files. Each project is categorized as `healthy`, `warnings`, or `missing` based on how many essential scaffold files are absent.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `root` | `Path` | No | `Path("/opt")` | Base directory to scan for project folders |
+
+**Returns:**
+
+- `list[dict[str, object]]` — List of dicts with keys: `project` (str), `path` (str), `missing` (list[str]), `status` (str: `"healthy"`, `"warnings"`, or `"missing"`)
+
+**Example:**
+
+```python
+from scripts.health_summary import scan_health
+from pathlib import Path
+
+results = scan_health(root=Path("/opt"))
+for r in results:
+    print(f"{r['project']}: {r['status']}")
+```
+
+```bash
+# Table output (default)
+python scripts/health_summary.py
+
+# JSON output for automation
+python scripts/health_summary.py --json
+
+# Scan a different root directory
+python scripts/health_summary.py --base /some/path
+```
+
+**Workflow Doc:** `docs/workflows/HEALTH_SUMMARY_WORKFLOW.md`

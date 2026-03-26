@@ -288,19 +288,7 @@ REPORT_REQUIREMENT='
 ---
 ## MANDATORY: Output Report Block (Traycer Integration)
 
-After completing your task, you MUST follow the 8-step workflow from AGENTS.md:
-1. Implement → 2.5 Self-review → 3. Kilo Review → 4. **Documentator (DO NOT SKIP)** → 5. Final Gate
-
-**Step 3: Kilo Review** — `kilo_code_review.py staged` auto-stages ALL uncommitted files. Just run it.
-
-**Step 4 is MANDATORY.** Run these commands before Final Gate:
-```bash
-python scripts/kilo_docs_enforcer.py --auto-generate --verbose
-git add -A
-python scripts/kilo_docs_enforcer.py --enforce
-```
-
-Then output this exact block at the end:
+After completing your task, you MUST output this exact block at the end:
 
 ```
 BEGIN_TRAYCER_REPORT_MD
@@ -310,13 +298,12 @@ FOLLOWED: <comma-separated rule IDs or "all">
 DEVIATED: <ID:reason; or "none">
 ENV: <new vars added to .env.example or "none">
 DB: <schema/migration changes or "none">
-CHECKS: FG_PRE=PASS|FAIL|SKIP, SELF_REVIEW=DONE|SKIP, KILO=PASS|SKIP, DOCS=PASS|SKIP, FG_POST=PASS|FAIL|SKIP
+CHECKS: FG_PRE=PASS|FAIL|SKIP, SELF_REVIEW=DONE|SKIP, KILO=PASS|SKIP, FG_POST=PASS|FAIL|SKIP
 VERIFY: <1-2 verification commands>
 END_TRAYCER_REPORT_MD
 ```
 
 This report block is REQUIRED for Traycer integration. The task will fail without it.
-If DOCS=SKIP, you MUST provide a justification.
 ---
 '
 PROMPT="$PROMPT$REPORT_REQUIREMENT"
@@ -344,68 +331,92 @@ trap "rm -f $OUTPUT_FILE" EXIT
 SESSION_TITLE="${{TRAYCER_PHASE_ID:-${{TRAYCER_TASK_ID:-kilo-session}}}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Kilo session title: $SESSION_TITLE" >&2
 
-# Run Kilo agent with streaming output
+# Run Kilo agent
 RUNNER_SCRIPT="/opt/fabrik/scripts/kilo_terminal_runner.py"
 RUNNER_PYTHON="/opt/fabrik/.venv/bin/python3"
 KILO_RICH_UI="${{KILO_RICH_UI:-1}}"
-
-# Force plain mode under Traycer — Textual TUI alternate screen buffer
-# corrupts Windsurf shell integration, blocking post-kilo script execution
-if [ -n "$TRAYCER_TASK_ID" ]; then
-    KILO_RICH_UI=0
-    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Traycer detected — forcing plain mode (no TUI)" >&2
-fi
 
 # Fall back to system python3 if venv not available
 if [ ! -x "$RUNNER_PYTHON" ]; then
     RUNNER_PYTHON="python3"
 fi
 
-# Shell-side preflight: check env var, runner exists, python available, TTY
-USE_RICH_UI=0
-if [ "$KILO_RICH_UI" = "1" ] && \\
-   [ -f "$RUNNER_SCRIPT" ] && \\
-   command -v "$RUNNER_PYTHON" >/dev/null 2>&1 && \\
-   [ -t 1 ]; then
-    USE_RICH_UI=1
-fi
+if [ -n "$TRAYCER_TASK_ID" ]; then
+    # TRAYCER MODE: Background kilo + tail -f for real-time streaming
+    # while preserving clean script exit for shell integration completion detection.
+    # Key: kilo writes to file, tail streams it, script waits for kilo then exits cleanly.
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Traycer mode — streaming via tail -f" >&2
 
-if [ "$USE_RICH_UI" = "1" ]; then
-    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using kilo_terminal_runner.py with $RUNNER_PYTHON" >&2
-    "$RUNNER_PYTHON" "$RUNNER_SCRIPT" \\
-        --output "$OUTPUT_FILE" \\
-        --agent "{role}-{priority}-{model_normalized}" \\
-        --model "{agent["name"]}" \\
-        --role "{role}" \\
-        --variant "{variant}" \\
-        --session-title "$SESSION_TITLE" \\
-        --timeout "$TIMEOUT" \\
-        -- timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
-            --model kilo/{api_id} \\
-            --variant {variant} \\
-            --title "$SESSION_TITLE" \\
-            "$PROMPT"
-    EXIT_CODE=$?
-else
-    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Plain mode (KILO_RICH_UI=$KILO_RICH_UI, tty=$([ -t 1 ] && echo yes || echo no))" >&2
+    # Start kilo in background, writing directly to output file
     timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
         --model kilo/{api_id} \\
         --variant {variant} \\
         --title "$SESSION_TITLE" \\
-        "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
-    EXIT_CODE=${{PIPESTATUS[0]}}
+        "$PROMPT" > "$OUTPUT_FILE" 2>&1 &
+    KILO_PID=$!
+
+    # Stream output in real-time while kilo runs
+    tail -f "$OUTPUT_FILE" &
+    TAIL_PID=$!
+
+    # Wait for kilo to finish (timeout or natural completion)
+    wait "$KILO_PID" 2>/dev/null
+    EXIT_CODE=$?
+
+    # Stop tail, capture full output
+    kill "$TAIL_PID" 2>/dev/null || true
+    wait "$TAIL_PID" 2>/dev/null || true
+    OUTPUT=$(cat "$OUTPUT_FILE")
+else
+    # INTERACTIVE MODE: Use Rich TUI or tee for real-time streaming
+    # Shell-side preflight: check env var, runner exists, python available, TTY
+    USE_RICH_UI=0
+    if [ "$KILO_RICH_UI" = "1" ] && \\
+       [ -f "$RUNNER_SCRIPT" ] && \\
+       command -v "$RUNNER_PYTHON" >/dev/null 2>&1 && \\
+       [ -t 1 ]; then
+        USE_RICH_UI=1
+    fi
+
+    if [ "$USE_RICH_UI" = "1" ]; then
+        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using kilo_terminal_runner.py with $RUNNER_PYTHON" >&2
+        "$RUNNER_PYTHON" "$RUNNER_SCRIPT" \\
+            --output "$OUTPUT_FILE" \\
+            --agent "{role}-{priority}-{model_normalized}" \\
+            --model "{agent["name"]}" \\
+            --role "{role}" \\
+            --variant "{variant}" \\
+            --session-title "$SESSION_TITLE" \\
+            --timeout "$TIMEOUT" \\
+            -- timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
+                --model kilo/{api_id} \\
+                --variant {variant} \\
+                --title "$SESSION_TITLE" \\
+                "$PROMPT"
+        EXIT_CODE=$?
+    else
+        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Plain mode (KILO_RICH_UI=$KILO_RICH_UI, tty=$([ -t 1 ] && echo yes || echo no))" >&2
+        timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
+            --model kilo/{api_id} \\
+            --variant {variant} \\
+            --title "$SESSION_TITLE" \\
+            "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
+        EXIT_CODE=${{PIPESTATUS[0]}}
+    fi
 fi
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
-# Preserve full session output for troubleshooting (belt-and-suspenders with runner's save)
+# Preserve full session output for troubleshooting
 mkdir -p .droid/transcripts
 BACKUP_TRANSCRIPT=".droid/transcripts/$(date +%Y%m%d-%H%M%S)-{role}-{priority}-{model_normalized}-exit$EXIT_CODE-raw.txt"
 cp "$OUTPUT_FILE" "$BACKUP_TRANSCRIPT" 2>/dev/null && \
     echo "[$(date -Iseconds)] Transcript backup: $BACKUP_TRANSCRIPT (${{#OUTPUT_FILE}} bytes)" >> "$AGENT_LOG"
 
-# Read captured output for report extraction
-OUTPUT=$(cat "$OUTPUT_FILE")
+# Read captured output for report extraction (interactive mode reads from file)
+if [ -z "$TRAYCER_TASK_ID" ]; then
+    OUTPUT=$(cat "$OUTPUT_FILE")
+fi
 
 # MANDATORY: Extract and write Traycer report (fail if missing)
 REPORT_FOUND=0

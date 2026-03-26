@@ -663,8 +663,9 @@ def projects(status: str | None, sync: bool):
 
 
 @cli.command()
+@click.option("--health", is_flag=True, help="Run health summary after scan")
 @click.option("--base", "-b", default="/opt", help="Base path to scan")
-def scan(base: str):
+def scan(health: bool, base: str):
     """Scan /opt for projects and update registry + BUSINESS_MODEL.md."""
     import subprocess
 
@@ -677,6 +678,22 @@ def scan(base: str):
         ["python3", str(sync_script)],
         cwd=str(FABRIK_ROOT),
     )
+
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+
+    if health:
+        health_script = FABRIK_ROOT / "scripts" / "health_summary.py"
+        if not health_script.exists():
+            click.echo(f"ERROR: {health_script} not found")
+            raise SystemExit(1)
+
+        health_result = subprocess.run(
+            ["python3", str(health_script), "--base", base],
+            cwd=str(FABRIK_ROOT),
+        )
+        raise SystemExit(health_result.returncode)
+
     raise SystemExit(result.returncode)
 
 

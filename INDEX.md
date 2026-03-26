@@ -180,7 +180,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-03-24T23:34 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-03-26T00:13 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -240,6 +240,7 @@ docs/
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
 │   ├── exampleconsultancysitemap.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
+│   ├── fabrik.md
 │   ├── file-api-deployment.md      # File API deployment guide
 │   ├── global-gates.md             # Global gate definitions
 │   ├── health-monitoring.md        # Health monitoring patterns
@@ -267,6 +268,7 @@ docs/
 │   ├── project-registry.md         # Master inventory of all /opt projects
 │   ├── provisioner.md
 │   ├── roadmap.md                  # Complete 8-phase roadmap summary
+│   ├── scripts.md
 │   ├── stack.md                    # Technology stack & tools inventory
 │   ├── technology-stack-decision-guide.md # Tech decision flowchart
 │   ├── template_renderer.md
@@ -315,7 +317,9 @@ docs/
     ├── FABRIK_SCAFFOLD_WORKFLOW.md # Fabrik scaffold workflow
     ├── FINAL_GATE_WORKFLOW.md      # Final gate workflow
     ├── HEALTH_CHECKER_WORKFLOW.md  # Health checker workflow
+    ├── HEALTH_SUMMARY_WORKFLOW.md
     ├── KILO_AGENT_MANAGEMENT.md    # Kilo agent management
+    ├── KILO_DISPATCH_WORKFLOW.md
     ├── KILO_REVIEW_WORKFLOW.md     # Kilo review workflow
     ├── SYNC_ENFORCEMENT_WORKFLOW.md # Sync enforcement workflow
     └── SYNC_PROJECTS_WORKFLOW.md   # Sync projects workflow

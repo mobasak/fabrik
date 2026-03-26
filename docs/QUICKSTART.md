@@ -85,6 +85,18 @@ fabrik status hello-api
 curl https://hello-api.yourdomain.com/health
 ```
 
+## Scan Project Health
+
+```bash
+# Check scaffold health across all projects
+python scripts/health_summary.py
+
+# JSON output for automation
+python scripts/health_summary.py --json
+```
+
+See `docs/workflows/HEALTH_SUMMARY_WORKFLOW.md` for details.
+
 ## Next Steps
 
 - [Configuration Reference](CONFIGURATION.md) — All settings explained

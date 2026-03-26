@@ -47,3 +47,28 @@ ignoring input
 
 ✅ Generated 6 agent scripts
    📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 327 models
+[kilo-db]   Inserted 1, updated 326 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 252 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 115 Terminal Bench entries
+[kilo-db]   Updated 98 Elo, 37 TBench scores
+[kilo-db] Created snapshot for 2026-03-26 with 333 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+🔄 Reading agents from kilo_agents.db...
+   Found 8 coding/fixing role assignments
+   After deduplication: 6 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260326-000456
+   🗑 Rotated old backup: cli-agents.backup.20260325-232736
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+
+✅ Generated 6 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
