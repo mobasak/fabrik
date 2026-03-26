@@ -278,6 +278,18 @@ fi
 PROMPT="${{PROMPT//\\~\\/.traycer\\//${{HOME}}/.traycer/}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Fixed tilde paths in prompt" >&2
 
+# CRITICAL: Extract artifact ID from prompt, then STRIP the task_completion_requirement block.
+# Traycer YOLO mode watches for artifact file creation. If agent creates it mid-task,
+# Traycer thinks task is done prematurely. We create it in THIS script after kilo exits.
+ARTIFACT_ID=""
+if echo "$PROMPT" | grep -q "yolo_artifacts"; then
+    ARTIFACT_ID=$(echo "$PROMPT" | grep -oP 'yolo_artifacts/\\K[a-f0-9-]+(?=\\.json)')
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Extracted artifact ID: $ARTIFACT_ID" >&2
+    # Strip the task_completion_requirement block so agent doesn't create artifact
+    PROMPT=$(echo "$PROMPT" | sed '/<task_completion_requirement>/,/<\\/task_completion_requirement>/d')
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Stripped task_completion_requirement from prompt" >&2
+fi
+
 # Log working directory for debugging (Traycer sets CWD to project directory)
 echo "[$(date -Iseconds)] CWD=$(pwd)" >> "$AGENT_LOG"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] CWD: $(pwd)" >&2
@@ -472,6 +484,16 @@ fi
 if [ "$KILO_DEBUG" = "1" ]; then
     echo "[DEBUG] Exit code: $EXIT_CODE" >&2
     echo "[DEBUG] Duration: $DURATION seconds" >&2
+fi
+
+# CRITICAL: Create artifact file AFTER kilo exits (not inside kilo)
+# This is what signals completion to Traycer YOLO mode
+if [ -n "$ARTIFACT_ID" ] && [ $EXIT_CODE -eq 0 ]; then
+    ARTIFACT_DIR="$HOME/.traycer/yolo_artifacts"
+    mkdir -p "$ARTIFACT_DIR"
+    echo '{{}}' > "$ARTIFACT_DIR/$ARTIFACT_ID.json"
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Created artifact: $ARTIFACT_DIR/$ARTIFACT_ID.json" >&2
+    echo "[$(date -Iseconds)] ARTIFACT_CREATED: $ARTIFACT_DIR/$ARTIFACT_ID.json" >> "$AGENT_LOG"
 fi
 
 # Exit logic: success if report found, otherwise use kilo's exit code

@@ -37,7 +37,7 @@ Every Kilo CLI agent run saves output to **two locations**:
 
 ### 2. Kilo Internal Sessions (Kilo CLI Storage)
 
-**Access:** 
+**Access:**
 ```bash
 kilo session list                    # List all sessions
 kilo export <sessionID> > file.json  # Export full session as JSON
@@ -55,13 +55,41 @@ kilo export <sessionID> > file.json  # Export full session as JSON
 
 ## Traycer Completion Detection
 
-### Mechanism
+### Two Detection Mechanisms
 
-Traycer uses **VS Code's `onDidEndTerminalShellExecution` API** (shell integration) to detect when CLI agent scripts finish.
+Traycer uses **different mechanisms** depending on mode:
 
-Shell integration tracks:
-- **Command boundaries** via OSC escape sequences in terminal output
-- **Exit codes** from the shell process
+#### 1. Artifact File Watcher (YOLO Mode)
+
+In YOLO mode, Traycer watches `~/.traycer/yolo_artifacts/<artifact_id>.json`:
+- When file is created → Traycer immediately considers task complete
+- **CRITICAL:** This is FASTER than shell integration
+- If agent creates artifact mid-task → premature completion detection
+
+**Problem discovered (2026-03-26):**
+Traycer's prompt includes `<task_completion_requirement>` telling agent to create artifact file.
+Agent creates it BEFORE finishing → Traycer moves to next phase while agent still runs.
+
+**Solution:** Shell script intercepts and handles artifact creation:
+```bash
+# Extract artifact ID, strip from prompt
+ARTIFACT_ID=$(echo "$PROMPT" | grep -oP 'yolo_artifacts/\K[a-f0-9-]+(?=\.json)')
+PROMPT=$(echo "$PROMPT" | sed '/<task_completion_requirement>/,/<\/task_completion_requirement>/d')
+
+# ... kilo runs ...
+
+# Create artifact AFTER kilo exits
+if [ -n "$ARTIFACT_ID" ] && [ $EXIT_CODE -eq 0 ]; then
+    echo '{}' > "$HOME/.traycer/yolo_artifacts/$ARTIFACT_ID.json"
+fi
+```
+
+#### 2. Shell Integration (Plan/Review Modes)
+
+Uses **VS Code's `onDidEndTerminalShellExecution` API**:
+- Tracks command boundaries via OSC escape sequences
+- Detects when shell script process exits
+- Reports exit code
 
 ### What Traycer Sees
 

@@ -282,8 +282,39 @@ kilo run --session-title "$SESSION_TITLE" ...  # NEW session
 - Shared log: `~/.traycer/agent-debug.log` is append-only (interleaved but harmless)
 
 ### 4. Completion Detection
-- Traycer waits for the agent shell script process to exit
-- Exit code 0 = success, non-zero = failure
+
+**YOLO Mode uses TWO detection mechanisms:**
+
+1. **Artifact File Watcher (YOLO-specific):**
+   - Traycer watches `~/.traycer/yolo_artifacts/<artifact_id>.json`
+   - When this file is created, Traycer immediately considers the task complete
+   - **CRITICAL:** If agent creates this file mid-task, Traycer detects premature completion
+   - **FIX (2026-03-26):** Shell script strips `<task_completion_requirement>` from prompt and creates artifact AFTER kilo exits
+
+2. **Shell Integration (Plan/Review modes):**
+   - VS Code's `onDidEndTerminalShellExecution` API
+   - Detects when shell script process exits
+   - Exit code 0 = success, non-zero = failure
+
+**Why this matters:**
+- Artifact watcher is FASTER than shell integration
+- If agent creates artifact before exiting, Traycer moves to next phase while agent still runs
+- This caused Phase 1 to "complete" while kilo was still executing
+
+**Current solution (generate_kilo_agents.py):**
+```bash
+# Extract artifact ID, strip from prompt so agent doesn't create it
+ARTIFACT_ID=$(echo "$PROMPT" | grep -oP 'yolo_artifacts/\K[a-f0-9-]+(?=\.json)')
+PROMPT=$(echo "$PROMPT" | sed '/<task_completion_requirement>/,/<\/task_completion_requirement>/d')
+
+# ... kilo runs ...
+
+# Create artifact AFTER kilo exits successfully
+if [ -n "$ARTIFACT_ID" ] && [ $EXIT_CODE -eq 0 ]; then
+    echo '{}' > "$HOME/.traycer/yolo_artifacts/$ARTIFACT_ID.json"
+fi
+```
+
 - Traycer does its OWN code analysis for verification (not dependent on report files)
 - `.droid/traycer-reports/latest.md` is for the Windsurf Report Panel display only
 
