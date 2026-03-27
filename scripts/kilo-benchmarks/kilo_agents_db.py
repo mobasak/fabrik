@@ -14,12 +14,17 @@ Usage:
     python scripts/kilo_agents_db.py update        # Update benchmarks
     python scripts/kilo_agents_db.py snapshot      # Create daily snapshot
     python scripts/kilo_agents_db.py export        # Export to markdown
+    python scripts/kilo_agents_db.py ollama-sync   # Sync local models from Ollama
+    python scripts/kilo_agents_db.py ollama-status # Show local model status
+    python scripts/kilo_agents_db.py all           # Full pipeline (Kilo + Ollama)
 """
 
 import json
 import sqlite3
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -179,9 +184,32 @@ def extract_variant(model_id: str, name: str) -> str:
 
 def sync_from_kilo() -> None:
     """Sync agent data from Kilo CLI."""
+    log("Syncing agents from Kilo CLI...")
+
+    # Add missing columns to agents table (migration)
+    conn = get_connection()
+    cursor = conn.cursor()
+    columns_to_add = [
+        ("humaneval_score", "REAL"),
+        ("coding_score", "REAL"),
+    ]
+    schema_changed = False
+    for col_name, col_type in columns_to_add:
+        try:
+            cursor.execute(f"ALTER TABLE agents ADD COLUMN {col_name} {col_type}")
+            schema_changed = True
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+    conn.commit()
+    conn.close()
+
+    # Update documentation if schema changed
+    if schema_changed:
+        generate_schema_docs("agents")
+
     models = fetch_kilo_models()
     if not models:
-        log("No models to sync")
+        log("  No models found")
         return
 
     conn = get_connection()
@@ -517,6 +545,460 @@ def export_markdown() -> None:
     log(f"Exported {len(rows)} agents to {MASTER_MD}")
 
 
+# =============================================================================
+# LOCAL LLM (OLLAMA) FUNCTIONS
+# =============================================================================
+
+OLLAMA_API = "http://localhost:11434"
+LOCAL_LLM_DOC = FABRIK_ROOT / "docs" / "reference" / "LOCAL_LLM_INFRASTRUCTURE.md"
+
+# Known model capabilities - used to populate DB when syncing from Ollama
+# Sources: model cards, Chatbot Arena (arena_elo only)
+#
+# HARDWARE STRATEGY (RTX 5070 = 8GB VRAM, 64GB RAM):
+#   - gpu: Fits entirely in VRAM (≤8GB) → fastest
+#   - hybrid-gpu: GPU primary, spills to RAM (8-16GB) → fast
+#   - hybrid-cpu: CPU primary, uses GPU assist (16-32GB) → moderate
+#   - cpu: Too large for GPU benefit (>32GB) → RAM only
+#
+# MEMORY ESTIMATES (Q4 quantization):
+#   - 7B  → ~4GB    - 8B  → ~5GB    - 13B → ~8GB
+#   - 14B → ~8GB    - 16B → ~9GB    - 32B → ~19GB
+#   - 70B → ~42GB
+LOCAL_MODEL_CAPABILITIES: dict[str, dict[str, Any]] = {
+    # === FABRIK AGENTS ===
+    # Agent 1: The Lead Engineer (primary implementation)
+    "fabrik-coder-qwen2.5-32b:latest": {
+        "role": "coding",
+        "priority": 1,
+        "hardware": "hybrid-cpu",
+        "context_window_k": 16,
+        "has_vision": 0,
+        "has_tools": 1,
+        "is_agentic": 1,
+        "is_reasoning": 1,
+        "arena_elo": 1280,
+        "notes": "~19GB: fills 8GB VRAM, spills 11GB to RAM. Lead Engineer for Fabrik implementation",
+    },
+    # Agent 2: The Senior Reviewer (reviews staged changes)
+    "fabrik-reviewer-llama3.1-70b:latest": {
+        "role": "reviewing",
+        "priority": 1,
+        "hardware": "cpu",
+        "context_window_k": 32,
+        "has_vision": 0,
+        "has_tools": 1,
+        "is_agentic": 1,
+        "is_reasoning": 0,
+        "arena_elo": 1290,
+        "notes": "~42GB RAM only. Senior Reviewer for Fabrik - reports findings only",
+    },
+    # Agent 3: The Surgical Fixer (fixes only reported issues)
+    "fabrik-fixer-deepseek-v2-16b:latest": {
+        "role": "fixing",
+        "priority": 1,
+        "hardware": "hybrid-gpu",
+        "context_window_k": 16,
+        "has_vision": 0,
+        "has_tools": 1,
+        "is_agentic": 1,
+        "is_reasoning": 1,
+        "arena_elo": 1260,
+        "notes": "~9GB: almost fits in VRAM, ~1GB spills to RAM. Surgical Fixer for reported issues only",
+    },
+    # Agent 4: The Documentator (updates docs at end of phase)
+    "fabrik-docs-llama3.1-8b:latest": {
+        "role": "documentation",
+        "priority": 1,
+        "hardware": "gpu",
+        "context_window_k": 8,
+        "has_vision": 0,
+        "has_tools": 1,
+        "is_agentic": 0,
+        "is_reasoning": 1,
+        "arena_elo": 1150,
+        "notes": "~5GB: fits entirely in VRAM. Documentator for Fabrik - updates docs at phase end",
+    },
+}
+
+
+def fetch_ollama_models() -> list[dict[str, Any]]:
+    """Fetch installed models from Ollama API."""
+    log("Fetching models from Ollama API...")
+    try:
+        req = urllib.request.Request(f"{OLLAMA_API}/api/tags")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+            models = data.get("models", [])
+            log(f"  Found {len(models)} local models")
+            return models
+    except urllib.error.URLError as e:
+        log(f"  Ollama not running or unreachable: {e}")
+        return []
+    except Exception as e:
+        log(f"  Error fetching Ollama models: {e}")
+        return []
+
+
+def parse_model_size(name: str, size_bytes: int) -> tuple[str, str, str]:
+    """
+    Parse model name to extract family, parameter size, and quantization.
+
+    Examples:
+        'qwen2.5-coder:32b' -> ('qwen2.5-coder', '32B', None)
+        'llama3.1:70b-instruct-q4_K_M' -> ('llama3.1', '70B', 'Q4_K_M')
+    """
+    family = name.split(":")[0] if ":" in name else name
+
+    # Extract parameter size from name
+    param_size = None
+    for part in name.lower().replace(":", "-").split("-"):
+        if part.endswith("b") and part[:-1].replace(".", "").isdigit():
+            param_size = part.upper()
+            break
+
+    # Estimate from size if not in name
+    if not param_size and size_bytes:
+        gb = size_bytes / (1024**3)
+        if gb < 5:
+            param_size = "~7B"
+        elif gb < 10:
+            param_size = "~13B"
+        elif gb < 25:
+            param_size = "~32B"
+        elif gb < 50:
+            param_size = "~70B"
+        else:
+            param_size = ">70B"
+
+    # Extract quantization
+    quant = None
+    name_lower = name.lower()
+    for q in ["q4_k_m", "q4_k_s", "q5_k_m", "q5_k_s", "q8_0", "f16", "f32"]:
+        if q in name_lower:
+            quant = q.upper()
+            break
+
+    return family, param_size or "?", quant
+
+
+def estimate_memory(param_size: str, quant: str | None) -> tuple[float, float]:
+    """
+    Estimate VRAM and RAM requirements based on model size.
+    Returns (vram_gb, ram_gb).
+    """
+    # Parse numeric size
+    size_str = param_size.replace("~", "").replace(">", "").replace("B", "").replace("b", "")
+    try:
+        params_b = float(size_str)
+    except ValueError:
+        return (4.0, 8.0)  # Default estimate
+
+    # Base memory = params * 2 bytes (FP16) or params * 0.5 bytes (Q4)
+    if quant and "Q4" in quant:
+        base_gb = params_b * 0.5
+    elif quant and "Q8" in quant:
+        base_gb = params_b * 1.0
+    else:
+        base_gb = params_b * 2.0  # Assume FP16
+
+    # Add overhead (~20%)
+    total_gb = base_gb * 1.2
+
+    # Models < 16B can fit in 12GB VRAM (RTX 5070)
+    if params_b <= 16:
+        return (total_gb, 0.0)
+    else:
+        return (0.0, total_gb)
+
+
+def sync_from_ollama() -> None:
+    """Sync local models from Ollama API."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Ensure table exists
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS local_models (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            family TEXT,
+            parameter_size TEXT,
+            quantization TEXT,
+            size_bytes INTEGER,
+            hardware TEXT DEFAULT 'auto',
+            vram_required_gb REAL,
+            ram_required_gb REAL,
+            assigned_role TEXT,
+            role_priority INTEGER DEFAULT 1,
+            context_window_k INTEGER DEFAULT 32,
+            has_vision INTEGER DEFAULT 0,
+            has_tools INTEGER DEFAULT 0,
+            is_agentic INTEGER DEFAULT 0,
+            is_reasoning INTEGER DEFAULT 0,
+            arena_elo INTEGER,
+            tbench_accuracy REAL,
+            humaneval_score REAL,
+            coding_score REAL,
+            tokens_per_sec REAL,
+            time_to_first_token_ms REAL,
+            status TEXT DEFAULT 'available',
+            last_used TIMESTAMP,
+            last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            digest TEXT,
+            modified_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Add missing columns (migration for existing tables)
+    columns_to_add = [
+        ("has_vision", "INTEGER DEFAULT 0"),
+        ("has_tools", "INTEGER DEFAULT 0"),
+        ("is_agentic", "INTEGER DEFAULT 0"),
+        ("is_reasoning", "INTEGER DEFAULT 0"),
+        ("arena_elo", "INTEGER"),
+        ("tbench_accuracy", "REAL"),
+        ("humaneval_score", "REAL"),
+        ("coding_score", "REAL"),
+        ("time_to_first_token_ms", "REAL"),
+    ]
+    schema_changed = False
+    for col_name, col_type in columns_to_add:
+        try:
+            cursor.execute(f"ALTER TABLE local_models ADD COLUMN {col_name} {col_type}")
+            schema_changed = True
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+    conn.commit()
+
+    # Update documentation if schema changed
+    if schema_changed:
+        generate_schema_docs("local_models")
+
+    # Fetch models from Ollama
+    models = fetch_ollama_models()
+    if not models:
+        conn.close()
+        return
+
+    inserted = 0
+    updated = 0
+
+    for model in models:
+        model_name = model.get("name", "")
+        if not model_name:
+            continue
+
+        size_bytes = model.get("size", 0)
+        digest = model.get("digest", "")
+        modified_at = model.get("modified_at", "")
+
+        # Parse model info
+        family, param_size, quant = parse_model_size(model_name, size_bytes)
+        vram_gb, ram_gb = estimate_memory(param_size, quant)
+
+        # Get capabilities from config (or defaults)
+        caps = LOCAL_MODEL_CAPABILITIES.get(model_name, {})
+        assigned_role = caps.get("role")
+        role_priority = caps.get("priority", 1)
+        hardware = caps.get("hardware", "auto")
+        context_window_k = caps.get("context_window_k", 32)
+        has_vision = caps.get("has_vision", 0)
+        has_tools = caps.get("has_tools", 0)
+        is_agentic = caps.get("is_agentic", 0)
+        is_reasoning = caps.get("is_reasoning", 0)
+        arena_elo = caps.get("arena_elo")
+
+        # Auto-assign hardware if not configured (RTX 5070 = 8GB VRAM)
+        if hardware == "auto":
+            if vram_gb > 0 and vram_gb <= 8:
+                hardware = "gpu"  # Fits entirely in VRAM
+            elif vram_gb > 8 and vram_gb <= 16:
+                hardware = "hybrid-gpu"  # GPU primary, spills to RAM
+            elif ram_gb > 0 and ram_gb <= 32:
+                hardware = "hybrid-cpu"  # CPU primary, GPU assist
+            else:
+                hardware = "cpu"  # RAM only
+
+        # Check if exists
+        cursor.execute("SELECT id FROM local_models WHERE id = ?", (model_name,))
+        exists = cursor.fetchone()
+
+        if exists:
+            cursor.execute(
+                """
+                UPDATE local_models SET
+                    name = ?, family = ?, parameter_size = ?, quantization = ?,
+                    size_bytes = ?, hardware = ?, vram_required_gb = ?, ram_required_gb = ?,
+                    assigned_role = ?, role_priority = ?, context_window_k = ?,
+                    has_vision = ?, has_tools = ?, is_agentic = ?, is_reasoning = ?,
+                    arena_elo = ?,
+                    status = 'available', digest = ?, modified_at = ?,
+                    last_synced = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (
+                    model_name,
+                    family,
+                    param_size,
+                    quant,
+                    size_bytes,
+                    hardware,
+                    vram_gb if vram_gb > 0 else None,
+                    ram_gb if ram_gb > 0 else None,
+                    assigned_role,
+                    role_priority,
+                    context_window_k,
+                    has_vision,
+                    has_tools,
+                    is_agentic,
+                    is_reasoning,
+                    arena_elo,
+                    digest,
+                    modified_at,
+                    model_name,
+                ),
+            )
+            updated += 1
+        else:
+            cursor.execute(
+                """
+                INSERT INTO local_models (
+                    id, name, family, parameter_size, quantization, size_bytes,
+                    hardware, vram_required_gb, ram_required_gb,
+                    assigned_role, role_priority, context_window_k,
+                    has_vision, has_tools, is_agentic, is_reasoning,
+                    arena_elo,
+                    digest, modified_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    model_name,
+                    model_name,
+                    family,
+                    param_size,
+                    quant,
+                    size_bytes,
+                    hardware,
+                    vram_gb if vram_gb > 0 else None,
+                    ram_gb if ram_gb > 0 else None,
+                    assigned_role,
+                    role_priority,
+                    context_window_k,
+                    has_vision,
+                    has_tools,
+                    is_agentic,
+                    is_reasoning,
+                    arena_elo,
+                    digest,
+                    modified_at,
+                ),
+            )
+            inserted += 1
+
+    # Mark missing models
+    installed_names = [m.get("name", "") for m in models]
+    if installed_names:
+        placeholders = ",".join("?" * len(installed_names))
+        cursor.execute(
+            f"UPDATE local_models SET status = 'missing' WHERE id NOT IN ({placeholders})",
+            installed_names,
+        )
+
+    conn.commit()
+    conn.close()
+    log(f"  Inserted {inserted}, updated {updated} local models")
+
+
+def export_local_models() -> None:
+    """Export local models status to LOCAL_LLM_INFRASTRUCTURE.md."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Check if table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='local_models'")
+    if not cursor.fetchone():
+        log("No local_models table found. Run 'ollama-sync' first.")
+        conn.close()
+        return
+
+    cursor.execute(
+        """
+        SELECT * FROM local_models
+        WHERE status = 'available'
+        ORDER BY
+            CASE assigned_role
+                WHEN 'coding' THEN 1
+                WHEN 'reviewing' THEN 2
+                WHEN 'fixing' THEN 3
+                WHEN 'documentation' THEN 4
+                ELSE 5
+            END,
+            role_priority
+        """
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        log("No local models found")
+        return
+
+    # Build auto-generated section
+    section_lines = [
+        "<!-- AUTO-GENERATED:LOCAL_MODELS_START -->",
+        "## Installed Models (Auto-Generated)",
+        "",
+        f"**Last Synced:** {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        "",
+        "| Model | Role | Hardware | Size | Context | Vision | Tools | Agentic | ELO | Code |",
+        "|-------|------|----------|------|---------|--------|-------|---------|-----|------|",
+    ]
+
+    for row in rows:
+        model_id = row["id"]
+        role = row["assigned_role"] or "-"
+        hardware = row["hardware"] or "auto"
+        param_size = row["parameter_size"] or "?"
+        ctx = f"{row['context_window_k']}K" if row["context_window_k"] else "-"
+        vision = "✓" if row["has_vision"] else "-"
+        tools = "✓" if row["has_tools"] else "-"
+        agentic = "✓" if row["is_agentic"] else "-"
+        elo = str(row["arena_elo"]) if row["arena_elo"] else "-"
+        code = f"{row['coding_score']:.0f}" if row["coding_score"] else "-"
+        section_lines.append(
+            f"| `{model_id}` | {role} | {hardware} | {param_size} | {ctx} | {vision} | {tools} | {agentic} | {elo} | {code} |"
+        )
+
+    section_lines.append("")
+    section_lines.append("<!-- AUTO-GENERATED:LOCAL_MODELS_END -->")
+
+    # Update the file if it exists
+    if LOCAL_LLM_DOC.exists():
+        content = LOCAL_LLM_DOC.read_text()
+        start_marker = "<!-- AUTO-GENERATED:LOCAL_MODELS_START -->"
+        end_marker = "<!-- AUTO-GENERATED:LOCAL_MODELS_END -->"
+
+        if start_marker in content and end_marker in content:
+            # Replace existing section
+            start_idx = content.index(start_marker)
+            end_idx = content.index(end_marker) + len(end_marker)
+            new_content = content[:start_idx] + "\n".join(section_lines) + content[end_idx:]
+        else:
+            # Append section at the end
+            new_content = content.rstrip() + "\n\n" + "\n".join(section_lines) + "\n"
+
+        LOCAL_LLM_DOC.write_text(new_content)
+        log(f"Updated {LOCAL_LLM_DOC} with {len(rows)} models")
+    else:
+        # Print to stdout if file doesn't exist
+        log(f"File not found: {LOCAL_LLM_DOC}")
+        log("Printing to stdout instead:")
+        for line in section_lines:
+            print(line)
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -546,19 +1028,135 @@ def main() -> int:
             log("Database not found. Run 'init' first.")
             return 1
         export_markdown()
+    elif command == "ollama-sync":
+        if not DB_PATH.exists():
+            init_db()
+        sync_from_ollama()
+    elif command == "ollama-status":
+        export_local_models()
+    elif command == "schema-docs":
+        # Generate schema documentation
+        generate_schema_docs("agents")
+        generate_schema_docs("local_models")
     elif command == "all":
-        # Full pipeline
+        # Full pipeline (Kilo CLI + Ollama)
         init_db(force)
         sync_from_kilo()
         update_benchmarks()
+        sync_from_ollama()
         create_snapshot()
         export_markdown()
+        export_local_models()
     else:
         print(f"Unknown command: {command}")
         print(__doc__)
         return 1
 
     return 0
+
+
+def generate_schema_docs(table_name: str) -> None:
+    """Generate markdown table documentation from actual database schema."""
+    from pathlib import Path
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get real schema
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    columns = cursor.fetchall()
+
+    # Group columns by category
+    categories = {
+        "Identity": ["id", "api_id", "name", "provider", "family"],
+        "Pricing": ["input_cost_per_m", "output_cost_per_m"],
+        "Model Specs": ["parameter_size", "quantization", "size_bytes"],
+        "Hardware Requirements": ["hardware", "vram_required_gb", "ram_required_gb"],
+        "Performance": ["tokens_per_sec", "time_to_first_token_ms"],
+        "Role Assignment": ["assigned_role", "role_priority"],
+        "Capabilities": [
+            "context_window_k",
+            "has_vision",
+            "has_tools",
+            "is_agentic",
+            "is_reasoning",
+        ],
+        "Benchmarks": ["arena_elo", "tbench_accuracy"],
+        "Derived Metrics": ["task_tier", "perf_per_dollar"],
+        "Status": ["status", "discard_reason", "blocked", "block_reason"],
+        "Metadata": [
+            "fallback_model_id",
+            "last_verified",
+            "variant",
+            "created_at",
+            "updated_at",
+            "last_used",
+            "last_synced",
+            "digest",
+            "modified_at",
+        ],
+    }
+
+    # Build markdown table
+    lines = []
+    current_cat = None
+    for col in columns:
+        cid, name, col_type, not_null, default, pk = col
+
+        # Find category
+        cat = "Other"
+        for category, cols in categories.items():
+            if name in cols:
+                cat = category
+                break
+
+        # Add category header
+        if cat != current_cat:
+            lines.append(f"| **{cat}** | | | |")
+            lines.append("|--------|------|---------|-------------|")
+            current_cat = cat
+
+        # Format row
+        pk_str = "PRIMARY KEY" if pk else ""
+        default_str = str(default) if default is not None else ""
+
+        lines.append(f"| {name} | {col_type} | {default_str} | {pk_str} |")
+
+    markdown = "\n".join(lines)
+
+    # Update appropriate file
+    if table_name == "agents":
+        update_file = Path("/opt/fabrik/docs/workflows/KILO_AGENT_MANAGEMENT.md")
+        marker_start = "<!-- AUTO-GENERATED:SCHEMA_AGENTS_START -->"
+        marker_end = "<!-- AUTO-GENERATED:SCHEMA_AGENTS_END -->"
+    elif table_name == "local_models":
+        update_file = Path("/opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md")
+        marker_start = "<!-- AUTO-GENERATED:SCHEMA_LOCAL_START -->"
+        marker_end = "<!-- AUTO-GENERATED:SCHEMA_LOCAL_END -->"
+    else:
+        log(f"  Unknown table for schema docs: {table_name}")
+        return
+
+    if not update_file.exists():
+        log(f"  Documentation file not found: {update_file}")
+        return
+
+    # Read and update file
+    content = update_file.read_text()
+    if marker_start in content and marker_end in content:
+        start_idx = content.index(marker_start)
+        end_idx = content.index(marker_end) + len(marker_end)
+        new_content = (
+            content[:start_idx]
+            + f"\n{marker_start}\n\n| Column | Type | Default | Description |\n|--------|------|---------|-------------|\n{markdown}\n\n{marker_end}"
+            + content[end_idx:]
+        )
+        update_file.write_text(new_content)
+        log(f"  Updated schema documentation for {table_name}")
+    else:
+        log(f"  Schema markers not found in {update_file}")
+
+    conn.close()
 
 
 if __name__ == "__main__":

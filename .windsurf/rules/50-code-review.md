@@ -14,73 +14,39 @@ trigger: always_on
 
 **The canonical workflow is defined in `AGENTS.md` section `[ALL AGENTS] Mandatory Workflow`.**
 
-Both Cascade and Kilo CLI agents follow the same 8-step workflow:
-
-**PLAN → IMPLEMENT → SELF_REVIEW → KILO_REVIEW → DOCUMENTATOR → FINAL_GATE → VERIFY → COMMIT**
-
-**Do NOT duplicate workflow details here.** Read `AGENTS.md` for:
-- Step-by-step execution protocol
-- Gate requirements
-- Violation rules
+**PLAN → IMPLEMENT (per ticket) → SELF_REVIEW → [END OF PHASE: GATES] → VERIFY → COMMIT**
 
 ---
 
-## Cascade-Specific: Quick Reference
+## Per-Ticket Steps (Cascade)
 
-### Step 2.5: Internal Audit (MANDATORY)
-*Perform this check before running any automated tools*.
-- [ ] **Secrets:** No hardcoded keys or tokens?
-- [ ] **Infrastructure:** `Dockerfile` is `-slim-bookworm` and has `HEALTHCHECK`?
-- [ ] **Architecture:** `compose.yaml` has `platform: linux/arm64`?
-- [ ] **Networking:** Port registered in `PORTS.md`?
-- [ ] **Database:** Changes added to `db/schema.sql`?
+### Implement
+Code changes for current ticket only.
 
-### Step 3: Kilo Review (Report-Only)
+### Self-Review (MANDATORY)
+- [ ] No hardcoded localhost/secrets?
+- [ ] Imports correct?
+- [ ] Env vars use `os.getenv()`?
+- [ ] DB changes in `db/schema.sql`?
+
+---
+
+## End-of-Phase Gates (User/Traycer decides when)
+
+Gates run at **end of phase**, not every ticket:
+
 ```bash
-git add -A                          # CRITICAL: stage ALL uncommitted files, not just yours
-git diff --staged --name-only       # Verify staged matches intent
-python scripts/kilo_code_review.py staged --plan "task description" --output json
-```
-**⚠️ NEVER `git add` only your files** — other tools (final_gate, sync_projects, scaffold) may have modified files too. Review ALL changes or risk missing issues.
-*I fix all findings (BLOCKER, MAJOR, MINOR) myself—no separate FIXER role in Cascade*.
+# Kilo Review
+git add -A && python scripts/kilo_code_review.py staged --plan "..."
 
-### Step 4: Documentator
-```bash
-python scripts/kilo_docs_enforcer.py --auto-generate --verbose
-git add CHANGELOG.md docs/reference/*.md
-python scripts/kilo_docs_enforcer.py --enforce
-```
+# Documentator
+python scripts/kilo_docs_enforcer.py --auto-generate
 
-### Step 5: Final Gate (Preflight)
-```bash
+# Final Gate
 python scripts/final_gate.py
 ```
-*This executes the enforcement suite:*
-1. `check_docker.py` (ARM64 & No-Alpine)
-2. `check_secrets.py` (Zero-Hardcoding)
-3. `check_env_contract.py` (.env sync)
-4. 24 additional checks
 
-### Key Reminders
-
-- **Step 2.5 self-review is MANDATORY** before Kilo Review
-- **I fix issues, not Kilo** (report-only by default)
-- **Traycer commits, not Cascade** — I only implement and fix
-- **Max 5 review iterations** before escalating
-
-**Non-trivial = any of:** new file, >50 lines changed, new dependency, DB change.
-
-**After 5 iterations:** STOP, report blockers to user, do not attempt further fixes.
-
-### Output Format
-
-After each step, report:
-```
-STEP <N> STATUS: PASS / FAIL
-Changed files: <paths>
-Gate output: <result>
-Next: Proceed to Step <N+1> / STOP
-```
+**Cascade fixes all findings itself** — no separate FIXER role.
 
 ---
 

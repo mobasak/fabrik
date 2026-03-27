@@ -72,3 +72,125 @@ ignoring input
 
 ✅ Generated 6 agent scripts
    📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 326 models
+[kilo-db]   Inserted 0, updated 326 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 252 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 115 Terminal Bench entries
+[kilo-db]   Updated 98 Elo, 37 TBench scores
+[kilo-db] Snapshot for 2026-03-26 already exists, skipping
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+🔄 Reading agents from kilo_agents.db...
+   Found 8 coding/fixing role assignments
+   After deduplication: 6 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260326-151524
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+
+✅ Generated 6 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 326 models
+[kilo-db]   Inserted 0, updated 326 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 252 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 115 Terminal Bench entries
+[kilo-db]   Updated 98 Elo, 37 TBench scores
+[kilo-db] Snapshot for 2026-03-26 already exists, skipping
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+🔄 Reading agents from kilo_agents.db...
+   Found 8 coding/fixing role assignments
+   After deduplication: 6 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260326-162716
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+
+✅ Generated 6 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 326 models
+[kilo-db]   Inserted 0, updated 326 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 252 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 115 Terminal Bench entries
+[kilo-db]   Updated 98 Elo, 37 TBench scores
+[kilo-db] Snapshot for 2026-03-26 already exists, skipping
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+🔄 Reading agents from kilo_agents.db...
+   Found 8 coding/fixing role assignments
+   After deduplication: 6 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260326-192632
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+
+✅ Generated 6 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 326 models
+[kilo-db]   Inserted 0, updated 326 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 252 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 115 Terminal Bench entries
+[kilo-db]   Updated 98 Elo, 37 TBench scores
+[kilo-db] Created snapshot for 2026-03-27 with 333 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+🔄 Reading agents from kilo_agents.db...
+   Found 8 coding/fixing role assignments
+   After deduplication: 6 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260327-195215
+   🗑 Rotated old backup: cli-agents.backup.20260326-151524
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+
+✅ Generated 6 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 0 models
+[kilo-db] No models to sync
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Error scraping Chatbot Arena: HTTPSConnectionPool(host='openlm.ai', port=443): Max retries exceeded with url: /chatbot-arena/ (Caused by NameResolutionError("HTTPSConnection(host='openlm.ai', port=443): Failed to resolve 'openlm.ai' ([Errno -3] Temporary failure in name resolution)"))
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Error scraping Terminal Bench: HTTPSConnectionPool(host='www.tbench.ai', port=443): Max retries exceeded with url: /leaderboard/terminal-bench/2.0 (Caused by NameResolutionError("HTTPSConnection(host='www.tbench.ai', port=443): Failed to resolve 'www.tbench.ai' ([Errno -3] Temporary failure in name resolution)"))
+[kilo-db]   Updated 0 Elo, 0 TBench scores
+[kilo-db] Snapshot for 2026-03-27 already exists, skipping
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+🔄 Reading agents from kilo_agents.db...
+   Found 8 coding/fixing role assignments
+   After deduplication: 6 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260327-221419
+   🗑 Rotated old backup: cli-agents.backup.20260326-162716
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+
+✅ Generated 6 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents

@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Local Ollama Fabrik Agents (2026-03-27)
+- Create 4 custom Ollama models with specific roles:
+  - `fabrik-coder-qwen2.5-32b`: Lead Engineer (32B, hybrid-cpu)
+  - `fabrik-reviewer-llama3.1-70b`: Senior Reviewer (70B, CPU-only)
+  - `fabrik-fixer-deepseek-v2-16b`: Surgical Fixer (16B, hybrid-gpu)
+  - `fabrik-docs-llama3.1-8b`: Documentator (8B, GPU)
+- Each agent configured with AGENTS-compact.md rules via Modelfile SYSTEM prompts
+- Hardware-aware routing: models selected based on available VRAM/RAM
+
+### Enhanced - Kilo CLI Agent Generation (2026-03-27)
+- **`scripts/generate_kilo_agents.py`**: Extended to support local Ollama models
+  - Local models use `ollama run` directly instead of Kilo CLI
+  - Dynamic execution path based on model type (local vs cloud)
+  - Updated dry-run output to show model size and hardware info
+- Generated scripts now include "local" variant and free pricing (PPD: 999)
+- Integrated local models into automated WSL startup flow
+
+### Documentation - Local LLM Infrastructure (2026-03-27)
+- **`docs/reference/LOCAL_LLM_INFRASTRUCTURE.md`**: Added comprehensive agent interaction methods
+  - Direct Ollama CLI usage examples
+  - API usage with curl examples
+  - Fabrik workflow integration (code reviews, documentation)
+  - Agent roles & responsibilities table
+  - IDE integration and performance notes
+
+### Removed - Fabricated Benchmark Scores (2026-03-27)
+- Dropped `humaneval_score` and `coding_score` columns from database:
+  - `agents` table (Kilo cloud models)
+  - `local_models` table (Ollama models)
+- Updated documentation in:
+  - `docs/workflows/KILO_AGENT_MANAGEMENT.md`
+  - `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md`
+- Removed migration logic from `kilo_agents_db.py`
+
+### Fixed - Local Model Configuration (2026-03-27)
+- **`scripts/kilo-benchmarks/kilo_agents_db.py`**: Fixed LOCAL_MODEL_CAPABILITIES
+  - Updated model names to include `:latest` suffix (Ollama requirement)
+  - Removed non-existent models, kept only 4 Fabrik agents
+  - Corrected role assignments and hardware requirements
+
+### Fixed - Code Quality (2026-03-27)
+- **`scripts/enforcement/check_opencode_json.py`**: Simplified to only require AGENTS-compact.md
+- Removed unused `provider_display` variable from `generate_kilo_agents.py`
+
 ### Added — Health Summary Script (2026-03-25)
 - Add `scan_health(root: Path)` function in `scripts/health_summary.py` to scan `/opt/*` projects for essential scaffold files and determine status based on missing count thresholds (healthy: 0, warnings: 1-2, missing: 3+)
 - Add `print_table(results)` function in `scripts/health_summary.py` to output aligned table of project health with status labels and missing files, plus summary counts

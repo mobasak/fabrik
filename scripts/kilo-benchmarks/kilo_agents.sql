@@ -203,3 +203,97 @@ CREATE TABLE IF NOT EXISTS agent_roles_history (
 
 CREATE INDEX IF NOT EXISTS idx_roles_history_role ON agent_roles_history(role);
 CREATE INDEX IF NOT EXISTS idx_roles_history_date ON agent_roles_history(archived_at);
+
+-- =============================================================================
+-- LOCAL LLM MODELS (Ollama)
+-- =============================================================================
+-- Tracks locally-installed models for offline/free AI inference.
+-- Synced from Ollama API at localhost:11434
+--
+-- HARDWARE DISTRIBUTION STRATEGY:
+-- Heavy models (32B+): CPU + 64GB RAM
+-- Fast models (<16B): GPU + 12GB VRAM
+
+CREATE TABLE IF NOT EXISTS local_models (
+    id TEXT PRIMARY KEY,                     -- e.g., "qwen2.5-coder:32b"
+    name TEXT NOT NULL,                      -- human-readable name
+    family TEXT,                             -- model family (qwen2.5, llama3.1, deepseek, etc.)
+
+    -- Size and quantization
+    parameter_size TEXT,                     -- e.g., "32B", "70B", "8B"
+    quantization TEXT,                       -- e.g., "Q4_K_M", "Q8_0", "F16"
+    size_bytes INTEGER,                      -- disk size in bytes
+
+    -- Hardware assignment
+    hardware TEXT DEFAULT 'auto',            -- 'gpu', 'cpu', 'auto'
+    vram_required_gb REAL,                   -- estimated VRAM needed
+    ram_required_gb REAL,                    -- estimated RAM needed
+
+    -- Role assignment (maps to Fabrik agent roles)
+    assigned_role TEXT,                      -- coding / reviewing / fixing / documentation
+    role_priority INTEGER DEFAULT 1,         -- 1=primary, 2=fallback
+
+    -- Capabilities (matching Kilo CLI agent tracking)
+    context_window_k INTEGER DEFAULT 32,     -- context limit in thousands
+    has_vision INTEGER DEFAULT 0,            -- 1 if supports image input
+    has_tools INTEGER DEFAULT 0,             -- 1 if supports function/tool calling
+    is_agentic INTEGER DEFAULT 0,            -- 1 if suitable for agentic workflows
+    is_reasoning INTEGER DEFAULT 0,          -- 1 if has chain-of-thought reasoning
+
+    -- Benchmarks (from public leaderboards or manual testing)
+    arena_elo INTEGER,                       -- Chatbot Arena ELO score
+    tbench_accuracy REAL,                    -- T-Bench accuracy (0-100)
+
+    -- Performance (local benchmarks)
+    tokens_per_sec REAL,                     -- measured on this hardware
+    time_to_first_token_ms REAL,             -- latency measurement
+
+    -- Status
+    status TEXT DEFAULT 'available',         -- available / downloading / missing
+    last_used TIMESTAMP,
+    last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Metadata
+    digest TEXT,                             -- Ollama model digest for version tracking
+    modified_at TIMESTAMP,                   -- from Ollama API
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_models_role ON local_models(assigned_role);
+CREATE INDEX IF NOT EXISTS idx_local_models_hardware ON local_models(hardware);
+CREATE INDEX IF NOT EXISTS idx_local_models_status ON local_models(status);
+
+-- View: Local models by role assignment
+CREATE VIEW IF NOT EXISTS v_local_role_assignments AS
+SELECT
+    assigned_role as role,
+    role_priority as priority,
+    id as model_id,
+    name,
+    family,
+    parameter_size,
+    quantization,
+    hardware,
+    context_window_k,
+    has_vision,
+    has_tools,
+    is_agentic,
+    is_reasoning,
+    arena_elo,
+    tokens_per_sec,
+    status
+FROM local_models
+WHERE status = 'available' AND assigned_role IS NOT NULL
+ORDER BY assigned_role, role_priority;
+
+-- View: Hardware utilization summary
+CREATE VIEW IF NOT EXISTS v_local_hardware_summary AS
+SELECT
+    hardware,
+    COUNT(*) as model_count,
+    SUM(CASE WHEN hardware = 'gpu' THEN vram_required_gb ELSE 0 END) as total_vram_gb,
+    SUM(CASE WHEN hardware = 'cpu' THEN ram_required_gb ELSE 0 END) as total_ram_gb,
+    GROUP_CONCAT(id, ', ') as models
+FROM local_models
+WHERE status = 'available'
+GROUP BY hardware;

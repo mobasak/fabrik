@@ -46,38 +46,23 @@ Before any tool use or code, output:
 
 ## ⚠️ MANDATORY WORKFLOW (March 2026)
 
-**PLAN → IMPLEMENT → SELF_REVIEW → KILO_REVIEW → DOCUMENTATOR → FINAL_GATE → VERIFY → COMMIT**
+**PLAN → IMPLEMENT (per ticket) → SELF_REVIEW → [END OF PHASE: GATES] → VERIFY → COMMIT**
 
 **Workflow authority:** `AGENTS.md` section `[ALL AGENTS] Mandatory Workflow` — single source of truth for both Cascade and Kilo CLI.
 
 **Quick reference:** `.windsurf/rules/50-code-review.md` has Cascade-specific commands.
 
 **Key points:**
-- Step 2.5 self-review is MANDATORY before Kilo Review
-- Cascade fixes Kilo findings and verification issues itself — no separate FIXER
-- Step 4 DOCUMENTATOR auto-generates docs — Cascade runs `kilo_docs_enforcer.py`
-- Model selection is automatic based on file paths and diff size
+- Self-review after each ticket (free, just checklist)
+- Gates (Kilo Review, Documentator, Final Gate) run at **END OF PHASE only** — user/Traycer decides when
+- Cascade fixes all findings itself — no separate FIXER
 - Traycer commits, not Cascade
 
-**If I skip these steps, the user should call me out.**
-
-### Step 2.5 Internal Audit (MANDATORY)
-Before moving to Kilo Review, I MUST confirm:
-
-**Mechanical Checks:**
-- [ ] **Zero Hardcoding:** No `localhost`, `127.0.0.1`, or raw API keys in code
-- [ ] **Infrastructure:** Dockerfile uses `-slim-bookworm` and has functional `HEALTHCHECK`
-- [ ] **Architecture:** `compose.yaml` includes `platform: linux/arm64` for all build services
-- [ ] **Dependencies:** New packages added to `requirements.txt` or `package.json`
-- [ ] **Networking:** New ports checked against and registered in `PORTS.md`
-
-**Decision-Grade Audit (Solo-Dev Creed):**
-- [ ] **Error Handling Gaps:** Have I handled silent, misleading, or brittle failures?
-- [ ] **Complexity Hotspots:** What logic will be a "debugging footgun" in 6 months?
-- [ ] **One-Test Rule:** Propose **exactly ONE test** providing highest risk reduction
-  - **Why:** Justify why this specific test matters most
-  - **Contract:** Define Given/When/Then and what is mocked vs. real
-  - Document in plan file or commit message
+### Self-Review Checklist (Per Ticket)
+- [ ] No hardcoded localhost/secrets?
+- [ ] Imports correct?
+- [ ] Env vars use `os.getenv()`?
+- [ ] DB changes in `db/schema.sql`?
 
 ---
 

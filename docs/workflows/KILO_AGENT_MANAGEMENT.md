@@ -259,25 +259,61 @@ sqlite3 /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db \
 
 ## Database Schema
 
-### Key Tables
 
-**`agents`** — All available agents with benchmarks
-```sql
-id, api_id, name, provider, arena_elo, tbench_accuracy,
-has_vision, has_tools, is_agentic, perf_per_dollar,
-status, blocked, block_reason
-```
 
-**`agent_roles`** — Role assignments (5 per role)
-```sql
-role, agent_id, priority (1-5), min_elo, assigned_by
-```
+<!-- AUTO-GENERATED:SCHEMA_AGENTS_START -->
 
-**`agent_roles_history`** — Archived assignments
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| **Identity** | | | |
+|--------|------|---------|-------------|
+| id | TEXT |  | PRIMARY KEY |
+| api_id | TEXT |  |  |
+| name | TEXT |  |  |
+| provider | TEXT |  |  |
+| **Pricing** | | | |
+|--------|------|---------|-------------|
+| input_cost_per_m | REAL | 0 |  |
+| output_cost_per_m | REAL | 0 |  |
+| **Capabilities** | | | |
+|--------|------|---------|-------------|
+| context_window_k | INTEGER | 128 |  |
+| has_vision | BOOLEAN | FALSE |  |
+| has_tools | BOOLEAN | FALSE |  |
+| is_agentic | BOOLEAN | FALSE |  |
+| **Benchmarks** | | | |
+|--------|------|---------|-------------|
+| arena_elo | INTEGER |  |  |
+| tbench_accuracy | REAL |  |  |
+| **Derived Metrics** | | | |
+|--------|------|---------|-------------|
+| task_tier | INTEGER | 2 |  |
+| perf_per_dollar | REAL |  |  |
+| **Status** | | | |
+|--------|------|---------|-------------|
+| status | TEXT | 'active' |  |
+| discard_reason | TEXT |  |  |
+| **Metadata** | | | |
+|--------|------|---------|-------------|
+| fallback_model_id | TEXT |  |  |
+| last_verified | DATE |  |  |
+| created_at | TIMESTAMP | CURRENT_TIMESTAMP |  |
+| updated_at | TIMESTAMP | CURRENT_TIMESTAMP |  |
+| variant | TEXT | 'standard' |  |
+| **Status** | | | |
+|--------|------|---------|-------------|
+| blocked | INTEGER | 0 |  |
+| block_reason | TEXT |  |  |
+| **Other** | | | |
+|--------|------|---------|-------------|
+| has_reasoning | BOOLEAN | FALSE |  |
 
-### Key Views
+<!-- AUTO-GENERATED:SCHEMA_AGENTS_END -->
+### Migration History
 
-**`v_role_assignments`** — Current assignments with agent details (excludes blocked)
+- **2026-03-27**: Removed `humaneval_score` and `coding_score` from database (fabricated data)
+- **2026-03-26**: Added capability columns to `local_models` table
+- **2026-03-26**: Initial schema with hardware tracking for local models
 
 ---
 
@@ -326,12 +362,17 @@ source /opt/fabrik/scripts/wsl_startup_hook.sh
 ```
 
 **What runs on WSL start (daily, non-blocking, chained):**
-1. `kilo_agents_db.py sync` — Refresh agent list from Kilo CLI
+1. `kilo_agents_db.py sync` — Refresh agent list from Kilo CLI (auto-updates schema docs)
 2. `kilo_agents_db.py update` — Update benchmark scores
 3. `kilo_agents_db.py snapshot` — Archive current state
 4. `kilo_agents_db.py export` — Export to JSON caches
 5. `generate_kilo_agents.py` — **Generate Traycer CLI agent scripts**
 6. `kilo_model_sync.py --sync` — Sync model metadata
+
+**Schema Documentation Auto-Generation:**
+- When `sync` detects schema changes (new columns), it automatically updates this file's schema section
+- When `ollama-sync` detects schema changes, it updates `LOCAL_LLM_INFRASTRUCTURE.md` schema section
+- Manual trigger: `kilo_agents_db.py schema-docs`
 
 **Lock files prevent duplicate runs:** `/tmp/.fabrik_daily_YYYYMMDD`
 

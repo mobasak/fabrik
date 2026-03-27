@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-26T00:04:54.319041",
-  "total_models": 327,
+  "timestamp": "2026-03-27T19:52:12.448222",
+  "total_models": 326,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -374,11 +374,6 @@
     },
     "google/gemini-3-flash-preview": {
       "id": "google/gemini-3-flash-preview",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "google/gemini-3-pro-preview": {
-      "id": "google/gemini-3-pro-preview",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

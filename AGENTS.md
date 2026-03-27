@@ -1,39 +1,35 @@
-# AGENTS.md — Fabrik Operating Manual
+# AGENTS.md — Fabrik Operating Manual (Traycer Only)
 
-**Last Updated:** 2026-03-24
-**Read by:** Traycer (full file) | Coding agents (via prompt templates — see Quick Navigation)
-**Referenced by:** Prompt templates via `opencode.json` rules loading
+**Last Updated:** 2026-03-26
+**Read by:** Traycer only
+**Coding agents:** Read `AGENTS-compact.md` via `opencode.json`
 
-> Traycer is the planning authority. Coding agents execute, never plan.
-> Project scope lives in `README.md`. This file covers environment, constraints, and workflow rules only.
-
----
-
-## Quick Navigation
-
-| You are | Read | Skip |
-|---------|------|------|
-| **Traycer** | Full file | — |
-| **Coder** | `[CODER]` + `[ALL AGENTS]` sections | `[TRAYCER ONLY]`, `[REVIEWER]`, `[FIXER]` |
-| **Reviewer** | `[REVIEWER]` + `[ALL AGENTS]` sections | `[TRAYCER ONLY]`, `[CODER]`, `[FIXER]` |
-| **Fixer** | `[FIXER]` + `[ALL AGENTS]` sections | `[TRAYCER ONLY]`, `[CODER]`, `[REVIEWER]` |
-| **Documentator** | `[ALL AGENTS]` sections + Step 4 | `[TRAYCER ONLY]`, `[CODER]`, `[REVIEWER]`, `[FIXER]` |
-
-**Coding agents receive their execution instructions via prompt templates, not this file.**
+> Traycer is the planning authority. It creates plans, specs, epics, tickets.
+> Coding agents (Kilo CLI) execute plans — they read `AGENTS-compact.md` only.
 
 ---
 
-## [TRAYCER ONLY] Situational Awareness
+## Situational Awareness
 
 > Read this section before planning any work. Full context: who the owner is, what exists, what constraints apply.
 
 ### Owner & Working Style
 
-- **Solo developer** — Özgür Başak, Turkish electronics engineer & entrepreneur
+- **Solo developer** — Özgür Başak, 46, Turkish electronics engineer & entrepreneur, biohacker
 - **Capacity:** ~50 focused hours/week
 - **Budget:** Limited — prefer free/cheap tools, maximize ROI
 - **Philosophy:** Fast but good. Ship fast, iterate, automate. No over-engineering.
-- **Technical capability:** Limited Python, fully capable with AI assistance. Comfortable with advanced architectures when stable and low-maintenance.
+
+### Technical Capability
+
+**AI-Augmented Systems Architect & Technical Orchestrator**
+
+- **Infrastructure Background:** Senior-level expertise in enterprise networking (CCNA), Windows Server administration (MCITP), and complex B2B systems integration (PACS/DICOM/HL7).
+- **Execution Style:** A "Zero-to-One" builder who thrives on creating automated, self-healing systems. Prioritizes "Boring Technology" and stable architectures that require low maintenance.
+- **AI-Native Workflow:** Operates as a solo technical founder, using AI (Traycer, Cascade, Kilo CLI) as senior engineering team to handle implementation, boilerplate, and syntax while driving architectural vision and logic.
+- **Bias for Action:** Adheres to a "Fast but Good" philosophy—shipping MVPs quickly to create "forcing functions" and avoid research-driven stagnation.
+- **Domain Agnostic:** Highly resourceful at sourcing, vetting, and implementing new tools (Node.js, Python, Next.js) to bridge gaps in the stack, focusing on orchestration rather than just coding.
+
 - **Full profile:** `docs/owner_ozgur_basak.md`
 
 ### Development Environment
@@ -63,7 +59,8 @@ Every new project starts from `/opt/<project>/` with pre-configured: folder stru
 | Frontend | Next.js 14 + TypeScript + Tailwind | — always use this |
 | Database | PostgreSQL 16 (VPS, Coolify-managed) | Supabase for managed auth/realtime/pgvector |
 | Background jobs | PostgreSQL jobs table + worker | Redis queue for high throughput |
-| AI/LLM | Kilo CLI free tiers → OpenAI/Anthropic APIs | Self-hosted only if justified |
+| AI/LLM | Kilo CLI free tiers → OpenAI/Anthropic APIs | Local Ollama for offline/free |
+| **Local LLM** | Ollama (localhost:11434) | See `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md` |
 | Base images | `python:<current-stable>-slim-bookworm`, `node:<current-LTS>-bookworm-slim` | Never Alpine |
 | PDF | Gotenberg (self-hosted) | WeasyPrint for simple cases |
 | Search | MeiliSearch (self-hosted) | PostgreSQL FTS for simple cases |
@@ -111,6 +108,7 @@ Run `python scripts/sync_projects.py` to refresh (Fabrik project only - child pr
 |----------|------|----------|
 | Project Portfolio | `docs/BUSINESS_MODEL.md` | Full project list with statuses |
 | AI Taxonomy | `docs/reference/AI_TAXONOMY.md` | Selecting AI tools/models for a feature |
+| Local LLM | `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md` | Ollama setup, model assignments per agent role |
 | Stack Decision Guide | `docs/reference/technology-stack-decision-guide.md` | Choosing tech stack for new project |
 | Prebuilt Containers | `docs/reference/prebuilt-app-containers.md` | Infrastructure services, ready-made Docker solutions |
 | Stack Overview | `docs/reference/stack.md` | Frozen architecture decisions, tools inventory |
@@ -141,7 +139,7 @@ Before creating any plan, verify:
 
 ---
 
-## [TRAYCER ONLY] Authority Model & Orchestration
+## Authority Model & Orchestration
 
 **Traycer is the planning authority.** All other agents execute, never plan.
 
@@ -161,7 +159,9 @@ Before creating any plan, verify:
 - [ ] Docs impact (CHANGELOG, README features table)
 - [ ] Out of scope (explicitly stated)
 
-### Mode Selection
+### Mode Selection (Manual)
+
+Owner selects mode manually in Traycer UI:
 
 | Task | Mode |
 |------|------|
@@ -172,10 +172,7 @@ Before creating any plan, verify:
 
 ### YOLO Activation
 
-```bash
-/yolo smart "task description"     # Single-phase
-/yolo phased "task description"    # Multi-phase
-```
+In Epic mode, when owner types `/execute`, Traycer can use Smart YOLO mode and run parallel agents where available.
 
 Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 
@@ -183,40 +180,34 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 
 | Agent | Mode | Template |
 |-------|------|----------|
-| Coder | Plan | `Execute by Coder.md` |
-| Coder | Plan (skip-plan) | `Direct Execute by Coder.md` |
-| Coder | Epic | `Execute Epic.md` |
-| Coder | YOLO | `Phased YOLO Execute by Coder.md` |
-| Reviewer | Manual | `Reviewer.md` |
-| Fixer | Manual | `Fix.md` |
-| Fixer | YOLO (Review tab) | `Phased YOLO Review.md` |
-| Fixer | YOLO (Verification tab) | `Phased YOLO FixafterVerification.md` |
+| Coder | Plan | `Coder-for-Plan-Mode.md` |
+| Coder | Phased/Epic | `Coder-for-Phased-Epic-Modes.md` |
+| Fixer | After Review | `Fix-After-Review.md` |
+| Fixer | After Verification | `Fix-After-Verification.md` |
 
-### Traycer Execution Rules
-1. Carry forward file mappings, decisions, and rationale across phases
-2. Follow steps exactly in order — do NOT redesign or change scope mid-plan
-3. One step at a time — complete current step before moving to next
-4. After each step: show Evidence + Gate result
-5. If a Gate fails → STOP and re-plan
+### What Traycer Does
 
-### Stage 0: Discovery & Definition (Pre-Planning)
+Traycer is the **planning authority**. It does NOT execute code. It:
+1. Creates plans, specs, epics, tickets
+2. Assigns tickets to phases
+3. Spawns Kilo CLI agents for implementation
+4. Decides when to run gates (review, documentator, final_gate)
+5. Verifies implementation against spec
+6. Commits when all gates pass
 
-**Traycer MUST NOT generate an implementation plan until a project has passed through the Discovery Pipeline.**
+### Stage 0: Discovery & Definition (Desired Workflow)
 
-| Stage | Command | Traycer Output | Goal |
-|-------|---------|----------------|------|
-| 0.1: Idea | `/discover <idea>` | `specs/<project>/00-idea.md` | Extract pain points, user personas, solution direction |
-| 0.2: Scope | `/scope <project>` | `specs/<project>/01-scope.md` | Define P0 "Must Haves" and explicit "Out of Scope" |
-| 0.3: Spec | `/spec <project>` | `specs/<project>/02-spec.md` | Create the Single Source of Truth (SSoT) |
+> **Note:** These stages describe the desired workflow. Use natural language to guide Traycer through these stages.
 
-**How it works:**
+| Stage | Goal | Output |
+|-------|------|--------|
+| 0.1: Idea | Extract pain points, user personas, solution direction | `specs/<project>/00-idea.md` |
+| 0.2: Scope | Define P0 "Must Haves" and explicit "Out of Scope" | `specs/<project>/01-scope.md` |
+| 0.3: Spec | Create the Single Source of Truth (SSoT) | `specs/<project>/02-spec.md` |
 
-1. **Discovery Mode:** Use `templates/spec-pipeline/00-idea-prompt.md` to interview the owner. Output `specs/<project>/00-idea.md`.
-2. **Boundary Mode:** Use `templates/spec-pipeline/01-scope-prompt.md` to lock MVP boundaries. Respect the owner's ~50 focused hours/week capacity. Output `specs/<project>/01-scope.md`.
-3. **SSoT Mode:** Use `templates/spec-pipeline/02-spec-prompt.md` to define technical architecture (Data Model, API, One-Test Rule). Auto-inject Fabrik Stack Defaults into the Stack Profile. Output `specs/<project>/02-spec.md`.
-4. **Execution Mode:** Convert `specs/<project>/02-spec.md` into a `Phased YOLO` or `Epic` plan.
+**Templates available:** `templates/spec-pipeline/` contains prompt templates for each stage.
 
-**Enforcement:** Traycer will reject implementation tasks if `specs/<project>/02-spec.md` is missing or incomplete.
+**After spec is complete:** Convert `02-spec.md` into Phased YOLO or Epic plan.
 
 **Stack Auto-Injection:** During Stage 0.3, Traycer injects these Fabrik defaults into the spec's Stack Profile:
 
@@ -234,35 +225,99 @@ Full workflow: `docs/traycer/traycer-yolo-workflow.md`
 
 ## [ALL AGENTS] Mandatory Workflow
 
-**PLAN → IMPLEMENT → SELF_REVIEW → KILO_REVIEW → DOCUMENTATOR → FINAL_GATE → VERIFY → COMMIT**
+**PLAN → IMPLEMENT (per ticket) → SELF_REVIEW → [END OF PHASE: GATES] → VERIFY → COMMIT**
 
-| Step | Who | Gate |
-|------|-----|------|
-| 1 — Plan | Traycer | Spec: requirements, edge cases, env vars, DB changes, docs impact |
-| 2 — Implement | Coder (mid-tier) / Cascade | Phase scope only |
-| 2.5 — Self-review | Coder / Cascade | MANDATORY before Kilo Review |
-| 3 — Kilo Review | Reviewer (report-only) | `python scripts/kilo_code_review.py staged --plan "..."` — findings only, never fixes |
-| 3b — Fix review findings | Coder / Cascade | CODER fixes all Kilo review findings (BLOCKER, MAJOR, MINOR) |
-| **4 — Documentator** | **Documentator (cheap)** | **`python scripts/kilo_docs_enforcer.py --auto-generate` → `--enforce`** |
-| 5 — Final Gate | Coder / Cascade | `python scripts/final_gate.py` → all PASS (code + docs) |
+### Per-Ticket Steps (Coder)
+| Step | Who | Action |
+|------|-----|--------|
+| 1 — Plan | Traycer | Creates tickets, assigns to phases |
+| 2 — Implement | Coder | Code changes for current ticket |
+| 2.5 — Self-review | Coder | Check hardcoded values, imports, env vars |
+
+### End-of-Phase Gates (Traycer decides when)
+| Gate | Command | Purpose |
+|------|---------|--------|
+| Kilo Review | `git add -A && python scripts/kilo_code_review.py staged` | Find issues |
+| Fix findings | Fixer agent | Fix BLOCKER/MAJOR/MINOR |
+| Documentator | `python scripts/kilo_docs_enforcer.py --auto-generate` | Update docs |
+| Final Gate | `python scripts/final_gate.py` | Validate all |
+
+### Phase Completion
+| Step | Who | Action |
+|------|-----|--------|
 | 6 — Verify | Traycer | SPEC compliance confirmed |
 | 7 — Commit | Traycer | 4 blockers only: large-files, merge-conflict, private-key, secrets |
 
-**Conditional FIXER loop** (triggered only when Step 6 VERIFY fails):
-
-| Workflow | Who Fixes | Trigger |
-|----------|-----------|--------|
-| Kilo CLI (YOLO) | Fixer (expensive, separate agent) | Receives Traycer verification comments |
-| Cascade (interactive) | Cascade itself (fixer role) | User relays Traycer verification comments in chat |
-
-After fix → Traycer re-verifies. Loop until PASS, then proceed to Step 7.
-
 **Traycer commits. Coding agents never commit.**
-**Skipping any step = workflow must stop and the step re-run.**
+**Gates run at END OF PHASE, not every ticket — Traycer decides when.**
 
 ---
 
-## [ALL AGENTS] Environment Constraints
+## Project Scaffold (What `fabrik scaffold` Creates)
+
+Every project at `/opt/<project>/` gets this structure:
+
+```
+/opt/<project>/
+├── .venv/                    # Python virtual environment (pre-created)
+├── .droid/                   # Kilo/Traycer runtime files
+│   ├── review-context/       # Review context files
+│   └── traycer-reports/      # Traycer report files
+├── config/                   # Configuration files
+├── data/                     # Data files
+├── db/                       # Database schema (schema.sql)
+├── docs/
+│   ├── archive/              # Archived docs
+│   ├── development/
+│   │   └── plans/            # Development plans (YYYY-MM-DD-plan-<n>.md)
+│   ├── guides/               # User guides
+│   ├── operations/           # Operations docs
+│   └── reference/            # Reference docs
+├── logs/                     # Log files
+├── output/                   # Output files
+├── scripts/                  # Project scripts
+├── src/                      # Source code (Python projects)
+├── tests/                    # Test files
+├── .cache/                   # Cache directory
+├── .tmp/                     # Temp files (never use /tmp/)
+├── .env.example              # Environment variable reference
+├── CHANGELOG.md              # Change log (required entry per change)
+├── compose.yaml              # Docker Compose config
+├── Dockerfile                # Docker build file
+├── INDEX.md                  # Project index
+├── Makefile                  # Build commands
+├── pyproject.toml            # Python project config
+└── README.md                 # Project readme
+```
+
+### Scaffold Types
+
+| Type | Template | Created Structure |
+|------|----------|------------------|
+| `python-api` | `templates/scaffold/` | FastAPI + Uvicorn + Docker |
+| `saas-skeleton` | `templates/saas-skeleton/` | Next.js 14 + TypeScript + Tailwind |
+| `node-api` | `templates/node-api/` | Node.js API + Docker |
+| `file-api` | `templates/file-api/` | File operations API |
+| `file-worker` | `templates/file-worker/` | Background file worker |
+| `wordpress` | `templates/wordpress/` | WordPress + WP-CLI |
+| `docusaurus` | `templates/docusaurus/` | Documentation site |
+| `chrome-extension` | `templates/chrome-extension/` | Chrome extension |
+| `mobile-app` | `templates/mobile-app/` | React Native app |
+| `desktop-app` | `templates/desktop-app/` | Electron app |
+
+### Key Scaffold Files
+
+| File | Purpose |
+|------|---------|
+| `project.yaml` | Project metadata (auto-created, editable) |
+| `.env.example` | Environment variable reference |
+| `compose.yaml` | Docker Compose config (Coolify-compatible) |
+| `db/schema.sql` | Database schema (source of truth) |
+| `AGENTS-compact.md` | Symlink to Fabrik's compact agent rules |
+
+---
+
+## Environment Constraints (Traycer Enforces)
 
 - **Runtime:** WSL (Ubuntu). Linux paths and commands only. Never Windows tooling.
 - **Scaffold:** Fixed structure — do not reorganize, flatten, or add top-level directories.
@@ -275,7 +330,7 @@ After fix → Traycer re-verifies. Loop until PASS, then proceed to Step 7.
 
 ---
 
-## [ALL AGENTS] Security & Quality Gates
+## Security & Quality Gates (Commands Traycer Runs)
 
 ### Kilo Review (Step 3 — Report-Only)
 ```bash
@@ -318,7 +373,7 @@ Fix all failures. Re-run until PASS. Do not proceed with failures.
 
 ---
 
-## [ALL AGENTS] Sensitive Data Protection
+## Sensitive Data Protection
 
 Before modifying any credentials file (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`):
 
@@ -332,7 +387,7 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 
 ---
 
-## [ALL AGENTS] Code Patterns (Authoritative)
+## Code Patterns (Traycer Enforces)
 
 ### Python / FastAPI
 ```python
@@ -368,7 +423,7 @@ environment:
 
 ---
 
-## [ALL AGENTS] Documentation Rules
+## Documentation Rules (Traycer Enforces)
 
 - **CHANGELOG.md:** Entry required for every code change. Format: `### Added/Changed/Fixed — Title (YYYY-MM-DD)`
 - **README.md features table:** Every new feature added with ✅/🚧/❌ status
@@ -378,71 +433,42 @@ environment:
 
 ---
 
-## [CODER] Implementation Directives
+## Coder Directives (Traycer Passes to Coder Agents)
 
-> These directives are enforced. Violating any = workflow failure.
+These directives are included in Coder prompt templates:
 
 1. **D1 — Completeness:** Complete the full implementation — do not stub, skip, or leave TODOs.
-2. **D2 — No Hallucination:** Do not hallucinate APIs, methods, or library features. If you are unsure whether something exists, say so.
-3. **D3 — Verified Imports:** Only use functions and imports you can confirm exist in this codebase or the specified library version.
-4. **D4 — Production Quality:** Write production-ready code — not prototype or demo quality.
+2. **D2 — No Hallucination:** Do not hallucinate APIs, methods, or library features.
+3. **D3 — Verified Imports:** Only use functions and imports confirmed to exist.
+4. **D4 — Production Quality:** Write production-ready code — not prototype quality.
 5. **D5 — Task Focus:** Focus exclusively on the task. Do not refactor unrelated code.
-6. **D6 — Self-Review:** Before returning, review your own output for correctness, completeness, and consistency.
-
-### Project Scaffold
-
-- SaaS skeleton: `templates/saas-skeleton/` — Next.js 14 + TypeScript + Tailwind (project-local)
-- Plan templates: `templates/docs/` — PLAN_TEMPLATE.md, EXECUTION_PLAN_TEMPLATE.md (project-local)
-- Check `docs/reference/prebuilt-app-containers.md` before building custom infrastructure code
-
-### Project Layout
-
-- Every project lives at `/opt/<project>/` with pre-created `.venv`, Dockerfile, `compose.yaml`, `.env.example`
-- Use the project's `.venv` — never bare `pip install`
-- Docker patterns: `python:<current-stable>-slim-bookworm` / `node:<current-LTS>-bookworm-slim` base images, never Alpine. See `templates/scaffold/docker/` for pinned versions
-
-### Windsurf Cascade Users
-
-- **Terminal selection:** Never use "legacy terminal" in Windsurf IDE — it hangs on certain commands. If Windsurf shows "Using legacy terminal", cancel and re-run in a proper terminal.
-- **Check before create:** Always verify a file exists (`ls`, `find`, `read_file`) before creating it with `write_to_file`. Attempting to create a file that already exists = stop and acknowledge error.
+6. **D6 — Self-Review:** Review own output for correctness before reporting completion.
 
 ---
 
-## [REVIEWER] Review Directives
+## Reviewer Directives (Traycer Passes to Reviewer Agents)
 
-> Reviewers report findings only. They do NOT fix code — that is the Fixer's job.
+Reviewers report findings only — they do NOT fix code.
 
-1. **R1:** Review this code thoroughly: identify bugs, security issues, performance problems, and violations of best practices. Be specific — cite line numbers or function names.
-2. **R2:** Do not just describe what the code does — evaluate whether it does it correctly and safely.
-3. **R3:** Flag any silent failure modes — paths where the code proceeds without error but produces wrong results.
-4. **R4:** Prioritize findings: BLOCKER / MAJOR / MINOR.
-
-### Output Format
-
-- Group findings by severity (BLOCKER → MAJOR → MINOR)
-- Cite file path, line number, and function/symbol name for each finding
-- State what's wrong and why it matters — not just "this looks suspicious"
+1. **R1:** Identify bugs, security issues, performance problems. Cite line numbers.
+2. **R2:** Evaluate correctness and safety, not just describe code.
+3. **R3:** Flag silent failure modes.
+4. **R4:** Prioritize: BLOCKER / MAJOR / MINOR.
 
 ---
 
-## [FIXER] Fix Directives
+## Fixer Directives (Traycer Passes to Fixer Agents)
 
-> Fixers fix reported issues only. No refactoring, no new features, no scope expansion.
+Fixers fix reported issues only — no refactoring, no new features.
 
-1. **F1:** Fix ONLY reported issues — no refactoring, no new features.
-2. **F2:** Do not assume — if something is ambiguous, state your assumption explicitly before proceeding.
-3. **F3:** Focus exclusively on the task. Do not refactor unrelated code.
-4. **F4:** Do a final pass: look for off-by-one errors, null paths, and missing imports.
-
-### Fix Rules
-
-- **Minimal edits** — change only what's needed to resolve the finding. Follow existing code style.
-- **All severities** — fix BLOCKER, MAJOR, and MINOR findings. Do not skip MINOR.
-- **Re-run gates** — after fixing, re-run `final_gate.py` until PASS. Max 5 iterations before escalating to Traycer.
+1. **F1:** Fix ONLY reported issues.
+2. **F2:** State assumptions explicitly if ambiguous.
+3. **F3:** Minimal edits — follow existing code style.
+4. **F4:** Final pass: check off-by-one errors, null paths, missing imports.
 
 ---
 
-## [TRAYCER ONLY] Infrastructure & Deployment
+## Infrastructure & Deployment
 
 **Deployment:** `fabrik apply` → Coolify
 **Secrets:** Project `.env` (primary)

@@ -38,11 +38,9 @@ from pathlib import Path
 DB_PATH = Path(__file__).parent / "kilo-benchmarks" / "kilo_agents.db"
 OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
 DISABLED_DIR = Path.home() / ".traycer" / "disabled-cli-agents"
-OLLAMA_API = "http://localhost:11434"
 
 # Model name normalization for filenames
 MODEL_NORMALIZE = {
-    # Cloud models
     "claude-opus-4.6": "opus46",
     "claude-opus-4.5": "opus45",
     "claude-sonnet-4.6": "sonnet46",
@@ -57,11 +55,6 @@ MODEL_NORMALIZE = {
     "gemini-2.5-pro": "gemini25pro",
     "o4-mini": "o4mini",
     "o3-mini-high": "o3minihigh",
-    # Local models (Ollama)
-    "fabrik-coder-qwen2.5-32b:latest": "fabrik-coder-qwen32b",
-    "fabrik-reviewer-llama3.1-70b:latest": "fabrik-reviewer-llama70b",
-    "fabrik-fixer-deepseek-v2-16b:latest": "fabrik-fixer-ds16b",
-    "fabrik-docs-llama3.1-8b:latest": "fabrik-docs-llama8b",
 }
 
 # Variant assignment by priority (coding/fixing are high-stakes tasks)
@@ -98,9 +91,8 @@ def encode_price(price: float) -> str:
 
 def get_agents_from_db() -> list[dict]:
     """
-    Read agent role assignments from kilo_agents.db.
+    Read coding and fixing role assignments from kilo_agents.db.
     Returns list of agent dicts with role, priority, and agent details.
-    Includes both cloud agents (coding/fixing) and local agents (all roles).
     """
     if not DB_PATH.exists():
         print(f"❌ Database not found: {DB_PATH}")
@@ -110,9 +102,7 @@ def get_agents_from_db() -> list[dict]:
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    agents = []
-
-    # Get cloud agents (coding and fixing roles only)
+    # Get coding and fixing agents with their details
     query = """
         SELECT
             r.role,
@@ -136,7 +126,9 @@ def get_agents_from_db() -> list[dict]:
 
     cursor.execute(query)
     rows = cursor.fetchall()
+    conn.close()
 
+    agents = []
     for row in rows:
         agents.append(
             {
@@ -153,60 +145,9 @@ def get_agents_from_db() -> list[dict]:
                 "has_vision": row["has_vision"],
                 "has_thinking": row["has_reasoning"],
                 "ppd": row["perf_per_dollar"],
-                "model_type": "cloud",
             }
         )
 
-    # Get local agents (all roles)
-    local_query = """
-        SELECT
-            name as agent_name,
-            assigned_role as role,
-            role_priority as priority,
-            parameter_size as size,
-            context_window_k,
-            has_vision,
-            has_tools,
-            is_agentic,
-            is_reasoning,
-            arena_elo,
-            tbench_accuracy,
-            hardware
-        FROM local_models
-        WHERE assigned_role IS NOT NULL
-        ORDER BY assigned_role, role_priority
-    """
-
-    cursor.execute(local_query)
-    local_rows = cursor.fetchall()
-
-    for row in local_rows:
-        # Extract base model name from Ollama name
-        base_name = row["agent_name"].replace(":latest", "")
-
-        agents.append(
-            {
-                "role": row["role"],
-                "priority": row["priority"],
-                "agent_id": row["agent_name"],  # Use full Ollama name
-                "name": base_name,
-                "api_id": row["agent_name"],  # Same for local models
-                "provider": "ollama",
-                "input_price": 0.0,  # Local models are free
-                "output_price": 0.0,
-                "arena_elo": row["arena_elo"],
-                "tbench_accuracy": row["tbench_accuracy"],
-                "has_vision": row["has_vision"],
-                "has_thinking": row["is_reasoning"],
-                "ppd": 999,  # Max value for free models
-                "model_type": "local",
-                "size": row["size"],
-                "context_window_k": row["context_window_k"],
-                "hardware": row["hardware"],
-            }
-        )
-
-    conn.close()
     return agents
 
 
@@ -214,17 +155,12 @@ def deduplicate_agents(agents: list[dict]) -> list[dict]:
     """
     Deduplicate agents that appear in both coding and fixing with same variant.
     Returns list with combined role 'code&fix' for duplicates.
-    Note: Local models are never deduplicated as they have unique purposes.
     """
-    # Separate local models (never deduplicate)
-    local_agents = [a for a in agents if a.get("model_type") == "local"]
-    cloud_agents = [a for a in agents if a.get("model_type") == "cloud"]
-
-    # Group cloud agents by (api_id, variant)
+    # Group by (api_id, variant)
     seen = {}
     result = []
 
-    for agent in cloud_agents:
+    for agent in agents:
         variant = VARIANT_BY_PRIORITY.get(agent["priority"], "high")
         key = (agent["api_id"], variant)
 
@@ -242,12 +178,8 @@ def deduplicate_agents(agents: list[dict]) -> list[dict]:
             seen[key] = agent_copy
             result.append(agent_copy)
 
-    # Sort cloud agents by priority
+    # Sort by priority
     result.sort(key=lambda x: x["priority"])
-
-    # Add local agents (already sorted by role and priority from DB)
-    result.extend(local_agents)
-
     return result
 
 
@@ -257,14 +189,8 @@ def generate_script_content(agent: dict) -> str:
     priority = agent["priority"]
     api_id = agent["api_id"]
     model_normalized = normalize_model_name(api_id)
-
-    # Handle variant assignment
-    if agent.get("model_type") == "local":
-        variant = "local"  # All local models use "local" variant
-    else:
-        variant = agent.get("variant", VARIANT_BY_PRIORITY.get(priority, "high"))
-
-    output_encoded = encode_price(agent["output_price"]) if agent.get("output_price") else "0000"
+    variant = agent["variant"]
+    output_encoded = encode_price(agent["output_price"])
     ppd = agent["ppd"] or 0
     ppd_str = f"{int(ppd):03d}" if ppd else "---"
 
@@ -274,63 +200,13 @@ def generate_script_content(agent: dict) -> str:
     )
 
     # Format display values
-    if agent.get("model_type") == "local":
-        elo_display = str(int(agent["arena_elo"])) if agent["arena_elo"] else "—"
-        tbench_display = f"{agent['tbench_accuracy']:.1f}%" if agent.get("tbench_accuracy") else "—"
-        vision_display = "✅" if agent["has_vision"] else "—"
-        thinking_display = "✅" if agent["has_thinking"] else "—"
-        pricing_display = "FREE (Local)"
-        size_display = agent.get("size", "—")
-        hardware_display = agent.get("hardware", "—")
-    else:
-        elo_display = str(int(agent["arena_elo"])) if agent["arena_elo"] else "—"
-        tbench_display = f"{agent['tbench_accuracy']:.1f}%" if agent.get("tbench_accuracy") else "—"
-        vision_display = "✅" if agent["has_vision"] else "—"
-        thinking_display = "✅" if agent["has_thinking"] else "—"
-        pricing_display = f"${agent['output_price']:.2f}/1M tokens"
-        size_display = "—"
-        hardware_display = "—"
+    elo_display = str(int(agent["arena_elo"])) if agent["arena_elo"] else "—"
+    tbench_display = f"{agent['tbench_accuracy']:.1f}%" if agent["tbench_accuracy"] else "—"
+    vision_display = "✅" if agent["has_vision"] else "—"
+    thinking_display = "✅" if agent["has_thinking"] else "—"
 
-    # Build dynamic content based on model type
-    if agent.get("model_type") == "local":
-        agent_details = f"""# ════════════════════════════════════════════════════════════════════════════
-# Kilo Agent - {role.upper()} (Priority #{priority})
+    return f'''#!/bin/bash
 # ════════════════════════════════════════════════════════════════════════════
-#
-# 📛 SCRIPT NAME: {script_name}
-#
-# 📋 NAMING CONVENTION:
-#   Format: <role>-<priority>-<model>-<variant>-o<OUT>-ppd<PPD>.sh
-#
-#   <role>     = Agent role
-#   <priority> = Rank within role (1 = best)
-#   <model>    = Normalized model name
-#   <variant>  = Model type (local = Ollama)
-#   o<OUT>     = Output cost (0000 = free)
-#   ppd<PPD>   = Performance Per Dollar (999 = max for free)
-#
-# ════════════════════════════════════════════════════════════════════════════
-# AGENT DETAILS
-# ════════════════════════════════════════════════════════════════════════════
-# Role: {role} (Priority #{priority})
-# Model: {agent["name"]} (Local Ollama)
-# Model ID: {api_id}
-# Variant: {variant}
-# Size: {size_display}
-# Hardware: {hardware_display}
-#
-# BENCHMARKS:
-#   Arena ELO: {elo_display}
-#   TBench Accuracy: {tbench_display}
-#   Vision: {vision_display}
-#   Thinking: {thinking_display}
-#
-# PRICING:
-#   FREE (Local Model)
-#   PPD: {ppd_str}
-# ═══════════════════════════════════════════════════════════════════════════"""
-    else:
-        agent_details = f"""# ════════════════════════════════════════════════════════════════════════════
 # Kilo Agent - {role.upper()} (Priority #{priority})
 # ════════════════════════════════════════════════════════════════════════════
 #
@@ -362,12 +238,9 @@ def generate_script_content(agent: dict) -> str:
 #
 # PRICING:
 #   Input: ${agent["input_price"]:.2f}/1M tokens
-#   Output: {pricing_display}
+#   Output: ${agent["output_price"]:.2f}/1M tokens
 #   PPD: {ppd_str}
-# ═══════════════════════════════════════════════════════════════════════════"""
-
-    return f'''#!/bin/bash
-{agent_details}
+# ════════════════════════════════════════════════════════════════════════════
 
 # Error logging - captures errors to file for debugging when terminal closes
 AGENT_LOG="${{HOME}}/.traycer/agent-debug.log"
@@ -470,110 +343,77 @@ trap "rm -f $OUTPUT_FILE" EXIT
 SESSION_TITLE="${{TRAYCER_PHASE_ID:-${{TRAYCER_TASK_ID:-kilo-session}}}}"
 [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Kilo session title: $SESSION_TITLE" >&2
 
-# Run agent (Kilo for cloud, Ollama for local)
-if [ "{agent.get("model_type", "cloud")}" = "local" ]; then
-    # LOCAL MODEL: Use Ollama directly
-    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using Ollama for local model: {api_id}" >&2
+# Run Kilo agent
+RUNNER_SCRIPT="/opt/fabrik/scripts/kilo_terminal_runner.py"
+RUNNER_PYTHON="/opt/fabrik/.venv/bin/python3"
+KILO_RICH_UI="${{KILO_RICH_UI:-1}}"
 
-    if [ -n "$TRAYCER_TASK_ID" ]; then
-        # TRAYCER MODE: Background ollama + tail -f
-        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Traycer mode — streaming via tail -f" >&2
+# Fall back to system python3 if venv not available
+if [ ! -x "$RUNNER_PYTHON" ]; then
+    RUNNER_PYTHON="python3"
+fi
 
-        # Start ollama in background, writing directly to output file
-        timeout "$TIMEOUT" ollama run {api_id} "$PROMPT" > "$OUTPUT_FILE" 2>&1 &
-        OLLAMA_PID=$!
+if [ -n "$TRAYCER_TASK_ID" ]; then
+    # TRAYCER MODE: Background kilo + tail -f for real-time streaming
+    # while preserving clean script exit for shell integration completion detection.
+    # Key: kilo writes to file, tail streams it, script waits for kilo then exits cleanly.
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Traycer mode — streaming via tail -f" >&2
 
-        # Stream output in real-time while ollama runs
-        tail -f "$OUTPUT_FILE" &
-        TAIL_PID=$!
+    # Start kilo in background, writing directly to output file
+    timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
+        --model kilo/{api_id} \\
+        --variant {variant} \\
+        --title "$SESSION_TITLE" \\
+        "$PROMPT" > "$OUTPUT_FILE" 2>&1 &
+    KILO_PID=$!
 
-        # Wait for ollama to finish
-        wait "$OLLAMA_PID" 2>/dev/null
-        EXIT_CODE=$?
+    # Stream output in real-time while kilo runs
+    tail -f "$OUTPUT_FILE" &
+    TAIL_PID=$!
 
-        # Stop tail, capture full output
-        kill "$TAIL_PID" 2>/dev/null || true
-        wait "$TAIL_PID" 2>/dev/null || true
-        OUTPUT=$(cat "$OUTPUT_FILE")
-    else
-        # INTERACTIVE MODE: Direct ollama execution
-        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Interactive mode with ollama" >&2
-        timeout "$TIMEOUT" ollama run {api_id} "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
-        EXIT_CODE=${{PIPESTATUS[0]}}
-        OUTPUT=$(cat "$OUTPUT_FILE")
-    fi
+    # Wait for kilo to finish (timeout or natural completion)
+    wait "$KILO_PID" 2>/dev/null
+    EXIT_CODE=$?
+
+    # Stop tail, capture full output
+    kill "$TAIL_PID" 2>/dev/null || true
+    wait "$TAIL_PID" 2>/dev/null || true
+    OUTPUT=$(cat "$OUTPUT_FILE")
 else
-    # CLOUD MODEL: Use Kilo CLI
-    RUNNER_SCRIPT="/opt/fabrik/scripts/kilo_terminal_runner.py"
-    RUNNER_PYTHON="/opt/fabrik/.venv/bin/python3"
-    KILO_RICH_UI="${{KILO_RICH_UI:-1}}"
-
-    # Fall back to system python3 if venv not available
-    if [ ! -x "$RUNNER_PYTHON" ]; then
-        RUNNER_PYTHON="python3"
+    # INTERACTIVE MODE: Use Rich TUI or tee for real-time streaming
+    # Shell-side preflight: check env var, runner exists, python available, TTY
+    USE_RICH_UI=0
+    if [ "$KILO_RICH_UI" = "1" ] && \\
+       [ -f "$RUNNER_SCRIPT" ] && \\
+       command -v "$RUNNER_PYTHON" >/dev/null 2>&1 && \\
+       [ -t 1 ]; then
+        USE_RICH_UI=1
     fi
-    if [ -n "$TRAYCER_TASK_ID" ]; then
-        # TRAYCER MODE: Background kilo + tail -f for real-time streaming
-        # while preserving clean script exit for shell integration completion detection.
-        # Key: kilo writes to file, tail streams it, script waits for kilo then exits cleanly.
-        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Traycer mode — streaming via tail -f" >&2
 
-        # Start kilo in background, writing directly to output file
+    if [ "$USE_RICH_UI" = "1" ]; then
+        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using kilo_terminal_runner.py with $RUNNER_PYTHON" >&2
+        "$RUNNER_PYTHON" "$RUNNER_SCRIPT" \\
+            --output "$OUTPUT_FILE" \\
+            --agent "{role}-{priority}-{model_normalized}" \\
+            --model "{agent["name"]}" \\
+            --role "{role}" \\
+            --variant "{variant}" \\
+            --session-title "$SESSION_TITLE" \\
+            --timeout "$TIMEOUT" \\
+            -- timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
+                --model kilo/{api_id} \\
+                --variant {variant} \\
+                --title "$SESSION_TITLE" \\
+                "$PROMPT"
+        EXIT_CODE=$?
+    else
+        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Plain mode (KILO_RICH_UI=$KILO_RICH_UI, tty=$([ -t 1 ] && echo yes || echo no))" >&2
         timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
             --model kilo/{api_id} \\
             --variant {variant} \\
             --title "$SESSION_TITLE" \\
-            "$PROMPT" > "$OUTPUT_FILE" 2>&1 &
-        KILO_PID=$!
-
-        # Stream output in real-time while kilo runs
-        tail -f "$OUTPUT_FILE" &
-        TAIL_PID=$!
-
-        # Wait for kilo to finish (timeout or natural completion)
-        wait "$KILO_PID" 2>/dev/null
-        EXIT_CODE=$?
-
-        # Stop tail, capture full output
-        kill "$TAIL_PID" 2>/dev/null || true
-        wait "$TAIL_PID" 2>/dev/null || true
-        OUTPUT=$(cat "$OUTPUT_FILE")
-    else
-        # INTERACTIVE MODE: Use Rich TUI or tee for real-time streaming
-        # Shell-side preflight: check env var, runner exists, python available, TTY
-        USE_RICH_UI=0
-        if [ "$KILO_RICH_UI" = "1" ] && \\
-           [ -f "$RUNNER_SCRIPT" ] && \\
-           command -v "$RUNNER_PYTHON" >/dev/null 2>&1 && \\
-           [ -t 1 ]; then
-            USE_RICH_UI=1
-        fi
-
-        if [ "$USE_RICH_UI" = "1" ]; then
-            [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using kilo_terminal_runner.py with $RUNNER_PYTHON" >&2
-            "$RUNNER_PYTHON" "$RUNNER_SCRIPT" \\
-                --output "$OUTPUT_FILE" \\
-                --agent "{role}-{priority}-{model_normalized}" \\
-                --model "{agent["name"]}" \\
-                --role "{role}" \\
-                --variant "{variant}" \\
-                --session-title "$SESSION_TITLE" \\
-                --timeout "$TIMEOUT" \\
-                -- timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
-                    --model kilo/{api_id} \\
-                    --variant {variant} \\
-                    --title "$SESSION_TITLE" \\
-                    "$PROMPT"
-            EXIT_CODE=$?
-        else
-            [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Plain mode (KILO_RICH_UI=$KILO_RICH_UI, tty=$([ -t 1 ] && echo yes || echo no))" >&2
-            timeout "$TIMEOUT" kilo run --format default --auto --thinking \\
-                --model kilo/{api_id} \\
-                --variant {variant} \\
-                --title "$SESSION_TITLE" \\
-                "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
-            EXIT_CODE=${{PIPESTATUS[0]}}
-        fi
+            "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
+        EXIT_CODE=${{PIPESTATUS[0]}}
     fi
 fi
 END_TIME=$(date +%s)
@@ -738,16 +578,8 @@ def main(dry_run: bool = False):
                 role = agent["role"]
                 priority = agent["priority"]
                 model_normalized = normalize_model_name(agent["api_id"])
-
-                # Handle variant assignment
-                if agent.get("model_type") == "local":
-                    variant = "local"
-                else:
-                    variant = agent.get("variant", VARIANT_BY_PRIORITY.get(priority, "high"))
-
-                output_encoded = (
-                    encode_price(agent["output_price"]) if agent.get("output_price") else "0000"
-                )
+                variant = agent["variant"]
+                output_encoded = encode_price(agent["output_price"])
                 ppd = agent["ppd"] or 0
                 ppd_str = f"{int(ppd):03d}" if ppd else "---"
 
@@ -790,20 +622,13 @@ def main(dry_run: bool = False):
             raise
 
     else:
+        # Dry-run mode
         for agent in agents:
             role = agent["role"]
             priority = agent["priority"]
             model_normalized = normalize_model_name(agent["api_id"])
-
-            # Handle variant assignment
-            if agent.get("model_type") == "local":
-                variant = "local"
-            else:
-                variant = agent.get("variant", VARIANT_BY_PRIORITY.get(priority, "high"))
-
-            output_encoded = (
-                encode_price(agent["output_price"]) if agent.get("output_price") else "0000"
-            )
+            variant = agent["variant"]
+            output_encoded = encode_price(agent["output_price"])
             ppd = agent["ppd"] or 0
             ppd_str = f"{int(ppd):03d}" if ppd else "---"
 
@@ -811,25 +636,15 @@ def main(dry_run: bool = False):
                 f"{role}-{priority}-{model_normalized}-{variant}-o{output_encoded}-ppd{ppd_str}.sh"
             )
 
-            # Build display info based on model type
-            if agent.get("model_type") == "local":
-                model_info = f"{agent['name']} (Local Ollama)"
-                extra_info = f"          Size: {agent.get('size', '—')}, Hardware: {agent.get('hardware', '—')}"
-            else:
-                model_info = f"{agent['name']} ({agent['provider']})"
-                extra_info = ""
-
             print(f"[DRY-RUN] Would generate: {filename}")
-            print(f"          Model: {model_info}")
+            print(f"          Model: {agent['name']} ({agent['provider']})")
             print(f"          Role: {role} (Priority #{priority})")
             print(f"          Variant: {variant}")
             print(
                 f"          TBench: {agent['tbench_accuracy']:.1f}%"
-                if agent.get("tbench_accuracy")
+                if agent["tbench_accuracy"]
                 else "          TBench: —"
             )
-            if extra_info:
-                print(extra_info)
             generated_count += 1
 
         print(f"\n[DRY-RUN] Would generate {generated_count} agent scripts")
