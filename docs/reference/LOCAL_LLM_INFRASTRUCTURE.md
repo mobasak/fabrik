@@ -423,6 +423,36 @@ python scripts/kilo-benchmarks/kilo_agents_db.py ollama-status
 
 ---
 
+## Global Kilo Configuration
+
+All Kilo CLI agents (both cloud and local) are controlled by the global configuration file at `~/.config/kilo/opencode.json`. This file specifies which instruction documents are passed to agents.
+
+### Current Configuration
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS-compact.md"
+  ]
+}
+```
+
+### Key Points
+
+- **System-wide effect**: This configuration applies to ALL Kilo CLI agents, regardless of where they're run
+- **AGENTS-compact.md only**: Only the compact instructions are passed to CLI agents
+- **AGENTS.md restriction**: The full `AGENTS.md` is reserved for Traycer and should NOT be in global config
+- **Project override**: Individual projects can override with their own `opencode.json`
+
+### Why This Matters
+
+1. **Token efficiency**: CLI agents get only essential rules, not planning context
+2. **Clear separation**: Traycer handles planning, CLI agents handle execution
+3. **Consistent behavior**: All CLI agents follow the same core rules
+
+---
+
 ## See Also
 
 - **[KILO_MODEL_SELECTION.md](kilo/KILO_MODEL_SELECTION.md)** — Cloud model selection

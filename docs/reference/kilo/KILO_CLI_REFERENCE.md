@@ -613,6 +613,36 @@ Use `{env:VARIABLE_NAME}` syntax:
 }
 ```
 
+### Global Instructions Configuration
+
+The global configuration at `~/.config/kilo/opencode.json` controls which instruction files are passed to all Kilo CLI agents system-wide:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS-compact.md"
+  ]
+}
+```
+
+**Important Notes:**
+- **Global scope**: This configuration affects all Kilo CLI agents run from any directory
+- **Project override**: Project-level `opencode.json` takes precedence over global settings
+- **Fabrik convention**: Only `AGENTS-compact.md` should be used for Kilo CLI agents
+- **AGENTS.md restriction**: The full `AGENTS.md` is intended for Traycer only and should NOT be in global config
+
+**Why only AGENTS-compact.md?**
+- Kilo CLI agents need concise, actionable instructions
+- `AGENTS-compact.md` contains the essential rules and directives
+- `AGENTS.md` includes planning context and workflow details meant for Traycer
+- Prevents confusion and reduces token usage for CLI agents
+
+**Configuration Precedence:**
+1. Project-level `./opencode.json` (highest priority)
+2. Global `~/.config/kilo/opencode.json`
+3. Default Kilo CLI behavior (lowest)
+
 ### Setting Up Free Providers
 
 #### OpenRouter (Free Tier Models)
