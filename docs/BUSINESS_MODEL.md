@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-26 00:08:37 -->
-<!-- Total projects: 38 -->
+<!-- Last synced: 2026-03-28 11:42:55 -->
+<!-- Total projects: 39 -->
 
 ### Production Services (5 projects)
 
@@ -104,7 +104,7 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (14 projects)
+### Active Development (15 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -117,6 +117,7 @@ With ~$50/month infrastructure cost:
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-coolify** | Coolify deployment readiness test | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-final** | **Last Updated:** 2026-03-23 | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-project-2024** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-session-check** | Session poisoning audit - verify no Fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-zero-refs** | Complete workspace isolation verification - expect ZERO /opt/fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | - | ✅ Current |
@@ -146,5 +147,11 @@ With ~$50/month infrastructure cost:
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Unknown | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Unknown | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
+
+### Recently Removed (1 projects)
+
+| Project | Note |
+|---------|------|
+| ~~fabrik~~ | Folder deleted since last scan |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

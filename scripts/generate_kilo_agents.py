@@ -472,34 +472,84 @@ SESSION_TITLE="${{TRAYCER_PHASE_ID:-${{TRAYCER_TASK_ID:-kilo-session}}}}"
 
 # Run agent (Kilo for cloud, Ollama for local)
 if [ "{agent.get("model_type", "cloud")}" = "local" ]; then
-    # LOCAL MODEL: Use Ollama directly
+    # LOCAL MODEL: Use Ollama directly with Global Sequential Guard
     [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using Ollama for local model: {api_id}" >&2
 
-    if [ -n "$TRAYCER_TASK_ID" ]; then
-        # TRAYCER MODE: Background ollama + tail -f
-        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Traycer mode — streaming via tail -f" >&2
-
-        # Start ollama in background, writing directly to output file
-        timeout "$TIMEOUT" ollama run {api_id} "$PROMPT" > "$OUTPUT_FILE" 2>&1 &
-        OLLAMA_PID=$!
-
-        # Stream output in real-time while ollama runs
-        tail -f "$OUTPUT_FILE" &
-        TAIL_PID=$!
-
-        # Wait for ollama to finish
-        wait "$OLLAMA_PID" 2>/dev/null
-        EXIT_CODE=$?
-
-        # Stop tail, capture full output
-        kill "$TAIL_PID" 2>/dev/null || true
-        wait "$TAIL_PID" 2>/dev/null || true
-        OUTPUT=$(cat "$OUTPUT_FILE")
+    # Determine timeout based on model size
+    MODEL_SIZE="{agent.get("size", "unknown")}"
+    if [ "$MODEL_SIZE" = "70B" ] || [ "$MODEL_SIZE" = "42GB" ]; then
+        TIMEOUT=600
+    elif [ "$MODEL_SIZE" = "32B" ] || [ "$MODEL_SIZE" = "19GB" ]; then
+        TIMEOUT=600
     else
-        # INTERACTIVE MODE: Direct ollama execution
-        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Interactive mode with ollama" >&2
-        timeout "$TIMEOUT" ollama run {api_id} "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"
-        EXIT_CODE=${{PIPESTATUS[0]}}
+        TIMEOUT=300
+    fi
+    [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Timeout: $TIMEOUT seconds for model size $MODEL_SIZE" >&2
+
+    # Documentator Fast-Path Check
+    if [ "{role}" = "documentation" ]; then
+        VRAM_REQ=5500  # 5GB + buffer
+        CURRENT_VRAM=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | tr -d '[:space:]')
+        GPU_UTIL=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | tr -d '[:space:]')
+        VRAM_FREE=$((8192 - CURRENT_VRAM))
+
+        if [ "$VRAM_FREE" -gt "$VRAM_REQ" ] && [ "$GPU_UTIL" -lt 5 ]; then
+            echo "[FAST-PATH] Bypassing lock: Sufficient VRAM (${{VRAM_FREE}}MiB free)" >&2
+            [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using fast-path execution" >&2
+            OLLAMA_KEEP_ALIVE=0 timeout "$TIMEOUT" ollama run {api_id} \\
+                    "$PROMPT" > "$OUTPUT_FILE" 2>&1
+            EXIT_CODE=$?
+            OUTPUT=$(cat "$OUTPUT_FILE")
+        else
+            [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Falling back to global lock" >&2
+            # Use Global Sequential Guard
+            LOCKFILE="/opt/.fabrik_agent.lock"
+            (
+                flock -x 200
+
+                VRAM_BASELINE=1500
+                while true; do
+                    LOADED_MODEL=$(ollama ps | tail -n +2 | awk '{{print $1}}')
+                    if [ -z "$LOADED_MODEL" ]; then
+                        CURRENT_VRAM=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | tr -d '[:space:]')
+                        if [ "$CURRENT_VRAM" -lt "$VRAM_BASELINE" ]; then break; fi
+                    else
+                        GPU_UTIL=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | tr -d '[:space:]')
+                        [ "$GPU_UTIL" -lt 2 ] && sleep 2 || sleep 5
+                    fi
+                    sleep 5
+                done
+
+            OLLAMA_KEEP_ALIVE=0 timeout "$TIMEOUT" ollama run {api_id} \\
+                    "$PROMPT" > "$OUTPUT_FILE" 2>&1
+        ) 200>"$LOCKFILE"
+        EXIT_CODE=$?
+        OUTPUT=$(cat "$OUTPUT_FILE")
+        fi
+    else
+        # Non-documentator models always use Global Sequential Guard
+        [ "$KILO_DEBUG" = "1" ] && echo "[DEBUG] Using global sequential guard" >&2
+        LOCKFILE="/opt/.fabrik_agent.lock"
+        (
+            flock -x 200
+
+            VRAM_BASELINE=1500
+            while true; do
+                LOADED_MODEL=$(ollama ps | tail -n +2 | awk '{{print $1}}')
+                if [ -z "$LOADED_MODEL" ]; then
+                    CURRENT_VRAM=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | tr -d '[:space:]')
+                    if [ "$CURRENT_VRAM" -lt "$VRAM_BASELINE" ]; then break; fi
+                else
+                    GPU_UTIL=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | tr -d '[:space:]')
+                    [ "$GPU_UTIL" -lt 2 ] && sleep 2 || sleep 5
+                fi
+                sleep 5
+            done
+
+            OLLAMA_KEEP_ALIVE=0 timeout "$TIMEOUT" ollama run {api_id} \\
+                    "$PROMPT" > "$OUTPUT_FILE" 2>&1
+        ) 200>"$LOCKFILE"
+        EXIT_CODE=$?
         OUTPUT=$(cat "$OUTPUT_FILE")
     fi
 else
@@ -683,7 +733,7 @@ def validate_script(script_path: Path) -> list[str]:
     # Shell syntax check
     import subprocess
 
-    result = subprocess.run(["sh", "-n", str(script_path)], capture_output=True, text=True)
+    result = subprocess.run(["bash", "-n", str(script_path)], capture_output=True, text=True)
     if result.returncode != 0:
         issues.append(f"Shell syntax error: {result.stderr.strip()[:100]}")
 
@@ -734,6 +784,7 @@ def main(dry_run: bool = False):
         tmp_dir = Path(tempfile.mkdtemp(dir=traycer_dir, prefix=".cli-agents-tmp-"))
 
         try:
+            failed_count = 0
             for agent in agents:
                 role = agent["role"]
                 priority = agent["priority"]
@@ -761,13 +812,26 @@ def main(dry_run: bool = False):
                 # Validate
                 issues = validate_script(filepath)
                 if issues:
-                    print(f"   ⚠ {filename} - Validation issues:")
+                    has_syntax_error = any(
+                        "syntax error" in issue.lower() or "shell syntax" in issue.lower()
+                        for issue in issues
+                    )
+                    if has_syntax_error:
+                        print(f"   ❌ {filename} - Validation issues:")
+                    else:
+                        print(f"   ⚠ {filename} - Validation issues:")
                     for issue in issues:
                         print(f"      - {issue}")
+                    failed_count += 1
                 else:
                     print(f"   ✓ {filename}")
 
                 generated_count += 1
+
+            if failed_count > 0:
+                print(f"❌ {failed_count} scripts failed validation — aborting")
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                sys.exit(1)
 
             # Atomic rename
             if OUTPUT_DIR.exists():

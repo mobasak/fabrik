@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-27T19:52:12.448222",
-  "total_models": 326,
+  "timestamp": "2026-03-29T11:41:27.931156",
+  "total_models": 327,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -479,6 +479,11 @@
     },
     "kwaipilot/kat-coder-pro": {
       "id": "kwaipilot/kat-coder-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "kwaipilot/kat-coder-pro-v2": {
+      "id": "kwaipilot/kat-coder-pro-v2",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

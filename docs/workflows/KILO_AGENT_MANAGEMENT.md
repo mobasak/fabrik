@@ -261,6 +261,7 @@ sqlite3 /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db \
 
 
 
+
 <!-- AUTO-GENERATED:SCHEMA_AGENTS_START -->
 
 | Column | Type | Default | Description |
@@ -307,6 +308,8 @@ sqlite3 /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db \
 | **Other** | | | |
 |--------|------|---------|-------------|
 | has_reasoning | BOOLEAN | FALSE |  |
+| humaneval_score | REAL |  |  |
+| coding_score | REAL |  |  |
 
 <!-- AUTO-GENERATED:SCHEMA_AGENTS_END -->
 ### Migration History

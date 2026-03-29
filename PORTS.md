@@ -76,7 +76,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-03-26 00:08:37 -->
+<!-- Last synced: 2026-03-28 11:42:55 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -111,6 +111,7 @@ If you encounter a port conflict:
 | 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
 | 8026 | **ugc** | unknown | /opt/ugc |
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
+| 8028 | **test-project-2024** | python-api | /opt/test-project-2024 |
 | 8029 | **youtube** | python-api | /opt/youtube |
 | 18011 | **captcha** | python-api | /opt/captcha |
 | 18012 | **translator** | python-api | /opt/translator |

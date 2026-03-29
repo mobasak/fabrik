@@ -1,6 +1,6 @@
 ---
 activation: always_on
-description: Code review workflow pointer for Windsurf Cascade
+description: Code review workflow and quality gate commands for Windsurf Cascade
 trigger: always_on
 ---
 
@@ -10,45 +10,91 @@ trigger: always_on
 
 ---
 
-## Workflow Authority
+## Self-Review Gate (Every Task)
 
-**The canonical workflow is defined in `AGENTS.md` section `[ALL AGENTS] Mandatory Workflow`.**
+### Internal Audit
 
-**PLAN → IMPLEMENT (per ticket) → SELF_REVIEW → [END OF PHASE: GATES] → VERIFY → COMMIT**
+*Perform before reporting completion. Full checklist in `00-critical.md`.*
+- [ ] **Secrets:** No hardcoded keys or tokens?
+- [ ] **Infrastructure:** `Dockerfile` is `-slim-bookworm` and has `HEALTHCHECK`?
+- [ ] **Architecture:** `compose.yaml` has `platform: linux/arm64`?
+- [ ] **Networking:** Port registered in `PORTS.md`?
+- [ ] **Database:** Changes added to `db/schema.sql`?
 
----
-
-## Per-Ticket Steps (Cascade)
-
-### Implement
-Code changes for current ticket only.
-
-### Self-Review (MANDATORY)
-- [ ] No hardcoded localhost/secrets?
-- [ ] Imports correct?
-- [ ] Env vars use `os.getenv()`?
-- [ ] DB changes in `db/schema.sql`?
-
----
-
-## End-of-Phase Gates (User/Traycer decides when)
-
-Gates run at **end of phase**, not every ticket:
+### Lean Gate (Tier 1)
 
 ```bash
-# Kilo Review
-git add -A && python scripts/kilo_code_review.py staged --plan "..."
+python scripts/final_gate.py --lean
+```
 
-# Documentator
-python scripts/kilo_docs_enforcer.py --auto-generate
+Syntax (ruff), json/yaml validation, secrets, env vars, schema sync. Fast, no context poisoning.
 
-# Final Gate
+---
+
+## Phase-End Gates (Traycer Instructs or Interactive Work)
+
+These gates run at phase boundaries. When working under Traycer, Traycer decides when to trigger them. During interactive work (no Traycer), Cascade runs them after completing non-trivial changes.
+
+### Kilo Review
+
+```bash
+git add -A                          # CRITICAL: stage ALL uncommitted files, not just yours
+git diff --staged --name-only       # Verify staged matches intent
+python scripts/kilo_code_review.py staged --plan "task description" --output json
+```
+
+⚠️ NEVER `git add` only your files — other tools (final_gate, sync_projects, scaffold) may have modified files too. Review ALL changes or risk missing issues.
+
+I fix all findings (BLOCKER, MAJOR, MINOR) myself—no separate FIXER role in Cascade.
+
+### Documentator
+
+```bash
+python scripts/kilo_docs_enforcer.py --auto-generate --verbose
+git add CHANGELOG.md docs/reference/*.md
+python scripts/kilo_docs_enforcer.py --enforce
+```
+
+### Full Gate (Tier 2 — Phase Handover)
+
+```bash
 python scripts/final_gate.py
 ```
 
-**Cascade fixes all findings itself** — no separate FIXER role.
+Full quality: static analysis (ruff, mypy, bandit, semgrep) + consistency checks (changelog, index, readme, test proposal). Diff-aware — skips checks for unchanged files.
+
+### Systemic Gate (Tier 3 — On-Demand Only)
+
+```bash
+python scripts/final_gate.py --systemic
+```
+
+Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints, watchdog, env contract. Never part of a fix loop.
 
 ---
+
+## Key Reminders
+
+- Internal audit + lean gate is **MANDATORY** before reporting completion.
+- I fix issues, not Kilo (report-only by default).
+- Traycer commits, not Cascade — I only implement and fix.
+- Max 5 review iterations before escalating.
+- Non-trivial = any of: new file, >50 lines changed, new dependency, DB change.
+
+After 5 iterations: STOP, report blockers to user, do not attempt further fixes.
+
+---
+
+## Output Format
+
+After each gate, report:
+
+```text
+GATE: <lean|full|systemic> STATUS: PASS / FAIL
+Changed files: <paths>
+Gate output: <result>
+Next: Proceed / STOP
+```
 
 ---
 
@@ -71,8 +117,8 @@ These constraints prevent "agent drift" and bikeshedding:
 ## Why This File Exists
 
 This file exists because Cascade auto-discovers `.windsurf/rules/`. It provides:
-1. Quick command reference (no need to open AGENTS.md for commands)
-2. Cascade-specific reminders (output format, self-review)
-3. Solo-Dev Creed for architectural discipline
 
-**The workflow itself lives in `AGENTS.md`** — single source of truth for both Cascade and Kilo CLI.
+1. Quality gate commands organized by tier (lean, full, systemic).
+2. Cascade-specific reminders (output format, self-review, iteration limits).
+3. Solo-Dev Creed for architectural discipline.
+

@@ -1,8 +1,8 @@
 # Final Gate Workflow
 
-**Last Updated:** 2026-03-24
+**Last Updated:** 2026-03-28
 
-> Complete workflow documentation for `scripts/final_gate.py` — deterministic quality checks after DOCUMENTATOR and before Traycer verification and commit.
+> Complete reference for `scripts/final_gate.py` — deterministic quality checks that validate code and documentation before Traycer commit.
 
 ---
 
@@ -11,43 +11,41 @@
 1. [Overview](#overview)
 2. [When to Use](#when-to-use)
 3. [Commands Reference](#commands-reference)
-4. [Workflow Phases](#workflow-phases)
+4. [Execution Phases](#execution-phases)
 5. [All Checks Reference](#all-checks-reference)
-6. [Enforcement Scripts](#enforcement-scripts)
-7. [Configuration](#configuration)
-8. [Exit Codes](#exit-codes)
-9. [Integration with AGENTS.md Workflow](#integration-with-agentsmd-workflow)
-10. [Troubleshooting](#troubleshooting)
+6. [Configuration](#configuration)
+7. [Exit Codes](#exit-codes)
+8. [Integration Examples](#integration-examples)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Overview
 
-`final_gate.py` provides **deterministic quality checks** that run at Step 5, after KILO_REVIEW (Step 3) and DOCUMENTATOR (Step 4). It validates both code quality and documentation completeness in a single pass:
+`final_gate.py` provides **deterministic quality checks** that catch formatting, syntax, and convention errors before expensive LLM review. It validates both code quality and documentation completeness.
 
-1. **Single-pass validation** — Check code AND docs together after DOCUMENTATOR generates them
-2. **Fail fast** — Catch lint, syntax, and convention errors before Traycer verification
-3. **Auto-fix** — Automatically repair formatting issues
-4. **Enforce standards** — Validate Fabrik conventions
+### Key Features
+
+1. **Auto-fix formatting** — Repairs whitespace, EOF newlines, Python formatting
+2. **Static analysis** — Runs ruff, mypy, bandit, semgrep, yaml/json validation
+3. **Repo consistency** — Validates Fabrik conventions, structure, and documentation
+4. **Iterative convergence** — Re-runs up to 3 times when files change
+5. **Best-effort tools** — Skips optional tools if not installed
 
 ### Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                       Final Gate System                          │
+│                    Final Gate System                           │
 ├─────────────────────────────────────────────────────────────────┤
 │  PHASE 1: AUTO-FIX     │  PHASE 2: STATIC      │  PHASE 3: REPO │
 │  ├── whitespace        │  ├── ruff             │  ├── structure │
 │  ├── EOF newlines      │  ├── mypy             │  ├── conventions│
 │  ├── ruff format       │  ├── bandit           │  ├── changelog │
-│  └── ruff --fix        │  ├── semgrep          │  ├── symlinks  │
-│                        │  ├── yaml/json        │  └── docs sync │
+│  └── ruff --fix        │  ├── semgrep          │  └── symlinks  │
+│                        │  ├── yaml/json        │                │
 │                        │  ├── sqlfluff         │                │
 │                        │  └── vulture          │                │
-├─────────────────────────────────────────────────────────────────┤
-│  PHASE 4: SYNC (--sync only)                                    │
-│  ├── Windsurf extensions → docs/reference/EXTENSIONS.md         │
-│  └── Cascade backup freshness check                             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,11 +55,10 @@
 
 | Context | Command | Purpose |
 |---------|---------|---------|
-| **Step 5** (After DOCUMENTATOR) | `python scripts/final_gate.py` | Fix mode — validate code + docs |
+| **Agent self-review** | `python scripts/final_gate.py` | Fix mode — validate and repair issues |
 | **CI Pipeline** | `python scripts/final_gate.py --check` | Read-only verification |
-| **Sync Mode** (manual) | `python scripts/final_gate.py --sync` | Sync extensions/backup only |
 
-**Note:** Final gate runs **once** at Step 5, after DOCUMENTATOR (Step 4). It validates both code quality AND documentation in a single pass.
+**Note:** Default mode auto-stages changes if all checks pass. Use `--no-stage` to disable.
 
 ---
 
@@ -70,15 +67,12 @@
 ### Basic Commands
 
 ```bash
-# Default: Fix mode (Step 5 - after DOCUMENTATOR)
+# Default: Fix mode
 # Auto-fixes formatting, runs all checks, stages if all pass
 python scripts/final_gate.py
 
-# Check-only mode (CI - no fixes, no sync)
+# Check-only mode (CI - no fixes)
 python scripts/final_gate.py --check
-
-# Sync-only mode (manual utility - no quality checks)
-python scripts/final_gate.py --sync
 
 # Don't auto-stage modified files
 python scripts/final_gate.py --no-stage
@@ -96,7 +90,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 ---
 
-## Workflow Phases
+## Execution Phases
 
 ### Phase 1: Auto-Fix Formatting
 
@@ -122,7 +116,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 | **semgrep** | SAST rules | 30s | ⚠️ Best-effort |
 | **yaml** | YAML syntax | — | ✅ Yes |
 | **json** | JSON syntax | — | ✅ Yes |
-| **sqlfluff** | SQL lint | 180s | ⚠️ If SQL files exist |
+| **sqlfluff** | SQL lint (PostgreSQL dialect) | 180s | ⚠️ If SQL files exist |
 | **vulture** | Dead code | — | ⚠️ Best-effort |
 
 **Best-effort checks:** Skip if tool not installed, don't fail build.
@@ -137,7 +131,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 | **Rule File Size** | `check_rule_size.py` | `.windsurf/rules/` < 50KB each |
 | **opencode.json** | `check_opencode_json.py` | Kilo-safe rules validation |
 | **INDEX.md** | `check_index_md.py` | Master file index current |
-| **One-Test Rule Proposal** | `check_test_proposal.py` | Step 2.5 test justification documented |
+| **One-Test Rule** | `check_test_proposal.py` | Test justification documented |
 | **README.md** | `check_readme_md.py` | Primary entry point valid |
 | **CONFIGURATION.md** | `check_configuration_md.py` | Env vars documented |
 | **.env Updates** | `check_env_updates.py` | Secrets not in git |
@@ -147,11 +141,15 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 | **Test Coverage** | `check_test_coverage.py` | New code has tests |
 | **.env.example** | `check_env_example.py` | All vars documented |
 | **Compose Services** | `check_compose_services.py` | Services documented |
+| **Docker** | `check_docker.py` | ARM64, No-Alpine, HEALTHCHECK |
+| **Secrets** | `check_secrets.py` | No hardcoded secrets |
+| **.env Contract Sync** | `check_env_contract.py` | Env var contracts consistent |
+| **Port Registration** | `check_ports.py` | PORTS.md updated |
+| **Health Endpoint** | `check_health.py` | /health tests dependencies |
+| **Dependencies Sync** | `check_deps_sync.py` | Dependencies documented |
+| **Documentation** | `check_docs.py` | Required docs present |
 | **Documentation Drift** | `docs_updater.py --check` | Docs match code |
-| **AGENTS.md TOC** | `update_agents_toc.py --check` | TOC current |
 | **Fabrik Conventions** | `validate_conventions.py --strict` | Naming, structure |
-| **Kilo CLI Health** | `check_kilo_health.sh` | Kilo available |
-| **Symlink Integrity** | (inline) | Governance files local |
 
 ### Phase 4: Sync Steps
 
@@ -220,21 +218,119 @@ semgrep --config auto src/
 
 **Note:** Requires `semgrep login` for authentication. Skipped if not authenticated.
 
-### Enforcement Checks (Phase 3)
+#### sqlfluff
 
-#### check_changelog.py
+```bash
+# What it checks
+python -m sqlfluff lint --dialect postgres *.sql
+```
 
-**Purpose:** Ensure CHANGELOG.md updated for significant code changes.
+**Dialect:** PostgreSQL (required for Fabrik projects)
 
-**Triggers when:**
-- Changes in `src/`, `scripts/`, `templates/`
-- More than 10 lines changed
-- New files added
+**Common issues:**
+- SQL syntax errors
+- Missing semicolons
+- Incorrect keywords
+- Inconsistent capitalization
 
-**Skips:**
-- Test files only
-- Documentation only
-- Config files only
+**Note:** Only runs if `.sql` files exist in the repository.
+
+### Enforcement Scripts
+
+All repo consistency checks are implemented by scripts in `scripts/enforcement/`. Each script validates specific Fabrik conventions:
+
+- `check_structure.py` — Validates required directories exist
+- `check_rule_size.py` — Ensures rule files < 50KB
+- `check_opencode.json.py` — Validates Kilo-safe instruction list
+- `check_index_md.py` — Verifies INDEX.md reflects current structure
+- `check_test_proposal.py` — Enforces One-Test Rule documentation
+- `check_readme_md.py` — Validates README.md structure
+- `check_configuration_md.py` — Ensures env vars documented
+- `check_env_updates.py` — Prevents secret commits
+- `check_changelog.py` — Validates CHANGELOG.md updated
+- `check_schema_sync.py` — Checks DB models match schema.sql
+- `check_openapi_sync.py` — Validates API docs match routes
+- `check_test_coverage.py` — Ensures new code has tests
+- `check_env_example.py` — Validates .env.example completeness
+- `check_compose_services.py` — Documents Docker services
+- `check_docker.py` — Enforces ARM64, no-Alpine, HEALTHCHECK
+- `check_secrets.py` — Scans for hardcoded secrets
+- `check_env_contract.py` — Validates env var contracts
+- `check_ports.py` — Checks PORTS.md registration
+- `check_health.py` — Validates /health endpoint
+- `check_deps_sync.py` — Validates dependencies documented
+- `check_docs.py` — Ensures required docs present
+- `validate_conventions.py` — Enforces naming/structure conventions
+
+---
+
+#### check_structure.py
+
+**Purpose:** Validate project follows Fabrik directory structure.
+
+**Required directories:**
+- `src/` — Source code
+- `docs/` — Documentation
+- `scripts/` — Utility scripts
+- `tests/` — Test suite
+- `.droid/` — Kilo working directory
+
+**Why this matters:**
+- Consistent structure across projects
+- Enables automation and tooling
+
+#### check_rule_size.py
+
+**Purpose:** Ensures rule files are under 50KB each.
+
+**Validates:**
+- `.windsurf/rules/*.md` files < 50KB
+- Rules are concise and focused
+- No unnecessary verbosity
+
+**Why this matters:**
+- Keeps rules manageable
+- Prevents AI context overflow
+
+#### check_opencode_json.py
+
+**Purpose:** Ensures project's opencode.json contains only Kilo-safe instructions.
+
+**Validates:**
+- File exists and is valid JSON
+- Contains `instructions` field that is a list
+- Instructions exactly match Kilo-safe allowlist: `["AGENTS-compact.md"]`
+- No forbidden patterns (e.g., `.windsurf/rules/*.md`)
+- Instructions are in correct order
+
+**Why this matters:**
+- Prevents Cascade-only rules from being passed to Kilo CLI agents
+- Ensures consistent behavior across all projects
+- Enforces separation: Traycer uses AGENTS.md, Kilo uses AGENTS-compact.md
+
+**Example valid configuration:**
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS-compact.md"
+  ]
+}
+```
+
+#### check_index_md.py
+
+**Purpose:** Ensures INDEX.md reflects current file structure.
+
+**Validates:**
+- All important files are listed
+- No stale entries for deleted files
+- File descriptions are accurate
+- Hierarchy is properly organized
+
+**Why this matters:**
+- Provides project navigation
+- Helps new team members find files
 
 #### check_test_proposal.py
 
@@ -280,40 +376,160 @@ entire API becomes unresponsive. This test verifies graceful degradation.
 - `0` — Proposal found or no plan exists
 - `1` — Plan exists but missing required keywords
 
-#### check_structure.py
+#### check_readme_md.py
 
-**Purpose:** Validate project follows Fabrik directory structure.
-
-**Required directories:**
-- `src/` — Source code
-- `docs/` — Documentation
-- `scripts/` — Utility scripts
-- `tests/` — Test suite
-- `.droid/` — Kilo working directory
-
-#### check_env_vars.py
-
-**Purpose:** No hardcoded localhost or secrets.
-
-**Checks for:**
-```python
-# BAD
-DB_HOST = 'localhost'
-API_KEY = 'sk-abc123'
-
-# GOOD
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-API_KEY = os.getenv('API_KEY')
-```
-
-#### check_health.py
-
-**Purpose:** Health endpoints test actual dependencies.
+**Purpose:** Ensures README.md is a valid primary entry point.
 
 **Validates:**
-- `/health` endpoint exists
-- Returns proper JSON structure
-- Tests database connection (if configured)
+- Required sections exist (Overview, Quick Start, etc.)
+- Installation instructions work
+- Links are valid
+- Project description is clear
+
+**Why this matters:**
+- README is often the first thing people see
+- Must provide accurate project introduction
+
+#### check_configuration_md.py
+
+**Purpose:** Ensures CONFIGURATION.md documents all env vars.
+
+**Validates:**
+- Every environment variable is documented
+- Usage examples are provided
+- Security implications are noted
+- Default values are specified
+
+**Why this matters:**
+- Complete configuration reference
+- Prevents configuration errors
+
+#### check_env_updates.py
+
+**Purpose:** Ensures no secrets are committed to git.
+
+**Validates:**
+- No API keys in code
+- No passwords or tokens
+- No private keys or certificates
+- Proper use of os.getenv() for secrets
+
+**Why this matters:**
+- Prevents credential leakage in version control
+- Enforces security best practices
+
+**Skips:**
+- Test files only
+- Documentation only
+- Config files only
+
+#### check_changelog.py
+
+**Purpose:** Ensures CHANGELOG.md is updated for significant code changes.
+
+**Triggers when:**
+- Changes in `src/`, `scripts/`, `templates/`
+- More than 10 lines changed
+- New files added
+
+**Skips:**
+- Test files only
+- Documentation only
+- Config files only
+
+**Validates:**
+- Entry exists for current changes
+- Follows changelog format
+- Includes version/date
+
+**Why this matters:**
+- Maintains project history
+- Helps with release tracking
+
+#### check_schema_sync.py
+
+**Purpose:** Ensures database models match schema.sql.
+
+**Validates:**
+- All models have corresponding schema
+- Schema includes all columns and indexes
+- Migration history is consistent
+- Data types match
+
+**Why this matters:**
+- Prevents database mismatches
+- Ensures reproducible deployments
+
+#### check_openapi_sync.py
+
+**Purpose:** Ensures API documentation matches actual routes.
+
+**Validates:**
+- All endpoints are documented
+- Request/response schemas match
+- Authentication requirements are documented
+- Example values are accurate
+
+**Why this matters:**
+- API docs must be trustworthy
+- Prevents integration issues
+
+#### check_test_coverage.py
+
+**Purpose:** Ensures new code has appropriate test coverage.
+
+**Validates:**
+- New functions have tests
+- Critical paths are covered
+- Edge cases are considered
+- Tests are meaningful (not just coverage)
+
+**Why this matters:**
+- Maintains code quality
+- Catches regressions early
+
+#### check_env_example.py
+
+**Purpose:** Ensures all environment variables are documented.
+
+**Validates:**
+- Every env var in code has entry in .env.example
+- Descriptions are clear and accurate
+- Default values are provided where appropriate
+
+**Why this matters:**
+- Enables easy setup for new developers
+- Documents all configuration options
+
+#### check_compose_services.py
+
+**Purpose:** Ensures Docker Compose services are documented.
+
+**Validates:**
+- All services have descriptions
+- Port mappings are documented
+- Environment variables are listed
+- Volume mounts are explained
+
+**Why this matters:**
+- Provides clear deployment documentation
+- Helps with service understanding
+
+#### check_docker.py
+
+**Purpose:** Enforces Docker conventions for ARM64 compatibility and security.
+
+**Validates:**
+- **No Alpine images**: Blocks `FROM alpine` and variants (use `-slim-bookworm` instead)
+- **ARM64 platform**: Custom builds must specify `platform: linux/arm64`
+- **HEALTHCHECK**: All Dockerfiles must include health check
+- **Approved base images**: Python 3.12/3.13-slim-bookworm, Node 22-bookworm-slim, debian:bookworm-slim, ubuntu:24.04
+- **Port consistency**: EXPOSE ports match compose.yaml mappings
+
+**Why this matters:**
+- ARM64 is required for VPS deployment (aarch64)
+- Alpine images have glibc compatibility issues
+- Health checks enable proper container monitoring
 
 #### check_secrets.py
 
@@ -325,6 +541,115 @@ API_KEY = os.getenv('API_KEY')
 - Private keys
 - AWS credentials
 
+**Example detection:**
+```python
+# BAD
+DB_HOST = 'localhost'
+API_KEY = 'sk-abc123'
+
+# GOOD
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+API_KEY = os.getenv('API_KEY')
+```
+
+#### check_env_contract.py
+
+**Purpose:** Ensures environment variable contracts are consistent.
+
+**Validates:**
+- `.env.example` matches actual `.env` variables
+- All required variables are documented
+- No undocumented variables in use
+- Variable descriptions are accurate
+
+**Why this matters:**
+- Prevents deployment failures due to missing env vars
+- Ensures clear documentation for setup
+
+#### check_ports.py
+
+**Purpose:** Ensures PORTS.md is updated with port allocations.
+
+**Validates:**
+- All used ports are registered
+- No port conflicts documented
+- Port purposes are explained
+- Auto-generated section is current
+
+**Why this matters:**
+- Prevents port conflicts across projects
+- Documents service endpoints
+
+#### check_deps_sync.py
+
+**Purpose:** Ensures dependencies are properly documented and synchronized.
+
+**Validates:**
+- `requirements.txt` matches actual imports
+- Package versions are pinned
+- No dependency conflicts
+- Development dependencies separated
+
+**Why this matters:**
+- Prevents import errors in deployment
+- Ensures reproducible builds
+
+#### check_docs.py
+
+**Purpose:** Ensures all required documentation files are present.
+
+**Validates:**
+- README.md exists and has required sections
+- CONFIGURATION.md documents all env vars
+- CHANGELOG.md exists for version tracking
+- Required API docs are generated
+
+**Why this matters:**
+- Ensures project is self-documenting
+- Prevents missing critical documentation
+
+#### check_health.py
+
+**Purpose:** Ensures health endpoints test actual dependencies.
+
+**Validates:**
+- /health endpoint exists
+- Returns proper JSON structure
+- Tests database connection
+- Checks external service dependencies
+
+**Why this matters:**
+- Health checks must reflect real system state
+- Prevents false-positive monitoring
+
+#### docs_updater.py
+
+**Purpose:** Ensures documentation matches code (drift check).
+
+**Validates:**
+- API docs match actual implementation
+- Class/function docs are current
+- Parameter types are accurate
+- Return values are documented
+
+**Why this matters:**
+- Prevents documentation drift
+- Maintains trust in docs
+
+#### update_agents_toc.py
+
+**Purpose:** Ensures AGENTS.md table of contents is current.
+
+**Validates:**
+- All sections are listed in TOC
+- Page numbers/links are accurate
+- No stale TOC entries
+- Formatting is consistent
+
+**Why this matters:**
+- Navigation aid for large document
+- Helps find specific sections quickly
+
 #### validate_conventions.py
 
 **Purpose:** Fabrik naming and structure conventions.
@@ -334,6 +659,10 @@ API_KEY = os.getenv('API_KEY')
 - File naming patterns
 - Import structure
 - Docstring presence
+
+**Why this matters:**
+- Maintains consistency across projects
+- Enables automated tooling
 
 ### Symlink Integrity Check
 
@@ -361,7 +690,7 @@ API_KEY = os.getenv('API_KEY')
 | bandit | 180 |
 | sqlfluff | 180 |
 | ruff | 120 |
-| semgrep | 300 |
+| semgrep | 30 |
 
 ### Max Iterations
 
@@ -384,36 +713,36 @@ Final gate runs up to **3 iterations** to achieve convergence (auto-fix → re-v
 
 ---
 
-## Integration with AGENTS.md Workflow
+## Integration Examples
 
-### Position in 8-Step Workflow
+### Example 1: Coder Agent Plan
 
 ```
-PLAN → IMPLEMENT → SELF_REVIEW → KILO_REVIEW → DOCUMENTATOR → FINAL_GATE → VERIFY → COMMIT
-                                                                ^^^^^^^^^^^
-                                                                Step 5: This script
+5. Fix Issues
+   - Run final_gate.py to validate implementation
+   - If failures:
+     * Fix formatting issues (auto-fixed by gate)
+     * Fix semantic errors (mypy, bandit findings)
+     * Fix convention violations
+   - Re-run final_gate.py until PASS
+   - Changes auto-staged
 ```
 
-### Step 5: After DOCUMENTATOR
+### Example 2: Fixer Agent Plan
 
-```bash
-# After DOCUMENTATOR generates and stages docs (Step 4)
-python scripts/final_gate.py
-
-# If PASS → proceed to Step 6 (Traycer Verify)
-# If FAIL → fix issues, re-run final_gate.py
+```
+3. Validate Fixes
+   - Run final_gate.py to ensure no regressions
+   - Address any new issues found
+   - Re-run until all checks pass
 ```
 
-Final gate runs **once** at Step 5. It validates both code quality AND documentation completeness in a single pass. There is no separate pre-Kilo or post-fix invocation.
+### Example 3: CI/CD Pipeline
 
-### Sync Mode (Manual Utility)
-
-```bash
-# Sync Windsurf extensions to docs - NOT part of main workflow
-python scripts/final_gate.py --sync
+```yaml
+- name: Final Gate Check
+  run: python scripts/final_gate.py --check
 ```
-
-**Note:** FIXER is a conditional loop triggered only when Traycer verification (Step 6) fails — not part of the main workflow sequence.
 
 ---
 
@@ -456,6 +785,28 @@ semgrep login
 ### Fixed
 - Bug in Y
 ```
+
+### "opencode.json contains incorrect Kilo-safe list"
+
+**Cause:** Project's opencode.json has wrong instructions.
+
+**Common issues:**
+- Contains `.windsurf/rules/*.md` (Cascade-only)
+- Contains `AGENTS.md` (Traycer-only)
+- Missing `AGENTS-compact.md`
+- Wrong order of instructions
+
+**Fix:** Update project's opencode.json:
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS-compact.md"
+  ]
+}
+```
+
+**Note:** This check validates the PROJECT's opencode.json, not the global one at `~/.config/kilo/opencode.json`.
 
 ### "Symlink integrity failed"
 

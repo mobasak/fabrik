@@ -329,8 +329,12 @@ def fix_end_of_files() -> tuple[bool, str, int]:
     return True, f"({files_fixed} files fixed)" if files_fixed else "", files_fixed
 
 
-def run_formatting_fixes() -> list[tuple[str, bool, str]]:
+def run_formatting_fixes(tier: int = 2) -> list[tuple[str, bool, str]]:
     """Run auto-fix formatting steps (direct Python implementation, no pre-commit dependency)."""
+    # Tier 3 (systemic): Skip formatting - systemic checks don't auto-fix
+    if tier == 3:
+        return []
+
     results = []
 
     # Trim trailing whitespace (direct implementation)
@@ -381,94 +385,29 @@ def detect_src_package() -> str:
     return "src/"
 
 
-def run_static_checks() -> list[tuple[str, bool, str]]:
-    """Run static analysis checks."""
+def run_static_checks(
+    tier: int = 2, changed_files: set[str] | None = None
+) -> list[tuple[str, bool, str]]:
+    """Run static analysis checks, filtered by tier and changed files."""
     results = []
+    changed = changed_files or set()
 
-    # Ruff check (no fix, just verify)
+    # Tier 3: Skip all static checks (systemic only runs consistency)
+    if tier == 3:
+        return results
+
+    # Diff-sensing: if only .md files changed, skip all static checks
+    if changed and _only_md_changed(changed):
+        return results
+
+    # --- Ruff check (Tier 1 + Tier 2) ---
     code, out = run_cmd(
         [PYTHON, "-m", "ruff", "check", "src/", "scripts/"],
         timeout=TIMEOUTS["ruff"],
     )
     results.append(("ruff", code == 0, out if code != 0 else ""))
 
-    # Mypy (auto-detect package under src/) - with timeout recovery for cache corruption
-    mypy_target = detect_src_package()
-    code, out = run_mypy_with_recovery(mypy_target, timeout=30)
-    results.append(("mypy", code == 0, out if code != 0 else ""))
-
-    # Bandit (optional - skip if not installed)
-    code, out = run_cmd(
-        [PYTHON, "-m", "bandit", "-ll", "-x", "tests/", "-r", "src/"],
-        timeout=TIMEOUTS["bandit"],
-    )
-    if "No module named bandit" in out:
-        results.append(("bandit", True, "(bandit not installed, skipping)"))
-    else:
-        results.append(("bandit", code == 0, out if code != 0 else ""))
-
-    # Semgrep (best-effort - skip if not installed, not authenticated, or times out)
-    # Reduced timeout to 30s to prevent blocking; semgrep can hang on network issues
-    semgrep_env = semgrep_env_with_token()
-    semgrep_timeout = 30  # Short timeout - semgrep can hang on network/auth issues
-    try:
-        result = subprocess.run(
-            ["semgrep", "--config", "auto", "src/"],
-            cwd=FABRIK_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=semgrep_timeout,
-            env=semgrep_env,
-        )
-        code, out = result.returncode, (result.stdout + result.stderr).strip()
-    except FileNotFoundError:
-        code, out = 1, "Command not found: semgrep"
-    except subprocess.TimeoutExpired:
-        code, out = 0, f"(semgrep timed out after {semgrep_timeout}s, skipping)"
-
-    if "Command not found: semgrep" in out:
-        # Skip if not installed (best-effort)
-        results.append(("semgrep", True, "(semgrep not installed, skipping)"))
-    elif "HTTP 401" in out or "semgrep login" in out.lower():
-        # Skip if not authenticated (best-effort) - print instruction but don't fail
-        results.append(("semgrep", True, "(semgrep not authenticated - run: semgrep login)"))
-    elif "timed out" in out:
-        results.append(("semgrep", True, out))
-    else:
-        results.append(("semgrep", code == 0, out if code != 0 else ""))
-
-    # Check YAML (guard import, always append result)
-    code, out = run_cmd(["git", "ls-files", "-z", "--", "*.yaml", "*.yml"])
-    yaml_files = [f for f in out.split("\0") if f] if code == 0 else []
-    yaml_files_exist = bool(yaml_files)
-    yaml_ok = True
-    yaml_errors = []
-    if yaml_files_exist:
-        try:
-            import yaml
-        except ImportError:
-            yaml_ok = False
-            yaml_errors.append("PyYAML not installed")
-        else:
-            files = [f for f in yaml_files if "templates/wordpress/schema/v1.yaml" not in f]
-            for f in files:
-                path = FABRIK_ROOT / f
-                if path.exists():
-                    try:
-                        yaml.safe_load(path.read_text(encoding="utf-8"))
-                    except yaml.YAMLError as e:
-                        yaml_ok = False
-                        yaml_errors.append(f"{f}: {e}")
-                    except UnicodeDecodeError:
-                        yaml_ok = False
-                        yaml_errors.append(f"{f}: non-UTF8 encoding")
-    # Always append result (consistency with other checks)
-    if yaml_files_exist:
-        results.append(("check yaml", yaml_ok, "\n".join(yaml_errors)))
-    else:
-        results.append(("check yaml", True, "(no .yaml/.yml files)"))
-
-    # Check JSON
+    # --- JSON validation (Tier 1 + Tier 2) ---
     import json
 
     code, out = run_cmd(["git", "ls-files", "-z", "--", "*.json"])
@@ -489,22 +428,105 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
                     json_errors.append(f"{f}: non-UTF8 encoding")
     results.append(("check json", json_ok, "\n".join(json_errors)))
 
-    # SQLFluff (use -z for safe file discovery)
-    code, out = run_cmd(["git", "ls-files", "-z", "--", "*.sql"])
-    sql_files = [f for f in out.split("\0") if f]
-    if sql_files:
-        code, out = run_cmd(
-            [PYTHON, "-m", "sqlfluff", "lint", "--dialect", "postgres"] + sql_files,
-            timeout=TIMEOUTS["sqlfluff"],
-        )
-        if "No module named sqlfluff" in out:
-            results.append(("sqlfluff-lint", True, "(sqlfluff not installed, skipping)"))
+    # --- YAML validation (Tier 1 + Tier 2) ---
+    code, out = run_cmd(["git", "ls-files", "-z", "--", "*.yaml", "*.yml"])
+    yaml_files = [f for f in out.split("\0") if f] if code == 0 else []
+    yaml_ok = True
+    yaml_errors = []
+    if yaml_files:
+        try:
+            import yaml
+        except ImportError:
+            yaml_ok = False
+            yaml_errors.append("PyYAML not installed")
         else:
-            results.append(("sqlfluff-lint", code == 0, out if code != 0 else ""))
+            files = [f for f in yaml_files if "templates/wordpress/schema/v1.yaml" not in f]
+            for f in files:
+                path = FABRIK_ROOT / f
+                if path.exists():
+                    try:
+                        yaml.safe_load(path.read_text(encoding="utf-8"))
+                    except yaml.YAMLError as e:
+                        yaml_ok = False
+                        yaml_errors.append(f"{f}: {e}")
+                    except UnicodeDecodeError:
+                        yaml_ok = False
+                        yaml_errors.append(f"{f}: non-UTF8 encoding")
+        results.append(("check yaml", yaml_ok, "\n".join(yaml_errors)))
     else:
-        results.append(("sqlfluff-lint", True, "(no .sql files)"))
+        results.append(("check yaml", True, "(no .yaml/.yml files)"))
 
-    # Vulture (optional - skip if not installed)
+    # --- Everything below is Tier 2 only ---
+    if tier == 1:
+        return results
+
+    # Mypy
+    mypy_target = detect_src_package()
+    code, out = run_mypy_with_recovery(mypy_target, timeout=30)
+    results.append(("mypy", code == 0, out if code != 0 else ""))
+
+    # Bandit (skip if no src/ files changed)
+    if not changed or _has_path_prefix(changed, "src/"):
+        code, out = run_cmd(
+            [PYTHON, "-m", "bandit", "-ll", "-x", "tests/", "-r", "src/"],
+            timeout=TIMEOUTS["bandit"],
+        )
+        if "No module named bandit" in out:
+            results.append(("bandit", True, "(bandit not installed, skipping)"))
+        else:
+            results.append(("bandit", code == 0, out if code != 0 else ""))
+    else:
+        results.append(("bandit", True, "(no src/ changes, skipping)"))
+
+    # Semgrep (skip if no src/ files changed)
+    if not changed or _has_path_prefix(changed, "src/"):
+        semgrep_env = semgrep_env_with_token()
+        semgrep_timeout = 30
+        try:
+            result = subprocess.run(
+                ["semgrep", "--config", "auto", "src/"],
+                cwd=FABRIK_ROOT,
+                capture_output=True,
+                text=True,
+                timeout=semgrep_timeout,
+                env=semgrep_env,
+            )
+            code, out = result.returncode, (result.stdout + result.stderr).strip()
+        except FileNotFoundError:
+            code, out = 1, "Command not found: semgrep"
+        except subprocess.TimeoutExpired:
+            code, out = 0, f"(semgrep timed out after {semgrep_timeout}s, skipping)"
+
+        if "Command not found: semgrep" in out:
+            results.append(("semgrep", True, "(semgrep not installed, skipping)"))
+        elif "HTTP 401" in out or "semgrep login" in out.lower():
+            results.append(("semgrep", True, "(semgrep not authenticated - run: semgrep login)"))
+        elif "timed out" in out:
+            results.append(("semgrep", True, out))
+        else:
+            results.append(("semgrep", code == 0, out if code != 0 else ""))
+    else:
+        results.append(("semgrep", True, "(no src/ changes, skipping)"))
+
+    # SQLFluff (skip if no .sql files changed)
+    if not changed or _has_extension(changed, ".sql"):
+        code, out = run_cmd(["git", "ls-files", "-z", "--", "*.sql"])
+        sql_files = [f for f in out.split("\0") if f]
+        if sql_files:
+            code, out = run_cmd(
+                [PYTHON, "-m", "sqlfluff", "lint", "--dialect", "postgres"] + sql_files,
+                timeout=TIMEOUTS["sqlfluff"],
+            )
+            if "No module named sqlfluff" in out:
+                results.append(("sqlfluff-lint", True, "(sqlfluff not installed, skipping)"))
+            else:
+                results.append(("sqlfluff-lint", code == 0, out if code != 0 else ""))
+        else:
+            results.append(("sqlfluff-lint", True, "(no .sql files)"))
+    else:
+        results.append(("sqlfluff-lint", True, "(no .sql changes, skipping)"))
+
+    # Vulture
     code, out = run_cmd(
         [
             PYTHON,
@@ -525,115 +547,230 @@ def run_static_checks() -> list[tuple[str, bool, str]]:
     return results
 
 
-def run_consistency_checks() -> list[tuple[str, bool, str]]:
-    """Run repo consistency checks."""
+def run_consistency_checks(
+    tier: int = 2, changed_files: set[str] | None = None
+) -> list[tuple[str, bool, str]]:
+    """Run repo consistency checks, filtered by tier and changed files."""
     results = []
+    changed = changed_files or set()
 
-    # Optional enforcement checks - skip if scripts not present
-    results.append(
-        run_optional_check("scripts/enforcement/check_structure.py", "Project Structure")
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_rule_size.py", "Rule File Size Guard")
-    )
-    results.append(
-        run_optional_check(
-            "scripts/enforcement/check_opencode_json.py", "opencode.json (Kilo-Safe Rules)"
+    # ── Tier 1: Showstoppers only ──
+    if tier >= 1:
+        results.append(
+            run_optional_check("scripts/enforcement/check_secrets.py", "Secrets (Zero Hardcoding)")
         )
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_index_md.py", "INDEX.md (Master File Index)")
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_test_proposal.py", "One-Test Rule Proposal")
-    )
-    results.append(
-        run_optional_check(
-            "scripts/enforcement/check_readme_md.py", "README.md (Primary Entry Point)"
+        results.append(
+            run_optional_check("scripts/enforcement/check_env_vars.py", ".env Updates (Secrets)")
         )
-    )
-    results.append(
-        run_optional_check(
-            "scripts/enforcement/check_configuration_md.py", "CONFIGURATION.md (Env Vars)"
-        )
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_env_updates.py", ".env Updates (Secrets)")
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)")
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_openapi_sync.py", "OpenAPI Sync (API Docs)")
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_test_coverage.py", "Test Coverage (New Code)")
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_env_example.py", ".env.example Completeness")
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_compose_services.py", "Compose Services Docs")
-    )
-    # Infrastructure enforcement checks (ARM64, secrets, ports, health)
-    results.append(
-        run_optional_check(
-            "scripts/enforcement/check_docker.py", "Docker (ARM64, No-Alpine, HEALTHCHECK)"
-        )
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_secrets.py", "Secrets (Zero Hardcoding)")
-    )
-    results.append(
-        run_optional_check(
-            "scripts/enforcement/check_env_contract.py",
-            ".env Contract Sync",
-            module="scripts.enforcement.check_env_contract",
-        )
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_ports.py", "Port Registration (PORTS.md)")
-    )
-    results.append(
-        run_optional_check("scripts/enforcement/check_health.py", "Health Endpoint Validation")
-    )
-    results.append(
-        run_optional_check(
-            "scripts/enforcement/check_deps_sync.py",
-            "Dependencies Sync",
-            module="scripts.enforcement.check_deps_sync",
-        )
-    )
-    results.append(
-        run_optional_check(
-            "scripts/enforcement/check_docs.py",
-            "Documentation Completeness",
-            module="scripts.enforcement.check_docs",
-        )
-    )
-    results.append(run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check"))
-    results.append(
-        run_optional_check("scripts/update_agents_toc.py", "AGENTS.md TOC Current", "--check")
-    )
+        # Schema sync only if models or .sql changed
+        if not changed or _has_extension(changed, ".py", ".sql"):
+            results.append(
+                run_optional_check(
+                    "scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)"
+                )
+            )
 
-    # Fabrik Convention Validator (module import, skip if not installed)
-    validate_conv = FABRIK_ROOT / "scripts/enforcement/validate_conventions.py"
-    if validate_conv.exists():
-        code, out = run_cmd([PYTHON, "-m", "scripts.enforcement.validate_conventions", "--strict"])
-        results.append(("Fabrik Convention Validator", code == 0, out if code != 0 else ""))
-    else:
-        results.append(("Fabrik Convention Validator", True, "(check not present, skipping)"))
+    # Tier 1 stops here
+    if tier == 1:
+        # Symlink check always runs
+        symlink_ok, symlink_msg = check_symlinks()
+        results.append(("Symlink Integrity", symlink_ok, symlink_msg))
+        return results
 
-    # Kilo CLI Health Check (shell script)
-    kilo_health = FABRIK_ROOT / "scripts/check_kilo_health.sh"
-    if kilo_health.exists():
-        code, out = run_cmd(["./scripts/check_kilo_health.sh"])
-        results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
-    else:
-        results.append(("Kilo CLI Health Check", True, "(check not present, skipping)"))
+    # ── Tier 2: Essential subset ──
+    if tier == 2:
+        results.append(
+            run_optional_check("scripts/enforcement/check_structure.py", "Project Structure")
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_rule_size.py", "Rule File Size Guard")
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_opencode_json.py", "opencode.json (Kilo-Safe Rules)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_index_md.py", "INDEX.md (Master File Index)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_test_proposal.py", "One-Test Rule Proposal"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_readme_md.py", "README.md (Primary Entry Point)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_configuration_md.py", "CONFIGURATION.md (Env Vars)"
+            )
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_env_updates.py", ".env Updates (Secrets)")
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
+        )
+        if not changed or _has_extension(changed, ".sql", ".py"):
+            results.append(
+                run_optional_check(
+                    "scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)"
+                )
+            )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_openapi_sync.py", "OpenAPI Sync (API Docs)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_test_coverage.py", "Test Coverage (New Code)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_env_example.py", ".env.example Completeness"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_compose_services.py", "Compose Services Docs"
+            )
+        )
+
+    # ── Tier 3: Full repo health ──
+    if tier == 3:
+        results.append(
+            run_optional_check("scripts/enforcement/check_structure.py", "Project Structure")
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_rule_size.py", "Rule File Size Guard")
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_opencode_json.py", "opencode.json (Kilo-Safe Rules)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_index_md.py", "INDEX.md (Master File Index)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_test_proposal.py", "One-Test Rule Proposal"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_readme_md.py", "README.md (Primary Entry Point)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_configuration_md.py", "CONFIGURATION.md (Env Vars)"
+            )
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_env_updates.py", ".env Updates (Secrets)")
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_openapi_sync.py", "OpenAPI Sync (API Docs)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_test_coverage.py", "Test Coverage (New Code)"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_env_example.py", ".env.example Completeness"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_compose_services.py", "Compose Services Docs"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_docker.py", "Docker (ARM64, No-Alpine, HEALTHCHECK)"
+            )
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_secrets.py", "Secrets (Zero Hardcoding)")
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_env_contract.py",
+                ".env Contract Sync",
+                module="scripts.enforcement.check_env_contract",
+            )
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_ports.py", "Port Registration (PORTS.md)")
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_health.py", "Health Endpoint Validation")
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_deps_sync.py",
+                "Dependencies Sync",
+                module="scripts.enforcement.check_deps_sync",
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_docs.py",
+                "Documentation Completeness",
+                module="scripts.enforcement.check_docs",
+            )
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_doc_sprawl.py", "Documentation Sprawl")
+        )
+        results.append(
+            run_optional_check("scripts/enforcement/check_watchdog.py", "Watchdog Scripts")
+        )
+        results.append(
+            run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check")
+        )
+        validate_conv = FABRIK_ROOT / "scripts/enforcement/validate_conventions.py"
+        if validate_conv.exists():
+            code, out = run_cmd(
+                [PYTHON, "-m", "scripts.enforcement.validate_conventions", "--strict"]
+            )
+            results.append(("Fabrik Convention Validator", code == 0, out if code != 0 else ""))
+        else:
+            results.append(("Fabrik Convention Validator", True, "(check not present, skipping)"))
+        results.append(
+            run_optional_check("scripts/enforcement/check_duplicates.py", "Duplicate Detection")
+        )
+
+    # Kilo CLI Health Check (all tiers that reach here)
+    if tier >= 2:
+        kilo_health = FABRIK_ROOT / "scripts/check_kilo_health.sh"
+        if kilo_health.exists():
+            code, out = run_cmd(["./scripts/check_kilo_health.sh"])
+            results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
+        else:
+            results.append(("Kilo CLI Health Check", True, "(check not present, skipping)"))
 
     # Symlink Integrity Check (always run)
     symlink_ok, symlink_msg = check_symlinks()
@@ -732,17 +869,8 @@ def check_symlinks() -> tuple[bool, str]:
 
 def run_sync_steps() -> list[tuple[str, bool, str]]:
     """Run side-effect sync steps (last)."""
-    results = []
-
-    # Sync Windsurf Extensions
-    code, out = run_cmd(["./scripts/sync_extensions.sh"])
-    results.append(("Sync Windsurf Extensions", code == 0, out if code != 0 else ""))
-
-    # Sync Cascade Backup
-    code, out = run_cmd(["./scripts/sync_cascade_backup.sh"])
-    results.append(("Sync Cascade Backup", code == 0, out if code != 0 else ""))
-
-    return results
+    # DEPRECATED: Sync steps removed - use scripts directly if needed
+    return []
 
 
 def stage_changes() -> tuple[bool, str]:
@@ -790,6 +918,43 @@ def get_git_status_hash() -> str:
     return out if code == 0 else ""
 
 
+def get_changed_files() -> set[str]:
+    """Get set of changed file paths from git diff.
+
+    Used by tiered execution to skip checks whose relevant files haven't changed.
+    Combines both staged and unstaged changes.
+    """
+    changed = set()
+    # Staged changes
+    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
+    if code == 0 and out:
+        changed.update(f for f in out.strip().split("\n") if f)
+    # Unstaged changes
+    code, out = run_cmd(["git", "diff", "--name-only"])
+    if code == 0 and out:
+        changed.update(f for f in out.strip().split("\n") if f)
+    # Untracked files
+    code, out = run_cmd(["git", "ls-files", "--others", "--exclude-standard"])
+    if code == 0 and out:
+        changed.update(f for f in out.strip().split("\n") if f)
+    return changed
+
+
+def _has_extension(changed_files: set[str], *extensions: str) -> bool:
+    """Check if any changed file has one of the given extensions."""
+    return any(f.endswith(ext) for f in changed_files for ext in extensions)
+
+
+def _has_path_prefix(changed_files: set[str], prefix: str) -> bool:
+    """Check if any changed file starts with the given path prefix."""
+    return any(f.startswith(prefix) for f in changed_files)
+
+
+def _only_md_changed(changed_files: set[str]) -> bool:
+    """Check if only markdown files were changed."""
+    return all(f.endswith(".md") for f in changed_files) if changed_files else False
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Final Gate - Pre-commit checks for coder AI")
@@ -813,63 +978,70 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Log issues caught (for post-Kilo analysis). Logs to .droid/gate_issues.jsonl",
     )
+    parser.add_argument(
+        "--lean",
+        action="store_true",
+        help="Tier 1: Showstoppers only (syntax, secrets, schema sync). For agent self-review.",
+    )
+    parser.add_argument(
+        "--systemic",
+        action="store_true",
+        help="Tier 3: Repo health only (docker, ports, docs sprawl, deps). On-demand maintenance.",
+    )
     # Note: --no-sync removed - default now never syncs (use --sync explicitly for Step 7)
     return parser.parse_args()
 
 
-def run_iteration(check_only: bool, run_sync: bool) -> list[tuple[str, bool, str]]:
+def run_iteration(
+    check_only: bool, run_sync: bool, tier: int = 2, changed_files: set[str] | None = None
+) -> list[tuple[str, bool, str]]:
     """Run one iteration of all checks."""
     all_results: list[tuple[str, bool, str]] = []
 
-    # Phase 1: Formatting fixes (only in fix mode)
-    if not check_only:
+    tier_label = {1: "TIER 1 (LEAN)", 2: "TIER 2 (FULL)", 3: "TIER 3 (SYSTEMIC)"}
+    print(f"  Gate: {tier_label.get(tier, 'UNKNOWN')}")
+
+    # Phase 1: Formatting fixes (only in fix mode, skip for Tier 3)
+    if not check_only and tier != 3:
         print_header("PHASE 1: AUTO-FIX FORMATTING")
-        results = run_formatting_fixes()
+        results = run_formatting_fixes(tier=tier)
         all_results.extend(results)
         for name, passed, out in results:
             print_step(name, passed, out)
 
-    # Phase 2: Static checks
-    print_header("PHASE 2: STATIC ANALYSIS")
-    results = run_static_checks()
-    all_results.extend(results)
-    for name, passed, out in results:
-        print_step(name, passed, out)
+    # Phase 2: Static checks (skip for Tier 3)
+    if tier != 3:
+        print_header("PHASE 2: STATIC ANALYSIS")
+        results = run_static_checks(tier=tier, changed_files=changed_files)
+        all_results.extend(results)
+        for name, passed, out in results:
+            print_step(name, passed, out)
 
-    # Phase 2.5: AI fixes for static check failures (if enabled)
-    if not check_only and os.getenv("FINAL_GATE_AI_FIX") == "1":
-        # Collect failed tools WITH their output (avoids re-running tools)
-        failed_tools = [
-            (name, out) for name, passed, out in results if not passed and name in ("mypy", "ruff")
-        ]
-        if failed_tools:
-            tool_names = [t[0] for t in failed_tools]
-            print(
-                f"\n{BLUE}[AI FIX] Attempting cheap_fix_agent for: {', '.join(tool_names)}{RESET}"
-            )
-            for tool, tool_output in failed_tools:
-                success, msg = run_ai_fixes(tool, tool_output)
-                if success:
-                    print(f"  {GREEN}✓ {tool}: {msg[:80]}{RESET}")
-                else:
-                    print(f"  {YELLOW}⚠ {tool}: {msg[:80]}{RESET}")
+        # Phase 2.5: AI fixes for static check failures (if enabled)
+        if not check_only and os.getenv("FINAL_GATE_AI_FIX") == "1":
+            failed_tools = [
+                (name, out)
+                for name, passed, out in results
+                if not passed and name in ("mypy", "ruff")
+            ]
+            if failed_tools:
+                tool_names = [t[0] for t in failed_tools]
+                print(
+                    f"\n{BLUE}[AI FIX] Attempting cheap_fix_agent for: {', '.join(tool_names)}{RESET}"
+                )
+                for tool, tool_output in failed_tools:
+                    success, msg = run_ai_fixes(tool, tool_output)
+                    if success:
+                        print(f"  {GREEN}✓ {tool}: {msg[:80]}{RESET}")
+                    else:
+                        print(f"  {YELLOW}⚠ {tool}: {msg[:80]}{RESET}")
 
     # Phase 3: Consistency checks
     print_header("PHASE 3: REPO CONSISTENCY")
-    results = run_consistency_checks()
+    results = run_consistency_checks(tier=tier, changed_files=changed_files)
     all_results.extend(results)
     for name, passed, out in results:
         print_step(name, passed, out)
-
-    # Phase 4: Sync steps (skip in check-only mode)
-    if run_sync and not check_only:
-        print_header("PHASE 4: SYNC STEPS")
-        results = run_sync_steps()
-        all_results.extend(results)
-        for name, passed, out in results:
-            print_step(name, passed, out)
-    elif check_only:
-        print(f"\n{YELLOW}(Sync steps skipped in --check mode){RESET}")
 
     return all_results
 
@@ -878,28 +1050,30 @@ def main() -> int:
     """Run the final gate checks with iteration loop."""
     args = parse_args()
 
-    # Sync-only mode
-    if args.sync:
-        print(f"{BOLD}Final Gate - Sync Steps Only{RESET}")
-        print_header("SYNC STEPS")
-        results = run_sync_steps()
-        for name, passed, out in results:
-            print_step(name, passed, out)
-        failed = [r for r in results if not r[1]]
-        return 1 if failed else 0
+    # Determine tier
+    if args.lean:
+        tier = 1
+    elif args.systemic:
+        tier = 3
+    else:
+        tier = 2
 
+    # Get changed files for diff-sensing
+    changed_files = get_changed_files()
+
+    tier_label = {1: "LEAN (Tier 1)", 2: "FULL (Tier 2)", 3: "SYSTEMIC (Tier 3)"}
     print(f"{BOLD}Final Gate - Pre-Traycer Commit Checks{RESET}")
     mode = "CHECK ONLY" if args.check else "FIX"
-    # Default never syncs; --check also never syncs
-    sync_mode = "DISABLED (check mode)" if args.check else "DISABLED (use --sync for Step 7)"
-    print(f"Mode: {mode} | Sync: {sync_mode} | Max iterations: {MAX_ITERATIONS}")
+    print(f"Mode: {mode} | Tier: {tier_label[tier]} | Max iterations: {MAX_ITERATIONS}")
+    if changed_files:
+        exts = {Path(f).suffix for f in changed_files if Path(f).suffix}
+        print(f"Changed files: {len(changed_files)} ({', '.join(sorted(exts)) or 'no extensions'})")
+    else:
+        print("Changed files: none detected (running all checks)")
 
-    # Initialize before loop to avoid undefined variable
+    # Initialize before loop
     all_results: list[tuple[str, bool, str]] = []
 
-    # Iteration loop: re-runs if ANY step modified files (not just autofix)
-    # This catches convergence issues from formatting, consistency checks, etc.
-    # Semantic failures (mypy, bandit, etc.) require human/LLM fixes between runs
     for iteration in range(1, MAX_ITERATIONS + 1):
         if not args.check and iteration > 1:
             print(
@@ -907,43 +1081,38 @@ def main() -> int:
             )
 
         status_before = get_git_status_hash()
-        # Default never syncs - use --sync explicitly for Step 7
         all_results = run_iteration(
             check_only=args.check,
-            run_sync=False,  # Never sync in normal mode
+            run_sync=False,
+            tier=tier,
+            changed_files=changed_files,
         )
 
-        # Count failures
         failed = [r for r in all_results if not r[1]]
 
-        # In check mode, no iteration needed
         if args.check:
             break
 
-        # If no failures, we're done
         if not failed:
             break
 
-        # Check if any steps changed files
         status_after = get_git_status_hash()
         if status_before == status_after:
-            # No file changes - semantic failures need human/LLM fixes
-            # Exit loop, report failures (don't pretend iterating will help)
             print(f"\n{YELLOW}No file changes - remaining failures need manual fixes{RESET}")
             break
 
         if iteration < MAX_ITERATIONS:
             print(f"\n{YELLOW}Changes detected, re-validating...{RESET}")
+            # Refresh changed files after fixes
+            changed_files = get_changed_files()
 
-    # Summary first (to know if we should stage)
+    # Summary
     passed_count = len([r for r in all_results if r[1]])
     failed = [r for r in all_results if not r[1]]
 
-    # Log issues if --post-kilo flag is set (for future analysis)
     if args.post_kilo and failed:
         log_gate_issues(all_results, "post_kilo")
 
-    # Auto-stage only if no failures AND fix mode AND staging enabled
     if not args.check and not args.no_stage and not failed:
         status = get_git_status_hash()
         if status:
@@ -954,9 +1123,7 @@ def main() -> int:
             else:
                 print(f"  {RED}✗ Failed to stage: {out}{RESET}")
 
-    # Summary
     print_header("SUMMARY")
-
     print(f"  {GREEN}Passed:{RESET} {passed_count}")
     print(f"  {RED}Failed:{RESET} {len(failed)}")
 

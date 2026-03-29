@@ -194,3 +194,95 @@ ignoring input
 
 ✅ Generated 6 agent scripts
    📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db]   Updated schema documentation for agents
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 327 models
+[kilo-db]   Inserted 1, updated 326 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 252 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 115 Terminal Bench entries
+[kilo-db]   Updated 98 Elo, 37 TBench scores
+[kilo-db] Created snapshot for 2026-03-28 with 334 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+🔄 Reading agents from kilo_agents.db...
+   Found 12 coding/fixing role assignments
+   After deduplication: 10 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260328-092441
+   🗑 Rotated old backup: cli-agents.backup.20260327-195215
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+   ✓ coding-1-fabrik-coder-qwen32b-local-o0000-ppd999.sh
+   ✓ documentation-1-fabrik-docs-llama8b-local-o0000-ppd999.sh
+   ✓ fixing-1-fabrik-fixer-ds16b-local-o0000-ppd999.sh
+   ✓ reviewing-1-fabrik-reviewer-llama70b-local-o0000-ppd999.sh
+
+✅ Generated 10 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 327 models
+[kilo-db]   Inserted 0, updated 327 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 252 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 115 Terminal Bench entries
+[kilo-db]   Updated 98 Elo, 37 TBench scores
+[kilo-db] Snapshot for 2026-03-28 already exists, skipping
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+🔄 Reading agents from kilo_agents.db...
+   Found 12 coding/fixing role assignments
+   After deduplication: 10 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260328-143445
+   🗑 Rotated old backup: cli-agents.backup.20260328-122637
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+   ✓ coding-1-fabrik-coder-qwen32b-local-o0000-ppd999.sh
+   ✓ documentation-1-fabrik-docs-llama8b-local-o0000-ppd999.sh
+   DEBUG: Checking temp file /home/ozgur/.traycer/.cli-agents-tmp-n_1920z8/fixing-1-fabrik-fixer-ds16b-local-o0000-ppd999.sh
+   ✓ fixing-1-fabrik-fixer-ds16b-local-o0000-ppd999.sh
+   ✓ reviewing-1-fabrik-reviewer-llama70b-local-o0000-ppd999.sh
+
+✅ Generated 10 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 327 models
+[kilo-db]   Inserted 0, updated 327 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 253 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 115 Terminal Bench entries
+[kilo-db]   Updated 98 Elo, 37 TBench scores
+[kilo-db] Created snapshot for 2026-03-29 with 334 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+🔄 Reading agents from kilo_agents.db...
+   Found 12 coding/fixing role assignments
+   After deduplication: 10 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260329-114130
+   🗑 Rotated old backup: cli-agents.backup.20260328-143445
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+   ✓ coding-1-fabrik-coder-qwen32b-local-o0000-ppd999.sh
+   ✓ documentation-1-fabrik-docs-llama8b-local-o0000-ppd999.sh
+   ✓ fixing-1-fabrik-fixer-ds16b-local-o0000-ppd999.sh
+   ✓ reviewing-1-fabrik-reviewer-llama70b-local-o0000-ppd999.sh
+
+✅ Generated 10 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents

@@ -8,12 +8,9 @@
 - NEVER modify files outside task scope
 
 ## WORKFLOW
-1. **Implement** — code changes for current phase/ticket only
-2. **Self-review** — check hardcoded values, imports, env vars
-
-## END OF PHASE ONLY (Traycer decides when)
-- Kilo review: `git add -A && python scripts/kilo_code_review.py staged`
-- Documentator: `python scripts/kilo_docs_enforcer.py --auto-generate`
-- Final gate: `python scripts/final_gate.py`
+1. **Implement** — code changes for current task only
+2. **Self-review** — check hardcoded values, imports, env vars, and work you have done
+3. **Lean gate** — `python scripts/final_gate.py --lean` (syntax, secrets, schema only) then fix found issues
+4. **Stage** — `git add -A` (never commit)
 
 **Traycer is the orchestrator. Follow the task, report completion.**
