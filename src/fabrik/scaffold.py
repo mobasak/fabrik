@@ -228,9 +228,9 @@ def _validate_project_name(name: str) -> None:
 
 
 def _install_pre_commit(project_dir: Path) -> bool:
-    """Copy pre-commit config and install hooks. Returns True if successful."""
-    # Copy config file
-    src_config = TEMPLATE_DIR / "pre-commit-config.yaml"
+    """Copy pre-commit config from Fabrik root and install hooks. Returns True if successful."""
+    # Copy config file from root so all projects share the same minimal commit blockers
+    src_config = FABRIK_ROOT / ".pre-commit-config.yaml"
     dest_config = project_dir / ".pre-commit-config.yaml"
     if src_config.exists():
         shutil.copy(src_config, dest_config)
@@ -377,6 +377,13 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
     fabrik_compact = FABRIK_ROOT / "AGENTS-compact.md"
     if fabrik_compact.exists():
         shutil.copy(fabrik_compact, project_dir / "AGENTS-compact.md")
+
+    # Copy cascade-models.md (Windsurf AI model reference)
+    fabrik_cascade_models = FABRIK_ROOT / "docs" / "reference" / "windsurf" / "cascade-models.md"
+    if fabrik_cascade_models.exists():
+        cascade_target_dir = project_dir / "docs" / "reference" / "windsurf"
+        cascade_target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(fabrik_cascade_models, cascade_target_dir / "cascade-models.md")
 
     # Copy opencode.json from fabrik master (single source of truth)
     shutil.copy(FABRIK_ROOT / "opencode.json", project_dir / "opencode.json")

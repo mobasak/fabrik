@@ -61,18 +61,34 @@ def log(msg: str) -> None:
 
 
 def parse_credits(credits_str: str) -> float:
-    """Parse credit string to numeric value."""
-    # Remove emoji and extra text
+    """Parse credit string to numeric value.
+
+    Returns float value for sorting. Returns -1.0 for unavailable (—).
+    Handles cases like "2Promo pricing..." by extracting leading numeric value.
+    """
+    import re
+
+    # Remove emoji
     clean = credits_str.replace("🎁", "").strip()
 
-    # Handle "Free" or "0"
+    # Handle unavailable credits (em-dash)
+    if clean == "—" or clean == "-":
+        return -1.0
+
+    # Handle "Free" or explicit "0"
     if clean.lower() == "free" or clean == "0":
         return 0.0
 
-    try:
-        return float(clean)
-    except ValueError:
-        return 0.0
+    # Extract leading numeric value (handles "2Promo..." -> "2")
+    match = re.match(r"^(\d+\.?\d*)", clean)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return -1.0
+
+    # If no numeric prefix found, treat as unavailable
+    return -1.0
 
 
 def get_browser():
@@ -169,53 +185,61 @@ def scrape_windsurf_models() -> dict[str, list[WindsurfModel]]:
 
         models_by_provider = {}
 
-        # Try clicking each provider tab by text using XPATH
+        # Click each provider tab button (class="models-tab-button")
         for provider_name in PROVIDER_TABS:
             log(f"  Scraping provider: {provider_name}")
             try:
-                # Find button/tab with exact text match
-                tabs = driver.find_elements(
-                    By.XPATH,
-                    f"//button[contains(text(), '{provider_name}')] | //div[contains(text(), '{provider_name}') and contains(@class, 'cursor-pointer')] | //li[contains(text(), '{provider_name}')]",
-                )
+                # Find the specific button by class and text content
+                js_click_script = f"""
+                const buttons = document.querySelectorAll('button.models-tab-button');
+                let targetButton = null;
 
-                if not tabs:
-                    log(f"    No tab found for {provider_name}")
+                for (const btn of buttons) {{
+                    if (btn.textContent.trim() === '{provider_name}') {{
+                        targetButton = btn;
+                        break;
+                    }}
+                }}
+
+                if (targetButton) {{
+                    targetButton.click();
+                    return true;
+                }}
+                return false;
+                """
+
+                clicked = driver.execute_script(js_click_script)
+
+                if not clicked:
+                    log(f"    No tab button found for {provider_name}")
                     continue
 
-                tab = tabs[0]
-                log(f"    Found tab for {provider_name}")
+                log(f"    Clicked {provider_name} tab")
 
-                # Click the tab
-                driver.execute_script("arguments[0].scrollIntoView(true);", tab)
-                time.sleep(0.3)
-                driver.execute_script("arguments[0].click();", tab)
+                # Wait for the active class to change and content to load
                 time.sleep(2)
 
-                # Get page HTML after tab loads
-                html = driver.page_source
-                soup = BeautifulSoup(html, "html.parser")
+                # Extract from the updated DOM
+                current_html = driver.page_source
+                soup = BeautifulSoup(current_html, "html.parser")
 
-                # Find tables
                 tables = soup.find_all("table")
                 models = []
 
                 for table in tables:
-                    # Check if this table has Model and Credits columns
                     headers = table.find_all("th")
                     header_text = [h.get_text(strip=True) for h in headers]
 
                     if "Model" not in header_text or "Credits" not in header_text:
                         continue
 
-                    # Parse table rows
-                    rows = table.find_all("tr")[1:]  # Skip header row
+                    rows = table.find_all("tr")[1:]
 
                     for row in rows:
-                        cols = row.find_all("td")
-                        if len(cols) >= 2:
-                            model_name = cols[0].get_text(strip=True)
-                            credits_str = cols[1].get_text(strip=True)
+                        cells = row.find_all("td")
+                        if len(cells) >= 2:
+                            model_name = cells[0].get_text(strip=True)
+                            credits_str = cells[1].get_text(strip=True)
 
                             if model_name:
                                 credits_numeric = parse_credits(credits_str)
@@ -228,14 +252,21 @@ def scrape_windsurf_models() -> dict[str, list[WindsurfModel]]:
                                     )
                                 )
 
+                    if models:
+                        break
+
                 if models:
                     models_by_provider[provider_name] = models
-                    log(f"    Found {len(models)} models")
+                    preview = ", ".join([m.name for m in models[:3]])
+                    log(f"    Found {len(models)} models: {preview}")
                 else:
-                    log("    No models found in table")
+                    log(f"    No models found for {provider_name}")
 
             except Exception as e:
-                log(f"  Error scraping provider {provider_name}: {e}")
+                log(f"  Error scraping {provider_name}: {e}")
+                import traceback
+
+                traceback.print_exc()
 
         driver.quit()
 
@@ -267,14 +298,70 @@ def scrape_windsurf_models() -> dict[str, list[WindsurfModel]]:
         return {}
 
 
-def normalize_model_name(name: str) -> str:
-    """Normalize model name for matching with benchmarks."""
-    return name.lower().replace(" ", "-").replace("(", "").replace(")", "").replace(".", "-")
+def normalize_model_for_benchmark(model_name: str) -> str:
+    """
+    Strip variant suffixes to get base model name for benchmark lookup.
+
+    Benchmark scores belong to base models, not variants (reasoning levels,
+    thinking modes, speed tiers, context sizes).
+
+    PROTECTED model tiers (never stripped):
+        Mini, Pro, Flash, Turbo, Codex, Max, Spark
+        These are distinct models, not variants.
+
+    STRIPPED suffixes:
+        Thinking, Fast, Slow, reasoning levels, context sizes
+
+    Examples:
+        Claude Opus 4.6 (Thinking) → Claude Opus 4.6
+        GPT-5.4 Mini (Medium Reasoning) → GPT-5.4 Mini (Mini preserved!)
+        GPT-5.4 (Low Reasoning) → GPT-5.4
+        Claude Opus 4.6 Fast Thinking → Claude Opus 4.6
+        Gemini 3 Flash High → Gemini 3 Flash (Flash preserved!)
+        Claude Opus 4.6 1M → Claude Opus 4.6
+    """
+    import re
+
+    # Protected model tiers - NEVER strip these
+    protected = {"Mini", "Pro", "Flash", "Turbo", "Codex", "Max", "Spark", "Ultra"}
+
+    # Strip patterns in order (most specific to least specific)
+    # Apply repeatedly until stable
+    for _ in range(5):
+        prev = model_name
+
+        # 1. Strip context size suffixes (1M, 200K, etc.)
+        model_name = re.sub(r"\s+\d+[MK]$", "", model_name, flags=re.IGNORECASE).strip()
+
+        # 2. Strip parenthesized suffixes (Thinking, reasoning levels)
+        model_name = re.sub(r"\s*\([^)]*\)$", "", model_name).strip()
+
+        # 3. Strip speed/mode suffixes (Thinking, Fast, Slow)
+        # Only strip if the suffix itself is NOT a protected term
+        for suffix in ["Thinking", "Fast", "Slow"]:
+            if suffix not in protected:
+                model_name = re.sub(rf"\s+{suffix}$", "", model_name, flags=re.IGNORECASE).strip()
+
+        # 4. Strip tier suffixes (Minimal, Low, Medium, High, Extra High)
+        # Only strip if the suffix itself is NOT a protected term
+        for tier in ["Extra High", "High", "Medium", "Low", "Minimal"]:
+            if tier not in protected:
+                model_name = re.sub(rf"\s+{tier}$", "", model_name, flags=re.IGNORECASE).strip()
+
+        if model_name == prev:
+            break
+
+    return model_name
 
 
 def get_benchmark_scores(model_name: str) -> tuple[int | None, float | None]:
     """
     Get Arena ELO and TBench accuracy for a model from cached benchmark data.
+
+    Fallback hierarchy:
+    1. Exact base model (e.g., GPT-5.4 Mini)
+    2. Normalized name match (handle formatting differences)
+    3. Model family match (first 2-3 words)
 
     Returns:
         (arena_elo, tbench_accuracy) or (None, None) if not found
@@ -287,51 +374,29 @@ def get_benchmark_scores(model_name: str) -> tuple[int | None, float | None]:
 
     conn = sqlite3.connect(db_path)
 
-    # Clean model name - remove reasoning qualifiers
-    clean_name = model_name
-    for qualifier in [
-        " (Low Reasoning)",
-        " (Medium Reasoning)",
-        " (High Reasoning)",
-        " (Low Reasoning Fast)",
-        " (Medium Reasoning Fast)",
-        " (High Reasoning Fast)",
-        " Mini",
-        " Nano",
-        " Pro",
-        " Chat",
-        " Preview",
-    ]:
-        clean_name = clean_name.replace(qualifier, "")
+    # Normalize to base model (strip variant suffixes)
+    base_model = normalize_model_for_benchmark(model_name)
 
-    clean_name = clean_name.strip()
-
-    # Try 1: Direct match with cleaned name
+    # Try 1: Direct match with base model name
     cursor = conn.execute(
-        "SELECT arena_elo, tbench_accuracy FROM agents WHERE name LIKE ?", (f"%{clean_name}%",)
+        "SELECT arena_elo, tbench_accuracy FROM agents WHERE name LIKE ?", (f"%{base_model}%",)
     )
     row = cursor.fetchone()
     if row and (row[0] is not None or row[1] is not None):
         conn.close()
         return (row[0], row[1])
 
-    # Try 2: Match base model without version suffixes
-    # For "GPT-5.4 (Low Reasoning)" -> try "GPT-5.4"
-    # For "Claude Opus 4.6" -> try "Claude Opus 4.6"
-    base_parts = clean_name.split()
-    if len(base_parts) >= 2:
-        # Try exact model family + version
-        base_model = " ".join(base_parts[:2])  # e.g., "GPT-5.4", "Claude Opus"
-        cursor = conn.execute(
-            "SELECT arena_elo, tbench_accuracy FROM agents WHERE name LIKE ? ORDER BY arena_elo DESC, tbench_accuracy DESC LIMIT 1",
-            (f"%{base_model}%",),
-        )
-        row = cursor.fetchone()
-        if row and (row[0] is not None or row[1] is not None):
-            conn.close()
-            return (row[0], row[1])
+    # Try 2: Match by normalized name (handle different formatting)
+    normalized = base_model.lower().replace(" ", "").replace("-", "").replace(".", "")
+    cursor = conn.execute("SELECT name, arena_elo, tbench_accuracy FROM agents")
+    for db_row in cursor.fetchall():
+        db_name = db_row[0].lower().replace(" ", "").replace("-", "").replace(".", "")
+        if normalized in db_name or db_name in normalized:
+            if db_row[1] is not None or db_row[2] is not None:
+                conn.close()
+                return (db_row[1], db_row[2])
 
-    # Try 3: Match by key parts (Claude Opus 4.6, GPT-5.4, etc.)
+    # Try 4: Match by model family (first 2-3 words)
     # Extract model family and version
     parts = model_name.split()
     if len(parts) >= 2:

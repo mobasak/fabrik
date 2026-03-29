@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - Auto-Sync Governance Files (2026-03-30)
+- **Conditional Pre-Commit Hook**: Auto-syncs governance files to all /opt projects
+  - Triggers on changes to: AGENTS.md, .windsurfrules, cascade-models.md, core scripts, enforcement scripts
+  - Uses `pwd` check to only run in Fabrik repo, silently passes in projects
+  - Pre-commit config itself now synced to all projects
+- **Reference Docs Sync**: Added `docs/reference/windsurf/cascade-models.md` to sync list
+  - All projects receive Windsurf AI model reference
+  - Auto-updates when Fabrik version changes
+
+### Enhanced - Project Scaffold (2026-03-30)
+- **`src/fabrik/scaffold.py`**: Now copies `cascade-models.md` to new projects
+  - Location: `docs/reference/windsurf/cascade-models.md`
+  - Provides Windsurf AI model reference in every project
+
+### Enhanced - Sync Enforcement (2026-03-30)
+- **`scripts/sync_enforcement_to_projects.py`**: Extended to sync 5 governance files + reference docs
+  - Added `.pre-commit-config.yaml` to governance files (was 4, now 5)
+  - Added reference docs category for cascade-models.md
+  - Updated to sync 70 files per project (was 64)
+
+### Fixed - Windsurf Credits Scraping (2026-03-30)
+- **`scripts/kilo-benchmarks/scrape_windsurf_models.py`**: Fixed credits extraction from website
+  - Website appends promo text like "2Promo pricing only available for a limited time"
+  - Added regex to extract leading numeric value from credits field
+  - All 117 models now have correct credit values
+  - Claude Sonnet 4.5: was -1.0 (unavailable), now 2.0 ✓
+
 ### Added - Local Ollama Fabrik Agents (2026-03-27)
 - Create 4 custom Ollama models with specific roles:
   - `fabrik-coder-qwen2.5-32b`: Lead Engineer (32B, hybrid-cpu)
