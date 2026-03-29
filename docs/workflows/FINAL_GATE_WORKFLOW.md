@@ -55,8 +55,10 @@
 
 | Context | Command | Purpose |
 |---------|---------|---------|
-| **Agent self-review** | `python scripts/final_gate.py` | Fix mode — validate and repair issues |
-| **CI Pipeline** | `python scripts/final_gate.py --check` | Read-only verification |
+| **Agent self-review (Tier 1)** | `python scripts/final_gate.py --lean` | Fast showstoppers only (syntax, secrets, schema sync) |
+| **Phase handover (Tier 2)** | `python scripts/final_gate.py` | Full quality gate before Traycer commit |
+| **Systemic maintenance (Tier 3)** | `python scripts/final_gate.py --systemic` | Repo health only (docker, ports, deps, docs sprawl, env contract, watchdog, health) |
+| **CI read-only** | `python scripts/final_gate.py --check` | Read-only verification (no fixes, tier selected by flags) |
 
 **Note:** Default mode auto-stages changes if all checks pass. Use `--no-stage` to disable.
 
@@ -67,11 +69,16 @@
 ### Basic Commands
 
 ```bash
-# Default: Fix mode
-# Auto-fixes formatting, runs all checks, stages if all pass
+# Tier 1 (LEAN): Showstoppers only (syntax, secrets, schema sync)
+python scripts/final_gate.py --lean
+
+# Tier 2 (FULL - default): Full quality gate
 python scripts/final_gate.py
 
-# Check-only mode (CI - no fixes)
+# Tier 3 (SYSTEMIC): Repo health only (no showstoppers)
+python scripts/final_gate.py --systemic
+
+# Check-only mode (CI - no fixes, respects tier flags)
 python scripts/final_gate.py --check
 
 # Don't auto-stage modified files
@@ -94,7 +101,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 ### Phase 1: Auto-Fix Formatting
 
-**Runs in:** Fix mode (default)
+**Runs in:** Fix mode for Tier 1 and Tier 2 (skipped for Tier 3 and in `--check` mode)
 **Skipped in:** `--check` mode
 
 | Check | Action | Files Affected |
@@ -106,7 +113,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 ### Phase 2: Static Analysis
 
-**Runs in:** All modes
+**Runs in:** All modes for Tier 1 and Tier 2 (skipped for Tier 3)
 
 | Check | Tool | Timeout | Required |
 |-------|------|---------|----------|
@@ -123,7 +130,19 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 ### Phase 3: Repo Consistency
 
-**Runs in:** All modes (except `--sync`)
+**Runs in:** All tiers (1, 2, 3) and modes (except `--sync`), with tier-specific check sets:
+
+- **Tier 1 (`--lean`)**: Showstoppers only (secrets, env vars, schema sync) + symlink integrity.
+- **Tier 2 (default)**: Full consistency suite (structure, docs, changelog, schema, ports, docker, etc.).
+- **Tier 3 (`--systemic`)**: Systemic repo health only (docker, ports, env contract, deps, docs completeness/drift, doc sprawl, watchdog, health, duplicates).
+
+### Tier Matrix
+
+| Tier | Flag | Primary Use |
+|------|------|-------------|
+| 1 | `--lean` | Agent self-review loop (fast showstoppers) |
+| 2 | *(default)* | Phase handover / pre-commit quality gate |
+| 3 | `--systemic` | On-demand repo/system hygiene |
 
 | Check | Script | Purpose |
 |-------|--------|---------|
@@ -851,9 +870,16 @@ pip install bandit semgrep sqlfluff vulture
 
 ---
 
+## Sources of Truth
+
+- `.windsurf/rules/00-critical.md` — Cascade behavior, invariants, and internal audit.
+- `.windsurf/rules/50-code-review.md` — Tiered gate commands and usage for Cascade.
+- `.windsurf/rules/90-automation.md` — Traycer YOLO automation and gate triggering.
+- `scripts/final_gate.py` — Executable tiered implementation (runtime truth).
+
 ## See Also
 
-- [AGENTS.md](../../AGENTS.md) — Full workflow specification
+- [AGENTS.md](../../AGENTS.md) — Identity & knowledge for Kilo/Traycer
 - [KILO_REVIEW_WORKFLOW.md](KILO_REVIEW_WORKFLOW.md) — AI code review workflow
 - [KILO_AGENT_MANAGEMENT.md](KILO_AGENT_MANAGEMENT.md) — Agent discovery, benchmarking, role assignment
 - [DOCUMENTATOR_WORKFLOW.md](DOCUMENTATOR_WORKFLOW.md) — Documentation generation

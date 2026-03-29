@@ -555,7 +555,8 @@ def run_consistency_checks(
     changed = changed_files or set()
 
     # ── Tier 1: Showstoppers only ──
-    if tier >= 1:
+    # Applied for Tier 1 and Tier 2. Tier 3 is systemic-only and skips these.
+    if tier in (1, 2):
         results.append(
             run_optional_check("scripts/enforcement/check_secrets.py", "Secrets (Zero Hardcoding)")
         )
@@ -616,12 +617,6 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
         )
-        if not changed or _has_extension(changed, ".sql", ".py"):
-            results.append(
-                run_optional_check(
-                    "scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)"
-                )
-            )
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_openapi_sync.py", "OpenAPI Sync (API Docs)"
@@ -643,77 +638,21 @@ def run_consistency_checks(
             )
         )
 
-    # ── Tier 3: Full repo health ──
+    # ── Tier 3: Full repo health (systemic-only) ──
     if tier == 3:
-        results.append(
-            run_optional_check("scripts/enforcement/check_structure.py", "Project Structure")
-        )
-        results.append(
-            run_optional_check("scripts/enforcement/check_rule_size.py", "Rule File Size Guard")
-        )
+        # Systemic / infra-focused checks only. Showstoppers (secrets, schema sync, etc.)
+        # are handled in Tier 1 / Tier 2 and are not repeated here.
         results.append(
             run_optional_check(
-                "scripts/enforcement/check_opencode_json.py", "opencode.json (Kilo-Safe Rules)"
+                "scripts/enforcement/check_docker.py",
+                "Docker (ARM64, No-Alpine, HEALTHCHECK)",
             )
         )
         results.append(
             run_optional_check(
-                "scripts/enforcement/check_index_md.py", "INDEX.md (Master File Index)"
+                "scripts/enforcement/check_ports.py",
+                "Port Registration (PORTS.md)",
             )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_test_proposal.py", "One-Test Rule Proposal"
-            )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_readme_md.py", "README.md (Primary Entry Point)"
-            )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_configuration_md.py", "CONFIGURATION.md (Env Vars)"
-            )
-        )
-        results.append(
-            run_optional_check("scripts/enforcement/check_env_updates.py", ".env Updates (Secrets)")
-        )
-        results.append(
-            run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)"
-            )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_openapi_sync.py", "OpenAPI Sync (API Docs)"
-            )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_test_coverage.py", "Test Coverage (New Code)"
-            )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_env_example.py", ".env.example Completeness"
-            )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_compose_services.py", "Compose Services Docs"
-            )
-        )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_docker.py", "Docker (ARM64, No-Alpine, HEALTHCHECK)"
-            )
-        )
-        results.append(
-            run_optional_check("scripts/enforcement/check_secrets.py", "Secrets (Zero Hardcoding)")
         )
         results.append(
             run_optional_check(
@@ -721,12 +660,6 @@ def run_consistency_checks(
                 ".env Contract Sync",
                 module="scripts.enforcement.check_env_contract",
             )
-        )
-        results.append(
-            run_optional_check("scripts/enforcement/check_ports.py", "Port Registration (PORTS.md)")
-        )
-        results.append(
-            run_optional_check("scripts/enforcement/check_health.py", "Health Endpoint Validation")
         )
         results.append(
             run_optional_check(
@@ -743,10 +676,28 @@ def run_consistency_checks(
             )
         )
         results.append(
-            run_optional_check("scripts/enforcement/check_doc_sprawl.py", "Documentation Sprawl")
+            run_optional_check(
+                "scripts/enforcement/check_doc_sprawl.py",
+                "Documentation Sprawl",
+            )
         )
         results.append(
-            run_optional_check("scripts/enforcement/check_watchdog.py", "Watchdog Scripts")
+            run_optional_check(
+                "scripts/enforcement/check_watchdog.py",
+                "Watchdog Scripts",
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_health.py",
+                "Health Endpoint Validation",
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_duplicates.py",
+                "Duplicate Detection",
+            )
         )
         results.append(
             run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check")
@@ -759,9 +710,6 @@ def run_consistency_checks(
             results.append(("Fabrik Convention Validator", code == 0, out if code != 0 else ""))
         else:
             results.append(("Fabrik Convention Validator", True, "(check not present, skipping)"))
-        results.append(
-            run_optional_check("scripts/enforcement/check_duplicates.py", "Duplicate Detection")
-        )
 
     # Kilo CLI Health Check (all tiers that reach here)
     if tier >= 2:

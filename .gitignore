@@ -66,6 +66,12 @@ htmlcov/
 .dmypy.json
 dmypy.json
 
+# Kilo benchmarks cache
+scripts/kilo-benchmarks/cache/*.html
+scripts/kilo-benchmarks/cache/*.json
+scripts/kilo-benchmarks/cache/windsurf_raw.html
+scripts/kilo-benchmarks/cache/windsurf_parsed.json
+
 # Secrets (never commit)
 *.pem
 *.key

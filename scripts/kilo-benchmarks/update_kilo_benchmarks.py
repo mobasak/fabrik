@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Update Kilo agent benchmarks from openlm.ai and tbench.ai.
+Update Kilo agent benchmarks from openlm.ai, tbench.ai, and docs.windsurf.com.
 
 Runs on WSL startup to keep agent rankings current.
-Uses scrape_benchmarks.py for proper data extraction.
+Uses scrape_benchmarks.py and scrape_windsurf_models.py for proper data extraction.
 
 Updates:
   - docs/traycer/kilo_selected_agents.md (readable table)
   - scripts/kilo_selected_agents.json (benchmark fields)
+  - docs/reference/windsurf/cascade-models.md (Windsurf models)
   - .tmp/benchmarks/ (raw scraped data)
 
 Usage:
@@ -22,6 +23,7 @@ from pathlib import Path
 
 # Import the scraper functions
 from scrape_benchmarks import scrape_chatbot_arena, scrape_terminal_bench
+from scrape_windsurf_models import scrape_windsurf_models, update_cascade_models_md
 
 SCRIPT_DIR = Path(__file__).parent
 FABRIK_ROOT = SCRIPT_DIR.parent.parent
@@ -185,21 +187,33 @@ def main() -> int:
     log("Running benchmark scrapers...")
     arena_entries = scrape_chatbot_arena()
     tbench_entries = scrape_terminal_bench()
+    windsurf_models = scrape_windsurf_models()
 
     log(f"  Arena: {len(arena_entries)} entries")
     log(f"  TBench: {len(tbench_entries)} entries")
+    log(f"  Windsurf: {sum(len(models) for models in windsurf_models.values())} models")
 
     # Build lookup maps
     elo_map = build_elo_map(arena_entries)
     tbench_map = build_tbench_map(tbench_entries)
 
+    # Update Kilo agents if we have benchmark data
     if elo_map or tbench_map:
         update_agents_json(elo_map, tbench_map)
         update_master_md(elo_map, tbench_map)
         save_cache(elo_map, tbench_map)
-        log("Update complete!")
+        log("Kilo agents updated!")
     else:
-        log("No updates applied (fetch failed or no data)")
+        log("No Kilo agent updates (fetch failed or no data)")
+
+    # Update Windsurf models if we have data
+    if windsurf_models:
+        update_cascade_models_md(windsurf_models)
+        log("Windsurf models updated!")
+    else:
+        log("No Windsurf models updated (fetch failed or no data)")
+
+    log("Update complete!")
 
     return 0
 
