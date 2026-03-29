@@ -22,10 +22,10 @@
 |-------|---------|-----------|--------|-------|
 | SWE-1.5 | 0.0 | — | — | Promo pricing |
 | Claude Sonnet 4.5 | 0.0 | 1464 | 46.5% | Promo pricing |
-| GPT-5.4 Mini (Low Reasoning) | 0.0 | — | — | Promo pricing |
-| GPT-5.4 (Low Reasoning) | 1.5 | — | — |  |
-| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | — |  |
-| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | — |  |
+| GPT-5.4 Mini (Low Reasoning) | 0.0 | 1468 | 81.8% | Promo pricing |
+| GPT-5.4 (Low Reasoning) | 1.5 | 1468 | 81.8% |  |
+| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | 78.4% |  |
+| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | 66.5% |  |
 | Claude Sonnet 4.6 | 4.0 | 1500 | — |  |
 | Claude Opus 4.5 | 4.0 | 1496 | 63.1% |  |
 | Claude Opus 4.6 | 6.0 | 1535 | 81.8% |  |
@@ -38,10 +38,10 @@
 |-------|---------|-----------|--------|-------|
 | SWE-1.5 | 0.0 | — | — | Promo pricing |
 | Claude Sonnet 4.5 | 0.0 | 1464 | 46.5% | Promo pricing |
-| GPT-5.4 Mini (Low Reasoning) | 0.0 | — | — | Promo pricing |
-| GPT-5.4 (Low Reasoning) | 1.5 | — | — |  |
-| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | — |  |
-| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | — |  |
+| GPT-5.4 Mini (Low Reasoning) | 0.0 | 1468 | 81.8% | Promo pricing |
+| GPT-5.4 (Low Reasoning) | 1.5 | 1468 | 81.8% |  |
+| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | 78.4% |  |
+| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | 66.5% |  |
 | Claude Sonnet 4.6 | 4.0 | 1500 | — |  |
 | Claude Opus 4.5 | 4.0 | 1496 | 63.1% |  |
 | Claude Opus 4.6 | 6.0 | 1535 | 81.8% |  |
@@ -54,10 +54,10 @@
 |-------|---------|-----------|--------|-------|
 | SWE-1.5 | 0.0 | — | — | Promo pricing |
 | Claude Sonnet 4.5 | 0.0 | 1464 | 46.5% | Promo pricing |
-| GPT-5.4 Mini (Low Reasoning) | 0.0 | — | — | Promo pricing |
-| GPT-5.4 (Low Reasoning) | 1.5 | — | — |  |
-| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | — |  |
-| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | — |  |
+| GPT-5.4 Mini (Low Reasoning) | 0.0 | 1468 | 81.8% | Promo pricing |
+| GPT-5.4 (Low Reasoning) | 1.5 | 1468 | 81.8% |  |
+| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | 78.4% |  |
+| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | 66.5% |  |
 | Claude Sonnet 4.6 | 4.0 | 1500 | — |  |
 | Claude Opus 4.5 | 4.0 | 1496 | 63.1% |  |
 | Claude Opus 4.6 | 6.0 | 1535 | 81.8% |  |
@@ -70,10 +70,10 @@
 |-------|---------|-----------|--------|-------|
 | SWE-1.5 | 0.0 | — | — | Promo pricing |
 | Claude Sonnet 4.5 | 0.0 | 1464 | 46.5% | Promo pricing |
-| GPT-5.4 Mini (Low Reasoning) | 0.0 | — | — | Promo pricing |
-| GPT-5.4 (Low Reasoning) | 1.5 | — | — |  |
-| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | — |  |
-| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | — |  |
+| GPT-5.4 Mini (Low Reasoning) | 0.0 | 1468 | 81.8% | Promo pricing |
+| GPT-5.4 (Low Reasoning) | 1.5 | 1468 | 81.8% |  |
+| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | 78.4% |  |
+| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | 66.5% |  |
 | Claude Sonnet 4.6 | 4.0 | 1500 | — |  |
 | Claude Opus 4.5 | 4.0 | 1496 | 63.1% |  |
 | Claude Opus 4.6 | 6.0 | 1535 | 81.8% |  |
@@ -86,10 +86,10 @@
 |-------|---------|-----------|--------|-------|
 | SWE-1.5 | 0.0 | — | — | Promo pricing |
 | Claude Sonnet 4.5 | 0.0 | 1464 | 46.5% | Promo pricing |
-| GPT-5.4 Mini (Low Reasoning) | 0.0 | — | — | Promo pricing |
-| GPT-5.4 (Low Reasoning) | 1.5 | — | — |  |
-| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | — |  |
-| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | — |  |
+| GPT-5.4 Mini (Low Reasoning) | 0.0 | 1468 | 81.8% | Promo pricing |
+| GPT-5.4 (Low Reasoning) | 1.5 | 1468 | 81.8% |  |
+| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | 78.4% |  |
+| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | 66.5% |  |
 | Claude Sonnet 4.6 | 4.0 | 1500 | — |  |
 | Claude Opus 4.5 | 4.0 | 1496 | 63.1% |  |
 | Claude Opus 4.6 | 6.0 | 1535 | 81.8% |  |
@@ -102,10 +102,10 @@
 |-------|---------|-----------|--------|-------|
 | SWE-1.5 | 0.0 | — | — | Promo pricing |
 | Claude Sonnet 4.5 | 0.0 | 1464 | 46.5% | Promo pricing |
-| GPT-5.4 Mini (Low Reasoning) | 0.0 | — | — | Promo pricing |
-| GPT-5.4 (Low Reasoning) | 1.5 | — | — |  |
-| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | — |  |
-| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | — |  |
+| GPT-5.4 Mini (Low Reasoning) | 0.0 | 1468 | 81.8% | Promo pricing |
+| GPT-5.4 (Low Reasoning) | 1.5 | 1468 | 81.8% |  |
+| GPT-5.3-Codex (Medium Reasoning) | 2.0 | — | 78.4% |  |
+| GPT-5.2-Codex (Low Reasoning Fast) | 2.0 | — | 66.5% |  |
 | Claude Sonnet 4.6 | 4.0 | 1500 | — |  |
 | Claude Opus 4.5 | 4.0 | 1496 | 63.1% |  |
 | Claude Opus 4.6 | 6.0 | 1535 | 81.8% |  |

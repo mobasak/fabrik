@@ -287,16 +287,51 @@ def get_benchmark_scores(model_name: str) -> tuple[int | None, float | None]:
 
     conn = sqlite3.connect(db_path)
 
-    # Try 1: Exact name match (after removing provider prefix)
+    # Clean model name - remove reasoning qualifiers
+    clean_name = model_name
+    for qualifier in [
+        " (Low Reasoning)",
+        " (Medium Reasoning)",
+        " (High Reasoning)",
+        " (Low Reasoning Fast)",
+        " (Medium Reasoning Fast)",
+        " (High Reasoning Fast)",
+        " Mini",
+        " Nano",
+        " Pro",
+        " Chat",
+        " Preview",
+    ]:
+        clean_name = clean_name.replace(qualifier, "")
+
+    clean_name = clean_name.strip()
+
+    # Try 1: Direct match with cleaned name
     cursor = conn.execute(
-        "SELECT arena_elo, tbench_accuracy FROM agents WHERE name LIKE ?", (f"%{model_name}%",)
+        "SELECT arena_elo, tbench_accuracy FROM agents WHERE name LIKE ?", (f"%{clean_name}%",)
     )
     row = cursor.fetchone()
     if row and (row[0] is not None or row[1] is not None):
         conn.close()
         return (row[0], row[1])
 
-    # Try 2: Match by key parts (Claude Opus 4.6, GPT-5.4, etc.)
+    # Try 2: Match base model without version suffixes
+    # For "GPT-5.4 (Low Reasoning)" -> try "GPT-5.4"
+    # For "Claude Opus 4.6" -> try "Claude Opus 4.6"
+    base_parts = clean_name.split()
+    if len(base_parts) >= 2:
+        # Try exact model family + version
+        base_model = " ".join(base_parts[:2])  # e.g., "GPT-5.4", "Claude Opus"
+        cursor = conn.execute(
+            "SELECT arena_elo, tbench_accuracy FROM agents WHERE name LIKE ? ORDER BY arena_elo DESC, tbench_accuracy DESC LIMIT 1",
+            (f"%{base_model}%",),
+        )
+        row = cursor.fetchone()
+        if row and (row[0] is not None or row[1] is not None):
+            conn.close()
+            return (row[0], row[1])
+
+    # Try 3: Match by key parts (Claude Opus 4.6, GPT-5.4, etc.)
     # Extract model family and version
     parts = model_name.split()
     if len(parts) >= 2:
