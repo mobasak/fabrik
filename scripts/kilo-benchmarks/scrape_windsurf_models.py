@@ -36,8 +36,8 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# Tab names to scrape
-TABS = ["Recommended", "Windsurf", "Anthropic", "OpenAI", "Google", "xAI", "Open Source"]
+# Provider tabs under Enterprise
+PROVIDER_TABS = ["Recommended", "Windsurf", "Anthropic", "OpenAI", "Google", "xAI", "Open Source"]
 
 
 @dataclass
@@ -150,66 +150,114 @@ def scrape_tab_models(driver, tab_id: str) -> list[WindsurfModel]:
 
 def scrape_windsurf_models() -> dict[str, list[WindsurfModel]]:
     """
-    Scrape Windsurf model data from all tabs using Selenium.
-    Returns dict mapping tab name -> list of models.
+    Scrape Windsurf model data from all provider tabs using Selenium.
+    Returns dict mapping provider name -> list of models.
     """
     log("Fetching Windsurf models page...")
-    url = "https://docs.windsurf.com/plugins/cascade/models"
+    url = "https://docs.windsurf.com/plugins/cascade/models#enterprise"
 
     try:
         driver = get_browser()
         driver.get(url)
 
         # Wait for page to load
-        WebDriverWait(driver, 10).until(
-            expected_conditions.presence_of_element_located((By.TAG_NAME, "table"))
-        )
+        time.sleep(3)
 
         # Save raw HTML for debugging
         html = driver.page_source
         (OUTPUT_DIR / "windsurf_raw.html").write_text(html)
 
-        models_by_tab = {}
+        models_by_provider = {}
 
-        # The page has tab navigation - need to find tab IDs dynamically
-        soup = BeautifulSoup(html, "html.parser")
-        tab_elements = soup.find_all("li", {"role": "tab"})
+        # Try clicking each provider tab by text using XPATH
+        for provider_name in PROVIDER_TABS:
+            log(f"  Scraping provider: {provider_name}")
+            try:
+                # Find button/tab with exact text match
+                tabs = driver.find_elements(
+                    By.XPATH,
+                    f"//button[contains(text(), '{provider_name}')] | //div[contains(text(), '{provider_name}') and contains(@class, 'cursor-pointer')] | //li[contains(text(), '{provider_name}')]",
+                )
 
-        log(f"  Found {len(tab_elements)} tabs")
+                if not tabs:
+                    log(f"    No tab found for {provider_name}")
+                    continue
 
-        # Extract tab IDs
-        tab_ids = []
-        for tab_elem in tab_elements:
-            tab_id = tab_elem.get("id")
-            if tab_id:
-                tab_ids.append(tab_id)
-                log(f"    Tab: {tab_id}")
+                tab = tabs[0]
+                log(f"    Found tab for {provider_name}")
 
-        # Scrape each tab
-        for tab_id in tab_ids:
-            log(f"  Scraping tab: {tab_id}")
-            models = scrape_tab_models(driver, tab_id)
-            if models:
-                models_by_tab[tab_id.capitalize()] = models
-                log(f"    Found {len(models)} models")
+                # Click the tab
+                driver.execute_script("arguments[0].scrollIntoView(true);", tab)
+                time.sleep(0.3)
+                driver.execute_script("arguments[0].click();", tab)
+                time.sleep(2)
+
+                # Get page HTML after tab loads
+                html = driver.page_source
+                soup = BeautifulSoup(html, "html.parser")
+
+                # Find tables
+                tables = soup.find_all("table")
+                models = []
+
+                for table in tables:
+                    # Check if this table has Model and Credits columns
+                    headers = table.find_all("th")
+                    header_text = [h.get_text(strip=True) for h in headers]
+
+                    if "Model" not in header_text or "Credits" not in header_text:
+                        continue
+
+                    # Parse table rows
+                    rows = table.find_all("tr")[1:]  # Skip header row
+
+                    for row in rows:
+                        cols = row.find_all("td")
+                        if len(cols) >= 2:
+                            model_name = cols[0].get_text(strip=True)
+                            credits_str = cols[1].get_text(strip=True)
+
+                            if model_name:
+                                credits_numeric = parse_credits(credits_str)
+                                models.append(
+                                    WindsurfModel(
+                                        name=model_name,
+                                        credits=credits_str,
+                                        provider=provider_name,
+                                        credits_numeric=credits_numeric,
+                                    )
+                                )
+
+                if models:
+                    models_by_provider[provider_name] = models
+                    log(f"    Found {len(models)} models")
+                else:
+                    log("    No models found in table")
+
+            except Exception as e:
+                log(f"  Error scraping provider {provider_name}: {e}")
 
         driver.quit()
 
         # Log results
-        total_models = sum(len(models) for models in models_by_tab.values())
-        log(f"  Extracted {total_models} models from {len(models_by_tab)} tabs")
+        total_models = sum(len(models) for models in models_by_provider.values())
+        log(f"  Extracted {total_models} models from {len(models_by_provider)} providers")
 
         # Save parsed data
         output = {
             "source": "docs.windsurf.com",
             "url": url,
             "scraped_at": datetime.now().isoformat(),
+            "total_providers": len(models_by_provider),
             "total_models": total_models,
-            "tabs": {tab: [m.to_dict() for m in models] for tab, models in models_by_tab.items()},
+            "providers": {
+                provider: [m.to_dict() for m in models]
+                for provider, models in models_by_provider.items()
+            },
         }
         (OUTPUT_DIR / "windsurf_parsed.json").write_text(json.dumps(output, indent=2))
 
-        return models_by_tab
+        return models_by_provider
 
     except Exception as e:
         log(f"  Error scraping Windsurf models: {e}")
@@ -313,31 +361,18 @@ def update_cascade_models_md(
         ]
     )
 
-    # Deduplicate models across tabs
-    seen_models = set()
-    unique_models_by_tab = {}
-
-    for tab, models in models_by_tab.items():
-        unique_models = []
-        for model in models:
-            if model.name not in seen_models:
-                seen_models.add(model.name)
-                unique_models.append(model)
-        if unique_models:
-            unique_models_by_tab[tab] = unique_models
-
-    # Add each tab as a section (only showing first occurrence)
-    for tab in ["Self-serve", "Enterprise"]:
-        if tab not in unique_models_by_tab:
+    # Add each provider as a section (show all providers, even with duplicate models)
+    for provider in PROVIDER_TABS:
+        if provider not in models_by_tab:
             continue
 
-        models = unique_models_by_tab[tab]
+        models = models_by_tab[provider]
         if not models:
             continue
 
         lines.extend(
             [
-                f"## {tab}",
+                f"## {provider}",
                 "",
             ]
         )
