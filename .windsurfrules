@@ -1,16 +1,14 @@
 # Windsurf Cascade Project Rules (Shim)
 
-# Windsurf Cascade Project Rules
-
 ## Rule Location
 
 Authoritative rules are in `.windsurf/rules/` directory.
 
 ## For Traycer-Managed Tasks
 
-Defer to:
-- AGENTS.md
-- .windsurf/rules/*
+When working under Traycer orchestration, defer to:
+- `.windsurf/rules/*` (project-specific rules)
+- Traycer's instructions (via workflow commands)
 
 ## Canonical Rule Sources
 
