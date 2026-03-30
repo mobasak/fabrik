@@ -139,9 +139,9 @@ kilo run --session-title "$SESSION_TITLE" ...  # NEW session
    - Max 5 iterations
 
    Step 5: Post-Kilo Gate
-   - Run: python scripts/final_gate.py
-   - Ensure fixes didn't break deterministic rules
-   - Re-run until PASS
+   - Run: python scripts/final_gate.py --lean --json (Tier 1 — changelog check included)
+   - Fix any failures including missing changelog entry
+   - Re-run until status: "success"
 
    Step 7: Sync
    - Run: python scripts/final_gate.py --sync

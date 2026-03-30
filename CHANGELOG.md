@@ -1,11 +1,74 @@
-### Added - Assignment Computation Script (2026-03-30)
-- **`scripts/kilo-benchmarks/compute_assignments.py`**: Added script to compute model assignments dynamically based on benchmark scores, JSON output.
-
 # Changelog
 
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+
+### Changed — Changelog Enforcement Moved to Tier 1 (2026-03-30)
+- **`scripts/final_gate.py`**: Moved `check_changelog.py` from Tier 2 to Tier 1 (Lean) gate
+  - Prevents agents from forgetting changelog entries across tasks 1-9
+  - Reduces token spike at milestone by enforcing incrementally
+  - Context stays small, fixes are instantaneous
+  - Removed duplicate check from Tier 2
+- **`AGENTS-compact.md`**: Minimized changelog step to single line with gate enforcement note
+  - Changed from "Add exactly one entry" to "Add one entry (Gate enforced)"
+  - Maximum token efficiency
+- **`docs/workflows/FINAL_GATE_WORKFLOW.md`**: Updated Tier 1 documentation
+  - Added CHANGELOG.md Updated check to Tier 1 (4 checks total, was 3)
+  - Removed from Tier 2 (16 checks total, was 17)
+  - Added explanation of why changelog is in Tier 1
+
+### Changed — AGENTS-compact.md Finalized with Imperative Commands (2026-03-30)
+- **`AGENTS-compact.md`**: Converted to imperative command format for reduced agent drift
+  - Added scannable HARD STOPS table for better visibility
+  - Added critical dependency protection: `pyproject.toml`/`requirements.txt` edits only when explicitly required
+  - Added protection against files outside project tree
+  - Emphasized internal audit checklist in step 1
+  - Clarified `git add` is handled by `final_gate.py` auto-staging
+  - Specified exact base images: `python:3.12-slim-bookworm`, `node:22-bookworm-slim`
+  - Removed narrative prose, increased instruction density
+
+### Changed — Zero-Feedback Loop with Exit-Code-Only Workflow (2026-03-30)
+- **`scripts/final_gate.py`**: Fixed auto-staging to work in JSON mode
+  - Previously only staged in human-readable mode
+  - Now stages silently when `--json` flag is used
+  - Enables zero-feedback workflow: Agent → Gate → Exit 0 → Traycer commits
+- **`AGENTS-compact.md`**: Stripped to bare-minimum lean version
+  - Removed auto-clean step (gate Phase 1 handles it)
+  - Removed manual staging step (gate auto-stages on success)
+  - Simplified to 4-step contract: Implement → Gate → Changelog → Exit
+  - Maximum token savings: no report block overhead
+
+### Changed — Agent Workflow with JSON Gates and Ruff Auto-Clean (2026-03-30)
+- **`AGENTS-compact.md`**: Updated with one-pass workflow using JSON gates
+  - Defined completion contract: Implement → Test → Auto-clean → Gate
+  - Tasks 1-9: Lean gate (`--lean --json`)
+  - Task 10: Full gate (`--json`)
+  - Emphasized stage-only policy (no commits)
+  - Removed project-specific paths
+- **`templates/scaffold/docker/Makefile.python`**: Added `gate-lean` target
+  - Single command: `make gate-lean`
+  - Runs: `.venv/bin/ruff check . --fix && .venv/bin/ruff format . && .venv/bin/mypy .`
+  - Saves context tokens for agents
+
+### Changed — Consolidated Static Analysis into Ruff (2026-03-30)
+- **`templates/scaffold/python/pyproject.toml.template`**: Expanded Ruff lint configuration
+  - Added `"S"` (flake8-bandit) for security scanning
+  - Ensured `"F841"` included for unused variable detection
+  - Added security rule ignores: S603, S607, S110, S105, S324, S112, S311, S101
+  - ARG rule automatically ignores underscore-prefixed variables
+  - Consolidated multiple slower tools into single fast Ruff pass
+
+### Added — JSON Output Support to final_gate.py (2026-03-30)
+- **`scripts/final_gate.py`**: Added `--json` flag for deterministic JSON output
+  - JSON schema: `{"status": "success|failure", "tier": 1|2|3, "passed": N, "failed": N, "failures": [...]}`
+  - Suppresses human-readable output when `--json` is used
+  - Fixed unused parameter bug: `run_sync` → `_run_sync` in `run_iteration()`
+  - Cleaned docstring to remove workflow-specific references
+  - Exit code 0 for success, 1 for failure
+
+### Added — Assignment Computation Script (2026-03-30)
+- **`scripts/kilo-benchmarks/compute_assignments.py`**: Added script to compute model assignments dynamically based on benchmark scores, JSON output.
 
 ### Added - Auto-Sync Governance Files (2026-03-30)
 - **Conditional Pre-Commit Hook**: Auto-syncs governance files to all /opt projects

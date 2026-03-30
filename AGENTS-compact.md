@@ -7,13 +7,14 @@
    - No hardcoded secrets/localhost (use `os.getenv()`)
    - No logic gaps or silent failure modes
    - Write exactly 1 test file covering the core logic path
+   - **Adjacent fixes allowed**: You MAY fix directly adjacent, low-risk issues in the same touched files/subsystem if doing so keeps the implementation coherent or prevents obvious breakage
 
 2. **QUALITY GATE** — Run and fix findings until `status: "success"`:
-   - **Standard Tasks**: `python scripts/final_gate.py --lean --json` 
-   - **Milestone / Batch Closer**: `python scripts/final_gate.py --json` 
+   - **Standard Tasks**: `python scripts/final_gate.py --lean --json`
+   - **Milestone / Batch Closer**: `python scripts/final_gate.py --json`
    *(Only run full gate if the task is explicitly labeled as a "Milestone" or "Batch Closer")*
 
-3. **CHANGELOG** — Add one entry under `## [Unreleased]` (Gate enforced) 
+3. **CHANGELOG** — Add one entry under `## [Unreleased]` (Gate enforced)
 
 4. **EXIT 0** — The gate auto-stages your changes. Do not commit, do not stage manually.
 

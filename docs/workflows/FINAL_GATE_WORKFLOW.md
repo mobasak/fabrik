@@ -1,6 +1,6 @@
 # Final Gate Workflow
 
-**Last Updated:** 2026-03-28
+**Last Updated:** 2026-03-30
 
 > Complete reference for `scripts/final_gate.py` — deterministic quality checks that validate code and documentation before Traycer commit.
 
@@ -146,9 +146,9 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 ### Tier 1 (LEAN) - `--lean` - Agent Self-Review
 
-**Purpose:** Fast showstoppers only (syntax, secrets, schema sync)
+**Purpose:** Fast showstoppers only (syntax, secrets, schema sync, changelog)
 
-**Phase 3: Repo Consistency (3 checks)**
+**Phase 3: Repo Consistency (4 checks)**
 - **Secrets (Zero Hardcoding)** - `check_secrets.py`
   - Scans for hardcoded secrets (API keys, passwords, tokens)
   - Enforces use of environment variables
@@ -158,12 +158,16 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 - **Schema Sync (DB Models)** - `check_schema_sync.py`
   - Only runs if .py or .sql files changed
   - Ensures database schema changes are documented in `db/schema.sql`
+- **CHANGELOG.md Updated** - `check_changelog.py`
+  - Enforces changelog entry for every task (prevents forgetting across tasks 1-9)
+  - Reduces token spike at milestone by enforcing incrementally
+  - Context stays small, fixes are instantaneous
 
 ### Tier 2 (FULL) - Default - Phase Handover
 
 **Purpose:** Full quality gate before Traycer commit
 
-**Phase 3: Repo Consistency (17 checks)**
+**Phase 3: Repo Consistency (16 checks)**
 - **Project Structure** - `check_structure.py`
   - Validates directory layout matches Fabrik conventions
 - **Rule File Size** - `check_rule_size.py`
@@ -180,8 +184,6 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
   - Ensures environment variables are documented
 - **.env Updates (Secrets)** - `check_env_updates.py`
   - Validates secrets not committed to git
-- **CHANGELOG.md** - `check_changelog.py`
-  - Ensures changelog is updated for code changes
 - **OpenAPI Sync** - `check_openapi_sync.py`
   - Validates API documentation matches routes
 - **Test Coverage** - `check_test_coverage.py`

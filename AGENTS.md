@@ -96,6 +96,17 @@
 
 Full auto-generated project list (39 projects) in `docs/BUSINESS_MODEL.md` under ``.
 
+## 🛑 MANDATORY ORCHESTRATOR PRE-FLIGHT
+
+Traycer MUST run these checks before generating any Plan, PRD, or Execution Spec.
+
+1. **PORTS.md** — Assign a free port (Python 8000–8099 / Frontend 3000–3099). State it.
+2. **BUSINESS_MODEL.md** — Check for duplicate/similar project. State finding.
+3. **Fabrik Microservices table** — Use existing internal APIs before planning new logic. State which apply.
+4. **Hardware Audit** — Confirm all Docker images support `linux/arm64`.
+
+---
+
 ## Planning Constraints
 
 Before creating any plan, verify:

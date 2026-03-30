@@ -682,7 +682,11 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     subprocess.run(["python", "-m", "venv", ".venv"], cwd=project_dir, capture_output=True)
 
     # Install development dependencies
-    venv_pip = venv_path / "bin" / "pip" if (venv_path / "bin").exists() else venv_path / "Scripts" / "pip.exe"
+    venv_pip = (
+        venv_path / "bin" / "pip"
+        if (venv_path / "bin").exists()
+        else venv_path / "Scripts" / "pip.exe"
+    )
     result = subprocess.run(
         [str(venv_pip), "install", "-r", "requirements-dev.txt"],
         cwd=project_dir,

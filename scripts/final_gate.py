@@ -940,7 +940,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_iteration(
-    check_only: bool, _run_sync: bool, tier: int = 2, changed_files: set[str] | None = None, json_mode: bool = False
+    check_only: bool,
+    _run_sync: bool,
+    tier: int = 2,
+    changed_files: set[str] | None = None,
+    json_mode: bool = False,
 ) -> list[tuple[str, bool, str]]:
     """Run one iteration of all checks."""
     all_results: list[tuple[str, bool, str]] = []
@@ -1023,7 +1027,9 @@ def main() -> int:
         print(f"Mode: {mode} | Tier: {tier_label[tier]} | Max iterations: {MAX_ITERATIONS}")
         if changed_files:
             exts = {Path(f).suffix for f in changed_files if Path(f).suffix}
-            print(f"Changed files: {len(changed_files)} ({', '.join(sorted(exts)) or 'no extensions'})")
+            print(
+                f"Changed files: {len(changed_files)} ({', '.join(sorted(exts)) or 'no extensions'})"
+            )
         else:
             print("Changed files: none detected (running all checks)")
 
@@ -1095,7 +1101,7 @@ def main() -> int:
             "failures": [
                 {"check": name, "output": output[:500]}  # Truncate long outputs
                 for name, _, output in failed
-            ]
+            ],
         }
         print(json.dumps(result, indent=2))
         return 0 if not failed else 1

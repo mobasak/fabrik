@@ -1142,6 +1142,11 @@ A collaborative workflow for safe, intentional code refactoring organized in **4
 
 You can create custom workflows tailored to your team's methodology:
 
+**Storage Location:**
+- Workflow files are stored in **Traycer IDE extension's workspace** (not in filesystem)
+- Managed through Traycer's Workflows panel UI
+- Command files are markdown with frontmatter (description, argument hints, next steps, agent mode)
+
 **Creating a workflow:**
 1. Click `+ Add Workflow` in the Workflows panel
 2. Enter a Name and Description
