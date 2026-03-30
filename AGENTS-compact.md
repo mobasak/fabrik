@@ -1,17 +1,32 @@
 # Kilo CLI Agent Rules
 
-## DEFAULT COMPLETION CONTRACT
+## COMPLETION CONTRACT (Execute in order, every task)
 
-1. **Implement** — Logic changes for the current task only + 1 test. Critically audit your implementation against the initial task and production-grade best practices, specifically identifying logic gaps, security risks, and silent failure modes while verifying all requirements are fully met.
-2. **Run Quality Gate** — Execute and fix findings until success:
-   - **Standard Tasks**: `python scripts/final_gate.py --lean --json`.
-   - **Milestone / Batch Closer Tasks**: If the task description explicitly identifies this as a "Milestone" or "Batch Closer," run `python scripts/final_gate.py --json`.
-3. **Changelog** — Add entry under `## [Unreleased]`.
-4. **Exit** — If the gate passes, it will auto-stage your changes. Simply exit with code 0.
+1. **IMPLEMENT** — Changes scoped to current task only. Before finishing, internal audit:
+   - All task requirements fully met
+   - No hardcoded secrets/localhost (use `os.getenv()`)
+   - No logic gaps or silent failure modes
+   - Write exactly 1 test file covering the core logic path
 
-## HARD STOPS
-- NEVER commit — Traycer commits.
-- NEVER bare `pip install` — use `.venv/bin/pip`.
-- NEVER Alpine — use `-slim-bookworm`.
-- NEVER hardcode localhost/secrets — use `os.getenv()`.
-- NEVER modify files outside task scope.
+2. **QUALITY GATE** — Run and fix findings until `status: "success"`:
+   - **Standard Tasks**: `python scripts/final_gate.py --lean --json` 
+   - **Milestone / Batch Closer**: `python scripts/final_gate.py --json` 
+   *(Only run full gate if the task is explicitly labeled as a "Milestone" or "Batch Closer")*
+
+3. **CHANGELOG** — Add exactly one entry under `## [Unreleased]` 
+
+4. **EXIT 0** — The gate auto-stages your changes. Do not commit, do not stage manually.
+
+---
+
+## HARD STOPS — NEVER do these
+
+| Rule | Instead |
+| :--- | :--- |
+| `git commit` | Traycer commits |
+| `git add` | `final_gate.py` handles auto-staging |
+| bare `pip install` | `/opt/<project>/.venv/bin/pip install` |
+| Alpine base image | `python:3.12-slim-bookworm` or `node:22-bookworm-slim` |
+| edit files outside task scope | stay strictly within the assigned task boundaries |
+| modify `pyproject.toml` / `requirements.txt` | only if the task explicitly requires dependency changes |
+| create files outside project tree | use local project paths only |
