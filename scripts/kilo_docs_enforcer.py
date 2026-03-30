@@ -1813,7 +1813,7 @@ async def generate_documentation_for_file(
     doc_path: str,
     requirement: DocRequirement,
     git_diff: str,
-    staged_files: list[str],
+    _staged_files: list[str],
     verbose: bool = False,
 ) -> str:
     """
@@ -2016,9 +2016,8 @@ Write clear, concise documentation suitable for developers.
         if content.lstrip().startswith("#") and not content.lstrip().startswith("# ==="):
             # Model likely produced markdown instead of env format — prefix with section header
             content = "# === New Variables ===\n\n" + content
-    elif "CHANGELOG" in doc_path:
-        if not content.lstrip().startswith("###"):
-            content = "### " + content
+    elif "CHANGELOG" in doc_path and not content.lstrip().startswith("###"):
+        content = "### " + content
     elif (
         "docs/reference/" in doc_path
         or (".md" in doc_path and "reference" in doc_path)
@@ -2027,9 +2026,8 @@ Write clear, concise documentation suitable for developers.
         or "database/schema" in doc_path
         or "TROUBLESHOOTING" in doc_path
         or doc_path in ("README.md", "docs/QUICKSTART.md")
-    ):
-        if not content.lstrip().startswith("##"):
-            content = "## " + content
+    ) and not content.lstrip().startswith("##"):
+        content = "## " + content
 
     return content
 

@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-30 19:50:42 -->
-<!-- Total projects: 41 -->
+<!-- Last synced: 2026-03-30 20:11:50 -->
+<!-- Total projects: 42 -->
 
 ### Production Services (5 projects)
 
@@ -104,13 +104,14 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (17 projects)
+### Active Development (18 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | - | ✅ Current |
 | **candle** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
 | **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, id... | Fastify | 🔨 Development | - | ✅ Current |
+| **full-wf-test** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
 | **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C... | Python | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |

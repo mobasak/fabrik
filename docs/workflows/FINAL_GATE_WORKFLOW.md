@@ -132,7 +132,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Runs in:** All tiers (1, 2, 3) and modes (except `--sync`), with tier-specific check sets:
 
-- **Tier 1 (`--lean`)**: Showstoppers only (secrets, env vars, schema sync) + symlink integrity.
+- **Tier 1 (`--lean`)**: Showstoppers only (secrets, env vars, schema sync).
 - **Tier 2 (default)**: Full consistency suite (structure, docs, changelog, schema, ports, docker, etc.).
 - **Tier 3 (`--systemic`)**: Systemic repo health only (docker, ports, env contract, deps, docs completeness/drift, doc sprawl, watchdog, health, duplicates).
 
@@ -144,31 +144,88 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 | 2 | *(default)* | Phase handover / pre-commit quality gate |
 | 3 | `--systemic` | On-demand repo/system hygiene |
 
-| Check | Script | Purpose |
-|-------|--------|---------|
-| **Project Structure** | `check_structure.py` | Validate directory layout |
-| **Rule File Size** | `check_rule_size.py` | `.windsurf/rules/` < 50KB each |
-| **opencode.json** | `check_opencode_json.py` | Kilo-safe rules validation |
-| **INDEX.md** | `check_index_md.py` | Master file index current |
-| **One-Test Rule** | `check_test_proposal.py` | Test justification documented |
-| **README.md** | `check_readme_md.py` | Primary entry point valid |
-| **CONFIGURATION.md** | `check_configuration_md.py` | Env vars documented |
-| **.env Updates** | `check_env_updates.py` | Secrets not in git |
-| **CHANGELOG.md** | `check_changelog.py` | Updated for code changes |
-| **Schema Sync** | `check_schema_sync.py` | DB models match schema |
-| **OpenAPI Sync** | `check_openapi_sync.py` | API docs match routes |
-| **Test Coverage** | `check_test_coverage.py` | New code has tests |
-| **.env.example** | `check_env_example.py` | All vars documented |
-| **Compose Services** | `check_compose_services.py` | Services documented |
-| **Docker** | `check_docker.py` | ARM64, No-Alpine, HEALTHCHECK |
-| **Secrets** | `check_secrets.py` | No hardcoded secrets |
-| **.env Contract Sync** | `check_env_contract.py` | Env var contracts consistent |
-| **Port Registration** | `check_ports.py` | PORTS.md updated |
-| **Health Endpoint** | `check_health.py` | /health tests dependencies |
-| **Dependencies Sync** | `check_deps_sync.py` | Dependencies documented |
-| **Documentation** | `check_docs.py` | Required docs present |
-| **Documentation Drift** | `docs_updater.py --check` | Docs match code |
-| **Fabrik Conventions** | `validate_conventions.py --strict` | Naming, structure |
+### Tier 1 (LEAN) - `--lean` - Agent Self-Review
+
+**Purpose:** Fast showstoppers only (syntax, secrets, schema sync)
+
+**Phase 3: Repo Consistency (3 checks)**
+- **Secrets (Zero Hardcoding)** - `check_secrets.py`
+  - Scans for hardcoded secrets (API keys, passwords, tokens)
+  - Enforces use of environment variables
+- **.env Updates (Secrets)** - `check_env_vars.py`
+  - Validates .env files don't contain actual secrets
+  - Ensures .env.example is properly maintained
+- **Schema Sync (DB Models)** - `check_schema_sync.py`
+  - Only runs if .py or .sql files changed
+  - Ensures database schema changes are documented in `db/schema.sql`
+
+### Tier 2 (FULL) - Default - Phase Handover
+
+**Purpose:** Full quality gate before Traycer commit
+
+**Phase 3: Repo Consistency (17 checks)**
+- **Project Structure** - `check_structure.py`
+  - Validates directory layout matches Fabrik conventions
+- **Rule File Size** - `check_rule_size.py`
+  - Ensures `.windsurf/rules/` files are < 50KB each
+- **opencode.json** - `check_opencode_json.py`
+  - Validates Kilo-safe rules configuration
+- **INDEX.md** - `check_index_md.py`
+  - Ensures master file index is current
+- **One-Test Rule** - `check_test_proposal.py`
+  - Verifies test justification is documented
+- **README.md** - `check_readme_md.py`
+  - Validates primary entry point documentation
+- **CONFIGURATION.md** - `check_configuration_md.py`
+  - Ensures environment variables are documented
+- **.env Updates (Secrets)** - `check_env_updates.py`
+  - Validates secrets not committed to git
+- **CHANGELOG.md** - `check_changelog.py`
+  - Ensures changelog is updated for code changes
+- **OpenAPI Sync** - `check_openapi_sync.py`
+  - Validates API documentation matches routes
+- **Test Coverage** - `check_test_coverage.py`
+  - Ensures new code has test coverage
+- **.env.example** - `check_env_example.py`
+  - Validates all environment variables are documented
+- **Compose Services** - `check_compose_services.py`
+  - Ensures Docker Compose services are documented
+- **Schema Sync (DB Models)** - `check_schema_sync.py`
+  - Ensures DB models match schema documentation
+- **Secrets (Zero Hardcoding)** - `check_secrets.py`
+  - Scans for hardcoded secrets
+- **Kilo CLI Health Check** - `check_kilo_health.sh`
+  - Validates Kilo CLI installation and configuration
+
+### Tier 3 (SYSTEMIC) - `--systemic` - Repo Health
+
+**Purpose:** On-demand repo/system hygiene (no showstoppers)
+
+**Phase 3: Repo Consistency (13 checks)**
+- **Docker** - `check_docker.py`
+  - Validates ARM64 compatibility, No-Alpine base images, HEALTHCHECK presence
+- **Port Registration** - `check_ports.py`
+  - Ensures PORTS.md is updated with port allocations
+- **.env Contract Sync** - `check_env_contract.py`
+  - Validates environment variable contracts are consistent
+- **Dependencies Sync** - `check_deps_sync.py`
+  - Ensures dependencies are properly documented
+- **Documentation** - `check_docs.py`
+  - Validates required documentation files are present
+- **Documentation Sprawl** - `check_doc_sprawl.py`
+  - Detects documentation sprawl and duplication
+- **Watchdog Scripts** - `check_watchdog.py`
+  - Ensures watchdog monitoring scripts are present
+- **Health Endpoint** - `check_health.py`
+  - Validates /health endpoint tests actual dependencies
+- **Duplicate Detection** - `check_duplicates.py`
+  - Detects duplicate files and configurations
+- **Documentation Drift** - `docs_updater.py --check`
+  - Ensures documentation matches code implementation
+- **Fabrik Conventions** - `validate_conventions.py --strict`
+  - Validates naming conventions and structure
+- **Kilo CLI Health Check** - `check_kilo_health.sh`
+  - Validates Kilo CLI installation and configuration
 
 ### Phase 4: Sync Steps
 

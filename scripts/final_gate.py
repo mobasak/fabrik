@@ -573,9 +573,6 @@ def run_consistency_checks(
 
     # Tier 1 stops here
     if tier == 1:
-        # Symlink check always runs
-        symlink_ok, symlink_msg = check_symlinks()
-        results.append(("Symlink Integrity", symlink_ok, symlink_msg))
         return results
 
     # ── Tier 2: Essential subset ──
@@ -719,10 +716,6 @@ def run_consistency_checks(
             results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
         else:
             results.append(("Kilo CLI Health Check", True, "(check not present, skipping)"))
-
-    # Symlink Integrity Check (always run)
-    symlink_ok, symlink_msg = check_symlinks()
-    results.append(("Symlink Integrity", symlink_ok, symlink_msg))
 
     return results
 

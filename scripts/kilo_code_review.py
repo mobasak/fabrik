@@ -71,13 +71,13 @@ else:
     def get_fallback_chain(_role: str) -> list[str]:
         return [_DEFAULT_MODEL, _FALLBACK_MODEL]
 
-    def get_tier_models(role: str) -> dict[str, list[str]]:
+    def get_tier_models(_role: str) -> dict[str, list[str]]:
         return {"default": [_DEFAULT_MODEL]}
 
     def has_reasoning(model: str) -> bool:
         return "thinking" in model or "o1" in model or "o3" in model
 
-    def is_model_blocked(model: str) -> bool:
+    def is_model_blocked(_model: str) -> bool:
         return False
 
 # =============================================================================
