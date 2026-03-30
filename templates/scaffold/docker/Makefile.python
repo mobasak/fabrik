@@ -6,7 +6,7 @@
 #
 # Usage: make setup-dev, make dev, make test, make docker-smoke
 
-.PHONY: setup-dev dev test docker-smoke docker-build docker-dev clean install lint format
+.PHONY: setup-dev dev test docker-smoke docker-build docker-dev clean install lint format gate-lean
 
 # ===== CUSTOMIZE THESE =====
 PROJECT_NAME ?= myproject
@@ -41,6 +41,9 @@ lint:
 format:
 	ruff format .
 	ruff check --fix .
+
+gate-lean:
+	@.venv/bin/ruff check . --fix && .venv/bin/ruff format . && .venv/bin/mypy .
 
 # ============================================================
 # Docker (parity check)
