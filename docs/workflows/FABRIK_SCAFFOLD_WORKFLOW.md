@@ -316,7 +316,8 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `.windsurfrules` | Copied from `/opt/fabrik/.windsurfrules` | Windsurf rules shim |
 | `.gitignore` | Generated inline | Git ignore patterns |
 | `.env.example` | Generated inline | Env var template |
-| `requirements.txt` | Generated inline | Python dependencies |
+| `requirements.txt` | Generated inline | Production Python dependencies |
+| `requirements-dev.txt` | Generated inline | Development dependencies (ruff, mypy, etc.) |
 | `Dockerfile` | `docker/Dockerfile.python` | Production Docker build |
 | `compose.yaml` | `docker/compose.yaml.template` | Docker Compose config |
 | `pyproject.toml` | `python/pyproject.toml.template` | Python project config |
@@ -480,12 +481,13 @@ python-dotenv>=1.0.0
 After file creation, `fabrik scaffold` also:
 
 1. **project.yaml** - Creates per-project metadata file (name, type, status, port, cost, tags, etc.)
-2. **Git init** - Initializes git repository
-3. **Branch creation** - Creates and switches to `mobasak/<project-name>` branch
-4. **Pre-commit install** - Copies config and runs `pre-commit install`
-5. **Type patching** - Updates `project.yaml` with actual project type and port
-6. **Initial commit** - Stages all files and commits "Initial commit"
-7. **Project sync** - Runs `sync_projects.py` to register the new project in `data/projects.yaml` and `docs/BUSINESS_MODEL.md`
+2. **Virtual environment** - Creates `.venv` and installs development dependencies from `requirements-dev.txt`
+3. **Git init** - Initializes git repository
+4. **Branch creation** - Creates and switches to `mobasak/<project-name>` branch
+5. **Pre-commit install** - Copies config and runs `pre-commit install`
+6. **Type patching** - Updates `project.yaml` with actual project type and port
+7. **Initial commit** - Stages all files and commits "Initial commit"
+8. **Project sync** - Runs `sync_projects.py` to register the new project in `data/projects.yaml` and `docs/BUSINESS_MODEL.md`
 
 > See [Sync Projects Workflow](SYNC_PROJECTS_WORKFLOW.md) for details on `project.yaml` schema and sync mechanism.
 

@@ -604,10 +604,11 @@ API_KEY = os.getenv('API_KEY')
 **Purpose:** Ensures dependencies are properly documented and synchronized.
 
 **Validates:**
-- `requirements.txt` matches actual imports
+- `requirements.txt` contains production dependencies only
+- `requirements-dev.txt` contains development dependencies
 - Package versions are pinned
 - No dependency conflicts
-- Development dependencies separated
+- Development dependencies properly separated
 
 **Why this matters:**
 - Prevents import errors in deployment
