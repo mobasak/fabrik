@@ -5,27 +5,27 @@ Final Gate - Deterministic checks for coder AI before Traycer commit.
 Catches deterministic failures BEFORE expensive LLM review (Kilo).
 Saves tokens by not letting Kilo analyze lint/syntax/convention errors.
 
-Workflow Usage (7-Step AGENTS.md Flow):
-    Step 3: python scripts/final_gate.py            # Pre-Kilo (deterministic cleanup)
-    Step 5: python scripts/final_gate.py            # Post-Kilo (verify Kilo fixes)
-    --sync: Manual utility only (not part of 7-step workflow)
+Usage:
+    python scripts/final_gate.py              # Fix mode (default)
+    python scripts/final_gate.py --lean       # Tier 1: Showstoppers only
+    python scripts/final_gate.py --systemic   # Tier 3: Repo health only
+    python scripts/final_gate.py --check      # CI mode - no fixes
+    python scripts/final_gate.py --json       # JSON output for agents
 
-All Flags:
-    (default)    Fix mode, no sync (Steps 3/5 - main quality gate)
-    --sync       Sync-only mode (manual utility - no quality checks, just sync)
-    --check      CI mode - no fixes, no sync (read-only verification)
-    --no-stage   Don't auto-stage modified files
+Flags:
+    --lean       Tier 1: Showstoppers only (syntax, secrets, schema sync)
+    --systemic   Tier 3: Repo health only (docker, ports, docs sprawl, deps)
+    --check      Check only mode - no fixes, no sync (CI mode)
+    --json       Output results as JSON for agent parsing
+    --no-stage   Don't auto-stage modified files after fixes
+    --sync       Sync-only mode (manual utility - no quality checks)
+    --post-kilo  Log issues to .droid/gate_issues.jsonl
 
-Checks (in normal mode: default / --check):
+Checks:
 1. AUTO-FIX: trailing whitespace, EOF, ruff-format, ruff --fix
-2. STATIC: ruff, mypy, bandit, semgrep (REQUIRED), yaml, json, sqlfluff, vulture (REQUIRED)
+2. STATIC: ruff, mypy, bandit, semgrep, yaml, json, sqlfluff, vulture
 3. CONSISTENCY: structure, conventions, rule size, models, changelog, kilo health
 
-Sync steps (--sync mode only):
-- Windsurf extensions → docs/reference/EXTENSIONS.md
-- Cascade backup freshness check
-
-Default never runs sync. Use --sync explicitly for Step 7.
 Iterates up to 3 times until clean. Auto-stages changes only if all checks pass.
 
 Workflow Doc: docs/workflows/FINAL_GATE_WORKFLOW.md
@@ -929,37 +929,47 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Tier 3: Repo health only (docker, ports, docs sprawl, deps). On-demand maintenance.",
     )
-    # Note: --no-sync removed - default now never syncs (use --sync explicitly for Step 7)
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output results as JSON for agent parsing",
+    )
+    # Note: --no-sync removed - default now never syncs (use --sync explicitly)
     return parser.parse_args()
 
 
 def run_iteration(
-    check_only: bool, _run_sync: bool, tier: int = 2, changed_files: set[str] | None = None
+    check_only: bool, _run_sync: bool, tier: int = 2, changed_files: set[str] | None = None, json_mode: bool = False
 ) -> list[tuple[str, bool, str]]:
     """Run one iteration of all checks."""
     all_results: list[tuple[str, bool, str]] = []
 
-    tier_label = {1: "TIER 1 (LEAN)", 2: "TIER 2 (FULL)", 3: "TIER 3 (SYSTEMIC)"}
-    print(f"  Gate: {tier_label.get(tier, 'UNKNOWN')}")
+    if not json_mode:
+        tier_label = {1: "TIER 1 (LEAN)", 2: "TIER 2 (FULL)", 3: "TIER 3 (SYSTEMIC)"}
+        print(f"  Gate: {tier_label.get(tier, 'UNKNOWN')}")
 
     # Phase 1: Formatting fixes (only in fix mode, skip for Tier 3)
     if not check_only and tier != 3:
-        print_header("PHASE 1: AUTO-FIX FORMATTING")
+        if not json_mode:
+            print_header("PHASE 1: AUTO-FIX FORMATTING")
         results = run_formatting_fixes(tier=tier)
         all_results.extend(results)
-        for name, passed, out in results:
-            print_step(name, passed, out)
+        if not json_mode:
+            for name, passed, out in results:
+                print_step(name, passed, out)
 
     # Phase 2: Static checks (skip for Tier 3)
     if tier != 3:
-        print_header("PHASE 2: STATIC ANALYSIS")
+        if not json_mode:
+            print_header("PHASE 2: STATIC ANALYSIS")
         results = run_static_checks(tier=tier, changed_files=changed_files)
         all_results.extend(results)
-        for name, passed, out in results:
-            print_step(name, passed, out)
+        if not json_mode:
+            for name, passed, out in results:
+                print_step(name, passed, out)
 
         # Phase 2.5: AI fixes for static check failures (if enabled)
-        if not check_only and os.getenv("FINAL_GATE_AI_FIX") == "1":
+        if not check_only and os.getenv("FINAL_GATE_AI_FIX") == "1" and not json_mode:
             failed_tools = [
                 (name, out)
                 for name, passed, out in results
@@ -978,11 +988,13 @@ def run_iteration(
                         print(f"  {YELLOW}⚠ {tool}: {msg[:80]}{RESET}")
 
     # Phase 3: Consistency checks
-    print_header("PHASE 3: REPO CONSISTENCY")
+    if not json_mode:
+        print_header("PHASE 3: REPO CONSISTENCY")
     results = run_consistency_checks(tier=tier, changed_files=changed_files)
     all_results.extend(results)
-    for name, passed, out in results:
-        print_step(name, passed, out)
+    if not json_mode:
+        for name, passed, out in results:
+            print_step(name, passed, out)
 
     return all_results
 
@@ -1002,21 +1014,23 @@ def main() -> int:
     # Get changed files for diff-sensing
     changed_files = get_changed_files()
 
-    tier_label = {1: "LEAN (Tier 1)", 2: "FULL (Tier 2)", 3: "SYSTEMIC (Tier 3)"}
-    print(f"{BOLD}Final Gate - Pre-Traycer Commit Checks{RESET}")
-    mode = "CHECK ONLY" if args.check else "FIX"
-    print(f"Mode: {mode} | Tier: {tier_label[tier]} | Max iterations: {MAX_ITERATIONS}")
-    if changed_files:
-        exts = {Path(f).suffix for f in changed_files if Path(f).suffix}
-        print(f"Changed files: {len(changed_files)} ({', '.join(sorted(exts)) or 'no extensions'})")
-    else:
-        print("Changed files: none detected (running all checks)")
+    # JSON mode: suppress all output except final JSON
+    if not args.json:
+        tier_label = {1: "LEAN (Tier 1)", 2: "FULL (Tier 2)", 3: "SYSTEMIC (Tier 3)"}
+        print(f"{BOLD}Final Gate - Pre-Traycer Commit Checks{RESET}")
+        mode = "CHECK ONLY" if args.check else "FIX"
+        print(f"Mode: {mode} | Tier: {tier_label[tier]} | Max iterations: {MAX_ITERATIONS}")
+        if changed_files:
+            exts = {Path(f).suffix for f in changed_files if Path(f).suffix}
+            print(f"Changed files: {len(changed_files)} ({', '.join(sorted(exts)) or 'no extensions'})")
+        else:
+            print("Changed files: none detected (running all checks)")
 
     # Initialize before loop
     all_results: list[tuple[str, bool, str]] = []
 
     for iteration in range(1, MAX_ITERATIONS + 1):
-        if not args.check and iteration > 1:
+        if not args.check and iteration > 1 and not args.json:
             print(
                 f"\n{BOLD}{YELLOW}=== Iteration {iteration}/{MAX_ITERATIONS} (convergence rerun) ==={RESET}"
             )
@@ -1027,6 +1041,7 @@ def main() -> int:
             _run_sync=False,
             tier=tier,
             changed_files=changed_files,
+            json_mode=args.json,
         )
 
         failed = [r for r in all_results if not r[1]]
@@ -1039,11 +1054,13 @@ def main() -> int:
 
         status_after = get_git_status_hash()
         if status_before == status_after:
-            print(f"\n{YELLOW}No file changes - remaining failures need manual fixes{RESET}")
+            if not args.json:
+                print(f"\n{YELLOW}No file changes - remaining failures need manual fixes{RESET}")
             break
 
         if iteration < MAX_ITERATIONS:
-            print(f"\n{YELLOW}Changes detected, re-validating...{RESET}")
+            if not args.json:
+                print(f"\n{YELLOW}Changes detected, re-validating...{RESET}")
             # Refresh changed files after fixes
             changed_files = get_changed_files()
 
@@ -1056,7 +1073,7 @@ def main() -> int:
 
     if not args.check and not args.no_stage and not failed:
         status = get_git_status_hash()
-        if status:
+        if status and not args.json:
             print(f"\n{BLUE}Auto-staging modified files...{RESET}")
             ok, out = stage_changes()
             if ok:
@@ -1064,6 +1081,24 @@ def main() -> int:
             else:
                 print(f"  {RED}✗ Failed to stage: {out}{RESET}")
 
+    # JSON output mode
+    if args.json:
+        import json
+
+        result = {
+            "status": "success" if not failed else "failure",
+            "tier": tier,
+            "passed": passed_count,
+            "failed": len(failed),
+            "failures": [
+                {"check": name, "output": output[:500]}  # Truncate long outputs
+                for name, _, output in failed
+            ]
+        }
+        print(json.dumps(result, indent=2))
+        return 0 if not failed else 1
+
+    # Human-readable output mode
     print_header("SUMMARY")
     print(f"  {GREEN}Passed:{RESET} {passed_count}")
     print(f"  {RED}Failed:{RESET} {len(failed)}")
