@@ -839,10 +839,15 @@ def main(dry_run: bool = False):
             tmp_dir.rename(OUTPUT_DIR)
 
             # Set timestamps for Traycer sorting (priority 1 = newest)
+            # Use current time with small offsets to maintain sort order
+            import time
+
             files = sorted(OUTPUT_DIR.glob("*.sh"))
             n = len(files)
+            current_time = time.time()
             for i, f in enumerate(files):
-                mtime = n - i
+                # Priority 1 gets newest timestamp, priority 10 gets oldest
+                mtime = current_time - (n - i - 1)
                 os.utime(f, (mtime, mtime))
 
             print(f"\n✅ Generated {generated_count} agent scripts")

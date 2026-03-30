@@ -941,7 +941,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_iteration(
-    check_only: bool, run_sync: bool, tier: int = 2, changed_files: set[str] | None = None
+    check_only: bool, _run_sync: bool, tier: int = 2, changed_files: set[str] | None = None
 ) -> list[tuple[str, bool, str]]:
     """Run one iteration of all checks."""
     all_results: list[tuple[str, bool, str]] = []
@@ -1031,7 +1031,7 @@ def main() -> int:
         status_before = get_git_status_hash()
         all_results = run_iteration(
             check_only=args.check,
-            run_sync=False,
+            _run_sync=False,
             tier=tier,
             changed_files=changed_files,
         )

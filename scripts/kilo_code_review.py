@@ -68,7 +68,7 @@ else:
     _DEFAULT_MODEL = os.getenv("KILO_DEFAULT_MODEL", "anthropic:claude-sonnet-4-5-20250929")
     _FALLBACK_MODEL = os.getenv("KILO_FALLBACK_MODEL", "openai:gpt-4.1")
 
-    def get_fallback_chain(role: str) -> list[str]:
+    def get_fallback_chain(_role: str) -> list[str]:
         return [_DEFAULT_MODEL, _FALLBACK_MODEL]
 
     def get_tier_models(role: str) -> dict[str, list[str]]:

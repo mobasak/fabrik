@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-Smart CHANGELOG.md enforcement for meaningful code changes.
+Smart CHANGELOG.md enforcement for meaningful code and infrastructure changes.
 
-Only requires CHANGELOG.md update for:
-- Production code in src/, scripts/ (not tests/)
-- New files added
-- Changes exceeding MIN_LINES_THRESHOLD
+Requires a CHANGELOG.md update when there are staged changes to significant
+production code or infra, including:
+- Code under SIGNIFICANT_DIRS (src/, scripts/, templates/, .factory/, .github/),
+  excluding tests matched by SKIP_PATTERNS
+- Always-significant files in SIGNIFICANT_FILES (Dockerfile, compose.yaml, compose.yml)
+- New files added in those locations
 
 Skips:
 - Test files only
-- Documentation only
-- Config files only
-- Small changes (< MIN_LINES_THRESHOLD lines)
+- Documentation-only changes
+- Non-significant config-only changes
+
+With MIN_LINES_THRESHOLD = 0, any staged change to significant code/infra covered
+by SIGNIFICANT_DIRS or SIGNIFICANT_FILES requires a CHANGELOG entry.
 
 Also validates CHANGELOG.md entry is not empty/placeholder.
 
@@ -26,8 +30,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Minimum lines changed to require CHANGELOG (skip tiny fixes)
-MIN_LINES_THRESHOLD = 10
+# Minimum lines changed to require CHANGELOG.
+# With MIN_LINES_THRESHOLD = 0, any significant change requires CHANGELOG.
+MIN_LINES_THRESHOLD = 0
 
 # Directories that require CHANGELOG when modified
 SIGNIFICANT_DIRS = [
@@ -187,7 +192,8 @@ def main() -> int:
     # Check total diff size
     total_lines = get_staged_diff_stats()
 
-    # Skip if small change AND no new files
+    # Legacy threshold guard: with MIN_LINES_THRESHOLD = 0 this never triggers,
+    # but is kept as a tuning knob if we ever reintroduce a non-zero threshold.
     if total_lines < MIN_LINES_THRESHOLD and not new_files:
         return 0
 

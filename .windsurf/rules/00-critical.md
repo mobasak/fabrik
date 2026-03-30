@@ -257,10 +257,11 @@ Before finishing ANY coding task, you MUST verify:
 - [ ] Internal audit completed and reported (this file)
 - [ ] No hardcoded localhost/secrets
 - [ ] Database changes added to `db/schema.sql` (if applicable)
+- [ ] CHANGELOG.md updated for code/config/infrastructure changes
 - [ ] Lean gate passed: `python scripts/final_gate.py --lean`
 - [ ] Changes staged (`git add -A`) — never committed
 
-Phase-end gates (Kilo review, Documentator, full gate) are handled by Traycer or run during interactive work. See `.windsurf/rules/50-code-review.md` for commands.
+Milestone gate (`python scripts/final_gate.py`) runs only when closing a milestone or batch. Kilo Review and Documentator are optional/manual tools only. Traycer verifies work; agents run local scripts. See `.windsurf/rules/50-code-review.md` for commands.
 
 **Cascade never commits. Traycer commits.**
 
@@ -287,4 +288,3 @@ Optimize indexing with `.codeiumignore`:
 - Global: `~/.codeium/.codeiumignore`
 
 Excluded from index: `.venv/`, `node_modules/`, `.droid/` queues, build artifacts.
-

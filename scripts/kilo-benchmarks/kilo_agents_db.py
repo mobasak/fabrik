@@ -3,8 +3,14 @@
 Kilo Agents SQLite Database Manager.
 
 Manages agent data with historical tracking:
-- Syncs data from Kilo CLI (full metadata)
-- Updates benchmark scores from scrapers
+- Syncs ALL models from Kilo CLI with FULL capabilities:
+  • Vision support (image input)
+  • Tool/function calling
+  • Reasoning/thinking modes
+  • Context window size
+  • Input/output costs per 1M tokens
+- Syncs 4 custom local agents from Ollama (fabrik-coder, fabrik-fixer, fabrik-reviewer, fabrik-docs)
+- Updates benchmark scores from scrapers (Arena ELO, TBench)
 - Maintains daily historical snapshots
 - Computes derived metrics (perf_per_dollar, task_tier)
 
@@ -14,7 +20,7 @@ Usage:
     python scripts/kilo_agents_db.py update        # Update benchmarks
     python scripts/kilo_agents_db.py snapshot      # Create daily snapshot
     python scripts/kilo_agents_db.py export        # Export to markdown
-    python scripts/kilo_agents_db.py ollama-sync   # Sync local models from Ollama
+    python scripts/kilo_agents_db.py ollama-sync   # Sync 4 custom local agents
     python scripts/kilo_agents_db.py ollama-status # Show local model status
     python scripts/kilo_agents_db.py all           # Full pipeline (Kilo + Ollama)
 """
@@ -1039,7 +1045,7 @@ def main() -> int:
         generate_schema_docs("agents")
         generate_schema_docs("local_models")
     elif command == "all":
-        # Full pipeline (Kilo CLI + Ollama)
+        # Full pipeline (Kilo CLI + local Ollama agents)
         init_db(force)
         sync_from_kilo()
         update_benchmarks()

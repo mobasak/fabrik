@@ -648,9 +648,14 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
                 content = content.replace(old, new)
             (project_dir / dest).write_text(content)
 
-    # Create requirements.txt (versions match pyproject.toml)
+    # Create requirements.txt (production dependencies only)
     (project_dir / "requirements.txt").write_text(
         "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\n"
+    )
+
+    # Create requirements-dev.txt (includes dev dependencies)
+    (project_dir / "requirements-dev.txt").write_text(
+        "-r requirements.txt\nruff\nmypy\nbandit\nsemgrep\nsqlfluff\nvulture\n"
     )
 
     # Create starter src/<package_name>/main.py with proper health check
@@ -671,6 +676,21 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     (project_dir / "tests" / "test_health.py").write_text(
         f'''"""Health endpoint tests."""\nimport os\nfrom unittest.mock import patch\nfrom fastapi.testclient import TestClient\nfrom {package_name}.main import app\n\nclient = TestClient(app)\n\n\ndef test_health_returns_200_without_db():\n    """Health returns 200 when DB is not configured."""\n    with patch.dict(os.environ, {{}}, clear=True):\n        response = client.get("/health")\n        assert response.status_code == 200\n        data = response.json()\n        assert data["service"] == "{name}"\n        assert data["status"] == "ok"\n        assert data["dependencies"]["database"] == "not_configured"\n\n\ndef test_health_returns_200_with_db_configured():\n    """Health returns 200 when DB is configured (mocked)."""\n    with patch.dict(os.environ, {{"DATABASE_URL": "postgresql://test@localhost/test"}}):\n        response = client.get("/health")\n        assert response.status_code == 200\n        data = response.json()\n        assert data["dependencies"]["database"] == "configured"\n\n\ndef test_root_endpoint():\n    """Root endpoint returns welcome message."""\n    response = client.get("/")\n    assert response.status_code == 200\n    assert "message" in response.json()\n'''
     )
+
+    # Create Python virtual environment and install dependencies
+    venv_path = project_dir / ".venv"
+    subprocess.run(["python", "-m", "venv", ".venv"], cwd=project_dir, capture_output=True)
+
+    # Install development dependencies
+    venv_pip = venv_path / "bin" / "pip" if (venv_path / "bin").exists() else venv_path / "Scripts" / "pip.exe"
+    result = subprocess.run(
+        [str(venv_pip), "install", "-r", "requirements-dev.txt"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Warning: Failed to install dev dependencies: {result.stderr}")
 
 
 _SAAS_SKIP_FILES = {"AGENTS.md", "pyproject.toml", "requirements.txt"}

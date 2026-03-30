@@ -4,14 +4,22 @@
 #   2. PORT
 #   3. Entry point in dev command
 #
-# Usage: make dev, make test, make docker-smoke
+# Usage: make setup-dev, make dev, make test, make docker-smoke
 
-.PHONY: dev test docker-smoke docker-build docker-dev clean install lint format
+.PHONY: setup-dev dev test docker-smoke docker-build docker-dev clean install lint format
 
 # ===== CUSTOMIZE THESE =====
 PROJECT_NAME ?= myproject
 PORT ?= 8000
 # ===========================
+
+# ============================================================
+# Environment Setup
+# ============================================================
+
+setup-dev:
+	python -m venv .venv
+	.venv/bin/pip install -r requirements-dev.txt
 
 # ============================================================
 # Local Development (fast)

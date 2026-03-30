@@ -10,7 +10,7 @@ trigger: always_on
 
 ---
 
-## Self-Review Gate (Every Task)
+## A) Self-Review Gate (Every Task)
 
 ### Internal Audit
 
@@ -31,31 +31,21 @@ Syntax (ruff), json/yaml validation, secrets, env vars, schema sync. Fast, no co
 
 ---
 
-## Phase-End Gates (Traycer Instructs or Interactive Work)
+## B) Changelog (Every Code/Config/Infra Change)
 
-These gates run at phase boundaries. When working under Traycer, Traycer decides when to trigger them. During interactive work (no Traycer), Cascade runs them after completing non-trivial changes.
+For any non-trivial code, config, infrastructure, Docker, or compose change in:
+`src/`, `scripts/`, `templates/`, `.factory/`, `.github/`, `Dockerfile`, `compose.yaml`, `.env.example`, `pyproject.toml`, `package.json`, `requirements.txt`,
+you MUST ensure `CHANGELOG.md` has a real entry under `## [Unreleased]`:
 
-### Kilo Review
-
-```bash
-git add -A                          # CRITICAL: stage ALL uncommitted files, not just yours
-git diff --staged --name-only       # Verify staged matches intent
-python scripts/kilo_code_review.py staged --plan "task description" --output json
+```markdown
+### Added/Changed/Fixed — <Title> (YYYY-MM-DD)
 ```
 
-⚠️ NEVER `git add` only your files — other tools (final_gate, sync_projects, scaffold) may have modified files too. Review ALL changes or risk missing issues.
+---
 
-I fix all findings (BLOCKER, MAJOR, MINOR) myself—no separate FIXER role in Cascade.
+## C) Milestone Gate (Batch Closure Only)
 
-### Documentator
-
-```bash
-python scripts/kilo_docs_enforcer.py --auto-generate --verbose
-git add CHANGELOG.md docs/reference/*.md
-python scripts/kilo_docs_enforcer.py --enforce
-```
-
-### Full Gate (Tier 2 — Phase Handover)
+When closing a milestone or a batch of related tickets, run the full gate once and fix all findings before handoff:
 
 ```bash
 python scripts/final_gate.py
@@ -63,23 +53,50 @@ python scripts/final_gate.py
 
 Full quality: static analysis (ruff, mypy, bandit, semgrep) + consistency checks (changelog, index, readme, test proposal). Diff-aware — skips checks for unchanged files.
 
+---
+
+## D) Optional Tools (Manual / On-Demand Only)
+
+These tools are available when explicitly requested by the owner or when you judge a manual extra review is warranted.
+
+### Kilo Review (Optional)
+
+```bash
+git add -A                          # CRITICAL: stage ALL uncommitted files, not just yours
+git diff --staged --name-only       # Verify staged matches intent
+python scripts/kilo_code_review.py staged --plan "task description" --output json
+```
+
+Use for rare high-risk or cross-cutting changes. Never rely on it as the default completion gate.
+
+I fix all findings (BLOCKER, MAJOR, MINOR) myself—no separate FIXER role in Cascade.
+
+### Documentator (Optional)
+
+```bash
+python scripts/kilo_docs_enforcer.py --auto-generate --verbose
+```
+
+Use for bulk documentation work (CHANGELOG/README/doc refresh), not for every code change.
+
 ### Systemic Gate (Tier 3 — On-Demand Only)
 
 ```bash
 python scripts/final_gate.py --systemic
 ```
 
-Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints, watchdog, env contract. Never part of a fix loop.
+Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints, watchdog, env contract. Never part of a normal fix loop.
 
 ---
 
 ## Key Reminders
 
 - Internal audit + lean gate is **MANDATORY** before reporting completion.
+- **Changelog is MANDATORY for any code/config/infrastructure change. Full gate runs at milestone/batch closure, not for every task.**
 - I fix issues, not Kilo (report-only by default).
 - Traycer commits, not Cascade — I only implement and fix.
 - Max 5 review iterations before escalating.
-- Non-trivial = any of: new file, >50 lines changed, new dependency, DB change.
+- Non-trivial = any of: new file, >50 lines changed, new dependency, DB change, or any code/config/infrastructure/Docker/compose change.
 
 After 5 iterations: STOP, report blockers to user, do not attempt further fixes.
 

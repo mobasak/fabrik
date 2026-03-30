@@ -1,3 +1,6 @@
+### Added - Assignment Computation Script (2026-03-30)
+- **`scripts/kilo-benchmarks/compute_assignments.py`**: Added script to compute model assignments dynamically based on benchmark scores, JSON output.
+
 # Changelog
 
 All notable changes to this project will be documented in this file.

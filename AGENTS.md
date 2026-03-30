@@ -178,11 +178,11 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 
 | Gate | Script | Purpose |
 |------|--------|---------|
-| Kilo Review | `scripts/kilo_code_review.py` | AI-powered code review, reports BLOCKER/MAJOR/MINOR findings |
-| Documentator | `scripts/kilo_docs_enforcer.py` | AI documentation enforcement, auto-generates CHANGELOG/README |
-| Final Gate (Tier 1 — lean) | `scripts/final_gate.py --lean` | Showstoppers only: syntax, secrets, schema sync |
-| Final Gate (Tier 2 — full) | `scripts/final_gate.py` | Full quality: static analysis + consistency checks |
-| Final Gate (Tier 3 — systemic) | `scripts/final_gate.py --systemic` | Repo health: docker, ports, docs sprawl, deps sync |
+| Kilo Review | `scripts/kilo_code_review.py` | Optional: AI-powered code review for high-risk manual audits |
+| Documentator | `scripts/kilo_docs_enforcer.py` | Optional: AI documentation generation for bulk doc work |
+| Final Gate (Tier 1 — lean) | `scripts/final_gate.py --lean` | Default: showstoppers during coding |
+| Final Gate (Tier 2 — full) | `scripts/final_gate.py` | At milestone closure: full quality checks |
+| Final Gate (Tier 3 — systemic) | `scripts/final_gate.py --systemic` | On-demand: repo health |
 
 ## Scaffold Types
 

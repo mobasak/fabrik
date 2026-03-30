@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-03-28 11:42:55 -->
-<!-- Total projects: 39 -->
+<!-- Last synced: 2026-03-30 19:50:42 -->
+<!-- Total projects: 41 -->
 
 ### Production Services (5 projects)
 
@@ -104,7 +104,7 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (15 projects)
+### Active Development (17 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -117,7 +117,9 @@ With ~$50/month infrastructure cost:
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-coolify** | Coolify deployment readiness test | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-final** | **Last Updated:** 2026-03-23 | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-final-gate** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-project-2024** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-project-2025** | Test project 2025 | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-session-check** | Session poisoning audit - verify no Fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-zero-refs** | Complete workspace isolation verification - expect ZERO /opt/fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | - | ✅ Current |

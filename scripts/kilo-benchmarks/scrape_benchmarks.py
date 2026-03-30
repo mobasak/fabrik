@@ -13,8 +13,10 @@ Usage:
 
 import json
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 
 import requests
@@ -47,10 +49,39 @@ class BenchmarkEntry:
         }
 
 
+def retry_on_network_error(max_attempts=3, delay=2, backoff=2):
+    """Retry decorator for network operations with exponential backoff."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            attempt = 1
+            current_delay = delay
+            while attempt <= max_attempts:
+                try:
+                    return func(*args, **kwargs)
+                except (requests.exceptions.RequestException, ConnectionError) as e:
+                    if attempt == max_attempts:
+                        log(f"  Error scraping {func.__name__}: {e}")
+                        raise
+                    log(
+                        f"  Attempt {attempt}/{max_attempts} failed, retrying in {current_delay}s..."
+                    )
+                    time.sleep(current_delay)
+                    current_delay *= backoff
+                    attempt += 1
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def log(msg: str) -> None:
     print(f"[scrape] {msg}")
 
 
+@retry_on_network_error(max_attempts=3, delay=2, backoff=2)
 def scrape_terminal_bench() -> list[BenchmarkEntry]:
     """
     Scrape Terminal Bench 2.0 leaderboard from tbench.ai.
@@ -131,6 +162,7 @@ def scrape_terminal_bench() -> list[BenchmarkEntry]:
         return []
 
 
+@retry_on_network_error(max_attempts=3, delay=2, backoff=2)
 def scrape_chatbot_arena() -> list[BenchmarkEntry]:
     """
     Scrape Chatbot Arena leaderboard from openlm.ai.

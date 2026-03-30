@@ -76,7 +76,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-03-28 11:42:55 -->
+<!-- Last synced: 2026-03-30 19:50:42 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -113,6 +113,8 @@ If you encounter a port conflict:
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
 | 8028 | **test-project-2024** | python-api | /opt/test-project-2024 |
 | 8029 | **youtube** | python-api | /opt/youtube |
+| 8030 | **test-project-2025** | python-api | /opt/test-project-2025 |
+| 8031 | **test-final-gate** | python-api | /opt/test-final-gate |
 | 18011 | **captcha** | python-api | /opt/captcha |
 | 18012 | **translator** | python-api | /opt/translator |
 | 18013 | **proxy** | automation | /opt/proxy |
