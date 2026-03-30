@@ -7,27 +7,19 @@
 - NEVER hardcode localhost/secrets — use `os.getenv()`
 - NEVER modify files outside task scope
 
-## ONE-PASS WORKFLOW
+## DEFAULT COMPLETION CONTRACT
 
-### Tasks Before Milestone Task: Rolling Green (Implement → Test → Clean → Gate)
-1. **Implement** — logic changes for current task only
-2. **Test** — add 1 test that validates the change (required)
-3. **Auto-clean** — `make gate-lean` (runs ruff + mypy)
-4. **Lean gate** — `python scripts/final_gate.py --lean --json` and fix all findings
-5. **Changelog** — if you touched code/config/infra, add entry under `## [Unreleased]`
-6. **Stage** — `git add -A` (never commit)
-
-### Milestone Task: Full Gate
-1. **Implement** — final changes
-2. **Test** — add 1 test
-3. **Auto-clean** — `make gate-lean` (runs ruff + mypy)
-4. **Full gate** — `python scripts/final_gate.py --json` (all checks) and fix all findings
-5. **Changelog** — update
-6. **Stage** — `git add -A` (never commit)
+1. **Implement** — Logic changes for current task only + 1 test.
+2. **Auto-Clean** — Run `.venv/bin/ruff check . --fix && .venv/bin/ruff format .` to auto-fix linting.
+3. **Run Quality Gate** — Address all failures reported in the JSON output:
+   - **Normal Task (1-9)**: Run `python scripts/final_gate.py --lean --json`.
+   - **Milestone Task (10)**: Run `python scripts/final_gate.py --json`.
+4. **Changelog** — Add entry under `## [Unreleased]` if code/config/infra changed.
+5. **Stage** — `git add -A` (never commit).
 
 ## GATE OUTPUT
 - JSON mode returns: `{"status": "success|failure", "tier": 1|2, "passed": N, "failed": N, "failures": [...]}`
 - Exit code 0 = success, 1 = failure
-- Parse JSON to determine next action
+- Fix all findings until `"status": "success"` appears
 
 **Traycer is the orchestrator. Follow the task, report completion.**
