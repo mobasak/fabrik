@@ -13,7 +13,7 @@
    - **Milestone / Batch Closer**: `python scripts/final_gate.py --json` 
    *(Only run full gate if the task is explicitly labeled as a "Milestone" or "Batch Closer")*
 
-3. **CHANGELOG** — Add exactly one entry under `## [Unreleased]` 
+3. **CHANGELOG** — Add one entry under `## [Unreleased]` (Gate enforced) 
 
 4. **EXIT 0** — The gate auto-stages your changes. Do not commit, do not stage manually.
 

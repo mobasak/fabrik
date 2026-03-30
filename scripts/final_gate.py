@@ -570,6 +570,10 @@ def run_consistency_checks(
                     "scripts/enforcement/check_schema_sync.py", "Schema Sync (DB Models)"
                 )
             )
+        # Changelog enforcement - prevents agents from forgetting across tasks 1-9
+        results.append(
+            run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
+        )
 
     # Tier 1 stops here
     if tier == 1:
@@ -610,9 +614,6 @@ def run_consistency_checks(
         )
         results.append(
             run_optional_check("scripts/enforcement/check_env_updates.py", ".env Updates (Secrets)")
-        )
-        results.append(
-            run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
         )
         results.append(
             run_optional_check(
