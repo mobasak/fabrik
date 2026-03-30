@@ -97,6 +97,7 @@ ignore = [
     "S324",   # insecure hash function (sha1 acceptable for non-crypto use)
     "S112",   # try-except-continue (acceptable for robust loops)
     "S311",   # pseudo-random generators (acceptable for non-crypto sampling)
+    "S101",   # assert usage (standard in pytest tests)
 ]
 
 [tool.ruff.lint.pycodestyle]
