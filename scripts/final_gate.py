@@ -1073,12 +1073,13 @@ def main() -> int:
 
     if not args.check and not args.no_stage and not failed:
         status = get_git_status_hash()
-        if status and not args.json:
-            print(f"\n{BLUE}Auto-staging modified files...{RESET}")
+        if status:
+            if not args.json:
+                print(f"\n{BLUE}Auto-staging modified files...{RESET}")
             ok, out = stage_changes()
-            if ok:
+            if ok and not args.json:
                 print(f"  {GREEN}✓ Changes staged{RESET}")
-            else:
+            elif not ok and not args.json:
                 print(f"  {RED}✗ Failed to stage: {out}{RESET}")
 
     # JSON output mode
