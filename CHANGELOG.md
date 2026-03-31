@@ -70,6 +70,21 @@ All notable changes to this project will be documented in this file.
 ### Added — Assignment Computation Script (2026-03-30)
 - **`scripts/kilo-benchmarks/compute_assignments.py`**: Added script to compute model assignments dynamically based on benchmark scores, JSON output.
 
+### Added - Fabrik Conventions in Code Review (2026-03-31)
+- **Project-Specific Checks**: Integrated Fabrik conventions into `kilo_code_review.py`
+  - Container images: `-slim-bookworm` enforcement (never Alpine)
+  - Health checks: Must test dependencies (not just `{"status": "ok"}`)
+  - Config loading: Function-level only (never class-level `os.getenv()`)
+  - Temporary files: Project-local `.tmp/` (never `/tmp/`)
+  - Secrets: CSPRNG with 32+ chars (never hardcoded weak secrets)
+  - Bug classes: Dead code, control flow, async/await, off-by-one, resource leaks
+- **New Category**: Added `FABRIK` to review categories (SPEC, SECURITY, CONFIG, EDGE, FABRIK, DOCS)
+- **Schema Updates**:
+  - `VALID_CATEGORIES` constant includes FABRIK
+  - `REVIEW_RESULT_SCHEMA` enum accepts FABRIK category
+  - Prompt template includes section E) FABRIK CONVENTIONS with inline examples
+- **Documentation**: Updated `windsurf-triggered-workflows.md` with Fabrik-specific checks
+
 ### Added - Windsurf Cascade Workflows (2026-03-31)
 - **Slash Command Workflows**: Created 5 workflow files in `.windsurf/workflows/`
   - `/local-coder` - Implement features (Local_Coder_qwen32b.sh)

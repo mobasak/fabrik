@@ -126,7 +126,7 @@ VALID_AGENTS = {
 VALID_VARIANTS = {"minimal", "low", "high", "max"}
 
 # Valid review categories (for --skip-categories)
-VALID_CATEGORIES = {"SPEC", "SECURITY", "CONFIG", "EDGE", "DOCS"}
+VALID_CATEGORIES = {"SPEC", "SECURITY", "CONFIG", "EDGE", "FABRIK", "DOCS"}
 
 # Doc-only categories (lighter review for .md files)
 DOC_ONLY_CATEGORIES = {"SPEC", "DOCS"}
@@ -227,7 +227,7 @@ REVIEW_RESULT_SCHEMA = {
                     "severity": {"type": "string", "enum": ["BLOCKER", "MAJOR", "MINOR"]},
                     "category": {
                         "type": "string",
-                        "enum": ["SPEC", "SECURITY", "CONFIG", "EDGE", "DOCS"],
+                        "enum": ["SPEC", "SECURITY", "CONFIG", "EDGE", "FABRIK", "DOCS"],
                     },
                     "file": {"type": "string", "minLength": 1},
                     "lines": {"type": "string", "pattern": "^(L\\d+(-L\\d+)?|N/A)$"},
@@ -2449,7 +2449,22 @@ C) CONFIG & SECRETS HYGIENE
    - Hardcoded values that should be config-driven (URLs/keys/ports/feature flags).
 D) EDGE CASES & CORRECTNESS
    - Null/empty handling, error paths, retries/timeouts, idempotency, concurrency/race hazards (if relevant).
-E) DOCS & DEV WORKFLOW
+E) FABRIK CONVENTIONS (PROJECT-SPECIFIC)
+   - Container images: MUST use -slim-bookworm (never Alpine).
+     ❌ FROM python:3.12-alpine → ✅ FROM python:3.12-slim-bookworm
+     ❌ FROM alpine:latest → ✅ FROM debian:bookworm-slim
+   - Health checks: MUST test actual dependencies (not just return {{"status": "ok"}}).
+     ❌ return {{"status": "ok"}} → ✅ await db.execute("SELECT 1"); return {{"status": "ok", "db": "connected"}}
+   - Config loading: MUST be function-level (never class-level os.getenv at definition time).
+     ❌ class Config: DB_URL = f"postgresql://{{os.getenv('DB_USER')}}:..."
+     ✅ def get_db_url(): return f"postgresql://{{os.getenv('DB_USER')}}:..."
+   - Temporary files: MUST use project-local .tmp/ (never /tmp/).
+     ❌ open("/tmp/data.json") → ✅ open(".tmp/data.json")
+   - Secrets: MUST use CSPRNG with 32+ chars (never hardcoded weak secrets).
+     ❌ password = "abc123" → ✅ password = secrets.token_urlsafe(32)
+   - Bug classes: flag dead/unreachable code, broken control flow (missing break/fallthrough),
+     async/await mistakes, off-by-one errors, resource leaks (unclosed files/connections).
+F) DOCS & DEV WORKFLOW
    - README/config/migration notes updated and accurate when behavior/config changes.
 
 EVIDENCE REQUIREMENT (CRITICAL)
@@ -2474,7 +2489,7 @@ Return ONLY valid JSON with this exact schema:
   "issues": [
     {{
       "severity": "BLOCKER" | "MAJOR" | "MINOR",
-      "category": "SPEC" | "SECURITY" | "CONFIG" | "EDGE" | "DOCS",
+      "category": "SPEC" | "SECURITY" | "CONFIG" | "EDGE" | "FABRIK" | "DOCS",
       "file": "path/to/file.ext",
       "lines": "L10-L20",
       "why": "1-2 sentences on impact/risk",

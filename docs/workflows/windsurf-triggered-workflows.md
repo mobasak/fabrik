@@ -204,15 +204,18 @@ These workflows provide structured processes for common development tasks.
 
 **Review Focus Areas:**
 
-1. Logic errors and incorrect behavior
-2. Edge cases that aren't handled
-3. Null/undefined reference issues
-4. Race conditions or concurrency issues
-5. Security vulnerabilities
-6. Improper resource management or resource leaks
-7. API contract violations
-8. Incorrect caching behavior (staleness, invalidation, key issues)
-9. Violations of existing code patterns or conventions
+1. **Spec Compliance** - Behavior matches plan/spec requirements
+2. **Security** - Injection risks, auth/authz flaws, sensitive data exposure
+3. **Config & Secrets** - Env var hygiene, no hardcoded values
+4. **Edge Cases** - Null/empty handling, error paths, concurrency
+5. **Fabrik Conventions** (project-specific):
+   - Container images: `-slim-bookworm` only (never Alpine)
+   - Health checks: Must test actual dependencies (not just return `{"status": "ok"}`)
+   - Config loading: Function-level only (never class-level `os.getenv()`)
+   - Temporary files: Project-local `.tmp/` (never `/tmp/`)
+   - Secrets: CSPRNG with 32+ chars (never hardcoded weak secrets)
+   - Bug classes: Dead code, broken control flow, async/await mistakes, off-by-one errors, resource leaks
+6. **Docs** - README/config/migration notes updated when behavior changes
 
 **Review Guidelines:**
 
@@ -597,6 +600,26 @@ git add -A
 ```
 
 The script warns if unstaged files exist, but it's better to stage everything first to avoid missing files in the review.
+
+**Review Categories:**
+
+Issues are categorized as:
+- **SPEC** - Plan/spec compliance violations
+- **SECURITY** - Injection, auth, secrets exposure
+- **CONFIG** - Env var misuse, hardcoded values
+- **EDGE** - Null handling, error paths, concurrency
+- **FABRIK** - Project-specific conventions (see below)
+- **DOCS** - Missing/incorrect documentation
+
+**Fabrik-Specific Checks:**
+
+The reviewer enforces these Fabrik conventions:
+1. **Container Images:** `-slim-bookworm` only (❌ Alpine)
+2. **Health Checks:** Must test dependencies (❌ just `{"status": "ok"}`)
+3. **Config Loading:** Function-level only (❌ class-level `os.getenv()`)
+4. **Temp Files:** Project-local `.tmp/` (❌ `/tmp/`)
+5. **Secrets:** CSPRNG 32+ chars (❌ `"abc123"`)
+6. **Bug Classes:** Dead code, control flow, async/await, off-by-one, resource leaks
 
 **Workflow Details:**
 
