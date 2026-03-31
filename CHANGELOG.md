@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Chrome Extension Scaffold Restructuring (2026-03-31)
+- **`src/fabrik/scaffold.py`**: Implemented `_scaffold_chrome_extension()` function for dual-artifact structure
+  - Extension side: `extension/src/` (TypeScript stubs), `extension/public/` (popup.html, icons), `manifest.json`, `webpack.config.js`, `package.json`
+  - Server side: `server/src/<package_name>/main.py` (FastAPI + CORS + /health endpoint)
+  - Docker: `Dockerfile` (Python 3.12-slim-bookworm, PYTHONPATH=/app/server/src), `compose.yaml` (linux/arm64, coolify network)
+  - Makefile: 8 targets (dev, dev-server, dev-ext, build-ext, install, test, docker-build, docker-smoke, clean)
+  - Parallel dev: `make dev` runs webpack watch + uvicorn reload with `trap 'kill 0' SIGINT` pattern
+  - Port allocation: Uses Python range (8000-8099) since server is FastAPI
+- **`src/fabrik/scaffold.py`**: Updated dispatch table to use dedicated scaffolder (was generic-TS lambda)
+- **`src/fabrik/scaffold.py`**: Updated `TYPE_REQUIRED_FILES["chrome-extension"]` for new structure
+- **`tests/test_scaffold.py`**: Added `TestChromeExtensionScaffold` class with 7 test methods
+  - Tests verify extension/ and server/ structure, Docker files, Makefile targets, .gitignore, project.yaml type
+- **Template Cleanup**: Deleted 4 dead/wrong template files from `templates/chrome-extension/`
+  - Removed: `Dockerfile.j2` (Node.js server, wrong stack), `compose.yaml.j2` (never rendered), `defaults.yaml` (unused), `package.json` (replaced by inline)
+  - Kept: `manifest.json.j2` (correct, rendered into `extension/manifest.json`)
+
+### Fixed — Chrome Extension Scaffold Compatibility and Runtime (2026-03-31)
+- **BUG-1**: Fixed `_scaffold_generic_ts()` signature to accept `**kwargs` for compatibility with dispatch table
+  - Prevents runtime errors when creating docusaurus, mobile-app, desktop-app projects
+  - Validated all 3 generic TS types still scaffold correctly
+- **BUG-1**: Fixed `TYPE_REQUIRED_FILES["chrome-extension"]` to remove invalid static path
+  - Removed `server/src/__init__.py` (dynamic package name path)
+  - Validation now works with actual generated structure
+- **BUG-2**: Fixed webpack config to copy manifest and public assets to dist/
+  - Added `copy-webpack-plugin` to extension devDependencies
+  - Webpack now copies `manifest.json` and `public/` to `dist/` for loadable extension
+  - Extension can be loaded in Chrome directly from `extension/dist/` after build
+- **BUG-2**: Fixed Dockerfile to copy uvicorn binary from builder stage
+  - Added `COPY --from=builder /usr/local/bin /usr/local/bin` after site-packages copy
+  - Prevents "uvicorn: not found" runtime failure in container startup
+- **Icon Handling**: Improved extension icon guidance
+  - Added `.gitkeep` to ensure `extension/public/icons/` directory exists
+  - Enhanced README with 3 generation options (ImageMagick CLI, online tools, design software)
+  - Clear warning that extension fails to load without icon files
+- **WordPress Scaffold**: Restored `dist/` and `build/` to .gitignore block
+  - Lines were unintentionally removed during chrome-extension refactoring
+  - WordPress theme/plugin development needs these build artifact ignores
+
 ### Changed — Changelog Enforcement Moved to Tier 1 (2026-03-30)
 - **`scripts/final_gate.py`**: Moved `check_changelog.py` from Tier 2 to Tier 1 (Lean) gate
   - Prevents agents from forgetting changelog entries across tasks 1-9
@@ -105,6 +143,28 @@ All notable changes to this project will be documented in this file.
   - `REVIEW_RESULT_SCHEMA` enum accepts FABRIK category
   - Prompt template includes section E) FABRIK CONVENTIONS with inline examples
 - **Documentation**: Updated `windsurf-triggered-workflows.md` with Fabrik-specific checks
+
+### Changed - Fabrik Workflow Documentation (2026-03-31)
+- **`docs/traycer/fabrik-workflow.md`**: Removed manual staging step from agent contract
+  - Deleted step 6 "Stage changes (git add -A)" from execute command
+  - Gate auto-stages on success, agents don't stage manually
+  - Simplified to 5-step contract (was 6 steps)
+
+### Changed - WSL Startup Hook Refinement (2026-03-31)
+- **`scripts/wsl_startup_hook.sh`**: Removed Cascade backup automation
+  - Removed `sync_cascade_backup.sh` from daily pipeline (cannot be automated)
+  - Cascade memories are stored in IDE internal storage, require manual export
+  - Kept `sync_extensions.sh` for Windsurf extensions documentation
+  - Pipeline: Kilo agent workflow → Extensions sync
+
+### Changed - Windsurf Extensions Documentation (2026-03-31)
+- **Renamed**: `docs/reference/EXTENSIONS.md` → `docs/reference/windsurf/actively-used-windsurf-extensions.md`
+  - More descriptive filename reflects active use tracking
+  - Moved to windsurf subfolder for organization
+- **`scripts/sync_extensions.sh`**: Updated to write to new location
+  - Target path: `docs/reference/windsurf/actively-used-windsurf-extensions.md`
+  - Runs daily via `wsl_startup_hook.sh`
+  - Auto-generates from `windsurf --list-extensions`
 
 ### Added - Windsurf Cascade Workflows (2026-03-31)
 - **Slash Command Workflows**: Created 5 workflow files in `.windsurf/workflows/`

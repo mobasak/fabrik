@@ -296,3 +296,180 @@ class TestTracerReportsScaffolding:
         assert "!traycer-reports/" in droid_gitignore
         assert "!traycer-reports/.gitignore" in droid_gitignore
         assert "traycer-reports/*.md" in droid_gitignore
+
+
+@requires_fabrik_env
+class TestChromeExtensionScaffold:
+    """Test chrome-extension scaffold generates dual-artifact structure."""
+
+    def test_creates_extension_directory_structure(self, tmp_path):
+        """Verify extension/ directory structure with manifest, webpack, stubs."""
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        # Verify extension/ structure
+        assert (project_dir / "extension" / "src").is_dir()
+        assert (project_dir / "extension" / "public").is_dir()
+        assert (project_dir / "extension" / "public" / "icons").is_dir()
+
+        # Verify core files
+        assert (project_dir / "extension" / "manifest.json").exists()
+        assert (project_dir / "extension" / "package.json").exists()
+        assert (project_dir / "extension" / "webpack.config.js").exists()
+
+        # Verify stubs
+        assert (project_dir / "extension" / "src" / "popup.ts").exists()
+        assert (project_dir / "extension" / "src" / "background.ts").exists()
+        assert (project_dir / "extension" / "src" / "content.ts").exists()
+        assert (project_dir / "extension" / "public" / "popup.html").exists()
+
+        # Verify manifest content
+        manifest = (project_dir / "extension" / "manifest.json").read_text()
+        assert '"name": "test-ext"' in manifest
+        assert '"description": "Test Extension"' in manifest
+
+    def test_creates_server_directory_structure(self, tmp_path):
+        """Verify server/ directory structure with FastAPI backend."""
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        # Verify server/ structure (package name: test_ext)
+        server_pkg = project_dir / "server" / "src" / "test_ext"
+        assert server_pkg.is_dir()
+        assert (server_pkg / "__init__.py").exists()
+        assert (server_pkg / "main.py").exists()
+
+        # Verify requirements.txt at root
+        assert (project_dir / "requirements.txt").exists()
+        reqs = (project_dir / "requirements.txt").read_text()
+        assert "fastapi" in reqs
+        assert "uvicorn" in reqs
+
+        # Verify main.py content
+        main_py = (server_pkg / "main.py").read_text()
+        assert "FastAPI" in main_py
+        assert "/health" in main_py
+        assert "CORSMiddleware" in main_py
+
+    def test_creates_docker_files(self, tmp_path):
+        """Verify Dockerfile and compose.yaml at project root."""
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        # Verify files exist
+        assert (project_dir / "Dockerfile").exists()
+        assert (project_dir / "compose.yaml").exists()
+
+        # Verify Dockerfile content
+        dockerfile = (project_dir / "Dockerfile").read_text()
+        assert "python:3.12-slim-bookworm" in dockerfile
+        assert "PYTHONPATH=/app/server/src" in dockerfile
+        assert "uvicorn test_ext.main:app" in dockerfile
+
+        # Verify compose.yaml content
+        compose = (project_dir / "compose.yaml").read_text()
+        assert "platform: linux/arm64" in compose
+        assert "coolify" in compose
+        assert "/health" in compose
+
+    def test_makefile_has_parallel_dev_target(self, tmp_path):
+        """Verify Makefile contains parallel dev target with trap."""
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        # Verify Makefile exists
+        assert (project_dir / "Makefile").exists()
+
+        # Verify content
+        makefile = (project_dir / "Makefile").read_text()
+        assert "dev:" in makefile
+        assert "trap 'kill 0' SIGINT" in makefile
+        assert "npm run dev" in makefile
+        assert "uvicorn" in makefile
+        assert "dev-server:" in makefile
+        assert "dev-ext:" in makefile
+        assert "build-ext:" in makefile
+        assert "docker-smoke:" in makefile
+
+    def test_gitignore_includes_extension_artifacts(self, tmp_path):
+        """Verify .gitignore includes extension build artifacts."""
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        gitignore = (project_dir / ".gitignore").read_text()
+        assert "extension/dist/" in gitignore
+        assert "extension/node_modules/" in gitignore
+
+    def test_project_yaml_type_is_chrome_extension(self, tmp_path):
+        """Verify project.yaml has correct type and port range."""
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        project_yaml = (project_dir / "project.yaml").read_text()
+        assert "type: chrome-extension" in project_yaml
+
+        # Verify port is in Python range (8000-8099)
+        import yaml
+        data = yaml.safe_load(project_yaml)
+        port = data["ports"][0]
+        assert 8000 <= port <= 8099
+
+    def test_droid_gitignore_block_present(self, tmp_path):
+        """Verify _DROID_GITIGNORE_BLOCK entries are in .gitignore."""
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        gitignore = (project_dir / ".gitignore").read_text()
+
+        # Verify required .droid/ entries
+        required_entries = [
+            ".droid/kilo_usage.jsonl",
+            ".droid/reviews/",
+            ".droid/docs_queue/",
+            ".droid/docs_log/",
+            ".droid/traycer-reports/*.md",
+        ]
+        for entry in required_entries:
+            assert entry in gitignore, f"{entry} missing in chrome-extension .gitignore"

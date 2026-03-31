@@ -118,7 +118,14 @@ TYPE_REQUIRED_FILES: dict[str, list[str]] = {
     "wordpress": _SHARED_REQUIRED_FILES
     + ["compose.yaml.j2", "compose-coolify.yaml.j2", ".env.example"],
     "docusaurus": _SHARED_REQUIRED_FILES + ["package.json", "docs/intro.md"],
-    "chrome-extension": _SHARED_REQUIRED_FILES + ["package.json", "src/background.ts"],
+    "chrome-extension": _SHARED_REQUIRED_FILES
+    + [
+        "extension/manifest.json",
+        "extension/package.json",
+        "Dockerfile",
+        "compose.yaml",
+        "Makefile",
+    ],
     "mobile-app": _SHARED_REQUIRED_FILES + ["package.json", "src/App.tsx"],
     "desktop-app": _SHARED_REQUIRED_FILES + ["package.json", "src/main.ts"],
 }
@@ -1140,19 +1147,449 @@ R2_BUCKET=fabrik-backups
         "yarn-debug.log*\n"
         "\n"
         "# Build & Test (theme/plugin development)\n"
-        "coverage/\n"
         "dist/\n"
         "build/\n"
+        "coverage/\n"
     )
+
+
+def _scaffold_chrome_extension(
+    project_dir: Path, name: str, description: str, **kwargs: object
+) -> None:
+    """Create Chrome Extension with TypeScript extension + FastAPI server."""
+    import json
+
+    package_name = _get_package_name(name)
+
+    # Create directory structure
+    (project_dir / "extension" / "src").mkdir(parents=True, exist_ok=True)
+    (project_dir / "extension" / "public" / "icons").mkdir(parents=True, exist_ok=True)
+    (project_dir / "server" / "src" / package_name).mkdir(parents=True, exist_ok=True)
+
+    # 1. Extension files
+    # manifest.json - render from template
+    manifest_template = FABRIK_ROOT / "templates" / "chrome-extension" / "manifest.json.j2"
+    if manifest_template.exists():
+        content = manifest_template.read_text()
+        content = content.replace("{{ spec.id }}", name)
+        content = content.replace(
+            "{{ spec.description | default('Chrome extension') }}", description
+        )
+        (project_dir / "extension" / "manifest.json").write_text(content)
+
+    # popup.html
+    (project_dir / "extension" / "public" / "popup.html").write_text(
+        f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{name}</title>
+  <style>
+    body {{ width: 300px; padding: 20px; font-family: system-ui; }}
+    h1 {{ font-size: 16px; margin: 0 0 10px 0; }}
+  </style>
+</head>
+<body>
+  <h1>{name}</h1>
+  <div id="app"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
+"""
+    )
+
+    # popup.ts
+    (project_dir / "extension" / "src" / "popup.ts").write_text(
+        """document.addEventListener('DOMContentLoaded', () => {
+  const app = document.getElementById('app');
+  if (app) {
+    app.textContent = 'Extension loaded!';
+  }
+});
+"""
+    )
+
+    # background.ts
+    (project_dir / "extension" / "src" / "background.ts").write_text(
+        """chrome.runtime.onInstalled.addListener(() => {
+  console.log('Extension installed');
+});
+"""
+    )
+
+    # content.ts
+    (project_dir / "extension" / "src" / "content.ts").write_text(
+        """console.log('Content script loaded');
+"""
+    )
+
+    # icons/.gitkeep and README
+    icons_dir = project_dir / "extension" / "public" / "icons"
+    (icons_dir / ".gitkeep").write_text("")
+    (icons_dir / "README.md").write_text(
+        """# Extension Icons
+
+**Required:** Generate 3 icon sizes before loading extension in Chrome.
+
+## Required Files
+- `icon16.png` (16×16) - Toolbar icon
+- `icon48.png` (48×48) - Extension management page
+- `icon128.png` (128×128) - Chrome Web Store, installation dialog
+
+## Quick Generation Options
+
+**Option 1 - ImageMagick** (if installed):
+```bash
+# Create placeholder colored squares
+convert -size 16x16 xc:#4285f4 icon16.png
+convert -size 48x48 xc:#4285f4 icon48.png
+convert -size 128x128 xc:#4285f4 icon128.png
+```
+
+**Option 2 - Online Tool:**
+- Generate a single 128×128 PNG at https://www.favicon-generator.org/
+- Tool will auto-generate all 3 sizes
+- Download and place here
+
+**Option 3 - Design Tool:**
+- Use Figma/Canva/Photoshop to create custom icons
+- Export as PNG at each required size
+
+Extension will fail to load without these files.
+"""
+    )
+
+    # webpack.config.js
+    (project_dir / "extension" / "webpack.config.js").write_text(
+        """const path = require('path');
+const CopyPlugin = require('copy-webpack-plugin');
+
+module.exports = {
+  mode: process.env.NODE_ENV || 'development',
+  entry: {
+    popup: './src/popup.ts',
+    background: './src/background.ts',
+    content: './src/content.ts',
+  },
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: '[name].js',
+    clean: true,
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+  },
+  module: {
+    rules: [
+      {
+        test: /\\.ts$/,
+        use: 'ts-loader',
+        exclude: /node_modules/,
+      },
+    ],
+  },
+  plugins: [
+    new CopyPlugin({
+      patterns: [
+        { from: 'manifest.json', to: 'manifest.json' },
+        { from: 'public', to: '.' },
+      ],
+    }),
+  ],
+};
+"""
+    )
+
+    # extension/package.json
+    ext_package = {
+        "name": f"{name}-extension",
+        "version": "1.0.0",
+        "description": f"{description} - Browser Extension",
+        "scripts": {
+            "build": "webpack --mode production",
+            "dev": "webpack --mode development --watch",
+        },
+        "devDependencies": {
+            "@types/chrome": "^0.0.254",
+            "copy-webpack-plugin": "^11.0.0",
+            "ts-loader": "^9.5.1",
+            "typescript": "^5.3.3",
+            "webpack": "^5.89.0",
+            "webpack-cli": "^5.1.4",
+        },
+    }
+    (project_dir / "extension" / "package.json").write_text(
+        json.dumps(ext_package, indent=2) + "\n"
+    )
+
+    # 2. Server files (FastAPI)
+    # server/src/<package_name>/__init__.py
+    (project_dir / "server" / "src" / package_name / "__init__.py").write_text("")
+
+    # server/src/<package_name>/main.py
+    (project_dir / "server" / "src" / package_name / "main.py").write_text(
+        f'''"""Main entry point for {name} server."""
+import os
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):  # noqa: ARG001
+    """Application lifespan handler."""
+    # Startup: initialize resources here
+    yield
+    # Shutdown: cleanup resources here
+
+
+app = FastAPI(title="{name}", lifespan=lifespan)
+
+# CORS for extension
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+async def health():
+    """Health check - tests actual dependencies, returns non-200 on failure."""
+    return JSONResponse(
+        content={{
+            "service": "{name}",
+            "status": "ok",
+        }},
+        status_code=200,
+    )
+
+
+@app.get("/")
+async def root():
+    return {{"message": "Welcome to {name} API"}}
+'''
+    )
+
+    # requirements.txt (at root, for server)
+    (project_dir / "requirements.txt").write_text(
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\n"
+    )
+
+    # tests/test_health.py
+    (project_dir / "tests" / "__init__.py").write_text("")
+    (project_dir / "tests" / "test_health.py").write_text(
+        f'''"""Health endpoint tests."""
+from fastapi.testclient import TestClient
+from {package_name}.main import app
+
+client = TestClient(app)
+
+
+def test_health_returns_200():
+    """Health returns 200."""
+    response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["service"] == "{name}"
+    assert data["status"] == "ok"
+
+
+def test_root_endpoint():
+    """Root endpoint returns welcome message."""
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "message" in response.json()
+'''
+    )
+
+    # 3. Docker files
+    # Dockerfile (Python server only)
+    (project_dir / "Dockerfile").write_text(
+        f"""FROM python:3.12-slim-bookworm AS builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+FROM python:3.12-slim-bookworm
+WORKDIR /app
+
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONPATH=/app/server/src
+ENV PORT=8000
+
+EXPOSE ${{PORT}}
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \\
+  CMD curl -f http://localhost:${{PORT}}/health || exit 1
+
+# Copy Python packages and binaries from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY requirements.txt .
+COPY server/ ./server/
+
+CMD ["sh", "-c", "uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:-8000}}"]
+"""
+    )
+
+    # compose.yaml
+    (project_dir / "compose.yaml").write_text(
+        f"""services:
+  {name}:
+    build: .
+    container_name: {name}
+    platform: linux/arm64  # MANDATORY - VPS is ARM64
+    restart: unless-stopped
+    ports:
+      - "${{PORT:-8000}}:${{PORT:-8000}}"
+    environment:
+      - PORT=${{PORT:-8000}}
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${{PORT:-8000}}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  coolify:
+    external: true  # Join existing Coolify mesh
+"""
+    )
+
+    # 4. Makefile
+    (project_dir / "Makefile").write_text(
+        f""".PHONY: dev dev-server dev-ext build-ext install test docker-build docker-smoke clean
+
+PROJECT_NAME := {name}
+PORT := 8000
+
+# Parallel dev: extension webpack watch + server uvicorn reload
+dev:
+\t@trap 'kill 0' SIGINT; \\
+\tcd extension && npm run dev & \\
+\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src & \\
+\twait
+
+# Server only (FastAPI with reload)
+dev-server:
+\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src
+
+# Extension only (webpack watch)
+dev-ext:
+\tcd extension && npm run dev
+
+# Production extension build
+build-ext:
+\tcd extension && npm run build
+
+# Install all dependencies
+install:
+\tpython -m venv .venv
+\t.venv/bin/pip install -r requirements.txt
+\tcd extension && npm install
+
+# Run tests
+test:
+\t.venv/bin/pytest -v
+
+# Docker build
+docker-build:
+\tdocker build -t $(PROJECT_NAME) .
+
+# Docker smoke test
+docker-smoke: docker-build
+\t@echo "Starting container..."
+\t@docker run -d --name $(PROJECT_NAME)-test -p $(PORT):$(PORT) -e PORT=$(PORT) $(PROJECT_NAME)
+\t@echo "Waiting for health check..."
+\t@sleep 5
+\t@curl -f http://localhost:$(PORT)/health || (docker logs $(PROJECT_NAME)-test && exit 1)
+\t@echo "✅ Health check passed"
+\t@docker stop $(PROJECT_NAME)-test
+\t@docker rm $(PROJECT_NAME)-test
+\t@echo "✅ Smoke test completed"
+
+# Clean build artifacts
+clean:
+\trm -rf extension/dist extension/node_modules
+\tfind . -type d -name "__pycache__" -exec rm -rf {{}} +
+\tdocker rmi $(PROJECT_NAME) 2>/dev/null || true
+"""
+    )
+
+    # 5. .env.example
+    (project_dir / ".env.example").write_text(
+        f"""# {name} Configuration
+PORT=8000
+NODE_ENV=development
+"""
+    )
+
+    # 6. .gitignore
+    (project_dir / ".gitignore").write_text(
+        "# Extension build\n"
+        "extension/dist/\n"
+        "extension/node_modules/\n"
+        "\n"
+        "# Python\n"
+        "__pycache__/\n"
+        "*.py[cod]\n"
+        ".venv/\n"
+        "venv/\n"
+        "*.egg-info/\n"
+        ".pytest_cache/\n"
+        "\n"
+        "# Environment\n"
+        ".env\n"
+        "\n"
+        "# Project\n"
+        "logs/\n"
+        "data/\n"
+        ".tmp/\n"
+        ".cache/\n"
+        "output/\n"
+        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*~\n"
+    )
+
+    # 7. Create Python virtual environment and install dependencies
+    venv_path = project_dir / ".venv"
+    subprocess.run(["python", "-m", "venv", ".venv"], cwd=project_dir, capture_output=True)
+
+    venv_pip = (
+        venv_path / "bin" / "pip"
+        if (venv_path / "bin").exists()
+        else venv_path / "Scripts" / "pip.exe"
+    )
+    result = subprocess.run(
+        [str(venv_pip), "install", "-r", "requirements.txt"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Warning: Failed to install dependencies: {result.stderr}")
 
 
 def _scaffold_generic_ts(
     project_dir: Path, name: str, description: str, type_name: str, **kwargs: object
 ) -> None:
-    """Create generic TypeScript/Node project structure for docusaurus, chrome-extension, mobile-app, desktop-app."""
+    """Create generic TypeScript-based project structure (docusaurus, mobile, desktop)."""
     import json
 
-    # Type-specific configurations
     # has_docker: only set True when the type has a runnable Node entrypoint
     #   that the Dockerfile.node template can target directly (src/index.js).
     #   - docusaurus: serves via `docusaurus start`; no src/index.js entrypoint.
@@ -1325,9 +1762,7 @@ _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "file-worker": _scaffold_file_worker,
     "wordpress": _scaffold_wordpress,
     "docusaurus": lambda pd, n, d, **kw: _scaffold_generic_ts(pd, n, d, "docusaurus", **kw),
-    "chrome-extension": lambda pd, n, d, **kw: _scaffold_generic_ts(
-        pd, n, d, "chrome-extension", **kw
-    ),
+    "chrome-extension": _scaffold_chrome_extension,
     "mobile-app": lambda pd, n, d, **kw: _scaffold_generic_ts(pd, n, d, "mobile-app", **kw),
     "desktop-app": lambda pd, n, d, **kw: _scaffold_generic_ts(pd, n, d, "desktop-app", **kw),
 }
