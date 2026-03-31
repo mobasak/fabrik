@@ -81,6 +81,10 @@ All notable changes to this project will be documented in this file.
   - All workflow files sync to every `/opt` project
   - Accessible via `/` command in Windsurf Cascade chat
 - **Turbo Annotations**: Auto-run capability for safe read-only commands
+- **Documentation**: Created `docs/workflows/windsurf-triggered-workflows.md`
+  - Comprehensive guide covering all 10 Windsurf workflows
+  - Includes process workflows, cloud agents, and local LLM workflows
+  - Usage examples, hardware specs, and comparison tables
 
 ### Added - Windsurf Cascade Wrapper Scripts (2026-03-31)
 - **Hardware-Safe Local LLM Wrappers**: Created 5 wrapper scripts for Cascade workflows
