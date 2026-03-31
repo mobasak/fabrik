@@ -70,6 +70,18 @@ All notable changes to this project will be documented in this file.
 ### Added — Assignment Computation Script (2026-03-30)
 - **`scripts/kilo-benchmarks/compute_assignments.py`**: Added script to compute model assignments dynamically based on benchmark scores, JSON output.
 
+### Added - Windsurf Cascade Workflows (2026-03-31)
+- **Slash Command Workflows**: Created 5 workflow files in `.windsurf/workflows/`
+  - `/local-coder` - Implement features (Local_Coder_qwen32b.sh)
+  - `/local-review` - Interactive code review (Local_Review_llama70b.sh)
+  - `/local-fixer` - Fast bug fixes (Local_Fixer_ds16b.sh)
+  - `/local-docs` - Instant documentation (Local_Documentator_llama3.1-8b.sh)
+  - `/kilo-review` - Automated review loop (Kilo_Review.sh)
+- **Auto-Sync Workflows**: Added `.windsurf/workflows/` to GOVERNANCE_DIRS
+  - All workflow files sync to every `/opt` project
+  - Accessible via `/` command in Windsurf Cascade chat
+- **Turbo Annotations**: Auto-run capability for safe read-only commands
+
 ### Added - Windsurf Cascade Wrapper Scripts (2026-03-31)
 - **Hardware-Safe Local LLM Wrappers**: Created 5 wrapper scripts for Cascade workflows
   - `scripts/Local_Coder_qwen32b.sh` - Coding agent (qwen32b, 32B, hybrid-cpu)

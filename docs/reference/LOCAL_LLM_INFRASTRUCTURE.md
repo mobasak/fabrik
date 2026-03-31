@@ -654,9 +654,28 @@ To configure Windsurf IDE to use your local Fabrik agents:
    - Bug fixes: `fabrik-fixer-deepseek-v2-16b`
    - Documentation: `fabrik-docs-llama3.1-8b`
 
-#### Cascade Wrapper Scripts (Recommended)
+#### Windsurf Cascade Slash Commands
 
-For seamless integration with Windsurf Cascade workflows, use the hardware-safe wrapper scripts in `/opt/fabrik/scripts/`:
+In Windsurf Cascade chat, press `/` to see available workflows:
+
+| Command | Description | Speed |
+|---------|-------------|-------|
+| `/local-coder` | Implement features with qwen32b | ~15-25 tok/s |
+| `/local-review` | Deep code review with llama70b | ~8-12 tok/s |
+| `/local-fixer` | Fast bug fixes with deepseek16b | ~40-60 tok/s |
+| `/local-docs` | Instant documentation with llama8b | ~80-100 tok/s |
+| `/kilo-review` | Automated review → fix → re-review loop | Variable |
+
+**Usage:**
+1. Type `/` in Cascade chat
+2. Select workflow from menu
+3. Cascade executes the script automatically
+
+All workflows use hardware-safe local LLMs with zero API cost.
+
+#### Cascade Wrapper Scripts (Direct Invocation)
+
+For command-line or programmatic use, call the wrapper scripts directly:
 
 **Available Wrappers:**
 ```bash

@@ -8,10 +8,10 @@ Syncs:
 - Enforcement directory: scripts/enforcement/*.py
 - Governance files (5): AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules,
   .pre-commit-config.yaml
-- Governance directories: .windsurf/rules/
+- Governance directories: .windsurf/rules/, .windsurf/workflows/
 - Reference docs: cascade-models.md
 
-Total per project: ~75 files (6 core + 5 cascade wrappers + ~30 enforcement + 5 governance + rules + docs)
+Total per project: ~85 files (6 core + 5 cascade wrappers + ~30 enforcement + 5 governance + rules + workflows + docs)
 
 Supports:
 - --dry-run: Report what would be copied without writing anything
@@ -61,7 +61,7 @@ GOVERNANCE_FILES = [
     ".windsurfrules",
     ".pre-commit-config.yaml",
 ]
-GOVERNANCE_DIRS = [".windsurf/rules"]
+GOVERNANCE_DIRS = [".windsurf/rules", ".windsurf/workflows"]
 
 # Reference docs to sync to all projects
 REFERENCE_DOCS = [
