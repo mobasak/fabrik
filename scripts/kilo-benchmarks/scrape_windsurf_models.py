@@ -501,13 +501,16 @@ def update_cascade_models_md(
                 elo_str = str(elo) if elo else "—"
                 tbench_str = f"{tbench:.1f}%" if tbench else "—"
 
+                # Format credits: show em-dash for unavailable (-1.0), numeric otherwise
+                credits_display = "—" if model.credits_numeric == -1.0 else f"{model.credits_numeric:.1f}".rstrip('0').rstrip('.')
+
                 # Add notes for promo pricing
                 notes = ""
                 if "Promo" in model.credits:
                     notes = "Promo pricing"
 
                 lines.append(
-                    f"| {model.name} | {model.credits_numeric} | {elo_str} | {tbench_str} | {notes} |"
+                    f"| {model.name} | {credits_display} | {elo_str} | {tbench_str} | {notes} |"
                 )
             else:
                 lines.append(f"| {model.name} | {model.credits} |")

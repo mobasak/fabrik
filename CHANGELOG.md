@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Cascade Models Credit Display (2026-03-31)
+- **BUG**: `docs/reference/windsurf/cascade-models.md` showed negative credits (-1.0) for unavailable models
+  - Root cause: `scrape_windsurf_models.py` output `credits_numeric` (-1.0) directly instead of em-dash
+  - Affected models: Claude 4 Opus, Claude 4 Opus (Thinking), GPT-5.3-Codex-Spark
+  - Fixed: Display "—" (em-dash) when `credits_numeric == -1.0`, numeric value otherwise
+  - Regenerated cascade-models.md with 117 models across 7 providers
+
 ### Added — Chrome Extension Scaffold Restructuring (2026-03-31)
 - **`src/fabrik/scaffold.py`**: Implemented `_scaffold_chrome_extension()` function for dual-artifact structure
   - Extension side: `extension/src/` (TypeScript stubs), `extension/public/` (popup.html, icons), `manifest.json`, `webpack.config.js`, `package.json`
