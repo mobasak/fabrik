@@ -3,8 +3,8 @@
 
 Syncs:
 - Core scripts (6 files): final_gate.py, kilo_code_review.py, etc.
-- Cascade wrappers (5 files): fabrik-coder.sh, fabrik-reviewer.sh, fabrik-fixer.sh,
-  fabrik-docs.sh, fabrik-review.sh
+- Cascade wrappers (5 files): Local_Coder_qwen32b.sh, Local_Review_llama70b.sh,
+  Local_Fixer_ds16b.sh, Local_Documentator_llama3.1-8b.sh, Kilo_Review.sh
 - Enforcement directory: scripts/enforcement/*.py
 - Governance files (5): AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules,
   .pre-commit-config.yaml
@@ -46,11 +46,11 @@ CORE_SCRIPTS = [
 
 # Cascade wrapper scripts for local LLM agents (hardware-safe)
 CASCADE_WRAPPERS = [
-    "fabrik-coder.sh",
-    "fabrik-reviewer.sh",
-    "fabrik-fixer.sh",
-    "fabrik-docs.sh",
-    "fabrik-review.sh",
+    "Local_Coder_qwen32b.sh",
+    "Local_Review_llama70b.sh",
+    "Local_Fixer_ds16b.sh",
+    "Local_Documentator_llama3.1-8b.sh",
+    "Kilo_Review.sh",
 ]
 
 # Governance files to sync (validated by final_gate.py check_symlinks())

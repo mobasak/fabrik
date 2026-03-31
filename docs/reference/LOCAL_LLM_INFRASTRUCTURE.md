@@ -660,21 +660,21 @@ For seamless integration with Windsurf Cascade workflows, use the hardware-safe 
 
 **Available Wrappers:**
 ```bash
-# Coding - fabrik-coder-qwen32b (32B, hybrid-cpu, ~15-25 tok/s)
-/opt/fabrik/scripts/fabrik-coder.sh "implement feature X"
+# Local_Coder_qwen32b - Coding (32B, hybrid-cpu, ~15-25 tok/s)
+/opt/fabrik/scripts/Local_Coder_qwen32b.sh "implement feature X"
 
-# Code Review (Interactive) - fabrik-reviewer-llama70b (70B, CPU, ~8-12 tok/s)
-/opt/fabrik/scripts/fabrik-reviewer.sh "review these changes"
+# Local_Review_llama70b - Interactive code review (70B, CPU, ~8-12 tok/s)
+/opt/fabrik/scripts/Local_Review_llama70b.sh "review these changes"
 
-# Code Review (Automated) - Uses kilo_code_review.py with local agents
-/opt/fabrik/scripts/fabrik-review.sh staged           # Review staged files
-/opt/fabrik/scripts/fabrik-review.sh auto-fix src/    # Review + auto-fix loop
+# Local_Fixer_ds16b - Bug fixing (16B, hybrid-gpu, ~40-60 tok/s)
+/opt/fabrik/scripts/Local_Fixer_ds16b.sh "fix this error"
 
-# Bug Fixing - fabrik-fixer-ds16b (16B, hybrid-gpu, ~40-60 tok/s)
-/opt/fabrik/scripts/fabrik-fixer.sh "fix this error"
+# Local_Documentator_llama3.1-8b - Documentation (8B, GPU, ~80-100 tok/s)
+/opt/fabrik/scripts/Local_Documentator_llama3.1-8b.sh "update README"
 
-# Documentation - fabrik-docs-llama8b (8B, GPU, ~80-100 tok/s)
-/opt/fabrik/scripts/fabrik-docs.sh "update README"
+# Kilo_Review - Automated code review workflow
+/opt/fabrik/scripts/Kilo_Review.sh staged           # Review staged files
+/opt/fabrik/scripts/Kilo_Review.sh auto-fix src/    # Review + auto-fix loop
 ```
 
 **Hardware Safety Features:**
@@ -686,10 +686,10 @@ For seamless integration with Windsurf Cascade workflows, use the hardware-safe 
 **Usage in Cascade Workflows:**
 ```bash
 # Example: Piping Cascade context to local agent
-echo "Fix the authentication bug in src/api/auth.py" | /opt/fabrik/scripts/fabrik-fixer.sh
+echo "Fix the authentication bug in src/api/auth.py" | /opt/fabrik/scripts/Local_Fixer_ds16b.sh
 
 # Example: Direct invocation
-/opt/fabrik/scripts/fabrik-docs.sh "Generate CHANGELOG entry for today's changes"
+/opt/fabrik/scripts/Local_Documentator_llama3.1-8b.sh "Generate CHANGELOG entry for today's changes"
 ```
 
 **Implementation Details:**

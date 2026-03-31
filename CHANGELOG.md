@@ -72,19 +72,19 @@ All notable changes to this project will be documented in this file.
 
 ### Added - Windsurf Cascade Wrapper Scripts (2026-03-31)
 - **Hardware-Safe Local LLM Wrappers**: Created 5 wrapper scripts for Cascade workflows
-  - `scripts/fabrik-coder.sh` - Coding agent (qwen32b, 32B, hybrid-cpu)
-  - `scripts/fabrik-reviewer.sh` - Interactive review agent (llama70b, 70B, CPU)
-  - `scripts/fabrik-fixer.sh` - Fixing agent (deepseek16b, 16B, hybrid-gpu)
-  - `scripts/fabrik-docs.sh` - Documentation agent (llama8b, 8B, GPU, fast-path)
-  - `scripts/fabrik-review.sh` - Automated code review workflow (uses kilo_code_review.py)
+  - `scripts/Local_Coder_qwen32b.sh` - Coding agent (qwen32b, 32B, hybrid-cpu)
+  - `scripts/Local_Review_llama70b.sh` - Interactive review agent (llama70b, 70B, CPU)
+  - `scripts/Local_Fixer_ds16b.sh` - Fixing agent (deepseek16b, 16B, hybrid-gpu)
+  - `scripts/Local_Documentator_llama3.1-8b.sh` - Documentation agent (llama8b, 8B, GPU, fast-path)
+  - `scripts/Kilo_Review.sh` - Automated code review workflow (uses kilo_code_review.py)
 - **Reuses CLI Agent Logic**: Wrappers call `~/.traycer/cli-agents/` scripts
   - Inherits Global Sequential Guard (prevents concurrent model loading)
   - Inherits VRAM monitoring and GPU idle detection
   - Inherits fast-path optimization for documentation agent
   - Automatic hardware-aware timeouts (70B/32B=600s, 8B/16B=300s)
 - **Simple Interface**: Supports both argument and stdin input
-  - `fabrik-docs.sh "prompt"` or `echo "prompt" | fabrik-docs.sh`
-  - `fabrik-review.sh staged` or `fabrik-review.sh auto-fix src/`
+  - `Local_Documentator_llama3.1-8b.sh "prompt"` or `echo "prompt" | Local_Documentator_llama3.1-8b.sh`
+  - `Kilo_Review.sh staged` or `Kilo_Review.sh auto-fix src/`
 - **Auto-Sync to All Projects**: Added CASCADE_WRAPPERS to sync mechanism
   - All 5 wrapper scripts sync to every `/opt` project automatically
   - New projects created via scaffold get wrappers immediately
