@@ -663,8 +663,12 @@ For seamless integration with Windsurf Cascade workflows, use the hardware-safe 
 # Coding - fabrik-coder-qwen32b (32B, hybrid-cpu, ~15-25 tok/s)
 /opt/fabrik/scripts/fabrik-coder.sh "implement feature X"
 
-# Code Review - fabrik-reviewer-llama70b (70B, CPU, ~8-12 tok/s)
+# Code Review (Interactive) - fabrik-reviewer-llama70b (70B, CPU, ~8-12 tok/s)
 /opt/fabrik/scripts/fabrik-reviewer.sh "review these changes"
+
+# Code Review (Automated) - Uses kilo_code_review.py with local agents
+/opt/fabrik/scripts/fabrik-review.sh staged           # Review staged files
+/opt/fabrik/scripts/fabrik-review.sh auto-fix src/    # Review + auto-fix loop
 
 # Bug Fixing - fabrik-fixer-ds16b (16B, hybrid-gpu, ~40-60 tok/s)
 /opt/fabrik/scripts/fabrik-fixer.sh "fix this error"

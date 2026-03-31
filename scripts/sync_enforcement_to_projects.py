@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Sync enforcement scripts to all /opt projects for Fabrik compliance.
 
-Syncs to all /opt projects:
-- Core scripts (6): final_gate.py, kilo_code_review.py, kilo_docs_enforcer.py,
-  docs_updater.py, update_agents_toc.py, health_checker.py
-- Enforcement directory (scripts/enforcement/*)
+Syncs:
+- Core scripts (6 files): final_gate.py, kilo_code_review.py, etc.
+- Cascade wrappers (5 files): fabrik-coder.sh, fabrik-reviewer.sh, fabrik-fixer.sh,
+  fabrik-docs.sh, fabrik-review.sh
+- Enforcement directory: scripts/enforcement/*.py
 - Governance files (5): AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules,
   .pre-commit-config.yaml
 - Governance directories: .windsurf/rules/
-- Reference docs: docs/reference/windsurf/cascade-models.md
+- Reference docs: cascade-models.md
+
+Total per project: ~75 files (6 core + 5 cascade wrappers + ~30 enforcement + 5 governance + rules + docs)
 
 Supports:
 - --dry-run: Report what would be copied without writing anything
@@ -16,7 +19,6 @@ Supports:
 - --force: Skip hash comparison and always overwrite
 
 Workflow Doc: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md
-  ⚠️  Update the workflow doc when modifying this script.
 """
 
 from __future__ import annotations
@@ -40,6 +42,15 @@ CORE_SCRIPTS = [
     "docs_updater.py",
     "update_agents_toc.py",
     "health_checker.py",
+]
+
+# Cascade wrapper scripts for local LLM agents (hardware-safe)
+CASCADE_WRAPPERS = [
+    "fabrik-coder.sh",
+    "fabrik-reviewer.sh",
+    "fabrik-fixer.sh",
+    "fabrik-docs.sh",
+    "fabrik-review.sh",
 ]
 
 # Governance files to sync (validated by final_gate.py check_symlinks())
@@ -202,6 +213,16 @@ def sync_scripts_to_project(
     try:
         # Sync core scripts
         for script_name in CORE_SCRIPTS:
+            source = FABRIK_ROOT / "scripts" / script_name
+            if source.exists():
+                destination = scripts_dir / script_name
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
+
+        # Sync Cascade wrapper scripts (hardware-safe local LLM agents)
+        for script_name in CASCADE_WRAPPERS:
             source = FABRIK_ROOT / "scripts" / script_name
             if source.exists():
                 destination = scripts_dir / script_name
