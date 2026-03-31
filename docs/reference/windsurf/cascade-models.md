@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-03-31
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -177,7 +177,7 @@
 | Minimax M2.1 | 0.5 | 1430 | 36.6% |  |
 | Kimi K2 | 0.5 | 1402 | — |  |
 | Kimi K2.5 | 1.0 | — | 43.2% |  |
-| Minimax M2.5 | 1.0 | 1436 | 42.2% |  |
+| Minimax M2.5 | 1.0 | 1436 | 42.7% |  |
 | GLM-5 | 1.5 | — | 52.4% |  |
 
 ---

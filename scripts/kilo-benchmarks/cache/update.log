@@ -1055,3 +1055,178 @@ Assigned by: kilo/openai/gpt-5.4
 
 ✅ Generated 9 agent scripts
    📁 Output: /home/ozgur/.traycer/cli-agents
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 330 models
+[kilo-db]   Inserted 4, updated 326 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 253 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 117 Terminal Bench entries
+[kilo-db]   Updated 98 Elo, 37 TBench scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Created snapshot for 2026-03-31 with 338 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-03-31T12:40:37.529422
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 253 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 117 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Scraping provider: Recommended
+[windsurf-scrape]     Clicked Recommended tab
+[windsurf-scrape]     Found 9 models: SWE-1.5, Claude Opus 4.6, Claude Sonnet 4.6
+[windsurf-scrape]   Scraping provider: Windsurf
+[windsurf-scrape]     Clicked Windsurf tab
+[windsurf-scrape]     Found 2 models: SWE-1.5, SWE-1.5 Fast
+[windsurf-scrape]   Scraping provider: Anthropic
+[windsurf-scrape]     Clicked Anthropic tab
+[windsurf-scrape]     Found 25 models: Claude Opus 4.6, Claude Opus 4.6 (Thinking), Claude Opus 4.6 1M
+[windsurf-scrape]   Scraping provider: OpenAI
+[windsurf-scrape]     Clicked OpenAI tab
+[windsurf-scrape]     Found 65 models: GPT-5.4 (No Reasoning), GPT-5.4 (Low Reasoning), GPT-5.4 (Medium Reasoning)
+[windsurf-scrape]   Scraping provider: Google
+[windsurf-scrape]     Clicked Google tab
+[windsurf-scrape]     Found 9 models: Gemini 3.1 Pro Low, Gemini 3.1 Pro High, Gemini 3 Pro Low
+[windsurf-scrape]   Scraping provider: xAI
+[windsurf-scrape]     Clicked xAI tab
+[windsurf-scrape]     Found 1 models: xAI Grok Code Fast
+[windsurf-scrape]   Scraping provider: Open Source
+[windsurf-scrape]     Clicked Open Source tab
+[windsurf-scrape]     Found 6 models: Minimax M2.1, Kimi K2, Kimi K2.5
+[windsurf-scrape]   Extracted 117 models from 7 providers
+[kilo-bench]   Arena: 253 entries
+[kilo-bench]   TBench: 117 entries
+[kilo-bench]   Windsurf: 117 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
+[kilo-bench] Windsurf models updated!
+[kilo-bench] Update complete!
+[role-mapper] Starting role mapper (2026-03-31T12:41:01.693560)
+[role-mapper] Found 81 candidate agents
+[role-mapper] Analyzing 81 candidate agents...
+[role-mapper] Trying model: kilo/google/gemini-3.1-pro-preview (variant: max)
+[role-mapper]   FAILED: Timeout after 300s with kilo/google/gemini-3.1-pro-preview
+[role-mapper] Trying model: kilo/openai/gpt-5.4 (variant: max)
+[role-mapper] Received 6573 chars from Kilo
+[role-mapper] Cost: $0.0864 (26649 in, 1318 out)
+[role-mapper] SUCCESS with kilo/openai/gpt-5.4
+[role-mapper] AI returned 23 assignments (via kilo/openai/gpt-5.4)
+[role-mapper] Archived 25 previous assignments to history
+[role-mapper] Applied 23 assignments, skipped 0, archived 25
+
+================================================================================
+AGENT ROLE ASSIGNMENTS
+================================================================================
+
+[CODING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=81.8% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest eligible tbench_accuracy with strong arena_elo, tools, and agentic capability; top choice for hardest implementation work.
+  #2 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Tied for highest tbench_accuracy among eligible models and strong overall coding capability with full agent tooling.
+  #3 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Very high tbench_accuracy and elite arena_elo with better efficiency than the top two, making it the best balanced coding option.
+  #4 OpenAI: GPT-5.3-Codex [vision]
+      elo=n/a | tbench=78.4% | $1.75/$14.0 per 1M | perf/$=n/a
+      → Strong tbench_accuracy above the hard 70 threshold and purpose-built coding profile; ranked lower due to missing arena_elo and perf_per_dollar data.
+
+[DOCUMENTATION]
+  #1 Google: Gemini 3.1 Flash Lite Preview [vision]
+      elo=1421 | tbench=n/a | $0.25/$1.5 per 1M | perf/$=1197
+      → Best documentation pick by perf_per_dollar among models meeting the elo floor, plus huge context for long docs at very low cost.
+  #2 Google: Gemini 2.5 Flash Lite [vision]
+      elo=1362 | tbench=n/a | $0.09999999999999999/$0.39999999999999997 per 1M | perf/$=4191
+      → Extremely cost-efficient with adequate elo and very large context window, ideal for frequent documentation generation.
+  #3 NVIDIA: Llama 3.3 Nemotron Super 49B V1.5
+      elo=1359 | tbench=n/a | $0.09999999999999999/$0.39999999999999997 per 1M | perf/$=4182
+      → Very high perf_per_dollar above the elo floor, making it a strong low-cost documentation worker.
+  #4 xAI: Grok 4 Fast [vision]
+      elo=1441 | tbench=n/a | $0.19999999999999998/$0.5 per 1M | perf/$=3391
+      → Strong perf_per_dollar, excellent 2000k context window, and solid elo make it well suited for long-form docs and README work.
+  #5 Qwen: QwQ 32B
+      elo=1351 | tbench=n/a | $0.15/$0.58 per 1M | perf/$=2859
+      → Cheapest adequate high-elo documentation option among remaining candidates, with strong value and acceptable quality floor.
+
+[FIXING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=81.8% | $5.0/$25.0 per 1M | perf/$=77
+      → Best combined tbench_accuracy and arena_elo among eligible tool-using agentic models; strongest choice for difficult debugging and refactoring.
+  #2 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Top-tier tbench_accuracy with strong arena_elo and full agent/tool support, making it highly reliable for issue fixing.
+  #3 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Excellent combined debugging profile with high tbench_accuracy, elite arena_elo, and better value than the top two.
+  #4 OpenAI: GPT-5.3-Codex [vision]
+      elo=n/a | tbench=78.4% | $1.75/$14.0 per 1M | perf/$=n/a
+      → Strong tbench_accuracy above the mandatory threshold and agentic tool use support; placed below others because arena_elo is unavailable.
+
+[REVIEWING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=81.8% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest arena_elo overall among reasoning-capable active models, with vision and agentic support ideal for deep code review and security analysis.
+  #2 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Second-highest arena_elo with vision and reasoning, making it a top-tier reviewer when cost is secondary.
+  #3 Google: Gemini 3 Pro Preview [vision]
+      elo=1501 | tbench=69.4% | $2.0/$12.0 per 1M | perf/$=158
+      → Very strong arena_elo with vision and reasoning; excellent reviewer despite lower coding benchmark.
+  #4 Anthropic: Claude Sonnet 4.6 [vision]
+      elo=1500 | tbench=n/a | $3.0/$15.0 per 1M | perf/$=125
+      → High arena_elo plus vision and reasoning make it a strong code review model even without published tbench accuracy.
+  #5 Anthropic: Claude Opus 4.5 [vision]
+      elo=1496 | tbench=63.1% | $5.0/$25.0 per 1M | perf/$=75
+      → Still within the top review tier by arena_elo, with vision and reasoning suited for bug finding and security-oriented review.
+
+[TESTING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=81.8% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest eligible tbench_accuracy with full tools and agentic support, making it the strongest model for writing robust tests and QA logic.
+  #2 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Matches the top tbench_accuracy and provides strong overall capability for reliable automated test authoring.
+  #3 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Excellent tbench_accuracy with better value than the top two, making it the best balanced frequent-use testing model.
+  #4 OpenAI: GPT-5.3-Codex [vision]
+      elo=n/a | tbench=78.4% | $1.75/$14.0 per 1M | perf/$=n/a
+      → High tbench_accuracy and full tool/agent support fit test generation well, though missing perf_per_dollar keeps it below more balanced picks.
+  #5 Google: Gemini 3 Flash Preview [vision]
+      elo=1470 | tbench=64.3% | $0.5/$3.0 per 1M | perf/$=619
+      → Best cheap adequate testing option due to very high perf_per_dollar over 500, tools, and agentic support, despite a lower tbench score than higher priorities.
+
+================================================================================
+Assigned by: kilo/openai/gpt-5.4
+[role-mapper] Updated KILO_AGENT_MANAGEMENT.md with 23 assignments
+[role-mapper] Done (2026-03-31T12:48:09.043939)
+🔄 Reading agents from kilo_agents.db...
+   Found 12 coding/fixing role assignments
+   After deduplication: 8 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260331-124809
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ code&fix-2-gpt54-max-o1500-ppd123.sh
+   ✓ code&fix-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+   ✓ coding-1-fabrik-coder-qwen32b-local-o0000-ppd999.sh
+   ✓ documentation-1-fabrik-docs-llama8b-local-o0000-ppd999.sh
+   ✓ fixing-1-fabrik-fixer-ds16b-local-o0000-ppd999.sh
+   ✓ reviewing-1-fabrik-reviewer-llama70b-local-o0000-ppd999.sh
+
+✅ Generated 8 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents

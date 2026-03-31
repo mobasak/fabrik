@@ -18,15 +18,12 @@ RULES ACTIVE: [ROLE] | [Never commit, Never bare pip, Always final_gate.py]
 
 ---
 
-## 1. The 8-Step Execution Workflow
+## 1. Agent Completion Contract (4 Steps)
 
-Every task must follow this exact sequence. **Skipping a step = workflow failure.**
+Every task follows this sequence. **Authority:** `AGENTS-compact.md`
 
-### Step 1: Plan (Traycer Only)
-Traycer provides functional spec. Coders execute, never plan.
-
-### Step 2: Implementation
-Implement changes for the current phase or ticket only.
+### Step 1: IMPLEMENT
+Implement changes scoped to current task only.
 
 **Environment:**
 ```bash
@@ -42,55 +39,66 @@ Implement changes for the current phase or ticket only.
 - ❌ No hardcoded secrets/localhost → Use `os.getenv()` and service names
 - ✅ ARM64 compatibility → Add `platform: linux/arm64` in compose.yaml
 
-### Step 2.5: Self-Review (MANDATORY)
-**Before requesting Kilo Review:**
-- [ ] All imports exist
-- [ ] `.env.example` updated with new variables
-- [ ] Docker health checks test real dependencies (not just 200 OK)
-- [ ] Port registered in `PORTS.md`
+**Internal Audit (before finishing Step 1):**
+- [ ] All task requirements fully met
+- [ ] No hardcoded secrets/localhost (use `os.getenv()`)
+- [ ] No logic gaps or silent failure modes
+- [ ] Write exactly 1 test file covering core logic path
+- [ ] Adjacent fixes allowed: MAY fix directly adjacent, low-risk issues in same touched files/subsystem if it keeps implementation coherent or prevents obvious breakage
 
-### Step 3: Kilo Review & Fix
+### Step 2: QUALITY GATE
+Run and fix findings until `status: "success"`:
+
 ```bash
-git add <intended_files>
-python scripts/kilo_code_review.py staged --plan "Task description" --output json
+# Standard Tasks (default)
+python scripts/final_gate.py --lean --json
+
+# Milestone / Batch Closer (if explicitly labeled)
+python scripts/final_gate.py --json
 ```
 
-**Fixer Role:** Address ALL BLOCKER, MAJOR, and MINOR findings. Max 5 iterations.
+**Auto-runs:**
+- Ruff (lint + format)
+- mypy (type checking)
+- Secrets scan
+- Schema sync
+- Changelog check (enforced in Tier 1)
+- 20+ additional checks
 
-### Step 4: Documentator (Auto-Generate)
-```bash
-python scripts/kilo_docs_enforcer.py --auto-generate --verbose
-git add CHANGELOG.md docs/reference/*.md
-python scripts/kilo_docs_enforcer.py --enforce
+**Fix all failures. Re-run until JSON output shows `"status": "success"`.**
+
+### Step 3: CHANGELOG
+Add one entry under `## [Unreleased]` (gate enforces presence).
+
+Format:
+```markdown
+### Added/Changed/Fixed — Title (YYYY-MM-DD)
+- Brief description of change
 ```
 
-**Required:**
-- [ ] Entry in `CHANGELOG.md`
-- [ ] API docs for new functions/endpoints
-- [ ] `.env.example` documented
-
-### Step 5: Final Gate (ALL CHECKS MUST PASS)
-```bash
-python scripts/final_gate.py
-```
-
-**This script automatically runs:**
-- `check_docker.py` — Verifies ARM64 platform, no Alpine, HEALTHCHECK present
-- `check_secrets.py` — Scans for hardcoded keys/tokens
-- `check_env_contract.py` — Syncs `.env.example` with compose.yaml
-- 24 additional enforcement checks
-
-**Exit code 0 = PASS. Anything else = STOP and fix.**
-
-### Step 6: Verify (Traycer Only)
-Traycer confirms spec compliance.
-
-### Step 7: Commit (Traycer Only)
-Traycer commits. **Coders never commit.**
+### Step 4: EXIT 0
+Gate auto-stages changes. **Do not commit, do not stage manually.**
 
 ---
 
-## 2. Infrastructure & Services
+## 2. Optional Tools (Manual / On-Demand Only)
+
+**Not part of default workflow. Use only if explicitly requested:**
+
+### Kilo Review (Optional)
+```bash
+git add -A
+python scripts/kilo_code_review.py staged --plan "task description" --output json
+```
+
+### Documentator (Optional)
+```bash
+python scripts/kilo_docs_enforcer.py --auto-generate --verbose
+```
+
+---
+
+## 3. Infrastructure & Services
 
 **Before building custom logic, check if an existing Fabrik service solves the need.**
 
@@ -110,7 +118,7 @@ Traycer commits. **Coders never commit.**
 
 ---
 
-## 3. Common Commands
+## 4. Common Commands
 
 | Task | Command |
 |------|---------|
@@ -124,15 +132,15 @@ Traycer commits. **Coders never commit.**
 
 ---
 
-## 4. Completion
+## 5. Completion
 
-Once **Step 5 (Final Gate)** passes with exit code 0:
+Once **Step 2 (Quality Gate)** passes with `"status": "success"`:
 1. Report results to Traycer for verification
 2. **Do NOT push to GitHub** — Traycer commits, not Coders
 
 ---
 
-## 5. Quick Health Check
+## 6. Quick Health Check
 
 ```bash
 # Start service
@@ -156,7 +164,7 @@ curl http://localhost:8000/health
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 **Build fails?** Run enforcement scripts individually:
 ```bash

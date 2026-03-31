@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-30T10:35:31.900726",
-  "total_models": 327,
+  "timestamp": "2026-03-31T12:40:34.576885",
+  "total_models": 330,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -422,6 +422,16 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "google/lyria-3-clip-preview": {
+      "id": "google/lyria-3-clip-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/lyria-3-pro-preview": {
+      "id": "google/lyria-3-pro-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "gryphe/mythomax-l2-13b": {
       "id": "gryphe/mythomax-l2-13b",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -474,11 +484,6 @@
     },
     "kilo-auto/small": {
       "id": "kilo-auto/small",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "kwaipilot/kat-coder-pro": {
-      "id": "kwaipilot/kat-coder-pro",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1402,6 +1407,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "qwen/qwen3.6-plus-preview:free": {
+      "id": "qwen/qwen3.6-plus-preview:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "qwen/qwq-32b": {
       "id": "qwen/qwq-32b",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1409,6 +1419,11 @@
     },
     "reka/reka-edge": {
       "id": "reka/reka-edge",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "rekaai/reka-flash-3": {
+      "id": "rekaai/reka-flash-3",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

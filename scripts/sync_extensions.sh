@@ -4,7 +4,7 @@
 
 set -e
 
-EXTENSIONS_FILE="docs/reference/EXTENSIONS.md"
+EXTENSIONS_FILE="docs/reference/windsurf/EXTENSIONS.md"
 TIMESTAMP=$(date +"%Y-%m-%d %H:%M")
 
 # Get extensions list (with 10s timeout to avoid hanging)

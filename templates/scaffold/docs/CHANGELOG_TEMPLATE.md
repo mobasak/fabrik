@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adapted for Fabrik workflow.
 
-**⚙️ AUTO-GENERATED:** Entries are created by `kilo_docs_enforcer.py` (Documentator agent) during the mandatory workflow. Manual edits are preserved.
+**Entries written by:** Coding agents (gate-enforced per task).
 
 ---
 
@@ -72,16 +72,16 @@ This project uses [Semantic Versioning](https://semver.org/):
 
 ## Workflow Integration
 
-**Step 4: Documentator** in the mandatory workflow auto-generates CHANGELOG entries by:
-1. Detecting triggers: new functions, API endpoints, env vars, breaking changes
-2. Analyzing git diff for context
-3. Calling Kilo CLI agent (cheap tier) to generate entry
-4. Appending to `## [Unreleased]` section
+**Step 3: CHANGELOG** in the agent completion contract requires one entry per task.
 
-**Format enforced:**
+**Enforcement:** `python scripts/final_gate.py --lean --json` checks for changelog presence (Tier 1).
+
+**Format required:**
 ```
 ### Category — Title (YYYY-MM-DD)
 - Action verb + function/file + description
 ```
 
-**Manual entries:** Add directly to `## [Unreleased]` — Documentator preserves them.
+**Categories:** Added, Changed, Fixed, Removed, Security
+
+Agents write entries manually. Gate enforces presence but not content quality.

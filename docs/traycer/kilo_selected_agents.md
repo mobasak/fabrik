@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-03-30T10:37:04.343057
+**Last Updated:** 2026-03-31T12:41:01.572848
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -36,7 +36,7 @@
 | 27 | **mimo-v2-pro** | xiaomi | 1441 | ~ | $1.00 | $3.00 | 1048K |  | ✓ | ✓ | 2 | 576 | ✅ |
 | 28 | **claude-haiku-4.5** | anthropic | 1436 | 35.5 | $1.00 | $5.00 | 200K | ✓ | ✓ | ✓ | 2 | 359 | ✅ |
 | 29 | **deepseek-r1-0528** | deepseek | 1436 | ~ | $0.45 | $2.15 | 163K |  | ✓ | ✓ | 2 | 832 | ✅ |
-| 30 | **minimax-m2.5** | minimax | 1436 | 42.2 | $0.19 | $1.15 | 196K |  | ✓ | ✓ | 2 | 1578 | ✅ |
+| 30 | **minimax-m2.5** | minimax | 1436 | 42.7 | $0.19 | $1.15 | 196K |  | ✓ | ✓ | 2 | 1578 | ✅ |
 | 31 | **step-3.5-flash** | stepfun | 1433 | ~ | $0.10 | $0.30 | 262K |  | ✓ | ✓ | 1 | 5732 | ✅ |
 | 32 | **qwen3-vl-235b-a22b-thinking** | qwen | 1432 | ~ | $0.26 | $2.60 | 131K | ✓ | ✓ | ✓ | 2 | 711 | ✅ |
 | 33 | **deepseek-v3.2** | deepseek | 1431 | 39.6 | $0.26 | $0.38 | 163K |  | ✓ | ✓ | 1 | 4089 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-03-30:** Auto-updated from benchmarks
+- **2026-03-31:** Auto-updated from benchmarks

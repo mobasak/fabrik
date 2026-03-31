@@ -70,6 +70,27 @@ All notable changes to this project will be documented in this file.
 ### Added — Assignment Computation Script (2026-03-30)
 - **`scripts/kilo-benchmarks/compute_assignments.py`**: Added script to compute model assignments dynamically based on benchmark scores, JSON output.
 
+### Added - Scaffold Structure Documentation (2026-03-31)
+- **New Workflow Doc**: Created `docs/workflows/SCAFFOLD_STRUCTURE.md`
+  - Complete reference for scaffold folder/file structure
+  - Template sources and variable substitution
+  - Sync mechanism documentation
+  - Post-scaffold initialization steps
+  - Scaffold type variations (python-api, saas-skeleton, node-api, wordpress, etc.)
+
+### Changed - Template Cleanup (2026-03-31)
+- **Archived Obsolete Files**: Moved to `templates/.archive/`
+  - `PYTHON_PRODUCTION_STANDARDS.md` (superseded by `.windsurf/rules/10-python.md`)
+  - `simple.yaml` (unused scaffold configuration)
+  - `medium.yaml` (unused scaffold configuration)
+  - `factory-mcp.json` (unused MCP configuration)
+
+### Changed - Workflow Documentation Update (2026-03-31)
+- **`docs/workflows/KILO_REVIEW_WORKFLOW.md`**: Updated to include FABRIK category
+  - Added FABRIK to category enum in schema documentation
+  - Added FABRIK category definition: "Project conventions: container images, health checks, config loading, temp files, secrets, bug classes"
+  - Updated Last Updated date to 2026-03-31
+
 ### Added - Fabrik Conventions in Code Review (2026-03-31)
 - **Project-Specific Checks**: Integrated Fabrik conventions into `kilo_code_review.py`
   - Container images: `-slim-bookworm` enforcement (never Alpine)

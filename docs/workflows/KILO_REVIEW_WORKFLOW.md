@@ -1,6 +1,6 @@
 # Kilo Code Review Workflow
 
-**Last Updated:** 2026-03-23
+**Last Updated:** 2026-03-31
 
 > Complete workflow documentation for `scripts/kilo_code_review.py` — the AI-powered iterative code review system using Kilo CLI.
 
@@ -316,7 +316,7 @@ result = await run_review(files, config, iteration, previous_issues)
   "issues": [
     {
       "severity": "BLOCKER|MAJOR|MINOR",
-      "category": "SPEC|SECURITY|CONFIG|EDGE|DOCS",
+      "category": "SPEC|SECURITY|CONFIG|EDGE|FABRIK|DOCS",
       "file": "src/main.py",
       "lines": "L42-L50",
       "snippet": "optional code snippet",
@@ -362,6 +362,7 @@ result = await run_review(files, config, iteration, previous_issues)
 | **SECURITY** | Auth, crypto, input validation, secrets |
 | **CONFIG** | Environment vars, hardcoded values, ports |
 | **EDGE** | Error handling, boundary conditions, race conditions |
+| **FABRIK** | Project conventions: container images, health checks, config loading, temp files, secrets, bug classes |
 | **DOCS** | Comments, docstrings, README updates |
 
 ---
