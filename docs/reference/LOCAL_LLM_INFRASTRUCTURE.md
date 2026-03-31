@@ -654,8 +654,48 @@ To configure Windsurf IDE to use your local Fabrik agents:
    - Bug fixes: `fabrik-fixer-deepseek-v2-16b`
    - Documentation: `fabrik-docs-llama3.1-8b`
 
+#### Cascade Wrapper Scripts (Recommended)
+
+For seamless integration with Windsurf Cascade workflows, use the hardware-safe wrapper scripts in `/opt/fabrik/scripts/`:
+
+**Available Wrappers:**
+```bash
+# Coding - fabrik-coder-qwen32b (32B, hybrid-cpu, ~15-25 tok/s)
+/opt/fabrik/scripts/fabrik-coder.sh "implement feature X"
+
+# Code Review - fabrik-reviewer-llama70b (70B, CPU, ~8-12 tok/s)
+/opt/fabrik/scripts/fabrik-reviewer.sh "review these changes"
+
+# Bug Fixing - fabrik-fixer-ds16b (16B, hybrid-gpu, ~40-60 tok/s)
+/opt/fabrik/scripts/fabrik-fixer.sh "fix this error"
+
+# Documentation - fabrik-docs-llama8b (8B, GPU, ~80-100 tok/s)
+/opt/fabrik/scripts/fabrik-docs.sh "update README"
+```
+
+**Hardware Safety Features:**
+- **Global Sequential Guard**: Prevents multiple models loading simultaneously (uses `/opt/.fabrik_agent.lock`)
+- **VRAM Monitoring**: Waits for GPU idle before loading models
+- **Fast-Path Optimization**: Documentation agent bypasses lock when 5.5GB VRAM available
+- **Automatic Timeouts**: 70B/32B = 600s, 8B/16B = 300s
+
+**Usage in Cascade Workflows:**
+```bash
+# Example: Piping Cascade context to local agent
+echo "Fix the authentication bug in src/api/auth.py" | /opt/fabrik/scripts/fabrik-fixer.sh
+
+# Example: Direct invocation
+/opt/fabrik/scripts/fabrik-docs.sh "Generate CHANGELOG entry for today's changes"
+```
+
+**Implementation Details:**
+- Wrappers call Kilo CLI agent scripts in `~/.traycer/cli-agents/`
+- Inherit all hardware safety logic (Global Sequential Guard, VRAM checks, fast-path)
+- Set minimal Traycer environment variables for compatibility
+- Support both argument and stdin input
+
 ### Performance Notes
-- **GPU models** (fabrik-docs): Fastest, fits entirely in VRAM
+- **GPU models** (fabrik-docs): Fastest, fits entirely in VRAM, has fast-path bypass
 - **Hybrid-GPU** (fabrik-fixer): Fast, minimal RAM spill
 - **Hybrid-CPU** (fabrik-coder): Moderate, uses RAM with GPU assist
 - **CPU only** (fabrik-reviewer): Slower but handles largest context
@@ -701,7 +741,7 @@ All Kilo CLI agents (both cloud and local) are controlled by the global configur
 <!-- AUTO-GENERATED:LOCAL_MODELS_START -->
 ## Installed Models (Auto-Generated)
 
-**Last Synced:** 2026-03-30 10:35
+**Last Synced:** 2026-03-31 12:40
 
 | Model | Role | Hardware | Size | Context | Vision | Tools | Agentic | ELO | Code |
 |-------|------|----------|------|---------|--------|-------|---------|-----|------|

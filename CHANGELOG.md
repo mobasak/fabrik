@@ -70,6 +70,21 @@ All notable changes to this project will be documented in this file.
 ### Added — Assignment Computation Script (2026-03-30)
 - **`scripts/kilo-benchmarks/compute_assignments.py`**: Added script to compute model assignments dynamically based on benchmark scores, JSON output.
 
+### Added - Windsurf Cascade Wrapper Scripts (2026-03-31)
+- **Hardware-Safe Local LLM Wrappers**: Created 4 wrapper scripts for Cascade workflows
+  - `scripts/fabrik-coder.sh` - Coding agent (qwen32b, 32B, hybrid-cpu)
+  - `scripts/fabrik-reviewer.sh` - Review agent (llama70b, 70B, CPU)
+  - `scripts/fabrik-fixer.sh` - Fixing agent (deepseek16b, 16B, hybrid-gpu)
+  - `scripts/fabrik-docs.sh` - Documentation agent (llama8b, 8B, GPU, fast-path)
+- **Reuses CLI Agent Logic**: Wrappers call `~/.traycer/cli-agents/` scripts
+  - Inherits Global Sequential Guard (prevents concurrent model loading)
+  - Inherits VRAM monitoring and GPU idle detection
+  - Inherits fast-path optimization for documentation agent
+  - Automatic hardware-aware timeouts (70B/32B=600s, 8B/16B=300s)
+- **Simple Interface**: Supports both argument and stdin input
+  - `fabrik-docs.sh "prompt"` or `echo "prompt" | fabrik-docs.sh`
+- **Documentation**: Added Cascade wrapper section to LOCAL_LLM_INFRASTRUCTURE.md
+
 ### Added - Auto-Sync Governance Files (2026-03-30)
 - **Conditional Pre-Commit Hook**: Auto-syncs governance files to all /opt projects
   - Triggers on changes to: AGENTS.md, .windsurfrules, cascade-models.md, core scripts, enforcement scripts
