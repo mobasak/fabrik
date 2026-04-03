@@ -371,6 +371,9 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    - **Verification**:
      - [ ] Every acceptance criterion above is met
      - [ ] No files outside the defined scope were modified
+     - [ ] Every artifact listed in the Tech Plan that this ticket touches is fully implemented — no partial implementations
+     - [ ] Codebase compiles and tests pass after this ticket (skip if docs-only ticket)
+     - [ ] No silent failures introduced — code cannot proceed without error while producing wrong results (skip if docs-only ticket)
      - [ ] CHANGELOG has an entry for this ticket
    - **Gate Tier**: 1 (lean, well-defined) or 2 (milestone closure, full gate)
    - **Execution Metadata**:
@@ -387,6 +390,7 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    > - Handle all work units from the specs — not just the obvious first ones. Every natural work unit identified in step 2 must map to a ticket.
    > - Ticket scope must be traceable verbatim to the specs. Do not add scope that requires inferring beyond what is written.
    > - Do not assume grouping or scope boundaries when specs are ambiguous — state the assumption explicitly before proceeding.
+   > - Before finalizing the breakdown, cross-check every component in the Tech Plan's Component Architecture against the ticket set. Every component must either be covered by a ticket or explicitly excluded with a stated reason. Silent omissions are not acceptable.
    > - Before presenting, verify every work unit identified in step 2 is covered by a ticket. Nothing silently dropped.
 
    > **Authoring rules — used by Traycer when filling Execution Metadata, not reproduced in tickets:**
@@ -422,6 +426,7 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
 - Each ticket has all fields: title, scope, steps, spec references, dependencies, acceptance criteria, verification, gate tier, and execution metadata
 - All acceptance criteria are specific and objectively verifiable
 - Error handling, edge cases, and boundary conditions are covered — not just happy path work
+- Every component in the Tech Plan's Component Architecture is either covered by a ticket or explicitly excluded with a stated reason — no silent omissions
 - Every work unit from the specs is covered — nothing silently dropped
 - No scope added beyond what is traceable to the specs
 - Assumptions about ambiguous spec boundaries stated explicitly

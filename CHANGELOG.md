@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — T14 Sync workflow documentation with current agent model (2026-04-03)
+- **T14**: Fixed 13 stale "Kilo reads AGENTS.md" references across 7 active docs to reflect 3-layer model:
+  - `docs/traycer/fabrik-workflow.md`: Added 3 verification bullets, 1 drafting rule (Tech Plan component cross-check), 1 acceptance criterion (component coverage) to ticket-breakdown section
+  - `docs/workflows/KILO_DISPATCH_WORKFLOW.md`: Updated prompt composition to describe selective loading from `AGENTS-compact.md` + rule packs; updated agent inventory table to 10 agents (added 4 local LLM agents)
+  - `docs/workflows/KILO_REVIEW_WORKFLOW.md`: "Step 3 of AGENTS.md workflow" → "Step 3 of development workflow"
+  - `docs/workflows/FINAL_GATE_WORKFLOW.md`: "Identity & knowledge for Kilo/Traycer" → "Traycer orchestrator contract"
+  - `docs/traycer/README.md`: Rewrote Agent Rule Architecture to 3-layer model (Traycer → `AGENTS.md`, Kilo → `AGENTS-compact.md`, Cascade → `.windsurfrules` + rules); updated ASCII diagram, task flow, scaffold integration, and why-table
+  - `docs/traycer/TEMPLATE_MAPPING.md`: Updated rule loading table to 3-layer model
+  - `INDEX.md`: "Agent briefing for AI coding assistants" → "Traycer orchestrator contract"
+  - `README.md`: Fixed both AGENTS.md descriptions (lines 738, 748) to "Traycer orchestrator contract"
+
+### Changed — T13 Selective context loading and hardened agent contracts (2026-04-03)
+- **T13**: Replaced blanket rule loading in `kilo_dispatch.py` with project-type-aware selective loading:
+  - Added `PACK_REGISTRY` (16 pack ID → rule file mappings) and `PACK_MAPPING` (11 project type → default pack lists) mirroring `AGENTS.md` enforcement policy
+  - Rewrote `load_project_context()`: loads only `AGENTS-compact.md` (removed `AGENTS.md` fallback), reads `project.yaml` for type, loads only mapped rule files + `TESTING` overlay, enforces 40-line cap (drops overlays first)
+  - Added `--packs` CLI argument for comma-separated overlay pack ID injection (e.g. `--packs DATA_PG,SECURITY`)
+  - Added `_extract_rule_lines()`: extracts up to 6 enforceable content lines per pack, skipping YAML frontmatter, headings, code blocks, table rows, and meta lines
+  - Graceful degradation: missing `project.yaml` / unknown type / missing rule file → logs warning, continues with reduced context
+  - Fixed `generate_kilo_agents.py` template: missing-report + kilo-exit-0 now exits 1 (was warning + continue); regenerated all 10 CLI wrapper scripts
+  - Updated `AGENTS-compact.md` line 9: added "(skip for documentation-only tasks that change no code)" to test requirement
+  - Added `tests/test_kilo_dispatch.py` (31 tests): pack selection per type, `--packs` overlay, missing `project.yaml`, unknown type, 40-line cap, AGENTS.md fallback removal, PACK_MAPPING 11-entry sync check
+
 ### Fixed — T12 Sync workflow documentation with final scaffold and gate behavior (2026-04-03)
 - **T12**: Synced 3 workflow docs to match T11 scaffold output and T10 gate behavior:
   - `FABRIK_SCAFFOLD_WORKFLOW.md`: Updated Per-Type Scaffold Details key dirs for `docusaurus` (`docs/`, `openapi.yaml`, `src/css/`), `mobile-app` (`src/navigation/`, `src/features/`), `desktop-app` (`electron/`)

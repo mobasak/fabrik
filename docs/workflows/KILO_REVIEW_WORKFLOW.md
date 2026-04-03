@@ -18,7 +18,7 @@
 8. [Configuration Options](#configuration-options)
 9. [Environment Variables](#environment-variables)
 10. [Exit Codes](#exit-codes)
-11. [Integration with AGENTS.md Workflow](#integration-with-agentsmd-workflow)
+11. [Integration with Development Workflow](#integration-with-development-workflow)
 12. [Troubleshooting](#troubleshooting)
 
 ---
@@ -57,7 +57,7 @@
 
 | Scenario | Command | Notes |
 |----------|---------|-------|
-| **Step 3 of AGENTS.md workflow** | `python scripts/kilo_code_review.py staged --plan "..."` | After self-review (Step 2.5) |
+| **Step 3 of development workflow** | `python scripts/kilo_code_review.py staged --plan "..."` | After self-review (Step 2.5) |
 | Review specific files | `python scripts/kilo_code_review.py review src/file.py` | Direct file review |
 | Review all changes | `python scripts/kilo_code_review.py changed` | Working tree changes |
 | Continue previous session | `python scripts/kilo_code_review.py staged --session continue` | Preserves context |
@@ -415,7 +415,7 @@ result = await run_review(files, config, iteration, previous_issues)
 
 ---
 
-## Integration with AGENTS.md Workflow
+## Integration with Development Workflow
 
 ### Position in 8-Step Workflow
 
@@ -503,7 +503,7 @@ python scripts/kilo_code_review.py staged --session new
 
 ## See Also
 
-- [AGENTS.md](../../AGENTS.md) — Full workflow specification
+- [AGENTS.md](../../AGENTS.md) — Traycer orchestrator contract
 - [FINAL_GATE_WORKFLOW.md](FINAL_GATE_WORKFLOW.md) — Pre-review quality gates
 - [DOCUMENTATOR_WORKFLOW.md](DOCUMENTATOR_WORKFLOW.md) — Documentation generation
 - [KILO_AGENT_MANAGEMENT.md](KILO_AGENT_MANAGEMENT.md) — Agent discovery, benchmarking, role assignment

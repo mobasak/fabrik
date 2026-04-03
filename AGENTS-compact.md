@@ -6,7 +6,7 @@
    - All task requirements fully met
    - No hardcoded secrets/localhost (use `os.getenv()`)
    - No logic gaps or silent failure modes
-   - Write exactly 1 test file covering the core logic path
+   - Write exactly 1 test file covering the core logic path (skip for documentation-only tasks that change no code)
    - **Adjacent fixes allowed**: You MAY fix directly adjacent, low-risk issues in the same touched files/subsystem if doing so keeps the implementation coherent or prevents obvious breakage
 
 2. **QUALITY GATE** — Run and fix findings until `status: "success"`:

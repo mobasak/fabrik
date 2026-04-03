@@ -400,7 +400,7 @@ docs/
 
 | Document | Purpose |
 |----------|--------|
-| [AGENTS.md](AGENTS.md) | Agent briefing for AI coding assistants (Kilo CLI, Traycer) |
+| [AGENTS.md](AGENTS.md) | Traycer orchestrator contract (planning constraints, rule-pack registry, stack defaults) |
 | [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |
 | [kilo_docs_enforcer.py](scripts/kilo_docs_enforcer.py) | AI documentation enforcement |
 | [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (27 enforcement scripts) |

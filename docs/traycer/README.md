@@ -23,30 +23,32 @@ Fabrik uses a **separation of concerns** architecture where each agent type read
 
 | Source | Who Reads | Content |
 |--------|-----------|---------|
-| `AGENTS.md` | Kilo CLI (via opencode.json) | Workflow, role directives, environment context |
-| `.windsurf/rules/*.md` | Cascade (auto-discovery) | Language patterns, IDE behavior, pointer to workflow |
+| `AGENTS.md` | Traycer orchestrator | Full identity, planning constraints, rule-pack registry |
+| `AGENTS-compact.md` | Kilo CLI (via `opencode.json`) | Compact completion contract + workflow rules |
+| `.windsurfrules` + `.windsurf/rules/*.md` | Cascade (auto-discovery) | IDE behavior, language patterns, code review workflow |
 
-**Workflow lives in `AGENTS.md` `[ALL AGENTS]` section** — single source of truth for both agents.
+**3-layer model:** Traycer reads `AGENTS.md` for orchestration. Kilo reads `AGENTS-compact.md` for execution. Cascade reads `.windsurfrules` + `.windsurf/rules/`.
 
 ### How Each Agent Loads Rules
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
 │                                                                           │
-│  .windsurf/rules/                         AGENTS.md                       │
-│  (Cascade auto-reads)                     (Kilo reads via opencode.json)  │
-│  ─────────────────────                    ─────────────────────────────── │
+│  .windsurfrules + .windsurf/rules/    AGENTS-compact.md    AGENTS.md      │
+│  (Cascade auto-reads)                 (Kilo via opencode)  (Traycer)      │
+│  ────────────────────────────────     ─────────────────    ──────────     │
 │                                                                           │
-│  .windsurfrules ─► Agent contract          [TRAYCER ONLY] ──► Planning     │
-│  10-python ──────► Python patterns        [CODER] ──────────► Directives  │
-│  20-typescript ──► TypeScript patterns    [REVIEWER] ───────► Directives  │
-│  30-ops ─────────► Docker patterns        [FIXER] ──────────► Directives  │
-│  40-documentation► Doc rules              [ALL AGENTS] ─────► Workflow    │
-│  50-code-review ─► POINTER to workflow                       + Patterns   │
-│  90-automation ──► YOLO/skills                               (pointers)   │
+│  .windsurfrules ─► Agent contract     Completion contract  Full identity  │
+│  10-python ──────► Python patterns    + workflow rules     Planning       │
+│  20-typescript ──► TypeScript         (34 lines, lean)     constraints    │
+│  30-ops ─────────► Docker patterns                         Rule-pack      │
+│  40-documentation► Doc rules                               registry       │
+│  50-code-review ─► Gate commands                           Stack defaults │
+│  90-automation ──► YOLO/skills                             Env context    │
 │                                                                           │
-│  CASCADE does NOT read AGENTS.md          KILO reads AGENTS.md only       │
-│  (workflow via 50-code-review pointer)    (patterns via file pointers)    │
+│  CASCADE: .windsurfrules + rules/     KILO: AGENTS-compact TRAYCER:       │
+│  (never reads AGENTS.md)              (never reads full    AGENTS.md      │
+│                                        AGENTS.md)          (orchestrator) │
 │                                                                           │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
@@ -55,8 +57,8 @@ Fabrik uses a **separation of concerns** architecture where each agent type read
 
 1. **Traycer submits task** via `TRAYCER_PROMPT` environment variable
 2. **CLI agent script** (`~/.traycer/cli-agents/*.sh`) receives prompt
-3. **Kilo CLI** loads instructions from `opencode.json` → `AGENTS.md`
-4. **Kilo executes** task with workflow from `AGENTS.md`
+3. **Kilo CLI** loads instructions from `opencode.json` → `AGENTS-compact.md`
+4. **Kilo executes** task with compact completion contract from `AGENTS-compact.md`
 5. **Agent outputs** `BEGIN_TRAYCER_REPORT_MD...END_TRAYCER_REPORT_MD` block
 6. **Report writer** extracts and saves to `.droid/traycer-reports/`
 
@@ -69,9 +71,10 @@ fabrik scaffold python my-service
 ```
 
 The scaffold automatically creates:
-- `AGENTS.md` → symlink to `/opt/fabrik/AGENTS.md`
+- `AGENTS.md` → symlink to `/opt/fabrik/AGENTS.md` (Traycer orchestrator contract)
+- `AGENTS-compact.md` → symlink to `/opt/fabrik/AGENTS-compact.md` (Kilo compact rules)
 - `.windsurf/rules/` → symlink to `/opt/fabrik/.windsurf/rules/`
-- `opencode.json` → points to `AGENTS.md` only (Kilo reads this)
+- `opencode.json` → points to `AGENTS-compact.md` (Kilo reads this)
 
 This ensures **every Fabrik project** has consistent agent rules from day one.
 
@@ -79,9 +82,9 @@ This ensures **every Fabrik project** has consistent agent rules from day one.
 
 | Problem | Solution |
 |---------|----------|
-| Workflow duplicated in multiple files | Workflow lives in `AGENTS.md` only; `.windsurf/rules/50-code-review.md` is a pointer |
-| Agents reading same content twice | Cascade reads `.windsurf/rules/`, Kilo reads `AGENTS.md` (with pointers to patterns) |
-| Different rules for different agents | Same workflow, different delivery mechanism |
+| Workflow duplicated in multiple files | Workflow lives in `AGENTS-compact.md` for Kilo; Cascade gets it via `.windsurf/rules/50-code-review.md` |
+| Agents reading same content twice | 3-layer separation: Traycer → `AGENTS.md`, Kilo → `AGENTS-compact.md`, Cascade → `.windsurfrules` + rules |
+| Different rules for different agents | Each agent reads only what it needs — no overlap |
 | Templates duplicating rules | Templates contain only workflow steps and report format |
 
 ### Agent Behavior Notes

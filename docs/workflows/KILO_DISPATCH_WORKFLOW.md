@@ -1,6 +1,6 @@
 # Kilo Dispatch Workflow
 
-**Last Updated:** 2026-03-25
+**Last Updated:** 2026-04-03
 
 > Dispatch tasks from Windsurf Cascade to Kilo CLI agents. This is the reference doc for `scripts/kilo_dispatch.py` and the `/kilo` Windsurf workflow.
 
@@ -24,7 +24,7 @@
 
 `kilo_dispatch.py` bridges **Windsurf Cascade** (interactive IDE agent) and **Kilo CLI** (autonomous coding agent). It:
 
-1. Builds a prompt from project context (AGENTS.md, `.windsurf/rules/`) + task description
+1. Builds a prompt from project context (`AGENTS-compact.md` + selectively loaded rule packs based on project type) + task description
 2. Writes the prompt to a temp file (simulating Traycer's `TRAYCER_PROMPT_TMP_FILE` pattern)
 3. Runs the selected Kilo CLI agent script
 4. Reads the structured report from `.droid/traycer-reports/latest.md`
@@ -53,14 +53,18 @@ python /opt/fabrik/scripts/kilo_dispatch.py --list
 
 Current agent inventory (`~/.traycer/cli-agents/`):
 
-| Agent | Model | Variant | Output Cost | Best For |
-|-------|-------|---------|------------|----------|
-| `code&fix-1-opus46` | Claude Opus 4.6 | max | $25/1M | Complex multi-file tasks |
-| `coding-2-gpt54` | GPT-5.4 | max | $15/1M | General coding |
-| `coding-3-gemini31pro` | Gemini 3.1 Pro | high | $12/1M | Budget coding |
-| `code&fix-4-gpt53codex` | GPT-5.3 Codex | high | $14/1M | Code generation |
-| `fixing-2-gemini31pro` | Gemini 3.1 Pro | max | $12/1M | Review fixes |
-| `fixing-3-gpt54` | GPT-5.4 | high | $15/1M | Complex fixes |
+| Agent | Model | Variant | Best For |
+|-------|-------|---------|----------|
+| `code&fix-1-opus46` | Claude Opus 4.6 | max | Complex multi-file tasks |
+| `coding-2-gpt54` | GPT-5.4 | max | General coding |
+| `coding-3-gemini31pro` | Gemini 3.1 Pro | high | Budget coding |
+| `code&fix-4-gpt53codex` | GPT-5.3 Codex | high | Code generation |
+| `fixing-2-gemini31pro` | Gemini 3.1 Pro | max | Review fixes |
+| `fixing-3-gpt54` | GPT-5.4 | high | Complex fixes |
+| `coding-1-fabrik-coder-qwen32b` | Qwen 2.5 Coder 32B | local | Local free coding |
+| `fixing-1-fabrik-fixer-ds16b` | DeepSeek Coder V2 16B | local | Local fast fixes |
+| `documentation-1-fabrik-docs-llama8b` | Llama 3.1 8B | local | Local doc generation |
+| `reviewing-1-fabrik-reviewer-llama70b` | Llama 3.1 70B | local | Local code review |
 
 **Model names use `kilo/` prefix** (e.g., `kilo/anthropic/claude-opus-4.6`).
 

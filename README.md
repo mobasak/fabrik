@@ -735,7 +735,7 @@ fabrik scaffold my-service
 
 ### Core Docs
 
-- **[AGENTS.md](AGENTS.md)** - **Complete AI agent briefing** (896 lines covering 9-step workflow, Traycer integration, enforcement)
+- **[AGENTS.md](AGENTS.md)** - **Traycer orchestrator contract** (planning constraints, rule-pack registry, stack defaults)
 - **[INDEX.md](INDEX.md)** - Master documentation map
 - **[Quick Start](docs/QUICKSTART.md)** - Get running in 5 minutes
 - **[FAQ](docs/FAQ.md)** - Comprehensive Q&A (500+ lines)
@@ -745,7 +745,7 @@ fabrik scaffold my-service
 - **[Configuration](docs/CONFIGURATION.md)** - Credentials, architecture, troubleshooting
 - **[Deployment](docs/DEPLOYMENT.md)** - Deployment strategies, DNS, SSL
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Debug guides
-- **[AGENTS.md](AGENTS.md)** - 8-step mandatory workflow (Traycer + Kilo + Cascade)
+- **[AGENTS.md](AGENTS.md)** - Traycer orchestrator contract (Kilo uses `AGENTS-compact.md`, Cascade uses `.windsurfrules`)
 
 ### Reference
 

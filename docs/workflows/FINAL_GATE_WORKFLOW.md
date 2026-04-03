@@ -941,7 +941,7 @@ pip install bandit semgrep sqlfluff vulture
 
 ## See Also
 
-- [AGENTS.md](../../AGENTS.md) — Identity & knowledge for Kilo/Traycer
+- [AGENTS.md](../../AGENTS.md) — Traycer orchestrator contract
 - [KILO_REVIEW_WORKFLOW.md](KILO_REVIEW_WORKFLOW.md) — AI code review workflow
 - [KILO_AGENT_MANAGEMENT.md](KILO_AGENT_MANAGEMENT.md) — Agent discovery, benchmarking, role assignment
 - [DOCUMENTATOR_WORKFLOW.md](DOCUMENTATOR_WORKFLOW.md) — Documentation generation

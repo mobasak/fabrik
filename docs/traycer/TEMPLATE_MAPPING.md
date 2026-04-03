@@ -10,10 +10,11 @@ This document maps all Traycer prompt templates to their usage contexts and veri
 
 | Agent Type | Rule Source | Loaded Via |
 |------------|-------------|------------|
-| Kilo CLI (Traycer) | `AGENTS.md` | `opencode.json` |
-| Windsurf Cascade | `.windsurf/rules/` | Auto-discovery |
+| Traycer orchestrator | `AGENTS.md` | Auto-loaded by Traycer |
+| Kilo CLI | `AGENTS-compact.md` | `opencode.json` |
+| Windsurf Cascade | `.windsurfrules` + `.windsurf/rules/` | Auto-discovery |
 
-**Workflow lives in `AGENTS.md` `[ALL AGENTS]` section** — both agents follow the same workflow.
+**3-layer model:** Traycer reads `AGENTS.md` for orchestration, Kilo reads `AGENTS-compact.md` for execution, Cascade reads `.windsurfrules` + `.windsurf/rules/`.
 
 ---
 

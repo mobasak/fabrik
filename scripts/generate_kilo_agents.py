@@ -666,8 +666,9 @@ if echo "$OUTPUT" | grep -q "BEGIN_TRAYCER_REPORT_MD"; then
     fi
 else
     if [ $EXIT_CODE -eq 0 ]; then
-        echo "⚠️  Warning: Report block missing but Kilo succeeded (exit 0)" >&2
-        echo "[$(date -Iseconds)] WARNING: Missing report block. Kilo exit code was: 0 (success)" >> "$AGENT_LOG"
+        echo "ERROR: Report block missing \u2014 Kilo exited 0 but produced no report. Treating as failure." >&2
+        echo "[$(date -Iseconds)] EXIT 1: Missing report block. Kilo exit code was: 0 (success)" >> "$AGENT_LOG"
+        exit 1
     else
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
         echo "ERROR: Agent failed and did not output report block" >&2
