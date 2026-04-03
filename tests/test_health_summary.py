@@ -13,9 +13,7 @@ class TestScanHealth:
         (project_dir / "project.yaml").touch()
         (project_dir / "compose.yaml").touch()
         (project_dir / "Dockerfile").touch()
-        rules_dir = project_dir / ".windsurf" / "rules"
-        rules_dir.mkdir(parents=True)
-        (rules_dir / "00-critical.md").touch()
+        (project_dir / ".windsurfrules").touch()
 
         results = scan_health(root=tmp_path)
 
@@ -35,9 +33,7 @@ class TestScanHealth:
         (project_dir / "project.yaml").touch()
         (project_dir / "compose.yaml").touch()
         (project_dir / "Dockerfile").touch()
-        rules_dir = project_dir / ".windsurf" / "rules"
-        rules_dir.mkdir(parents=True)
-        (rules_dir / "00-critical.md").touch()
+        (project_dir / ".windsurfrules").touch()
 
         results = scan_health(root=tmp_path)
 
@@ -58,9 +54,7 @@ class TestScanHealth:
         (project_dir / "project.yaml").touch()
         (project_dir / "compose.yaml").touch()
         (project_dir / "Dockerfile").touch()
-        rules_dir = project_dir / ".windsurf" / "rules"
-        rules_dir.mkdir(parents=True)
-        (project_dir / "00-critical.md").touch()
+        (project_dir / ".windsurfrules").touch()
 
         results = scan_health(root=tmp_path)
 

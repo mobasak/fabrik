@@ -4,6 +4,152 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — T12 Sync workflow documentation with final scaffold and gate behavior (2026-04-03)
+- **T12**: Synced 3 workflow docs to match T11 scaffold output and T10 gate behavior:
+  - `FABRIK_SCAFFOLD_WORKFLOW.md`: Updated Per-Type Scaffold Details key dirs for `docusaurus` (`docs/`, `openapi.yaml`, `src/css/`), `mobile-app` (`src/navigation/`, `src/features/`), `desktop-app` (`electron/`)
+  - `FABRIK_SCAFFOLD_WORKFLOW.md`: Replaced per-type directory structure blocks — docusaurus now shows OpenAPI files (`openapi.yaml`, `docs/api/sidebar.js`, `src/css/custom.css`, `static/img/`), mobile-app shows full React Navigation template tree, desktop-app shows `electron/main.js` + `index.html`
+  - `FINAL_GATE_WORKFLOW.md`: Added `.windsurf/workflows/` to symlink integrity Validates list (with recursive descendant check) and manual fix instructions
+  - `SCAFFOLD_STRUCTURE.md`: Changed `mobile-app` and `desktop-app` from "Generic TS scaffold" to `templates/mobile-app/` and `templates/desktop-app/`
+  - `.windsurfrules`: Fixed orientation scan pointer — changed `docs/workflows/` to `.windsurf/workflows/` so Cascade in generated projects discovers the propagated slash-command workflows
+  - Zero grep matches for `_scaffold_generic_ts`, `Generic TS scaffold` in `docs/workflows/`
+
+### Changed — T11 Reconcile scaffold with docusaurus/mobile/desktop template authority (2026-04-03)
+- **T11**: Replaced `_scaffold_generic_ts()` with three dedicated template-backed scaffolders:
+  - `_scaffold_mobile_app()`: Copies `templates/mobile-app/package.json` (full React Native deps) + entire `src/` tree (navigation, features, screens) from template
+  - `_scaffold_desktop_app()`: Copies `templates/desktop-app/package.json` (Electron deps + build config) + `electron/` tree from template, creates `index.html`
+  - `_scaffold_docusaurus()`: Renders `templates/docusaurus/package.json.j2` (full Docusaurus deps), generates `docusaurus.config.js` with OpenAPI plugin/theme config parity (`docItemComponent: @theme/ApiItem`, `docusaurus-plugin-openapi-docs`, `docusaurus-theme-openapi-docs`, `apiSidebar` navbar item), `sidebars.js` with `apiSidebar`, placeholder `openapi.yaml`, placeholder `docs/api/sidebar.js`, `docs/intro.md`, `src/css/custom.css`
+  - Removed `_scaffold_generic_ts()` entirely (chrome-extension config was dead code — dispatch already used dedicated scaffolder)
+  - Updated `_TYPE_SCAFFOLDERS` dispatch: 3 lambdas → 3 direct function refs
+  - Updated `TYPE_REQUIRED_FILES`: docusaurus adds `docusaurus.config.js`/`sidebars.js`/`openapi.yaml`/`docs/api/sidebar.js`, mobile-app adds `src/navigation/AppNavigator.tsx`, desktop-app changes `src/main.ts` → `electron/main.js`
+  - Added template dir constants: `MOBILE_APP_TEMPLATE_DIR`, `DESKTOP_APP_TEMPLATE_DIR`, `DOCUSAURUS_TEMPLATE_DIR`
+  - Added `TestMobileAppScaffold` (6 tests), `TestDesktopAppScaffold` (6 tests), `TestDocusaurusScaffold` (10 tests incl. OpenAPI contract)
+
+### Fixed — T10 Scaffold/governance/workflow parity across code and docs (2026-04-02)
+- **T10**: Fixed 6 alignment gaps between scaffold code, governance validation, and documentation:
+  - `scaffold.py`: Replaced Expo scripts with React Native (`react-native start/run-android/run-ios`) in mobile-app config
+  - `scaffold.py`: `_scaffold_shared()` now copies `.windsurf/workflows/` with fail-fast source check (workspace isolation)
+  - `scaffold.py`: `fix_project()` now refreshes `.windsurf/workflows/` with fail-fast source check
+  - `scaffold.py`: `fix_project()` dry-run reporting now includes `.windsurf/workflows (copied)`
+  - `final_gate.py`: Added `.windsurf/workflows` to governance isolation checks with recursive descendant symlink detection
+  - `AGENTS.md`: Propagation note now lists full set (`.windsurfrules`, `.windsurf/rules/`, `.windsurf/workflows/`)
+  - `SCAFFOLD_STRUCTURE.md`: Fixed AGENTS.md label to "Traycer orchestrator contract"; added `.windsurf/workflows/` to Copied from Fabrik table
+  - `SYNC_ENFORCEMENT_WORKFLOW.md`: Added `.windsurf/workflows/` to Governance Files table
+  - `FABRIK_SCAFFOLD_WORKFLOW.md`: Added `.windsurf/workflows/` to scaffold tree and No Symlinks governance table
+  - Added `TestMobileAppScaffold` (3 tests), `TestWorkflowsPropagation` (2 tests), `TestCheckSymlinksWorkflowsIsolation` (5 tests)
+
+### Changed — T9 Sync FABRIK_SCAFFOLD_WORKFLOW.md with current state (2026-04-02)
+- **T9**: Updated `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` across 8 stale areas:
+  - Updated "Last Updated" date to 2026-04-02
+  - Type Comparison table: `chrome-extension` now shows ✅ container + ✅ Docker; added `static-site` as ✅ container + Coolify (11 types total)
+  - Per-Type Scaffold Details table: fixed `chrome-extension` key dirs (`extension/`, `server/`) and deploy method; added `static-site` with Coolify deploy
+  - Rewrote `chrome-extension` directory structure to match `scaffold.py` implementation: flat `src/` layout, `icons/` (not `public/icons/`), root-level Dockerfile/compose/requirements
+  - Fixed `mobile-app` label from "React Native (Expo)" to "React Native"
+  - Expanded `.windsurf/rules/` tree listing from 9 to all 20 rule files; fixed `20-typescript.md` to "TypeScript patterns"
+  - Expanded Files Created → Windsurf Rules table from 9 to all 20 rule files
+  - Fixed Available Templates table: added `static-site`, updated `chrome-extension` and `mobile-app` descriptions
+
+### Fixed — T6 + T8 Final Documentation Alignment (2026-04-02)
+
+- **T6**: Added `.windsurfrules` to scaffold tree, "Copied from Fabrik" table, and "Key Components Synced" section in `docs/workflows/SCAFFOLD_STRUCTURE.md`
+- **T8**: Replaced "Windsurf shim" terminology with "Cascade compact agent contract" in 3 files (`SYNC_ENFORCEMENT_WORKFLOW.md`, `FABRIK_SCAFFOLD_WORKFLOW.md`, `PROJECT_INDEX_TEMPLATE.md`). Updated `docs/traycer/README.md` `20-typescript` label to framework-agnostic. Updated `README.md` chrome-extension row to match shipped stack (TypeScript + Vite + CRXJS + Python backend).
+
+### Changed — Align always-on rules + fix stale 00-critical.md refs (2026-04-02)
+- **T8**: Aligned `50-code-review.md` and `90-automation.md` with unified workflow model
+  - `50-code-review.md` line 17: replaced stale `00-critical.md` reference with `.windsurfrules`
+  - `90-automation.md` trigger table: replaced 3 `00-critical.md` references with `.windsurfrules`
+- Updated `scripts/health_summary.py` ESSENTIAL_FILES: `.windsurfrules` replaces `.windsurf/rules/00-critical.md`
+- Updated `tests/test_health_summary.py` fixtures to create `.windsurfrules` instead of `00-critical.md`
+- Fixed stale `00-critical.md` references in 7 active documentation files:
+  - `docs/workflows/SCAFFOLD_STRUCTURE.md` — removed from scaffold tree listing
+  - `docs/workflows/HEALTH_SUMMARY_WORKFLOW.md` — replaced in essential files list
+  - `docs/workflows/FINAL_GATE_WORKFLOW.md` — updated Sources of Truth section
+  - `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` — removed from scaffold tree and file table
+  - `docs/traycer/README.md` — updated agent flow diagram
+  - `README.md` — updated trigger table (3 rows)
+  - `INDEX.md` — updated directory tree
+- **Epic complete:** All 25 tickets done (T1–T8, BUG-1–9, RF-01–RF-11, T5–T7)
+
+### Changed — Cascade Compact Agent Contract + Archive 00-critical.md (2026-04-02)
+- **T7**: Rewrote `.windsurfrules` from 16-line shim into ~166-line Cascade compact agent contract
+  - All Cascade-unique content from `00-critical.md` preserved: RULES ACTIVE banner, orientation scan, plan requirements, behavior rules, Decision-Grade Audit + One-Test Rule, terminal selection, Fast Context, script dedup check, PEP 668, password policy, target environments table
+  - Condensed essential invariants: CHANGELOG, db/schema.sql, .env.example, port registration, sensitive data backup, slim-bookworm, ARM64, no hardcoded secrets, health endpoints, no /tmp/, no class-level config
+  - Does NOT duplicate content already in `50-code-review.md` (gate commands, iteration limits, output format) or `90-automation.md` (trigger table, YOLO modes)
+- Archived `.windsurf/rules/00-critical.md` to `docs/archive/2026-04-02-00-critical-legacy.md` with superseded note
+- Deleted `.windsurf/rules/00-critical.md` from active rules
+
+### Fixed — RF-03 + RF-11 Rule File Alignment (2026-04-02)
+- **RF-03 `35-security-auth.md`**: Replaced `expo-secure-store` with `react-native-keychain` (aligns with bare React Native stack). Replaced `capacitor://localhost` CORS row with "N/A — native HTTP client not subject to CORS".
+- **RF-11 `95-multi-tenant-saas.md`**: Added Tenant Membership Validation section — tenant context must not be set without verifying user belongs to requested tenant. Added corresponding banned pattern and Done When entry.
+
+### Changed — Scaffold Documentation Synced with Implementation (2026-04-01)
+- **T6**: Updated `docs/workflows/SCAFFOLD_STRUCTURE.md` to reflect all epic changes
+  - `.windsurf/rules/` listing updated from 8 to 21 rule files (all current files)
+  - Scaffold Types table updated from 6 to 11 types (matches `AGENTS.md`)
+  - Chrome-extension path fixed: `extension/public/icons/` → `extension/icons/` (BUG-9 alignment)
+  - Chrome-extension description updated: "Chrome extension (Vite + CRXJS) + Python backend"
+  - `node-api` description corrected: Express + JavaScript (not TypeScript)
+
+### Changed — Chrome Extension Scaffold: Webpack → Vite + CRXJS (2026-04-01)
+- **BUG-9**: Migrated chrome-extension scaffold from webpack to Vite + CRXJS
+  - `src/fabrik/scaffold.py`: Rewrote `_scaffold_chrome_extension` — generates `extension/vite.config.ts` with `@crxjs/vite-plugin`, Vite deps/scripts in `extension/package.json`, no webpack output
+  - `templates/chrome-extension/manifest.json.j2`: Updated paths for CRXJS (`.ts` source files, `src/popup.html`)
+  - Directory restructure: `extension/public/` removed, icons at `extension/icons/`, popup.html at `extension/src/`
+  - Makefile comments updated from webpack to Vite
+  - `TYPE_REQUIRED_FILES["chrome-extension"]` now includes `extension/vite.config.ts`
+  - `tests/test_scaffold.py`: Updated assertions for Vite structure, added `test_extension_uses_vite_crxjs`
+  - Server-side scaffold (Dockerfile, compose.yaml, FastAPI) unchanged
+
+### Changed — MOBILE_UI Rewritten as React Native Pack (2026-04-01)
+- **BUG-8**: Archived legacy Kotlin/Swift native mobile pack, replaced with React Native / TypeScript ruleset
+  - Archived: `docs/archive/2026-04-01-80-mobile-legacy-native.md` (historical Jetpack Compose / SwiftUI rules)
+  - New `.windsurf/rules/80-mobile.md`: React Native + TypeScript aligned with actual `mobile-app` scaffold
+  - Covers: React Navigation, FlatList/FlashList performance, accessibility (touch targets, labels), platform-aware iOS/Android patterns, Zustand/React Query state, MMKV persistence, Maestro E2E testing
+  - Activation narrowed to `**/metro.config.*`, `**/react-native.config.*` (no web TS misfire)
+  - Banned patterns table (10 entries) and Done When checklist (9 items)
+  - No Jetpack Compose, SwiftUI, or Kotlin Multiplatform assumptions remain
+
+### Changed — TS_CORE Rewritten as Cross-Project TypeScript Pack (2026-04-01)
+- **BUG-7**: Rewrote `.windsurf/rules/20-typescript.md` from Next.js-specific to framework-agnostic TypeScript discipline
+  - Removed: SaaS skeleton bootstrap (MANDATORY `cp -r`), Server/Client Components, App Router API routes with `{ error: ... }`, Tailwind/shadcn/Lucide mandate, Visual Design Workflow
+  - Added: Strict Mode (`tsconfig.json`), Type Safety (discriminated unions, `unknown` over `any`), Module Patterns (ESM, path aliases), Error Handling (typed errors, defers to `API_CONTRACTS` for RFC 7807), Async Patterns, Banned Patterns table (9 entries), Done When checklist (6 items)
+  - Resolves seam conflict: `TS_CORE` no longer shows `{ error: ... }` that contradicts `API_CONTRACTS` RFC 7807
+  - `AGENTS.md`: Removed `node-api` from default `TS_CORE` mapping because the scaffold is currently JavaScript-based (`src/index.js`). Remaining `TS_CORE` mappings stay compatible with the rewritten pack.
+
+### Added — Static-Site Scaffold Type (2026-04-01)
+- **BUG-6**: Implemented `static-site` scaffold type in `src/fabrik/scaffold.py`
+  - Thin alias for `saas-skeleton` — same template, same Next.js structure
+  - Added to `SCAFFOLD_TYPES`, `TYPE_REQUIRED_FILES`, `_TYPE_SCAFFOLDERS` dispatch table
+  - Port range: frontend 3000–3099 (same as `saas-skeleton`)
+  - `project.yaml` correctly writes `type: static-site`
+  - 3 tests added in `tests/test_scaffold.py`: type in project.yaml, structure matches, port range
+
+### Fixed — Cross-Rule Contradictions and Activation Scopes (2026-04-01)
+- **BUG-4**: 8 targeted fixes across `.windsurf/rules/*.md` and `AGENTS.md`
+  - `25-data-postgres.md`: Added narrow `deleted_at` exception for `tenants` table in multi-tenant offboarding (resolves contradiction with `95-multi-tenant-saas.md`)
+  - `35-security-auth.md`: Replaced Postmark with Fabrik Email Gateway (Resend + SES, port 3000) — aligns with existing infrastructure in AGENTS.md
+  - `42-docusaurus.md`: Narrowed activation globs — removed `docs/**/*.md` and `docs/**/*.mdx` that fired on non-Docusaurus projects
+  - `62-wordpress.md`: Narrowed activation globs — removed `**/compose.yaml` that fired on every Docker project
+  - `75-workers-jobs.md`: Clarified Redis rule — single statement (default PostgreSQL, Redis only above 50k jobs/s threshold)
+  - `40-documentation.md`: Added `docs/reference/**/*.md` to .md file allowlist (unblocks scaffold-type-decision-guide.md)
+  - `85-payments-billing.md`: Updated frontmatter globs (`**/stripe/**` → `**/paddle/**`) and description to Paddle Billing v2
+  - `AGENTS.md`: Changed PAYMENTS overlay keyword from Stripe to Paddle (Stripe unavailable in Turkey)
+  - `25-data-postgres.md`: Aligned Banned Patterns table with tenant-offboarding exception
+  - `75-workers-jobs.md`: Split Redis into own Banned Patterns row with conditional exception (no more self-contradiction)
+  - `AGENTS.md`: Added `docs/reference/**/*.md` to Documentation Rules allowlist (matches `40-documentation.md`)
+
+### Added — Rule-Pack Enforcement Architecture (2026-04-01)
+- **`AGENTS.md`**: New "Rule-Pack Enforcement" section wiring all 16 rule packs into Traycer orchestration
+  - Pack Registry table: 16 packs (5 Core, 5 Backend, 2 Platform, 3 Domain) with file paths
+  - Project Type → Default Packs mapping for all 11 scaffold types (including new `static-site`)
+  - Feature-Based Overlay Packs table (8 overlays, `TESTING` as universal)
+  - Enforcement Policy: injection format, 40-line cap, Traycer-side only
+  - Scaffold Types table updated: `static-site` row added, propagation note, description improvements
+  - Reference Documents table updated: scaffold-type-decision-guide.md added
+- **`docs/reference/scaffold-type-decision-guide.md`**: New human-facing decision matrix
+  - WordPress vs Docusaurus vs static-site routing rules and use-case table
+  - Infrastructure comparison (containers, RAM, attack surface, maintenance)
+  - Anti-pattern table for wrong scaffold choices
+
 ### Fixed — Cascade Models Credit Display (2026-03-31)
 - **BUG**: `docs/reference/windsurf/cascade-models.md` showed negative credits (-1.0) for unavailable models
   - Root cause: `scrape_windsurf_models.py` output `credits_numeric` (-1.0) directly instead of em-dash
@@ -48,6 +194,117 @@ All notable changes to this project will be documented in this file.
 - **WordPress Scaffold**: Restored `dist/` and `build/` to .gitignore block
   - Lines were unintentionally removed during chrome-extension refactoring
   - WordPress theme/plugin development needs these build artifact ignores
+- **BUG-3**: Fixed chrome-extension test workflow to run out-of-box
+  - Added `pytest>=8.0.0` to requirements.txt (was missing)
+  - Set `PYTHONPATH=server/src` in Makefile test target for correct module resolution
+  - `make test` now works immediately after `make install` without manual setup
+  - Added regression guard test in `tests/test_scaffold.py::test_test_workflow_is_wired_correctly`
+
+### Added — WordPress Rules (2026-04-01)
+- **`.windsurf/rules/62-wordpress.md`**: New rule file distilled from Gemini research (`docs/development/plans/62-wordpress.md`)
+  - 16 enforceable rules: MariaDB exclusivity, php-fpm behind Nginx, wp-content-only volume persistence
+  - Nginx FastCGI Cache + Redis Object Cache, security hardening (DISALLOW_FILE_EDIT, xmlrpc block, env secrets)
+  - Plugin/theme discipline, Polylang i18n, WooCommerce tax automation, WP-CLI Makefile targets
+  - Server-level backups (mysqldump + tar → S3), headless CMS via WPGraphQL + Next.js Draft Mode
+  - Banned patterns table (10 anti-patterns) and "Done When" checklist (9 criteria)
+  - Activation: glob on `**/wp-content/**`, `**/wp-config*`, `**/compose.yaml`
+
+### Added — Docusaurus Rules (2026-04-01)
+- **`.windsurf/rules/42-docusaurus.md`**: New rule file distilled from Gemini research (`docs/development/plans/42-Docusaurus.md`)
+  - 15 enforceable rules: static-only deployment, two-stage Docker (node→nginx), Pagefind WASM search
+  - Scalar for API reference, Git branch versioning, Git-based i18n, CommonMark authoring
+  - "Does NOT make sense when" guidance, content quality automation (broken links, frontmatter)
+  - Banned patterns table (8 anti-patterns) and "Done When" checklist (9 criteria)
+  - Activation: glob on `**/docusaurus.config.*`, `**/sidebars.*`, `docs/**/*.md`, `docs/**/*.mdx`
+
+### Added — Multi-Tenant SaaS Rules (2026-03-31)
+- **`.windsurf/rules/95-multi-tenant-saas.md`**: New rule file distilled from Gemini research (`docs/development/plans/95-multi-tenant-saas.md`)
+  - 15 enforceable rules: shared-DB with PostgreSQL RLS, FORCE ROW LEVEL SECURITY, fail-closed default
+  - Tenant context via `SET LOCAL` + `ContextVar`, tenant resolution middleware, composite indexing
+  - Tenant-scoped caching (Redis prefix), admin BYPASSRLS separation, background job tenant propagation
+  - Banned patterns table (8 anti-patterns) and "Done When" checklist (9 criteria)
+  - Activation: glob on `**/tenants/**`, `**/middleware/**`, `**/rls/**`, `**/organizations/**`
+
+### Added — Payments & Billing Rules (2026-03-31)
+- **`.windsurf/rules/85-payments-billing.md`**: New rule file distilled from Gemini research (`docs/development/plans/85-payments-billing.md`)
+  - 14 enforceable rules: Paddle Billing v2 MoR exclusivity, Overlay Checkout, Customer Portal sessions
+  - Webhook security (raw bytes HMAC, `compare_digest`), idempotency via `webhook_events` table
+  - Entitlement model (`plan_features` mapping), flat-rate/tiered pricing, usage-based billing banned
+  - Banned patterns table (8 anti-patterns) and "Done When" checklist (9 criteria)
+  - Activation: glob on `**/billing/**`, `**/payments/**`, `**/stripe/**`, `**/webhooks/**`, `**/subscriptions/**`
+
+### Added — Workers & Jobs Rules (2026-03-31)
+- **`.windsurf/rules/75-workers-jobs.md`**: New rule file distilled from Gemini research (`docs/development/plans/75-workers-jobs.md`)
+  - 16 enforceable rules: PostgreSQL-exclusive queuing (SKIP LOCKED), transactional outbox, deterministic idempotency
+  - Retry/backoff defaults, dead-letter handling, visibility timeouts, LISTEN/NOTIFY wake-up
+  - Process isolation (fork), SIGTERM graceful shutdown, Docker exec form, tini as PID 1
+  - Banned patterns table (8 anti-patterns) and "Done When" checklist (9 criteria)
+  - Activation: glob on `**/workers/**`, `**/jobs/**`, `**/tasks/**`, `**/queue/**`
+
+### Added — RAG & Search Rules (2026-03-31)
+- **`.windsurf/rules/65-rag-search.md`**: New rule file distilled from Gemini research (`docs/development/plans/65-rag-search.md`)
+  - 14 enforceable rules: pgvector-only storage, HNSW parameters, hybrid search with RRF, chunking defaults
+  - Token budgeting (85% rule + tiktoken), citation provenance, retrieval quality eval (Faithfulness + Precision)
+  - Embedding model defaults (voyage-3-large / Qwen3-Embedding), pgvector vs dedicated vector DB guidance
+  - Banned patterns table (8 anti-patterns) and "Done When" checklist (8 criteria)
+  - Activation: glob on `**/embeddings/**`, `**/retrieval/**`, `**/rag/**`, `**/vector/**`
+
+### Added — Observability Rules (2026-03-31)
+- **`.windsurf/rules/55-observability.md`**: New rule file distilled from Gemini research (`docs/development/plans/55-observability.md`)
+  - 16 enforceable rules: structured JSON logging, correlation IDs, PII redaction, Loki label discipline
+  - Health endpoint semantics with start_period, SLO-lite alerting (RED method), synthetic monitoring
+  - Required log fields table, alert thresholds matrix, Chrome Extension MV3 telemetry constraints
+  - Banned patterns table (8 anti-patterns) and "Done When" checklist (9 criteria)
+  - Activation: glob on `**/health*`, `**/logging*`, `**/middleware/**`, `**/monitoring/**`
+
+### Added — Testing Strategy Rules (2026-03-31)
+- **`.windsurf/rules/45-testing-strategy.md`**: New rule file distilled from Gemini research (`docs/development/plans/45-testing-strategy.md`)
+  - 14 enforceable rules: Testing Trophy model, One-Test Rule, minimum test by ticket type matrix
+  - Per-stack frameworks: pytest+real PG (backend), Playwright (Next.js), Maestro (mobile), Playwright persistent context (extensions)
+  - Zero-mock DB policy, semantic locators, factory-based test data, regression-first bugfixes
+  - Banned patterns table (8 anti-patterns) and "Done When" checklist (8 criteria)
+  - Activation: glob on `**/tests/**`, `**/test_*`, `**/*.test.*`, `**/*.spec.*`
+
+### Added — Security & Auth Rules (2026-03-31)
+- **`.windsurf/rules/35-security-auth.md`**: New rule file distilled from Gemini research (`docs/development/plans/35-security-auth.md`)
+  - 15 enforceable rules: FastAPI sole IdP, hybrid JWT lifecycle, token storage matrix, defense-in-depth
+  - CORS policy per client type, CSP nonce injection, FastAPI security headers, internal service auth
+  - Banned patterns table (8 anti-patterns) and "Done When" checklist (9 criteria)
+  - Activation: glob on `**/auth/**`, `**/security/**`, `**/middleware/**`
+
+### Added — PostgreSQL & Data Rules (2026-03-31)
+- **`.windsurf/rules/25-data-postgres.md`**: New rule file distilled from Gemini research (`docs/development/plans/25-data-postgres.md`)
+  - 16 enforceable rules: Alembic migrations, UUIDv7 keys, NOT NULL default, soft delete ban, JSONB boundaries
+  - Transaction scoping via Depends(), expire_on_commit=False, pool_pre_ping, connection pooling strategy
+  - Indexing discipline: FKs + proven paths, partial indexes, monitor unused
+  - Banned patterns table (8 anti-patterns) and "Done When" checklist (9 criteria)
+  - Activation: glob on `**/db/**`, `**/models/**`, `**/schema.sql`, `**/migrations/**`
+
+### Added — API Contract Rules (2026-03-31)
+- **`.windsurf/rules/15-api-contracts.md`**: New rule file distilled from Gemini research (`docs/development/plans/15-api-contracts.md`)
+  - 15 enforceable rules: OpenAPI-first, RFC 7807 errors, cursor pagination, idempotency, URI versioning
+  - Casing boundary (Pydantic alias_generator), service layer isolation, async discipline
+  - Banned patterns table (10 anti-patterns) and "Done When" checklist (8 criteria)
+  - Activation: glob on `**/routes/**`, `**/api/**`, `**/route.ts`, `**/router.py`
+
+### Changed — Documentation Rules Simplified (2026-03-31)
+- **`.windsurf/rules/40-documentation.md`**: Simplified from 220 → 59 lines (directive-style guidance)
+  - Applied ai_agent_prompt_directives.md principles: imperative language, minimal explanation
+  - Each section: **Update when** / **What** / **Enforced** (no examples, no format details)
+  - Removed all enforcement mechanics (gate tiers, commands, system internals)
+  - Removed plan templates, writing style, lifecycle sections (Traycer manages planning)
+  - Focus: When/why/what to update each doc, nothing more
+- **`docs/workflows/SCAFFOLD_STRUCTURE.md`**: Updated to match actual scaffold.py implementation
+  - Corrected docs tree: removed non-generated files (API_REFERENCE, DATABASE_SCHEMA, etc.)
+  - Added actual structure: `docs/archive/README.md`, `docs/development/plans/PLANS.md`, `docs/reference/windsurf/cascade-models.md`
+  - Replaced "Template Sources" with "Document Generation" breakdown showing 4 categories:
+    - From templates (9 files from `templates/scaffold/docs/`)
+    - Inline generated (PORTS.md, PLANS.md, archive/README.md)
+    - Copied from Fabrik (AGENTS.md, AGENTS-compact.md, cascade-models.md)
+    - Type-specific (chrome-extension icons README.md)
+- **`.windsurf/rules/00-critical.md`**: Aligned with actual enforcement behavior
+  - Fixed staging workflow: gate auto-stages changes (do not run `git add` manually)
+  - Fixed compose filename: `compose.yaml` not `docker-compose.yml` (matches scaffold)
 
 ### Changed — Changelog Enforcement Moved to Tier 1 (2026-03-30)
 - **`scripts/final_gate.py`**: Moved `check_changelog.py` from Tier 2 to Tier 1 (Lean) gate

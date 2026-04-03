@@ -1,6 +1,6 @@
 # Final Gate Workflow
 
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-04-03
 
 > Complete reference for `scripts/final_gate.py` — deterministic quality checks that validate code and documentation before Traycer commit.
 
@@ -752,7 +752,8 @@ API_KEY = os.getenv('API_KEY')
 - `AGENTS-compact.md` — Local copy
 - `opencode.json` — Local copy
 - `.windsurfrules` — Local copy
-- `.windsurf/rules/` — Local directory (not symlinked)
+- `.windsurf/rules/` — Local directory (not symlinked), recursive descendant check
+- `.windsurf/workflows/` — Local directory (not symlinked), recursive descendant check
 
 **Self-exemption:** Skipped when running inside `/opt/fabrik` (source repo).
 
@@ -902,6 +903,7 @@ rm AGENTS.md .windsurfrules  # Remove symlinks
 cp /opt/fabrik/AGENTS.md ./AGENTS.md
 cp /opt/fabrik/opencode.json ./opencode.json
 cp -r /opt/fabrik/.windsurf/rules/ ./.windsurf/rules/
+cp -r /opt/fabrik/.windsurf/workflows/ ./.windsurf/workflows/
 ```
 
 **Note:** New scaffolds (March 2026+) copy files directly, no symlinks.
@@ -932,7 +934,7 @@ pip install bandit semgrep sqlfluff vulture
 
 ## Sources of Truth
 
-- `.windsurf/rules/00-critical.md` — Cascade behavior, invariants, and internal audit.
+- `.windsurfrules` — Cascade agent contract: behavior rules, invariants, and audit directives.
 - `.windsurf/rules/50-code-review.md` — Tiered gate commands and usage for Cascade.
 - `.windsurf/rules/90-automation.md` — Traycer YOLO automation and gate triggering.
 - `scripts/final_gate.py` — Executable tiered implementation (runtime truth).

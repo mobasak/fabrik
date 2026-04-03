@@ -376,11 +376,11 @@ class ProvisionState(str, Enum):
 |---------|----------|-------------|
 | SaaS scaffold | "SaaS", "web app", "dashboard" | `scaffold.py` + `20-typescript.md` |
 | Docker standards | "dockerfile", "compose" | `check_docker.py` + `30-ops.md` |
-| Health endpoints | "health", "healthcheck" | `check_health.py` + `00-critical.md` |
-| Config patterns | "config", "environment" | `check_env_contract.py` + `00-critical.md` |
+| Health endpoints | "health", "healthcheck" | `check_health.py` + `.windsurfrules` |
+| Config patterns | "config", "environment" | `check_env_contract.py` + `.windsurfrules` |
 | API endpoints | "endpoint", "route", "API" | `validate_conventions.py` + `10-python.md` |
 | Watchdog scripts | "watchdog", "monitor" | `check_watchdog.py` + `30-ops.md` |
-| Database schema | "database", "postgres" | `check_schema_sync.py` + `00-critical.md` |
+| Database schema | "database", "postgres" | `check_schema_sync.py` + `.windsurfrules` |
 
 **Enforcement:** Windsurf Cascade reads `.windsurf/rules/` for AI behavior. `scripts/final_gate.py` runs 27 enforcement scripts.
 
@@ -416,7 +416,7 @@ Create production-ready services instantly:
 | `file-worker` | Python + R2 | Background processing | OCR, transcription, async jobs |
 | `wordpress` | WordPress + MySQL | Content sites, blogs | Automated theme, plugins, content |
 | `saas-skeleton` | Next.js + Supabase + Stripe | Multi-tenant SaaS | Auth, billing, dashboard, job workflow, SSE streaming |
-| `chrome-extension` | Manifest V3 + React | Browser extensions | Popup, background, content scripts |
+| `chrome-extension` | TypeScript + Vite + CRXJS | Browser extensions + Python backend | Extension (popup, background, content scripts) + FastAPI server |
 | `desktop-app` | Electron + React | Desktop applications | Cross-platform native apps |
 | `mobile-app` | React Native | Mobile apps | iOS + Android from one codebase |
 | `docusaurus` | Docusaurus | Documentation sites | Versioning, search, i18n |

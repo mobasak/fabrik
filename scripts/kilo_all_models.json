@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-31T12:40:34.576885",
-  "total_models": 330,
+  "timestamp": "2026-04-03T11:59:11.291943",
+  "total_models": 329,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -177,6 +177,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "arcee-ai/trinity-large-thinking": {
+      "id": "arcee-ai/trinity-large-thinking",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "arcee-ai/trinity-mini": {
       "id": "arcee-ai/trinity-mini",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -209,6 +214,11 @@
     },
     "baidu/ernie-4.5-vl-424b-a47b": {
       "id": "baidu/ernie-4.5-vl-424b-a47b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "bytedance-seed/dola-seed-2.0-pro:free": {
+      "id": "bytedance-seed/dola-seed-2.0-pro:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -422,6 +432,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "google/gemma-4-31b-it": {
+      "id": "google/gemma-4-31b-it",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "google/lyria-3-clip-preview": {
       "id": "google/lyria-3-clip-preview",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -494,16 +509,6 @@
     },
     "liquid/lfm-2-24b-a2b": {
       "id": "liquid/lfm-2-24b-a2b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "liquid/lfm-2.2-6b": {
-      "id": "liquid/lfm-2.2-6b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "liquid/lfm2-8b-a1b": {
-      "id": "liquid/lfm2-8b-a1b",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -614,11 +619,6 @@
     },
     "minimax/minimax-m2.5": {
       "id": "minimax/minimax-m2.5",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "minimax/minimax-m2.5:free": {
-      "id": "minimax/minimax-m2.5:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1407,8 +1407,8 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "qwen/qwen3.6-plus-preview:free": {
-      "id": "qwen/qwen3.6-plus-preview:free",
+    "qwen/qwen3.6-plus:free": {
+      "id": "qwen/qwen3.6-plus:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1417,8 +1417,8 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "reka/reka-edge": {
-      "id": "reka/reka-edge",
+    "rekaai/reka-edge": {
+      "id": "rekaai/reka-edge",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1557,13 +1557,13 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "x-ai/grok-4.20-beta": {
-      "id": "x-ai/grok-4.20-beta",
+    "x-ai/grok-4.20": {
+      "id": "x-ai/grok-4.20",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "x-ai/grok-4.20-multi-agent-beta": {
-      "id": "x-ai/grok-4.20-multi-agent-beta",
+    "x-ai/grok-4.20-multi-agent": {
+      "id": "x-ai/grok-4.20-multi-agent",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1587,18 +1587,8 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "xiaomi/mimo-v2-omni:free": {
-      "id": "xiaomi/mimo-v2-omni:free",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "xiaomi/mimo-v2-pro": {
       "id": "xiaomi/mimo-v2-pro",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "xiaomi/mimo-v2-pro:free": {
-      "id": "xiaomi/mimo-v2-pro:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1649,6 +1639,11 @@
     },
     "z-ai/glm-5-turbo": {
       "id": "z-ai/glm-5-turbo",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "z-ai/glm-5v-turbo": {
+      "id": "z-ai/glm-5v-turbo",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     }

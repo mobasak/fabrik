@@ -171,7 +171,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   └── workflows/                   # ci.yml, docs-check.yml
 └── .windsurf/                       # Windsurf IDE config
     ├── hooks.json
-    ├── rules/                       # 00-critical, 10-python, etc.
+    ├── rules/                       # 10-python, 20-typescript, etc.
     └── workflows/                   # code-review, bug-fix, deploy, etc.
 ```
 

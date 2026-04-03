@@ -303,7 +303,7 @@ class TestChromeExtensionScaffold:
     """Test chrome-extension scaffold generates dual-artifact structure."""
 
     def test_creates_extension_directory_structure(self, tmp_path):
-        """Verify extension/ directory structure with manifest, webpack, stubs."""
+        """Verify extension/ directory structure with manifest, Vite, stubs."""
         create_project(
             name="test-ext",
             project_type="chrome-extension",
@@ -315,24 +315,52 @@ class TestChromeExtensionScaffold:
 
         # Verify extension/ structure
         assert (project_dir / "extension" / "src").is_dir()
-        assert (project_dir / "extension" / "public").is_dir()
-        assert (project_dir / "extension" / "public" / "icons").is_dir()
+        assert (project_dir / "extension" / "icons").is_dir()
 
-        # Verify core files
+        # Verify core files (Vite + CRXJS, not webpack)
         assert (project_dir / "extension" / "manifest.json").exists()
         assert (project_dir / "extension" / "package.json").exists()
-        assert (project_dir / "extension" / "webpack.config.js").exists()
+        assert (project_dir / "extension" / "vite.config.ts").exists()
+        assert not (project_dir / "extension" / "webpack.config.js").exists()
 
         # Verify stubs
         assert (project_dir / "extension" / "src" / "popup.ts").exists()
         assert (project_dir / "extension" / "src" / "background.ts").exists()
         assert (project_dir / "extension" / "src" / "content.ts").exists()
-        assert (project_dir / "extension" / "public" / "popup.html").exists()
+        assert (project_dir / "extension" / "src" / "popup.html").exists()
 
         # Verify manifest content
         manifest = (project_dir / "extension" / "manifest.json").read_text()
         assert '"name": "test-ext"' in manifest
         assert '"description": "Test Extension"' in manifest
+
+    def test_extension_uses_vite_crxjs(self, tmp_path):
+        """Verify extension uses Vite + CRXJS, not webpack."""
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        # Verify vite.config.ts content
+        vite_config = (project_dir / "extension" / "vite.config.ts").read_text()
+        assert "@crxjs/vite-plugin" in vite_config
+        assert "crx({ manifest })" in vite_config
+
+        # Verify package.json uses Vite + CRXJS deps
+        import json
+
+        pkg = json.loads((project_dir / "extension" / "package.json").read_text())
+        assert "vite" in pkg["scripts"]["dev"]
+        assert "vite build" in pkg["scripts"]["build"]
+        assert "@crxjs/vite-plugin" in pkg["devDependencies"]
+        assert "vite" in pkg["devDependencies"]
+        # No webpack deps
+        assert "webpack" not in pkg.get("devDependencies", {})
+        assert "webpack-cli" not in pkg.get("devDependencies", {})
 
     def test_creates_server_directory_structure(self, tmp_path):
         """Verify server/ directory structure with FastAPI backend."""
@@ -473,3 +501,501 @@ class TestChromeExtensionScaffold:
         ]
         for entry in required_entries:
             assert entry in gitignore, f"{entry} missing in chrome-extension .gitignore"
+
+    def test_test_workflow_is_wired_correctly(self, tmp_path):
+        """Verify test workflow runs out-of-box (BUG-3 regression guard)."""
+        create_project(
+            name="test-ext",
+            project_type="chrome-extension",
+            description="Test Extension",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-ext"
+
+        # Verify pytest in requirements.txt
+        reqs = (project_dir / "requirements.txt").read_text()
+        assert "pytest" in reqs, "pytest missing from requirements.txt"
+
+        # Verify Makefile test target has PYTHONPATH
+        makefile = (project_dir / "Makefile").read_text()
+        assert "PYTHONPATH=server/src" in makefile, "PYTHONPATH not set in Makefile test target"
+        assert ".venv/bin/pytest" in makefile, "pytest not invoked via .venv in Makefile"
+
+        # Verify test file exists with correct import
+        test_health = (project_dir / "tests" / "test_health.py").read_text()
+        assert "from test_ext.main import app" in test_health, "test imports package incorrectly"
+        assert "TestClient" in test_health, "TestClient not imported in tests"
+
+
+@requires_fabrik_env
+class TestStaticSiteScaffold:
+    """Test static-site scaffold generates saas-skeleton structure with correct type."""
+
+    def test_generates_project_yaml_with_static_site_type(self, tmp_path):
+        """Verify project.yaml has type: static-site, not saas-skeleton."""
+        create_project(
+            name="test-static",
+            project_type="static-site",
+            description="Test Static Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-static"
+        project_yaml = (project_dir / "project.yaml").read_text()
+        assert "type: static-site" in project_yaml
+        assert "type: saas-skeleton" not in project_yaml
+
+    def test_generates_saas_skeleton_structure(self, tmp_path):
+        """Verify static-site output matches saas-skeleton structure."""
+        create_project(
+            name="test-static",
+            project_type="static-site",
+            description="Test Static Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-static"
+
+        # Shared required files present
+        assert (project_dir / "README.md").exists()
+        assert (project_dir / "CHANGELOG.md").exists()
+        assert (project_dir / "docs" / "README.md").exists()
+
+    def test_assigns_frontend_port_range(self, tmp_path):
+        """Verify port is in frontend range (3000-3099), not Python range."""
+        create_project(
+            name="test-static",
+            project_type="static-site",
+            description="Test Static Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-static"
+        project_yaml = (project_dir / "project.yaml").read_text()
+        # Port should be in 3000-3099 range
+        import re
+
+        port_match = re.search(r"- (\d+)", project_yaml)
+        assert port_match, "No port found in project.yaml"
+        port = int(port_match.group(1))
+        assert 3000 <= port <= 3099, f"Port {port} not in frontend range 3000-3099"
+
+
+@requires_fabrik_env
+class TestMobileAppScaffold:
+    """Test mobile-app scaffold generates template-backed React Native structure."""
+
+    def test_uses_react_native_scripts(self, tmp_path):
+        """Verify package.json has React Native scripts, not Expo."""
+        import json
+
+        create_project(
+            name="test-mobile",
+            project_type="mobile-app",
+            description="Test Mobile App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-mobile"
+        pkg = json.loads((project_dir / "package.json").read_text())
+        scripts = pkg["scripts"]
+
+        # React Native scripts must be present
+        assert scripts["start"] == "react-native start"
+        assert scripts["android"] == "react-native run-android"
+        assert scripts["ios"] == "react-native run-ios"
+
+        # No Expo references
+        for key, val in scripts.items():
+            assert "expo" not in val.lower(), f"Expo reference found in scripts.{key}: {val}"
+
+    def test_has_full_react_native_deps(self, tmp_path):
+        """Verify package.json has real React Native deps from template."""
+        import json
+
+        create_project(
+            name="test-mobile",
+            project_type="mobile-app",
+            description="Test Mobile App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-mobile"
+        pkg = json.loads((project_dir / "package.json").read_text())
+
+        # Must have full deps from template, not bare inline
+        assert "react-native" in pkg.get("dependencies", {}), "Missing react-native dep"
+        assert "react" in pkg.get("dependencies", {}), "Missing react dep"
+        assert "@react-navigation/native" in pkg.get("dependencies", {}), "Missing navigation dep"
+
+    def test_creates_navigation_tree(self, tmp_path):
+        """Verify src/navigation/ tree is copied from template."""
+        create_project(
+            name="test-mobile",
+            project_type="mobile-app",
+            description="Test Mobile App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-mobile"
+        nav = project_dir / "src" / "navigation" / "AppNavigator.tsx"
+        assert nav.exists(), "src/navigation/AppNavigator.tsx not created"
+        content = nav.read_text()
+        assert "NavigationContainer" in content, "AppNavigator missing NavigationContainer"
+
+        types_file = project_dir / "src" / "navigation" / "types.ts"
+        assert types_file.exists(), "src/navigation/types.ts not created"
+
+    def test_creates_features_tree(self, tmp_path):
+        """Verify src/features/ tree is copied from template."""
+        create_project(
+            name="test-mobile",
+            project_type="mobile-app",
+            description="Test Mobile App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-mobile"
+        assert (project_dir / "src" / "features" / "files" / "types.ts").exists()
+        assert (project_dir / "src" / "features" / "files" / "services" / "fileService.ts").exists()
+
+    def test_creates_entry_file(self, tmp_path):
+        """Verify src/App.tsx exists with SafeAreaProvider (template content)."""
+        create_project(
+            name="test-mobile",
+            project_type="mobile-app",
+            description="Test Mobile App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-mobile"
+        app_tsx = project_dir / "src" / "App.tsx"
+        assert app_tsx.exists(), "src/App.tsx not created"
+        content = app_tsx.read_text()
+        assert "SafeAreaProvider" in content, "App.tsx missing SafeAreaProvider from template"
+
+    def test_no_dockerfile(self, tmp_path):
+        """Verify mobile-app does not generate Docker files (non-container)."""
+        create_project(
+            name="test-mobile",
+            project_type="mobile-app",
+            description="Test Mobile App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-mobile"
+        assert not (project_dir / "Dockerfile").exists()
+
+
+@requires_fabrik_env
+class TestDesktopAppScaffold:
+    """Test desktop-app scaffold generates template-backed Electron structure."""
+
+    def test_uses_electron_scripts(self, tmp_path):
+        """Verify package.json has Electron scripts from template."""
+        import json
+
+        create_project(
+            name="test-desktop",
+            project_type="desktop-app",
+            description="Test Desktop App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-desktop"
+        pkg = json.loads((project_dir / "package.json").read_text())
+
+        assert pkg["scripts"]["dev"] == "electron ."
+        assert "electron-builder" in pkg["scripts"]["build"]
+
+    def test_has_electron_deps(self, tmp_path):
+        """Verify package.json has Electron deps from template."""
+        import json
+
+        create_project(
+            name="test-desktop",
+            project_type="desktop-app",
+            description="Test Desktop App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-desktop"
+        pkg = json.loads((project_dir / "package.json").read_text())
+
+        assert "electron" in pkg.get("devDependencies", {}), "Missing electron devDep"
+        assert "electron-builder" in pkg.get("devDependencies", {}), "Missing electron-builder"
+
+    def test_has_build_config(self, tmp_path):
+        """Verify package.json has electron-builder build config with project name."""
+        import json
+
+        create_project(
+            name="test-desktop",
+            project_type="desktop-app",
+            description="Test Desktop App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-desktop"
+        pkg = json.loads((project_dir / "package.json").read_text())
+
+        assert "build" in pkg, "Missing build config"
+        assert pkg["build"]["appId"] == "com.fabrik.test-desktop"
+        assert pkg["build"]["productName"] == "test-desktop"
+
+    def test_creates_electron_main(self, tmp_path):
+        """Verify electron/main.js is copied from template."""
+        create_project(
+            name="test-desktop",
+            project_type="desktop-app",
+            description="Test Desktop App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-desktop"
+        main_js = project_dir / "electron" / "main.js"
+        assert main_js.exists(), "electron/main.js not created"
+        content = main_js.read_text()
+        assert "BrowserWindow" in content, "main.js missing BrowserWindow"
+        assert "contextIsolation: true" in content, "main.js missing security setting"
+
+    def test_creates_index_html(self, tmp_path):
+        """Verify index.html is created (referenced by electron/main.js)."""
+        create_project(
+            name="test-desktop",
+            project_type="desktop-app",
+            description="Test Desktop App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-desktop"
+        index = project_dir / "index.html"
+        assert index.exists(), "index.html not created"
+        assert "test-desktop" in index.read_text()
+
+    def test_name_substitution(self, tmp_path):
+        """Verify project name is substituted in package.json."""
+        import json
+
+        create_project(
+            name="my-electron-app",
+            project_type="desktop-app",
+            description="My Electron App",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "my-electron-app"
+        pkg = json.loads((project_dir / "package.json").read_text())
+        assert pkg["name"] == "my-electron-app"
+        assert pkg["description"] == "My Electron App"
+
+
+@requires_fabrik_env
+class TestDocusaurusScaffold:
+    """Test docusaurus scaffold generates template-backed Docusaurus structure."""
+
+    def test_has_docusaurus_deps(self, tmp_path):
+        """Verify package.json has full Docusaurus deps from template."""
+        import json
+
+        create_project(
+            name="test-docs",
+            project_type="docusaurus",
+            description="Test Docs Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-docs"
+        pkg = json.loads((project_dir / "package.json").read_text())
+
+        deps = pkg.get("dependencies", {})
+        assert "@docusaurus/core" in deps, "Missing @docusaurus/core"
+        assert "@docusaurus/preset-classic" in deps, "Missing preset-classic"
+        assert "react" in deps, "Missing react"
+
+    def test_has_docusaurus_scripts(self, tmp_path):
+        """Verify package.json has Docusaurus scripts from template."""
+        import json
+
+        create_project(
+            name="test-docs",
+            project_type="docusaurus",
+            description="Test Docs Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-docs"
+        pkg = json.loads((project_dir / "package.json").read_text())
+        scripts = pkg["scripts"]
+
+        assert scripts["start"] == "docusaurus start"
+        assert scripts["build"] == "docusaurus build"
+        assert scripts["serve"] == "docusaurus serve"
+
+    def test_creates_config(self, tmp_path):
+        """Verify docusaurus.config.js is generated with full OpenAPI contract."""
+        create_project(
+            name="test-docs",
+            project_type="docusaurus",
+            description="Test Docs Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-docs"
+        config = project_dir / "docusaurus.config.js"
+        assert config.exists(), "docusaurus.config.js not created"
+        content = config.read_text()
+        assert "test-docs" in content, "Config missing project name"
+        assert "prismThemes" in content, "Config missing prism themes"
+
+        # OpenAPI template contract
+        assert '@theme/ApiItem' in content, "Config missing docItemComponent"
+        assert "docusaurus-plugin-openapi-docs" in content, "Config missing OpenAPI plugin"
+        assert "docusaurus-theme-openapi-docs" in content, "Config missing OpenAPI theme"
+        assert "apiSidebar" in content, "Config missing apiSidebar navbar item"
+
+    def test_creates_sidebars(self, tmp_path):
+        """Verify sidebars.js is generated with apiSidebar."""
+        create_project(
+            name="test-docs",
+            project_type="docusaurus",
+            description="Test Docs Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-docs"
+        sidebars = project_dir / "sidebars.js"
+        assert sidebars.exists(), "sidebars.js not created"
+        content = sidebars.read_text()
+        assert "guideSidebar" in content
+        assert "apiSidebar" in content, "sidebars.js missing apiSidebar"
+        assert "docs/api/sidebar.js" in content, "sidebars.js missing api sidebar require"
+
+    def test_creates_openapi_yaml(self, tmp_path):
+        """Verify openapi.yaml placeholder is created."""
+        create_project(
+            name="test-docs",
+            project_type="docusaurus",
+            description="Test Docs Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-docs"
+        spec = project_dir / "openapi.yaml"
+        assert spec.exists(), "openapi.yaml not created"
+        content = spec.read_text()
+        assert "openapi: 3.0.3" in content
+        assert "test-docs" in content, "openapi.yaml missing project name"
+
+    def test_creates_api_sidebar(self, tmp_path):
+        """Verify docs/api/sidebar.js placeholder is created."""
+        create_project(
+            name="test-docs",
+            project_type="docusaurus",
+            description="Test Docs Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-docs"
+        sidebar = project_dir / "docs" / "api" / "sidebar.js"
+        assert sidebar.exists(), "docs/api/sidebar.js not created"
+        content = sidebar.read_text()
+        assert "module.exports" in content
+        assert "gen-api" in content, "sidebar.js missing gen-api regeneration hint"
+
+    def test_creates_intro_doc(self, tmp_path):
+        """Verify docs/intro.md is created with frontmatter."""
+        create_project(
+            name="test-docs",
+            project_type="docusaurus",
+            description="Test Docs Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-docs"
+        intro = project_dir / "docs" / "intro.md"
+        assert intro.exists(), "docs/intro.md not created"
+        content = intro.read_text()
+        assert "sidebar_position" in content, "intro.md missing frontmatter"
+        assert "test-docs" in content
+
+    def test_creates_custom_css(self, tmp_path):
+        """Verify src/css/custom.css is created."""
+        create_project(
+            name="test-docs",
+            project_type="docusaurus",
+            description="Test Docs Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-docs"
+        css = project_dir / "src" / "css" / "custom.css"
+        assert css.exists(), "src/css/custom.css not created"
+        assert "--ifm-color-primary" in css.read_text()
+
+    def test_creates_static_dir(self, tmp_path):
+        """Verify static/img/ directory is created."""
+        create_project(
+            name="test-docs",
+            project_type="docusaurus",
+            description="Test Docs Site",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-docs"
+        assert (project_dir / "static" / "img").is_dir()
+
+    def test_name_substitution(self, tmp_path):
+        """Verify project name is substituted in package.json."""
+        import json
+
+        create_project(
+            name="my-docs-site",
+            project_type="docusaurus",
+            description="My Docs",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "my-docs-site"
+        pkg = json.loads((project_dir / "package.json").read_text())
+        assert pkg["name"] == "my-docs-site-docs"
+        assert pkg["description"] == "My Docs"
+
+
+@requires_fabrik_env
+class TestWorkflowsPropagation:
+    """Test .windsurf/workflows/ is propagated during scaffold."""
+
+    def test_scaffold_copies_workflows(self, tmp_path):
+        """Verify .windsurf/workflows/ directory exists in scaffolded projects."""
+        create_project(
+            name="test-workflows",
+            project_type="python-api",
+            description="Test Workflows",
+            base=tmp_path,
+        )
+
+        project_dir = tmp_path / "test-workflows"
+        workflows_dir = project_dir / ".windsurf" / "workflows"
+        assert workflows_dir.exists(), ".windsurf/workflows/ not created during scaffold"
+        assert workflows_dir.is_dir(), ".windsurf/workflows/ is not a directory"
+
+        # Verify at least one workflow file was copied
+        workflow_files = list(workflows_dir.glob("*.md"))
+        assert len(workflow_files) > 0, "No workflow files found in .windsurf/workflows/"
+
+    def test_fix_project_refreshes_workflows(self, tmp_path):
+        """Verify fix_project() copies .windsurf/workflows/ to existing projects."""
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+        (project_dir / ".git").mkdir()
+
+        _ = fix_project(project_dir, dry_run=False)
+
+        workflows_dir = project_dir / ".windsurf" / "workflows"
+        assert workflows_dir.exists(), "fix_project() did not create .windsurf/workflows/"
+        assert workflows_dir.is_dir()
+
+        workflow_files = list(workflows_dir.glob("*.md"))
+        assert len(workflow_files) > 0, "No workflow files after fix_project()"

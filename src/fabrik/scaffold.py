@@ -7,7 +7,6 @@ import subprocess
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -48,6 +47,7 @@ SCAFFOLD_TYPES = frozenset(
         "chrome-extension",
         "mobile-app",
         "desktop-app",
+        "static-site",
     }
 )
 
@@ -72,6 +72,9 @@ WORDPRESS_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "wordpress"
 FILE_API_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-api"
 FILE_WORKER_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-worker"
 SAAS_SKELETON_DIR = FABRIK_ROOT / "templates" / "saas-skeleton"
+MOBILE_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "mobile-app"
+DESKTOP_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "desktop-app"
+DOCUSAURUS_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "docusaurus"
 
 SHARED_TEMPLATE_MAP = {
     "docs/PROJECT_INDEX_TEMPLATE.md": "INDEX.md",
@@ -112,22 +115,33 @@ _SHARED_REQUIRED_FILES = [
 TYPE_REQUIRED_FILES: dict[str, list[str]] = {
     "python-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "compose.yaml"],
     "saas-skeleton": _SHARED_REQUIRED_FILES[:],
+    "static-site": _SHARED_REQUIRED_FILES[:],
     "node-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "package.json"],
     "file-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "package.json", "src/index.js"],
     "file-worker": _SHARED_REQUIRED_FILES + ["Dockerfile", "requirements.txt", "worker/main.py"],
     "wordpress": _SHARED_REQUIRED_FILES
     + ["compose.yaml.j2", "compose-coolify.yaml.j2", ".env.example"],
-    "docusaurus": _SHARED_REQUIRED_FILES + ["package.json", "docs/intro.md"],
+    "docusaurus": _SHARED_REQUIRED_FILES
+    + [
+        "package.json",
+        "docusaurus.config.js",
+        "sidebars.js",
+        "docs/intro.md",
+        "openapi.yaml",
+        "docs/api/sidebar.js",
+    ],
     "chrome-extension": _SHARED_REQUIRED_FILES
     + [
         "extension/manifest.json",
         "extension/package.json",
+        "extension/vite.config.ts",
         "Dockerfile",
         "compose.yaml",
         "Makefile",
     ],
-    "mobile-app": _SHARED_REQUIRED_FILES + ["package.json", "src/App.tsx"],
-    "desktop-app": _SHARED_REQUIRED_FILES + ["package.json", "src/main.ts"],
+    "mobile-app": _SHARED_REQUIRED_FILES
+    + ["package.json", "src/App.tsx", "src/navigation/AppNavigator.tsx"],
+    "desktop-app": _SHARED_REQUIRED_FILES + ["package.json", "electron/main.js"],
 }
 
 SHARED_DIRS = [
@@ -357,15 +371,20 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
     if fabrik_enforcement.exists():
         shutil.copytree(fabrik_enforcement, project_enforcement, dirs_exist_ok=True)
 
-    # Copy .windsurfrules and .windsurf/rules/ (authoritative)
+    # Copy .windsurfrules, .windsurf/rules/, .windsurf/workflows/ (authoritative)
     # Fail fast if fabrik targets are missing - environment is broken
     fabrik_windsurfrules = FABRIK_ROOT / ".windsurfrules"
     fabrik_windsurf_rules = FABRIK_ROOT / ".windsurf" / "rules"
+    fabrik_windsurf_workflows = FABRIK_ROOT / ".windsurf" / "workflows"
 
     if not fabrik_windsurfrules.exists():
         raise FileNotFoundError(f"Missing fabrik .windsurfrules: {fabrik_windsurfrules}")
     if not fabrik_windsurf_rules.exists():
         raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {fabrik_windsurf_rules}")
+    if not fabrik_windsurf_workflows.exists():
+        raise FileNotFoundError(
+            f"Missing fabrik windsurf workflows dir: {fabrik_windsurf_workflows}"
+        )
 
     # Copy .windsurfrules (no symlinks - workspace isolation)
     shutil.copy(fabrik_windsurfrules, project_dir / ".windsurfrules")
@@ -375,6 +394,12 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
     if windsurf_target.exists():
         shutil.rmtree(windsurf_target)
     shutil.copytree(fabrik_windsurf_rules, windsurf_target)
+
+    # Copy .windsurf/workflows/ directory (no symlinks - workspace isolation)
+    workflows_target = project_dir / ".windsurf" / "workflows"
+    if workflows_target.exists():
+        shutil.rmtree(workflows_target)
+    shutil.copytree(fabrik_windsurf_workflows, workflows_target)
 
     # Copy AGENTS.md (no symlinks - workspace isolation)
     if FABRIK_AGENTS_MD.exists():
@@ -1163,7 +1188,7 @@ def _scaffold_chrome_extension(
 
     # Create directory structure
     (project_dir / "extension" / "src").mkdir(parents=True, exist_ok=True)
-    (project_dir / "extension" / "public" / "icons").mkdir(parents=True, exist_ok=True)
+    (project_dir / "extension" / "icons").mkdir(parents=True, exist_ok=True)
     (project_dir / "server" / "src" / package_name).mkdir(parents=True, exist_ok=True)
 
     # 1. Extension files
@@ -1177,8 +1202,8 @@ def _scaffold_chrome_extension(
         )
         (project_dir / "extension" / "manifest.json").write_text(content)
 
-    # popup.html
-    (project_dir / "extension" / "public" / "popup.html").write_text(
+    # popup.html (in src/ — CRXJS resolves from manifest)
+    (project_dir / "extension" / "src" / "popup.html").write_text(
         f"""<!DOCTYPE html>
 <html>
 <head>
@@ -1192,7 +1217,7 @@ def _scaffold_chrome_extension(
 <body>
   <h1>{name}</h1>
   <div id="app"></div>
-  <script src="popup.js"></script>
+  <script type="module" src="./popup.ts"></script>
 </body>
 </html>
 """
@@ -1224,7 +1249,7 @@ def _scaffold_chrome_extension(
     )
 
     # icons/.gitkeep and README
-    icons_dir = project_dir / "extension" / "public" / "icons"
+    icons_dir = project_dir / "extension" / "icons"
     (icons_dir / ".gitkeep").write_text("")
     (icons_dir / "README.md").write_text(
         """# Extension Icons
@@ -1259,44 +1284,19 @@ Extension will fail to load without these files.
 """
     )
 
-    # webpack.config.js
-    (project_dir / "extension" / "webpack.config.js").write_text(
-        """const path = require('path');
-const CopyPlugin = require('copy-webpack-plugin');
+    # vite.config.ts (Vite + CRXJS for MV3-aware builds)
+    (project_dir / "extension" / "vite.config.ts").write_text(
+        """import { defineConfig } from 'vite';
+import { crx } from '@crxjs/vite-plugin';
+import manifest from './manifest.json';
 
-module.exports = {
-  mode: process.env.NODE_ENV || 'development',
-  entry: {
-    popup: './src/popup.ts',
-    background: './src/background.ts',
-    content: './src/content.ts',
+export default defineConfig({
+  plugins: [crx({ manifest })],
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
   },
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: '[name].js',
-    clean: true,
-  },
-  resolve: {
-    extensions: ['.ts', '.js'],
-  },
-  module: {
-    rules: [
-      {
-        test: /\\.ts$/,
-        use: 'ts-loader',
-        exclude: /node_modules/,
-      },
-    ],
-  },
-  plugins: [
-    new CopyPlugin({
-      patterns: [
-        { from: 'manifest.json', to: 'manifest.json' },
-        { from: 'public', to: '.' },
-      ],
-    }),
-  ],
-};
+});
 """
     )
 
@@ -1306,16 +1306,14 @@ module.exports = {
         "version": "1.0.0",
         "description": f"{description} - Browser Extension",
         "scripts": {
-            "build": "webpack --mode production",
-            "dev": "webpack --mode development --watch",
+            "dev": "vite",
+            "build": "vite build",
         },
         "devDependencies": {
+            "@crxjs/vite-plugin": "^2.0.0-beta.28",
             "@types/chrome": "^0.0.254",
-            "copy-webpack-plugin": "^11.0.0",
-            "ts-loader": "^9.5.1",
             "typescript": "^5.3.3",
-            "webpack": "^5.89.0",
-            "webpack-cli": "^5.1.4",
+            "vite": "^5.4.0",
         },
     }
     (project_dir / "extension" / "package.json").write_text(
@@ -1376,7 +1374,7 @@ async def root():
 
     # requirements.txt (at root, for server)
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\npytest>=8.0.0\n"
     )
 
     # tests/test_health.py
@@ -1472,7 +1470,7 @@ networks:
 PROJECT_NAME := {name}
 PORT := 8000
 
-# Parallel dev: extension webpack watch + server uvicorn reload
+# Parallel dev: extension Vite dev + server uvicorn reload
 dev:
 \t@trap 'kill 0' SIGINT; \\
 \tcd extension && npm run dev & \\
@@ -1483,11 +1481,11 @@ dev:
 dev-server:
 \t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src
 
-# Extension only (webpack watch)
+# Extension only (Vite dev with HMR)
 dev-ext:
 \tcd extension && npm run dev
 
-# Production extension build
+# Production extension build (Vite)
 build-ext:
 \tcd extension && npm run build
 
@@ -1499,7 +1497,7 @@ install:
 
 # Run tests
 test:
-\t.venv/bin/pytest -v
+\tPYTHONPATH=server/src .venv/bin/pytest -v
 
 # Docker build
 docker-build:
@@ -1584,148 +1582,119 @@ NODE_ENV=development
         print(f"Warning: Failed to install dependencies: {result.stderr}")
 
 
-def _scaffold_generic_ts(
-    project_dir: Path, name: str, description: str, type_name: str, **kwargs: object
-) -> None:
-    """Create generic TypeScript-based project structure (docusaurus, mobile, desktop)."""
+def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
+    """Create React Native mobile app from templates/mobile-app/.
+
+    Copies the real template package.json (with full React Native deps) and the
+    entire src/ tree (navigation, features, screens) so the scaffold output
+    matches the declared template contract.
+    """
     import json
 
-    # has_docker: only set True when the type has a runnable Node entrypoint
-    #   that the Dockerfile.node template can target directly (src/index.js).
-    #   - docusaurus: serves via `docusaurus start`; no src/index.js entrypoint.
-    #   - desktop-app: uses Electron (src/main.ts); Electron apps do not run in
-    #     a standard Node HTTP container and have no src/index.js entrypoint.
-    #   - chrome-extension / mobile-app: no server; Docker is not applicable.
-    type_configs: dict[str, dict[str, Any]] = {
-        "docusaurus": {
-            "entry_dir": "docs/",
-            "entry_file": "docs/intro.md",
-            "has_docker": False,
-            "scripts": {
-                "start": "docusaurus start",
-                "build": "docusaurus build",
-                "serve": "docusaurus serve",
-            },
-        },
-        "chrome-extension": {
-            "entry_dir": "src/",
-            "entry_file": "src/background.ts",
-            "has_docker": False,
-            "scripts": {"build": "tsc", "test": "echo 'No tests configured'"},
-        },
-        "mobile-app": {
-            "entry_dir": "src/",
-            "entry_file": "src/App.tsx",
-            "has_docker": False,
-            "scripts": {
-                "start": "expo start",
-                "android": "expo start --android",
-                "ios": "expo start --ios",
-                "test": "jest",
-            },
-        },
-        "desktop-app": {
-            "entry_dir": "src/",
-            "entry_file": "src/main.ts",
-            "has_docker": False,
-            "scripts": {"start": "electron .", "build": "electron-builder", "test": "jest"},
-        },
-    }
+    # Copy package.json from template with name/description substitution
+    pkg = json.loads((MOBILE_APP_TEMPLATE_DIR / "package.json").read_text())
+    pkg["name"] = name
+    pkg["description"] = description
+    (project_dir / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
 
-    if type_name not in type_configs:
-        raise ValueError(f"Unknown generic TS type: {type_name}")
+    # Copy src/ tree from template (React Native app structure)
+    template_src = MOBILE_APP_TEMPLATE_DIR / "src"
+    if template_src.exists():
+        shutil.copytree(template_src, project_dir / "src", dirs_exist_ok=True)
 
-    config = type_configs[type_name]
+    # .env.example
+    (project_dir / ".env.example").write_text(
+        f"# {name} Configuration\nNODE_ENV=development\nAPI_BASE_URL=https://api.your-vps.com/api\n"
+    )
 
-    # a) Create the entry directory
-    entry_dir: str = config["entry_dir"]  # type: ignore[assignment]
-    (project_dir / entry_dir).mkdir(parents=True, exist_ok=True)
+    # .gitignore (React Native-appropriate)
+    (project_dir / ".gitignore").write_text(
+        "node_modules/\n"
+        ".env\n"
+        "\n"
+        "# React Native\n"
+        "android/app/build/\n"
+        "android/.gradle/\n"
+        "ios/build/\n"
+        "ios/Pods/\n"
+        "\n"
+        "# Build & Test\n"
+        "dist/\n"
+        "build/\n"
+        "coverage/\n"
+        "\n"
+        "# Project\n"
+        "logs/\n"
+        "data/\n"
+        ".tmp/\n"
+        ".cache/\n"
+        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*~\n"
+        "\n"
+        "# Node.js\n"
+        "npm-debug.log*\n"
+        "yarn-debug.log*\n"
+    )
 
-    # b) Write minimal entry file
-    entry_file: str = config["entry_file"]  # type: ignore[assignment]
-    entry_file_path = project_dir / entry_file
-    if type_name == "docusaurus":
-        entry_file_path.write_text(
-            """# Introduction
 
-Welcome to the documentation for this project.
+def _scaffold_desktop_app(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
+    """Create Electron desktop app from templates/desktop-app/.
 
-## Getting Started
+    Copies the real template package.json (with Electron deps and build config)
+    and the electron/ directory so the scaffold output matches the declared
+    template contract.
+    """
+    import json
 
-Add your content here.
-"""
-        )
-    elif type_name == "chrome-extension":
-        entry_file_path.write_text(
-            """chrome.runtime.onInstalled.addListener(() => {
-  console.log('Extension installed');
-});
-"""
-        )
-    elif type_name == "mobile-app":
-        entry_file_path.write_text(
-            """import React from 'react';
-import { View, Text } from 'react-native';
+    # Read template package.json — contains {{ spec.id }} Jinja2 placeholders
+    pkg_text = (DESKTOP_APP_TEMPLATE_DIR / "package.json").read_text()
+    pkg_text = pkg_text.replace("{{ spec.id }}", name)
+    pkg = json.loads(pkg_text)
+    pkg["name"] = name
+    pkg["description"] = description
+    (project_dir / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
 
-export default function App() {
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>Welcome to Mobile App</Text>
-    </View>
-  );
-}
-"""
-        )
-    elif type_name == "desktop-app":
-        entry_file_path.write_text(
-            """const { app, BrowserWindow } = require('electron');
+    # Copy electron/ directory from template
+    template_electron = DESKTOP_APP_TEMPLATE_DIR / "electron"
+    if template_electron.exists():
+        shutil.copytree(template_electron, project_dir / "electron", dirs_exist_ok=True)
 
-function createWindow() {
-  const win = new BrowserWindow({
-    width: 800,
-    height: 600,
-  });
-  win.loadFile('index.html');
-}
+    # Create minimal index.html (referenced by electron/main.js win.loadFile)
+    (project_dir / "index.html").write_text(
+        "<!DOCTYPE html>\n"
+        "<html>\n"
+        "<head>\n"
+        '  <meta charset="utf-8">\n'
+        '  <meta http-equiv="Content-Security-Policy" '
+        "content=\"default-src 'self'; script-src 'self'\">\n"
+        f"  <title>{name}</title>\n"
+        "  <style>\n"
+        "    body { font-family: system-ui; padding: 40px; background: #f8fafc; }\n"
+        "    h1 { color: #0f172a; }\n"
+        "  </style>\n"
+        "</head>\n"
+        "<body>\n"
+        f"  <h1>{name}</h1>\n"
+        f"  <p>{description}</p>\n"
+        "</body>\n"
+        "</html>\n"
+    )
 
-app.whenReady().then(createWindow);
-"""
-        )
-
-    # c) Generate package.json inline
-    package_json = {
-        "name": name,
-        "version": "0.1.0",
-        "description": description,
-        "scripts": config["scripts"],
-    }
-    (project_dir / "package.json").write_text(json.dumps(package_json, indent=2) + "\n")
-
-    # d) If has_docker, copy and patch Dockerfile + Makefile
-    if config["has_docker"]:
-        dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.node"
-        if dockerfile_src.exists():
-            content = dockerfile_src.read_text()
-            content = content.replace("PROJECT_NAME", name)
-            content = content.replace("dist/index.js", "src/index.js")
-            content = content.replace("./dist", "./src")
-            content = content.replace("RUN npm ci", "RUN npm install")
-            (project_dir / "Dockerfile").write_text(content)
-
-        makefile_src = TEMPLATE_DIR / "docker" / "Makefile.node"
-        if makefile_src.exists():
-            content = makefile_src.read_text()
-            content = content.replace("myproject", name)
-            (project_dir / "Makefile").write_text(content)
-
-    # e) Overwrite .env.example with minimal Node-style env
+    # .env.example
     (project_dir / ".env.example").write_text(f"# {name} Configuration\nNODE_ENV=development\n")
 
-    # f) Overwrite .gitignore with Node-appropriate content
+    # .gitignore (Electron-appropriate)
     (project_dir / ".gitignore").write_text(
         "node_modules/\n"
         "dist/\n"
         ".env\n"
+        "\n"
+        "# Project\n"
         "logs/\n"
         "data/\n"
         ".tmp/\n"
@@ -1743,13 +1712,270 @@ app.whenReady().then(createWindow);
         "npm-debug.log*\n"
         "yarn-debug.log*\n"
         "yarn-error.log*\n"
-        ".pnpm-debug.log*\n"
+    )
+
+
+def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
+    """Create Docusaurus documentation site from templates/docusaurus/.
+
+    Renders package.json from the .j2 template (simple name substitution).
+    Generates docusaurus.config.js and sidebars.js inline with sensible defaults
+    (full Jinja2 context vars like domain/features are not available at scaffold
+    time — those are resolved later by ``fabrik new``/``fabrik apply``).
+    """
+    import json
+
+    # Generate package.json from template ({{ name }} substitution)
+    pkg_text = (DOCUSAURUS_TEMPLATE_DIR / "package.json.j2").read_text()
+    pkg_text = pkg_text.replace("{{ name }}", name)
+    pkg = json.loads(pkg_text)
+    pkg["description"] = description
+    (project_dir / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
+
+    # Generate docusaurus.config.js (preserves full template contract including
+    # OpenAPI plugin/theme, docItemComponent, and apiSidebar navbar item).
+    config_js = (
+        "// @ts-check\n"
+        "import {themes as prismThemes} from 'prism-react-renderer';\n"
         "\n"
-        "# Build & Test\n"
-        "coverage/\n"
-        ".next/\n"
-        "out/\n"
+        "/** @type {import('@docusaurus/types').Config} */\n"
+        "const config = {\n"
+        f"  title: '{name} Documentation',\n"
+        "  tagline: 'Developer documentation',\n"
+        "  favicon: 'img/favicon.ico',\n"
+        "\n"
+        "  url: 'https://docs.example.com',\n"
+        "  baseUrl: '/',\n"
+        "\n"
+        "  organizationName: 'ocoron',\n"
+        f"  projectName: '{name}',\n"
+        "\n"
+        "  onBrokenLinks: 'throw',\n"
+        "  onBrokenMarkdownLinks: 'warn',\n"
+        "\n"
+        "  i18n: {\n"
+        "    defaultLocale: 'en',\n"
+        "    locales: ['en'],\n"
+        "  },\n"
+        "\n"
+        "  presets: [\n"
+        "    [\n"
+        "      'classic',\n"
+        "      /** @type {import('@docusaurus/preset-classic').Options} */\n"
+        "      ({\n"
+        "        docs: {\n"
+        "          sidebarPath: './sidebars.js',\n"
+        '          docItemComponent: "@theme/ApiItem",\n'
+        "        },\n"
+        "        blog: false,\n"
+        "        theme: {\n"
+        "          customCss: './src/css/custom.css',\n"
+        "        },\n"
+        "      }),\n"
+        "    ],\n"
+        "  ],\n"
+        "\n"
+        "  plugins: [\n"
+        "    [\n"
+        "      'docusaurus-plugin-openapi-docs',\n"
+        "      {\n"
+        "        id: 'api',\n"
+        "        docsPluginId: 'classic',\n"
+        "        config: {\n"
+        "          api: {\n"
+        "            specPath: './openapi.yaml',\n"
+        "            outputDir: 'docs/api',\n"
+        "            sidebarOptions: {\n"
+        "              groupPathsBy: 'tag',\n"
+        "            },\n"
+        "          },\n"
+        "        },\n"
+        "      },\n"
+        "    ],\n"
+        "  ],\n"
+        "\n"
+        "  themes: ['docusaurus-theme-openapi-docs'],\n"
+        "\n"
+        "  themeConfig:\n"
+        "    /** @type {import('@docusaurus/preset-classic').ThemeConfig} */\n"
+        "    ({\n"
+        "      navbar: {\n"
+        f"        title: '{name}',\n"
+        "        items: [\n"
+        "          {\n"
+        "            type: 'docSidebar',\n"
+        "            sidebarId: 'guideSidebar',\n"
+        "            position: 'left',\n"
+        "            label: 'Guides',\n"
+        "          },\n"
+        "          {\n"
+        "            type: 'docSidebar',\n"
+        "            sidebarId: 'apiSidebar',\n"
+        "            position: 'left',\n"
+        "            label: 'API Reference',\n"
+        "          },\n"
+        "        ],\n"
+        "      },\n"
+        "      footer: {\n"
+        "        style: 'dark',\n"
+        "        links: [\n"
+        "          {\n"
+        "            title: 'Docs',\n"
+        "            items: [\n"
+        "              { label: 'Getting Started', to: '/docs/intro' },\n"
+        "              { label: 'API Reference', to: '/docs/api' },\n"
+        "            ],\n"
+        "          },\n"
+        "        ],\n"
+        "        copyright: `Copyright \\u00A9 ${new Date().getFullYear()} Ocoron.`,\n"
+        "      },\n"
+        "      prism: {\n"
+        "        theme: prismThemes.github,\n"
+        "        darkTheme: prismThemes.dracula,\n"
+        "      },\n"
+        "    }),\n"
+        "};\n"
+        "\n"
+        "export default config;\n"
+    )
+    (project_dir / "docusaurus.config.js").write_text(config_js)
+
+    # Generate sidebars.js (with apiSidebar matching template contract)
+    (project_dir / "sidebars.js").write_text(
+        "// @ts-check\n"
+        "/** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */\n"
+        "const sidebars = {\n"
+        "  // Instructional Guides\n"
+        "  guideSidebar: [{type: 'autogenerated', dirName: '.'}],\n"
+        "\n"
+        "  // API Reference (Auto-generated from OpenAPI spec)\n"
+        "  apiSidebar: [\n"
+        "    {\n"
+        '      type: "category",\n'
+        '      label: "API Reference",\n'
+        '      link: { type: "generated-index", title: "API Reference" },\n'
+        '      items: require("./docs/api/sidebar.js"),\n'
+        "    },\n"
+        "  ],\n"
+        "};\n"
+        "\n"
+        "export default sidebars;\n"
+    )
+
+    # Create placeholder openapi.yaml (referenced by docusaurus-plugin-openapi-docs)
+    (project_dir / "openapi.yaml").write_text(
+        "openapi: 3.0.3\n"
+        "info:\n"
+        f"  title: {name} API\n"
+        "  version: 0.1.0\n"
+        f"  description: API documentation for {name}\n"
+        "paths:\n"
+        "  /health:\n"
+        "    get:\n"
+        "      summary: Health check\n"
+        "      operationId: healthCheck\n"
+        "      tags:\n"
+        "        - System\n"
+        "      responses:\n"
+        "        '200':\n"
+        "          description: Service is healthy\n"
+        "          content:\n"
+        "            application/json:\n"
+        "              schema:\n"
+        "                type: object\n"
+        "                properties:\n"
+        "                  status:\n"
+        "                    type: string\n"
+        "                    example: ok\n"
+    )
+
+    # Create docs/api/sidebar.js (required by sidebars.js apiSidebar)
+    api_dir = project_dir / "docs" / "api"
+    api_dir.mkdir(parents=True, exist_ok=True)
+    (api_dir / "sidebar.js").write_text(
+        "// Auto-generated placeholder — run `npm run gen-api` to regenerate\n"
+        "// from openapi.yaml via docusaurus-plugin-openapi-docs.\n"
+        "module.exports = [\n"
+        "  {\n"
+        '    type: "category",\n'
+        '    label: "System",\n'
+        "    items: [\n"
+        "      {\n"
+        '        type: "doc",\n'
+        '        id: "api/health-check",\n'
+        '        label: "Health Check",\n'
+        "      },\n"
+        "    ],\n"
+        "  },\n"
+        "];\n"
+    )
+
+    # Create docs/intro.md
+    (project_dir / "docs").mkdir(parents=True, exist_ok=True)
+    (project_dir / "docs" / "intro.md").write_text(
+        "---\n"
+        "sidebar_position: 1\n"
+        "---\n"
+        "\n"
+        f"# Introduction\n"
+        "\n"
+        f"Welcome to the documentation for {name}.\n"
+        "\n"
+        "## Getting Started\n"
+        "\n"
+        "Add your content here.\n"
+    )
+
+    # Create src/css/custom.css (referenced by docusaurus.config.js)
+    css_dir = project_dir / "src" / "css"
+    css_dir.mkdir(parents=True, exist_ok=True)
+    (css_dir / "custom.css").write_text(
+        "/**\n"
+        " * Custom CSS for Docusaurus\n"
+        " */\n"
+        ":root {\n"
+        "  --ifm-color-primary: #2563eb;\n"
+        "  --ifm-color-primary-dark: #1d4ed8;\n"
+        "  --ifm-color-primary-darker: #1e40af;\n"
+        "  --ifm-color-primary-darkest: #1e3a8a;\n"
+        "  --ifm-color-primary-light: #3b82f6;\n"
+        "  --ifm-color-primary-lighter: #60a5fa;\n"
+        "  --ifm-color-primary-lightest: #93c5fd;\n"
+        "  --ifm-code-font-size: 95%;\n"
+        "}\n"
+    )
+
+    # Create static/img/.gitkeep for assets
+    img_dir = project_dir / "static" / "img"
+    img_dir.mkdir(parents=True, exist_ok=True)
+    (img_dir / ".gitkeep").write_text("")
+
+    # .env.example
+    (project_dir / ".env.example").write_text(f"# {name} Configuration\nNODE_ENV=development\n")
+
+    # .gitignore (Docusaurus-appropriate)
+    (project_dir / ".gitignore").write_text(
+        "node_modules/\n"
+        ".docusaurus/\n"
         "build/\n"
+        ".env\n"
+        "\n"
+        "# Project\n"
+        "logs/\n"
+        "data/\n"
+        ".tmp/\n"
+        ".cache/\n"
+        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
+        "# IDE\n"
+        ".vscode/\n"
+        ".idea/\n"
+        "*.swp\n"
+        "*.swo\n"
+        "*~\n"
+        "\n"
+        "# Node.js\n"
+        "npm-debug.log*\n"
+        "yarn-debug.log*\n"
     )
 
 
@@ -1761,10 +1987,11 @@ _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "file-api": _scaffold_file_api,
     "file-worker": _scaffold_file_worker,
     "wordpress": _scaffold_wordpress,
-    "docusaurus": lambda pd, n, d, **kw: _scaffold_generic_ts(pd, n, d, "docusaurus", **kw),
+    "docusaurus": _scaffold_docusaurus,
     "chrome-extension": _scaffold_chrome_extension,
-    "mobile-app": lambda pd, n, d, **kw: _scaffold_generic_ts(pd, n, d, "mobile-app", **kw),
-    "desktop-app": lambda pd, n, d, **kw: _scaffold_generic_ts(pd, n, d, "desktop-app", **kw),
+    "mobile-app": _scaffold_mobile_app,
+    "desktop-app": _scaffold_desktop_app,
+    "static-site": _scaffold_saas_skeleton,
 }
 
 
@@ -1827,7 +2054,7 @@ def create_project(
         content = project_yaml_path.read_text()
         content = content.replace("type: python-api", f"type: {project_type}")
         # Set correct port range for Node.js types (3000-3099)
-        if project_type in ("node-api", "file-api", "saas-skeleton"):
+        if project_type in ("node-api", "file-api", "saas-skeleton", "static-site"):
             node_port = _next_available_port(port_range=(3000, 3099))
             # Replace the Python-range port that was initially assigned
             content = re.sub(r"- \d{4,5}", f"- {node_port}", content, count=1)
@@ -1959,6 +2186,7 @@ def fix_project(
     # Ensure governance files exist
     windsurfrules_target = FABRIK_ROOT / ".windsurfrules"
     windsurf_rules_target = FABRIK_ROOT / ".windsurf" / "rules"
+    windsurf_workflows_target = FABRIK_ROOT / ".windsurf" / "workflows"
 
     if not dry_run:
         # Fail fast if fabrik targets are missing - environment is broken
@@ -1966,6 +2194,10 @@ def fix_project(
             raise FileNotFoundError(f"Missing fabrik .windsurfrules: {windsurfrules_target}")
         if not windsurf_rules_target.exists():
             raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {windsurf_rules_target}")
+        if not windsurf_workflows_target.exists():
+            raise FileNotFoundError(
+                f"Missing fabrik windsurf workflows dir: {windsurf_workflows_target}"
+            )
 
         # Copy .windsurfrules (remove symlink if exists)
         windsurfrules_path = project_path / ".windsurfrules"
@@ -1982,6 +2214,15 @@ def fix_project(
             shutil.rmtree(windsurf_rules_path)
         shutil.copytree(windsurf_rules_target, windsurf_rules_path)
         added.append(".windsurf/rules (copied)")
+
+        # Copy .windsurf/workflows/ directory (remove symlink if exists)
+        windsurf_workflows_path = project_path / ".windsurf" / "workflows"
+        if windsurf_workflows_path.is_symlink():
+            windsurf_workflows_path.unlink()
+        elif windsurf_workflows_path.exists():
+            shutil.rmtree(windsurf_workflows_path)
+        shutil.copytree(windsurf_workflows_target, windsurf_workflows_path)
+        added.append(".windsurf/workflows (copied)")
 
         # Copy AGENTS.md (remove symlink if exists)
         agents_path = project_path / "AGENTS.md"
@@ -2047,6 +2288,9 @@ def fix_project(
 
         # .windsurf/rules - always copied (symlink migration)
         added.append(".windsurf/rules (copied)")
+
+        # .windsurf/workflows - always copied (symlink migration)
+        added.append(".windsurf/workflows (copied)")
 
         # AGENTS.md - always copied (symlink migration)
         if FABRIK_AGENTS_MD.exists():

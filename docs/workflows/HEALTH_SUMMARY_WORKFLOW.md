@@ -33,7 +33,7 @@ The script verifies these files in every project folder:
 3. `project.yaml`
 4. `compose.yaml`
 5. `Dockerfile`
-6. `.windsurf/rules/00-critical.md`
+6. `.windsurfrules`
 
 ---
 

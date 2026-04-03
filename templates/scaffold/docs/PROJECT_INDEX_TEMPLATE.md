@@ -23,7 +23,7 @@
 | **compose.yaml** | Docker Compose orchestration | Service config, networks, volumes change | Step 5 (WARN) |
 | **.pre-commit-config.yaml** | Git hooks config | Add new quality checks | Manual |
 | **.gitignore** | Git exclusions | New file patterns to ignore | Manual |
-| **.windsurfrules** | Windsurf rules shim | Read-only (copied from Fabrik scaffold) | N/A |
+| **.windsurfrules** | Cascade compact agent contract | Read-only (copied from Fabrik scaffold) | N/A |
 
 ---
 

@@ -21,10 +21,10 @@ When triggered, apply the corresponding rules from `.windsurf/rules/` and enforc
 | "new project", "create service" | —                   | —                     | Run `fabrik scaffold <name> --type <type>`           |
 | "SaaS", "web app", "dashboard"  | `20-typescript.md`  | —                     | Run `fabrik scaffold <name> --type saas-skeleton`    |
 | "dockerfile", "compose", "deploy" | `30-ops.md`       | `check_docker.py`     | Follow ARM64 + bookworm-slim + HEALTHCHECK patterns  |
-| "health", "healthcheck"        | `00-critical.md`, `10-python.md` | `check_health.py` | Health endpoints MUST test actual dependencies       |
-| "config", "environment"        | `00-critical.md`, `10-python.md` | `check_env_contract.py` | No hardcoded values, function-level loading   |
+| "health", "healthcheck"        | `.windsurfrules`, `10-python.md` | `check_health.py` | Health endpoints MUST test actual dependencies       |
+| "config", "environment"        | `.windsurfrules`, `10-python.md` | `check_env_contract.py` | No hardcoded values, function-level loading   |
 | "endpoint", "route", "API"     | `10-python.md`      | `validate_conventions.py` | Type hints, Pydantic models, proper HTTP status codes |
-| "database", "postgres"         | `00-critical.md`    | `check_schema_sync.py` | Schema changes → `db/schema.sql` or migration        |
+| "database", "postgres"         | `.windsurfrules`    | `check_schema_sync.py` | Schema changes → `db/schema.sql` or migration        |
 | "watchdog", "monitor"          | `30-ops.md`         | `check_watchdog.py`   | Services MUST have `scripts/watchdog*.sh`            |
 | "docs", "readme", "update docs" | `40-documentation.md` | `check_changelog.py`, `check_docs.py` | Run `kilo_docs_enforcer.py --auto-generate` |
 | "preflight", "deploy ready"    | —                   | Tiered gate           | Run `python scripts/final_gate.py` (Tier 2) or `--systemic` (Tier 3) |

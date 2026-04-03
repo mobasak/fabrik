@@ -37,9 +37,9 @@ Fabrik uses a **separation of concerns** architecture where each agent type read
 │  (Cascade auto-reads)                     (Kilo reads via opencode.json)  │
 │  ─────────────────────                    ─────────────────────────────── │
 │                                                                           │
-│  00-critical ────► IDE behavior           [TRAYCER ONLY] ──► Planning     │
+│  .windsurfrules ─► Agent contract          [TRAYCER ONLY] ──► Planning     │
 │  10-python ──────► Python patterns        [CODER] ──────────► Directives  │
-│  20-typescript ──► TS/Next.js patterns    [REVIEWER] ───────► Directives  │
+│  20-typescript ──► TypeScript patterns    [REVIEWER] ───────► Directives  │
 │  30-ops ─────────► Docker patterns        [FIXER] ──────────► Directives  │
 │  40-documentation► Doc rules              [ALL AGENTS] ─────► Workflow    │
 │  50-code-review ─► POINTER to workflow                       + Patterns   │

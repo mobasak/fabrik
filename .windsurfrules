@@ -1,15 +1,153 @@
-# Windsurf Cascade Project Rules (Shim)
+# Cascade Agent Contract
 
-## Rule Location
+## ⚠️ MANDATORY FIRST OUTPUT
+Before any tool use or code, output:
+`RULES ACTIVE: CASCADE | [List 3 specific rules from this file you will follow today]`
 
-Authoritative rules are in `.windsurf/rules/` directory.
+---
 
-## For Traycer-Managed Tasks
+## Orientation — Do This First
 
-When working under Traycer orchestration, defer to:
-- `.windsurf/rules/*` (project-specific rules)
-- Traycer's instructions (via workflow commands)
+**Scan before you act.** Read the full project structure from root. Locate and read any present:
+- `README.md`
+- `.windsurf/rules/*.md`
+- `.windsurf/workflows/` (Cascade slash-command workflows)
+- `compose.yaml`, `Dockerfile`
+- `.env.example`, `pyproject.toml`, `package.json`, `requirements.txt`
 
-## Canonical Rule Sources
+**Do not generate anything until this scan is complete.**
 
-- Project rules: `.windsurf/rules/` (this project)
+**Do not** recreate `.venv` or replace existing Docker configuration unless explicitly instructed.
+
+**When creating a plan in `docs/development/plans/`**, you MUST include:
+- **Key Invariants & Contracts:** What must *always* be true?
+- **Failure Modes:** Concrete "what-if" scenarios and system reactions
+- **Acceptance Criteria:** 5–10 testable bullets defining "Done"
+
+---
+
+## Environment Context
+
+**Runtime is WSL (Ubuntu).** Linux paths and commands only. Never assume Windows tooling.
+
+**Follow the project scaffold structure verbatim.** Do not reorganize, flatten, or add top-level directories.
+
+**All architectural decisions, base images, and tool choices are resolved before you start** — execute the plan as given. Do not expand scope silently.
+
+**If anything in the task contradicts what exists in the project, stop and report.** Do not silently overwrite.
+
+Code MUST work in ALL environments without modification:
+
+| Environment | Database             | Config Source   |
+|------------|----------------------|-----------------|
+| WSL (dev)  | PostgreSQL localhost | `.env` file     |
+| VPS Docker | `postgres-main`      | `compose.yaml`  |
+| Supabase   | Supabase PostgreSQL  | env vars        |
+
+---
+
+## Cascade Behavior Rules
+
+| Rule                   | Description                                                                 |
+|------------------------|-----------------------------------------------------------------------------|
+| Check before create    | ALWAYS verify file exists (`ls`, `find`, `read_file`) before `write_to_file` |
+| Present before execute | Present solution/plan first, wait for user approval, then execute. Exception: read-only commands (`ls`, `cat`, `find`, `grep`, `head`, `tail`) do not require approval. |
+| No unsolicited advice  | Never suggest breaks, lifestyle tips, or non-task commentary               |
+
+**Violations:**
+- Attempting to create a file that already exists = STOP, acknowledge error
+- Executing commands without presenting plan first = violation
+- Suggesting breaks or personal advice = violation
+
+---
+
+## Essential Invariants
+
+**No hardcoded secrets or addresses.** Never hardcode `localhost`, `127.0.0.1`, database strings, API keys, or passwords. Always use `os.getenv("KEY", "default")`.
+
+**Base images:** `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`. Never Alpine.
+
+**ARM64 compatible:** `compose.yaml` must include `platform: linux/arm64` for all build services.
+
+**Health endpoints must test real dependencies:**
+```python
+@app.get("/health")
+async def health():
+    await db.execute("SELECT 1")
+    return {"status": "ok", "db": "connected"}
+```
+
+**CHANGELOG required** for any code/config/infrastructure change — see `50-code-review.md` for format.
+
+**Database changes → `db/schema.sql`:** New tables, columns, indexes → add `CREATE` statements with date comments. This file is the source of truth.
+
+**`.env.example`** must be updated when adding new environment variables.
+
+**Port registration:** Python 8000–8099, Frontend 3000–3099. Check and register in `PORTS.md` before using a port.
+
+**No `/tmp/` directory** — use project `.tmp/`.
+
+**No class-level config** — use function-level loading.
+
+---
+
+## Sensitive Data Protection
+
+Before modifying ANY credentials file (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`):
+```bash
+cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
+```
+Verify backup exists before proceeding. Modifying `.env` without backup = STOP immediately.
+
+## Before Creating New Scripts
+
+Before writing ANY new script, you MUST:
+1. `grep_search` for similar functionality in `scripts/` or `scripts/enforcement/`
+2. If existing code can be extended → extend it, don't create new
+
+## PEP 668: Venv Requirement
+
+WSL and modern Debian block system-wide pip installs. **NEVER** run bare `pip install`.
+```bash
+# WRONG — fails with "externally-managed-environment"
+pip install textual
+
+# CORRECT — project-specific venv
+/opt/<project>/.venv/bin/pip install textual
+```
+
+## Password Policy (CSPRNG)
+
+Length: 32 chars, `[a-zA-Z0-9]`, generator: `secrets.choice()`. **FORBIDDEN:** `postgres`, `admin`, `password123`.
+
+---
+
+## Decision-Grade Audit
+
+Before reporting task completion, you MUST confirm:
+- [ ] **Error Handling Gaps:** Have you handled silent, misleading, or brittle failures?
+- [ ] **Complexity Hotspots:** What logic will be a "debugging footgun" in 6 months?
+- [ ] **One-Test Rule:** Propose **exactly ONE test** providing highest risk reduction
+  - **Why:** Justify why this specific test matters most
+  - **Contract:** Define Given/When/Then and what is mocked vs. real
+  - Document in plan file or commit message
+
+For mechanical checks and gate commands, see `50-code-review.md`.
+
+---
+
+## Terminal Selection
+
+**NEVER use "legacy terminal" in Windsurf IDE** — it hangs on certain commands.
+If a command appears stuck: cancel and re-run in a proper terminal.
+
+## Fast Context (Windsurf RAG)
+
+Force quick codebase search: `Ctrl+Enter` (Win/Linux) / `Cmd+Enter` (Mac)
+
+Uses SWE-grep models for parallel code retrieval (up to 8 tool calls/turn).
+
+Optimize indexing with `.codeiumignore`:
+- Project-level: `.codeiumignore` (project root)
+- Global: `~/.codeium/.codeiumignore`
+- Excluded: `.venv/`, `node_modules/`, `.droid/` queues, build artifacts

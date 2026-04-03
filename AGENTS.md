@@ -1,6 +1,6 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer Only)
 
-**Last Updated:** 2026-03-28
+**Last Updated:** 2026-04-01
 **Read by:** Traycer only (auto-loaded every interaction)
 **Coding agents:** Read `AGENTS-compact.md` via `opencode.json`
 
@@ -122,6 +122,80 @@ Before creating any plan, verify:
 9. **Module dependencies** — if a project needs an incomplete Fabrik module, plan module completion first. Check module status in `docs/BUSINESS_MODEL.md` before planning dependent work
 10. **DNS** — dns-manager handles Namecheap + Cloudflare + domain purchasing automatically
 
+## Rule-Pack Enforcement
+
+Traycer injects rule-pack guidance into agent execution queries based on project type and ticket scope. Agents do not self-select packs.
+
+### Pack Registry
+
+| Pack ID | File | Category |
+|---------|------|----------|
+| `PY_CORE` | `.windsurf/rules/10-python.md` | Core |
+| `API_CONTRACTS` | `.windsurf/rules/15-api-contracts.md` | Backend |
+| `TS_CORE` | `.windsurf/rules/20-typescript.md` | Core |
+| `DATA_PG` | `.windsurf/rules/25-data-postgres.md` | Backend |
+| `SECURITY` | `.windsurf/rules/35-security-auth.md` | Backend |
+| `DOCUSAURUS` | `.windsurf/rules/42-docusaurus.md` | Platform |
+| `TESTING` | `.windsurf/rules/45-testing-strategy.md` | Backend |
+| `OBSERVABILITY` | `.windsurf/rules/55-observability.md` | Backend |
+| `SAAS_UI` | `.windsurf/rules/60-saas-ui.md` | Core |
+| `WORDPRESS` | `.windsurf/rules/62-wordpress.md` | Platform |
+| `RAG_SEARCH` | `.windsurf/rules/65-rag-search.md` | Domain |
+| `CHROME_MV3` | `.windsurf/rules/70-chrome-ext.md` | Core |
+| `WORKERS` | `.windsurf/rules/75-workers-jobs.md` | Backend |
+| `MOBILE_UI` | `.windsurf/rules/80-mobile.md` | Core |
+| `PAYMENTS` | `.windsurf/rules/85-payments-billing.md` | Domain |
+| `MULTI_TENANT` | `.windsurf/rules/95-multi-tenant-saas.md` | Domain |
+
+### Project Type → Default Packs
+
+| Project Type | Default Packs |
+|--------------|---------------|
+| `python-api` | `PY_CORE` |
+| `node-api` | — |
+| `saas-skeleton` | `TS_CORE`, `SAAS_UI` |
+| `chrome-extension` | `PY_CORE`, `TS_CORE`, `CHROME_MV3` |
+| `mobile-app` | `TS_CORE`, `MOBILE_UI` |
+| `desktop-app` | `TS_CORE` |
+| `file-api` | `PY_CORE` |
+| `file-worker` | `PY_CORE`, `WORKERS` |
+| `wordpress` | `WORDPRESS` |
+| `docusaurus` | `DOCUSAURUS` |
+| `static-site` | `TS_CORE`, `SAAS_UI` |
+
+> `node-api` scaffold is currently JavaScript-based. Do not inject `TS_CORE` unless a specific project has actually adopted TypeScript.
+> `chrome-extension` includes `PY_CORE` because the backend companion service is Python.
+> `docusaurus` is for dev/team-authored content (docs, API reference, knowledge base). `wordpress` is for client/non-technical-authored content (marketing, e-commerce). `static-site` is for landing pages and one-pagers you control fully. See `docs/reference/scaffold-type-decision-guide.md`.
+
+### Feature-Based Overlay Packs
+
+| Pack | Inject When Ticket Involves |
+|------|-----------------------------|
+| `API_CONTRACTS` | API endpoints, routes, request/response schemas |
+| `DATA_PG` | Database queries, migrations, schema changes |
+| `SECURITY` | Auth, sessions, CORS, secrets, CSP |
+| `TESTING` | Always — universal overlay, injected for every ticket |
+| `OBSERVABILITY` | Health endpoints, logging, monitoring |
+| `RAG_SEARCH` | Embeddings, retrieval, vector search, LLM context |
+| `PAYMENTS` | Paddle, subscriptions, billing, entitlements |
+| `MULTI_TENANT` | Tenant isolation, RLS, tenant-scoped queries |
+
+### Enforcement Policy
+
+1. Traycer reads `project.yaml` type → looks up default packs → adds overlay packs based on ticket scope keywords.
+2. Injection format into execution query:
+   ```
+   ## Rule Packs Active
+   [PACK_ID] <file path>
+   - <rule line 1>
+   - <rule line 2>
+   (max 6 lines per pack)
+   ```
+3. Total injected guidance must not exceed **40 lines**. If cap exceeded, drop feature overlays first, keep project-type defaults.
+4. Injection is performed by Traycer at query-construction time. Agents do not self-select packs.
+5. `AGENTS-compact.md` is not modified — stays lean.
+6. `final_gate.py` handles objective checks only; packs are enforced via injection, not gate.
+
 ## Environment Constraints
 
 - **Runtime:** WSL (Ubuntu). Linux paths and commands only. Never Windows tooling.
@@ -171,7 +245,7 @@ environment:
 
 - **CHANGELOG.md:** Entry required for every code change. Format: `### Added/Changed/Fixed — Title (YYYY-MM-DD)`
 - **README.md features table:** Every new feature added with ✅/🚧/❌ status
-- **New `.md` files:** Blocked outside allowlist. Allowed: root files, scaffold docs, `docs/development/plans/YYYY-MM-DD-plan-<n>.md`, `docs/archive/**`
+- **New `.md` files:** Blocked outside allowlist. Allowed: root files, scaffold docs, `docs/development/plans/YYYY-MM-DD-plan-<n>.md`, `docs/reference/**/*.md`, `docs/archive/**`
 - **`.env.example`:** Authoritative variable reference. `docs/CONFIGURATION.md` is a guide only.
 
 ## Sensitive Data Protection
@@ -205,10 +279,13 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 | file-api | templates/file-api/ | File operations API |
 | file-worker | templates/file-worker/ | Background file worker |
 | wordpress | templates/wordpress/ | WordPress + WP-CLI |
-| docusaurus | templates/docusaurus/ | Documentation site |
-| chrome-extension | templates/chrome-extension/ | Chrome extension |
+| docusaurus | templates/docusaurus/ | Documentation site (Docusaurus framework) |
+| chrome-extension | templates/chrome-extension/ | Chrome extension + Python backend |
 | mobile-app | templates/mobile-app/ | React Native app |
 | desktop-app | templates/desktop-app/ | Electron app |
+| static-site | templates/saas-skeleton/ | Next.js / static HTML (landing pages, portfolios) |
+
+> Each scaffold type propagates `.windsurfrules`, `.windsurf/rules/`, and `.windsurf/workflows/` to generated projects automatically.
 
 ## Reference Documents
 
@@ -222,6 +299,7 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 | Database Strategy | docs/reference/DATABASE_STRATEGY.md | Database, migration, vector storage |
 | Owner Profile | docs/owner_ozgur_basak.md | Owner background, goals |
 | Port Allocations | PORTS.md | Assigning ports to new services |
+| Scaffold Decision Guide | docs/reference/scaffold-type-decision-guide.md | Choosing WordPress vs Docusaurus vs static-site |
 | SaaS UI Patterns | docs/reference/Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md | Planning SaaS frontend |
 | Chrome Extension UI | docs/reference/Modern GUI Approaches for Chrome Extensionst.md | Planning Chrome extensions |
 | Mobile UI | docs/reference/Modern Mobile GUI Approaches for Android and iOS.md | Planning mobile apps |

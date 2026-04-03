@@ -1,6 +1,6 @@
 # Fabrik Scaffold Structure
 
-**Last Updated:** 2026-03-31
+**Last Updated:** 2026-04-03
 
 > Complete reference for the folder and file structure created by `fabrik scaffold`.
 
@@ -18,14 +18,26 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 /opt/<project-name>/
 ├── .windsurf/
 │   ├── rules/
-│   │   ├── 00-critical.md
 │   │   ├── 10-python.md
+│   │   ├── 15-api-contracts.md
 │   │   ├── 20-typescript.md
+│   │   ├── 25-data-postgres.md
 │   │   ├── 30-ops.md
+│   │   ├── 35-security-auth.md
 │   │   ├── 40-documentation.md
+│   │   ├── 42-docusaurus.md
+│   │   ├── 45-testing-strategy.md
 │   │   ├── 50-code-review.md
+│   │   ├── 55-observability.md
 │   │   ├── 60-saas-ui.md
-│   │   └── 90-automation.md
+│   │   ├── 62-wordpress.md
+│   │   ├── 65-rag-search.md
+│   │   ├── 70-chrome-ext.md
+│   │   ├── 75-workers-jobs.md
+│   │   ├── 80-mobile.md
+│   │   ├── 85-payments-billing.md
+│   │   ├── 90-automation.md
+│   │   └── 95-multi-tenant-saas.md
 │   └── workflows/
 │       ├── bug-fix.md
 │       ├── deploy.md
@@ -40,23 +52,19 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 ├── db/
 │   └── schema.sql
 ├── docs/
+│   ├── archive/
+│   │   └── README.md
 │   ├── development/
 │   │   └── plans/
-│   ├── API_REFERENCE.md
+│   │       └── PLANS.md
+│   ├── reference/
+│   │   └── windsurf/
+│   │       └── cascade-models.md
 │   ├── BUSINESS_MODEL.md
-│   ├── CHANGELOG.md
 │   ├── CONFIGURATION.md
-│   ├── DATABASE_SCHEMA.md
-│   ├── DEPLOYMENT.md
-│   ├── ENV_EXAMPLE.md
 │   ├── FEATURES.md
-│   ├── INDEX.md
-│   ├── LAUNCH_CHECKLIST.md
-│   ├── MIGRATION.md
-│   ├── PROJECT_README.md
 │   ├── QUICKSTART.md
-│   ├── RESEARCH.md
-│   ├── SERVICES.md
+│   ├── README.md
 │   └── TROUBLESHOOTING.md
 ├── scripts/
 │   ├── enforcement/
@@ -109,58 +117,51 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 ├── Makefile
 ├── PORTS.md
 ├── pyproject.toml
+├── .windsurfrules
 └── README.md
 ```
 
 ---
 
-## Template Sources
+## Document Generation
 
-Templates are stored in `/opt/fabrik/templates/scaffold/`:
+### From Templates (`templates/scaffold/docs/`)
 
-```
-/opt/fabrik/templates/scaffold/
-├── complex.yaml              # Multi-service scaffold configuration
-├── db/
-│   └── schema.sql            # Base database schema template
-├── docker/
-│   ├── compose.dev.yaml.template
-│   ├── compose.yaml.template
-│   ├── Dockerfile.node
-│   ├── Dockerfile.python
-│   ├── dockerignore.template
-│   ├── Makefile.node
-│   ├── Makefile.python
-│   └── README.md
-├── docs/
-│   ├── API_REFERENCE_TEMPLATE.md
-│   ├── BUSINESS_MODEL_TEMPLATE.md
-│   ├── CHANGELOG_TEMPLATE.md
-│   ├── CONFIGURATION_TEMPLATE.md
-│   ├── DATABASE_SCHEMA_TEMPLATE.md
-│   ├── DEPLOYMENT_TEMPLATE.md
-│   ├── DOCS_INDEX_TEMPLATE.md
-│   ├── ENV_EXAMPLE_TEMPLATE.md
-│   ├── FEATURES_TEMPLATE.md
-│   ├── LAUNCH_CHECKLIST_TEMPLATE.md
-│   ├── MIGRATION_TEMPLATE.md
-│   ├── PLAN_TEMPLATE.md
-│   ├── PROJECT_INDEX_TEMPLATE.md
-│   ├── PROJECT_README_TEMPLATE.md
-│   ├── QUICKSTART_TEMPLATE.md
-│   ├── RESEARCH_TEMPLATE.md
-│   ├── SERVICES_TEMPLATE.md
-│   └── TROUBLESHOOTING_TEMPLATE.md
-├── python/
-│   └── pyproject.toml.template
-└── scripts/
-    ├── runc
-    ├── rund
-    ├── rundsh
-    ├── runk
-    ├── sync_cascade_backup.sh
-    └── sync_extensions.sh
-```
+| Template | Generated File | Purpose |
+|----------|----------------|---------|
+| `PROJECT_INDEX_TEMPLATE.md` | `INDEX.md` | Master file index |
+| `PROJECT_README_TEMPLATE.md` | `README.md` | Project overview |
+| `CHANGELOG_TEMPLATE.md` | `CHANGELOG.md` | Change history |
+| `DOCS_INDEX_TEMPLATE.md` | `docs/README.md` | Documentation index |
+| `QUICKSTART_TEMPLATE.md` | `docs/QUICKSTART.md` | Quick start guide |
+| `CONFIGURATION_TEMPLATE.md` | `docs/CONFIGURATION.md` | Configuration guide |
+| `TROUBLESHOOTING_TEMPLATE.md` | `docs/TROUBLESHOOTING.md` | Troubleshooting guide |
+| `BUSINESS_MODEL_TEMPLATE.md` | `docs/BUSINESS_MODEL.md` | Business model doc |
+| `FEATURES_TEMPLATE.md` | `docs/FEATURES.md` | Features overview |
+
+### Inline Generated (No Templates)
+
+| File | Purpose |
+|------|---------|
+| `PORTS.md` | Port allocation tracking |
+| `docs/development/PLANS.md` | Development plans index |
+| `docs/archive/README.md` | Archive directory index |
+
+### Copied from Fabrik
+
+| Source | Destination | Purpose |
+|--------|-------------|---------|
+| `/opt/fabrik/AGENTS.md` | `AGENTS.md` | Traycer orchestrator contract |
+| `/opt/fabrik/AGENTS-compact.md` | `AGENTS-compact.md` | Compact agent reference |
+| `/opt/fabrik/.windsurfrules` | `.windsurfrules` | Cascade compact agent contract |
+| `/opt/fabrik/.windsurf/workflows/` | `.windsurf/workflows/` | Cascade slash-command workflows |
+| `/opt/fabrik/docs/reference/windsurf/cascade-models.md` | `docs/reference/windsurf/cascade-models.md` | Cascade model reference |
+
+### Type-Specific Documents
+
+| Type | File | Purpose |
+|------|------|---------|
+| `chrome-extension` | `extension/icons/README.md` | Icon generation guide |
 
 ---
 
@@ -168,27 +169,32 @@ Templates are stored in `/opt/fabrik/templates/scaffold/`:
 
 These files/folders are **auto-synced** from `/opt/fabrik/` to all projects:
 
-### 1. Governance Rules (`.windsurf/rules/`)
+### 1. Cascade Compact Contract (`.windsurfrules`)
+- **Source:** `/opt/fabrik/.windsurfrules`
+- **Synced by:** `sync_enforcement_to_projects.py`
+- **Purpose:** Always-loaded Cascade agent contract (~154 lines) — orientation, behavior rules, essential invariants, decision-grade audit
+
+### 2. Governance Rules (`.windsurf/rules/`)
 - **Source:** `/opt/fabrik/.windsurf/rules/`
 - **Synced by:** `sync_enforcement_to_projects.py`
-- **Purpose:** Project-wide coding standards and conventions
+- **Purpose:** Project-wide coding standards and conventions (20 rule files, 16 in pack registry)
 
-### 2. Cascade Workflows (`.windsurf/workflows/`)
+### 3. Cascade Workflows (`.windsurf/workflows/`)
 - **Source:** `/opt/fabrik/.windsurf/workflows/`
 - **Synced by:** `sync_enforcement_to_projects.py`
 - **Purpose:** Slash command workflows for Windsurf Cascade
 
-### 3. Enforcement Scripts (`scripts/enforcement/`)
+### 4. Enforcement Scripts (`scripts/enforcement/`)
 - **Source:** `/opt/fabrik/scripts/enforcement/`
 - **Synced by:** `sync_enforcement_to_projects.py`
 - **Purpose:** Quality gate checks (docker, health, env, schema, etc.)
 
-### 4. Cascade Wrappers (`scripts/Local_*.sh`, `scripts/Kilo_Review.sh`)
+### 5. Cascade Wrappers (`scripts/Local_*.sh`, `scripts/Kilo_Review.sh`)
 - **Source:** `/opt/fabrik/scripts/`
 - **Synced by:** `sync_enforcement_to_projects.py`
 - **Purpose:** Hardware-safe local LLM agent wrappers
 
-### 5. Core Scripts
+### 6. Core Scripts
 - `final_gate.py` - Pre-commit quality gate
 - `kilo_code_review.py` - AI-powered code review
 - `kilo_docs_enforcer.py` - Documentation enforcer
@@ -216,10 +222,15 @@ Different scaffold types create variations:
 |------|---------------|------------------|
 | `python-api` | `templates/scaffold/` | FastAPI + Uvicorn setup |
 | `saas-skeleton` | `templates/saas-skeleton/` | Next.js 14 + TypeScript + Tailwind |
-| `node-api` | `templates/node-api/` | Express + TypeScript |
+| `static-site` | `templates/saas-skeleton/` | Same as saas-skeleton (landing pages) |
+| `node-api` | `templates/node-api/` | Express + JavaScript |
+| `file-api` | `templates/file-api/` | File operations API (Node.js) |
+| `file-worker` | `templates/file-worker/` | Python background worker |
 | `wordpress` | `templates/wordpress/` | WordPress + WP-CLI |
 | `docusaurus` | `templates/docusaurus/` | Docusaurus docs site |
-| `chrome-extension` | `templates/chrome-extension/` | Chrome extension boilerplate |
+| `chrome-extension` | `templates/chrome-extension/` | Chrome extension (Vite + CRXJS) + Python backend |
+| `mobile-app` | `templates/mobile-app/` | React Native + TypeScript |
+| `desktop-app` | `templates/desktop-app/` | Electron + TypeScript |
 
 ---
 

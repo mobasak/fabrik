@@ -1,6 +1,6 @@
 # Fabrik Scaffold Specification
 
-**Last Updated:** 2026-03-25
+**Last Updated:** 2026-04-03
 
 > Complete specification for project creation, templates, deployment, and management in the Fabrik ecosystem.
 >
@@ -82,9 +82,10 @@ Does it need to run continuously (24/7)?
 | `saas-skeleton` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
 | `wordpress` | PHP | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify (preset: `saas`/`company`/`content`/`landing`/`ecommerce`) |
 | `docusaurus` | TypeScript | ❌ No | ❌ No | Static host |
-| `chrome-extension` | TypeScript | ❌ No | ❌ No | Chrome Web Store |
+| `chrome-extension` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify (backend) + Chrome Web Store (extension) |
 | `mobile-app` | TypeScript | ❌ No | ❌ No | App stores |
 | `desktop-app` | TypeScript | ❌ No | ❌ No | Direct dist |
+| `static-site` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
 
 ### Per-Type Scaffold Details
 
@@ -96,10 +97,11 @@ Does it need to run continuously (24/7)?
 | `file-worker` | Python | ✅ | `worker/` | Coolify |
 | `saas-skeleton` | TypeScript | ✅ | `app/`, `components/`, `lib/` | Coolify |
 | `wordpress` | PHP | ✅ | `plugins/`, `themes/`, `backup/` | Coolify (preset: `saas`/`company`/`content`/`landing`/`ecommerce`) |
-| `docusaurus` | TypeScript | ❌ | `docs/` | Static host |
-| `chrome-extension` | TypeScript | ❌ | `src/` | Chrome Web Store |
-| `mobile-app` | TypeScript | ❌ | `src/` | App stores |
-| `desktop-app` | TypeScript | ❌ | `src/` | Direct dist |
+| `docusaurus` | TypeScript | ❌ | `docs/`, `openapi.yaml`, `src/css/` | Static host |
+| `chrome-extension` | TypeScript | ✅ | `extension/`, `server/` | Coolify (backend) + Chrome Web Store (extension) |
+| `mobile-app` | TypeScript | ❌ | `src/navigation/`, `src/features/` | App stores |
+| `desktop-app` | TypeScript | ❌ | `electron/` | Direct dist |
+| `static-site` | TypeScript | ✅ | `app/`, `components/`, `lib/` | Coolify |
 
 #### Per-Type Directory Structures
 
@@ -134,24 +136,59 @@ plugins/   themes/   backup/   config/preset.yaml
 compose.yaml.j2   compose-coolify.yaml.j2   wp-config-extra.php   .env.example
 ```
 
-**`docusaurus`** — Documentation site (no container):
+**`docusaurus`** — Documentation site with OpenAPI docs (no container):
 ```
-docs/   docusaurus.config.js   package.json   sidebars.js
-```
-
-**`chrome-extension`** — Browser extension (no container):
-```
-src/   manifest.json   package.json   tsconfig.json
-```
-
-**`mobile-app`** — React Native (Expo) app (no container):
-```
-src/   app.json   package.json   tsconfig.json
+package.json              # Docusaurus deps + OpenAPI plugin deps (from template)
+docusaurus.config.js      # Site config with OpenAPI plugin/theme wiring
+sidebars.js               # guideSidebar + apiSidebar (requires docs/api/sidebar.js)
+openapi.yaml              # Placeholder OpenAPI spec (specPath for plugin)
+docs/intro.md             # Getting-started page
+docs/api/sidebar.js       # API sidebar placeholder (gen-api regenerates)
+src/css/custom.css        # Custom Docusaurus theme CSS
+static/img/.gitkeep       # Static assets directory
 ```
 
-**`desktop-app`** — Electron + React (no container):
+**`chrome-extension`** — Browser extension (Vite + CRXJS) + Python backend:
 ```
-src/   electron/   package.json   tsconfig.json
+extension/          # Chrome extension (TypeScript + Vite + CRXJS)
+  src/
+    popup.html
+    popup.ts
+    background.ts
+    content.ts
+  icons/            # icon16.png, icon48.png, icon128.png + README.md
+  manifest.json
+  package.json
+  vite.config.ts
+server/             # Python backend (FastAPI)
+  src/<package>/main.py
+Dockerfile
+compose.yaml
+requirements.txt
+Makefile
+```
+
+**`mobile-app`** — React Native app (no container, template-backed):
+```
+package.json                              # React Native deps + navigation (from template)
+src/App.tsx                               # SafeAreaProvider + AppNavigator entry
+src/navigation/AppNavigator.tsx           # React Navigation container
+src/navigation/types.ts                   # Navigation type definitions
+src/features/files/types.ts               # File feature types
+src/features/files/services/fileService.ts # File API service
+src/features/files/hooks/useFiles.ts      # File list hook
+src/features/files/hooks/useFileUpload.ts # File upload hook
+src/features/files/screens/FileListScreen.tsx
+src/features/files/screens/FileUploadScreen.tsx
+```
+
+> **`static-site`** reuses the `saas-skeleton` template structure (`app/`, `components/`, `lib/`). No separate directory listing needed.
+
+**`desktop-app`** — Electron app (no container, template-backed):
+```
+package.json              # Electron deps + electron-builder config (from template)
+electron/main.js          # Electron main process (BrowserWindow + auto-updater)
+index.html                # Renderer entry (referenced by electron/main.js)
 ```
 
 ---
@@ -194,17 +231,28 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 ├── .cache/                          # Cache directory (gitignored)
 ├── .tmp/                            # Temp files (gitignored, NOT /tmp/)
 ├── .windsurf/
-│   └── rules/                       # Windsurf IDE rules (10 files)
-│       ├── 00-critical.md           # IDE behavior, forbidden actions
-│       ├── 10-python.md             # Python/FastAPI patterns
-│       ├── 20-typescript.md         # TypeScript/Next.js patterns
-│       ├── 30-ops.md                # Docker/Compose patterns
-│       ├── 40-documentation.md      # Documentation rules
-│       ├── 50-code-review.md        # Workflow pointer
-│       ├── 60-saas-ui.md            # SaaS UI patterns
-│       ├── 70-chrome-ext.md         # Chrome extension patterns
-│       ├── 80-mobile.md             # Mobile app patterns
-│       └── 90-automation.md         # YOLO modes, Fabrik skills
+│   ├── rules/                       # Windsurf IDE rules (20 files)
+│   │   ├── 10-python.md             # Python/FastAPI patterns
+│   │   ├── 15-api-contracts.md      # API contract patterns
+│   │   ├── 20-typescript.md         # TypeScript patterns
+│   │   ├── 25-data-postgres.md      # PostgreSQL/data patterns
+│   │   ├── 30-ops.md                # Docker/Compose patterns
+│   │   ├── 35-security-auth.md      # Security & auth patterns
+│   │   ├── 40-documentation.md      # Documentation rules
+│   │   ├── 42-docusaurus.md         # Docusaurus patterns
+│   │   ├── 45-testing-strategy.md   # Testing strategy
+│   │   ├── 50-code-review.md        # Workflow pointer
+│   │   ├── 55-observability.md      # Observability patterns
+│   │   ├── 60-saas-ui.md            # SaaS UI patterns
+│   │   ├── 62-wordpress.md          # WordPress patterns
+│   │   ├── 65-rag-search.md         # RAG/search patterns
+│   │   ├── 70-chrome-ext.md         # Chrome extension patterns
+│   │   ├── 75-workers-jobs.md       # Workers & jobs patterns
+│   │   ├── 80-mobile.md             # Mobile app patterns
+│   │   ├── 85-payments-billing.md   # Payments & billing patterns
+│   │   ├── 90-automation.md         # YOLO modes, Fabrik skills
+│   │   └── 95-multi-tenant-saas.md  # Multi-tenant SaaS patterns
+│   └── workflows/                   # Cascade slash-command workflows (10 files)
 ├── config/                          # Configuration files
 ├── data/                            # Data files (gitignored)
 ├── docs/
@@ -313,7 +361,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `README.md` | `docs/PROJECT_README_TEMPLATE.md` | Project overview |
 | `CHANGELOG.md` | `docs/CHANGELOG_TEMPLATE.md` | Version history |
 | `AGENTS.md` | Copied from `/opt/fabrik/AGENTS.md` | AI agent instructions |
-| `.windsurfrules` | Copied from `/opt/fabrik/.windsurfrules` | Windsurf rules shim |
+| `.windsurfrules` | Copied from `/opt/fabrik/.windsurfrules` | Cascade compact agent contract |
 | `.gitignore` | Generated inline | Git ignore patterns |
 | `.env.example` | Generated inline | Env var template |
 | `requirements.txt` | Generated inline | Production Python dependencies |
@@ -356,17 +404,27 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `scripts/runk` | `scripts/runk` | Kill detached job |
 | `scripts/sync_cascade_backup.sh` | `scripts/sync_cascade_backup.sh` | Backup Cascade session |
 | `scripts/sync_extensions.sh` | `scripts/sync_extensions.sh` | Sync Windsurf extensions |
-| **Windsurf Rules (10)** | | |
-| `.windsurf/rules/00-critical.md` | Copied from Fabrik | IDE behavior, forbidden actions |
+| **Windsurf Rules (20)** | | |
 | `.windsurf/rules/10-python.md` | Copied from Fabrik | Python/FastAPI patterns |
-| `.windsurf/rules/20-typescript.md` | Copied from Fabrik | TypeScript/Next.js patterns |
+| `.windsurf/rules/15-api-contracts.md` | Copied from Fabrik | API contract patterns |
+| `.windsurf/rules/20-typescript.md` | Copied from Fabrik | TypeScript patterns |
+| `.windsurf/rules/25-data-postgres.md` | Copied from Fabrik | PostgreSQL/data patterns |
 | `.windsurf/rules/30-ops.md` | Copied from Fabrik | Docker/Compose patterns |
+| `.windsurf/rules/35-security-auth.md` | Copied from Fabrik | Security & auth patterns |
 | `.windsurf/rules/40-documentation.md` | Copied from Fabrik | Documentation rules |
+| `.windsurf/rules/42-docusaurus.md` | Copied from Fabrik | Docusaurus patterns |
+| `.windsurf/rules/45-testing-strategy.md` | Copied from Fabrik | Testing strategy |
 | `.windsurf/rules/50-code-review.md` | Copied from Fabrik | Workflow pointer |
+| `.windsurf/rules/55-observability.md` | Copied from Fabrik | Observability patterns |
 | `.windsurf/rules/60-saas-ui.md` | Copied from Fabrik | SaaS UI patterns |
+| `.windsurf/rules/62-wordpress.md` | Copied from Fabrik | WordPress patterns |
+| `.windsurf/rules/65-rag-search.md` | Copied from Fabrik | RAG/search patterns |
 | `.windsurf/rules/70-chrome-ext.md` | Copied from Fabrik | Chrome extension patterns |
+| `.windsurf/rules/75-workers-jobs.md` | Copied from Fabrik | Workers & jobs patterns |
 | `.windsurf/rules/80-mobile.md` | Copied from Fabrik | Mobile app patterns |
+| `.windsurf/rules/85-payments-billing.md` | Copied from Fabrik | Payments & billing patterns |
 | `.windsurf/rules/90-automation.md` | Copied from Fabrik | YOLO modes, Fabrik skills |
+| `.windsurf/rules/95-multi-tenant-saas.md` | Copied from Fabrik | Multi-tenant SaaS patterns |
 | **Templates** | | |
 | `templates/docs/*.md` | Copied from Fabrik | Documentation templates (5 files) |
 | `templates/saas-skeleton/` | Copied from Fabrik | Full Next.js SaaS starter |
@@ -380,8 +438,9 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 |------|--------|---------|
 | `AGENTS.md` | `/opt/fabrik/AGENTS.md` | AI agent instructions |
 | `AGENTS-compact.md` | `/opt/fabrik/AGENTS-compact.md` | Compact agent instructions |
-| `.windsurfrules` | `/opt/fabrik/windsurfrules` | Legacy rules shim |
-| `.windsurf/rules/*` | `/opt/fabrik/.windsurf/rules/` | Windsurf IDE rules (10 files) |
+| `.windsurfrules` | `/opt/fabrik/.windsurfrules` | Cascade agent contract |
+| `.windsurf/rules/*` | `/opt/fabrik/.windsurf/rules/` | Windsurf IDE rules (20 files) |
+| `.windsurf/workflows/*` | `/opt/fabrik/.windsurf/workflows/` | Cascade slash-command workflows |
 | `opencode.json` | `/opt/fabrik/opencode.json` | Kilo CLI configuration |
 
 **Why copied, not symlinked:** Prevents AI agents in child projects from discovering `/opt/fabrik` parent directory (session isolation).
@@ -582,9 +641,10 @@ fabrik sync-models
 | `saas-skeleton` | TypeScript | Full SaaS applications | Next.js + Tailwind + Auth |
 | `wordpress` | PHP | WordPress sites | WP Docker setup |
 | `docusaurus` | TypeScript | Documentation sites | Docusaurus config |
-| `chrome-extension` | TypeScript | Browser extensions | Manifest + popup |
-| `mobile-app` | TypeScript | React Native apps | Expo setup |
+| `chrome-extension` | TypeScript | Browser extensions + Python backend | Extension (Vite + CRXJS) + FastAPI server |
+| `mobile-app` | TypeScript | React Native apps | React Native setup |
 | `desktop-app` | TypeScript | Electron apps | Electron + React |
+| `static-site` | TypeScript | Static websites | Next.js + Tailwind |
 
 ### Template Locations
 

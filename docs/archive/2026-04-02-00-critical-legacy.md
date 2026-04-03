@@ -1,3 +1,8 @@
+> **Superseded on 2026-04-02 by T7.**
+> Cascade-unique content moved to `/.windsurfrules` (Cascade compact agent contract).
+> Mechanical audit checklist and gate commands remain in `.windsurf/rules/50-code-review.md`.
+> This file is archived for historical reference only — do not re-activate.
+
 ---
 activation: always_on
 description: Critical Fabrik rules - ALWAYS enforced (Windsurf Cascade only)
@@ -20,7 +25,7 @@ Before any tool use or code, output:
 - `README.md`
 - `.windsurf/rules/*.md`
 - `docs/workflows/` (workflow docs, if present)
-- `docker-compose.yml`, `Dockerfile`
+- `compose.yaml`, `Dockerfile`
 - `.env.example`, `pyproject.toml`, `package.json`, `requirements.txt`
 
 **Do not generate anything until this scan is complete.**
@@ -259,11 +264,10 @@ Before finishing ANY coding task, you MUST verify:
 - [ ] Database changes added to `db/schema.sql` (if applicable)
 - [ ] CHANGELOG.md updated for code/config/infrastructure changes
 - [ ] Lean gate passed: `python scripts/final_gate.py --lean`
-- [ ] Changes staged (`git add -A`) — never committed
 
-Milestone gate (`python scripts/final_gate.py`) runs only when closing a milestone or batch. Kilo Review and Documentator are optional/manual tools only. Traycer verifies work; agents run local scripts. See `.windsurf/rules/50-code-review.md` for commands.
+**Gate auto-stages changes** — do not run `git add` manually. Cascade never commits; Traycer commits.
 
-**Cascade never commits. Traycer commits.**
+Milestone gate (`python scripts/final_gate.py`) runs only when closing a milestone or batch. Kilo Review and Documentator are optional/manual tools only. See `.windsurf/rules/50-code-review.md` for commands.
 
 ---
 

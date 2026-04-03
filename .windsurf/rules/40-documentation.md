@@ -8,212 +8,48 @@ description: Documentation rules, plan documents, writing style
 
 ---
 
-## README.md Features Section (MANDATORY)
+## README.md Features
 
-**Every NEW feature MUST be added to README.md Features section:**
-
-```markdown
-## Features
-
-### Category Name
-| Feature | Status | Description |
-|---------|--------|-------------|
-| Feature Name | ✅ | One-line description |
-```
-
-**Rules:**
-- Add new features to appropriate category table
-- Use ✅ for implemented, 🚧 for in-progress, ❌ for planned
-- Update status when feature ships
-- This is the **single source of truth** for "what does this product do"
-
-**When to update:**
-- New API endpoint → add to "API Endpoints" table
-- New UI feature → add to relevant category (Search, Dashboard, etc.)
-- New infrastructure capability → add to "Infrastructure" table
+**Update when:** New feature added (API endpoint, UI capability, infrastructure)
+**What:** Add entry to appropriate Features table with status (✅/🚧/❌)
+**Enforced:** Gate-checked
 
 ---
 
-## CHANGELOG.md (MANDATORY)
+## CHANGELOG.md
 
-**Every code change MUST update CHANGELOG.md:**
-
-```markdown
-## [Unreleased]
-
-### Added - User Authentication (2026-03-21)
-**What:** JWT-based login and session management
-**Files:**
-- `src/auth.py` - new auth module
-- `src/api/users.py` - login/logout endpoints
-
-### Changed - Database Connection Pool (2026-03-20)
-**What:** Increased pool size from 5 to 20 for better concurrency
-**Files:**
-- `src/db.py` - pool_size parameter
-
-### Fixed - Health Endpoint Timeout (2026-03-19)
-**What:** Added 5s timeout to prevent hanging health checks
-**Files:**
-- `src/main.py` - health() function
-```
-
-**No exceptions.** This is enforced by `final_gate.py` via `check_changelog.py`.
-
-**Automated generation (Step 4):**
-- In the Kilo CLI workflow, DOCUMENTATOR auto-generates CHANGELOG entries at Step 4
-- In the Cascade workflow, Cascade runs `python scripts/kilo_docs_enforcer.py --auto-generate`
-- Manual writing is valid but automated generation is the default path
-
-**Relationship to README.md:**
-- **CHANGELOG** = *when* things changed (historical record)
-- **README Features** = *what* exists now (current state)
+**Update when:** Any change to code (`src/`, `scripts/`, `templates/`) or config (`Dockerfile`, `compose.yaml`, `.env.example`, `pyproject.toml`, `package.json`, `requirements.txt`)
+**What:** Add entry under `## [Unreleased]` with `### Added/Changed/Fixed — Title (YYYY-MM-DD)` format
+**Enforced:** Gate-checked, no exceptions
 
 ---
 
-## Planning (Required for Non-Trivial Work)
+## Plans
 
-### Plan Location & Naming
-- Location: `docs/development/plans/`
-- Filename: `YYYY-MM-DD-plan-<name>.md` (e.g., `2026-01-14-plan-feature-auth.md`)
-
-### Plan Lifecycle
-1. **Create** plan in `docs/development/plans/`
-2. **Add** to `docs/development/PLANS.md` index
-3. **Update** `**Status:**` as work progresses
-4. **Check boxes** as items complete
-5. **Archive** when COMPLETE → move to `docs/archive/`
-
-### Traycer-Managed Plans
-
-For Traycer-managed work:
-- The plan is created and managed in Traycer (Phases)
-- Plan MUST be exported from Traycer and saved to `docs/development/plans/`
-- Plan MUST still be indexed in `docs/development/PLANS.md`
-- Coding agents only execute steps from the Traycer-managed plan
-
-### Required Plan Sections
-- `**Status:**` line (NOT_STARTED, IN_PROGRESS, PARTIAL, COMPLETE, BLOCKED)
-- `## Goal` - One-line description
-- `## DONE WHEN` - Checkboxes for completion criteria
-- `## Out of Scope` - What's excluded
-- `## Steps` - Implementation steps
-
-**Status definitions:**
-- **PARTIAL** = some steps done, work ongoing
-- **BLOCKED** = attempted but cannot proceed (document blocker)
+**Location:** `docs/development/plans/YYYY-MM-DD-plan-<name>.md`
+**When:** Non-trivial work (multi-step features, refactoring, complex bugs)
+**Required sections:** Status, Goal, DONE WHEN, Out of Scope, Steps
+**Note:** Traycer-managed plans exported to same location
 
 ---
 
-## Plan Document Types
+## AUTO-GENERATED Blocks
 
-### 1. Exploration Plans (Phase A)
-Use `templates/docs/PLAN_TEMPLATE.md` for **research and design** phase:
-- The Problem
-- The Solution
-- What We're Building
-- How It Works
-- What This Fixes
-- Timeline
-
-### 2. Execution Plans (Phase B)
-Use `templates/docs/EXECUTION_PLAN_TEMPLATE.md` for **locked implementation**:
-- Task Metadata (goal, done-when, out-of-scope)
-- Constraints
-- Canonical Gate
-- 5-7 Execution Steps (DO → GATE → EVIDENCE)
-- Stop Conditions
-
-## When to Use Which
-
-| Situation | Template |
-|-----------|----------|
-| New feature exploration | PLAN_TEMPLATE.md |
-| Locked implementation | EXECUTION_PLAN_TEMPLATE.md |
-| Bug fix | EXECUTION_PLAN_TEMPLATE.md |
-| Refactoring | EXECUTION_PLAN_TEMPLATE.md |
-
-## Execution Plan Rules (STRICT)
-
-- Follow steps exactly in order
-- Do NOT redesign or change scope
-- One step at a time
-- After each step: show Evidence + Gate result
-- If a Gate fails → STOP and report
-
-## Writing Style
-
-- **Plain language** — No jargon
-- **Show don't tell** — Use examples
-- **Before/After tables** — Make improvements obvious
-- **5-7 steps max** — Human-manageable
+**Never edit:** `docs/BUSINESS_MODEL.md` (projects), `PORTS.md` (port allocations)
 
 ---
 
-## AUTO-GENERATED Project Catalog
+## .env.example
 
-**File:** `docs/BUSINESS_MODEL.md`
-
-**AUTO-GENERATED Block:** `<!-- AUTO-GENERATED:PROJECTS:START -->` to `<!-- AUTO-GENERATED:PROJECTS:END -->`
-
-**Sync Triggers:**
-1. **Automatic:** `fabrik scaffold` completion (post-hook in `src/fabrik/cli.py`)
-2. **Manual:** `python scripts/sync_projects.py` (Fabrik project only)
-
-**What it does:**
-- Scans all `/opt/*` projects (excludes `_*` prefixes)
-- Extracts metadata from README.md, compose.yaml, .env.example
-- Categorizes: Production, Active Dev, Planning, Shell
-- Updates catalog table with: Project | Purpose | Stack | Status | URL | Scaffold Status
-
-**DO NOT:**
-- Edit inside AUTO-GENERATED blocks manually
-- Run sync on every code change (token waste)
-- Create duplicate project tracking systems
-
-**Enforcement:** Step 7 (auto-sync catalog only)
+**Update when:** New environment variable added
+**What:** Add variable with inline comment (`.env.example` is authoritative, not `CONFIGURATION.md`)
+**Enforced:** Gate-checked
 
 ---
 
-## Configuration Documentation Pattern
+## New .md Files (DEFAULT-DENY)
 
-**Problem:** Duplication between `.env.example` and `docs/CONFIGURATION.md` causes drift.
-
-**Solution:**
-- `.env.example` = AUTHORITATIVE (self-documenting with inline comments)
-- `docs/CONFIGURATION.md` = GUIDE only (how to get credentials, architecture, troubleshooting)
-- NO variable tables in CONFIGURATION.md
-
-**Enforcement:** `check_configuration_md.py` verifies `.env.example` has comment blocks
-
----
-
-## Anti-Sprawl Enforcement (STRUCTURAL DEFAULT-DENY - 2026-03-16)
-
-**POLICY:** All new .md files BLOCKED except explicit allowlists and structural patterns.
-
-**Before creating ANY .md file:**
-1. Check if updating tracked file (allowed)
-2. Check allowlists (root + docs scaffold)
-3. Check structural patterns (plans, archive only)
-4. If none match → BLOCKED
-
-**Root allowlist (CLOSED):**
-- INDEX.md, README.md, CHANGELOG.md, AGENTS.md
-
-**Docs scaffold allowlist (CLOSED):**
-- docs/.doc-policy.md, docs/README.md, docs/QUICKSTART.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/BUSINESS_MODEL.md, docs/FEATURES.md, docs/development/PLANS.md, docs/archive/README.md
-
-**Allowed structural patterns:**
-- `docs/development/plans/YYYY-MM-DD-plan-<name>.md` (zero-padded dates) - Owner creates these manually
-- `docs/archive/**/*.md` (any depth) - Agents may archive completed plans
-- `docs/reference/**/*.md` (any depth) - Technical reference documentation (APIs, benchmarks, directives)
-
-**BLOCKED patterns:**
-- `.droid/review-context/*.md` - Agent artifacts should not be auto-created
-
-**Git-tracked edits:** Always allowed (modify existing docs freely)
-
-**Escape hatch:** If a legitimate file is needed outside the allowlist, STOP and ask Traycer to update the allowlist first. Do not create workarounds.
-
-**Enforcement:** Step 3 & 5 via final_gate.py. No approval mechanism needed.
+**Rule:** Edit existing docs instead of creating new ones.
+**Allowed:** Root docs (`README.md`, `CHANGELOG.md`), plans (`docs/development/plans/YYYY-MM-DD-*.md`), reference (`docs/reference/**/*.md`), archive (`docs/archive/**/*.md`)
+**Blocked:** All other new .md files
+**If blocked:** STOP and ask user

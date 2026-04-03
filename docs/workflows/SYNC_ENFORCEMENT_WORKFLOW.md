@@ -19,8 +19,9 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 | `AGENTS.md` | Agent workflow rules |
 | `AGENTS-compact.md` | Compact reference |
 | `opencode.json` | Kilo-safe rules |
-| `.windsurfrules` | Windsurf shim |
+| `.windsurfrules` | Cascade compact agent contract |
 | `.windsurf/rules/` | Cascade rule files (recursive) |
+| `.windsurf/workflows/` | Cascade slash-command workflows |
 
 **Auto-sync trigger:** Pre-commit hook in `/opt/fabrik/.pre-commit-config.yaml` runs sync when any governance file is committed. No cron needed.
 

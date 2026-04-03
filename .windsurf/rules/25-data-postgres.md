@@ -1,0 +1,144 @@
+---
+activation: glob
+globs: ["**/db/**", "**/models/**", "**/schema.sql", "**/migrations/**"]
+description: PostgreSQL discipline — migrations, transactions, indexing, nullability, schema evolution
+trigger: glob
+---
+
+# PostgreSQL & Data Rules
+
+Apply when working on database models, migrations, schema changes, or query logic. Skip for pure UI, Docker, or infrastructure files.
+
+## Migration Discipline
+
+- All schema changes go through Alembic. Raw SQL DDL (`ALTER TABLE`, `CREATE INDEX` executed directly) is banned.
+- Never blindly trust `--autogenerate`. Always review `upgrade()` and `downgrade()` for unintended column drops, rename misinterpretations, and ENUM alterations before committing.
+- SQLAlchemy `MetaData` must use a naming convention dict so Alembic generates deterministic constraint names across environments:
+
+```python
+from sqlalchemy import MetaData
+from sqlalchemy.orm import DeclarativeBase
+
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+class Base(DeclarativeBase):
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
+```
+
+- Periodically squash migrations into a single baseline once a major version stabilises. Long migration histories slow CI and obscure current schema state.
+
+## Primary Keys
+
+- Use **UUIDv7** for all primary keys. UUIDv4 is banned — its randomness causes B-tree fragmentation, cache thrashing, and excessive WAL generation.
+- PostgreSQL 16 lacks native `uuidv7()`. Generate at the application layer:
+
+```python
+import uuid_utils
+from sqlalchemy import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+def generate_uuidv7() -> uuid_utils.UUID:
+    return uuid_utils.uuid7()
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[uuid_utils.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=generate_uuidv7
+    )
+```
+
+## Nullability & Constraints
+
+- All columns are `NOT NULL` by default. Allow `NULL` only when absence explicitly represents a distinct business state (e.g. `canceled_at` where NULL = active).
+- Apply `DEFAULT` at the database schema level, not only in SQLAlchemy model `__init__`.
+- Use PostgreSQL `CHECK` constraints for invariants the application layer cannot enforce against race conditions (e.g. `CHECK (balance >= 0)`).
+- Foreign keys must declare `ON DELETE` behaviour explicitly — `CASCADE` if children cannot exist without the parent, `RESTRICT` to protect audit trails. Never rely on the implicit default.
+
+## Soft Deletes
+
+Soft deletes (`deleted_at`, `is_deleted`) are **banned**. They leak into queries, break unique constraints, and bloat indexes.
+
+- Use hard `DELETE`. If audit history is required, implement append-only **journal tables** via PostgreSQL row-level triggers that capture OLD/NEW state into a `[table]_journal` table (typically JSONB payload).
+- **Exception:** Tenant offboarding in multi-tenant systems may use `deleted_at` on the `tenants` table only, with a background job that hard-deletes after the retention period. This is scoped to tenant lifecycle — not general-purpose soft delete.
+
+## JSONB Boundaries
+
+- Use JSONB only for sparse, schema-less, or third-party payload data that is rarely filtered or sorted.
+- If a JSONB field becomes a common `WHERE`, `JOIN`, or `ORDER BY` target, extract it into a typed relational column. JSONB defeats query planner statistics and incurs TOAST reassembly overhead.
+
+## Transactions & Sessions
+
+- Database `AsyncSession` must be scoped to the route handler via `Depends()`. Never open sessions or transactions in global middleware — this holds connections during serialisation and I/O, exhausting the pool.
+- `async_sessionmaker` must set `expire_on_commit=False` to prevent `MissingGreenletException` on post-commit attribute access.
+- Eagerly load relationships with `selectinload()` or `joinedload()` in the initial query. Lazy loading is impossible in async context and causes N+1 if accidentally triggered.
+
+```python
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+
+engine = create_async_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,   # recover from stale VPS connections
+    pool_size=10,
+    max_overflow=20,
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine, autocommit=False, autoflush=False,
+    expire_on_commit=False, class_=AsyncSession,
+)
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+```
+
+## Connection Pooling
+
+- Use SQLAlchemy `QueuePool` with `pool_pre_ping=True` for early-stage and single-service deployments.
+- When scaling to multiple workers or background task services, deploy PgBouncer in transaction-pooling mode and switch SQLAlchemy to `NullPool`.
+
+## Indexing
+
+- Index primary keys (automatic) and foreign keys. Beyond that, add indexes only when a specific slow query is identified.
+- Use **partial indexes** for heavily skewed boolean queries (e.g. `CREATE INDEX idx_failed_jobs ON jobs (id) WHERE status = 'FAILED'`).
+- Monitor `pg_stat_user_indexes` periodically. Drop any index with `idx_scan = 0` over a significant period.
+
+---
+
+## Banned Patterns
+
+| Pattern | Use Instead |
+|---------|-------------|
+| `deleted_at` / `is_deleted` columns | Hard delete + journal tables via triggers (exception: `tenants` table for multi-tenant offboarding) |
+| `UUIDv4` / `uuid4()` primary keys | `UUIDv7` via `uuid_utils.uuid7()` |
+| DB sessions in middleware | `Depends(get_db)` scoped to route handler |
+| Raw SQL DDL outside Alembic | `alembic revision --autogenerate` + review |
+| Preemptive indexes on every column | Index FKs + proven slow-query paths only |
+| JSONB for frequently filtered data | Extract to typed relational columns |
+| Implicit `ON DELETE` on foreign keys | Explicit `CASCADE` or `RESTRICT` |
+| `expire_on_commit=True` with async | Set `expire_on_commit=False` on sessionmaker |
+
+---
+
+## Done When
+
+- [ ] All schema changes have a reviewed Alembic migration (no raw DDL).
+- [ ] `MetaData` uses the naming convention dict for deterministic constraints.
+- [ ] All primary keys use UUIDv7 — no `uuid4()` in models or utilities.
+- [ ] All columns are `NOT NULL` unless nullability has explicit business justification.
+- [ ] No `deleted_at` or `is_deleted` columns in any model (exception: `tenants` table for multi-tenant offboarding).
+- [ ] JSONB columns are not used in `WHERE` or `ORDER BY` clauses.
+- [ ] `AsyncSession` provided via `Depends()`, not middleware.
+- [ ] `expire_on_commit=False` set on `async_sessionmaker`.
+- [ ] `pool_pre_ping=True` configured on the engine.

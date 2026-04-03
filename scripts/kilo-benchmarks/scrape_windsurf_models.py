@@ -502,7 +502,11 @@ def update_cascade_models_md(
                 tbench_str = f"{tbench:.1f}%" if tbench else "—"
 
                 # Format credits: show em-dash for unavailable (-1.0), numeric otherwise
-                credits_display = "—" if model.credits_numeric == -1.0 else f"{model.credits_numeric:.1f}".rstrip('0').rstrip('.')
+                credits_display = (
+                    "—"
+                    if model.credits_numeric == -1.0
+                    else f"{model.credits_numeric:.1f}".rstrip("0").rstrip(".")
+                )
 
                 # Add notes for promo pricing
                 notes = ""

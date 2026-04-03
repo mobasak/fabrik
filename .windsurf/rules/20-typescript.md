@@ -1,148 +1,122 @@
 ---
 activation: glob
 globs: ["**/*.ts", "**/*.tsx"]
-description: Next.js patterns, React components, API routes
+description: TypeScript language discipline — strict mode, type safety, module patterns, error handling
 trigger: glob
 ---
 
-# TypeScript Rules
+# TypeScript Core Rules
 
-**Activation:** Glob `**/*.ts`, `**/*.tsx`
-**Purpose:** Next.js patterns, React components, API routes
+Apply when working on any TypeScript project (Next.js, Node.js, Chrome Extension, Desktop, Mobile, Static Site). Skip for Python-only or infrastructure files. For React/UI-specific guidance, see `SAAS_UI` pack. For API error schemas, see `API_CONTRACTS` pack.
 
 ---
 
-## SaaS Projects (MANDATORY)
+## Strict Mode
 
-**Always start from the SaaS skeleton:**
-```bash
-cp -r templates/saas-skeleton /opt/<project-name>
-cd /opt/<project-name>
-npm install
-cp .env.example .env
-npm run dev  # Dev only! Use `npm run build && npm start` for production.
+All TypeScript projects must use strict compiler settings:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true
+  }
+}
 ```
 
-**Template includes:**
-- Next.js 14 + TypeScript + Tailwind CSS
-- Marketing pages (landing, pricing, FAQ)
-- App pages (dashboard, settings)
-- SSE streaming + ChatUI
+Never loosen `strict` mode. If a library lacks types, write a `.d.ts` declaration file rather than using `any`.
+
+---
+
+## Type Safety
+
+- Prefer `interface` for object shapes that may be extended; use `type` for unions, intersections, and mapped types.
+- Use `unknown` instead of `any` for values of uncertain type. Narrow with type guards before use.
+- Use `as const` for literal objects and arrays that should not be widened.
+- Use discriminated unions for state machines and variant types.
+
+```typescript
+// CORRECT — discriminated union
+type Result<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: Error };
+
+// WRONG — loose typing
+type Result = { data?: any; error?: string };
+```
+
+- Export types alongside their functions. Consumers should not need to reverse-engineer types from implementation.
 
 ---
 
 ## Environment Variables
 
-```typescript
-// CORRECT - runtime access
-const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-const dbHost = process.env.DB_HOST || 'localhost';
+Access environment variables at runtime via `process.env`. Never hardcode hosts, ports, API keys, or secrets.
 
-// Server-side only (no NEXT_PUBLIC_ prefix)
-const secretKey = process.env.SECRET_KEY;
+```typescript
+// CORRECT — runtime access with fallback
+const apiUrl = process.env.API_URL ?? 'http://localhost:8000';
+const port = parseInt(process.env.PORT ?? '3000', 10);
+
+// WRONG — hardcoded
+const apiUrl = 'http://localhost:8000';
+```
+
+For Next.js projects, prefix client-exposed variables with `NEXT_PUBLIC_`. Server-only variables must not use this prefix.
+
+---
+
+## Module Patterns
+
+- Use ES module syntax (`import`/`export`). CommonJS `require()` is banned in new code.
+- Use path aliases (`@/`) configured in `tsconfig.json` to avoid deep relative imports.
+- Barrel files (`index.ts`) are permitted for public API boundaries only — not for every directory.
+
+```typescript
+// CORRECT — path alias
+import { formatDate } from '@/utils/date';
+
+// WRONG — deep relative
+import { formatDate } from '../../../utils/date';
 ```
 
 ---
 
-## Component Patterns
+## Error Handling
 
-```tsx
-// Functional components with TypeScript
-interface Props {
-  title: string;
-  count?: number;
-}
-
-export function Card({ title, count = 0 }: Props) {
-  return (
-    <div className="p-4 rounded-lg border">
-      <h2>{title}</h2>
-      <span>{count}</span>
-    </div>
-  );
-}
-```
-
-### Server vs Client Components
-
-**Default is Server Component.** Add `'use client'` only when using:
-- React hooks (`useState`, `useEffect`, etc.)
-- Browser APIs (`window`, `document`, `localStorage`)
-- Event handlers (`onClick`, `onChange`, etc.)
-
-```tsx
-// Client component (needs directive)
-'use client';
-import { useState } from 'react';
-export function Counter() { ... }
-
-// Server component (no directive needed)
-export function StaticCard() { ... }
-```
-
----
-
-## API Routes (App Router)
+- Never swallow errors silently. At minimum, log with context.
+- Use typed error classes for domain errors. Avoid throwing raw strings.
+- For API error responses, defer to `API_CONTRACTS` pack (RFC 7807 Problem Details). Do not define ad-hoc error shapes like `{ error: "..." }` in TypeScript code.
 
 ```typescript
-// app/api/items/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function GET(request: NextRequest) {
-  try {
-    const items = await fetchItems();
-    return NextResponse.json(items);
-  } catch (error) {
-    console.error('Failed to fetch items:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch items' },
-      { status: 500 }
-    );
+// CORRECT — typed error
+class NotFoundError extends Error {
+  constructor(resource: string, id: string) {
+    super(`${resource} not found: ${id}`);
+    this.name = 'NotFoundError';
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const item = await createItem(body);
-    return NextResponse.json(item, { status: 201 });
-  } catch (error) {
-    console.error('Failed to create item:', error);
-    return NextResponse.json(
-      { error: 'Failed to create item' },
-      { status: 500 }
-    );
-  }
-}
+// WRONG — raw string
+throw 'Item not found';
 ```
 
 ---
 
-## Styling
+## Async Patterns
 
-- Use Tailwind CSS for all styling
-- Use shadcn/ui components
-- Use Lucide icons
-
-```tsx
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-
-<Button variant="outline" size="sm">
-  <Plus className="w-4 h-4 mr-2" />
-  Add Item
-</Button>
-```
+- Prefer `async`/`await` over raw `.then()` chains.
+- Always handle promise rejections — unhandled rejections crash Node.js processes.
+- Use `Promise.allSettled()` when multiple independent promises should not fail together.
 
 ---
 
 ## Port Range
 
-Frontend apps: **3000-3099**
-
-```bash
-npm run dev -- --port 3000
-```
+Frontend / Node.js apps: **3000–3099**. Register in `PORTS.md`.
 
 ---
 
@@ -150,42 +124,33 @@ npm run dev -- --port 3000
 
 ```bash
 npm run lint          # ESLint
-npm run type-check    # TypeScript
+npm run type-check    # tsc --noEmit
 npm run build         # Production build
 ```
 
-## Visual Design Workflow (SaaS/Web/Mobile/Extension/Any Other)
+---
 
-For UI-heavy projects, use this iterative design-to-code workflow:
+## Banned Patterns
 
-### Step 1: Provide Design Reference
-- Screenshot of mockup/Figma design
-- Existing site/app you want to replicate
-- Detailed written description of desired UI
+| Pattern | Use Instead |
+|---------|-------------|
+| `any` type annotation | `unknown` + type guard narrowing |
+| CommonJS `require()` in new code | ES module `import` / `export` |
+| Deep relative imports (`../../../`) | Path alias (`@/`) via `tsconfig.json` |
+| Raw string `throw 'error'` | Typed `Error` subclass |
+| `{ error: "..." }` ad-hoc error shape | RFC 7807 via `API_CONTRACTS` pack |
+| `as` type assertion to bypass checks | Type guard, `satisfies`, or proper narrowing |
+| Implicit `any` from untyped libraries | `.d.ts` declaration file |
+| Numeric `enum` (implicit values) | `as const` object or string literal union |
+| `@ts-ignore` | `@ts-expect-error` with explanation comment |
 
-### Step 2: AI Generates Code
-- Cascade/Kilo generates component code from description or screenshot
-- Uses Tailwind CSS + shadcn/ui components automatically
-- Follows TypeScript best practices (type-safe props, proper imports)
+---
 
-### Step 3: Iterate Until Perfect
-- Review generated code in browser
-- Request adjustments: "Make card shadow stronger", "Use primary color for CTA button"
-- Refine spacing, colors, typography until matches design
+## Done When
 
-**Best Practices:**
-- Start with complete page mockups, not individual components
-- Provide color palette (`primary: #3B82F6`) and spacing guidelines upfront
-- Use existing shadcn/ui components when possible (reduces custom code)
-- For Chrome extensions: Include popup dimensions in design reference
-- For mobile: Specify target devices (iOS, Android, or both)
-
-**Done when:** Matches mockup at 1280px desktop and 375px mobile.
-
-**Example Prompt:**
-```
-Create a pricing page with 3 tiers (Free, Pro, Enterprise).
-Design: Modern SaaS style, use Tailwind's blue-600 for primary color.
-Each card should have: tier name, price, feature list (checkmarks), CTA button.
-Make the Pro tier highlighted with a "Popular" badge.
-```
+- [ ] `tsconfig.json` has `"strict": true` and `"noUncheckedIndexedAccess": true`.
+- [ ] No `any` annotations — `unknown` + narrowing used where type is uncertain.
+- [ ] All imports use ES module syntax and path aliases.
+- [ ] Domain errors use typed `Error` subclasses, not raw strings or ad-hoc objects.
+- [ ] No hardcoded hosts, ports, or secrets — all via `process.env` with fallbacks.
+- [ ] `npm run lint` and `npm run type-check` pass with zero warnings.

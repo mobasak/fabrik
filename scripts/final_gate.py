@@ -725,8 +725,9 @@ def check_symlinks() -> tuple[bool, str]:
     """Validate governance files are local copies, not symlinks.
 
     Checks that critical governance artifacts (AGENTS.md, AGENTS-compact.md,
-    opencode.json, .windsurfrules, .windsurf/rules/) are copied files, not
-    symlinks. This enforces workspace isolation for AI coding agents.
+    opencode.json, .windsurfrules, .windsurf/rules/, .windsurf/workflows/)
+    are copied files, not symlinks. This enforces workspace isolation for
+    AI coding agents.
 
     Self-exemption: When running inside /opt/fabrik itself, check is skipped.
 
@@ -736,6 +737,7 @@ def check_symlinks() -> tuple[bool, str]:
     - opencode.json
     - .windsurfrules
     - .windsurf/rules/ (directory, checked recursively)
+    - .windsurf/workflows/ (directory, checked recursively)
 
     Returns:
         tuple: (is_valid, error_message)
@@ -755,6 +757,7 @@ def check_symlinks() -> tuple[bool, str]:
         "opencode.json",
         ".windsurfrules",
         ".windsurf/rules",
+        ".windsurf/workflows",
     ]
 
     failures = []
@@ -788,8 +791,8 @@ def check_symlinks() -> tuple[bool, str]:
                 )
             continue
 
-        # Check 3: If .windsurf/rules is a directory, recursively check descendants
-        if rel_path == ".windsurf/rules" and path.is_dir():
+        # Check 3: For governance directories, recursively check descendants for symlinks
+        if rel_path in (".windsurf/rules", ".windsurf/workflows") and path.is_dir():
             for descendant in path.rglob("*"):
                 if descendant.is_symlink():
                     resolved = descendant.resolve()
