@@ -636,7 +636,7 @@ fabrik sync-models
 |----------|----------|----------|-----------------|
 | `python-api` | Python | FastAPI REST APIs | Dockerfile, compose.yaml, src/, tests/ |
 | `node-api` | Node.js | Express/Fastify APIs | Dockerfile, compose.yaml, src/, tests/ |
-| `file-api` | Python | File handling APIs | API + S3/local storage |
+| `file-api` | Node.js | File handling APIs | API + S3/local storage |
 | `file-worker` | Python | Background file processors | Worker + queue consumer |
 | `saas-skeleton` | TypeScript | Full SaaS applications | Next.js + Tailwind + Auth |
 | `wordpress` | PHP | WordPress sites | WP Docker setup |

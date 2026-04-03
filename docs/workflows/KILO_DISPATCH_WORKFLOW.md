@@ -89,6 +89,15 @@ python /opt/fabrik/scripts/kilo_dispatch.py \
     --project "<project-directory>"
 ```
 
+### With explicit rule packs (required for Fabrik-root work)
+```bash
+python /opt/fabrik/scripts/kilo_dispatch.py \
+    --agent "<agent-name>" \
+    --task "<task>" \
+    --project /opt/fabrik \
+    --packs PY_CORE,TESTING
+```
+
 ### Dry-run (preview prompt)
 ```bash
 python /opt/fabrik/scripts/kilo_dispatch.py \
@@ -189,6 +198,17 @@ Check `~/.traycer/agent-debug.log` for error details.
 
 ### No report generated
 The Kilo agent may have failed before producing output. Check the transcript in `<project>/.droid/transcripts/`.
+
+### Fabrik-root requires --packs
+Running against `/opt/fabrik` (the monorepo root) without `project.yaml` requires explicit `--packs`:
+```bash
+# ERROR: will fail fast
+python scripts/kilo_dispatch.py --agent "coding-2-gpt54" --task "Fix X" --project /opt/fabrik
+
+# CORRECT: specify packs explicitly
+python scripts/kilo_dispatch.py --agent "coding-2-gpt54" --task "Fix X" --project /opt/fabrik --packs PY_CORE,TESTING
+```
+This prevents silent reduced-context runs. Pack IDs must be valid — unknown IDs (e.g. `--packs BOGUS`) also fail fast. The error message lists all available pack IDs.
 
 ### TUI not showing
 Requires: TTY terminal, `KILO_RICH_UI=1`, and `/opt/fabrik/scripts/kilo_terminal_runner.py` accessible.

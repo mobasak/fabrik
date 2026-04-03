@@ -11,13 +11,16 @@ import pytest
 # Make scripts/ importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
+import kilo_dispatch  # noqa: E402
 from kilo_dispatch import (  # noqa: E402, I001
     MAX_LINES_PER_PACK,
     MAX_RULE_LINES,
     PACK_MAPPING,
     PACK_REGISTRY,
     TESTING_OVERLAY,
+    FabrikRootNoPacksError,
     _extract_rule_lines,
+    _is_fabrik_root,
     _resolve_packs,
     load_project_context,
 )
@@ -250,6 +253,14 @@ class TestResolvePacks:
         assert defaults == []
         assert "TESTING" in overlays
 
+    def test_file_api_gets_empty_defaults(self, project_dir: Path):
+        """file-api scaffold is JavaScript-based — must not inject PY_CORE."""
+        _write_project_yaml(project_dir, "file-api")
+        defaults, overlays = _resolve_packs(project_dir)
+        assert defaults == []
+        assert "PY_CORE" not in defaults
+        assert "TESTING" in overlays
+
     def test_missing_project_yaml_returns_empty_defaults(self, project_dir: Path):
         # No project.yaml written
         defaults, overlays = _resolve_packs(project_dir)
@@ -323,6 +334,13 @@ class TestLoadProjectContext:
         assert "[TESTING]" in context
         assert "[PY_CORE]" not in context
 
+    def test_file_api_does_not_inject_py_core(self, project_dir: Path):
+        """file-api is JavaScript — PY_CORE must not appear in context."""
+        _write_project_yaml(project_dir, "file-api")
+        context = load_project_context(project_dir)
+        assert "[PY_CORE]" not in context
+        assert "[TESTING]" in context
+
     def test_missing_project_yaml_loads_only_agents_and_testing(self, project_dir: Path):
         context = load_project_context(project_dir)
         assert "AGENTS-compact.md" in context
@@ -375,6 +393,92 @@ class TestLoadProjectContext:
         # Count actual rule content lines (lines starting with "- ")
         rule_lines = [line for line in context_extra.split("\n") if line.startswith("- ")]
         assert len(rule_lines) <= MAX_RULE_LINES
+
+
+class TestFabrikRootBehavior:
+    """Verify fail-fast when Kilo targets the Fabrik monorepo root without --packs."""
+
+    @pytest.fixture()
+    def fabrik_root(self, project_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        """Point FABRIK_ROOT at project_dir so _is_fabrik_root matches it."""
+        monkeypatch.setattr(kilo_dispatch, "FABRIK_ROOT", project_dir.resolve())
+        # Remove project.yaml if it exists
+        py = project_dir / "project.yaml"
+        if py.exists():
+            py.unlink()
+        return project_dir
+
+    @pytest.fixture()
+    def child_project(self, tmp_path: Path) -> Path:
+        """Simulate a real scaffolded child project (has AGENTS.md, rules, etc)."""
+        child = tmp_path / "child-project"
+        child.mkdir()
+        (child / "AGENTS-compact.md").write_text("# Compact agent rules\nDo stuff.\n")
+        (child / "AGENTS.md").write_text("# Traycer orchestrator contract\n")
+        rules_dir = child / ".windsurf" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "45-testing-strategy.md").write_text(
+            "---\ndescription: Testing\n---\n# Testing\nWrite tests.\n"
+        )
+        return child
+
+    # ── Exact root detection ──
+
+    def test_is_fabrik_root_true(self, fabrik_root: Path):
+        """Monkeypatched FABRIK_ROOT path returns True."""
+        assert _is_fabrik_root(fabrik_root) is True
+
+    def test_is_fabrik_root_false_child_with_agents_md(self, child_project: Path):
+        """Scaffolded child project with AGENTS.md is NOT detected as Fabrik root."""
+        assert _is_fabrik_root(child_project) is False
+
+    # ── Fabrik-root fail-fast (no --packs) ──
+
+    def test_fabrik_root_no_packs_raises(self, fabrik_root: Path):
+        """Fabrik root without project.yaml and without --packs must fail fast."""
+        with pytest.raises(FabrikRootNoPacksError, match="require explicit --packs"):
+            _resolve_packs(fabrik_root)
+
+    def test_fabrik_root_load_context_no_packs_raises(self, fabrik_root: Path):
+        """load_project_context raises for Fabrik root when no --packs."""
+        with pytest.raises(FabrikRootNoPacksError):
+            load_project_context(fabrik_root)
+
+    # ── Invalid-pack fail-fast ──
+
+    def test_fabrik_root_all_invalid_packs_raises(self, fabrik_root: Path):
+        """Fabrik root with only invalid pack IDs must fail fast."""
+        with pytest.raises(FabrikRootNoPacksError, match="valid pack IDs"):
+            _resolve_packs(fabrik_root, extra_packs=["BOGUS", "FAKE"])
+
+    # ── Fabrik-root success (valid --packs) ──
+
+    def test_fabrik_root_with_explicit_packs_succeeds(self, fabrik_root: Path):
+        """Fabrik root with valid explicit --packs proceeds normally."""
+        defaults, overlays = _resolve_packs(fabrik_root, extra_packs=["PY_CORE"])
+        assert defaults == []
+        assert "PY_CORE" in overlays
+        assert "TESTING" in overlays
+
+    def test_fabrik_root_load_context_with_packs(self, fabrik_root: Path):
+        """load_project_context succeeds for Fabrik root when valid --packs given."""
+        context = load_project_context(fabrik_root, extra_packs=["PY_CORE"])
+        assert "[PY_CORE]" in context
+        assert "[TESTING]" in context
+
+    # ── Child project without project.yaml ──
+
+    def test_child_with_agents_md_no_yaml_degrades_gracefully(self, child_project: Path):
+        """Child project with AGENTS.md but no project.yaml degrades gracefully."""
+        defaults, overlays = _resolve_packs(child_project)
+        assert defaults == []
+        assert "TESTING" in overlays
+
+    def test_normal_project_no_yaml_unaffected(self, project_dir: Path):
+        """Normal project without project.yaml still degrades gracefully."""
+        defaults, overlays = _resolve_packs(project_dir)
+        assert defaults == []
+        assert "TESTING" in overlays
 
 
 class TestPackMappingConstants:

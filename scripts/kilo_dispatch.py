@@ -55,8 +55,16 @@ from pathlib import Path
 
 import yaml
 
+# ─── Exceptions ───────────────────────────────────────────────────────────────
+
+
+class FabrikRootNoPacksError(Exception):
+    """Raised when Kilo targets the Fabrik monorepo root without explicit --packs."""
+
+
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
+FABRIK_ROOT = Path(__file__).resolve().parent.parent
 AGENTS_DIR = Path.home() / ".traycer" / "cli-agents"
 TEMPLATES_DIR = Path.home() / ".traycer" / "prompt-templates"
 
@@ -89,7 +97,7 @@ PACK_MAPPING: dict[str, list[str]] = {
     "chrome-extension": ["PY_CORE", "TS_CORE", "CHROME_MV3"],
     "mobile-app": ["TS_CORE", "MOBILE_UI"],
     "desktop-app": ["TS_CORE"],
-    "file-api": ["PY_CORE"],
+    "file-api": [],
     "file-worker": ["PY_CORE", "WORKERS"],
     "wordpress": ["WORDPRESS"],
     "docusaurus": ["DOCUSAURUS"],
@@ -104,6 +112,17 @@ MAX_RULE_LINES = 40
 
 # Max lines extracted per pack
 MAX_LINES_PER_PACK = 6
+
+
+def _is_fabrik_root(project_dir: Path) -> bool:
+    """Return True if *project_dir* is the Fabrik monorepo root.
+
+    Detection: exact path comparison against FABRIK_ROOT (derived from
+    this script's location).  Scaffolded child projects — even those
+    containing AGENTS.md — are never matched.
+    """
+    return project_dir.resolve() == FABRIK_ROOT
+
 
 # Template mapping: role keyword → template file + placeholder name
 TEMPLATE_MAP: dict[str, tuple[str, str]] = {
@@ -267,6 +286,22 @@ def _resolve_packs(
                 project_type,
             )
     else:
+        if _is_fabrik_root(project_dir):
+            # Validate: --packs must be present AND resolve to at least one valid pack
+            valid_user_packs = [
+                p.strip().upper() for p in (extra_packs or []) if p.strip().upper() in PACK_REGISTRY
+            ]
+            if not valid_user_packs:
+                raise FabrikRootNoPacksError(
+                    f"No project.yaml in Fabrik root ({project_dir}). "
+                    "Fabrik-root Kilo runs require explicit --packs with "
+                    "valid pack IDs.\n\n"
+                    "  Example:\n"
+                    "    python scripts/kilo_dispatch.py \\.\n"
+                    "        --agent <agent> --task <task> \\.\n"
+                    "        --packs PY_CORE,TESTING\n\n"
+                    "  Available packs: " + ", ".join(sorted(PACK_REGISTRY.keys()))
+                )
         log.warning("No project.yaml found in %s — loading AGENTS-compact.md only", project_dir)
 
     # Build overlays: TESTING (always) + CLI --packs
@@ -511,7 +546,11 @@ Examples:
     extra_packs = [p for p in args.packs.split(",") if p.strip()] if args.packs else None
 
     # Build prompt
-    prompt = build_prompt(task, args.template, project_dir, extra_packs=extra_packs)
+    try:
+        prompt = build_prompt(task, args.template, project_dir, extra_packs=extra_packs)
+    except FabrikRootNoPacksError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     # Dry-run mode
     if args.dry_run:

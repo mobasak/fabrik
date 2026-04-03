@@ -157,13 +157,13 @@ Traycer injects rule-pack guidance into agent execution queries based on project
 | `chrome-extension` | `PY_CORE`, `TS_CORE`, `CHROME_MV3` |
 | `mobile-app` | `TS_CORE`, `MOBILE_UI` |
 | `desktop-app` | `TS_CORE` |
-| `file-api` | `PY_CORE` |
+| `file-api` | — |
 | `file-worker` | `PY_CORE`, `WORKERS` |
 | `wordpress` | `WORDPRESS` |
 | `docusaurus` | `DOCUSAURUS` |
 | `static-site` | `TS_CORE`, `SAAS_UI` |
 
-> `node-api` scaffold is currently JavaScript-based. Do not inject `TS_CORE` unless a specific project has actually adopted TypeScript.
+> `node-api` and `file-api` scaffolds are currently JavaScript-based. Do not inject `TS_CORE` or `PY_CORE` unless a specific project has actually adopted TypeScript or Python.
 > `chrome-extension` includes `PY_CORE` because the backend companion service is Python.
 > `docusaurus` is for dev/team-authored content (docs, API reference, knowledge base). `wordpress` is for client/non-technical-authored content (marketing, e-commerce). `static-site` is for landing pages and one-pagers you control fully. See `docs/reference/scaffold-type-decision-guide.md`.
 

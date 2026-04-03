@@ -87,7 +87,7 @@ python scripts/container_images.py pull nginx:alpine
 | fabrik-translator | `/opt/translator` | Python/FastAPI | 8000 | Translation (DeepL, Azure) |
 | fabrik-dns-manager | `/opt/dns-manager` | Python/FastAPI | 8001 | DNS management (Namecheap, Cloudflare) |
 | fabrik-emailgateway | `/opt/emailgateway` | Node.js/Fastify | 3000 | Email sending (Resend, SES) |
-| fabrik-file-api | `/opt/file-api` | Python/FastAPI | 8000 | File operations API |
+| fabrik-file-api | `/opt/file-api` | Node.js/Express | 3000 | File operations API |
 | fabrik-file-worker | `/opt/file-worker` | Python | - | Background file processing |
 | fabrik-image-broker | `/opt/image-generation` | Python/FastAPI | 8000 | AI image generation (FLUX) |
 

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — BUG-11 Make Fabrik-root Kilo context behavior explicit and fail-fast (2026-04-03)
+- **BUG-11**: Running `kilo_dispatch.py` against `/opt/fabrik` (monorepo root) without `project.yaml` no longer silently proceeds with reduced context:
+  - `scripts/kilo_dispatch.py`: Added `FABRIK_ROOT` constant (exact path from `Path(__file__)`), `_is_fabrik_root()` compares resolved paths (not `AGENTS.md` existence); `FabrikRootNoPacksError` raised when no `--packs` or when all supplied pack IDs are invalid; caught in `main()` with actionable error listing available pack IDs
+  - `docs/workflows/KILO_DISPATCH_WORKFLOW.md`: Added `--packs` example for Fabrik-root work in Commands Reference; added "Fabrik-root requires --packs" troubleshooting section with invalid-pack note
+  - `tests/test_kilo_dispatch.py`: Rewrote `TestFabrikRootBehavior` — 9 tests using monkeypatched `FABRIK_ROOT`, scaffolded child project fixture (with `AGENTS.md`), invalid-pack fail-fast, graceful degradation — 42 total, all passing
+
+### Fixed — BUG-10 Align file-api identity across AGENTS, Kilo pack mapping, and workflow docs (2026-04-03)
+- **BUG-10**: `file-api` scaffold is Node.js/JavaScript (Express, `package.json`, `src/index.js`) but was mapped to `PY_CORE`:
+  - `AGENTS.md`: Changed `file-api` default packs from `PY_CORE` to `—` (empty); added `file-api` to JavaScript-based scaffold note
+  - `scripts/kilo_dispatch.py`: Changed `PACK_MAPPING["file-api"]` from `["PY_CORE"]` to `[]`
+  - `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`: Changed `file-api` language from "Python" to "Node.js"
+  - `docs/reference/prebuilt-app-containers.md`: Changed `fabrik-file-api` stack from "Python/FastAPI | 8000" to "Node.js/Express | 3000"
+  - `tests/test_kilo_dispatch.py`: Added 2 tests (`test_file_api_gets_empty_defaults`, `test_file_api_does_not_inject_py_core`) — 33 total, all passing
+
 ### Fixed — T14 Sync workflow documentation with current agent model (2026-04-03)
 - **T14**: Fixed 13 stale "Kilo reads AGENTS.md" references across 7 active docs to reflect 3-layer model:
   - `docs/traycer/fabrik-workflow.md`: Added 3 verification bullets, 1 drafting rule (Tech Plan component cross-check), 1 acceptance criterion (component coverage) to ticket-breakdown section
