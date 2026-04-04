@@ -19,9 +19,20 @@ if [ ! -x "$CLI_AGENT" ]; then
     exit 1
 fi
 
-# Read prompt from argument or stdin
-if [ $# -gt 0 ]; then
-    PROMPT="$*"
+# Parse --dry-run flag before reading prompt
+DRY_RUN=""
+ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--dry-run" ]; then
+        DRY_RUN="--dry-run"
+    else
+        ARGS+=("$arg")
+    fi
+done
+
+# Read prompt from remaining arguments or stdin
+if [ ${#ARGS[@]} -gt 0 ]; then
+    PROMPT="${ARGS[*]}"
 else
     PROMPT=$(cat)
 fi
@@ -32,12 +43,16 @@ if [ -z "$PROMPT" ]; then
     exit 1
 fi
 
-# Set minimal Traycer environment to avoid errors in CLI script
-export TRAYCER_PROMPT="$PROMPT"
+# Set minimal Traycer environment (inherited by kilo_dispatch.py)
 export TRAYCER_TASK_ID="${TRAYCER_TASK_ID:-cascade-$(date +%s)}"
 export TRAYCER_PHASE_ID="${TRAYCER_PHASE_ID:-$TRAYCER_TASK_ID}"
 export TRAYCER_WORKFLOW="${TRAYCER_WORKFLOW:-windsurf-cascade}"
 export KILO_DEBUG="${KILO_DEBUG:-0}"
 
-# Call CLI agent (inherits all hardware safety logic)
-exec "$CLI_AGENT"
+# Dispatch through kilo_dispatch.py for context injection (AGENTS-compact, packs, cross-cutting)
+exec python3 /opt/fabrik/scripts/kilo_dispatch.py \
+    --agent "coding-1-fabrik-coder" \
+    --task "$PROMPT" \
+    --project "$(pwd)" \
+    --template code \
+    $DRY_RUN

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Wire local agent wrappers through kilo_dispatch.py (2026-04-04)
+- **`scripts/Local_Coder_qwen32b.sh`**: Replace direct `exec "$CLI_AGENT"` with `kilo_dispatch.py` dispatch; prompts now receive AGENTS-compact.md, rule packs, and cross-cutting requirements. Added `--dry-run` passthrough.
+- **`scripts/Local_Fixer_ds16b.sh`**: Same wiring with `--template fix`.
+- **`scripts/Local_Documentator_llama3.1-8b.sh`**: Same wiring with `--template code`.
+- All 3 wrappers preserve `TRAYCER_*` environment variables (TASK_ID, PHASE_ID, WORKFLOW).
+
 ### Added — Cross-cutting requirements injection in kilo_dispatch.py (2026-04-04)
 - **`scripts/kilo_dispatch.py`**: Added `CROSS_CUTTING_FILE` constant and `_load_cross_cutting()` function; `load_project_context()` now injects a `## Cross-Cutting Requirements (Always Active)` section after pack blocks, outside the 40-line pack cap. Projects without the file degrade gracefully.
 - **`.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md`**: Fixed path reference `.windsurfrules/rules/55-observability.md` → `.windsurf/rules/55-observability.md`
