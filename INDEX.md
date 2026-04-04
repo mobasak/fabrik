@@ -96,10 +96,13 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 - CONFIGURATION.md (Configuration Guide - credentials, architecture context, troubleshooting)
 - .env Updates (WARN - secrets population)
 - CHANGELOG.md Updated
+- Print/Console.log Ban (Tier 1)
 - Kilo CLI Health Check
 - Symlink Integrity
 - Documentation Drift
 - AGENTS.md TOC Current
+- User Guide Presence (Tier 2)
+- Reusable Module Tagging (Tier 2, warning)
 
 ### Step 7: Sync Only (`python scripts/final_gate.py --sync`)
 
@@ -403,7 +406,7 @@ docs/
 | [AGENTS.md](AGENTS.md) | Traycer orchestrator contract (planning constraints, rule-pack registry, stack defaults) |
 | [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |
 | [kilo_docs_enforcer.py](scripts/kilo_docs_enforcer.py) | AI documentation enforcement |
-| [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (27 enforcement scripts) |
+| [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (30 enforcement scripts) |
 
 ### Traycer Documentation
 

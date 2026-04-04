@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Cross-cutting enforcement checks in final_gate.py (2026-04-04)
+- **`scripts/enforcement/check_print_ban.py`**: Tier 1 enforcement banning `print()` in production `.py` files and `console.log()` in `.ts`/`.tsx`/`.js`/`.jsx` files. Skips test files (all extensions: `.test.tsx`, `.spec.js`, `.test.jsx`, `.spec.tsx`, etc.) and `scripts/` directory.
+- **`scripts/enforcement/check_user_guide.py`**: Tier 2 enforcement verifying `docs/user-guide/` exists with at least one `.md` file when `project.yaml` has `has_user_guide: true`. Uses stdlib-only regex parser (no PyYAML dependency) for cross-project portability.
+- **`scripts/enforcement/check_reusable_modules.py`**: Tier 2 warning-level check that `src/utils/` and `src/lib/` modules are tagged `[reusable]` in `INDEX.md`.
+- **`scripts/final_gate.py`**: Wired all 3 checks into `run_consistency_checks()` — print ban at Tier 1, user guide and reusable modules at Tier 2. Added `advisory` parameter to `run_optional_check()` and yellow warning rendering in `print_step()` so non-blocking checks surface their output.
+- **`tests/test_cross_cutting_enforcement.py`**: 31 tests covering all 3 enforcement scripts plus advisory warning integration.
+
 ### Changed — Wire local agent wrappers through kilo_dispatch.py (2026-04-04)
 - **`scripts/Local_Coder_qwen32b.sh`**: Replace direct `exec "$CLI_AGENT"` with `kilo_dispatch.py` dispatch; prompts now receive AGENTS-compact.md, rule packs, and cross-cutting requirements. Added `--dry-run` passthrough.
 - **`scripts/Local_Fixer_ds16b.sh`**: Same wiring with `--template fix`.

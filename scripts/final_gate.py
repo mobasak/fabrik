@@ -131,7 +131,11 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
 
 
 def run_optional_check(
-    script_path: str, check_name: str, *args: str, module: str | None = None
+    script_path: str,
+    check_name: str,
+    *args: str,
+    module: str | None = None,
+    advisory: bool = False,
 ) -> tuple[str, bool, str]:
     """Run an optional enforcement check, skipping if script doesn't exist.
 
@@ -140,6 +144,7 @@ def run_optional_check(
         check_name: Display name for the check
         *args: Additional command arguments
         module: If provided, run as 'python -m <module>' instead of direct script
+        advisory: If True, preserve stdout even on exit 0 (for warning-level checks)
 
     Returns:
         (check_name, passed, message) tuple
@@ -152,7 +157,10 @@ def run_optional_check(
         code, out = run_cmd([PYTHON, "-m", module] + list(args))
     else:
         code, out = run_cmd([PYTHON, str(full_path)] + list(args))
-    return (check_name, code == 0, out if code != 0 else "")
+    if code != 0:
+        return (check_name, False, out)
+    # Advisory checks: preserve stdout (warnings) even on success
+    return (check_name, True, out.strip() if advisory else "")
 
 
 def run_mypy_with_recovery(target: str, timeout: int = 30) -> tuple[int, str]:
@@ -250,6 +258,10 @@ def print_step(name: str, passed: bool, output: str = "") -> None:
     if not passed and output:
         for line in output.split("\n")[:10]:  # Limit output
             print(f"       {line}")
+    elif passed and output and output != "(check not present, skipping)":
+        # Advisory output (warnings from non-blocking checks)
+        for line in output.split("\n")[:10]:
+            print(f"       {YELLOW}{line}{RESET}")
 
 
 def fix_trailing_whitespace() -> tuple[bool, str, int]:
@@ -574,6 +586,12 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_changelog.py", "CHANGELOG.md Updated")
         )
+        # Print/console.log ban in production code
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_print_ban.py", "Print/Console.log Ban"
+            )
+        )
 
     # Tier 1 stops here
     if tier == 1:
@@ -633,6 +651,18 @@ def run_consistency_checks(
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_compose_services.py", "Compose Services Docs"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_user_guide.py", "User Guide Presence"
+            )
+        )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_reusable_modules.py",
+                "Reusable Module Tagging",
+                advisory=True,
             )
         )
 
