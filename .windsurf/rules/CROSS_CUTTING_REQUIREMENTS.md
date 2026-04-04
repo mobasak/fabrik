@@ -1,3 +1,8 @@
+---
+activation: always
+description: Cross-cutting requirements — doc currency, observability, user guide, reusability
+trigger: always
+---
 # Cross-Cutting Requirements (Auto-enforced)
 
 ## 1. Documentation Currency

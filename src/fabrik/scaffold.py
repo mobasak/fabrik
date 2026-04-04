@@ -399,6 +399,34 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
         cascade_target_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(fabrik_cascade_models, cascade_target_dir / "cascade-models.md")
 
+    # Copy KILO_AGENT_NAMING.md (Kilo CLI agent naming conventions)
+    fabrik_kilo_naming = FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
+    if fabrik_kilo_naming.exists():
+        kilo_target_dir = project_dir / "docs" / "reference" / "kilo"
+        kilo_target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(fabrik_kilo_naming, kilo_target_dir / "KILO_AGENT_NAMING.md")
+
+    # Copy kilo_47_agents_final.json (Kilo CLI agent configuration)
+    fabrik_kilo_config = FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json"
+    if fabrik_kilo_config.exists():
+        scripts_target_dir = project_dir / "scripts"
+        scripts_target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(fabrik_kilo_config, scripts_target_dir / "kilo_47_agents_final.json")
+
+    # Copy technology-stack-decision-guide.md (central stack guidance)
+    fabrik_stack_guide = FABRIK_ROOT / "docs" / "reference" / "technology-stack-decision-guide.md"
+    if fabrik_stack_guide.exists():
+        stack_target_dir = project_dir / "docs" / "reference"
+        stack_target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(fabrik_stack_guide, stack_target_dir / "technology-stack-decision-guide.md")
+
+    # Copy prebuilt-app-containers.md (container catalog)
+    fabrik_containers = FABRIK_ROOT / "docs" / "reference" / "prebuilt-app-containers.md"
+    if fabrik_containers.exists():
+        containers_target_dir = project_dir / "docs" / "reference"
+        containers_target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(fabrik_containers, containers_target_dir / "prebuilt-app-containers.md")
+
     # Copy opencode.json from fabrik master (single source of truth)
     shutil.copy(FABRIK_ROOT / "opencode.json", project_dir / "opencode.json")
 
@@ -2228,6 +2256,34 @@ def fix_project(
         if fabrik_opencode.exists():
             shutil.copy(fabrik_opencode, project_path / "opencode.json")
             added.append("opencode.json (refreshed from master)")
+
+        # Copy reference docs if they don't exist or need refresh
+        for doc_name in ["technology-stack-decision-guide.md", "prebuilt-app-containers.md"]:
+            source = FABRIK_ROOT / "docs" / "reference" / doc_name
+            if source.exists():
+                target = project_path / "docs" / "reference" / doc_name
+                if not target.exists():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(source, target)
+                    added.append(f"docs/reference/{doc_name} (copied)")
+
+        # Copy KILO_AGENT_NAMING.md if it doesn't exist
+        kilo_naming_source = FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
+        if kilo_naming_source.exists():
+            kilo_naming_target = project_path / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
+            if not kilo_naming_target.exists():
+                kilo_naming_target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(kilo_naming_source, kilo_naming_target)
+                added.append("docs/reference/kilo/KILO_AGENT_NAMING.md (copied)")
+
+        # Copy kilo_47_agents_final.json if it doesn't exist
+        kilo_config_source = FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json"
+        if kilo_config_source.exists():
+            kilo_config_target = project_path / "scripts" / "kilo_47_agents_final.json"
+            if not kilo_config_target.exists():
+                kilo_config_target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(kilo_config_source, kilo_config_target)
+                added.append("scripts/kilo_47_agents_final.json (copied)")
 
         # Ensure .droid/ structure is current
         droid_dir = project_path / ".droid"

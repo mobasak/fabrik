@@ -944,6 +944,37 @@ Available in `@/opt/fabrik/templates/scaffold/docs/`:
 | `implementation-plan-template.md` | Implementation planning |
 | `DOCS_INDEX_TEMPLATE.md` | Documentation index |
 | `TASKS_TEMPLATE.md` | Task tracking |
+| `PROJECT_INDEX_TEMPLATE.md` | Project file index with auto-generated structure map |
+
+---
+
+## Project INDEX.md Maintenance
+
+Each project includes an `INDEX.md` file with two sections:
+
+### Manual Section (File Purposes Table)
+
+- Lists every file with its purpose and update triggers
+- Must be maintained by developers
+- Updated when files are added/removed/repurposed
+
+### Automatic Section (Documentation Structure Map)
+
+- Auto-generated file tree of `docs/` directory
+- Updated with `python scripts/docs_updater.py`
+- Detects new, moved, or deleted documentation files
+
+### Updating Project INDEX.md
+
+```bash
+# In any project directory:
+cd /opt/<project-name>
+python scripts/docs_updater.py        # Update structure map
+python scripts/docs_updater.py --check # Check for issues
+python scripts/docs_updater.py --dry-run # Preview changes
+```
+
+**Note:** Only the structure map is automatic. File purposes must be updated manually.
 
 ---
 

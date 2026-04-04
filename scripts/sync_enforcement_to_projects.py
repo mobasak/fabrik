@@ -9,7 +9,7 @@ Syncs:
 - Governance files (5): AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules,
   .pre-commit-config.yaml
 - Governance directories: .windsurf/rules/, .windsurf/workflows/
-- Reference docs: cascade-models.md
+- Reference docs: cascade-models.md, technology-stack-decision-guide.md, prebuilt-app-containers.md, KILO_AGENT_NAMING.md
 
 Total per project: ~85 files (6 core + 5 cascade wrappers + ~30 enforcement + 5 governance + rules + workflows + docs)
 
@@ -66,6 +66,14 @@ GOVERNANCE_DIRS = [".windsurf/rules", ".windsurf/workflows"]
 # Reference docs to sync to all projects
 REFERENCE_DOCS = [
     ("docs/reference/windsurf/cascade-models.md", "docs/reference/windsurf/cascade-models.md"),
+    ("docs/reference/technology-stack-decision-guide.md", "docs/reference/technology-stack-decision-guide.md"),
+    ("docs/reference/prebuilt-app-containers.md", "docs/reference/prebuilt-app-containers.md"),
+    ("docs/reference/kilo/KILO_AGENT_NAMING.md", "docs/reference/kilo/KILO_AGENT_NAMING.md"),
+]
+
+# Additional scripts to sync (beyond CORE_SCRIPTS)
+ADDITIONAL_SCRIPTS = [
+    ("scripts/kilo_47_agents_final.json", "scripts/kilo_47_agents_final.json"),
 ]
 
 
@@ -290,6 +298,18 @@ def sync_scripts_to_project(
 
         # Sync reference docs (cascade-models.md, etc.)
         for source_rel, dest_rel in REFERENCE_DOCS:
+            source = FABRIK_ROOT / source_rel
+            if source.exists():
+                destination = project_dir / dest_rel
+                if not dry_run:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
+
+        # Sync additional scripts (kilo_47_agents_final.json, etc.)
+        for source_rel, dest_rel in ADDITIONAL_SCRIPTS:
             source = FABRIK_ROOT / source_rel
             if source.exists():
                 destination = project_dir / dest_rel

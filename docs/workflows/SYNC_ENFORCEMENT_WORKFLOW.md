@@ -1,6 +1,6 @@
 # Sync Enforcement Workflow
 
-**Last Updated:** 2026-03-24
+**Last Updated:** 2026-04-04
 **Status:** PRODUCTION
 **Script:** `scripts/sync_enforcement_to_projects.py`
 
@@ -15,7 +15,7 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 ### Governance Files
 
 | File/Dir | Purpose |
-|----------|--------|
+|----------|----------|
 | `AGENTS.md` | Agent workflow rules |
 | `AGENTS-compact.md` | Compact reference |
 | `opencode.json` | Kilo-safe rules |
@@ -23,15 +23,23 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 | `.windsurf/rules/` | Cascade rule files (recursive) |
 | `.windsurf/workflows/` | Cascade slash-command workflows |
 
-**Auto-sync trigger:** Pre-commit hook in `/opt/fabrik/.pre-commit-config.yaml` runs sync when any governance file is committed. No cron needed.
+### Reference Documentation
+
+| File | Purpose |
+|------|----------|
+| `cascade-models.md` | Windsurf AI model reference |
+| `technology-stack-decision-guide.md` | Technology selection guidance |
+| `prebuilt-app-containers.md` | Prebuilt Docker container catalog |
+
+**Auto-sync trigger:** Pre-commit hook in `/opt/fabrik/.pre-commit-config.yaml` runs sync when any governance or reference file is committed. No cron needed.
 
 ### Core Scripts
 
 | Script | Purpose |
-|--------|---------|
+|--------|----------|
 | `final_gate.py` | Pre/post Kilo gate checks |
 | `kilo_code_review.py` | Kilo CLI review integration |
-| `kilo_docs_enforcer.py` | Step 4 DOCUMENTATOR (detect, generate, enforce) |
+| `kilo_docs_enforcer.py` | Step 4 DOCUMENTATOR |
 | `docs_updater.py` | Documentation maintenance |
 | `update_agents_toc.py` | AGENTS.md table of contents |
 | `health_checker.py` | HTTP + DB health probes |
@@ -39,6 +47,7 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 ### Enforcement Directory
 
 All files in `scripts/enforcement/` are recursively synced:
+
 - `check_docker.py` — Dockerfile ARM64 compliance
 - `check_secrets.py` — Hardcoded secrets detection
 - `check_env_contract.py` — .env/.env.example sync
@@ -69,7 +78,7 @@ python scripts/sync_enforcement_to_projects.py -v
 
 ### Decision Flow
 
-```
+```text
 For each file:
 ├── Destination doesn't exist? → COPY (new file)
 ├── --force flag? → COPY (forced overwrite)
@@ -91,7 +100,7 @@ For each file:
 
 ## Output Example
 
-```
+```text
 Found 38 projects to sync
 
 ✓ api-gateway                            OK (5 copied, 20 skipped)
@@ -109,9 +118,9 @@ Results: 37 projects synced, 1 failed | Files: 8 copied, 917 skipped, 1 warnings
 ## When to Run
 
 | Trigger | Command |
-|---------|---------|
-| After updating enforcement scripts | `python scripts/sync_enforcement_to_projects.py` |
-| Before major releases | `python scripts/sync_enforcement_to_projects.py --force` |
+|---------|----------|
+| After updating scripts | `python sync_enforcement_to_projects.py` |
+| Before major releases | `python sync_enforcement_to_projects.py --force` |
 | On governance file commit | **Automatic** via pre-commit hook in fabrik |
 
 ---
@@ -119,6 +128,7 @@ Results: 37 projects synced, 1 failed | Files: 8 copied, 917 skipped, 1 warnings
 ## Excluded Directories
 
 The script skips:
+
 - `_*` prefixed directories (staging areas)
 - `.` prefixed directories (hidden)
 - `/opt/fabrik` itself (source)
@@ -127,12 +137,44 @@ The script skips:
 
 ---
 
+## Project INDEX.md Updates
+
+Each project's `INDEX.md` contains an auto-generated **Documentation Structure Map** section that is kept in sync with the actual files.
+
+### How to Update Project INDEX.md
+
+```bash
+# In any project directory:
+cd /opt/<project-name>
+python scripts/docs_updater.py
+
+# Or check for issues:
+python scripts/docs_updater.py --check
+
+# Dry run to see what would change:
+python scripts/docs_updater.py --dry-run
+```
+
+### What Gets Updated Automatically
+
+- **Documentation Structure Map** (between `AUTO-GENERATED:STRUCTURE` tags)
+- File tree structure of `docs/` directory
+- Detects new, moved, or deleted documentation files
+
+### What Remains Manual
+
+- File purposes table (top section)
+- "Last Updated" date
+- File descriptions and update triggers
+
+---
+
 ## Exit Codes
 
 | Code | Meaning |
-|------|---------|
-| 0 | All projects synced successfully |
-| 1 | One or more projects failed |
+|------|----------|
+| 0      | All projects synced successfully |
+| 1      | One or more projects failed       |
 
 ---
 
