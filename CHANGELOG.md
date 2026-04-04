@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Preserve has_user_guide through registry sync pipeline (2026-04-05)
+- **`scripts/sync_projects.py`**: Added `has_user_guide` to `Project` dataclass, `_build_project()` copy loop, and `to_registry_dict()` so the field survives into `data/projects.yaml`.
+- **`src/fabrik/registry.py`**: Added `has_user_guide` to `Project`, `to_dict()`, and `from_dict()` so downstream registry consumers retain the flag.
+- **`tests/test_sync_has_user_guide.py`**: 5 regression tests covering `_build_project()`, `to_registry_dict()`, `save_registry()` round-trip, and `registry.py` `to_dict()`/`from_dict()`.
+
+### Changed — Complete has_user_guide scaffold metadata wiring (2026-04-04)
+- **`src/fabrik/scaffold.py`**: `create_project()` now sets `has_user_guide: true` for guide-enabled scaffold types (`saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`); non-guide types remain `false`.
+- **`tests/test_scaffold.py`**: Added parametrized tests for guide-enabled and non-guide types asserting correct `has_user_guide` value in `project.yaml`.
+
+### Fixed — Epic review fixes: scaffold blocker + doc sync (2026-04-04)
+- **`src/fabrik/scaffold.py`**: Added `has_user_guide: false` to `project.yaml` metadata dict and header comment. Newly scaffolded projects now have the field visible for the user-guide enforcement gate.
+- **`INDEX.md`**: Added entries for `check_print_ban.py`, `check_user_guide.py`, `check_reusable_modules.py`, `test_cross_cutting_enforcement.py`. Updated enforcement script count 30→33.
+- **`docs/workflows/FINAL_GATE_WORKFLOW.md`**: Added Print/Console Ban to Tier 1 (5 checks), User Guide Presence and Reusable Module Tagging to Tier 2 (18 checks).
+- **`AGENTS.md`**: Fixed stale wording — `AGENTS-compact.md` now includes a `## CROSS-CUTTING` section (belt-and-suspenders).
+- **`CHANGELOG.md`**: Fixed Ticket 2 wording — wrappers set default `TRAYCER_*` vars; `kilo_dispatch.py` overrides at dispatch time.
+- **`tests/test_scaffold.py`**: Added test verifying `has_user_guide` field exists in scaffolded `project.yaml`.
+
+### Changed — Update AGENTS-compact.md and sync workflow documentation (2026-04-04)
+- **`AGENTS-compact.md`**: Added `## CROSS-CUTTING (Every task)` section with 4 concise rules (doc currency, structured logging, user guide, reusable modules). Total 42 lines — stays under 60-line compact contract.
+- **`docs/workflows/FINAL_GATE_WORKFLOW.md`**: Replaced bare `pip install` with venv-scoped `/opt/<project>/.venv/bin/pip install` per PEP 668 conventions.
+- **`docs/workflows/KILO_DISPATCH_WORKFLOW.md`**: Updated overview to mention cross-cutting requirements injection alongside technology packs.
+
 ### Added — Cross-cutting enforcement checks in final_gate.py (2026-04-04)
 - **`scripts/enforcement/check_print_ban.py`**: Tier 1 enforcement banning `print()` in production `.py` files and `console.log()` in `.ts`/`.tsx`/`.js`/`.jsx` files. Skips test files (all extensions: `.test.tsx`, `.spec.js`, `.test.jsx`, `.spec.tsx`, etc.) and `scripts/` directory.
 - **`scripts/enforcement/check_user_guide.py`**: Tier 2 enforcement verifying `docs/user-guide/` exists with at least one `.md` file when `project.yaml` has `has_user_guide: true`. Uses stdlib-only regex parser (no PyYAML dependency) for cross-project portability.
@@ -15,7 +37,7 @@ All notable changes to this project will be documented in this file.
 - **`scripts/Local_Coder_qwen32b.sh`**: Replace direct `exec "$CLI_AGENT"` with `kilo_dispatch.py` dispatch; prompts now receive AGENTS-compact.md, rule packs, and cross-cutting requirements. Added `--dry-run` passthrough.
 - **`scripts/Local_Fixer_ds16b.sh`**: Same wiring with `--template fix`.
 - **`scripts/Local_Documentator_llama3.1-8b.sh`**: Same wiring with `--template code`.
-- All 3 wrappers preserve `TRAYCER_*` environment variables (TASK_ID, PHASE_ID, WORKFLOW).
+- All 3 wrappers set default `TRAYCER_*` environment variables; `kilo_dispatch.py` overrides `TRAYCER_TASK_ID` and `TRAYCER_WORKFLOW` at dispatch time.
 
 ### Added — Cross-cutting requirements injection in kilo_dispatch.py (2026-04-04)
 - **`scripts/kilo_dispatch.py`**: Added `CROSS_CUTTING_FILE` constant and `_load_cross_cutting()` function; `load_project_context()` now injects a `## Cross-Cutting Requirements (Always Active)` section after pack blocks, outside the 40-line pack cap. Projects without the file degrade gracefully.

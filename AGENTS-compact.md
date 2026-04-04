@@ -20,6 +20,15 @@
 
 ---
 
+## CROSS-CUTTING (Every task)
+
+1. **Doc currency** — Update `INDEX.md`, `CHANGELOG.md`, `README.md` when files or features change.
+2. **Structured logging** — No `print()` / `console.log()` in production code; use the project's structured logger.
+3. **User guide** — If the change is user-facing and `project.yaml` has `has_user_guide: true`, add/update a page in `docs/user-guide/`.
+4. **Reusable modules** — Utility code goes in `src/utils/` or `src/lib/` with zero project-specific imports; tag `[reusable]` in `INDEX.md`.
+
+---
+
 ## HARD STOPS — NEVER do these
 
 | Rule | Instead |

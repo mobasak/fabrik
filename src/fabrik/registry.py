@@ -24,6 +24,7 @@ class Project:
     coolify_name: str | None = None
     domain: str | None = None
     port: int | None = None
+    has_user_guide: bool = False
 
     def to_dict(self) -> dict[str, str | int]:
         d: dict[str, str | int] = {"path": self.path, "type": self.type, "status": self.status}
@@ -35,6 +36,7 @@ class Project:
             d["domain"] = self.domain
         if self.port:
             d["port"] = self.port
+        d["has_user_guide"] = self.has_user_guide
         return d
 
     @classmethod
@@ -48,6 +50,7 @@ class Project:
             coolify_name=data.get("coolify_name"),
             domain=data.get("domain"),
             port=data.get("port"),
+            has_user_guide=bool(data.get("has_user_guide", False)),
         )
 
 

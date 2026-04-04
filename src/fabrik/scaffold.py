@@ -621,6 +621,8 @@ Obsolete or completed docs for {name}.
         "monthly_cost": 0,
         "dependencies": [],
         "tags": [],
+        # Cross-cutting enforcement
+        "has_user_guide": False,
     }
     (project_dir / "project.yaml").write_text(
         "# Project metadata — source of truth\n"
@@ -634,7 +636,8 @@ Obsolete or completed docs for {name}.
         "#   external_systems: list of external services (e.g. supabase, stripe, cloudflare-r2)\n"
         "#   monthly_cost: estimated USD/month\n"
         "#   dependencies: other /opt project names this depends on\n"
-        "#   tags: free-form labels\n\n"
+        "#   tags: free-form labels\n"
+        "#   has_user_guide: true if project has user-facing docs (activates user-guide gate)\n\n"
         + yaml.dump(project_yaml, default_flow_style=False, sort_keys=False)
     )
 
@@ -2068,6 +2071,10 @@ def create_project(
             node_port = _next_available_port(port_range=(3000, 3099))
             # Replace the Python-range port that was initially assigned
             content = re.sub(r"- \d{4,5}", f"- {node_port}", content, count=1)
+        # Set has_user_guide: true for guide-enabled scaffold types
+        guide_enabled_types = {"saas-skeleton", "chrome-extension", "mobile-app", "desktop-app", "static-site"}
+        if project_type in guide_enabled_types:
+            content = content.replace("has_user_guide: false", "has_user_guide: true")
         project_yaml_path.write_text(content)
 
     # Final commit after all files (shared + type-specific) are in place so the

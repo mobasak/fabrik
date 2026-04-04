@@ -406,7 +406,11 @@ docs/
 | [AGENTS.md](AGENTS.md) | Traycer orchestrator contract (planning constraints, rule-pack registry, stack defaults) |
 | [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |
 | [kilo_docs_enforcer.py](scripts/kilo_docs_enforcer.py) | AI documentation enforcement |
-| [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (30 enforcement scripts) |
+| [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (33 enforcement scripts) |
+| [check_print_ban.py](scripts/enforcement/check_print_ban.py) | Tier 1: Ban print()/console.log() in production code [reusable] |
+| [check_user_guide.py](scripts/enforcement/check_user_guide.py) | Tier 2: Verify docs/user-guide/ when has_user_guide: true [reusable] |
+| [check_reusable_modules.py](scripts/enforcement/check_reusable_modules.py) | Tier 2 advisory: Check [reusable] tags in INDEX.md [reusable] |
+| [test_cross_cutting_enforcement.py](tests/test_cross_cutting_enforcement.py) | 31 tests for cross-cutting enforcement scripts |
 
 ### Traycer Documentation
 

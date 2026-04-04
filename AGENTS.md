@@ -194,7 +194,7 @@ Traycer injects rule-pack guidance into agent execution queries based on project
    ```
 3. Total injected guidance must not exceed **40 lines**. If cap exceeded, drop feature overlays first, keep project-type defaults.
 4. Injection is performed by Traycer at query-construction time. Agents do not self-select packs.
-5. `AGENTS-compact.md` is not modified — stays lean.
+5. `AGENTS-compact.md` includes a `## CROSS-CUTTING` section (belt-and-suspenders). Stays under 60 lines.
 6. `final_gate.py` handles objective checks only; packs are enforced via injection, not gate.
 
 ## Environment Constraints

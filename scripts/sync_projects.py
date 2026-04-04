@@ -51,6 +51,7 @@ class Project:
     monthly_cost: float = 0
     dependencies: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+    has_user_guide: bool = False
 
     def to_registry_dict(self) -> dict:
         """Serialize for data/projects.yaml."""
@@ -79,6 +80,7 @@ class Project:
             d["dependencies"] = self.dependencies
         if self.tags:
             d["tags"] = self.tags
+        d["has_user_guide"] = self.has_user_guide
         return d
 
 
@@ -137,6 +139,7 @@ def _build_project(path: Path) -> Project:
                     "monthly_cost",
                     "dependencies",
                     "tags",
+                    "has_user_guide",
                 ):
                     if key in data and data[key] is not None:
                         setattr(project, key, data[key])

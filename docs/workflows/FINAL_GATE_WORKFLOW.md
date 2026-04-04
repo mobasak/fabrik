@@ -148,7 +148,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Purpose:** Fast showstoppers only (syntax, secrets, schema sync, changelog)
 
-**Phase 3: Repo Consistency (4 checks)**
+**Phase 3: Repo Consistency (5 checks)**
 - **Secrets (Zero Hardcoding)** - `check_secrets.py`
   - Scans for hardcoded secrets (API keys, passwords, tokens)
   - Enforces use of environment variables
@@ -162,12 +162,15 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
   - Enforces changelog entry for every task (prevents forgetting across tasks 1-9)
   - Reduces token spike at milestone by enforcing incrementally
   - Context stays small, fixes are instantaneous
+- **Print/Console Ban** - `check_print_ban.py`
+  - Bans `print()` in `.py` and `console.log()` in `.ts`/`.tsx`/`.js`/`.jsx` production code
+  - Skips test files (all extensions) and `scripts/` directory
 
 ### Tier 2 (FULL) - Default - Phase Handover
 
 **Purpose:** Full quality gate before Traycer commit
 
-**Phase 3: Repo Consistency (16 checks)**
+**Phase 3: Repo Consistency (18 checks)**
 - **Project Structure** - `check_structure.py`
   - Validates directory layout matches Fabrik conventions
 - **Rule File Size** - `check_rule_size.py`
@@ -198,6 +201,12 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
   - Scans for hardcoded secrets
 - **Kilo CLI Health Check** - `check_kilo_health.sh`
   - Validates Kilo CLI installation and configuration
+- **User Guide Presence** - `check_user_guide.py`
+  - Verifies `docs/user-guide/` exists with `.md` files when `project.yaml` has `has_user_guide: true`
+  - Skips silently when `has_user_guide` is false or absent
+- **Reusable Module Tagging** - `check_reusable_modules.py` *(advisory — warning only)*
+  - Checks `src/utils/` and `src/lib/` modules are tagged `[reusable]` in `INDEX.md`
+  - Surfaces warnings in yellow but does not fail the gate
 
 ### Tier 3 (SYSTEMIC) - `--systemic` - Repo Health
 
@@ -929,7 +938,7 @@ python -m bandit -r src/
 
 **Fix:** Install missing tool:
 ```bash
-pip install bandit semgrep sqlfluff vulture
+/opt/<project>/.venv/bin/pip install bandit semgrep sqlfluff vulture
 ```
 
 **Note:** These are best-effort; missing tools are skipped.

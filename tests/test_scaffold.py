@@ -127,6 +127,60 @@ class TestScaffoldGitignoreCoverage:
             assert entry in content, f"{entry} missing in {project_type} .gitignore"
 
 
+@requires_fabrik_env
+class TestProjectYamlHasUserGuide:
+    """Test has_user_guide field is scaffolded into project.yaml."""
+
+    def test_project_yaml_contains_has_user_guide(self, tmp_path):
+        """Verify project.yaml includes has_user_guide: false by default."""
+        create_project(
+            name="test-guide",
+            project_type="python-api",
+            description="Test project",
+            base=tmp_path,
+        )
+        project_dir = tmp_path / "test-guide"
+        content = (project_dir / "project.yaml").read_text()
+        assert "has_user_guide" in content, "has_user_guide field missing from project.yaml"
+
+        import yaml
+
+        data = yaml.safe_load(content)
+        assert data["has_user_guide"] is False, "has_user_guide should default to false"
+
+    @pytest.mark.parametrize("project_type", ["saas-skeleton", "chrome-extension"])
+    def test_guide_enabled_type_sets_true(self, tmp_path, project_type):
+        """Verify guide-enabled scaffold types set has_user_guide: true."""
+        create_project(
+            name="test-guide-enabled",
+            project_type=project_type,
+            description="Test project",
+            base=tmp_path,
+        )
+        project_dir = tmp_path / "test-guide-enabled"
+
+        import yaml
+
+        data = yaml.safe_load((project_dir / "project.yaml").read_text())
+        assert data["has_user_guide"] is True, f"{project_type} should set has_user_guide: true"
+
+    @pytest.mark.parametrize("project_type", ["node-api", "docusaurus"])
+    def test_non_guide_type_stays_false(self, tmp_path, project_type):
+        """Verify non-guide scaffold types keep has_user_guide: false."""
+        create_project(
+            name="test-guide-disabled",
+            project_type=project_type,
+            description="Test project",
+            base=tmp_path,
+        )
+        project_dir = tmp_path / "test-guide-disabled"
+
+        import yaml
+
+        data = yaml.safe_load((project_dir / "project.yaml").read_text())
+        assert data["has_user_guide"] is False, f"{project_type} should keep has_user_guide: false"
+
+
 class TestFixProjectDroidStructure:
     """Test fix_project() repairs .droid/ structure."""
 
