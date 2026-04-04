@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import kilo_dispatch  # noqa: E402
 from kilo_dispatch import (  # noqa: E402, I001
+    CROSS_CUTTING_FILE,
     MAX_LINES_PER_PACK,
     MAX_RULE_LINES,
     PACK_MAPPING,
@@ -21,6 +22,7 @@ from kilo_dispatch import (  # noqa: E402, I001
     FabrikRootNoPacksError,
     _extract_rule_lines,
     _is_fabrik_root,
+    _load_cross_cutting,
     _resolve_packs,
     load_project_context,
 )
@@ -479,6 +481,127 @@ class TestFabrikRootBehavior:
         defaults, overlays = _resolve_packs(project_dir)
         assert defaults == []
         assert "TESTING" in overlays
+
+
+class TestCrossCuttingInjection:
+    """Verify cross-cutting requirements injection into project context."""
+
+    SAMPLE_CC_CONTENT = textwrap.dedent("""\
+    ---
+    activation: always
+    description: Cross-cutting requirements
+    trigger: always_on
+    ---
+    # Cross-Cutting Requirements (Auto-enforced)
+
+    ## 1. Documentation Currency
+    Every ticket MUST update INDEX.md and CHANGELOG.md.
+
+    ## 2. Observability
+    No print() — use logger exclusively.
+
+    ## 3. User Guide
+    Projects with user-facing features MUST include docs/user-guide/.
+
+    ## 4. Reusability
+    Shared utilities go in src/utils/ with zero project-specific imports.
+    """)
+
+    def _write_cross_cutting(self, project_dir: Path) -> None:
+        """Write a sample CROSS_CUTTING_REQUIREMENTS.md into the project."""
+        rules_dir = project_dir / ".windsurf" / "rules"
+        rules_dir.mkdir(parents=True, exist_ok=True)
+        (rules_dir / CROSS_CUTTING_FILE).write_text(self.SAMPLE_CC_CONTENT)
+
+    def test_cross_cutting_appears_in_context(self, project_dir: Path):
+        """Projects with the cross-cutting file get the section in context."""
+        self._write_cross_cutting(project_dir)
+        _write_project_yaml(project_dir, "python-api")
+        context = load_project_context(project_dir)
+        assert "## Cross-Cutting Requirements (Always Active)" in context
+        assert "Documentation Currency" in context
+        assert "Observability" in context
+        assert "User Guide" in context
+        assert "Reusability" in context
+
+    def test_cross_cutting_absent_gracefully(self, project_dir: Path):
+        """Projects without the cross-cutting file produce no error and no section."""
+        _write_project_yaml(project_dir, "python-api")
+        # Ensure file does NOT exist
+        cc_path = project_dir / ".windsurf" / "rules" / CROSS_CUTTING_FILE
+        if cc_path.exists():
+            cc_path.unlink()
+        context = load_project_context(project_dir)
+        assert "Cross-Cutting Requirements" not in context
+
+    def test_cross_cutting_not_counted_against_pack_cap(self, tmp_path: Path):
+        """Cross-cutting content is outside the 40-line pack budget."""
+        proj = tmp_path / "captest"
+        proj.mkdir()
+        (proj / "AGENTS-compact.md").write_text("# Compact\n")
+
+        rules_dir = proj / ".windsurf" / "rules"
+        rules_dir.mkdir(parents=True)
+
+        # Create rules that fill the pack budget to near-cap
+        big_rule = "\n".join([f"Rule line {i}." for i in range(1, 8)])
+        for filename in ["10-python.md", "20-typescript.md", "70-chrome-ext.md"]:
+            (rules_dir / filename).write_text(f"# Rules\n\n{big_rule}\n")
+        (rules_dir / "45-testing-strategy.md").write_text(f"# Testing\n\n{big_rule}\n")
+        (rules_dir / "25-data-postgres.md").write_text(f"# Data\n\n{big_rule}\n")
+
+        # Write cross-cutting file with many lines
+        cc_lines = "\n".join([f"Cross-cutting rule {i}." for i in range(1, 21)])
+        (rules_dir / CROSS_CUTTING_FILE).write_text(
+            f"---\nactivation: always\n---\n# CC\n\n{cc_lines}\n"
+        )
+
+        _write_project_yaml(proj, "chrome-extension")
+        context = load_project_context(proj, extra_packs=["DATA_PG"])
+
+        # Pack rule lines (lines starting with "- " inside Rule Packs Active)
+        in_packs = False
+        pack_rule_lines = 0
+        for line in context.split("\n"):
+            if line.startswith("## Rule Packs Active"):
+                in_packs = True
+                continue
+            if in_packs and line.startswith("## "):
+                break
+            if in_packs and line.startswith("- "):
+                pack_rule_lines += 1
+
+        assert pack_rule_lines <= MAX_RULE_LINES
+        # Cross-cutting section still present despite pack budget being full
+        assert "Cross-Cutting Requirements (Always Active)" in context
+        assert "Cross-cutting rule 1." in context
+
+    def test_pack_registry_count_unchanged(self):
+        """PACK_REGISTRY remains 16 — cross-cutting is NOT a pack."""
+        assert len(PACK_REGISTRY) == 16
+        assert CROSS_CUTTING_FILE not in PACK_REGISTRY.values()
+
+
+class TestLoadCrossCutting:
+    """Unit tests for _load_cross_cutting helper."""
+
+    def test_returns_empty_when_missing(self, tmp_path: Path):
+        assert _load_cross_cutting(tmp_path) == ""
+
+    def test_strips_frontmatter(self, tmp_path: Path):
+        (tmp_path / CROSS_CUTTING_FILE).write_text(
+            "---\nactivation: always\n---\n# Title\nContent line.\n"
+        )
+        result = _load_cross_cutting(tmp_path)
+        assert "activation" not in result
+        assert "Content line." in result
+
+    def test_header_format(self, tmp_path: Path):
+        (tmp_path / CROSS_CUTTING_FILE).write_text(
+            "---\nactivation: always\n---\n# Title\nContent line.\n"
+        )
+        result = _load_cross_cutting(tmp_path)
+        assert result.startswith("## Cross-Cutting Requirements (Always Active)")
 
 
 class TestPackMappingConstants:

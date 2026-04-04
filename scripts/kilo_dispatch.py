@@ -113,6 +113,9 @@ MAX_RULE_LINES = 40
 # Max lines extracted per pack
 MAX_LINES_PER_PACK = 6
 
+# Cross-cutting requirements file (always injected, separate from pack budget)
+CROSS_CUTTING_FILE = "CROSS_CUTTING_REQUIREMENTS.md"
+
 
 def _is_fabrik_root(project_dir: Path) -> bool:
     """Return True if *project_dir* is the Fabrik monorepo root.
@@ -260,6 +263,46 @@ def _extract_rule_lines(filepath: Path, max_lines: int = MAX_LINES_PER_PACK) -> 
     return extracted
 
 
+def _load_cross_cutting(rules_dir: Path) -> str:
+    """Load cross-cutting requirements from the rules directory.
+
+    Returns the full file content (minus YAML frontmatter) as a formatted
+    prompt section, or an empty string if the file is missing.
+    This content is injected separately from rule packs and does NOT
+    count against the MAX_RULE_LINES pack budget.
+    """
+    cc_path = rules_dir / CROSS_CUTTING_FILE
+    if not cc_path.exists():
+        return ""
+
+    text = cc_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+
+    # Strip YAML frontmatter
+    content_lines: list[str] = []
+    in_frontmatter = False
+    frontmatter_closed = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "---" and not frontmatter_closed:
+            if not in_frontmatter:
+                in_frontmatter = True
+                continue
+            else:
+                in_frontmatter = False
+                frontmatter_closed = True
+                continue
+        if in_frontmatter:
+            continue
+        content_lines.append(line)
+
+    body = "\n".join(content_lines).strip()
+    if not body:
+        return ""
+
+    return f"## Cross-Cutting Requirements (Always Active)\n\n{body}"
+
+
 def _resolve_packs(
     project_dir: Path, extra_packs: list[str] | None = None
 ) -> tuple[list[str], list[str]]:
@@ -390,6 +433,11 @@ def load_project_context(project_dir: Path, extra_packs: list[str] | None = None
             for line in lines:
                 rule_section_parts.append(f"- {line}")
         sections.append("\n".join(rule_section_parts))
+
+    # Cross-cutting requirements — always injected, outside pack budget
+    cc_section = _load_cross_cutting(rules_dir)
+    if cc_section:
+        sections.append(cc_section)
 
     return "\n\n---\n\n".join(sections)
 

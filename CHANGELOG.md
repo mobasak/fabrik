@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Cross-cutting requirements injection in kilo_dispatch.py (2026-04-04)
+- **`scripts/kilo_dispatch.py`**: Added `CROSS_CUTTING_FILE` constant and `_load_cross_cutting()` function; `load_project_context()` now injects a `## Cross-Cutting Requirements (Always Active)` section after pack blocks, outside the 40-line pack cap. Projects without the file degrade gracefully.
+- **`.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md`**: Fixed path reference `.windsurfrules/rules/55-observability.md` → `.windsurf/rules/55-observability.md`
+- **`docs/traycer/fabrik-workflow.md`**: Fixed 3 path references `.windsurfrules/rules/` → `.windsurf/rules/` (lines 401, 433, 754)
+- **`tests/test_kilo_dispatch.py`**: Added 7 tests (TestCrossCuttingInjection: 4 tests, TestLoadCrossCutting: 3 tests) — 49 total, all passing
+
 ### Changed — Fabrik workflow commands updated (2026-04-04)
 - **`docs/traycer/fabrik-workflow.md`**: Updated all 8 Traycer workflow commands:
   - **trigger_workflow:** Added design system to Step 1 context orientation, added constraint #12 (Design System), expanded routing table with HAS_USER_GUIDE column, updated INFRA-CHECK format, updated acceptance criteria 11→12 constraints

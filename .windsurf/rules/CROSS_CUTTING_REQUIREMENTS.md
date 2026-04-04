@@ -1,7 +1,7 @@
 ---
 activation: always
 description: Cross-cutting requirements — doc currency, observability, user guide, reusability
-trigger: always
+trigger: always_on
 ---
 # Cross-Cutting Requirements (Auto-enforced)
 
@@ -16,7 +16,7 @@ Every ticket that adds, removes, or modifies functionality MUST update:
 Acceptance criteria for ANY ticket implicitly includes:
 "All scaffold docs reflect the changes made in this ticket."
 
-## 2. Observability (ref: .windsurfrules/55-observability.md)
+## 2. Observability (ref: .windsurf/rules/55-observability.md)
 Every service MUST implement:
 - Structured logging (JSON format, correlation IDs)
 - Health endpoint (`/health` or equivalent)

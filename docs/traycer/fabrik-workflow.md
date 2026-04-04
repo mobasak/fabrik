@@ -398,7 +398,7 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
      - [ ] No silent failures introduced — code cannot proceed without error while producing wrong results (skip if docs-only ticket)
      - [ ] CHANGELOG has an entry for this ticket
      - [ ] INDEX.md reflects all files added, removed, or renamed in this ticket
-     - [ ] All logging uses structured logger (no print statements) with correlation IDs per .windsurfrules/55-observability.md
+     - [ ] All logging uses structured logger (no print statements) with correlation IDs per .windsurf/rules/55-observability.md
      - [ ] If new env vars or config keys were introduced, docs/CONFIGURATION.md is updated
      - [ ] If this ticket touches user-facing functionality and HAS_USER_GUIDE is true, corresponding docs/user-guide/ page exists or is updated
      - [ ] Utility modules created in this ticket have zero project-specific imports and are tagged [reusable] in INDEX.md
@@ -430,7 +430,7 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    >   by a ticket. Nothing silently dropped.
 
    > **Cross-cutting enforcement:**
-   > Cross-cutting requirements are enforced via `.windsurfrules/CROSS_CUTTING_REQUIREMENTS.md` —
+   > Cross-cutting requirements are enforced via `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` —
    > coder agents read this automatically. The Verification checklist above hardcodes the checks
    > so they appear in every ticket regardless of whether the agent reads the rule file.
    > Additionally, for each ticket:
@@ -751,7 +751,7 @@ Verify across all implemented tickets:
 
 - **INDEX.md**: Reflects all files that were added, removed, or renamed — no stale entries, no missing entries
 - **CHANGELOG.md**: Has an entry for every completed ticket
-- **Structured logging**: No print() statements in production code — all logging uses structured logger with correlation IDs per .windsurfrules/55-observability.md
+- **Structured logging**: No print() statements in production code — all logging uses structured logger with correlation IDs per .windsurf/rules/55-observability.md
 - **CONFIGURATION.md**: All env vars and config keys introduced during the epic are documented
 - **User guide**: If HAS_USER_GUIDE is true in the Epic Brief, every user-facing feature has a corresponding docs/user-guide/ page
 - **Reusability**: Utility modules in src/utils/ or src/lib/ have zero project-specific imports and are tagged [reusable] in INDEX.md
