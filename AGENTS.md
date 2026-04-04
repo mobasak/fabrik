@@ -104,6 +104,7 @@ Traycer MUST run these checks before generating any Plan, PRD, or Execution Spec
 2. **BUSINESS_MODEL.md** — Check for duplicate/similar project. State finding.
 3. **Fabrik Microservices table** — Use existing internal APIs before planning new logic. State which apply.
 4. **Hardware Audit** — Confirm all Docker images support `linux/arm64`.
+5. **Design System** — For any project type with a UI surface (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus), read `.windsurf/rules/ocoron-design-system.md` before generating any spec or copy. Apply color tokens, typography rules, scaffold-specific adaptations, and verbal identity (forbidden language, voice, microcopy rules) to all planning output. State: "Design system read."
 
 ---
 
@@ -303,3 +304,4 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 | SaaS UI Patterns | docs/reference/Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md | Planning SaaS frontend |
 | Chrome Extension UI | docs/reference/Modern GUI Approaches for Chrome Extensionst.md | Planning Chrome extensions |
 | Mobile UI | docs/reference/Modern Mobile GUI Approaches for Android and iOS.md | Planning mobile apps |
+| Ocoron Design System | .windsurf/rules/ocoron-design-system.md | Visual + verbal identity for all UI projects — color tokens, typography, component patterns, brand voice |

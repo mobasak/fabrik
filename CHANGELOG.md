@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Fabrik workflow commands updated (2026-04-04)
+- **`docs/traycer/fabrik-workflow.md`**: Updated all 8 Traycer workflow commands:
+  - **trigger_workflow:** Added design system to Step 1 context orientation, added constraint #12 (Design System), expanded routing table with HAS_USER_GUIDE column, updated INFRA-CHECK format, updated acceptance criteria 11→12 constraints
+  - **epic-brief:** Added Metadata section (HAS_USER_GUIDE, Scaffold, Port) carried from trigger_workflow, updated drafting rules and acceptance criteria
+  - **core-flows:** Minor formatting fixes (colon placement, blockquote spacing)
+  - **tech-plan:** Restructured from #### headings to numbered bold list, added blank line in Core Philosophy, wrapped long drafting rule lines
+  - **ticket-breakdown:** Expanded Verification checklist (+5 cross-cutting items: INDEX.md, structured logging, CONFIGURATION.md, user-guide, reusability), added cross-cutting enforcement block, merged authoring+agent selection blocks, added cross-cutting to acceptance criteria
+  - **execute:** Added cross-cutting compliance to review step, new Cross-Cutting Violation category, new handling section for mechanical fixes, updated completion/good/avoid lists
+  - **implementation-validation:** New §5 Cross-Cutting Compliance, new Cross-Cutting Violations issue category, renumbered steps 5→9, updated findings presentation and completion sections
+  - **cross-artifact-validation:** Added Metadata Consistency analysis dimension, cross-cutting Verification completeness in ticket reconciliation, updated acceptance criteria
+
 ### Fixed — BUG-11 Make Fabrik-root Kilo context behavior explicit and fail-fast (2026-04-03)
 - **BUG-11**: Running `kilo_dispatch.py` against `/opt/fabrik` (monorepo root) without `project.yaml` no longer silently proceeds with reduced context:
   - `scripts/kilo_dispatch.py`: Added `FABRIK_ROOT` constant (exact path from `Path(__file__)`), `_is_fabrik_root()` compares resolved paths (not `AGENTS.md` existence); `FabrikRootNoPacksError` raised when no `--packs` or when all supplied pack IDs are invalid; caught in `main()` with actionable error listing available pack IDs

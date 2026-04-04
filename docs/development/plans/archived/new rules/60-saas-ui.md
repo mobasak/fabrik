@@ -10,7 +10,7 @@ Apply these rules when working on frontend/UI code (Next.js, TypeScript, React, 
 
 ## Ocoron Design System
 
-- All SaaS UI projects must follow the Ocoron Design System (`ocoron-design-system.md`) as the single source of truth for visual and verbal identity.
+- All SaaS UI projects must follow the Ocoron Design System (`docs/reference/ocoron-design-system.md`) as the single source of truth for visual and verbal identity.
 - **Design tokens:** Use CSS custom properties (`--color-*`, `--surface-*`, `--text-*`) or their Tailwind theme equivalents. Never use raw hex values, arbitrary colors, or hardcoded font names.
 - **Typography:** Space Grotesk for headings (600–700 weight), Inter for body/UI (400–500), JetBrains Mono for code/data (300–400). No substitutions. No additional fonts.
 - **Dark mode is the default.** Light mode is opt-in via `[data-theme="light"]` CSS override. All components must render correctly in dark mode first.
@@ -87,4 +87,3 @@ A UI component or page is done when all of the following are true:
 - [ ] No render-blocking resources on the initial route.
 - [ ] Optimistic updates have a rollback path and a visible retry on failure.
 - [ ] Microcopy follows plain-language and action-oriented rules above.
-- [ ] Design tokens used throughout — no raw hex values, hardcoded fonts, or arbitrary spacing.

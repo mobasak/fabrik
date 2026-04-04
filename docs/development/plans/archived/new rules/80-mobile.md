@@ -59,7 +59,7 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 
 ## Ocoron Design System (Mobile)
 
-- Apply Ocoron Design System color tokens (`ocoron-design-system.md`) via `react-native-unistyles` theme configuration. Same hex values as web, mapped to the unistyles theme object.
+- Apply Ocoron Design System color tokens (`docs/reference/ocoron-design-system.md`) via `react-native-unistyles` theme configuration. Same hex values as web, mapped to the unistyles theme object.
 - Load **Space Grotesk** and **Inter** as custom fonts via `expo-font` or manual linking. Use **JetBrains Mono** for data/metrics displays only.
 - Dark mode is the default. Light mode uses the Ocoron light surface token set, toggled via unistyles theme switching.
 - Cards → `Pressable` list items with `translateY(1)` + `scale(0.98)` press feedback (`0.15s` duration).
@@ -139,4 +139,3 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 - [ ] `StyleSheet.create()` used for all styles — no inline web CSS patterns.
 - [ ] TypeScript strict mode enabled — no `any` types.
 - [ ] Navigation is type-safe with explicit route/param types.
-- [ ] Ocoron color tokens applied via `react-native-unistyles` theme — no raw hex values in components.

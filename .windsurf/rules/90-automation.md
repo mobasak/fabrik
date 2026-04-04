@@ -23,7 +23,7 @@ When triggered, apply the corresponding rules from `.windsurf/rules/` and enforc
 | "dockerfile", "compose", "deploy" | `30-ops.md`       | `check_docker.py`     | Follow ARM64 + bookworm-slim + HEALTHCHECK patterns  |
 | "health", "healthcheck"        | `.windsurfrules`, `10-python.md` | `check_health.py` | Health endpoints MUST test actual dependencies       |
 | "config", "environment"        | `.windsurfrules`, `10-python.md` | `check_env_contract.py` | No hardcoded values, function-level loading   |
-| "endpoint", "route", "API"     | `10-python.md`      | `validate_conventions.py` | Type hints, Pydantic models, proper HTTP status codes |
+| "endpoint", "route", "API"     | `15-api-contracts.md` + language pack | `validate_conventions.py` | API contracts + `10-python.md` or `20-typescript.md` per project type |
 | "database", "postgres"         | `.windsurfrules`    | `check_schema_sync.py` | Schema changes → `db/schema.sql` or migration        |
 | "watchdog", "monitor"          | `30-ops.md`         | `check_watchdog.py`   | Services MUST have `scripts/watchdog*.sh`            |
 | "docs", "readme", "update docs" | `40-documentation.md` | `check_changelog.py`, `check_docs.py` | Run `kilo_docs_enforcer.py --auto-generate` |

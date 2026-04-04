@@ -37,7 +37,9 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   │   ├── 80-mobile.md
 │   │   ├── 85-payments-billing.md
 │   │   ├── 90-automation.md
-│   │   └── 95-multi-tenant-saas.md
+│   │   ├── 95-multi-tenant-saas.md
+│   │   ├── CROSS_CUTTING_REQUIREMENTS.md
+│   │   └── ocoron-design-system.md
 │   └── workflows/
 │       ├── bug-fix.md
 │       ├── deploy.md
@@ -49,14 +51,20 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │       ├── local-review.md
 │       ├── new-feature.md
 │       └── review.md
+├── .droid/
+│   ├── .gitignore
+│   ├── review-context/
+│   │   └── .gitkeep
+│   └── traycer-reports/
+│       └── .gitignore
 ├── db/
 │   └── schema.sql
 ├── docs/
 │   ├── archive/
 │   │   └── README.md
 │   ├── development/
-│   │   └── plans/
-│   │       └── PLANS.md
+│   │   ├── plans/
+│   │   └── PLANS.md
 │   ├── reference/
 │   │   └── windsurf/
 │   │       └── cascade-models.md
@@ -67,28 +75,13 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   ├── README.md
 │   └── TROUBLESHOOTING.md
 ├── scripts/
-│   ├── enforcement/
-│   │   ├── __init__.py
-│   │   ├── check_android_env.py
-│   │   ├── check_changelog.py
-│   │   ├── check_docker.py
-│   │   ├── check_docs.py
-│   │   ├── check_env_contract.py
-│   │   ├── check_health.py
-│   │   ├── check_ports.py
-│   │   ├── check_schema_sync.py
-│   │   ├── check_secrets.py
-│   │   ├── check_watchdog.py
-│   │   ├── core.py
-│   │   └── validate_conventions.py
-│   ├── Local_Coder_qwen32b.sh
-│   ├── Local_Documentator_llama3.1-8b.sh
-│   ├── Local_Fixer_ds16b.sh
-│   ├── Local_Review_llama70b.sh
-│   ├── Kilo_Review.sh
+│   ├── enforcement/              # Entire dir copied from Fabrik (~30 scripts)
+│   ├── docs_updater.py
 │   ├── final_gate.py
+│   ├── health_checker.py
 │   ├── kilo_code_review.py
 │   ├── kilo_docs_enforcer.py
+│   ├── update_agents_toc.py
 │   ├── runc
 │   ├── rund
 │   ├── rundsh
@@ -101,12 +94,11 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │       └── main.py
 ├── tests/
 │   ├── __init__.py
-│   └── test_main.py
+│   └── test_health.py
 ├── .dockerignore
 ├── .env.example
 ├── .gitignore
 ├── .pre-commit-config.yaml
-├── .python-version
 ├── AGENTS-compact.md
 ├── AGENTS.md
 ├── CHANGELOG.md
@@ -115,8 +107,11 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 ├── Dockerfile
 ├── INDEX.md
 ├── Makefile
+├── opencode.json
 ├── PORTS.md
+├── project.yaml
 ├── pyproject.toml
+├── requirements.txt
 ├── .windsurfrules
 └── README.md
 ```
@@ -154,7 +149,9 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 | `/opt/fabrik/AGENTS.md` | `AGENTS.md` | Traycer orchestrator contract |
 | `/opt/fabrik/AGENTS-compact.md` | `AGENTS-compact.md` | Compact agent reference |
 | `/opt/fabrik/.windsurfrules` | `.windsurfrules` | Cascade compact agent contract |
+| `/opt/fabrik/.windsurf/rules/` | `.windsurf/rules/` | Windsurf IDE rules (22 files) |
 | `/opt/fabrik/.windsurf/workflows/` | `.windsurf/workflows/` | Cascade slash-command workflows |
+| `/opt/fabrik/opencode.json` | `opencode.json` | Kilo CLI configuration |
 | `/opt/fabrik/docs/reference/windsurf/cascade-models.md` | `docs/reference/windsurf/cascade-models.md` | Cascade model reference |
 
 ### Type-Specific Documents
@@ -177,7 +174,7 @@ These files/folders are **auto-synced** from `/opt/fabrik/` to all projects:
 ### 2. Governance Rules (`.windsurf/rules/`)
 - **Source:** `/opt/fabrik/.windsurf/rules/`
 - **Synced by:** `sync_enforcement_to_projects.py`
-- **Purpose:** Project-wide coding standards and conventions (20 rule files, 16 in pack registry)
+- **Purpose:** Project-wide coding standards and conventions (22 rule files)
 
 ### 3. Cascade Workflows (`.windsurf/workflows/`)
 - **Source:** `/opt/fabrik/.windsurf/workflows/`

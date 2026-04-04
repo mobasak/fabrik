@@ -58,6 +58,6 @@ description: Documentation rules, plan documents, writing style
 
 ## Writing Style
 
-- User-facing documentation (README feature descriptions, API docs, product landing copy) follows the Ocoron Verbal Identity in `ocoron-design-system.md`.
+- User-facing documentation (README feature descriptions, API docs, product landing copy) follows the Ocoron Verbal Identity in `docs/reference/ocoron-design-system.md`.
 - Lead with outcomes. Use specifics over adjectives. No forbidden language (see design system Forbidden Language table).
 - Internal plans, changelogs, and developer notes are exempt from brand voice — clarity and speed matter more than tone.

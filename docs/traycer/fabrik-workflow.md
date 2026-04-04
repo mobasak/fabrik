@@ -25,6 +25,7 @@ The goal is alignment, not artifacts. Specs are records of decisions made togeth
 - Tech stack defaults and when to deviate
 - Existing infrastructure services and Fabrik microservices
 - All planning constraints
+- **For UI projects** (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus): read `.windsurf/rules/ocoron-design-system.md` — internalize color tokens, typography, component patterns, scaffold adaptations, and verbal identity before generating any planning output
 
 #### Step 2: Scaffold Detection
 
@@ -68,6 +69,7 @@ Systematically verify every constraint below against the project. State each fin
 9. **Module dependencies** — Does this project depend on an incomplete Fabrik module? Check `/opt/fabrik/docs/BUSINESS_MODEL.md`
 10. **Duplicate project** — Does a similar project already exist in `/opt/fabrik/docs/BUSINESS_MODEL.md`? State finding explicitly.
 11. **DNS** — Domain management is automatic via dns-manager. No manual DNS work needed.
+12. **Design System** — For any project with a UI surface (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus): confirm `.windsurf/rules/ocoron-design-system.md` was read. State: "Design system read." If not applicable, state "No UI surface."
 
 > **Orientation rules:**
 >
@@ -80,26 +82,28 @@ Surface any conflicts as interview questions before proceeding.
 
 Based on scaffold type and research, classify the project and suggest a workflow route:
 
-| Scaffold Type | Recommended Route | Skip |
-|---|---|---|
-| `saas-skeleton` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — |
-| `python-api` | epic-brief → tech-plan → ticket-breakdown → execute | `core-flows` |
-| `node-api` | epic-brief → tech-plan → ticket-breakdown → execute | `core-flows` |
-| `file-api` | epic-brief → tech-plan → ticket-breakdown → execute | `core-flows` |
-| `file-worker` | epic-brief → tech-plan → ticket-breakdown → execute | `core-flows` |
-| `chrome-extension` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — |
-| `mobile-app` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — |
-| `desktop-app` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — |
-| `static-site` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — |
-| `wordpress` | epic-brief → ticket-breakdown → execute | `core-flows`, `tech-plan` |
-| `docusaurus` | epic-brief → ticket-breakdown → execute | `core-flows`, `tech-plan` |
-| Feature for existing project | Traycer decides based on scope and codebase analysis | Traycer decides |
+| Scaffold Type | Recommended Route | Skip | HAS_USER_GUIDE |
+|---|---|---|---|
+| `saas-skeleton` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — | true |
+| `python-api` | epic-brief → tech-plan → ticket-breakdown → execute | `core-flows` | Ask user: external or internal? |
+| `node-api` | epic-brief → tech-plan → ticket-breakdown → execute | `core-flows` | Ask user: external or internal? |
+| `file-api` | epic-brief → tech-plan → ticket-breakdown → execute | `core-flows` | false |
+| `file-worker` | epic-brief → tech-plan → ticket-breakdown → execute | `core-flows` | false |
+| `chrome-extension` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — | true |
+| `mobile-app` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — | true |
+| `desktop-app` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — | true |
+| `static-site` | epic-brief → core-flows → tech-plan → ticket-breakdown → execute | — | true |
+| `wordpress` | epic-brief → ticket-breakdown → execute | `core-flows`, `tech-plan` | false |
+| `docusaurus` | epic-brief → ticket-breakdown → execute | `core-flows`, `tech-plan` | false |
+| Feature for existing project | Traycer decides based on scope and codebase analysis | Traycer decides | Inherit from parent project |
+
+For `python-api` and `node-api`, ask during constraint verification (Step 5): "Is this API external-facing (consumed by end users or third parties) or internal-only (consumed by other Fabrik services)?" — and set `HAS_USER_GUIDE` accordingly.
 
 #### Step 7: Smart Route Presentation
 
 Begin the summary with:
 
-> **INFRA-CHECK:** Port: `XXXX` | Scaffold: `<type>` | ARM64: `Confirmed` | Duplicate: `[none / project name]` | Internal APIs: `[list or none]`
+> **INFRA-CHECK:** Port: `XXXX` | Scaffold: `<type>` | ARM64: `Confirmed` | Duplicate: `[none / project name]` | Internal APIs: `[list or none]` | User Guide: `true/false`
 
 Then present:
 
@@ -115,8 +119,10 @@ User confirms or adjusts the route. Proceed to the first relevant command.
 
 - Project type classified from scaffold detection — not assumed, derived from codebase
 - Pre-research MD found and read (if exists), improvements surfaced
-- All 11 constraints verified and stated explicitly, including "all clear" findings
+- All 12 constraints verified and stated explicitly, including "all clear" findings
+- Design system read and internalized for UI projects
 - Duplicate project check completed against `/opt/fabrik/docs/BUSINESS_MODEL.md`
+- HAS_USER_GUIDE determined and included in INFRA-CHECK
 - Workflow route presented and confirmed by the user
 - No unresolved constraint conflicts
 
@@ -150,12 +156,18 @@ The goal is alignment, not artifacts. Specs are records of decisions made togeth
    - **Context & Problem**: Who's affected, where in the product, what the current pain is.
    - **Infrastructure Notes**: Existing services or projects that partially solve this, and whether the epic extends, wraps, or replaces them. Omit if none apply.
    - **Out of Scope**: 1–3 explicit exclusions. What this epic deliberately does not address.
+   - **Metadata**: Carry forward from trigger_workflow's INFRA-CHECK:
+     - `HAS_USER_GUIDE: true/false`
+     - `Scaffold: <type>`
+     - `Port: XXXX`
    - Keep the entire brief under 50 lines.
 
    > **Drafting rules:**
-   > - Complete all four sections fully — no stubs, no placeholder content
+   >
+   > - Complete all sections fully — no stubs, no placeholder content
    > - Do not assume scope, affected users, or infrastructure overlap — derive each from the research file and codebase. State assumptions explicitly if anything is ambiguous.
    > - Before presenting, verify the brief answers: what is being built, for whom, why, and what is explicitly excluded.
+   > - The Metadata section is not optional — downstream commands (ticket-breakdown, execute) depend on these values. If trigger_workflow did not set them, ask the user to confirm before proceeding.
 
 5. Present to user. Iterate until aligned.
 
@@ -165,7 +177,8 @@ The goal is alignment, not artifacts. Specs are records of decisions made togeth
 - Problem is grounded in the actual codebase and Fabrik infrastructure
 - Existing services and projects that overlap are surfaced with explicit extend/wrap/replace designation
 - Out of scope exclusions are stated
-- All four sections complete — no stubs or placeholders
+- Metadata section includes HAS_USER_GUIDE, Scaffold, and Port from trigger_workflow
+- All sections complete — no stubs or placeholders
 - No assumptions made silently — ambiguities stated explicitly
 - Brief is under 50 lines
 - User confirms the brief
@@ -192,10 +205,10 @@ The goal is alignment, not artifacts. Flows should be discussed and agreed upon 
    - Identify decision points where the user chooses between paths
    - Identify error scenarios and how the system responds
 4. Before documenting flows, seek alignment with the user on these UX dimensions:
-   - **Information Hierarchy**: What's critical vs. secondary? How is information grouped?
-   - **Placement & Affordances**: Where do actions live? How discoverable is the feature?
-   - **Feedback & State**: How does the user know an action is in progress, succeeded, or failed?
-   - **Journey Integration**: How does this flow connect to adjacent workflows?
+   - **Information Hierarchy:** What's critical vs. secondary? How is information grouped?
+   - **Placement & Affordances:** Where do actions live? How discoverable is the feature?
+   - **Feedback & State:** How does the user know an action is in progress, succeeded, or failed?
+   - **Journey Integration:** How does this flow connect to adjacent workflows?
 
    Ask about interaction decisions where multiple approaches exist. Multiple rounds of clarification is normal — do not proceed to documentation until shared understanding exists on all four dimensions.
 
@@ -207,6 +220,7 @@ The goal is alignment, not artifacts. Flows should be discussed and agreed upon 
    - Target under 30 lines per flow. No file paths, component names, or technical details.
 
    > **Drafting rules:**
+   >
    > - Map all personas and all error scenarios — not just the primary user and happy path. Handle every case identified in step 3, not just the first.
    > - Do not assume interaction patterns, user intent, or system responses — derive from the Epic Brief and aligned UX dimensions. State assumptions explicitly if anything is ambiguous.
    > - Before presenting, verify every persona has a complete journey and every flow has entry point, error paths, and edge cases documented.
@@ -243,13 +257,14 @@ You are a technical architect who designs systems grounded in the actual codebas
 ### Core Philosophy
 
 The goal is alignment, not artifacts. Work through each section via clarification before documenting.
+
 - Surfacing assumptions early is cheap; fixing wrong artifacts is expensive
 - Multiple rounds of clarification is normal and encouraged
 - Only draft a section after shared understanding is reached
 
 ### Processing User Request
 
-#### 1. Pre-design research:
+1. **Pre-design research:**
    - Read `docs/reference/technology-stack-decision-guide.md` for the project type
    - Check `docs/reference/prebuilt-app-containers.md` for existing solutions
    - Check `/opt/fabrik/docs/BUSINESS_MODEL.md` — confirm no duplicate or similar project exists. State finding.
@@ -259,10 +274,10 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
    - Explore the project's codebase to understand what already exists
    - Internalize the Epic Brief and Core Flows — understand what we're solving and why
 
-#### 2. Stack Auto-Injection: Start every tech plan with Fabrik stack defaults from `AGENTS.md`. Override only with explicit justification:
+2. **Stack Auto-Injection:** Start every tech plan with Fabrik stack defaults from `AGENTS.md`. Override only with explicit justification:
 
    | Component | Default | Override When |
-   |-----------|---------|---------------|
+   |---|---|---|
    | Frontend | Next.js 14 + TypeScript + Tailwind | — always use this |
    | Backend | Python + FastAPI + Uvicorn | Node.js for web-adjacent workers |
    | Database | PostgreSQL 16 (Coolify-managed) | Supabase for managed auth/realtime/pgvector |
@@ -271,11 +286,12 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
    | Hosting | Coolify on ARM64 VPS | — |
    | Domains | `*.vps1.ocoron.com` | — |
 
-#### 3. Design the architecture — section by section:
+3. **Design the architecture — section by section:**
    Work through each section using this loop: **think → clarify → document.**
    Trace a request end-to-end through the proposed design. Change a requirement — what ripples? Inject failures at each point — what breaks, what recovers? Surface key decisions and uncertainties to the user as interview questions. Only document after alignment. Complete each section before moving to the next.
 
    ### Architectural Approach
+
    - Major architectural choices (patterns, paradigms, technologies)
    - Trade-offs and rationale for each decision
    - Constraints (technical, business) that bound the solution
@@ -284,12 +300,14 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
    - Cover what's needed, no more. Omit implementation details, business logic, and code that belongs in tickets.
 
    ### Data Model
+
    - New entities required
    - Relationships with existing data models
    - Database schema changes (additions, modifications)
    - Cover what's needed, no more. Omit implementation details, business logic, and code that belongs in tickets.
 
    ### Component Architecture
+
    - New components required
    - Interfaces with existing components
    - Clear boundaries and responsibilities
@@ -302,12 +320,16 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
 
    > **Drafting rules:**
    > - Cover all three sections completely — do not stub, skip, or leave any section partial
-   > - Cover what's needed, no more. Omit implementation details, business logic, and code that belongs in tickets.
-   > - Do not design beyond the epic scope. Focus exclusively on what the Epic Brief and Core Flows require.
-   > - Do not assume — if something is ambiguous, state your assumption explicitly before proceeding.
-   > - Before presenting, verify that every requirement from the Epic Brief and Core Flows is addressed in the architecture.
+   > - Cover what's needed, no more. Omit implementation details, business logic,
+   >   and code that belongs in tickets.
+   > - Do not design beyond the epic scope. Focus exclusively on what the Epic Brief
+   >   and Core Flows require.
+   > - Do not assume — if something is ambiguous, state your assumption explicitly
+   >   before proceeding.
+   > - Before presenting, verify that every requirement from the Epic Brief and
+   >   Core Flows is addressed in the architecture.
 
-#### 4. Architecture Stress Test — Before handing off, stress-test against these 6 dimensions:
+4. **Architecture Stress Test** — Before handing off, stress-test against these 6 dimensions:
    1. **Simplicity** — Is this as simple as it can be? Can anything be removed?
    2. **Flexibility** — What if requirements change? What's hardcoded vs configurable?
    3. **Robustness** — What happens when components fail? Database down? API timeout? Disk full?
@@ -375,6 +397,11 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
      - [ ] Codebase compiles and tests pass after this ticket (skip if docs-only ticket)
      - [ ] No silent failures introduced — code cannot proceed without error while producing wrong results (skip if docs-only ticket)
      - [ ] CHANGELOG has an entry for this ticket
+     - [ ] INDEX.md reflects all files added, removed, or renamed in this ticket
+     - [ ] All logging uses structured logger (no print statements) with correlation IDs per .windsurfrules/55-observability.md
+     - [ ] If new env vars or config keys were introduced, docs/CONFIGURATION.md is updated
+     - [ ] If this ticket touches user-facing functionality and HAS_USER_GUIDE is true, corresponding docs/user-guide/ page exists or is updated
+     - [ ] Utility modules created in this ticket have zero project-specific imports and are tagged [reusable] in INDEX.md
    - **Gate Tier**: 1 (lean, well-defined) or 2 (milestone closure, full gate)
    - **Execution Metadata**:
      - **Plan Required:** Yes / No
@@ -386,12 +413,34 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    > **Drafting rules:**
    > - Complete every field fully — no stubs, no placeholders, no empty acceptance criteria
    > - Do not truncate — last tickets deserve the same depth as the first
-   > - Be thorough — error handling, edge cases, and boundary conditions from Core Flows must be ticketed or explicitly covered within a ticket's scope. Do not only ticket the happy path work.
-   > - Handle all work units from the specs — not just the obvious first ones. Every natural work unit identified in step 2 must map to a ticket.
-   > - Ticket scope must be traceable verbatim to the specs. Do not add scope that requires inferring beyond what is written.
-   > - Do not assume grouping or scope boundaries when specs are ambiguous — state the assumption explicitly before proceeding.
-   > - Before finalizing the breakdown, cross-check every component in the Tech Plan's Component Architecture against the ticket set. Every component must either be covered by a ticket or explicitly excluded with a stated reason. Silent omissions are not acceptable.
-   > - Before presenting, verify every work unit identified in step 2 is covered by a ticket. Nothing silently dropped.
+   > - Be thorough — error handling, edge cases, and boundary conditions from
+   >   Core Flows must be ticketed or explicitly covered within a ticket's scope.
+   >   Do not only ticket the happy path work.
+   > - Handle all work units from the specs — not just the obvious first ones.
+   >   Every natural work unit identified in step 2 must map to a ticket.
+   > - Ticket scope must be traceable verbatim to the specs. Do not add scope
+   >   that requires inferring beyond what is written.
+   > - Do not assume grouping or scope boundaries when specs are ambiguous —
+   >   state the assumption explicitly before proceeding.
+   > - Before finalizing the breakdown, cross-check every component in the
+   >   Tech Plan's Component Architecture against the ticket set. Every
+   >   component must either be covered by a ticket or explicitly excluded
+   >   with a stated reason. Silent omissions are not acceptable.
+   > - Before presenting, verify every work unit identified in step 2 is covered
+   >   by a ticket. Nothing silently dropped.
+
+   > **Cross-cutting enforcement:**
+   > Cross-cutting requirements are enforced via `.windsurfrules/CROSS_CUTTING_REQUIREMENTS.md` —
+   > coder agents read this automatically. The Verification checklist above hardcodes the checks
+   > so they appear in every ticket regardless of whether the agent reads the rule file.
+   > Additionally, for each ticket:
+   > - If a ticket creates shared utility functions or modules that could serve other Fabrik projects,
+   >   add to that ticket's Acceptance Criteria: "Reusable modules isolated in src/utils/ or src/lib/
+   >   with standalone docstrings, type hints, and zero project-specific imports."
+   > - If `HAS_USER_GUIDE: true` in the Epic Brief and a ticket adds or changes a user-facing
+   >   endpoint, CLI command, or UI component, add to that ticket's Acceptance Criteria:
+   >   "Docusaurus-compatible user guide page created/updated in docs/user-guide/ covering
+   >   this feature's usage."
 
    > **Authoring rules — used by Traycer when filling Execution Metadata, not reproduced in tickets:**
    > **Plan Required:** Default No. Use Yes only if:
@@ -400,7 +449,6 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    > - Wrong early decision requires significant rework to reverse
    > - First ticket in a new subsystem with no prior reference implementation
    > *(Large + well-scoped ≠ Plan Required. That needs a capable agent, not a plan phase.)*
-
    > **Agent Selection — classify by the higher of:**
    > - Scope: Single file = Simple · Multi-file = Complex · Cross-component = Critical
    > - Risk: UI/docs = Low · Endpoints/schema = Medium · Auth/migration/architecture = High
@@ -409,7 +457,8 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    > | Simple | Local free | — | Free promo (0cr) | — |
    > | Complex | Cloud mid-tier | Local free (if capable) | Mid-tier (1–2cr) | Free promo (if capable) |
    > | Critical | Premium | Cloud mid-tier | Premium (4–6cr+) | Mid-tier (if capable) |
-   > Ref: `scripts/kilo_47_agents_final.json`, `docs/reference/kilo/KILO_AGENT_NAMING.md`, `docs/reference/windsurf/cascade-models.md`
+   > Ref: `scripts/kilo_47_agents_final.json`, `docs/reference/kilo/KILO_AGENT_NAMING.md`,
+   > `docs/reference/windsurf/cascade-models.md`
    > Budget field: only fill if cheaper agent can handle it reliably.
    > Only one local Ollama agent can run at a time (hardware constraint).
 
@@ -430,6 +479,7 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
 - Every work unit from the specs is covered — nothing silently dropped
 - No scope added beyond what is traceable to the specs
 - Assumptions about ambiguous spec boundaries stated explicitly
+- Cross-cutting requirements (scaffold docs, logging, user guide, reusability) injected into every ticket's Verification checklist
 - Dependencies visualized as a mermaid diagram
 - User confirms the breakdown
 
@@ -493,6 +543,7 @@ Batch 2 (Sequential - depends on Batch 1):
 Batch 3 (Parallel - depends on Batch 2):
   - Ticket D: UI Components
   - Ticket E: Integration Tests
+
 ```
 
 #### 3. Execute Batch
@@ -519,6 +570,7 @@ Once execution results are returned, review and validate each completed ticket.
   - The plan raised concerns
   - The ticket involves critical functionality
   - Previous tickets showed drift patterns
+- Cross-cutting compliance: verify INDEX.md is current, CHANGELOG has an entry, no print() statements in new code, CONFIGURATION.md updated if new env vars, docs/user-guide/ page exists if user-facing change and HAS_USER_GUIDE is true, utility modules have zero project-specific imports
 
 **Validation Through Two Lenses:**
 
@@ -536,9 +588,10 @@ Once execution results are returned, review and validate each completed ticket.
 
 **Categorize Findings:**
 
-- **Well Implemented**: Meets acceptance criteria, aligned with specs
+- **Well Implemented**: Meets acceptance criteria, aligned with specs, cross-cutting checks pass
 - **Minor Issues**: Small fixes needed, doesn't block progress
 - **Technical Drift**: Deviated from tech plan but technically sound
+- **Cross-Cutting Violation**: Missing INDEX.md update, print() instead of logger, missing CHANGELOG entry, missing docs update — fixable without architectural change
 - **Product Misalignment**: Deviated from product requirements
 - **Major Drift**: Fundamental issues requiring user involvement
 
@@ -554,8 +607,14 @@ Based on validation findings:
 
 **For Minor Issues:**
 
-- Trigger a new/ retry execution with specific fix instructions
+- Trigger a new/retry execution with specific fix instructions
 - Reference what needs to be corrected
+- Re-validate after completion
+
+**For Cross-Cutting Violations:**
+
+- Trigger a fix execution with the specific violations listed
+- These are mechanical fixes — do not escalate to user unless the same violation recurs across 3+ tickets (indicates a systemic agent issue)
 - Re-validate after completion
 
 **For Technical Drift (minor, technically sound):**
@@ -591,6 +650,7 @@ Once all tickets are executed and validated:
 - Confirm all tickets are marked Done with acceptance criteria met
 - Note any spec updates made during execution
 - Note any deferred items or follow-up work identified
+- Note any cross-cutting violations that were fixed during execution
 - Suggest running implementation-validation for final end-to-end review
 
 ### What Good Execution Looks Like
@@ -598,6 +658,7 @@ Once all tickets are executed and validated:
 - Tickets progress systematically through batches
 - Plans are reviewed before accepting implementations
 - Drift is detected early and corrected promptly
+- Cross-cutting requirements enforced on every ticket — not just trusted from agent self-report
 - User is involved only for significant decisions
 - Specs stay in sync with implementation reality
 - Tickets are marked Done only when validated
@@ -613,6 +674,7 @@ Once all tickets are executed and validated:
 - Skipping plan review for complex tickets
 - Proceeding to dependent tickets when dependencies have issues
 - Letting specs diverge from what was actually implemented
+- Trusting coder agent self-reported cross-cutting compliance without verifying the actual output
 
 ---
 
@@ -683,6 +745,21 @@ Review the implementation for:
 - **Error handling**: Are failures handled gracefully?
 - **Logic soundness**: Does the code do what it's supposed to do?
 
+#### 5. Cross-Cutting Compliance
+
+Verify across all implemented tickets:
+
+- **INDEX.md**: Reflects all files that were added, removed, or renamed — no stale entries, no missing entries
+- **CHANGELOG.md**: Has an entry for every completed ticket
+- **Structured logging**: No print() statements in production code — all logging uses structured logger with correlation IDs per .windsurfrules/55-observability.md
+- **CONFIGURATION.md**: All env vars and config keys introduced during the epic are documented
+- **User guide**: If HAS_USER_GUIDE is true in the Epic Brief, every user-facing feature has a corresponding docs/user-guide/ page
+- **Reusability**: Utility modules in src/utils/ or src/lib/ have zero project-specific imports and are tagged [reusable] in INDEX.md
+
+Cross-cutting violations are not blockers — classify them as **Cross-Cutting Violations** (see below). They are mechanical fixes that don't require architectural changes.
+
+#### 6. Issue Classification
+
 **Issue Classification Guidance**
 
 When evaluating, categorize issues by importance to guide clarification priority:
@@ -706,6 +783,15 @@ When evaluating, categorize issues by importance to guide clarification priority
 - Missing validations at boundaries
 - Error conditions without graceful handling
 
+**Cross-Cutting Violations** — Mechanical fixes:
+
+- Missing INDEX.md entries
+- Missing CHANGELOG entries
+- print() statements instead of structured logger
+- Missing CONFIGURATION.md updates for new env vars
+- Missing docs/user-guide/ pages when HAS_USER_GUIDE is true
+- Utility modules with project-specific imports
+
 **Observations** — Note for awareness:
 
 - Minor concerns or potential improvements
@@ -717,12 +803,13 @@ When evaluating, categorize issues by importance to guide clarification priority
 - Implementation aligns with specs
 - Acceptance criteria met
 - Code behaves as expected
+- Cross-cutting checks pass
 
-#### 5. Present Findings and Ask for Direction
+#### 7. Present Findings and Ask for Direction
 
 In a single response:
 
-**Present findings** organized by importance — blockers first, then bugs, edge cases, and observations. Present the findings in a readable format.
+**Present findings** organized by importance — blockers first, then bugs, edge cases, cross-cutting violations, and observations. Present the findings in a readable format.
 
 Also very concisely summarize what's working correctly and aligned with specs.
 
@@ -734,8 +821,9 @@ Also very concisely summarize what's working correctly and aligned with specs.
 - Which issues should be noted on existing tickets
 - Which deviations are intentional and should be documented
 - Which items can be deferred vs. must be addressed now
+- Whether cross-cutting violations should be batch-fixed in a single ticket or addressed individually
 
-#### 6. Execute Based on Direction
+#### 8. Execute Based on Direction
 
 Based on user guidance:
 
@@ -744,13 +832,14 @@ Based on user guidance:
 - Document accepted deviations or trade-offs
 - Update any additional ticket statuses as directed
 
-#### 7. Confirm Completion
+#### 9. Confirm Completion
 
 Once actions are taken:
 
 - Summarize what was validated and what actions were taken
 - Confirm which tickets are complete vs. need follow-up
 - Note any accepted trade-offs or deferred concerns
+- Note any cross-cutting violations that were fixed or deferred
 
 ### What Good Validation Looks Like
 
@@ -758,6 +847,7 @@ Once actions are taken:
 - Code locations are referenced so issues can be found
 - Importance is calibrated — not everything is a blocker
 - Spec references show why something is a deviation
+- Cross-cutting compliance verified holistically, not just per-ticket
 - User sees the full picture and guides how to handle issues
 
 ---
@@ -779,8 +869,6 @@ Strategic planner who traces the ripple effects of change across an established 
 ### Core Philosophy
 
 Requirements change. The goal is not to resist change but to propagate it deliberately and completely through the existing plan.
-
-Value system:
 
 - Understanding the change fully before assessing impact
 - Comprehensive impact analysis prevents half-updated specs that contradict each other
@@ -948,6 +1036,12 @@ Analyze the specs against these dimensions, focusing on the boundaries between t
 
 **Assumption Coherence** — Constraints and assumptions stated or implied in one spec shouldn't contradict decisions in another. If the Brief assumes real-time updates but the Tech Plan designs a batch processing approach, that's a finding.
 
+**Metadata Consistency** — Verify that workflow metadata flows correctly across artifacts:
+
+- `HAS_USER_GUIDE` value in the Epic Brief matches what trigger_workflow set in INFRA-CHECK
+- If `HAS_USER_GUIDE: true`, verify Core Flows account for documentation-worthy user interactions, and Tech Plan includes docs/user-guide/ in the component architecture or deployment structure
+- Scaffold type, port assignment, and other INFRA-CHECK values are consistent between Epic Brief metadata and Tech Plan
+
 Categorize findings by significance. Use your judgment — the classification is yours to make based on the nature of each finding.
 
 #### 3. Present Findings
@@ -956,7 +1050,7 @@ Lead with your overall assessment — do the specs tell one coherent story or no
 
 Then walk through the findings. Lead with what matters most — the things that would cause real confusion or wrong implementation if left unresolved. For each significant finding, explain what the inconsistency is, cite the specific specs involved, and why it matters for downstream work. For findings that need user judgment, present interview questions.
 
-For minor fixes (naming drift, trivial wording inconsistencies), group them together concisely with your proposed corrections and let the user approve them as a batch.
+For minor fixes (naming drift, trivial wording inconsistencies, metadata mismatches), group them together concisely with your proposed corrections and let the user approve them as a batch.
 
 Consolidate related findings — if two issues stem from the same root cause, present them as one finding, not two. Every finding you present should be distinct.
 
@@ -979,6 +1073,7 @@ With specs now grounded, compare each ticket against the updated specs. Look for
 - Missing tickets — new scope in the specs that no existing ticket covers
 - Tickets whose dependencies have shifted because the specs changed
 - Tickets that need splitting (one ticket spans what are now clearly separate concerns) or merging (multiple tickets cover what is now one cohesive piece of work)
+- Tickets missing cross-cutting Verification items that should be present (INDEX.md, CHANGELOG, structured logging, CONFIGURATION.md, user-guide, reusability checks)
 
 Apply best judgment to update, create, or obsolete tickets as needed. Then present what was done — what changed and why. If any in-progress or completed tickets were modified, flag those explicitly since they represent work already underway. The user can refine from there.
 
@@ -993,12 +1088,13 @@ If the drift is so extensive that the ticket set needs to be reconceived from sc
 #### Acceptance Criteria
 
 - Cross-spec consistency has been evaluated across all analysis dimensions
+- Metadata consistency verified (HAS_USER_GUIDE, scaffold type, port assignment flow correctly across artifacts)
 - Findings that need user judgment have been resolved through clarification
 - Minor fixes have been approved and applied
 - Affected specs have been updated with targeted, consistent changes
 - Specs tell one coherent story
 - Silent implementation risks surfaced — no areas where coders would silently make wrong decisions
-- If tickets exist, they have been reconciled against the grounded specs
+- If tickets exist, they have been reconciled against the grounded specs, including cross-cutting Verification completeness
 - The user can confidently act on the current artifact state
 
 ---

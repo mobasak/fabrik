@@ -445,12 +445,16 @@ python /opt/fabrik/scripts/generate_kilo_agents.py
 Scripts are generated in `~/.traycer/cli-agents/`:
 
 ```
-code&fix-1-opus46-max-o2500-ppd076.sh      # Opus 4.6 (coding #1, fixing #1)
-coding-2-gpt54-max-o1500-ppd123.sh         # GPT-5.4 (coding #2)
-fixing-2-gemini31pro-max-o1200-ppd161.sh   # Gemini 3.1 Pro (fixing #2)
-coding-3-gemini31pro-high-o1200-ppd161.sh  # Gemini 3.1 Pro (coding #3)
-fixing-3-gpt54-high-o1500-ppd123.sh        # GPT-5.4 (fixing #3)
-code&fix-4-gpt53codex-high-o1400-ppd---.sh # GPT-5.3-Codex (coding #4, fixing #4)
+code&fix-1-opus46-max-o2500-ppd076.sh                    # Opus 4.6 (coding #1, fixing #1)
+coding-2-gpt54-max-o1500-ppd123.sh                       # GPT-5.4 (coding #2)
+coding-3-gemini31pro-high-o1200-ppd161.sh                # Gemini 3.1 Pro (coding #3)
+code&fix-4-gpt53codex-high-o1400-ppd---.sh               # GPT-5.3-Codex (coding #4, fixing #4)
+fixing-2-gemini31pro-max-o1200-ppd161.sh                 # Gemini 3.1 Pro (fixing #2)
+fixing-3-gpt54-high-o1500-ppd123.sh                      # GPT-5.4 (fixing #3)
+coding-1-fabrik-coder-qwen32b-local-o0000-ppd999.sh      # Qwen 2.5 Coder 32B (local)
+fixing-1-fabrik-fixer-ds16b-local-o0000-ppd999.sh        # DeepSeek Coder V2 16B (local)
+documentation-1-fabrik-docs-llama8b-local-o0000-ppd999.sh # Llama 3.1 8B (local docs)
+reviewing-1-fabrik-reviewer-llama70b-local-o0000-ppd999.sh # Llama 3.1 70B (local review)
 ```
 
 ---

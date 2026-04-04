@@ -7,7 +7,9 @@ trigger: glob
 
 # Payments & Billing Rules
 
-Apply when working on payment integration, subscription lifecycle, entitlements, webhook processing, or checkout flows. Skip for unrelated API, UI, or infrastructure work.
+Apply when working on SaaS payment integration, subscription lifecycle, entitlements, webhook processing, or checkout flows. Skip for unrelated API, UI, or infrastructure work.
+
+**Scope exclusion:** WooCommerce storefront checkout is governed by `62-wordpress.md`, not this pack. WooCommerce uses region-appropriate payment gateways (e.g. iyzico for Turkey digital, PayTR for Turkey physical D2C, marketplace channels for physical distribution) because it operates as product e-commerce, not SaaS subscription billing.
 
 ## Merchant of Record
 

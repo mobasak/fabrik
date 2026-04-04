@@ -226,12 +226,14 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 /opt/my-project/
 ├── .droid/
 │   ├── .gitignore                   # Blocks Kilo runtime files from git
-│   └── review-context/
-│       └── .gitkeep                 # Tracked placeholder for Traycer plans
+│   ├── review-context/
+│   │   └── .gitkeep                 # Tracked placeholder for Traycer plans
+│   └── traycer-reports/
+│       └── .gitignore               # Commits dir, gitignores *.md reports
 ├── .cache/                          # Cache directory (gitignored)
 ├── .tmp/                            # Temp files (gitignored, NOT /tmp/)
 ├── .windsurf/
-│   ├── rules/                       # Windsurf IDE rules (20 files)
+│   ├── rules/                       # Windsurf IDE rules (22 files)
 │   │   ├── 10-python.md             # Python/FastAPI patterns
 │   │   ├── 15-api-contracts.md      # API contract patterns
 │   │   ├── 20-typescript.md         # TypeScript patterns
@@ -251,7 +253,9 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── 80-mobile.md             # Mobile app patterns
 │   │   ├── 85-payments-billing.md   # Payments & billing patterns
 │   │   ├── 90-automation.md         # YOLO modes, Fabrik skills
-│   │   └── 95-multi-tenant-saas.md  # Multi-tenant SaaS patterns
+│   │   ├── 95-multi-tenant-saas.md  # Multi-tenant SaaS patterns
+│   │   ├── CROSS_CUTTING_REQUIREMENTS.md  # Cross-cutting requirements
+│   │   └── ocoron-design-system.md  # Ocoron Design System v2
 │   └── workflows/                   # Cascade slash-command workflows (10 files)
 ├── config/                          # Configuration files
 ├── data/                            # Data files (gitignored)
@@ -269,7 +273,9 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 ├── logs/                            # Log files (gitignored)
 ├── output/                          # Output files (gitignored)
 ├── scripts/
-│   ├── enforcement/                 # Quality gate checks (27 scripts)
+│   ├── enforcement/                 # Quality gate checks (30 scripts, entire dir copied)
+│   │   ├── __init__.py
+│   │   ├── check_android_env.py
 │   │   ├── check_changelog.py       # CHANGELOG.md updated
 │   │   ├── check_compose_services.py
 │   │   ├── check_configuration_md.py
@@ -277,6 +283,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── check_doc_sprawl.py
 │   │   ├── check_docker.py
 │   │   ├── check_docs.py
+│   │   ├── check_duplicates.py
 │   │   ├── check_env_contract.py
 │   │   ├── check_env_example.py
 │   │   ├── check_env_updates.py
@@ -294,11 +301,14 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── check_secrets.py
 │   │   ├── check_structure.py
 │   │   ├── check_test_coverage.py
+│   │   ├── check_test_proposal.py
 │   │   ├── check_watchdog.py
 │   │   └── validate_conventions.py
 │   ├── docs_updater.py              # Documentation drift checker
-│   ├── final_gate.py                # Pre-commit quality gate (928 lines)
-│   ├── kilo_code_review.py          # AI code review (5528 lines)
+│   ├── final_gate.py                # Pre-commit quality gate
+│   ├── health_checker.py            # Health endpoint checker
+│   ├── kilo_code_review.py          # AI code review
+│   ├── kilo_docs_enforcer.py        # Documentation enforcer
 │   ├── update_agents_toc.py         # AGENTS.md TOC updater
 │   ├── runc                         # Check job status
 │   ├── rund                         # Run detached command
@@ -386,11 +396,13 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `tests/__init__.py` | Generated inline | Tests package |
 | `tests/test_health.py` | Generated inline | Health endpoint test |
 | **Quality Gates** | | |
-| `scripts/final_gate.py` | Copied from Fabrik | Pre-commit quality checks (928 lines) |
-| `scripts/kilo_code_review.py` | Copied from Fabrik | AI code review (5528 lines) |
+| `scripts/final_gate.py` | Copied from Fabrik | Pre-commit quality gate |
+| `scripts/health_checker.py` | Copied from Fabrik | Health endpoint checker |
+| `scripts/kilo_code_review.py` | Copied from Fabrik | AI code review |
+| `scripts/kilo_docs_enforcer.py` | Copied from Fabrik | Documentation enforcer |
 | `scripts/docs_updater.py` | Copied from Fabrik | Documentation drift checker |
 | `scripts/update_agents_toc.py` | Copied from Fabrik | AGENTS.md TOC updater |
-| **Enforcement Scripts (27)** | | |
+| **Enforcement Scripts (30)** | | |
 | `scripts/enforcement/*.py` | Copied from Fabrik | Individual quality gate checks |
 | **Dev Tooling** | | |
 | `Makefile` | `docker/Makefile.python` | Dev shortcuts (`make dev`, `make test`, `make review`) |
@@ -398,13 +410,14 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `.dockerignore` | `docker/dockerignore.template` | Excludes `.venv`, `.git`, `__pycache__` from Docker context |
 | `.droid/.gitignore` | Generated inline | Blocks Kilo runtime files; tracks `review-context/` |
 | `.droid/review-context/.gitkeep` | Generated inline | Ensures `review-context/` is committed |
+| `.droid/traycer-reports/.gitignore` | Generated inline | Commits dir, gitignores `*.md` reports |
 | `scripts/runc` | `scripts/runc` | Check detached job status |
 | `scripts/rund` | `scripts/rund` | Run command in detached mode |
 | `scripts/rundsh` | `scripts/rundsh` | Shell into container |
 | `scripts/runk` | `scripts/runk` | Kill detached job |
 | `scripts/sync_cascade_backup.sh` | `scripts/sync_cascade_backup.sh` | Backup Cascade session |
 | `scripts/sync_extensions.sh` | `scripts/sync_extensions.sh` | Sync Windsurf extensions |
-| **Windsurf Rules (20)** | | |
+| **Windsurf Rules (22)** | | |
 | `.windsurf/rules/10-python.md` | Copied from Fabrik | Python/FastAPI patterns |
 | `.windsurf/rules/15-api-contracts.md` | Copied from Fabrik | API contract patterns |
 | `.windsurf/rules/20-typescript.md` | Copied from Fabrik | TypeScript patterns |
@@ -425,6 +438,8 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `.windsurf/rules/85-payments-billing.md` | Copied from Fabrik | Payments & billing patterns |
 | `.windsurf/rules/90-automation.md` | Copied from Fabrik | YOLO modes, Fabrik skills |
 | `.windsurf/rules/95-multi-tenant-saas.md` | Copied from Fabrik | Multi-tenant SaaS patterns |
+| `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` | Copied from Fabrik | Cross-cutting requirements (docs, observability, reusability) |
+| `.windsurf/rules/ocoron-design-system.md` | Copied from Fabrik | Ocoron Design System v2 (visual + verbal identity) |
 | **Templates** | | |
 | `templates/docs/*.md` | Copied from Fabrik | Documentation templates (5 files) |
 | `templates/saas-skeleton/` | Copied from Fabrik | Full Next.js SaaS starter |
@@ -439,7 +454,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `AGENTS.md` | `/opt/fabrik/AGENTS.md` | AI agent instructions |
 | `AGENTS-compact.md` | `/opt/fabrik/AGENTS-compact.md` | Compact agent instructions |
 | `.windsurfrules` | `/opt/fabrik/.windsurfrules` | Cascade agent contract |
-| `.windsurf/rules/*` | `/opt/fabrik/.windsurf/rules/` | Windsurf IDE rules (20 files) |
+| `.windsurf/rules/*` | `/opt/fabrik/.windsurf/rules/` | Windsurf IDE rules (22 files) |
 | `.windsurf/workflows/*` | `/opt/fabrik/.windsurf/workflows/` | Cascade slash-command workflows |
 | `opencode.json` | `/opt/fabrik/opencode.json` | Kilo CLI configuration |
 

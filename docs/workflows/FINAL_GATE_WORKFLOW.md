@@ -899,9 +899,13 @@ fabrik fix /opt/your-project
 
 Or manually copy:
 ```bash
-rm AGENTS.md .windsurfrules  # Remove symlinks
+rm -f AGENTS.md AGENTS-compact.md opencode.json .windsurfrules  # Remove old symlinks
+rm -rf .windsurf/rules .windsurf/workflows                      # Remove old symlinked dirs
+mkdir -p .windsurf
 cp /opt/fabrik/AGENTS.md ./AGENTS.md
+cp /opt/fabrik/AGENTS-compact.md ./AGENTS-compact.md
 cp /opt/fabrik/opencode.json ./opencode.json
+cp /opt/fabrik/.windsurfrules ./.windsurfrules
 cp -r /opt/fabrik/.windsurf/rules/ ./.windsurf/rules/
 cp -r /opt/fabrik/.windsurf/workflows/ ./.windsurf/workflows/
 ```

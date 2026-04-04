@@ -62,7 +62,7 @@ Apply when working on Chrome extension code. Skip for Python, Docker, and infras
 
 ## Ocoron Design System (Compact)
 
-- Chrome extension UI follows the Ocoron Design System (`ocoron-design-system.md`) with compact adaptations:
+- Chrome extension UI follows the Ocoron Design System (`docs/reference/ocoron-design-system.md`) with compact adaptations:
   - Tighter spacing: `--space-md: 12px`, `--space-sm: 6px`.
   - Font size floor: 11px. No text smaller than this on any surface.
   - 400px popup width constraint → single-column card layout.

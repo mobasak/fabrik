@@ -1,4 +1,9 @@
-"""Project scaffolding - create new projects with full structure."""
+"""Project scaffolding - create new projects with full structure.
+
+⚠️  When modifying this file, update these docs to match:
+  - docs/workflows/SCAFFOLD_STRUCTURE.md      (tree listing + file tables)
+  - docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md (detailed tree + file tables + examples)
+"""
 
 import os
 import re
@@ -92,7 +97,7 @@ SHARED_TEMPLATE_MAP = {
 }
 
 _PYTHON_API_TEMPLATE_MAP = {
-    # Droid exec / Docker workflow files (AGENTS.md handled separately as symlink)
+    # Droid exec / Docker workflow files (AGENTS.md copied separately in create_project)
     "docker/Dockerfile.python": "Dockerfile",
     "docker/compose.yaml.template": "compose.yaml",
     "docker/compose.dev.yaml.template": "compose.dev.yaml",
@@ -203,29 +208,6 @@ _DROID_DIR_GITIGNORE = (
 _TRAYCER_REPORTS_GITIGNORE = (
     "# Traycer report files — committed .gitignore, reports are gitignored\n*.md\n!.gitignore\n"
 )
-
-
-def _ensure_symlink(link_path: Path, target: Path) -> bool:
-    """
-    Ensure link_path is a symlink pointing to target.
-    Returns True if created/updated, False if already correct.
-    """
-    link_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # If it exists and is a symlink, verify target
-    if link_path.is_symlink():
-        resolved = Path(link_path.resolve())
-        target_resolved = Path(target.resolve())
-        if resolved == target_resolved:
-            return False
-        link_path.unlink()  # wrong target -> replace
-
-    # If it exists but is NOT a symlink, do not clobber silently
-    if link_path.exists():
-        raise FileExistsError(f"Expected symlink but found existing path: {link_path}")
-
-    link_path.symlink_to(target)
-    return True
 
 
 def _get_package_name(project_name: str) -> str:
