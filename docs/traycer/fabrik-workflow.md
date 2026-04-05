@@ -405,10 +405,10 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    - **Gate Tier**: 1 (lean, well-defined) or 2 (milestone closure, full gate)
    - **Execution Metadata**:
      - **Plan Required:** Yes / No
-     - **Kilo CLI — First Choice:**
-     - **Kilo CLI — Budget:**
-     - **Cascade — First Choice:**
-     - **Cascade — Budget:**
+     - **Kilo CLI — First Choice:** *(exact agent script name, e.g. `T4-Pro-00-opus46-code-auto-i1500-o7500.sh`)*
+     - **Kilo CLI — Budget:** *(exact agent script name or `—` if no budget fallback)*
+     - **Cascade — First Choice:** *(exact model name from cascade-models.md, e.g. `Claude Sonnet 4.6`)*
+     - **Cascade — Budget:** *(exact model name or `—` if no budget fallback)*
 
    > **Drafting rules:**
    > - Complete every field fully — no stubs, no placeholders, no empty acceptance criteria
@@ -449,18 +449,13 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    > - Wrong early decision requires significant rework to reverse
    > - First ticket in a new subsystem with no prior reference implementation
    > *(Large + well-scoped ≠ Plan Required. That needs a capable agent, not a plan phase.)*
-   > **Agent Selection — classify by the higher of:**
-   > - Scope: Single file = Simple · Multi-file = Complex · Cross-component = Critical
-   > - Risk: UI/docs = Low · Endpoints/schema = Medium · Auth/migration/architecture = High
-   > | Classification | Kilo First | Kilo Budget | Cascade First | Cascade Budget |
-   > |---|---|---|---|---|
-   > | Simple | Local free | — | Free promo (0cr) | — |
-   > | Complex | Cloud mid-tier | Local free (if capable) | Mid-tier (1–2cr) | Free promo (if capable) |
-   > | Critical | Premium | Cloud mid-tier | Premium (4–6cr+) | Mid-tier (if capable) |
-   > Ref: `scripts/kilo_47_agents_final.json`, `docs/reference/kilo/KILO_AGENT_NAMING.md`,
-   > `docs/reference/windsurf/cascade-models.md`
-   > Budget field: only fill if cheaper agent can handle it reliably.
-   > Only one local Ollama agent can run at a time (hardware constraint).
+   > **Agent Selection — exact names required:**
+   > - Classify by the higher of scope (single file → cross-component) and risk (docs → architecture)
+   > - Then select **exact agent names** from the reference files — generic bands (`Local free`, `Cloud mid-tier`, `Premium`) are **invalid**
+   > - **Kilo CLI:** Use the exact script filename from `~/.traycer/cli-agents/` (naming convention in `docs/reference/kilo/KILO_AGENT_NAMING.md`). Local agents: `Local_Coder_qwen32b.sh`, `Local_Fixer_ds16b.sh`, `Local_Documentator_llama3.1-8b.sh`, `Local_Review_llama70b.sh`
+   > - **Cascade:** Use the exact model name from `docs/reference/windsurf/cascade-models.md` (e.g. `Claude Sonnet 4.6`, `GPT-5.3-Codex (Medium Reasoning)`, `SWE-1.5`)
+   > - Budget field: only fill if a cheaper agent can handle it reliably; use `—` otherwise
+   > - Only one local Ollama agent can run at a time (hardware constraint)
 
 5. Present the proposed ticket breakdown to the user. Use a mermaid diagram to visualize ticket dependencies for quick reference.
 6. After presenting, offer refinement options:

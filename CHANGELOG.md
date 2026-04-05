@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Workflow docs sync and exact execution metadata enforcement (2026-04-05)
+- **`AGENTS.md`**: Enforcement Policy item 5 now states `AGENTS-compact.md` carries the completion contract and cross-cutting rules for Kilo CLI agents.
+- **`docs/traycer/fabrik-workflow.md`**: Execution Metadata template now requires exact Kilo agent script names and exact Cascade model names; generic bands (`Local free`, `Cloud mid-tier`, `Premium`) are invalid. Agent Selection authoring rules updated with reference file pointers and local agent list.
+
 ### Fixed — Preserve has_user_guide through registry sync pipeline (2026-04-05)
 - **`scripts/sync_projects.py`**: Added `has_user_guide` to `Project` dataclass, `_build_project()` copy loop, and `to_registry_dict()` so the field survives into `data/projects.yaml`.
 - **`src/fabrik/registry.py`**: Added `has_user_guide` to `Project`, `to_dict()`, and `from_dict()` so downstream registry consumers retain the flag.
