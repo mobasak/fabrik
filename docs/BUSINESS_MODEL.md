@@ -91,16 +91,17 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-05 00:04:55 -->
+<!-- Last synced: 2026-04-05 22:31:50 -->
 <!-- Total projects: 42 -->
 
-### Production Services (5 projects)
+### Production Services (6 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **captcha** | A REST API service for solving captchas. Other applications can call this service to solve reCA... | Python | ✅ Production | https://captcha.vps1.ocoron.com | ✅ Current |
 | **dns-manager** | Python SDK, CLI, and REST API for managing Namecheap domains, DNS, SSL, and more. | Python | ✅ Production | https://dns.vps1.ocoron.com | ✅ Current |
 | **file-api** | Presigned URL service for Cloudflare R2 file uploads/downloads. | Express | ✅ Production | https://files-api.vps1.ocoron.com | ✅ Current |
+| **proxy** | Service-isolated proxy management API with Webshare.io integration and per-service health track... | Python | ✅ Production | - | ✅ Current |
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
@@ -109,17 +110,17 @@ With ~$50/month infrastructure cost:
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | - | ✅ Current |
-| **candle** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
+| **candle** | FastAPI microservice project (in development). | FastAPI | 🔨 Development | - | ✅ Current |
 | **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, id... | Fastify | 🔨 Development | - | ✅ Current |
-| **full-wf-test** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
+| **full-wf-test** | End-to-end workflow test project for Fabrik pipeline validation. | FastAPI | 🔨 Development | - | ✅ Current |
 | **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C... | Python | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-coolify** | Coolify deployment readiness test | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-final** | **Last Updated:** 2026-03-23 | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-final-gate** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-project-2024** | A new project | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-final-gate** | Final gate validation test project for Fabrik quality pipeline. | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-project-2024** | Test project for Fabrik scaffold and deployment validation (2024). | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-project-2025** | Test project 2025 | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-session-check** | Session poisoning audit - verify no Fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
 | **test-zero-refs** | Complete workspace isolation verification - expect ZERO /opt/fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
@@ -127,28 +128,27 @@ With ~$50/month infrastructure cost:
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (19 projects)
+### Planning/Research (18 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
-| **ComplianceOps** | Async compliance service platform for HealthTech startups. | Unknown | 🔨 Development | - | ✅ Current |
-| **Reference_Creator** | Reference_Creator project | Unknown | 🔨 Development | - | ✅ Current |
-| **apidoccreator** | Automated API documentation reference creator from URLs using web crawling. | Unknown | 🔨 Development | - | ✅ Current |
-| **apps** | apps project | Unknown | 🔨 Development | - | ✅ Current |
-| **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | Unknown | 🔨 Development | - | ✅ Current |
+| **ComplianceOps** | Async compliance service platform for HealthTech startups. | Python | 🔨 Development | - | ✅ Current |
+| **Reference_Creator** | Automated reference document creator from source materials. | Python | 🔨 Development | - | ✅ Current |
+| **apidoccreator** | Automated API documentation reference creator from URLs using web crawling. | Python | 🔨 Development | - | ✅ Current |
+| **apps** | Multi-service application container for shared Fabrik utilities. | Python | 🔨 Development | - | ✅ Current |
+| **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | Python | 🔨 Development | - | ✅ Current |
 | **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | - | ✅ Current |
-| **exam-coach** | exam-coach project | Unknown | 🔨 Development | - | ✅ Current |
-| **file-worker** | file-worker project | Python | 🔨 Development | - | ✅ Current |
-| **gmailaccountcreator** | gmailaccountcreator project | Unknown | 🔨 Development | - | ✅ Current |
-| **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Unknown | 🔨 Development | - | ✅ Current |
+| **exam-coach** | AI-powered exam preparation and coaching assistant. | Python | 🔨 Development | - | ✅ Current |
+| **file-worker** | Background file processing worker for async file operations. | Python | 🔨 Development | - | ✅ Current |
+| **gmailaccountcreator** | Automated Gmail account creation and management tool. | Python | 🔨 Development | - | ✅ Current |
+| **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Python | 🔨 Development | - | ✅ Current |
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | - | ✅ Current |
 | **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interface... | Python | 🔨 Development | - | ✅ Current |
-| **marketing-argumant-generator** | marketing-argumant-generator project | Unknown | 🔨 Development | - | ✅ Current |
-| **namecheap** | namecheap project | Unknown | 🔨 Development | - | ✅ Current |
-| **proxy** | **Status:** Production Ready | Python | 🔨 Development | - | ✅ Current |
-| **supplement-tracker-advisor** | supplement-tracker-advisor project | Unknown | 🔨 Development | - | ✅ Current |
-| **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Unknown | 🔨 Development | - | ✅ Current |
-| **ugc** | User-generated content data scraping system for social media platforms. | Unknown | 🔨 Development | - | ✅ Current |
+| **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | - | ✅ Current |
+| **namecheap** | Namecheap domain management utilities (precursor to dns-manager). | Python | 🔨 Development | - | ✅ Current |
+| **supplement-tracker-advisor** | Health supplement tracking and personalized advisory system. | Python | 🔨 Development | - | ✅ Current |
+| **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |
+| **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

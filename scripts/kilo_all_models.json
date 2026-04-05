@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-04-04T15:11:33.692068",
-  "total_models": 330,
+  "timestamp": "2026-04-05T11:59:07.484871",
+  "total_models": 329,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -99,11 +99,6 @@
     },
     "anthropic/claude-3.5-haiku": {
       "id": "anthropic/claude-3.5-haiku",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "anthropic/claude-3.5-sonnet": {
-      "id": "anthropic/claude-3.5-sonnet",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

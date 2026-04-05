@@ -411,6 +411,7 @@ docs/
 | [check_user_guide.py](scripts/enforcement/check_user_guide.py) | Tier 2: Verify docs/user-guide/ when has_user_guide: true [reusable] |
 | [check_reusable_modules.py](scripts/enforcement/check_reusable_modules.py) | Tier 2 advisory: Check [reusable] tags in INDEX.md [reusable] |
 | [test_cross_cutting_enforcement.py](tests/test_cross_cutting_enforcement.py) | 31 tests for cross-cutting enforcement scripts |
+| [test_backfill_has_user_guide.py](tests/test_backfill_has_user_guide.py) | 9 tests for has_user_guide backfill in fix_project() |
 
 ### Traycer Documentation
 

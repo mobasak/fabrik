@@ -146,8 +146,15 @@ def _build_project(path: Path) -> Project:
         except Exception:
             pass  # Malformed YAML — use auto-detected
 
-    # Auto-categorize if project.yaml didn't set it
-    if not project_yaml.exists():
+    # Auto-categorize if project.yaml didn't explicitly set category
+    has_explicit_category = False
+    if project_yaml.exists():
+        try:
+            pdata = yaml.safe_load(project_yaml.read_text(encoding="utf-8")) or {}
+            has_explicit_category = "category" in pdata
+        except Exception:
+            pass
+    if not has_explicit_category:
         project.category = _auto_categorize(path, project.status)
 
     # Status emoji for display
@@ -226,6 +233,32 @@ def _detect_stack(path: Path) -> str:
     elif (path / "wp-config.php").exists():
         stack_parts.insert(0, "WordPress")
 
+    if not stack_parts:
+        # Fallback: derive stack from project.yaml type field
+        project_yaml = path / "project.yaml"
+        if project_yaml.exists():
+            try:
+                pdata = yaml.safe_load(project_yaml.read_text()) or {}
+                ptype = pdata.get("type", "")
+                type_to_stack = {
+                    "python-api": "FastAPI",
+                    "automation": "Python",
+                    "file-worker": "Python",
+                    "node-api": "Node.js",
+                    "file-api": "Node.js",
+                    "saas-skeleton": "Next.js",
+                    "chrome-extension": "Chrome MV3",
+                    "mobile-app": "React Native",
+                    "desktop-app": "Electron",
+                    "static-site": "Next.js",
+                    "wordpress": "WordPress",
+                    "docusaurus": "Docusaurus",
+                }
+                if ptype in type_to_stack:
+                    stack_parts.insert(0, type_to_stack[ptype])
+            except Exception:
+                pass
+
     return " + ".join(stack_parts) if stack_parts else "Unknown"
 
 
@@ -248,7 +281,21 @@ def _auto_categorize(path: Path, status: str) -> str:
     if status in ("production", "✅ Production"):
         return "production"
     has_compose = (path / "compose.yaml").exists()
+    # Check for code in standard and non-standard locations
     has_code = (path / "src").exists() or (path / "app").exists()
+    if not has_code:
+        # Check for root .py files or requirements.txt as code indicators
+        has_code = (path / "requirements.txt").exists() or (path / "pyproject.toml").exists()
+    if not has_code:
+        # Check for non-standard code dirs (api/, cli/, worker/, etc.)
+        _skip = {"tests", "scripts", "docs", "db", "data", "logs", "config",
+                 "output", "node_modules", "venv", ".venv", "dist", "build",
+                 "migrations", "alembic", "cache", "chrome_profiles", "cookies"}
+        for item in path.iterdir():
+            if item.is_dir() and item.name not in _skip and not item.name.startswith("."):
+                if any(f.suffix == ".py" for f in item.rglob("*.py") if "__pycache__" not in str(f)):
+                    has_code = True
+                    break
     if has_compose and has_code:
         return "active"
     if (path / "README.md").exists() or (path / "docs").exists():

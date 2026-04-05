@@ -7,11 +7,24 @@ set -e
 EXTENSIONS_FILE="docs/reference/windsurf/actively-used-windsurf-extensions.md"
 TIMESTAMP=$(date +"%Y-%m-%d %H:%M")
 
-# Get extensions list (with 10s timeout to avoid hanging)
-EXTENSIONS=$(timeout 10 windsurf --list-extensions 2>/dev/null || true)
+# Get extensions list with retry (IDE may not be ready at WSL boot)
+MAX_RETRIES=3
+RETRY_DELAY=30
+EXTENSIONS=""
+
+for attempt in $(seq 1 $MAX_RETRIES); do
+    EXTENSIONS=$(timeout 15 windsurf --list-extensions 2>/dev/null || true)
+    if [ -n "$EXTENSIONS" ]; then
+        break
+    fi
+    if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+        echo "Attempt $attempt/$MAX_RETRIES: Windsurf CLI not ready, retrying in ${RETRY_DELAY}s..."
+        sleep "$RETRY_DELAY"
+    fi
+done
 
 if [ -z "$EXTENSIONS" ]; then
-    echo "Warning: Could not get extensions list (windsurf CLI not available or timeout)"
+    echo "Warning: Could not get extensions list after $MAX_RETRIES attempts (windsurf CLI not available)"
     exit 0
 fi
 

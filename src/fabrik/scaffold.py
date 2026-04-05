@@ -58,6 +58,11 @@ SCAFFOLD_TYPES = frozenset(
 
 WORDPRESS_PRESETS = frozenset({"saas", "company", "content", "landing", "ecommerce"})
 
+# Scaffold types that produce user-facing documentation (activates user-guide gate)
+GUIDE_ENABLED_TYPES = frozenset(
+    {"saas-skeleton", "chrome-extension", "mobile-app", "desktop-app", "static-site"}
+)
+
 # Types whose type-specific missing files cannot be safely reconstructed
 # by fix_project (they require the full scaffolder to be run correctly).
 UNSUPPORTED_FIX_TYPES = frozenset(
@@ -2072,8 +2077,7 @@ def create_project(
             # Replace the Python-range port that was initially assigned
             content = re.sub(r"- \d{4,5}", f"- {node_port}", content, count=1)
         # Set has_user_guide: true for guide-enabled scaffold types
-        guide_enabled_types = {"saas-skeleton", "chrome-extension", "mobile-app", "desktop-app", "static-site"}
-        if project_type in guide_enabled_types:
+        if project_type in GUIDE_ENABLED_TYPES:
             content = content.replace("has_user_guide: false", "has_user_guide: true")
         project_yaml_path.write_text(content)
 
@@ -2374,5 +2378,25 @@ def fix_project(
             updated_content = _patch_droid_block(current_content, _DROID_GITIGNORE_BLOCK)
             if updated_content != current_content:
                 added.append(".gitignore (.droid/ block updated)")
+
+    # Backfill has_user_guide metadata if missing from project.yaml
+    project_yaml_path = project_path / "project.yaml"
+    if project_yaml_path.exists():
+        project_data = yaml.safe_load(project_yaml_path.read_text()) or {}
+        if "has_user_guide" not in project_data:
+            proj_type = project_data.get("type", "python-api")
+            derived_value = proj_type in GUIDE_ENABLED_TYPES
+            if dry_run:
+                added.append(
+                    f"project.yaml (backfill has_user_guide: {str(derived_value).lower()})"
+                )
+            else:
+                project_data["has_user_guide"] = derived_value
+                project_yaml_path.write_text(
+                    yaml.dump(project_data, default_flow_style=False, sort_keys=False)
+                )
+                added.append(
+                    f"project.yaml (backfilled has_user_guide: {str(derived_value).lower()})"
+                )
 
     return added

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Backfill has_user_guide metadata for existing projects via fabrik fix (2026-04-05)
+- **`src/fabrik/scaffold.py`**: Extracted `GUIDE_ENABLED_TYPES` as module-level constant (shared by `create_project()` and `fix_project()`). `fix_project()` now backfills `has_user_guide` in `project.yaml` when the key is missing, deriving the value from `type` using the same mapping as scaffold create. Existing explicit values are preserved.
+- **`tests/test_backfill_has_user_guide.py`**: 9 regression tests covering missing-key backfill (guide-enabled → true, non-guide → false, missing type defaults), explicit-key preservation, dry-run reporting, and all type mappings.
+- **`INDEX.md`**: Added test file entry.
+
 ### Changed — Workflow docs sync and exact execution metadata enforcement (2026-04-05)
 - **`AGENTS.md`**: Enforcement Policy item 5 now states `AGENTS-compact.md` carries the completion contract and cross-cutting rules for Kilo CLI agents.
 - **`docs/traycer/fabrik-workflow.md`**: Execution Metadata template now requires exact Kilo agent script names and exact Cascade model names; generic bands (`Local free`, `Cloud mid-tier`, `Premium`) are invalid. Agent Selection authoring rules updated with reference file pointers and local agent list.
