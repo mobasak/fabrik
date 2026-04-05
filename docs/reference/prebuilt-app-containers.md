@@ -4,7 +4,7 @@ How Fabrik selects and uses prebuilt container images for self-hosted services.
 
 ## Architecture Notice
 
-> **⚠️ VPS1 is ARM64 (aarch64)** — All container images MUST support `linux/arm64`.
+> **⚠️ VPS1 is x86_64 (amd64)** — All container images MUST support `linux/amd64`.
 > Most LinuxServer.io images support multi-arch. Always verify before deploying.
 
 ---
@@ -21,7 +21,7 @@ cd /opt/fabrik && source .venv/bin/activate
 # Search for images
 python scripts/container_images.py search nginx
 
-# Check arm64 support (critical for VPS1)
+# Check amd64 support (critical for VPS1)
 python scripts/container_images.py check-arch nginx:alpine
 
 # Get image recommendations by category
@@ -41,7 +41,7 @@ python scripts/container_images.py pull nginx:alpine
 ### Workflow: Adding a New Service
 
 1. **Search** for the image: `container_images.py search <name>`
-2. **Check arm64** support: `container_images.py check-arch <image:tag>`
+2. **Check amd64** support: `container_images.py check-arch <image:tag>`
 3. **Review tags** for production version: `container_images.py tags <image>`
 4. **Pull to WSL** for local testing: `container_images.py pull <image:tag>`
 5. **Deploy via Coolify** with pinned version tag
@@ -171,7 +171,7 @@ python scripts/container_images.py trueforge tags home-assistant
 # Get image info with architecture check
 python scripts/container_images.py trueforge info home-assistant
 
-# Check ARM64 support
+# Check amd64 support
 python scripts/container_images.py check-arch oci.trueforge.org/tccr/home-assistant
 ```
 
@@ -206,8 +206,8 @@ docker pull oci.trueforge.org/tccr/home-assistant:latest
 |----------|------------------------|------------------------|----------------|----------------|
 | **Docker Hub** | Set `image: repo:tag` (or digest). If private, add registry credentials in Coolify. | Fastest path for common building blocks; widest availability. | You need standard infrastructure images (nginx, redis, postgres) or an app image primarily distributed on Docker Hub. | Use, but **pin versions** (`:1.2.3`) or **digest** for production; avoid floating `latest`. |
 | **GHCR** | Use `image: ghcr.io/org/image:tag`. For private images, add GitHub token (PAT) in Coolify registry credentials. | Best when your code and CI are on GitHub; easiest "build in GitHub Actions → deploy from GHCR". | You build/own services or rely on OSS projects publishing releases to GHCR. | Preferred for **your own images** if repo is on GitHub; tag releases (`vX.Y.Z`) and optionally pin digests. |
-| **LinuxServer.io** | Use `image: lscr.io/linuxserver/<app>:tag`; set required env/volumes (PUID/PGID/TZ etc.), map persistent volumes. | Quick deploy of off-the-shelf apps with consistent configuration patterns and good docs. | You want to add a utility/service quickly without maintaining Dockerfiles. | Use only images that match VPS architecture (**arm64**). Prefer explicit tags over `latest`. |
-| **TrueForge** | Use `image: oci.trueforge.org/tccr/<app>:tag`. List images via `container_images.py trueforge list`. | Supply-chain security with attestations, SBOM, verifiable provenance. | Client requires compliance, enterprise audits, or regulated industry deployment. | Use for security-critical deployments. Verify arm64 support per image. |
+| **LinuxServer.io** | Use `image: lscr.io/linuxserver/<app>:tag`; set required env/volumes (PUID/PGID/TZ etc.), map persistent volumes. | Quick deploy of off-the-shelf apps with consistent configuration patterns and good docs. | You want to add a utility/service quickly without maintaining Dockerfiles. | Use only images that match VPS architecture (**amd64**). Prefer explicit tags over `latest`. |
+| **TrueForge** | Use `image: oci.trueforge.org/tccr/<app>:tag`. List images via `container_images.py trueforge list`. | Supply-chain security with attestations, SBOM, verifiable provenance. | Client requires compliance, enterprise audits, or regulated industry deployment. | Use for security-critical deployments. Verify amd64 support per image. |
 | **hotio.dev** | Use `image: hotio/<app>:tag` per hotio docs; configure env/volumes. | Alternative curated publisher; sometimes better-maintained for specific apps. | The specific app works better / is maintained better in hotio than elsewhere. | Don't mix LinuxServer and hotio arbitrarily—pick per app based on maintenance + arch support. |
 | **JFrog** | Add JFrog registry to Coolify (URL + credentials). Deploy using `image: <registry>/<repo>/<image>:tag`. Optionally mirror upstream images. | Governance: one controlled source, access control, promotion (dev→staging→prod), less dependency on public pulls. | You have multiple environments, multiple servers, need controlled rollout, or want to mirror upstream images. | Not needed for single VPS. Consider when introducing staging/multi-server. |
 
@@ -220,7 +220,7 @@ docker pull oci.trueforge.org/tccr/home-assistant:latest
 ### Policy Rules
 
 1. **Fabrik custom services**: Build in CI → push to **GHCR** → Coolify pulls `ghcr.io/...:vX.Y.Z`
-2. **3rd-party services**: Pull from Docker Hub / LinuxServer / hotio, but **pin versions** (or digest) and ensure **arm64 compatibility**
+2. **3rd-party services**: Pull from Docker Hub / LinuxServer / hotio, but **pin versions** (or digest) and ensure **amd64 compatibility**
 3. **When adding staging or multi-server**: Introduce a registry layer (JFrog) and optionally mirror upstream images
 
 ### Version Pinning Examples
@@ -238,14 +238,14 @@ image: lscr.io/linuxserver/duplicati@sha256:abc123...
 
 ### Architecture Verification
 
-Before deploying any new image, verify arm64 support:
+Before deploying any new image, verify amd64 support:
 
 ```bash
-# Check if image supports arm64
-docker manifest inspect <image:tag> | grep -i arm64
+# Check if image supports amd64
+docker manifest inspect <image:tag> | grep -i amd64
 
 # Or pull and check
-docker pull --platform linux/arm64 <image:tag>
+docker pull --platform linux/amd64 <image:tag>
 ```
 
 ---
@@ -349,7 +349,7 @@ services:
 
 Before deploying any prebuilt container:
 
-- [ ] **Architecture:** Supports `linux/arm64` (VPS is ARM-based)
+- [ ] **Architecture:** Supports `linux/amd64` (VPS is x86_64-based)
 - [ ] **Maintenance:** Updated within last 3 months
 - [ ] **Docs:** Clear volume/env configuration documented
 - [ ] **Coolify:** Can deploy via Docker Compose
@@ -513,7 +513,7 @@ All images use format: `lscr.io/linuxserver/<name>:latest`
 
 | Image | Use Case for Fabrik |
 |-------|---------------------|
-| `duplicati` | Backup to cloud (B2, S3, etc.) ✅ IN USE |
+| `duplicati` | Backup to cloud (B2, S3, etc.) |
 | `rsnapshot` | Filesystem snapshots |
 
 ### Monitoring & Analytics
@@ -637,9 +637,9 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 
 ### Legend
 
-- ✅ = ARM64 verified, ready to deploy
-- ⚠️ = Needs verification on VPS
-- 🎯 = High impact for Fabrik
+- = x86_64 compatible, ready to deploy
+- = Needs verification on VPS
+- = High impact for Fabrik
 
 ---
 
@@ -647,7 +647,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 
 ### Immediate Deploy (This Week)
 
-| Image | ARM64 | Replaces | Accelerates |
+| Image | amd64 | Replaces | Accelerates |
 |-------|-------|----------|-------------|
 | `caronc/apprise` ✅ | ✅ | Custom notification code | **All projects** - unified notifications to email, Slack, Telegram, Discord, SMS via single API |
 | `dpage/pgadmin4` ✅ | ✅ | CLI-only DB management | **Ops** - visual database management for all PostgreSQL instances |
@@ -656,7 +656,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 
 ### Near-Term (This Month)
 
-| Image | ARM64 | Replaces | Accelerates |
+| Image | amd64 | Replaces | Accelerates |
 |-------|-------|----------|-------------|
 | `getmeili/meilisearch` ✅ | ✅ | PostgreSQL full-text search | **youtube, trade-intelligence** - fast fuzzy search |
 | `browserless/chrome` ✅ | ✅ | Local Playwright/Selenium | **youtube, llm_batch_processor** - headless browser as service |
