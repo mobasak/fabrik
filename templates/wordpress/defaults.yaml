@@ -38,8 +38,7 @@ plugins:
     - flyingpress             # Performance/caching
     - wp-mail-smtp            # Email delivery
     - complianz-gdpr          # Cookie consent / GDPR
-    - updraftplus             # Backups (supplement to container backup)
-    - wordfence               # Security
+    - wordfence               # Security (MANDATORY — brute-force, firewall, malware scan)
 
   # Form handling (one of)
   forms:
@@ -48,7 +47,7 @@ plugins:
 
   # Multilingual (if languages.additional not empty)
   multilingual:
-    default: sitepress-multilingual-cms  # WPML
+    default: polylang
     alternatives: [polylang, translatepress]
 
   # Premium plugins (pre-placed ZIPs)

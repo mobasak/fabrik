@@ -1112,7 +1112,7 @@ class Config:
 | Node.js apps | `node:<current-LTS>-bookworm-slim` |
 | General | `debian:bookworm-slim` |
 
-**Never use Alpine** — glibc compatibility, ARM64 support, pre-built wheels.
+**Never use Alpine** — glibc compatibility, pre-built wheels, consistent behavior.
 
 ### Forbidden Patterns
 

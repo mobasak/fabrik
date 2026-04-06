@@ -1,8 +1,61 @@
 # Technology Stack Decision Guide
 
+> **Source of truth for Fabrik defaults:** `AGENTS.md` § Tech Stack Defaults.
+> This guide is a **general-purpose reference** for choosing stacks across any product type.
+> When building Fabrik projects, the overrides below take precedence over generic recommendations.
+
+---
+
+## Fabrik Stack Overrides
+
+The generic flowchart below recommends industry-standard defaults. For all `/opt/*` Fabrik projects, these **Fabrik-specific choices** apply instead:
+
+### Where Fabrik Differs from Generic Recommendations
+
+| Category | Generic Guide Recommends | Fabrik Uses Instead | Why |
+|----------|--------------------------|---------------------|-----|
+| **Backend API** | TypeScript + Node.js | **Python + FastAPI + Uvicorn** | Best AI library access, owner's primary language, strong typing via Pydantic |
+| **Frontend** | TypeScript + Next.js + Node.js monorepo | **Next.js 14 + TypeScript + Tailwind** (frontend only, backend is separate Python) | Frontend matches, but backend is Python — not a JS monorepo |
+| **CLI tooling** | Go (single binary) | **Python** (`src/fabrik/cli.py`) | Shares codebase with backend, direct access to Fabrik's Python modules |
+| **Background workers** | Node.js (web-adjacent) | **PostgreSQL jobs table + Python worker** | No Redis dependency by default; Redis only for high-throughput cases |
+| **Database** | (not specified) | **PostgreSQL 16** (VPS, Coolify-managed) or Supabase (managed auth/realtime/pgvector) | Single shared PostgreSQL instance for all services |
+| **AI/LLM** | Python + managed APIs | **Kilo CLI free tiers → OpenAI/Anthropic APIs → Local Ollama** | Budget-first: free before paid, local before cloud |
+
+### Fabrik Deployment Constraints (Not in Generic Guide)
+
+These constraints are **mandatory** for all Fabrik projects. The generic flowchart does not cover them.
+
+| Constraint | Rule | Enforced By |
+|------------|------|-------------|
+| **Base images** | `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`. **Never Alpine.** | `.windsurfrules`, `30-ops.md`, `AGENTS-compact.md` |
+| **amd64** | All Docker images must support `linux/amd64`. VPS is x86_64 (AMD EPYC-Genoa). | `.windsurfrules`, `30-ops.md`, `check_docker.py` |
+| **Deployment** | Docker Compose via **Coolify** on VPS. Not Vercel, Railway, or K8s. | `30-ops.md`, `AGENTS.md` |
+| **Port ranges** | Python services: **8000–8099**. Frontend/Node.js: **3000–3099**. Register in `PORTS.md`. | `.windsurfrules`, `10-python.md`, `20-typescript.md` |
+| **No hardcoded config** | Never hardcode `localhost`, DB strings, API keys. Use `os.getenv()` / `process.env`. | `.windsurfrules`, `10-python.md`, `20-typescript.md` |
+| **Health endpoints** | Must test real dependencies (`SELECT 1`), not just return 200. | `.windsurfrules`, `10-python.md` |
+| **Networking** | Coolify network (`coolify: external: true`). VPS internal: `http://service-name:PORT`. | `30-ops.md` |
+| **Existing services first** | Before building, check if a Fabrik microservice or prebuilt container already solves the need. | `AGENTS.md` § Mandatory Pre-Flight |
+| **Solo developer scope** | All architecture must be operable by one person (~50 hrs/week). No K8s, no polyglot backends. | `AGENTS.md` § Planning Constraints |
+
+### Fabrik Infrastructure (Already Deployed)
+
+| Service | Purpose | When to Use |
+|---------|---------|-------------|
+| PostgreSQL | Shared database | Default for all projects |
+| Redis | Shared cache/queue | Only when PostgreSQL jobs table is insufficient |
+| Gotenberg | PDF generation | `pdf.vps1.ocoron.com` — use instead of WeasyPrint for complex PDFs |
+| MeiliSearch | Full-text search | `search.vps1.ocoron.com` — use instead of PostgreSQL FTS for faceted/typo-tolerant search |
+| MinIO | S3-compatible object storage | `s3.vps1.ocoron.com` — use for file uploads, media |
+| Apprise | Multi-channel notifications | `notify.vps1.ocoron.com` — use instead of direct API calls |
+| Browserless | Headless Chrome | `browser.vps1.ocoron.com` — use for scraping, screenshots |
+| n8n | Workflow automation | `auto.vps1.ocoron.com` — use for no-code integrations |
+
+---
+
 ## Quick Decision Flowchart
 
 Use this flowchart to quickly navigate to the right stack choice. Answer the questions in order.
+**Note:** For Fabrik projects, check the overrides above first — several generic defaults differ.
 
 ---
 
@@ -347,16 +400,17 @@ What specialized platform?
 
 ### Quick Reference: Solo Operator Recommendations
 
-For your profile (AI-assisted coding, limited Python, API-first, automation focus):
+For your profile (AI-assisted coding, solo operator, API-first, automation focus):
 
-| If Building... | Use This | Why |
-|----------------|----------|-----|
-| SaaS / Web App | TypeScript + Next.js + Node.js | Agents generate TS/React reliably |
-| Mobile (both platforms) | React Native + TypeScript | One codebase, broad ecosystem |
-| CLI Tool | Go | Single binary, no runtime deps |
-| Background Workers | Node.js | Consistent with main stack |
-| AI Features | Python backend + TS frontend | Best AI library access |
-| Desktop App | Electron + TypeScript | Same skills as web |
+| If Building... | Generic Default | Fabrik Uses | Why Fabrik Differs |
+|----------------|-----------------|-------------|--------------------|
+| SaaS / Web App | TypeScript + Next.js + Node.js | **Next.js + TS frontend, Python + FastAPI backend** | Backend is Python for AI library access + Pydantic typing |
+| Backend API | TypeScript + Node.js | **Python + FastAPI + Uvicorn** | Owner's primary stack, best ML/AI ecosystem |
+| Mobile (both platforms) | React Native + TypeScript | React Native + TypeScript | ✅ Same — no override |
+| CLI Tool | Go | **Python** (`src/fabrik/cli.py`) | Shares modules with backend, no separate binary needed |
+| Background Workers | Node.js | **PostgreSQL jobs table + Python worker** | No Redis dependency by default |
+| AI Features | Python backend + TS frontend | **Kilo CLI free → OpenAI/Anthropic → Local Ollama** | Budget-first: free before paid |
+| Desktop App | Electron + TypeScript | Electron + TypeScript | ✅ Same — no override |
 
 **Avoid (team-scale only):**
 - Kubernetes / microservices architecture
@@ -444,16 +498,21 @@ The table below contains all original information without any summarization or s
 | **No "solo operator" vs "team" distinction** | Some stacks (microservices, K8s) are team-scale only. Table doesn't flag this. |
 | **No maintenance burden indicator** | Some stacks require ongoing attention (K8s, self-hosted ML), others are "set and forget" (serverless, managed services). |
 
-### For Fabrik PaaS Specifically
+### For Fabrik Specifically (Actual Implementation)
 
-Given you're building a **PaaS with AI Spec Pipeline**, the most relevant rows are:
+Fabrik is a **deployment orchestration platform** with AI-powered agent management. The actual stack:
 
-1. **Web app / SaaS** — Your control plane UI
-2. **Backend API** — Your deployment orchestration layer
-3. **CLI tool** — Developer-facing interface (Go makes sense here)
-4. **Serverless / Cloud microservices** — What you're abstracting for users
+| Layer | Technology | Location |
+|-------|-----------|----------|
+| CLI & orchestrator | **Python** (Click CLI + FastAPI) | `src/fabrik/cli.py`, `src/fabrik/` |
+| Backend APIs | **Python + FastAPI + Uvicorn** | Per-project `src/main.py` |
+| Frontend (SaaS UIs) | **Next.js 14 + TypeScript + Tailwind** | Per-project `app/` |
+| Infrastructure | **Docker Compose via Coolify** on x86_64 VPS | `compose.yaml` per project |
+| Database | **PostgreSQL 16** (shared) | Coolify-managed `postgres-main` |
+| AI agent selection | **Kilo CLI + Gemini 3.1 Pro** (~$0.19/day) | `scripts/kilo-benchmarks/role_mapper.py` |
+| Monitoring | **Netdata** (active) + Grafana/Prometheus/Loki (config ready) | VPS services |
 
-The table validates your likely stack: **TypeScript monorepo (Next.js + Node API)** for the platform, with **Go for any CLI tooling** you expose.
+This differs from the generic guide's recommendation of "TypeScript monorepo + Go CLI" because Fabrik's backend logic (scaffold, sync, audit, orchestration) is Python-native and shares modules with the CLI.
 
 ---
 

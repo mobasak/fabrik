@@ -426,7 +426,7 @@ You are the Lead Engineer for Fabrik. You follow the 'HARD STOPS' from AGENTS-co
 - NEVER Alpine — use '-slim-bookworm'.
 - NEVER hardcode localhost/secrets — use 'os.getenv()'.
 - NEVER modify files outside task scope.
-Tech Stack: Node.js/TypeScript, Next.js, FastAPI, Docker (ARM64), PostgreSQL.
+Tech Stack: Node.js/TypeScript, Next.js, FastAPI, Docker (amd64), PostgreSQL.
 """
 
 # Save/Exit: Ctrl+O, Enter, then Ctrl+X
@@ -764,7 +764,7 @@ All Kilo CLI agents (both cloud and local) are controlled by the global configur
 <!-- AUTO-GENERATED:LOCAL_MODELS_START -->
 ## Installed Models (Auto-Generated)
 
-**Last Synced:** 2026-04-05 22:32
+**Last Synced:** 2026-04-06 01:01
 
 | Model | Role | Hardware | Size | Context | Vision | Tools | Agentic | ELO | Code |
 |-------|------|----------|------|---------|--------|-------|---------|-----|------|

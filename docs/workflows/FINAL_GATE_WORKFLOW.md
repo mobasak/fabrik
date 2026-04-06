@@ -214,7 +214,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Phase 3: Repo Consistency (13 checks)**
 - **Docker** - `check_docker.py`
-  - Validates ARM64 compatibility, No-Alpine base images, HEALTHCHECK presence
+  - Validates amd64 compatibility, No-Alpine base images, HEALTHCHECK presence
 - **Port Registration** - `check_ports.py`
   - Ensures PORTS.md is updated with port allocations
 - **.env Contract Sync** - `check_env_contract.py`
@@ -340,7 +340,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_test_coverage.py` — Ensures new code has tests
 - `check_env_example.py` — Validates .env.example completeness
 - `check_compose_services.py` — Documents Docker services
-- `check_docker.py` — Enforces ARM64, no-Alpine, HEALTHCHECK
+- `check_docker.py` — Enforces amd64, no-Alpine, HEALTHCHECK
 - `check_secrets.py` — Scans for hardcoded secrets
 - `check_env_contract.py` — Validates env var contracts
 - `check_ports.py` — Checks PORTS.md registration
@@ -604,17 +604,17 @@ entire API becomes unresponsive. This test verifies graceful degradation.
 
 #### check_docker.py
 
-**Purpose:** Enforces Docker conventions for ARM64 compatibility and security.
+**Purpose:** Enforces Docker conventions for amd64 compatibility and security.
 
 **Validates:**
 - **No Alpine images**: Blocks `FROM alpine` and variants (use `-slim-bookworm` instead)
-- **ARM64 platform**: Custom builds must specify `platform: linux/arm64`
+- **amd64 platform**: Custom builds must specify `platform: linux/amd64`
 - **HEALTHCHECK**: All Dockerfiles must include health check
 - **Approved base images**: Python 3.12/3.13-slim-bookworm, Node 22-bookworm-slim, debian:bookworm-slim, ubuntu:24.04
 - **Port consistency**: EXPOSE ports match compose.yaml mappings
 
 **Why this matters:**
-- ARM64 is required for VPS deployment (aarch64)
+- amd64 is required for VPS deployment (x86_64)
 - Alpine images have glibc compatibility issues
 - Health checks enable proper container monitoring
 

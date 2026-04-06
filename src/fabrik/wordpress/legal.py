@@ -8,15 +8,9 @@ Handles:
 - GDPR compliance pages
 """
 
-import os
 from dataclasses import dataclass
 
-try:
-    import anthropic
-
-    HAS_ANTHROPIC = True
-except ImportError:
-    HAS_ANTHROPIC = False
+from fabrik.ai import LLMClient, LLMProvider
 
 
 @dataclass
@@ -47,23 +41,15 @@ class LegalContentGenerator:
 
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
-    def __init__(self, api_key: str | None = None, model: str | None = None):
+    def __init__(self, model: str | None = None):
         """
         Initialize legal content generator.
 
         Args:
-            api_key: Anthropic API key
             model: Model to use
         """
-        if not HAS_ANTHROPIC:
-            raise ImportError("anthropic package required: pip install anthropic")
-
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY not set")
-
         self.model = model or self.DEFAULT_MODEL
-        self.client = anthropic.Anthropic(api_key=self.api_key)
+        self.client = LLMClient(provider=LLMProvider.CLAUDE, model=self.model)
 
     def generate_privacy_policy(
         self,
@@ -113,14 +99,12 @@ class LegalContentGenerator:
 
 Output clean HTML only, no markdown or code blocks."""
 
-        response = self.client.messages.create(
-            model=self.model, max_tokens=4000, messages=[{"role": "user", "content": prompt}]
-        )
+        response = self.client.generate(prompt, project="wordpress")
 
         return LegalPage(
             title="Privacy Policy",
             slug="privacy-policy",
-            html=response.content[0].text,
+            html=response.content,
         )
 
     def generate_terms_of_service(
@@ -167,14 +151,12 @@ Output clean HTML only, no markdown or code blocks."""
 
 Output clean HTML only, no markdown or code blocks."""
 
-        response = self.client.messages.create(
-            model=self.model, max_tokens=3000, messages=[{"role": "user", "content": prompt}]
-        )
+        response = self.client.generate(prompt, project="wordpress")
 
         return LegalPage(
             title="Terms of Service",
             slug="terms-of-service",
-            html=response.content[0].text,
+            html=response.content,
         )
 
     def generate_cookie_policy(
@@ -214,14 +196,12 @@ Output clean HTML only, no markdown or code blocks."""
 
 Output clean HTML only."""
 
-        response = self.client.messages.create(
-            model=self.model, max_tokens=2000, messages=[{"role": "user", "content": prompt}]
-        )
+        response = self.client.generate(prompt, project="wordpress")
 
         return LegalPage(
             title="Cookie Policy",
             slug="cookie-policy",
-            html=response.content[0].text,
+            html=response.content,
         )
 
     def generate_all(
@@ -308,7 +288,6 @@ def generate_legal_pages(
     contact: dict,
     language: str = "en",
     use_ai: bool = True,
-    api_key: str | None = None,
 ) -> dict[str, LegalPage]:
     """
     Convenience function to generate all legal pages.
@@ -318,14 +297,13 @@ def generate_legal_pages(
         contact: Contact information
         language: Output language
         use_ai: Whether to use AI generation
-        api_key: Optional API key
 
     Returns:
         Dict mapping slug to LegalPage
     """
-    if use_ai and HAS_ANTHROPIC:
+    if use_ai:
         try:
-            generator = LegalContentGenerator(api_key=api_key)
+            generator = LegalContentGenerator()
             return generator.generate_all(brand, contact, language)
         except Exception:
             pass

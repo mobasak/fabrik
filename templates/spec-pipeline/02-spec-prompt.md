@@ -53,9 +53,9 @@ Generate a complete specification with these sections:
 | Backend | Python + FastAPI + Uvicorn | [Confirm or override] | [Why] |
 | Database | PostgreSQL 16 (Coolify-managed) | [Confirm or override] | [Why] |
 | Auth | [Supabase Auth / Custom JWT] | [Choose] | [Why] |
-| Base images | `python:3.12-slim-bookworm` / `node:22-bookworm-slim` | **No Alpine** | ARM64 stability |
-| Platform | `linux/arm64` | **Mandatory** | Ubuntu ARM VPS |
-| Hosting | Coolify on ARM64 VPS | [Confirm] | [Why] |
+| Base images | `python:3.12-slim-bookworm` / `node:22-bookworm-slim` | **No Alpine** | amd64 stability |
+| Platform | `linux/amd64` | **Mandatory** | Ubuntu x86_64 VPS |
+| Hosting | Coolify on x86_64 VPS | [Confirm] | [Why] |
 | Domains | `*.vps1.ocoron.com` | [Subdomain choice] | [Why] |
 
 **Time Horizon:** [X days to MVP]

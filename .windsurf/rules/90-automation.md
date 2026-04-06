@@ -20,7 +20,7 @@ When triggered, apply the corresponding rules from `.windsurf/rules/` and enforc
 |----------------------------------|---------------------|-----------------------|-------------------------------------------------------|
 | "new project", "create service" | —                   | —                     | Run `fabrik scaffold <name> --type <type>`           |
 | "SaaS", "web app", "dashboard"  | `20-typescript.md`  | —                     | Run `fabrik scaffold <name> --type saas-skeleton`    |
-| "dockerfile", "compose", "deploy" | `30-ops.md`       | `check_docker.py`     | Follow ARM64 + bookworm-slim + HEALTHCHECK patterns  |
+| "dockerfile", "compose", "deploy" | `30-ops.md`       | `check_docker.py`     | Follow amd64 + bookworm-slim + HEALTHCHECK patterns  |
 | "health", "healthcheck"        | `.windsurfrules`, `10-python.md` | `check_health.py` | Health endpoints MUST test actual dependencies       |
 | "config", "environment"        | `.windsurfrules`, `10-python.md` | `check_env_contract.py` | No hardcoded values, function-level loading   |
 | "endpoint", "route", "API"     | `15-api-contracts.md` + language pack | `validate_conventions.py` | API contracts + `10-python.md` or `20-typescript.md` per project type |

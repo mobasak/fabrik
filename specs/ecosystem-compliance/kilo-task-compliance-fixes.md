@@ -22,7 +22,7 @@
 
 - ✅ `sync_enforcement_to_projects.py` — scripts, AGENTS.md, rules synced to all projects
 - ✅ INDEX.md AUTO-GENERATED:STRUCTURE markers added to all projects
-- ✅ `platform: linux/arm64` added to all 38 compose.yaml files
+- ✅ `platform: linux/amd64` added to all 38 compose.yaml files
 - ✅ P2–P10 mechanical fixes (PORTS.md, .env.example, directories, .gitignore, etc.)
 
 **Only P0 and P1 remain.**
@@ -31,7 +31,7 @@
 
 ## P0: Alpine → Bookworm-Slim (2 projects)
 
-These Dockerfiles use Alpine which breaks on the ARM64 VPS. Migrate to bookworm-slim.
+These Dockerfiles use Alpine which breaks on the x86_64 VPS. Migrate to bookworm-slim.
 
 ### emailgateway (/opt/emailgateway)
 

@@ -389,7 +389,7 @@ class ProvisionState(str, Enum):
 ## Production Infrastructure
 
 | Service | Location | Purpose |
-| **VPS** | Hetzner LA (172.93.160.197) | ARM64 server running all services |
+| **VPS** | Hetzner LA (172.93.160.197) | x86_64 (amd64) server running all services |
 | **Coolify** | http://172.93.160.197:8000 | Container orchestration + deployment |
 | **Traefik** | VPS (ports 80/443) | Reverse proxy + automatic HTTPS |
 | **PostgreSQL** | postgres-main container | Shared database |

@@ -1,7 +1,7 @@
 services:
   postgres-main:
     image: postgres:16-bookworm
-    platform: linux/arm64
+    platform: linux/amd64
     container_name: postgres-main
     restart: unless-stopped
     environment:

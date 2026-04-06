@@ -7,15 +7,9 @@ Handles:
 - Multi-language content generation
 """
 
-import os
 from dataclasses import dataclass
 
-try:
-    import anthropic
-
-    HAS_ANTHROPIC = True
-except ImportError:
-    HAS_ANTHROPIC = False
+from fabrik.ai import LLMClient, LLMProvider
 
 
 @dataclass
@@ -39,23 +33,15 @@ class ContentGenerator:
 
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
-    def __init__(self, api_key: str | None = None, model: str | None = None):
+    def __init__(self, model: str | None = None):
         """
         Initialize content generator.
 
         Args:
-            api_key: Anthropic API key (uses ANTHROPIC_API_KEY env var if not provided)
             model: Model to use (default: claude-sonnet-4-20250514)
         """
-        if not HAS_ANTHROPIC:
-            raise ImportError("anthropic package required: pip install anthropic")
-
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY not set")
-
         self.model = model or self.DEFAULT_MODEL
-        self.client = anthropic.Anthropic(api_key=self.api_key)
+        self.client = LLMClient(provider=LLMProvider.CLAUDE, model=self.model)
 
     def generate_page(
         self,
@@ -81,11 +67,9 @@ class ContentGenerator:
 
         prompt = self._build_prompt(title, sections, brand, context, language)
 
-        response = self.client.messages.create(
-            model=self.model, max_tokens=4000, messages=[{"role": "user", "content": prompt}]
-        )
+        response = self.client.generate(prompt, project="wordpress")
 
-        html = response.content[0].text
+        html = response.content
 
         # Extract word count
         import re
@@ -203,12 +187,10 @@ Return ONLY the HTML content, no explanations or markdown code blocks."""
 
 {"Generate in Turkish." if language == "tr" else ""}"""
 
-        response = self.client.messages.create(
-            model=self.model, max_tokens=3000, messages=[{"role": "user", "content": prompt}]
-        )
+        response = self.client.generate(prompt, project="wordpress")
 
         return GeneratedContent(
-            html=response.content[0].text,
+            html=response.content,
             title=service_name,
         )
 
@@ -257,7 +239,6 @@ def generate_content(
     brand: dict,
     context: str = "",
     language: str = "en",
-    api_key: str | None = None,
 ) -> GeneratedContent:
     """
     Convenience function to generate page content.
@@ -267,10 +248,9 @@ def generate_content(
         brand: Brand information
         context: Additional context
         language: Output language
-        api_key: Optional API key
 
     Returns:
         GeneratedContent
     """
-    generator = ContentGenerator(api_key=api_key)
+    generator = ContentGenerator()
     return generator.generate_page(page, brand, context, language)

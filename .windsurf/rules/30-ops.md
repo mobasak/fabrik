@@ -21,7 +21,7 @@ description: Docker standards, deployment, infrastructure
 | Node.js apps | `node:<current-LTS>-bookworm-slim` |
 | General | `debian:bookworm-slim` |
 
-**Why not Alpine:** glibc compatibility, ARM64 support, pre-built wheels.
+**Why not Alpine:** glibc compatibility, pre-built wheels, consistent behavior across dev/prod.
 
 ---
 
@@ -61,7 +61,7 @@ CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT}"]
 services:
   api:
     build: .
-    platform: linux/arm64  # MANDATORY for check_docker.py compliance (VPS is ARM64)
+    platform: linux/amd64  # MANDATORY for check_docker.py compliance (VPS is x86_64)
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     environment:
@@ -146,9 +146,9 @@ done
 
 ---
 
-## ARM64 Requirement
+## Architecture Requirement
 
-VPS1 uses ARM64 (aarch64). Verify image support:
+VPS1 uses x86_64 (amd64). Verify image support:
 
 **Before building images:**
 
@@ -156,8 +156,8 @@ VPS1 uses ARM64 (aarch64). Verify image support:
 python scripts/container_images.py check-arch <image:tag>  # Fabrik project only
 ```
 
-Ensures base images support ARM64 (required for Apple Silicon + modern cloud).
+Ensures base images support amd64 (required for VPS deployment).
 
-**Note:** Child projects don't have this script - use Docker Hub/registry docs to verify ARM64 support.
+**Note:** Child projects don't have this script - use Docker Hub/registry docs to verify amd64 support.
 
 **If script missing:** Check `prebuilt-app-containers.md` manually or skip and flag.

@@ -1,7 +1,48 @@
 # Health Monitoring
 
-**Version:** 1.0.0
-**Last Updated:** 2026-03-08
+**Version:** 1.1.0
+**Last Updated:** 2026-04-05
+
+---
+
+## Monitoring Infrastructure Overview
+
+### Stack Components
+
+| Tool | Role | What it does |
+|------|------|-------------|
+| **Netdata** | Real-time metrics dashboard | Built-in, zero config. Shows CPU/RAM/disk/network/Docker stats instantly. Best for "what's happening right now on my server." |
+| **Prometheus** | Metrics collector & storage | Scrapes metrics from apps/services and stores them as time-series data. Doesn't visualize — just collects and stores. |
+| **Grafana** | Visualization layer | Connects to Prometheus (and other sources including Netdata) and builds custom dashboards, alerts, and graphs. Best for "show me trends over the last 30 days." |
+| **Loki** | Log aggregator | Collects logs from all containers/services into one searchable place. Prometheus but for logs instead of metrics. |
+| **Promtail** | Log shipper | Reads Docker container logs and sends them to Loki. |
+| **Uptime Kuma** | Uptime monitoring | External availability checks, status page, alerting. |
+
+### Current Decision (Single VPS)
+
+**Netdata alone is sufficient for a single VPS.** It already does what Prometheus + Grafana does for basic server metrics — out of the box, with a nicer UI for real-time monitoring.
+
+The Prometheus/Grafana/Loki stack makes sense when you need:
+
+- Custom dashboards across **multiple servers**
+- Correlation of metrics from **application-level custom instrumentation**
+- **Long-term trend analysis** (>30 days retention with custom queries)
+- **Log aggregation** across many services in one searchable place
+
+**Verdict:** Configs for the full stack exist in `configs/` and `specs/infrastructure/monitoring-stack.yaml` but are not deployed. Deploy only when scaling beyond a single VPS or when application-level custom metrics become necessary.
+
+### Deployed Services (Verified 2026-04-05 via SSH)
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Uptime Kuma | status.vps1.ocoron.com | ✅ Running (Up 2 weeks, healthy) |
+| Netdata | netdata.vps1.ocoron.com | ✅ Running (Up 11 days, healthy) |
+| Grafana | monitor.vps1.ocoron.com | ❌ Not deployed (config ready at `specs/infrastructure/monitoring-stack.yaml`) |
+| Prometheus | (internal :9090) | ❌ Not deployed (config ready at `configs/prometheus/`) |
+| Loki | (internal :3100) | ❌ Not deployed (config ready at `configs/loki/`) |
+| Promtail | (internal) | ❌ Not deployed (config ready at `configs/promtail/`) |
+| cAdvisor | (internal :8080) | ❌ Not deployed |
+| node-exporter | (internal :9100) | ❌ Not deployed |
 
 ---
 

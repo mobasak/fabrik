@@ -1460,7 +1460,7 @@ CMD ["sh", "-c", "uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:
   {name}:
     build: .
     container_name: {name}
-    platform: linux/arm64  # MANDATORY - VPS is ARM64
+    platform: linux/amd64  # MANDATORY - VPS is x86_64
     restart: unless-stopped
     ports:
       - "${{PORT:-8000}}:${{PORT:-8000}}"

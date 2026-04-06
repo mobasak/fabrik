@@ -17,7 +17,7 @@ trigger: always_on
 *Perform before reporting completion. Full checklist in `.windsurfrules`.*
 - [ ] **Secrets:** No hardcoded keys or tokens?
 - [ ] **Infrastructure:** `Dockerfile` is `-slim-bookworm` and has `HEALTHCHECK`?
-- [ ] **Architecture:** `compose.yaml` has `platform: linux/arm64`?
+- [ ] **Architecture:** `compose.yaml` has `platform: linux/amd64`?
 - [ ] **Networking:** Port registered in `PORTS.md`?
 - [ ] **Database:** Changes added to `db/schema.sql`?
 

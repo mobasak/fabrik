@@ -8,3 +8,7 @@ define('WP_MEMORY_LIMIT', '256M');
 define('WP_MAX_MEMORY_LIMIT', '512M');
 define('DISABLE_WP_CRON', true);
 define('FS_METHOD', 'direct');
+
+// Redis object cache
+define('WP_REDIS_HOST', 'redis');
+define('WP_REDIS_PORT', 6379);

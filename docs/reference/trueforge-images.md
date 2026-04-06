@@ -1,7 +1,7 @@
 # TrueForge Container Images
 
 **Total Images:** 120
-**ARM64 Support:** 99/100 apps ✅ (only `deluge` is amd64-only)
+**amd64 Support:** 99/100 apps ✅ (only `deluge` is amd64-only)
 **Registry:** `oci.trueforge.org/tccr/<name>`
 **Source:** https://github.com/trueforge-org/containerforge
 **Last Updated:** 2026-01-06
@@ -14,7 +14,7 @@ cd /opt/fabrik && source .venv/bin/activate
 # List all images
 python scripts/container_images.py trueforge list
 
-# Check ARM64 support
+# Check amd64 support
 python scripts/container_images.py check-arch oci.trueforge.org/tccr/<name>
 
 # Get image info
@@ -39,7 +39,7 @@ python scripts/container_images.py search nginx
 # List tags for an image
 python scripts/container_images.py tags postgres
 
-# Check ARM64 support for any image (Critical for VPS deployment)
+# Check amd64 support for any image (Critical for VPS deployment)
 python scripts/container_images.py check-arch redis:7-alpine
 
 # Get detailed image info (stars, pulls, architectures)
@@ -48,7 +48,7 @@ python scripts/container_images.py info nginx:alpine
 # Get recommendations for common use cases (database, monitoring, etc.)
 python scripts/container_images.py recommend database
 
-# Pull image to local WSL (with arm64 check)
+# Pull image to local WSL (with amd64 check)
 python scripts/container_images.py pull postgres:16-alpine
 
 # TrueForge specific commands
@@ -59,13 +59,13 @@ python scripts/container_images.py trueforge info <name> # Get TrueForge image i
 
 ### Key Features
 - **Multi-Registry Support**: Docker Hub, ghcr.io, lscr.io, and TrueForge (oci.trueforge.org).
-- **Architecture Validation**: Explicitly checks for `arm64` support, which is mandatory for Fabrik VPS deployments.
+- **Architecture Validation**: Explicitly checks for `amd64` support, which is mandatory for Fabrik VPS deployments.
 - **Supply Chain Visibility**: Shows build provenance and architectures for TrueForge images.
-- **Smart Recommendations**: Curated list of lightweight, secure, and arm64-compatible images for common infrastructure needs.
+- **Smart Recommendations**: Curated list of lightweight, secure, and amd64-compatible images for common infrastructure needs.
 
 ## Complete Image Catalog
 
-| Image | ARM64 | Registry URL | Category |
+| Image | amd64 | Registry URL | Category |
 |-------|:-----:|--------------|----------|
 | actions-runner | ✅ | oci.trueforge.org/tccr/actions-runner | CI/CD |
 | adguardhome-sync | ✅ | oci.trueforge.org/tccr/adguardhome-sync | Network |
@@ -189,11 +189,11 @@ python scripts/container_images.py trueforge info <name> # Get TrueForge image i
 | yq | ✅ | oci.trueforge.org/tccr/yq | Utility |
 
 **Legend:**
-- ✅ = ARM64 supported (verified from docker-bake.hcl)
+- ✅ = amd64 supported (verified from docker-bake.hcl)
 - ❌ = AMD64 only
 - ⚠️ = Not in apps/ folder (base images, verify before use)
 
-## Fabrik-Relevant Images (ARM64 Ready)
+## Fabrik-Relevant Images (amd64 Ready)
 
 | Image | Fabrik Use Case |
 |-------|-----------------|
@@ -216,4 +216,4 @@ All TrueForge images include:
 - **GitHub Actions attestations** - Verifiable build provenance
 - **SBOM (Software Bill of Materials)** - Complete dependency inventory
 - **Reproducible builds** - Consistent, auditable builds
-- **Multi-arch support** - Most images support both amd64 and arm64
+- **Multi-arch support** - Most images support amd64 (and arm64)

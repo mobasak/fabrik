@@ -2,7 +2,7 @@ services:
   {{ spec.id }}:
     build: .
     container_name: {{ spec.id }}
-    platform: linux/arm64  # MANDATORY - VPS is ARM64
+    platform: linux/amd64  # MANDATORY - VPS is x86_64
     restart: unless-stopped
     ports:
       - "${PORT:-8000}:${PORT:-8000}"

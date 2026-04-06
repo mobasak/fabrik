@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    platform: linux/arm64  # Mandatory for Ubuntu ARM VPS
+    platform: linux/amd64  # Mandatory for x86_64 VPS
     container_name: {{ spec.id }}
     restart: unless-stopped
     {% if spec.expose.http and not spec.expose.internal_only %}

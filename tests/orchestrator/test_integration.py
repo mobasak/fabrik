@@ -179,6 +179,93 @@ class TestDeploymentOrchestrator:
         ]
         assert states_seen == expected_states
 
+    def test_deploy_creates_dns_record(
+        self, test_spec_path, tmp_path, mock_deployer, mock_verifier
+    ):
+        """When spec has a domain, a DNS resource is added to ctx.created_resources."""
+        validator = SpecValidator(templates_dir=tmp_path)
+        (tmp_path / "python-api").mkdir()
+
+        mock_dns_client = MagicMock()
+        mock_dns_client.add_subdomain.return_value = {"success": True}
+
+        with patch("fabrik.orchestrator.DNSClient", return_value=mock_dns_client), \
+             patch("fabrik.orchestrator.validator.is_private_ip", return_value=False), \
+             patch.dict("os.environ", {"VPS_IP": "1.2.3.4"}):
+            orchestrator = DeploymentOrchestrator(
+                validator=validator,
+                deployer=mock_deployer,
+                verifier=mock_verifier,
+            )
+            ctx = orchestrator.deploy(test_spec_path)
+
+        assert ctx.state == DeploymentState.COMPLETE
+        mock_dns_client.add_subdomain.assert_called_once_with("example.com", "test", "1.2.3.4")
+        dns_resources = ctx.get_resources_by_type("dns")
+        assert len(dns_resources) == 1
+        assert dns_resources[0].resource_id == "test.example.com"
+        assert ctx.dns_record_id == "test.example.com"
+
+    def test_deploy_skips_dns_when_no_domain(self, tmp_path, mock_deployer, mock_verifier):
+        """When spec has no domain, no DNS calls are made."""
+        spec_file = tmp_path / "no-domain.yaml"
+        spec_file.write_text(
+            "name: no-domain-test\n"
+            "template: python-api\n"
+            "domain: \"\"\n"
+        )
+
+        validator = SpecValidator(templates_dir=tmp_path)
+        (tmp_path / "python-api").mkdir()
+
+        with patch("fabrik.orchestrator.DNSClient") as mock_dns_cls, \
+             patch("fabrik.orchestrator.validator.is_private_ip", return_value=False):
+            orchestrator = DeploymentOrchestrator(
+                validator=validator,
+                deployer=mock_deployer,
+                verifier=mock_verifier,
+            )
+            ctx = orchestrator.deploy(spec_file)
+
+        mock_dns_cls.assert_not_called()
+        assert ctx.get_resources_by_type("dns") == []
+
+    def test_deploy_rollback_includes_dns(
+        self, test_spec_path, tmp_path
+    ):
+        """When deploy fails after DNS creation, DNS is in the rollback list."""
+        validator = SpecValidator(templates_dir=tmp_path)
+        (tmp_path / "python-api").mkdir()
+
+        mock_dns_client = MagicMock()
+        mock_dns_client.add_subdomain.return_value = {"success": True}
+
+        # Deployer that fails
+        failing_deployer = MagicMock(spec=ServiceDeployer)
+        failing_deployer.deploy.side_effect = Exception("Deploy crashed")
+
+        mock_rollback = MagicMock(spec=RollbackManager)
+        mock_rollback.rollback.return_value = []
+
+        with patch("fabrik.orchestrator.DNSClient", return_value=mock_dns_client), \
+             patch("fabrik.orchestrator.validator.is_private_ip", return_value=False), \
+             patch.dict("os.environ", {"VPS_IP": "1.2.3.4"}):
+            orchestrator = DeploymentOrchestrator(
+                validator=validator,
+                deployer=failing_deployer,
+                rollback_manager=mock_rollback,
+            )
+            ctx = orchestrator.deploy(test_spec_path)
+
+        # DNS resource should exist in created_resources (for rollback)
+        dns_resources = ctx.get_resources_by_type("dns")
+        assert len(dns_resources) == 1
+        assert dns_resources[0].resource_id == "test.example.com"
+
+        # Rollback should have been called
+        mock_rollback.rollback.assert_called_once()
+        assert ctx.state in (DeploymentState.ROLLED_BACK, DeploymentState.FAILED)
+
     def test_full_pipeline_dry_run_id_based_spec(self, tmp_path):
         """Dry run with id-based spec should use validator shim for name."""
         spec_file = tmp_path / "id-spec.yaml"

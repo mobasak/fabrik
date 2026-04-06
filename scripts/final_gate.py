@@ -673,7 +673,7 @@ def run_consistency_checks(
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_docker.py",
-                "Docker (ARM64, No-Alpine, HEALTHCHECK)",
+                "Docker (amd64, No-Alpine, HEALTHCHECK)",
             )
         )
         results.append(

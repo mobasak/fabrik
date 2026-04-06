@@ -48,7 +48,7 @@ If a research MD was found, evaluate it against Fabrik's knowledge. Surface:
 
 - **Gaps:** Missing edge cases, unaddressed constraints, unclear requirements
 - **Opportunities:** Existing Fabrik microservices that already solve part of the need (Translator, Captcha, Proxy, DNS Manager, File API, Image Broker, Email Gateway, YouTube) or infrastructure services (Gotenberg, MeiliSearch, Browserless, MinIO, Apprise, n8n)
-- **Conflicts:** ARM64 incompatibility, port conflicts with existing services (check `PORTS.md`), Alpine base image usage, x86-only dependencies
+- **Conflicts:** amd64 incompatibility, port conflicts with existing services (check `PORTS.md`), Alpine base image usage, x86-only dependencies
 - **Stack recommendations:** Confirm or override defaults for this project type. Reference `docs/reference/technology-stack-decision-guide.md`.
 - **Prebuilt containers:** Check `docs/reference/prebuilt-app-containers.md` — does an off-the-shelf container solve this?
 
@@ -59,7 +59,7 @@ Present improvements as interview questions. Multiple rounds of clarification ar
 Systematically verify every constraint below against the project. State each finding explicitly — do not skip constraints that seem unlikely to apply. "All clear" is a valid and required finding per constraint.
 
 1. **Solo developer** — Is the scope realistic for one person with ~50 hours/week?
-2. **ARM64 VPS** — Any x86-only dependencies, images, or tools?
+2. **x86_64 VPS** — Any architecture-incompatible dependencies, images, or tools?
 3. **Budget-conscious** — Any paid services when free alternatives or self-hosted options exist?
 4. **Existing services** — Does a Fabrik microservice already handle part of this? (Check microservices table in `AGENTS.md`)
 5. **Prebuilt containers** — Does `prebuilt-app-containers.md` have a ready-made solution?
@@ -103,7 +103,7 @@ For `python-api` and `node-api`, ask during constraint verification (Step 5): "I
 
 Begin the summary with:
 
-> **INFRA-CHECK:** Port: `XXXX` | Scaffold: `<type>` | ARM64: `Confirmed` | Duplicate: `[none / project name]` | Internal APIs: `[list or none]` | User Guide: `true/false`
+> **INFRA-CHECK:** Port: `XXXX` | Scaffold: `<type>` | Arch: `amd64 Confirmed` | Duplicate: `[none / project name]` | Internal APIs: `[list or none]` | User Guide: `true/false`
 
 Then present:
 
@@ -282,8 +282,8 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
    | Backend | Python + FastAPI + Uvicorn | Node.js for web-adjacent workers |
    | Database | PostgreSQL 16 (Coolify-managed) | Supabase for managed auth/realtime/pgvector |
    | Base images | `python:<current-stable>-slim-bookworm` / `node:<current-LTS>-bookworm-slim` | Never Alpine |
-   | Platform | `linux/arm64` | Never x86-only |
-   | Hosting | Coolify on ARM64 VPS | — |
+   | Platform | `linux/amd64` | Never x86-only |
+   | Hosting | Coolify on x86_64 VPS | — |
    | Domains | `*.vps1.ocoron.com` | — |
 
 3. **Design the architecture — section by section:**
@@ -295,7 +295,7 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
    - Major architectural choices (patterns, paradigms, technologies)
    - Trade-offs and rationale for each decision
    - Constraints (technical, business) that bound the solution
-   - ARM64 compatibility confirmed for all Docker images
+   - amd64 compatibility confirmed for all Docker images
    - Assigned port stated and registered in `PORTS.md`
    - Cover what's needed, no more. Omit implementation details, business logic, and code that belongs in tickets.
 
@@ -346,7 +346,7 @@ The goal is alignment, not artifacts. Work through each section via clarificatio
 
 - Pre-flight completed: duplicate check, port assigned, existing services checked
 - Stack profile auto-injected with justified deviations only
-- All Docker images confirmed ARM64-compatible
+- All Docker images confirmed amd64-compatible
 - Existing Fabrik microservices and infrastructure services checked before designing new ones
 - Architecture designed across all 3 sections: Architectural Approach, Data Model, Component Architecture
 - Each section produced only after user alignment
@@ -728,7 +728,7 @@ Compare implementation against specs:
 - Does the architecture follow the Tech Plan?
 - Are acceptance criteria met?
 - Any deviations from what was planned? (Note: deviations may be justified)
-- Do Fabrik conventions hold? (ARM64 images, slim-bookworm base, port registered in `PORTS.md`, changelog format, no hardcoded env vars)
+- Do Fabrik conventions hold? (amd64 images, slim-bookworm base, port registered in `PORTS.md`, changelog format, no hardcoded env vars)
 
 #### 4. Correctness Analysis
 

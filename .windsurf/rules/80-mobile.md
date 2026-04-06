@@ -107,7 +107,7 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 
 - Use Metro bundler for development (`npx react-native start`).
 - Test on physical devices for performance-critical features — simulators hide real-world frame drops and thermal throttling.
-- For backend Docker deployments on ARM64, use `python:<version>-slim-bookworm`. Never use `alpine` (musl libc compilation failures on ARM64).
+- For backend Docker deployments, use `python:<version>-slim-bookworm`. Never use `alpine` (musl libc compilation failures, missing pre-built wheels).
 
 ---
 

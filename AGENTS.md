@@ -22,12 +22,12 @@
 - **Dev machine:** WSL (Ubuntu 24.04) on Windows
 - **IDE:** Windsurf (Cascade AI agents for interactive work)
 - **Coding agents:** Windsurf Cascade (manual/interactive) · Kilo CLI (YOLO) · Local LLM agents
-- **VPS:** ARM64 (aarch64) Ubuntu at 172.93.160.197 — all builds must be ARM-compatible
+- **VPS:** x86_64 (amd64) Ubuntu at 172.93.160.197 — AMD EPYC-Genoa, 6 vCPU, 12 GB RAM
 - **Deployment:** Coolify on VPS (Docker Compose) — `fabrik apply` automates DNS + Coolify + monitoring
 - **Database:** PostgreSQL on VPS (default) · Supabase (when managed auth/realtime/pgvector needed)
 - **Reverse proxy:** Traefik (managed by Coolify) — HTTPS/SSL via Let's Encrypt
 - **Domains:** `*.vps1.ocoron.com` — managed by dns-manager (supports Namecheap, Cloudflare, auto-purchase) and others
-- **Monitoring:** Uptime Kuma · Netdata · Grafana + Prometheus + Loki (on vps)
+- **Monitoring:** Uptime Kuma · Netdata (active) — Grafana + Prometheus + Loki configs ready but not deployed
 
 ### Local LLM Agents
 
@@ -54,23 +54,34 @@
 | Notifications | Apprise (self-hosted) | Direct API for single-channel |
 | Object storage | MinIO (self-hosted, S3-compatible) | Backblaze B2 for cold storage |
 
-## Infrastructure Services (Deployed on VPS)
+## Infrastructure Services — Running on VPS (Verified 2026-04-06)
 
 | Service | URL | Purpose |
-|---------|-----|---------|
+|---------|-----|--------|
 | Coolify | coolify.vps1.ocoron.com | Deployment control plane |
 | PostgreSQL | (internal) | Shared database |
 | Redis | (internal) | Shared cache |
+| Traefik | (internal) | Reverse proxy (managed by Coolify) |
 | Uptime Kuma | status.vps1.ocoron.com | Uptime monitoring |
 | Netdata | netdata.vps1.ocoron.com | Server metrics |
-| Grafana | monitor.vps1.ocoron.com | Dashboards |
-| Duplicati | backup.vps1.ocoron.com | PostgreSQL backup to B2 |
-| Browserless | browser.vps1.ocoron.com | Headless Chrome farm |
-| Gotenberg | pdf.vps1.ocoron.com | PDF generation API |
-| MinIO | s3.vps1.ocoron.com | Object storage |
-| MeiliSearch | search.vps1.ocoron.com | Full-text search |
-| Apprise | notify.vps1.ocoron.com | Multi-channel notifications |
-| n8n | auto.vps1.ocoron.com | Workflow automation |
+| Duplicati | backup.vps1.ocoron.com | Full VPS backup to Backblaze B2 (/opt, docker volumes, Coolify, pg_dump) |
+
+## Infrastructure Services — Config-Ready, Not Deployed
+
+Specs and configs exist but containers are not running. Deploy when needed.
+
+| Service | Planned URL | Config Location |
+|---------|------------|----------------|
+| Grafana | monitor.vps1.ocoron.com | `specs/infrastructure/monitoring-stack.yaml` |
+| Prometheus | (internal :9090) | `configs/prometheus/prometheus.yml` |
+| Loki | (internal :3100) | `configs/loki/loki-config.yaml` |
+| Promtail | (internal) | `configs/promtail/promtail-config.yaml` |
+| Browserless | browser.vps1.ocoron.com | `specs/infrastructure/browserless.yaml` |
+| Gotenberg | pdf.vps1.ocoron.com | `specs/infrastructure/gotenberg.yaml` |
+| MinIO | s3.vps1.ocoron.com | `specs/infrastructure/minio.yaml` |
+| MeiliSearch | search.vps1.ocoron.com | `specs/infrastructure/meilisearch.yaml` |
+| Apprise | notify.vps1.ocoron.com | `specs/infrastructure/apprise.yaml` |
+| n8n | auto.vps1.ocoron.com | `specs/infrastructure/n8n.yaml` |
 
 ## Fabrik Microservices (Custom-Built, on VPS)
 
@@ -103,7 +114,7 @@ Traycer MUST run these checks before generating any Plan, PRD, or Execution Spec
 1. **PORTS.md** — Assign a free port (Python 8000–8099 / Frontend 3000–3099). State it.
 2. **BUSINESS_MODEL.md** — Check for duplicate/similar project. State finding.
 3. **Fabrik Microservices table** — Use existing internal APIs before planning new logic. State which apply.
-4. **Hardware Audit** — Confirm all Docker images support `linux/arm64`.
+4. **Hardware Audit** — Confirm all Docker images support `linux/amd64`.
 5. **Design System** — For any project type with a UI surface (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus), read `.windsurf/rules/ocoron-design-system.md` before generating any spec or copy. Apply color tokens, typography rules, scaffold-specific adaptations, and verbal identity (forbidden language, voice, microcopy rules) to all planning output. State: "Design system read."
 
 ---
@@ -113,7 +124,7 @@ Traycer MUST run these checks before generating any Plan, PRD, or Execution Spec
 Before creating any plan, verify:
 
 1. **Solo developer** — no team handoff, one person executes everything
-2. **ARM64 VPS** — all Docker images must support `linux/arm64`
+2. **x86_64 VPS** — all Docker images must support `linux/amd64`
 3. **Budget-conscious** — prefer free Kilo models, free-tier APIs, self-hosted over SaaS
 4. **Existing services** — check if a Fabrik microservice already solves the need before building
 5. **Prebuilt containers** — check `prebuilt-app-containers.md` before writing custom code
@@ -204,7 +215,7 @@ Traycer injects rule-pack guidance into agent execution queries based on project
 - **pip:** Never bare `pip install`. Always `/opt/<project>/.venv/bin/pip install`
 - **Env vars:** Never hardcode. Always `os.getenv('KEY', 'default')`
 - **Base images:** `python:<current-stable>-slim-bookworm` / `node:<current-LTS>-bookworm-slim`. Never Alpine.
-- **Deployment:** Linux VPS via Coolify. ARM-compatible builds required.
+- **Deployment:** Linux VPS via Coolify. amd64-compatible builds required.
 - **Ports:** Python 8000–8099 / Frontend 3000–3099. Register new ports in `PORTS.md`.
 - **Conflicts:** If task contradicts project state — stop and return to Traycer. Do not silently overwrite.
 

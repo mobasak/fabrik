@@ -468,7 +468,7 @@ class TestChromeExtensionScaffold:
 
         # Verify compose.yaml content
         compose = (project_dir / "compose.yaml").read_text()
-        assert "platform: linux/arm64" in compose
+        assert "platform: linux/amd64" in compose
         assert "coolify" in compose
         assert "/health" in compose
 

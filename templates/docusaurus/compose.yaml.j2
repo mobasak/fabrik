@@ -2,7 +2,7 @@ services:
   docs:
     build: .
     container_name: {{ name }}-docs
-    platform: linux/arm64  # MANDATORY - VPS is ARM64
+    platform: linux/amd64  # MANDATORY - VPS is x86_64
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:3000"

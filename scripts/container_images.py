@@ -8,7 +8,7 @@ Search, evaluate, and select container images from multiple registries:
 - GitHub Container Registry (ghcr.io)
 - TrueForge/ContainerForge (oci.trueforge.org)
 
-Focuses on arm64-compatible, minimal, secure images for VPS deployment.
+Focuses on amd64-compatible, minimal, secure images for VPS deployment.
 
 Usage:
     python container_images.py search nginx
@@ -172,7 +172,7 @@ class TrueForgeClient:
         return resp.json()
 
     def check_arm64_via_oci(self, image_name: str, tag: str = "latest") -> dict:
-        """Check arm64 support via OCI registry API."""
+        """Check amd64 support via OCI registry API."""
         # TrueForge images are at oci.trueforge.org/tccr/<name>
         url = f"{TRUEFORGE_REGISTRY}/tccr/{image_name}/manifests/{tag}"
         headers = {
@@ -291,7 +291,7 @@ def check_arm64_support(image: str, tag: str = "latest") -> dict:
 
 
 def _check_arm64_via_docker(image: str, tag: str) -> dict:
-    """Check arm64 support using docker manifest inspect."""
+    """Check amd64 support using docker manifest inspect."""
     full_image = f"{image}:{tag}"
     try:
         result = safe_run(
@@ -398,7 +398,7 @@ def cmd_search(args):
 
     console.print("\n[dim]Tip: Use 'container_images.py tags <image>' to see available tags[/dim]")
     console.print(
-        "[dim]     Use 'container_images.py check-arch <image:tag>' to verify arm64 support[/dim]"
+        "[dim]     Use 'container_images.py check-arch <image:tag>' to verify amd64 support[/dim]"
     )
 
 
@@ -449,15 +449,15 @@ def cmd_check_arch(args):
 
     arm64 = result.get("arm64_supported")
     if arm64 is True:
-        status = "[green]✓ ARM64 SUPPORTED[/green]"
+        status = "[green]✓ amd64 SUPPORTED[/green]"
     elif arm64 is False:
-        status = "[red]✗ ARM64 NOT SUPPORTED[/red]"
+        status = "[red]✗ amd64 NOT SUPPORTED[/red]"
     else:
         status = "[yellow]? UNKNOWN[/yellow]"
 
     content = f"""
 **Image:** {result["image"]}
-**ARM64 Compatible:** {status}
+**amd64 Compatible:** {status}
 **Multi-arch:** {"Yes" if result.get("multi_arch") else "No"}
 **Architectures:** {", ".join(result.get("architectures", [])) or "Unknown"}
 """
@@ -465,10 +465,10 @@ def cmd_check_arch(args):
     console.print(Panel(Markdown(content), title="Architecture Check"))
 
     if arm64 is True:
-        console.print("\n[green]✓ Safe to deploy on VPS1 (arm64)[/green]")
+        console.print("\n[green]✓ Safe to deploy on VPS1 (amd64)[/green]")
     elif arm64 is False:
-        console.print("\n[red]✗ DO NOT deploy on VPS1 - no arm64 support![/red]")
-        console.print("[dim]Look for an alternative image or check if there's an arm64 tag[/dim]")
+        console.print("\n[red]✗ DO NOT deploy on VPS1 - no amd64 support![/red]")
+        console.print("[dim]Look for an alternative image or check if there's an amd64 tag[/dim]")
 
 
 def cmd_info(args):
@@ -505,7 +505,7 @@ def cmd_info(args):
 - Pulls: {info.get("pull_count", 0):,}
 - Last Updated: {format_date(info.get("last_updated"))}
 
-**ARM64 Support:** {arm64_status}
+**amd64 Support:** {arm64_status}
 **Architectures:** {", ".join(arch_result.get("architectures", [])) or "Check specific tag"}
 
 **Links:**
@@ -532,7 +532,7 @@ def cmd_pull(args):
     result = check_arm64_support(image)
 
     if result.get("arm64_supported") is False:
-        console.print(f"[red]Warning: {image} does not support arm64![/red]")
+        console.print(f"[red]Warning: {image} does not support amd64![/red]")
         if not args.force:
             console.print("[yellow]Use --force to pull anyway (for local testing only)[/yellow]")
             return
@@ -602,7 +602,7 @@ def cmd_recommend(args):
         table = Table(title=f"Recommended: {cat.title()}")
         table.add_column("Image", style="cyan")
         table.add_column("Description")
-        table.add_column("ARM64", justify="center")
+        table.add_column("amd64", justify="center")
 
         for image, desc in recommendations[cat]:
             arm64 = (
@@ -736,7 +736,7 @@ def cmd_trueforge_info(args):
 **Created:** {format_date(info.get("created_at"))}
 **Updated:** {format_date(info.get("updated_at"))}
 
-**ARM64 Support:** {arm64_status}
+**amd64 Support:** {arm64_status}
 **Architectures:** {", ".join(arch_result.get("architectures", [])) or "Check specific tag"}
 
 **Links:**
@@ -771,7 +771,7 @@ Supported Registries:
 Examples:
   %(prog)s search nginx                    Search Docker Hub
   %(prog)s tags postgres                   List Docker Hub tags
-  %(prog)s check-arch redis:7-alpine       Check arm64 support
+  %(prog)s check-arch redis:7-alpine       Check amd64 support
   %(prog)s info nginx:alpine               Get image details
   %(prog)s recommend database              Get recommendations
   %(prog)s trueforge list                  List TrueForge images
@@ -800,15 +800,15 @@ Examples:
     info_p.set_defaults(func=cmd_info)
 
     # Check architecture command
-    arch_p = subparsers.add_parser("check-arch", help="Check arm64 support (any registry)")
+    arch_p = subparsers.add_parser("check-arch", help="Check amd64 support (any registry)")
     arch_p.add_argument("image", help="Image name with optional tag")
     arch_p.set_defaults(func=cmd_check_arch)
 
     # Pull command
     pull_p = subparsers.add_parser("pull", help="Pull image to WSL")
     pull_p.add_argument("image", help="Image to pull")
-    pull_p.add_argument("--platform", help="Platform (e.g., linux/arm64)")
-    pull_p.add_argument("--force", action="store_true", help="Pull even if arm64 not supported")
+    pull_p.add_argument("--platform", help="Platform (e.g., linux/amd64)")
+    pull_p.add_argument("--force", action="store_true", help="Pull even if amd64 not supported")
     pull_p.set_defaults(func=cmd_pull)
 
     # Recommend command

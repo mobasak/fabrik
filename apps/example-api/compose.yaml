@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    platform: linux/arm64
+    platform: linux/amd64
     container_name: example-api
     restart: unless-stopped
     labels:

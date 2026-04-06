@@ -90,8 +90,8 @@ During spec generation, Traycer auto-injects these Fabrik defaults into the Stac
 | Backend | Python + FastAPI + Uvicorn | Node.js for web-adjacent workers |
 | Database | PostgreSQL 16 (Coolify-managed) | Supabase for managed auth/realtime/pgvector |
 | Base images | `-slim-bookworm` | Never Alpine |
-| Platform | `linux/arm64` | Never x86-only |
-| Hosting | Coolify on ARM64 VPS | — |
+| Platform | `linux/amd64` | Always amd64 |
+| Hosting | Coolify on x86_64 VPS | — |
 
 ## Why This Works
 

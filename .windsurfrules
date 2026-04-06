@@ -67,7 +67,7 @@ Code MUST work in ALL environments without modification:
 
 **Base images:** `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`. Never Alpine.
 
-**ARM64 compatible:** `compose.yaml` must include `platform: linux/arm64` for all build services.
+**amd64 compatible:** `compose.yaml` must include `platform: linux/amd64` for all build services.
 
 **Health endpoints must test real dependencies:**
 ```python

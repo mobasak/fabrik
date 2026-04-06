@@ -43,10 +43,65 @@ WordPress is appropriate for: editorial content sites, WooCommerce e-commerce, o
 
 ## Security Hardening
 
+### wp-config.php (enforced via `wp-config-extra.php` template)
+
+- `define('DISALLOW_FILE_EDIT', true);` — prevents remote code execution if an admin account is compromised.
+- `define('FORCE_SSL_ADMIN', true);` — forces HTTPS for wp-admin.
+- `define('WP_POST_REVISIONS', 5);` — prevents `wp_posts` table bloat.
+- `define('DISABLE_WP_CRON', true);` — use system cron instead of PHP-triggered cron.
 - Inject all secrets (DB credentials, cryptographic salts) via Coolify environment variables. **Never** hardcode secrets in `wp-config.php` or version-controlled files.
-- `wp-config.php` must include `define('DISALLOW_FILE_EDIT', true);` — prevents remote code execution if an admin account is compromised.
-- Block `xmlrpc.php` at the Nginx level (return 403/444). Do not rely on a plugin — Nginx drops the traffic before it reaches PHP.
-- Limit post revisions: `define('WP_POST_REVISIONS', 5);` to prevent `wp_posts` table bloat.
+
+### Block xmlrpc.php (MANDATORY — brute-force attack vector)
+
+- Block at the **web server level** so PHP is never invoked. Two options depending on stack:
+  - **Nginx (FPM stack):** `location = /xmlrpc.php { return 444; }` — drops the connection.
+  - **Traefik (Apache stack / current templates):** Add middleware labels to `compose.yaml`:
+
+```yaml
+# Block xmlrpc.php via Traefik middleware
+- "traefik.http.middlewares.{{ name }}-block-xmlrpc.replacepathregex.regex=^/xmlrpc\\.php$$"
+- "traefik.http.middlewares.{{ name }}-block-xmlrpc.replacepathregex.replacement=/wp-login.php?blocked=xmlrpc"
+```
+
+- Do **not** rely on a WordPress plugin for xmlrpc blocking — traffic must be dropped before it reaches PHP.
+
+### Rate-limit wp-login.php (MANDATORY)
+
+- Add Traefik rate-limiting middleware to `compose.yaml` for the login endpoint:
+
+```yaml
+# Rate-limit wp-login.php (10 requests/minute per IP)
+- "traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.average=10"
+- "traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.burst=20"
+- "traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.period=1m"
+```
+
+### Admin Account Hardening (MANDATORY post-deploy)
+
+- **Never use `admin` as the username.** Create a unique admin username during scaffold or rename immediately after install.
+- Admin password must be **32 characters, CSPRNG** (`secrets.choice()` over `[a-zA-Z0-9]`). The password policy from `.windsurfrules` applies.
+- Limit admin accounts to exactly **one** per site. Additional users get Editor role maximum.
+
+### Security Plugin (MANDATORY)
+
+- **Wordfence** is the selected security plugin (included in `defaults.yaml` base stack and available as premium ZIP).
+- Must be installed and activated on every site immediately after deploy: `wp plugin install wordfence --activate --allow-root`.
+- Enable: brute-force protection, login rate limiting, file integrity monitoring, malware scan.
+- Wordfence firewall mode should be set to "Extended Protection" after initial setup.
+
+### Post-Deploy Security Checklist
+
+Every new WordPress site must complete these steps **before going live**:
+
+1. [ ] Admin username is NOT `admin` — use a unique, non-guessable name
+2. [ ] Admin password is 32-char CSPRNG
+3. [ ] `xmlrpc.php` is blocked (verify: `curl -sI https://domain.com/xmlrpc.php` returns 403/404/444)
+4. [ ] Wordfence installed, activated, and firewall in Extended Protection mode
+5. [ ] `DISALLOW_FILE_EDIT` is `true` in wp-config
+6. [ ] `wp-login.php` rate-limited via Traefik middleware
+7. [ ] No default/sample content remains (Hello World post, Sample Page)
+8. [ ] WordPress auto-updates enabled for minor/security releases
+9. [ ] Cloudflare WAF rules active (if using Cloudflare proxy)
 
 ## Plugin & Theme Discipline
 
@@ -72,6 +127,8 @@ WordPress is appropriate for: editorial content sites, WooCommerce e-commerce, o
   - `make cache-flush` — `wp cache flush`
   - `make scaffold` — `wp rewrite flush --hard`, install/activate Redis Object Cache
   - `make backup` — trigger server-level backup script
+  - `make harden` — install Wordfence, rename admin user, verify xmlrpc blocked, run security checklist
+  - `make security-check` — verify xmlrpc blocked, Wordfence active, admin user not `admin`
 
 ## Backups
 
@@ -96,7 +153,10 @@ WordPress is appropriate for: editorial content sites, WooCommerce e-commerce, o
 | Full `/var/www/html` bind mount | Named volume for `/var/www/html/wp-content` only |
 | PHP caching plugins (WP Rocket, W3 Total Cache) | Nginx FastCGI Cache + Redis Object Cache |
 | Hardcoded secrets in `wp-config.php` | Environment variables via Coolify |
-| Active `xmlrpc.php` endpoint | Block at Nginx level (403/444) |
+| Active `xmlrpc.php` endpoint | Block at Nginx/Traefik level (403/444) |
+| `admin` as WordPress username | Unique, non-guessable admin username |
+| No security plugin installed | Wordfence (mandatory on every site) |
+| Unprotected `wp-login.php` | Rate-limit via Traefik middleware |
 | Heavy page builders (Elementor, Divi, WPBakery) | Gutenberg Block Themes / GeneratePress |
 | WPML or TranslatePress for i18n | Polylang (native taxonomy) |
 | Manual WooCommerce tax tables | WooCommerce Shipping & Tax plugin (API-based) |
@@ -115,3 +175,9 @@ WordPress is appropriate for: editorial content sites, WooCommerce e-commerce, o
 - [ ] Makefile exists with `update`, `cache-flush`, `scaffold`, `backup` targets.
 - [ ] Server-level backup script syncs DB dump + wp-content to S3.
 - [ ] No PHP caching plugins, no heavy page builders, no WPML/TranslatePress installed.
+- [ ] Admin username is not `admin` — unique, non-guessable name used.
+- [ ] Admin password is 32-char CSPRNG.
+- [ ] Wordfence installed, activated, firewall in Extended Protection mode.
+- [ ] `xmlrpc.php` returns 403/404/444 when tested externally.
+- [ ] `wp-login.php` rate-limited via Traefik middleware.
+- [ ] Post-deploy security checklist completed before site goes live.

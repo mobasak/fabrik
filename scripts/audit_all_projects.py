@@ -121,7 +121,7 @@ class ProjectAudit:
     dockerfile_final_base: str = ""
     dockerfile_has_healthcheck: bool = False
     # compose.yaml
-    has_platform_arm64: bool = False
+    has_platform_amd64: bool = False
     compose_has_coolify_net: bool = False
     compose_localhost_refs: int = 0
     # Health endpoint
@@ -510,7 +510,7 @@ def find_hardcoded_localhost(project_path: Path, code_dirs: list[Path] = None) -
 
 
 def check_compose_deep(project_path: Path) -> tuple[bool, bool, int]:
-    """Check compose.yaml: (has_arm64, has_coolify_net, localhost_ref_count)."""
+    """Check compose.yaml: (has_amd64, has_coolify_net, localhost_ref_count)."""
     compose = project_path / "compose.yaml"
     if not compose.exists():
         return False, False, 0
@@ -519,7 +519,7 @@ def check_compose_deep(project_path: Path) -> tuple[bool, bool, int]:
     except Exception:
         return False, False, 0
 
-    has_arm64 = "linux/arm64" in content
+    has_amd64 = "linux/amd64" in content
     has_coolify = "coolify" in content.lower()
 
     # Count localhost refs in environment sections (not in comments/healthcheck)
@@ -549,7 +549,7 @@ def check_compose_deep(project_path: Path) -> tuple[bool, bool, int]:
         if "localhost" in stripped or "127.0.0.1" in stripped:
             localhost_count += 1
 
-    return has_arm64, has_coolify, localhost_count
+    return has_amd64, has_coolify, localhost_count
 
 
 def find_stray_root_files(project_path: Path) -> tuple[list, list]:
@@ -634,8 +634,8 @@ def audit_project(name: str) -> Optional[ProjectAudit]:
     audit.dockerfile_has_healthcheck = has_hc
 
     # --- compose.yaml (deep) ---
-    arm64, coolify, comp_lh = check_compose_deep(path)
-    audit.has_platform_arm64 = arm64
+    amd64, coolify, comp_lh = check_compose_deep(path)
+    audit.has_platform_amd64 = amd64
     audit.compose_has_coolify_net = coolify
     audit.compose_localhost_refs = comp_lh
 
@@ -983,7 +983,7 @@ def build_issues(audit: ProjectAudit):
 def build_constraints(audit: ProjectAudit):
     c = {}
     c["solo_developer"] = "✅ All clear"
-    c["arm64"] = "✅ Confirmed" if audit.has_platform_arm64 else "⚠️ Missing `platform: linux/arm64`"
+    c["amd64"] = "✅ Confirmed" if audit.has_platform_amd64 else "⚠️ Missing `platform: linux/amd64`"
     c["budget"] = "✅ All clear"
     c["existing_services"] = "✅ All clear"
     c["prebuilt_containers"] = "✅ No prebuilt alternative"
@@ -1089,7 +1089,7 @@ def generate_research_md(audit: ProjectAudit) -> str:
     # ── Compose snapshot ──
     L.append("## Compose Snapshot")
     L.append("")
-    L.append(f"- **platform: linux/arm64:** {'✅' if audit.has_platform_arm64 else '❌'}")
+    L.append(f"- **platform: linux/amd64:** {'✅' if audit.has_platform_amd64 else '❌'}")
     L.append(f"- **coolify network:** {'✅' if audit.compose_has_coolify_net else '❌'}")
     L.append(f"- **localhost refs:** {audit.compose_localhost_refs}")
     L.append("")
@@ -1147,7 +1147,7 @@ def generate_research_md(audit: ProjectAudit) -> str:
     L.append("|---|------------|--------|")
     labels = [
         ("1", "Solo developer scope", "solo_developer"),
-        ("2", "ARM64 VPS", "arm64"),
+        ("2", "x86_64 VPS (amd64)", "amd64"),
         ("3", "Budget-conscious", "budget"),
         ("4", "Existing services", "existing_services"),
         ("5", "Prebuilt containers", "prebuilt_containers"),

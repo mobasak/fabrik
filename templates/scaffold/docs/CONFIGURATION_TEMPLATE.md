@@ -192,4 +192,4 @@ Before deploying:
 - [ ] No hardcoded `localhost` in `compose.yaml` (use service names)
 - [ ] Logs writing to expected location
 - [ ] Environment-specific settings verified (dev vs prod)
-- [ ] ARM64 compatibility confirmed (base images use `-slim-bookworm`, not Alpine)
+- [ ] amd64 compatibility confirmed (base images use `-slim-bookworm`, not Alpine)

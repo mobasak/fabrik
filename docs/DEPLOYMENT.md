@@ -206,20 +206,20 @@ GitHub Push → Actions Build → GHCR Push → Coolify Pull → Deploy
 
 **Cons:**
 - More complex setup
-- Need multi-arch builds for ARM64
+- Need multi-arch builds for amd64
 
 **Use when:** ML models, large dependencies, need quick rollbacks.
 
-### ARM64 Consideration
+### Architecture Consideration
 
-**VPS is ARM64 (aarch64).** When using Option 2 (GHCR), builds need:
+**VPS is x86_64 (amd64).** When using Option 2 (GHCR), builds need:
 
 ```yaml
 # .github/workflows/build.yaml
 - name: Build and push
   uses: docker/build-push-action@v5
   with:
-    platforms: linux/arm64
+    platforms: linux/amd64
     push: true
     tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
 ```

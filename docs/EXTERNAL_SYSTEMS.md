@@ -84,7 +84,7 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 **Notes:**
 - Ubuntu 24.04 LTS
-- ARM64 architecture
+- amd64 architecture
 - Requires passphrase-protected SSH key
 
 ---
@@ -1384,7 +1384,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1403,7 +1403,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1426,7 +1426,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1450,7 +1450,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 **Notes:**
 - Self-hosted on VPS
 - S3-compatible API
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1479,7 +1479,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 - Integrates with Apprise for notifications
 
 ---
@@ -1501,7 +1501,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 - Part of monitoring stack
 
 ---
@@ -1520,7 +1520,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 - Part of monitoring stack
 
 ---
@@ -1540,7 +1540,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 - Part of monitoring stack
 
 ---
@@ -1560,7 +1560,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 - Part of monitoring stack
 
 ---
@@ -1579,7 +1579,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 - Part of monitoring stack
 
 ---
@@ -1598,7 +1598,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Self-hosted on VPS
-- ARM64 compatible
+- amd64 compatible
 - Part of monitoring stack
 
 ---
@@ -1619,7 +1619,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1637,7 +1637,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1655,7 +1655,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1675,7 +1675,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1693,7 +1693,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1711,7 +1711,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1731,7 +1731,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1749,7 +1749,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1769,7 +1769,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1787,7 +1787,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1805,7 +1805,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1825,7 +1825,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Official image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1843,7 +1843,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1972,7 +1972,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -1990,7 +1990,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Official image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2010,7 +2010,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Official image available
-- ARM64 compatible
+- amd64 compatible
 - Deduplication and encryption
 
 ---
@@ -2029,7 +2029,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2049,7 +2049,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Official image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2067,7 +2067,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Official image available
-- ARM64 compatible
+- amd64 compatible
 - Automatic HTTPS
 
 ---
@@ -2088,7 +2088,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - Official image available
-- ARM64 compatible
+- amd64 compatible
 - Real-time metrics
 
 ---
@@ -2109,7 +2109,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2127,7 +2127,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2145,7 +2145,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2165,7 +2165,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 - Modern, fast VPN
 
 ---
@@ -2184,7 +2184,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 - Mature VPN solution
 
 ---
@@ -2205,7 +2205,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2223,7 +2223,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2241,7 +2241,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2261,7 +2261,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 
@@ -2279,7 +2279,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 - Open source
 
 ---
@@ -2298,7 +2298,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 
 **Notes:**
 - LinuxServer.io image available
-- ARM64 compatible
+- amd64 compatible
 
 ---
 

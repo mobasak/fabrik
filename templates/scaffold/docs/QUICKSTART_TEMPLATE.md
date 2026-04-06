@@ -37,7 +37,7 @@ Implement changes scoped to current task only.
 **Constraints:**
 - ❌ No Alpine base images → Use `python:3.12-slim-bookworm` or `node:22-bookworm-slim`
 - ❌ No hardcoded secrets/localhost → Use `os.getenv()` and service names
-- ✅ ARM64 compatibility → Add `platform: linux/arm64` in compose.yaml
+- ✅ amd64 compatibility → Add `platform: linux/amd64` in compose.yaml
 
 **Internal Audit (before finishing Step 1):**
 - [ ] All task requirements fully met

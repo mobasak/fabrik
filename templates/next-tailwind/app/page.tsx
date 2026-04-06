@@ -21,7 +21,7 @@ export default function Home() {
           />
           <Card 
             title="Production Ready"
-            description="Optimized Docker build with health checks and ARM64 support"
+            description="Optimized Docker build with health checks and amd64 support"
           />
           <Card 
             title="Clean Architecture"

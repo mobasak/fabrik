@@ -1,7 +1,7 @@
 services:
   wordpress:
-    image: wordpress:{{ php_version | default('php8.2') }}-apache
-    platform: linux/arm64
+    image: wordpress:{{ php_version | default('php8.3') }}-fpm-bookworm
+    platform: linux/amd64
     container_name: {{ name }}-wordpress
     restart: unless-stopped
     env_file:
@@ -14,9 +14,23 @@ services:
       WORDPRESS_CONFIG_EXTRA: |
         {{ wp_config_extra | indent(8) }}
     volumes:
-      - wordpress_data:/var/www/html
-      - ./plugins:/var/www/html/wp-content/plugins-custom:ro
-      - ./themes:/var/www/html/wp-content/themes-custom:ro
+      - wp_content:/var/www/html/wp-content
+    networks:
+      - {{ name }}-internal
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:mainline-bookworm-slim
+    platform: linux/amd64
+    container_name: {{ name }}-nginx
+    restart: unless-stopped
+    volumes:
+      - wp_content:/var/www/html/wp-content:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - coolify
       - {{ name }}-internal
@@ -25,14 +39,25 @@ services:
       - "traefik.http.routers.{{ name }}.rule=Host(`{{ domain }}`)"
       - "traefik.http.routers.{{ name }}.entrypoints=websecure"
       - "traefik.http.routers.{{ name }}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.{{ name }}.middlewares={{ name }}-rate-limit"
       - "traefik.http.services.{{ name }}.loadbalancer.server.port=80"
+      # Security: Block xmlrpc.php (brute-force attack vector)
+      - "traefik.http.routers.{{ name }}-xmlrpc.rule=Host(`{{ domain }}`) && Path(`/xmlrpc.php`)"
+      - "traefik.http.routers.{{ name }}-xmlrpc.entrypoints=websecure"
+      - "traefik.http.routers.{{ name }}-xmlrpc.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.{{ name }}-xmlrpc.priority=100"
+      - "traefik.http.routers.{{ name }}-xmlrpc.middlewares={{ name }}-block-xmlrpc"
+      - "traefik.http.middlewares.{{ name }}-block-xmlrpc.replacepathregex.regex=.*"
+      - "traefik.http.middlewares.{{ name }}-block-xmlrpc.replacepathregex.replacement=/wp-login.php?blocked=xmlrpc"
+      # Security: Rate-limit all requests (10 req/s avg, burst 20)
+      - "traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.average=10"
+      - "traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.burst=20"
     depends_on:
-      db:
-        condition: service_healthy
+      - wordpress
 
   db:
     image: mariadb:10.11
-    platform: linux/arm64
+    platform: linux/amd64
     container_name: {{ name }}-db
     restart: unless-stopped
     env_file:
@@ -52,9 +77,24 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-bookworm
+    platform: linux/amd64
+    container_name: {{ name }}-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - {{ name }}-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backup:
     image: debian:bookworm-slim
-    platform: linux/arm64
+    platform: linux/amd64
     container_name: {{ name }}-backup
     restart: unless-stopped
     env_file:
@@ -71,7 +111,7 @@ services:
       SITE_NAME: {{ name }}
     volumes:
       - ./backup:/scripts:ro
-      - wordpress_data:/wordpress:ro
+      - wp_content:/wordpress/wp-content:ro
       - backup_data:/backups
     networks:
       - {{ name }}-internal
@@ -87,8 +127,9 @@ services:
         condition: service_healthy
 
 volumes:
-  wordpress_data:
+  wp_content:
   db_data:
+  redis_data:
   backup_data:
 
 networks:

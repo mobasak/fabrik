@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Remove dead api_key parameters from WordPress generators (2026-04-06)
+- **`src/fabrik/wordpress/content.py`**: Removed unused `api_key` param from `ContentGenerator.__init__()` and `generate_content()`. LLMClient reads keys from env vars internally.
+- **`src/fabrik/wordpress/legal.py`**: Removed unused `api_key` param from `LegalContentGenerator.__init__()` and `generate_legal_pages()`. Content creation moving to TCO project.
+
+### Added — Fabrik phase gap analysis document (2026-04-06)
+- **`docs/development/plans/fabrik-phase-gap-analysis.md`**: Comprehensive gap analysis across all 10 Fabrik phases. Contains executive summary with actual vs. claimed completion percentages, 15 STILL NEEDED items as ticket-ready descriptions, 8 OBSOLETE items with reasoning, and 6 quick wins. Incorporates VPS state corrections from 2026-04-06 (Duplicati fix, ocoron.com compromise, WordPress template migration, newly confirmed services).
+
+### Changed — Migrate WordPress templates to FPM+Nginx stack per 62-wordpress.md (2026-04-06)
+- **`templates/wordpress/base/compose.yaml.j2`**: Replaced `wordpress:php8.2-apache` with `wordpress:php8.3-fpm-bookworm`. Added `nginx:mainline-bookworm-slim` service with all Traefik labels (xmlrpc blocking, rate-limiting). Added `redis:7-bookworm` service with healthcheck. Changed volume from `wordpress_data:/var/www/html` to `wp_content:/var/www/html/wp-content`. Updated backup volume mount.
+- **`templates/wordpress/base/compose-coolify.yaml.j2`**: Same FPM+Nginx+Redis migration as compose.yaml.j2. Traefik labels (including www redirect) moved from wordpress to nginx service.
+- **`templates/wordpress/base/nginx/default.conf.j2`**: New file. Nginx config with FastCGI proxy to `wordpress:9000`, `fastcgi_cache` zone (`wp_cache:10m`, 60m inactive), static file caching (`expires 30d`), xmlrpc block (`return 444`), gzip compression, security deny rules.
+- **`templates/wordpress/base/wp-config-extra.php`**: Added `WP_REDIS_HOST` and `WP_REDIS_PORT` defines for Redis object cache.
+- **`templates/wordpress/defaults.yaml`**: Replaced banned `sitepress-multilingual-cms` (WPML) with `polylang`.
+
+### Added — DNS provisioning in deployment orchestrator (2026-04-06)
+- **`src/fabrik/orchestrator/__init__.py`**: Replaced TODO placeholder with `_provision_dns()` method. Parses domain into subdomain + base domain, creates DNS A record via `DNSClient` (Namecheap/dns-manager) with automatic `CloudflareClient` fallback. Records DNS resource in `ctx.created_resources` for LIFO rollback. Supports dry-run logging, no-domain skip, and raises `ProvisioningError` on failure.
+- **`tests/orchestrator/test_integration.py`**: Added 3 tests: `test_deploy_creates_dns_record`, `test_deploy_skips_dns_when_no_domain`, `test_deploy_rollback_includes_dns`.
+
+### Changed — Migrate WordPress AI modules to unified LLMClient (2026-04-06)
+- **`src/fabrik/wordpress/content.py`**: Replaced direct `anthropic.Anthropic()` usage with `LLMClient(provider=LLMProvider.CLAUDE)`. Removed `import anthropic`, `HAS_ANTHROPIC` guard, and manual API key handling. Both `generate_page()` and `generate_service_page()` now use `client.generate(prompt, project="wordpress")` with automatic retry, OpenAI fallback capability, and cost tracking.
+- **`src/fabrik/wordpress/legal.py`**: Same migration for `generate_privacy_policy()`, `generate_terms_of_service()`, and `generate_cookie_policy()`. The `generate_legal_pages()` convenience function's fallback guard simplified from `HAS_ANTHROPIC` check to unconditional `use_ai` check since `LLMClient` is always available as an internal module.
+
 ### Added — Backfill has_user_guide metadata for existing projects via fabrik fix (2026-04-05)
 - **`src/fabrik/scaffold.py`**: Extracted `GUIDE_ENABLED_TYPES` as module-level constant (shared by `create_project()` and `fix_project()`). `fix_project()` now backfills `has_user_guide` in `project.yaml` when the key is missing, deriving the value from `type` using the same mapping as scaffold create. Existing explicit values are preserved.
 - **`tests/test_backfill_has_user_guide.py`**: 9 regression tests covering missing-key backfill (guide-enabled → true, non-guide → false, missing type defaults), explicit-key preservation, dry-run reporting, and all type mappings.

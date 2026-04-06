@@ -48,7 +48,7 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 
 All files in `scripts/enforcement/` are recursively synced:
 
-- `check_docker.py` — Dockerfile ARM64 compliance
+- `check_docker.py` — Dockerfile amd64 compliance
 - `check_secrets.py` — Hardcoded secrets detection
 - `check_env_contract.py` — .env/.env.example sync
 - `check_health.py` — Health endpoint validation

@@ -25,7 +25,7 @@
 
 **Note:** In production, Coolify proxy (Traefik) handles external routing (80/443). Internal ports are not exposed.
 
-**🔒 ARM64 Compatibility:** VPS is ARM64 (aarch64). All Docker images MUST support `linux/arm64`.
+**🔒 amd64 Compatibility: VPS is x86_64 (amd64). All Docker images MUST support `linux/amd64`.
 
 ---
 
