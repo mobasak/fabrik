@@ -1,181 +1,426 @@
-# QUICKSTART: Agent Execution Guide
+# QUICKSTART.md — {PROJECT_NAME}
 
-**Last Updated:** YYYY-MM-DD
-**Project Status:** Active
-**Operating Manual:** `AGENTS.md`
-
-**Note to Agents:** You are a **Coder**, **Reviewer**, or **Fixer**. You do NOT plan. You do NOT commit.
-
----
-
-## 0. Mandatory First Output
-
-Before taking ANY action, you must output the following string to confirm compliance:
-
-```
-RULES ACTIVE: [ROLE] | [Never commit, Never bare pip, Always final_gate.py]
-```
+> **One-liner:** {What this project does in one sentence — who it's for and what problem it solves.}
+> **Type:** {python-api | node-api | saas-skeleton | chrome-extension | mobile-app | desktop-app | static-site}
+> **Owner:** {Team or person responsible.}
+> **Last verified:** {YYYY-MM-DD}
 
 ---
 
-## 1. Agent Completion Contract (4 Steps)
+## Project Identity
 
-Every task follows this sequence. **Authority:** `AGENTS-compact.md`
+| Key | Value |
+|-----|-------|
+| **Project** | `{project-name}` |
+| **Port** | `{PORT}` |
+| **Production URL** | `https://{project}.vps1.ocoron.com` |
+| **Local dev URL** | `http://localhost:{PORT}` |
+| **Health endpoint** | `GET /health` |
+| **Depends on** | `{postgres, redis, minio, external-api-name, none}` |
 
-### Step 1: IMPLEMENT
-Implement changes scoped to current task only.
+<!-- For services called by other services, add these rows: -->
+<!-- | **Docker-internal URL** | `http://{project-name}:{PORT}` | -->
+<!-- | **OpenAPI docs** | `{BASE_URL}/docs` | -->
+<!-- | **Called by** | `{list of consuming services}` | -->
 
-**Environment:**
-```bash
-# CRITICAL: Use project-specific .venv (PEP 668 compliance)
-/opt/<project>/.venv/bin/python -m uvicorn src.<package>.main:app --reload
+---
 
-# Install dependencies (NEVER use bare pip)
-/opt/<project>/.venv/bin/pip install <package>
-```
+## Prerequisites
 
-**Constraints:**
-- ❌ No Alpine base images → Use `python:3.12-slim-bookworm` or `node:22-bookworm-slim`
-- ❌ No hardcoded secrets/localhost → Use `os.getenv()` and service names
-- ✅ amd64 compatibility → Add `platform: linux/amd64` in compose.yaml
+<!-- What must be installed/configured before this project can run. Delete items that don't apply. -->
 
-**Internal Audit (before finishing Step 1):**
-- [ ] All task requirements fully met
-- [ ] No hardcoded secrets/localhost (use `os.getenv()`)
-- [ ] No logic gaps or silent failure modes
-- [ ] Write exactly 1 test file covering core logic path
-- [ ] Adjacent fixes allowed: MAY fix directly adjacent, low-risk issues in same touched files/subsystem if it keeps implementation coherent or prevents obvious breakage
+- [ ] Docker + Docker Compose
+- [ ] Python 3.12+ with project venv at `/opt/{project}/.venv`
+- [ ] Node 22+ (for frontend/extension projects)
+- [ ] `.env` file configured (copy from `.env.example`)
+- [ ] Access to required services: {postgres-main, redis, etc.}
 
-### Step 2: QUALITY GATE
-Run and fix findings until `status: "success"`:
+---
+
+## Quick Start
 
 ```bash
-# Standard Tasks (default)
-python scripts/final_gate.py --lean --json
+# Clone and configure
+git clone {repo_url} && cd {project-name}
+cp .env.example .env
+# Edit .env — fill required values (see Environment Variables below)
 
-# Milestone / Batch Closer (if explicitly labeled)
-python scripts/final_gate.py --json
+# Start
+docker compose up -d
+
+# Verify
+curl http://localhost:{PORT}/health
 ```
 
-**Auto-runs:**
-- Ruff (lint + format)
-- mypy (type checking)
-- Secrets scan
-- Schema sync
-- Changelog check (enforced in Tier 1)
-- 20+ additional checks
-
-**Fix all failures. Re-run until JSON output shows `"status": "success"`.**
-
-### Step 3: CHANGELOG
-Add one entry under `## [Unreleased]` (gate enforces presence).
-
-Format:
-```markdown
-### Added/Changed/Fixed — Title (YYYY-MM-DD)
-- Brief description of change
-```
-
-### Step 4: EXIT 0
-Gate auto-stages changes. **Do not commit, do not stage manually.**
+<!-- For non-Docker projects, replace with the appropriate start command: -->
+<!-- Python API: /opt/{project}/.venv/bin/uvicorn src.{package}.main:app --reload --port {PORT} -->
+<!-- Node: npm install && npm run dev -->
+<!-- Static site: npm install && npm run build && npm run preview -->
+<!-- Chrome extension: npm install && npm run build → load dist/ in chrome://extensions -->
 
 ---
 
-## 2. Optional Tools (Manual / On-Demand Only)
+## Health & Readiness
 
-**Not part of default workflow. Use only if explicitly requested:**
-
-### Kilo Review (Optional)
+**Healthy:**
 ```bash
-git add -A
-python scripts/kilo_code_review.py staged --plan "task description" --output json
+curl -sf http://localhost:{PORT}/health
+# → 200
 ```
-
-### Documentator (Optional)
-```bash
-python scripts/kilo_docs_enforcer.py --auto-generate --verbose
-```
-
----
-
-## 3. Infrastructure & Services
-
-**Before building custom logic, check if an existing Fabrik service solves the need.**
-
-**Reference:** `docs/reference/prebuilt-app-containers.md`
-
-| Need | Use This |
-|------|----------|
-| Database | `postgres-main:5432` (shared PostgreSQL) |
-| Cache | `redis:6379` (shared Redis) |
-| PDF generation | Gotenberg at `pdf.vps1.ocoron.com` |
-| Translation | Translator microservice (port 8000) |
-| Image generation | Image Broker microservice (port 8010) |
-| Email | Email Gateway microservice (port 3000) |
-| DNS/domains | DNS Manager microservice (port 8001) |
-
-**Ports:** Register new services in `PORTS.md` (Python: 8000-8099, Frontend: 3000-3099)
-
----
-
-## 4. Common Commands
-
-| Task | Command |
-|------|---------|
-| Install dependency | `/opt/<project>/.venv/bin/pip install <package>` |
-| Start service | `/opt/<project>/.venv/bin/python -m uvicorn src.<pkg>.main:app --reload` |
-| Check health | `curl http://localhost:8000/health` |
-| Run tests | `/opt/<project>/.venv/bin/pytest tests/ -v` |
-| Check Docker | `python scripts/enforcement/check_docker.py` |
-| Check secrets | `python scripts/enforcement/check_secrets.py` |
-| Full gate | `python scripts/final_gate.py` |
-
----
-
-## 5. Completion
-
-Once **Step 2 (Quality Gate)** passes with `"status": "success"`:
-1. Report results to Traycer for verification
-2. **Do NOT push to GitHub** — Traycer commits, not Coders
-
----
-
-## 6. Quick Health Check
-
-```bash
-# Start service
-cd /opt/<project>
-source .venv/bin/activate
-uvicorn src.<package>.main:app --reload --port 8000
-
-# Test health endpoint (should test DB, not just return 200)
-curl http://localhost:8000/health
-```
-
-**Expected:**
 ```json
 {
-  "service": "project-name",
   "status": "ok",
-  "database": "connected",
-  "timestamp": "2026-03-24T12:00:00Z"
+  "version": "0.1.0",
+  "dependencies": {
+    "postgres": "connected"
+  }
 }
 ```
 
----
-
-## 7. Troubleshooting
-
-**Build fails?** Run enforcement scripts individually:
-```bash
-python scripts/enforcement/check_docker.py
-python scripts/enforcement/check_secrets.py
-python scripts/enforcement/check_env_contract.py
-python scripts/enforcement/check_compose_services.py
+**Unhealthy:**
+```
+→ 503 — one or more dependencies unreachable. Check response body for details.
 ```
 
-**See:** `TROUBLESHOOTING.md` for detailed diagnostic steps.
+---
+
+## Primary Workflows
+
+<!-- 3–5 most important things a user or caller does with this project.
+     Adapt to project type:
+     - API/service: curl examples with full request/response bodies
+     - SaaS: user flows (signup → configure → use core feature)
+     - Chrome extension: install → configure → usage
+     - Static site: content editing → build → deploy
+
+     Each workflow MUST include enough detail that someone can execute it without opening another doc. -->
+
+### 1. {Primary workflow — the #1 thing users/callers do}
+
+<!-- For APIs: full curl with request body, field table, response -->
+<!-- For apps: step-by-step user flow -->
+
+```bash
+curl -X POST http://localhost:{PORT}/api/v1/{resource} \
+  -H "Content-Type: application/json" \
+  -d '{
+    "field_1": "value",
+    "field_2": 123
+  }'
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `field_1` | string | Yes | — | {Description} |
+| `field_2` | int | No | `100` | {Description} |
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "id": "abc-123",
+  "result": "..."
+}
+```
+
+> **Idempotent:** {Yes / No}
+
+### 2. {Second workflow}
+
+```bash
+# Example workflow 2
+curl -X GET http://localhost:{PORT}/api/v1/{resource}
+```
+
+### 3. {Third workflow}
+
+```bash
+# Example workflow 3
+curl -X DELETE http://localhost:{PORT}/api/v1/{resource}/:id
+```
+
+### 4. {Optional fourth workflow}
+
+### 5. {Optional fifth workflow}
+
+<!-- Delete unused slots. -->
 
 ---
 
-**This is an agent-first guide. For user-facing quickstart, see `README.md`.**
+## API Reference (Compact)
+
+<!-- For API/service projects: list every endpoint with inline request body shapes.
+     For non-API projects: replace this section with "Key Commands" or "Feature Reference"
+     or delete entirely if not applicable. -->
+
+### {Domain Group 1}
+
+| Method | Path | Request Body | Purpose |
+|--------|------|-------------|---------|
+| `GET` | `/api/v1/{resource}` | — | List all |
+| `POST` | `/api/v1/{resource}` | `{"field_1","field_2"}` | Create (see Workflow 1) |
+| `GET` | `/api/v1/{resource}/:id` | — | Get by ID |
+| `DELETE` | `/api/v1/{resource}/:id` | — | Delete |
+
+### Health & Diagnostics
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | Service health (200 / 503) |
+
+<!-- For full request/response shapes: see docs/reference/REST_API_REFERENCE.md -->
+
+---
+
+## Integration
+
+<!-- How other services, agents, or automations connect to this project.
+     Delete this entire section for user-facing-only projects (chrome extension, static site, desktop app)
+     that are never called by other services. -->
+
+### Authentication
+
+<!-- State explicitly even if "none". -->
+
+```text
+No authentication required. Internal Docker network trust.
+```
+<!-- Or: X-API-Key: ${PROJECT_NAME_API_KEY} -->
+<!-- Or: Authorization: Bearer ${TOKEN} -->
+
+### Language Integration (copy-paste)
+
+**Python:**
+
+```python
+import httpx, os
+
+{PROJECT}_URL = os.getenv("{PROJECT_NAME}_URL", "http://{project-name}:{PORT}")
+
+class {Project}Client:
+    def __init__(self, base_url: str = {PROJECT}_URL):
+        self.c = httpx.Client(base_url=base_url, timeout=30.0)
+
+    def health(self) -> bool:
+        return self.c.get("/health").status_code == 200
+
+    def {primary_action}(self, payload: dict) -> dict:
+        r = self.c.post("/api/v1/{resource}", json=payload)
+        r.raise_for_status()
+        return r.json()
+```
+
+**TypeScript:**
+
+```typescript
+const {PROJECT}_URL = process.env.{PROJECT_NAME}_URL ?? "http://{project-name}:{PORT}";
+
+export const {project} = {
+  health: async () => (await fetch(`${{{PROJECT}_URL}}/health`)).ok,
+  {primaryAction}: async (payload: Record<string, unknown>) => {
+    const r = await fetch(`${{{PROJECT}_URL}}/api/v1/{resource}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error(`{project-name} ${r.status}: ${await r.text()}`);
+    return r.json();
+  },
+};
+```
+
+**cURL:**
+
+```bash
+curl -sf http://{project-name}:{PORT}/health | jq .
+
+curl -X POST http://{project-name}:{PORT}/api/v1/{resource} \
+  -H "Content-Type: application/json" \
+  -d '{"field_1": "value"}'
+```
+
+### Docker Compose — Caller Wiring
+
+**Same Coolify stack:**
+
+```yaml
+services:
+  your-service:
+    environment:
+      - {PROJECT_NAME}_URL=http://{project-name}:{PORT}
+    depends_on:
+      {project-name}:
+        condition: service_healthy
+    networks:
+      - coolify
+```
+
+**Cross-stack (external network):**
+
+```yaml
+services:
+  your-service:
+    environment:
+      - {PROJECT_NAME}_URL=http://{project-name}:{PORT}
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
+```
+
+### Rate Limits
+
+<!-- State explicitly. "None" is valid. -->
+
+| Scope | Limit | Behavior |
+|-------|-------|----------|
+| None | — | No rate limiting applied |
+
+### Request Tracing
+
+<!-- Delete if not supported. -->
+Every response includes `X-Request-ID`. Pass it in requests to correlate across logs.
+
+---
+
+## Automation
+
+<!-- Delete patterns that don't apply. Delete entire section for non-service projects. -->
+
+### n8n
+
+```text
+HTTP Request node:
+  Method: POST
+  URL: http://{project-name}:{PORT}/api/v1/{resource}
+  Body (JSON): { "field_1": "{{ $json.input }}" }
+  → Route: 200 → continue | 429 → Wait 60s → Retry | 5xx → Error workflow
+```
+
+### Cron
+
+```bash
+0 2 * * * curl -sf -X POST http://{project-name}:{PORT}/api/v1/maintenance/cleanup
+```
+
+---
+
+## Error Handling
+
+| Status | Meaning | Recovery |
+|--------|---------|----------|
+| `400` | Validation failed | Check `error.details` in response |
+| `404` | Not found | Verify resource exists |
+| `429` | Rate limited | Retry after `Retry-After` header |
+| `500` | Internal error | Retry once after 5s |
+| `503` | Dependency down | Check `/health` for details |
+
+<!-- Delete codes your project never returns. Add project-specific codes. -->
+
+**Error response shape:**
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "Human-readable description",
+    "details": {}
+  }
+}
+```
+
+**Retry pattern:**
+
+```python
+import time, httpx
+
+def call_with_retry(fn, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return fn()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (429, 500, 503) and attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+            else:
+                raise
+```
+
+---
+
+## Environment Variables
+
+### Project config
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PORT` | No | `{PORT}` | Service port |
+| `DATABASE_URL` | {Yes/No} | — | PostgreSQL connection string |
+| `LOG_LEVEL` | No | `info` | Logging level |
+
+<!-- Add all project-specific variables. -->
+
+### For callers (if this is a service)
+
+```env
+{PROJECT_NAME}_URL=http://{project-name}:{PORT}
+```
+
+---
+
+## Agent Context Block
+
+<!-- Copy-paste into Cascade / Kilo sessions that need to work WITH this project (not inside it).
+     Must be fully self-contained — an agent reading only this block can make correct calls.
+     Delete this section for projects that are never called by other services or agents. -->
+
+```text
+## {PROJECT_NAME}
+- URL: http://{project-name}:{PORT} (Docker) | https://{project}.vps1.ocoron.com (external)
+- Auth: {None / X-API-Key header}
+- Health: GET /health → 200 = ready, 503 = stop
+
+Primary operations:
+  - POST /api/v1/{resource} → {"field_1": "value", "field_2": 123}
+  - GET /api/v1/{resource}/:id
+  - DELETE /api/v1/{resource}/:id
+
+Error shape: {"error": {"code": "...", "message": "...", "details": {...}}}
+Env for callers: {PROJECT_NAME}_URL=http://{project-name}:{PORT}
+```
+
+## Agent Gotchas
+
+| Gotcha | Why it fails | Correct approach |
+|--------|-------------|------------------|
+| Calling without checking `/health` | 503 during cold start | Poll `/health` first |
+| Missing `Content-Type: application/json` | 400 on POST/PUT | Always include header |
+
+<!-- Add project-specific gotchas as they surface. -->
+
+---
+
+## Local Development
+
+→ Full setup: [`README.md`](../README.md)
+
+```bash
+git clone {repo_url} && cd {project-name}
+cp .env.example .env
+docker compose up -d
+curl http://localhost:{PORT}/health
+```
+
+---
+
+## Reference Links
+
+<!-- Only link docs that exist. Delete unused rows. -->
+
+| Document | Path |
+|----------|------|
+| Features | `./docs/FEATURES.md` |
+| Configuration | `./docs/CONFIGURATION.md` |
+| API reference | `./docs/reference/REST_API_REFERENCE.md` |
+| Troubleshooting | `./docs/TROUBLESHOOTING.md` |
+| Changelog | `./CHANGELOG.md` |

@@ -90,10 +90,23 @@ Specs and configs exist but containers are not running. Deploy when needed.
 | Translator | 8000 | DeepL + Azure translation |
 | Captcha | 8000 | Anti-Captcha solving |
 | Proxy | 8000 | Webshare.io proxy management |
-| DNS Manager | 8001 | Namecheap DNS API |
+| DNS Manager | 8001 | Namecheap + Cloudflare DNS, domain registration, website provisioning. See `docs/reference/service-contracts/dns-manager.md` |
 | File API | 8004 | File operations |
-| Image Broker | 8010 | AI image generation (FLUX) |
+| Image Broker | 8010 | Stock image API (Pexels/Pixabay) with smart routing, scoring, caching |
 | Email Gateway | 3000 | Resend + SES email sending |
+
+### DNS Manager — Key Capabilities
+
+DNS Manager (`dns.vps1.ocoron.com`) is the **single gateway** for all DNS/domain operations. Fabrik calls it via `fabrik domain` CLI or `DNSClient` driver.
+
+| Workflow | CLI Command | Endpoint |
+|----------|-------------|----------|
+| Check domain availability | `fabrik domain check <domain>` | `POST /api/domains/check` |
+| Get TLD pricing | — | `GET /api/domains/pricing/{tld}` |
+| Register domain | `fabrik domain buy <domain>` | `POST /api/domains/register` |
+| Provision website (DNS + CDN + WAF) | `fabrik domain provision <domain>` | `POST /api/cloudflare/zones/{domain}/provision` |
+| Check deployment readiness | `fabrik domain ready <domain>` | `GET /api/cloudflare/zones/{domain}/ready` |
+| List DNS zones | `fabrik domain zones` | `GET /api/cloudflare/zones` |
 
 ### Microservice URL Patterns
 
@@ -237,7 +250,25 @@ async def health():
 TEMP_DIR = Path(__file__).parent.parent / ".tmp"
 ```
 
+### Logging (Pre-Scaffolded — DO NOT Recreate)
+
+```python
+# Python — already at src/{package}/logger.py
+from {package}.logger import get_logger
+logger = get_logger(__name__)
+logger.info("user_created", user_id=uid)
+# NEVER use print() — logger is already there
+```
+
+```javascript
+// Node — already at src/logger.js
+const logger = require('./logger');
+logger.info({ event: 'user_created', user_id: uid });
+// NEVER use console.log() — logger is already there
+```
+
 ### Docker
+
 ```dockerfile
 FROM python:<current-stable>-slim-bookworm
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
@@ -245,6 +276,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
 ```
 
 ### compose.yaml
+
 ```yaml
 networks:
   coolify:

@@ -1,203 +1,105 @@
-# Deployment - [Project Name]
+# Deployment — [Project Name]
 
 **Last Updated:** YYYY-MM-DD
-**Environment:** WSL (dev) → VPS (prod via Coolify)
 
 ---
 
-## Overview
+## Deployment Target
 
-| Attribute | Value |
-|-----------|-------|
-| **Project** | [Project Name] |
-| **Type** | [API / Worker / Full Stack / Static] |
-| **Domain** | [subdomain.domain.com] |
-| **Repository** | [GitHub URL] |
+<!-- Fill in during project setup with Traycer. Delete targets that don't apply. -->
+
+| Component | Target | URL |
+|-----------|--------|-----|
+| **Application** | {VPS (Coolify) / Vercel / Static host} | `https://{project}.vps1.ocoron.com` |
+| **Database** | {VPS postgres-main / Supabase / SQLite} | {connection info in .env} |
+| **Cache** | {VPS redis / none} | {connection info in .env} |
+| **DNS** | Cloudflare (via dns-manager) | Automatic |
+| **SSL** | {Let's Encrypt (Coolify) / Vercel / Cloudflare} | Automatic |
+| **Monitoring** | Uptime Kuma | `https://status.vps1.ocoron.com` |
+
+---
+
+## Deploy
+
+### Automated (default)
+
+```bash
+fabrik apply [project-name]
+# DNS → Coolify app → env vars → domain + SSL → health check → deploy
+```
+
+### Manual (Coolify UI)
+
+1. Create app in Coolify (`coolify.vps1.ocoron.com`) → Docker Compose build
+2. Connect GitHub repo
+3. Set env vars from `.env.example`
+4. Add domain → SSL auto-configures
+5. Deploy
+
+### Vercel (if applicable)
+
+```bash
+vercel --prod
+# Or: push to main → auto-deploys via GitHub integration
+```
+
+### Updates
+
+```bash
+git push origin main
+# Auto-deploys if webhook configured, otherwise manual deploy via Coolify/Vercel UI
+```
 
 ---
 
 ## Services
 
-| Service | Port (Dev) | Port (Prod) | Health Endpoint | Purpose |
-|---------|------------|-------------|-----------------|---------|
-| web | 8000 | Internal | /health | Main API |
-| worker | - | - | - | Background jobs |
+| Service | Port | Health | Purpose |
+|---------|------|--------|---------|
+| {web} | {see project.yaml} | `GET /health` | {Main API} |
+| {worker} | — | — | {Background jobs} |
 
-**Note:** In production, Coolify proxy (Traefik) handles external routing (80/443). Internal ports are not exposed.
-
-**🔒 amd64 Compatibility: VPS is x86_64 (amd64). All Docker images MUST support `linux/amd64`.
-
----
-
-## Environment Variables
-
-### Required (deployment will fail without these)
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection | `postgresql://user:pass@host:5432/db` |
-| `SECRET_KEY` | JWT/session signing | `openssl rand -hex 32` |
-
-### Optional (have defaults)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `APP_ENV` | `prod` | Environment name |
-
----
-
-## Docker Compose
-
-```yaml
-services:
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: [project-name]:latest
-    environment:
-      - DATABASE_URL=${DATABASE_URL:?}
-      - SECRET_KEY=${SECRET_KEY:?}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    ports:
-      - "8000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      - DATABASE_URL=${DATABASE_URL:?}
-    depends_on:
-      web:
-        condition: service_healthy
-    restart: unless-stopped
-```
-
-**⚠️ FORBIDDEN:**
-- **Alpine base images** — Use `python:3.12-slim-bookworm` or `node:22-bookworm-slim`
-- **Hardcoded `localhost`** in `DATABASE_URL` — Use service names (`postgres-main`, `redis`)
-- **Missing health checks** — All services MUST have `/health` endpoint that tests dependencies
-
----
-
-## Deployment Steps
-
-### First Time — Automated via `fabrik apply`
-
-```bash
-# From Fabrik root
-fabrik apply [project-name]
-
-# What this does:
-# 1. Registers subdomain DNS (Namecheap/Cloudflare)
-# 2. Creates Coolify application via API
-# 3. Configures Docker Compose build
-# 4. Sets environment variables from .env.example
-# 5. Configures domain + SSL (Let's Encrypt)
-# 6. Adds health check to Uptime Kuma
-# 7. Deploys application
-```
-
-**Manual fallback (if `fabrik apply` unavailable):**
-
-1. Create new application in Coolify UI (coolify.vps1.ocoron.com)
-2. Select "Docker Compose" build pack
-3. Connect GitHub repository
-4. Set environment variables in Coolify UI
-5. Add domain `[project].vps1.ocoron.com` (SSL auto-configured)
-6. Deploy
-
-### Updates
-
-```bash
-# Push to GitHub triggers auto-deploy (if webhook configured)
-git push origin main
-
-# Or manual deploy via Coolify UI → Deployments → Deploy
-```
-
----
-
-## Local Development (WSL)
-
-```bash
-# Start services
-docker compose up -d
-
-# Or without Docker
-cd /opt/[project]
-source venv/bin/activate
-uvicorn app.main:app --reload --port 8000
-```
+<!-- Delete worker row if no background services. -->
 
 ---
 
 ## Database
 
-| Environment | Host | Database | Notes |
-|-------------|------|----------|-------|
-| Development | localhost:5432 | [project]_dev | Local PostgreSQL |
-| Production | postgres-main | [project] | Coolify-managed |
+| Environment | Connection | Notes |
+|-------------|------------|-------|
+| Dev (WSL) | `postgresql://localhost:5432/[project]_dev` | Local PostgreSQL |
+| Prod (VPS) | `postgresql://[project]:$DB_PASSWORD@postgres-main:5432/[project]` | Coolify-managed |
+| Supabase | `postgresql://postgres.$REF:$PASSWORD@pooler.supabase.com:6543/postgres` | Connection pooler |
+| SQLite | `sqlite:///data/[project].db` | File-based, no server |
 
-### Migrations
-
-```bash
-# Create migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
-alembic upgrade head
-```
+<!-- Delete rows that don't apply. Connection strings are in .env, not hardcoded here. -->
 
 ---
 
-## Monitoring
+## Infrastructure Rules
 
-| Check | URL | Expected |
-|-------|-----|----------|
-| Health | /health | `{"status": "ok"}` |
-| Readiness | /ready | `{"status": "ready"}` |
-
-### Uptime Kuma
-
-- [ ] Health check configured
-- [ ] Alert notifications set up
+- **Base images:** `python:3.12-slim-bookworm` or `node:22-bookworm-slim` — never Alpine
+- **Architecture:** `linux/amd64` required — VPS is x86_64
+- **Networking:** Docker service names (`postgres-main`, `redis`), never `localhost` in production
+- **Health checks:** Every service must have `/health` that tests actual dependencies
+- **Ports:** Registered in `PORTS.md` — Coolify/Traefik handles external 80/443 routing
 
 ---
 
 ## Rollback
 
 ```bash
-# Via Coolify UI: select previous deployment and redeploy
-
-# Database rollback (if needed)
-alembic downgrade -1
+# Coolify: select previous deployment → redeploy
+# Vercel: vercel rollback
+# Database: apply rollback migration from db/schema.sql
 ```
 
 ---
 
-## Checklist
+## Monitoring
 
-### Before First Deploy
+| Check | Endpoint | Expected |
+|-------|----------|----------|
+| Health | `/health` | `{"status": "ok", "dependencies": {...}}` |
 
-- [ ] Dockerfile tested locally
-- [ ] docker-compose.yaml works locally
-- [ ] All required env vars documented
-- [ ] Health endpoint implemented
-- [ ] Database migrations ready
-- [ ] Port registered in `PORTS.md`
-
-### After Deploy
-
-- [ ] Health check passing
-- [ ] Logs accessible in Coolify
-- [ ] Domain resolving with HTTPS
-- [ ] Uptime monitoring configured
+Uptime Kuma auto-configured by `fabrik apply`. Manual setup: add HTTP check at `https://{project}.vps1.ocoron.com/health`.

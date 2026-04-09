@@ -1,53 +1,50 @@
-# Changelog
+# Changelog — [Project Name]
 
 All notable changes to this project are documented in this file.
 
-Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adapted for Fabrik workflow.
-
-**Entries written by:** Coding agents (gate-enforced per task).
+Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
 ## [Unreleased]
 
-### Added — New Features (YYYY-MM-DD)
+### Added — (YYYY-MM-DD)
 
-- Feature description with file/function names
-
-### Changed — Modifications (YYYY-MM-DD)
-
-- Change description with affected components
-
-### Fixed — Bug Fixes (YYYY-MM-DD)
-
-- Fix description with issue reference
-
-### Removed — Deprecations (YYYY-MM-DD)
-
-- Removed feature with migration path
-
-### Security — Security Updates (YYYY-MM-DD)
-
-- Security fix with severity level
+- Initial project scaffolded
 
 ---
 
-## [X.Y.Z] - YYYY-MM-DD
+<!-- Entry format:
 
-### Added — Feature Name (YYYY-MM-DD)
+### Category — Title (YYYY-MM-DD)
+- Action verb + file/function/endpoint + what changed
 
-- Add `function_name()` in `src/module.py` to handle X
-- Add new endpoint `/api/resource` for Y operation
+Categories: Added, Changed, Fixed, Removed, Security
 
-### Changed — Breaking Changes (YYYY-MM-DD)
+Examples:
+  ### Added — DNS provisioning endpoint (2026-04-09)
+  - Add `POST /api/v1/zones/{domain}/provision` with DNSSEC and WAF support
+  - Add `DnsManagerClient` Python SDK module
 
-- Rename `old_function()` to `new_function()` in `src/core.py`
-- Update response format for `/api/users` endpoint
+  ### Fixed — Health check false positives (2026-04-09)
+  - Fix `/health` returning 200 when Redis is unreachable
 
-### Fixed — Critical Bugs (YYYY-MM-DD)
+  ### Security — API key validation (2026-04-09)
+  - Add rate limiting on auth endpoints to prevent brute force
 
-- Fix race condition in `worker.py` causing data loss
-- Fix authentication bypass in `/api/admin` endpoints
+  ### Changed — Response format update (2026-04-09)
+  - Change error responses from flat strings to `{"error": {"code", "message", "details"}}` shape
+  - BREAKING: Remove `status_text` field from all responses
+
+-->
+
+## Versioning
+
+This project uses [Semantic Versioning](https://semver.org/):
+
+- **MAJOR** (X.0.0): Incompatible API changes
+- **MINOR** (0.X.0): New functionality, backwards compatible
+- **PATCH** (0.0.X): Bug fixes, backwards compatible
 
 ---
 

@@ -1,116 +1,207 @@
-# API Reference: {module_name}
+# API Reference — [Project Name]
 
 **Last Updated:** YYYY-MM-DD
 
-API documentation for the `{module_name}` module.
+> Detailed API documentation. For quick integration, see [QUICKSTART.md](QUICKSTART.md) first.
+> For auto-generated interactive docs, see the live OpenAPI endpoint at `/docs`.
 
-**⚙️ AUTO-GENERATED:** New functions/classes are documented by `kilo_docs_enforcer.py` (Documentator agent, Step 4 in mandatory workflow). Manual edits are preserved.
-
----
-
-## Overview
-
-[Brief description of what this module provides and when to use it.]
+<!-- This file is for detailed reference when QUICKSTART.md's compact tables aren't enough
+     and OpenAPI's auto-generated docs need supplemental context.
+     Create this manually — it is NOT scaffolded automatically. -->
 
 ---
 
-## Functions
+## REST API
 
-### `function_name`
+### Base URLs
 
-**Signature:**
+| Environment | URL |
+|-------------|-----|
+| Production | `https://{project}.vps1.ocoron.com` |
+| Docker-internal | `http://{project-name}:{PORT}` |
+| Local dev | `http://localhost:{PORT}` |
 
-```python
-def function_name(param1: str, param2: int = 0) -> dict:
+### Authentication
+
+<!-- Copy from QUICKSTART.md or reference it. Keep in sync. -->
+
+```
+No authentication required. Internal Docker network trust.
 ```
 
-**Description:** [What this function does, in one sentence.]
+---
 
-**Parameters:**
+### {Endpoint Group 1}
+
+#### `POST /api/v1/{resource}`
+
+{What this endpoint does — one sentence.}
+
+**Request:**
+
+```json
+{
+  "field_1": "value",
+  "field_2": 123,
+  "optional_field": true
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `field_1` | string | Yes | — | {Description} |
+| `field_2` | int | Yes | — | {Description} |
+| `optional_field` | bool | No | `true` | {Description} |
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "id": "abc-123",
+  "result": "..."
+}
+```
+
+**Response (400):**
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "field_1 is required",
+    "details": {"field": "field_1"}
+  }
+}
+```
+
+**Notes:**
+
+- Idempotent: {Yes / No}
+- {Any additional behavior: async, side effects, rate limits}
+
+---
+
+#### `GET /api/v1/{resource}/:id`
+
+{What this endpoint does.}
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `include` | string | — | Comma-separated related resources to include |
+
+**Response (200):**
+```json
+{
+  "id": "abc-123",
+  "field_1": "value",
+  "created_at": "2026-04-09T12:00:00Z"
+}
+```
+
+**Response (404):**
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Resource abc-123 not found"
+  }
+}
+```
+
+---
+
+#### `DELETE /api/v1/{resource}/:id`
+
+**Response (200):**
+```json
+{"success": true, "deleted": "abc-123"}
+```
+
+---
+
+### {Endpoint Group 2}
+
+<!-- Repeat the pattern above for each endpoint group.
+     Group by domain, not by HTTP method. -->
+
+---
+
+## Python SDK
+
+<!-- Include this section only if the project exposes a Python SDK
+     that other projects import directly (not via HTTP).
+     Delete this entire section for HTTP-only services. -->
+
+### Installation
+
+```python
+import sys
+sys.path.insert(0, "/opt/{project-name}")
+from {package_name} import {ClassName}
+```
+
+### `{ClassName}`
+
+{What this class does — one sentence.}
+
+```python
+from {package_name} import {ClassName}
+
+client = {ClassName}(config={"key": "value"})
+```
+
+#### `.{method_name}()`
+
+```python
+def {method_name}(self, param1: str, param2: int = 0) -> dict:
+```
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `param1` | `str` | Yes | — | Description of param1 |
-| `param2` | `int` | No | `0` | Description of param2 |
+| `param1` | str | Yes | — | {Description} |
+| `param2` | int | No | `0` | {Description} |
 
-**Returns:**
-
-- `dict` — Description of return value structure
+**Returns:** `dict` — `{"status": "ok", "value": ...}`
 
 **Raises:**
-
-- `ValueError` — When param1 is empty
-- `RuntimeError` — When external service is unavailable
-
-**Example:**
-
-```python
-from module_name import function_name
-
-result = function_name("input", param2=42)
-print(result)  # {"status": "ok", "value": 42}
-```
-
----
-
-## Classes
-
-### `ClassName`
-
-**Description:** [What this class represents and when to use it.]
-
-**Constructor:**
-
-```python
-class ClassName:
-    def __init__(self, config: dict) -> None:
-```
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `config` | `dict` | Yes | — | Configuration dictionary |
-
-**Methods:**
-
-#### `.method_name()`
-
-```python
-def method_name(self, arg: str) -> bool:
-```
-
-**Description:** [What this method does.]
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `arg` | `str` | Yes | — | Description of arg |
-
-**Returns:**
-
-- `bool` — `True` if operation succeeded
+- `ValueError` — when `param1` is empty
+- `httpx.HTTPStatusError` — when upstream API returns error
 
 **Example:**
 
 ```python
-obj = ClassName(config={"key": "value"})
-success = obj.method_name("test")
+result = client.{method_name}("input", param2=42)
 ```
+
+<!-- Repeat for each public method. Only document public API, not internals. -->
 
 ---
 
-## Related Functions
+## Error Reference
 
-| Function | Module | Description |
-|----------|--------|-------------|
-| `related_func` | `other_module` | Brief description |
-| `helper_func` | `utils` | Brief description |
+<!-- Comprehensive error code table. Supplements the compact table in QUICKSTART.md. -->
+
+| Code | HTTP Status | Meaning | Recovery |
+|------|-------------|---------|----------|
+| `VALIDATION_FAILED` | 400 | Request body failed validation | Check `error.details` for field-level errors |
+| `NOT_FOUND` | 404 | Resource doesn't exist | Verify ID. Create resource first if needed. |
+| `CONFLICT` | 409 | Duplicate resource | Fetch existing resource or use PUT to update |
+| `RATE_LIMITED` | 429 | Too many requests | Wait per `Retry-After` header |
+| `INTERNAL_ERROR` | 500 | Server error | Retry once. If persistent, check service logs. |
+| `DEPENDENCY_DOWN` | 503 | Upstream dependency unreachable | Check `/health` for details |
+
+<!-- Add project-specific error codes. -->
 
 ---
 
 ## See Also
 
-- [Module Reference](MODULE_REFERENCE_TEMPLATE.md)
-- [Configuration Guide](CONFIGURATION.md)
+| Document | Purpose |
+|----------|---------|
+| [QUICKSTART.md](QUICKSTART.md) | Integration contract — compact endpoint tables, SDK modules, Docker wiring |
+| [FEATURES.md](FEATURES.md) | Feature-level documentation |
+| [CONFIGURATION.md](CONFIGURATION.md) | All environment variables |
+| `/docs` (live) | Auto-generated OpenAPI interactive docs |

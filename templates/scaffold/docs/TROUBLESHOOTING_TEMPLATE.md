@@ -1,250 +1,117 @@
-# Troubleshooting Guide
+# Troubleshooting — [Project Name]
 
 **Last Updated:** YYYY-MM-DD
 
-Common issues and solutions for [Project Name].
+---
 
 ## Quick Diagnostics
 
-Run these commands first to identify issues:
-
 ```bash
-# Check service health
-curl http://localhost:8000/health
+# Health check
+curl http://localhost:$PORT/health
 
-# View recent logs
-tail -f logs/app.log
+# Logs
+docker compose logs -f --tail=50
 
 # Run tests
-pytest tests/ -v
+/opt/<project>/.venv/bin/pytest tests/ -v
 ```
 
 ---
 
 ## Common Issues
 
-### Issue: Service won't start
+### Service won't start
 
-**Symptoms:**
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Port already in use | Another service on same port | `lsof -i :$PORT` → kill or change port in `.env` |
+| Import errors | Missing dependencies or wrong venv | `/opt/<project>/.venv/bin/pip install -r requirements.txt` |
+| `externally-managed-environment` | Bare `pip install` on WSL/Debian | Always use `/opt/<project>/.venv/bin/pip`, never bare `pip` |
+| Container won't start | Docker image issue | `docker compose build --no-cache && docker compose up -d` |
 
-- `uvicorn` command fails
-- Port already in use error
-- Import errors
+### Health check returns 503
 
-**Cause:**
-
-Missing dependencies, port conflicts, or incorrect Python version.
-
-**Solution:**
-
-```bash
-# CRITICAL: Use project-specific .venv (PEP 668 compliance)
-/opt/<project>/.venv/bin/python -m uvicorn src.<package_name>.main:app --reload
-
-# Or activate venv first
-source /opt/<project>/.venv/bin/activate
-uvicorn src.<package_name>.main:app --reload
-
-# Reinstall dependencies (NEVER use bare pip)
-/opt/<project>/.venv/bin/pip install -r requirements.txt
-
-# Check port availability
-lsof -i :8000
-
-# Try different port
-uvicorn src.<package_name>.main:app --reload --port 8001
-```
-
-**⚠️ PEP 668:** WSL/Debian block system-wide pip. Always use `/opt/<project>/.venv/bin/pip`, never bare `pip install`.
-
-**Prevention:**
-
-Always use a virtual environment and check port availability before starting.
-
----
-
-### Issue: Health check returns 503
-
-**Symptoms:**
-
-```json
-{
-  "service": "project-name",
-  "status": "error",
-  "error": "..."
-}
-```
-
-**Cause:**
-
-Critical imports failing (FastAPI, Uvicorn, Pydantic not installed).
-
-**Solution:**
+Dependencies unreachable. Check the response body — it tells you which dependency failed:
 
 ```bash
-# Install missing dependencies
-pip install fastapi uvicorn pydantic
-
-# Verify installation
-python -c "import fastapi, uvicorn, pydantic; print('OK')"
+curl -s http://localhost:$PORT/health | jq .
 ```
 
-**Prevention:**
+| Failing dependency | Fix |
+|--------------------|-----|
+| `postgres: timeout` | Verify `DATABASE_URL` in `.env`. Test: `psql $DATABASE_URL` |
+| `redis: timeout` | Verify `REDIS_URL` in `.env`. Is Redis running? `docker compose ps` |
+| All dependencies down | Service started before dependencies. Restart: `docker compose restart` |
 
-Always run `pip install -r requirements.txt` after creating a new project.
+### Import errors in tests
 
----
-
-### Issue: Tests fail with import errors
-
-**Symptoms:**
-
-```
+```text
 ModuleNotFoundError: No module named 'src'
 ```
 
-**Cause:**
-
-Incorrect import path - tests should import from the package name, not `src`.
-
-**Solution:**
-
-```bash
-# Correct import
+Tests must import from the package name, not `src`:
+```python
+# Correct
 from <package_name>.main import app
 
-# Incorrect import
-from src.main import app  # WRONG
+# Wrong
+from src.main import app
 ```
 
-**Prevention:**
+### Docker / Compose issues
 
-Use the package name (e.g., `trading_core`) not `src` in imports.
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `localhost` connection refused inside container | Using `localhost` instead of service name | Replace `localhost` with `postgres-main`, `redis`, etc. in `.env` |
+| Image architecture mismatch | Missing platform spec | Add `platform: linux/amd64` in `compose.yaml` |
+| Stale container | Old image cached | `docker compose down && docker compose up -d --build` |
+| Volume permission errors | UID mismatch | Check Dockerfile `USER` directive matches volume owner |
 
 ---
 
 ## Error Messages
 
-### "ImportError: No module named 'fastapi'"
+| Error | Meaning | Fix |
+|-------|---------|-----|
+| `Address already in use` | Port conflict | `lsof -i :$PORT` → kill process or change port |
+| `No module named 'fastapi'` | Venv not activated or deps missing | `source /opt/<project>/.venv/bin/activate && pip install -r requirements.txt` |
+| `Connection refused` to database | DB not running or wrong URL | Check `DATABASE_URL`, test with `psql` |
+| `ECONNREFUSED` in container | Using `localhost` in Docker | Use Docker service names, not `localhost` |
 
-**Meaning:** FastAPI not installed or virtual environment not activated.
+---
 
-**Solution:**
-
-```bash
-# Use project-specific venv (REQUIRED on WSL/Debian)
-/opt/<project>/.venv/bin/pip install fastapi
-
-# Or activate first
-source /opt/<project>/.venv/bin/activate
-pip install fastapi
-```
-
-### "Address already in use"
-
-**Meaning:** Port 8000 is already in use by another process.
-
-**Solution:**
+## Debug Commands
 
 ```bash
-# Find process using port
-lsof -i :8000
+# Service health (verbose)
+curl -v http://localhost:$PORT/health
 
-# Kill process or use different port
-uvicorn src.<package_name>.main:app --reload --port 8001
-```
+# Docker status
+docker compose ps
+docker compose logs <service-name> --tail=100
 
-### "ModuleNotFoundError: No module named 'src'"
+# Database connection test
+psql $DATABASE_URL -c "SELECT 1"
 
-**Meaning:** Incorrect import path in tests.
+# Port check
+lsof -i :$PORT
 
-**Solution:**
+# Python environment
+/opt/<project>/.venv/bin/python --version
+/opt/<project>/.venv/bin/pip list
 
-Update test imports to use package name:
-```python
-from <package_name>.main import app
+# Disk space (common VPS issue)
+df -h /
 ```
 
 ---
 
-## Performance Issues
+## Project-Specific Issues
 
-### Slow Response Times
+<!-- Add issues specific to this project as they surface.
+     Format: symptom → cause → fix. Keep it scannable. -->
 
-**Possible causes:**
-
-1. Blocking I/O operations - Use async/await
-2. Database queries not optimized - Add indexes
-3. Logging too verbose - Set LOG_LEVEL=WARNING
-
-**Solutions:**
-
-```bash
-# Enable debug logging to identify bottlenecks
-LOG_LEVEL=DEBUG uvicorn src.<package_name>.main:app --reload
-```
-
-### High Memory Usage
-
-**Solutions:**
-
-1. Check for memory leaks in long-running processes
-2. Reduce worker processes
-3. Monitor with `htop` or `top`
-
----
-
-## Enforcement Scripts (Pre-Commit Quality Gates)
-
-If builds fail, run these checks manually:
-
-```bash
-# From Fabrik root
-python scripts/final_gate.py
-
-# Individual checks
-python scripts/enforcement/check_secrets.py
-python scripts/enforcement/check_env_contract.py
-python scripts/enforcement/check_compose_services.py
-python scripts/enforcement/check_changelog.py
-```
-
-**Common failures:**
-- `check_secrets.py` → Remove hardcoded API keys/passwords
-- `check_env_contract.py` → Add missing vars to `.env.example`
-- `check_compose_services.py` → Fix service name typos (`localhost` → `postgres-main`)
-- `check_changelog.py` → Add entry to `CHANGELOG.md` for this change
-
----
-
-## Getting More Help
-
-### Enable Debug Logging
-
-```bash
-LOG_LEVEL=DEBUG /opt/<project>/.venv/bin/python -m uvicorn src.<package_name>.main:app --reload
-```
-
-### Collect Debug Info
-
-```bash
-# System info
-uname -a
-python --version
-
-# Test health endpoint
-curl -v http://localhost:8000/health
-
-# Run tests with verbose output
-pytest tests/ -vv
-```
-
-### Report Issues
-
-Include:
-
-1. Error message (full text)
-2. Command that caused the error
-3. Debug log output
-4. System info (OS, versions)
-5. Steps to reproduce
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| *(none yet)* | — | — |

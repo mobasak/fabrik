@@ -9,6 +9,44 @@ trigger: glob
 
 Apply when working on logging, health endpoints, monitoring, alerting, or middleware instrumentation. Skip for pure UI layout or business logic without I/O.
 
+## Pre-Scaffolded Logging
+
+Every Fabrik project ships with a ready-to-use logging module. DO NOT create custom logging setups.
+
+**Python projects** (`python-api`, `file-worker`, `chrome-extension` backend):
+
+```python
+from {package}.logger import get_logger
+logger = get_logger(__name__)
+logger.info("event_name", key="value")
+```
+
+- Module: `src/{package}/logger.py` — structlog, JSON output, service name from `SERVICE_NAME` env var
+- Middleware: `src/{package}/middleware.py` — X-Request-ID correlation (python-api only)
+- Config: always JSON. No human-readable mode.
+
+**Node projects** (`node-api`, `file-api`):
+
+```javascript
+const logger = require('./logger');
+logger.info({ event: 'event_name', key: 'value' });
+```
+
+- Module: `src/logger.js` — pino, JSON output, service name from `SERVICE_NAME` env var
+
+**Next.js projects** (`saas-skeleton`):
+
+```typescript
+import logger from '@/lib/logger';
+logger.info({ event: 'event_name', key: 'value' });
+```
+
+- Module: `lib/logger.ts` — pino, JSON output
+
+**No scaffold logging:** `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, `static-site` — set up per ticket using the rules below.
+
+**Chrome extension frontend:** Use `chrome.storage.local` buffer pattern per the Chrome Extension Telemetry section below. Do not use pino directly in service workers.
+
 ## Structured Logging
 
 - All production logs must be **JSON-formatted**. Human-readable colorised output is for local development only.

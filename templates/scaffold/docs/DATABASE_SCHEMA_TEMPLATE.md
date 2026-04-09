@@ -1,92 +1,85 @@
-# Database Schema
+# Database Schema — [Project Name]
 
 **Last Updated:** YYYY-MM-DD
 
-Database schema documentation for [Project Name].
+> Schema documentation for [Project Name]. Source of truth for SQL is `db/schema.sql` — this doc adds context and rationale.
+
+**Database:** {PostgreSQL (postgres-main) | Supabase PostgreSQL | SQLite}
 
 ---
 
 ## Tables
 
-### table_name
+### {table_name}
 
-**Purpose:** [What this table stores and why]
+**Purpose:** {What this table stores and why it exists — one sentence.}
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | `id` | UUID | NO | `gen_random_uuid()` | Primary key |
-| `name` | VARCHAR(255) | NO | — | Display name |
-| `status` | VARCHAR(50) | NO | `'active'` | Record status |
 | `created_at` | TIMESTAMPTZ | NO | `NOW()` | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | YES | — | Last modification |
+| `updated_at` | TIMESTAMPTZ | YES | — | Auto-set by trigger |
 
----
+<!-- For SQLite projects, use these types instead:
+| `id` | TEXT | NO | — | UUID primary key (app-generated) |
+| `created_at` | TEXT | NO | — | ISO 8601 timestamp |
+-->
 
-## Indexes
+**Indexes:**
 
-| Table | Index Name | Columns | Type | Purpose |
-|-------|-----------|---------|------|---------|
-| `table_name` | `idx_table_name_status` | `status` | btree | Filter by status |
-| `table_name` | `idx_table_name_created` | `created_at` | btree | Sort by creation date |
+| Index | Columns | Purpose |
+|-------|---------|---------|
+| `idx_{table}_created` | `created_at` | Sort by creation date |
+
+**Constraints:**
+
+| Constraint | Type | Description |
+|-----------|------|-------------|
+| `{table}_email_unique` | UNIQUE | One record per email |
+
+<!-- Repeat table block for each table. -->
 
 ---
 
 ## Relationships
 
-| From Table | From Column | To Table | To Column | Type | On Delete |
-|-----------|-------------|----------|-----------|------|-----------|
-| `orders` | `user_id` | `users` | `id` | FK | CASCADE |
-| `order_items` | `order_id` | `orders` | `id` | FK | CASCADE |
+| From | Column | To | Column | Type | On Delete |
+|------|--------|----|--------|------|-----------|
+| `{child_table}` | `{parent}_id` | `{parent_table}` | `id` | FK | CASCADE |
+
+<!-- Delete this section if no foreign keys. SQLite projects: FK enforcement requires PRAGMA foreign_keys = ON. -->
 
 ---
 
-## Migration SQL
+## Migrations
 
-### Creating Tables
+<!-- Append new migrations chronologically. Each block is one change.
+     These should mirror what's in db/schema.sql. -->
+
+### Initial schema (YYYY-MM-DD)
 
 ```sql
--- YYYY-MM-DD: Create table_name
-CREATE TABLE IF NOT EXISTS table_name (
+CREATE TABLE IF NOT EXISTS {table_name} (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    -- columns here
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_table_name_status ON table_name(status);
-CREATE INDEX idx_table_name_created ON table_name(created_at);
+CREATE INDEX idx_{table}_created ON {table_name}(created_at);
 ```
 
-### Altering Tables
+<!-- SQLite equivalent:
+CREATE TABLE IF NOT EXISTS {table_name} (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    updated_at TEXT
+);
+-->
+
+### Auto-update trigger (YYYY-MM-DD)
 
 ```sql
--- YYYY-MM-DD: Add column to table_name
-ALTER TABLE table_name ADD COLUMN new_column VARCHAR(100);
-
--- YYYY-MM-DD: Add index
-CREATE INDEX idx_table_name_new_column ON table_name(new_column);
-```
-
----
-
-## Data Integrity
-
-### Constraints
-
-| Table | Constraint | Type | Description |
-|-------|-----------|------|-------------|
-| `users` | `email` | UNIQUE | One account per email |
-| `orders` | `total_amount` | CHECK | `total_amount >= 0` |
-
-### Triggers
-
-| Table | Trigger | Event | Description |
-|-------|---------|-------|-------------|
-| `table_name` | `set_updated_at` | BEFORE UPDATE | Auto-set `updated_at` |
-
-```sql
--- Auto-update updated_at trigger
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -95,46 +88,66 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER set_updated_at
-    BEFORE UPDATE ON table_name
+CREATE TRIGGER trg_{table}_updated_at
+    BEFORE UPDATE ON {table_name}
     FOR EACH ROW
     EXECUTE FUNCTION set_updated_at();
 ```
 
+<!-- SQLite: no trigger support for this pattern — handle in application code. -->
+
+<!-- Append future migrations below:
+### {Description} (YYYY-MM-DD)
+```sql
+ALTER TABLE {table_name} ADD COLUMN {column} {TYPE};
+```
+-->
+
 ---
 
-## Notes
+## Extensions
 
-- All timestamps use `TIMESTAMPTZ` (timezone-aware)
-- UUIDs preferred over sequential IDs for primary keys
-- Schema changes must be documented in `db/schema.sql`
+<!-- PostgreSQL-only. Delete for SQLite projects. Enable only what you use. -->
 
-### Default Considerations for AI/LLM Features
+| Extension | Purpose | Enable |
+|-----------|---------|--------|
+| `pgvector` | Vector embeddings for semantic search / RAG | `CREATE EXTENSION IF NOT EXISTS vector;` |
+| `pg_trgm` | Trigram text search | `CREATE EXTENSION IF NOT EXISTS pg_trgm;` |
 
-**pgvector (vector embeddings):**
+<!-- Supabase: extensions enabled via dashboard or SQL editor. Most are pre-available. -->
+
+### pgvector usage
+
 ```sql
--- Enable extension
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Add embedding column (1536 dims = OpenAI text-embedding-3-small)
+ALTER TABLE {table_name} ADD COLUMN embedding vector(1536);
 
--- Store embeddings (1536 dimensions for OpenAI text-embedding-3-small)
-ALTER TABLE documents ADD COLUMN embedding vector(1536);
+-- Similarity search index
+CREATE INDEX idx_{table}_embedding ON {table_name}
+    USING ivfflat (embedding vector_cosine_ops);
 
--- Index for similarity search
-CREATE INDEX idx_documents_embedding ON documents USING ivfflat (embedding vector_cosine_ops);
+-- Query nearest neighbors
+SELECT * FROM {table_name}
+    ORDER BY embedding <=> $1::vector
+    LIMIT 10;
 ```
 
-**JSONB (flexible schema for agent memory):**
-```sql
--- Metadata storage
-ALTER TABLE sessions ADD COLUMN metadata JSONB DEFAULT '{}';
+---
 
--- Index for JSONB queries
-CREATE INDEX idx_sessions_metadata ON sessions USING gin (metadata);
+## Conventions
 
--- Query example
-SELECT * FROM sessions WHERE metadata->>'status' = 'active';
-```
+- All timestamps: `TIMESTAMPTZ` (PostgreSQL) or ISO 8601 `TEXT` (SQLite)
+- Primary keys: UUID (not serial/autoincrement)
+- Schema changes: update `db/schema.sql` first, then this doc
+- JSONB for flexible/dynamic data (PostgreSQL only)
 
-**When to use:**
-- **pgvector:** Semantic search, RAG, recommendation systems
-- **JSONB:** Agent state, conversation history, dynamic config
+---
+
+## Connection Strings
+
+| Environment | Connection |
+|-------------|------------|
+| Shared VPS | `postgresql://{project}:$DB_PASSWORD@postgres-main:5432/{project}` |
+| Supabase | `postgresql://postgres.$PROJECT_REF:$DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:6543/postgres` |
+| SQLite (local) | `sqlite:///data/{project}.db` |
+| SQLite (Docker) | `sqlite:///app/data/{project}.db` |

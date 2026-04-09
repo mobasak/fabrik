@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Documentation template overhaul (2026-04-09)
+- **`templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md`**: Complete replacement with structured troubleshooting guide including quick diagnostics, common issues table, health check failures, environment-specific fixes, and performance troubleshooting.
+- **`templates/scaffold/docs/API_REFERENCE_TEMPLATE.md`**: Replaced with comprehensive API reference template featuring REST API documentation, Python SDK section, detailed error reference, and integration with OpenAPI docs.
+- **`templates/scaffold/docs/DATABASE_SCHEMA_TEMPLATE.md`**: Updated with multi-database support (PostgreSQL/Supabase/SQLite), migration history, extensions (pgvector, pg_trgm), and connection string examples.
+- **`templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md`**: Streamlined deployment template focusing on `fabrik apply` workflow, deployment targets, infrastructure rules, and monitoring setup.
+- **`templates/scaffold/docs/DOCS_INDEX_TEMPLATE.md`**: Simplified documentation index with clear navigation guidance and essential document listing.
+
+### Removed — Obsolete documentation templates (2026-04-09)
+- **Deleted templates**: `MIGRATION_TEMPLATE.md`, `PLAN_TEMPLATE.md`, `RESEARCH_TEMPLATE.md`, `LAUNCH_CHECKLIST_TEMPLATE.md`, `SERVICES_TEMPLATE.md`, `ENV_EXAMPLE_TEMPLATE.md`.
+- **Reasoning**: Planning handled by Traycer, migrations in db/schema.sql, research uses raw MD files, launch checklists via workflows, services covered by QUICKSTART.md, and .env.example handled by scaffold inline generation.
+
+### Fixed — Scaffold script template cleanup (2026-04-09)
+- **`scripts/kilo_docs_enforcer.py`**: Removed deleted template references from DOC_TEMPLATE_MAP, deleted ENV_FILE_PROMPT_TEMPLATE and its usage logic, fixed indentation issues.
+
+### Added — Tests for content pipeline (2026-04-09)
+- **`tests/content/test_seo_client.py`**: 7 tests for SEOClient — domain lookup (found, not found, case-insensitive), list_ready_briefs, claim_brief, release_brief, submit_brief. All mock httpx.Client.
+- **`tests/content/test_tco_client.py`**: 2 tests for TCOClient — generate_from_brief success and HTTP error propagation.
+- **`tests/content/test_image_broker_client.py`**: 3 tests for ImageBrokerClient — auto_download success, failure (success=false), and HTTP error (graceful None return).
+- **`tests/content/test_orchestrator.py`**: 14 tests for ContentPublisher — unknown domain error, dry-run skipping, TCO failure handling, image-failure resilience, WP post creation, brief submission with required fields, submission status logic, no-briefs error, keyword routing to auto_download, PublishContext error/warning tracking.
+- **`tests/content/test_cli_content.py`**: 3 tests for `fabrik content publish` CLI — help output, pipeline error exit code, dry-run flag.
+- **`tests/content/__init__.py`**: Empty init for test package.
+
+### Added — Content Creation Pipeline drivers (2026-04-08)
+- **`src/fabrik/drivers/seo.py`**: SEOClient for keyword research and brief generation. Methods: `register_site()`, `ensure_site()`, `create_job()`, `run_job()`, `get_job()`, `wait_for_job()`, `list_briefs()`, `list_briefs()`, `get_brief()`, `claim_brief()`, `release_brief()`, `submit_brief()`. Follows DNSClient pattern with env-based auth (`SEO_API_URL`, `SEO_API_KEY`).
+- **`src/fabrik/drivers/tco.py`**: TCOClient for AI content generation from SEO briefs. Method: `generate_from_brief()` with 300s default timeout (full LLM pipeline). Auth via `TCO_API_URL`, `TCO_API_KEY`.
+- **`src/fabrik/drivers/image_broker.py`**: ImageBrokerClient for stock image selection. Methods: `auto_download()`, `search()`, `download_image()`. No auth required. Auth via `IMAGE_BROKER_URL`.
+- **`src/fabrik/drivers/__init__.py`**: Added exports for `SEOClient`, `TCOClient`, `ImageBrokerClient`.
+- **`.env.example`**: Added `SEO_API_URL`, `SEO_API_KEY`, `TCO_API_URL`, `TCO_API_KEY`, `IMAGE_BROKER_URL`, `CONTENT_WORKER_ID`.
+- **`docs/CONFIGURATION.md`**: Added Content Creation Pipeline section with architecture overview and env var documentation.
+
+### Added — ContentPublisher orchestrator (2026-04-08)
+- **`src/fabrik/orchestrator/content_publisher.py`**: `ContentPublisher` class chains SEO → TCO → Image Broker → WordPress. Includes `PublishContext` dataclass for pipeline state tracking. Methods: `publish_page()` for full pipeline, helpers for site registration, image download, WP post building, brief submission.
+
+### Added — Content publishing CLI commands (2026-04-08)
+- **`src/fabrik/cli.py`**: Added `content` command group with `publish` subcommand (full pipeline with dry-run support). Added `seo` command group with `site-register`, `job-create`, `job-run`, `briefs-list` subcommands.
+
+### Fixed — consolidate_envs.py .env feedback loop (2026-04-08)
+- **`scripts/consolidate_envs.py`**: Fixed infinite .env backup loop by comparing parsed key-value dictionaries instead of raw text. Added backup rotation (keep last 3). Prevents inotifywait feedback loop when called by watch_env_changes.sh.
+
+### Fixed — audit_all_projects.py lint warnings (2026-04-08)
+- **`scripts/audit_all_projects.py`**: Fixed ruff linting issues - removed unused `indent_level`, replaced unused loop variables (`i`, `sev`) with `_`, simplified `find_watchdog()` with `any()`, renamed ambiguous variable `l` to `loc`, renamed uppercase `L` to `lines`.
+
+### Added — DNS Manager integration: driver, CLI, service contract (2026-04-07)
+- **`src/fabrik/drivers/dns.py`**: Extended DNSClient with Cloudflare provisioning (`provision()`, `check_ready()`, `list_zones()`, `get_zone_status()`, `cloudflare_health()`, `get_cloudflare_records()`), domain registration (`register_domain()`, `get_pricing()`). All methods call dns-manager service — Fabrik never calls Cloudflare/Namecheap directly.
+- **`src/fabrik/cli.py`**: Added `fabrik domain` command group with 5 subcommands: `check` (availability), `buy` (register), `provision` (Cloudflare DNS + CDN + WAF), `ready` (deployment readiness), `zones` (list Cloudflare zones).
+- **`docs/reference/service-contracts/dns-manager.md`**: Full integration contract with workflow diagrams, endpoint reference, request/response schemas, and notes on auth limitations (DNSSEC requires Global API Key, Namecheap requires whitelisted IP).
+- **`AGENTS.md`**: Updated DNS Manager entry in microservices table with full capabilities. Added DNS Manager Key Capabilities section with CLI-to-endpoint mapping.
+
 ### Changed — Remove dead api_key parameters from WordPress generators (2026-04-06)
 - **`src/fabrik/wordpress/content.py`**: Removed unused `api_key` param from `ContentGenerator.__init__()` and `generate_content()`. LLMClient reads keys from env vars internally.
 - **`src/fabrik/wordpress/legal.py`**: Removed unused `api_key` param from `LegalContentGenerator.__init__()` and `generate_legal_pages()`. Content creation moving to TCO project.
@@ -19,7 +67,7 @@ All notable changes to this project will be documented in this file.
 - **`templates/wordpress/defaults.yaml`**: Replaced banned `sitepress-multilingual-cms` (WPML) with `polylang`.
 
 ### Added — DNS provisioning in deployment orchestrator (2026-04-06)
-- **`src/fabrik/orchestrator/__init__.py`**: Replaced TODO placeholder with `_provision_dns()` method. Parses domain into subdomain + base domain, creates DNS A record via `DNSClient` (Namecheap/dns-manager) with automatic `CloudflareClient` fallback. Records DNS resource in `ctx.created_resources` for LIFO rollback. Supports dry-run logging, no-domain skip, and raises `ProvisioningError` on failure.
+- **`src/fabrik/orchestrator/__init__.py`**: Implemented `_provision_dns()` method. Parses domain into subdomain + base domain, creates DNS A record via `DNSClient` (Namecheap/dns-manager) with automatic `CloudflareClient` fallback. Records DNS resource in `ctx.created_resources` for LIFO rollback. Supports dry-run logging, no-domain skip, and raises `ProvisioningError` on failure.
 - **`tests/orchestrator/test_integration.py`**: Added 3 tests: `test_deploy_creates_dns_record`, `test_deploy_skips_dns_when_no_domain`, `test_deploy_rollback_includes_dns`.
 
 ### Changed — Migrate WordPress AI modules to unified LLMClient (2026-04-06)

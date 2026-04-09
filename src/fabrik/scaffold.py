@@ -5,6 +5,7 @@
   - docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md (detailed tree + file tables + examples)
 """
 
+import logging
 import os
 import re
 import shutil
@@ -16,6 +17,8 @@ from pathlib import Path
 import yaml
 
 from fabrik.config import FABRIK_ROOT
+
+logger = logging.getLogger(__name__)
 
 # Reserved project names that conflict with system dirs or packages
 RESERVED_NAMES = frozenset(
@@ -744,7 +747,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
         text=True,
     )
     if result.returncode != 0:
-        print(f"Warning: Failed to install dev dependencies: {result.stderr}")
+        logger.warning("Failed to install dev dependencies: %s", result.stderr)
 
 
 _SAAS_SKIP_FILES = {"AGENTS.md", "pyproject.toml", "requirements.txt"}
@@ -1597,7 +1600,7 @@ NODE_ENV=development
         text=True,
     )
     if result.returncode != 0:
-        print(f"Warning: Failed to install dependencies: {result.stderr}")
+        logger.warning("Failed to install dependencies: %s", result.stderr)
 
 
 def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
@@ -2281,7 +2284,9 @@ def fix_project(
         # Copy KILO_AGENT_NAMING.md if it doesn't exist
         kilo_naming_source = FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
         if kilo_naming_source.exists():
-            kilo_naming_target = project_path / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
+            kilo_naming_target = (
+                project_path / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
+            )
             if not kilo_naming_target.exists():
                 kilo_naming_target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(kilo_naming_source, kilo_naming_target)

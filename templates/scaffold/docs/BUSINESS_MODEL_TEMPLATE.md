@@ -1,74 +1,59 @@
-# Business Model - [Project Name]
+# Business Model — [Project Name]
 
 **Last Updated:** YYYY-MM-DD
-**Status:** Optional Draft
-**Revisit By:** (set date 2 weeks from project start)
+**Status:** Draft
 
-> **Note:** This document is optional for technical projects. Fill in when exploring monetization or user acquisition strategies.
+> Fill this in when exploring monetization. Not required for internal tools or infrastructure services.
 
 ---
 
 ## Value Proposition
 
-**One-line:** [TBD - What problem does this solve and for whom?]
+<!-- One sentence: who is this for, what pain does it solve, why is it better than alternatives. -->
+
+**One-liner:** [TBD]
 
 ---
 
 ## Target Customer
 
-**Primary:** [TBD]
+<!-- Primary buyer. Be specific — "Turkish SME factory owners with 10-50 employees" not "businesses". -->
 
-| Attribute | Description |
-|-----------|-------------|
-| Who | [TBD - Job title, role, company size] |
-| Pain Point | [TBD - What problem do they have?] |
-| Current Solution | [TBD - How do they solve it today?] |
-| Why Switch | [TBD - Why would they use this instead?] |
-
-**Secondary:** [TBD]
+| | Description |
+|---|-------------|
+| **Who** | [TBD — role, company size, region] |
+| **Pain** | [TBD — what problem do they have today?] |
+| **Current solution** | [TBD — how do they solve it now?] |
+| **Why switch** | [TBD — what makes this meaningfully better?] |
 
 ---
 
 ## Revenue Model
 
-**Type:** [TBD - Subscription / One-time / Usage-based / Freemium]
+**Type:** [Subscription / Usage-based / One-time / Freemium / Marketplace commission]
 
-### Pricing Tiers
+**Payment infrastructure:**
 
-| Tier | Price | Features | Target |
-|------|-------|----------|--------|
-| Free | $0 | [TBD] | [TBD] |
+- International: Paddle (MoR)
+- Domestic digital: iyzico
+- Domestic physical: PayTR / Amazon TR / Trendyol
+
+<!-- Delete tiers that don't apply. Start with one tier, expand later. -->
+
+| Tier | Price | Includes | Target segment |
+|------|-------|----------|----------------|
+| Free | $0 | [TBD] | Lead generation |
 | Pro | $[TBD]/mo | [TBD] | [TBD] |
-| Enterprise | $[TBD]/mo | [TBD] | [TBD] |
-
-### Usage-Based Pricing (if applicable)
-
-| Metric | Free Tier | Paid Rate |
-|--------|-----------|-----------|
-| [TBD - API calls, storage, etc.] | [TBD] | $[TBD] per unit |
-
----
-
-## Key Metrics
-
-Track these to measure business health:
-
-| Metric | Target | Current |
-|--------|--------|---------|
-| MRR (Monthly Recurring Revenue) | $[TBD] | - |
-| Active Users | [TBD] | - |
-| Conversion Rate (Free → Paid) | [TBD]% | - |
-| Churn Rate | <[TBD]% | - |
-| CAC (Customer Acquisition Cost) | $[TBD] | - |
-| LTV (Lifetime Value) | $[TBD] | - |
+| Enterprise | Custom | [TBD] | [TBD] |
 
 ---
 
 ## Competition
 
-| Competitor | Strengths | Weaknesses | Our Advantage |
-|------------|-----------|------------|---------------|
-| [TBD] | [TBD] | [TBD] | [TBD] |
+<!-- 2–3 real competitors. Skip if no direct competitors exist. -->
+
+| Competitor | Their strength | Their weakness | Our angle |
+|------------|---------------|----------------|-----------|
 | [TBD] | [TBD] | [TBD] | [TBD] |
 | [TBD] | [TBD] | [TBD] | [TBD] |
 
@@ -76,23 +61,28 @@ Track these to measure business health:
 
 ## Go-to-Market
 
-**Initial Channel:** [TBD]
+<!-- Pick ONE primary channel to start. Do not list 10 channels you'll never execute. -->
 
-- [ ] [TBD - Marketing channel 1]
-- [ ] [TBD - Marketing channel 2]
-- [ ] [TBD - Marketing channel 3]
+**Primary channel:** [TBD — direct outreach / content SEO / marketplace listing / partnership]
 
----
-
-## Research Needed
-
-- [ ] Validate pricing with potential customers
-- [ ] Analyze competitor pricing in detail
-- [ ] Identify key differentiators
-- [ ] Define minimum viable feature set for each tier
+**First 10 customers:** [TBD — specific plan to get the first paying users]
 
 ---
 
-## Notes
+## Key Metrics
 
-[Any additional notes, assumptions, or decisions]
+<!-- Track only what matters at current stage. Delete rows you can't measure yet. -->
+
+| Metric | Target | Current |
+|--------|--------|---------|
+| MRR | $[TBD] | — |
+| Active users | [TBD] | — |
+| Churn rate | <[TBD]% | — |
+
+---
+
+## Decisions & Assumptions
+
+<!-- Log key business decisions here so future-you knows WHY, not just WHAT. -->
+
+- [TBD — e.g., "Starting with Pro-only, no free tier — validates willingness to pay before building freemium"]

@@ -1,77 +1,72 @@
 # [Project Name]
 
-**Last Updated:** YYYY-MM-DD
-
 [One-line description]
 
-[![Status](https://img.shields.io/badge/status-active-green)]()
-[![Python](https://img.shields.io/badge/python-3.12+-blue)]()
+**Type:** {python-api | node-api | saas-skeleton | chrome-extension | mobile-app | desktop-app | static-site}
+**Port:** {PORT}
 
-## Overview
+---
 
-[Brief description]
+<!-- 2–3 sentences: what this project does, who it's for, what problem it solves. -->
 
 ## Features
 
-- **Feature 1** - Brief description
-- **Feature 2** - Brief description
-- **Feature 3** - Brief description
+<!-- Replace with actual features. Delete placeholder lines. -->
+
+- **Feature 1** — Brief description
+- **Feature 2** — Brief description
+- **Feature 3** — Brief description
 
 ## Quick Start
 
 ```bash
-# Installation
 cd /opt/[project]
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+cp .env.example .env
+# Edit .env — fill required values
 
-# Start the service
-uvicorn <package_name>.main:app --reload --port 8000
-
-# Check health
+docker compose up -d
 curl http://localhost:8000/health
 ```
 
+<!-- For non-Docker local dev: -->
+<!-- python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt -->
+<!-- uvicorn src.<package_name>.main:app --reload --port 8000 -->
+
+→ Full integration guide (endpoints, SDK modules, Docker wiring): [docs/QUICKSTART.md](docs/QUICKSTART.md)
+
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Quick Start](docs/QUICKSTART.md) | Get running in 5 minutes |
-| [Configuration](docs/CONFIGURATION.md) | Settings and options |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues |
-
-## Project Structure
-
-```
-/opt/[project]/
-├── src/                    # Source code
-│   └── [package_name]/     # Main package
-├── docs/                   # Documentation
-├── scripts/                # Utility scripts
-├── tests/                  # Test suite
-├── config/                 # Configuration files (optional)
-└── data/                   # Data files (optional)
-```
+| Document | Purpose |
+|----------|---------|
+| [QUICKSTART.md](docs/QUICKSTART.md) | Integration contract — endpoints, SDKs, Docker wiring, error handling |
+| [CONFIGURATION.md](docs/CONFIGURATION.md) | All environment variables, defaults, examples |
+| [FEATURES.md](docs/FEATURES.md) | Detailed feature documentation |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
+| [BUSINESS_MODEL.md](docs/BUSINESS_MODEL.md) | Go-to-market, pricing, positioning |
+| [INDEX.md](INDEX.md) | Master file index — every file's purpose |
+| [CHANGELOG.md](CHANGELOG.md) | Change history |
 
 ## Configuration
 
-Key configuration options:
+Key environment variables (see [CONFIGURATION.md](docs/CONFIGURATION.md) for full reference):
 
 ```bash
-# Environment variables
 PORT=8000
 LOG_LEVEL=INFO
-# DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev  # Optional
+# DATABASE_URL=postgresql://user:pass@postgres-main:5432/[project]_dev
 ```
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full options.
+## Tech Stack
+
+<!-- Replace with actual stack. Delete lines that don't apply. -->
+
+- **Runtime:** Python 3.12 / Node 22
+- **Framework:** FastAPI / Next.js / Hono
+- **Database:** PostgreSQL (shared `postgres-main:5432`)
+- **Cache:** Redis (`redis:6379`)
+- **Deployment:** Docker → Coolify → VPS
 
 ## Requirements
 
-- Python 3.12+
-- See requirements.txt for full list
-
-## License
-
-MIT License - See [LICENSE](LICENSE) file.
+- Docker + Docker Compose
+- `.env` configured from `.env.example`

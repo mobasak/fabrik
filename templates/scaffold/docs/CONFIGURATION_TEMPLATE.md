@@ -1,184 +1,137 @@
-# Configuration Guide
+# Configuration — [Project Name]
 
 **Last Updated:** YYYY-MM-DD
 
-**Purpose:** This guide explains HOW to configure this service and WHY certain configurations exist. For WHAT variables are needed, see `.env.example` which is self-documenting.
+> How to configure this project. For the variable list itself, see `.env.example` — it's self-documenting.
 
 ---
 
 ## Quick Setup
 
 ```bash
-# 1. Copy template
 cp .env.example .env
-
-# 2. Edit with your values
-nano .env
-
-# 3. Verify configuration loads
-python -m src.main --check-config
+# Edit .env — fill required values (port is pre-assigned in .env.example)
+docker compose up -d
+curl http://localhost:$PORT/health
 ```
 
-**All variables are documented in `.env.example` with inline comments.**
+---
+
+## Environment Variables
+
+<!-- This is the authoritative reference for all variables.
+     .env.example has the same list with inline comments, but this doc explains WHY and HOW.
+     Port is auto-assigned by scaffold and recorded in project.yaml and .env.example — do not hardcode. -->
+
+### Required
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `PORT` | *(see .env.example)* | Service port. Auto-assigned by scaffold, registered in `PORTS.md`. |
+| `DATABASE_URL` | `postgresql://user:pass@postgres-main:5432/[project]` | PostgreSQL connection string |
+
+<!-- Add project-specific required vars. Delete DATABASE_URL if not using a database. -->
+
+### Optional
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `REDIS_URL` | — | Redis connection. Only needed if caching enabled. |
+
+<!-- Add project-specific optional vars. -->
 
 ---
 
 ## Getting Credentials
 
-### Example: External API Service
+<!-- One subsection per external service that requires API keys or credentials.
+     Delete this entire section if the project has no external dependencies. -->
 
-**Why needed:** [Brief explanation of why this service needs the API]
+### {External Service Name}
+
+**Why needed:** {One sentence — what this credential enables.}
 
 **How to get:**
-1. Go to https://service-provider.com
-2. Create account or login
-3. Navigate to Settings → API Keys
-4. Create new key with [required permissions]
-5. Copy key (shown once)
-6. Add to `.env`: `API_KEY=your_key_here`
+1. Go to {provider URL}
+2. Create API key with {required permissions}
+3. Add to `.env`: `{VAR_NAME}=your_key_here`
 
-**Cost/Limits:**
-- Free tier: [limits]
-- Paid tier: [pricing]
+**Limits:** {Free tier limits / pricing if relevant}
 
-### Database Access
+<!-- Repeat for each external service. -->
 
-**Why needed:** [Explain what database features are enabled]
+### Database
 
-**Options:**
+**Shared postgres-main (recommended for Fabrik services):**
 
-**Shared postgres-main (recommended):**
 ```bash
-DATABASE_URL=postgresql://myapp:password@postgres-main:5432/myapp
+DATABASE_URL=postgresql://[project]:password@postgres-main:5432/[project]
 ```
 
-**Local PostgreSQL:**
+**Local PostgreSQL (dev only):**
+
 ```bash
-DATABASE_URL=postgresql://localhost:5432/myapp_dev
+DATABASE_URL=postgresql://localhost:5432/[project]_dev
 ```
 
 ---
 
-## Architecture Context
-
-### Why This Service Exists
-
-[1-2 paragraph explanation of this service's role in the broader system]
-
-### Configuration Philosophy
-
-- **Environment variables** → Runtime config (secrets, endpoints)
-- **Config files** → Static business logic
-- **Feature flags** → Gradual rollouts, A/B tests
-
-### Port Selection
-
-**Default:** 8000 (Python services use 8000-8099, frontend uses 3000-3099)
-
-**⚠️ MANDATORY:** Before using ANY port, register it in `PORTS.md` at project root.
-
-**Conflicts?** Check `PORTS.md` first. If port is taken, choose next available in range.
-
-```bash
-# Check PORTS.md before starting
-grep "8000" PORTS.md
-
-# Add your service
-echo "| 8000 | [project-name] | Main API |" >> PORTS.md
-```
-
----
-
-## Environment-Specific Setups
+## Environment Profiles
 
 ### Development (WSL)
 
 ```bash
-# .env
-PORT=8000
+PORT=<see .env.example>
 LOG_LEVEL=DEBUG
-LOG_FORMAT=text
-DEBUG_MODE=true
-DATABASE_URL=postgresql://localhost:5432/myapp_dev
+DATABASE_URL=postgresql://localhost:5432/[project]_dev
 ```
 
-**Why:** Local services, verbose logging, human-readable output, hot reload enabled.
-
-### Production (VPS via Coolify)
+### Production (VPS / Coolify)
 
 ```bash
-# .env
-PORT=${PORT}  # Coolify-managed
+PORT=${PORT}
 LOG_LEVEL=INFO
-LOG_FORMAT=json
-DEBUG_MODE=false
-DATABASE_URL=postgresql://myapp:${DB_PASSWORD}@postgres-main:5432/myapp
+DATABASE_URL=postgresql://[project]:${DB_PASSWORD}@postgres-main:5432/[project]
 REDIS_URL=redis://redis:6379/0
 ```
 
-**Why:** Container networking, structured logs for aggregation, security hardening.
+**Production rules:**
+- No `localhost` or `127.0.0.1` — use Docker service names (`postgres-main`, `redis`)
+- No hardcoded credentials — use `${VARIABLE}` references
+- Use `${VAR:?required}` in compose.yaml for critical vars to fail fast
 
-**🔒 FORBIDDEN in compose.yaml:**
-- ❌ `localhost` or `127.0.0.1` — Use service names (`postgres-main`, `redis`)
-- ❌ Hardcoded credentials — Use `${VARIABLE}` or `${VARIABLE:?required}`
-- ❌ Missing `?required` for critical vars — Add `${DATABASE_URL:?}` to fail fast
+---
+
+## Port Allocation
+
+Port is auto-assigned during scaffolding and stored in `project.yaml` and `.env.example`.
+
+Ranges: Python APIs 8000–8099, Frontend 3000–3099, Workers 8100–8199.
+
+Before adding new ports, check `PORTS.md` for conflicts:
+
+```bash
+cat PORTS.md
+```
 
 ---
 
 ## Troubleshooting
 
-### "Config validation failed"
-
-**Cause:** Missing required environment variable.
-
-**Fix:**
-1. Check error message for missing var
-2. Verify `.env` has all vars from `.env.example`
-3. Check for typos in variable names
-
-### Service won't start
-
-**Common causes:**
-- **Port already in use** → Change `PORT` in `.env`
-- **Database unreachable** → Verify `DATABASE_URL` and network
-- **Invalid credentials** → Regenerate API keys
-
-**Debug:**
-```bash
-# Test database connection
-psql $DATABASE_URL
-
-# Check port availability
-lsof -i :8000
-
-# Validate env file
-cat .env | grep -v '^#' | grep -v '^$'
-```
-
----
-
-## Security Best Practices
-
-### Credential Management
-
-**DO:**
-- Use strong, unique passwords (32+ chars)
-- Rotate API keys every 90 days
-- Store backups in secure location
-
-**DON'T:**
-- Commit `.env` to git
-- Share credentials in chat/email
-- Reuse passwords across services
-
-### Secret Generation
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Config validation failed | Missing required env var | Check `.env` against `.env.example` |
+| Port already in use | Another service on same port | Check `PORTS.md`, pick next available |
+| Database unreachable | Wrong `DATABASE_URL` or network | Verify: `psql $DATABASE_URL` |
+| Service starts but unhealthy | Dependency not ready | Check `/health` response for failing deps |
 
 ```bash
-# Generate strong password
-python -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32)))"
+# Debug commands
+psql $DATABASE_URL              # Test DB connection
+lsof -i :$PORT                  # Check port availability
+cat .env | grep -v '^#|^$'      # Show active env vars
 ```
-
----
 
 ## Configuration Checklist
 

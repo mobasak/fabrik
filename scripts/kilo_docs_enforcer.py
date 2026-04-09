@@ -308,12 +308,10 @@ DOC_TEMPLATE_MAP: dict[str, str] = {
     "CHANGELOG.md": "CHANGELOG_TEMPLATE.md",
     "docs/reference/": "API_REFERENCE_TEMPLATE.md",
     "docs/CONFIGURATION.md": "CONFIGURATION_TEMPLATE.md",
-    "docs/MIGRATION.md": "MIGRATION_TEMPLATE.md",
     "docs/database/schema.md": "DATABASE_SCHEMA_TEMPLATE.md",
     "docs/TROUBLESHOOTING.md": "TROUBLESHOOTING_TEMPLATE.md",
     "docs/QUICKSTART.md": "QUICKSTART_TEMPLATE.md",
     "README.md": "PROJECT_README_TEMPLATE.md",
-    ".env.example": "ENV_EXAMPLE_TEMPLATE.md",
 }
 
 # Module-level cache for loaded templates
@@ -1450,49 +1448,6 @@ Now generate the documentation section. Start your output with "##" and continue
 
 ##"""
 
-ENV_FILE_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a .env.example file generator. You output ONLY environment variable definitions in KEY=value format with comment lines. You NEVER output markdown, conversational text, greetings, or explanations. Your output is a valid .env file.
-
-**Source Files:**
-{source_files}
-
-**Git Diff:**
-{git_diff}
-
-**Environment Variables Found:**
-{violations}
-
-**Format Rules:**
-1. Section headers: # === Section Name ===
-2. Each variable gets a comment: # Description (Required/Optional, Default: value)
-3. Variable format: KEY=default_value
-4. Group by category
-5. Blank line between sections
-6. NO markdown formatting — this is a .env file, not markdown
-
-**Reference Structure (follow this format):**
-{template_structure}
-
-**BAD output (NEVER do this):**
-```
-### `DATABASE_URL`
-- **Type:** string
-```
-
-**GOOD output (ALWAYS do this):**
-```
-# === Database ===
-
-# PostgreSQL host (Required in production, Default: localhost)
-DB_HOST=localhost
-
-# PostgreSQL port (Optional, Default: 5432)
-DB_PORT=5432
-```
-
-Now generate the .env.example entries. Start your output with "# ===" and continue:
-
-# ==="""
-
 
 CONFIGURATION_GUIDE_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a configuration guide generator. You output ONLY markdown documentation for a configuration guide. You NEVER output conversational text, greetings, or explanations. Your entire output is valid markdown.
 
@@ -1866,14 +1821,6 @@ async def generate_documentation_for_file(
         prompt = API_DOCS_PROMPT_TEMPLATE.format(
             source_files=source_files,
             git_diff=git_diff[:3000],
-            violations=violations_text,
-            template_structure=template_structure or "(no template available)",
-        )
-    elif doc_path == ".env.example":
-        # .env.example uses a dedicated env-file-format prompt (not markdown)
-        prompt = ENV_FILE_PROMPT_TEMPLATE.format(
-            source_files=source_files,
-            git_diff=git_diff[:2000],
             violations=violations_text,
             template_structure=template_structure or "(no template available)",
         )

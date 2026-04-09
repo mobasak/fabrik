@@ -1,33 +1,17 @@
-# Documentation Index
+# Documentation — [Project Name]
 
-Complete documentation for [Project Name].
+> Start with [QUICKSTART.md](QUICKSTART.md) for integration and setup.
+> See [INDEX.md](../INDEX.md) for the master file index.
 
-## Quick Links
+| Document | Purpose |
+|----------|---------|
+| [QUICKSTART.md](QUICKSTART.md) | Integration contract — endpoints, SDKs, Docker wiring |
+| [CONFIGURATION.md](CONFIGURATION.md) | Environment variables and settings |
+| [FEATURES.md](FEATURES.md) | Feature documentation |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and fixes |
+| [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Monetization and positioning |
 
-| Document | Description |
-|----------|-------------|
-| [Quick Start](QUICKSTART.md) | Get running in 5 minutes |
-| [Configuration](CONFIGURATION.md) | Settings and environment |
-| [Troubleshooting](TROUBLESHOOTING.md) | Common issues and fixes |
-
-## Documentation Categories
-
-### Guides (How-To)
-
-Step-by-step instructions for common tasks.
-
-| Guide | Description |
-|-------|-------------|
-| [Quick Start](QUICKSTART.md) | Get running in 5 minutes |
-
-### Reference (Technical)
-
-Detailed technical documentation.
-
-| Reference | Description |
-|-----------|-------------|
-| [Configuration](CONFIGURATION.md) | Settings and options |
-| [Business Model](BUSINESS_MODEL.md) | Business model documentation |
+**Subdirectories:** [reference/](reference/) · [guides/](guides/) · [operations/](operations/) · [development/](development/) · [archive/](archive/)
 
 ## Archive
 
