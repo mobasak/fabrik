@@ -14,6 +14,15 @@ from fabrik.orchestrator.verifier import DeploymentVerifier
 class TestDeploymentOrchestrator:
     """Integration tests for DeploymentOrchestrator."""
 
+    @pytest.fixture(autouse=True)
+    def _bypass_dns_resolution(self):
+        """Bypass DNS resolution and DNS API calls for test domains."""
+        mock_dns = MagicMock()
+        mock_dns.add_subdomain.return_value = {"success": True}
+        with patch("fabrik.orchestrator.validator.is_private_ip", return_value=False), \
+             patch("fabrik.orchestrator.DNSClient", return_value=mock_dns):
+            yield
+
     @pytest.fixture
     def mock_deployer(self):
         """Create a mock deployer that succeeds."""
@@ -190,7 +199,6 @@ class TestDeploymentOrchestrator:
         mock_dns_client.add_subdomain.return_value = {"success": True}
 
         with patch("fabrik.orchestrator.DNSClient", return_value=mock_dns_client), \
-             patch("fabrik.orchestrator.validator.is_private_ip", return_value=False), \
              patch.dict("os.environ", {"VPS_IP": "1.2.3.4"}):
             orchestrator = DeploymentOrchestrator(
                 validator=validator,
@@ -218,8 +226,7 @@ class TestDeploymentOrchestrator:
         validator = SpecValidator(templates_dir=tmp_path)
         (tmp_path / "python-api").mkdir()
 
-        with patch("fabrik.orchestrator.DNSClient") as mock_dns_cls, \
-             patch("fabrik.orchestrator.validator.is_private_ip", return_value=False):
+        with patch("fabrik.orchestrator.DNSClient") as mock_dns_cls:
             orchestrator = DeploymentOrchestrator(
                 validator=validator,
                 deployer=mock_deployer,
@@ -248,7 +255,6 @@ class TestDeploymentOrchestrator:
         mock_rollback.rollback.return_value = []
 
         with patch("fabrik.orchestrator.DNSClient", return_value=mock_dns_client), \
-             patch("fabrik.orchestrator.validator.is_private_ip", return_value=False), \
              patch.dict("os.environ", {"VPS_IP": "1.2.3.4"}):
             orchestrator = DeploymentOrchestrator(
                 validator=validator,

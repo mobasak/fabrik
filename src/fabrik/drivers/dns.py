@@ -226,6 +226,155 @@ class DNSClient:
         return self._request("GET", "/api/account/balance")
 
     # =========================================================================
+    # Cloudflare — Zone Management
+    # =========================================================================
+
+    def cloudflare_health(self) -> dict[str, Any]:
+        """Check Cloudflare API health via dns-manager."""
+        return self._request("GET", "/api/cloudflare/health")
+
+    def list_zones(self) -> list[dict[str, Any]]:
+        """List all Cloudflare zones."""
+        result = self._request("GET", "/api/cloudflare/zones")
+        return result.get("zones", [])
+
+    def get_zone_status(self, domain: str) -> dict[str, Any]:
+        """Get Cloudflare zone status and nameservers."""
+        return self._request("GET", f"/api/cloudflare/zones/{domain}/status")
+
+    def get_cloudflare_records(self, domain: str) -> list[dict[str, Any]]:
+        """Get all Cloudflare DNS records for domain."""
+        result = self._request("GET", f"/api/cloudflare/dns/{domain}")
+        return result.get("records", [])
+
+    # =========================================================================
+    # Cloudflare — Provisioning (Fabrik deployment workflow)
+    # =========================================================================
+
+    def provision(
+        self,
+        domain: str,
+        target_ip: str,
+        subdomains: list[str] | None = None,
+        enable_dnssec: bool = True,
+        enable_tiered_cache: bool = True,
+        enable_page_shield: bool = True,
+        create_threat_rule: bool = True,
+        threat_threshold: int = 50,
+    ) -> dict[str, Any]:
+        """
+        Provision a website with Cloudflare enterprise features.
+
+        Single call that sets up everything needed before Coolify deployment:
+        - Creates/ensures Cloudflare zone
+        - Creates A records for root and subdomains (proxied)
+        - Enables DNSSEC, Smart Tiered Cache, Page Shield
+        - Creates WAF threat score rule
+
+        Args:
+            domain: Root domain (e.g., "newsite.com")
+            target_ip: VPS IP address to point DNS to
+            subdomains: Optional list of subdomains (e.g., ["www", "api"])
+            enable_dnssec: Enable DNSSEC
+            enable_tiered_cache: Enable Smart Tiered Cache (CDN)
+            enable_page_shield: Enable Page Shield (script monitoring)
+            create_threat_rule: Create WAF rule blocking high threat scores
+            threat_threshold: Threat score threshold (0-100, default 50)
+
+        Returns:
+            Dict with success, dns_records, features_enabled, ready_for_coolify
+
+        Example:
+            dns.provision("newsite.com", "172.93.160.197", ["www", "api"])
+        """
+        payload = {
+            "target_ip": target_ip,
+            "subdomains": subdomains or [],
+            "enable_dnssec": enable_dnssec,
+            "enable_tiered_cache": enable_tiered_cache,
+            "enable_page_shield": enable_page_shield,
+            "create_threat_rule": create_threat_rule,
+            "threat_threshold": threat_threshold,
+        }
+        return self._request("POST", f"/api/cloudflare/zones/{domain}/provision", json=payload)
+
+    def check_ready(self, domain: str) -> dict[str, Any]:
+        """
+        Check if domain is ready for Coolify deployment.
+
+        Verifies zone is active, A records exist, and security features enabled.
+
+        Args:
+            domain: Root domain (e.g., "newsite.com")
+
+        Returns:
+            Dict with ready_for_deployment (bool), zone_status, dns_records, features
+
+        Example:
+            result = dns.check_ready("newsite.com")
+            if result["ready_for_deployment"]:
+                # proceed with Coolify deploy
+        """
+        return self._request("GET", f"/api/cloudflare/zones/{domain}/ready")
+
+    # =========================================================================
+    # Domain Registration
+    # =========================================================================
+
+    def get_pricing(self, tld: str) -> dict[str, Any]:
+        """
+        Get registration pricing for a TLD.
+
+        Args:
+            tld: Top-level domain (e.g., "com", "net", "io")
+
+        Returns:
+            Dict with tld and pricing info
+        """
+        return self._request("GET", f"/api/domains/pricing/{tld}")
+
+    def register_domain(
+        self,
+        domain: str,
+        years: int = 1,
+        nameservers: list[str] | None = None,
+        add_whoisguard: bool = True,
+        contact: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Register a new domain via dns-manager.
+
+        dns-manager selects the registrar internally. Fabrik does not
+        need to know which registrar is used.
+
+        Args:
+            domain: Domain to register (e.g., "newsite.com")
+            years: Registration period in years
+            nameservers: Custom nameservers (dns-manager picks defaults if omitted)
+            add_whoisguard: Enable WHOIS privacy
+            contact: Registrant contact info dict with keys:
+                     FirstName, LastName, Address1, City, StateProvince,
+                     PostalCode, Country, Phone, EmailAddress
+
+        Returns:
+            Dict with success, domain, registered, domain_id, order_id, charged_amount
+
+        Example:
+            dns.register_domain("newsite.com")
+        """
+        payload: dict[str, Any] = {
+            "domain": domain,
+            "years": years,
+            "add_whoisguard": add_whoisguard,
+        }
+        if nameservers:
+            payload["nameservers"] = nameservers
+        if contact:
+            payload["contact"] = contact
+
+        return self._request("POST", "/api/domains/register", json=payload)
+
+    # =========================================================================
     # Context Manager
     # =========================================================================
 

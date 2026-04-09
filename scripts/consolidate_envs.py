@@ -60,8 +60,17 @@ def get_project_dirs() -> list[Path]:
     return projects
 
 
-def parse_env_file(env_path: Path) -> dict[str, tuple[str, list[str]]]:
+def parse_env_file(
+    env_path: Path,
+    stop_at_project_sections: bool = False,
+) -> dict[str, tuple[str, list[str]]]:
     """Parse .env file into dict of {var_name: (value, [comment_lines])}.
+
+    Args:
+        env_path: Path to the .env file.
+        stop_at_project_sections: If True, stop parsing when a ``# Project:``
+            section header is encountered.  This prevents re-ingesting
+            auto-generated project sections from a previous consolidation run.
 
     Returns:
         OrderedDict with variables and their values plus preceding comments
@@ -74,6 +83,10 @@ def parse_env_file(env_path: Path) -> dict[str, tuple[str, list[str]]]:
 
     for line in env_path.read_text().splitlines():
         stripped = line.strip()
+
+        # Stop before auto-generated project sections to avoid re-ingestion
+        if stop_at_project_sections and re.match(r"^# Project: ", stripped):
+            break
 
         # Collect comment lines
         if stripped.startswith("#") or stripped == "":
@@ -103,8 +116,13 @@ def consolidate_envs(dry_run: bool = True) -> tuple[str, dict[str, int]]:
     fabrik_env = Path("/opt/fabrik/.env")
     fabrik_env_example = Path("/opt/fabrik/.env.example")
 
-    # Parse existing Fabrik .env (if exists)
-    fabrik_vars = parse_env_file(fabrik_env) if fabrik_env.exists() else OrderedDict()
+    # Parse existing Fabrik .env — only FABRIK_CORE section (stop before
+    # auto-generated project sections to prevent re-ingestion bloat)
+    fabrik_vars = (
+        parse_env_file(fabrik_env, stop_at_project_sections=True)
+        if fabrik_env.exists()
+        else OrderedDict()
+    )
     fabrik_example_vars = parse_env_file(fabrik_env_example)
 
     # Start with Fabrik's own variables
@@ -225,15 +243,36 @@ def main():
         print("To apply changes, run: python scripts/consolidate_envs.py --apply")
         return 0
 
-    # Write consolidated .env
+    # Write consolidated .env — only if content actually changed
+    # (prevents inotifywait feedback loop when called by watch_env_changes.sh)
     fabrik_env = Path("/opt/fabrik/.env")
 
-    # Backup existing .env with timestamped name
+    # Compare actual variables (not raw text) to detect real changes.
+    # Raw text comparison fails because headers get re-ingested as comments.
+    if fabrik_env.exists():
+        existing_vars = parse_env_file(fabrik_env)
+        # Parse new_content inline to extract KEY=VALUE pairs
+        new_parsed: dict[str, str] = {}
+        for line in new_content.splitlines():
+            m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", line.strip())
+            if m:
+                new_parsed[m.group(1)] = m.group(2).strip('"').strip("'")
+        existing_parsed = {k: v for k, (v, _) in existing_vars.items()}
+        if existing_parsed == new_parsed:
+            print("✅ No changes detected — .env is already up to date")
+            return 0
+
+    # Backup existing .env with timestamped name (keep last 3)
     if fabrik_env.exists():
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         backup_path = fabrik_env.parent / f".env.backup.{timestamp}"
         backup_path.write_text(fabrik_env.read_text())
         print(f"✅ Backed up existing .env to: {backup_path}")
+
+        # Rotate: keep only the 3 most recent backups
+        backups = sorted(fabrik_env.parent.glob(".env.backup.*"))
+        for old_backup in backups[:-3]:
+            old_backup.unlink()
 
     fabrik_env.write_text(new_content)
     print(f"✅ Consolidated .env written to: {fabrik_env}")

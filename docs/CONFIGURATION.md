@@ -89,6 +89,24 @@ If running DNS Manager locally, you need direct provider API credentials (see `.
 3. Select "Read, Write, Delete" permissions
 4. Copy token (shown once)
 
+### Content Creation Pipeline
+
+**Architecture:** Three microservices orchestrate SEO-driven content generation:
+1. **SEO Service** (port 8016) — Keyword research, clustering, content briefs
+2. **TCO** (port 8025) — AI content generation from briefs
+3. **Image Broker** (port 18016) — Stock image selection (Pexels/Pixabay)
+
+**Environment variables:**
+- `SEO_API_URL` — SEO service endpoint (http://localhost:8016 or https://seo.vps1.ocoron.com)
+- `SEO_API_KEY` — Bearer token for SEO service authentication
+- `TCO_API_URL` — TCO service endpoint (http://localhost:8025)
+- `TCO_API_KEY` — Bearer token for TCO authentication
+- `IMAGE_BROKER_URL` — Image Broker endpoint (http://localhost:18016)
+- `CONTENT_WORKER_ID` — Worker identifier for brief lifecycle tracking (default: fabrik-content-publisher)
+
+**Development:** All services run locally via docker-compose. Use `http://localhost:PORT`.
+**Production:** Services deployed on VPS at `*.vps1.ocoron.com` with internal Docker networking.
+
 ---
 
 ## Architecture Context

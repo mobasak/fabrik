@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """Sync enforcement scripts to all /opt projects for Fabrik compliance.
 
-Syncs:
-- Core scripts (6 files): final_gate.py, kilo_code_review.py, etc.
-- Cascade wrappers (5 files): Local_Coder_qwen32b.sh, Local_Review_llama70b.sh,
-  Local_Fixer_ds16b.sh, Local_Documentator_llama3.1-8b.sh, Kilo_Review.sh
-- Enforcement directory: scripts/enforcement/*.py
+Syncs to all /opt projects:
+- Core scripts (6): final_gate.py, kilo_code_review.py, kilo_docs_enforcer.py,
+  docs_updater.py, update_agents_toc.py, health_checker.py
+- Enforcement directory (scripts/enforcement/*)
 - Governance files (5): AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules,
   .pre-commit-config.yaml
-- Governance directories: .windsurf/rules/, .windsurf/workflows/
-- Reference docs: cascade-models.md, technology-stack-decision-guide.md, prebuilt-app-containers.md, KILO_AGENT_NAMING.md
-
-Total per project: ~85 files (6 core + 5 cascade wrappers + ~30 enforcement + 5 governance + rules + workflows + docs)
+- Governance directories: .windsurf/rules/
+- Reference docs: docs/reference/windsurf/cascade-models.md
 
 Supports:
 - --dry-run: Report what would be copied without writing anything
@@ -19,6 +16,7 @@ Supports:
 - --force: Skip hash comparison and always overwrite
 
 Workflow Doc: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md
+  ⚠️  Update the workflow doc when modifying this script.
 """
 
 from __future__ import annotations
@@ -44,15 +42,6 @@ CORE_SCRIPTS = [
     "health_checker.py",
 ]
 
-# Cascade wrapper scripts for local LLM agents (hardware-safe)
-CASCADE_WRAPPERS = [
-    "Local_Coder_qwen32b.sh",
-    "Local_Review_llama70b.sh",
-    "Local_Fixer_ds16b.sh",
-    "Local_Documentator_llama3.1-8b.sh",
-    "Kilo_Review.sh",
-]
-
 # Governance files to sync (validated by final_gate.py check_symlinks())
 GOVERNANCE_FILES = [
     "AGENTS.md",
@@ -61,19 +50,11 @@ GOVERNANCE_FILES = [
     ".windsurfrules",
     ".pre-commit-config.yaml",
 ]
-GOVERNANCE_DIRS = [".windsurf/rules", ".windsurf/workflows"]
+GOVERNANCE_DIRS = [".windsurf/rules"]
 
 # Reference docs to sync to all projects
 REFERENCE_DOCS = [
     ("docs/reference/windsurf/cascade-models.md", "docs/reference/windsurf/cascade-models.md"),
-    ("docs/reference/technology-stack-decision-guide.md", "docs/reference/technology-stack-decision-guide.md"),
-    ("docs/reference/prebuilt-app-containers.md", "docs/reference/prebuilt-app-containers.md"),
-    ("docs/reference/kilo/KILO_AGENT_NAMING.md", "docs/reference/kilo/KILO_AGENT_NAMING.md"),
-]
-
-# Additional scripts to sync (beyond CORE_SCRIPTS)
-ADDITIONAL_SCRIPTS = [
-    ("scripts/kilo_47_agents_final.json", "scripts/kilo_47_agents_final.json"),
 ]
 
 
@@ -229,16 +210,6 @@ def sync_scripts_to_project(
                 )
                 file_results.append(result)
 
-        # Sync Cascade wrapper scripts (hardware-safe local LLM agents)
-        for script_name in CASCADE_WRAPPERS:
-            source = FABRIK_ROOT / "scripts" / script_name
-            if source.exists():
-                destination = scripts_dir / script_name
-                result = sync_single_file(
-                    source, destination, dry_run=dry_run, backup=backup, force=force
-                )
-                file_results.append(result)
-
         # Sync enforcement directory
         fabrik_enforcement = FABRIK_ROOT / "scripts" / "enforcement"
         project_enforcement = scripts_dir / "enforcement"
@@ -298,18 +269,6 @@ def sync_scripts_to_project(
 
         # Sync reference docs (cascade-models.md, etc.)
         for source_rel, dest_rel in REFERENCE_DOCS:
-            source = FABRIK_ROOT / source_rel
-            if source.exists():
-                destination = project_dir / dest_rel
-                if not dry_run:
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                result = sync_single_file(
-                    source, destination, dry_run=dry_run, backup=backup, force=force
-                )
-                file_results.append(result)
-
-        # Sync additional scripts (kilo_47_agents_final.json, etc.)
-        for source_rel, dest_rel in ADDITIONAL_SCRIPTS:
             source = FABRIK_ROOT / source_rel
             if source.exists():
                 destination = project_dir / dest_rel

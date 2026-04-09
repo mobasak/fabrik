@@ -1,53 +1,72 @@
 # Windsurf Extensions
 
-**Last Updated:** 2026-04-06 00:47
-**Total:** 11 extensions
+**Last Updated:** 2026-04-08 00:18
+**Total:** 22 extensions
 
 ## Quick Install (All Extensions)
 
 ```bash
+windsurf --install-extension anthropic.claude-code
+windsurf --install-extension bierner.markdown-mermaid
 windsurf --install-extension bpruitt-goddard.mermaid-markdown-syntax-highlighting
+windsurf --install-extension bradlc.vscode-tailwindcss
+windsurf --install-extension charliermarsh.ruff
 windsurf --install-extension codeium.windsurfpyright
-windsurf --install-extension kilocode.kilo-code
+windsurf --install-extension cweijan.vscode-office
+windsurf --install-extension davidanson.vscode-markdownlint
+windsurf --install-extension eamodio.gitlens
+windsurf --install-extension github.vscode-github-actions
+windsurf --install-extension github.vscode-pull-request-github
+windsurf --install-extension ms-azuretools.vscode-containers
+windsurf --install-extension ms-azuretools.vscode-docker
 windsurf --install-extension ms-python.debugpy
 windsurf --install-extension ms-python.python
 windsurf --install-extension ms-python.vscode-python-envs
-windsurf --install-extension ms-vscode-remote.remote-ssh-edit
-windsurf --install-extension ms-vscode.powershell
-windsurf --install-extension ms-vscode.remote-explorer
-windsurf --install-extension tomoki1207.pdf
+windsurf --install-extension ms-vscode.makefile-tools
+windsurf --install-extension prettier.prettier-vscode
+windsurf --install-extension redhat.vscode-yaml
 windsurf --install-extension traycer.traycer-vscode
+windsurf --install-extension undefined_publisher.traycer-report-panel
+windsurf --install-extension vstirbu.vscode-mermaid-preview
 ```
 
 ## Extensions by Category
 
 ### AI & Copilot
+- `anthropic.claude-code`
 - `codeium.windsurfpyright`
 - `traycer.traycer-vscode`
 
 ### Python Development
+- `charliermarsh.ruff`
 - `ms-python.debugpy`
 - `ms-python.python`
 - `ms-python.vscode-python-envs`
 
 ### Docker & Containers
-- ``
+- `ms-azuretools.vscode-containers`
+- `ms-azuretools.vscode-docker`
 
 ### Git & GitHub
-- ``
+- `eamodio.gitlens`
+- `github.vscode-github-actions`
+- `github.vscode-pull-request-github`
 
 ### Markdown & Documentation
+- `bierner.markdown-mermaid`
 - `bpruitt-goddard.mermaid-markdown-syntax-highlighting`
+- `davidanson.vscode-markdownlint`
+- `vstirbu.vscode-mermaid-preview`
 
 ### Web Development
-- ``
+- `bradlc.vscode-tailwindcss`
+- `prettier.prettier-vscode`
 
 ### Other
-- `kilocode.kilo-code`
-- `ms-vscode.powershell`
-- `ms-vscode.remote-explorer`
-- `ms-vscode-remote.remote-ssh-edit`
-- `tomoki1207.pdf`
+- `cweijan.vscode-office`
+- `ms-vscode.makefile-tools`
+- `redhat.vscode-yaml`
+- `undefined_publisher.traycer-report-panel`
 
 ---
 

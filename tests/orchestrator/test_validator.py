@@ -1,5 +1,7 @@
 """Tests for spec validation."""
 
+from unittest.mock import patch
+
 import pytest
 
 from fabrik.orchestrator.exceptions import ValidationError
@@ -30,6 +32,12 @@ class TestComputeSpecHash:
 
 class TestSpecValidator:
     """Test SpecValidator class."""
+
+    @pytest.fixture(autouse=True)
+    def _bypass_dns_resolution(self):
+        """Bypass DNS resolution in domain security checks for test domains."""
+        with patch("fabrik.orchestrator.validator.is_private_ip", return_value=False):
+            yield
 
     def test_load_valid_spec(self, tmp_path):
         """Load a valid YAML spec file."""

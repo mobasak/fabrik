@@ -1,11 +1,21 @@
 {
   "source": "tbench.ai",
   "url": "https://www.tbench.ai/leaderboard/terminal-bench/2.0",
-  "scraped_at": "2026-04-06T01:01:52.347452",
-  "total_entries": 118,
+  "scraped_at": "2026-04-09T16:35:59.016048",
+  "total_entries": 119,
   "entries": [
     {
       "rank": 1,
+      "model": "Claude Opus 4.6",
+      "score": 82.9,
+      "provider": "Pilot",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "Pilot"
+      }
+    },
+    {
+      "rank": 2,
       "model": "GPT-5.4",
       "score": 81.8,
       "provider": "ForgeCode",
@@ -15,7 +25,7 @@
       }
     },
     {
-      "rank": 2,
+      "rank": 3,
       "model": "Claude Opus 4.6",
       "score": 81.8,
       "provider": "ForgeCode",
@@ -25,7 +35,7 @@
       }
     },
     {
-      "rank": 3,
+      "rank": 4,
       "model": "Gemini 3.1 Pro",
       "score": 80.2,
       "provider": "TongAgents",
@@ -35,7 +45,7 @@
       }
     },
     {
-      "rank": 4,
+      "rank": 5,
       "model": "GPT-5.3-Codex",
       "score": 78.4,
       "provider": "SageAgent",
@@ -45,7 +55,7 @@
       }
     },
     {
-      "rank": 5,
+      "rank": 6,
       "model": "Gemini 3.1 Pro",
       "score": 78.4,
       "provider": "ForgeCode",
@@ -55,7 +65,7 @@
       }
     },
     {
-      "rank": 6,
+      "rank": 7,
       "model": "GPT-5.3-Codex",
       "score": 77.3,
       "provider": "Droid",
@@ -65,7 +75,7 @@
       }
     },
     {
-      "rank": 7,
+      "rank": 8,
       "model": "Claude Opus 4.6",
       "score": 75.3,
       "provider": "Capy",
@@ -75,7 +85,7 @@
       }
     },
     {
-      "rank": 8,
+      "rank": 9,
       "model": "GPT-5.3-Codex",
       "score": 75.1,
       "provider": "Simple Codex",
@@ -85,7 +95,7 @@
       }
     },
     {
-      "rank": 9,
+      "rank": 10,
       "model": "Gemini 3.1 Pro",
       "score": 74.8,
       "provider": "Terminus-KIRA",
@@ -95,7 +105,7 @@
       }
     },
     {
-      "rank": 10,
+      "rank": 11,
       "model": "Claude Opus 4.6",
       "score": 74.7,
       "provider": "Terminus-KIRA",
@@ -105,7 +115,7 @@
       }
     },
     {
-      "rank": 11,
+      "rank": 12,
       "model": "GPT-5.3-Codex",
       "score": 74.6,
       "provider": "Mux",
@@ -115,7 +125,7 @@
       }
     },
     {
-      "rank": 12,
+      "rank": 13,
       "model": "Claude 4.6 Opus",
       "score": 72.1,
       "provider": "MAYA-V2",
@@ -125,7 +135,7 @@
       }
     },
     {
-      "rank": 13,
+      "rank": 14,
       "model": "Claude Opus 4.6",
       "score": 71.9,
       "provider": "TongAgents",
@@ -135,7 +145,7 @@
       }
     },
     {
-      "rank": 14,
+      "rank": 15,
       "model": "GPT-5.3-Codex",
       "score": 70.3,
       "provider": "Junie CLI",
@@ -145,7 +155,7 @@
       }
     },
     {
-      "rank": 15,
+      "rank": 16,
       "model": "Claude Opus 4.6",
       "score": 69.9,
       "provider": "Droid",
@@ -155,7 +165,7 @@
       }
     },
     {
-      "rank": 16,
+      "rank": 17,
       "model": "Gemini 3 Pro",
       "score": 69.4,
       "provider": "Ante",
@@ -165,7 +175,7 @@
       }
     },
     {
-      "rank": 17,
+      "rank": 18,
       "model": "GPT-5.3-Codex",
       "score": 69.1,
       "provider": "IndusAGI Coding Agent",
@@ -175,23 +185,13 @@
       }
     },
     {
-      "rank": 18,
+      "rank": 19,
       "model": "Claude Opus 4.6",
       "score": 66.9,
       "provider": "Crux",
       "extra": {
         "metric": "accuracy_percent",
         "agent": "Crux"
-      }
-    },
-    {
-      "rank": 19,
-      "model": "GPT-5.2-Codex",
-      "score": 66.5,
-      "provider": "Deep Agents",
-      "extra": {
-        "metric": "accuracy_percent",
-        "agent": "Deep Agents"
       }
     },
     {
@@ -206,6 +206,16 @@
     },
     {
       "rank": 21,
+      "model": "GPT-5.2-Codex",
+      "score": 66.5,
+      "provider": "Deep Agents",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "Deep Agents"
+      }
+    },
+    {
+      "rank": 22,
       "model": "Gemini 3 Pro",
       "score": 65.2,
       "provider": "SageAgent",
@@ -215,7 +225,7 @@
       }
     },
     {
-      "rank": 22,
+      "rank": 23,
       "model": "GPT-5.2",
       "score": 64.9,
       "provider": "Droid",
@@ -225,7 +235,7 @@
       }
     },
     {
-      "rank": 23,
+      "rank": 24,
       "model": "GPT-5.3-Codex",
       "score": 64.7,
       "provider": "Terminus 2",
@@ -235,7 +245,7 @@
       }
     },
     {
-      "rank": 24,
+      "rank": 25,
       "model": "Gemini 3 Flash",
       "score": 64.3,
       "provider": "Junie CLI",
@@ -245,23 +255,13 @@
       }
     },
     {
-      "rank": 25,
+      "rank": 26,
       "model": "Claude Opus 4.5",
       "score": 63.1,
       "provider": "Droid",
       "extra": {
         "metric": "accuracy_percent",
         "agent": "Droid"
-      }
-    },
-    {
-      "rank": 26,
-      "model": "Claude Opus 4.6",
-      "score": 62.9,
-      "provider": "Terminus 2",
-      "extra": {
-        "metric": "accuracy_percent",
-        "agent": "Terminus 2"
       }
     },
     {
@@ -276,6 +276,16 @@
     },
     {
       "rank": 28,
+      "model": "Claude Opus 4.6",
+      "score": 62.9,
+      "provider": "Terminus 2",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "Terminus 2"
+      }
+    },
+    {
+      "rank": 29,
       "model": "Gemini 3 Pro",
       "score": 62.2,
       "provider": "CodeBrain-1",
@@ -285,7 +295,7 @@
       }
     },
     {
-      "rank": 29,
+      "rank": 30,
       "model": "Gemini 3 Pro",
       "score": 61.8,
       "provider": "II-Agent",
@@ -295,7 +305,7 @@
       }
     },
     {
-      "rank": 30,
+      "rank": 31,
       "model": "Gemini 3 Pro",
       "score": 61.1,
       "provider": "Warp",
@@ -305,7 +315,7 @@
       }
     },
     {
-      "rank": 31,
+      "rank": 32,
       "model": "GPT-5.2",
       "score": 60.7,
       "provider": "Mux",
@@ -315,7 +325,7 @@
       }
     },
     {
-      "rank": 32,
+      "rank": 33,
       "model": "GPT-5.1-Codex-Max",
       "score": 60.4,
       "provider": "Codex CLI",
@@ -325,19 +335,9 @@
       }
     },
     {
-      "rank": 33,
-      "model": "Claude Opus 4.5",
-      "score": 59.1,
-      "provider": "Letta Code",
-      "extra": {
-        "metric": "accuracy_percent",
-        "agent": "Letta Code"
-      }
-    },
-    {
       "rank": 34,
       "model": "Claude Opus 4.5",
-      "score": 58.4,
+      "score": 59.1,
       "provider": "Warp",
       "extra": {
         "metric": "accuracy_percent",
@@ -346,8 +346,8 @@
     },
     {
       "rank": 35,
-      "model": "Claude Opus 4.6",
-      "score": 58.0,
+      "model": "Claude Opus 4.5",
+      "score": 58.4,
       "provider": "Abacus AI Desktop",
       "extra": {
         "metric": "accuracy_percent",
@@ -356,6 +356,16 @@
     },
     {
       "rank": 36,
+      "model": "Claude Opus 4.6",
+      "score": 58.0,
+      "provider": "Claude Code",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "Claude Code"
+      }
+    },
+    {
+      "rank": 37,
       "model": "GPT-5.1-Codex",
       "score": 57.8,
       "provider": "Crux",
@@ -365,7 +375,7 @@
       }
     },
     {
-      "rank": 37,
+      "rank": 38,
       "model": "Claude Opus 4.5",
       "score": 57.8,
       "provider": "Terminus 2",
@@ -375,7 +385,7 @@
       }
     },
     {
-      "rank": 38,
+      "rank": 39,
       "model": "Grok 4.20 Reasoning",
       "score": 57.3,
       "provider": "grok-cli",
@@ -385,7 +395,7 @@
       }
     },
     {
-      "rank": 39,
+      "rank": 40,
       "model": "Gemini 3 Pro",
       "score": 56.9,
       "provider": "Terminus 2",
@@ -395,7 +405,7 @@
       }
     },
     {
-      "rank": 40,
+      "rank": 41,
       "model": "Gemini 3 Pro",
       "score": 56.0,
       "provider": "Letta Code",
@@ -405,7 +415,7 @@
       }
     },
     {
-      "rank": 41,
+      "rank": 42,
       "model": "Claude Opus 4.5",
       "score": 54.3,
       "provider": "Goose",
@@ -415,7 +425,7 @@
       }
     },
     {
-      "rank": 42,
+      "rank": 43,
       "model": "GPT-5.2",
       "score": 54.0,
       "provider": "Terminus 2",
@@ -425,7 +435,7 @@
       }
     },
     {
-      "rank": 43,
+      "rank": 44,
       "model": "GPT-5.1-Codex",
       "score": 53.5,
       "provider": "Letta Code",
@@ -435,7 +445,7 @@
       }
     },
     {
-      "rank": 44,
+      "rank": 45,
       "model": "GLM 5",
       "score": 52.4,
       "provider": "Terminus 2",
@@ -445,7 +455,7 @@
       }
     },
     {
-      "rank": 45,
+      "rank": 46,
       "model": "Claude Opus 4.5",
       "score": 52.1,
       "provider": "Claude Code",
@@ -455,7 +465,7 @@
       }
     },
     {
-      "rank": 46,
+      "rank": 47,
       "model": "Claude Opus 4.5",
       "score": 51.9,
       "provider": "OpenHands",
@@ -465,7 +475,7 @@
       }
     },
     {
-      "rank": 47,
+      "rank": 48,
       "model": "Claude Opus 4.5",
       "score": 51.7,
       "provider": "OpenCode",
@@ -475,7 +485,7 @@
       }
     },
     {
-      "rank": 48,
+      "rank": 49,
       "model": "Gemini 3 Flash",
       "score": 51.7,
       "provider": "Terminus 2",
@@ -485,7 +495,7 @@
       }
     },
     {
-      "rank": 49,
+      "rank": 50,
       "model": "GPT-5",
       "score": 49.6,
       "provider": "Warp",
@@ -495,7 +505,7 @@
       }
     },
     {
-      "rank": 50,
+      "rank": 51,
       "model": "GPT-5.1",
       "score": 47.6,
       "provider": "Terminus 2",
@@ -505,7 +515,7 @@
       }
     },
     {
-      "rank": 51,
+      "rank": 52,
       "model": "Gemini 3 Flash",
       "score": 47.4,
       "provider": "Gemini CLI",
@@ -515,7 +525,7 @@
       }
     },
     {
-      "rank": 52,
+      "rank": 53,
       "model": "Claude Sonnet 4.5",
       "score": 46.5,
       "provider": "CAMEL-AI",
@@ -525,7 +535,7 @@
       }
     },
     {
-      "rank": 53,
+      "rank": 54,
       "model": "GPT-5-Codex",
       "score": 44.3,
       "provider": "Codex CLI",
@@ -535,7 +545,7 @@
       }
     },
     {
-      "rank": 54,
+      "rank": 55,
       "model": "GPT-5",
       "score": 43.8,
       "provider": "OpenHands",
@@ -545,7 +555,7 @@
       }
     },
     {
-      "rank": 55,
+      "rank": 56,
       "model": "GPT-5-Codex",
       "score": 43.4,
       "provider": "Terminus 2",
@@ -555,23 +565,13 @@
       }
     },
     {
-      "rank": 56,
+      "rank": 57,
       "model": "Kimi K2.5",
       "score": 43.2,
       "provider": "Terminus 2",
       "extra": {
         "metric": "accuracy_percent",
         "agent": "Terminus 2"
-      }
-    },
-    {
-      "rank": 57,
-      "model": "Claude Sonnet 4.5",
-      "score": 43.1,
-      "provider": "Goose",
-      "extra": {
-        "metric": "accuracy_percent",
-        "agent": "Goose"
       }
     },
     {
@@ -587,6 +587,16 @@
     {
       "rank": 59,
       "model": "Claude Sonnet 4.5",
+      "score": 43.1,
+      "provider": "Goose",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "Goose"
+      }
+    },
+    {
+      "rank": 60,
+      "model": "Claude Sonnet 4.5",
       "score": 42.8,
       "provider": "Terminus 2",
       "extra": {
@@ -595,7 +605,7 @@
       }
     },
     {
-      "rank": 60,
+      "rank": 61,
       "model": "Claude 4.5 Sonnet",
       "score": 42.7,
       "provider": "MAYA-V2",
@@ -605,7 +615,7 @@
       }
     },
     {
-      "rank": 61,
+      "rank": 62,
       "model": "minimax-m2.5",
       "score": 42.7,
       "provider": "cchuter",
@@ -615,7 +625,7 @@
       }
     },
     {
-      "rank": 62,
+      "rank": 63,
       "model": "Claude Sonnet 4.5",
       "score": 42.6,
       "provider": "OpenHands",
@@ -625,7 +635,7 @@
       }
     },
     {
-      "rank": 63,
+      "rank": 64,
       "model": "Claude Sonnet 4.5",
       "score": 42.5,
       "provider": "Mini-SWE-Agent",
@@ -635,7 +645,7 @@
       }
     },
     {
-      "rank": 64,
+      "rank": 65,
       "model": "Minimax m2.5",
       "score": 42.2,
       "provider": "Terminus 2",
@@ -645,7 +655,7 @@
       }
     },
     {
-      "rank": 65,
+      "rank": 66,
       "model": "GPT-5-Codex",
       "score": 41.3,
       "provider": "Mini-SWE-Agent",
@@ -655,7 +665,7 @@
       }
     },
     {
-      "rank": 66,
+      "rank": 67,
       "model": "Claude Sonnet 4.5",
       "score": 40.1,
       "provider": "Claude Code",
@@ -665,7 +675,7 @@
       }
     },
     {
-      "rank": 67,
+      "rank": 68,
       "model": "DeepSeek-V3.2",
       "score": 39.6,
       "provider": "Terminus 2",
@@ -675,23 +685,13 @@
       }
     },
     {
-      "rank": 68,
+      "rank": 69,
       "model": "Claude Opus 4.1",
       "score": 38.0,
       "provider": "Terminus 2",
       "extra": {
         "metric": "accuracy_percent",
         "agent": "Terminus 2"
-      }
-    },
-    {
-      "rank": 69,
-      "model": "Claude Opus 4.1",
-      "score": 36.9,
-      "provider": "OpenHands",
-      "extra": {
-        "metric": "accuracy_percent",
-        "agent": "OpenHands"
       }
     },
     {
@@ -706,6 +706,16 @@
     },
     {
       "rank": 71,
+      "model": "Claude Opus 4.1",
+      "score": 36.9,
+      "provider": "OpenHands",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "OpenHands"
+      }
+    },
+    {
+      "rank": 72,
       "model": "MiniMax M2.1",
       "score": 36.6,
       "provider": "Crux",
@@ -715,7 +725,7 @@
       }
     },
     {
-      "rank": 72,
+      "rank": 73,
       "model": "Kimi K2 Thinking",
       "score": 35.7,
       "provider": "Terminus 2",
@@ -725,7 +735,7 @@
       }
     },
     {
-      "rank": 73,
+      "rank": 74,
       "model": "Claude Haiku 4.5",
       "score": 35.5,
       "provider": "Goose",
@@ -735,7 +745,7 @@
       }
     },
     {
-      "rank": 74,
+      "rank": 75,
       "model": "GPT-5",
       "score": 35.2,
       "provider": "Terminus 2",
@@ -745,23 +755,13 @@
       }
     },
     {
-      "rank": 75,
+      "rank": 76,
       "model": "Claude Opus 4.1",
       "score": 35.1,
       "provider": "Mini-SWE-Agent",
       "extra": {
         "metric": "accuracy_percent",
         "agent": "Mini-SWE-Agent"
-      }
-    },
-    {
-      "rank": 76,
-      "model": "GPT-5-Mini",
-      "score": 34.8,
-      "provider": "spoox-m",
-      "extra": {
-        "metric": "accuracy_percent",
-        "agent": "spoox-m"
       }
     },
     {
@@ -776,6 +776,16 @@
     },
     {
       "rank": 78,
+      "model": "GPT-5-Mini",
+      "score": 34.8,
+      "provider": "spoox-m",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "spoox-m"
+      }
+    },
+    {
+      "rank": 79,
       "model": "GPT-5",
       "score": 33.9,
       "provider": "Mini-SWE-Agent",
@@ -785,7 +795,7 @@
       }
     },
     {
-      "rank": 79,
+      "rank": 80,
       "model": "GLM 4.7",
       "score": 33.4,
       "provider": "Terminus 2",
@@ -795,7 +805,7 @@
       }
     },
     {
-      "rank": 80,
+      "rank": 81,
       "model": "GLM 4.7",
       "score": 33.3,
       "provider": "Crux",
@@ -805,7 +815,7 @@
       }
     },
     {
-      "rank": 81,
+      "rank": 82,
       "model": "Gemini 2.5 Pro",
       "score": 32.6,
       "provider": "Terminus 2",
@@ -815,7 +825,7 @@
       }
     },
     {
-      "rank": 82,
+      "rank": 83,
       "model": "GPT-5-Mini",
       "score": 31.9,
       "provider": "Codex CLI",
@@ -825,7 +835,7 @@
       }
     },
     {
-      "rank": 83,
+      "rank": 84,
       "model": "MiniMax M2",
       "score": 30.0,
       "provider": "Terminus 2",
@@ -835,7 +845,7 @@
       }
     },
     {
-      "rank": 84,
+      "rank": 85,
       "model": "Claude Haiku 4.5",
       "score": 29.8,
       "provider": "Mini-SWE-Agent",
@@ -845,7 +855,7 @@
       }
     },
     {
-      "rank": 85,
+      "rank": 86,
       "model": "MiniMax M2.1",
       "score": 29.2,
       "provider": "Terminus 2",
@@ -855,7 +865,7 @@
       }
     },
     {
-      "rank": 86,
+      "rank": 87,
       "model": "GPT-5-Mini",
       "score": 29.2,
       "provider": "OpenHands",
@@ -865,7 +875,7 @@
       }
     },
     {
-      "rank": 87,
+      "rank": 88,
       "model": "Claude Haiku 4.5",
       "score": 28.3,
       "provider": "Terminus 2",
@@ -875,7 +885,7 @@
       }
     },
     {
-      "rank": 88,
+      "rank": 89,
       "model": "Kimi K2 Instruct",
       "score": 27.8,
       "provider": "Terminus 2",
@@ -885,23 +895,13 @@
       }
     },
     {
-      "rank": 89,
+      "rank": 90,
       "model": "Claude Haiku 4.5",
       "score": 27.5,
       "provider": "Claude Code",
       "extra": {
         "metric": "accuracy_percent",
         "agent": "Claude Code"
-      }
-    },
-    {
-      "rank": 90,
-      "model": "Qwen 3 Coder 480B",
-      "score": 27.2,
-      "provider": "Dakou Agent",
-      "extra": {
-        "metric": "accuracy_percent",
-        "agent": "Dakou Agent"
       }
     },
     {
@@ -916,6 +916,16 @@
     },
     {
       "rank": 92,
+      "model": "Qwen 3 Coder 480B",
+      "score": 27.2,
+      "provider": "Dakou Agent",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "Dakou Agent"
+      }
+    },
+    {
+      "rank": 93,
       "model": "Kimi K2 Instruct",
       "score": 26.7,
       "provider": "OpenHands",
@@ -925,7 +935,7 @@
       }
     },
     {
-      "rank": 93,
+      "rank": 94,
       "model": "Gemini 2.5 Pro",
       "score": 26.1,
       "provider": "Mini-SWE-Agent",
@@ -935,7 +945,7 @@
       }
     },
     {
-      "rank": 94,
+      "rank": 95,
       "model": "Grok Code Fast 1",
       "score": 25.8,
       "provider": "Mini-SWE-Agent",
@@ -945,7 +955,7 @@
       }
     },
     {
-      "rank": 95,
+      "rank": 96,
       "model": "Qwen 3 Coder 480B",
       "score": 25.4,
       "provider": "OpenHands",
@@ -955,7 +965,7 @@
       }
     },
     {
-      "rank": 96,
+      "rank": 97,
       "model": "Grok 4",
       "score": 25.4,
       "provider": "Mini-SWE-Agent",
@@ -965,7 +975,7 @@
       }
     },
     {
-      "rank": 97,
+      "rank": 98,
       "model": "GLM 4.6",
       "score": 24.5,
       "provider": "Terminus 2",
@@ -975,7 +985,7 @@
       }
     },
     {
-      "rank": 98,
+      "rank": 99,
       "model": "GPT-5-Mini",
       "score": 24.0,
       "provider": "Terminus 2",
@@ -985,7 +995,7 @@
       }
     },
     {
-      "rank": 99,
+      "rank": 100,
       "model": "Qwen 3 Coder 480B",
       "score": 23.9,
       "provider": "Terminus 2",
@@ -995,7 +1005,7 @@
       }
     },
     {
-      "rank": 100,
+      "rank": 101,
       "model": "Grok 4",
       "score": 23.1,
       "provider": "Terminus 2",
@@ -1005,7 +1015,7 @@
       }
     },
     {
-      "rank": 101,
+      "rank": 102,
       "model": "GPT-5-Mini",
       "score": 22.2,
       "provider": "Mini-SWE-Agent",
@@ -1015,7 +1025,7 @@
       }
     },
     {
-      "rank": 102,
+      "rank": 103,
       "model": "Gemini 2.5 Pro",
       "score": 19.6,
       "provider": "Gemini CLI",
@@ -1025,7 +1035,7 @@
       }
     },
     {
-      "rank": 103,
+      "rank": 104,
       "model": "GPT-OSS-120B",
       "score": 18.7,
       "provider": "Terminus 2",
@@ -1035,7 +1045,7 @@
       }
     },
     {
-      "rank": 104,
+      "rank": 105,
       "model": "Gemini 2.5 Flash",
       "score": 17.1,
       "provider": "Mini-SWE-Agent",
@@ -1045,7 +1055,7 @@
       }
     },
     {
-      "rank": 105,
+      "rank": 106,
       "model": "AfterQuery-GPT-OSS-20B",
       "score": 17.0,
       "provider": "Terminus 2",
@@ -1055,23 +1065,13 @@
       }
     },
     {
-      "rank": 106,
+      "rank": 107,
       "model": "Gemini 2.5 Flash",
       "score": 16.9,
       "provider": "Terminus 2",
       "extra": {
         "metric": "accuracy_percent",
         "agent": "Terminus 2"
-      }
-    },
-    {
-      "rank": 107,
-      "model": "Gemini 2.5 Flash",
-      "score": 16.4,
-      "provider": "OpenHands",
-      "extra": {
-        "metric": "accuracy_percent",
-        "agent": "OpenHands"
       }
     },
     {
@@ -1087,6 +1087,16 @@
     {
       "rank": 109,
       "model": "Gemini 2.5 Flash",
+      "score": 16.4,
+      "provider": "OpenHands",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "OpenHands"
+      }
+    },
+    {
+      "rank": 110,
+      "model": "Gemini 2.5 Flash",
       "score": 15.4,
       "provider": "Gemini CLI",
       "extra": {
@@ -1095,7 +1105,7 @@
       }
     },
     {
-      "rank": 110,
+      "rank": 111,
       "model": "Grok Code Fast 1",
       "score": 14.2,
       "provider": "Terminus 2",
@@ -1105,7 +1115,7 @@
       }
     },
     {
-      "rank": 111,
+      "rank": 112,
       "model": "GPT-OSS-120B",
       "score": 14.2,
       "provider": "Mini-SWE-Agent",
@@ -1115,7 +1125,7 @@
       }
     },
     {
-      "rank": 112,
+      "rank": 113,
       "model": "Claude Haiku 4.5",
       "score": 13.9,
       "provider": "OpenHands",
@@ -1125,7 +1135,7 @@
       }
     },
     {
-      "rank": 113,
+      "rank": 114,
       "model": "GPT-5-Nano",
       "score": 11.5,
       "provider": "Codex CLI",
@@ -1135,7 +1145,7 @@
       }
     },
     {
-      "rank": 114,
+      "rank": 115,
       "model": "GPT-5-Nano",
       "score": 9.9,
       "provider": "OpenHands",
@@ -1145,7 +1155,7 @@
       }
     },
     {
-      "rank": 115,
+      "rank": 116,
       "model": "GPT-5-Nano",
       "score": 7.9,
       "provider": "Terminus 2",
@@ -1155,7 +1165,7 @@
       }
     },
     {
-      "rank": 116,
+      "rank": 117,
       "model": "GPT-5-Nano",
       "score": 7.0,
       "provider": "Mini-SWE-Agent",
@@ -1165,7 +1175,7 @@
       }
     },
     {
-      "rank": 117,
+      "rank": 118,
       "model": "GPT-OSS-20B",
       "score": 3.4,
       "provider": "Mini-SWE-Agent",
@@ -1175,7 +1185,7 @@
       }
     },
     {
-      "rank": 118,
+      "rank": 119,
       "model": "GPT-OSS-20B",
       "score": 3.1,
       "provider": "Terminus 2",

@@ -76,14 +76,13 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-04-06 01:01:37 -->
+<!-- Last synced: 2026-04-09 20:37:50 -->
 
 ### Project Port Allocations (from project.yaml)
 
 | Port | Project | Type | Path |
 |------|---------|------|------|
 | 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
-| 8001 | **Reference_Creator** | python-api | /opt/Reference_Creator |
 | 8002 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 8003 | **apps** | python-api | /opt/apps |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
@@ -100,20 +99,14 @@ If you encounter a port conflict:
 | 8015 | **proposal-creator** | python-api | /opt/proposal-creator |
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **supplement-tracker-advisor** | python-api | /opt/supplement-tracker-advisor |
-| 8018 | **test-coolify** | python-api | /opt/test-coolify |
-| 8019 | **test-final** | python-api | /opt/test-final |
-| 8020 | **test-session-check** | python-api | /opt/test-session-check |
-| 8021 | **test-zero-refs** | python-api | /opt/test-zero-refs |
+| 8018 | **Reference_Creator** | python-api | /opt/Reference_Creator |
 | 8022 | **trade-intelligence** | python-api | /opt/trade-intelligence |
 | 8023 | **trading-core** | python-api | /opt/trading-core |
 | 8024 | **transcriber** | python-api | /opt/transcriber |
 | 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
 | 8026 | **ugc** | python-api | /opt/ugc |
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
-| 8028 | **test-project-2024** | python-api | /opt/test-project-2024 |
 | 8029 | **youtube** | python-api | /opt/youtube |
-| 8030 | **test-project-2025** | python-api | /opt/test-project-2025 |
-| 8031 | **test-final-gate** | python-api | /opt/test-final-gate |
 | 8032 | **full-wf-test** | python-api | /opt/full-wf-test |
 | 8033 | **ComplianceOps** | python-api | /opt/ComplianceOps |
 | 18011 | **captcha** | python-api | /opt/captcha |

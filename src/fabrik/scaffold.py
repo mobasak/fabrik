@@ -703,7 +703,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
 
     # Create requirements.txt (production dependencies only)
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\n"
     )
 
     # Create requirements-dev.txt (includes dev dependencies)
@@ -711,23 +711,205 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         "-r requirements.txt\nruff\nmypy\nbandit\nsemgrep\nsqlfluff\nvulture\n"
     )
 
-    # Create starter src/<package_name>/main.py with proper health check
+    # Create starter src/<package_name>/ package with logger, middleware, and main
     package_dir = project_dir / "src" / package_name
     package_dir.mkdir(parents=True, exist_ok=True)
     (package_dir / "__init__.py").write_text("")
-    (package_dir / "main.py").write_text(
-        f'''"""Main entry point for {name}."""\nimport os\nfrom contextlib import asynccontextmanager\nfrom fastapi import FastAPI\nfrom fastapi.responses import JSONResponse\n\n\n@asynccontextmanager
-async def lifespan(app: FastAPI):  # noqa: ARG001
-    """Application lifespan handler."""
-    # Startup: initialize resources here
-    yield
-    # Shutdown: cleanup resources here\n\n\napp = FastAPI(title="{name}", lifespan=lifespan)\n\n\n@app.get("/health")\nasync def health():\n    """Health check - tests actual dependencies, returns non-200 on failure."""\n    db_url = os.getenv("DATABASE_URL")\n    deps = {{}}\n    all_ok = True\n\n    # Database check (only if configured)\n    if db_url:\n        try:\n            # TODO: Replace with actual async DB ping when DB is added\n            # Example: await db.execute("SELECT 1")\n            deps["database"] = "configured"\n        except Exception as e:\n            deps["database"] = f"error: {{str(e)}}"\n            all_ok = False\n    else:\n        deps["database"] = "not_configured"\n\n    status_code = 200 if all_ok else 503\n    return JSONResponse(\n        content={{\n            "service": "{name}",\n            "status": "ok" if all_ok else "degraded",\n            "dependencies": deps,\n        }},\n        status_code=status_code,\n    )\n\n\n@app.get("/")\nasync def root():\n    return {{"message": "Welcome to {name}"}}\n'''
+
+    # logger.py — structlog JSON logger with service name from env
+    (package_dir / "logger.py").write_text(
+        f'"""Structured logging module for {name}.\n'
+        f"\n"
+        f"Pre-configured structlog logger with JSON output and service name binding.\n"
+        f"Usage: from {package_name}.logger import get_logger\n"
+        f'"""\n'
+        f"\n"
+        f"import os\n"
+        f"\n"
+        f"import structlog\n"
+        f"\n"
+        f"\n"
+        f"def _setup_logging() -> None:\n"
+        f'    """Configure structlog with JSON output."""\n'
+        f"    structlog.configure(\n"
+        f"        processors=[\n"
+        f"            structlog.contextvars.merge_contextvars,\n"
+        f"            structlog.processors.add_log_level,\n"
+        f'            structlog.processors.TimeStamper(fmt="iso"),\n'
+        f"            structlog.processors.StackInfoRenderer(),\n"
+        f"            structlog.processors.format_exc_info,\n"
+        f"            structlog.processors.JSONRenderer(),\n"
+        f"        ],\n"
+        f"        wrapper_class=structlog.stdlib.BoundLogger,\n"
+        f"        context_class=dict,\n"
+        f"        logger_factory=structlog.PrintLoggerFactory(),\n"
+        f"        cache_logger_on_first_use=True,\n"
+        f"    )\n"
+        f"\n"
+        f"\n"
+        f"_setup_logging()\n"
+        f"\n"
+        f"\n"
+        f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
+        f'    """Return a structlog logger bound with service name."""\n'
+        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))\n'
     )
+
+    # middleware.py — X-Request-ID correlation middleware
+    (package_dir / "middleware.py").write_text(
+        f'"""Correlation ID middleware for {name}.\n'
+        f"\n"
+        f"Binds X-Request-ID to structlog context via contextvars.\n"
+        f"Usage: app.add_middleware(CorrelationMiddleware)\n"
+        f'"""\n'
+        f"\n"
+        f"import uuid\n"
+        f"from contextvars import ContextVar\n"
+        f"\n"
+        f"import structlog\n"
+        f"from starlette.middleware.base import BaseHTTPMiddleware\n"
+        f"from starlette.requests import Request\n"
+        f"from starlette.responses import Response\n"
+        f"\n"
+        f'correlation_id: ContextVar[str] = ContextVar("correlation_id", default="")\n'
+        f"\n"
+        f"\n"
+        f"class CorrelationMiddleware(BaseHTTPMiddleware):\n"
+        f'    """Attach X-Request-ID to every request and bind to structlog context."""\n'
+        f"\n"
+        f"    async def dispatch(self, request: Request, call_next) -> Response:  # noqa: ANN001\n"
+        f'        """Process request with correlation ID."""\n'
+        f'        req_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))\n'
+        f"        correlation_id.set(req_id)\n"
+        f"        structlog.contextvars.bind_contextvars(correlation_id=req_id)\n"
+        f"        try:\n"
+        f"            response = await call_next(request)\n"
+        f'            response.headers["X-Request-ID"] = req_id\n'
+        f"            return response\n"
+        f"        finally:\n"
+        f'            structlog.contextvars.unbind_contextvars("correlation_id")\n'
+    )
+
+    # main.py — FastAPI app with structured logging and correlation middleware
+    (package_dir / "main.py").write_text(
+        f'"""Main entry point for {name}."""\n'
+        f"\n"
+        f"import os\n"
+        f"from contextlib import asynccontextmanager\n"
+        f"\n"
+        f"from fastapi import FastAPI\n"
+        f"from fastapi.responses import JSONResponse\n"
+        f"\n"
+        f"from {package_name}.logger import get_logger\n"
+        f"from {package_name}.middleware import CorrelationMiddleware\n"
+        f"\n"
+        f"logger = get_logger(__name__)\n"
+        f"\n"
+        f"\n"
+        f"@asynccontextmanager\n"
+        f"async def lifespan(app: FastAPI):  # noqa: ARG001\n"
+        f'    """Application lifespan handler."""\n'
+        f'    logger.info("service_starting", port=os.getenv("PORT", "8000"))\n'
+        f"    yield\n"
+        f'    logger.info("service_stopping")\n'
+        f"\n"
+        f"\n"
+        f'app = FastAPI(title="{name}", lifespan=lifespan)\n'
+        f"app.add_middleware(CorrelationMiddleware)\n"
+        f"\n"
+        f"\n"
+        f'@app.get("/health")\n'
+        f"async def health():\n"
+        f'    """Health check - tests actual dependencies, returns non-200 on failure."""\n'
+        f'    db_url = os.getenv("DATABASE_URL")\n'
+        f"    deps = {{}}\n"
+        f"    all_ok = True\n"
+        f"\n"
+        f"    # Database check (only if configured)\n"
+        f"    if db_url:\n"
+        f"        try:\n"
+        f"            # TODO: Replace with actual async DB ping when DB is added\n"
+        f'            # Example: await db.execute("SELECT 1")\n'
+        f'            deps["database"] = "configured"\n'
+        f"        except Exception as e:\n"
+        f'            deps["database"] = f"error: {{str(e)}}"\n'
+        f'            logger.error("health_check_failed", dependency="database", error=str(e))\n'
+        f"            all_ok = False\n"
+        f"    else:\n"
+        f'        deps["database"] = "not_configured"\n'
+        f"\n"
+        f"    status_code = 200 if all_ok else 503\n"
+        f"    return JSONResponse(\n"
+        f"        content={{\n"
+        f'            "service": "{name}",\n'
+        f'            "status": "ok" if all_ok else "degraded",\n'
+        f'            "dependencies": deps,\n'
+        f"        }},\n"
+        f"        status_code=status_code,\n"
+        f"    )\n"
+        f"\n"
+        f"\n"
+        f'@app.get("/")\n'
+        f"async def root():\n"
+        f'    return {{"message": "Welcome to {name}"}}\n'
+    )
+
+    # Append SERVICE_NAME to .env.example (written by _scaffold_shared)
+    with open(project_dir / ".env.example", "a") as f:
+        f.write(f"\n# Service identity for structured logging\nSERVICE_NAME={name}\n")
 
     # Create basic test
     (project_dir / "tests" / "__init__.py").write_text("")
     (project_dir / "tests" / "test_health.py").write_text(
-        f'''"""Health endpoint tests."""\nimport os\nfrom unittest.mock import patch\nfrom fastapi.testclient import TestClient\nfrom {package_name}.main import app\n\nclient = TestClient(app)\n\n\ndef test_health_returns_200_without_db():\n    """Health returns 200 when DB is not configured."""\n    with patch.dict(os.environ, {{}}, clear=True):\n        response = client.get("/health")\n        assert response.status_code == 200\n        data = response.json()\n        assert data["service"] == "{name}"\n        assert data["status"] == "ok"\n        assert data["dependencies"]["database"] == "not_configured"\n\n\ndef test_health_returns_200_with_db_configured():\n    """Health returns 200 when DB is configured (mocked)."""\n    with patch.dict(os.environ, {{"DATABASE_URL": "postgresql://test@localhost/test"}}):\n        response = client.get("/health")\n        assert response.status_code == 200\n        data = response.json()\n        assert data["dependencies"]["database"] == "configured"\n\n\ndef test_root_endpoint():\n    """Root endpoint returns welcome message."""\n    response = client.get("/")\n    assert response.status_code == 200\n    assert "message" in response.json()\n'''
+        f'"""Health endpoint tests."""\n'
+        f"\n"
+        f"import os\n"
+        f"from unittest.mock import patch\n"
+        f"\n"
+        f"from fastapi.testclient import TestClient\n"
+        f"\n"
+        f"from {package_name}.main import app\n"
+        f"\n"
+        f"client = TestClient(app)\n"
+        f"\n"
+        f"\n"
+        f"def test_health_returns_200_without_db():\n"
+        f'    """Health returns 200 when DB is not configured."""\n'
+        f"    with patch.dict(os.environ, {{}}, clear=True):\n"
+        f'        response = client.get("/health")\n'
+        f"        assert response.status_code == 200\n"
+        f"        data = response.json()\n"
+        f'        assert data["service"] == "{name}"\n'
+        f'        assert data["status"] == "ok"\n'
+        f'        assert data["dependencies"]["database"] == "not_configured"\n'
+        f"\n"
+        f"\n"
+        f"def test_health_returns_200_with_db_configured():\n"
+        f'    """Health returns 200 when DB is configured (mocked)."""\n'
+        f'    with patch.dict(os.environ, {{"DATABASE_URL": "postgresql://test@localhost/test"}}):\n'
+        f'        response = client.get("/health")\n'
+        f"        assert response.status_code == 200\n"
+        f"        data = response.json()\n"
+        f'        assert data["dependencies"]["database"] == "configured"\n'
+        f"\n"
+        f"\n"
+        f"def test_root_endpoint():\n"
+        f'    """Root endpoint returns welcome message."""\n'
+        f'    response = client.get("/")\n'
+        f"    assert response.status_code == 200\n"
+        f'    assert "message" in response.json()\n'
+        f"\n"
+        f"\n"
+        f"def test_health_returns_correlation_id():\n"
+        f'    """Health response includes X-Request-ID header."""\n'
+        f'    response = client.get("/health")\n'
+        f'    assert "x-request-id" in response.headers\n'
+        f"\n"
+        f"\n"
+        f"def test_health_preserves_provided_request_id():\n"
+        f'    """Health response preserves client-provided X-Request-ID."""\n'
+        f'    response = client.get("/health", headers={{"X-Request-ID": "test-123"}})\n'
+        f'    assert response.headers["x-request-id"] == "test-123"\n'
     )
 
     # Create Python virtual environment and install dependencies
@@ -782,6 +964,23 @@ def _scaffold_saas_skeleton(
         except UnicodeDecodeError:
             shutil.copy2(src, dest)
 
+    # Write structured logger (pino) for saas-skeleton projects
+    (project_dir / "lib").mkdir(parents=True, exist_ok=True)
+    # NOTE: This write intentionally overwrites any lib/logger.ts copied from the
+    # saas-skeleton template. Scaffold-generated version takes precedence. If the
+    # template ever gains its own lib/logger.ts, update _SAAS_SKIP_FILES accordingly.
+    (project_dir / "lib" / "logger.ts").write_text(
+        f"import pino from 'pino';\n"
+        f"\n"
+        f"const logger = pino({{\n"
+        f"  level: process.env.LOG_LEVEL || 'info',\n"
+        f"  name: process.env.SERVICE_NAME || '{name}',\n"
+        f"  timestamp: pino.stdTimeFunctions.isoTime,\n"
+        f"}});\n"
+        f"\n"
+        f"export default logger;\n"
+    )
+
 
 def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create Node API-specific project structure."""
@@ -821,40 +1020,66 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
             "test": "node --test",
             "lint": "echo 'No linter configured'",
         },
+        "dependencies": {
+            "pino": "^9.0.0",
+        },
     }
     (project_dir / "package.json").write_text(json.dumps(package_json, indent=2) + "\n")
 
-    # e) Generate src/index.js inline
+    # e) Generate src/logger.js inline (pino structured logging)
+    (project_dir / "src" / "logger.js").write_text(
+        f"""'use strict';
+
+const pino = require('pino');
+
+const logger = pino({{
+  level: process.env.LOG_LEVEL || 'info',
+  name: process.env.SERVICE_NAME || '{name}',
+  timestamp: pino.stdTimeFunctions.isoTime,
+}});
+
+module.exports = logger;
+"""
+    )
+
+    # f) Generate src/index.js inline (with pino logging and X-Request-ID correlation)
     (project_dir / "src" / "index.js").write_text(
         f"""'use strict';
 
 const http = require('http');
+const {{ randomUUID }} = require('crypto');
+const logger = require('./logger');
 
 const PORT = process.env.PORT || 3000;
 
 const server = http.createServer((req, res) => {{
+  const requestId = req.headers['x-request-id'] || randomUUID();
+  res.setHeader('X-Request-ID', requestId);
+  const child = logger.child({{ correlation_id: requestId }});
+
   if (req.method === 'GET' && req.url === '/health') {{
     res.writeHead(200, {{ 'Content-Type': 'application/json' }});
     res.end(JSON.stringify({{ service: '{name}', status: 'ok' }}));
     return;
   }}
 
+  child.info({{ event: 'request_received', method: req.method, url: req.url }});
   res.writeHead(200, {{ 'Content-Type': 'application/json' }});
   res.end(JSON.stringify({{ message: 'Welcome to {name}' }}));
 }});
 
 server.listen(PORT, () => {{
-  console.log(`{name} listening on port ${{PORT}}`);
+  logger.info({{ event: 'service_starting', port: PORT }});
 }});
 """
     )
 
-    # f) Overwrite .env.example with Node-appropriate content
+    # g) Overwrite .env.example with Node-appropriate content
     (project_dir / ".env.example").write_text(
-        f"# {name} Configuration\nPORT=3000\nNODE_ENV=development\nLOG_LEVEL=info\n"
+        f"# {name} Configuration\nPORT=3000\nNODE_ENV=development\nLOG_LEVEL=info\n\n# Service identity for structured logging\nSERVICE_NAME={name}\n"
     )
 
-    # g) Overwrite .gitignore with Node-appropriate content
+    # h) Overwrite .gitignore with Node-appropriate content
     (project_dir / ".gitignore").write_text(
         "node_modules/\n"
         "dist/\n"
@@ -898,6 +1123,22 @@ def _scaffold_file_api(project_dir: Path, name: str, description: str, **kwargs:
     if src_index.exists():
         shutil.copy2(src_index, project_dir / "src" / "index.js")
 
+    # b2) Generate src/logger.js inline (pino structured logging)
+    (project_dir / "src" / "logger.js").write_text(
+        f"""'use strict';
+
+const pino = require('pino');
+
+const logger = pino({{
+  level: process.env.LOG_LEVEL || 'info',
+  name: process.env.SERVICE_NAME || '{name}',
+  timestamp: pino.stdTimeFunctions.isoTime,
+}});
+
+module.exports = logger;
+"""
+    )
+
     # c) Copy and patch Dockerfile.node -> Dockerfile
     dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.node"
     if dockerfile_src.exists():
@@ -930,6 +1171,7 @@ def _scaffold_file_api(project_dir: Path, name: str, description: str, **kwargs:
         "dependencies": {
             "express": "^4.18.2",
             "cors": "^2.8.5",
+            "pino": "^9.0.0",
             "@supabase/supabase-js": "^2.38.0",
             "@aws-sdk/client-s3": "^3.450.0",
             "@aws-sdk/s3-request-presigner": "^3.450.0",
@@ -953,6 +1195,9 @@ MAX_FILE_SIZE_MB=100
 ALLOWED_CONTENT_TYPES=application/pdf,audio/mpeg
 UPLOAD_URL_EXPIRY_SECONDS=3600
 DOWNLOAD_URL_EXPIRY_SECONDS=3600
+
+# Service identity for structured logging
+SERVICE_NAME={name}
 """
     )
 
@@ -991,7 +1236,43 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     # a) Create worker/ directory
     (project_dir / "worker").mkdir(parents=True, exist_ok=True)
 
-    # b) Copy main.py verbatim from file-worker template
+    # b) Write worker/logger.py — structured logging module
+    (project_dir / "worker" / "logger.py").write_text(
+        f'''"""Structured logging for {name} file-worker."""
+
+import os
+
+import structlog
+
+
+def _setup_logging() -> None:
+    """Configure structlog with JSON output for production."""
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+
+_setup_logging()
+
+
+def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:
+    """Return a bound logger with service identity."""
+    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{name}"))
+'''
+    )
+
+    # c) Copy main.py verbatim from file-worker template
     src_main = FILE_WORKER_TEMPLATE_DIR / "worker" / "main.py"
     if src_main.exists():
         shutil.copy2(src_main, project_dir / "worker" / "main.py")
@@ -1073,6 +1354,9 @@ R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=your-access-key-id
 R2_SECRET_ACCESS_KEY=your-secret-access-key
 R2_BUCKET=your-bucket-name
+
+# Service identity for structured logging
+SERVICE_NAME={name}
 """
     )
 
@@ -1342,87 +1626,171 @@ export default defineConfig({
     )
 
     # 2. Server files (FastAPI)
+    server_pkg_dir = project_dir / "server" / "src" / package_name
+
     # server/src/<package_name>/__init__.py
-    (project_dir / "server" / "src" / package_name / "__init__.py").write_text("")
+    (server_pkg_dir / "__init__.py").write_text("")
 
-    # server/src/<package_name>/main.py
-    (project_dir / "server" / "src" / package_name / "main.py").write_text(
-        f'''"""Main entry point for {name} server."""
-import os
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):  # noqa: ARG001
-    """Application lifespan handler."""
-    # Startup: initialize resources here
-    yield
-    # Shutdown: cleanup resources here
-
-
-app = FastAPI(title="{name}", lifespan=lifespan)
-
-# CORS for extension
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/health")
-async def health():
-    """Health check - tests actual dependencies, returns non-200 on failure."""
-    return JSONResponse(
-        content={{
-            "service": "{name}",
-            "status": "ok",
-        }},
-        status_code=200,
+    # server/src/<package_name>/logger.py — structlog JSON logger
+    (server_pkg_dir / "logger.py").write_text(
+        f'"""Structured logging module for {name}.\n'
+        f"\n"
+        f"Pre-configured structlog logger with JSON output and service name binding.\n"
+        f"Usage: from {package_name}.logger import get_logger\n"
+        f'"""\n'
+        f"\n"
+        f"import os\n"
+        f"\n"
+        f"import structlog\n"
+        f"\n"
+        f"\n"
+        f"def _setup_logging() -> None:\n"
+        f'    """Configure structlog with JSON output."""\n'
+        f"    structlog.configure(\n"
+        f"        processors=[\n"
+        f"            structlog.contextvars.merge_contextvars,\n"
+        f"            structlog.processors.add_log_level,\n"
+        f'            structlog.processors.TimeStamper(fmt="iso"),\n'
+        f"            structlog.processors.StackInfoRenderer(),\n"
+        f"            structlog.processors.format_exc_info,\n"
+        f"            structlog.processors.JSONRenderer(),\n"
+        f"        ],\n"
+        f"        wrapper_class=structlog.stdlib.BoundLogger,\n"
+        f"        context_class=dict,\n"
+        f"        logger_factory=structlog.PrintLoggerFactory(),\n"
+        f"        cache_logger_on_first_use=True,\n"
+        f"    )\n"
+        f"\n"
+        f"\n"
+        f"_setup_logging()\n"
+        f"\n"
+        f"\n"
+        f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
+        f'    """Return a structlog logger bound with service name."""\n'
+        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))\n'
     )
 
+    # server/src/<package_name>/middleware.py — X-Request-ID correlation middleware
+    (server_pkg_dir / "middleware.py").write_text(
+        f'"""Correlation ID middleware for {name}.\n'
+        f"\n"
+        f"Binds X-Request-ID to structlog context via contextvars.\n"
+        f"Usage: app.add_middleware(CorrelationMiddleware)\n"
+        f'"""\n'
+        f"\n"
+        f"import uuid\n"
+        f"from contextvars import ContextVar\n"
+        f"\n"
+        f"import structlog\n"
+        f"from starlette.middleware.base import BaseHTTPMiddleware\n"
+        f"from starlette.requests import Request\n"
+        f"from starlette.responses import Response\n"
+        f"\n"
+        f'correlation_id: ContextVar[str] = ContextVar("correlation_id", default="")\n'
+        f"\n"
+        f"\n"
+        f"class CorrelationMiddleware(BaseHTTPMiddleware):\n"
+        f'    """Attach X-Request-ID to every request and bind to structlog context."""\n'
+        f"\n"
+        f"    async def dispatch(self, request: Request, call_next) -> Response:  # noqa: ANN001\n"
+        f'        """Process request with correlation ID."""\n'
+        f'        req_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))\n'
+        f"        correlation_id.set(req_id)\n"
+        f"        structlog.contextvars.bind_contextvars(correlation_id=req_id)\n"
+        f"        try:\n"
+        f"            response = await call_next(request)\n"
+        f'            response.headers["X-Request-ID"] = req_id\n'
+        f"            return response\n"
+        f"        finally:\n"
+        f'            structlog.contextvars.unbind_contextvars("correlation_id")\n'
+    )
 
-@app.get("/")
-async def root():
-    return {{"message": "Welcome to {name} API"}}
-'''
+    # server/src/<package_name>/main.py — with structured logging + correlation + CORS
+    (server_pkg_dir / "main.py").write_text(
+        f'"""Main entry point for {name} server."""\n'
+        f"\n"
+        f"import os\n"
+        f"from contextlib import asynccontextmanager\n"
+        f"\n"
+        f"from fastapi import FastAPI\n"
+        f"from fastapi.middleware.cors import CORSMiddleware\n"
+        f"from fastapi.responses import JSONResponse\n"
+        f"\n"
+        f"from {package_name}.logger import get_logger\n"
+        f"from {package_name}.middleware import CorrelationMiddleware\n"
+        f"\n"
+        f"logger = get_logger(__name__)\n"
+        f"\n"
+        f"\n"
+        f"@asynccontextmanager\n"
+        f"async def lifespan(app: FastAPI):  # noqa: ARG001\n"
+        f'    """Application lifespan handler."""\n'
+        f'    logger.info("service_starting", port=os.getenv("PORT", "8000"))\n'
+        f"    yield\n"
+        f'    logger.info("service_stopping")\n'
+        f"\n"
+        f"\n"
+        f'app = FastAPI(title="{name}", lifespan=lifespan)\n'
+        f"app.add_middleware(CorrelationMiddleware)\n"
+        f"\n"
+        f"# CORS for extension\n"
+        f"app.add_middleware(\n"
+        f"    CORSMiddleware,\n"
+        f'    allow_origins=["*"],  # Configure appropriately for production\n'
+        f"    allow_credentials=True,\n"
+        f'    allow_methods=["*"],\n'
+        f'    allow_headers=["*"],\n'
+        f")\n"
+        f"\n"
+        f"\n"
+        f'@app.get("/health")\n'
+        f"async def health():\n"
+        f'    """Health check - tests actual dependencies, returns non-200 on failure."""\n'
+        f"    return JSONResponse(\n"
+        f"        content={{\n"
+        f'            "service": "{name}",\n'
+        f'            "status": "ok",\n'
+        f"        }},\n"
+        f"        status_code=200,\n"
+        f"    )\n"
+        f"\n"
+        f"\n"
+        f'@app.get("/")\n'
+        f"async def root():\n"
+        f'    return {{"message": "Welcome to {name} API"}}\n'
     )
 
     # requirements.txt (at root, for server)
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\npytest>=8.0.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\npytest>=8.0.0\nstructlog>=24.0.0\n"
     )
 
     # tests/test_health.py
     (project_dir / "tests" / "__init__.py").write_text("")
     (project_dir / "tests" / "test_health.py").write_text(
-        f'''"""Health endpoint tests."""
-from fastapi.testclient import TestClient
-from {package_name}.main import app
-
-client = TestClient(app)
-
-
-def test_health_returns_200():
-    """Health returns 200."""
-    response = client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["service"] == "{name}"
-    assert data["status"] == "ok"
-
-
-def test_root_endpoint():
-    """Root endpoint returns welcome message."""
-    response = client.get("/")
-    assert response.status_code == 200
-    assert "message" in response.json()
-'''
+        f'"""Health endpoint tests."""\n'
+        f"\n"
+        f"from fastapi.testclient import TestClient\n"
+        f"\n"
+        f"from {package_name}.main import app\n"
+        f"\n"
+        f"client = TestClient(app)\n"
+        f"\n"
+        f"\n"
+        f"def test_health_returns_200():\n"
+        f'    """Health returns 200."""\n'
+        f'    response = client.get("/health")\n'
+        f"    assert response.status_code == 200\n"
+        f"    data = response.json()\n"
+        f'    assert data["service"] == "{name}"\n'
+        f'    assert data["status"] == "ok"\n'
+        f"\n"
+        f"\n"
+        f"def test_root_endpoint():\n"
+        f'    """Root endpoint returns welcome message."""\n'
+        f'    response = client.get("/")\n'
+        f"    assert response.status_code == 200\n"
+        f'    assert "message" in response.json()\n'
     )
 
     # 3. Docker files
@@ -1544,11 +1912,14 @@ clean:
 """
     )
 
-    # 5. .env.example
+    # 5. .env.example (chrome-extension owns its .env.example entirely via write_text)
     (project_dir / ".env.example").write_text(
         f"""# {name} Configuration
 PORT=8000
 NODE_ENV=development
+
+# Service identity for structured logging
+SERVICE_NAME={name}
 """
     )
 

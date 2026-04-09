@@ -26,11 +26,24 @@ if ! command -v inotifywait &>/dev/null; then
     sudo apt-get update && sudo apt-get install -y inotify-tools
 fi
 
+DEBOUNCE_SECS=5
+DEBOUNCE_STAMP="/tmp/.fabrik-env-watcher-last-run"
+
 log "Monitoring .env files in /opt/*/..."
 log "Press Ctrl+C to stop"
 
 # Monitor all .env files under /opt/*/
 inotifywait -m -e modify,create,close_write --format '%w%f' /opt/*/.env 2>/dev/null | while read -r changed_file; do
+    # Debounce: skip if last consolidation was less than DEBOUNCE_SECS ago
+    # (uses a stamp file because pipeline runs in a subshell)
+    if [ -f "$DEBOUNCE_STAMP" ]; then
+        LAST_AGE=$(( $(date +%s) - $(stat -c %Y "$DEBOUNCE_STAMP") ))
+        if [ "$LAST_AGE" -lt "$DEBOUNCE_SECS" ]; then
+            continue
+        fi
+    fi
+    touch "$DEBOUNCE_STAMP"
+
     log "Detected change: $changed_file"
     log "Running consolidate_envs.py --apply..."
 

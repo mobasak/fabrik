@@ -588,9 +588,7 @@ def run_consistency_checks(
         )
         # Print/console.log ban in production code
         results.append(
-            run_optional_check(
-                "scripts/enforcement/check_print_ban.py", "Print/Console.log Ban"
-            )
+            run_optional_check("scripts/enforcement/check_print_ban.py", "Print/Console.log Ban")
         )
 
     # Tier 1 stops here
@@ -654,9 +652,7 @@ def run_consistency_checks(
             )
         )
         results.append(
-            run_optional_check(
-                "scripts/enforcement/check_user_guide.py", "User Guide Presence"
-            )
+            run_optional_check("scripts/enforcement/check_user_guide.py", "User Guide Presence")
         )
         results.append(
             run_optional_check(

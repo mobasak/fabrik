@@ -583,35 +583,35 @@ The 120-second **idle timeout** triggers when:
 
 ---
 
-## Final Assignment Table (2026-04-06)
+## Final Assignment Table (2026-04-09)
 
 **Source:** `kilo_agents.db` agent_roles table | **Assigned by:** `kilo/google/gemini-3.1-pro-preview`
 
 | Role | Pri | Agent | ELO | TBench | Vision | Thinking | $/M In | $/M Out | PPD |
 |------|-----|-------|-----|--------|--------|----------|--------|---------|-----|
-| coding | 1 | Anthropic: Claude Opus 4.6 | 1535 | 81.8% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| coding | 1 | Anthropic: Claude Opus 4.6 | 1535 | 82.9% | ✅ | ✅ | $5.00 | $25.00 | 77 |
 | coding | 2 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
 | coding | 3 | Google: Gemini 3.1 Pro Preview | 1531 | 80.2% | ✅ | ✅ | $2.00 | $12.00 | 161 |
 | coding | 4 | OpenAI: GPT-5.3-Codex | — | 78.4% | ✅ | ✅ | $1.75 | $14.00 | — |
 | documentation | 1 | OpenAI: gpt-oss-20b | 1371 | 3.4% | — | ✅ | $0.03 | $0.11 | 15233 |
 | documentation | 2 | Google: Gemma 3 27B | 1356 | — | ✅ | — | $0.08 | $0.16 | 9686 |
 | documentation | 3 | OpenAI: gpt-oss-120b | 1398 | 18.7% | — | ✅ | $0.04 | $0.19 | 9182 |
-| documentation | 4 | Xiaomi: MiMo-V2-Flash | 1411 | — | — | ✅ | $0.09 | $0.29 | 5879 |
-| documentation | 5 | Google: Gemini 2.0 Flash | 1371 | — | ✅ | — | $0.10 | $0.40 | 4218 |
-| fixing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 81.8% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| documentation | 4 | Qwen: Qwen3 32B | 1376 | — | — | ✅ | $0.08 | $0.24 | 6880 |
+| documentation | 5 | Xiaomi: MiMo-V2-Flash | 1411 | — | — | ✅ | $0.09 | $0.29 | 5879 |
+| fixing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 82.9% | ✅ | ✅ | $5.00 | $25.00 | 77 |
 | fixing | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 80.2% | ✅ | ✅ | $2.00 | $12.00 | 161 |
 | fixing | 3 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
 | fixing | 4 | OpenAI: GPT-5.3-Codex | — | 78.4% | ✅ | ✅ | $1.75 | $14.00 | — |
-| reviewing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 81.8% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| reviewing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 82.9% | ✅ | ✅ | $5.00 | $25.00 | 77 |
 | reviewing | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 80.2% | ✅ | ✅ | $2.00 | $12.00 | 161 |
 | reviewing | 3 | Google: Gemini 3 Pro Preview | 1501 | 69.4% | ✅ | ✅ | $2.00 | $12.00 | 158 |
 | reviewing | 4 | Anthropic: Claude Sonnet 4.6 | 1500 | — | ✅ | ✅ | $3.00 | $15.00 | 125 |
 | reviewing | 5 | Anthropic: Claude Opus 4.5 | 1496 | 63.1% | ✅ | ✅ | $5.00 | $25.00 | 75 |
-| testing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 81.8% | ✅ | ✅ | $5.00 | $25.00 | 77 |
+| testing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 82.9% | ✅ | ✅ | $5.00 | $25.00 | 77 |
 | testing | 2 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
 | testing | 3 | Google: Gemini 3 Flash Preview | 1470 | 64.3% | ✅ | ✅ | $0.50 | $3.00 | 619 |
-| testing | 4 | MiniMax: MiniMax M2.5 | 1436 | 42.7% | — | ✅ | $0.12 | $0.99 | 1860 |
-| testing | 5 | DeepSeek: DeepSeek V3.2 Exp | 1431 | 39.6% | — | ✅ | $0.27 | $0.41 | 3816 |
+| testing | 4 | Z.ai: GLM 5 | 1461 | 52.4% | — | ✅ | $0.72 | $2.30 | 767 |
+| testing | 5 | MiniMax: MiniMax M2.5 | 1436 | 42.7% | — | ✅ | $0.12 | $0.99 | 1860 |
 
 ---
 

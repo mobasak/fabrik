@@ -1174,6 +1174,425 @@ def ai_usage(month: str | None, project: str | None):
         )
 
 
+@cli.group()
+def domain():
+    """Domain management — DNS, Cloudflare, registration."""
+    pass
+
+
+@domain.command("check")
+@click.argument("domains", nargs=-1, required=True)
+def domain_check(domains: tuple[str, ...]):
+    """Check domain availability.
+
+    dns-manager queries all configured registrars and returns results.
+
+    Example:
+        fabrik domain check newsite.com
+        fabrik domain check newsite.com newsite.io newsite.dev
+    """
+    dns = DNSClient()
+    try:
+        result = dns.check_availability(list(domains))
+        for name, available in result.items():
+            status = "\u2705 Available" if available else "\u274c Taken"
+            click.echo(f"  {name}: {status}")
+    except Exception as e:
+        click.echo(f"\u26a0\ufe0f  Availability check failed: {e}", err=True)
+    finally:
+        dns.close()
+
+
+@domain.command("provision")
+@click.argument("domain_name")
+@click.option("--ip", default=None, help="Target IP (default: VPS_IP env var)")
+@click.option("--subdomain", "-s", multiple=True, help="Subdomains to create (repeatable)")
+@click.option("--no-dnssec", is_flag=True, help="Skip DNSSEC")
+@click.option("--no-cache", is_flag=True, help="Skip tiered cache")
+@click.option("--no-shield", is_flag=True, help="Skip page shield")
+@click.option("--no-waf", is_flag=True, help="Skip WAF threat rule")
+def domain_provision(
+    domain_name: str,
+    ip: str | None,
+    subdomain: tuple[str, ...],
+    no_dnssec: bool,
+    no_cache: bool,
+    no_shield: bool,
+    no_waf: bool,
+):
+    """Provision domain with Cloudflare enterprise features.
+
+    Sets up DNS records, CDN, security, and WAF in a single call.
+
+    Example:
+        fabrik domain provision newsite.com
+        fabrik domain provision newsite.com -s www -s api
+        fabrik domain provision newsite.com --ip 172.93.160.197
+    """
+    target_ip = ip or os.getenv("VPS_IP")
+    if not target_ip:
+        click.echo("❌ No target IP. Set VPS_IP env var or use --ip", err=True)
+        raise SystemExit(1)
+
+    dns = DNSClient()
+    try:
+        click.echo(f"🌐 Provisioning {domain_name} → {target_ip}...")
+        if subdomain:
+            click.echo(f"   Subdomains: {', '.join(subdomain)}")
+
+        result = dns.provision(
+            domain=domain_name,
+            target_ip=target_ip,
+            subdomains=list(subdomain) if subdomain else None,
+            enable_dnssec=not no_dnssec,
+            enable_tiered_cache=not no_cache,
+            enable_page_shield=not no_shield,
+            create_threat_rule=not no_waf,
+        )
+
+        if result.get("success") or result.get("ready_for_coolify"):
+            click.echo(f"✅ Provisioned: {domain_name}")
+            features = result.get("features_enabled", {})
+            for feat, status in features.items():
+                icon = "✅" if status is True else ("⚠️" if "error" in str(status).lower() else "✅")
+                click.echo(f"   {icon} {feat}: {status}")
+            click.echo(f"\n   ready_for_coolify: {result.get('ready_for_coolify', False)}")
+        else:
+            click.echo(f"❌ Provisioning failed: {result}", err=True)
+            raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"❌ Provision error: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        dns.close()
+
+
+@domain.command("ready")
+@click.argument("domain_name")
+def domain_ready(domain_name: str):
+    """Check if domain is ready for Coolify deployment.
+
+    Example:
+        fabrik domain ready newsite.com
+    """
+    dns = DNSClient()
+    try:
+        result = dns.check_ready(domain_name)
+        ready = result.get("ready_for_deployment", False)
+        icon = "✅" if ready else "❌"
+        click.echo(f"{icon} {domain_name}: ready_for_deployment={ready}")
+        click.echo(f"   Zone: {result.get('zone_status', 'unknown')}")
+        for rec in result.get("dns_records", []):
+            click.echo(f"   DNS: {rec['name']} → {rec['content']} (proxied={rec.get('proxied')})")
+        features = result.get("features", {})
+        for feat, status in features.items():
+            click.echo(f"   {feat}: {status}")
+    except Exception as e:
+        click.echo(f"❌ Ready check failed: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        dns.close()
+
+
+@domain.command("zones")
+def domain_zones():
+    """List all Cloudflare zones.
+
+    Example:
+        fabrik domain zones
+    """
+    dns = DNSClient()
+    try:
+        zones = dns.list_zones()
+        if not zones:
+            click.echo("No zones found.")
+            return
+        for z in zones:
+            click.echo(f"  {z['name']} ({z['status']})")
+    except Exception as e:
+        click.echo(f"❌ Failed to list zones: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        dns.close()
+
+
+@domain.command("buy")
+@click.argument("domain_name")
+@click.option("--years", default=1, help="Registration years (default: 1)")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def domain_buy(domain_name: str, years: int, yes: bool):
+    """Register a new domain.
+
+    dns-manager handles registrar selection, nameservers, and privacy.
+
+    Example:
+        fabrik domain buy newsite.com
+        fabrik domain buy newsite.com --years 2
+    """
+    if not yes:
+        click.echo(f"\u26a0\ufe0f  About to register: {domain_name} for {years} year(s)")
+        click.echo("   Registrar + nameservers: managed by dns-manager")
+        click.echo("   WHOIS privacy: enabled")
+        if not click.confirm("   Proceed?"):
+            click.echo("Aborted.")
+            return
+
+    dns = DNSClient()
+    try:
+        click.echo(f"\ud83d\udd04 Registering {domain_name}...")
+        result = dns.register_domain(domain=domain_name, years=years)
+
+        if result.get("success") and result.get("registered"):
+            click.echo(f"\u2705 Registered: {domain_name}")
+            click.echo(f"   Domain ID: {result.get('domain_id')}")
+            click.echo(f"   Order ID: {result.get('order_id')}")
+            click.echo(f"   Charged: ${result.get('charged_amount', 'N/A')}")
+            click.echo(f"\n   Next: fabrik domain provision {domain_name}")
+        else:
+            click.echo(f"\u274c Registration failed: {result}", err=True)
+            raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"\u274c Registration error: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        dns.close()
+
+
+@cli.group()
+def content():
+    """Content publishing pipeline (SEO → TCO → Image Broker → WordPress)."""
+    pass
+
+
+@content.command("publish")
+@click.argument("domain")
+@click.argument("seed_topic")
+@click.option("--site-name", default=None, help="Site display name (defaults to domain)")
+@click.option("--page-type", default=None, help="Page type override (e.g. service, blog_post)")
+@click.option("--country-code", default="us", help="ISO-2 country code")
+@click.option("--language-code", default="en", help="Language code")
+@click.option("--category", default=None, help="Site category (e.g. saas, company)")
+@click.option("--wp-url", default=None, help="WordPress site URL")
+@click.option("--wp-user", default=None, help="WordPress username")
+@click.option("--wp-pass", default=None, help="WordPress password (or application password)")
+@click.option("--dry-run", is_flag=True, help="Simulate without making changes")
+def content_publish(
+    domain: str,
+    seed_topic: str,
+    site_name: str | None,
+    page_type: str | None,
+    country_code: str,
+    language_code: str,
+    category: str | None,
+    wp_url: str | None,
+    wp_user: str | None,
+    wp_pass: str | None,
+    dry_run: bool,
+):
+    """Run full content publishing pipeline.
+
+    Pipeline:
+    1. Register site in SEO service
+    2. Create and run SEO job for seed topic
+    3. Fetch and claim brief
+    4. Generate content via TCO
+    5. Fetch image via Image Broker
+    6. Create WordPress post (if credentials provided)
+    7. Submit brief to SEO service
+
+    Example:
+        fabrik content publish example.com "saas pricing models" --page-type pricing
+    """
+    from fabrik.orchestrator.content_publisher import ContentPublisher
+
+    if not site_name:
+        site_name = domain
+
+    wp_credentials = None
+    if wp_url and wp_user and wp_pass:
+        wp_credentials = {"url": wp_url, "username": wp_user, "password": wp_pass}
+
+    publisher = ContentPublisher()
+    try:
+        click.echo(f"🚀 Starting content publish pipeline for {domain}")
+        click.echo(f"   Topic: {seed_topic}")
+        if page_type:
+            click.echo(f"   Page type: {page_type}")
+
+        ctx = publisher.publish_page(
+            domain=domain,
+            site_name=site_name,
+            seed_topic=seed_topic,
+            page_type=page_type,
+            country_code=country_code,
+            language_code=language_code,
+            category=category,
+            wp_credentials=wp_credentials,
+            dry_run=dry_run,
+        )
+
+        click.echo("\n✅ Pipeline completed")
+        if ctx.site_id:
+            click.echo(f"   Site ID: {ctx.site_id}")
+        if ctx.job_id:
+            click.echo(f"   Job ID: {ctx.job_id}")
+        if ctx.brief_id:
+            click.echo(f"   Brief ID: {ctx.brief_id}")
+        if ctx.wp_post_id:
+            click.echo(f"   WordPress Post ID: {ctx.wp_post_id}")
+
+        if ctx.warnings:
+            click.echo("\n⚠️  Warnings:")
+            for w in ctx.warnings:
+                click.echo(f"   - {w}")
+
+        if ctx.errors:
+            click.echo("\n❌ Errors:")
+            for e in ctx.errors:
+                click.echo(f"   - {e}")
+            raise SystemExit(1)
+
+    except Exception as e:
+        click.echo(f"❌ Pipeline failed: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        publisher.seo.close()
+        publisher.tco.close()
+        publisher.image.close()
+
+
+@cli.group()
+def seo():
+    """SEO service — keyword research and brief management."""
+    pass
+
+
+@seo.command("site-register")
+@click.argument("domain")
+@click.option("--name", default=None, help="Site display name")
+@click.option("--country-code", default="us", help="ISO-2 country code")
+@click.option("--language-code", default="en", help="Language code")
+@click.option("--category", default=None, help="Site category")
+def seo_site_register(
+    domain: str,
+    name: str | None,
+    country_code: str,
+    language_code: str,
+    category: str | None,
+):
+    """Register a site in the SEO service."""
+    from fabrik.drivers.seo import SEOClient
+
+    if not name:
+        name = domain
+
+    seo = SEOClient()
+    try:
+        site_id = seo.ensure_site(
+            domain=domain,
+            name=name,
+            country_code=country_code,
+            language_code=language_code,
+            category=category,
+        )
+        click.echo(f"✅ Site registered: {domain}")
+        click.echo(f"   Site ID: {site_id}")
+    except Exception as e:
+        click.echo(f"❌ Registration failed: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        seo.close()
+
+
+@seo.command("job-create")
+@click.argument("site_id")
+@click.argument("seed_topic")
+@click.option("--page-type", default=None, help="Page type override")
+@click.option("--country-code", default="us", help="ISO-2 country code")
+@click.option("--language-code", default="en", help="Language code")
+def seo_job_create(
+    site_id: str,
+    seed_topic: str,
+    page_type: str | None,
+    country_code: str,
+    language_code: str,
+):
+    """Create an SEO job for a site."""
+    from fabrik.drivers.seo import SEOClient
+
+    seo = SEOClient()
+    try:
+        job = seo.create_job(
+            site_id=site_id,
+            seed_topics=[seed_topic],
+            page_type_override=page_type,
+            country_code=country_code,
+            language_code=language_code,
+        )
+        click.echo("✅ Job created")
+        click.echo(f"   Job ID: {job['id']}")
+        click.echo(f"   Status: {job['status']}")
+    except Exception as e:
+        click.echo(f"❌ Job creation failed: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        seo.close()
+
+
+@seo.command("job-run")
+@click.argument("job_id")
+@click.option("--wait", is_flag=True, help="Wait for job completion")
+def seo_job_run(job_id: str, wait: bool):
+    """Run an SEO job."""
+    from fabrik.drivers.seo import SEOClient
+
+    seo = SEOClient()
+    try:
+        seo.run_job(job_id)
+        click.echo(f"✅ Job started: {job_id}")
+
+        if wait:
+            click.echo("⏳ Waiting for completion...")
+            job = seo.wait_for_job(job_id, timeout=300)
+            click.echo("✅ Job completed")
+            click.echo(f"   Status: {job['status']}")
+            click.echo(f"   Current stage: {job.get('current_stage')}")
+    except Exception as e:
+        click.echo(f"❌ Job run failed: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        seo.close()
+
+
+@seo.command("briefs-list")
+@click.argument("site_id")
+@click.option("--status", default=None, help="Filter by status (ready, draft, claimed, etc.)")
+def seo_briefs_list(site_id: str, status: str | None):
+    """List briefs for a site."""
+    from fabrik.drivers.seo import SEOClient
+
+    seo = SEOClient()
+    try:
+        if status:
+            briefs = seo.list_briefs(site_id, status=status)
+            click.echo(f"Briefs (status={status}):")
+        else:
+            briefs = seo.list_briefs(site_id)
+            click.echo("All briefs:")
+
+        if not briefs:
+            click.echo("  (no briefs)")
+            return
+
+        for b in briefs:
+            click.echo(f"  - {b['brief_id']}: {b.get('primary_keyword', 'N/A')} ({b['status']})")
+    except Exception as e:
+        click.echo(f"❌ Failed to list briefs: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        seo.close()
+
+
 def main():
     """Entry point for the CLI."""
     cli()

@@ -158,18 +158,47 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── ai/                          # AI module: LLMClient, UsageTracker
 │   ├── api/                         # API layer
 │   ├── drivers/                     # External service drivers
+│   │   ├── dns.py                   # DNS Manager service client
+│   │   ├── coolify.py               # Coolify deployment API client
+│   │   ├── seo.py                   # SEO service client (keyword research, briefs)
+│   │   ├── tco.py                   # TCO client (AI content generation)
+│   │   ├── image_broker.py          # Image Broker client (stock images)
+│   │   ├── r2.py                    # Cloudflare R2 object storage client
+│   │   ├── supabase.py              # Supabase client
+│   │   └── uptime_kuma.py           # Uptime Kuma monitoring client
 │   ├── models/                      # Data models
 │   ├── orchestrator/                # Deployment orchestrator
+│   │   ├── __init__.py              # DeploymentOrchestrator
+│   │   ├── content_publisher.py     # ContentPublisher (SEO → TCO → Image → WP)
+│   │   ├── context.py               # DeploymentContext
+│   │   ├── deployer.py              # ServiceDeployer
+│   │   ├── exceptions.py            # Custom exceptions
+│   │   ├── rollback.py              # RollbackManager
+│   │   ├── secrets.py               # SecretsManager
+│   │   ├── states.py                # DeploymentState
+│   │   ├── validator.py             # SpecValidator
+│   │   └── verifier.py              # DeploymentVerifier
 │   └── wordpress/                   # WordPress automation
 │       ├── handoff.py               # Handoff report generator
 │       ├── stages/
 │       │   └── verify.py            # Verification stage (post-deploy)
 ├── templates/                       # Project and document templates
+│   ├── file-worker/                 # File worker scaffold template
+│   │   └── worker/
+│   │       └── main.py              # Job processor (uses worker.logger)
 │   ├── saas-skeleton/               # Next.js 14 + Tailwind SaaS starter
 │   ├── scaffold/                    # Fabrik scaffold config
 │   ├── prompts/                     # Prompt templates for AI commands
 │   └── docs/                        # Document templates
 ├── tests/                           # Test suite
+│   ├── content/                     # Content pipeline tests
+│   │   ├── test_seo_client.py       # SEOClient driver tests
+│   │   ├── test_tco_client.py       # TCOClient driver tests
+│   │   ├── test_image_broker_client.py # ImageBrokerClient driver tests
+│   │   ├── test_orchestrator.py     # ContentPublisher orchestrator tests
+│   │   └── test_cli_content.py      # CLI content command tests
+│   ├── drivers/                     # Driver tests
+│   └── orchestrator/                # Deployment orchestrator tests
 ├── .github/                         # GitHub Actions CI/CD
 │   └── workflows/                   # ci.yml, docs-check.yml
 └── .windsurf/                       # Windsurf IDE config
@@ -412,6 +441,24 @@ docs/
 | [check_reusable_modules.py](scripts/enforcement/check_reusable_modules.py) | Tier 2 advisory: Check [reusable] tags in INDEX.md [reusable] |
 | [test_cross_cutting_enforcement.py](tests/test_cross_cutting_enforcement.py) | 31 tests for cross-cutting enforcement scripts |
 | [test_backfill_has_user_guide.py](tests/test_backfill_has_user_guide.py) | 9 tests for has_user_guide backfill in fix_project() |
+| [test_seo_client.py](tests/content/test_seo_client.py) | 7 tests for SEOClient driver (domain lookup, briefs lifecycle) |
+| [test_tco_client.py](tests/content/test_tco_client.py) | 2 tests for TCOClient driver (generate_from_brief, error propagation) |
+| [test_image_broker_client.py](tests/content/test_image_broker_client.py) | 3 tests for ImageBrokerClient driver (auto_download success/failure) |
+| [test_orchestrator.py](tests/content/test_orchestrator.py) | 14 tests for ContentPublisher orchestrator (pipeline, error handling, submission) |
+| [test_cli_content.py](tests/content/test_cli_content.py) | 3 tests for `fabrik content publish` CLI command |
+| [test_saas_logger.py](tests/test_saas_logger.py) | 5 tests for saas-skeleton pino logger scaffold generation |
+| [test_scaffold_logging.py](tests/test_scaffold_logging.py) | Tests for python-api + chrome-extension scaffold logging (logger.py, middleware.py, correlation ID) |
+
+### Scaffold-Generated Files (Python API + Chrome Extension Backend)
+
+| Generated File | Purpose | Update When | Tag |
+|----------------|---------|-------------|-----|
+| `src/{package}/logger.py` | structlog JSON logger with SERVICE_NAME binding and contextvars merge | Logging config changes | [reusable] |
+| `src/{package}/middleware.py` | X-Request-ID correlation middleware (ContextVar + structlog.contextvars) | Middleware pattern changes | [reusable] |
+| `src/logger.js` | pino JSON logger with SERVICE_NAME env var (node-api + file-api) | Logging config changes | [reusable] |
+| `lib/logger.ts` | pino TypeScript logger with SERVICE_NAME env var (saas-skeleton) | Logging config changes | [reusable] |
+| `worker/logger.py` | structlog JSON logger for file-worker with SERVICE_NAME binding | Logging config changes | [reusable] |
+| [test_node_scaffold_logging.py](tests/test_node_scaffold_logging.py) | 17 tests for node-api + file-api pino logging scaffold (logger.js, X-Request-ID, SERVICE_NAME) |
 
 ### Traycer Documentation
 

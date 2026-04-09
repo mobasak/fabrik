@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-06 01:01:37 -->
-<!-- Total projects: 42 -->
+<!-- Last synced: 2026-04-09 20:37:50 -->
+<!-- Total projects: 36 -->
 
 ### Production Services (6 projects)
 
@@ -105,7 +105,7 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (18 projects)
+### Active Development (11 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -117,18 +117,11 @@ With ~$50/month infrastructure cost:
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-coolify** | Coolify deployment readiness test | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-final** | **Last Updated:** 2026-03-23 | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-final-gate** | Final gate validation test project for Fabrik quality pipeline. | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-project-2024** | Test project for Fabrik scaffold and deployment validation (2024). | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-project-2025** | Test project 2025 | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-session-check** | Session poisoning audit - verify no Fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-zero-refs** | Complete workspace isolation verification - expect ZERO /opt/fabrik references | FastAPI | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | - | ✅ Current |
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (18 projects)
+### Planning/Research (19 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -147,6 +140,7 @@ With ~$50/month infrastructure cost:
 | **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | - | ✅ Current |
 | **namecheap** | Namecheap domain management utilities (precursor to dns-manager). | Python | 🔨 Development | - | ✅ Current |
 | **supplement-tracker-advisor** | Health supplement tracking and personalized advisory system. | Python | 🔨 Development | - | ✅ Current |
+| **test-final-gate** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |

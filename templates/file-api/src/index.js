@@ -16,6 +16,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid');
+const logger = require('./logger');
 
 const app = express();
 app.use(cors());
@@ -127,7 +128,7 @@ app.post('/api/files/upload-url', authMiddleware, async (req, res) => {
       .single();
 
     if (dbError) {
-      console.error('DB error:', dbError);
+      logger.error({ event: 'db_error', error: dbError.message });
       return res.status(500).json({ error: 'Failed to create file record' });
     }
 
@@ -148,7 +149,7 @@ app.post('/api/files/upload-url', authMiddleware, async (req, res) => {
       expiresIn: UPLOAD_EXPIRY,
     });
   } catch (err) {
-    console.error('Upload URL error:', err);
+    logger.error({ event: 'upload_url_error', error: err.message });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -184,7 +185,7 @@ app.post('/api/files/:id/confirm', authMiddleware, async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('Confirm error:', err);
+    logger.error({ event: 'confirm_error', error: err.message });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -226,7 +227,7 @@ app.post('/api/files/download-url', authMiddleware, async (req, res) => {
       expiresIn: DOWNLOAD_EXPIRY,
     });
   } catch (err) {
-    console.error('Download URL error:', err);
+    logger.error({ event: 'download_url_error', error: err.message });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -255,7 +256,7 @@ app.get('/api/files', authMiddleware, async (req, res) => {
 
     res.json({ files: data, total: count });
   } catch (err) {
-    console.error('List error:', err);
+    logger.error({ event: 'list_error', error: err.message });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -278,7 +279,7 @@ app.get('/api/files/:id', authMiddleware, async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('Get error:', err);
+    logger.error({ event: 'get_error', error: err.message });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -308,7 +309,7 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
       });
       await r2.send(command);
     } catch (r2Error) {
-      console.error('R2 delete error:', r2Error);
+      logger.error({ event: 'r2_delete_error', error: r2Error.message });
       // Continue anyway - DB record deletion is more important
     }
 
@@ -324,12 +325,12 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
 
     res.json({ success: true, deleted: id });
   } catch (err) {
-    console.error('Delete error:', err);
+    logger.error({ event: 'delete_error', error: err.message });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`File API running on port ${PORT}`);
+  logger.info({ event: 'service_starting', port: PORT });
 });

@@ -61,7 +61,9 @@ def main() -> int:
             untagged.append(mod)
 
     if untagged:
-        print(f"WARNING: {len(untagged)} module(s) in src/utils/ or src/lib/ not tagged [reusable] in INDEX.md:")
+        print(
+            f"WARNING: {len(untagged)} module(s) in src/utils/ or src/lib/ not tagged [reusable] in INDEX.md:"
+        )
         for mod in untagged:
             rel = mod.relative_to(repo_root)
             print(f"  {rel}")

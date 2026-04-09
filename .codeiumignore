@@ -1,45 +1,96 @@
 # Windsurf/Codeium Indexing Ignore
-# Excludes files from RAG context to improve speed and relevance
+# Optimized for Performance and WSL Stability
 
-# Large generated/vendor directories
+# --- Core Project Exclusions ---
 .venv/
 venv/
 node_modules/
 .git/
+.hg/
+.svn/
 
-# Build artifacts
+# --- Build Artifacts & Caches ---
 build/
 dist/
+out/
 *.egg-info/
 __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+htmlcov/
 
-# Large binary/data files
+# --- IDE & OS Metadata (Large & Constant Changes) ---
+.vscode/
+.idea/
+.history/
+.project
+.settings/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Large Binary, Data & Media Files ---
+# (RAG cannot read these, but indexing them consumes massive CPU)
 *.log
 *.sqlite
 *.db
 *.pkl
 *.parquet
+*.onnx
+*.pt
+*.bin
+*.exe
+*.dll
+*.so
+*.dylib
 
-# Temporary/staging
-.tmp/
-.staging/
-*.tmp
-*.bak
+# Media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.pdf
+*.mp4
+*.mov
+*.wav
+*.mp3
 
-# Archives
+# --- Archives ---
 *.tar.gz
 *.zip
 *.7z
+*.rar
+*.gz
 
-# Droid queue/results (frequently changing, not code)
+# --- Environment & Security ---
+.env
+.env.*
+*.pem
+*.key
+*.cert
+
+# --- Lock Files (Massive files that slow down RAG) ---
+# Better to let AI read package.json or requirements.txt instead
+*-lock.json
+*.lock
+pnpm-lock.yaml
+
+# --- Project Specific (Droid & Fabrik) ---
+# Exclude folders with high-frequency writes to prevent indexing loops
 .droid/review_queue/
 .droid/review_results/
 .droid/docs_queue/
 .droid/docs_log/
 .droid/responses/
-
-# Lock files (not useful for context)
 /tmp/fabrik-locks/
+.tmp/
+.staging/
+*.tmp
+*.bak

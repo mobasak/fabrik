@@ -18,12 +18,11 @@ Modes:
 
 import re
 import sys
-import yaml
-from pathlib import Path
-from datetime import date
 from dataclasses import dataclass, field
-from typing import Optional
+from datetime import date
+from pathlib import Path
 
+import yaml
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -39,61 +38,143 @@ VALID_BASE_RE = [
 ]
 
 KNOWN_TYPES = {
-    "python-api", "node-api", "saas-skeleton", "chrome-extension",
-    "mobile-app", "desktop-app", "static-site", "file-api",
-    "file-worker", "wordpress", "docusaurus", "automation",
+    "python-api",
+    "node-api",
+    "saas-skeleton",
+    "chrome-extension",
+    "mobile-app",
+    "desktop-app",
+    "static-site",
+    "file-api",
+    "file-worker",
+    "wordpress",
+    "docusaurus",
+    "automation",
 }
 
 # Files that legitimately belong at project root
 LEGIT_ROOT_FILES = {
-    "README.md", "CHANGELOG.md", "INDEX.md", "PORTS.md",
-    "AGENTS.md", "AGENTS-compact.md",
-    ".windsurfrules", ".gitignore", ".env", ".env.example",
-    ".pre-commit-config.yaml", ".codeiumignore",
-    "project.yaml", "opencode.json",
-    "Dockerfile", "compose.yaml", "docker-compose.yaml",
-    "requirements.txt", "pyproject.toml", "setup.py", "setup.cfg",
-    "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
-    "tsconfig.json", "next.config.js", "next.config.mjs",
-    "Makefile", "Procfile", ".dockerignore",
+    "README.md",
+    "CHANGELOG.md",
+    "INDEX.md",
+    "PORTS.md",
+    "AGENTS.md",
+    "AGENTS-compact.md",
+    ".windsurfrules",
+    ".gitignore",
+    ".env",
+    ".env.example",
+    ".pre-commit-config.yaml",
+    ".codeiumignore",
+    "project.yaml",
+    "opencode.json",
+    "Dockerfile",
+    "compose.yaml",
+    "docker-compose.yaml",
+    "requirements.txt",
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "package.json",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "tsconfig.json",
+    "next.config.js",
+    "next.config.mjs",
+    "Makefile",
+    "Procfile",
+    ".dockerignore",
     "manage.py",
 }
 
 # Paths to EXCLUDE when searching for health endpoints / print() etc.
 GOVERNANCE_EXCLUDE = {
-    ".windsurfrules", "AGENTS.md", "AGENTS-compact.md",
-    "docs_updater.py", "00-research.md",
+    ".windsurfrules",
+    "AGENTS.md",
+    "AGENTS-compact.md",
+    "docs_updater.py",
+    "00-research.md",
 }
 
 # Directories at project root that are NOT application code
 NON_CODE_DIRS = {
-    "tests", "scripts", "docs", "db", "data", "logs", "config",
-    "output", "node_modules", "__pycache__", ".droid", ".windsurf",
-    ".git", ".github", "venv", ".venv", "dist", "build",
-    "chrome_profiles", "cookies", "inputs", "cache",
-    "migrations", "alembic",  # DB migrations are not app code per se
+    "tests",
+    "scripts",
+    "docs",
+    "db",
+    "data",
+    "logs",
+    "config",
+    "output",
+    "node_modules",
+    "__pycache__",
+    ".droid",
+    ".windsurf",
+    ".git",
+    ".github",
+    "venv",
+    ".venv",
+    "dist",
+    "build",
+    "chrome_profiles",
+    "cookies",
+    "inputs",
+    "cache",
+    "migrations",
+    "alembic",  # DB migrations are not app code per se
 }
 
 ALL_PROJECTS = [
-    "captcha", "dns-manager", "file-api", "translator", "youtube",
-    "calendar-orchestration-engine", "candle", "emailgateway",
-    "full-wf-test", "image-broker", "job-agent", "proposal-creator",
-    "seo", "test-coolify", "test-final", "test-final-gate",
-    "test-project-2024", "test-project-2025", "test-session-check",
-    "test-zero-refs", "trade-intelligence", "trading-core",
+    "captcha",
+    "dns-manager",
+    "file-api",
+    "translator",
+    "youtube",
+    "calendar-orchestration-engine",
+    "candle",
+    "emailgateway",
+    "full-wf-test",
+    "image-broker",
+    "job-agent",
+    "proposal-creator",
+    "seo",
+    "test-coolify",
+    "test-final",
+    "test-final-gate",
+    "test-project-2024",
+    "test-project-2025",
+    "test-session-check",
+    "test-zero-refs",
+    "trade-intelligence",
+    "trading-core",
     "triggered-content-orchestration",
-    "ComplianceOps", "Reference_Creator", "apidoccreator", "apps",
-    "brand-identiy-creator", "email-reader", "exam-coach",
-    "file-worker", "gmailaccountcreator", "image-generation",
-    "iterative_image_editor", "llm_batch_processor",
-    "marketing-argumant-generator", "namecheap", "proxy",
-    "supplement-tracker-advisor", "transcriber", "ugc", "web-scraper",
+    "ComplianceOps",
+    "Reference_Creator",
+    "apidoccreator",
+    "apps",
+    "brand-identiy-creator",
+    "email-reader",
+    "exam-coach",
+    "file-worker",
+    "gmailaccountcreator",
+    "image-generation",
+    "iterative_image_editor",
+    "llm_batch_processor",
+    "marketing-argumant-generator",
+    "namecheap",
+    "proxy",
+    "supplement-tracker-advisor",
+    "transcriber",
+    "ugc",
+    "web-scraper",
 ]
 
 
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Issue:
@@ -115,7 +196,7 @@ class ProjectAudit:
     status: str = "development"
     port: int = 0
     description: str = ""
-    has_user_guide: Optional[bool] = None
+    has_user_guide: bool | None = None
     # Dockerfile
     dockerfile_from_lines: list = field(default_factory=list)
     dockerfile_final_base: str = ""
@@ -161,6 +242,7 @@ class ProjectAudit:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _read_yaml(path: Path) -> dict:
     try:
         return yaml.safe_load(path.read_text()) or {}
@@ -180,9 +262,7 @@ def _is_excluded_path(filepath: Path) -> bool:
         return True
     if "node_modules" in parts:
         return True
-    if ".backup." in name:
-        return True
-    return False
+    return ".backup." in name
 
 
 def _strip_as_alias(image: str) -> str:
@@ -220,11 +300,7 @@ def _find_code_dirs(project_path: Path) -> list[Path]:
         if item.name in ("app", "src"):  # already added
             continue
         # Check if this dir has any .py files (indicates it's a code package)
-        has_py = any(
-            f.suffix == ".py"
-            for f in item.rglob("*.py")
-            if "__pycache__" not in str(f)
-        )
+        has_py = any(f.suffix == ".py" for f in item.rglob("*.py") if "__pycache__" not in str(f))
         if has_py:
             code_dirs.append(item)
 
@@ -250,9 +326,14 @@ def _classify_layout(project_path: Path, code_dirs: list[Path]) -> str:
     """Classify the code layout of a project."""
     has_app = (project_path / "app").is_dir()
     has_src = (project_path / "src").is_dir()
-    root_pys = [f for f in project_path.iterdir()
-                if f.is_file() and f.suffix == ".py" and not _is_excluded_path(f)
-                and not f.name.startswith("test_")]
+    root_pys = [
+        f
+        for f in project_path.iterdir()
+        if f.is_file()
+        and f.suffix == ".py"
+        and not _is_excluded_path(f)
+        and not f.name.startswith("test_")
+    ]
 
     if has_app:
         return "`app/` (flat layout)"
@@ -270,6 +351,7 @@ def _classify_layout(project_path: Path, code_dirs: list[Path]) -> str:
 # ---------------------------------------------------------------------------
 # Deep check functions
 # ---------------------------------------------------------------------------
+
 
 def check_dockerfile_deep(project_path: Path) -> tuple[list, str, bool]:
     """Parse Dockerfile: return (all_from_lines, final_stage_base, has_healthcheck)."""
@@ -301,7 +383,9 @@ def check_dockerfile_deep(project_path: Path) -> tuple[list, str, bool]:
     return from_lines, final_base, has_healthcheck
 
 
-def check_health_endpoint_deep(project_path: Path, code_dirs: list[Path] = None) -> tuple[str, bool]:
+def check_health_endpoint_deep(
+    project_path: Path, code_dirs: list[Path] = None
+) -> tuple[str, bool]:
     """Find health endpoint in actual application code, excluding governance files."""
     health_file = ""
     tests_deps = False
@@ -310,14 +394,15 @@ def check_health_endpoint_deep(project_path: Path, code_dirs: list[Path] = None)
     search_dirs = code_dirs if code_dirs else _find_code_dirs(project_path)
 
     # Also check root-level .py files that might be API entry points
-    root_pys = [f for f in project_path.iterdir()
-                if f.is_file() and f.suffix == ".py" and not _is_excluded_path(f)]
+    root_pys = [
+        f
+        for f in project_path.iterdir()
+        if f.is_file() and f.suffix == ".py" and not _is_excluded_path(f)
+    ]
 
     all_py_files = []
     for sd in search_dirs:
-        all_py_files.extend(
-            f for f in sd.rglob("*.py") if not _is_excluded_path(f)
-        )
+        all_py_files.extend(f for f in sd.rglob("*.py") if not _is_excluded_path(f))
     all_py_files.extend(root_pys)
 
     for py_file in all_py_files:
@@ -331,11 +416,19 @@ def check_health_endpoint_deep(project_path: Path, code_dirs: list[Path] = None)
             continue
 
         # Check it's an actual endpoint, not just a string reference
-        has_route = any(pat in content for pat in [
-            "@app.get", "@router.get", "app.get(", "router.get(",
-            "@app.route", "app.route(",
-            "def health", "async def health",
-        ])
+        has_route = any(
+            pat in content
+            for pat in [
+                "@app.get",
+                "@router.get",
+                "app.get(",
+                "router.get(",
+                "@app.route",
+                "app.route(",
+                "def health",
+                "async def health",
+            ]
+        )
         if not has_route:
             continue
 
@@ -346,7 +439,6 @@ def check_health_endpoint_deep(project_path: Path, code_dirs: list[Path] = None)
         lines = content.split("\n")
         health_block = []
         capturing = False
-        indent_level = None
         for line in lines:
             if '"/health"' in line or "'/health'" in line:
                 capturing = True
@@ -367,12 +459,26 @@ def check_health_endpoint_deep(project_path: Path, code_dirs: list[Path] = None)
 
         block_text = "\n".join(health_block)
         dep_patterns = [
-            "db.execute", "await db", "SELECT 1", "select(1)",
-            "httpx", "redis", ".ping(", "check_connection",
-            "test_connection", "pool.acquire", "engine.connect",
-            "aiohttp", "get_balance", "session.execute",
-            "psycopg", "cursor.execute", "connection.cursor",
-            "Depends(get_db", "get_ratelimit", "asyncpg",
+            "db.execute",
+            "await db",
+            "SELECT 1",
+            "select(1)",
+            "httpx",
+            "redis",
+            ".ping(",
+            "check_connection",
+            "test_connection",
+            "pool.acquire",
+            "engine.connect",
+            "aiohttp",
+            "get_balance",
+            "session.execute",
+            "psycopg",
+            "cursor.execute",
+            "connection.cursor",
+            "Depends(get_db",
+            "get_ratelimit",
+            "asyncpg",
         ]
         for pat in dep_patterns:
             if pat.lower() in block_text.lower():
@@ -383,9 +489,13 @@ def check_health_endpoint_deep(project_path: Path, code_dirs: list[Path] = None)
         if not tests_deps:
             # Check if health block calls any function (pattern: name(...))
             import re as _re
-            called_funcs = _re.findall(r'(\w+)\(', block_text)
-            called_funcs = [f for f in called_funcs if f not in
-                           ('dict', 'str', 'int', 'return', 'print', 'len', 'any')]
+
+            called_funcs = _re.findall(r"(\w+)\(", block_text)
+            called_funcs = [
+                f
+                for f in called_funcs
+                if f not in ("dict", "str", "int", "return", "print", "len", "any")
+            ]
             if called_funcs:
                 for pat in dep_patterns:
                     if pat.lower() in content.lower():
@@ -405,9 +515,7 @@ def find_print_usage_deep(project_path: Path, code_dirs: list[Path] = None) -> l
 
     all_py_files = []
     for sd in search_dirs:
-        all_py_files.extend(
-            f for f in sd.rglob("*.py") if not _is_excluded_path(f)
-        )
+        all_py_files.extend(f for f in sd.rglob("*.py") if not _is_excluded_path(f))
     # Root .py files (excluding test files and governance)
     for f in project_path.iterdir():
         if f.is_file() and f.suffix == ".py" and not _is_excluded_path(f):
@@ -470,7 +578,7 @@ def find_hardcoded_localhost(project_path: Path, code_dirs: list[Path] = None) -
                 content = f.read_text()
             except Exception:
                 continue
-            for i, line in enumerate(content.split("\n"), 1):
+            for _, line in enumerate(content.split("\n"), 1):
                 stripped = line.strip()
                 if stripped.startswith("#"):
                     continue
@@ -536,7 +644,12 @@ def check_compose_deep(project_path: Path) -> tuple[bool, bool, int]:
             continue
         if in_healthcheck:
             # test: lines and their continuations are part of healthcheck
-            if "test:" in low or stripped.startswith("-") or stripped.startswith("[") or stripped.startswith('"CMD'):
+            if (
+                "test:" in low
+                or stripped.startswith("-")
+                or stripped.startswith("[")
+                or stripped.startswith('"CMD')
+            ):
                 continue
             # Indented content under healthcheck (interval, timeout, etc.)
             if any(k in low for k in ("interval:", "timeout:", "retries:", "start_period:")):
@@ -544,7 +657,7 @@ def check_compose_deep(project_path: Path) -> tuple[bool, bool, int]:
             # End of healthcheck block — non-healthcheck key at same or lower indent
             in_healthcheck = False
         # Skip labels (traefik etc.)
-        if "labels:" in low or stripped.startswith("- \"traefik"):
+        if "labels:" in low or stripped.startswith('- "traefik'):
             continue
         if "localhost" in stripped or "127.0.0.1" in stripped:
             localhost_count += 1
@@ -593,17 +706,15 @@ def find_watchdog(project_path: Path) -> bool:
     scripts_dir = project_path / "scripts"
     if not scripts_dir.exists():
         return False
-    for f in scripts_dir.iterdir():
-        if f.name.startswith("watchdog"):
-            return True
-    return False
+    return any(f.name.startswith("watchdog") for f in scripts_dir.iterdir())
 
 
 # ---------------------------------------------------------------------------
 # Main audit
 # ---------------------------------------------------------------------------
 
-def audit_project(name: str) -> Optional[ProjectAudit]:
+
+def audit_project(name: str) -> ProjectAudit | None:
     """Run deep audit on a single project."""
     path = Path(f"/opt/{name}")
     if not path.exists():
@@ -647,9 +758,14 @@ def audit_project(name: str) -> Optional[ProjectAudit]:
     audit.total_py_files = _count_project_py_files(path)
     audit.code_layout = _classify_layout(path, code_dirs)
     # Empty scaffold = no code dirs AND no root .py files AND < 3 total .py files
-    root_pys = [f for f in path.iterdir()
-                if f.is_file() and f.suffix == ".py" and not _is_excluded_path(f)
-                and not f.name.startswith("test_")]
+    root_pys = [
+        f
+        for f in path.iterdir()
+        if f.is_file()
+        and f.suffix == ".py"
+        and not _is_excluded_path(f)
+        and not f.name.startswith("test_")
+    ]
     audit.is_empty_scaffold = not code_dirs and not root_pys and audit.total_py_files < 3
     audit.has_pyproject = (path / "pyproject.toml").exists()
     audit.has_makefile = (path / "Makefile").exists()
@@ -707,6 +823,7 @@ def audit_project(name: str) -> Optional[ProjectAudit]:
 # Issue builder
 # ---------------------------------------------------------------------------
 
+
 def build_issues(audit: ProjectAudit):
     issues = []
     final = audit.dockerfile_final_base
@@ -715,140 +832,216 @@ def build_issues(audit: ProjectAudit):
 
     # C1: Dockerfile base image
     if final == "NO_DOCKERFILE":
-        issues.append(Issue("critical", "No Dockerfile",
-            "Dockerfile", "File missing",
-            "Dockerfile with `-slim-bookworm` base and HEALTHCHECK",
-            "Create Dockerfile following Fabrik template"))
+        issues.append(
+            Issue(
+                "critical",
+                "No Dockerfile",
+                "Dockerfile",
+                "File missing",
+                "Dockerfile with `-slim-bookworm` base and HEALTHCHECK",
+                "Create Dockerfile following Fabrik template",
+            )
+        )
     elif final.startswith("TEMPLATE:"):
-        issues.append(Issue("critical", "Dockerfile is a comment-only template",
-            "Dockerfile", f"`{final}`",
-            "Real multi-stage Dockerfile with `-slim-bookworm` base",
-            "Replace template with actual Dockerfile for this project's stack"))
+        issues.append(
+            Issue(
+                "critical",
+                "Dockerfile is a comment-only template",
+                "Dockerfile",
+                f"`{final}`",
+                "Real multi-stage Dockerfile with `-slim-bookworm` base",
+                "Replace template with actual Dockerfile for this project's stack",
+            )
+        )
     elif not _is_base_compliant(final):
         clean = _strip_as_alias(final)
         all_bases = " → ".join(f"`{b}`" for b in audit.dockerfile_from_lines)
-        issues.append(Issue("critical",
-            "Dockerfile base image non-compliant",
-            "Dockerfile",
-            f"Final stage: `FROM {final}` (stages: {all_bases})",
-            "`-slim-bookworm` suffix required per .windsurfrules",
-            f"Change `{clean}` to `{clean}-bookworm`"))
+        issues.append(
+            Issue(
+                "critical",
+                "Dockerfile base image non-compliant",
+                "Dockerfile",
+                f"Final stage: `FROM {final}` (stages: {all_bases})",
+                "`-slim-bookworm` suffix required per .windsurfrules",
+                f"Change `{clean}` to `{clean}-bookworm`",
+            )
+        )
 
     # C2: No HEALTHCHECK in Dockerfile
     if final != "NO_DOCKERFILE" and not audit.dockerfile_has_healthcheck:
-        issues.append(Issue("critical", "Dockerfile missing HEALTHCHECK directive",
-            "Dockerfile", "No HEALTHCHECK instruction found",
-            "HEALTHCHECK required per 30-ops.md for Coolify zero-downtime deploys",
-            "Add `HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl -f http://localhost:${PORT}/health || exit 1`"))
+        issues.append(
+            Issue(
+                "critical",
+                "Dockerfile missing HEALTHCHECK directive",
+                "Dockerfile",
+                "No HEALTHCHECK instruction found",
+                "HEALTHCHECK required per 30-ops.md for Coolify zero-downtime deploys",
+                "Add `HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl -f http://localhost:${PORT}/health || exit 1`",
+            )
+        )
 
     # C3: Health endpoint / empty scaffold
     if audit.is_empty_scaffold:
         # Empty scaffold is the ROOT CAUSE — all other issues are symptoms
         # Mark as medium for planning-stage projects, critical only for production
         sev = "critical" if audit.status == "production" else "medium"
-        issues.append(Issue(sev,
-            "No application code — empty scaffold",
-            "project root",
-            f"No code directories found, {audit.total_py_files} .py files total (layout: {audit.code_layout})",
-            "Application code in `app/` (flat) or `src/<package>/` (package layout)",
-            "Implement the service or mark project as `status: idea` in project.yaml"))
+        issues.append(
+            Issue(
+                sev,
+                "No application code — empty scaffold",
+                "project root",
+                f"No code directories found, {audit.total_py_files} .py files total (layout: {audit.code_layout})",
+                "Application code in `app/` (flat) or `src/<package>/` (package layout)",
+                "Implement the service or mark project as `status: idea` in project.yaml",
+            )
+        )
         # Skip all code-dependent checks for empty scaffolds
         audit.issues = issues
         return
     elif not audit.health_endpoint:
         layout_hint = f" (code in: {', '.join(audit.code_dirs)})" if audit.code_dirs else ""
-        issues.append(Issue("critical", "No health endpoint in application code",
-            f"Code searched: {', '.join(audit.code_dirs) or 'root .py files'}",
-            f"No `/health` route decorator found in app code{layout_hint} (governance refs excluded)",
-            "Health endpoint that tests real dependencies (DB, external APIs)",
-            "Add `@app.get('/health')` per Fabrik health contract"))
+        issues.append(
+            Issue(
+                "critical",
+                "No health endpoint in application code",
+                f"Code searched: {', '.join(audit.code_dirs) or 'root .py files'}",
+                f"No `/health` route decorator found in app code{layout_hint} (governance refs excluded)",
+                "Health endpoint that tests real dependencies (DB, external APIs)",
+                "Add `@app.get('/health')` per Fabrik health contract",
+            )
+        )
     elif not audit.health_tests_deps:
         # Downgrade to medium if project has no database config (static is acceptable)
-        has_db = audit.has_db_schema or (audit.path / ".env.example").exists() and any(
-            k in (audit.path / ".env.example").read_text().upper()
-            for k in ("DB_HOST", "DATABASE", "POSTGRES", "PGHOST")
-        ) if (audit.path / ".env.example").exists() else False
+        has_db = (
+            audit.has_db_schema
+            or (audit.path / ".env.example").exists()
+            and any(
+                k in (audit.path / ".env.example").read_text().upper()
+                for k in ("DB_HOST", "DATABASE", "POSTGRES", "PGHOST")
+            )
+            if (audit.path / ".env.example").exists()
+            else False
+        )
         sev = "critical" if has_db else "medium"
-        issues.append(Issue(sev,
-            "Health endpoint returns static JSON — does not test dependencies",
-            audit.health_endpoint,
-            "Health route exists but has no DB/API checks in function body",
-            "Must `await db.execute('SELECT 1')` or equivalent per .windsurfrules",
-            "Add real dependency checks to the health function"))
+        issues.append(
+            Issue(
+                sev,
+                "Health endpoint returns static JSON — does not test dependencies",
+                audit.health_endpoint,
+                "Health route exists but has no DB/API checks in function body",
+                "Must `await db.execute('SELECT 1')` or equivalent per .windsurfrules",
+                "Add real dependency checks to the health function",
+            )
+        )
 
     # C4: print() in production code
     if audit.print_locations:
         n = len(audit.print_locations)
-        sample = ", ".join(f"`{l}`" for l in audit.print_locations[:5])
+        sample = ", ".join(f"`{loc}`" for loc in audit.print_locations[:5])
         if n > 5:
             sample += f" … (+{n - 5} more)"
-        issues.append(Issue("critical",
-            f"`print()` in production code ({n} occurrences)",
-            "Multiple files",
-            f"Locations: {sample}",
-            "Use `logging` module exclusively — violates `check_print_ban.py`",
-            "Replace all `print()` with `logging.getLogger(__name__).info/debug/error()`"))
+        issues.append(
+            Issue(
+                "critical",
+                f"`print()` in production code ({n} occurrences)",
+                "Multiple files",
+                f"Locations: {sample}",
+                "Use `logging` module exclusively — violates `check_print_ban.py`",
+                "Replace all `print()` with `logging.getLogger(__name__).info/debug/error()`",
+            )
+        )
 
     # C5: Hardcoded localhost in code
     if audit.hardcoded_localhost_count > 0:
         files_str = ", ".join(f"`{f}`" for f in audit.hardcoded_localhost_files[:5])
-        issues.append(Issue("critical",
-            f"Hardcoded `localhost`/`127.0.0.1` in code ({audit.hardcoded_localhost_count} refs)",
-            files_str,
-            "Direct localhost references outside of `os.getenv()` fallbacks",
-            "Never hardcode addresses per .windsurfrules — use `os.getenv('HOST', 'localhost')`",
-            "Replace with environment variable lookups"))
+        issues.append(
+            Issue(
+                "critical",
+                f"Hardcoded `localhost`/`127.0.0.1` in code ({audit.hardcoded_localhost_count} refs)",
+                files_str,
+                "Direct localhost references outside of `os.getenv()` fallbacks",
+                "Never hardcode addresses per .windsurfrules — use `os.getenv('HOST', 'localhost')`",
+                "Replace with environment variable lookups",
+            )
+        )
 
     # C6: Hardcoded localhost in compose.yaml
     if audit.compose_localhost_refs > 0:
-        issues.append(Issue("critical",
-            f"Hardcoded `localhost` in compose.yaml ({audit.compose_localhost_refs} refs)",
-            "compose.yaml",
-            "localhost references in Docker environment — will fail on VPS",
-            "Use Docker service names (e.g. `postgres-main`) not `localhost`",
-            "Replace `localhost` with Docker network service names"))
+        issues.append(
+            Issue(
+                "critical",
+                f"Hardcoded `localhost` in compose.yaml ({audit.compose_localhost_refs} refs)",
+                "compose.yaml",
+                "localhost references in Docker environment — will fail on VPS",
+                "Use Docker service names (e.g. `postgres-main`) not `localhost`",
+                "Replace `localhost` with Docker network service names",
+            )
+        )
 
     # ── MEDIUM ────────────────────────────────────────────────────────────
 
     # M1: No logging (only flag if project has code AND uses print)
     if not audit.is_empty_scaffold and not audit.has_logging_import and audit.print_locations:
-        issues.append(Issue("medium",
-            "No `import logging` found in application code",
-            "app/ or src/",
-            "Project uses `print()` but never imports `logging`",
-            "Structured logging required per 55-observability.md",
-            "Add logging configuration module and replace print calls"))
+        issues.append(
+            Issue(
+                "medium",
+                "No `import logging` found in application code",
+                "app/ or src/",
+                "Project uses `print()` but never imports `logging`",
+                "Structured logging required per 55-observability.md",
+                "Add logging configuration module and replace print calls",
+            )
+        )
 
     # M1b: Non-standard code layout
     if not audit.is_empty_scaffold and not audit.has_app_dir and not audit.has_src_dir:
         non_std = [d for d in audit.code_dirs if d not in ("app", "src")]
         if non_std or audit.root_py_files:
             layout_desc = audit.code_layout
-            issues.append(Issue("medium",
-                "Non-standard code layout — code not in `app/` or `src/`",
-                "project root",
-                f"Layout: {layout_desc}",
-                "Fabrik convention: `app/` (flat FastAPI) or `src/<pkg>/` (package layout)",
-                "Restructure code into `app/` or `src/<package>/` before Traycer onboarding"))
+            issues.append(
+                Issue(
+                    "medium",
+                    "Non-standard code layout — code not in `app/` or `src/`",
+                    "project root",
+                    f"Layout: {layout_desc}",
+                    "Fabrik convention: `app/` (flat FastAPI) or `src/<pkg>/` (package layout)",
+                    "Restructure code into `app/` or `src/<package>/` before Traycer onboarding",
+                )
+            )
 
     # M2: No pyproject.toml (Python projects only)
     if not audit.has_pyproject and audit.project_type in (
-        "python-api", "automation", "file-worker", "unknown"
+        "python-api",
+        "automation",
+        "file-worker",
+        "unknown",
     ):
-        issues.append(Issue("medium", "No `pyproject.toml`",
-            "pyproject.toml", "File missing",
-            "Required for ruff/mypy/pytest configuration and `final_gate.py`",
-            "Create with `[project]`, `[tool.ruff]`, `[tool.mypy]`, `[tool.pytest.ini_options]`"))
+        issues.append(
+            Issue(
+                "medium",
+                "No `pyproject.toml`",
+                "pyproject.toml",
+                "File missing",
+                "Required for ruff/mypy/pytest configuration and `final_gate.py`",
+                "Create with `[project]`, `[tool.ruff]`, `[tool.mypy]`, `[tool.pytest.ini_options]`",
+            )
+        )
 
     # M3: No tests
     if audit.test_count == 0:
-        issues.append(Issue("medium", "No test files in `tests/`",
-            "tests/", "Empty or missing tests directory",
-            "At minimum: health endpoint test + core logic unit tests",
-            "Add test files covering critical paths"))
+        issues.append(
+            Issue(
+                "medium",
+                "No test files in `tests/`",
+                "tests/",
+                "Empty or missing tests directory",
+                "At minimum: health endpoint test + core logic unit tests",
+                "Add test files covering critical paths",
+            )
+        )
 
     # M4: Stray root files (exclude .py files if project has non-standard layout — they ARE the code)
-    stray_non_py = [f for f in audit.stray_root_files if not f.endswith('.py')]
+    stray_non_py = [f for f in audit.stray_root_files if not f.endswith(".py")]
     stray_py_in_nonstandard = not audit.has_app_dir and not audit.has_src_dir and audit.code_dirs
     display_stray = audit.stray_root_files if not stray_py_in_nonstandard else stray_non_py
     if display_stray:
@@ -856,122 +1049,209 @@ def build_issues(audit: ProjectAudit):
         sample = ", ".join(f"`{f}`" for f in display_stray[:10])
         if n > 10:
             sample += f" … (+{n - 10} more)"
-        issues.append(Issue("medium",
-            f"Stray root-level files ({n})",
-            "project root", f"Found: {sample}",
-            "Root should only contain scaffold-standard files",
-            "Move `.py` to `scripts/` or `app/`, `.md` to `docs/reference/` or `docs/archive/`"))
+        issues.append(
+            Issue(
+                "medium",
+                f"Stray root-level files ({n})",
+                "project root",
+                f"Found: {sample}",
+                "Root should only contain scaffold-standard files",
+                "Move `.py` to `scripts/` or `app/`, `.md` to `docs/reference/` or `docs/archive/`",
+            )
+        )
 
     # M5: Root .py files (only flag if project has standard layout — otherwise they're the app code)
     if audit.root_py_files and not stray_py_in_nonstandard:
         n = len(audit.root_py_files)
         sample = ", ".join(f"`{f}`" for f in audit.root_py_files[:8])
-        issues.append(Issue("medium",
-            f"Python files at project root ({n}) — should be in `app/`, `src/`, or `scripts/`",
-            "project root", f"Found: {sample}",
-            "Code belongs in `app/` (flat layout) or `src/<pkg>/` (package layout)",
-            "Move application code to `app/` or `src/`, utility scripts to `scripts/`"))
+        issues.append(
+            Issue(
+                "medium",
+                f"Python files at project root ({n}) — should be in `app/`, `src/`, or `scripts/`",
+                "project root",
+                f"Found: {sample}",
+                "Code belongs in `app/` (flat layout) or `src/<pkg>/` (package layout)",
+                "Move application code to `app/` or `src/`, utility scripts to `scripts/`",
+            )
+        )
 
     # M6: FEATURES.md
     if not audit.has_features_md:
-        issues.append(Issue("medium", "No `docs/FEATURES.md`",
-            "docs/FEATURES.md", "File missing",
-            "Cross-cutting requirement for user-facing feature tracking",
-            "Create with project feature/endpoint documentation"))
+        issues.append(
+            Issue(
+                "medium",
+                "No `docs/FEATURES.md`",
+                "docs/FEATURES.md",
+                "File missing",
+                "Cross-cutting requirement for user-facing feature tracking",
+                "Create with project feature/endpoint documentation",
+            )
+        )
 
     # M7: No .env.example
     if not audit.has_env_example:
-        issues.append(Issue("medium", "No `.env.example`",
-            ".env.example", "File missing",
-            "Required for documenting environment variables",
-            "Create with all required env vars and safe defaults"))
+        issues.append(
+            Issue(
+                "medium",
+                "No `.env.example`",
+                ".env.example",
+                "File missing",
+                "Required for documenting environment variables",
+                "Create with all required env vars and safe defaults",
+            )
+        )
 
     # M8: No Makefile
     if not audit.has_makefile:
-        issues.append(Issue("medium", "No `Makefile`",
-            "Makefile", "File missing",
-            "Makefile with `dev`, `test`, `lint`, `build` targets recommended",
-            "Create with standard development workflow targets"))
+        issues.append(
+            Issue(
+                "medium",
+                "No `Makefile`",
+                "Makefile",
+                "File missing",
+                "Makefile with `dev`, `test`, `lint`, `build` targets recommended",
+                "Create with standard development workflow targets",
+            )
+        )
 
     # M9: No coolify network in compose
     if not audit.compose_has_coolify_net and (audit.path / "compose.yaml").exists():
-        issues.append(Issue("medium",
-            "compose.yaml missing `coolify` network",
-            "compose.yaml", "No `coolify` network reference found",
-            "External `coolify` network required for Coolify/Traefik routing",
-            "Add `networks: coolify: external: true` to compose.yaml"))
+        issues.append(
+            Issue(
+                "medium",
+                "compose.yaml missing `coolify` network",
+                "compose.yaml",
+                "No `coolify` network reference found",
+                "External `coolify` network required for Coolify/Traefik routing",
+                "Add `networks: coolify: external: true` to compose.yaml",
+            )
+        )
 
     # M10: No watchdog (production services only)
     if not audit.has_watchdog and audit.status == "production" and not audit.is_empty_scaffold:
-        issues.append(Issue("medium",
-            "No watchdog script for production service",
-            "scripts/watchdog*.sh", "File missing",
-            "Production services MUST have watchdog per 30-ops.md",
-            "Create `scripts/watchdog.sh` with health check + restart logic"))
+        issues.append(
+            Issue(
+                "medium",
+                "No watchdog script for production service",
+                "scripts/watchdog*.sh",
+                "File missing",
+                "Production services MUST have watchdog per 30-ops.md",
+                "Create `scripts/watchdog.sh` with health check + restart logic",
+            )
+        )
 
     # M11: PORTS.md TBD
     if audit.ports_has_tbd:
-        issues.append(Issue("medium", "`PORTS.md` has TBD entries",
-            "PORTS.md", "Port listed as TBD",
-            f"Actual port number ({audit.port or 'from project.yaml'})",
-            "**AUTO-FIXABLE** — run audit with --fix"))
+        issues.append(
+            Issue(
+                "medium",
+                "`PORTS.md` has TBD entries",
+                "PORTS.md",
+                "Port listed as TBD",
+                f"Actual port number ({audit.port or 'from project.yaml'})",
+                "**AUTO-FIXABLE** — run audit with --fix",
+            )
+        )
 
     # M12: CHANGELOG missing [Unreleased]
     if not audit.has_changelog_unreleased:
-        issues.append(Issue("medium",
-            "`CHANGELOG.md` missing `[Unreleased]` section",
-            "CHANGELOG.md", "No [Unreleased] section",
-            "Required for Traycer to append entries",
-            "**AUTO-FIXABLE** — run audit with --fix"))
+        issues.append(
+            Issue(
+                "medium",
+                "`CHANGELOG.md` missing `[Unreleased]` section",
+                "CHANGELOG.md",
+                "No [Unreleased] section",
+                "Required for Traycer to append entries",
+                "**AUTO-FIXABLE** — run audit with --fix",
+            )
+        )
 
     # ── LOW ───────────────────────────────────────────────────────────────
 
     # L1: Backup files
     if audit.backup_count > 0:
-        issues.append(Issue("low",
-            f"Stale backup files from enforcement sync ({audit.backup_count})",
-            "Various locations", f"{audit.backup_count} `.backup.*` files",
-            "Clean project without stale backups",
-            "Run `find /opt/{name} -name '*.backup.*' -delete`".format(name=audit.name)))
+        issues.append(
+            Issue(
+                "low",
+                f"Stale backup files from enforcement sync ({audit.backup_count})",
+                "Various locations",
+                f"{audit.backup_count} `.backup.*` files",
+                "Clean project without stale backups",
+                f"Run `find /opt/{audit.name} -name '*.backup.*' -delete`",
+            )
+        )
 
     # L2: Non-standard project type
     if audit.project_type not in KNOWN_TYPES:
-        issues.append(Issue("low",
-            f"Project type `{audit.project_type}` is non-standard",
-            "project.yaml", f"`type: {audit.project_type}`",
-            f"One of: {', '.join(sorted(KNOWN_TYPES))}",
-            "Update project.yaml with correct scaffold type"))
+        issues.append(
+            Issue(
+                "low",
+                f"Project type `{audit.project_type}` is non-standard",
+                "project.yaml",
+                f"`type: {audit.project_type}`",
+                f"One of: {', '.join(sorted(KNOWN_TYPES))}",
+                "Update project.yaml with correct scaffold type",
+            )
+        )
 
     # L3: No .pre-commit-config.yaml
     if not audit.has_precommit:
-        issues.append(Issue("low", "No `.pre-commit-config.yaml`",
-            ".pre-commit-config.yaml", "File missing",
-            "Pre-commit hooks for ruff/mypy/yaml-lint recommended",
-            "Copy from scaffold template or create with standard hooks"))
+        issues.append(
+            Issue(
+                "low",
+                "No `.pre-commit-config.yaml`",
+                ".pre-commit-config.yaml",
+                "File missing",
+                "Pre-commit hooks for ruff/mypy/yaml-lint recommended",
+                "Copy from scaffold template or create with standard hooks",
+            )
+        )
 
     # L4: Default port 8000 (never assigned a real port)
     if audit.port == 8000 and audit.is_empty_scaffold:
-        issues.append(Issue("low",
-            "Default scaffold port `8000` — needs real port assignment",
-            "project.yaml", "Port 8000 is the scaffold default",
-            "Register a unique port in PORTS.md before development starts",
-            "Choose from Python range 8000–8099 and update project.yaml + PORTS.md"))
+        issues.append(
+            Issue(
+                "low",
+                "Default scaffold port `8000` — needs real port assignment",
+                "project.yaml",
+                "Port 8000 is the scaffold default",
+                "Register a unique port in PORTS.md before development starts",
+                "Choose from Python range 8000–8099 and update project.yaml + PORTS.md",
+            )
+        )
 
     # L5: Weak/missing description
-    weak_descs = {"A new project", f"{audit.name} project", "No description", "No description available", ""}
+    weak_descs = {
+        "A new project",
+        f"{audit.name} project",
+        "No description",
+        "No description available",
+        "",
+    }
     if not audit.description or audit.description in weak_descs:
-        issues.append(Issue("low",
-            "Weak or missing project description",
-            "project.yaml", f"Current: `{audit.description or 'MISSING'}`",
-            "Meaningful description for BUSINESS_MODEL.md and Traycer context",
-            "Update `description:` in project.yaml with 1-2 sentence purpose"))
+        issues.append(
+            Issue(
+                "low",
+                "Weak or missing project description",
+                "project.yaml",
+                f"Current: `{audit.description or 'MISSING'}`",
+                "Meaningful description for BUSINESS_MODEL.md and Traycer context",
+                "Update `description:` in project.yaml with 1-2 sentence purpose",
+            )
+        )
 
     # L6: db/schema.sql placeholder
     if not audit.has_db_schema:
-        issues.append(Issue("low", "No `db/schema.sql`",
-            "db/schema.sql", "File missing",
-            "Schema file required if project uses PostgreSQL",
-            "Create with table definitions or confirm project is DB-free"))
+        issues.append(
+            Issue(
+                "low",
+                "No `db/schema.sql`",
+                "db/schema.sql",
+                "File missing",
+                "Schema file required if project uses PostgreSQL",
+                "Create with table definitions or confirm project is DB-free",
+            )
+        )
 
     audit.issues = issues
 
@@ -979,6 +1259,7 @@ def build_issues(audit: ProjectAudit):
 # ---------------------------------------------------------------------------
 # Constraints
 # ---------------------------------------------------------------------------
+
 
 def build_constraints(audit: ProjectAudit):
     c = {}
@@ -1006,8 +1287,7 @@ def build_constraints(audit: ProjectAudit):
     c["duplicate"] = "✅ Unique"
     c["dns"] = "✅ Managed by dns-manager"
     c["design_system"] = (
-        "Needs verification" if audit.project_type in GUIDE_ENABLED_TYPES
-        else "N/A — no UI surface"
+        "Needs verification" if audit.project_type in GUIDE_ENABLED_TYPES else "N/A — no UI surface"
     )
     audit.constraints = c
 
@@ -1015,6 +1295,7 @@ def build_constraints(audit: ProjectAudit):
 # ---------------------------------------------------------------------------
 # Markdown generator
 # ---------------------------------------------------------------------------
+
 
 def generate_research_md(audit: ProjectAudit) -> str:
     today = date.today().isoformat()
@@ -1043,108 +1324,121 @@ def generate_research_md(audit: ProjectAudit) -> str:
     med = [i for i in audit.issues if i.severity == "medium"]
     low = [i for i in audit.issues if i.severity == "low"]
 
-    L = []  # output lines
+    lines = []  # output lines
 
-    L.append(f"# {audit.name} — Scaffold Compliance Audit")
-    L.append("")
-    L.append(f"**Date:** {today}")
-    L.append(f"**Status:** OPEN")
-    L.append(f"**Author:** Cascade (deep audit v2)")
-    L.append("")
-    L.append("---")
-    L.append("")
+    lines.append(f"# {audit.name} — Scaffold Compliance Audit")
+    lines.append("")
+    lines.append(f"**Date:** {today}")
+    lines.append("**Status:** OPEN")
+    lines.append("**Author:** Cascade (deep audit v2)")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
 
     # ── Overview ──
-    L.append("## Project Overview")
-    L.append("")
-    L.append("| Field | Value |")
-    L.append("|-------|-------|")
-    L.append(f"| **Name** | {audit.name} |")
-    L.append(f"| **Type** | `{audit.project_type}` |")
-    L.append(f"| **Port** | {audit.port or 'Not assigned'} |")
-    L.append(f"| **Status** | {audit.status.title()} |")
-    desc = (audit.description.replace("\n", " ").strip()[:100]
-            if audit.description else "No description")
-    L.append(f"| **Description** | {desc} |")
-    L.append(f"| **User Guide** | `{str(actual_hug).lower()}` |")
-    L.append(f"| **Empty Scaffold** | {'Yes — no application code found' if audit.is_empty_scaffold else 'No'} |")
-    L.append(f"| **Code Layout** | {audit.code_layout} |")
-    L.append(f"| **Total .py files** | {audit.total_py_files} (excl. tests/scripts/governance) |")
-    L.append("")
+    lines.append("## Project Overview")
+    lines.append("")
+    lines.append("| Field | Value |")
+    lines.append("|-------|-------|")
+    lines.append(f"| **Name** | {audit.name} |")
+    lines.append(f"| **Type** | `{audit.project_type}` |")
+    lines.append(f"| **Port** | {audit.port or 'Not assigned'} |")
+    lines.append(f"| **Status** | {audit.status.title()} |")
+    desc = (
+        audit.description.replace("\n", " ").strip()[:100]
+        if audit.description
+        else "No description"
+    )
+    lines.append(f"| **Description** | {desc} |")
+    lines.append(f"| **User Guide** | `{str(actual_hug).lower()}` |")
+    lines.append(
+        f"| **Empty Scaffold** | {'Yes — no application code found' if audit.is_empty_scaffold else 'No'} |"
+    )
+    lines.append(f"| **Code Layout** | {audit.code_layout} |")
+    lines.append(
+        f"| **Total .py files** | {audit.total_py_files} (excl. tests/scripts/governance) |"
+    )
+    lines.append("")
 
     # ── Dockerfile snapshot ──
-    L.append("## Dockerfile Snapshot")
-    L.append("")
+    lines.append("## Dockerfile Snapshot")
+    lines.append("")
     if audit.dockerfile_from_lines:
         for i, fr in enumerate(audit.dockerfile_from_lines, 1):
             compliant = "✅" if _is_base_compliant(fr) else "❌"
-            L.append(f"- **Stage {i}:** `FROM {fr}` {compliant}")
-        L.append(f"- **HEALTHCHECK:** {'✅ Present' if audit.dockerfile_has_healthcheck else '❌ Missing'}")
+            lines.append(f"- **Stage {i}:** `FROM {fr}` {compliant}")
+        lines.append(
+            f"- **HEALTHCHECK:** {'✅ Present' if audit.dockerfile_has_healthcheck else '❌ Missing'}"
+        )
     elif audit.dockerfile_final_base == "NO_DOCKERFILE":
-        L.append("- No Dockerfile found")
+        lines.append("- No Dockerfile found")
     else:
-        L.append(f"- Template only: `{audit.dockerfile_final_base}`")
-    L.append("")
+        lines.append(f"- Template only: `{audit.dockerfile_final_base}`")
+    lines.append("")
 
     # ── Compose snapshot ──
-    L.append("## Compose Snapshot")
-    L.append("")
-    L.append(f"- **platform: linux/amd64:** {'✅' if audit.has_platform_amd64 else '❌'}")
-    L.append(f"- **coolify network:** {'✅' if audit.compose_has_coolify_net else '❌'}")
-    L.append(f"- **localhost refs:** {audit.compose_localhost_refs}")
-    L.append("")
+    lines.append("## Compose Snapshot")
+    lines.append("")
+    lines.append(f"- **platform: linux/amd64:** {'✅' if audit.has_platform_amd64 else '❌'}")
+    lines.append(f"- **coolify network:** {'✅' if audit.compose_has_coolify_net else '❌'}")
+    lines.append(f"- **localhost refs:** {audit.compose_localhost_refs}")
+    lines.append("")
 
     # ── Structure snapshot ──
-    L.append("## Structure Snapshot")
-    L.append("")
-    L.append(f"- **Code layout:** {audit.code_layout}")
-    L.append(f"- **pyproject.toml:** {'✅' if audit.has_pyproject else '❌'}")
-    L.append(f"- **Makefile:** {'✅' if audit.has_makefile else '❌'}")
-    L.append(f"- **.pre-commit:** {'✅' if audit.has_precommit else '❌'}")
-    L.append(f"- **.env.example:** {'✅' if audit.has_env_example else '❌'}")
-    L.append(f"- **db/schema.sql:** {'✅' if audit.has_db_schema else '❌'}")
-    L.append(f"- **watchdog:** {'✅' if audit.has_watchdog else '❌'}")
-    L.append(f"- **Tests:** {audit.test_count} file(s)")
-    L.append(f"- **Logging:** {'✅ import logging found' if audit.has_logging_import else '❌ No logging import'}")
-    L.append(f"- **Health endpoint:** {audit.health_endpoint or '❌ Not found'}"
-             f"{' (tests deps ✅)' if audit.health_tests_deps else ' (static ❌)' if audit.health_endpoint else ''}")
-    L.append("")
-    L.append("---")
-    L.append("")
+    lines.append("## Structure Snapshot")
+    lines.append("")
+    lines.append(f"- **Code layout:** {audit.code_layout}")
+    lines.append(f"- **pyproject.toml:** {'✅' if audit.has_pyproject else '❌'}")
+    lines.append(f"- **Makefile:** {'✅' if audit.has_makefile else '❌'}")
+    lines.append(f"- **.pre-commit:** {'✅' if audit.has_precommit else '❌'}")
+    lines.append(f"- **.env.example:** {'✅' if audit.has_env_example else '❌'}")
+    lines.append(f"- **db/schema.sql:** {'✅' if audit.has_db_schema else '❌'}")
+    lines.append(f"- **watchdog:** {'✅' if audit.has_watchdog else '❌'}")
+    lines.append(f"- **Tests:** {audit.test_count} file(s)")
+    lines.append(
+        f"- **Logging:** {'✅ import logging found' if audit.has_logging_import else '❌ No logging import'}"
+    )
+    lines.append(
+        f"- **Health endpoint:** {audit.health_endpoint or '❌ Not found'}"
+        f"{' (tests deps ✅)' if audit.health_tests_deps else ' (static ❌)' if audit.health_endpoint else ''}"
+    )
+    lines.append("")
+    lines.append("---")
+    lines.append("")
 
     # ── Issues ──
-    L.append(f"## Issues ({len(crit)} critical, {len(med)} medium, {len(low)} low)")
-    L.append("")
+    lines.append(f"## Issues ({len(crit)} critical, {len(med)} medium, {len(low)} low)")
+    lines.append("")
 
     num = 0
-    for sev, label, items in [
+    for _, label, items in [
         ("critical", "🔴 Critical", crit),
         ("medium", "🟡 Medium", med),
         ("low", "🟢 Low", low),
     ]:
         if not items:
             continue
-        L.append(f"### {label}")
-        L.append("")
+        lines.append(f"### {label}")
+        lines.append("")
         for issue in items:
             num += 1
-            L.append(f"#### {num}. {issue.title}")
-            L.append("")
-            L.append(f"- **File:** `{issue.file}`")
-            L.append(f"- **Current:** {issue.current}")
-            L.append(f"- **Required:** {issue.required}")
-            L.append(f"- **Fix:** {issue.fix}")
+            lines.append(f"#### {num}. {issue.title}")
+            lines.append("")
+            lines.append(f"- **File:** `{issue.file}`")
+            lines.append(f"- **Current:** {issue.current}")
+            lines.append(f"- **Required:** {issue.required}")
+            lines.append(f"- **Fix:** {issue.fix}")
             if issue.consideration:
-                L.append(f"- **Note:** {issue.consideration}")
-            L.append("")
-        L.append("---")
-        L.append("")
+                lines.append(f"- **Note:** {issue.consideration}")
+            lines.append("")
+        lines.append("---")
+        lines.append("")
 
     # ── Constraints ──
-    L.append("## Constraint Verification Summary")
-    L.append("")
-    L.append("| # | Constraint | Status |")
-    L.append("|---|------------|--------|")
+    lines.append("## Constraint Verification Summary")
+    lines.append("")
+    lines.append("| # | Constraint | Status |")
+    lines.append("|---|------------|--------|")
     labels = [
         ("1", "Solo developer scope", "solo_developer"),
         ("2", "x86_64 VPS (amd64)", "amd64"),
@@ -1160,35 +1454,36 @@ def generate_research_md(audit: ProjectAudit) -> str:
         ("12", "Design System", "design_system"),
     ]
     for n, lbl, key in labels:
-        L.append(f"| {n} | {lbl} | {audit.constraints.get(key, 'N/A')} |")
-    L.append("")
-    L.append("---")
-    L.append("")
+        lines.append(f"| {n} | {lbl} | {audit.constraints.get(key, 'N/A')} |")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
 
     # ── Route ──
-    L.append("## Recommended Traycer Route")
-    L.append("")
-    L.append("```text")
-    L.append(f"{audit.project_type} → {route}")
+    lines.append("## Recommended Traycer Route")
+    lines.append("")
+    lines.append("```text")
+    lines.append(f"{audit.project_type} → {route}")
     if skip != "—":
-        L.append(f"  (skip: {skip})")
-    L.append("```")
-    L.append("")
+        lines.append(f"  (skip: {skip})")
+    lines.append("```")
+    lines.append("")
 
     # ── Priority ──
-    L.append("## Suggested Ticket Priority")
-    L.append("")
+    lines.append("## Suggested Ticket Priority")
+    lines.append("")
     for i, issue in enumerate(audit.issues, 1):
         e = "🔴" if issue.severity == "critical" else "🟡" if issue.severity == "medium" else "🟢"
-        L.append(f"{i}. {e} {issue.title}")
-    L.append("")
+        lines.append(f"{i}. {e} {issue.title}")
+    lines.append("")
 
-    return "\n".join(L)
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
 # Auto-fixes
 # ---------------------------------------------------------------------------
+
 
 def apply_fixes(audit: ProjectAudit, dry_run: bool = False) -> list[str]:
     fixes = []
@@ -1248,6 +1543,7 @@ def apply_fixes(audit: ProjectAudit, dry_run: bool = False) -> list[str]:
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def main():
     mode = "audit"

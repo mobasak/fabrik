@@ -174,7 +174,9 @@ class DeploymentOrchestrator:
         if ctx.dry_run:
             logger.info(
                 "[DRY RUN] Would create DNS A record: %s.%s -> %s",
-                subdomain, base_domain, vps_ip,
+                subdomain,
+                base_domain,
+                vps_ip,
             )
             return
 

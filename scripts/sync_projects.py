@@ -288,12 +288,31 @@ def _auto_categorize(path: Path, status: str) -> str:
         has_code = (path / "requirements.txt").exists() or (path / "pyproject.toml").exists()
     if not has_code:
         # Check for non-standard code dirs (api/, cli/, worker/, etc.)
-        _skip = {"tests", "scripts", "docs", "db", "data", "logs", "config",
-                 "output", "node_modules", "venv", ".venv", "dist", "build",
-                 "migrations", "alembic", "cache", "chrome_profiles", "cookies"}
+        _skip = {
+            "tests",
+            "scripts",
+            "docs",
+            "db",
+            "data",
+            "logs",
+            "config",
+            "output",
+            "node_modules",
+            "venv",
+            ".venv",
+            "dist",
+            "build",
+            "migrations",
+            "alembic",
+            "cache",
+            "chrome_profiles",
+            "cookies",
+        }
         for item in path.iterdir():
             if item.is_dir() and item.name not in _skip and not item.name.startswith("."):
-                if any(f.suffix == ".py" for f in item.rglob("*.py") if "__pycache__" not in str(f)):
+                if any(
+                    f.suffix == ".py" for f in item.rglob("*.py") if "__pycache__" not in str(f)
+                ):
                     has_code = True
                     break
     if has_compose and has_code:

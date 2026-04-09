@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — file-worker logger.py context_class and logger_factory alignment (2026-04-09)
+- **`src/fabrik/scaffold.py`**: `_scaffold_file_worker()` worker/logger.py: added missing `context_class=dict`, replaced `structlog.stdlib.LoggerFactory()` with `structlog.PrintLoggerFactory()` to align with python-api logger spec.
+- **`tests/test_scaffold_logging.py`**: Added `TestFileWorkerLogging` class (8 tests) covering PrintLoggerFactory, context_class=dict, processors, BoundLogger, cache, get_logger signature, and .env.example SERVICE_NAME.
+
+### Fixed — Post-review alignment for scaffold logging modules (2026-04-09)
+- **`src/fabrik/scaffold.py`**: `_scaffold_python_api()` and `_scaffold_chrome_extension()` logger.py: removed `logging` import and `logging.basicConfig()`, removed `structlog.stdlib.add_logger_name` processor, replaced `structlog.stdlib.LoggerFactory()` with `structlog.PrintLoggerFactory()`, changed `get_logger` signature to `def get_logger(name: str = __name__)`, inlined `service=os.getenv("SERVICE_NAME", "<package>")` in return (removed `_SERVICE_NAME` intermediate).
+- **`src/fabrik/scaffold.py`**: `_scaffold_python_api()` and `_scaffold_chrome_extension()` middleware.py: changed header lookup from `"x-request-id"` to `"X-Request-ID"`, response header set from `"x-request-id"` to `"X-Request-ID"`, renamed context var from `correlation_id_ctx` to `correlation_id`.
+- **`src/fabrik/scaffold.py`**: `_scaffold_node_api()` and `_scaffold_file_api()` `.env.example`: added `# Service identity for structured logging` comment line before `SERVICE_NAME`.
+- **`INDEX.md`**: Added missing scaffold-generated file entries with [reusable] tags: `src/logger.js` (node-api + file-api), `lib/logger.ts` (saas-skeleton), `worker/logger.py` (file-worker).
+
+### Added — Python scaffold ships logger.py + middleware.py (2026-04-09)
+- **`src/fabrik/scaffold.py`**: `_scaffold_python_api()` now generates `src/{package}/logger.py` (structlog with JSON output, `SERVICE_NAME` env var, `merge_contextvars` processor), `src/{package}/middleware.py` (X-Request-ID correlation via `contextvars` + `BaseHTTPMiddleware`), and an updated `main.py` importing both modules. Added `structlog>=24.0.0` to `requirements.txt`. Appends `SERVICE_NAME` to `.env.example`. Test file gains 2 correlation ID tests (total 5).
+- **`src/fabrik/scaffold.py`**: `_scaffold_chrome_extension()` server backend gets identical `logger.py` and `middleware.py` in `server/src/{package}/`. Updated `main.py` with structured logging + correlation middleware alongside existing CORS. Added `structlog>=24.0.0` to `requirements.txt`. Added `SERVICE_NAME` to `.env.example`.
+
+### Added — Node scaffold pino structured logging for node-api + file-api (2026-04-09)
+- **`src/fabrik/scaffold.py`**: `_scaffold_node_api()` now generates `src/logger.js` (pino with SERVICE_NAME env var, isoTime timestamps), rewrites `src/index.js` with X-Request-ID correlation via `randomUUID()`, child logger per request, zero `console.log`. Added `pino` to `package.json` dependencies. Added `SERVICE_NAME` to `.env.example`.
+- **`src/fabrik/scaffold.py`**: `_scaffold_file_api()` now generates `src/logger.js` (same pino config). Added `pino` to `package.json` dependencies. Added `SERVICE_NAME` to `.env.example`.
+- **`templates/file-api/src/index.js`**: Replaced all `console.log()`/`console.error()` with pino structured logging (`logger.info()`/`logger.error()` with event objects). Added `require('./logger')` import. Server startup now logs `{ event: 'service_starting', port: PORT }`.
+- **`tests/test_node_scaffold_logging.py`**: 17 tests covering logger.js generation, pino dependency, SERVICE_NAME env var, console.log elimination, X-Request-ID correlation, and service_starting event for both node-api and file-api scaffolds.
+
+### Added — saas-skeleton structured logger with pino (2026-04-09)
+- **`templates/saas-skeleton/package.json`**: Added `pino` ^9.0.0 to dependencies for structured JSON logging.
+- **`src/fabrik/scaffold.py`**: `_scaffold_saas_skeleton()` now generates `lib/logger.ts` with pino logger configured for `LOG_LEVEL` and `SERVICE_NAME` env vars. Project name used as fallback service name. Overwrites any template-copied `lib/logger.ts` by design.
+- **`tests/test_saas_logger.py`**: 5 tests covering logger file creation, pino import, project name substitution, package.json dependency, and static-site alias coverage.
+
+### Added — file-worker structured logger module (2026-04-09)
+- **`templates/file-worker/worker/main.py`**: Replaced inline `structlog.configure()` block with `from worker.logger import get_logger` import, removing direct structlog dependency from main module.
+- **`src/fabrik/scaffold.py`** (`_scaffold_file_worker`): Generates `worker/logger.py` with `_setup_logging()` (contextvars, log level, ISO timestamps, stack info, exc info, JSON renderer) and `get_logger()` returning a bound logger with `SERVICE_NAME` identity.
+- **`src/fabrik/scaffold.py`** (`_scaffold_file_worker`): Added `SERVICE_NAME` env var to `.env.example` generation for structured logging service identity.
+
 ### Changed — Documentation template overhaul (2026-04-09)
 - **`templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md`**: Complete replacement with structured troubleshooting guide including quick diagnostics, common issues table, health check failures, environment-specific fixes, and performance troubleshooting.
 - **`templates/scaffold/docs/API_REFERENCE_TEMPLATE.md`**: Replaced with comprehensive API reference template featuring REST API documentation, Python SDK section, detailed error reference, and integration with OpenAPI docs.
