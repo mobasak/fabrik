@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Ignore malformed .env.example lines without assignments in spec parsing (2026-04-10)
+- **`src/fabrik/spec_generator.py`**: `_parse_env_example()` now skips non-comment, non-blank lines that do not contain `=`, so malformed lines are not treated as secret keys.
+- **`tests/test_spec_generator.py`**: Added regression test in `TestParseEnvExample` to verify malformed lines without `=` are ignored while valid secret assignments are still parsed.
+
+### Added — spec_generator.py: core extraction and generation logic (2026-04-10)
+- `SPEC_ENABLED_TYPES` — frozenset of 7 scaffold types supporting auto-spec generation
+- `SECRET_PATTERNS` — tuple of 6 key-name patterns for secret classification
+- `extract_project_context()` — reads compose.yaml + .env.example, returns env/secrets/depends
+- `generate_spec()` — builds Spec objects with type-based defaults (resources, health, kind)
+- `generate_and_save_spec()` — end-to-end: extract context, generate spec, save to YAML
+- `tests/test_spec_generator.py` — 40 tests across 7 test classes (constants, helpers, public API)
+
 ### Added — Complete Deploy Template Coverage (2026-04-10)
 - **✅ 100% Template Coverage:** Created deploy templates for all 11 scaffold types
 - **`templates/python-api/`**: Added `compose.yaml.j2` + `defaults.yaml` (port 8000, FastAPI/Uvicorn, PostgreSQL/Redis support)
