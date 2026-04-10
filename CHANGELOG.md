@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — validate-deploy zero-exit resilience and strict partial-failure assertion (2026-04-10)
+- **`src/fabrik/cli.py`**: Wrapped `validate_deploy()` call and result rendering in `validate_deploy_cmd()` with `try/except Exception`; unexpected validator runtime errors are now emitted as warnings to stderr without raising, preserving warning-only/exit-0 behavior.
+- **`tests/test_deploy_validator.py`**: Tightened `TestValidate.test_partial_failures_reported` to assert exactly one failed check and that the sole failure is `dockerfile`.
+
+### Added — deploy_validator.py and fabrik validate-deploy command (2026-04-10)
+- **`src/fabrik/deploy_validator.py`**: New `[reusable]` module with 5 deployment readiness checks — deploy template exists, `.env.example` present, Dockerfile present, health endpoint detected, spec pre-existence info.
+- **`src/fabrik/deploy_validator.py`**: `validate()` runs all 5 checks and returns `list[ValidationResult]`; `format_warnings()` formats failed checks as warning strings.
+- **`src/fabrik/cli.py`**: `fabrik validate-deploy <path> --type <type>` standalone command — prints check results, always exits 0.
+- **`src/fabrik/cli.py`**: `fabrik scaffold` post-scaffold flow now runs deployment validator and prints warnings (non-blocking).
+- **`tests/test_deploy_validator.py`**: 21 tests across 7 test classes covering all checks, aggregate API, and CLI behavior.
+
+### Added — Scaffold auto-spec hook and fabrik new --from-project (2026-04-10)
+- **`src/fabrik/scaffold.py`**: `create_project()` gains `generate_spec: bool = True` parameter; after post-scaffold sync, calls `generate_and_save_spec()` for SPEC_ENABLED_TYPES with graceful degradation on failure.
+- **`src/fabrik/cli.py`**: `fabrik scaffold` gains `--no-spec` flag to skip automatic spec generation, passed as `generate_spec=not no_spec` to `create_project()`.
+- **`src/fabrik/cli.py`**: `fabrik new` gains `--from-project / -p` flag to extract env vars and secrets from an existing scaffolded project via `extract_project_context()`.
+- **`src/fabrik/cli.py`**: `fabrik new --output` default changed from `specs` to `specs/services` (correct location for service specs).
+- **`tests/test_scaffold_spec_generation.py`**: 7 tests across 2 classes — scaffold spec hook (4 tests) and CLI `new --from-project` (3 tests).
+
 ### Fixed — Restore out-of-scope formatting changes from T-01 scope-fix commit (2026-04-10)
 - Restored the 7 prohibited files changed by `0cb9e15` to their exact `baaf953` baseline content (`.windsurf/rules/65-rag-search.md`, `docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md`, `scripts/kilo-benchmarks/cache/*.json`, `scripts/kilo_all_models.json`, `src/fabrik/scaffold.py`).
 - Verified baseline diff hygiene: prohibited files no longer appear in `git diff --name-only baaf9539c5ea0480f4747493d7f7311f8030de79`; only allowed T-01-scope files remain eligible (`src/fabrik/spec_generator.py`, `tests/test_spec_generator.py`, `CHANGELOG.md`, `INDEX.md`).

@@ -12,11 +12,14 @@ import click
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.deploy import deploy_to_coolify
+from fabrik.deploy_validator import format_warnings
+from fabrik.deploy_validator import validate as validate_deploy
 from fabrik.drivers.coolify import CoolifyClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.orchestrator import DeploymentOrchestrator, DeploymentState
 from fabrik.scaffold import SCAFFOLD_TYPES
-from fabrik.spec_loader import Kind, create_spec, load_spec, save_spec
+from fabrik.spec_generator import extract_project_context
+from fabrik.spec_loader import Depends, Kind, SecretsPolicy, create_spec, load_spec, save_spec
 from fabrik.template_renderer import list_templates, render_template
 
 
@@ -53,8 +56,15 @@ def _split_domain_for_dns(domain: str) -> tuple[str, str] | None:
 @click.argument("name")
 @click.option("--template", "-t", required=True, help="Template to use (e.g., python-api)")
 @click.option("--domain", "-d", help="Domain for the service")
-@click.option("--output", "-o", default="specs", help="Output directory for spec file")
-def new(name: str, template: str, domain: str | None, output: str):
+@click.option("--output", "-o", default="specs/services", help="Output directory for spec file")
+@click.option(
+    "--from-project",
+    "-p",
+    type=click.Path(exists=True, file_okay=False),
+    default=None,
+    help="Path to scaffolded project to extract env/secrets from",
+)
+def new(name: str, template: str, domain: str | None, output: str, from_project: str | None):
     """Create a new spec from a template.
 
     Example:
@@ -79,6 +89,9 @@ def new(name: str, template: str, domain: str | None, output: str):
     if not domain:
         domain = click.prompt("Domain for the service (e.g., myapi.vps1.ocoron.com)")
 
+    # Extract project context if --from-project provided
+    context = extract_project_context(Path(from_project)) if from_project is not None else {}
+
     # Create spec
     try:
         spec = create_spec(
@@ -86,6 +99,12 @@ def new(name: str, template: str, domain: str | None, output: str):
             template=template,
             domain=domain,
             kind=Kind.SERVICE,
+            env=context.get("env", {}),
+            secrets=SecretsPolicy(required=context.get("secrets", [])),
+            depends=Depends(
+                postgres="main" if context.get("depends_postgres") else None,
+                redis="main" if context.get("depends_redis") else None,
+            ),
         )
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
@@ -714,7 +733,8 @@ def scan(health: bool, base: str):
     default=None,
     help="Preset variant (only used for --type wordpress)",
 )
-def scaffold(name: str, description: str, project_type: str, preset: str | None):
+@click.option("--no-spec", is_flag=True, default=False, help="Skip automatic spec file generation")
+def scaffold(name: str, description: str, project_type: str, preset: str | None, no_spec: bool):
     """Create a new project with full structure.
 
     Example:
@@ -730,7 +750,9 @@ def scaffold(name: str, description: str, project_type: str, preset: str | None)
 
     click.echo(f"📁 Creating project: {name}")
     try:
-        project_dir = create_project(name, description, project_type=project_type, preset=preset)
+        project_dir = create_project(
+            name, description, project_type=project_type, preset=preset, generate_spec=not no_spec
+        )
         click.echo(f"✅ Created: {project_dir}")
 
         # Update registry
@@ -753,9 +775,48 @@ def scaffold(name: str, description: str, project_type: str, preset: str | None)
             else:
                 click.echo(f"⚠️  Catalog sync failed: {result.stderr}", err=True)
 
+        # Run deployment readiness validator (non-blocking)
+        try:
+            validator_results = validate_deploy(project_dir, project_type)
+            warnings = format_warnings(validator_results)
+            for warning in warnings:
+                click.echo(warning)
+        except Exception as exc:
+            click.echo(f"⚠️  Deployment validator error: {exc}", err=True)
+
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
+
+
+@cli.command("validate-deploy")
+@click.argument("project_path", type=click.Path(exists=True, file_okay=False))
+@click.option(
+    "--type",
+    "-t",
+    "project_type",
+    type=click.Choice(sorted(SCAFFOLD_TYPES)),
+    default="python-api",
+    show_default=True,
+    help="Project type to validate against",
+)
+def validate_deploy_cmd(project_path: str, project_type: str):
+    """Check deployment readiness of a scaffolded project.
+
+    Runs 5 local checks (template, .env.example, Dockerfile, health endpoint,
+    spec pre-existence) and prints results. Always exits 0 — warnings only.
+
+    Example:
+        fabrik validate-deploy /opt/my-api --type python-api
+    """
+    path = Path(project_path).resolve()
+    try:
+        results = validate_deploy(path, project_type)
+        for result in results:
+            icon = "\u2705" if result.passed else "\u26a0\ufe0f "
+            click.echo(f"{icon} [{result.check}] {result.message}")
+    except Exception as exc:
+        click.echo(f"⚠️  Deployment validator error: {exc}", err=True)
 
 
 @cli.command()

@@ -17,6 +17,7 @@ from pathlib import Path
 import yaml
 
 from fabrik.config import FABRIK_ROOT
+from fabrik.spec_generator import SPEC_ENABLED_TYPES, generate_and_save_spec
 
 logger = logging.getLogger(__name__)
 
@@ -292,7 +293,9 @@ def _next_available_port(port_range: tuple[int, int] = (8000, 8099)) -> int:
         return port_range[0]
 
 
-def _scaffold_shared(project_dir: Path, name: str, description: str, today: str, host_port: int) -> None:
+def _scaffold_shared(
+    project_dir: Path, name: str, description: str, today: str, host_port: int
+) -> None:
     """Create the shared project structure common to all project types, including git init."""
     # Create shared directories
     for d in SHARED_DIRS:
@@ -2413,6 +2416,7 @@ def create_project(
     base: Path = Path("/opt"),
     project_type: str = "python-api",
     preset: str | None = None,
+    generate_spec: bool = True,
 ) -> Path:
     """Create a new project with full structure."""
     # Validate inputs
@@ -2466,6 +2470,15 @@ def create_project(
 
     # Post-scaffold hook: sync project registry
     _post_scaffold_sync(project_dir)
+
+    # Auto-generate deployment spec for supported types
+    if generate_spec and project_type in SPEC_ENABLED_TYPES:
+        try:
+            specs_dir = FABRIK_ROOT / "specs" / "services"
+            generate_and_save_spec(name, project_type, project_dir, specs_dir)
+            logger.info("Generated spec: specs/services/%s.yaml", name)
+        except Exception as exc:
+            logger.warning("Spec generation failed: %s", exc)
 
     return project_dir
 

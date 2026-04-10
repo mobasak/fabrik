@@ -154,6 +154,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ├── sql/                             # Database DDL scripts
 ├── src/fabrik/                      # Core Fabrik Python package
 │   ├── cli.py                       # CLI entry point
+│   ├── deploy_validator.py          # [reusable] Deployment readiness validator — 5 checks, validate(), format_warnings()
 │   ├── scaffold.py                  # Project scaffolding
 │   ├── ai/                          # AI module: LLMClient, UsageTracker
 │   ├── api/                         # API layer
@@ -191,6 +192,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── prompts/                     # Prompt templates for AI commands
 │   └── docs/                        # Document templates
 ├── tests/                           # Test suite
+│   ├── test_deploy_validator.py     # deploy_validator.py tests (7 classes, 21 tests)
 │   ├── content/                     # Content pipeline tests
 │   │   ├── test_seo_client.py       # SEOClient driver tests
 │   │   ├── test_tco_client.py       # TCOClient driver tests
@@ -452,6 +454,7 @@ docs/
 | [test_scaffold_logging.py](tests/test_scaffold_logging.py) | Tests for python-api + chrome-extension scaffold logging (logger.py, middleware.py, correlation ID) |
 | **src/fabrik/spec_generator.py** | [reusable] Spec generation and project context extraction — SPEC_ENABLED_TYPES, SECRET_PATTERNS, extract_project_context(), generate_spec(), generate_and_save_spec() |
 | [test_spec_generator.py](tests/test_spec_generator.py) | 40 tests for spec_generator (constants, _is_secret, compose/env parsing, context extraction, spec generation, save round-trip) |
+| [test_scaffold_spec_generation.py](tests/test_scaffold_spec_generation.py) | Tests for scaffold spec auto-generation hook and fabrik new --from-project flag | When scaffold.py or cli.py new/scaffold commands change | N/A |
 
 ### Scaffold-Generated Files (Python API + Chrome Extension Backend)
 
