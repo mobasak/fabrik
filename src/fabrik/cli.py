@@ -92,13 +92,17 @@ def new(name: str, template: str, domain: str | None, output: str, from_project:
     # Extract project context if --from-project provided
     context = extract_project_context(Path(from_project)) if from_project is not None else {}
 
+    # Determine kind based on project type (workers use Kind.WORKER, others use Kind.SERVICE)
+    project_type = context.get("project_type")
+    kind = Kind.WORKER if project_type in ("file-worker", "automation") else Kind.SERVICE
+
     # Create spec
     try:
         spec = create_spec(
             id=name,
             template=template,
             domain=domain,
-            kind=Kind.SERVICE,
+            kind=kind,
             env=context.get("env", {}),
             secrets=SecretsPolicy(required=context.get("secrets", [])),
             depends=Depends(

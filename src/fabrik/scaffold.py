@@ -2475,8 +2475,8 @@ def create_project(
     if generate_spec and project_type in SPEC_ENABLED_TYPES:
         try:
             specs_dir = FABRIK_ROOT / "specs" / "services"
-            generate_and_save_spec(name, project_type, project_dir, specs_dir)
-            logger.info("Generated spec: specs/services/%s.yaml", name)
+            spec_path = generate_and_save_spec(name, project_type, project_dir, specs_dir)
+            logger.info("Generated spec: %s", spec_path.relative_to(FABRIK_ROOT))
         except Exception as exc:
             logger.warning("Spec generation failed: %s", exc)
 

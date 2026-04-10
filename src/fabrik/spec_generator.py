@@ -146,8 +146,18 @@ def extract_project_context(project_path: Path) -> dict:
     """Extract environment, secrets, and dependency info from a scaffolded project.
 
     Returns a dict with keys ``env``, ``secrets``, ``depends_postgres``,
-    ``depends_redis``.
+    ``depends_redis``, ``project_type``.
     """
+    # Read project type from project.yaml
+    project_type = None
+    project_yaml_path = project_path / "project.yaml"
+    if project_yaml_path.exists():
+        try:
+            project_yaml = yaml.safe_load(project_yaml_path.read_text())
+            project_type = project_yaml.get("type")
+        except Exception:
+            pass  # Fall through to None
+
     compose_env = _parse_compose_env(project_path / "compose.yaml")
     secret_keys = _parse_env_example(project_path / ".env.example")
 
@@ -174,6 +184,7 @@ def extract_project_context(project_path: Path) -> dict:
         "secrets": secrets,
         "depends_postgres": depends_postgres,
         "depends_redis": depends_redis,
+        "project_type": project_type,
     }
 
 
