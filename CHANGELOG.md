@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Deploy templates: wordpress root compose.yaml.j2 created, mobile-app and desktop-app render bugs fixed (2026-04-10)
+- **`templates/wordpress/compose.yaml.j2`**: Created root-level deploy template for `fabrik apply` with Traefik routing to WordPress nginx on port 80, expose guard, resource limits, and healthcheck.
+- **`templates/mobile-app/compose.yaml.j2`**: Fixed `spec.domain` → `domain` variable, `entrypoints=https` → `entrypoints=websecure`, added expose guard around labels, added deploy resource limits block.
+- **`templates/desktop-app/compose.yaml.j2`**: Same 4 fixes as mobile-app template.
+
 ### Fixed — fabrik new worker-domain prompt ordering (2026-04-10)
 - **`src/fabrik/cli.py`**: Fixed domain prompt to fire after kind determination in `fabrik new`. Workers (Kind.WORKER) are no longer prompted for domain, which is semantically correct since workers don't expose HTTP. The fix extracts project context and determines kind before prompting for domain.
 

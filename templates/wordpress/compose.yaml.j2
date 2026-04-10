@@ -1,38 +1,33 @@
+# WordPress deploy template — routes Traefik to the WordPress nginx container.
+# Full WordPress stack is managed by fabrik wp apply (templates/wordpress/base/).
 services:
   {{ spec.id }}:
     build: .
-    platform: linux/amd64  # Mandatory for x86_64 VPS
+    platform: linux/amd64
     container_name: {{ spec.id }}
     restart: unless-stopped
-    
-    environment:
-      - NODE_ENV={{ env.get('NODE_ENV', 'production') }}
-      - TZ={{ env.get('TZ', 'UTC') }}
-      {% for key, value in env.items() %}
-      - {{ key }}={{ value | env_escape }}
-      {% endfor %}
-    
     {% if spec.expose.http and not spec.expose.internal_only %}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"
       - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
-      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=3000"
+      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=80"
     {% endif %}
-    
-    healthcheck:  # Required for Coolify orchestration
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    environment:
+      {% for key, value in env.items() %}
+      - {{ key }}={{ value | env_escape }}
+      {% endfor %}
     deploy:
       resources:
         limits:
           memory: {{ resources.memory }}
           cpus: '{{ resources.cpu }}'
-    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: {{ health.interval if health else '30s' }}
+      timeout: {{ health.timeout if health else '10s' }}
+      retries: {{ health.retries if health else 3 }}
     networks:
       - coolify
 

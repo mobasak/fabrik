@@ -12,12 +12,14 @@ services:
       - {{ key }}={{ value | env_escape }}
       {% endfor %}
     
+    {% if spec.expose.http and not spec.expose.internal_only %}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ spec.domain }}`)"
-      - "traefik.http.routers.{{ spec.id }}.entrypoints=https"
+      - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"
+      - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
       - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=3000"
+    {% endif %}
     
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
@@ -25,6 +27,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: {{ resources.memory }}
+          cpus: '{{ resources.cpu }}'
     
     networks:
       - coolify
