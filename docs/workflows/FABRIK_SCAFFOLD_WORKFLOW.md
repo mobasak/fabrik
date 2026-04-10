@@ -1,6 +1,6 @@
 # Fabrik Scaffold Specification
 
-**Last Updated:** 2026-04-03
+**Last Updated:** 2026-04-10
 
 > Complete specification for project creation, templates, deployment, and management in the Fabrik ecosystem.
 >
@@ -13,15 +13,16 @@
 1. [Overview](#overview)
 2. [Project Types & Decision Matrix](#project-types--decision-matrix)
 3. [CLI Commands Reference](#cli-commands-reference)
-4. [Project Templates](#project-templates)
-5. [Template Complexity Tiers](#template-complexity-tiers)
-6. [SaaS Skeleton (Next.js)](#saas-skeleton-nextjs)
-7. [Docker Templates](#docker-templates)
-8. [Documentation Templates](#documentation-templates)
-9. [Factory Configuration](#factory-configuration)
-10. [Project Lifecycle](#project-lifecycle)
-11. [Conventions & Standards](#conventions--standards)
-12. [File Reference Links](#file-reference-links)
+4. [Scaffold-to-Deploy Integration (P2/P3/P4)](#scaffold-to-deploy-integration-p2p3p4)
+5. [Project Templates](#project-templates)
+6. [Template Complexity Tiers](#template-complexity-tiers)
+7. [SaaS Skeleton (Next.js)](#saas-skeleton-nextjs)
+8. [Docker Templates](#docker-templates)
+9. [Documentation Templates](#documentation-templates)
+10. [Factory Configuration](#factory-configuration)
+11. [Project Lifecycle](#project-lifecycle)
+12. [Conventions & Standards](#conventions--standards)
+13. [File Reference Links](#file-reference-links)
 
 ---
 
@@ -199,10 +200,10 @@ index.html                # Renderer entry (referenced by electron/main.js)
 
 ```bash
 # Create deployment spec from template
-fabrik new <name> --template <template> [--domain <domain>] [--output <dir>]
+fabrik new <name> --template <template> [--domain <domain>] [--output <dir>] [--from-project <path>]
 
 # Create project structure
-fabrik scaffold <name> [--type <type>] [--preset <preset>] [--description <text>]
+fabrik scaffold <name> [--type <type>] [--preset <preset>] [--description <text>] [--no-spec]
 
 # List available templates
 fabrik templates
@@ -215,6 +216,7 @@ fabrik templates
 | `--type` | `python-api` | Project type (see Per-Type Scaffold Details table) |
 | `--preset` | _(none)_ | Preset variant — only used with `--type wordpress` (`saas`, `company`, `content`, `landing`, `ecommerce`) |
 | `--description` / `-d` | `"A new project"` | Short project description |
+| `--no-spec` | `false` | Skip automatic spec file generation |
 
 ### `fabrik scaffold` Output (Complete File List)
 
@@ -562,6 +564,8 @@ After file creation, `fabrik scaffold` also:
 6. **Type patching** - Updates `project.yaml` with actual project type and port
 7. **Initial commit** - Stages all files and commits "Initial commit"
 8. **Project sync** - Runs `sync_projects.py` to register the new project in `data/projects.yaml` and `docs/BUSINESS_MODEL.md`
+9. **Auto-spec generation** - For SPEC_ENABLED_TYPES, generates deployment spec at `/opt/fabrik/specs/services/{name}.yaml` (skipped if `--no-spec`)
+10. **Deployment validation** - Runs `validate-deploy` checks and prints warnings (non-blocking)
 
 > See [Sync Projects Workflow](SYNC_PROJECTS_WORKFLOW.md) for details on `project.yaml` schema and sync mechanism.
 
@@ -640,6 +644,78 @@ fabrik verify <domain> [--spec <type>] [--app-name <name>]
 # Sync model names across configs
 fabrik sync-models
 ```
+
+---
+
+## Scaffold-to-Deploy Integration (P2/P3/P4)
+
+### Auto-Spec Generation (P2 - Implemented 2026-04-10)
+
+**Purpose:** Automatically generate deployment spec files when scaffolding projects, eliminating manual spec creation.
+
+**Enabled Types (SPEC_ENABLED_TYPES):**
+- `python-api`
+- `saas-skeleton`
+- `node-api`
+- `file-api`
+- `file-worker`
+- `chrome-extension`
+- `static-site`
+
+**How it works:**
+1. After `fabrik scaffold` completes, `create_project()` calls `generate_and_save_spec()`
+2. `extract_project_context()` reads `compose.yaml` and `.env.example` from the scaffolded project
+3. `generate_spec()` builds a Spec object with type-based defaults (resources, health, kind)
+4. Spec is saved to `/opt/fabrik/specs/services/{name}.yaml`
+
+**Worker kind mapping:**
+- `file-worker` → `Kind.WORKER` (no HTTP exposure)
+- All other types → `Kind.SERVICE` (HTTP service)
+
+**Skip spec generation:**
+```bash
+fabrik scaffold my-api --type python-api --no-spec
+```
+
+### CLI Enhancements (P3 - Implemented 2026-04-10)
+
+**`fabrik new --from-project` flag:**
+Extracts env vars, secrets, and dependencies from an existing scaffolded project:
+
+```bash
+fabrik new my-api --template python-api --domain api.vps1.ocoron.com \
+  --from-project /opt/existing-api --output specs/services
+```
+
+**What it extracts:**
+- Environment variables from `compose.yaml` (non-secrets)
+- Secret keys from `.env.example` (patterns: PASSWORD, SECRET, KEY, TOKEN, etc.)
+- Dependencies: PostgreSQL (if `DATABASE_URL` detected), Redis (if `REDIS_URL` detected)
+- Project type from `project.yaml` (for correct kind mapping)
+
+**`fabrik new --output` default:**
+Changed from `specs` to `specs/services` (correct location for service specs).
+
+### Deployment Validation (P4 - Implemented 2026-04-10)
+
+**`fabrik validate-deploy` command:**
+Checks deployment readiness of a scaffolded project:
+
+```bash
+fabrik validate-deploy /opt/my-api --type python-api
+```
+
+**5 checks performed:**
+1. **Deploy template exists** - Template for the project type exists in `/opt/fabrik/templates/`
+2. **`.env.example` present** - Required for secret detection
+3. **Dockerfile present** - Required for container builds
+4. **Health endpoint detected** - Greps source files for `/health` string
+5. **Spec pre-existence info** - Warns if spec already exists (informational only)
+
+**Post-scaffold validation:**
+`fabrik scaffold` automatically runs validation after project creation and prints warnings (non-blocking).
+
+**Module:** `src/fabrik/deploy_validator.py` (reusable module with `validate()` and `format_warnings()` functions)
 
 ---
 

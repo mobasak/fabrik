@@ -1,6 +1,6 @@
 # Fabrik Scaffold Structure
 
-**Last Updated:** 2026-04-03
+**Last Updated:** 2026-04-10
 
 > Complete reference for the folder and file structure created by `fabrik scaffold`.
 
@@ -208,6 +208,51 @@ Templates use Jinja2 syntax for variable substitution:
 | `{{ python_version }}` | `3.12` | Dockerfile, pyproject.toml |
 | `{{ port }}` | `8000` | Dockerfile, compose.yaml |
 | `{{ description }}` | `API description` | README, pyproject.toml |
+
+---
+
+## Scaffold-to-Deploy Integration (P2/P3/P4 - Implemented 2026-04-10)
+
+### Auto-Spec Generation (P2)
+
+After scaffold completes, `fabrik scaffold` automatically generates a deployment spec file for supported types:
+
+**Supported types (SPEC_ENABLED_TYPES):**
+- `python-api`
+- `saas-skeleton`
+- `node-api`
+- `file-api`
+- `file-worker`
+- `chrome-extension`
+- `static-site`
+
+**Spec file location:** `/opt/fabrik/specs/services/{project-name}.yaml`
+
+**Skip spec generation:**
+```bash
+fabrik scaffold my-api --type python-api --no-spec
+```
+
+### CLI Enhancements (P3)
+
+**`fabrik new --from-project` flag:**
+Extracts env vars, secrets, and dependencies from an existing scaffolded project to populate a new spec.
+
+**`fabrik new --output` default:**
+Changed from `specs` to `specs/services` (correct location for service specs).
+
+### Deployment Validation (P4)
+
+**`fabrik validate-deploy` command:**
+Checks deployment readiness of a scaffolded project with 5 checks:
+- Deploy template exists
+- `.env.example` present
+- Dockerfile present
+- Health endpoint detected
+- Spec pre-existence info
+
+**Post-scaffold validation:**
+`fabrik scaffold` automatically runs validation after project creation and prints warnings (non-blocking).
 
 ---
 
