@@ -1,0 +1,50 @@
+id: seo
+kind: service
+template: python-api
+domain: seo.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/seo
+
+env:
+  PORT: "8016"
+  LOG_LEVEL: INFO
+  DATAFORSEO_AUTOCOMPLETE_CLIENT: gws-wiz-serp
+  SCRAPINGDOG_ADVANCE_SEARCH: "true"
+  SCRAPINGDOG_DOMAIN: google.com
+  SCRAPINGDOG_COUNTRY: us
+  AUTOCOMPLETE_CACHE_TTL_DAYS: "30"
+  SERP_CACHE_TTL_DAYS: "14"
+  MAX_AUTOCOMPLETE_PATTERNS: "20"
+  MAX_KEYWORD_NODES: "500"
+  MAX_SERP_TARGETS: "30"
+  PROVIDER_TIMEOUT_SECONDS: "30"
+  PROVIDER_MAX_RETRIES: "1"
+  KILO_API_URL: https://api.kilo.ai/api/openrouter/v1/chat/completions
+  LLM_DEFAULT_MODEL: anthropic/claude-haiku-4.5
+
+secrets:
+  required:
+    - DATABASE_URL
+    - INTERNAL_API_TOKEN
+    - DATAFORSEO_USERNAME
+    - DATAFORSEO_PASSWORD
+    - SCRAPINGDOG_API_KEY
+    - KILO_API_KEY
+
+depends:
+  postgres: seo
+
+resources:
+  limits:
+    memory: 1G
+    cpus: "1.0"
+
+health:
+  path: /health
+  port: 8016
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 10s

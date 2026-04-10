@@ -1,0 +1,26 @@
+id: image-broker
+kind: service
+template: python-api
+domain: image-broker.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/image-broker
+
+env:
+  PORT: "18016"
+  LOG_LEVEL: INFO
+
+secrets:
+  required:
+    - PEXELS_API_KEY
+    - PIXABAY_API_KEY
+
+resources:
+  limits:
+    memory: 512M
+    cpus: "0.5"
+
+health:
+  path: /health
+  port: 18016

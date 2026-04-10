@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-09T16:35:55.313944",
+  "timestamp": "2026-04-10T00:26:29.145647",
   "total_models": 328,
   "models": {
     "ai21/jamba-large-1.7": {
@@ -259,11 +259,6 @@
     },
     "cohere/command-r7b-12-2024": {
       "id": "cohere/command-r7b-12-2024",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "corethink:free": {
-      "id": "corethink:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1404,6 +1399,11 @@
     },
     "qwen/qwen3.5-plus-02-15": {
       "id": "qwen/qwen3.5-plus-02-15",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "qwen/qwen3.6-plus": {
+      "id": "qwen/qwen3.6-plus",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

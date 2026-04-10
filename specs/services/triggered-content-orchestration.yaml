@@ -1,0 +1,29 @@
+id: triggered-content-orchestration
+kind: service
+template: python-api
+domain: tco.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/triggered-content-orchestration
+
+env:
+  PORT: "8025"
+  LOG_LEVEL: INFO
+
+secrets:
+  required:
+    - DATABASE_URL
+    - KILO_API_KEY
+
+depends:
+  postgres: tco
+
+resources:
+  limits:
+    memory: 1G
+    cpus: "1.0"
+
+health:
+  path: /health
+  port: 8025

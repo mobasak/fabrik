@@ -1,0 +1,29 @@
+id: calendar-orchestration-engine
+kind: service
+template: python-api
+domain: calendar.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/calendar-orchestration-engine
+
+env:
+  PORT: "3001"
+  LOG_LEVEL: INFO
+
+secrets:
+  required:
+    - DATABASE_URL
+    - GOOGLE_CALENDAR_CREDENTIALS
+
+depends:
+  postgres: calendar
+
+resources:
+  limits:
+    memory: 512M
+    cpus: "0.5"
+
+health:
+  path: /health
+  port: 3001

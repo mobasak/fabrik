@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Complete Deploy Template Coverage (2026-04-10)
+- **✅ 100% Template Coverage:** Created deploy templates for all 11 scaffold types
+- **`templates/python-api/`**: Added `compose.yaml.j2` + `defaults.yaml` (port 8000, FastAPI/Uvicorn, PostgreSQL/Redis support)
+- **`templates/saas-skeleton/`**: Added `compose.yaml.j2` + `defaults.yaml` (port 3000, Next.js + Supabase auth)
+- **`templates/chrome-extension/`**: Added `compose.yaml.j2` + `defaults.yaml` (port 8000, CORS for `chrome-extension://*`)
+- **`templates/static-site/`**: Added `compose.yaml.j2` + `defaults.yaml` (port 3000, Next.js static generation)
+- All templates include: `platform: linux/amd64`, Traefik HTTPS labels, health checks, resource limits, PostgreSQL/Redis support
+- **`docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md`**: Phase 1 complete - documented 1:1 scaffold→deploy mapping
+
+### Fixed — Deploy Templates (2026-04-10)
+- **`templates/mobile-app/compose.yaml.j2`**: Fixed port (8081→3000), added Traefik labels, added env template loop, fixed health check path
+- **`templates/desktop-app/compose.yaml.j2`**: Fixed port (variable→3000), added Traefik labels, added env template loop, removed hardcoded PORT variable
+- **`templates/desktop-app/defaults.yaml`**: Removed PORT variable (now uses fixed 3000)
+
+### Added — [PORT] Placeholder Support (2026-04-10)
+- **`src/fabrik/scaffold.py`**: `_scaffold_shared()` now receives `host_port` parameter and adds `[PORT]` to template replacement map. Port determination moved to `create_project()` before `_scaffold_shared()` call.
+- **`templates/scaffold/docs/QUICKSTART_TEMPLATE.md`**: Replaced all `{PORT}` placeholders with `[PORT]` to use actual allocated port values in generated docs (15+ instances updated).
+
 ### Fixed — file-worker logger.py context_class and logger_factory alignment (2026-04-09)
 - **`src/fabrik/scaffold.py`**: `_scaffold_file_worker()` worker/logger.py: added missing `context_class=dict`, replaced `structlog.stdlib.LoggerFactory()` with `structlog.PrintLoggerFactory()` to align with python-api logger spec.
 - **`tests/test_scaffold_logging.py`**: Added `TestFileWorkerLogging` class (8 tests) covering PrintLoggerFactory, context_class=dict, processors, BoundLogger, cache, get_logger signature, and .env.example SERVICE_NAME.

@@ -1,0 +1,4 @@
+env:
+  LOG_LEVEL: INFO
+  PYTHONUNBUFFERED: "1"
+  CORS_ORIGINS: "chrome-extension://*"

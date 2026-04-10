@@ -1,0 +1,28 @@
+id: proxy
+kind: service
+template: python-api
+domain: proxy.internal.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/proxy
+
+env:
+  LOG_LEVEL: INFO
+  APP_ENV: production
+
+secrets:
+  required:
+    - WEBSHARE_API_KEY
+
+resources:
+  limits:
+    memory: 512M
+    cpus: "0.5"
+
+health:
+  path: /health
+  port: 8000
+  interval: 30s
+  timeout: 10s
+  retries: 3

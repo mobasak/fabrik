@@ -1,0 +1,29 @@
+id: proposal-creator
+kind: service
+template: python-api
+domain: proposals.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/proposal-creator
+
+env:
+  PORT: "8015"
+  LOG_LEVEL: INFO
+
+secrets:
+  required:
+    - DATABASE_URL
+    - KILO_API_KEY
+
+depends:
+  postgres: proposals
+
+resources:
+  limits:
+    memory: 1G
+    cpus: "1.0"
+
+health:
+  path: /health
+  port: 8015

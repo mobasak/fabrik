@@ -1,0 +1,41 @@
+id: dns-manager
+kind: service
+template: python-api
+domain: dns.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/dns-manager
+
+env:
+  API_HOST: "0.0.0.0"
+  API_PORT: "8001"
+  NAMECHEAP_USE_PROXY: "true"
+  NAMECHEAP_SANDBOX: "false"
+  LOG_LEVEL: INFO
+  APP_ENV: production
+
+secrets:
+  required:
+    - NAMECHEAP_API_KEY
+    - NAMECHEAP_API_USER
+    - NAMECHEAP_CLIENT_IP
+    - CLOUDFLARE_API_TOKEN
+    - CLOUDFLARE_ACCOUNT_ID
+    - CLOUDFLARE_GLOBAL_API_KEY
+    - CLOUDFLARE_EMAIL
+    - DOMAINNAMEAPI_USERNAME
+    - DOMAINNAMEAPI_PASSWORD
+
+resources:
+  limits:
+    memory: 512M
+    cpus: "0.5"
+
+health:
+  path: /health
+  port: 8001
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 20s

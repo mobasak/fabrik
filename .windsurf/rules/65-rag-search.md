@@ -20,6 +20,12 @@ Apply when working on embedding pipelines, vector search, retrieval-augmented ge
 - Always use **HNSW** indexes. Do not use IVFFlat — it requires manual rebuilds to maintain recall.
 - Build parameters: `WITH (m = 16, ef_construction = 64)`. Omitting these yields sub-optimal recall.
 - Query-time tuning: set `hnsw.ef_search = 40` for interactive UI latency, `200` for analytical background jobs.
+- **Note**: With PG16 + pgvector 0.7+, HNSW is production-ready. IVFFlat is the old default and significantly slower.
+
+## Vector DB Selection Rationale
+
+- **pgvector**: Use when vectors are a feature of your app alongside relational data 
+- **Qdrant/Weaviate**: Use when vectors are the app — millions of embeddings, complex filtering at scale, and you need a dedicated search engine with its own clustering/sharding.
 
 ## Hybrid Search
 

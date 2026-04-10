@@ -12,14 +12,14 @@
 | Key | Value |
 |-----|-------|
 | **Project** | `{project-name}` |
-| **Port** | `{PORT}` |
+| **Port** | `[PORT]` |
 | **Production URL** | `https://{project}.vps1.ocoron.com` |
-| **Local dev URL** | `http://localhost:{PORT}` |
+| **Local dev URL** | `http://localhost:[PORT]` |
 | **Health endpoint** | `GET /health` |
 | **Depends on** | `{postgres, redis, minio, external-api-name, none}` |
 
 <!-- For services called by other services, add these rows: -->
-<!-- | **Docker-internal URL** | `http://{project-name}:{PORT}` | -->
+<!-- | **Docker-internal URL** | `http://{project-name}:[PORT]` | -->
 <!-- | **OpenAPI docs** | `{BASE_URL}/docs` | -->
 <!-- | **Called by** | `{list of consuming services}` | -->
 
@@ -49,11 +49,11 @@ cp .env.example .env
 docker compose up -d
 
 # Verify
-curl http://localhost:{PORT}/health
+curl http://localhost:[PORT]/health
 ```
 
 <!-- For non-Docker projects, replace with the appropriate start command: -->
-<!-- Python API: /opt/{project}/.venv/bin/uvicorn src.{package}.main:app --reload --port {PORT} -->
+<!-- Python API: /opt/{project}/.venv/bin/uvicorn src.{package}.main:app --reload --port [PORT] -->
 <!-- Node: npm install && npm run dev -->
 <!-- Static site: npm install && npm run build && npm run preview -->
 <!-- Chrome extension: npm install && npm run build → load dist/ in chrome://extensions -->
@@ -64,7 +64,7 @@ curl http://localhost:{PORT}/health
 
 **Healthy:**
 ```bash
-curl -sf http://localhost:{PORT}/health
+curl -sf http://localhost:[PORT]/health
 # → 200
 ```
 ```json
@@ -101,7 +101,7 @@ curl -sf http://localhost:{PORT}/health
 <!-- For apps: step-by-step user flow -->
 
 ```bash
-curl -X POST http://localhost:{PORT}/api/v1/{resource} \
+curl -X POST http://localhost:[PORT]/api/v1/{resource} \
   -H "Content-Type: application/json" \
   -d '{
     "field_1": "value",
@@ -129,14 +129,14 @@ curl -X POST http://localhost:{PORT}/api/v1/{resource} \
 
 ```bash
 # Example workflow 2
-curl -X GET http://localhost:{PORT}/api/v1/{resource}
+curl -X GET http://localhost:[PORT]/api/v1/{resource}
 ```
 
 ### 3. {Third workflow}
 
 ```bash
 # Example workflow 3
-curl -X DELETE http://localhost:{PORT}/api/v1/{resource}/:id
+curl -X DELETE http://localhost:[PORT]/api/v1/{resource}/:id
 ```
 
 ### 4. {Optional fourth workflow}
@@ -195,7 +195,7 @@ No authentication required. Internal Docker network trust.
 ```python
 import httpx, os
 
-{PROJECT}_URL = os.getenv("{PROJECT_NAME}_URL", "http://{project-name}:{PORT}")
+{PROJECT}_URL = os.getenv("{PROJECT_NAME}_URL", "http://{project-name}:[PORT]")
 
 class {Project}Client:
     def __init__(self, base_url: str = {PROJECT}_URL):
@@ -213,7 +213,7 @@ class {Project}Client:
 **TypeScript:**
 
 ```typescript
-const {PROJECT}_URL = process.env.{PROJECT_NAME}_URL ?? "http://{project-name}:{PORT}";
+const {PROJECT}_URL = process.env.{PROJECT_NAME}_URL ?? "http://{project-name}:[PORT]";
 
 export const {project} = {
   health: async () => (await fetch(`${{{PROJECT}_URL}}/health`)).ok,
@@ -232,9 +232,9 @@ export const {project} = {
 **cURL:**
 
 ```bash
-curl -sf http://{project-name}:{PORT}/health | jq .
+curl -sf http://{project-name}:[PORT]/health | jq .
 
-curl -X POST http://{project-name}:{PORT}/api/v1/{resource} \
+curl -X POST http://{project-name}:[PORT]/api/v1/{resource} \
   -H "Content-Type: application/json" \
   -d '{"field_1": "value"}'
 ```
@@ -247,7 +247,7 @@ curl -X POST http://{project-name}:{PORT}/api/v1/{resource} \
 services:
   your-service:
     environment:
-      - {PROJECT_NAME}_URL=http://{project-name}:{PORT}
+      - {PROJECT_NAME}_URL=http://{project-name}:[PORT]
     depends_on:
       {project-name}:
         condition: service_healthy
@@ -261,7 +261,7 @@ services:
 services:
   your-service:
     environment:
-      - {PROJECT_NAME}_URL=http://{project-name}:{PORT}
+      - {PROJECT_NAME}_URL=http://{project-name}:[PORT]
     networks:
       - coolify
 
@@ -294,7 +294,7 @@ Every response includes `X-Request-ID`. Pass it in requests to correlate across 
 ```text
 HTTP Request node:
   Method: POST
-  URL: http://{project-name}:{PORT}/api/v1/{resource}
+  URL: http://{project-name}:[PORT]/api/v1/{resource}
   Body (JSON): { "field_1": "{{ $json.input }}" }
   → Route: 200 → continue | 429 → Wait 60s → Retry | 5xx → Error workflow
 ```
@@ -302,7 +302,7 @@ HTTP Request node:
 ### Cron
 
 ```bash
-0 2 * * * curl -sf -X POST http://{project-name}:{PORT}/api/v1/maintenance/cleanup
+0 2 * * * curl -sf -X POST http://{project-name}:[PORT]/api/v1/maintenance/cleanup
 ```
 
 ---
@@ -354,7 +354,7 @@ def call_with_retry(fn, max_retries=3):
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `PORT` | No | `{PORT}` | Service port |
+| `PORT` | No | `[PORT]` | Service port |
 | `DATABASE_URL` | {Yes/No} | — | PostgreSQL connection string |
 | `LOG_LEVEL` | No | `info` | Logging level |
 
@@ -363,7 +363,7 @@ def call_with_retry(fn, max_retries=3):
 ### For callers (if this is a service)
 
 ```env
-{PROJECT_NAME}_URL=http://{project-name}:{PORT}
+{PROJECT_NAME}_URL=http://{project-name}:[PORT]
 ```
 
 ---
@@ -376,7 +376,7 @@ def call_with_retry(fn, max_retries=3):
 
 ```text
 ## {PROJECT_NAME}
-- URL: http://{project-name}:{PORT} (Docker) | https://{project}.vps1.ocoron.com (external)
+- URL: http://{project-name}:[PORT] (Docker) | https://{project}.vps1.ocoron.com (external)
 - Auth: {None / X-API-Key header}
 - Health: GET /health → 200 = ready, 503 = stop
 
@@ -386,7 +386,7 @@ Primary operations:
   - DELETE /api/v1/{resource}/:id
 
 Error shape: {"error": {"code": "...", "message": "...", "details": {...}}}
-Env for callers: {PROJECT_NAME}_URL=http://{project-name}:{PORT}
+Env for callers: {PROJECT_NAME}_URL=http://{project-name}:[PORT]
 ```
 
 ## Agent Gotchas
@@ -408,7 +408,7 @@ Env for callers: {PROJECT_NAME}_URL=http://{project-name}:{PORT}
 git clone {repo_url} && cd {project-name}
 cp .env.example .env
 docker compose up -d
-curl http://localhost:{PORT}/health
+curl http://localhost:[PORT]/health
 ```
 
 ---

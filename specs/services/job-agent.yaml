@@ -1,0 +1,28 @@
+id: job-agent
+kind: service
+template: python-api
+domain: job-agent.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/job-agent
+
+env:
+  PORT: "8011"
+  LOG_LEVEL: INFO
+
+secrets:
+  required:
+    - DATABASE_URL
+
+depends:
+  postgres: jobagent
+
+resources:
+  limits:
+    memory: 512M
+    cpus: "0.5"
+
+health:
+  path: /health
+  port: 8011

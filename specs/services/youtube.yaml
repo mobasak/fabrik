@@ -1,0 +1,35 @@
+id: youtube
+kind: service
+template: python-api
+domain: youtube.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/youtube
+
+env:
+  PORT: "8029"
+  LOG_LEVEL: INFO
+  APP_ENV: production
+
+secrets:
+  required:
+    - DATABASE_URL
+    - SUPABASE_URL
+    - SUPABASE_SERVICE_ROLE_KEY
+
+depends:
+  postgres: youtube
+
+resources:
+  limits:
+    memory: 2G
+    cpus: "2.0"
+
+health:
+  path: /health
+  port: 8029
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 10s

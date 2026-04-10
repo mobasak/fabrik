@@ -1,0 +1,28 @@
+id: captcha
+kind: service
+template: python-api
+domain: captcha.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/captcha
+
+env:
+  LOG_LEVEL: INFO
+  APP_ENV: production
+
+secrets:
+  required:
+    - ANTICAPTCHA_API_KEY
+
+resources:
+  limits:
+    memory: 512M
+    cpus: "0.5"
+
+health:
+  path: /health
+  port: 8000
+  interval: 30s
+  timeout: 10s
+  retries: 3

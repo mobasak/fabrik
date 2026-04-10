@@ -292,7 +292,7 @@ def _next_available_port(port_range: tuple[int, int] = (8000, 8099)) -> int:
         return port_range[0]
 
 
-def _scaffold_shared(project_dir: Path, name: str, description: str, today: str) -> None:
+def _scaffold_shared(project_dir: Path, name: str, description: str, today: str, host_port: int) -> None:
     """Create the shared project structure common to all project types, including git init."""
     # Create shared directories
     for d in SHARED_DIRS:
@@ -326,6 +326,7 @@ def _scaffold_shared(project_dir: Path, name: str, description: str, today: str)
                 ("[Brief description]", description),
                 ("[One-line description]", description),
                 ("Brief project description", description),  # pyproject.toml
+                ("[PORT]", str(host_port)),  # Allocated port
             ]:
                 content = content.replace(old, new)
             (project_dir / dest).write_text(content)
@@ -611,8 +612,7 @@ Obsolete or completed docs for {name}.
     )
 
     # Create project.yaml — per-project metadata (source of truth)
-    # Auto-allocate host port from registry to prevent conflicts
-    host_port = _next_available_port()
+    # Port is passed in from create_project (already allocated based on project type)
     project_yaml = {
         "name": name,
         "type": "python-api",  # overwritten by create_project if different
@@ -2435,21 +2435,23 @@ def create_project(
 
     today = date.today().isoformat()
 
+    # Determine port based on project type before scaffolding (used in doc templates)
+    if project_type in ("node-api", "file-api", "saas-skeleton", "static-site"):
+        host_port = _next_available_port(port_range=(3000, 3099))
+    else:
+        host_port = _next_available_port(port_range=(8000, 8099))
+
     # _scaffold_shared() creates all shared structure AND runs git init + pre-commit install.
-    _scaffold_shared(project_dir, name, description, today)
+    _scaffold_shared(project_dir, name, description, today, host_port)
 
     scaffolder(project_dir, name, description, preset=preset)
 
-    # Patch project.yaml with actual type and port (type-specific scaffolders may change port)
+    # Patch project.yaml with actual type
+    # (Port is already set correctly by type-specific scaffolder using same _next_available_port logic)
     project_yaml_path = project_dir / "project.yaml"
     if project_yaml_path.exists():
         content = project_yaml_path.read_text()
         content = content.replace("type: python-api", f"type: {project_type}")
-        # Set correct port range for Node.js types (3000-3099)
-        if project_type in ("node-api", "file-api", "saas-skeleton", "static-site"):
-            node_port = _next_available_port(port_range=(3000, 3099))
-            # Replace the Python-range port that was initially assigned
-            content = re.sub(r"- \d{4,5}", f"- {node_port}", content, count=1)
         # Set has_user_guide: true for guide-enabled scaffold types
         if project_type in GUIDE_ENABLED_TYPES:
             content = content.replace("has_user_guide: false", "has_user_guide: true")

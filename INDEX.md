@@ -383,6 +383,8 @@ docs/
 | [drivers.md](docs/reference/drivers.md) | Fabrik driver API (Coolify, DNS, etc.) |
 | [templates.md](docs/reference/templates.md) | Available deployment templates |
 | [SaaS-GUI.md](docs/reference/SaaS-GUI.md) | SaaS skeleton template guide |
+| [SCAFFOLD_TO_DEPLOY_INTEGRATION.md](docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md) | Scaffold → Deploy workflow gaps & AI agent guidance |
+| [DEPLOY_TEMPLATE_AUDIT_2026-04-10.md](docs/reference/DEPLOY_TEMPLATE_AUDIT_2026-04-10.md) | Complete deploy template system audit & verification |
 | [CRITICAL_RULES.md](docs/reference/CRITICAL_RULES.md) | Non-negotiable execution rules |
 | [DOCUMENTATION_STANDARD.md](docs/reference/DOCUMENTATION_STANDARD.md) | Documentation standards and conventions |
 | [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |

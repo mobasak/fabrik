@@ -4,19 +4,30 @@ services:
     container_name: {{ spec.id }}
     platform: linux/amd64  # MANDATORY - VPS is x86_64
     restart: unless-stopped
-    ports:
-      - "${PORT:-8000}:${PORT:-8000}"
+    
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - PORT=${PORT:-8000}
-    networks:
-      - coolify
+      - NODE_ENV={{ env.get('NODE_ENV', 'production') }}
+      - TZ={{ env.get('TZ', 'UTC') }}
+      {% for key, value in env.items() %}
+      - {{ key }}={{ value | env_escape }}
+      {% endfor %}
+    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ spec.domain }}`)"
+      - "traefik.http.routers.{{ spec.id }}.entrypoints=https"
+      - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=3000"
+    
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    
+    networks:
+      - coolify
 
 networks:
   coolify:

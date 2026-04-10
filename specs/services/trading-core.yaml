@@ -1,0 +1,30 @@
+id: trading-core
+kind: service
+template: python-api
+domain: trading.vps1.ocoron.com
+
+source:
+  type: local
+  path: /opt/trading-core
+
+env:
+  PORT: "8023"
+  LOG_LEVEL: INFO
+
+secrets:
+  required:
+    - DATABASE_URL
+    - CTRADER_API_KEY
+    - CTRADER_SECRET
+
+depends:
+  postgres: trading
+
+resources:
+  limits:
+    memory: 1G
+    cpus: "1.0"
+
+health:
+  path: /health
+  port: 8023

@@ -8,12 +8,23 @@ services:
     environment:
       - NODE_ENV={{ env.get('NODE_ENV', 'production') }}
       - TZ={{ env.get('TZ', 'UTC') }}
+      {% for key, value in env.items() %}
+      - {{ key }}={{ value | env_escape }}
+      {% endfor %}
+    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ spec.domain }}`)"
+      - "traefik.http.routers.{{ spec.id }}.entrypoints=https"
+      - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=3000"
     
     healthcheck:  # Required for Coolify orchestration
-      test: ["CMD", "curl", "-f", "http://localhost:8081/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
     
     networks:
       - coolify
