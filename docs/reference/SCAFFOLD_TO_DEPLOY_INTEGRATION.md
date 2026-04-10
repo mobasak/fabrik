@@ -1,6 +1,6 @@
 # Scaffold → Deploy Integration Analysis
 
-**Date:** 2026-04-10  
+**Date:** 2026-04-10
 **Purpose:** Gap analysis and recommendations for AI agents creating deploy-ready projects
 
 ---
@@ -288,7 +288,7 @@ mkdir -p /opt/fabrik/templates/static-site
 
 **Status:** ✅ Completed 2026-04-10 - template now exists at `/opt/fabrik/templates/static-site/compose.yaml.j2`
 
-**Impact:** 
+**Impact:**
 - ✅ All 11 scaffold types have deploy templates
 - ✅ AI agents can deploy ANY scaffolded project
 - ✅ No more template name mismatches
@@ -304,7 +304,7 @@ mkdir -p /opt/fabrik/templates/static-site
 ```python
 def create_project(...):
     # ... existing scaffold logic ...
-    
+
     # NEW: Auto-generate spec file
     if should_generate_spec(project_type):
         spec_file = FABRIK_ROOT / "specs" / "services" / f"{name}.yaml"
@@ -355,7 +355,7 @@ fabrik new my-api --template python-api --domain api.vps1.ocoron.com --output sp
 def new(name: str, template: str, domain: str, output: str, from_project: str):
     """Create deployment spec file."""
     # ... existing spec creation logic ...
-    
+
     if from_project:
         # Read compose.yaml and extract env vars
         # Read .env.example and detect secrets
@@ -372,20 +372,20 @@ def new(name: str, template: str, domain: str, output: str, from_project: str):
 def validate_deployment_ready(project_path: Path) -> list[str]:
     """Check if project is ready for fabrik apply."""
     issues = []
-    
+
     # Check 1: Deploy template exists
     project_yaml = yaml.safe_load((project_path / "project.yaml").read_text())
     project_type = project_yaml.get("type")
     if not template_exists(project_type):
         issues.append(f"No deploy template for type: {project_type}")
-    
+
     # Check 2: Required env vars present
     if not (project_path / ".env.example").exists():
         issues.append("Missing .env.example")
-    
+
     # Check 3: Health endpoint exists
     # ... check src/ for /health route
-    
+
     return issues
 ```
 
@@ -511,7 +511,7 @@ depends:
 | **P4** | Add deployment validation | 2 hours | ⏳ **TODO** | Pending |
 | **P5** | Unify template system | 8 hours | ⏳ **TODO** | Pending |
 
-**P1 Complete:** ✅ All 11 scaffold types now have deploy templates (4 hours actual)  
+**P1 Complete:** ✅ All 11 scaffold types now have deploy templates (4 hours actual)
 **Remaining:** ~9 hours for high-value automation (P2+P3+P4). P5 is optional high-risk refactor (~17h total including P5)
 
 **Next Priority:** P2 - Auto-generate spec files during `fabrik scaffold`
