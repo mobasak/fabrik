@@ -292,9 +292,7 @@ def _next_available_port(port_range: tuple[int, int] = (8000, 8099)) -> int:
         return port_range[0]
 
 
-def _scaffold_shared(
-    project_dir: Path, name: str, description: str, today: str, host_port: int
-) -> None:
+def _scaffold_shared(project_dir: Path, name: str, description: str, today: str, host_port: int) -> None:
     """Create the shared project structure common to all project types, including git init."""
     # Create shared directories
     for d in SHARED_DIRS:

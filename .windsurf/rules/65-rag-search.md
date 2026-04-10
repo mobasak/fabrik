@@ -24,7 +24,7 @@ Apply when working on embedding pipelines, vector search, retrieval-augmented ge
 
 ## Vector DB Selection Rationale
 
-- **pgvector**: Use when vectors are a feature of your app alongside relational data
+- **pgvector**: Use when vectors are a feature of your app alongside relational data 
 - **Qdrant/Weaviate**: Use when vectors are the app — millions of embeddings, complex filtering at scale, and you need a dedicated search engine with its own clustering/sharding.
 
 ## Hybrid Search

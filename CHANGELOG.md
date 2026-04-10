@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Restore out-of-scope formatting changes from T-01 scope-fix commit (2026-04-10)
+- Restored the 7 prohibited files changed by `0cb9e15` to their exact `baaf953` baseline content (`.windsurf/rules/65-rag-search.md`, `docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md`, `scripts/kilo-benchmarks/cache/*.json`, `scripts/kilo_all_models.json`, `src/fabrik/scaffold.py`).
+- Verified baseline diff hygiene: prohibited files no longer appear in `git diff --name-only baaf9539c5ea0480f4747493d7f7311f8030de79`; only allowed T-01-scope files remain eligible (`src/fabrik/spec_generator.py`, `tests/test_spec_generator.py`, `CHANGELOG.md`, `INDEX.md`).
+
 ### Fixed — Ignore malformed .env.example lines without assignments in spec parsing (2026-04-10)
 - **`src/fabrik/spec_generator.py`**: `_parse_env_example()` now skips non-comment, non-blank lines that do not contain `=`, so malformed lines are not treated as secret keys.
 - **`tests/test_spec_generator.py`**: Added regression test in `TestParseEnvExample` to verify malformed lines without `=` are ignored while valid secret assignments are still parsed.
