@@ -172,7 +172,7 @@ env:
 
 `fabrik scaffold` doesn't create a spec file. AI agents must:
 - Manually create spec file
-- Know the spec schema (12 fields, 5 nested models)
+- Know the spec schema (17 fields, 14 nested models)
 - Map scaffold type → deploy template name (error-prone)
 
 ### 4. **Port Allocation Disconnect**
