@@ -40,6 +40,9 @@ _NODE_TYPES: frozenset[str] = frozenset(
     }
 )
 
+_STATIC_TYPES: frozenset[str] = frozenset({"docusaurus"})
+_ELECTRON_TYPES: frozenset[str] = frozenset({"desktop-app"})
+
 # ---------------------------------------------------------------------------
 # Private check functions
 # ---------------------------------------------------------------------------

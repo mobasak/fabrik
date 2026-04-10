@@ -762,6 +762,13 @@ def scaffold(name: str, description: str, project_type: str, preset: str | None,
         )
         click.echo(f"✅ Created: {project_dir}")
 
+        if project_type == "wordpress":
+            click.echo("\n📋 WordPress next steps:")
+            click.echo(f"  1. Create your site spec: specs/sites/{name}.yaml")
+            click.echo(f"  2. fabrik wp plan {name}")
+            click.echo(f"  3. fabrik wp apply {name}")
+            click.echo(f"  4. fabrik wp verify {name}.vps1.ocoron.com")
+
         # Update registry
         registry = ProjectRegistry()
         registry.scan()

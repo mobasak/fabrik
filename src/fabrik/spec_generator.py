@@ -33,6 +33,9 @@ SPEC_ENABLED_TYPES: frozenset[str] = frozenset(
         "file-worker",
         "chrome-extension",
         "static-site",
+        "docusaurus",
+        "mobile-app",
+        "desktop-app",
     }
 )
 
@@ -53,6 +56,9 @@ _TYPE_DEFAULTS: dict[str, dict] = {
     "chrome-extension": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "file-api": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "file-worker": {"memory": "256M", "cpu": "0.5", "health_path": None},
+    "docusaurus": {"memory": "256M", "cpu": "0.5", "health_path": "/"},
+    "mobile-app": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
+    "desktop-app": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
 }
 
 # ---------------------------------------------------------------------------
