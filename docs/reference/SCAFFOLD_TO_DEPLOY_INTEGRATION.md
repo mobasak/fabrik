@@ -115,10 +115,6 @@ kind: service
 template: python-api
 domain: api.vps1.ocoron.com
 
-source:
-  type: local
-  path: /opt/my-api
-
 env:
   LOG_LEVEL: INFO
   # ... copy from project compose.yaml
@@ -280,46 +276,7 @@ mkdir -p /opt/fabrik/templates/chrome-extension
 
 **Status:** ✅ Completed 2026-04-10 - template now exists at `/opt/fabrik/templates/chrome-extension/compose.yaml.j2`
 
-**`compose.yaml.j2`** - Backend service for extension:
-```yaml
-services:
-  {{ spec.id }}-backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    platform: linux/amd64
-    container_name: {{ spec.id }}-backend
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"
-      - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
-      - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
-      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=8000"
-      - "traefik.http.routers.{{ spec.id }}.middlewares=cors"
-    environment:
-      - PYTHONUNBUFFERED=1
-      - CORS_ORIGINS={{ spec.env.get('CORS_ORIGINS', 'chrome-extension://*') }}
-      {% for key, value in env.items() %}
-      - {{ key }}={{ value | env_escape }}
-      {% endfor %}
-    deploy:
-      resources:
-        limits:
-          memory: {{ resources.memory }}
-          cpus: '{{ resources.cpu }}'
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - coolify
-
-networks:
-  coolify:
-    external: true
-```
+**Implementation:** Uses Traefik middleware labels for CORS (accesscontrolallowmethods, accesscontrolalloworigin, accesscontrolallowheaders, accesscontrolmaxage) and shell syntax `${CORS_ORIGINS:-chrome-extension://*}` for env var defaults.
 
 **Note:** Extension frontend is deployed separately via Chrome Web Store.
 
@@ -502,6 +459,11 @@ Until P2 (auto-generate specs) is implemented, AI agents should:
 5. **Extract secrets** from `.env.example` to spec `secrets.required:` list
 6. **Test with `fabrik plan`** before deploying
 
+**Special Case: file-worker**
+- Requires Supabase (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) and Cloudflare R2 (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_ENDPOINT) - not generic PostgreSQL/Redis
+- These are hardcoded as required (${VAR:?}) in the template
+- Not suitable for generic worker scaffolding without modification
+
 ### Spec File Example
 
 For `python-api`:
@@ -511,10 +473,6 @@ id: my-api
 kind: service
 template: python-api
 domain: api.vps1.ocoron.com
-
-source:
-  type: local
-  path: /opt/my-api
 
 env:
   # Copy from /opt/my-api/compose.yaml
