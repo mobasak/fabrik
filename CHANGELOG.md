@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — validation findings and remove invalid source block (2026-04-10)
+- **`src/fabrik/deploy_validator.py`**: Reverted `_check_spec_exists` to always return `passed=True` (informational check per T-03 spec step 7).
+- **`src/fabrik/cli.py`**: Removed redundant file existence check for spec generation in scaffold CLI (scaffold.py already logs actual result).
+- **`src/fabrik/cli.py`**: Removed 'automation' from worker-kind mapping (not in SCAFFOLD_TYPES).
+- **`specs/services/dns-manager.yaml`**: Removed invalid `source: type: local` block (SourceType enum only accepts template, git, docker).
+
 ### Fixed — scaffold spec CLI visibility and depends mapping test coverage (2026-04-10)
 - **`src/fabrik/cli.py`**: `fabrik scaffold` now prints explicit CLI feedback for auto-spec generation outcomes (`✅ Generated spec: ...` on success, warning-only message on non-fatal failure), instead of relying on non-visible INFO logs.
 - **`tests/test_scaffold_spec_generation.py`**: Extended `TestNewCommandFromProject` to assert `create_spec()` receives `Depends(postgres='main', redis='main')` when compose context includes those dependencies, and `None` values when they are not detected.
