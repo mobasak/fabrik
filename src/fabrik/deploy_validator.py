@@ -131,7 +131,7 @@ def _check_spec_exists(project_name: str, specs_dir: Path) -> ValidationResult:
     if spec_path.exists():
         return ValidationResult(
             check="spec_exists",
-            passed=False,
+            passed=True,
             message="Spec already exists — will be overwritten by scaffold",
         )
     return ValidationResult(

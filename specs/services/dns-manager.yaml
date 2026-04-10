@@ -3,10 +3,6 @@ kind: service
 template: python-api
 domain: dns.vps1.ocoron.com
 
-source:
-  type: local
-  path: /opt/dns-manager
-
 env:
   API_HOST: "0.0.0.0"
   API_PORT: "8001"
