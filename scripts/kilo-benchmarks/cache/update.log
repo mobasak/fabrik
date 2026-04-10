@@ -4206,3 +4206,487 @@ Assigned by: kilo/google/gemini-3.1-pro-preview
    📁 Output: /home/ozgur/.traycer/cli-agents
 Updated docs/reference/windsurf/actively-used-windsurf-extensions.md (11 extensions)
 === Pipeline complete — 2026-04-10 00:26:25 ===
+
+=== Fabrik Daily Pipeline — 2026-04-10 23:16:57 ===
+📊 Scanning /opt/* projects...
+   Found 45 projects
+   ⚠️  Port conflicts:
+      Port 3000: test-node-api, test-saas-skeleton, test-static-site
+      Port 8000: test-desktop-app, test-python-api
+      Port 8021: test-chrome-extension, test-mobile-app
+   📁 Registry: /opt/fabrik/data/projects.yaml
+   📄 Updated docs/BUSINESS_MODEL.md
+   📄 Updated PORTS.md
+
+✅ Sync complete: 45 projects (45 with project.yaml)
+⚠️  3 port conflict(s) — edit project.yaml to resolve
+⚠️  CASCADE BACKUP MISSING
+   Ask Cascade: 'Export memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md'
+Project                         | Status       | Missing Files           
+--------------------------------+--------------+-------------------------
+ComplianceOps                   | ✅ healthy    | -                       
+Reference_Creator               | ✅ healthy    | -                       
+apidoccreator                   | ✅ healthy    | -                       
+apps                            | ✅ healthy    | -                       
+brand-identiy-creator           | ✅ healthy    | -                       
+calendar-orchestration-engine   | ✅ healthy    | -                       
+candle                          | ✅ healthy    | -                       
+captcha                         | ✅ healthy    | -                       
+dns-manager                     | ✅ healthy    | -                       
+email-reader                    | ✅ healthy    | -                       
+emailgateway                    | ✅ healthy    | -                       
+exam-coach                      | ✅ healthy    | -                       
+file-api                        | ✅ healthy    | -                       
+file-worker                     | ✅ healthy    | -                       
+gmailaccountcreator             | ✅ healthy    | -                       
+image-broker                    | ✅ healthy    | -                       
+image-generation                | ✅ healthy    | -                       
+iterative_image_editor          | ✅ healthy    | -                       
+job-agent                       | ✅ healthy    | -                       
+llm_batch_processor             | ✅ healthy    | -                       
+marketing-argumant-generator    | ✅ healthy    | -                       
+namecheap                       | ✅ healthy    | -                       
+proposal-creator                | ✅ healthy    | -                       
+proxy                           | ✅ healthy    | -                       
+seo                             | ✅ healthy    | -                       
+supplement-tracker-advisor      | ✅ healthy    | -                       
+test-chrome-extension           | ✅ healthy    | -                       
+test-desktop-app                | ⚠️  warnings | compose.yaml, Dockerfile
+test-docusaurus                 | ⚠️  warnings | compose.yaml, Dockerfile
+test-file-api                   | ⚠️  warnings | compose.yaml            
+test-file-worker                | ⚠️  warnings | compose.yaml            
+test-mobile-app                 | ⚠️  warnings | compose.yaml, Dockerfile
+test-node-api                   | ⚠️  warnings | compose.yaml            
+test-python-api                 | ✅ healthy    | -                       
+test-saas-skeleton              | ✅ healthy    | -                       
+test-static-site                | ✅ healthy    | -                       
+test-wordpress                  | ⚠️  warnings | compose.yaml, Dockerfile
+trade-intelligence              | ✅ healthy    | -                       
+trading-core                    | ✅ healthy    | -                       
+transcriber                     | ✅ healthy    | -                       
+translator                      | ✅ healthy    | -                       
+triggered-content-orchestration | ✅ healthy    | -                       
+ugc                             | ✅ healthy    | -                       
+web-scraper                     | ✅ healthy    | -                       
+youtube                         | ✅ healthy    | -                       
+45 projects scanned — 38 healthy, 7 warnings, 0 missing
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 328 models
+[kilo-db]   Inserted 0, updated 328 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 257 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[kilo-db]   Updated 102 Elo, 37 TBench scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Snapshot for 2026-04-10 already exists, skipping
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+Unsupported architecture: 
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-04-10T23:17:08.282714
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 257 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Scraping provider: Recommended
+[windsurf-scrape]     Clicked Recommended tab
+[windsurf-scrape]     Found 9 models: SWE-1.5, Claude Opus 4.6, Claude Sonnet 4.6
+[windsurf-scrape]   Scraping provider: Windsurf
+[windsurf-scrape]     Clicked Windsurf tab
+[windsurf-scrape]     Found 2 models: SWE-1.5, SWE-1.5 Fast
+[windsurf-scrape]   Scraping provider: Anthropic
+[windsurf-scrape]     Clicked Anthropic tab
+[windsurf-scrape]     Found 25 models: Claude Opus 4.6, Claude Opus 4.6 (Thinking), Claude Opus 4.6 1M
+[windsurf-scrape]   Scraping provider: OpenAI
+[windsurf-scrape]     Clicked OpenAI tab
+[windsurf-scrape]     Found 65 models: GPT-5.4 (No Reasoning), GPT-5.4 (Low Reasoning), GPT-5.4 (Medium Reasoning)
+[windsurf-scrape]   Scraping provider: Google
+[windsurf-scrape]     Clicked Google tab
+[windsurf-scrape]     Found 9 models: Gemini 3.1 Pro Low, Gemini 3.1 Pro High, Gemini 3 Pro Low
+[windsurf-scrape]   Scraping provider: xAI
+[windsurf-scrape]     Clicked xAI tab
+[windsurf-scrape]     Found 1 models: xAI Grok Code Fast
+[windsurf-scrape]   Scraping provider: Open Source
+[windsurf-scrape]     Clicked Open Source tab
+[windsurf-scrape]     Found 6 models: Minimax M2.1, Kimi K2, Kimi K2.5
+[windsurf-scrape]   Extracted 117 models from 7 providers
+[kilo-bench]   Arena: 257 entries
+[kilo-bench]   TBench: 119 entries
+[kilo-bench]   Windsurf: 117 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
+[kilo-bench] Windsurf models updated!
+[kilo-bench] Update complete!
+[role-mapper] Starting role mapper (2026-04-10T23:17:50.214412)
+[role-mapper] Found 81 candidate agents
+[role-mapper] Analyzing 81 candidate agents...
+[role-mapper] Trying model: kilo/google/gemini-3.1-pro-preview (variant: max)
+[role-mapper] Received 7049 chars from Kilo
+[role-mapper] Cost: $0.1669 (35047 in, 8068 out)
+[role-mapper] SUCCESS with kilo/google/gemini-3.1-pro-preview
+[role-mapper] AI returned 23 assignments (via kilo/google/gemini-3.1-pro-preview)
+[role-mapper] Archived 23 previous assignments to history
+[role-mapper] Applied 23 assignments, skipped 0, archived 23
+
+================================================================================
+AGENT ROLE ASSIGNMENTS
+================================================================================
+
+[CODING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=82.9% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest tbench_accuracy available (82.9) with agentic and tool capabilities.
+  #2 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Second highest tbench_accuracy (81.8) meeting all strict coding requirements.
+  #3 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Strong performance with 80.2 tbench_accuracy; comfortably meets the >= 70.0 hard threshold.
+  #4 OpenAI: GPT-5.3-Codex [vision]
+      elo=n/a | tbench=78.4% | $1.75/$14.0 per 1M | perf/$=n/a
+      → Final model meeting the strict >= 70.0 tbench_accuracy floor (78.4). No other models qualify to fill priority 5.
+
+[DOCUMENTATION]
+  #1 OpenAI: gpt-oss-20b
+      elo=1371 | tbench=3.4% | $0.03/$0.11 per 1M | perf/$=15233
+      → Maximum cost efficiency (perf_per_dollar: 15233) while comfortably passing the > 1350 elo minimum.
+  #2 Google: Gemma 3 27B [vision]
+      elo=1356 | tbench=n/a | $0.08/$0.16 per 1M | perf/$=9686
+      → Exceptional value (perf: 9685) and meets base qualitative needs for documentation generation.
+  #3 OpenAI: gpt-oss-120b
+      elo=1398 | tbench=18.7% | $0.039/$0.19 per 1M | perf/$=9182
+      → Highly efficient (perf: 9182) model ensuring low operational cost on heavy text generation.
+  #4 Xiaomi: MiMo-V2-Flash
+      elo=1411 | tbench=n/a | $0.09/$0.29 per 1M | perf/$=5879
+      → Excellent perf_per_dollar (5879) paired with a preferred massive 262k context window for large codebases.
+  #5 StepFun: Step 3.5 Flash
+      elo=1433 | tbench=n/a | $0.09999999999999999/$0.3 per 1M | perf/$=5732
+      → Cost optimized (perf: 5732) and supports an extensive 262k context window suitable for docs.
+
+[FIXING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=82.9% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest combined score (tbench 82.9 + elo 1535 = 1617.9) out of all models crossing the 70% threshold.
+  #2 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Second highest combined score (1611.2) for robust refactoring and bug resolution.
+  #3 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Third highest combined score (1549.8) passing the strict > 70% accuracy limit.
+  #4 OpenAI: GPT-5.3-Codex [vision]
+      elo=n/a | tbench=78.4% | $1.75/$14.0 per 1M | perf/$=n/a
+      → Fourth and final qualifying model passing the mandatory >= 70.0 tbench floor for fixing logic.
+
+[REVIEWING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=82.9% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest overall arena_elo (1535), fully equipped with reasoning and vision for comprehensive code review.
+  #2 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Second highest arena_elo (1531) with necessary reasoning, vision, and agentic capabilities.
+  #3 Google: Gemini 3 Pro Preview [vision]
+      elo=1501 | tbench=69.4% | $2.0/$12.0 per 1M | perf/$=158
+      → Very strong arena_elo (1501) offering a balanced, capable reasoning engine.
+  #4 Anthropic: Claude Sonnet 4.6 [vision]
+      elo=1500 | tbench=n/a | $3.0/$15.0 per 1M | perf/$=125
+      → High arena_elo (1500) combined with required vision and reasoning traits.
+  #5 Anthropic: Claude Opus 4.5 [vision]
+      elo=1496 | tbench=63.1% | $5.0/$25.0 per 1M | perf/$=75
+      → Excellent baseline capability (1496 elo) matching the core requirement for reasoning-backed reviews.
+
+[TESTING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=82.9% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest accuracy (82.9) chosen for the most critical, complex test plan formulation.
+  #2 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Second highest coding capability (81.8) assigned for high-tier QA operations.
+  #3 Google: Gemini 3 Flash Preview [vision]
+      elo=1470 | tbench=64.3% | $0.5/$3.0 per 1M | perf/$=619
+      → Balances adequate task accuracy (64.3) with mandated high cost efficiency (perf_per_dollar: 618).
+  #4 Z.ai: GLM 5
+      elo=1461 | tbench=52.4% | $0.72/$2.3 per 1M | perf/$=767
+      → Cost efficient testing runner meeting tool requirements and maintaining > 500 perf_per_dollar (766).
+  #5 MiniMax: MiniMax M2.5
+      elo=1436 | tbench=42.7% | $0.118/$0.9900000000000001 per 1M | perf/$=1860
+      → Highest efficiency tier (perf: 1860) for mass test execution while still remaining agentic.
+
+================================================================================
+Assigned by: kilo/google/gemini-3.1-pro-preview
+[role-mapper] Updated KILO_AGENT_MANAGEMENT.md with 23 assignments
+[role-mapper] Done (2026-04-10T23:18:44.970242)
+🔄 Reading agents from kilo_agents.db...
+   Found 12 coding/fixing role assignments
+   After deduplication: 10 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260410-231845
+   🗑 Rotated old backup: cli-agents.backup.20260408-163304
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+   ✓ coding-1-fabrik-coder-qwen32b-local-o0000-ppd999.sh
+   ✓ documentation-1-fabrik-docs-llama8b-local-o0000-ppd999.sh
+   ✓ fixing-1-fabrik-fixer-ds16b-local-o0000-ppd999.sh
+   ✓ reviewing-1-fabrik-reviewer-llama70b-local-o0000-ppd999.sh
+
+✅ Generated 10 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
+Attempt 1/3: Windsurf CLI not ready, retrying in 30s...
+Attempt 2/3: Windsurf CLI not ready, retrying in 30s...
+Warning: Could not get extensions list after 3 attempts (windsurf CLI not available)
+=== Pipeline complete — 2026-04-10 23:16:57 ===
+
+=== Fabrik Daily Pipeline — 2026-04-11 00:50:34 ===
+📊 Scanning /opt/* projects...
+   Found 45 projects
+   ⚠️  Port conflicts:
+      Port 8001: test-chrome-extension, test-docusaurus, test-file-worker, test-mobile-app, test-wordpress
+   📁 Registry: /opt/fabrik/data/projects.yaml
+   📄 Updated docs/BUSINESS_MODEL.md
+   📄 Updated PORTS.md
+
+✅ Sync complete: 45 projects (45 with project.yaml)
+⚠️  1 port conflict(s) — edit project.yaml to resolve
+⚠️  CASCADE BACKUP MISSING
+   Ask Cascade: 'Export memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md'
+Project                         | Status       | Missing Files           
+--------------------------------+--------------+-------------------------
+ComplianceOps                   | ✅ healthy    | -                       
+Reference_Creator               | ✅ healthy    | -                       
+apidoccreator                   | ✅ healthy    | -                       
+apps                            | ✅ healthy    | -                       
+brand-identiy-creator           | ✅ healthy    | -                       
+calendar-orchestration-engine   | ✅ healthy    | -                       
+candle                          | ✅ healthy    | -                       
+captcha                         | ✅ healthy    | -                       
+dns-manager                     | ✅ healthy    | -                       
+email-reader                    | ✅ healthy    | -                       
+emailgateway                    | ✅ healthy    | -                       
+exam-coach                      | ✅ healthy    | -                       
+file-api                        | ✅ healthy    | -                       
+file-worker                     | ✅ healthy    | -                       
+gmailaccountcreator             | ✅ healthy    | -                       
+image-broker                    | ✅ healthy    | -                       
+image-generation                | ✅ healthy    | -                       
+iterative_image_editor          | ✅ healthy    | -                       
+job-agent                       | ✅ healthy    | -                       
+llm_batch_processor             | ✅ healthy    | -                       
+marketing-argumant-generator    | ✅ healthy    | -                       
+namecheap                       | ✅ healthy    | -                       
+proposal-creator                | ✅ healthy    | -                       
+proxy                           | ✅ healthy    | -                       
+seo                             | ✅ healthy    | -                       
+supplement-tracker-advisor      | ✅ healthy    | -                       
+test-chrome-extension           | ✅ healthy    | -                       
+test-desktop-app                | ⚠️  warnings | compose.yaml, Dockerfile
+test-docusaurus                 | ⚠️  warnings | compose.yaml, Dockerfile
+test-file-api                   | ⚠️  warnings | compose.yaml            
+test-file-worker                | ⚠️  warnings | compose.yaml            
+test-mobile-app                 | ⚠️  warnings | compose.yaml, Dockerfile
+test-node-api                   | ⚠️  warnings | compose.yaml            
+test-python-api                 | ✅ healthy    | -                       
+test-saas-skeleton              | ✅ healthy    | -                       
+test-static-site                | ✅ healthy    | -                       
+test-wordpress                  | ⚠️  warnings | compose.yaml, Dockerfile
+trade-intelligence              | ✅ healthy    | -                       
+trading-core                    | ✅ healthy    | -                       
+transcriber                     | ✅ healthy    | -                       
+translator                      | ✅ healthy    | -                       
+triggered-content-orchestration | ✅ healthy    | -                       
+ugc                             | ✅ healthy    | -                       
+web-scraper                     | ✅ healthy    | -                       
+youtube                         | ✅ healthy    | -                       
+45 projects scanned — 38 healthy, 7 warnings, 0 missing
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 328 models
+[kilo-db]   Inserted 0, updated 328 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 257 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[kilo-db]   Updated 102 Elo, 37 TBench scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Created snapshot for 2026-04-11 with 353 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-04-11T00:50:46.008602
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 257 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Scraping provider: Recommended
+[windsurf-scrape]     Clicked Recommended tab
+[windsurf-scrape]     Found 9 models: SWE-1.5, Claude Opus 4.6, Claude Sonnet 4.6
+[windsurf-scrape]   Scraping provider: Windsurf
+[windsurf-scrape]     Clicked Windsurf tab
+[windsurf-scrape]     Found 2 models: SWE-1.5, SWE-1.5 Fast
+[windsurf-scrape]   Scraping provider: Anthropic
+[windsurf-scrape]     Clicked Anthropic tab
+[windsurf-scrape]     Found 25 models: Claude Opus 4.6, Claude Opus 4.6 (Thinking), Claude Opus 4.6 1M
+[windsurf-scrape]   Scraping provider: OpenAI
+[windsurf-scrape]     Clicked OpenAI tab
+[windsurf-scrape]     Found 65 models: GPT-5.4 (No Reasoning), GPT-5.4 (Low Reasoning), GPT-5.4 (Medium Reasoning)
+[windsurf-scrape]   Scraping provider: Google
+[windsurf-scrape]     Clicked Google tab
+[windsurf-scrape]     Found 9 models: Gemini 3.1 Pro Low, Gemini 3.1 Pro High, Gemini 3 Pro Low
+[windsurf-scrape]   Scraping provider: xAI
+[windsurf-scrape]     Clicked xAI tab
+[windsurf-scrape]     Found 1 models: xAI Grok Code Fast
+[windsurf-scrape]   Scraping provider: Open Source
+[windsurf-scrape]     Clicked Open Source tab
+[windsurf-scrape]     Found 6 models: Minimax M2.1, Kimi K2, Kimi K2.5
+[windsurf-scrape]   Extracted 117 models from 7 providers
+[kilo-bench]   Arena: 257 entries
+[kilo-bench]   TBench: 119 entries
+[kilo-bench]   Windsurf: 117 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
+[kilo-bench] Windsurf models updated!
+[kilo-bench] Update complete!
+[role-mapper] Starting role mapper (2026-04-11T00:51:24.269012)
+[role-mapper] Found 81 candidate agents
+[role-mapper] Analyzing 81 candidate agents...
+[role-mapper] Trying model: kilo/google/gemini-3.1-pro-preview (variant: max)
+[role-mapper] Received 6626 chars from Kilo
+[role-mapper] Cost: $0.1875 (35047 in, 9784 out)
+[role-mapper] SUCCESS with kilo/google/gemini-3.1-pro-preview
+[role-mapper] AI returned 23 assignments (via kilo/google/gemini-3.1-pro-preview)
+[role-mapper] Archived 23 previous assignments to history
+[role-mapper] Applied 23 assignments, skipped 0, archived 23
+
+================================================================================
+AGENT ROLE ASSIGNMENTS
+================================================================================
+
+[CODING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=82.9% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest tbench_accuracy (82.9) and arena_elo (1535), fully agentic with tools.
+  #2 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Second highest tbench_accuracy (81.8), fully agentic with tools.
+  #3 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Third highest tbench_accuracy (80.2) meeting the >= 70% threshold.
+  #4 OpenAI: GPT-5.3-Codex [vision]
+      elo=n/a | tbench=78.4% | $1.75/$14.0 per 1M | perf/$=n/a
+      → Meets the strict >= 70.0 tbench_accuracy threshold (78.4). No other active agents meet the requirement.
+
+[DOCUMENTATION]
+  #1 OpenAI: gpt-oss-20b
+      elo=1371 | tbench=3.4% | $0.03/$0.11 per 1M | perf/$=15233
+      → Highest perf_per_dollar (15233) meeting minimum ELO of 1350.
+  #2 Google: Gemma 3 27B [vision]
+      elo=1356 | tbench=n/a | $0.08/$0.16 per 1M | perf/$=9686
+      → Second highest perf_per_dollar (9685) meeting minimum ELO of 1350.
+  #3 OpenAI: gpt-oss-120b
+      elo=1398 | tbench=18.7% | $0.039/$0.19 per 1M | perf/$=9182
+      → Exceptional perf_per_dollar (9182) and strong arena_elo (1398).
+  #4 Xiaomi: MiMo-V2-Flash
+      elo=1411 | tbench=n/a | $0.09/$0.29 per 1M | perf/$=5879
+      → Great balance of high perf_per_dollar (5879) and good context window (262k).
+  #5 Google: Gemini 2.0 Flash [vision]
+      elo=1371 | tbench=n/a | $0.09999999999999999/$0.39999999999999997 per 1M | perf/$=4218
+      → Massive context window (1048k) ideal for large docs while maintaining high perf_per_dollar (4218).
+
+[FIXING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=82.9% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest combined score (tbench 82.9 + elo 1535 = 1617.9) meeting >= 70% threshold.
+  #2 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Second highest combined score (1611.2) meeting >= 70% threshold.
+  #3 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Third highest combined score (1549.8) meeting >= 70% threshold.
+  #4 OpenAI: GPT-5.3-Codex [vision]
+      elo=n/a | tbench=78.4% | $1.75/$14.0 per 1M | perf/$=n/a
+      → Meets the strict >= 70.0 tbench_accuracy threshold (78.4). Included per hard rules.
+
+[REVIEWING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=82.9% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest available arena_elo (1535), has reasoning and vision.
+  #2 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → Second highest arena_elo (1531) with reasoning and vision.
+  #3 Google: Gemini 3 Pro Preview [vision]
+      elo=1501 | tbench=69.4% | $2.0/$12.0 per 1M | perf/$=158
+      → Excellent arena_elo (1501) with reasoning, fully agentic.
+  #4 Anthropic: Claude Sonnet 4.6 [vision]
+      elo=1500 | tbench=n/a | $3.0/$15.0 per 1M | perf/$=125
+      → High arena_elo (1500) with required reasoning and vision capabilities.
+  #5 Anthropic: Claude Opus 4.5 [vision]
+      elo=1496 | tbench=63.1% | $5.0/$25.0 per 1M | perf/$=75
+      → Strong arena_elo (1496), fulfills reasoning and vision requirements.
+
+[TESTING]
+  #1 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=82.9% | $5.0/$25.0 per 1M | perf/$=77
+      → Highest tbench_accuracy (82.9) among agentic tool-using models.
+  #2 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Second highest tbench_accuracy (81.8) for precise test generation.
+  #3 Google: Gemini 3 Flash Preview [vision]
+      elo=1470 | tbench=64.3% | $0.5/$3.0 per 1M | perf/$=619
+      → High tbench_accuracy (64.3) while satisfying the perf_per_dollar > 500 requirement (618).
+  #4 Z.ai: GLM 5
+      elo=1461 | tbench=52.4% | $0.72/$2.3 per 1M | perf/$=767
+      → Good tbench_accuracy (52.4) and fulfills the perf_per_dollar > 500 constraint (766).
+  #5 MiniMax: MiniMax M2.5
+      elo=1436 | tbench=42.7% | $0.118/$0.9900000000000001 per 1M | perf/$=1860
+      → Adequate tbench_accuracy (42.7) with exceptional perf_per_dollar (1860).
+
+================================================================================
+Assigned by: kilo/google/gemini-3.1-pro-preview
+[role-mapper] Updated KILO_AGENT_MANAGEMENT.md with 23 assignments
+[role-mapper] Done (2026-04-11T00:52:18.993003)
+🔄 Reading agents from kilo_agents.db...
+   Found 12 coding/fixing role assignments
+   After deduplication: 10 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260411-005219
+   ✓ code&fix-1-opus46-max-o2500-ppd076.sh
+   ✓ coding-2-gpt54-max-o1500-ppd123.sh
+   ✓ fixing-2-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding-3-gemini31pro-high-o1200-ppd161.sh
+   ✓ fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ code&fix-4-gpt53codex-high-o1400-ppd---.sh
+   ✓ coding-1-fabrik-coder-qwen32b-local-o0000-ppd999.sh
+   ✓ documentation-1-fabrik-docs-llama8b-local-o0000-ppd999.sh
+   ✓ fixing-1-fabrik-fixer-ds16b-local-o0000-ppd999.sh
+   ✓ reviewing-1-fabrik-reviewer-llama70b-local-o0000-ppd999.sh
+
+✅ Generated 10 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
+Updated docs/reference/windsurf/actively-used-windsurf-extensions.md (22 extensions)
+=== Pipeline complete — 2026-04-11 00:50:34 ===

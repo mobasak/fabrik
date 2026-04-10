@@ -583,7 +583,7 @@ The 120-second **idle timeout** triggers when:
 
 ---
 
-## Final Assignment Table (2026-04-10)
+## Final Assignment Table (2026-04-11)
 
 **Source:** `kilo_agents.db` agent_roles table | **Assigned by:** `kilo/google/gemini-3.1-pro-preview`
 
@@ -596,8 +596,8 @@ The 120-second **idle timeout** triggers when:
 | documentation | 1 | OpenAI: gpt-oss-20b | 1371 | 3.4% | — | ✅ | $0.03 | $0.11 | 15233 |
 | documentation | 2 | Google: Gemma 3 27B | 1356 | — | ✅ | — | $0.08 | $0.16 | 9686 |
 | documentation | 3 | OpenAI: gpt-oss-120b | 1398 | 18.7% | — | ✅ | $0.04 | $0.19 | 9182 |
-| documentation | 4 | Google: Gemini 2.5 Flash Lite | 1362 | — | ✅ | ✅ | $0.10 | $0.40 | 4191 |
-| documentation | 5 | xAI: Grok 4 Fast | 1441 | — | ✅ | ✅ | $0.20 | $0.50 | 3391 |
+| documentation | 4 | Xiaomi: MiMo-V2-Flash | 1411 | — | — | ✅ | $0.09 | $0.29 | 5879 |
+| documentation | 5 | Google: Gemini 2.0 Flash | 1371 | — | ✅ | — | $0.10 | $0.40 | 4218 |
 | fixing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 82.9% | ✅ | ✅ | $5.00 | $25.00 | 77 |
 | fixing | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 80.2% | ✅ | ✅ | $2.00 | $12.00 | 161 |
 | fixing | 3 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |
