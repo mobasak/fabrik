@@ -18,7 +18,7 @@ from fabrik.drivers.coolify import CoolifyClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.orchestrator import DeploymentOrchestrator, DeploymentState
 from fabrik.scaffold import SCAFFOLD_TYPES
-from fabrik.spec_generator import extract_project_context
+from fabrik.spec_generator import SPEC_ENABLED_TYPES, extract_project_context
 from fabrik.spec_loader import Depends, Kind, SecretsPolicy, create_spec, load_spec, save_spec
 from fabrik.template_renderer import list_templates, render_template
 
@@ -754,6 +754,17 @@ def scaffold(name: str, description: str, project_type: str, preset: str | None,
             name, description, project_type=project_type, preset=preset, generate_spec=not no_spec
         )
         click.echo(f"✅ Created: {project_dir}")
+
+        if not no_spec and project_type in SPEC_ENABLED_TYPES:
+            spec_path = FABRIK_ROOT / "specs" / "services" / f"{name}.yaml"
+            if spec_path.exists():
+                click.echo(f"✅ Generated spec: specs/services/{name}.yaml")
+            else:
+                click.echo(
+                    "⚠️  Spec generation failed (non-fatal): "
+                    f"specs/services/{name}.yaml was not created",
+                    err=True,
+                )
 
         # Update registry
         registry = ProjectRegistry()

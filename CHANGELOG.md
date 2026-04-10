@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scaffold spec CLI visibility and depends mapping test coverage (2026-04-10)
+- **`src/fabrik/cli.py`**: `fabrik scaffold` now prints explicit CLI feedback for auto-spec generation outcomes (`✅ Generated spec: ...` on success, warning-only message on non-fatal failure), instead of relying on non-visible INFO logs.
+- **`tests/test_scaffold_spec_generation.py`**: Extended `TestNewCommandFromProject` to assert `create_spec()` receives `Depends(postgres='main', redis='main')` when compose context includes those dependencies, and `None` values when they are not detected.
+
 ### Fixed — validate-deploy zero-exit resilience and strict partial-failure assertion (2026-04-10)
 - **`src/fabrik/cli.py`**: Wrapped `validate_deploy()` call and result rendering in `validate_deploy_cmd()` with `try/except Exception`; unexpected validator runtime errors are now emitted as warnings to stderr without raising, preserving warning-only/exit-0 behavior.
 - **`tests/test_deploy_validator.py`**: Tightened `TestValidate.test_partial_failures_reported` to assert exactly one failed check and that the sole failure is `dockerfile`.

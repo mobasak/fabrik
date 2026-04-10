@@ -6,6 +6,7 @@ Tests verify:
 - Skipped for unsupported type
 - Failure in generate_and_save_spec does not break scaffold
 - new --from-project populates env/secrets
+- new --from-project maps dependency context to depends.postgres/depends.redis
 - default output path is specs/services
 """
 
@@ -18,7 +19,7 @@ import yaml
 from click.testing import CliRunner
 
 from fabrik.cli import cli
-from fabrik.spec_loader import SecretsPolicy
+from fabrik.spec_loader import Depends, SecretsPolicy
 
 # ---------------------------------------------------------------------------
 # TestScaffoldSpecHook — unit tests for create_project spec generation hook
@@ -147,23 +148,24 @@ class TestScaffoldSpecHook:
 class TestNewCommandFromProject:
     """Tests for the --from-project flag and --output default on `fabrik new`."""
 
-    def _make_project(self, tmp_path: Path) -> Path:
+    def _make_project(
+        self, tmp_path: Path, include_postgres: bool = True, include_redis: bool = False
+    ) -> Path:
         """Create a fake scaffolded project with compose.yaml and .env.example."""
         project_dir = tmp_path / "existing-project"
         project_dir.mkdir()
 
-        compose = {
-            "services": {
-                "app": {
-                    "environment": {
-                        "PORT": "8000",
-                        "LOG_LEVEL": "info",
-                        "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
-                        "DATABASE_PASSWORD": "secret123",
-                    }
-                }
-            }
+        compose_env = {
+            "PORT": "8000",
+            "LOG_LEVEL": "info",
+            "DATABASE_PASSWORD": "secret123",
         }
+        if include_postgres:
+            compose_env["DATABASE_URL"] = "postgresql://user:pass@localhost:5432/db"
+        if include_redis:
+            compose_env["REDIS_URL"] = "redis://localhost:6379/0"
+
+        compose = {"services": {"app": {"environment": compose_env}}}
         (project_dir / "compose.yaml").write_text(yaml.dump(compose))
 
         env_example = (
@@ -288,3 +290,79 @@ class TestNewCommandFromProject:
         # The spec_file path should use specs/services as parent
         saved_path = mock_save.call_args[0][1]
         assert Path(saved_path).parent == Path("specs/services")
+
+    @patch("fabrik.cli.list_templates", return_value=["python-api", "node-api"])
+    @patch("fabrik.cli.save_spec")
+    @patch("fabrik.cli.create_spec")
+    def test_from_project_maps_depends_when_detected(
+        self,
+        mock_create: MagicMock,
+        mock_save: MagicMock,
+        mock_templates: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """--from-project maps postgres/redis detection to Depends(postgres='main', redis='main')."""
+        project_dir = self._make_project(tmp_path, include_postgres=True, include_redis=True)
+        mock_create.return_value = MagicMock()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "new",
+                "my-api",
+                "--template",
+                "python-api",
+                "--domain",
+                "api.vps1.ocoron.com",
+                "--from-project",
+                str(project_dir),
+                "--output",
+                str(tmp_path / "specs" / "services"),
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_create.assert_called_once()
+        depends = mock_create.call_args[1]["depends"]
+        assert isinstance(depends, Depends)
+        assert depends.postgres == "main"
+        assert depends.redis == "main"
+
+    @patch("fabrik.cli.list_templates", return_value=["python-api", "node-api"])
+    @patch("fabrik.cli.save_spec")
+    @patch("fabrik.cli.create_spec")
+    def test_from_project_maps_depends_to_none_when_not_detected(
+        self,
+        mock_create: MagicMock,
+        mock_save: MagicMock,
+        mock_templates: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """--from-project maps missing postgres/redis context to Depends(postgres=None, redis=None)."""
+        project_dir = self._make_project(tmp_path, include_postgres=False, include_redis=False)
+        mock_create.return_value = MagicMock()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "new",
+                "my-api",
+                "--template",
+                "python-api",
+                "--domain",
+                "api.vps1.ocoron.com",
+                "--from-project",
+                str(project_dir),
+                "--output",
+                str(tmp_path / "specs" / "services"),
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_create.assert_called_once()
+        depends = mock_create.call_args[1]["depends"]
+        assert isinstance(depends, Depends)
+        assert depends.postgres is None
+        assert depends.redis is None
