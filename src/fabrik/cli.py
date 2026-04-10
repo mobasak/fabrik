@@ -85,16 +85,19 @@ def new(name: str, template: str, domain: str | None, output: str, from_project:
         click.echo(f"Error: Spec already exists: {spec_file}", err=True)
         raise SystemExit(1)
 
-    # For HTTP services, domain is required
-    if not domain:
-        domain = click.prompt("Domain for the service (e.g., myapi.vps1.ocoron.com)")
-
-    # Extract project context if --from-project provided
+    # Extract project context if --from-project provided (must happen before kind determination)
     context = extract_project_context(Path(from_project)) if from_project is not None else {}
 
     # Determine kind based on project type (workers use Kind.WORKER, others use Kind.SERVICE)
     project_type = context.get("project_type")
     kind = Kind.WORKER if project_type == "file-worker" else Kind.SERVICE
+
+    # For HTTP services (Kind.SERVICE), domain is required. Workers (Kind.WORKER) don't need domain.
+    if kind == Kind.SERVICE and not domain:
+        domain = click.prompt("Domain for the service (e.g., myapi.vps1.ocoron.com)")
+    elif kind == Kind.WORKER:
+        # Workers don't expose HTTP, so domain should be None
+        domain = None
 
     # Create spec
     try:
