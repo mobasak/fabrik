@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik new worker-domain prompt ordering (2026-04-10)
+- **`src/fabrik/cli.py`**: Fixed domain prompt to fire after kind determination in `fabrik new`. Workers (Kind.WORKER) are no longer prompted for domain, which is semantically correct since workers don't expose HTTP. The fix extracts project context and determines kind before prompting for domain.
+
 ### Fixed — validation findings and remove invalid source block (2026-04-10)
 - **`src/fabrik/deploy_validator.py`**: Reverted `_check_spec_exists` to always return `passed=True` (informational check per T-03 spec step 7).
 - **`src/fabrik/cli.py`**: Removed redundant file existence check for spec generation in scaffold CLI (scaffold.py already logs actual result).
