@@ -57,7 +57,7 @@
 
 | Scenario | Command | Notes |
 |----------|---------|-------|
-| **Step 3 of development workflow** | `python scripts/kilo_code_review.py staged --plan "..."` | After self-review (Step 2.5) |
+| **High-risk code audit** | `python scripts/kilo_code_review.py staged --plan "security audit for auth module"` | Security-sensitive paths, manual audits |
 | Review specific files | `python scripts/kilo_code_review.py review src/file.py` | Direct file review |
 | Review all changes | `python scripts/kilo_code_review.py changed` | Working tree changes |
 | Continue previous session | `python scripts/kilo_code_review.py staged --session continue` | Preserves context |
@@ -67,20 +67,57 @@
 
 ## Commands Reference
 
-### Basic Commands
+### Available Commands
 
 ```bash
-# Review staged files (most common - Step 4 of workflow)
-python scripts/kilo_code_review.py staged --plan "Add health endpoint with DB check"
+# review - Review files (read-only, no auto-fix)
+python scripts/kilo_code_review.py review [files...] [options]
 
-# Review specific files
-python scripts/kilo_code_review.py review src/main.py tests/test_main.py
+# auto-fix - Review and fix in a loop (experimental)
+python scripts/kilo_code_review.py auto-fix [files...] [options]
 
-# Review all changed files (unstaged)
-python scripts/kilo_code_review.py changed
+# staged - Review git staged files (report-only by default)
+python scripts/kilo_code_review.py staged [options]
 
-# Review with auto-fix loop (experimental)
-python scripts/kilo_code_review.py auto-fix src/file.py --max-iterations 3
+# changed - Review git changed files (working tree, report-only by default)
+python scripts/kilo_code_review.py changed [options]
+
+# verify - Cheaper workflow: review-only → manual fix → verify
+python scripts/kilo_code_review.py verify [files...] --fixes <description> [options]
+
+# stats - Show usage statistics from review sessions
+python scripts/kilo_code_review.py stats [--by-filetype] [--by-model] [--days N]
+```
+
+### Common Options
+
+```bash
+--model <model>           # Override auto-selection (e.g., kilo/anthropic/claude-opus-4.6)
+--variant <variant>        # Reasoning level: minimal, low, high, max (default: auto)
+--strategy <strategy>      # Tier strategy: free, economy, standard, premium, critical
+--max-cost <amount>        # Budget cap (USD)
+--no-escalate              # Disable model escalation on failure
+--max-iterations <n>       # Review-fix loop limit (default: 5 for code, 2 for docs)
+--min-severity <level>     # Minimum severity to report: BLOCKER, MAJOR, MINOR (default: MAJOR)
+--skip-categories <list>   # Categories to skip: SPEC,SECURITY,CONFIG,EDGE,FABRIK,DOCS
+--doc-mode                 # Documentation-only mode (lighter review)
+--verify-high-risk         # Verify PASS on high-risk code (default: true)
+--session <id|continue>    # Session ID or 'continue' to resume
+--tracked-review-id <id>   # Tracked review ID for issue persistence
+--plan <file|text>         # Plan/spec context for review
+--fixes <file|text>        # Fixes description (verify mode only)
+--mode <mode>              # Review mode: full, diff_only, staged (review/auto-fix only)
+--output <format>          # Output format: json, markdown, text (default: json)
+--verbose                  # Verbose output
+```
+
+### Auto-Stage Behavior (staged command)
+
+The `staged` command **automatically stages all unstaged changes** before review:
+```bash
+# unstaged files are auto-staged to ensure complete review
+python scripts/kilo_code_review.py staged --plan "Add health endpoint"
+# Output shows auto-staged files count
 ```
 
 ### Output Formats
@@ -96,22 +133,6 @@ python scripts/kilo_code_review.py staged --output markdown
 python scripts/kilo_code_review.py staged --output text
 ```
 
-### Model Selection
-
-```bash
-# Use specific model (override auto-selection)
-python scripts/kilo_code_review.py staged --model kilo/anthropic/claude-opus-4.6
-
-# Use strategy-based selection
-python scripts/kilo_code_review.py staged --strategy premium
-
-# Disable escalation (stay at initial tier)
-python scripts/kilo_code_review.py staged --no-escalate
-
-# Set budget cap
-python scripts/kilo_code_review.py staged --max-cost 0.50
-```
-
 ---
 
 ## Workflow Steps
@@ -119,40 +140,53 @@ python scripts/kilo_code_review.py staged --max-cost 0.50
 ### Step-by-Step Review Process
 
 ```
-1. INPUT VALIDATION
+1. INPUT VALIDATION (Pre-Review Checks)
    ├── Check files exist
-   ├── Verify file sizes < 50KB
+   ├── Verify file sizes < 500KB (not 50KB)
+   ├── Python syntax validation for .py files
+   ├── Check for empty files
    ├── Count total lines
    └── FAIL FAST if validation errors
 
 2. RISK ASSESSMENT
    ├── Analyze file paths for security-sensitive patterns
-   │   (auth, login, password, secret, token, session, etc.)
-   ├── Calculate diff size
+   │   (auth, login, password, secret, token, session, crypto, jwt, oauth, etc.)
+   ├── Calculate diff size (total lines changed)
    ├── Determine risk level: low | medium | high | critical
-   └── Set review depth accordingly
+   │   (diff > 400 lines = HIGH risk)
+   └── Set review depth and model tier accordingly
 
 3. MODEL SELECTION (Tiered Routing)
    ├── User --model override? → Use that
-   ├── Otherwise, select strategy:
-   │   ├── free: gemini-3-flash-preview
-   │   ├── economy: qwen3-vl-235b
-   │   ├── standard: gemini-3.1-pro-preview
-   │   ├── premium: claude-opus-4.6
+   ├── Otherwise, select strategy from DB or env:
+   │   ├── free: gemini-3-flash-preview (or KILO_DEFAULT_MODEL)
+   │   ├── economy: qwen3-vl-235b → gemini-3-flash
+   │   ├── standard: gemini-3.1-pro-preview → qwen3-vl
+   │   ├── premium: claude-opus-4.6 → gemini-3.1-pro
    │   └── critical: gpt-5.4 → claude-opus-4.6 fallback
-   └── Auto-select variant based on risk (minimal|low|high|max)
+   ├── Auto-select variant based on risk:
+   │   ├── critical/high: max (extended thinking)
+   │   ├── medium: high (balanced)
+   │   └── low: low (fast)
+   └── Default model: kilo/auto (automatic mode-based routing)
 
 4. BUILD REVIEW PROMPT
-   ├── Include file contents or diffs
-   ├── Include plan/spec context (--plan)
+   ├── Include file contents or diffs (diff_only, full, staged modes)
+   ├── Include plan/spec context (--plan or --fixes)
    ├── Extract requirements from plan
    ├── Apply category filters (--skip-categories)
+   ├── Load previous issues from state persistence
    └── Enforce prompt size limit (100KB max)
 
-5. EXECUTE KILO CLI
-   ├── Call kilo with ask agent
-   ├── Monitor for idle timeout (120s default)
-   ├── Monitor for hard timeout (1200s default)
+5. EXECUTE KILO CLI (with Model Error Retry Loop)
+   ├── Model error retry loop (up to 4 fallbacks, 5 total models)
+   │   ├── Emit progress event: model_start
+   │   ├── Call kilo with ask agent
+   │   ├── Monitor for idle timeout (120s default, KILO_IDLE_TIMEOUT)
+   │   ├── Monitor for hard timeout (1200s default, KILO_HARD_TIMEOUT)
+   │   ├── On error: mark model as failed, escalate to next model
+   │   ├── Emit progress event: escalation or model_failed
+   │   └── Emit progress event: model_success
    ├── Parse JSONL output
    └── Extract session ID, tokens, cost
 
@@ -164,17 +198,47 @@ python scripts/kilo_code_review.py staged --max-cost 0.50
 
 7. ESCALATION (on model failure)
    ├── Mark current model as failed
-   ├── Get next model from fallback chain
+   ├── Get next model from fallback chain (tier-based)
    ├── Emit progress event
    ├── Retry with new model
-   └── FAIL if all models exhausted
+   └── FAIL if all models exhausted (max 4 escalations)
 
 8. RESULT PROCESSING
+   ├── Filter repeated issues (false positive detection, threshold=2)
    ├── Count issues by severity (BLOCKER, MAJOR, MINOR)
    ├── Determine verdict (PASS/FAIL)
+   ├── Update issue state persistence
    ├── Log usage to .droid/kilo_usage.jsonl
-   ├── Save review to .droid/reviews/
+   ├── Save review iteration to .droid/reviews/
    └── Return structured FinalReport
+
+9. AUTO-FIX LOOP (if enabled)
+   ├── If actionable issues (BLOCKER/MAJOR based on min_severity)
+   │   ├── Call run_fix with same session (context preserved!)
+   │   ├── Save fix output and diff
+   │   ├── Check if fixes were applied
+   │   ├── If total_fixed=0 and needs_manual → NEEDS_MANUAL status
+   │   └── Re-review modified files (next iteration)
+   ├── Repeat until clean or max iterations
+   └── Max iterations: 5 for code, 2 for docs (auto-detected)
+
+10. FALSE NEGATIVE MITIGATION (PASS verification)
+    ├── If PASS on high-risk code (critical/high risk)
+    ├── Verify with stronger tier (Prime for critical, Strong for high)
+    ├── If verification finds issues → false_negative_detected=True
+    ├── Log quality metrics entry (if KILO_ENABLE_AUDIT=1)
+    └── Use verification result if issues found
+
+11. FINAL GATE VERIFICATION (max variant)
+    ├── If PASS at non-max variant and KILO_ENABLE_PASS_VERIFY=1
+    ├── Schedule final max-variant verification
+    ├── Use max variant for final check
+    └── Skip if auto_fix=False (no fixes between iterations)
+
+12. AUDIT SAMPLING (quality monitoring)
+    ├── 5% random sampling of PASS verdicts
+    ├── Log to audit file (if KILO_ENABLE_AUDIT=1)
+    └── Track verification performed and false negative detection
 ```
 
 ### Multi-Pass Review (High-Risk Code)
@@ -204,11 +268,18 @@ MERGE: Combine results
 
 ## Model Selection & Escalation
 
-### Strategy Tiers
+### DB-Driven Model Selection
+
+The script uses DB-driven model selection from `kilo-benchmarks/` when available:
+- Reads fallback chains and tier models from `db_models.py`
+- Falls back to env vars (`KILO_DEFAULT_MODEL`, `KILO_FALLBACK_MODEL`) when DB not present
+- Default model: `kilo/auto` (automatic mode-based routing recommended by Kilo CLI)
+
+### Strategy Tiers (from DB or Fallback)
 
 | Strategy | Models (in fallback order) | Use Case |
 |----------|---------------------------|----------|
-| `free` | gemini-3-flash-preview | Quick checks, low-risk |
+| `free` | gemini-3-flash-preview (or KILO_DEFAULT_MODEL) | Quick checks, low-risk |
 | `economy` | qwen3-vl-235b → gemini-3-flash | Budget-conscious |
 | `standard` | gemini-3.1-pro-preview → qwen3-vl | Default balance |
 | `premium` | claude-opus-4.6 → gemini-3.1-pro | High-quality review |
@@ -272,13 +343,14 @@ Sessions are scoped by:
 - **Project root** — `/opt/project-name`
 - **Git branch** — `mobasak/feature-x`
 - **Tracked review ID** — Auto-generated or user-provided
+- **Auto-generation** — Uses deterministic hash of `project:branch:date` for same-day continuity
 
 ```bash
 # Continue existing session (preserves context)
 python scripts/kilo_code_review.py staged --session continue
 
 # Explicit review ID (for multi-day reviews)
-python scripts/kilo_code_review.py staged --review-id feature-auth-v2
+python scripts/kilo_code_review.py staged --tracked-review-id feature-auth-v2
 ```
 
 ### Session Storage
@@ -286,14 +358,23 @@ python scripts/kilo_code_review.py staged --review-id feature-auth-v2
 ```
 .droid/
 ├── reviews/              # Review results (JSON)
-│   └── ses_abc123.json
+│   └── ses_abc123/
+│       ├── review_iter_1.json
+│       ├── fix_iter_1.json
+│       ├── diff_iter_1.patch
+│       └── session_state.json
 ├── kilo_usage.jsonl      # Usage tracking (cost, tokens)
+├── issue_state/          # Issue state persistence across iterations
+│   └── {tracked_review_id}.json
 └── gate_issues.jsonl     # Issues logged by final_gate
 ```
 
 ### Issue State Persistence
 
 Open issues are persisted across review iterations:
+- Loads previous issues from `issue_state/{tracked_review_id}.json`
+- Auto-closes unseen issues for full-scope auto-fix reviews
+- Conservative: does NOT auto-close for verify mode or partial scope
 
 ```python
 # Load previous issues
@@ -301,6 +382,9 @@ previous_issues = get_open_issues(tracked_review_id)
 
 # Pass to review for context
 result = await run_review(files, config, iteration, previous_issues)
+
+# Update issue state after each iteration
+update_issue_state(tracked_review_id, current_issues, iteration, allow_auto_close)
 ```
 
 ---
@@ -373,21 +457,29 @@ result = await run_review(files, config, iteration, previous_issues)
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `model` | str | `None` (auto) | Kilo model path |
+| `model` | str | `None` (auto) | Kilo model path (default: kilo/auto) |
 | `review_agent` | str | `ask` | Agent for review phase |
 | `fix_agent` | str | `code` | Agent for fix phase |
-| `variant` | str | `high` | Reasoning level |
+| `variant` | str | `high` | Reasoning level (auto-selected based on risk) |
 | `max_files_per_batch` | int | `5` | Files per Kilo call |
 | `max_lines_per_file` | int | `500` | Lines before chunking |
 | `review_mode` | str | `diff_only` | full, diff_only, staged |
-| `max_iterations` | int | `3` | Review-fix loop limit |
+| `max_iterations` | int | `3` | Review-fix loop limit (5 for code, 2 for docs) |
 | `min_severity` | str | `MAJOR` | Minimum severity to report |
 | `auto_fix` | bool | `False` | Auto-fix mode (experimental) |
 | `session_id` | str | `None` | Session identifier |
+| `tracked_review_id` | str | `None` | Tracked review ID for issue persistence |
 | `traycer_plan` | str | `None` | Plan/spec context |
-| `strategy` | str | `None` | Tier strategy |
+| `fixes_description` | str | `None` | Fixes description (verify mode) |
+| `skip_categories` | set[str] | `None` | Categories to skip in review |
+| `doc_mode` | bool | `False` | Documentation-only mode (lighter review) |
+| `strategy` | str | `None` | Tier strategy (free, economy, standard, premium, critical) |
 | `max_cost` | float | `None` | Budget cap |
 | `no_escalate` | bool | `False` | Disable escalation |
+| `verify_high_risk` | bool | `True` | Verify PASS on high-risk code with stronger tier |
+| `persist_session` | bool | `True` | Save session data to disk |
+| `verbose` | bool | `False` | Verbose output |
+| `output_format` | str | `json` | Output format: json, markdown, text |
 
 ---
 
@@ -401,7 +493,13 @@ result = await run_review(files, config, iteration, previous_issues)
 | `KILO_ENABLE_MULTI_PASS` | `0` | Enable multi-pass review (1=on) |
 | `KILO_ENABLE_PASS_VERIFY` | `0` | Auto-verify PASS verdicts (1=on) |
 | `KILO_ENABLE_AUDIT` | `0` | Extended audit logging (1=on) |
-| `KILO_REVIEW_MODEL` | `kilo/auto` | Default model override |
+| `KILO_DEFAULT_MODEL` | `anthropic:claude-sonnet-4-5-20250929` | Default model when DB not present |
+| `KILO_FALLBACK_MODEL` | `openai:gpt-4.1` | Fallback model when DB not present |
+| `KILO_DEFAULT_STRATEGY` | `None` | Default strategy selection |
+| `KILO_MAX_COST` | `None` | Budget cap (as float) |
+| `KILO_VERIFY_HIGH_RISK` | `true` | Verify PASS on high-risk code |
+| `KILO_PATH` | `None` | Path to kilo executable |
+| `SECURITY_SENSITIVE_PATHS` | `auth,login,password,...` | Comma-separated security path patterns |
 
 ---
 
@@ -417,41 +515,44 @@ result = await run_review(files, config, iteration, previous_issues)
 
 ## Integration with Development Workflow
 
-### Position in 8-Step Workflow
+### Position in Quality Gate System
 
-```
-PLAN → IMPLEMENT → SELF_REVIEW → KILO_REVIEW → DOCUMENTATOR → FINAL_GATE → VERIFY → COMMIT
-                                 ^^^^^^^^^^^^
-                                 Step 3: This script (report-only)
-```
+**Kilo Review is OPTIONAL**, used for high-risk manual audits, not as a mandatory workflow step.
 
-### Typical Usage (Step 3)
+**Quality Gates (from AGENTS.md):**
+
+| Gate | Script | Purpose | When to Use |
+|------|--------|---------|-------------|
+| Kilo Review | `scripts/kilo_code_review.py` | Optional: AI-powered code review for high-risk manual audits | High-risk code, security-sensitive paths, manual audits |
+| Documentator | `scripts/kilo_docs_enforcer.py` | Optional: AI documentation generation for bulk doc work | Bulk documentation updates |
+| Final Gate (Tier 1 — lean) | `scripts/final_gate.py --lean` | Default: showstoppers during coding | During active development |
+| Final Gate (Tier 2 — full) | `scripts/final_gate.py` | At milestone closure: full quality checks | Before committing milestone/batch |
+| Final Gate (Tier 3 — systemic) | `scripts/final_gate.py --systemic` | On-demand: repo health | Repo health checks, infrastructure audits |
+
+### Typical Usage (Optional, On-Demand)
 
 ```bash
-# After self-review (Step 2.5)
-git add -A                          # Stage ALL uncommitted files (auto-staged by kilo_code_review.py too)
-git diff --staged --name-only       # Verify staged matches intent
-python scripts/kilo_code_review.py staged --plan "task description" --output json
-# Fix any findings reported
+# Use for high-risk code or manual audits
+python scripts/kilo_code_review.py staged --plan "security audit for auth module" --output json
+# Or review specific files
+python scripts/kilo_code_review.py review src/auth.py tests/test_auth.py
+# Or review all changed files
+python scripts/kilo_code_review.py changed
 ```
 
 ### Handling Results
 
 **PASS verdict:**
 ```bash
-# Proceed to Step 4 (DOCUMENTATOR)
-python scripts/kilo_docs_enforcer.py --auto-generate
-git add CHANGELOG.md docs/reference/*.md
-python scripts/kilo_docs_enforcer.py --enforce
-# Then Step 5 (Final Gate)
-python scripts/final_gate.py
+# Review passed - proceed with commit or next steps
+git commit
 ```
 
 **FAIL verdict:**
 ```bash
-# Step 3b: Fix review findings
-# CODER (or Cascade) fixes issues based on review output
-# Re-run kilo_code_review.py staged
+# Fix findings based on review output
+# CODER (or Cascade) fixes issues
+# Re-run kilo_code_review.py to verify fixes
 # Max 5 iterations before escalating to user
 ```
 

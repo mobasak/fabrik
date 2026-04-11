@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-04-11T00:51:24.139186
+**Last Updated:** 2026-04-12T00:03:33.067123
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -63,7 +63,7 @@
 | 54 | **qwen3-235b-a22b** | qwen | 1394 | ~ | $0.45 | $1.82 | 131K |  | ✓ | ✓ | 2 | 943 | ✅ |
 | 55 | **deepseek-chat-v3-0324** | deepseek | 1391 | ~ | $0.20 | $0.77 | 163K |  | ✓ | ✓ | 2 | 2217 | ✅ |
 | 56 | **mistral-medium-3** | mistralai | 1387 | ~ | $0.40 | $2.00 | 131K | ✓ | ✓ |  | 2 | 867 | ✅ |
-| 57 | **claude-sonnet-4** | anthropic | 1384 | ~ | $3.00 | $15.00 | 200K | ✓ | ✓ | ✓ | 3 | 115 | ✅ |
+| 57 | **claude-sonnet-4** | anthropic | 1384 | ~ | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 115 | ✅ |
 | 58 | **deepseek-r1** | deepseek | 1382 | ~ | $0.70 | $2.50 | 64K |  | ✓ | ✓ | 2 | 674 | ✅ |
 | 59 | **o3-mini-high** | openai | 1380 | ~ | $1.10 | $4.40 | 200K |  | ✓ | ✓ | 2 | 386 | ✅ |
 | 60 | **intellect-3** | prime-intellect | 1376 | ~ | $0.20 | $1.10 | 131K |  | ✓ | ✓ | 2 | 1573 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-04-11:** Auto-updated from benchmarks
+- **2026-04-12:** Auto-updated from benchmarks

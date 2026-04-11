@@ -79,7 +79,7 @@ async def health():
 
 **CHANGELOG required** for any code/config/infrastructure change — see `50-code-review.md` for format.
 
-**Database changes → `db/schema.sql`:** New tables, columns, indexes → add `CREATE` statements with date comments. This file is the source of truth.
+**Database changes → Alembic migrations:** Per 25-data-postgres.md, all schema changes MUST go through Alembic migrations. Raw SQL DDL is banned. `db/schema.sql` is for reference only - do NOT execute directly.
 
 **`.env.example`** must be updated when adding new environment variables.
 

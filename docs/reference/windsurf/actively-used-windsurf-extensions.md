@@ -1,7 +1,7 @@
 # Windsurf Extensions
 
-**Last Updated:** 2026-04-11 00:52
-**Total:** 22 extensions
+**Last Updated:** 2026-04-12 00:04
+**Total:** 23 extensions
 
 ## Quick Install (All Extensions)
 
@@ -17,6 +17,7 @@ windsurf --install-extension davidanson.vscode-markdownlint
 windsurf --install-extension eamodio.gitlens
 windsurf --install-extension github.vscode-github-actions
 windsurf --install-extension github.vscode-pull-request-github
+windsurf --install-extension kilocode.kilo-code
 windsurf --install-extension ms-azuretools.vscode-containers
 windsurf --install-extension ms-azuretools.vscode-docker
 windsurf --install-extension ms-python.debugpy
@@ -64,6 +65,7 @@ windsurf --install-extension vstirbu.vscode-mermaid-preview
 
 ### Other
 - `cweijan.vscode-office`
+- `kilocode.kilo-code`
 - `ms-vscode.makefile-tools`
 - `redhat.vscode-yaml`
 - `undefined_publisher.traycer-report-panel`
