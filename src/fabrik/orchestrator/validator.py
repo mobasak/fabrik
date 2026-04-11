@@ -269,12 +269,19 @@ class SpecValidator:
             elif isinstance(secrets, dict):
                 # New format: SecretsPolicy with required, generate, from_env, from_file
                 for key in ["required", "generate", "from_env", "from_file"]:
-                    if key in secrets and not isinstance(secrets[key], list if key != "from_file" else dict):
-                        raise ValidationError(f"Secrets.{key} must be a {'list' if key != 'from_file' else 'dict'}", field=f"secrets.{key}")
+                    if key in secrets and not isinstance(
+                        secrets[key], list if key != "from_file" else dict
+                    ):
+                        raise ValidationError(
+                            f"Secrets.{key} must be a {'list' if key != 'from_file' else 'dict'}",
+                            field=f"secrets.{key}",
+                        )
                 if "from_file" in secrets:
                     for env_var, file_path in secrets["from_file"].items():
                         if not isinstance(env_var, str) or not isinstance(file_path, str):
-                            raise ValidationError("Secrets.from_file must be {str: str}", field="secrets.from_file")
+                            raise ValidationError(
+                                "Secrets.from_file must be {str: str}", field="secrets.from_file"
+                            )
             else:
                 raise ValidationError("Secrets must be a list or dict", field="secrets")
 

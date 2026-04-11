@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — T4 bugs and cross-cutting violations (2026-04-11)
+- **`src/fabrik/cli.py`**: Fixed fabrik deploy error handling to catch all exceptions (not just RuntimeError) for WordPress path, ensuring clean error behavior for validation and planning failures.
+- **`src/fabrik/wordpress/spec_validator.py`**: Fixed structured logging compliance - replaced print() with logger.warning() for warnings output.
+- **`src/fabrik/wordpress/deployer.py`**: Fixed structured logging compliance - replaced print() with logger calls in log() method and _print_summary().
+- **`INDEX.md`**: Updated to reflect newly added validation test file (test_kilo_review_validation.py).
+- **`src/fabrik/scaffold.py`**: Fixed bandit B108 (hardcoded_tmp_directory) - replaced /tmp/ with project .tmp/ directory for credential file paths, ensuring project-local temp directory usage per .windsurfrules.
+- **`src/fabrik/scaffold.py`**: Fixed bandit B701 (jinja2_autoescape_false) - replaced autoescape=False with select_autoescape() for Jinja2 YAML template rendering, addressing XSS security concern while maintaining YAML compatibility.
+
 ### Added — STRATEGIC_BACKLOG template (2026-04-11)
 - **`templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md`**: New template for strategic backlog tracking - vetted, high-impact work paused for bandwidth.
 - **`src/fabrik/scaffold.py`**: Added `STRATEGIC_BACKLOG_TEMPLATE.md` to `SHARED_TEMPLATE_MAP`, generates `docs/STRATEGIC_BACKLOG.md` in scaffolded projects.

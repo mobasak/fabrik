@@ -137,7 +137,9 @@ class DeploymentOrchestrator:
                             try:
                                 all_secrets[env_var] = Path(file_path).read_text()
                             except FileNotFoundError:
-                                logger.warning("File not found for secret %s: %s", env_var, file_path)
+                                logger.warning(
+                                    "File not found for secret %s: %s", env_var, file_path
+                                )
                             except Exception as e:
                                 logger.warning("Failed to read file for secret %s: %s", env_var, e)
 

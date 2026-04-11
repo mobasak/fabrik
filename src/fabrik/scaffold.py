@@ -93,7 +93,9 @@ def _detect_secrets(project_path: Path) -> tuple[list[str], dict[str, str]]:
     for key in secrets_from_env:
         if "CREDENTIALS" in key or "KEY_FILE" in key:
             # Map to likely file path (user can adjust in spec if needed)
-            file_path = f"/tmp/{project_path.name}-creds.json"
+            tmp_dir = project_path / ".tmp"
+            tmp_dir.mkdir(exist_ok=True)
+            file_path = str(tmp_dir / f"{project_path.name}-creds.json")
             secrets_from_file[key] = file_path
 
     return secrets_from_env, secrets_from_file
@@ -1570,7 +1572,7 @@ R2_BUCKET=fabrik-backups
 
     jinja_env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(WORDPRESS_TEMPLATE_DIR / "base")),
-        autoescape=False,
+        autoescape=jinja2.select_autoescape(),
     )
     site_yaml_dest = project_dir / "site.yaml"
     if site_yaml_dest.exists():
@@ -2584,7 +2586,10 @@ def create_project(
             # Detect secrets from .env.example for deployment-ready specs
             secrets_from_env, secrets_from_file = _detect_secrets(project_dir)
             spec_path = generate_and_save_spec(
-                name, project_type, project_dir, specs_dir,
+                name,
+                project_type,
+                project_dir,
+                specs_dir,
                 secrets_from_env=secrets_from_env,
                 secrets_from_file=secrets_from_file,
             )
