@@ -133,6 +133,7 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 | `TROUBLESHOOTING_TEMPLATE.md` | `docs/TROUBLESHOOTING.md` | Troubleshooting guide |
 | `BUSINESS_MODEL_TEMPLATE.md` | `docs/BUSINESS_MODEL.md` | Business model doc |
 | `FEATURES_TEMPLATE.md` | `docs/FEATURES.md` | Features overview |
+| `STRATEGIC_BACKLOG_TEMPLATE.md` | `docs/STRATEGIC_BACKLOG.md` | Strategic backlog for paused work |
 
 ### Inline Generated (No Templates)
 

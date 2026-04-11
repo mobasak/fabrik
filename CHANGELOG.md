@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — STRATEGIC_BACKLOG template (2026-04-11)
+- **`templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md`**: New template for strategic backlog tracking - vetted, high-impact work paused for bandwidth.
+- **`src/fabrik/scaffold.py`**: Added `STRATEGIC_BACKLOG_TEMPLATE.md` to `SHARED_TEMPLATE_MAP`, generates `docs/STRATEGIC_BACKLOG.md` in scaffolded projects.
+- **`docs/workflows/SCAFFOLD_STRUCTURE.md`**: Updated doc templates table to include new STRATEGIC_BACKLOG_TEMPLATE.md entry.
+- **Template content**: Includes sections for "Now — Ready for Focus Window", "Later", "Context", and "Activation" triggers for moving items to active development.
+
 ### Added — Automatic .env file loading for deployment secrets (2026-04-11)
 - **`src/fabrik/cli.py`**: Updated `fabrik apply` to automatically read secrets from project `.env` file before checking environment variables. Resolves project path from spec id (`/opt/{spec_id}`) to locate `.env` file.
 - **`src/fabrik/orchestrator/__init__.py`**: Updated orchestrator secrets loading to read from project `.env` file with same precedence logic.
