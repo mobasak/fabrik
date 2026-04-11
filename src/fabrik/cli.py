@@ -282,7 +282,26 @@ def apply(
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
 
-    # Auto-pull secrets from environment (command-line takes precedence)
+    # Resolve project path from spec id
+    project_path = Path(f"/opt/{spec.id}")
+
+    # Load secrets from project .env file if it exists
+    env_file = project_path / ".env"
+    if env_file.exists():
+        try:
+            for line in env_file.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    value = value.strip()
+                    # Only load if it's a secret (in from_env list)
+                    if key in spec.secrets.from_env and key not in secrets_dict:
+                        secrets_dict[key] = value
+        except Exception as e:
+            click.echo(f"⚠️  Warning: Failed to read .env file: {e}", err=True)
+
+    # Auto-pull secrets from environment (command-line and .env take precedence)
     for key in spec.secrets.from_env:
         if key not in secrets_dict:
             env_value = os.getenv(key)

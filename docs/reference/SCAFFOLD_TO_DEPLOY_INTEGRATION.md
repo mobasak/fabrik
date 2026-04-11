@@ -348,7 +348,23 @@ fabrik scaffold my-api --type python-api
 # Output: specs/services/my-api.yaml with from_env auto-populated from .env.example
 ```
 
-**Result:** All new projects are deployment-ready with automatic secret loading from environment variables.
+**Deployment workflow:**
+```bash
+# Scaffold project (auto-detects secrets from .env.example)
+fabrik scaffold my-api --type python-api
+
+# Develop project in /opt/my-api/
+# Set secrets in /opt/my-api/.env
+# Deploy - secrets auto-loaded from .env file
+fabrik apply /opt/fabrik/specs/services/my-api.yaml
+```
+
+**Secret loading precedence:**
+1. Command-line `-s` flags (highest)
+2. Project `.env` file
+3. Environment variables (lowest)
+
+**Result:** All new projects are deployment-ready with automatic secret loading from project `.env` files. No manual environment variable setting required.
 
 ---
 

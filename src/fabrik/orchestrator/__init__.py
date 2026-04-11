@@ -101,8 +101,27 @@ class DeploymentOrchestrator:
                     if generate:
                         all_secrets.update(self.secrets_manager.load_all(generate))
 
-                    # Load from_env secrets
+                    # Load from_env secrets (command-line and .env take precedence)
                     from_env = secrets_config.get("from_env", [])
+
+                    # Load from project .env file if it exists
+                    project_path = Path(f"/opt/{spec.get('id', spec.get('name'))}")
+                    env_file = project_path / ".env"
+                    if env_file.exists():
+                        try:
+                            for line in env_file.read_text().splitlines():
+                                line = line.strip()
+                                if line and not line.startswith("#") and "=" in line:
+                                    key, value = line.split("=", 1)
+                                    key = key.strip()
+                                    value = value.strip()
+                                    # Only load if it's a secret (in from_env list)
+                                    if key in from_env and key not in all_secrets:
+                                        all_secrets[key] = value
+                        except Exception as e:
+                            logger.warning("Failed to read .env file: %s", e)
+
+                    # Load from environment variables
                     for key in from_env:
                         if key not in all_secrets:
                             env_value = os.getenv(key)

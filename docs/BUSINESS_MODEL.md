@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-11 22:50:33 -->
-<!-- Total projects: 35 -->
+<!-- Last synced: 2026-04-11 23:00:57 -->
+<!-- Total projects: 44 -->
 
 ### Production Services (6 projects)
 
@@ -105,7 +105,7 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (11 projects)
+### Active Development (20 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -116,7 +116,16 @@ With ~$50/month infrastructure cost:
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-auto-python-api** | Test auto secret detection | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-env-chrome-extension** | Test .env auto-loading | Python | 🔨 Development | - | ✅ Current |
+| **test-env-desktop-app** | Test .env auto-loading | Node.js | 🔨 Development | - | ✅ Current |
+| **test-env-docusaurus** | Test .env auto-loading | Node.js | 🔨 Development | - | ✅ Current |
+| **test-env-file-api** | Test .env auto-loading | Express | 🔨 Development | - | ✅ Current |
+| **test-env-file-worker** | Test .env auto-loading | Python | 🔨 Development | - | ✅ Current |
+| **test-env-mobile-app** | Test .env auto-loading | Node.js | 🔨 Development | - | ✅ Current |
+| **test-env-node-api** | Test .env auto-loading | Node.js | 🔨 Development | - | ✅ Current |
+| **test-env-python-api** | Test .env auto-loading | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-env-saas-skeleton** | Test .env auto-loading | Node.js | 🔨 Development | - | ✅ Current |
+| **test-env-static-site** | Test .env auto-loading | Node.js | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | - | ✅ Current |
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | - | ✅ Current |

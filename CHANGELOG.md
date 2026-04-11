@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Automatic .env file loading for deployment secrets (2026-04-11)
+- **`src/fabrik/cli.py`**: Updated `fabrik apply` to automatically read secrets from project `.env` file before checking environment variables. Resolves project path from spec id (`/opt/{spec_id}`) to locate `.env` file.
+- **`src/fabrik/orchestrator/__init__.py`**: Updated orchestrator secrets loading to read from project `.env` file with same precedence logic.
+- **Secret loading precedence**: Command-line `-s` flags (highest) > Project `.env` file > Environment variables (lowest).
+- **Result**: Projects can be deployed by setting secrets in `.env` file without manual environment variable setting. `fabrik apply` reads from `/opt/{project_id}/.env` automatically.
+- **Testing**: Verified .env auto-loading works for all 10 generic project types (python-api, saas-skeleton, node-api, file-api, file-worker, docusaurus, chrome-extension, mobile-app, desktop-app, static-site).
+
 ### Added — Scaffold auto-detection of secrets from .env.example (2026-04-11)
 - **`src/fabrik/scaffold.py`**: Added `_detect_secrets()` function that reads `.env.example` and identifies secret env vars using pattern matching. Includes patterns: `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIALS`, `_API_KEY`, `_API_TOKEN`, `_PRIVATE_KEY`. Excludes non-secrets: `PORT`, `HOST`, `LOG_LEVEL`, `DEBUG`, `ENV`, `NODE_ENV`, `PYTHON_ENV`, `DATABASE_URL`, `REDIS_URL`.
 - **`src/fabrik/scaffold.py`**: Updated scaffold to call `_detect_secrets()` and pass `secrets_from_env` and `secrets_from_file` context to spec generator.
