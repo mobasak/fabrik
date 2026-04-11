@@ -149,7 +149,7 @@ class SiteDeployer:
     def log(self, message: str, level: str = "info"):
         """Log a message."""
         prefix = {"info": "ℹ️", "success": "✅", "warning": "⚠️", "error": "❌"}.get(level, "")
-        print(f"{prefix} {message}")
+        logger.info(f"{prefix} {message}")
 
         if level == "warning":
             self.result.warnings.append(message)
@@ -236,7 +236,7 @@ class SiteDeployer:
                 else:
                     self.result.steps_failed.append(stage_result.name)
                     self.result.errors.extend(stage_result.errors)
-                    print(f"❌   {stage_result.name.capitalize()} failed")
+                    logger.error(f"❌   {stage_result.name.capitalize()} failed")
 
                 # Special handling for pages stage - extract pages_created
                 if stage_result.name == "pages" and "pages_created" in stage_result.metadata:
@@ -359,27 +359,27 @@ class SiteDeployer:
 
     def _print_summary(self):
         """Print deployment summary."""
-        print("\n" + "=" * 50)
-        print(f"DEPLOYMENT {'SUCCESS' if self.result.success else 'FAILED'}")
-        print("=" * 50)
-        print(f"Site: {self.domain}")
-        print(f"Steps completed: {len(self.result.steps_completed)}")
-        print(f"Steps failed: {len(self.result.steps_failed)}")
+        logger.info("\n" + "=" * 50)
+        logger.info(f"DEPLOYMENT {'SUCCESS' if self.result.success else 'FAILED'}")
+        logger.info("=" * 50)
+        logger.info(f"Site: {self.domain}")
+        logger.info(f"Steps completed: {len(self.result.steps_completed)}")
+        logger.info(f"Steps failed: {len(self.result.steps_failed)}")
 
         if self.result.pages_created:
-            print(f"Pages created: {len(self.result.pages_created)}")
+            logger.info(f"Pages created: {len(self.result.pages_created)}")
 
         if self.result.warnings:
-            print(f"\nWarnings ({len(self.result.warnings)}):")
+            logger.warning(f"\nWarnings ({len(self.result.warnings)}):")
             for w in self.result.warnings:
-                print(f"  - {w}")
+                logger.warning(f"  - {w}")
 
         if self.result.errors:
-            print(f"\nErrors ({len(self.result.errors)}):")
+            logger.error(f"\nErrors ({len(self.result.errors)}):")
             for e in self.result.errors:
-                print(f"  - {e}")
+                logger.error(f"  - {e}")
 
-        print("=" * 50)
+        logger.info("=" * 50)
 
 
 def deploy_site(site_id: str, dry_run: bool = False) -> DeploymentResult:

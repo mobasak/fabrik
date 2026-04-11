@@ -6,8 +6,11 @@ Validates site specifications according to schema/VALIDATION_RULES.md
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ValidationError(Exception):
@@ -65,7 +68,7 @@ class SpecValidator:
         # Log warnings
         if warnings:
             for warning in warnings:
-                print(f"⚠️  {warning}")
+                logger.warning(f"⚠️  {warning}")
 
     def _validate_required(self):
         """Validate required fields are present."""

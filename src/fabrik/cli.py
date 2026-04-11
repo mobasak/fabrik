@@ -1599,13 +1599,13 @@ def deploy_cmd(project_path: str | None, dry_run: bool):
 
     try:
         project_dir = resolve_project_dir(project_path)
-    except RuntimeError as exc:
+    except Exception as exc:
         click.echo(f"Error: {exc}", err=True)
         raise SystemExit(1)
 
     try:
         project_type = get_project_type(project_dir)
-    except RuntimeError as exc:
+    except Exception as exc:
         click.echo(f"Error: {exc}", err=True)
         raise SystemExit(1)
 
@@ -1615,7 +1615,7 @@ def deploy_cmd(project_path: str | None, dry_run: bool):
 
     try:
         exit_code = route_deploy(project_dir, project_type, dry_run=dry_run)
-    except RuntimeError as exc:
+    except Exception as exc:
         click.echo(f"Error: {exc}", err=True)
         raise SystemExit(1)
 
