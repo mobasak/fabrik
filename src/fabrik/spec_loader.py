@@ -127,8 +127,10 @@ class Backup(BaseModel):
 class SecretsPolicy(BaseModel):
     """Secrets management policy."""
 
-    required: list[str] = Field(default_factory=list, description="Required secret names")
+    required: list[str] = Field(default_factory=list, description="Required secret names (must pass via -s)")
     generate: list[str] = Field(default_factory=list, description="Auto-generate these secrets")
+    from_env: list[str] = Field(default_factory=list, description="Pull from local environment automatically")
+    from_file: dict[str, str] = Field(default_factory=dict, description="Read from file: {ENV_VAR: file_path}")
 
 
 class CoolifyConfig(BaseModel):

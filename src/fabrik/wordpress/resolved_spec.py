@@ -11,22 +11,25 @@ import copy
 import hashlib
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, ClassVar
 
 
-def load_spec(site_id: str) -> dict:
+def load_spec(site_id: str, site_path: Path | None = None) -> dict:
     """
     Load merged spec for a site.
 
     Args:
         site_id: Site domain (e.g., ocoron.com)
+        site_path: Optional explicit path to site spec YAML file.
+                   If provided, bypasses the default SPECS_DIR lookup.
 
     Returns:
         Fully merged spec dict
     """
     from fabrik.wordpress.spec_loader import SpecLoader
 
-    loader = SpecLoader(site_id)
+    loader = SpecLoader(site_id, site_path=site_path)
     return loader.load()
 
 
@@ -104,15 +107,16 @@ class ResolvedSpec:
         return _exclude_recursive(self._data)
 
     @classmethod
-    def from_site(cls, site_id: str) -> ResolvedSpec:
+    def from_site(cls, site_id: str, site_path: Path | None = None) -> ResolvedSpec:
         """
         Load and resolve spec for a site.
 
         Args:
             site_id: Site domain (e.g., ocoron.com)
+            site_path: Optional explicit path to site spec YAML file.
 
         Returns:
             ResolvedSpec instance with computed hash
         """
-        data = load_spec(site_id)
+        data = load_spec(site_id, site_path=site_path)
         return cls(site_id=site_id, data=data, spec_hash="")

@@ -8,6 +8,7 @@ v2: Uses new spec system with loader, validator, page generator.
 """
 
 import json
+import logging
 import os
 import tempfile
 from dataclasses import dataclass, field
@@ -18,7 +19,7 @@ from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
 from fabrik.drivers.wordpress_api import WordPressAPIClient, WPCredentials
 from fabrik.wordpress.pages import CreatedPage
 from fabrik.wordpress.planner import BUILD_ROOT
-from fabrik.wordpress.spec_loader import load_spec
+from fabrik.wordpress.spec_loader import load_spec_from_path, resolve_spec_path
 from fabrik.wordpress.spec_validator import SpecValidator, ValidationError
 from fabrik.wordpress.stages import (
     StageResult,
@@ -33,6 +34,8 @@ from fabrik.wordpress.stages import (
     settings,
     theme,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -66,6 +69,7 @@ class SiteDeployer:
         dry_run: bool = False,
         skip_content: bool = False,
         force_stage: str | None = None,
+        project_path: str | None = None,
     ):
         """
         Initialize site deployer.
@@ -75,16 +79,23 @@ class SiteDeployer:
             dry_run: If True, print actions without executing
             skip_content: If True, skip AI content generation
             force_stage: Stage name to force re-run (bypasses skip_if_unchanged)
+            project_path: Optional path to WordPress project folder containing site.yaml
         """
         self.site_id = site_id
         self.dry_run = dry_run
         self.skip_content = skip_content
         self.force_stage = force_stage
 
-        # Load and merge spec (defaults → preset → site)
+        # Resolve spec path using three-priority strategy
         self.log(f"Deploying {site_id}")
-        self.spec = load_spec(site_id)
-        self.spec_path = f"specs/sites/{site_id}.yaml"  # For logging
+        resolved_path, is_legacy = resolve_spec_path(site_id, project_path)
+        if is_legacy:
+            logger.warning(
+                "Loading spec from legacy path %s — migrate to project folder",
+                resolved_path,
+            )
+        self.spec = load_spec_from_path(site_id, resolved_path)
+        self.spec_path = str(resolved_path)  # For logging
 
         # Validate spec
         validator = SpecValidator(self.spec)

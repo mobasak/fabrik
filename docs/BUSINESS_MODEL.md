@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-10 01:48:00 -->
-<!-- Total projects: 36 -->
+<!-- Last synced: 2026-04-11 22:02:58 -->
+<!-- Total projects: 44 -->
 
 ### Production Services (6 projects)
 
@@ -105,23 +105,32 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (11 projects)
+### Active Development (20 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | - | ✅ Current |
 | **candle** | FastAPI microservice project (in development). | FastAPI | 🔨 Development | - | ✅ Current |
 | **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, id... | Fastify | 🔨 Development | - | ✅ Current |
-| **full-wf-test** | End-to-end workflow test project for Fabrik pipeline validation. | FastAPI | 🔨 Development | - | ✅ Current |
 | **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C... | Python | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-chrome-extension** | Test chrome-extension with secrets | Python | 🔨 Development | - | ✅ Current |
+| **test-desktop-app** | Test desktop-app with secrets | Node.js | 🔨 Development | - | ✅ Current |
+| **test-docusaurus** | Test docusaurus with secrets | Node.js | 🔨 Development | - | ✅ Current |
+| **test-file-api** | Test file-api with secrets | Express | 🔨 Development | - | ✅ Current |
+| **test-file-worker** | Test file-worker with secrets | Python | 🔨 Development | - | ✅ Current |
+| **test-mobile-app** | Test mobile-app with secrets | Node.js | 🔨 Development | - | ✅ Current |
+| **test-node-api** | Test node-api with secrets | Node.js | 🔨 Development | - | ✅ Current |
+| **test-python-api** | Test python-api with secrets | FastAPI | 🔨 Development | - | ✅ Current |
+| **test-saas-skeleton** | Test saas-skeleton with secrets | Node.js | 🔨 Development | - | ✅ Current |
+| **test-static-site** | Test static-site with secrets | Node.js | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | - | ✅ Current |
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (19 projects)
+### Planning/Research (18 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -140,25 +149,14 @@ With ~$50/month infrastructure cost:
 | **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | - | ✅ Current |
 | **namecheap** | Namecheap domain management utilities (precursor to dns-manager). | Python | 🔨 Development | - | ✅ Current |
 | **supplement-tracker-advisor** | Health supplement tracking and personalized advisory system. | Python | 🔨 Development | - | ✅ Current |
-| **test-final-gate** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
 
-### Recently Removed (11 projects)
+### Recently Removed (1 projects)
 
 | Project | Note |
 |---------|------|
-| ~~test-chrome-ext~~ | Folder deleted since last scan |
-| ~~test-desktop~~ | Folder deleted since last scan |
-| ~~test-docs~~ | Folder deleted since last scan |
-| ~~test-file-api~~ | Folder deleted since last scan |
-| ~~test-file-worker~~ | Folder deleted since last scan |
-| ~~test-mobile~~ | Folder deleted since last scan |
-| ~~test-node-api~~ | Folder deleted since last scan |
-| ~~test-python-api~~ | Folder deleted since last scan |
-| ~~test-saas~~ | Folder deleted since last scan |
-| ~~test-static~~ | Folder deleted since last scan |
-| ~~test-wp~~ | Folder deleted since last scan |
+| ~~fabrik~~ | Folder deleted since last scan |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

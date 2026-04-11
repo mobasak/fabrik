@@ -239,7 +239,11 @@ def generate_spec(
     )
 
     # Secrets
-    secrets_policy = SecretsPolicy(required=ctx.get("secrets", []))
+    secrets_policy = SecretsPolicy(
+        required=ctx.get("secrets", []),
+        from_env=ctx.get("secrets_from_env", []),
+        from_file=ctx.get("secrets_from_file", {}),
+    )
 
     return create_spec(
         id=name,

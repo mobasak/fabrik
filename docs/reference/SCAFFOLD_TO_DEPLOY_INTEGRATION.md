@@ -120,7 +120,12 @@ env:
   # ... copy from project compose.yaml
 
 secrets:
-  required: [DATABASE_PASSWORD, API_KEY]
+  required:
+    - DATABASE_PASSWORD
+  from_env:
+    - API_KEY
+  from_file:
+    GOOGLE_CREDENTIALS: /path/to/credentials.json
 
 resources:
   memory: 512M

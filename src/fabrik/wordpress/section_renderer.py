@@ -161,7 +161,9 @@ class SectionRenderer:
 <div class="wp-block-columns alignwide">"""
 
         for item in items:
-            item.get("icon", "")
+            # Skip non-dict items (can happen with malformed specs)
+            if not isinstance(item, dict):
+                continue
             title = self._get_localized_from_dict(item, "title")
             description = self._get_localized_from_dict(item, "description")
 
@@ -249,6 +251,9 @@ class SectionRenderer:
 <div class="wp-block-columns">"""
 
         for item in items:
+            # Skip non-dict items (can happen with malformed specs)
+            if not isinstance(item, dict):
+                continue
             quote = self._get_localized_from_dict(item, "quote")
             name = item.get("name", "")
             role = item.get("role", "")
@@ -268,7 +273,7 @@ class SectionRenderer:
 
         html += """
 </div>
-<!-- /wp:columns -->"""
+<!-- /wp/columns -->"""
 
         return html
 
@@ -443,6 +448,10 @@ class SectionRenderer:
 
     def _get_localized_from_dict(self, item: dict, key: str) -> str:
         """Get localized string from item dict."""
+        # Handle non-dict items (can happen with malformed specs)
+        if not isinstance(item, dict):
+            return str(item)
+
         value = item.get(key, "")
 
         if isinstance(value, dict):

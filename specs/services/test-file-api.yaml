@@ -1,0 +1,14 @@
+id: test-file-api
+template: file-api
+kind: service
+domain: test-file-api.example.com
+
+secrets:
+  from_env:
+    - NAMECHEAP_API_KEY
+    - CLOUDFLARE_API_TOKEN
+  from_file:
+    GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON: /tmp/test-file-api-creds.json
+
+env:
+  LOG_LEVEL: INFO

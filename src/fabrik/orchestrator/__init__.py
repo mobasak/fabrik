@@ -82,9 +82,47 @@ class DeploymentOrchestrator:
                 logger.warning("Validation warning: %s", w)
 
             # Step 2: Load secrets
-            secret_keys = spec.get("secrets", [])
-            if secret_keys:
-                ctx.secrets = self.secrets_manager.load_all(secret_keys)
+            secrets_config = spec.get("secrets", {})
+            if secrets_config:
+                if isinstance(secrets_config, list):
+                    # Old format: simple list of required secret names
+                    ctx.secrets = self.secrets_manager.load_all(secrets_config)
+                elif isinstance(secrets_config, dict):
+                    # New format: SecretsPolicy with required, generate, from_env, from_file
+                    all_secrets = {}
+
+                    # Load required secrets (use SecretsManager for env/.env/generate)
+                    required = secrets_config.get("required", [])
+                    if required:
+                        all_secrets.update(self.secrets_manager.load_all(required))
+
+                    # Load generate secrets
+                    generate = secrets_config.get("generate", [])
+                    if generate:
+                        all_secrets.update(self.secrets_manager.load_all(generate))
+
+                    # Load from_env secrets
+                    from_env = secrets_config.get("from_env", [])
+                    for key in from_env:
+                        if key not in all_secrets:
+                            env_value = os.getenv(key)
+                            if env_value:
+                                all_secrets[key] = env_value
+                            else:
+                                logger.warning("Secret %s not found in environment", key)
+
+                    # Load from_file secrets
+                    from_file = secrets_config.get("from_file", {})
+                    for env_var, file_path in from_file.items():
+                        if env_var not in all_secrets:
+                            try:
+                                all_secrets[env_var] = Path(file_path).read_text()
+                            except FileNotFoundError:
+                                logger.warning("File not found for secret %s: %s", env_var, file_path)
+                            except Exception as e:
+                                logger.warning("Failed to read file for secret %s: %s", env_var, e)
+
+                    ctx.secrets = all_secrets
 
             # Step 3: Provision (DNS)
             self._transition(ctx, DeploymentState.PROVISIONING)

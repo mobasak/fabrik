@@ -1,0 +1,13 @@
+id: test-file-worker
+template: file-worker
+kind: worker
+
+secrets:
+  from_env:
+    - NAMECHEAP_API_KEY
+    - CLOUDFLARE_API_TOKEN
+  from_file:
+    GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON: /tmp/test-file-worker-creds.json
+
+env:
+  LOG_LEVEL: INFO

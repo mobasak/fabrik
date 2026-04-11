@@ -92,8 +92,12 @@ env:
   LOG_LEVEL: "info"
 
 secrets:
-  - DATABASE_URL
-  - API_KEY
+  required:
+    - DATABASE_URL
+  from_env:
+    - API_KEY
+  from_file:
+    GOOGLE_CREDENTIALS: /path/to/credentials.json
 
 healthcheck:
   path: /health

@@ -12,7 +12,7 @@ env:
   APP_ENV: production
 
 secrets:
-  required:
+  from_env:
     - NAMECHEAP_API_KEY
     - NAMECHEAP_API_USER
     - NAMECHEAP_CLIENT_IP

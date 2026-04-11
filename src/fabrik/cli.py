@@ -282,6 +282,25 @@ def apply(
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
 
+    # Auto-pull secrets from environment (command-line takes precedence)
+    for key in spec.secrets.from_env:
+        if key not in secrets_dict:
+            env_value = os.getenv(key)
+            if env_value:
+                secrets_dict[key] = env_value
+            else:
+                click.echo(f"⚠️  Warning: {key} not found in environment", err=True)
+
+    # Auto-read secrets from files (command-line and env take precedence)
+    for env_var, file_path in spec.secrets.from_file.items():
+        if env_var not in secrets_dict:
+            try:
+                secrets_dict[env_var] = Path(file_path).read_text()
+            except FileNotFoundError:
+                click.echo(f"⚠️  Warning: File not found: {file_path}", err=True)
+            except Exception as e:
+                click.echo(f"⚠️  Warning: Failed to read {file_path}: {e}", err=True)
+
     # Check required secrets
     missing_secrets = [k for k in spec.secrets.required if k not in secrets_dict]
     if missing_secrets:
@@ -741,7 +760,20 @@ def scan(health: bool, base: str):
     help="Preset variant (only used for --type wordpress)",
 )
 @click.option("--no-spec", is_flag=True, default=False, help="Skip automatic spec file generation")
-def scaffold(name: str, description: str, project_type: str, preset: str | None, no_spec: bool):
+@click.option(
+    "--dev-port",
+    default="8080",
+    show_default=True,
+    help="Local dev port for WordPress (WSL only)",
+)
+def scaffold(
+    name: str,
+    description: str,
+    project_type: str,
+    preset: str | None,
+    no_spec: bool,
+    dev_port: str,
+):
     """Create a new project with full structure.
 
     Example:
@@ -758,13 +790,18 @@ def scaffold(name: str, description: str, project_type: str, preset: str | None,
     click.echo(f"📁 Creating project: {name}")
     try:
         project_dir = create_project(
-            name, description, project_type=project_type, preset=preset, generate_spec=not no_spec
+            name,
+            description,
+            project_type=project_type,
+            preset=preset,
+            generate_spec=not no_spec,
+            dev_port=dev_port,
         )
         click.echo(f"✅ Created: {project_dir}")
 
         if project_type == "wordpress":
             click.echo("\n📋 WordPress next steps:")
-            click.echo(f"  1. Create your site spec: specs/sites/{name}.yaml")
+            click.echo(f"  1. Edit your site spec: {project_dir}/site.yaml")
             click.echo(f"  2. fabrik wp plan {name}")
             click.echo(f"  3. fabrik wp apply {name}")
             click.echo(f"  4. fabrik wp verify {name}.vps1.ocoron.com")
@@ -988,6 +1025,64 @@ def verify(domain: str, spec: str, app_name: str | None, no_rollback: bool):
         raise SystemExit(1)
 
 
+def _resolve_wp_site_id(site_id: str | None, project_path: str | None) -> str:
+    """Resolve WordPress site_id when not explicitly provided.
+
+    If site_id is None and project_path is None, attempts to read
+    CWD's project.yaml ``name`` field as the site_id.
+
+    Args:
+        site_id: Explicit site identifier (may be None)
+        project_path: Explicit project folder path (may be None)
+
+    Returns:
+        Resolved site_id string
+
+    Raises:
+        SystemExit: If site_id cannot be resolved
+    """
+    if site_id is not None:
+        return site_id
+
+    # Try to extract from --project path's project.yaml
+    if project_path is not None:
+        project_yaml_path = Path(project_path) / "project.yaml"
+    else:
+        project_yaml_path = Path.cwd() / "project.yaml"
+
+    if project_yaml_path.exists():
+        import yaml
+
+        try:
+            with open(project_yaml_path, encoding="utf-8") as f:
+                project_data = yaml.safe_load(f) or {}
+            name = project_data.get("name")
+            if name:
+                return str(name)
+        except Exception:
+            pass
+
+    click.echo("❌ No site_id provided and no project.yaml found in CWD.", err=True)
+    raise SystemExit(1)
+
+
+def _resolve_wp_site_id_for_spec(site_id: str | None, project_path: str | None) -> str:
+    """Resolve site_id for wp commands without masking spec resolution errors.
+
+    If an explicit site_id is provided, use it. If a project path is supplied or a
+    CWD `project.yaml` is present, derive the site_id from project metadata.
+    Otherwise return a placeholder so downstream spec resolution surfaces the
+    canonical `No site.yaml found...` error.
+    """
+    if site_id is not None:
+        return site_id
+
+    if project_path is not None or (Path.cwd() / "project.yaml").exists():
+        return _resolve_wp_site_id(site_id, project_path)
+
+    return "unknown-site"
+
+
 @cli.group()
 def wp():
     """WordPress site factory commands."""
@@ -995,17 +1090,28 @@ def wp():
 
 
 @wp.command("plan")
-@click.argument("site_id")
-def wp_plan(site_id: str):
+@click.argument("site_id", required=False, default=None)
+@click.option(
+    "--project",
+    "project_path",
+    default=None,
+    help="Path to WordPress project folder containing site.yaml",
+)
+def wp_plan(site_id: str | None, project_path: str | None):
     """Generate WordPress site plan and build artifacts.
 
     Example:
         fabrik wp plan ocoron.com
+        fabrik wp plan --project /opt/my-wp-site
+        cd /opt/my-wp-site && fabrik wp plan
     """
     from fabrik.wordpress.planner import Planner
 
+    # Resolve site_id from CWD project.yaml if not provided
+    site_id = _resolve_wp_site_id_for_spec(site_id, project_path)
+
     try:
-        planner = Planner(site_id)
+        planner = Planner(site_id, project_path=project_path)
         build_dir = planner.plan()
         click.echo(f"✅ Plan generated: {build_dir}")
         click.echo()
@@ -1019,21 +1125,33 @@ def wp_plan(site_id: str):
 
 
 @wp.command("apply")
-@click.argument("site_id")
+@click.argument("site_id", required=False, default=None)
 @click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
 @click.option("--force-stage", default=None, help="Force re-run a specific stage (bypasses skip)")
-def wp_apply(site_id: str, dry_run: bool, force_stage: str | None):
+@click.option(
+    "--project",
+    "project_path",
+    default=None,
+    help="Path to WordPress project folder containing site.yaml",
+)
+def wp_apply(site_id: str | None, dry_run: bool, force_stage: str | None, project_path: str | None):
     """Deploy WordPress site from spec.
 
     Example:
         fabrik wp apply ocoron.com
         fabrik wp apply ocoron.com --dry-run
-        fabrik wp apply ocoron.com --force-stage plugins
+        fabrik wp apply --project /opt/my-wp-site --dry-run
+        cd /opt/my-wp-site && fabrik wp apply --dry-run
     """
     from fabrik.wordpress.deployer import SiteDeployer
 
+    # Resolve site_id from CWD project.yaml if not provided
+    site_id = _resolve_wp_site_id_for_spec(site_id, project_path)
+
     try:
-        deployer = SiteDeployer(site_id, dry_run=dry_run, force_stage=force_stage)
+        deployer = SiteDeployer(
+            site_id, dry_run=dry_run, force_stage=force_stage, project_path=project_path
+        )
         result = deployer.deploy()
 
         if result.success:
@@ -1431,6 +1549,63 @@ def domain_buy(domain_name: str, years: int, yes: bool):
         raise SystemExit(1)
     finally:
         dns.close()
+
+
+@cli.command("deploy")
+@click.option(
+    "--project",
+    "project_path",
+    default=None,
+    type=click.Path(exists=True, file_okay=False),
+    help="Path to project folder (default: current directory)",
+)
+@click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
+def deploy_cmd(project_path: str | None, dry_run: bool):
+    """Deploy a project from its project.yaml metadata.
+
+    Resolves the project type and routes to the correct pipeline:
+    WordPress projects use Planner + SiteDeployer; all other types
+    use the generic DeploymentOrchestrator with a centralised service spec.
+
+    Example:
+        fabrik deploy
+        fabrik deploy --project /opt/my-site
+        fabrik deploy --project /opt/my-site --dry-run
+    """
+    from fabrik.deploy_router import (
+        get_project_type,
+        resolve_project_dir,
+        route_deploy,
+    )
+
+    try:
+        project_dir = resolve_project_dir(project_path)
+    except RuntimeError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1)
+
+    try:
+        project_type = get_project_type(project_dir)
+    except RuntimeError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1)
+
+    click.echo(f"Deploying {project_dir.name} (type={project_type})")
+    if dry_run:
+        click.echo("[dry-run] No changes will be applied")
+
+    try:
+        exit_code = route_deploy(project_dir, project_type, dry_run=dry_run)
+    except RuntimeError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1)
+
+    if exit_code == 0:
+        click.echo(f"Deployment successful: {project_dir.name}")
+    else:
+        click.echo(f"Deployment failed: {project_dir.name}", err=True)
+
+    raise SystemExit(exit_code)
 
 
 @cli.group()

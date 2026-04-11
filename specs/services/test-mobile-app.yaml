@@ -1,0 +1,14 @@
+id: test-mobile-app
+template: mobile-app
+kind: service
+domain: test-mobile-app.example.com
+
+secrets:
+  from_env:
+    - NAMECHEAP_API_KEY
+    - CLOUDFLARE_API_TOKEN
+  from_file:
+    GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON: /tmp/test-mobile-app-creds.json
+
+env:
+  LOG_LEVEL: INFO

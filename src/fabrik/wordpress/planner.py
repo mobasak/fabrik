@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import tempfile
 from datetime import UTC, datetime
@@ -20,6 +21,9 @@ from typing import Any
 import yaml
 
 from fabrik.wordpress.resolved_spec import ResolvedSpec
+from fabrik.wordpress.spec_loader import resolve_spec_path
+
+logger = logging.getLogger(__name__)
 
 BUILD_ROOT = Path(__file__).parent.parent.parent.parent / "build" / "sites"
 
@@ -48,17 +52,27 @@ class Planner:
     - manifests/: deployment manifests (plugins, pages, menus, checks)
     """
 
-    def __init__(self, site_id: str):
+    def __init__(self, site_id: str, project_path: str | None = None):
         """
         Initialize planner.
 
         Args:
             site_id: Site domain (e.g., ocoron.com)
+            project_path: Optional path to WordPress project folder containing site.yaml
         """
         self.site_id = site_id
         self.build_dir = BUILD_ROOT / site_id
         self.plan_path = self.build_dir / "plan.json"
         self.blueprint_path = self.build_dir / "blueprint.resolved.yaml"
+
+        # Resolve spec path using three-priority strategy
+        resolved_path, is_legacy = resolve_spec_path(site_id, project_path)
+        if is_legacy:
+            logger.warning(
+                "Loading spec from legacy path %s — migrate to project folder",
+                resolved_path,
+            )
+        self._resolved_spec_path: Path = resolved_path
 
     def compute_stage_input_hash(self, stage_name: str, spec_data: dict[str, Any]) -> str:
         """
@@ -139,8 +153,8 @@ class Planner:
             - build/sites/<site_id>/blueprint.resolved.yaml
             - build/sites/<site_id>/manifests/*.json
         """
-        # Load resolved spec
-        resolved = ResolvedSpec.from_site(self.site_id)
+        # Load resolved spec using pre-resolved path
+        resolved = ResolvedSpec.from_site(self.site_id, site_path=self._resolved_spec_path)
 
         # Create manifests directory
         manifests_dir = self.build_dir / "manifests"

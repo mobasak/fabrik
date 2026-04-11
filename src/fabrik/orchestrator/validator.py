@@ -260,9 +260,23 @@ class SpecValidator:
         # Store normalized domain back to spec for consistent downstream usage
         spec["domain"] = normalized_domain
 
-        # Validate secrets is a list
-        if "secrets" in spec and not isinstance(spec["secrets"], list):
-            raise ValidationError("Secrets must be a list", field="secrets")
+        # Validate secrets - accepts both old list format and new SecretsPolicy dict
+        if "secrets" in spec:
+            secrets = spec["secrets"]
+            if isinstance(secrets, list):
+                # Old format: simple list of required secret names
+                pass
+            elif isinstance(secrets, dict):
+                # New format: SecretsPolicy with required, generate, from_env, from_file
+                for key in ["required", "generate", "from_env", "from_file"]:
+                    if key in secrets and not isinstance(secrets[key], list if key != "from_file" else dict):
+                        raise ValidationError(f"Secrets.{key} must be a {'list' if key != 'from_file' else 'dict'}", field=f"secrets.{key}")
+                if "from_file" in secrets:
+                    for env_var, file_path in secrets["from_file"].items():
+                        if not isinstance(env_var, str) or not isinstance(file_path, str):
+                            raise ValidationError("Secrets.from_file must be {str: str}", field="secrets.from_file")
+            else:
+                raise ValidationError("Secrets must be a list or dict", field="secrets")
 
         # Validate healthcheck
         if "healthcheck" in spec:

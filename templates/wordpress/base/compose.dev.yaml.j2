@@ -1,0 +1,80 @@
+# compose.dev.yaml — Local development stack
+# Usage: docker compose -f compose.dev.yaml up -d
+
+services:
+  db:
+    image: mariadb:10.11
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: devroot
+      MYSQL_DATABASE: {{ name | replace('-', '_') }}_db
+      MYSQL_USER: {{ name | replace('-', '_') }}_user
+      MYSQL_PASSWORD: devpass
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-bookworm
+    platform: linux/amd64
+    restart: unless-stopped
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wordpress:
+    image: wordpress:php8.3-fpm-bookworm
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: {{ name | replace('-', '_') }}_user
+      WORDPRESS_DB_PASSWORD: devpass
+      WORDPRESS_DB_NAME: {{ name | replace('-', '_') }}_db
+      WORDPRESS_DEBUG: "1"
+    volumes:
+      - wp_html:/var/www/html
+      - ./themes:/var/www/html/wp-content/themes
+      - ./plugins:/var/www/html/wp-content/plugins
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:mainline-bookworm-slim
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "{{ dev_port | default('8080') }}:80"
+    volumes:
+      - wp_html:/var/www/html:ro
+      - ./themes:/var/www/html/wp-content/themes:ro
+      - ./plugins:/var/www/html/wp-content/plugins:ro
+      - ./config/nginx-dev.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - internal
+    depends_on:
+      - wordpress
+
+volumes:
+  wp_html:
+  db_data:
+
+networks:
+  internal:
+    driver: bridge

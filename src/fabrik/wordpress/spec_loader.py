@@ -25,22 +25,28 @@ class SpecLoader:
     TEMPLATES_DIR = Path(__file__).parent.parent.parent.parent / "templates" / "wordpress"
     SPECS_DIR = Path(__file__).parent.parent.parent.parent / "specs" / "sites"
 
-    def __init__(self, domain: str):
+    def __init__(self, domain: str, site_path: Path | None = None):
         """
         Initialize spec loader.
 
         Args:
             domain: Site domain (e.g., ocoron.com)
+            site_path: Optional explicit path to site spec YAML. If provided,
+                       skips the default SPECS_DIR lookup.
         """
         self.domain = domain
         self.defaults_path = self.TEMPLATES_DIR / "defaults.yaml"
         self.presets_dir = self.TEMPLATES_DIR / "presets"
-        self.site_path = self.SPECS_DIR / f"{domain}.yaml"
 
-        # Check for v2 spec
-        v2_path = self.SPECS_DIR / f"{domain}.v2.yaml"
-        if v2_path.exists():
-            self.site_path = v2_path
+        if site_path is not None:
+            self.site_path = site_path
+        else:
+            self.site_path = self.SPECS_DIR / f"{domain}.yaml"
+
+            # Check for v2 spec
+            v2_path = self.SPECS_DIR / f"{domain}.v2.yaml"
+            if v2_path.exists():
+                self.site_path = v2_path
 
     def load(self) -> dict:
         """
@@ -247,4 +253,81 @@ def load_spec(domain: str) -> dict:
         Merged and normalized spec
     """
     loader = SpecLoader(domain)
+    return loader.load()
+
+
+def resolve_spec_path(site_id: str, project_path: str | None = None) -> tuple[Path, bool]:
+    """
+    Resolve the site spec YAML path using a three-priority strategy.
+
+    Priority order:
+        1. --project <path> → <path>/site.yaml
+        2. CWD contains site.yaml AND CWD/project.yaml has type: wordpress → ./site.yaml
+        3. Legacy fallback → specs/sites/<site_id>.yaml (is_legacy=True)
+
+    Args:
+        site_id: Site identifier (domain or project name)
+        project_path: Optional explicit project directory path
+
+    Returns:
+        Tuple of (resolved_path, is_legacy) where is_legacy=True
+        triggers a deprecation warning in the caller.
+
+    Raises:
+        FileNotFoundError: If no spec file can be resolved from any path.
+    """
+    # Priority 1: Explicit --project path
+    if project_path is not None:
+        spec_path = Path(project_path).resolve() / "site.yaml"
+        if spec_path.exists():
+            return spec_path, False
+        raise FileNotFoundError(
+            f"No site.yaml found at {spec_path}. Ensure the project folder contains a site.yaml."
+        )
+
+    # Priority 2: CWD auto-detection
+    cwd = Path.cwd()
+    cwd_site_yaml = cwd / "site.yaml"
+    cwd_project_yaml = cwd / "project.yaml"
+
+    if cwd_site_yaml.exists() and cwd_project_yaml.exists():
+        try:
+            with open(cwd_project_yaml, encoding="utf-8") as f:
+                project_data = yaml.safe_load(f) or {}
+            if project_data.get("type") == "wordpress":
+                return cwd_site_yaml, False
+        except (yaml.YAMLError, OSError):
+            pass  # Fall through to legacy
+
+    # Priority 3: Legacy fallback (specs/sites/<site_id>.yaml)
+    specs_dir = SpecLoader.SPECS_DIR
+    v2_path = specs_dir / f"{site_id}.v2.yaml"
+    if v2_path.exists():
+        return v2_path, True
+
+    legacy_path = specs_dir / f"{site_id}.yaml"
+    if legacy_path.exists():
+        return legacy_path, True
+
+    raise FileNotFoundError(
+        "No site.yaml found. Use --project <path>, cd into a WordPress "
+        "project folder, or ensure specs/sites/<site_id>.yaml exists."
+    )
+
+
+def load_spec_from_path(site_id: str, site_path: Path) -> dict:
+    """
+    Load a merged site spec from an explicit file path.
+
+    Instantiates SpecLoader with the given site_path override, bypassing
+    the default SPECS_DIR lookup.
+
+    Args:
+        site_id: Site identifier (used as domain in the merge pipeline)
+        site_path: Explicit path to the site spec YAML file
+
+    Returns:
+        Fully merged and normalized spec dict
+    """
+    loader = SpecLoader(site_id, site_path=site_path)
     return loader.load()

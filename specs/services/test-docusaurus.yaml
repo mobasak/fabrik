@@ -1,0 +1,14 @@
+id: test-docusaurus
+template: docusaurus
+kind: service
+domain: test-docusaurus.example.com
+
+secrets:
+  from_env:
+    - NAMECHEAP_API_KEY
+    - CLOUDFLARE_API_TOKEN
+  from_file:
+    GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON: /tmp/test-docusaurus-creds.json
+
+env:
+  LOG_LEVEL: INFO

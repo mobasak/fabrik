@@ -153,7 +153,8 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   └── infrastructure/              # Infrastructure service YAML specs (Phase 9)
 ├── sql/                             # Database DDL scripts
 ├── src/fabrik/                      # Core Fabrik Python package
-│   ├── cli.py                       # CLI entry point
+│   ├── cli.py                       # CLI entry point (includes `fabrik deploy` unified command)
+│   ├── deploy_router.py             # [reusable] Unified deploy routing — resolve_project_dir(), get_project_type(), route_deploy()
 │   ├── deploy_validator.py          # [reusable] Deployment readiness validator — 5 checks, validate(), format_warnings()
 │   ├── scaffold.py                  # Project scaffolding
 │   ├── ai/                          # AI module: LLMClient, UsageTracker
@@ -180,6 +181,10 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   │   ├── validator.py             # SpecValidator
 │   │   └── verifier.py              # DeploymentVerifier
 │   └── wordpress/                   # WordPress automation
+│       ├── spec_loader.py           # SpecLoader + resolve_spec_path() + load_spec_from_path()
+│       ├── resolved_spec.py         # ResolvedSpec + load_spec() (supports site_path override)
+│       ├── deployer.py              # SiteDeployer (accepts project_path for folder-based resolution)
+│       ├── planner.py               # Planner (accepts project_path for folder-based resolution)
 │       ├── handoff.py               # Handoff report generator
 │       ├── stages/
 │       │   └── verify.py            # Verification stage (post-deploy)
@@ -187,6 +192,11 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── file-worker/                 # File worker scaffold template
 │   │   └── worker/
 │   │       └── main.py              # Job processor (uses worker.logger)
+│   ├── wordpress/
+│   │   ├── base/
+│   │   │   ├── site.yaml.j2            # Jinja2 template for WordPress site-layer spec, rendered at scaffold time
+│   │   │   ├── compose.dev.yaml.j2     # Jinja2 template for local dev Docker Compose stack (WSL); uses wp_html shared volume for full WordPress core + nginx access
+│   │   │   └── nginx-dev.conf.j2       # Minimal nginx dev config for PHP-FPM passthrough (static, no Jinja vars)
 │   ├── saas-skeleton/               # Next.js 14 + Tailwind SaaS starter
 │   ├── scaffold/                    # Fabrik scaffold config
 │   ├── prompts/                     # Prompt templates for AI commands

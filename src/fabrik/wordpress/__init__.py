@@ -64,6 +64,8 @@ from fabrik.wordpress.settings import (
 from fabrik.wordpress.spec_loader import (
     SpecLoader,
     load_spec,
+    load_spec_from_path,
+    resolve_spec_path,
 )
 from fabrik.wordpress.spec_validator import (
     SpecValidator,
@@ -124,6 +126,8 @@ __all__ = [
     # Spec loader & validator
     "SpecLoader",
     "load_spec",
+    "load_spec_from_path",
+    "resolve_spec_path",
     "SpecValidator",
     "ValidationError",
     "validate_spec",

@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — SecretsPolicy with from_env and from_file automatic loading (2026-04-11)
+- **`src/fabrik/spec_loader.py`**: Added `from_env` and `from_file` fields to `SecretsPolicy`. `from_env` pulls secrets from local environment variables automatically. `from_file` reads secrets from files (e.g., JSON credentials). Command-line `-s` flags take precedence.
+- **`src/fabrik/cli.py`**: Updated `fabrik apply` to auto-pull secrets from `spec.secrets.from_env` and read from `spec.secrets.from_file`. Warnings issued if env vars missing or files not found.
+- **`src/fabrik/orchestrator/validator.py`**: Updated secrets validation to accept both old list format and new SecretsPolicy dict format with type checking for all fields.
+- **`src/fabrik/orchestrator/__init__.py`**: Updated orchestrator secrets loading to handle SecretsPolicy dict format, merging required, generate, from_env, and from_file sources with precedence rules.
+- **`src/fabrik/spec_generator.py`**: Updated spec generator to include `from_env` and `from_file` fields in generated SecretsPolicy, so new projects created by scaffold are ready to use automatic secret loading from the start.
+- **`specs/services/dns-manager.yaml`**: Updated to use `from_env` for all secrets, enabling automatic deployment without passing 9 command-line secrets.
+
+### Added — T4: `fabrik deploy` unified entry point with project-type routing (2026-04-11)
+- **`src/fabrik/deploy_router.py`**: New module implementing unified deployment routing. Resolves project directory and metadata from `project.yaml`, then dispatches WordPress projects to `Planner` + `SiteDeployer` and all other types to the generic `DeploymentOrchestrator` via centralised specs in `specs/services/`.
+- **`src/fabrik/cli.py`**: Added top-level `fabrik deploy [--project PATH] [--dry-run]` command. Routes to `deploy_router.route_deploy()` with clear error messages for missing `project.yaml`, unknown project types, and missing service specs.
+- **`tests/test_deploy_router.py`**: Unit tests covering project dir resolution, metadata loading, type validation, service spec path resolution, WordPress/generic routing, and CLI integration.
+
+### Fixed — Corrected site.yaml.j2 to v2 schema and compose.dev.yaml.j2 shared volume model (2026-04-11)
+- **`templates/wordpress/base/site.yaml.j2`**: Rewrote from old top-level `id`/`domain` format to v2 nested schema (`schema_version`, `site.domain`, `site.name`, `brand.tagline` as localized string, `deployment.target`). Scaffolded site.yaml now passes `SpecValidator` required-field checks.
+- **`templates/wordpress/base/compose.dev.yaml.j2`**: Replaced `wp_content`-only sharing model with full `wp_html` named volume so nginx can serve WordPress core files (`/index.php`, `/wp-includes/`). Both wordpress and nginx services now bind-mount `./themes` and `./plugins` for live edit visibility.
+- **`tests/test_scaffold_wordpress_templates.py`**: Added regression tests for v2 schema fields (`schema_version`, `site.name`, `site.domain`, `deployment.target`), SpecLoader+SpecValidator integration, `wp_html` named volume, and nginx/wordpress theme+plugin bind mounts.
+
+### Fixed — wp apply/wp plan now surface missing site.yaml in empty directories (2026-04-11)
+- **`src/fabrik/cli.py`**: Adjusted WordPress command site ID resolution so `wp apply --dry-run` and `wp plan` no longer exit early on missing `project.yaml` when no positional `site_id` is provided. Empty-directory failures now come from spec resolution and preserve the required `No site.yaml found...` message.
+- **`tests/test_wp_spec_resolution.py`**: Added CLI regression coverage for empty-directory `wp apply --dry-run` and `wp plan` behavior, asserting the user-visible error contains `No site.yaml found`.
+
+### Fixed — WordPress nginx dev scaffold regression coverage for PHP passthrough (2026-04-11)
+- **`tests/test_scaffold_wordpress_templates.py`**: Added a focused regression test asserting generated `config/nginx-dev.conf` does not contain `try_files $uri =404`, protecting the PHP-FPM passthrough fix that previously broke the local dev stack.
+
+### Added — T3: wp plan and wp apply resolve spec from project folder with legacy fallback (2026-04-11)
+- **`src/fabrik/wordpress/spec_loader.py`**: Added `resolve_spec_path(site_id, project_path)` function implementing three-priority spec resolution: (1) `--project <path>/site.yaml`, (2) CWD auto-detection via `project.yaml` type check, (3) legacy `specs/sites/<site_id>.yaml` fallback. Added `load_spec_from_path(site_id, site_path)` for explicit-path loading. Updated `SpecLoader.__init__` to accept optional `site_path: Path` override.
+- **`src/fabrik/wordpress/resolved_spec.py`**: Updated `load_spec()` and `ResolvedSpec.from_site()` to accept optional `site_path` parameter for path-based spec loading.
+- **`src/fabrik/wordpress/deployer.py`**: `SiteDeployer.__init__` now accepts `project_path` parameter, uses `resolve_spec_path` + `load_spec_from_path` with deprecation warning for legacy paths.
+- **`src/fabrik/wordpress/planner.py`**: `Planner.__init__` now accepts `project_path` parameter, uses `resolve_spec_path` + `load_spec_from_path` with deprecation warning for legacy paths.
+- **`src/fabrik/cli.py`**: `wp plan` and `wp apply` commands now accept optional `site_id` argument and `--project` option. When `site_id` is omitted, resolves from CWD's `project.yaml` `name` field.
+
+### Fixed — nginx-dev.conf.j2: remove try_files that blocks PHP-FPM passthrough in dev stack (2026-04-11)
+- **`templates/wordpress/base/nginx-dev.conf.j2`**: Removed `try_files $uri =404;` from PHP location block. In the dev compose stack, nginx only mounts `wp_content` — WordPress core files don't exist in its filesystem, so `try_files` returned 404 before reaching FPM. FPM handles file existence via `SCRIPT_FILENAME`.
+
+### Added — T2: Scaffold emits compose.dev.yaml and nginx-dev.conf into WordPress project folder (2026-04-11)
+- **`templates/wordpress/base/compose.dev.yaml.j2`**: Jinja2 template for local dev Docker Compose stack (MariaDB, Redis, WordPress FPM, nginx). No Traefik labels, no coolify network. Uses `{{ dev_port | default('8080') }}` for configurable local port.
+- **`templates/wordpress/base/nginx-dev.conf.j2`**: Minimal nginx config for dev PHP-FPM passthrough (static, no Jinja variables). No FastCGI cache, no gzip, no xmlrpc block.
+- **`src/fabrik/scaffold.py`**: `_scaffold_wordpress()` renders `compose.dev.yaml.j2` and `nginx-dev.conf.j2` into project folder. `create_project()` now accepts and forwards `**kwargs` to type-specific scaffolders.
+- **`src/fabrik/cli.py`**: Added `--dev-port` option to `scaffold` command (default 8080) for WordPress local dev port.
+
+### Added — T1: Scaffold emits site.yaml into WordPress project folder (2026-04-11)
+- **`templates/wordpress/base/site.yaml.j2`**: Jinja2 template for WordPress site-layer spec (minimal override matching SpecLoader format). Uses `{{ name }}`, `{{ preset | default('saas') }}`.
+- **`src/fabrik/scaffold.py`**: `_scaffold_wordpress()` renders `site.yaml.j2` into project folder with existence guard. Added `site.yaml` to WordPress `.gitignore`.
+- **`src/fabrik/cli.py`**: Updated WordPress post-scaffold message to reference `{project_dir}/site.yaml` instead of `specs/sites/{name}.yaml`.
+
 ### Fixed — save_spec() health path serialization bug (2026-04-11)
 - **`src/fabrik/spec_loader.py`**: Removed `exclude_defaults=True` from `model_dump()` in `save_spec()` and added `mode="json"` so fields like `health.path` are written even when they equal model defaults. Previously, `health: {}` was emitted instead of `health: {path: /health}` for python-api, mobile-app, and desktop-app specs.
 - **`specs/services/test-python-api.yaml`**, **`specs/services/test-mobile-app.yaml`**, **`specs/services/test-desktop-app.yaml`**: Corrected `health: {}` → `health: {path: /health}`.

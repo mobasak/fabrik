@@ -1473,6 +1473,7 @@ R2_BUCKET=fabrik-backups
         "wp-content/backup-db/\n"
         "sitemap.xml\n"
         "sitemap.xml.gz\n"
+        "site.yaml\n"
         "\n"
         "# Node.js (for theme/plugin development)\n"
         "node_modules/\n"
@@ -1484,6 +1485,31 @@ R2_BUCKET=fabrik-backups
         "build/\n"
         "coverage/\n"
     )
+
+    # g) Render site.yaml from Jinja2 template (T1)
+    import jinja2
+
+    jinja_env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(str(WORDPRESS_TEMPLATE_DIR / "base")),
+        autoescape=False,
+    )
+    site_yaml_dest = project_dir / "site.yaml"
+    if site_yaml_dest.exists():
+        logger.warning("site.yaml already exists in %s — skipping to avoid overwrite", project_dir)
+    else:
+        rendered_site = jinja_env.get_template("site.yaml.j2").render(name=name, preset=preset)
+        site_yaml_dest.write_text(rendered_site)
+
+    # h) Render compose.dev.yaml and nginx-dev.conf from Jinja2 templates (T2)
+    dev_port: str = str(kwargs.get("dev_port", "8080"))
+    (project_dir / "config").mkdir(parents=True, exist_ok=True)
+    rendered_compose_dev = jinja_env.get_template("compose.dev.yaml.j2").render(
+        name=name, dev_port=dev_port
+    )
+    (project_dir / "compose.dev.yaml").write_text(rendered_compose_dev)
+
+    rendered_nginx_dev = jinja_env.get_template("nginx-dev.conf.j2").render()
+    (project_dir / "config" / "nginx-dev.conf").write_text(rendered_nginx_dev)
 
 
 def _scaffold_chrome_extension(
@@ -2417,6 +2443,7 @@ def create_project(
     project_type: str = "python-api",
     preset: str | None = None,
     generate_spec: bool = True,
+    **kwargs: object,
 ) -> Path:
     """Create a new project with full structure."""
     # Validate inputs
@@ -2448,7 +2475,7 @@ def create_project(
     # _scaffold_shared() creates all shared structure AND runs git init + pre-commit install.
     _scaffold_shared(project_dir, name, description, today, host_port)
 
-    scaffolder(project_dir, name, description, preset=preset)
+    scaffolder(project_dir, name, description, preset=preset, **kwargs)
 
     # Patch project.yaml with actual type
     # (Port is already set correctly by type-specific scaffolder using same _next_available_port logic)
