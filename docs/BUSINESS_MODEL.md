@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-11 22:02:58 -->
-<!-- Total projects: 44 -->
+<!-- Last synced: 2026-04-11 22:50:33 -->
+<!-- Total projects: 35 -->
 
 ### Production Services (6 projects)
 
@@ -105,7 +105,7 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (20 projects)
+### Active Development (11 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -116,16 +116,7 @@ With ~$50/month infrastructure cost:
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-chrome-extension** | Test chrome-extension with secrets | Python | 🔨 Development | - | ✅ Current |
-| **test-desktop-app** | Test desktop-app with secrets | Node.js | 🔨 Development | - | ✅ Current |
-| **test-docusaurus** | Test docusaurus with secrets | Node.js | 🔨 Development | - | ✅ Current |
-| **test-file-api** | Test file-api with secrets | Express | 🔨 Development | - | ✅ Current |
-| **test-file-worker** | Test file-worker with secrets | Python | 🔨 Development | - | ✅ Current |
-| **test-mobile-app** | Test mobile-app with secrets | Node.js | 🔨 Development | - | ✅ Current |
-| **test-node-api** | Test node-api with secrets | Node.js | 🔨 Development | - | ✅ Current |
-| **test-python-api** | Test python-api with secrets | FastAPI | 🔨 Development | - | ✅ Current |
-| **test-saas-skeleton** | Test saas-skeleton with secrets | Node.js | 🔨 Development | - | ✅ Current |
-| **test-static-site** | Test static-site with secrets | Node.js | 🔨 Development | - | ✅ Current |
+| **test-auto-python-api** | Test auto secret detection | FastAPI | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | - | ✅ Current |
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | - | ✅ Current |

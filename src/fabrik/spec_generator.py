@@ -238,10 +238,11 @@ def generate_spec(
         redis="main" if ctx.get("depends_redis") else None,
     )
 
-    # Secrets
+    # Secrets - avoid duplication: if from_env is provided, don't populate required
+    secrets_from_env = ctx.get("secrets_from_env", [])
     secrets_policy = SecretsPolicy(
-        required=ctx.get("secrets", []),
-        from_env=ctx.get("secrets_from_env", []),
+        required=ctx.get("secrets", []) if not secrets_from_env else [],
+        from_env=secrets_from_env,
         from_file=ctx.get("secrets_from_file", {}),
     )
 
@@ -264,6 +265,8 @@ def generate_and_save_spec(
     project_type: str,
     project_path: Path,
     specs_dir: Path,
+    secrets_from_env: list[str] | None = None,
+    secrets_from_file: dict[str, str] | None = None,
 ) -> Path:
     """Extract project context, generate a spec, and save it.
 
@@ -274,6 +277,11 @@ def generate_and_save_spec(
     """
     try:
         context = extract_project_context(project_path)
+        # Pass secrets context for deployment-ready specs
+        if secrets_from_env:
+            context["secrets_from_env"] = secrets_from_env
+        if secrets_from_file:
+            context["secrets_from_file"] = secrets_from_file
         spec = generate_spec(
             name=name,
             project_type=project_type,

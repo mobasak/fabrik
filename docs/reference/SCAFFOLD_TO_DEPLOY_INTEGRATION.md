@@ -331,41 +331,24 @@ def create_project(...):
 
 ### **Priority 3: Enhance fabrik new to Auto-Read Env Vars**
 
-**Note:** `fabrik new` command already exists and creates spec files. P3 should enhance it to:
-- Auto-read env vars from scaffolded project's `compose.yaml`
-- Detect secrets from `.env.example`
-- Pre-populate the spec file
+**Status:** ✅ Implemented (2026-04-11)
+
+`fabrik scaffold` now automatically:
+- Detects secrets from `.env.example` using pattern matching
+- Populates `from_env` field in generated specs
+- Avoids duplication by not populating `required` when `from_env` is used
+
+**Secret detection patterns:**
+- Includes: `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIALS`, `_API_KEY`, `_API_TOKEN`, `_PRIVATE_KEY`
+- Excludes: `PORT`, `HOST`, `LOG_LEVEL`, `DEBUG`, `ENV`, `NODE_ENV`, `PYTHON_ENV`, `DATABASE_URL`, `REDIS_URL`
 
 **Current behavior:**
 ```bash
-fabrik new my-api --template python-api --domain api.vps1.ocoron.com
-# Output: specs/my-api.yaml (flat structure, empty env block)
+fabrik scaffold my-api --type python-api
+# Output: specs/services/my-api.yaml with from_env auto-populated from .env.example
 ```
 
-**Enhanced behavior:**
-```bash
-fabrik new my-api --template python-api --domain api.vps1.ocoron.com --output specs/services --from-project /opt/my-api
-# Output: specs/services/my-api.yaml (env vars and secrets auto-populated from compose.yaml and .env.example)
-```
-
-**Implementation:**
-
-```python
-@cli.command()
-@click.argument("name")
-@click.option("--template", "-t", required=True)
-@click.option("--domain", "-d", required=True)
-@click.option("--output", "-o", default="specs/services")
-@click.option("--from-project", "-p", help="Path to scaffolded project to read env vars from")
-def new(name: str, template: str, domain: str, output: str, from_project: str):
-    """Create deployment spec file."""
-    # ... existing spec creation logic ...
-
-    if from_project:
-        # Read compose.yaml and extract env vars
-        # Read .env.example and detect secrets
-        # Pre-populate spec env and secrets blocks
-```
+**Result:** All new projects are deployment-ready with automatic secret loading from environment variables.
 
 ---
 

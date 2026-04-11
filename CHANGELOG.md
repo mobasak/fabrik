@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Scaffold auto-detection of secrets from .env.example (2026-04-11)
+- **`src/fabrik/scaffold.py`**: Added `_detect_secrets()` function that reads `.env.example` and identifies secret env vars using pattern matching. Includes patterns: `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIALS`, `_API_KEY`, `_API_TOKEN`, `_PRIVATE_KEY`. Excludes non-secrets: `PORT`, `HOST`, `LOG_LEVEL`, `DEBUG`, `ENV`, `NODE_ENV`, `PYTHON_ENV`, `DATABASE_URL`, `REDIS_URL`.
+- **`src/fabrik/scaffold.py`**: Updated scaffold to call `_detect_secrets()` and pass `secrets_from_env` and `secrets_from_file` context to spec generator.
+- **`src/fabrik/spec_generator.py`**: Updated `generate_and_save_spec()` to accept `secrets_from_env` and `secrets_from_file` parameters and pass them to context. Fixed to avoid duplication: if `from_env` is provided, `required` is not populated.
+- **`docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md`**: Updated Priority 3 section to reflect auto-detection is now implemented, documenting patterns and current behavior.
+- **Result**: All new projects scaffolded with `fabrik scaffold` are now deployment-ready with `from_env` secrets auto-populated from `.env.example`.
+
 ### Added — SecretsPolicy with from_env and from_file automatic loading (2026-04-11)
 - **`src/fabrik/spec_loader.py`**: Added `from_env` and `from_file` fields to `SecretsPolicy`. `from_env` pulls secrets from local environment variables automatically. `from_file` reads secrets from files (e.g., JSON credentials). Command-line `-s` flags take precedence.
 - **`src/fabrik/cli.py`**: Updated `fabrik apply` to auto-pull secrets from `spec.secrets.from_env` and read from `spec.secrets.from_file`. Warnings issued if env vars missing or files not found.

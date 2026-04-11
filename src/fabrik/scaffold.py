@@ -21,6 +21,84 @@ from fabrik.spec_generator import SPEC_ENABLED_TYPES, generate_and_save_spec
 
 logger = logging.getLogger(__name__)
 
+# Non-secret env var patterns to exclude from auto-detection
+NON_SECRET_PATTERNS = frozenset(
+    {
+        "PORT",
+        "HOST",
+        "LOG_LEVEL",
+        "DEBUG",
+        "ENV",
+        "NODE_ENV",
+        "PYTHON_ENV",
+        "DATABASE_URL",  # Often set from compose, not a secret
+        "REDIS_URL",  # Often set from compose, not a secret
+    }
+)
+
+# Secret env var patterns to include in auto-detection
+SECRET_PATTERNS = frozenset(
+    {
+        "_KEY$",
+        "_SECRET$",
+        "_PASSWORD$",
+        "_TOKEN$",
+        "_CREDENTIALS",
+        "_API_KEY$",
+        "_API_TOKEN$",
+        "_PRIVATE_KEY$",
+    }
+)
+
+
+def _is_likely_secret(key: str) -> bool:
+    """Determine if an env var key is likely a secret based on patterns."""
+    key_upper = key.upper()
+
+    # Exclude known non-secrets
+    if key_upper in NON_SECRET_PATTERNS:
+        return False
+
+    # Include if it matches secret patterns
+    for pattern in SECRET_PATTERNS:
+        if pattern.endswith("$"):
+            if key_upper.endswith(pattern[:-1]):
+                return True
+        elif pattern in key_upper:
+            return True
+
+    return False
+
+
+def _detect_secrets(project_path: Path) -> tuple[list[str], dict[str, str]]:
+    """Detect secrets from .env.example and compose.yaml in scaffolded project.
+
+    Returns:
+        tuple: (secrets_from_env list, secrets_from_file dict)
+    """
+    secrets_from_env = []
+    secrets_from_file = {}
+
+    # Read .env.example
+    env_example = project_path / ".env.example"
+    if env_example.exists():
+        for line in env_example.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key = line.split("=")[0].strip()
+                if _is_likely_secret(key):
+                    secrets_from_env.append(key)
+
+    # Detect file-based secrets (JSON credentials)
+    for key in secrets_from_env:
+        if "CREDENTIALS" in key or "KEY_FILE" in key:
+            # Map to likely file path (user can adjust in spec if needed)
+            file_path = f"/tmp/{project_path.name}-creds.json"
+            secrets_from_file[key] = file_path
+
+    return secrets_from_env, secrets_from_file
+
+
 # Reserved project names that conflict with system dirs or packages
 RESERVED_NAMES = frozenset(
     {
@@ -2502,7 +2580,13 @@ def create_project(
     if generate_spec and project_type in SPEC_ENABLED_TYPES:
         try:
             specs_dir = FABRIK_ROOT / "specs" / "services"
-            spec_path = generate_and_save_spec(name, project_type, project_dir, specs_dir)
+            # Detect secrets from .env.example for deployment-ready specs
+            secrets_from_env, secrets_from_file = _detect_secrets(project_dir)
+            spec_path = generate_and_save_spec(
+                name, project_type, project_dir, specs_dir,
+                secrets_from_env=secrets_from_env,
+                secrets_from_file=secrets_from_file,
+            )
             logger.info("Generated spec: %s", spec_path.relative_to(FABRIK_ROOT))
         except Exception as exc:
             logger.warning("Spec generation failed: %s", exc)

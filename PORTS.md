@@ -76,19 +76,14 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-04-11 22:02:58 -->
+<!-- Last synced: 2026-04-11 22:50:33 -->
 
 ### Project Port Allocations (from project.yaml)
 
 | Port | Project | Type | Path |
 |------|---------|------|------|
-| 3000 | **test-saas-skeleton** | saas-skeleton | /opt/test-saas-skeleton |
 | 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
-| 3002 | **test-node-api** | node-api | /opt/test-node-api |
-| 3003 | **test-file-api** | file-api | /opt/test-file-api |
-| 3004 | **test-static-site** | static-site | /opt/test-static-site |
-| 8000 | **test-file-worker** | file-worker | /opt/test-file-worker |
-| 8001 | **test-docusaurus** | docusaurus | /opt/test-docusaurus |
+| 8000 | **test-auto-python-api** | python-api | /opt/test-auto-python-api |
 | 8002 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 8003 | **apps** | python-api | /opt/apps |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
@@ -106,16 +101,12 @@ If you encounter a port conflict:
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **supplement-tracker-advisor** | python-api | /opt/supplement-tracker-advisor |
 | 8018 | **Reference_Creator** | python-api | /opt/Reference_Creator |
-| 8019 | **test-chrome-extension** | chrome-extension | /opt/test-chrome-extension |
-| 8020 | **test-mobile-app** | mobile-app | /opt/test-mobile-app |
-| 8021 | **test-desktop-app** | desktop-app | /opt/test-desktop-app |
 | 8022 | **trade-intelligence** | python-api | /opt/trade-intelligence |
 | 8023 | **trading-core** | python-api | /opt/trading-core |
 | 8024 | **transcriber** | python-api | /opt/transcriber |
 | 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
 | 8026 | **ugc** | python-api | /opt/ugc |
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
-| 8028 | **test-python-api** | python-api | /opt/test-python-api |
 | 8029 | **youtube** | python-api | /opt/youtube |
 | 8033 | **ComplianceOps** | python-api | /opt/ComplianceOps |
 | 18011 | **captcha** | python-api | /opt/captcha |
