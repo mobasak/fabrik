@@ -284,7 +284,7 @@ def save_spec(spec: Spec, spec_path: str | Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     # Convert to dict, excluding None values for cleaner YAML
-    data = spec.model_dump(exclude_none=True, exclude_defaults=True)
+    data = spec.model_dump(exclude_none=True, mode="json")
 
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)

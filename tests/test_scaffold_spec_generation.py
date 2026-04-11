@@ -141,6 +141,95 @@ class TestScaffoldSpecHook:
 
 
 # ---------------------------------------------------------------------------
+# TestScaffoldSpecHookNewTypes — new scaffold types generate specs
+# ---------------------------------------------------------------------------
+
+
+class TestScaffoldSpecHookNewTypes:
+    """Tests that new scaffold types (docusaurus, mobile-app, desktop-app) trigger spec generation."""
+
+    @patch("fabrik.scaffold.generate_and_save_spec")
+    @patch("fabrik.scaffold._post_scaffold_sync")
+    @patch("fabrik.scaffold._scaffold_shared")
+    def test_spec_generated_for_docusaurus(
+        self, mock_shared: MagicMock, mock_sync: MagicMock, mock_gen: MagicMock, tmp_path: Path
+    ) -> None:
+        """generate_and_save_spec is called for docusaurus when generate_spec=True."""
+        from fabrik.scaffold import create_project
+
+        def fake_shared(pd: Path, *_args: object, **_kw: object) -> None:
+            pd.mkdir(parents=True, exist_ok=True)
+
+        mock_shared.side_effect = fake_shared
+
+        with patch.dict("fabrik.scaffold._TYPE_SCAFFOLDERS", {"docusaurus": lambda *a, **kw: None}):
+            result = create_project(
+                "test-docs",
+                "A docs site",
+                base=tmp_path,
+                project_type="docusaurus",
+                generate_spec=True,
+            )
+
+        assert result == tmp_path / "test-docs"
+        mock_gen.assert_called_once()
+
+    @patch("fabrik.scaffold.generate_and_save_spec")
+    @patch("fabrik.scaffold._post_scaffold_sync")
+    @patch("fabrik.scaffold._scaffold_shared")
+    def test_spec_generated_for_mobile_app(
+        self, mock_shared: MagicMock, mock_sync: MagicMock, mock_gen: MagicMock, tmp_path: Path
+    ) -> None:
+        """generate_and_save_spec is called for mobile-app when generate_spec=True."""
+        from fabrik.scaffold import create_project
+
+        def fake_shared(pd: Path, *_args: object, **_kw: object) -> None:
+            pd.mkdir(parents=True, exist_ok=True)
+
+        mock_shared.side_effect = fake_shared
+
+        with patch.dict("fabrik.scaffold._TYPE_SCAFFOLDERS", {"mobile-app": lambda *a, **kw: None}):
+            result = create_project(
+                "test-mobile",
+                "A mobile app",
+                base=tmp_path,
+                project_type="mobile-app",
+                generate_spec=True,
+            )
+
+        assert result == tmp_path / "test-mobile"
+        mock_gen.assert_called_once()
+
+    @patch("fabrik.scaffold.generate_and_save_spec")
+    @patch("fabrik.scaffold._post_scaffold_sync")
+    @patch("fabrik.scaffold._scaffold_shared")
+    def test_spec_generated_for_desktop_app(
+        self, mock_shared: MagicMock, mock_sync: MagicMock, mock_gen: MagicMock, tmp_path: Path
+    ) -> None:
+        """generate_and_save_spec is called for desktop-app when generate_spec=True."""
+        from fabrik.scaffold import create_project
+
+        def fake_shared(pd: Path, *_args: object, **_kw: object) -> None:
+            pd.mkdir(parents=True, exist_ok=True)
+
+        mock_shared.side_effect = fake_shared
+
+        with patch.dict(
+            "fabrik.scaffold._TYPE_SCAFFOLDERS", {"desktop-app": lambda *a, **kw: None}
+        ):
+            result = create_project(
+                "test-desktop",
+                "A desktop app",
+                base=tmp_path,
+                project_type="desktop-app",
+                generate_spec=True,
+            )
+
+        assert result == tmp_path / "test-desktop"
+        mock_gen.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # TestNewCommandFromProject — CLI tests for `fabrik new --from-project`
 # ---------------------------------------------------------------------------
 

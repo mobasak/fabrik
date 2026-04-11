@@ -130,6 +130,28 @@ class TestCheckHealthEndpoint:
         result = _check_health_endpoint(tmp_path, "saas-skeleton")
         assert result.passed is True
 
+    def test_docusaurus_health_check_passes_without_src_dir(self, tmp_path: Path):
+        """Docusaurus is a static type — passes without src/ directory."""
+        result = _check_health_endpoint(tmp_path, "docusaurus")
+        assert result.passed is True
+        assert result.check == "health_endpoint"
+
+    def test_docusaurus_health_check_passes_without_health_route(self, tmp_path: Path):
+        """Docusaurus is a static type — passes with a representative custom.css file."""
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "custom.css").write_text("body {}\n")
+        result = _check_health_endpoint(tmp_path, "docusaurus")
+        assert result.passed is True
+
+    def test_desktop_app_checks_electron_dir_not_src(self, tmp_path: Path):
+        """Desktop app should look for health in electron/ directory, not src/."""
+        electron_dir = tmp_path / "electron"
+        electron_dir.mkdir()
+        (electron_dir / "main.js").write_text('app.get("/health", handler);\n')
+        result = _check_health_endpoint(tmp_path, "desktop-app")
+        assert result.passed is True
+
 
 # ---------------------------------------------------------------------------
 # TestCheckSpecExists

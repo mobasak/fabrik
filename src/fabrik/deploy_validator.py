@@ -97,7 +97,15 @@ def _check_dockerfile(project_path: Path) -> ValidationResult:
 
 def _check_health_endpoint(project_path: Path, project_type: str) -> ValidationResult:
     """Check whether a /health endpoint is declared in the project src/ directory."""
-    src_dir = project_path / "src"
+    if project_type in _STATIC_TYPES:
+        return ValidationResult(
+            check="health_endpoint",
+            passed=True,
+            message="Static site — health check targets / (root), no /health route required",
+        )
+
+    src_dir = project_path / "electron" if project_type in _ELECTRON_TYPES else project_path / "src"
+
     if not src_dir.exists():
         return ValidationResult(
             check="health_endpoint",

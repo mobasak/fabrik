@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — save_spec() health path serialization bug (2026-04-11)
+- **`src/fabrik/spec_loader.py`**: Removed `exclude_defaults=True` from `model_dump()` in `save_spec()` and added `mode="json"` so fields like `health.path` are written even when they equal model defaults. Previously, `health: {}` was emitted instead of `health: {path: /health}` for python-api, mobile-app, and desktop-app specs.
+- **`specs/services/test-python-api.yaml`**, **`specs/services/test-mobile-app.yaml`**, **`specs/services/test-desktop-app.yaml`**: Corrected `health: {}` → `health: {path: /health}`.
+- **`tests/test_spec_generator.py`**: Added regression test `test_saved_spec_health_path_not_stripped_for_python_api`.
+
+### Added — Extend SPEC_ENABLED_TYPES to docusaurus, mobile-app, desktop-app (2026-04-10)
+- **`src/fabrik/spec_generator.py`**: Added `docusaurus`, `mobile-app`, `desktop-app` to `SPEC_ENABLED_TYPES` (now 10 entries) and `_TYPE_DEFAULTS` (docusaurus health_path=`/`, others `/health`).
+- **`src/fabrik/deploy_validator.py`**: Added `_STATIC_TYPES` and `_ELECTRON_TYPES` frozensets; `_check_health_endpoint()` now returns early pass for static sites (docusaurus) and redirects scan to `electron/` for desktop-app.
+- **`src/fabrik/cli.py`**: `fabrik scaffold` now prints WordPress next-steps guide after scaffold creation.
+
 ### Fixed — Deploy templates: wordpress root compose.yaml.j2 created, mobile-app and desktop-app render bugs fixed (2026-04-10)
 - **`templates/wordpress/compose.yaml.j2`**: Created root-level deploy template for `fabrik apply` with Traefik routing to WordPress nginx on port 80, expose guard, resource limits, and healthcheck.
 - **`templates/mobile-app/compose.yaml.j2`**: Fixed `spec.domain` → `domain` variable, `entrypoints=https` → `entrypoints=websecure`, added expose guard around labels, added deploy resource limits block.

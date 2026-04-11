@@ -27,21 +27,36 @@ from fabrik.spec_loader import Kind, load_spec
 class TestConstants:
     """Verify module-level constants are correctly defined."""
 
-    def test_spec_enabled_types_has_7_entries(self):
-        assert len(SPEC_ENABLED_TYPES) == 7
+    def test_spec_enabled_types_has_10_entries(self):
+        assert len(SPEC_ENABLED_TYPES) == 10
 
     def test_file_worker_in_enabled_types(self):
         assert "file-worker" in SPEC_ENABLED_TYPES
 
-    def test_wordpress_not_in_enabled_types(self):
+    def test_wordpress_excluded_from_enabled_types(self):
         assert "wordpress" not in SPEC_ENABLED_TYPES
-        assert "docusaurus" not in SPEC_ENABLED_TYPES
-        assert "mobile-app" not in SPEC_ENABLED_TYPES
-        assert "desktop-app" not in SPEC_ENABLED_TYPES
 
     def test_secret_patterns_are_uppercase(self):
         for pattern in SECRET_PATTERNS:
             assert pattern == pattern.upper(), f"{pattern!r} is not uppercase"
+
+
+# ---------------------------------------------------------------------------
+# TestNewTypeDefaults
+# ---------------------------------------------------------------------------
+
+
+class TestNewTypeDefaults:
+    """Verify _TYPE_DEFAULTS entries for new scaffold types."""
+
+    def test_docusaurus_health_path(self):
+        assert _TYPE_DEFAULTS["docusaurus"]["health_path"] == "/"
+
+    def test_mobile_app_health_path(self):
+        assert _TYPE_DEFAULTS["mobile-app"]["health_path"] == "/health"
+
+    def test_desktop_app_health_path(self):
+        assert _TYPE_DEFAULTS["desktop-app"]["health_path"] == "/health"
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +369,30 @@ class TestGenerateSpec:
         assert spec.resources.memory == "256M"
         assert spec.resources.cpu == "0.5"
 
+    def test_docusaurus_generates_service_kind(self):
+        spec = generate_spec("my-docs", "docusaurus", "my-docs.vps1.ocoron.com")
+        assert spec.kind == Kind.SERVICE
+
+    def test_mobile_app_generates_service_kind(self):
+        spec = generate_spec("my-mobile", "mobile-app", "my-mobile.vps1.ocoron.com")
+        assert spec.kind == Kind.SERVICE
+
+    def test_desktop_app_generates_service_kind(self):
+        spec = generate_spec("my-desktop", "desktop-app", "my-desktop.vps1.ocoron.com")
+        assert spec.kind == Kind.SERVICE
+
+    def test_docusaurus_health_path_is_root(self):
+        spec = generate_spec("my-docs", "docusaurus", "my-docs.vps1.ocoron.com")
+        assert spec.health.path == "/"
+
+    def test_mobile_app_health_path(self):
+        spec = generate_spec("my-mobile", "mobile-app", "my-mobile.vps1.ocoron.com")
+        assert spec.health.path == "/health"
+
+    def test_desktop_app_health_path(self):
+        spec = generate_spec("my-desktop", "desktop-app", "my-desktop.vps1.ocoron.com")
+        assert spec.health.path == "/health"
+
 
 # ---------------------------------------------------------------------------
 # TestGenerateAndSaveSpec
@@ -402,6 +441,17 @@ class TestGenerateAndSaveSpec:
         assert isinstance(data, dict)
         assert data["id"] == "my-api"
         assert data["template"] == "python-api"
+
+    def test_saved_spec_health_path_not_stripped_for_python_api(self, tmp_path: Path):
+        """health.path must be written even when it equals the Health model default (/health)."""
+        project = self._make_project(tmp_path)
+        specs_dir = tmp_path / "specs" / "services"
+        result = generate_and_save_spec("my-api", "python-api", project, specs_dir)
+        with open(result, encoding="utf-8") as fh:
+            data = yaml.safe_load(fh)
+        assert "health" in data
+        assert isinstance(data["health"], dict)
+        assert data["health"].get("path") == "/health"
 
     def test_saved_spec_passes_load_spec_validation(self, tmp_path: Path):
         project = self._make_project(tmp_path)
