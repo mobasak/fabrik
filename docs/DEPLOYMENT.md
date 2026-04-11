@@ -143,6 +143,68 @@ fabrik backups my-api
 fabrik restore my-api --backup 2024-12-21
 ```
 
+## Secrets Management
+
+**Fabrik automatically loads secrets from project `.env` files during deployment.**
+
+### How It Works
+
+1. **Scaffold auto-detection:** When you run `fabrik scaffold`, it reads `.env.example` and auto-detects secret env vars (those matching patterns like `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIALS`). These are added to the spec's `from_env` field.
+
+2. **Project .env file:** During development, set your actual secrets in the project's `.env` file at `/opt/{project}/.env`.
+
+3. **Automatic loading:** When you run `fabrik apply`, it automatically reads from the project's `.env` file before checking system environment variables.
+
+### Secret Loading Precedence
+
+```
+1. Command-line -s flags (highest)
+2. Project .env file
+3. Environment variables (lowest)
+```
+
+### Example Workflow
+
+```bash
+# 1. Scaffold project (spec auto-generated with from_env secrets)
+fabrik scaffold my-api --type python-api
+
+# 2. Set secrets in project .env file
+# /opt/my-api/.env
+API_KEY=your_actual_key
+DATABASE_PASSWORD=your_actual_password
+
+# 3. Deploy - secrets auto-loaded from .env file
+fabrik apply /opt/fabrik/specs/services/my-api.yaml
+```
+
+**No manual environment variable setting needed.** Just set secrets in the project's `.env` file.
+
+### Spec Format for Secrets
+
+```yaml
+# specs/my-api.yaml
+secrets:
+  required: []  # Empty when from_env is used
+  generate: []
+  from_env:
+    - API_KEY
+    - DATABASE_PASSWORD
+    - SECRET_TOKEN
+  from_file:
+    GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON: /tmp/my-api-creds.json
+```
+
+### Manual Override
+
+If you need to override .env values for a specific deployment:
+
+```bash
+fabrik apply my-api -s API_KEY=override_value -s DATABASE_PASSWORD=override_password
+```
+
+---
+
 ## SSL/HTTPS
 
 Coolify handles SSL via Let's Encrypt automatically when:

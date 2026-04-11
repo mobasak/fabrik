@@ -115,6 +115,44 @@ healthcheck:
 - **CSPRNG secrets**: Auto-generated secrets use `secrets` module (32 char alphanumeric)
 - **Rollback safety**: Only resources created in current run are rolled back
 
+## Secrets Management
+
+The orchestrator automatically loads secrets from the project's `.env` file during deployment.
+
+**Secret Loading Precedence:**
+1. Command-line `-s` flags (highest)
+2. Project `.env` file at `/opt/{spec_id}/.env`
+3. Environment variables (lowest)
+
+**How It Works:**
+1. `fabrik scaffold` auto-detects secrets from `.env.example` and adds them to the spec's `from_env` field
+2. During deployment, the orchestrator reads from the project's `.env` file before checking system environment variables
+3. Only secrets listed in `spec.secrets.from_env` are loaded from the `.env` file
+
+**Example:**
+```yaml
+# spec.yaml
+secrets:
+  from_env:
+    - API_KEY
+    - DATABASE_PASSWORD
+```
+
+```bash
+# /opt/my-api/.env
+API_KEY=your_actual_key
+DATABASE_PASSWORD=your_actual_password
+
+# Deploy - secrets auto-loaded
+fabrik apply spec.yaml
+```
+
+**Benefits:**
+- No manual environment variable setting needed
+- Secrets are isolated per project
+- Works seamlessly across WSL dev and VPS Docker environments
+- Easy to override with `-s` flags when needed
+
 ---
 
 ## State Machine

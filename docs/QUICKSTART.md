@@ -65,15 +65,19 @@ B2_BUCKET_NAME=your-bucket
 ## First Deployment
 
 ```bash
-# Create a new Python API spec
-fabrik new python-api hello-api
+# Scaffold a new project (spec auto-generated with secrets)
+fabrik scaffold hello-api --type python-api
 
-# Preview what will be deployed
-fabrik plan hello-api
+# Set secrets in project .env file
+# /opt/hello-api/.env
+API_KEY=your_api_key
+DATABASE_PASSWORD=your_password
 
-# Deploy
-fabrik apply hello-api
+# Deploy - secrets auto-loaded from .env file
+fabrik apply /opt/fabrik/specs/services/hello-api.yaml
 ```
+
+**No manual environment variable setting needed.** Fabrik automatically reads secrets from the project's `.env` file.
 
 ## Verify
 

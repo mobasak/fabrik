@@ -264,25 +264,58 @@ DB_HOST = 'localhost'
 
 **Full workflow:**
 ```bash
-# 1. Create spec
-fabrik new my-api --template python-api --domain api.example.com
+# 1. Scaffold project (spec auto-generated with secrets)
+fabrik scaffold my-api --type python-api
 
-# 2. Customize
-nano specs/my-api.yaml
-# Add environment variables, resource limits, healthcheck
+# 2. Set secrets in project .env file
+# /opt/my-api/.env
+API_KEY=your_actual_key
+DATABASE_PASSWORD=your_actual_password
 
-# 3. Preview deployment plan
-fabrik plan specs/my-api.yaml
+# 3. Deploy - secrets auto-loaded from .env file
+fabrik apply /opt/fabrik/specs/services/my-api.yaml
 
-# 4. Deploy
-fabrik apply specs/my-api.yaml
-
-# 5. Verify
+# 4. Verify
 curl https://api.example.com/health
 
-# 6. Check status
+# 5. Check status
 fabrik status specs/my-api.yaml
 ```
+
+**No manual environment variable setting needed.** Fabrik automatically reads secrets from the project's `.env` file.
+
+### How do I manage secrets for deployment?
+
+**Fabrik automatically loads secrets from project `.env` files during deployment.**
+
+**Secret Loading Precedence:**
+1. Command-line `-s` flags (highest)
+2. Project `.env` file at `/opt/{project}/.env`
+3. Environment variables (lowest)
+
+**How It Works:**
+1. **Scaffold auto-detection:** `fabrik scaffold` reads `.env.example` and auto-detects secret env vars (matching patterns like `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIALS`). These are added to the spec's `from_env` field.
+
+2. **Project .env file:** During development, set your actual secrets in the project's `.env` file at `/opt/{project}/.env`.
+
+3. **Automatic loading:** When you run `fabrik apply`, it automatically reads from the project's `.env` file before checking system environment variables.
+
+**Example:**
+```bash
+# /opt/my-api/.env
+API_KEY=your_actual_key
+DATABASE_PASSWORD=your_actual_password
+SECRET_TOKEN=your_secret_token
+
+# Deploy - secrets auto-loaded
+fabrik apply /opt/fabrik/specs/services/my-api.yaml
+```
+
+**Benefits:**
+- No manual environment variable setting needed
+- Secrets are isolated per project
+- Works seamlessly across WSL dev and VPS Docker environments
+- Easy to override with `-s` flags when needed
 
 ### What ports should my services use?
 

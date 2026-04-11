@@ -86,9 +86,46 @@ For each project, you need these files. Check off as you add them:
 | `compose.yaml` | Production-like (no bind mounts, no dev tools) | See below |
 | `compose.dev.yaml` | Dev overrides (bind mounts, hot reload) | Optional but recommended |
 | `.env.example` | Document all required env vars | Already exists in most projects |
+| `.env` | Actual secrets for deployment (gitignored) | Created per project, not committed |
 | `.dockerignore` | Exclude unnecessary files from build | See below |
 | `Makefile` | Standard commands: `make dev`, `make docker-smoke`, `make test` | See below |
 | `README.md` | Include deployment section | Add if missing |
+
+### Secrets Management
+
+**Fabrik automatically loads secrets from project `.env` files during deployment.**
+
+**How It Works:**
+1. **Scaffold auto-detection:** `fabrik scaffold` reads `.env.example` and auto-detects secret env vars (matching patterns like `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIALS`). These are added to the spec's `from_env` field.
+
+2. **Project .env file:** During development, set your actual secrets in the project's `.env` file at `/opt/{project}/.env`.
+
+3. **Automatic loading:** When you run `fabrik apply`, it automatically reads from the project's `.env` file before checking system environment variables.
+
+**Secret Loading Precedence:**
+1. Command-line `-s` flags (highest)
+2. Project `.env` file
+3. Environment variables (lowest)
+
+**Example Workflow:**
+```bash
+# 1. Scaffold project (spec auto-generated with from_env secrets)
+fabrik scaffold my-api --type python-api
+
+# 2. Set secrets in project .env file
+# /opt/my-api/.env
+API_KEY=your_actual_key
+DATABASE_PASSWORD=your_actual_password
+
+# 3. Deploy - secrets auto-loaded from .env file
+fabrik apply /opt/fabrik/specs/services/my-api.yaml
+```
+
+**Benefits:**
+- No manual environment variable setting needed
+- Secrets are isolated per project
+- Works seamlessly across WSL dev and VPS Docker environments
+- Easy to override with `-s` flags when needed
 
 ### Required Code Changes
 

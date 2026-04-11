@@ -37,6 +37,23 @@ Execute the deployment for a spec.
 fabrik apply <spec_path> [-s KEY=VALUE] [--yes] [--skip-dns] [--skip-deploy] [--dry-run] [--use-orchestrator]
 ```
 
+**Secrets Loading:**
+Fabrik automatically loads secrets from the project's `.env` file at `/opt/{project_id}/.env`. Secret loading precedence:
+1. Command-line `-s` flags (highest)
+2. Project `.env` file
+3. Environment variables (lowest)
+
+**Example:**
+```bash
+# Set secrets in project .env file
+# /opt/my-api/.env
+API_KEY=your_key
+DATABASE_PASSWORD=your_password
+
+# Deploy - secrets auto-loaded from .env file
+fabrik apply /opt/fabrik/specs/services/my-api.yaml
+```
+
 ### `fabrik status`
 Check the status of a deployed service.
 

@@ -185,6 +185,33 @@ DUPLICATI_PASSPHRASE=${SECURE_PASSPHRASE}
 
 **Pattern:** `.env.example` has comprehensive comments. Copy and fill in values.
 
+### Project-Specific `.env` Files
+
+**For deployment secrets, Fabrik uses project-specific `.env` files.**
+
+Each project has its own `.env` file at `/opt/{project}/.env` for deployment secrets:
+
+```bash
+# /opt/my-api/.env (project-specific)
+API_KEY=your_api_key
+DATABASE_PASSWORD=your_password
+SECRET_TOKEN=your_secret_token
+```
+
+**How Fabrik loads secrets:**
+
+1. **Scaffold auto-detection:** `fabrik scaffold` reads `.env.example` and auto-detects secret env vars (matching patterns like `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIALS`). These are added to the spec's `from_env` field.
+
+2. **Automatic loading:** `fabrik apply` automatically reads from the project's `.env` file before checking system environment variables.
+
+3. **Precedence:** Command-line `-s` flags (highest) → Project `.env` file → Environment variables (lowest).
+
+**Benefits:**
+- No manual environment variable setting needed
+- Secrets are isolated per project
+- Works seamlessly across WSL dev and VPS Docker environments
+- Easy to override with `-s` flags when needed
+
 ### `config/platform.yaml`
 
 **Purpose:** Non-secret platform configuration.
