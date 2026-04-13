@@ -37,7 +37,7 @@ Fabrik scaffold generates a complete project structure with pre-configured tooli
 ### How To Use
 
 ```bash
-fabrik scaffold my-project --type api
+fabrik scaffold my-project --type python-api
 ```
 
 ### Marketing Copy
@@ -61,10 +61,10 @@ fabrik scaffold my-project --type api
 - `tests/` — Test directory with sample test
 - `docs/` — Documentation with FEATURES.md, INDEX.md
 - `.env.example` — Environment template
-- `AGENTS.md` → symlink to `/opt/fabrik/AGENTS.md`
-- `.windsurf/rules/` → symlink to `/opt/fabrik/.windsurf/rules/`
+- `AGENTS.md` — file copy of `/opt/fabrik/AGENTS.md`
+- `.windsurf/rules/` — file copy of `/opt/fabrik/.windsurf/rules/`
 
-**Project Types:** `api`, `cli`, `library`, `saas`
+**Project Types:** `python-api`, `saas-skeleton`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`
 
 </details>
 

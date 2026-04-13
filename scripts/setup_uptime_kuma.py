@@ -71,9 +71,9 @@ MONITORS = [
         "interval": 60,
     },
     {
-        "name": "DNS Manager",
+        "name": "Site Provisioner",
         "type": MonitorType.HTTP,
-        "url": "https://dns.vps1.ocoron.com/health",
+        "url": "https://provision.vps1.ocoron.com/health",
         "interval": 60,
     },
     {

@@ -217,6 +217,7 @@ fabrik templates
 | `--preset` | _(none)_ | Preset variant — only used with `--type wordpress` (`saas`, `company`, `content`, `landing`, `ecommerce`) |
 | `--description` / `-d` | `"A new project"` | Short project description |
 | `--no-spec` | `false` | Skip automatic spec file generation |
+| `--db` | `false` | Enable PostgreSQL database (creates DB, adds DATABASE_URL to .env.local) |
 
 ### `fabrik scaffold` Output (Complete File List)
 

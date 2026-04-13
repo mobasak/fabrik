@@ -48,7 +48,7 @@ brand:
 languages:
   primary: en_US                # Primary language
   additional: []                # Additional languages (e.g., [tr_TR, de_DE])
-  plugin: wpml                  # wpml | polylang | none
+  plugin: polylang              # polylang | none (wpml and translatepress are banned per 62-wordpress.md)
 
 timezone: "Europe/Istanbul"
 date_format: "Y-m-d"
@@ -238,7 +238,7 @@ deployment:
   backup:
     frequency: daily
     retention_days: 30
-    destination: r2             # r2 | b2 | s3
+    destination: b2             # b2 (preferred — free egress via Bandwidth Alliance) | r2 | s3
 
 # ─────────────────────────────────────────────────────────────────────────────
 # METADATA

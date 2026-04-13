@@ -12,7 +12,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    platform: linux/arm64
+    platform: linux/amd64
     environment:
       # Required (have defaults)
       - PORT=${PORT:-8000}

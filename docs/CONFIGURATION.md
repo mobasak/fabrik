@@ -104,6 +104,8 @@ If running DNS Manager locally, you need direct provider API credentials (see `.
 - `IMAGE_BROKER_URL` — Image Broker endpoint (http://localhost:18016)
 - `CONTENT_WORKER_ID` — Worker identifier for brief lifecycle tracking (default: fabrik-content-publisher)
 
+**WordPress credentials:** `WP_ADMIN_USER` and `WP_ADMIN_PASSWORD` are read by `deployer.py` for the REST API client (`WordPressAPIClient`). The domain is derived from the site spec — no `WP_SITE_URL` env var is needed. To target a different site, run with a different spec/site_id.
+
 **Development:** All services run locally via docker-compose. Use `http://localhost:PORT`.
 **Production:** Services deployed on VPS at `*.vps1.ocoron.com` with internal Docker networking.
 
@@ -480,6 +482,48 @@ TIMEOUT = float(os.getenv('TIMEOUT', '30.0'))
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost').split(',')
 # ALLOWED_HOSTS=localhost,example.com → ['localhost', 'example.com']
 ```
+
+---
+
+## n8n Webhook Notifications
+
+Fabrik fires fire-and-forget webhooks after deploy and content publish events.
+
+**How it works:**
+1. `deploy_router.py` calls `notify_deploy()` after every `fabrik deploy` / `fabrik apply`
+2. `content_publisher.py` calls `notify_content()` after every `fabrik content publish`
+3. n8n receives the POST, formats the message, POSTs to Apprise
+4. Apprise fans out to configured channels (Telegram, email, etc.)
+
+**Required env vars** (all optional — notifications silently skipped if absent):
+
+```bash
+N8N_WEBHOOK_DEPLOY=https://auto.vps1.ocoron.com/webhook/deploy-notify
+N8N_WEBHOOK_CONTENT=https://auto.vps1.ocoron.com/webhook/content-notify
+N8N_WEBHOOK_TIMEOUT=5   # seconds
+APPRISE_STATELESS_URLS=tgram://BOTTOKEN/CHATID  # set in /opt/apprise/.env
+```
+
+**Setup sequence:**
+1. Visit `https://auto.vps1.ocoron.com` → create owner account
+2. Import workflows from `specs/n8n-workflows/` (Settings → Workflows → Import)
+3. Activate each workflow → copy the Production webhook URL
+4. Paste URL into `N8N_WEBHOOK_DEPLOY` / `N8N_WEBHOOK_CONTENT` in `.env`
+5. Set `APPRISE_STATELESS_URLS` in `/opt/apprise/.env` on VPS, restart Apprise
+
+**Apprise URL formats:**
+- Telegram: `tgram://BOTTOKEN/CHATID`
+- Email (Resend SMTP): `mailtos://resend:RESEND_API_KEY@smtp.resend.com?to=you@email.com`
+- Multiple: comma-separated
+
+**n8n workflows** (`specs/n8n-workflows/`):
+
+| File | Event | Nodes |
+|------|-------|-------|
+| `01-deploy-notify.json` | `deploy.success` / `deploy.failure` from Fabrik | Webhook → Code → Apprise |
+| `02-content-notify.json` | `content.published` from Fabrik | Webhook → Code → Apprise |
+| `03-health-alert.json` | Uptime Kuma DOWN/UP | Webhook → Code → Apprise |
+| `04-content-trigger.json` | Schedule every 6h | Schedule → HTTP → Apprise |
 
 ---
 

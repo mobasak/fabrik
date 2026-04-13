@@ -1,0 +1,109 @@
+{
+  "name": "02 \u00b7 Content Publish Notify",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "content-notify",
+        "options": {}
+      },
+      "id": "webhook-content",
+      "name": "Webhook \u2013 Content Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "content-notify"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\nconst total = (body.published || 0) + (body.failed || 0);\nconst allOk = body.failed === 0;\nconst dryRun = body.dry_run ? ' (dry-run)' : '';\n\nreturn [{\n  json: {\n    title: allOk\n      ? `\ud83d\udcdd Content published: ${body.domain}${dryRun}`\n      : `\u26a0\ufe0f Content publish partial: ${body.domain}${dryRun}`,\n    body: `Published: ${body.published}/${total}  Failed: ${body.failed}/${total}`,\n    tag: 'content',\n    domain: body.domain,\n    published: body.published,\n    failed: body.failed\n  }\n}];"
+      },
+      "id": "format-content",
+      "name": "Format Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://apprise:8000/notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.body }}"
+            },
+            {
+              "name": "tag",
+              "value": "={{ $json.tag }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "apprise-content",
+      "name": "Send via Apprise",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook \u2013 Content Event": {
+      "main": [
+        [
+          {
+            "node": "Format Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Message": {
+      "main": [
+        [
+          {
+            "node": "Send via Apprise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "notes": "Receives content.published events from Fabrik (content_publisher.py \u2192 notifications.py \u2192 N8N_WEBHOOK_CONTENT). After importing, copy the webhook Production URL and paste into N8N_WEBHOOK_CONTENT in /opt/fabrik/.env."
+}

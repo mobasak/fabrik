@@ -40,7 +40,7 @@ services:
           cpus: '{{ resources.cpu }}'
 
     healthcheck:
-      test: ["CMD", "find", "/tmp/worker_heartbeat", "-mmin", "-2"]
+      test: ["CMD", "find", "/app/.tmp/worker_heartbeat", "-mmin", "-2"]
       interval: 30s
       timeout: 10s
       retries: 3

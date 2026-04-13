@@ -50,17 +50,11 @@ services:
       start_period: 10s
 {% endif %}
 
-    ports:
-      - "{{ env.get('PORT', '3000') }}:{{ env.get('PORT', '3000') }}"
-    expose:
-      - "{{ env.get('PORT', '3000') }}"
-
 {% if spec.domain %}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ spec.domain }}`)"
-      - "traefik.http.routers.{{ spec.id }}.entrypoints=https"
-      - "traefik.http.routers.{{ spec.id }}.tls=true"
+      - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
       - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port={{ env.get('PORT', '3000') }}"
 {% endif %}

@@ -243,12 +243,6 @@ menus:
 
 plugins:
   add:
-    # Multilingual (optional for SaaS)
-    - sitepress-multilingual-cms
-    - wpml-string-translation
-    # Page building
-    - thrive-architect
-    - thrive-leads
     # Pricing tables
     - go-pricing
     - wp-table-builder-pro
@@ -259,8 +253,13 @@ plugins:
     - fluentcrm-pro
     # GDPR
     - complianz-gdpr-premium
+    # NOTE: sitepress-multilingual-cms/wpml-string-translation removed — WPML banned per 62-wordpress.md §Multi-Language
+    # NOTE: thrive-architect/thrive-leads removed — heavy page builders banned per 62-wordpress.md §Plugin & Theme Discipline
+    # For multilingual SaaS: add polylang to site.yaml plugins.add if languages.additional is non-empty
 
-  skip: []
+  skip:
+    - sitepress-multilingual-cms  # banned — use polylang
+    - wpml-string-translation     # banned — use polylang
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BLOG

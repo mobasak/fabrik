@@ -18,7 +18,7 @@ MULTILINGUAL_PLUGIN_SLUGS: dict[str, str] = {
 
 def _resolve_multilingual_slug(lang_config: dict) -> str:
     """Return the WordPress plugin slug for the configured multilingual plugin."""
-    plugin_name: str = lang_config.get("plugin", "wpml")
+    plugin_name: str = lang_config.get("plugin", "polylang")
     slug = MULTILINGUAL_PLUGIN_SLUGS.get(plugin_name)
     return slug if slug is not None else plugin_name
 
@@ -34,10 +34,10 @@ def apply(
     If the key is absent or empty, this stage is a no-op.
 
     For multilingual setups (``additional`` non-empty), the configured
-    multilingual plugin (``languages.plugin``, default ``wpml``) must already
+    multilingual plugin (``languages.plugin``, default ``polylang``) must already
     be installed.  The stage fails fast if it is missing.  When WPML *is*
-    present a warning is appended reminding the operator to complete WPML
-    configuration manually in wp-admin.
+    present a warning is appended reminding the operator to replace it with Polylang
+    (WPML is banned per 62-wordpress.md).
     """
     result = StageResult(name="languages", success=True)
 
@@ -82,11 +82,11 @@ def apply(
         if primary != "en_US":
             wp.language_activate(primary)
 
-        # Warn operator that WPML content configuration remains manual
+        # Warn operator that WPML is banned and should be replaced
         if WPML_SLUG in installed_slugs:
             result.warnings.append(
-                "WPML is installed but multilingual content setup is not automated."
-                " Complete WPML configuration manually in wp-admin."
+                "WPML (sitepress-multilingual-cms) is installed but is banned per 62-wordpress.md."
+                " Switch to Polylang: deactivate WPML, install polylang, update languages.plugin to 'polylang'."
             )
 
     except Exception as e:

@@ -41,6 +41,13 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 3002 | grafana | specs/infrastructure/monitoring-stack.yaml | https://monitor.vps1.ocoron.com |
 | 5678 | n8n | specs/infrastructure/n8n.yaml | https://auto.vps1.ocoron.com |
 
+### Control Plane Services (VPS)
+
+| Port | Service | Project | Notes |
+|------|---------|---------|-------|
+| 8050 | fabrik-api | /opt/fabrik-api | FastAPI bridge — native VPS host process, binds `127.0.0.1` only |
+| 3004 | fabrik-control-plane | /opt/fabrik-control-plane | Next.js 14 chat UI — Coolify-managed container |
+
 ### Fabrik Microservices (VPS Host Ports)
 
 | Host Port | Service | Project | URL |
@@ -76,7 +83,13 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-04-12 00:03:02 -->
+<!-- Last synced: 2026-04-13 15:32:22 -->
+
+### ⚠️ Port Conflicts Detected
+
+| Port | Conflicting Projects |
+|------|---------------------|
+| **18014** | dns-manager, site-provisioner |
 
 ### Project Port Allocations (from project.yaml)
 
@@ -108,10 +121,12 @@ If you encounter a port conflict:
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
 | 8029 | **youtube** | python-api | /opt/youtube |
 | 8033 | **ComplianceOps** | python-api | /opt/ComplianceOps |
+| 8050 | **fabrik-api** | python-api | /opt/fabrik-api |
 | 18011 | **captcha** | python-api | /opt/captcha |
 | 18012 | **translator** | python-api | /opt/translator |
 | 18013 | **proxy** | automation | /opt/proxy |
-| 18014 | **dns-manager** | python-api | /opt/dns-manager |
+| 18014 ⚠️ | **dns-manager** | python-api | /opt/dns-manager |
+| 18014 ⚠️ | **site-provisioner** | python-api | /opt/site-provisioner |
 | 18015 | **file-api** | node-api | /opt/file-api |
 | 18016 | **image-broker** | python-api | /opt/image-broker |
 | 18017 | **emailgateway** | node-api | /opt/emailgateway |

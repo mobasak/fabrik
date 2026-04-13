@@ -13,7 +13,7 @@
 | **Application** | {VPS (Coolify) / Vercel / Static host} | `https://{project}.vps1.ocoron.com` |
 | **Database** | {VPS postgres-main / Supabase / SQLite} | {connection info in .env} |
 | **Cache** | {VPS redis / none} | {connection info in .env} |
-| **DNS** | Cloudflare (via dns-manager) | Automatic |
+| **DNS** | Cloudflare (via site-provisioner) | Automatic |
 | **SSL** | {Let's Encrypt (Coolify) / Vercel / Cloudflare} | Automatic |
 | **Monitoring** | Uptime Kuma | `https://status.vps1.ocoron.com` |
 

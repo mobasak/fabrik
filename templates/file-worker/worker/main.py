@@ -22,7 +22,8 @@ from worker.logger import get_logger
 log = get_logger(__name__)
 
 # Heartbeat file for Docker HEALTHCHECK
-HEARTBEAT_FILE = Path("/tmp/worker_heartbeat")
+HEARTBEAT_FILE = Path("/app/.tmp/worker_heartbeat")
+HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 # Config
 WORKER_ID = os.getenv("WORKER_ID", "worker-1")

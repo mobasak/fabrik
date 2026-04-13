@@ -10,7 +10,7 @@ schema_version: 1
 
 theme:
   name: generatepress
-  child: false
+  child: true  # 62-wordpress.md: always use child theme for custom PHP/CSS
   premium: true
 
   settings:
@@ -35,10 +35,11 @@ plugins:
     - generatepress           # Theme (free)
     - gp-premium              # Theme premium features
     - rank-math-seo           # SEO (or rank-math-seo-pro)
-    - flyingpress             # Performance/caching
-    - wp-mail-smtp            # Email delivery
+    - wp-mail-smtp            # Email delivery (fallback — prefer Fabrik Email Gateway on VPS per 62-wordpress.md)
     - complianz-gdpr          # Cookie consent / GDPR
     - wordfence               # Security (MANDATORY — brute-force, firewall, malware scan)
+    # NOTE: flyingpress removed — PHP caching plugins banned (62-wordpress.md)
+    # Use Nginx FastCGI Cache + Redis Object Cache instead
 
   # Form handling (one of)
   forms:
@@ -48,29 +49,30 @@ plugins:
   # Multilingual (if languages.additional not empty)
   multilingual:
     default: polylang
-    alternatives: [polylang, translatepress]
+    alternatives: [polylang]  # translatepress banned (62-wordpress.md: CPU-heavy DOM parsing)
 
   # Premium plugins (pre-placed ZIPs)
   premium:
     - gp-premium
     - rank-math-seo-pro
-    - flyingpress
     - wp-mail-smtp-pro
     - complianz-gdpr-premium
     - fluent-forms-pro
+    # flyingpress removed — PHP caching banned (62-wordpress.md)
 
   # Plugin configuration defaults
   config:
     rank-math:
-      modules: [sitemap, seo-analysis, schema, instant-indexing]
+      # 62-wordpress.md: Enable these modules
+      modules_enable: [sitemap, seo-analysis, schema, instant-indexing, redirections, image-seo, acf]
+      # 62-wordpress.md: Disable these modules (table bloat / background DB stress)
+      modules_disable: [analytics, link-counter, amp, bbpress, buddypress]
+      sitemap_posts_per_page: 200  # 62-wordpress.md: 200 links max (default 1000+ wastes crawl budget)
+      strip_category_base: true
+      redirect_attachments: true
+      remove_generator_tag: true
+      noindex_empty_archives: true
       title_separator: "|"
-
-    flyingpress:
-      cache_enabled: true
-      minify_html: true
-      minify_css: true
-      minify_js: true
-      lazy_load_images: true
 
     complianz:
       region: eu
@@ -135,6 +137,27 @@ seo:
     type: Organization
 
 # ─────────────────────────────────────────────────────────────────────────────
+# SECURITY DEFAULTS (62-wordpress.md — enforced by settings stage + compose + Makefile)
+# ─────────────────────────────────────────────────────────────────────────────
+
+security:
+  wordfence_mode: extended_protection  # 62-wordpress.md: Extended Protection mandatory
+  auto_updates:
+    core: minor    # WP_AUTO_UPDATE_CORE=minor in wp-config-extra.php
+    plugins: false # Managed manually via `make update`
+    themes: false  # Managed manually via `make update`
+  admin_username: CHANGE_ME  # NEVER use 'admin' — rename immediately after install
+  # admin_password: 32-char CSPRNG — generate with:
+  #   python3 -c "import secrets,string; print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(32)))"
+  max_admin_accounts: 1  # Additional users get Editor role maximum
+  table_prefix: CHANGE_ME_prod_      # 62-wordpress.md: NEVER use default wp_ prefix — set before first install
+  brute_force_lockout_attempts: 5    # 62-wordpress.md: Wordfence lock after 5 failed login attempts
+  block_admin_username: true         # 62-wordpress.md: block any login attempt with username 'admin'
+  two_factor_roles: [administrator, editor]  # 62-wordpress.md: 2FA mandatory for admin+editor
+  cloudflare_waf: true               # 62-wordpress.md: 5-rule WAF set MANDATORY when CF proxy active
+  cron_method: uptime_kuma           # 62-wordpress.md: preferred VPS cron — Uptime Kuma ping every 5 min
+
+# ─────────────────────────────────────────────────────────────────────────────
 # DEPLOYMENT DEFAULTS
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -149,7 +172,7 @@ deployment:
       backup:
         frequency: daily
         retention_days: 30
-        destination: r2
+        destination: b2  # 62-wordpress.md: B2 preferred (Cloudflare Bandwidth Alliance = free egress); r2 is alternative
 
     staging:
       server_profile: wp-test
@@ -170,6 +193,14 @@ checks:
     - /contact
   admin_accessible: true
   form_test: false
+  # Security checks (62-wordpress.md post-deploy checklist)
+  security:
+    xmlrpc_blocked: true         # curl -sI /xmlrpc.php must return 444/403/404
+    wordfence_active: true       # wp plugin list | grep wordfence must show active
+    admin_not_admin: true        # wp user list | grep admin must return empty
+    rate_limit_active: true      # Traefik middleware present on router
+    users_endpoint_blocked: true # curl /wp-json/wp/v2/users must return 403
+    table_prefix_set: true       # wp db prefix must NOT equal wp_
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION DEFAULTS (styling/behavior)

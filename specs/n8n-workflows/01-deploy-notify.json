@@ -1,0 +1,109 @@
+{
+  "name": "01 \u00b7 Deploy Notify",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deploy-notify",
+        "options": {}
+      },
+      "id": "webhook-deploy",
+      "name": "Webhook \u2013 Deploy Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "deploy-notify"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\nconst event = body.event || 'deploy.unknown';\nconst success = event === 'deploy.success';\n\nreturn [{\n  json: {\n    title: success ? `\u2705 Deploy succeeded: ${body.project}` : `\u274c Deploy failed: ${body.project}`,\n    body: success\n      ? `${body.domain} is live at ${body.url || body.domain}`\n      : `Step: ${body.error_step || 'unknown'}\\nError: ${body.error || 'no details'}`,\n    tag: 'deploy',\n    event: event,\n    project: body.project,\n    domain: body.domain\n  }\n}];"
+      },
+      "id": "format-deploy",
+      "name": "Format Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://apprise:8000/notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.body }}"
+            },
+            {
+              "name": "tag",
+              "value": "={{ $json.tag }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "apprise-deploy",
+      "name": "Send via Apprise",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook \u2013 Deploy Event": {
+      "main": [
+        [
+          {
+            "node": "Format Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Message": {
+      "main": [
+        [
+          {
+            "node": "Send via Apprise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "notes": "Receives deploy.success / deploy.failure events from Fabrik (deploy_router.py \u2192 notifications.py \u2192 N8N_WEBHOOK_DEPLOY). Formats the message and sends via Apprise. After importing, copy the webhook Production URL and paste into N8N_WEBHOOK_DEPLOY in /opt/fabrik/.env."
+}

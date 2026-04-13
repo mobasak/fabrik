@@ -131,8 +131,15 @@ Create a new project structure following Fabrik standards.
 
 **Usage:**
 ```bash
-fabrik scaffold <name> [--description <text>] [--type <type>] [--preset <preset>]
+fabrik scaffold <name> [--description <text>] [--type <type>] [--preset <preset>] [--db]
 ```
+
+**Options:**
+- `--description, -d`: Short project description
+- `--type`: Project type (default: python-api)
+- `--preset`: Preset variant for WordPress projects
+- `--db`: Enable PostgreSQL database (creates DB, adds DATABASE_URL to .env.local)
+- `--no-spec`: Skip automatic spec file generation
 
 ### `fabrik validate`
 Validate a project's structure against Fabrik standards.

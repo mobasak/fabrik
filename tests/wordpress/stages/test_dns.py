@@ -21,7 +21,8 @@ def test_dns_missing_vps_ip_fails(minimal_spec, mock_wp, mock_api, tmp_path):
     spec["deployment"] = {}
     spec["dry_run"] = True
 
-    result = dns.apply(spec, mock_wp, mock_api, tmp_path)
+    with patch.dict("os.environ", {"VPS_IP": ""}):
+        result = dns.apply(spec, mock_wp, mock_api, tmp_path)
 
     assert not result.success
     assert "VPS_IP not configured" in result.errors
@@ -34,7 +35,8 @@ def test_dns_missing_vps_ip_not_dry_run(minimal_spec, mock_wp, mock_api, tmp_pat
     spec["deployment"] = {}
     spec["dry_run"] = False
 
-    result = dns.apply(spec, mock_wp, mock_api, tmp_path)
+    with patch.dict("os.environ", {"VPS_IP": ""}):
+        result = dns.apply(spec, mock_wp, mock_api, tmp_path)
 
     assert not result.success
     assert "VPS_IP not configured" in result.errors

@@ -14,6 +14,10 @@ services:
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
       - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=8000"
     {% endif %}
+    {% if depends.postgres %}
+    # Run migrations if Alembic is configured (fail loud if migration errors)
+    command: sh -c "if [ -f alembic.ini ]; then alembic upgrade head || exit 1; fi && uvicorn src.{{ spec.id.replace('-', '_') }}.main:app --host 0.0.0.0 --port 8000"
+    {% endif %}
     environment:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

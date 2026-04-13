@@ -106,8 +106,9 @@ spec:
       description: "Additional locales for translation"
     plugin:
       type: string
-      default: wpml
-      allowed: [wpml, polylang, translatepress]
+      default: polylang
+      allowed: [polylang, none]
+      description: "wpml and translatepress are banned per 62-wordpress.md. Use polylang."
 
   # ── CONTACT ────────────────────────────────────────────────────────────────
   contact:
@@ -301,7 +302,8 @@ spec:
             default: 30
           destination:
             type: string
-            default: r2
+            default: b2
+            description: "Backblaze B2 (preferred — Bandwidth Alliance = free egress). r2 or s3 also supported."
       staging:
         server_profile:
           type: string

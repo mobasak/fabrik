@@ -1,0 +1,39 @@
+id: test-file-log
+kind: service
+template: file-api
+domain: test-file-log.vps1.ocoron.com
+expose:
+  http: true
+  internal_only: false
+source:
+  type: template
+  branch: main
+coolify:
+  project: default
+  server: localhost
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env: {}
+secrets:
+  required: []
+  generate: []
+  from_env:
+  - SUPABASE_SERVICE_ROLE_KEY
+  - R2_SECRET_ACCESS_KEY
+  from_file: {}
+resources:
+  memory: 256M
+  cpu: '0.5'
+health:
+  path: /api/health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30

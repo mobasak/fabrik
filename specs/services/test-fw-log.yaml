@@ -1,0 +1,33 @@
+id: test-fw-log
+kind: worker
+template: file-worker
+expose:
+  http: false
+  internal_only: false
+source:
+  type: template
+  branch: main
+coolify:
+  project: default
+  server: localhost
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env: {}
+secrets:
+  required: []
+  generate: []
+  from_env:
+  - SUPABASE_SERVICE_ROLE_KEY
+  - R2_SECRET_ACCESS_KEY
+  from_file: {}
+resources:
+  memory: 256M
+  cpu: '0.5'
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30

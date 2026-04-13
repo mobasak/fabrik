@@ -68,7 +68,7 @@ Systematically verify every constraint below against the project. State each fin
 8. **No Alpine** — Only `slim-bookworm` base images. Never Alpine.
 9. **Module dependencies** — Does this project depend on an incomplete Fabrik module? Check `/opt/fabrik/docs/BUSINESS_MODEL.md`
 10. **Duplicate project** — Does a similar project already exist in `/opt/fabrik/docs/BUSINESS_MODEL.md`? State finding explicitly.
-11. **DNS** — Domain management is automatic via dns-manager. No manual DNS work needed.
+11. **DNS** — Domain management is automatic via site-provisioner. No manual DNS work needed.
 12. **Design System** — For any project with a UI surface (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus): confirm `.windsurf/rules/ocoron-design-system.md` was read. State: "Design system read." If not applicable, state "No UI surface."
 
 > **Orientation rules:**

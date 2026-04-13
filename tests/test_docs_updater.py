@@ -157,7 +157,7 @@ class TestStubCreation:
         mod.mkdir(parents=True)
         (mod / "__init__.py").write_text("__all__ = ['foo']")
 
-        monkeypatch.setattr(docs_updater, "FABRIK_ROOT", tmp_path)
+        monkeypatch.setattr(docs_updater, "PROJECT_ROOT", tmp_path)
 
         # Try to create stub
         from docs_updater import create_module_stub

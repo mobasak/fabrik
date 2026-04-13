@@ -162,7 +162,7 @@ class DeploymentOrchestrator:
             self._transition(ctx, DeploymentState.COMPLETE)
             logger.info("Deployment complete: %s", ctx.deployed_url or spec["domain"])
 
-        except (ValidationError, DeployError, VerificationError) as e:
+        except (ValidationError, ProvisioningError, DeployError, VerificationError) as e:
             ctx.error = str(e)
             ctx.error_step = e.step if hasattr(e, "step") else None
             logger.error("Deployment failed at %s: %s", ctx.error_step, e)
@@ -248,7 +248,7 @@ class DeploymentOrchestrator:
                     f"DNS Manager error for {domain}: {result.get('message', 'unknown')}",
                     resource_type="dns",
                 )
-            ctx.add_resource("dns", domain, subdomain=subdomain, base_domain=base_domain)
+            ctx.add_resource("dns", domain, zone=base_domain)
             ctx.dns_record_id = domain
             logger.info("DNS record created: %s -> %s (via DNS Manager)", domain, vps_ip)
         except ProvisioningError:
@@ -257,9 +257,8 @@ class DeploymentOrchestrator:
             logger.warning("DNS Manager failed (%s), trying Cloudflare...", dns_err)
             try:
                 cf = CloudflareClient()
-                zone_id = cf.get_zone_id(base_domain)
-                cf.upsert_record(zone_id, "A", subdomain, vps_ip)
-                ctx.add_resource("dns", domain, subdomain=subdomain, base_domain=base_domain)
+                cf.add_subdomain(base_domain, subdomain, vps_ip)
+                ctx.add_resource("dns", domain, zone=base_domain)
                 ctx.dns_record_id = domain
                 logger.info("DNS record created: %s -> %s (via Cloudflare)", domain, vps_ip)
             except Exception as cf_err:

@@ -99,8 +99,9 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
 | **Orchestration** | DeploymentOrchestrator | 147 | State machine: validate → provision → deploy → verify → rollback |
 | **Provisioning** | SiteProvisioner | 782 | Saga pattern: domain → DNS → Coolify → health (15 granular states) |
 | **WordPress** | WordPress Automation | 2,500+ | Theme, pages, SEO, analytics, multilingual, content generation |
-| **CLI** | Fabrik CLI | 828 | Commands: new, plan, apply, status, templates, scaffold |
-| **Drivers** | External Integrations | 3,000+ | Coolify, Cloudflare, Namecheap, Supabase, R2, WordPress API |
+| **Content Pipeline** | ContentPublisher | ~600 | SEO brief-drain → TCO generation → Image Broker → WordPress publish |
+| **CLI** | Fabrik CLI | 828 | Commands: new, plan, apply, status, templates, scaffold, content publish |
+| **Drivers** | External Integrations | 3,000+ | Coolify, Cloudflare, Namecheap, Supabase, R2, WordPress API, SEO service, TCO, Image Broker |
 | **Templates** | 18 Project Templates | - | SaaS skeleton, APIs, WordPress, workers, Chrome extensions |
 
 **Total Production Code:** 13,565 lines
@@ -394,7 +395,7 @@ class ProvisionState(str, Enum):
 | **Traefik** | VPS (ports 80/443) | Reverse proxy + automatic HTTPS |
 | **PostgreSQL** | postgres-main container | Shared database |
 | **Redis** | redis-main container | Shared cache |
-| **dns-manager** | https://dns.vps1.ocoron.com | DNS automation (Namecheap + Cloudflare) |
+| **Site Provisioner** | https://provision.vps1.ocoron.com | Domain provisioning, DNS, SSL, CDN, analytics |
 | **Uptime Kuma** | https://status.vps1.ocoron.com | Status monitoring |
 | **Duplicati** | https://backup.vps1.ocoron.com | Encrypted backups to B2 |
 | **File API** | https://files-api.vps1.ocoron.com | File uploads (R2 storage) |
@@ -619,7 +620,38 @@ services:  # Generates pages automatically
 - Legal pages (Privacy Policy, Terms)
 - Multilingual support
 
-### 4. Cloud Integration
+### 4. Content Publishing Pipeline
+
+Drain SEO-ready briefs and publish them to WordPress automatically:
+
+```bash
+# Publish up to 10 ready briefs for a domain
+fabrik content publish example.com
+
+# Dry-run — preview without consuming briefs or publishing
+fabrik content publish example.com --dry-run
+
+# Limit to 3 briefs per run
+fabrik content publish example.com --limit 3
+```
+
+**Pipeline flow per brief:**
+
+```
+domain → resolve site_id → list ready briefs → claim brief
+→ assemble TCO payload (10-field whitelist + UUID coercion)
+→ TCO generate content
+→ Image Broker (best-effort: download URL → temp file → upload_media)
+→ blog_post → create_post  /  other page_type → create_page
+→ submit SubmissionPayload (uses actual WP link/slug)
+→ release brief lock on any failure
+```
+
+**Required env vars:** `SEO_API_URL`, `SEO_API_KEY`, `TCO_API_URL`, `TCO_API_KEY`, `IMAGE_BROKER_URL`, `WP_SITE_URL`, `WP_USERNAME`, `WP_PASSWORD`, `CONTENT_WORKER_ID`
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#content-creation-pipeline) for full configuration reference.
+
+### 5. Cloud Integration
 
 **Supabase + Cloudflare R2:**
 - Multi-tenant database (PostgreSQL)
@@ -629,7 +661,7 @@ services:  # Generates pages automatically
 - Presigned upload URLs (bypass server)
 - Background job queue
 
-### 5. Project Scaffolding
+### 6. Project Scaffolding
 
 Create new projects with best practices built-in:
 
@@ -720,7 +752,7 @@ fabrik scaffold my-service
 | **CLI** | Python 3.12, Click |
 | **Orchestration** | State machines, saga pattern (782 lines) |
 | **Deployment** | Coolify API, Docker Compose |
-| **DNS** | dns-manager service (Namecheap + Cloudflare) |
+| **DNS** | Site Provisioner service (Namecheap + Cloudflare) |
 | **Reverse Proxy** | Traefik (automatic HTTPS) |
 | **Database** | PostgreSQL 16, Supabase |
 | **Cache** | Redis |

@@ -37,7 +37,52 @@
 
 ---
 
-## Quick Start
+## Local Development (WSL)
+
+<!-- This section applies if project uses PostgreSQL. Delete if stateless/API-only. -->
+
+### Database Setup
+
+This project uses PostgreSQL for local development. The database was auto-created during scaffold if `--db` flag was used.
+
+**Database name:** `{project_name}_dev`
+**Connection:** `postgresql://postgres@localhost:5432/{project_name}_dev`
+
+**If database was not auto-created:**
+```bash
+sudo -u postgres psql -c "CREATE DATABASE {project_name}_dev;"
+```
+
+### Running Locally
+
+```bash
+cd /opt/{project-name}
+
+# Use local development config
+cp .env.local .env
+
+# Run migrations (if using Alembic)
+.venv/bin/alembic upgrade head
+
+# Start development server
+.venv/bin/uvicorn src.{package}.main:app --reload --port [PORT]
+```
+
+### Database Access
+
+```bash
+# Connect with psql
+psql -U postgres -d {project_name}_dev
+
+# Useful commands
+\dt              # List tables
+\d table_name    # Describe table
+\q               # Quit
+```
+
+---
+
+## Quick Start (Docker - VPS Deployment)
 
 ```bash
 # Clone and configure

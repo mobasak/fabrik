@@ -15,11 +15,11 @@ Usage:
 
     # Full provisioning (new domain)
     result = provision_domain('tojlo.com')
-    print(result.zone_id, result.nameservers, result.cloudflare_status)
+    # result.zone_id, result.nameservers, result.cloudflare_status
 
     # Sync DNS records (when zone is active)
     dns_result = sync_dns('tojlo.com')
-    print(dns_result.applied, dns_result.blocked_by_status)
+    # dns_result.applied, dns_result.blocked_by_status
 """
 
 import os
@@ -95,7 +95,8 @@ class DomainProvisioner:
 
     def __init__(self, dns_manager_url: str | None = None):
         self.dns_manager_url = dns_manager_url or os.getenv(
-            "DNS_MANAGER_URL", "https://dns.vps1.ocoron.com"
+            "SITE_PROVISIONER_URL",
+            os.getenv("DNS_MANAGER_URL", "https://provision.vps1.ocoron.com"),
         )
 
         self._http = httpx.Client(timeout=30)
@@ -326,9 +327,7 @@ def provision_domain(domain: str) -> ProvisionResult:
 
     Example:
         result = provision_domain('tojlo.com')
-        print(f"Zone: {result.zone_id}")
-        print(f"Nameservers: {result.nameservers}")
-        print(f"Status: {result.cloudflare_status}")
+        # result.zone_id, result.nameservers, result.cloudflare_status
     """
     with DomainProvisioner() as provisioner:
         return provisioner.provision(domain)
@@ -342,10 +341,8 @@ def sync_dns(
 
     Example:
         result = sync_dns('tojlo.com')
-        if result.applied:
-            print("DNS records synced")
-        elif result.blocked_by_status:
-            print("Zone still pending")
+        # result.applied → True if records were synced
+        # result.blocked_by_status → True if zone still pending
     """
     vps_ip = vps_ip or os.getenv("VPS_IP") or ""
     if not vps_ip:

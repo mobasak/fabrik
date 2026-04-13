@@ -45,6 +45,9 @@ def temp_build_root(tmp_path, monkeypatch):
 def test_plan_creates_artifacts(mock_resolved_spec, temp_build_root):
     """Test that plan() creates all required artifacts."""
     with patch(
+        "fabrik.wordpress.planner.resolve_spec_path",
+        return_value=(temp_build_root / "site.yaml", False),
+    ), patch(
         "fabrik.wordpress.resolved_spec.ResolvedSpec.from_site", return_value=mock_resolved_spec
     ):
         planner = Planner("test.com")
@@ -83,6 +86,9 @@ def test_plan_creates_artifacts(mock_resolved_spec, temp_build_root):
 def test_plan_is_idempotent(mock_resolved_spec, temp_build_root):
     """Test that running plan() twice produces identical results."""
     with patch(
+        "fabrik.wordpress.planner.resolve_spec_path",
+        return_value=(temp_build_root / "site.yaml", False),
+    ), patch(
         "fabrik.wordpress.resolved_spec.ResolvedSpec.from_site", return_value=mock_resolved_spec
     ):
         planner = Planner("test.com")
@@ -102,6 +108,9 @@ def test_plan_is_idempotent(mock_resolved_spec, temp_build_root):
 def test_plan_preserves_container_name(mock_resolved_spec, temp_build_root):
     """Test that existing container_name is preserved."""
     with patch(
+        "fabrik.wordpress.planner.resolve_spec_path",
+        return_value=(temp_build_root / "site.yaml", False),
+    ), patch(
         "fabrik.wordpress.resolved_spec.ResolvedSpec.from_site", return_value=mock_resolved_spec
     ):
         planner = Planner("test.com")

@@ -201,12 +201,6 @@ plugins:
   add:
     # WooCommerce core
     - woocommerce
-    # Multilingual
-    - sitepress-multilingual-cms
-    - wpml-string-translation
-    # Page building
-    - thrive-architect
-    - thrive-leads
     # Urgency/scarcity
     - thrive-ultimatum
     # Email marketing
@@ -218,8 +212,13 @@ plugins:
     - complianz-gdpr-premium
     # Tracking
     - gtm4wp
+    # NOTE: sitepress-multilingual-cms/wpml-string-translation removed — WPML banned per 62-wordpress.md §Multi-Language
+    # NOTE: thrive-architect/thrive-leads removed — heavy page builders banned per 62-wordpress.md §Plugin & Theme Discipline
+    # For multilingual ecommerce: add polylang + woocommerce-multilingual to site.yaml plugins.add
 
-  skip: []
+  skip:
+    - sitepress-multilingual-cms  # banned — use polylang
+    - wpml-string-translation     # banned — use polylang
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WOOCOMMERCE SETTINGS

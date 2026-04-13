@@ -68,7 +68,7 @@ For each project below:
 | # | Project | Path | Stack | Default Port |
 |---|---------|------|-------|-------------|
 | 1 | captcha | /opt/captcha | Python/FastAPI | 8000 |
-| 2 | dns-manager | /opt/dns-manager | Python/FastAPI | 8001 |
+| 2 | site-provisioner | /opt/site-provisioner | Python/FastAPI | 8001 |
 | 3 | emailgateway | /opt/emailgateway | Node.js/Express | 3000 |
 | 4 | file-api | /opt/file-api | Node.js | 3000 |
 | 5 | file-worker | /opt/file-worker | Python | 8000 |
@@ -113,7 +113,7 @@ Add health endpoints to the project's existing main entry file — do NOT create
 1. emailgateway — P0 (Alpine fix) + P1 (healthcheck)
 2. file-api — P0 (Alpine fix) + P1 (healthcheck)
 3. captcha — P1 only
-4. dns-manager — P1 only
+4. site-provisioner — P1 only
 5. file-worker — P1 only
 6. proxy — P1 only
 7. translator — P1 only
@@ -124,7 +124,7 @@ Add health endpoints to the project's existing main entry file — do NOT create
 
 After ALL fixes:
 ```bash
-for proj in emailgateway file-api captcha dns-manager file-worker proxy translator; do
+for proj in emailgateway file-api captcha site-provisioner file-worker proxy translator; do
     echo "=== $proj ==="
     cd /opt/$proj && docker compose config > /dev/null 2>&1 && echo "  compose: OK" || echo "  compose: FAIL"
 done

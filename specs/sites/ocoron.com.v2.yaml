@@ -1,21 +1,21 @@
 # Site Specification: ocoron.com (v2 schema)
-# This is the MINIMAL site-specific config
 # Inherits: defaults.yaml → presets/company.yaml → this file
+# Content: filled by SEO/TCO pipeline + Image Broker — do NOT hardcode copy here
 
 schema_version: 1
 preset: company
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SITE IDENTITY (required)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# SITE IDENTITY
+# ─────────────────────────────────────────────────────────────────────────
 
 site:
   domain: ocoron.com
   name: ocoron-com
 
-# ─────────────────────────────────────────────────────────────────────────────
-# BRAND (required)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# BRAND
+# ─────────────────────────────────────────────────────────────────────────
 
 brand:
   name: "Ocoron"
@@ -33,9 +33,9 @@ brand:
     secondary: "#0891b2"
     accent: "#ea580c"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# LANGUAGES (required: primary)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# LANGUAGES
+# ─────────────────────────────────────────────────────────────────────────
 
 languages:
   primary: en_US
@@ -43,18 +43,44 @@ languages:
 
 timezone: Europe/Istanbul
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CONTACT (required: email)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# CONTACT & BUSINESS INFO
+# Required for LocalBusiness schema, contact page, footer
+# ─────────────────────────────────────────────────────────────────────────
 
 contact:
   email: contact@ocoron.com
+  phone: "+905326839524"
+  address:
+    street: "Universite Mah. Sarigul Sk. No: 37/1/43"
+    district: "Avcilar"
+    city: "Istanbul"
+    country: "TR"
+    postal_code: "34320"
   social:
-    linkedin: https://www.linkedin.com/company/ocoron/
+    linkedin: "https://www.linkedin.com/company/ocoron/"
+  form_fields: [name, email, phone, service, message]  # consumed by current forms.py stage
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SERVICES (entity - generates pages)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# SECURITY (62-wordpress.md rules)
+# ─────────────────────────────────────────────────────────────────────────
+
+security:
+  admin_username: "ocoronadm"   # NEVER 'admin' — 62-wordpress.md rule
+  # admin_password: 32-char CSPRNG — set as WP_ADMIN_PASSWORD in .env
+  table_prefix: "ocoron_prod_"  # 62-wordpress.md: never use default wp_ prefix
+  wordfence_mode: extended_protection
+  brute_force_lockout_attempts: 5   # 62-wordpress.md: lock after 5 failed attempts
+  block_admin_username: true        # 62-wordpress.md: block any login attempt as 'admin'
+  two_factor_roles: [administrator, editor]  # 62-wordpress.md: 2FA mandatory for admin+editor
+  rest_api_app_password_user: ocoronadm  # 62-wordpress.md: Application Password for n8n automation
+  cron_method: uptime_kuma          # 62-wordpress.md: preferred VPS cron via Uptime Kuma ping
+  child_theme: true                 # 62-wordpress.md: GeneratePress child theme required for custom PHP/CSS
+  cloudflare_waf: true              # 62-wordpress.md: 5-rule WAF set MANDATORY when CF proxy active
+
+# ─────────────────────────────────────────────────────────────────────────
+# ENTITIES — generates individual pages per item
+# ─────────────────────────────────────────────────────────────────────────
 
 services:
   - slug: investment-incentives
@@ -129,77 +155,196 @@ services:
       tr_TR: "ISO sertifikaları ve kalite sistemleri"
     icon: shield-check
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CONTENT (optional shared pool)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# PLUGINS (additions to defaults + preset)
+# ─────────────────────────────────────────────────────────────────────────
 
-content:
-  value_props:
-    - icon: landmark
-      title:
-        en_US: "Government Incentives"
-        tr_TR: "Devlet Teşvikleri"
-      description:
-        en_US: "KOSGEB, TUBITAK, Turquality programs"
-        tr_TR: "KOSGEB, TÜBİTAK, Turquality programları"
-    - icon: globe
-      title:
-        en_US: "Global Trade"
-        tr_TR: "Küresel Ticaret"
-      description:
-        en_US: "International expansion and market entry"
-        tr_TR: "Uluslararası genişleme ve pazar girişi"
-    - icon: brain
-      title:
-        en_US: "AI & Digital"
-        tr_TR: "AI ve Dijital"
-      description:
-        en_US: "Digital transformation and AI integration"
-        tr_TR: "Dijital dönüşüm ve AI entegrasyonu"
-    - icon: factory
-      title:
-        en_US: "Manufacturing"
-        tr_TR: "Üretim"
-      description:
-        en_US: "Plant design, R&D, ERP implementation"
-        tr_TR: "Fabrika tasarımı, AR-GE, ERP uygulaması"
+plugins:
+  add:
+    - shortpixel-image-optimiser  # WebP/AVIF conversion
+    # wp-optimize removed: make db-clean (Makefile) handles transients/spam/revisions/optimize
+    # without a PHP plugin — 62-wordpress.md §WP-CLI & Makefile
+  skip:
+    - sitepress-multilingual-cms  # Using polylang instead of WPML — 62-wordpress.md §Multi-Language
+    - wpml-string-translation
+    - thrive-architect            # Not needed for this site
+    - thrive-leads
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SEO (optional, has defaults)
-# ─────────────────────────────────────────────────────────────────────────────
+  config:
+    rank-math:
+      # 62-wordpress.md: full module enable/disable list
+      modules_enable: [sitemap, seo-analysis, schema, instant-indexing, redirections, image-seo, acf]
+      modules_disable: [analytics, link-counter, amp, bbpress, buddypress]
+      sitemap_posts_per_page: 200
+      strip_category_base: true
+      redirect_attachments: true
+      remove_generator_tag: true
+      noindex_empty_archives: true
+    shortpixel:
+      lossy: true
+      webp: true
+      avif: true
+    polylang:
+      enabled: true
+      languages: [en_US, tr_TR]
+
+# ─────────────────────────────────────────────────────────────────────────
+# FORMS
+# ─────────────────────────────────────────────────────────────────────────
+
+forms:
+  contact:
+    title:
+      en_US: "Contact Us"
+      tr_TR: "İletişime Geçin"
+    fields:
+      - name: name
+        type: text
+        required: true
+        label:
+          en_US: "Full Name"
+          tr_TR: "Ad Soyad"
+      - name: email
+        type: email
+        required: true
+        label:
+          en_US: "Email"
+          tr_TR: "E-posta"
+      - name: phone
+        type: tel
+        required: false
+        label:
+          en_US: "Phone"
+          tr_TR: "Telefon"
+      - name: service
+        type: select
+        required: false
+        label:
+          en_US: "Service of Interest"
+          tr_TR: "İlgilenilen Hizmet"
+        options_ref: entities.services
+      - name: message
+        type: textarea
+        required: true
+        label:
+          en_US: "Message"
+          tr_TR: "Mesaj"
+    submit_label:
+      en_US: "Send Message"
+      tr_TR: "Mesaj Gönder"
+    notification_email: contact@ocoron.com
+
+# ─────────────────────────────────────────────────────────────────────────
+# SEO
+# ─────────────────────────────────────────────────────────────────────────
 
 seo:
   default_meta:
     en_US:
       title: "Ocoron | Government Incentives & Business Consultancy"
-      description: "Expert consultancy in Government Incentives, Foreign Trade, AI Integration, and Manufacturing."
+      description: "Expert consultancy in Government Incentives, Foreign Trade, AI Integration, and Manufacturing for Turkish and international companies."
     tr_TR:
       title: "Ocoron | Devlet Teşvikleri ve İş Danışmanlığı"
-      description: "Devlet Teşvikleri, Dış Ticaret, AI Entegrasyonu ve Üretim alanlarında uzman danışmanlık."
+      description: "Devlet Teşvikleri, Dış Ticaret, AI Entegrasyonu ve Üretim alanlarında Türk ve uluslararası şirketlere uzman danışmanlık."
 
-  analytics:
-    ga4_id: ${GA4_ID}  # G-VK6FMQRVRL in .env
+  # Technical SEO — all flags consumed by seo stage
+  archives_noindex: true        # tags, author, date archive pages → noindex
+  breadcrumbs: true             # RankMath breadcrumbs enabled
+  og_enabled: true              # Open Graph meta tags
+  twitter_card: summary_large_image
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DEPLOYMENT (required: target)
-# ─────────────────────────────────────────────────────────────────────────────
+  # JSON-LD schema injection
+  schema:
+    type: LocalBusiness         # More specific than Organization (has address)
+    inject_website: true        # WebSite schema with SearchAction
+    inject_breadcrumbs: true    # BreadcrumbList on all pages
+
+  # robots.txt generation
+  robots_txt:
+    allow_ai_crawlers: true     # GPTBot, ClaudeBot, PerplexityBot, Googlebot-Extended
+    disallow:
+      - /wp-admin/              # 62-wordpress.md §REST API Hardening: block from indexing
+      - /wp-includes/
+      - /wp-content/plugins/
+
+  # Analytics — analytics stage reads seo.ga4_id directly (flat key)
+  ga4_id: ${GA4_ID}             # Set GA4_ID=G-VK6FMQRVRL in .env
+  gtm_id: ""                    # Optional GTM container ID
+
+# ─────────────────────────────────────────────────────────────────────────
+# POST-DEPLOY (site-provisioner webhook sequence — runs once per domain)
+# ─────────────────────────────────────────────────────────────────────────
+
+post_deploy:
+  sitemap_url: "https://ocoron.com/sitemap.xml"
+  setup_google: true            # Google Search Console property + verify + sitemap submit
+  gsc_verification_method: dns_txt  # 62-wordpress.md: DNS TXT via site-provisioner — never HTML file
+  setup_bing: true              # Bing Webmaster Tools + sitemap submit
+  setup_indexnow: true          # IndexNow ping (RankMath Instant Indexing module)
+  setup_ga4: true               # GA4 property creation
+  ga4_account_id: ${GA4_ACCOUNT_ID}  # Set in .env
+  browserless_screenshot: true  # 62-wordpress.md checklist item 17 — headless screenshot on go-live
+
+# ─────────────────────────────────────────────────────────────────────────
+# MONITORING
+# ─────────────────────────────────────────────────────────────────────────
+
+monitoring:
+  uptime_kuma:
+    enabled: true
+    url: "https://ocoron.com"
+    interval: 60
+    wp_cron_ping_url: "https://ocoron.com/wp-cron.php?doing_wp_cron"  # 62-wordpress.md: cron via Uptime Kuma every 5 min
+    wp_cron_interval: 300  # seconds — every 5 minutes
+
+# ─────────────────────────────────────────────────────────────────────────
+# DEPLOYMENT
+# ─────────────────────────────────────────────────────────────────────────
 
 deployment:
   target: production
+  coolify:
+    service_uuid: zwgsgwkwosws84o4sk4kwkso
   targets:
     production:
       server_profile: vps1
     staging:
       server_profile: wp-test
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# BACKUP (62-wordpress.md: server-level only — PHP backup plugins banned)
+# ─────────────────────────────────────────────────────────────────────────
+
+backup:
+  script: templates/wordpress/base/backup/backup.sh  # server-level mysqldump + tar + S3 sync
+  destination: b2                    # 62-wordpress.md: B2 preferred (Bandwidth Alliance = free egress)
+  schedule: "0 2 * * *"              # daily at 02:00
+  retain_days: 30
+  duplicati:
+    enabled: true                    # 62-wordpress.md §Backups: mandatory for VPS deployments
+    volumes: [ocoron-com_wp_content, ocoron-com_db_data]
+    bucket: ocoron-com-backups       # dedicated isolated B2 bucket — not shared with other sites
+    encryption: aes-256
+    schedule: "0 3 * * *"            # daily at 03:00 (offset from script backup)
+
+# ─────────────────────────────────────────────────────────────────────────
 # CHECKS (post-deploy verification)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
 
 checks:
   urls:
     - /
     - /services
     - /services/investment-incentives
+    - /services/foreign-trade
+    - /services/ai-consultancy
+    - /services/manufacturing
+    - /services/logistics
+    - /services/b2b-marketing
+    - /services/medical-procurement
+    - /services/quality-management
     - /about
     - /contact
+    - /privacy-policy
+    - /terms
+    - /insights

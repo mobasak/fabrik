@@ -127,7 +127,7 @@ NON_CODE_DIRS = {
 
 ALL_PROJECTS = [
     "captcha",
-    "dns-manager",
+    "site-provisioner",
     "file-api",
     "translator",
     "youtube",
@@ -1285,7 +1285,7 @@ def build_constraints(audit: ProjectAudit):
 
     c["module_deps"] = "✅ No incomplete dependencies"
     c["duplicate"] = "✅ Unique"
-    c["dns"] = "✅ Managed by dns-manager"
+    c["dns"] = "✅ Managed by site-provisioner"
     c["design_system"] = (
         "Needs verification" if audit.project_type in GUIDE_ENABLED_TYPES else "N/A — no UI surface"
     )

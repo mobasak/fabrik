@@ -23,7 +23,7 @@ Fabrik is an **internal platform** enabling rapid deployment of revenue-generati
 - **SaaS subscriptions** (YouTube pipeline)
 - **API usage fees** (Captcha, translation, file storage)
 - **B2B services** (Proposal generation, proxy management)
-- **Internal tools** (Email gateway, DNS manager)
+- **Internal tools** (Email gateway, Site provisioner)
 
 ## Cost Structure
 
@@ -91,17 +91,18 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-12 00:03:02 -->
-<!-- Total projects: 34 -->
+<!-- Last synced: 2026-04-13 15:32:22 -->
+<!-- Total projects: 35 -->
 
-### Production Services (6 projects)
+### Production Services (7 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **captcha** | A REST API service for solving captchas. Other applications can call this service to solve reCA... | Python | ✅ Production | https://captcha.vps1.ocoron.com | ✅ Current |
-| **dns-manager** | Python SDK, CLI, and REST API for managing Namecheap domains, DNS, SSL, and more. | Python | ✅ Production | https://dns.vps1.ocoron.com | ✅ Current |
+| **dns-manager** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **file-api** | Presigned URL service for Cloudflare R2 file uploads/downloads. | Express | ✅ Production | https://files-api.vps1.ocoron.com | ✅ Current |
 | **proxy** | Service-isolated proxy management API with Webshare.io integration and per-service health track... | Python | ✅ Production | - | ✅ Current |
+| **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
@@ -142,20 +143,5 @@ With ~$50/month infrastructure cost:
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
-
-### Recently Removed (10 projects)
-
-| Project | Note |
-|---------|------|
-| ~~test-env-chrome-extension~~ | Folder deleted since last scan |
-| ~~test-env-desktop-app~~ | Folder deleted since last scan |
-| ~~test-env-docusaurus~~ | Folder deleted since last scan |
-| ~~test-env-file-api~~ | Folder deleted since last scan |
-| ~~test-env-file-worker~~ | Folder deleted since last scan |
-| ~~test-env-mobile-app~~ | Folder deleted since last scan |
-| ~~test-env-node-api~~ | Folder deleted since last scan |
-| ~~test-env-python-api~~ | Folder deleted since last scan |
-| ~~test-env-saas-skeleton~~ | Folder deleted since last scan |
-| ~~test-env-static-site~~ | Folder deleted since last scan |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

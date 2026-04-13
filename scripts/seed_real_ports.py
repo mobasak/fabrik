@@ -29,7 +29,7 @@ KNOWN_PORTS: dict[str, list[int]] = {
     "captcha": [18011],
     "translator": [18012],
     "proxy": [18013],
-    "dns-manager": [18014],
+    "site-provisioner": [18014],
     "file-api": [18015],
     "image-broker": [18016],
     "emailgateway": [18017],

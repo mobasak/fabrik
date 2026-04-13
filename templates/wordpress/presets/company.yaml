@@ -173,19 +173,20 @@ menus:
 
 plugins:
   add:
-    # Multilingual
-    - sitepress-multilingual-cms   # WPML
-    - wpml-string-translation
-    # Page building
-    - thrive-architect
-    - thrive-leads
+    # Multilingual — polylang is the default (in defaults.yaml); add here if site.yaml overrides languages.additional
+    - polylang
     # CRM
     - fluent-forms-pro
     - fluentcrm-pro
     # GDPR
     - complianz-gdpr-premium
+    # NOTE: sitepress-multilingual-cms (WPML) and thrive-architect/thrive-leads removed
+    # WPML: banned per 62-wordpress.md §Multi-Language (use Polylang)
+    # thrive-architect/thrive-leads: banned per 62-wordpress.md §Plugin & Theme Discipline (heavy page builders)
 
-  skip: []
+  skip:
+    - sitepress-multilingual-cms  # banned — use polylang
+    - wpml-string-translation     # banned — use polylang
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BLOG SETTINGS

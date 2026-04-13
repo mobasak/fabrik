@@ -17,8 +17,8 @@ echo "[$(date)] Dumping database..."
 mysqldump -h "${DB_HOST}" -u "${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}" | gzip > "${DB_BACKUP}"
 echo "[$(date)] Database dump complete: ${DB_BACKUP}"
 
-# Upload DB backup to R2
-echo "[$(date)] Uploading database backup to R2..."
+# Upload DB backup to B2/R2 (S3-compatible; 62-wordpress.md: B2 preferred via Bandwidth Alliance)
+echo "[$(date)] Uploading database backup to B2..."
 aws s3 cp "${DB_BACKUP}" "s3://${R2_BUCKET}/wordpress/${SITE_NAME}/${BACKUP_TYPE}/db/" \
     --endpoint-url "${R2_ENDPOINT}"
 
@@ -27,7 +27,7 @@ if [ "${BACKUP_TYPE}" = "weekly" ]; then
     echo "[$(date)] Creating files backup..."
     tar -czf "${FILES_BACKUP}" -C /wordpress wp-content/uploads wp-content/plugins wp-content/themes 2>/dev/null || true
 
-    echo "[$(date)] Uploading files backup to R2..."
+    echo "[$(date)] Uploading files backup to B2..."
     aws s3 cp "${FILES_BACKUP}" "s3://${R2_BUCKET}/wordpress/${SITE_NAME}/${BACKUP_TYPE}/files/" \
         --endpoint-url "${R2_ENDPOINT}"
 
@@ -37,8 +37,8 @@ fi
 # Cleanup local backups older than 7 days
 find "${BACKUP_DIR}" -name "*.gz" -mtime +7 -delete
 
-# Cleanup R2: Keep 7 daily, 4 weekly
-echo "[$(date)] Cleaning up old R2 backups..."
+# Cleanup B2/R2: Keep 7 daily, 4 weekly
+echo "[$(date)] Cleaning up old B2 backups..."
 # List and delete old daily backups (keep last 7)
 aws s3 ls "s3://${R2_BUCKET}/wordpress/${SITE_NAME}/daily/db/" --endpoint-url "${R2_ENDPOINT}" | \
     sort -r | tail -n +8 | awk '{print $4}' | \

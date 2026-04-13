@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 
 from fabrik.config import FABRIK_ROOT
+from fabrik.notifications import notify_deploy
 from fabrik.orchestrator import DeploymentOrchestrator, DeploymentState
 from fabrik.scaffold import SCAFFOLD_TYPES
 
@@ -132,6 +133,12 @@ def _deploy_wordpress(project_dir: Path, dry_run: bool) -> int:
     deployer = SiteDeployer(project_name, dry_run=dry_run, project_path=str(project_dir))
     result = deployer.deploy()
 
+    notify_deploy(
+        project=project_name,
+        domain=result.domain,
+        success=result.success,
+        error=result.errors[0] if result.errors else None,
+    )
     return 0 if result.success else 1
 
 
@@ -147,9 +154,17 @@ def _deploy_generic(project_dir: Path, dry_run: bool) -> int:
     orchestrator = DeploymentOrchestrator()
     ctx = orchestrator.deploy(spec_path, dry_run=dry_run)
 
-    if ctx.state == DeploymentState.COMPLETE:
-        return 0
-    return 1
+    success = ctx.state == DeploymentState.COMPLETE
+    spec = ctx.spec or {}
+    notify_deploy(
+        project=spec.get("name", str(spec_path)),
+        domain=spec.get("domain", ""),
+        success=success,
+        url=ctx.deployed_url,
+        error=ctx.error,
+        error_step=ctx.error_step,
+    )
+    return 0 if success else 1
 
 
 def route_deploy(project_dir: Path, project_type: str, dry_run: bool = False) -> int:

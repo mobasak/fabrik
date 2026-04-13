@@ -4,6 +4,256 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — WordPress schema, code defaults, and scaffold template compliance pass (2026-04-13)
+- `templates/wordpress/schema/v1.yaml`: `languages.plugin` default changed `wpml`→`polylang`; allowed list now `[polylang, none]` (wpml/translatepress banned per 62-wordpress.md); backup `destination` default changed `r2`→`b2`
+- `templates/wordpress/site-spec-schema.yaml`: `languages.plugin` default changed `wpml`→`polylang`; backup `destination` default changed `r2`→`b2`
+- `src/fabrik/wordpress/stages/languages.py`: `_resolve_multilingual_slug()` default changed `"wpml"`→`"polylang"`; docstring updated; WPML detection warning now actionable (says to switch to Polylang, references 62-wordpress.md)
+- `src/fabrik/scaffold.py`: WordPress `.env.example` template replaced R2 vars (`R2_ENDPOINT/ACCESS_KEY/SECRET_KEY/BUCKET`) with B2 vars (`B2_KEY_ID/APPLICATION_KEY/BUCKET`); added `WP_ADMIN_USER`/`WP_ADMIN_PASSWORD` placeholders (read by `deployer.py:140-141`)
+- `docs/FEATURES.md`: corrected `--type api`→`--type python-api`; updated symlink references to file copies; updated project types list to match `SCAFFOLD_TYPES` in `scaffold.py`
+
+### Fixed — WordPress preset compliance pass against 62-wordpress.md (2026-04-13)
+- `presets/company.yaml`: removed banned `sitepress-multilingual-cms` (WPML) and `wpml-string-translation` from `plugins.add`; removed banned page builders `thrive-architect`/`thrive-leads`; added `polylang` as correct multilingual plugin; added `skip:` entries to block WPML if inherited
+- `presets/saas.yaml`: same WPML + page builder removals; added note to add polylang per site if multilingual needed
+- `presets/ecommerce.yaml`: same WPML + page builder removals; added skip entries; noted polylang + woocommerce-multilingual for multilingual ecommerce
+- `templates/wordpress/README.md`: corrected CLI from `fabrik new --template=wordpress` → `fabrik scaffold --type wordpress`; corrected deploy commands to `fabrik wp plan` + `fabrik wp apply`; removed invalid spec fields (`php_version`, `features:`, `plugins.premium`); replaced R2 with B2 as backup destination; updated WP cron note to mention Uptime Kuma as preferred; fixed MD040/MD031/MD032 lint warnings
+
+### Fixed — WordPress documentation audit pass (2026-04-13)
+- `docs/CONFIGURATION.md`: replaced stale `WP_SITE_URL`/`WP_USERNAME`/`WP_PASSWORD` with `WP_ADMIN_USER`/`WP_ADMIN_PASSWORD` — confirmed from `deployer.py:140-141`
+- `docs/development/plans/2026-04-13-ocoron-com-full-deployment.md`: updated pipeline architecture diagram to show full 12-stage target (`post_deploy` + `monitoring` now visible); removed banned `wp-optimize` from acceptance criteria plugins list
+- `docs/development/plans/2026-04-13-fabrik-control-plane.md`: corrected stage count 11→12 (4 locations); fixed `monitoring` JSON nesting (`wp_cron_ping_url` inside `monitoring.uptime_kuma` per `site.yaml.j2`); updated Kilo system prompt section to reflect correct nesting
+- `docs/workflows/wordpress-site-workflow.md`: stage table WPML→Polylang; Yoast/RankMath→RankMath; removed `finalize` as registered stage (reclassified as `_step_finalize()` post-stage method); `--force-stage` names updated with current (10) and target (12) stage lists; added `FABRIK_EXEC_MODE`, `UPTIME_KUMA_*` to env vars table; added `### finalize (post-stage step)` section
+
+### Changed — AGENTS.md VPS services documentation updated (2026-04-13)
+- Added `fabrik-api` (localhost :8050) and `fabrik-control-plane` (control.vps1.ocoron.com) to Running services table
+- Removed MinIO from Ready-to-Deploy; added explicit Deferred section with rationale: VPS disk is not redundant storage, Cloudflare R2 free tier covers File API needs, Backblaze B2 covers backups
+
+### Fixed — file-worker crash loop: claim_job returning null-id row (2026-04-13)
+- `worker/main.py` `claim_job()`: Supabase `claim_next_job` RPC returns all-null dict when queue is empty — truthy check passed, `process_job` ran with `job_id=None`, crashing with PostgreSQL UUID parse error every 5 seconds
+- Fix: added `.get('id') is not None` guard before returning claimed job
+- Deployed via Coolify redeploy (commit `e3b797e`)
+
+### Fixed — All WordPress template files compliance pass against 62-wordpress.md (2026-04-13)
+- `base/nginx/default.conf.j2`: fixed WooCommerce FastCGI cache bypass regex (was broken pipe-in-string, now correct multi-entry map); added security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`) inside static files location block — Nginx child location `add_header` replaces parent headers, so they must be re-declared
+- `base/wp-config-extra.php`: added `$table_prefix = 'CHANGE_ME_prod_'` — 62-wordpress.md requires custom prefix, never `wp_`
+- `base/compose-coolify.yaml.j2`: added `$table_prefix` Jinja injection to `WORDPRESS_CONFIG_EXTRA` — rendered from `table_prefix` site spec field with sensible default
+- `base/compose.yaml.j2`: added `www → apex` Traefik redirect router (matching `compose-coolify.yaml.j2`); added B2 preference comments on `R2_*` backup env vars
+- `base/Makefile.j2`: fixed `db-clean` to use dynamic table prefix via `$(WP) db prefix` instead of hardcoded `wp_postmeta`/`wp_posts`; added `REST users endpoint blocked` and `Table prefix not wp_` checks to `security-check` target
+- `defaults.yaml security`: added `table_prefix`, `brute_force_lockout_attempts`, `block_admin_username`, `two_factor_roles`, `cloudflare_waf`, `cron_method` fields; added `users_endpoint_blocked` and `table_prefix_set` to `checks.security`
+
+### Fixed — ocoron.com.v2.yaml + site.yaml.j2 compliance pass against 62-wordpress.md (2026-04-13)
+- `ocoron.com.v2.yaml plugins`: removed `wp-optimize` (superseded by `make db-clean`); added full RankMath `modules_enable`/`modules_disable` config matching 62-wordpress.md §Plugin & Theme Discipline
+- `ocoron.com.v2.yaml security`: added `table_prefix: ocoron_prod_`, `brute_force_lockout_attempts`, `block_admin_username`, `two_factor_roles`, `rest_api_app_password_user`, `cron_method: uptime_kuma`, `child_theme`, `cloudflare_waf: true`
+- `ocoron.com.v2.yaml post_deploy`: added `gsc_verification_method: dns_txt`, `browserless_screenshot: true`
+- `ocoron.com.v2.yaml monitoring`: added `wp_cron_ping_url` + `wp_cron_interval: 300` to Uptime Kuma block
+- `ocoron.com.v2.yaml backup`: added full `backup:` section with `destination: b2`, `duplicati:` (enabled, named volumes, isolated bucket, AES-256, daily 03:00)
+- `ocoron.com.v2.yaml seo`: added `robots_txt.disallow` for `/wp-admin/`, `/wp-includes/`, `/wp-content/plugins/`
+- `base/site.yaml.j2`: mirrored all security, post_deploy, monitoring, backup, robots_txt additions as template defaults for all future sites
+
+### Fixed — WordPress template compliance pass against 62-wordpress.md (2026-04-13)
+- `base/nginx-dev.conf.j2`: added security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, X-XSS-Protection); PHP execution block in `/uploads/`; sensitive file type block (`.bak/.sql/.sh` etc.); `try_files $uri =404` guard in PHP location — all matching production nginx hardening
+- `base/compose.dev.yaml.j2`: replaced `WORDPRESS_DEBUG: "1"` with explicit `WORDPRESS_CONFIG_EXTRA` block containing `WP_DEBUG=true`, `WP_DEBUG_DISPLAY=false`, `WP_DEBUG_LOG=true`; added `WP_CACHE=true`, `WP_REDIS_HOST/PORT/DATABASE/PREFIX` — dev now tests Redis Object Cache path
+- `defaults.yaml`: fixed RankMath `modules_enable` to full 62-wordpress.md list (added `redirections`, `image-seo`, `acf`); added `modules_disable` list; added `sitemap_posts_per_page: 200`, `strip_category_base`, `redirect_attachments`, `remove_generator_tag`, `noindex_empty_archives`; updated backup `destination: b2`; added Email Gateway preference comment on `wp-mail-smtp`
+- `base/site.yaml.j2`: fixed RankMath modules to match 62-wordpress.md; removed `wp-optimize` plugin (superseded by `make db-clean`); removed orphaned `wp-optimize` config block
+- `base/backup/backup.sh`: updated upload comments from R2 to B2 (preferred per 62-wordpress.md §Backups); S3-compatible env vars unchanged
+
+### Added — 62-wordpress.md + Makefile.j2 from Zero-Ops pipeline doc (2026-04-13)
+- `62-wordpress.md §Caching`: Cloudflare zone cache purge rule (purge before warm-cache, not after)
+- `62-wordpress.md §REST API Hardening`: Application Password creation via WP-CLI for automation; MU-plugin to block unauthenticated REST writes
+- `62-wordpress.md §Email Deliverability`: internal Fabrik Email Gateway (port 3000) as preferred routing for VPS deployments; `wp-mail-smtp` demoted to alternative
+- `62-wordpress.md §Database Maintenance`: Uptime Kuma cron ping as preferred VPS cron method; host crontab demoted to alternative
+- `62-wordpress.md §Backups`: Duplicati per-site named-volume registration with AES-256 encryption to dedicated B2 bucket
+- `62-wordpress.md §Media Offloading`: Backblaze B2 elevated to preferred (Bandwidth Alliance = free egress); R2 demoted to alternative
+- `62-wordpress.md §Plugin & Theme Discipline`: IndexNow explicit activation rule; GSC DNS TXT verification rule; MeiliSearch for content-heavy sites
+- `62-wordpress.md §WP-CLI & Makefile`: widget cleanup + inactive theme deletion added to scaffold target; DB readiness gate rule; warm-cache now includes CF purge step
+- `62-wordpress.md Post-Deploy Checklist`: items 17 (Browserless screenshot), 18 (GSC via DNS TXT), 19 (Duplicati volumes), 20 (db-clean monthly)
+- `base/Makefile.j2 scaffold`: added `wp widget delete` (clear default sidebar widgets) + `wp theme delete` (inactive themes)
+- `base/Makefile.j2 warm-cache`: added comment clarifying CF zone purge must precede origin warm
+
+### Added — 62-wordpress.md + templates from 02-Technical-Implementation-Addendum.md (2026-04-13)
+- `62-wordpress.md`: fixed `WP_DEBUG=true` correctness (was false — log requires true); added `WP_HTTP_BLOCK_EXTERNAL`+`WP_ACCESSIBLE_HOSTS` rule; custom `$table_prefix` (never `wp_`) rule; Redis `WP_REDIS_PREFIX`+`WP_REDIS_DATABASE` isolation rule; WooCommerce FastCGI cache bypass rule; GDPR consent cache poisoning prevention rule; new `## Database Maintenance` section with `make db-clean` + system cron WP-CLI detail; head cleanup / CMS footprint obscurity rule; RankMath specific module enable/disable list + sitemap page size 200; media offloading credentials in `wp-config.php` rule; 8 new banned pattern rows; 3 new Done When criteria
+- `base/wp-config-extra.php`: fixed `WP_DEBUG=true`; added `WP_HTTP_BLOCK_EXTERNAL`, `WP_ACCESSIBLE_HOSTS`, `WP_CACHE=true`, `WP_REDIS_DATABASE`, `WP_REDIS_PREFIX`
+- `base/compose-coolify.yaml.j2`: synced `WORDPRESS_CONFIG_EXTRA` with all new constants
+- `base/nginx/default.conf.j2`: added PHP execution block in `/uploads/`; block `.bak/.sql/.sh` file types; `$skip_cache_consent` GDPR map; `$skip_cache_woo` WooCommerce URI map; `$skip_cache_cookie` logged-in/cart cookie map; all maps wired into `fastcgi_cache_bypass`/`fastcgi_no_cache`
+- `base/Makefile.j2`: added `db-clean` target (transients, spam, revisions, orphaned postmeta, db optimize)
+
+### Added — 62-wordpress.md SOP enhancement from 01-WordPress-Production-SOP.md (2026-04-13)
+- `62-wordpress.md`: added `DISALLOW_FILE_MODS=true` rule; `WP_DEBUG=false`/`WP_DEBUG_LOG=true`/`WP_DEBUG_DISPLAY=false` production discipline; Cloudflare WAF 5-rule spec section; HTTP Security Headers section; REST API hardening (user enumeration block); Wordfence 2FA + brute-force lockout thresholds; Media Offloading section; Email Deliverability section with SPF/DKIM/DMARC; `make warm-cache` target; updated post-deploy checklist to 16 items; expanded Banned Patterns table with 6 new rows; updated Done When checklist with 8 new criteria
+- `base/wp-config-extra.php`: added `DISALLOW_FILE_MODS`, `WP_DEBUG=false`, `WP_DEBUG_LOG=true`, `WP_DEBUG_DISPLAY=false`, OPcache `ini_set` directives
+- `base/compose-coolify.yaml.j2`: synced `WORDPRESS_CONFIG_EXTRA` with all new wp-config constants
+- `base/nginx/default.conf.j2`: added `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `X-XSS-Protection` headers; blocked `/wp-json/wp/v2/users` (user enumeration); blocked direct access to `/wp-includes/*.php`
+- `base/Makefile.j2`: added `warm-cache` target (sitemap parse + 8-worker curl); added comment spam WP-CLI options to `scaffold`; added 2FA/brute-force reminders to `harden` output
+
+### Fixed — 62-wordpress.md 3-pass compliance iteration #3 (2026-04-13)
+- `base/Makefile.j2`: **created** — was entirely missing; 62-wordpress.md §WP-CLI & Makefile mandates this file. Implements all 6 required targets: `update`, `cache-flush`, `scaffold`, `backup`, `harden`, `security-check` plus `rename-admin`, `shell`, `logs`. Container name resolved dynamically via `docker ps --filter` for Coolify compatibility.
+- `base/compose-coolify.yaml.j2`: added `WORDPRESS_CONFIG_EXTRA` env to `wordpress` service — security hardening constants (DISALLOW_FILE_EDIT, FORCE_SSL_ADMIN, DISABLE_WP_CRON, WP_AUTO_UPDATE_CORE, etc.) were not being applied on Coolify deployments
+- `base/compose.dev.yaml.j2`: fixed wrong nginx conf volume mount path (`./config/nginx-dev.conf` → `./nginx-dev.conf`); use `{{ php_version }}` variable instead of hardcoded `php8.3`
+- `base/site.yaml.j2`: updated Gap 9 comment to reflect Makefile.j2 now exists
+- `README.md`: added Makefile Targets section documenting all available targets
+
+### Fixed — 62-wordpress.md 3-pass compliance iteration #2 (2026-04-13)
+- `base/site.yaml.j2`: corrected stale plugins comment (flyingpress still listed after removal)
+- `base/nginx/default.conf.j2`: added POST request cache bypass, `$http_authorization` bypass, `fastcgi_cache_lock on` to prevent stampede; added `map` block for `$skip_cache_method`
+- `base/nginx-dev.conf.j2`: added `xmlrpc.php` block (`return 444`) to match production hardening
+- `base/compose-coolify.yaml.j2`: added mandatory `backup` service (mysqldump + tar + S3 cron) — was present in `compose.yaml.j2` but missing from Coolify variant; fixed duplicate `middlewares` label bug (Traefik only accepts one per router — www-redirect now only on www router, rate-limit only on main router)
+- `defaults.yaml`: added `checks.security` block with `xmlrpc_blocked`, `wordfence_active`, `admin_not_admin`, `rate_limit_active` post-deploy verification items
+- `README.md`: expanded architecture tree to show all base/ files with purpose annotations
+
+### Fixed — 62-wordpress.md iterative compliance pass (2026-04-13)
+- `templates/wordpress/base/compose.yaml.j2`: removed banned `wordpress_root` full web root volume, added `www-data:www-data` ownership via entrypoint, added `period=1m` to Traefik rate-limit middleware
+- `templates/wordpress/defaults.yaml`: `theme.child` → `true` (child theme always required), removed `flyingpress` from base/premium plugin lists (PHP caching banned), removed `translatepress` from multilingual alternatives (banned), added `security:` defaults block with `wordfence_mode`, admin policy, and CSPRNG password generation note
+- `templates/wordpress/base/wp-config-extra.php`: added `WP_AUTO_UPDATE_CORE='minor'` for minor/security auto-updates
+- `templates/wordpress/base/compose.dev.yaml.j2`: added comment that full root volume is dev-only and must not be used on VPS
+- `templates/wordpress/README.md`: fixed WP-CLI example (no longer uses `admin` username), expanded security hardening list to match full 62-wordpress.md requirements
+
+### Fixed — 62-wordpress.md compliance: Gap 10 + Gap 11 + security hardening (2026-04-13)
+- `templates/wordpress/base/compose-coolify.yaml.j2`: removed banned `wordpress_root` full web root volume (Gap 10), added `www-data:www-data` ownership via entrypoint command, added `period=1m` to Traefik rate-limit middleware
+- `templates/wordpress/base/nginx/default.conf.j2`: changed FastCGI cache path from banned `/tmp/wp_cache` to `/var/cache/nginx/wp_cache` (Gap 11)
+- `templates/wordpress/base/site.yaml.j2`: corrected security section comments to reflect actual template state, fixed `WP_ADMIN_PASSWORD` generation command to use correct 32-char CSPRNG (`secrets.choice` over `[a-zA-Z0-9]`), added `backup:` section per server-level backup requirement
+- `docs/development/plans/2026-04-13-ocoron-com-full-deployment.md`: marked Gap 10 and Gap 11 as fixed, updated acceptance criteria with ownership/backup/security checks, fixed password generation command
+
+### Added — Fabrik Control Plane plan + port registration (2026-04-13)
+- Created implementation plan at `docs/development/plans/2026-04-13-fabrik-control-plane.md`
+- Registered port 8050 (`fabrik-api` — FastAPI bridge, native VPS host process) in `PORTS.md`
+- Registered port 3004 (`fabrik-control-plane` — Next.js 14 chat UI, Coolify container) in `PORTS.md`
+- Architecture: Next.js → fabrik-api (Bearer + localhost bind) → `docker exec` (no SSH hop) → WP containers
+
+### Added — Observability stack deployed to VPS (2026-04-13)
+- Deployed 6-service observability stack to VPS at `/opt/monitoring/`
+- **Grafana** — healthy at `monitor.vps1.ocoron.com` (Traefik HTTPS)
+- **Prometheus** — healthy (internal :9090), 30d retention, scrapes node-exporter + cAdvisor + loki + netdata
+- **Loki** — healthy (internal :3100), 7d log retention, tsdb+v13 schema
+- **Promtail** — running, ships all Docker container logs to Loki
+- **cAdvisor** — healthy, container CPU/RAM/net metrics
+- **node-exporter** — running, host-level VPS metrics
+- Config files stored at `/opt/monitoring/configs/` on VPS; source in `configs/` in Fabrik repo
+- `GRAFANA_ADMIN_PASSWORD` generated (32-char CSPRNG) and saved to `.env`
+
+### Changed — Observability stack configs updated for deployment (2026-04-13)
+- **`specs/infrastructure/monitoring-stack.yaml`**: Full rewrite — removed WSL bind-mount paths (were VPS-incompatible), updated all images to current stable versions (Loki 3.4.2, Promtail 3.4.2, Prometheus v3.2.1, Grafana 11.6.1, node-exporter v1.9.1, cAdvisor v0.52.1), added `platform: linux/amd64` to all services, added healthchecks, added Traefik labels for Grafana, switched to named volumes for configs, dropped obsolete `version: "3.8"` field, increased Prometheus retention to 30d.
+- **`configs/loki/loki-config.yaml`**: Migrated deprecated `boltdb-shipper` + schema `v11` → `tsdb` + schema `v13`. Fixed `instance_addr` from `127.0.0.1` → `0.0.0.0`. Added `allow_structured_metadata` and compactor retention config.
+- **`configs/promtail/promtail-config.yaml`**: Fixed positions file path from `/tmp/positions.yaml` (forbidden) → `/run/promtail/positions.yaml` (named volume mount).
+- **`configs/prometheus/prometheus.yml`**: Removed stale alertmanager stanza. Added `netdata` scrape job (`/api/v1/allmetrics?format=prometheus`).
+- **`AGENTS.md`**: Added Apprise to Running services table. Moved monitoring stack from "Config-Ready" to "Ready to Deploy". Updated verification date to 2026-04-13.
+
+### Changed — DNSClient + CLI domain commands aligned to site-provisioner (2026-04-13)
+- **`src/fabrik/drivers/dns.py`**: Fixed auth header `Authorization: Bearer` → `X-API-Key` (site-provisioner uses `X-API-Key`). Updated env var `SITE_PROVISIONER_TOKEN` → `SITE_PROVISIONER_API_KEY`. Updated default URL `provision.vps1.ocoron.com` → `dns.vps1.ocoron.com`.
+- **`src/fabrik/drivers/dns.py`**: Fixed `get_records()` and `add_subdomain()` from legacy Namecheap `/api/dns/` endpoints to Cloudflare `/api/cloudflare/dns/`. Added `proxied` param to `add_subdomain()`.
+- **`src/fabrik/drivers/dns.py`**: Added `add_record()` (idempotent Cloudflare DNS record CRUD) and `delete_record()` methods.
+- **`src/fabrik/drivers/dns.py`**: Fixed `check_availability()` — now takes single `domain: str`, sends `{"domain": ...}` body, returns full response dict with prices.
+- **`src/fabrik/drivers/dns.py`**: Fixed `check_ready()` — response key was `ready_for_deployment`, correct key is `ready`.
+- **`src/fabrik/drivers/dns.py`**: Expanded `provision()` with `setup_google`, `setup_bing`, `setup_indexnow`, `setup_ga4`, `ga4_account_id`, `ga4_timezone`, `ga4_currency`, `sitemap_url` parameters.
+- **`src/fabrik/drivers/dns.py`**: Added `get_integrations()`, `list_websites()`, `update_sitemap()` methods for Website Integrations API.
+- **`src/fabrik/cli.py`**: Fixed `domain check` to call `check_availability()` per-domain and display registrar prices.
+- **`src/fabrik/cli.py`**: Fixed `domain ready` — now reads `result["ready"]` key, added `--wait` flag (polls every 10s up to 120s).
+- **`src/fabrik/cli.py`**: Expanded `domain provision` with `--setup-google`, `--no-bing`, `--no-indexnow`, `--setup-ga4`, `--ga4-account-id`, `--sitemap-url` flags.
+- **`src/fabrik/cli.py`**: Added `domain integrations` command — shows GA4 measurement ID, GSC, Bing, IndexNow status.
+- **`src/fabrik/cli.py`**: Added `domain sitemap` command — updates sitemap and resubmits to all search engines.
+- **`.env.example`**: Replaced `DNS_MANAGER_URL` with `SITE_PROVISIONER_URL` + `SITE_PROVISIONER_API_KEY`.
+
+### Added — Telegram notifications live end-to-end (2026-04-12)
+- **Apprise** configured with Telegram bot (chat_id: 6999645768). `APPRISE_STATELESS_URLS` set in `/opt/apprise/.env` and `/opt/fabrik/.env`.
+- **n8n workflows** imported + activated via API: 01-deploy-notify, 02-content-notify, 03-health-alert, 04-content-trigger. Webhook URLs wired into `N8N_WEBHOOK_DEPLOY` and `N8N_WEBHOOK_CONTENT` in `.env`.
+- **Full chain validated:** `fabrik.notifications` → n8n webhook → Apprise → Telegram. Both `deploy-notify` and `content-notify` executions: `status=success`.
+- **`N8N_API_KEY`** stored in `/opt/fabrik/.env`.
+
+### Added — n8n webhook notification system + Apprise infra (2026-04-12)
+- **`src/fabrik/notifications.py`** (new): fire-and-forget webhook helpers `notify_deploy()` and `notify_content()`. Read `N8N_WEBHOOK_DEPLOY` / `N8N_WEBHOOK_CONTENT` from env; silently skip if unset; 5s timeout; failures logged as warnings only.
+- **`src/fabrik/deploy_router.py`**: wired `notify_deploy()` into both WordPress and generic deploy pipelines — fires on success and failure with project, domain, url, error, error_step.
+- **`src/fabrik/orchestrator/content_publisher.py`**: wired `notify_content()` at end of `publish()` — fires with domain, published count, failed count, dry_run flag.
+- **`/opt/apprise/compose.yaml`** (VPS): Apprise community edition deployed at `https://notify.vps1.ocoron.com`. DNS created: `notify.vps1.ocoron.com A 172.93.160.197`.
+- **`specs/n8n-workflows/`**: 4 importable n8n workflow JSON files — 01-deploy-notify, 02-content-notify, 03-health-alert, 04-content-trigger.
+- **`.env` / `.env.example`**: Added `N8N_WEBHOOK_DEPLOY`, `N8N_WEBHOOK_CONTENT`, `N8N_WEBHOOK_TIMEOUT`, `APPRISE_STATELESS_URLS`.
+
+### Added — Deploy n8n workflow automation container (2026-04-12)
+- **`/opt/n8n/compose.yaml`** (VPS): n8n community edition deployed at `https://auto.vps1.ocoron.com` via Docker Compose on VPS. n8n v1.0+ setup: removed deprecated `N8N_BASIC_AUTH_ACTIVE` vars, first-run creates owner account via web wizard.
+- **`specs/infrastructure/n8n.yaml`**: Updated to remove basic auth env vars (removed in n8n v1.0), added `N8N_DIAGNOSTICS_ENABLED=false`, changed healthcheck to `wget`.
+- **`.env`** / **`.env.example`**: Removed `N8N_USER`/`N8N_PASSWORD` (deprecated), retained `N8N_ENCRYPTION_KEY`, added `N8N_API_KEY` placeholder.
+- **DNS**: Created `auto.vps1.ocoron.com A 172.93.160.197` in Cloudflare (record id: 88ac3979a24c676594c9add3de73025e).
+- **Health:** `https://auto.vps1.ocoron.com/healthz` → `{"status":"ok"}`
+- **Next step (manual):** Visit `https://auto.vps1.ocoron.com` to create owner account → Settings → API → generate `N8N_API_KEY`.
+
+### Fixed — DNS provisioning: Cloudflare fallback, exception handling, rollback metadata (2026-04-12)
+- **`src/fabrik/orchestrator/__init__.py`**: 3 targeted fixes in `_provision_dns()`:
+  1. Replaced non-existent `cf.upsert_record()` + `cf.get_zone_id()` with `cf.add_subdomain(base_domain, subdomain, vps_ip)` — resolves `AttributeError` on Cloudflare fallback path
+  2. Added `ProvisioningError` to typed exception handler `except (ValidationError, ProvisioningError, DeployError, VerificationError)` — DNS failures now set `error_step` correctly
+  3. Changed both `ctx.add_resource()` calls from `subdomain=..., base_domain=...` to `zone=base_domain` — rollback manager's `_rollback_dns()` reads `metadata.get("zone")`, so DNS records now clean up correctly on failure
+
+### Fixed — WordPress FPM+Nginx template: add shared volume for core files (2026-04-12)
+- **`templates/wordpress/base/compose.yaml.j2`**: Added `wordpress_root` internal volume mounted as `wordpress_root:/var/www/html` on wordpress service and `wordpress_root:/var/www/html:ro` on nginx service. `wp_content` named volume overlays on top for persistence. Nginx can now serve WordPress core files (`index.php`, `wp-admin/`, `wp-includes/`) via `try_files`.
+- **`templates/wordpress/base/compose-coolify.yaml.j2`**: Same fix applied.
+
+### Added/Changed — T5 Remediation: realign content pipeline to approved contract (2026-04-12)
+- **`src/fabrik/content/orchestrator.py`** (NEW): Canonical module for this epic — re-exports `ContentPublisher`, `PublishResult`, `PublishSummary`, `PublishContext` from `fabrik.orchestrator.content_publisher`
+- **`src/fabrik/cli.py`**: Updated `content publish` import to `from fabrik.content.orchestrator import ContentPublisher`
+- **`tests/content/test_orchestrator.py`**, **`tests/content/test_cli_content.py`**: Updated imports to `fabrik.content.orchestrator` canonical path
+- **`pyproject.toml`**: Added `addopts = "--ignore=tests/test_pipeline_runner.py"` to fix pre-existing collection error (`scripts.pipeline_runner` module not found)
+- **`.env.example`**: Removed 6 duplicate `Content Creation Pipeline` blocks (was 7 copies, now 1); added `WP_SITE_URL`, `WP_USERNAME`, `WP_PASSWORD` entries under the single canonical block
+- **`docs/CONFIGURATION.md`**: Added WP v1 single-site credential switching note under Content Creation Pipeline section
+
+### Added — Tests for content pipeline (2026-04-12)
+- **`tests/content/test_orchestrator.py`**: Fixed stale fixtures (`_make_page_package` content values now dicts); added 15 new T4 spec tests for `publish()` batch interface — `ValueError` on unknown domain, dry-run skips, lock release on TCO failure, image fallback non-fatal, `upload_media` receives file path not URL, blog_post/service routing, `submit_brief` payload completeness, `_assemble_brief` lock-strip + UUID coercion, `_render_html` section tags, `limit` enforcement
+- **`tests/content/test_cli_content.py`**: Fixed `test_content_publish_dry_run_flag` (removed stale `seed_topic` arg); added `test_content_publish_unknown_domain` asserting exit 1 + "not found" on `ValueError`
+- Total: **44 tests collected, 44 passed** (`python -m pytest tests/content/ -v`)
+
+### Added — fabrik content publish CLI command (2026-04-12)
+- **`src/fabrik/cli.py`**: Replaced legacy `content publish` command (seed_topic job-creation flow) with T3 spec batch brief-drain command
+  - Arguments: `DOMAIN`
+  - Options: `--dry-run` (flag), `--limit INTEGER` (default 10)
+  - Calls `ContentPublisher().publish(domain, dry_run, limit)` from `fabrik.orchestrator.content_publisher`
+  - Renders `PublishSummary` results: `✅ Published`, `⏭ Skipped`, `❌ Failed` per brief
+  - Exits 0 if no failures, 1 if any failed
+  - `ValueError` (domain not found) caught with clean `❌` message
+  - Connection errors caught and reported cleanly; no raw tracebacks
+
+### Changed — ContentPublisher orchestrator rewritten to T2 spec (2026-04-12)
+- **`src/fabrik/orchestrator/content_publisher.py`**: Rewrote in-place to implement T2 spec while preserving backwards-compatible `publish_page()` for `cli.py`
+  - Added `PublishResult` dataclass (`brief_id`, `status`, `wp_url`, `error`)
+  - Added `PublishSummary` dataclass (`domain`, `total_briefs`, `published`, `failed`, `results`)
+  - Added `publish(domain, dry_run, limit)` — batch brief-drain loop consuming ready briefs
+  - Added `_assemble_brief()` — strips `lock` field (TCO `extra="forbid"`), coerces UUID fields to `str`
+  - Added `_render_html()` — converts `rendered_sections` dicts to HTML (`title`→`<h2>`, `subtitle`→`<h3>`, `text/body/content`→`<p>`, `items`→`<ul>`)
+  - Added `_get_wp_client()` — constructs `WordPressAPIClient` from env vars (`WP_SITE_URL` takes precedence over domain)
+  - Added `_publish_one()` — per-brief pipeline: claim → TCO → image (non-fatal) → WP → submit; releases lock on TCO failure
+  - Fixed `_build_wp_post()` bug: was calling `section.get("content", "")` returning a `dict`; now uses `_render_html()`
+  - Renamed internal client attributes to `_seo`, `_tco`, `_ib`; kept `seo`/`tco`/`image` aliases for `cli.py` compatibility
+  - `__init__` now reads `WP_SITE_URL`, `WP_USERNAME`, `WP_PASSWORD` from env vars
+- **`src/fabrik/content/__init__.py`**: Created as empty package marker
+
+### Changed — dns-manager renamed to site-provisioner (2026-04-12)
+- **`/opt/site-provisioner/`**: Renamed project from `dns-manager` to `site-provisioner` to better reflect expanded capabilities (domain registration, DNS, SSL, CDN, analytics, webmaster tools)
+- **`/opt/site-provisioner/project.yaml`**: Updated name, URL (`provision.vps1.ocoron.com`), and description
+- **`/opt/site-provisioner/compose.yaml`**: Updated domain in Traefik labels, added Alembic migration auto-run command
+- **`src/fabrik/drivers/dns.py`**: Updated to use `SITE_PROVISIONER_URL` and `SITE_PROVISIONER_TOKEN` env vars (with backwards compatibility for `DNS_MANAGER_*`), updated all docstrings
+- **`src/fabrik/wordpress/domain_setup.py`**: Updated to use `SITE_PROVISIONER_URL` with fallback to `DNS_MANAGER_URL`
+- **`src/fabrik/cli.py`**: Updated domain command docstrings (check, buy) to reference site-provisioner
+- **`src/fabrik/config.py`**: Updated DNS provider default from `dns-manager` to `site-provisioner`, env vars use `SITE_PROVISIONER_URL` with backwards compatibility
+- **`src/fabrik/provisioner.py`**: Updated `DNS_MANAGER_URL` class attribute to use `SITE_PROVISIONER_URL` with fallback
+- **`AGENTS.md`**: Updated all references from DNS Manager to Site Provisioner, updated URL from `dns.vps1.ocoron.com` to `provision.vps1.ocoron.com`
+- **`docs/reference/service-contracts/site-provisioner.md`**: Renamed from `dns-manager.md`, updated all URLs, descriptions, environment variables, and capabilities
+- **`docs/BUSINESS_MODEL.md`**: Updated internal tools reference, production services table entry, and namecheap project description
+- **`docs/traycer/fabrik-workflow.md`**: Updated DNS constraint to reference site-provisioner
+- **`data/projects.yaml`**: Renamed project entry from `dns-manager` to `site-provisioner` with updated URL and description
+- **`scripts/setup_uptime_kuma.py`**: Updated monitor name and URL to Site Provisioner
+- **`scripts/audit_all_projects.py`**: Updated ALL_PROJECTS list and DNS constraint message
+- **`scripts/seed_real_ports.py`**: Updated KNOWN_PORTS dict key from `dns-manager` to `site-provisioner`
+- **`specs/services/site-provisioner.yaml`**: Renamed from `dns-manager.yaml`, updated id and domain
+- **`templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md`**: Updated DNS row to reference site-provisioner
+- **Deployment**: Service will be deployed to VPS at `provision.vps1.ocoron.com` with Alembic migrations running automatically before container start
+
+### Added — PostgreSQL Local Dev Setup with --db Flag (2026-04-12)
+- **`src/fabrik/cli.py`**: Added `--db` flag to `fabrik scaffold` command for opt-in PostgreSQL database support
+- **`src/fabrik/scaffold.py`**: Added conditional database setup in `_scaffold_python_api()` and `_scaffold_chrome_extension()` - creates `.env.local` with localhost DATABASE_URL, auto-creates dev database, updates `.env.example` with VPS postgres-main URL when `--db` flag is passed; added `.env.local` to `.gitignore`
+- **`scripts/create_pg_dev_db.sh`**: New helper script for manual PostgreSQL dev database creation with robust error handling
+- **`templates/python-api/compose.yaml.j2`**: Added guarded Alembic migration auto-run on VPS deploy - runs `alembic upgrade head` before uvicorn start if `alembic.ini` exists, fails loud on migration errors
+- **`templates/scaffold/docs/QUICKSTART_TEMPLATE.md`**: Added "Local Development (WSL)" section with database setup instructions, connection details, and psql commands
+- **`.windsurf/rules/25-data-postgres.md`**: Added "Local Development Setup" section documenting WSL PostgreSQL configuration, environment file mapping, and connection patterns
+- **`docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`**: Added `--db` flag to scaffold command options table
+- **`docs/reference/fabrik-cli-reference.md`**: Added `--db` flag with detailed options documentation
+- **`INDEX.md`**: Added `create_pg_dev_db.sh` to scripts directory listing
+- **Database workflow**: `fabrik scaffold my-api --type python-api --db` now auto-creates `my_api_dev` database, generates `.env.local` with `postgresql://postgres@localhost:5432/my_api_dev`, and updates `.env.example` with `postgres-main` VPS URL
+- **VPS deploy**: Alembic migrations run automatically before service start when `depends.postgres` is set in compose template, ensuring schema is current on every deploy
+- **Result**: Zero manual DB configuration for local dev - copy `.env.local` to `.env`, run `alembic upgrade head`, start uvicorn. Same code works on WSL and VPS via environment variable swap.
+
 ### Fixed — T4 bugs and cross-cutting violations (2026-04-11)
 - **`src/fabrik/cli.py`**: Fixed fabrik deploy error handling to catch all exceptions (not just RuntimeError) for WordPress path, ensuring clean error behavior for validation and planning failures.
 - **`src/fabrik/wordpress/spec_validator.py`**: Fixed structured logging compliance - replaced print() with logger.warning() for warnings output.

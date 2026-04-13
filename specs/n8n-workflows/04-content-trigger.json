@@ -1,0 +1,126 @@
+{
+  "name": "04 · Content Publish Trigger (Schedule)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule – Every 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fabrik-api:8000/content/publish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Fabrik-Token",
+              "value": "={{ $env.FABRIK_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "domain",
+              "value": "={{ $env.CONTENT_DOMAIN }}"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "trigger-publish",
+      "name": "Trigger Content Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://apprise:8000/notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "🗓️ Scheduled publish triggered"
+            },
+            {
+              "name": "body",
+              "value": "=Domain: {{ $env.CONTENT_DOMAIN }}  Status: {{ $json.status || 'sent' }}"
+            },
+            {
+              "name": "tag",
+              "value": "content"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "apprise-trigger",
+      "name": "Notify via Apprise",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Schedule – Every 6h": {
+      "main": [
+        [
+          {
+            "node": "Trigger Content Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Content Publish": {
+      "main": [
+        [
+          {
+            "node": "Notify via Apprise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "notes": "Scheduled trigger (every 6h) that calls Fabrik content publish API and notifies via Apprise. NOTE: Requires a Fabrik HTTP API endpoint (/content/publish) which does not yet exist — this workflow is PLACEHOLDER until the API is built. Alternatively: disable the Schedule trigger and activate only the Webhook trigger to call manually or from CI."
+}

@@ -25,6 +25,6 @@ services:
       - "${PORT:-8000}:${PORT:-8000}"
     # Override command for hot reload
     # Python:
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--reload"]
+    command: ["sh", "-c", "PYTHONPATH=src uvicorn <package_name>.main:app --host 0.0.0.0 --reload"]
     # Node.js:
     # command: ["npm", "run", "dev"]

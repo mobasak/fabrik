@@ -26,7 +26,7 @@
 - **Deployment:** Coolify on VPS (Docker Compose) — `fabrik apply` automates DNS + Coolify + monitoring
 - **Database:** PostgreSQL on VPS (default) · Supabase (when managed auth/realtime/pgvector needed)
 - **Reverse proxy:** Traefik (managed by Coolify) — HTTPS/SSL via Let's Encrypt
-- **Domains:** `*.vps1.ocoron.com` — managed by dns-manager (supports Namecheap, Cloudflare, auto-purchase) and others
+- **Domains:** `*.vps1.ocoron.com` — managed by site-provisioner (supports Namecheap, Cloudflare, auto-purchase) and others
 - **Monitoring:** Uptime Kuma · Netdata (active) — Grafana + Prometheus + Loki configs ready but not deployed
 
 ### Local LLM Agents
@@ -54,7 +54,7 @@
 | Notifications | Apprise (self-hosted) | Direct API for single-channel |
 | Object storage | MinIO (self-hosted, S3-compatible) | Backblaze B2 for cold storage |
 
-## Infrastructure Services — Running on VPS (Verified 2026-04-06)
+## Infrastructure Services — Running on VPS (Verified 2026-04-13)
 
 | Service | URL | Purpose |
 |---------|-----|--------|
@@ -63,25 +63,33 @@
 | Redis | (internal) | Shared cache |
 | Traefik | (internal) | Reverse proxy (managed by Coolify) |
 | Uptime Kuma | status.vps1.ocoron.com | Uptime monitoring |
-| Netdata | netdata.vps1.ocoron.com | Server metrics |
+| Netdata | netdata.vps1.ocoron.com | Real-time server metrics |
 | Duplicati | backup.vps1.ocoron.com | Full VPS backup to Backblaze B2 (/opt, docker volumes, Coolify, pg_dump) |
+| n8n | auto.vps1.ocoron.com | Workflow automation |
+| Apprise | notify.vps1.ocoron.com | Multi-channel notifications (used by n8n) |
+| Grafana | monitor.vps1.ocoron.com | Dashboards (Prometheus + Loki) |
+| Prometheus | (internal :9090) | Metrics scraper/storage |
+| Loki | (internal :3100) | Log aggregation |
+| Promtail | (internal) | Log shipper (Docker containers → Loki) |
+| cAdvisor | (internal :8080) | Container CPU/RAM/net metrics |
+| node-exporter | (internal :9100) | Host-level VPS metrics |
+| fabrik-api | (localhost :8050) | FastAPI bridge — executes fabrik CLI + streams SSE; native VPS host process |
+| fabrik-control-plane | control.vps1.ocoron.com | Next.js conversational UI → Kilo AI negotiation → approve & deploy |
 
-## Infrastructure Services — Config-Ready, Not Deployed
+## Infrastructure Services — Ready to Deploy
 
-Specs and configs exist but containers are not running. Deploy when needed.
+Specs and configs complete. Deploy via Coolify when needed.
 
 | Service | Planned URL | Config Location |
-|---------|------------|----------------|
-| Grafana | monitor.vps1.ocoron.com | `specs/infrastructure/monitoring-stack.yaml` |
-| Prometheus | (internal :9090) | `configs/prometheus/prometheus.yml` |
-| Loki | (internal :3100) | `configs/loki/loki-config.yaml` |
-| Promtail | (internal) | `configs/promtail/promtail-config.yaml` |
 | Browserless | browser.vps1.ocoron.com | `specs/infrastructure/browserless.yaml` |
 | Gotenberg | pdf.vps1.ocoron.com | `specs/infrastructure/gotenberg.yaml` |
-| MinIO | s3.vps1.ocoron.com | `specs/infrastructure/minio.yaml` |
 | MeiliSearch | search.vps1.ocoron.com | `specs/infrastructure/meilisearch.yaml` |
-| Apprise | notify.vps1.ocoron.com | `specs/infrastructure/apprise.yaml` |
-| n8n | auto.vps1.ocoron.com | `specs/infrastructure/n8n.yaml` |
+
+## Infrastructure Services — Deferred (explicit decision)
+
+| Service | Reason | Alternative in use |
+|---------|--------|-------------------|
+| MinIO | VPS disk is not redundant storage; R2 free tier covers File API needs; B2 covers backups | Cloudflare R2 (File API), Backblaze B2 (Duplicati backups) |
 
 ## Fabrik Microservices (Custom-Built, on VPS)
 
@@ -90,14 +98,14 @@ Specs and configs exist but containers are not running. Deploy when needed.
 | Translator | 8000 | DeepL + Azure translation |
 | Captcha | 8000 | Anti-Captcha solving |
 | Proxy | 8000 | Webshare.io proxy management |
-| DNS Manager | 8001 | Namecheap + Cloudflare DNS, domain registration, website provisioning. See `docs/reference/service-contracts/dns-manager.md` |
+| Site Provisioner | 8001 | Domain registration, DNS (Namecheap/Cloudflare), SSL, CDN, analytics (GA4/GSC), webmaster tools. See `docs/reference/service-contracts/site-provisioner.md` |
 | File API | 8004 | File operations |
 | Image Broker | 8010 | Stock image API (Pexels/Pixabay) with smart routing, scoring, caching |
 | Email Gateway | 3000 | Resend + SES email sending |
 
-### DNS Manager — Key Capabilities
+### Site Provisioner — Key Capabilities
 
-DNS Manager (`dns.vps1.ocoron.com`) is the **single gateway** for all DNS/domain operations. Fabrik calls it via `fabrik domain` CLI or `DNSClient` driver.
+Site Provisioner (`provision.vps1.ocoron.com`) is the **single gateway** for all domain/DNS/provisioning operations. Fabrik calls it via `fabrik domain` CLI or `DNSClient` driver.
 
 | Workflow | CLI Command | Endpoint |
 |----------|-------------|----------|
@@ -145,7 +153,7 @@ Before creating any plan, verify:
 7. **Coolify deployment** — all services deploy as Docker Compose apps via Coolify
 8. **No Alpine** — use `-slim-bookworm` base images only
 9. **Module dependencies** — if a project needs an incomplete Fabrik module, plan module completion first. Check module status in `docs/BUSINESS_MODEL.md` before planning dependent work
-10. **DNS** — dns-manager handles Namecheap + Cloudflare + domain purchasing automatically
+10. **DNS** — site-provisioner handles Namecheap + Cloudflare + domain purchasing automatically
 
 ## Rule-Pack Enforcement
 

@@ -1,23 +1,25 @@
-# dns-manager — Service Integration Contract
+# site-provisioner — Service Integration Contract
 
-**Service:** DNS Manager
-**URL:** `https://dns.vps1.ocoron.com` (VPS) / `http://localhost:8001` (WSL dev)
+**Service:** Site Provisioner
+**URL:** `https://provision.vps1.ocoron.com` (VPS) / `http://localhost:8001` (WSL dev)
 **Port:** 8001 (internal container) / 18014 (host/registered)
-**Source:** `/opt/dns-manager`
+**Source:** `/opt/site-provisioner`
 **Status:** Production (deployed on VPS)
-**Last verified:** 2026-04-07
+**Last verified:** 2026-04-12
 
 ---
 
 ## What It Does
 
-Single gateway for all DNS, Cloudflare, and domain registration operations. Fabrik never calls Namecheap or Cloudflare APIs directly — everything goes through dns-manager.
+Single gateway for all domain provisioning operations: DNS, Cloudflare, domain registration, analytics, and webmaster tools. Fabrik never calls Namecheap or Cloudflare APIs directly — everything goes through site-provisioner.
 
 **Capabilities:**
 - **DNS & CDN** — zones, DNS records, CDN (tiered cache), security (Page Shield, WAF), DNSSEC
 - **Domain registration** — availability checks, pricing (multi-registrar), registration, WHOIS privacy, nameservers
+- **Analytics** — Google Analytics 4 (GA4) property creation, Google Search Console (GSC) site verification
+- **Webmaster Tools** — Bing Webmaster Tools integration, IndexNow pinging
 
-dns-manager manages registrar selection internally (Namecheap, DomainNameAPI, etc.). Fabrik does not need to know which registrar is used.
+site-provisioner manages registrar selection internally (Namecheap, DomainNameAPI, etc.). Fabrik does not need to know which registrar is used.
 
 ---
 
@@ -45,8 +47,8 @@ fabrik domain zones                    # List all Cloudflare zones
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DNS_MANAGER_URL` | No | `https://dns.vps1.ocoron.com` | Service URL |
-| `DNS_MANAGER_TOKEN` | Prod only | — | Bearer token for auth |
+| `SITE_PROVISIONER_URL` | No | `https://provision.vps1.ocoron.com` | Service URL |
+| `SITE_PROVISIONER_TOKEN` | Prod only | — | Bearer token for auth |
 | `VPS_IP` | For provision | — | Target IP for DNS records |
 
 ---

@@ -95,10 +95,14 @@ def test_consecutive_identical_runs_skip_stages(
     build_dir = tmp_path / "build" / "sites" / "test.com"
     build_dir.mkdir(parents=True)
 
+    dummy_spec_path = tmp_path / "site.yaml"
+
     # Patch BUILD_ROOT to use tmp_path
-    with patch("fabrik.wordpress.planner.BUILD_ROOT", tmp_path / "build" / "sites"):
-        with patch("fabrik.wordpress.deployer.BUILD_ROOT", tmp_path / "build" / "sites"):
-            with patch("fabrik.wordpress.deployer.load_spec", return_value=mock_spec):
+    with patch("fabrik.wordpress.planner.BUILD_ROOT", tmp_path / "build" / "sites"), \
+         patch("fabrik.wordpress.deployer.BUILD_ROOT", tmp_path / "build" / "sites"), \
+         patch("fabrik.wordpress.planner.resolve_spec_path", return_value=(dummy_spec_path, False)), \
+         patch("fabrik.wordpress.deployer.resolve_spec_path", return_value=(dummy_spec_path, False)), \
+         patch("fabrik.wordpress.deployer.load_spec_from_path", return_value=mock_spec):
                 # First run: generate plan
                 planner = Planner("test.com")
                 planner.plan()
@@ -133,9 +137,13 @@ def test_changing_spec_reruns_affected_stages(
     build_dir = tmp_path / "build" / "sites" / "test.com"
     build_dir.mkdir(parents=True)
 
-    with patch("fabrik.wordpress.planner.BUILD_ROOT", tmp_path / "build" / "sites"):
-        with patch("fabrik.wordpress.deployer.BUILD_ROOT", tmp_path / "build" / "sites"):
-            with patch("fabrik.wordpress.deployer.load_spec", return_value=mock_spec):
+    dummy_spec_path = tmp_path / "site.yaml"
+
+    with patch("fabrik.wordpress.planner.BUILD_ROOT", tmp_path / "build" / "sites"), \
+         patch("fabrik.wordpress.deployer.BUILD_ROOT", tmp_path / "build" / "sites"), \
+         patch("fabrik.wordpress.planner.resolve_spec_path", return_value=(dummy_spec_path, False)), \
+         patch("fabrik.wordpress.deployer.resolve_spec_path", return_value=(dummy_spec_path, False)), \
+         patch("fabrik.wordpress.deployer.load_spec_from_path", return_value=mock_spec):
                 # First run
                 planner = Planner("test.com")
                 planner.plan()
@@ -146,13 +154,15 @@ def test_changing_spec_reruns_affected_stages(
 
                 first_run_calls = {name: mock.call_count for name, mock in mock_stage_apply.items()}
 
-            # Modify spec to change seo key only
-            modified_spec = mock_spec.copy()
-            modified_spec["seo"] = {"site_name": "Test", "ga4_id": "G-999"}
+    # Modify spec to change seo key only
+    modified_spec = mock_spec.copy()
+    modified_spec["seo"] = {"site_name": "Test", "ga4_id": "G-999"}
 
-            # Mock load_spec to return modified spec
-            with patch("fabrik.wordpress.spec_loader.load_spec", return_value=modified_spec):
-                with patch("fabrik.wordpress.deployer.load_spec", return_value=modified_spec):
+    with patch("fabrik.wordpress.planner.BUILD_ROOT", tmp_path / "build" / "sites"), \
+         patch("fabrik.wordpress.deployer.BUILD_ROOT", tmp_path / "build" / "sites"), \
+         patch("fabrik.wordpress.planner.resolve_spec_path", return_value=(dummy_spec_path, False)), \
+         patch("fabrik.wordpress.deployer.resolve_spec_path", return_value=(dummy_spec_path, False)), \
+         patch("fabrik.wordpress.deployer.load_spec_from_path", return_value=modified_spec):
                     # Update resolved spec mock to return modified version
                     from fabrik.wordpress.resolved_spec import ResolvedSpec
 
@@ -209,7 +219,10 @@ def test_atomic_write_survives_failure(
     build_dir = tmp_path / "build" / "sites" / "test.com"
     build_dir.mkdir(parents=True)
 
-    with patch("fabrik.wordpress.planner.BUILD_ROOT", tmp_path / "build" / "sites"):
+    dummy_spec_path = tmp_path / "site.yaml"
+
+    with patch("fabrik.wordpress.planner.BUILD_ROOT", tmp_path / "build" / "sites"), \
+         patch("fabrik.wordpress.planner.resolve_spec_path", return_value=(dummy_spec_path, False)):
         # First run to create initial plan
         planner = Planner("test.com")
         planner.plan()
@@ -237,7 +250,8 @@ def test_atomic_write_survives_failure(
         modified_resolved = ResolvedSpec(site_id="test.com", data=modified_spec)
         mock_resolved_spec.return_value = modified_resolved
 
-        with patch("os.replace", side_effect=failing_replace):
+        with patch("os.replace", side_effect=failing_replace), \
+             patch("fabrik.wordpress.planner.resolve_spec_path", return_value=(dummy_spec_path, False)):
             try:
                 planner2 = Planner("test.com")
                 planner2.plan()
@@ -260,9 +274,13 @@ def test_force_stage_bypasses_skip(
     build_dir = tmp_path / "build" / "sites" / "test.com"
     build_dir.mkdir(parents=True)
 
-    with patch("fabrik.wordpress.planner.BUILD_ROOT", tmp_path / "build" / "sites"):
-        with patch("fabrik.wordpress.deployer.BUILD_ROOT", tmp_path / "build" / "sites"):
-            with patch("fabrik.wordpress.deployer.load_spec", return_value=mock_spec):
+    dummy_spec_path = tmp_path / "site.yaml"
+
+    with patch("fabrik.wordpress.planner.BUILD_ROOT", tmp_path / "build" / "sites"), \
+         patch("fabrik.wordpress.deployer.BUILD_ROOT", tmp_path / "build" / "sites"), \
+         patch("fabrik.wordpress.planner.resolve_spec_path", return_value=(dummy_spec_path, False)), \
+         patch("fabrik.wordpress.deployer.resolve_spec_path", return_value=(dummy_spec_path, False)), \
+         patch("fabrik.wordpress.deployer.load_spec_from_path", return_value=mock_spec):
                 # First run
                 planner = Planner("test.com")
                 planner.plan()

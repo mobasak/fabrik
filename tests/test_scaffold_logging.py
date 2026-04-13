@@ -113,7 +113,7 @@ def _scaffold_python_api(mock_fabrik_root: Path, temp_dir: Path, name: str = "te
         patch.object(scaffold, "FABRIK_AGENTS_MD", mock_fabrik_root / "AGENTS.md"),
         patch("subprocess.run"),
     ):
-        scaffold._scaffold_shared(project_dir, name, "Test service", "2026-04-09")
+        scaffold._scaffold_shared(project_dir, name, "Test service", "2026-04-09", 8099)
         scaffold._scaffold_python_api(project_dir, name, "Test service")
 
     return project_dir
@@ -132,7 +132,7 @@ def _scaffold_chrome_ext(mock_fabrik_root: Path, temp_dir: Path, name: str = "te
         patch.object(scaffold, "FABRIK_AGENTS_MD", mock_fabrik_root / "AGENTS.md"),
         patch("subprocess.run"),
     ):
-        scaffold._scaffold_shared(project_dir, name, "Test extension", "2026-04-09")
+        scaffold._scaffold_shared(project_dir, name, "Test extension", "2026-04-09", 8099)
         scaffold._scaffold_chrome_extension(project_dir, name, "Test extension")
 
     return project_dir
@@ -312,7 +312,7 @@ def _scaffold_file_worker(
         patch.object(scaffold, "FABRIK_AGENTS_MD", mock_fabrik_root / "AGENTS.md"),
         patch("subprocess.run"),
     ):
-        scaffold._scaffold_shared(project_dir, name, "Test worker", "2026-04-09")
+        scaffold._scaffold_shared(project_dir, name, "Test worker", "2026-04-09", 8099)
         scaffold._scaffold_file_worker(project_dir, name, "Test worker")
 
     return project_dir

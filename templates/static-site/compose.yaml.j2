@@ -16,7 +16,6 @@ services:
     {% endif %}
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - NEXT_TELEMETRY_DISABLED=1
       {% for key, value in env.items() %}
       - {{ key }}={{ value | env_escape }}
       {% endfor %}
@@ -32,7 +31,7 @@ services:
           memory: {{ resources.memory }}
           cpus: '{{ resources.cpu }}'
     healthcheck:  # Mandatory for Coolify orchestration
-      test: ["CMD", "curl", "-f", "http://localhost:3000{{ health.path if health else '/api/health' }}"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000{{ health.path if health else '/' }}"]
       interval: {{ health.interval if health else '30s' }}
       timeout: {{ health.timeout if health else '10s' }}
       retries: {{ health.retries if health else 3 }}

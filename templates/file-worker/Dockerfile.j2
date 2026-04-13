@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Mandatory Healthcheck: Verify worker heartbeat file is fresh
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD find /tmp/worker_heartbeat -mmin -2 || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD find /app/.tmp/worker_heartbeat -mmin -2 || exit 1
 
 # Install Python dependencies with uv
 COPY requirements.txt .

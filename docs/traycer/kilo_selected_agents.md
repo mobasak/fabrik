@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-04-12T00:03:33.067123
+**Last Updated:** 2026-04-13T15:32:52.787426
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -33,13 +33,13 @@
 | 24 | **grok-4** | x-ai | 1453 | 27.2 | $3.00 | $15.00 | 256K | ✓ | ✓ | ✓ | 3 | 121 | ✅ |
 | 25 | **kimi-k2-thinking** | moonshotai | 1450 | 35.7 | $0.60 | $2.50 | 262K |  | ✓ | ✓ | 2 | 716 | ✅ |
 | 26 | **gpt-5.1** | openai | 1450 | 47.6 | $1.25 | $10.00 | 400K | ✓ | ✓ | ✓ | 3 | 186 | ✅ |
-| 27 | **minimax-m2.7** | minimax | 1448 | ~ | $0.30 | $1.20 | 204K |  | ✓ | ✓ | 2 | 1485 | ✅ |
+| 27 | **minimax-m2.7** | minimax | 1448 | ~ | $0.30 | $1.20 | 196K |  | ✓ | ✓ | 2 | 1485 | ✅ |
 | 28 | **glm-4.5** | z-ai | 1448 | ~ | $0.60 | $2.20 | 131K |  | ✓ | ✓ | 2 | 804 | ✅ |
 | 29 | **qwen3-235b-a22b-thinking-2507** | qwen | 1442 | ~ | $0.15 | $1.50 | 131K |  | ✓ | ✓ | 2 | 1245 | ✅ |
 | 30 | **grok-4-fast** | x-ai | 1441 | ~ | $0.20 | $0.50 | 2000K | ✓ | ✓ | ✓ | 1 | 3391 | ✅ |
 | 31 | **mimo-v2-pro** | xiaomi | 1441 | ~ | $1.00 | $3.00 | 1048K |  | ✓ | ✓ | 2 | 576 | ✅ |
 | 32 | **claude-haiku-4.5** | anthropic | 1436 | 35.5 | $1.00 | $5.00 | 200K | ✓ | ✓ | ✓ | 2 | 359 | ✅ |
-| 33 | **deepseek-r1-0528** | deepseek | 1436 | ~ | $0.45 | $2.15 | 163K |  | ✓ | ✓ | 2 | 832 | ✅ |
+| 33 | **deepseek-r1-0528** | deepseek | 1436 | ~ | $0.50 | $2.15 | 163K |  | ✓ | ✓ | 2 | 826 | ✅ |
 | 34 | **minimax-m2.5** | minimax | 1436 | 42.7 | $0.12 | $0.99 | 196K |  | ✓ | ✓ | 2 | 1860 | ✅ |
 | 35 | **step-3.5-flash** | stepfun | 1433 | ~ | $0.10 | $0.30 | 262K |  | ✓ | ✓ | 1 | 5732 | ✅ |
 | 36 | **qwen3-vl-235b-a22b-thinking** | qwen | 1432 | ~ | $0.26 | $2.60 | 131K | ✓ | ✓ | ✓ | 2 | 711 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-04-12:** Auto-updated from benchmarks
+- **2026-04-13:** Auto-updated from benchmarks

@@ -1,7 +1,7 @@
-id: dns-manager
+id: site-provisioner
 kind: service
 template: python-api
-domain: dns.vps1.ocoron.com
+domain: provision.vps1.ocoron.com
 
 env:
   API_HOST: "0.0.0.0"

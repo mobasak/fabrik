@@ -1,5 +1,30 @@
-fastcgi_cache_path /tmp/wp_cache levels=1:2 keys_zone=wp_cache:10m inactive=60m max_size=256m;
+fastcgi_cache_path /var/cache/nginx/wp_cache levels=1:2 keys_zone=wp_cache:10m inactive=60m max_size=256m;
 fastcgi_cache_key "$scheme$request_method$host$request_uri";
+
+# Map POST requests to bypass FastCGI cache
+map $request_method $skip_cache_method {
+    default 0;
+    POST    1;
+}
+
+# Map cookie consent state — bypass cache until user has consented (prevents cache poisoning)
+map $http_cookie $skip_cache_consent {
+    default                      1; # bypass until consent cookie present
+    "~*cookie_consent"           0; # user has interacted with banner — safe to cache
+}
+
+# Map WooCommerce active session — bypass cache for cart/checkout/account
+map $request_uri $skip_cache_woo {
+    default 0;
+    "~^/(cart|checkout|my-account|addons)(/|$)"  1;
+    "~\?add-to-cart="                             1;
+}
+
+# Map WooCommerce/logged-in cookies
+map $http_cookie $skip_cache_cookie {
+    default 0;
+    "~*wordpress_logged_in|woocommerce_items_in_cart|wp-postpass|comment_author"  1;
+}
 
 upstream php {
     server wordpress:9000;
@@ -12,20 +37,62 @@ server {
     root /var/www/html;
     index index.php index.html;
 
+    # Security: HTTP headers — SOP §II (applied at origin; Cloudflare Transform Rules add HSTS/CSP at edge)
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    # Note: Content-Security-Policy and Strict-Transport-Security are set via Cloudflare Transform Rules
+    # to cover all assets (images, CSS) that bypass WordPress — configure in Cloudflare dashboard.
+
+    # Security: Block PHP execution in uploads directory (prevents malicious file execution)
+    location ~* /(?:uploads|files)/.*\.php$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # Security: Block sensitive backup/config/log file types
+    location ~* \.(?:bak|conf|dist|fla|in[ci]|log|psd|sh|sql|sw[op])$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
     # Security: Block xmlrpc.php (brute-force attack vector)
     location = /xmlrpc.php {
         return 444;
     }
 
-    # Security: Deny access to sensitive files
+    # Security: Block REST API user enumeration (/wp-json/wp/v2/users) — SOP §4
+    location = /wp-json/wp/v2/users {
+        return 403;
+    }
+    location ~ ^/wp-json/wp/v2/users/ {
+        return 403;
+    }
+
+    # Security: Deny access to sensitive files and directories
     location ~ /\.(ht|git|env) {
         deny all;
     }
 
+    # Security: Block direct access to wp-includes PHP files (except wp-tinymce.php)
+    location ~* ^/wp-includes/[^/]+\.php$ {
+        return 403;
+    }
+    location ~* ^/wp-includes/js/tinymce/langs/.+\.php$ {
+        return 403;
+    }
+
     # Static files: long cache, served directly by nginx
+    # Note: add_header in location replaces parent-level headers — security headers re-declared here
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|webp|woff|woff2|ttf|eot)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         access_log off;
         try_files $uri =404;
     }
@@ -43,8 +110,9 @@ server {
         # FastCGI cache
         fastcgi_cache wp_cache;
         fastcgi_cache_valid 200 60m;
-        fastcgi_cache_bypass $http_cookie;
-        fastcgi_no_cache $http_cookie;
+        fastcgi_cache_bypass $http_authorization $skip_cache_method $skip_cache_cookie $skip_cache_woo $skip_cache_consent;
+        fastcgi_no_cache    $http_authorization $skip_cache_method $skip_cache_cookie $skip_cache_woo $skip_cache_consent;
+        fastcgi_cache_lock on;  # prevent cache stampede on cache miss
         add_header X-FastCGI-Cache $upstream_cache_status;
     }
 

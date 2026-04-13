@@ -1,0 +1,42 @@
+id: test-static
+kind: service
+template: static-site
+domain: test-static.vps1.ocoron.com
+expose:
+  http: true
+  internal_only: false
+source:
+  type: template
+  branch: main
+coolify:
+  project: default
+  server: localhost
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  NODE_ENV: production
+  NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-SaaS App}
+  NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+secrets:
+  required: []
+  generate: []
+  from_env:
+  - NEXT_PUBLIC_SUPABASE_ANON_KEY
+  - SUPABASE_SERVICE_ROLE_KEY
+  from_file: {}
+resources:
+  memory: 256M
+  cpu: '0.5'
+health:
+  path: /api/health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30

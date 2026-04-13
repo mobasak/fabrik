@@ -785,6 +785,12 @@ def scan(health: bool, base: str):
     show_default=True,
     help="Local dev port for WordPress (WSL only)",
 )
+@click.option(
+    "--db",
+    is_flag=True,
+    default=False,
+    help="Enable PostgreSQL database (creates DB, adds DATABASE_URL to .env.local)",
+)
 def scaffold(
     name: str,
     description: str,
@@ -792,6 +798,7 @@ def scaffold(
     preset: str | None,
     no_spec: bool,
     dev_port: str,
+    db: bool,
 ):
     """Create a new project with full structure.
 
@@ -815,6 +822,7 @@ def scaffold(
             preset=preset,
             generate_spec=not no_spec,
             dev_port=dev_port,
+            use_database=db,
         )
         click.echo(f"✅ Created: {project_dir}")
 
@@ -1395,22 +1403,32 @@ def domain():
 @domain.command("check")
 @click.argument("domains", nargs=-1, required=True)
 def domain_check(domains: tuple[str, ...]):
-    """Check domain availability.
-
-    dns-manager queries all configured registrars and returns results.
+    """Check domain availability across all registrars.
 
     Example:
-        fabrik domain check newsite.com
+        fabrik domain check tojlo.com
         fabrik domain check newsite.com newsite.io newsite.dev
     """
     dns = DNSClient()
     try:
-        result = dns.check_availability(list(domains))
-        for name, available in result.items():
-            status = "\u2705 Available" if available else "\u274c Taken"
-            click.echo(f"  {name}: {status}")
+        for name in domains:
+            result = dns.check_availability(name)
+            available = result.get("available", False)
+            icon = "✅" if available else "❌"
+            click.echo(f"  {icon} {name}: {'Available' if available else 'Taken'}")
+            if available:
+                cheapest = result.get("cheapest")
+                price = result.get("cheapest_price")
+                if cheapest and price:
+                    click.echo(f"     Cheapest: {cheapest} @ ${price}")
+                prices = result.get("prices", {})
+                for registrar, info in prices.items():
+                    if isinstance(info, dict) and "register" in info:
+                        click.echo(
+                            f"     {registrar}: ${info['register']} register / ${info.get('renew', '?')} renew"
+                        )
     except Exception as e:
-        click.echo(f"\u26a0\ufe0f  Availability check failed: {e}", err=True)
+        click.echo(f"⚠️  Availability check failed: {e}", err=True)
     finally:
         dns.close()
 
@@ -1423,6 +1441,12 @@ def domain_check(domains: tuple[str, ...]):
 @click.option("--no-cache", is_flag=True, help="Skip tiered cache")
 @click.option("--no-shield", is_flag=True, help="Skip page shield")
 @click.option("--no-waf", is_flag=True, help="Skip WAF threat rule")
+@click.option("--setup-google", is_flag=True, help="Register with Google Search Console")
+@click.option("--no-bing", is_flag=True, help="Skip Bing Webmaster Tools")
+@click.option("--no-indexnow", is_flag=True, help="Skip IndexNow ping")
+@click.option("--setup-ga4", is_flag=True, help="Create Google Analytics 4 property")
+@click.option("--ga4-account-id", default=None, help="GA4 account ID (required with --setup-ga4)")
+@click.option("--sitemap-url", default=None, help="Sitemap URL to submit to all search engines")
 def domain_provision(
     domain_name: str,
     ip: str | None,
@@ -1431,19 +1455,33 @@ def domain_provision(
     no_cache: bool,
     no_shield: bool,
     no_waf: bool,
+    setup_google: bool,
+    no_bing: bool,
+    no_indexnow: bool,
+    setup_ga4: bool,
+    ga4_account_id: str | None,
+    sitemap_url: str | None,
 ):
-    """Provision domain with Cloudflare enterprise features.
+    """Provision domain — DNS, CDN, WAF, and search engine setup.
 
-    Sets up DNS records, CDN, security, and WAF in a single call.
+    Runs the full pre-Coolify-deploy sequence:
+      1. Creates Cloudflare zone + DNS records
+      2. Enables DNSSEC, Tiered Cache, Page Shield, WAF
+      3. Registers with Bing/IndexNow (and Google/GA4 if requested)
 
     Example:
-        fabrik domain provision newsite.com
-        fabrik domain provision newsite.com -s www -s api
-        fabrik domain provision newsite.com --ip 172.93.160.197
+        fabrik domain provision tojlo.com
+        fabrik domain provision tojlo.com -s www -s api
+        fabrik domain provision tojlo.com --setup-ga4 --ga4-account-id 194840782
+        fabrik domain provision tojlo.com --sitemap-url https://tojlo.com/sitemap.xml
     """
     target_ip = ip or os.getenv("VPS_IP")
     if not target_ip:
         click.echo("❌ No target IP. Set VPS_IP env var or use --ip", err=True)
+        raise SystemExit(1)
+
+    if setup_ga4 and not ga4_account_id:
+        click.echo("❌ --ga4-account-id is required when using --setup-ga4", err=True)
         raise SystemExit(1)
 
     dns = DNSClient()
@@ -1460,15 +1498,29 @@ def domain_provision(
             enable_tiered_cache=not no_cache,
             enable_page_shield=not no_shield,
             create_threat_rule=not no_waf,
+            setup_google=setup_google,
+            setup_bing=not no_bing,
+            setup_indexnow=not no_indexnow,
+            setup_ga4=setup_ga4,
+            ga4_account_id=ga4_account_id,
+            sitemap_url=sitemap_url,
         )
 
-        if result.get("success") or result.get("ready_for_coolify"):
+        if result.get("success"):
             click.echo(f"✅ Provisioned: {domain_name}")
             features = result.get("features_enabled", {})
             for feat, status in features.items():
                 icon = "✅" if status is True else ("⚠️" if "error" in str(status).lower() else "✅")
                 click.echo(f"   {icon} {feat}: {status}")
-            click.echo(f"\n   ready_for_coolify: {result.get('ready_for_coolify', False)}")
+            for svc in ("google_search_console", "bing_webmaster", "indexnow", "google_analytics"):
+                info = result.get(svc)
+                if info:
+                    status = info.get("status", "")
+                    icon = "✅" if status == "completed" else "⚠️"
+                    click.echo(f"   {icon} {svc}: {status}")
+                    if svc == "google_analytics" and info.get("measurement_id"):
+                        click.echo(f"      GA4 ID: {info['measurement_id']}")
+            click.echo(f"\n   Next: fabrik domain ready {domain_name}")
         else:
             click.echo(f"❌ Provisioning failed: {result}", err=True)
             raise SystemExit(1)
@@ -1481,26 +1533,102 @@ def domain_provision(
 
 @domain.command("ready")
 @click.argument("domain_name")
-def domain_ready(domain_name: str):
+@click.option("--wait", is_flag=True, help="Poll until ready (max 120s)")
+def domain_ready(domain_name: str, wait: bool):
     """Check if domain is ready for Coolify deployment.
 
     Example:
-        fabrik domain ready newsite.com
+        fabrik domain ready tojlo.com
+        fabrik domain ready tojlo.com --wait
+    """
+    import time
+
+    dns = DNSClient()
+    try:
+        attempts = 12 if wait else 1
+        for attempt in range(attempts):
+            result = dns.check_ready(domain_name)
+            ready = result.get("ready", False)
+            icon = "✅" if ready else ("⏳" if wait and attempt < attempts - 1 else "❌")
+            click.echo(
+                f"{icon} {domain_name}: ready={ready}  (zone: {result.get('zone_status', 'unknown')})"
+            )
+            for rec in result.get("a_records", []):
+                content = rec.get("content") or rec.get("value", "?")
+                click.echo(
+                    f"   DNS: {rec.get('name', '@')} → {content} proxied={rec.get('proxied')}"
+                )
+            if ready or not wait or attempt == attempts - 1:
+                break
+            click.echo("   Waiting 10s...")
+            time.sleep(10)
+    except Exception as e:
+        click.echo(f"❌ Ready check failed: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        dns.close()
+
+
+@domain.command("integrations")
+@click.argument("domain_name")
+def domain_integrations(domain_name: str):
+    """Show stored integration metadata (GA4, GSC, Bing, IndexNow).
+
+    Example:
+        fabrik domain integrations tojlo.com
     """
     dns = DNSClient()
     try:
-        result = dns.check_ready(domain_name)
-        ready = result.get("ready_for_deployment", False)
-        icon = "✅" if ready else "❌"
-        click.echo(f"{icon} {domain_name}: ready_for_deployment={ready}")
-        click.echo(f"   Zone: {result.get('zone_status', 'unknown')}")
-        for rec in result.get("dns_records", []):
-            click.echo(f"   DNS: {rec['name']} → {rec['content']} (proxied={rec.get('proxied')})")
-        features = result.get("features", {})
-        for feat, status in features.items():
-            click.echo(f"   {feat}: {status}")
+        result = dns.get_integrations(domain_name)
+        click.echo(f"📊 Integrations for {domain_name}:")
+        click.echo(f"   Cloudflare zone: {result.get('cloudflare_zone_id', 'N/A')}")
+        ga4 = result.get("ga4") or {}
+        if ga4.get("measurement_id"):
+            click.echo(
+                f"   ✅ GA4: {ga4['measurement_id']} (property {ga4.get('property_id', '?')})"
+            )
+        else:
+            click.echo("   ➖ GA4: not set up")
+        gsc = result.get("google_search_console") or {}
+        click.echo(
+            f"   {'✅' if gsc.get('verified') else '➖'} GSC: verified={gsc.get('verified', False)}"
+        )
+        bing = result.get("bing_webmaster") or {}
+        click.echo(
+            f"   {'✅' if bing.get('registered') else '➖'} Bing: registered={bing.get('registered', False)}"
+        )
+        indexnow = result.get("indexnow") or {}
+        click.echo(
+            f"   {'✅' if indexnow.get('last_ping') else '➖'} IndexNow: pings={indexnow.get('ping_count', 0)}"
+        )
     except Exception as e:
-        click.echo(f"❌ Ready check failed: {e}", err=True)
+        click.echo(f"❌ Failed: {e}", err=True)
+        raise SystemExit(1)
+    finally:
+        dns.close()
+
+
+@domain.command("sitemap")
+@click.argument("domain_name")
+@click.argument("sitemap_url")
+def domain_sitemap(domain_name: str, sitemap_url: str):
+    """Update sitemap and resubmit to Google, Bing, and IndexNow.
+
+    Example:
+        fabrik domain sitemap tojlo.com https://tojlo.com/sitemap.xml
+    """
+    dns = DNSClient()
+    try:
+        result = dns.update_sitemap(domain_name, sitemap_url)
+        if result.get("success"):
+            click.echo(f"✅ Sitemap updated: {sitemap_url}")
+            for engine, status in (result.get("results") or {}).items():
+                click.echo(f"   {engine}: {status}")
+        else:
+            click.echo(f"❌ Sitemap update failed: {result}", err=True)
+            raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"❌ Failed: {e}", err=True)
         raise SystemExit(1)
     finally:
         dns.close()
@@ -1535,15 +1663,15 @@ def domain_zones():
 def domain_buy(domain_name: str, years: int, yes: bool):
     """Register a new domain.
 
-    dns-manager handles registrar selection, nameservers, and privacy.
+    site-provisioner handles registrar selection, nameservers, and privacy.
 
     Example:
         fabrik domain buy newsite.com
         fabrik domain buy newsite.com --years 2
     """
     if not yes:
-        click.echo(f"\u26a0\ufe0f  About to register: {domain_name} for {years} year(s)")
-        click.echo("   Registrar + nameservers: managed by dns-manager")
+        click.echo(f"⚠️  About to register: {domain_name} for {years} year(s)")
+        click.echo("   Registrar + nameservers: managed by site-provisioner")
         click.echo("   WHOIS privacy: enabled")
         if not click.confirm("   Proceed?"):
             click.echo("Aborted.")
@@ -1629,105 +1757,62 @@ def deploy_cmd(project_path: str | None, dry_run: bool):
 
 @cli.group()
 def content():
-    """Content publishing pipeline (SEO → TCO → Image Broker → WordPress)."""
+    """Content publishing commands."""
     pass
 
 
 @content.command("publish")
 @click.argument("domain")
-@click.argument("seed_topic")
-@click.option("--site-name", default=None, help="Site display name (defaults to domain)")
-@click.option("--page-type", default=None, help="Page type override (e.g. service, blog_post)")
-@click.option("--country-code", default="us", help="ISO-2 country code")
-@click.option("--language-code", default="en", help="Language code")
-@click.option("--category", default=None, help="Site category (e.g. saas, company)")
-@click.option("--wp-url", default=None, help="WordPress site URL")
-@click.option("--wp-user", default=None, help="WordPress username")
-@click.option("--wp-pass", default=None, help="WordPress password (or application password)")
-@click.option("--dry-run", is_flag=True, help="Simulate without making changes")
-def content_publish(
-    domain: str,
-    seed_topic: str,
-    site_name: str | None,
-    page_type: str | None,
-    country_code: str,
-    language_code: str,
-    category: str | None,
-    wp_url: str | None,
-    wp_user: str | None,
-    wp_pass: str | None,
-    dry_run: bool,
-):
-    """Run full content publishing pipeline.
+@click.option("--dry-run", is_flag=True, help="Preview without publishing or consuming briefs")
+@click.option(
+    "--limit", default=10, type=int, show_default=True, help="Maximum number of briefs to process"
+)
+def content_publish(domain: str, dry_run: bool, limit: int):
+    """Drain ready briefs from SEO service and publish each to WordPress.
 
-    Pipeline:
-    1. Register site in SEO service
-    2. Create and run SEO job for seed topic
-    3. Fetch and claim brief
-    4. Generate content via TCO
-    5. Fetch image via Image Broker
-    6. Create WordPress post (if credentials provided)
-    7. Submit brief to SEO service
+    Reads WP_SITE_URL, WP_USERNAME, WP_PASSWORD, SEO_API_URL, TCO_API_URL,
+    IMAGE_BROKER_URL, and CONTENT_WORKER_ID from the environment.
 
     Example:
-        fabrik content publish example.com "saas pricing models" --page-type pricing
+        fabrik content publish example.com
+        fabrik content publish example.com --dry-run --limit 5
     """
-    from fabrik.orchestrator.content_publisher import ContentPublisher
+    from fabrik.content.orchestrator import ContentPublisher
 
-    if not site_name:
-        site_name = domain
-
-    wp_credentials = None
-    if wp_url and wp_user and wp_pass:
-        wp_credentials = {"url": wp_url, "username": wp_user, "password": wp_pass}
+    click.echo(f"🚀 Publishing content for {domain}")
+    if dry_run:
+        click.echo("Dry run — no changes will be made")
 
     publisher = ContentPublisher()
     try:
-        click.echo(f"🚀 Starting content publish pipeline for {domain}")
-        click.echo(f"   Topic: {seed_topic}")
-        if page_type:
-            click.echo(f"   Page type: {page_type}")
-
-        ctx = publisher.publish_page(
-            domain=domain,
-            site_name=site_name,
-            seed_topic=seed_topic,
-            page_type=page_type,
-            country_code=country_code,
-            language_code=language_code,
-            category=category,
-            wp_credentials=wp_credentials,
-            dry_run=dry_run,
-        )
-
-        click.echo("\n✅ Pipeline completed")
-        if ctx.site_id:
-            click.echo(f"   Site ID: {ctx.site_id}")
-        if ctx.job_id:
-            click.echo(f"   Job ID: {ctx.job_id}")
-        if ctx.brief_id:
-            click.echo(f"   Brief ID: {ctx.brief_id}")
-        if ctx.wp_post_id:
-            click.echo(f"   WordPress Post ID: {ctx.wp_post_id}")
-
-        if ctx.warnings:
-            click.echo("\n⚠️  Warnings:")
-            for w in ctx.warnings:
-                click.echo(f"   - {w}")
-
-        if ctx.errors:
-            click.echo("\n❌ Errors:")
-            for e in ctx.errors:
-                click.echo(f"   - {e}")
-            raise SystemExit(1)
-
+        summary = publisher.publish(domain, dry_run=dry_run, limit=limit)
+    except ValueError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise SystemExit(1)
     except Exception as e:
-        click.echo(f"❌ Pipeline failed: {e}", err=True)
+        click.echo(f"❌ Error: {e}", err=True)
         raise SystemExit(1)
     finally:
         publisher.seo.close()
         publisher.tco.close()
         publisher.image.close()
+
+    for result in summary.results:
+        if result.status == "published":
+            click.echo(f"✅ Published: {result.wp_url}")
+        elif result.status == "skipped":
+            click.echo(f"⏭ Skipped: {result.brief_id}")
+        else:
+            click.echo(f"❌ Failed: {result.brief_id} — {result.error}", err=True)
+
+    click.echo(
+        f"\nDone. Published {summary.published}/{summary.total_briefs} briefs. {summary.failed} failed."
+    )
+
+    if summary.failed == 0:
+        raise SystemExit(0)
+    else:
+        raise SystemExit(1)
 
 
 @cli.group()

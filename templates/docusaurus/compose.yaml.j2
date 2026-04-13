@@ -4,8 +4,6 @@ services:
     container_name: {{ spec.id }}-docs
     platform: linux/amd64  # MANDATORY - VPS is x86_64
     restart: unless-stopped
-    ports:
-      - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=${PORT:-3000}
@@ -14,8 +12,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"
-      - "traefik.http.routers.{{ spec.id }}.entrypoints=https"
-      - "traefik.http.routers.{{ spec.id }}.tls=true"
+      - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
       - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=3000"
     healthcheck:

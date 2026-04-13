@@ -13,12 +13,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Mandatory Healthcheck: Verify Metro bundler status
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8081/status || exit 1
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 RUN npm install --omit=dev
+
+# Create non-root user
+RUN useradd -m -u 1001 appuser && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8081
 CMD ["node", "dist/server.js"]

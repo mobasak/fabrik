@@ -147,14 +147,23 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── final_gate.py                # Mandatory pre-commit quality gate
 │   ├── docs_updater.py              # Auto-update docs structure
 │   ├── kilo_code_review.py          # Kilo-based code review runner
+│   ├── create_pg_dev_db.sh          # PostgreSQL dev database creation helper
 │   ├── enforcement/                 # Convention check scripts (check_*.py)
 │   └── utils/                       # Shared script utilities
 ├── specs/                           # YAML specs and planning documents
-│   └── infrastructure/              # Infrastructure service YAML specs (Phase 9)
+│   ├── infrastructure/              # Infrastructure service YAML specs
+│   │   ├── apprise.yaml             # Apprise notification service — Docker Compose + Traefik config
+│   │   └── n8n.yaml                 # n8n workflow automation — Docker Compose + Traefik config
+│   └── n8n-workflows/               # Importable n8n workflow JSON files
+│       ├── 01-deploy-notify.json    # Webhook → Code → Apprise on deploy.success / deploy.failure
+│       ├── 02-content-notify.json   # Webhook → Code → Apprise on content.published
+│       ├── 03-health-alert.json     # Uptime Kuma DOWN/UP → Code → Apprise
+│       └── 04-content-trigger.json  # Schedule every 6h → HTTP (Fabrik API) → Apprise
 ├── sql/                             # Database DDL scripts
 ├── src/fabrik/                      # Core Fabrik Python package
-│   ├── cli.py                       # CLI entry point (includes `fabrik deploy` unified command)
+│   ├── cli.py                       # CLI entry point — includes `fabrik deploy`, `fabrik content publish` (batch brief-drain), `fabrik wp`, `fabrik seo`, `fabrik ai`, `fabrik domain`
 │   ├── deploy_router.py             # [reusable] Unified deploy routing — resolve_project_dir(), get_project_type(), route_deploy()
+│   ├── notifications.py             # [reusable] Fire-and-forget webhook helpers — notify_deploy(), notify_content() → N8N_WEBHOOK_DEPLOY / N8N_WEBHOOK_CONTENT
 │   ├── deploy_validator.py          # [reusable] Deployment readiness validator — 5 checks, validate(), format_warnings()
 │   ├── scaffold.py                  # Project scaffolding
 │   ├── ai/                          # AI module: LLMClient, UsageTracker
@@ -171,7 +180,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── models/                      # Data models
 │   ├── orchestrator/                # Deployment orchestrator
 │   │   ├── __init__.py              # DeploymentOrchestrator
-│   │   ├── content_publisher.py     # ContentPublisher (SEO → TCO → Image → WP)
+│   │   ├── content_publisher.py     # ContentPublisher implementation — publish() batch brief-drain, publish_page() legacy; import via fabrik.content.orchestrator
 │   │   ├── context.py               # DeploymentContext
 │   │   ├── deployer.py              # ServiceDeployer
 │   │   ├── exceptions.py            # Custom exceptions
@@ -180,6 +189,9 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   │   ├── states.py                # DeploymentState
 │   │   ├── validator.py             # SpecValidator
 │   │   └── verifier.py              # DeploymentVerifier
+│   ├── content/                     # Content publishing package
+│   │   ├── __init__.py              # Package marker
+│   │   └── orchestrator.py          # Canonical module — re-exports ContentPublisher, PublishResult, PublishSummary, PublishContext
 │   └── wordpress/                   # WordPress automation
 │       ├── spec_loader.py           # SpecLoader + resolve_spec_path() + load_spec_from_path()
 │       ├── resolved_spec.py         # ResolvedSpec + load_spec() (supports site_path override)
@@ -208,8 +220,8 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   │   ├── test_seo_client.py       # SEOClient driver tests
 │   │   ├── test_tco_client.py       # TCOClient driver tests
 │   │   ├── test_image_broker_client.py # ImageBrokerClient driver tests
-│   │   ├── test_orchestrator.py     # ContentPublisher orchestrator tests
-│   │   └── test_cli_content.py      # CLI content command tests
+│   │   ├── test_orchestrator.py     # ContentPublisher orchestrator tests (imports from fabrik.content.orchestrator)
+│   │   └── test_cli_content.py      # CLI content command tests (imports from fabrik.content.orchestrator)
 │   ├── drivers/                     # Driver tests
 │   └── orchestrator/                # Deployment orchestrator tests
 ├── .github/                         # GitHub Actions CI/CD
@@ -432,6 +444,12 @@ docs/
 | [DEPLOYMENT_READY_CHECKLIST.md](docs/guides/DEPLOYMENT_READY_CHECKLIST.md) | Make any project deployment-ready |
 | [EXCEL_FILE_GENERATION.md](docs/guides/EXCEL_FILE_GENERATION.md) | Excel file generation guide |
 
+### Workflows
+
+| Document | Purpose |
+|----------|--------|
+| [wordpress-site-workflow.md](docs/workflows/wordpress-site-workflow.md) | End-to-end WordPress site lifecycle: domain → plan → Coolify deploy → WP config → verify → content publish |
+
 ### WordPress
 
 | Document | Purpose |
@@ -459,8 +477,10 @@ docs/
 | [test_seo_client.py](tests/content/test_seo_client.py) | 7 tests for SEOClient driver (domain lookup, briefs lifecycle) |
 | [test_tco_client.py](tests/content/test_tco_client.py) | 2 tests for TCOClient driver (generate_from_brief, error propagation) |
 | [test_image_broker_client.py](tests/content/test_image_broker_client.py) | 3 tests for ImageBrokerClient driver (auto_download success/failure) |
-| [test_orchestrator.py](tests/content/test_orchestrator.py) | 14 tests for ContentPublisher orchestrator (pipeline, error handling, submission) |
-| [test_cli_content.py](tests/content/test_cli_content.py) | 3 tests for `fabrik content publish` CLI command |
+| [content_publisher.py](src/fabrik/orchestrator/content_publisher.py) | ContentPublisher implementation module — publish() batch brief-drain (domain → list briefs → claim → TCO → image → WP → submit), publish_page() legacy, PublishResult/PublishSummary/PublishContext dataclasses. **Import via fabrik.content.orchestrator** |
+| [orchestrator.py](src/fabrik/content/orchestrator.py) | Canonical content pipeline module — re-exports ContentPublisher, PublishResult, PublishSummary, PublishContext from fabrik.orchestrator.content_publisher; all new code imports from this path |
+| [test_orchestrator.py](tests/content/test_orchestrator.py) | 35 tests for ContentPublisher orchestrator — publish_page() legacy + publish() T2 batch brief-drain (lock release, image fallback, routing, upload_media path, UUID coercion, HTML rendering, limit) |
+| [test_cli_content.py](tests/content/test_cli_content.py) | 4 tests for `fabrik content publish` CLI command (help, unknown domain ValueError, dry-run, connection error) |
 | [test_saas_logger.py](tests/test_saas_logger.py) | 5 tests for saas-skeleton pino logger scaffold generation |
 | [test_scaffold_logging.py](tests/test_scaffold_logging.py) | Tests for python-api + chrome-extension scaffold logging (logger.py, middleware.py, correlation ID) |
 | **src/fabrik/spec_generator.py** | [reusable] Spec generation and project context extraction — SPEC_ENABLED_TYPES, SECRET_PATTERNS, extract_project_context(), generate_spec(), generate_and_save_spec() |

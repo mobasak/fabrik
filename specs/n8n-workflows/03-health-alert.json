@@ -1,0 +1,109 @@
+{
+  "name": "03 \u00b7 Health Alert (Uptime Kuma)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "health-alert",
+        "options": {}
+      },
+      "id": "webhook-health",
+      "name": "Webhook \u2013 Health Alert",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "health-alert"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\n// Uptime Kuma sends: heartbeat.status (1=up, 0=down), monitor.name, msg\nconst isDown = body.heartbeat?.status === 0;\nconst monitor = body.monitor?.name || body.monitor_name || 'unknown';\nconst msg = body.heartbeat?.msg || body.msg || '';\n\nreturn [{\n  json: {\n    title: isDown ? `\ud83d\udd34 DOWN: ${monitor}` : `\ud83d\udfe2 UP: ${monitor}`,\n    body: msg || (isDown ? `${monitor} is not responding` : `${monitor} recovered`),\n    tag: 'health',\n    status: isDown ? 'down' : 'up',\n    monitor: monitor\n  }\n}];"
+      },
+      "id": "format-health",
+      "name": "Format Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://apprise:8000/notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.body }}"
+            },
+            {
+              "name": "tag",
+              "value": "={{ $json.tag }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "apprise-health",
+      "name": "Send via Apprise",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook \u2013 Health Alert": {
+      "main": [
+        [
+          {
+            "node": "Format Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Alert": {
+      "main": [
+        [
+          {
+            "node": "Send via Apprise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "notes": "Receives Uptime Kuma DOWN/UP notifications via its webhook notification channel. In Uptime Kuma: Settings \u2192 Notifications \u2192 Add \u2192 Webhook \u2192 URL = this workflow's Production URL. No Fabrik code changes needed \u2014 pure infra wiring."
+}

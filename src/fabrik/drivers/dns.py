@@ -1,7 +1,7 @@
 """
-DNS Client - Wrapper for DNS Manager service.
+DNS Client - Wrapper for Site Provisioner service.
 
-This client calls the dns-manager service at VPS (dns.vps1.ocoron.com),
+This client calls the site-provisioner service at VPS (dns.vps1.ocoron.com),
 which provides unified access to both Namecheap and Cloudflare DNS.
 """
 
@@ -27,9 +27,9 @@ class DNSRecord:
 
 class DNSClient:
     """
-    DNS management client that wraps the DNS Manager service API.
+    DNS management client that wraps the Site Provisioner service API.
 
-    The DNS Manager service is deployed at VPS and handles:
+    The Site Provisioner service is deployed at VPS and handles:
     - Multi-provider DNS authentication (Namecheap, Cloudflare)
     - Rate limiting
     - Safe record merging (doesn't overwrite existing records)
@@ -50,39 +50,38 @@ class DNSClient:
     def __init__(
         self,
         base_url: str | None = None,
-        token: str | None = None,
+        api_key: str | None = None,
         timeout: float = 30.0,
     ):
         """
         Initialize DNS client.
 
         Args:
-            base_url: DNS Manager service URL. Defaults to DNS_MANAGER_URL env var
+            base_url: Site Provisioner URL. Defaults to SITE_PROVISIONER_URL env var
                      or https://dns.vps1.ocoron.com
-            token: API token for authentication. Defaults to DNS_MANAGER_TOKEN env var.
-                   If not set, requests are made without authentication (for local/dev use).
+            api_key: API key sent as X-API-Key header. Defaults to SITE_PROVISIONER_API_KEY
+                     env var. If not set, requests are unauthenticated (local/dev only).
             timeout: Request timeout in seconds
         """
-        self.base_url = base_url or os.getenv(
-            "DNS_MANAGER_URL", os.getenv("NAMECHEAP_API_URL", "https://dns.vps1.ocoron.com")
-        )
-        self.token = token or os.getenv("DNS_MANAGER_TOKEN")
+        self.base_url = (
+            base_url or os.getenv("SITE_PROVISIONER_URL", "https://dns.vps1.ocoron.com")
+        ).rstrip("/")
+        self.api_key = api_key or os.getenv("SITE_PROVISIONER_API_KEY")
         self.timeout = timeout
 
-        # Build headers - include auth if token is available
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+        if self.api_key:
+            headers["X-API-Key"] = self.api_key
         else:
             logger.warning(
-                "DNS_MANAGER_TOKEN not set — DNS requests will be unauthenticated. "
-                "Set DNS_MANAGER_TOKEN in .env for production use."
+                "SITE_PROVISIONER_API_KEY not set — requests will be unauthenticated. "
+                "Set SITE_PROVISIONER_API_KEY in .env for production use."
             )
 
         self._client = httpx.Client(timeout=timeout, headers=headers)
 
     def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
-        """Make HTTP request to DNS Manager service."""
+        """Make HTTP request to Site Provisioner service."""
         url = f"{self.base_url}{endpoint}"
         response = self._client.request(method, url, **kwargs)
         response.raise_for_status()
@@ -93,7 +92,7 @@ class DNSClient:
     # =========================================================================
 
     def health(self) -> dict[str, Any]:
-        """Check DNS Manager service health."""
+        """Check Site Provisioner service health."""
         return self._request("GET", "/health")
 
     def get_rate_limit(self) -> dict[str, Any]:
@@ -122,18 +121,17 @@ class DNSClient:
         """Get details for specific domain."""
         return self._request("GET", f"/api/domains/{domain}")
 
-    def check_availability(self, domains: list[str]) -> dict[str, bool]:
+    def check_availability(self, domain: str) -> dict[str, Any]:
         """
-        Check domain availability for registration.
+        Check domain availability for registration across all registrars.
 
         Args:
-            domains: List of domain names to check
+            domain: Domain name to check (e.g., "newsite.com")
 
         Returns:
-            Dict mapping domain -> available (bool)
+            Dict with available (bool), prices per registrar, cheapest registrar
         """
-        result = self._request("POST", "/api/domains/check", json={"domains": domains})
-        return result.get("availability", {})
+        return self._request("POST", "/api/domains/check", json={"domain": domain})
 
     # =========================================================================
     # DNS Records
@@ -141,58 +139,93 @@ class DNSClient:
 
     def get_records(self, domain: str) -> list[dict[str, Any]]:
         """
-        Get all DNS records for domain.
+        Get all Cloudflare DNS records for domain.
 
         Args:
             domain: Domain name (e.g., "ocoron.com")
 
         Returns:
-            List of record dicts with keys: type, name, value, ttl
+            List of record dicts with keys: type, name, content, proxied, ttl
         """
-        result = self._request("GET", f"/api/dns/{domain}")
+        result = self._request("GET", f"/api/cloudflare/dns/{domain}")
         return result.get("records", [])
 
-    def add_subdomain(self, domain: str, subdomain: str, ip: str) -> dict[str, Any]:
+    def add_subdomain(
+        self, domain: str, subdomain: str, ip: str, proxied: bool = False
+    ) -> dict[str, Any]:
         """
-        Add A record for subdomain.
-
-        This is the most common operation - point subdomain.domain.com to an IP.
-        Uses the DNS Manager service's safe merge logic.
+        Add A record for subdomain via Cloudflare.
 
         Args:
             domain: Base domain (e.g., "ocoron.com")
             subdomain: Subdomain name (e.g., "api" for api.ocoron.com)
             ip: IP address to point to
-
-        Returns:
-            Result dict with success status and message
-
-        Example:
-            dns.add_subdomain("ocoron.com", "api.vps1", "172.93.160.197")
-            # Creates: api.vps1.ocoron.com -> 172.93.160.197
-        """
-        return self._request(
-            "POST", f"/api/dns/{domain}/subdomain", json={"subdomain": subdomain, "ip": ip}
-        )
-
-    def set_records(self, domain: str, records: list[dict[str, Any]]) -> dict[str, Any]:
-        """
-        Set DNS records for domain (replaces all records).
-
-        WARNING: This replaces ALL records. Use add_subdomain for safe additions.
-
-        Args:
-            domain: Domain name
-            records: List of record dicts with: type, name, value, ttl
+            proxied: Whether to proxy through Cloudflare (default False)
 
         Returns:
             Result dict with success status
-        """
-        return self._request("PUT", f"/api/dns/{domain}", json={"records": records})
 
-    def delete_records(self, domain: str) -> dict[str, Any]:
-        """Delete all DNS records for domain. USE WITH CAUTION."""
-        return self._request("DELETE", f"/api/dns/{domain}")
+        Example:
+            dns.add_subdomain("ocoron.com", "api", "172.93.160.197")
+        """
+        return self._request(
+            "POST",
+            f"/api/cloudflare/dns/{domain}/subdomain",
+            json={"subdomain": subdomain, "ip": ip, "proxied": proxied},
+        )
+
+    def add_record(
+        self,
+        domain: str,
+        record_type: str,
+        name: str,
+        content: str,
+        proxied: bool = False,
+        ttl: int = 1,
+    ) -> dict[str, Any]:
+        """
+        Add or update a Cloudflare DNS record (idempotent).
+
+        Args:
+            domain: Root domain (e.g., "example.com")
+            record_type: Record type — A, AAAA, CNAME, MX, TXT, NS, CAA
+            name: Record name; use "@" for the root domain
+            content: Record value (IP, hostname, text, etc.)
+            proxied: Proxy through Cloudflare CDN
+            ttl: TTL in seconds; 1 = automatic
+
+        Returns:
+            Result dict from site-provisioner
+        """
+        return self._request(
+            "POST",
+            f"/api/cloudflare/dns/{domain}",
+            json={
+                "record_type": record_type,
+                "name": name,
+                "content": content,
+                "proxied": proxied,
+                "ttl": ttl,
+            },
+        )
+
+    def delete_record(self, domain: str, record_type: str, name: str) -> dict[str, Any]:
+        """
+        Delete a Cloudflare DNS record by type and name.
+
+        Args:
+            domain: Root domain
+            record_type: A, AAAA, CNAME, MX, TXT, NS, CAA
+            name: Record name (use "@" for root)
+
+        Returns:
+            Result dict from site-provisioner
+        """
+        return self._request(
+            "DELETE",
+            f"/api/cloudflare/dns/{domain}",
+            params={"record_type": record_type, "name": name},
+        )
 
     # =========================================================================
     # Nameservers
@@ -230,7 +263,7 @@ class DNSClient:
     # =========================================================================
 
     def cloudflare_health(self) -> dict[str, Any]:
-        """Check Cloudflare API health via dns-manager."""
+        """Check Cloudflare API health via site-provisioner."""
         return self._request("GET", "/api/cloudflare/health")
 
     def list_zones(self) -> list[dict[str, Any]]:
@@ -261,33 +294,46 @@ class DNSClient:
         enable_page_shield: bool = True,
         create_threat_rule: bool = True,
         threat_threshold: int = 50,
+        setup_google: bool = False,
+        setup_bing: bool = True,
+        setup_indexnow: bool = True,
+        setup_ga4: bool = False,
+        ga4_account_id: str | None = None,
+        ga4_timezone: str = "America/Los_Angeles",
+        ga4_currency: str = "USD",
+        sitemap_url: str | None = None,
     ) -> dict[str, Any]:
         """
-        Provision a website with Cloudflare enterprise features.
+        Provision a website — single call for DNS, CDN, WAF, and search engine setup.
 
-        Single call that sets up everything needed before Coolify deployment:
-        - Creates/ensures Cloudflare zone
-        - Creates A records for root and subdomains (proxied)
-        - Enables DNSSEC, Smart Tiered Cache, Page Shield
-        - Creates WAF threat score rule
+        Sequence before every Coolify deploy:
+          1. provision() — creates zone, DNS records, security, search engines
+          2. check_ready() — poll until ready=true
+          3. Deploy to Coolify
 
         Args:
             domain: Root domain (e.g., "newsite.com")
-            target_ip: VPS IP address to point DNS to
-            subdomains: Optional list of subdomains (e.g., ["www", "api"])
+            target_ip: VPS IP address
+            subdomains: Extra subdomains (e.g., ["www", "api"])
             enable_dnssec: Enable DNSSEC
-            enable_tiered_cache: Enable Smart Tiered Cache (CDN)
-            enable_page_shield: Enable Page Shield (script monitoring)
+            enable_tiered_cache: Enable Smart Tiered Cache CDN
+            enable_page_shield: Enable Page Shield script monitoring
             create_threat_rule: Create WAF rule blocking high threat scores
-            threat_threshold: Threat score threshold (0-100, default 50)
+            threat_threshold: Threat score 0-100 to block at (default 50)
+            setup_google: Register with Google Search Console (requires per-domain owner grant)
+            setup_bing: Register with Bing Webmaster Tools
+            setup_indexnow: Notify IndexNow (Bing/Yandex/Seznam/Naver)
+            setup_ga4: Create GA4 property (requires ga4_account_id)
+            ga4_account_id: GA4 account ID (required if setup_ga4=True)
+            ga4_timezone: GA4 property timezone
+            ga4_currency: GA4 property currency
+            sitemap_url: Submit to all search engines during provisioning
 
         Returns:
-            Dict with success, dns_records, features_enabled, ready_for_coolify
-
-        Example:
-            dns.provision("newsite.com", "172.93.160.197", ["www", "api"])
+            Dict with success, zone_id, dns_records, features_enabled,
+            google_search_console, bing_webmaster, indexnow, google_analytics
         """
-        payload = {
+        payload: dict[str, Any] = {
             "target_ip": target_ip,
             "subdomains": subdomains or [],
             "enable_dnssec": enable_dnssec,
@@ -295,27 +341,94 @@ class DNSClient:
             "enable_page_shield": enable_page_shield,
             "create_threat_rule": create_threat_rule,
             "threat_threshold": threat_threshold,
+            "setup_google": setup_google,
+            "setup_bing": setup_bing,
+            "setup_indexnow": setup_indexnow,
+            "setup_ga4": setup_ga4,
+            "ga4_timezone": ga4_timezone,
+            "ga4_currency": ga4_currency,
         }
+        if ga4_account_id:
+            payload["ga4_account_id"] = ga4_account_id
+        if sitemap_url:
+            payload["sitemap_url"] = sitemap_url
         return self._request("POST", f"/api/cloudflare/zones/{domain}/provision", json=payload)
 
     def check_ready(self, domain: str) -> dict[str, Any]:
         """
         Check if domain is ready for Coolify deployment.
 
-        Verifies zone is active, A records exist, and security features enabled.
+        Poll this after provision() until ready=true, then deploy to Coolify.
 
         Args:
             domain: Root domain (e.g., "newsite.com")
 
         Returns:
-            Dict with ready_for_deployment (bool), zone_status, dns_records, features
+            Dict with ready (bool), zone_status, a_records, dnssec_enabled
 
         Example:
             result = dns.check_ready("newsite.com")
-            if result["ready_for_deployment"]:
+            if result["ready"]:
                 # proceed with Coolify deploy
         """
         return self._request("GET", f"/api/cloudflare/zones/{domain}/ready")
+
+    # =========================================================================
+    # Website Integrations (GA4, GSC, Bing — persisted by site-provisioner)
+    # =========================================================================
+
+    def get_integrations(self, domain: str) -> dict[str, Any]:
+        """
+        Retrieve stored integration metadata for a domain.
+
+        Returns GA4 measurement ID, GSC verification status, Bing registration,
+        IndexNow ping history — all saved automatically during provision().
+
+        Args:
+            domain: Root domain (e.g., "example.com")
+
+        Returns:
+            Dict with cloudflare_zone_id, ga4, google_search_console,
+            bing_webmaster, indexnow fields
+
+        Example:
+            info = dns.get_integrations("example.com")
+            ga4_id = info["ga4"]["measurement_id"]  # e.g. "G-XXXXXXXXXX"
+        """
+        return self._request("GET", f"/api/websites/{domain}/integrations")
+
+    def list_websites(self, has_ga4: bool | None = None) -> list[dict[str, Any]]:
+        """
+        List all provisioned websites with optional GA4 filter.
+
+        Args:
+            has_ga4: If True, return only sites with GA4 setup
+
+        Returns:
+            List of website integration dicts
+        """
+        params: dict[str, Any] = {}
+        if has_ga4 is not None:
+            params["has_ga4"] = str(has_ga4).lower()
+        result = self._request("GET", "/api/websites", params=params)
+        return result if isinstance(result, list) else result.get("websites", [])
+
+    def update_sitemap(self, domain: str, sitemap_url: str) -> dict[str, Any]:
+        """
+        Update sitemap URL and resubmit to Google, Bing, and IndexNow.
+
+        Args:
+            domain: Root domain
+            sitemap_url: New sitemap URL
+
+        Returns:
+            Dict with success and per-engine submission results
+        """
+        return self._request(
+            "PATCH",
+            f"/api/websites/{domain}/sitemap",
+            params={"sitemap_url": sitemap_url},
+        )
 
     # =========================================================================
     # Domain Registration
@@ -342,15 +455,15 @@ class DNSClient:
         contact: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """
-        Register a new domain via dns-manager.
+        Register a new domain via site-provisioner.
 
-        dns-manager selects the registrar internally. Fabrik does not
+        site-provisioner selects the registrar internally. Fabrik does not
         need to know which registrar is used.
 
         Args:
             domain: Domain to register (e.g., "newsite.com")
             years: Registration period in years
-            nameservers: Custom nameservers (dns-manager picks defaults if omitted)
+            nameservers: Custom nameservers (site-provisioner picks defaults if omitted)
             add_whoisguard: Enable WHOIS privacy
             contact: Registrant contact info dict with keys:
                      FirstName, LastName, Address1, City, StateProvince,

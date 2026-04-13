@@ -29,7 +29,7 @@ install:
 	uv sync
 
 dev:
-	uvicorn app.main:app --host 0.0.0.0 --port $(PORT) --reload
+	PYTHONPATH=src uvicorn <package_name>.main:app --host 0.0.0.0 --port $(PORT) --reload
 
 test:
 	pytest -v

@@ -8,6 +8,34 @@ services:
       WORDPRESS_DB_USER: wp_user
       WORDPRESS_DB_PASSWORD: "{{ db_password }}"
       WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        $table_prefix = '{{ table_prefix | default(name | replace('-', '_') + '_prod_') }}';
+        define('DISALLOW_FILE_EDIT', true);
+        define('DISALLOW_FILE_MODS', true);
+        define('FORCE_SSL_ADMIN', true);
+        define('WP_POST_REVISIONS', 5);
+        define('AUTOSAVE_INTERVAL', 120);
+        define('EMPTY_TRASH_DAYS', 14);
+        define('WP_MEMORY_LIMIT', '256M');
+        define('WP_MAX_MEMORY_LIMIT', '512M');
+        define('DISABLE_WP_CRON', true);
+        define('WP_HTTP_BLOCK_EXTERNAL', true);
+        define('WP_ACCESSIBLE_HOSTS', 'api.wordpress.org,*.wordpress.org');
+        define('FS_METHOD', 'direct');
+        define('WP_AUTO_UPDATE_CORE', 'minor');
+        define('WP_DEBUG', true);
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
+        @ini_set('display_errors', 0);
+        @ini_set('opcache.memory_consumption', '256');
+        @ini_set('opcache.max_accelerated_files', '10000');
+        define('WP_CACHE', true);
+        define('WP_REDIS_HOST', 'redis');
+        define('WP_REDIS_PORT', 6379);
+        define('WP_REDIS_DATABASE', 0);
+        define('WP_REDIS_PREFIX', '{{ name }}:');
+    command: >
+      sh -c "chown -R www-data:www-data /var/www/html/wp-content && docker-entrypoint.sh php-fpm"
     volumes:
       - wp_content:/var/www/html/wp-content
     networks:
@@ -41,7 +69,7 @@ services:
       - traefik.http.routers.{{ name }}-www.middlewares={{ name }}-www-redirect
       - traefik.http.middlewares.{{ name }}-www-redirect.redirectregex.regex=^https://www\.{{ domain | replace('.', '\.') }}/(.*)
       - traefik.http.middlewares.{{ name }}-www-redirect.redirectregex.replacement=https://{{ domain }}/$${1}
-      # Security: Apply rate-limit middleware to main router
+      # Security: Rate-limit on main router (one middlewares label per router — 62-wordpress.md)
       - traefik.http.routers.{{ name }}.middlewares={{ name }}-rate-limit
       # Security: Block xmlrpc.php (brute-force attack vector)
       - traefik.http.routers.{{ name }}-xmlrpc.rule=Host(`{{ domain }}`) && Path(`/xmlrpc.php`)
@@ -52,9 +80,10 @@ services:
       - traefik.http.routers.{{ name }}-xmlrpc.middlewares={{ name }}-block-xmlrpc
       - traefik.http.middlewares.{{ name }}-block-xmlrpc.replacepathregex.regex=.*
       - traefik.http.middlewares.{{ name }}-block-xmlrpc.replacepathregex.replacement=/wp-login.php?blocked=xmlrpc
-      # Security: Rate-limit all requests (10 req/s avg, burst 20)
+      # Security: Rate-limit wp-login.php (10 req/min per IP, burst 20) — 62-wordpress.md
       - traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.average=10
       - traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.burst=20
+      - traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.period=1m
     depends_on:
       - wordpress
 
@@ -91,10 +120,43 @@ services:
       timeout: 5s
       retries: 5
 
+  backup:
+    image: debian:bookworm-slim
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_NAME: wordpress
+      DB_USER: wp_user
+      DB_PASSWORD: "{{ db_password }}"
+      R2_ENDPOINT: "{{ r2_endpoint }}"
+      R2_ACCESS_KEY: "{{ r2_access_key }}"
+      R2_SECRET_KEY: "{{ r2_secret_key }}"
+      R2_BUCKET: "{{ r2_bucket }}"
+      SITE_NAME: "{{ name }}"
+    volumes:
+      - ./backup:/scripts:ro
+      - wp_content:/wordpress/wp-content:ro
+      - backup_data:/backups
+    networks:
+      - {{ name }}-internal
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apt-get update && apt-get install -y --no-install-recommends mariadb-client awscli gzip cron && rm -rf /var/lib/apt/lists/*
+        echo "0 3 * * * root /scripts/backup.sh daily" >> /etc/cron.d/backup
+        echo "0 4 * * 0 root /scripts/backup.sh weekly" >> /etc/cron.d/backup
+        chmod 0644 /etc/cron.d/backup
+        cron -f
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   wp_content:
   db_data:
   redis_data:
+  backup_data:
 
 networks:
   coolify:

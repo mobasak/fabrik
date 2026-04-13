@@ -9,8 +9,34 @@ server {
     root /var/www/html;
     index index.php index.html;
 
+    # Security: HTTP headers (matches production hardening)
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Security: Block PHP execution in uploads directory
+    location ~* /(?:uploads|files)/.*\.php$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # Security: Block sensitive backup/config/log file types
+    location ~* \.(?:bak|conf|dist|fla|in[ci]|log|psd|sh|sql|sw[op])$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # Security: Block xmlrpc.php (matches production hardening)
+    location = /xmlrpc.php {
+        return 444;
+    }
+
     # PHP handling via FastCGI to WordPress FPM
     location ~ \.php$ {
+        try_files $uri =404;
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
         fastcgi_pass php;
         fastcgi_index index.php;

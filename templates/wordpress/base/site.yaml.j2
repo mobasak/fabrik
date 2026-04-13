@@ -3,50 +3,271 @@
 # Edit before deploying.
 #
 # Merge order: defaults.yaml → presets/<preset>.yaml → this file
-# Only include fields that override the preset. Pages, menus, plugins,
-# theme, and seo are inherited from the preset and defaults layers.
+# Only include fields that override preset defaults.
+# Content (page copy, images) is filled by SEO/TCO pipeline + Image Broker.
+#
+# Presets: company | saas | content | landing | ecommerce
 
 schema_version: 1
-preset: {{ preset | default('saas') }}
+preset: {{ preset | default('company') }}
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
 # SITE IDENTITY (required)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
 
 site:
-  domain: {{ name }}.vps1.ocoron.com
+  domain: {{ domain | default(name + '.com') }}
   name: {{ name }}
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
 # BRAND (required)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
 
 brand:
-  name: "{{ name }}"
+  name: "{{ brand_name | default(name) }}"
   tagline:
-    en_US: "CHANGE_ME — Your tagline here"
+    en_US: "CHANGE_ME"
+    # tr_TR: "CHANGE_ME"
+  logo:
+    primary: ""       # e.g. assets/logo.svg
+    icon: ""          # square icon for favicon
+    og_image: ""      # 1200x630px for social sharing
   colors:
     primary: "#1e3a5f"
+    secondary: "#0891b2"
+    accent: "#ea580c"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# LANGUAGES (required: primary)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# LANGUAGES (required)
+# ─────────────────────────────────────────────────────────────────────────
 
 languages:
   primary: en_US
-  additional:
-    - tr_TR
+  additional: []        # e.g. [tr_TR] — adds Polylang + bilingual pages
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CONTACT (required: email)
-# ─────────────────────────────────────────────────────────────────────────────
+timezone: Europe/Istanbul
+
+# ─────────────────────────────────────────────────────────────────────────
+# CONTACT & BUSINESS INFO
+# Required for LocalBusiness schema, contact page, footer
+# ─────────────────────────────────────────────────────────────────────────
 
 contact:
-  email: admin@{{ name }}.vps1.ocoron.com
+  email: "contact@{{ domain | default(name + '.com') }}"
+  phone: ""             # E.164 format: +905321234567
+  address:
+    street: ""
+    district: ""
+    city: ""
+    country: ""         # ISO-2: TR, US, DE …
+    postal_code: ""
+  social:
+    linkedin: ""
+    twitter: ""
+    instagram: ""
+  form_fields: [name, email, phone, message]  # consumed by stages/forms.py
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DEPLOYMENT (required: target)
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# ENTITIES (preset-specific — generates individual pages per item)
+# company preset: services
+# saas preset:    features, pricing_tiers, use_cases
+# ecommerce:      products, collections
+# ─────────────────────────────────────────────────────────────────────────
+
+services:                 # company preset
+  - slug: CHANGE_ME
+    name:
+      en_US: "CHANGE_ME"
+    summary:
+      en_US: "CHANGE_ME"
+    icon: CHANGE_ME       # lucide icon name
+
+# ─────────────────────────────────────────────────────────────────────────
+# SECURITY (62-wordpress.md rules — enforced by settings stage + compose + Makefile)
+# ─────────────────────────────────────────────────────────────────────────
+
+security:
+  admin_username: "{{ admin_username | default('CHANGE_ME') }}"  # NEVER use 'admin'
+  # admin_password: 32-char CSPRNG — set as WP_ADMIN_PASSWORD in .env before running fabrik wp apply
+  #   python3 -c "import secrets,string; print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(32)))"
+  table_prefix: "{{ name | replace('-', '_') }}_prod_"  # 62-wordpress.md: never use default wp_ prefix
+  wordfence_mode: extended_protection  # 62-wordpress.md: Extended Protection mandatory
+  brute_force_lockout_attempts: 5      # 62-wordpress.md: lock after 5 failed attempts
+  block_admin_username: true           # 62-wordpress.md: block any login attempt as 'admin'
+  two_factor_roles: [administrator, editor]  # 62-wordpress.md: 2FA mandatory for admin+editor
+  rest_api_app_password_user: "{{ admin_username | default('CHANGE_ME') }}"  # 62-wordpress.md: for n8n automation
+  cron_method: uptime_kuma             # 62-wordpress.md: preferred VPS cron via Uptime Kuma ping
+  child_theme: true                    # 62-wordpress.md: GeneratePress child theme required for custom PHP/CSS
+  cloudflare_waf: true                 # 62-wordpress.md: 5-rule WAF set MANDATORY when CF proxy active
+  # Infrastructure enforced automatically:
+  # wp-config.php: DISALLOW_FILE_EDIT, DISALLOW_FILE_MODS, FORCE_SSL_ADMIN, WP_POST_REVISIONS=5,
+  #   DISABLE_WP_CRON=true, WP_HTTP_BLOCK_EXTERNAL=true, WP_DEBUG=true+DISPLAY=false
+  #   — all in templates/wordpress/base/wp-config-extra.php + compose-coolify.yaml.j2 ✓
+  # xmlrpc.php: blocked at Nginx (return 444) + Traefik level ✓
+  # wp-login: Traefik rate-limit middleware (10 req/min, burst 20) ✓
+  # wp-content: owned www-data:www-data (UID 33) via entrypoint ✓
+  # Makefile targets: update, cache-flush, scaffold, backup, harden, security-check, warm-cache, db-clean ✓
+
+# ─────────────────────────────────────────────────────────────────────────
+# PLUGINS (additions/removals on top of defaults.yaml base stack)
+# defaults.yaml base: generatepress, gp-premium, rank-math-seo,
+#                     wp-mail-smtp, complianz-gdpr, wordfence
+#                     (flyingpress removed — PHP caching banned per 62-wordpress.md)
+# ─────────────────────────────────────────────────────────────────────────
+
+plugins:
+  add:
+    - shortpixel-image-optimiser  # WebP/AVIF image optimisation
+    # wp-optimize removed: make db-clean (Makefile) handles transients/spam/revisions/optimize
+    # without a PHP plugin. Re-add only if scheduled UI visibility is required.
+  skip: []                        # slugs to remove from default stack
+  config:
+    rank-math:
+      # 62-wordpress.md: Enable these modules (overrides defaults.yaml)
+      modules_enable: [sitemap, seo-analysis, schema, instant-indexing, redirections, image-seo, acf]
+      modules_disable: [analytics, link-counter, amp, bbpress, buddypress]
+    shortpixel:
+      lossy: true
+      webp: true
+      avif: true
+    complianz:
+      region: eu                  # eu | us | br — controls GDPR/CCPA mode
+      cookie_banner: true
+
+# ─────────────────────────────────────────────────────────────────────────
+# FORMS
+# NOTE: contact.form_fields (inside the contact: block above) is the
+# operative key consumed by stages/forms.py. Full field definitions below
+# are for the future dynamic form builder (Gap 5 — not yet in forms.py).
+# ─────────────────────────────────────────────────────────────────────────
+
+forms:
+  contact:
+    title:
+      en_US: "Contact Us"
+    fields:
+      - name: name
+        type: text
+        required: true
+        label:
+          en_US: "Full Name"
+      - name: email
+        type: email
+        required: true
+        label:
+          en_US: "Email"
+      - name: phone
+        type: tel
+        required: false
+        label:
+          en_US: "Phone"
+      - name: message
+        type: textarea
+        required: true
+        label:
+          en_US: "Message"
+    submit_label:
+      en_US: "Send Message"
+    notification_email: "contact@{{ domain | default(name + '.com') }}"
+
+# ─────────────────────────────────────────────────────────────────────────
+# SEO
+# NOTE: analytics stage reads seo.ga4_id and seo.gtm_id directly (flat).
+# seo.analytics.* is the future spec structure pending stage code update.
+# ─────────────────────────────────────────────────────────────────────────
+
+seo:
+  default_meta:
+    en_US:
+      title: "CHANGE_ME | CHANGE_ME"
+      description: "CHANGE_ME"
+
+  # Consumed by analytics stage (current stage reads flat seo.ga4_id):
+  ga4_id: ${GA4_ID}               # Set GA4_ID=G-XXXXXXX in .env
+  gtm_id: ""                      # Optional: GTM-XXXXXXX
+
+  # Technical SEO flags — consumed by seo stage (Gap 1: not yet in seo.py)
+  archives_noindex: true          # tags/author/date archives → noindex
+  breadcrumbs: true               # RankMath breadcrumbs
+  og_enabled: true                # Open Graph meta tags
+  twitter_card: summary_large_image
+
+  schema:
+    type: LocalBusiness           # Organization | LocalBusiness | Person
+    inject_website: true          # WebSite schema with SearchAction
+    inject_breadcrumbs: true
+
+  robots_txt:
+    allow_ai_crawlers: true       # GPTBot, ClaudeBot, PerplexityBot, Googlebot-Extended
+    disallow:
+      - /wp-admin/                # 62-wordpress.md §REST API Hardening: block from indexing
+      - /wp-includes/
+      - /wp-content/plugins/
+
+# ─────────────────────────────────────────────────────────────────────────
+# POST-DEPLOY (site-provisioner — runs once per domain)
+# Sequence: DNS zone → SSL → WAF → GSC verify → Bing → IndexNow → GA4
+# ─────────────────────────────────────────────────────────────────────────
+
+post_deploy:
+  sitemap_url: "https://{{ domain | default(name + '.com') }}/sitemap.xml"
+  setup_google: true              # Google Search Console property + verify + sitemap submit
+  gsc_verification_method: dns_txt  # 62-wordpress.md: DNS TXT via site-provisioner — never HTML file upload
+  setup_bing: true                # Bing Webmaster Tools + sitemap submit
+  setup_indexnow: true            # IndexNow ping (RankMath Instant Indexing module)
+  setup_ga4: true                 # GA4 property creation
+  ga4_account_id: ${GA4_ACCOUNT_ID}
+  browserless_screenshot: true    # 62-wordpress.md checklist item 17 — headless screenshot on go-live
+
+# ─────────────────────────────────────────────────────────────────────────
+# MONITORING
+# ─────────────────────────────────────────────────────────────────────────
+
+monitoring:
+  uptime_kuma:
+    enabled: true
+    url: "https://{{ domain | default(name + '.com') }}"
+    interval: 60                  # seconds — site uptime check
+    wp_cron_ping_url: "https://{{ domain | default(name + '.com') }}/wp-cron.php?doing_wp_cron"  # 62-wordpress.md: cron via Uptime Kuma
+    wp_cron_interval: 300         # seconds — every 5 minutes
+
+# ─────────────────────────────────────────────────────────────────────────
+# DEPLOYMENT (required)
+# ─────────────────────────────────────────────────────────────────────────
 
 deployment:
   target: production
+  coolify:
+    service_uuid: ""              # Fill after Coolify service is created
+  targets:
+    production:
+      server_profile: vps1
+    staging:
+      server_profile: wp-test
+
+# ─────────────────────────────────────────────────────────────────────────
+# BACKUP (62-wordpress.md: server-level only — PHP backup plugins banned)
+# Makefile `backup` target triggers this script on the VPS host.
+# ─────────────────────────────────────────────────────────────────────────
+
+backup:
+  script: templates/wordpress/base/backup/backup.sh  # server-level mysqldump + tar + S3 sync
+  destination: b2                                     # Backblaze B2 (via Duplicati or rclone)
+  schedule: "0 2 * * *"                               # daily at 02:00 — set in VPS crontab
+  retain_days: 30
+  duplicati:
+    enabled: true                    # 62-wordpress.md §Backups: MANDATORY for VPS deployments
+    volumes: [{{ name }}_wp_content, {{ name }}_db_data]
+    bucket: "{{ name }}-backups"     # dedicated isolated B2 bucket — NOT shared with other sites
+    encryption: aes-256
+    schedule: "0 3 * * *"           # daily at 03:00 (offset from script backup above)
+
+# ─────────────────────────────────────────────────────────────────────────
+# CHECKS (post-deploy verification URLs)
+# ─────────────────────────────────────────────────────────────────────────
+
+checks:
+  urls:
+    - /
+    - /contact
+    - /privacy-policy

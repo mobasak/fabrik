@@ -174,7 +174,9 @@ class SiteProvisioner:
 
     JOBS_DIR = Path(__file__).parent.parent.parent / "data" / "provision_jobs"
     TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates" / "wordpress" / "base"
-    DNS_MANAGER_URL = os.getenv("DNS_MANAGER_URL", "https://dns.vps1.ocoron.com")
+    DNS_MANAGER_URL = os.getenv(
+        "SITE_PROVISIONER_URL", os.getenv("DNS_MANAGER_URL", "https://provision.vps1.ocoron.com")
+    )
 
     def __init__(self):
         """Initialize provisioner."""

@@ -942,6 +942,70 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
     with open(project_dir / ".env.example", "a") as f:
         f.write(f"\n# Service identity for structured logging\nSERVICE_NAME={name}\n")
 
+    # Database setup (only if --db flag passed)
+    use_database = kwargs.get("use_database", False)
+    if use_database:
+        # Create .env.local for WSL development
+        db_name_dev = name.replace("-", "_") + "_dev"
+        (project_dir / ".env.local").write_text(
+            f"# {name} Local Development (WSL)\n"
+            f"LOG_LEVEL=DEBUG\n"
+            f"SERVICE_NAME={name}\n\n"
+            f"# Native PostgreSQL on WSL\n"
+            f"DATABASE_URL=postgresql://postgres@localhost:5432/{db_name_dev}\n"
+        )
+
+        # Auto-create development database
+        import click
+
+        try:
+            # Check if database exists (exact match to avoid partial name collisions)
+            check_result = subprocess.run(
+                ["sudo", "-u", "postgres", "psql", "-lqt"],
+                capture_output=True,
+                timeout=5,
+                text=True,
+            )
+
+            db_exists = False
+            if check_result.returncode == 0:
+                # Parse database list, exact match only
+                for line in check_result.stdout.split("\n"):
+                    if "|" in line:
+                        db_in_line = line.split("|")[0].strip()
+                        if db_in_line == db_name_dev:
+                            db_exists = True
+                            break
+
+            if not db_exists:
+                # Create database
+                create_result = subprocess.run(
+                    ["sudo", "-u", "postgres", "psql", "-c", f"CREATE DATABASE {db_name_dev};"],
+                    capture_output=True,
+                    timeout=5,
+                )
+                if create_result.returncode == 0:
+                    click.echo(f"✅ Created PostgreSQL database: {db_name_dev}")
+                else:
+                    click.echo("⚠️  Could not create database. Run manually:")
+                    click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
+            else:
+                click.echo(f"✅ PostgreSQL database exists: {db_name_dev}")
+
+        except Exception:
+            click.echo("⚠️  Database auto-creation failed. Create manually:")
+            click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
+
+        # Update .env.example to uncomment DATABASE_URL
+        env_example_path = project_dir / ".env.example"
+        env_content = env_example_path.read_text()
+        # Replace commented DB line with VPS version
+        env_content = env_content.replace(
+            f"# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n",
+            f"# Database (managed by Coolify on VPS)\n# Set via Coolify secrets: POSTGRES_PASSWORD\nDATABASE_URL=postgresql://postgres:${{POSTGRES_PASSWORD}}@postgres-main:5432/{name.replace('-', '_')}\n",
+        )
+        env_example_path.write_text(env_content)
+
     # Create basic test
     (project_dir / "tests" / "__init__.py").write_text("")
     (project_dir / "tests" / "test_health.py").write_text(
@@ -1447,6 +1511,7 @@ SERVICE_NAME={name}
     # g) Overwrite .gitignore with Python-appropriate content
     (project_dir / ".gitignore").write_text(
         ".env\n"
+        ".env.local\n"
         "venv/\n"
         "__pycache__/\n"
         "logs/\n"
@@ -1514,7 +1579,7 @@ def _scaffold_wordpress(project_dir: Path, name: str, description: str, **kwargs
     if preset_src.exists():
         shutil.copy2(preset_src, project_dir / "config" / "preset.yaml")
 
-    # e) Overwrite .env.example with WordPress/MariaDB/R2 placeholder vars
+    # e) Overwrite .env.example with WordPress/MariaDB/B2 placeholder vars
     name_underscored = name.replace("-", "_")
     (project_dir / ".env.example").write_text(
         f"""# WordPress: {name}
@@ -1525,10 +1590,13 @@ DB_ROOT_PASSWORD=CHANGE_ME
 WORDPRESS_DEBUG=false
 SITE_URL=https://example.com
 SITE_NAME={name}
-R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
-R2_ACCESS_KEY=your-r2-access-key
-R2_SECRET_KEY=your-r2-secret-key
-R2_BUCKET=fabrik-backups
+# WordPress REST API credentials (used by fabrik wp apply)
+WP_ADMIN_USER=CHANGE_ME
+WP_ADMIN_PASSWORD=CHANGE_ME
+# Backblaze B2 backup storage (preferred — free egress via Bandwidth Alliance)
+B2_KEY_ID=your-b2-key-id
+B2_APPLICATION_KEY=your-b2-application-key
+B2_BUCKET={name_underscored}-wp-backup
 """
     )
 
@@ -2049,6 +2117,7 @@ SERVICE_NAME={name}
         "\n"
         "# Environment\n"
         ".env\n"
+        ".env.local\n"
         "\n"
         "# Project\n"
         "logs/\n"
@@ -2064,6 +2133,69 @@ SERVICE_NAME={name}
         "*.swo\n"
         "*~\n"
     )
+
+    # Database setup for backend (only if --db flag passed)
+    use_database = kwargs.get("use_database", False)
+    if use_database:
+        # Create .env.local for WSL development
+        db_name_dev = name.replace("-", "_") + "_dev"
+        (project_dir / ".env.local").write_text(
+            f"# {name} Backend Local Development (WSL)\n"
+            f"LOG_LEVEL=DEBUG\n"
+            f"SERVICE_NAME={name}\n"
+            f"PORT=8000\n"
+            f"NODE_ENV=development\n\n"
+            f"# Native PostgreSQL on WSL\n"
+            f"DATABASE_URL=postgresql://postgres@localhost:5432/{db_name_dev}\n"
+        )
+
+        # Auto-create development database
+        import click
+
+        try:
+            # Check if database exists (exact match)
+            check_result = subprocess.run(
+                ["sudo", "-u", "postgres", "psql", "-lqt"],
+                capture_output=True,
+                timeout=5,
+                text=True,
+            )
+
+            db_exists = False
+            if check_result.returncode == 0:
+                for line in check_result.stdout.split("\n"):
+                    if "|" in line:
+                        db_in_line = line.split("|")[0].strip()
+                        if db_in_line == db_name_dev:
+                            db_exists = True
+                            break
+
+            if not db_exists:
+                create_result = subprocess.run(
+                    ["sudo", "-u", "postgres", "psql", "-c", f"CREATE DATABASE {db_name_dev};"],
+                    capture_output=True,
+                    timeout=5,
+                )
+                if create_result.returncode == 0:
+                    click.echo(f"✅ Created PostgreSQL database: {db_name_dev}")
+                else:
+                    click.echo("⚠️  Could not create database. Run manually:")
+                    click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
+            else:
+                click.echo(f"✅ PostgreSQL database exists: {db_name_dev}")
+
+        except Exception:
+            click.echo("⚠️  Database auto-creation failed. Create manually:")
+            click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
+
+        # Update .env.example to add DATABASE_URL
+        env_example_path = project_dir / ".env.example"
+        with open(env_example_path, "a") as f:
+            f.write(
+                f"\n# Database (managed by Coolify on VPS)\n"
+                f"# Set via Coolify secrets: POSTGRES_PASSWORD\n"
+                f"DATABASE_URL=postgresql://postgres:${{POSTGRES_PASSWORD}}@postgres-main:5432/{name.replace('-', '_')}\n"
+            )
 
     # 7. Create Python virtual environment and install dependencies
     venv_path = project_dir / ".venv"
