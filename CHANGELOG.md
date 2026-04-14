@@ -26,6 +26,12 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 11 (2026-04-14)
+- `src/fabrik/wordpress/seo.py:393,395`: `set_robots_txt_ai_crawlers()` passed plain string `ai_rules` through `json.dumps()` before storing — robots.txt option received a double-encoded JSON string with escaped newlines instead of a real multi-line robots block; removed `json.dumps()` wrapper
+- `src/fabrik/wordpress/seo.py:419-422`: `add_schema_markup()` called `json.dumps(schema_type)` on a plain string — RankMath `rank_math_schema_type` option received `"\"Organization\""` instead of `Organization`; removed `json.dumps()` wrapper
+- `src/fabrik/wordpress/pages.py:102`: `find_page()` bare `except Exception: return None` silently swallowed auth failures and network errors — auth errors caused `find_page` to return `None` instead of the real page, then `create_or_get_page` created a duplicate; narrowed to log the exception at WARNING level before returning `None`
+- `src/fabrik/wordpress/pages.py`: `import json` was inside `get_page_by_slug()` method body — moved to top of file; added `import logging` and module-level `logger`
+
 ### Fixed — WordPress pipeline: indefinite deep review round 10 (2026-04-14)
 - `src/fabrik/wordpress/stages/verify.py:293-295`: `overall` was computed from URL checks only and written to the verify-report before baseline checks ran; fatal baseline failures that flipped `result.success=False` were not reflected in `overall`; report showed `overall: "pass"` while `result.success=False` — contradictory state; fixed by computing `overall` after all checks complete
 - `src/fabrik/wordpress/stages/verify.py:241`: error message for missing `checks.json` was not actionable (`"checks.json not found"` with no path or remediation); improved to include full path and `fabrik wp plan <site_id>` instruction; also moved `domain`/`site_id` extraction before the guard so `site_id` is available in the error message

@@ -390,9 +390,9 @@ class SEOApplicator:
 
         plugin = self.detect_seo_plugin()
         if plugin == "rankmath":
-            self.wp.option_update("rank_math_robots_txt", json.dumps(ai_rules))
+            self.wp.option_update("rank_math_robots_txt", ai_rules)
         else:
-            self.wp.option_update("fabrik_robots_txt_extra", json.dumps(ai_rules))
+            self.wp.option_update("fabrik_robots_txt_extra", ai_rules)
             logger.warning(
                 "No RankMath detected — AI crawler rules written to fabrik_robots_txt_extra option. "
                 "A mu-plugin or theme hook must render this option into robots.txt."
@@ -418,7 +418,7 @@ class SEOApplicator:
         if plugin == "rankmath":
             self.wp.option_update(
                 "rank_math_schema_type",
-                json.dumps(schema_type),
+                schema_type,
             )
             logger.info("RankMath schema type set to %s", schema_type)
         else:

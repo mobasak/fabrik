@@ -10,6 +10,8 @@ Handles:
 
 from __future__ import annotations
 
+import json
+import logging
 import shlex
 from dataclasses import dataclass
 
@@ -26,6 +28,9 @@ class CreatedPage:
     slug: str
     url: str
     parent_id: int | None = None
+
+
+logger = logging.getLogger(__name__)
 
 
 class PageCreator:
@@ -99,7 +104,8 @@ class PageCreator:
                 )
 
             return None
-        except Exception:
+        except Exception as exc:
+            logger.warning("find_page(%s, parent=%s) unexpected error: %s", slug, parent_id, exc)
             return None
 
     def create_or_get_page(
@@ -320,8 +326,6 @@ class PageCreator:
                 output = self.wp.run(
                     f"post list --post_type=page --name={shlex.quote(slug)} --format=json"
                 )
-                import json
-
                 pages = json.loads(output)
                 return pages[0] if pages else None
             except Exception:
