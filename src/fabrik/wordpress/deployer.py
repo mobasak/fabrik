@@ -40,6 +40,10 @@ from fabrik.wordpress.stages import (
 
 logger = logging.getLogger(__name__)
 
+# Stages whose failure halts the pipeline immediately.
+# Later stages depend on these succeeding.
+BLOCKING_STAGES: frozenset[str] = frozenset({"dns", "settings", "plugins"})
+
 
 @dataclass
 class DeploymentResult:
@@ -152,12 +156,16 @@ class SiteDeployer:
     def log(self, message: str, level: str = "info"):
         """Log a message."""
         prefix = {"info": "ℹ️", "success": "✅", "warning": "⚠️", "error": "❌"}.get(level, "")
-        logger.info(f"{prefix} {message}")
+        msg = f"{prefix} {message}"
 
         if level == "warning":
+            logger.warning(msg)
             self.result.warnings.append(message)
         elif level == "error":
+            logger.error(msg)
             self.result.errors.append(message)
+        else:
+            logger.info(msg)
 
     def deploy(self) -> DeploymentResult:
         """
@@ -200,10 +208,6 @@ class SiteDeployer:
 
             # Stage registry - ordered execution
             stages = (dns, settings, theme, plugins, languages, pages, menus, forms, seo, post_deploy, analytics, monitoring, verify)
-
-            # Stages whose failure should halt the entire pipeline immediately.
-            # Later stages depend on these succeeding (e.g. plugins must be installed before seo).
-            BLOCKING_STAGES = {"dns", "settings", "plugins"}
 
             # Initialize local clients once for reuse, preserving lazy behavior in dry-run mode
             wp_client = None if self.dry_run else self.wp

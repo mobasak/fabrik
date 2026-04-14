@@ -26,6 +26,11 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 9 (2026-04-14)
+- `src/fabrik/wordpress/deployer.py:155`: `SiteDeployer.log()` always called `logger.info()` regardless of level — warning and error messages appeared as INFO in the log stream making monitoring alerts miss real errors; now routes to `logger.warning()` / `logger.error()` correctly
+- `src/fabrik/wordpress/deployer.py:210`: `BLOCKING_STAGES` defined inside `deploy()` method — ruff N806 violation (uppercase name in function); moved to module level as `frozenset` constant
+- `src/fabrik/wordpress/analytics.py:130`: `_inject_via_seo_plugin()` called `option_update("rank_math_google_analytics", tracking_id)` — `rank_math_google_analytics` is not a real RankMath option; GA4 injection silently wrote to a nonexistent WP option with zero effect; corrected to `rank_math_analytics_options` (real compound JSON option) with read-merge-write pattern preserving existing analytics settings
+
 ### Fixed — WordPress pipeline: indefinite deep review round 8 (2026-04-14)
 - `src/fabrik/wordpress/stages/pages.py:152`: when REST API client is `None`, branch silently passed with no warning — pages were never created and nothing appeared in the report; now emits warning + `skipped=True` with actionable message to set `WP_ADMIN_PASSWORD`
 - `src/fabrik/wordpress/page_generator.py:241`: `section.copy()` is a shallow copy — nested dicts/lists inside section remain shared with the original spec, so entity `entity.*` substitutions silently mutated the spec object; replaced with `copy.deepcopy(section)`

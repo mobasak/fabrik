@@ -7,6 +7,7 @@ Handles:
 - Custom tracking scripts
 """
 
+import json
 from dataclasses import dataclass
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
@@ -125,9 +126,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             if status != "active":
                 continue
 
-            # RankMath has built-in analytics settings
+            # RankMath has built-in analytics settings via rank_math_analytics_options
             if "rank-math" in name.lower() and tracking_type == "ga4":
-                self.wp.option_update("rank_math_google_analytics", tracking_id)
+                try:
+                    raw = self.wp.run("option get rank_math_analytics_options --format=json")
+                    existing: dict = json.loads(raw) if raw.strip() else {}
+                except Exception:
+                    existing = {}
+                merged = {**existing, "google_analytics_4": tracking_id}
+                self.wp.option_update("rank_math_analytics_options", json.dumps(merged))
                 return True
 
             # Yoast doesn't have built-in GA, needs separate plugin
