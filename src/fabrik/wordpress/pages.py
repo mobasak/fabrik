@@ -328,7 +328,8 @@ class PageCreator:
                 )
                 pages = json.loads(output)
                 return pages[0] if pages else None
-            except Exception:
+            except Exception as exc:
+                logger.warning("get_page_by_slug(%s) WP-CLI lookup failed: %s", slug, exc)
                 return None
 
         pages = self.api._request("GET", "/pages", params={"slug": slug})

@@ -31,6 +31,9 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 21 (2026-04-14)
+- `src/fabrik/wordpress/pages.py:331`: `get_page_by_slug()` WP-CLI fallback used bare `except Exception: return None` — same silent-swallow pattern fixed in `find_page()` during round 18; added `logger.warning` with slug and exception before returning `None`
+
 ### Fixed — WordPress pipeline: indefinite deep review round 20 (2026-04-14)
 - `src/fabrik/wordpress/deployer.py:396-413`: `_print_summary()` used f-strings in 8 direct `logger.info/warning/error` calls — same violation fixed in `spec_validator.py` round 19; replaced all with lazy `%s`/`%d` formatting
 
