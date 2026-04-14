@@ -4,12 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added — Alertmanager deployment (2026-04-14)
-- Deployed `prom/alertmanager:v0.28.1` into `/opt/monitoring/compose.yaml` monitoring stack
-- Created `/opt/monitoring/configs/alertmanager/alertmanager.yml` — routes to ARO Brain webhook (future) with Apprise fallback
-- Created `/opt/monitoring/configs/prometheus/rules/alerts.yml` — 8 alert rules: ContainerDown, ContainerHighCPU, ContainerHighMemory, ContainerRestarting, HostHighCPU, HostHighMemory, HostDiskFull, ServiceUnhealthy
+### Added — Alertmanager deployment + observability docs (2026-04-14)
+- Deployed `prom/alertmanager:v0.28.1` into `/opt/monitoring/compose.yaml` monitoring stack (now 7 services)
+- Created `configs/alertmanager/alertmanager.yml` — routes to ARO Brain webhook (future) with Apprise fallback
+- Created `configs/prometheus/rules/alerts.yml` — 9 alert rules: ContainerDown, ContainerHighCPU, ContainerHighMemory, ContainerOOMKilled, ContainerRestarting, HostHighCPU, HostHighMemory, HostDiskFull, ServiceUnhealthy
 - Updated `configs/prometheus/prometheus.yml` — added alerting section, rule_files, and alertmanager scrape target
-- `AGENTS.md`: Added Alertmanager to infrastructure services
+- Updated `specs/infrastructure/monitoring-stack.yaml` — added Alertmanager service, alertmanager-data volume, Authelia middleware on Grafana
+- `AGENTS.md`: Added Alertmanager to infra services, new Observability & Alerting section with notification chain, alert rules table, config file references
 
 ### Added — VPS Security Hardening: 4-Layer Auth Model (2026-04-14)
 - **DOCKER-USER iptables rules:** Created `/etc/iptables/add-docker-user-rules.sh` + systemd service to block external access to Docker-published ports. Only 80/443/6001/6002 allowed externally.
@@ -24,6 +25,12 @@ All notable changes to this project will be documented in this file.
 - `AGENTS-compact.md`: Added port exposure, Authelia, and X-Internal-Token hard stops.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
+
+### Fixed — WordPress pipeline: 5-pass deep review round 2 (2026-04-14)
+- `src/fabrik/wordpress/stages/forms.py`: form fields read from `contact.form_fields` (flat, non-existent key) — corrected to `contact.form.fields` per schema v1; form recipient now prefers `contact.form.recipient` over `contact.email`
+- `src/fabrik/wordpress/stages/verify.py`: `required_plugins` check listed `akismet` and `hello-dolly` as required-active — both are explicitly deleted by `cleanup_defaults()`, causing every properly deployed site to fail this check; list cleared
+- `src/fabrik/wordpress/stages/languages.py`: replaced `print()` with `logger.info()` in dry-run path — `print()` is forbidden per observability rules
+- `src/fabrik/wordpress/stages/pages.py`: `pages_created` was only assigned in the `elif api:` branch — if `page_specs` is empty the variable was never defined and the sitemap resubmit block would raise `NameError`; initialized to `{}` before the conditional
 
 ### Fixed — WordPress pipeline: 5-pass deep review (2026-04-14)
 - `src/fabrik/drivers/dns.py`: `get_integrations()` docstring example used wrong `ga4` key — corrected to `google_analytics` per confirmed API schema

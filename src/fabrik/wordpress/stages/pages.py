@@ -31,6 +31,7 @@ def apply(
         # Generate pages from spec (templates + entities)
         primary_locale = spec.get("languages", {}).get("primary", "en_US")
         page_specs = generate_pages(spec, locale=primary_locale)
+        pages_created: dict = {}
 
         if not page_specs:
             # Key fix: No early return. Fall through to mark stage complete.

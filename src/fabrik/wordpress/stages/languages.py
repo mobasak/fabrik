@@ -1,10 +1,13 @@
 """Languages stage - install and activate WordPress core translations."""
 
+import logging
 from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient
 from fabrik.drivers.wordpress_api import WordPressAPIClient
 from fabrik.wordpress.stages import StageResult, time_stage
+
+logger = logging.getLogger(__name__)
 
 WPML_SLUG = "sitepress-multilingual-cms"
 
@@ -51,7 +54,7 @@ def apply(
     additional: list[str] = lang_config.get("additional", [])
 
     if dry_run:
-        print(f"[dry-run] languages: would install {additional} and activate primary={primary}")
+        logger.info("[dry-run] languages: would install %s and activate primary=%s", additional, primary)
         return result
 
     try:

@@ -23,6 +23,7 @@ def apply(
             or spec.get("site", {}).get("domain", "").replace(".", "-")
         )
         contact = spec.get("contact", {})
+        form_config = contact.get("form", {})
 
         if not contact:
             # No contact info: not an error
@@ -40,8 +41,8 @@ def apply(
             if plugin:
                 creator.create_contact_form(
                     title="Contact Form",
-                    recipient=contact.get("email", ""),
-                    fields=contact.get("form_fields", ["name", "email", "message"]),
+                    recipient=form_config.get("recipient") or contact.get("email", ""),
+                    fields=form_config.get("fields", ["name", "email", "message"]),
                 )
             else:
                 # No plugin: not an error, just skip

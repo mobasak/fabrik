@@ -115,6 +115,39 @@ All files and folders use **kebab-case** unless listed as an exception.
 - `/opt/authelia/config/configuration.yml` — Authelia access control policies
 - `/opt/authelia/compose.yaml` — Authelia Docker Compose
 
+## Observability & Alerting
+
+**Compose file:** `/opt/monitoring/compose.yaml` on VPS (7 services)
+**Local source:** `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik
+
+**Notification chain:**
+```
+Prometheus (rules) → Alertmanager → ARO Brain webhook (http://aro-brain:8017/api/alerts)
+                                  └→ Apprise fallback  (http://apprise:8000/notify)
+```
+
+**Alert rules** (9 total, in `configs/prometheus/rules/alerts.yml`):
+
+| Alert | Severity | Threshold | For |
+|-------|----------|-----------|-----|
+| ContainerDown | critical | not seen >2min | 2m |
+| ContainerHighCPU | warning | >80% | 5m |
+| ContainerHighMemory | warning | >85% limit | 5m |
+| ContainerOOMKilled | critical | any OOM in 5m | 0m |
+| ContainerRestarting | critical | >3 in 15m | 0m |
+| HostHighCPU | warning | >85% | 10m |
+| HostHighMemory | critical | >90% | 5m |
+| HostDiskFull | critical | >85% | 5m |
+| ServiceUnhealthy | critical | target down | 2m |
+
+**Key config files (local mirror in Fabrik `configs/`):**
+- `configs/alertmanager/alertmanager.yml` — routing, receivers, inhibit rules
+- `configs/prometheus/prometheus.yml` — scrape targets, alerting config
+- `configs/prometheus/rules/alerts.yml` — alert rules
+
+**Grafana password:** in `/opt/fabrik/.env` as `GRAFANA_ADMIN_PASSWORD`
+**Start/stop:** `ssh vps "sudo docker compose -f /opt/monitoring/compose.yaml up/down -d"`
+
 ## Infrastructure Services — Ready to Deploy
 
 Specs and configs complete. Deploy via Coolify when needed.

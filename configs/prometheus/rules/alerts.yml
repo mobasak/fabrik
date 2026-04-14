@@ -1,0 +1,97 @@
+# Prometheus Alert Rules — Fabrik VPS
+# Used by Alertmanager -> ARO Brain -> Apprise notification chain
+# Alert names MUST match the handlers in ARO decision engine
+
+groups:
+  - name: container_health
+    rules:
+      - alert: ContainerDown
+        expr: absent(container_last_seen{name!=""}) or (time() - container_last_seen{name!=""}) > 120
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.name }} is down"
+          description: "Container {{ $labels.name }} has not been seen for over 2 minutes."
+
+      - alert: ContainerHighCPU
+        expr: rate(container_cpu_usage_seconds_total{name!=""}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} high CPU ({{ printf \"%.1f\" $value }}%)"
+          description: "Container {{ $labels.name }} CPU usage above 80% for 5 minutes."
+          value: "{{ $value }}"
+
+      - alert: ContainerHighMemory
+        expr: (container_memory_usage_bytes{name!=""} / container_spec_memory_limit_bytes{name!=""}) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} high memory ({{ printf \"%.1f\" $value }}%)"
+          description: "Container {{ $labels.name }} memory usage above 85% of limit for 5 minutes."
+          value: "{{ $value }}"
+
+      - alert: ContainerOOMKilled
+        expr: increase(container_oom_events_total{name!=""}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.name }} was OOM killed"
+          description: "Container {{ $labels.name }} experienced an OOM kill in the last 5 minutes."
+
+      - alert: ContainerRestarting
+        expr: increase(container_restart_count{name!=""}[15m]) > 3
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.name }} restart loop"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in 15 minutes."
+          value: "{{ $value }}"
+
+  - name: host_health
+    rules:
+      - alert: HostHighCPU
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host CPU above 85% for 10 minutes"
+          description: "VPS CPU usage is {{ printf \"%.1f\" $value }}%."
+          value: "{{ $value }}"
+
+      - alert: HostHighMemory
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host memory above 90%"
+          description: "VPS memory usage is {{ printf \"%.1f\" $value }}%."
+          value: "{{ $value }}"
+
+      - alert: HostDiskFull
+        expr: (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 > 85
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host disk above 85%"
+          description: "VPS root disk usage is {{ printf \"%.1f\" $value }}%."
+          value: "{{ $value }}"
+
+  - name: service_health
+    rules:
+      - alert: ServiceUnhealthy
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus target {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} in job {{ $labels.job }} has been down for 2 minutes."
