@@ -26,6 +26,13 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: 5-pass deep review round 3 (2026-04-14)
+- `src/fabrik/wordpress/menus.py`: menu item deletion used shell pipe `| xargs` inside `wp.run()` — `wp.run()` is `docker exec`, not a bash shell; pipes are silently ignored, idempotency logic was broken; replaced with explicit json-based item list + per-item delete loop
+- `src/fabrik/wordpress/pages.py`: dead `WPPost(...)` construction in `create_page()` — object created and immediately discarded, no effect; removed object construction and unused `WPPost` import
+- `src/fabrik/wordpress/spec_validator.py`: `deployment.target` listed as required — field does not exist in schema v1; correct field is `deployment.vps_ip`; every valid spec was failing validation on this field
+- `src/fabrik/wordpress/spec_loader.py`: `_should_append()` detected plugins section by stringifying the parent dict and checking for substring `"plugins"` — any dict value containing that word would trigger false positive; replaced with structural check for `"base"` key presence
+- `src/fabrik/wordpress/stages/post_deploy.py`: `DNSClient` not closed if `update_sitemap()` or `get_integrations()` raised — httpx client leaked; wrapped in `try/finally` to ensure `dns_client.close()` always runs
+
 ### Fixed — WordPress pipeline: 5-pass deep review round 2 (2026-04-14)
 - `src/fabrik/wordpress/stages/forms.py`: form fields read from `contact.form_fields` (flat, non-existent key) — corrected to `contact.form.fields` per schema v1; form recipient now prefers `contact.form.recipient` over `contact.email`
 - `src/fabrik/wordpress/stages/verify.py`: `required_plugins` check listed `akismet` and `hello-dolly` as required-active — both are explicitly deleted by `cleanup_defaults()`, causing every properly deployed site to fail this check; list cleared

@@ -78,7 +78,7 @@ class SpecValidator:
             ("brand.name", str),
             ("contact.email", str),
             ("languages.primary", str),
-            ("deployment.target", str),
+            ("deployment.vps_ip", str),
         ]
 
         for path, expected_type in required:

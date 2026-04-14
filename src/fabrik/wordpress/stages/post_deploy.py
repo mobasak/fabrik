@@ -40,26 +40,28 @@ def apply(
         from fabrik.drivers.dns import DNSClient
 
         dns_client = DNSClient()
+        try:
+            sitemap_result = dns_client.update_sitemap(domain, sitemap_url)
+            result.metadata["sitemap"] = sitemap_result
+            logger.info("sitemap resubmitted for %s → %s", domain, sitemap_url)
 
-        sitemap_result = dns_client.update_sitemap(domain, sitemap_url)
-        result.metadata["sitemap"] = sitemap_result
-        logger.info("sitemap resubmitted for %s → %s", domain, sitemap_url)
+            integrations = dns_client.get_integrations(domain)
+            result.metadata["integrations"] = integrations
 
-        integrations = dns_client.get_integrations(domain)
-        result.metadata["integrations"] = integrations
-
-        ga4_measurement_id = integrations.get("google_analytics", {}).get("measurement_id")
-        if ga4_measurement_id:
-            artifact_path = build_dir / GA4_ARTIFACT_FILENAME
-            artifact_path.write_text(ga4_measurement_id)
-            result.artifacts_written.append(str(artifact_path))
-            result.metadata["ga4_measurement_id"] = ga4_measurement_id
-            logger.info("GA4 measurement_id written: %s → %s", ga4_measurement_id, artifact_path)
-        else:
-            result.warnings.append(
-                f"GA4 measurement_id not found in site-provisioner integrations for {domain}. "
-                "Run 'fabrik domain integrations <domain>' to verify GA4 was set up during provisioning."
-            )
+            ga4_measurement_id = integrations.get("google_analytics", {}).get("measurement_id")
+            if ga4_measurement_id:
+                artifact_path = build_dir / GA4_ARTIFACT_FILENAME
+                artifact_path.write_text(ga4_measurement_id)
+                result.artifacts_written.append(str(artifact_path))
+                result.metadata["ga4_measurement_id"] = ga4_measurement_id
+                logger.info("GA4 measurement_id written: %s → %s", ga4_measurement_id, artifact_path)
+            else:
+                result.warnings.append(
+                    f"GA4 measurement_id not found in site-provisioner integrations for {domain}. "
+                    "Run 'fabrik domain integrations <domain>' to verify GA4 was set up during provisioning."
+                )
+        finally:
+            dns_client.close()
 
         logger.info("post_deploy complete for %s", domain)
 

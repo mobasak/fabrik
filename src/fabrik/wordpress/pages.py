@@ -14,7 +14,7 @@ import shlex
 from dataclasses import dataclass
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
-from fabrik.drivers.wordpress_api import WordPressAPIClient, WPCredentials, WPPost
+from fabrik.drivers.wordpress_api import WordPressAPIClient, WPCredentials
 
 
 @dataclass
@@ -165,13 +165,6 @@ class PageCreator:
         """
         if not self.api:
             raise ValueError("REST API client required for page creation")
-
-        WPPost(
-            title=title,
-            slug=slug,
-            content=content,
-            status=status,
-        )
 
         # Create page
         data: dict[str, str | int] = {

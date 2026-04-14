@@ -80,10 +80,18 @@ class MenuCreator:
         existing_id = self._get_menu_id(name)
 
         if existing_id:
-            # Delete existing menu items
-            self.wp.run(
-                f"menu item list {existing_id} --format=ids | xargs -r wp menu item delete --allow-root || true"
-            )
+            # Delete existing menu items individually (wp.run() is docker exec, no shell pipes)
+            try:
+                items_output = self.wp.run(f"menu item list {existing_id} --format=ids")
+                for item_id_str in items_output.split():
+                    item_id_str = item_id_str.strip()
+                    if item_id_str.isdigit():
+                        try:
+                            self.wp.run(f"menu item delete {item_id_str}")
+                        except RuntimeError:
+                            pass  # Item may have already been removed
+            except RuntimeError:
+                pass  # Menu may have no items
             menu_id = existing_id
         else:
             # Create new menu

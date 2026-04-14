@@ -128,7 +128,8 @@ class SpecLoader:
             return parent[merge_key] == "append"
 
         # Special cases: plugins.add always appends
-        return bool(key == "add" and "plugins" in str(parent))
+        # Check for 'base' key presence to identify a plugins section dict safely
+        return bool(key == "add" and isinstance(parent, dict) and "base" in parent)
 
     def _apply_secrets(self, spec: dict) -> dict:
         """Replace ${VAR} references with environment variables."""
