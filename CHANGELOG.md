@@ -26,6 +26,10 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 12 (2026-04-14)
+- `src/fabrik/wordpress/deployer.py:264-272`: apply-report silently dropped `warnings` and `metadata` from each stage entry — operators had no visibility into what each stage did or its warnings without grepping logs; both fields now included in per-stage report dict
+- `src/fabrik/wordpress/deployer.py:368-369`: `_step_finalize()` had `except Exception: pass` on `cache_flush()` — silently swallowed failures; replaced with `logger.warning()` so cache errors surface without aborting the pipeline
+
 ### Fixed — WordPress pipeline: indefinite deep review round 11 (2026-04-14)
 - `src/fabrik/wordpress/seo.py:393,395`: `set_robots_txt_ai_crawlers()` passed plain string `ai_rules` through `json.dumps()` before storing — robots.txt option received a double-encoded JSON string with escaped newlines instead of a real multi-line robots block; removed `json.dumps()` wrapper
 - `src/fabrik/wordpress/seo.py:419-422`: `add_schema_markup()` called `json.dumps(schema_type)` on a plain string — RankMath `rank_math_schema_type` option received `"\"Organization\""` instead of `Organization`; removed `json.dumps()` wrapper

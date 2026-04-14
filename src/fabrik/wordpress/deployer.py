@@ -268,6 +268,8 @@ class SiteDeployer:
                         "skipped": stage_result.skipped,
                         "duration_ms": stage_result.duration_ms,
                         "errors": stage_result.errors,
+                        "warnings": stage_result.warnings,
+                        "metadata": stage_result.metadata,
                     }
                 )
 
@@ -365,8 +367,8 @@ class SiteDeployer:
                 # Flush object cache
                 try:
                     self.wp.cache_flush()
-                except Exception:
-                    pass  # Cache may not be configured
+                except Exception as exc:
+                    logger.warning("cache_flush failed (non-fatal): %s", exc)
 
             self.result.steps_completed.append(step)
             self.log("  Site finalized", "success")
