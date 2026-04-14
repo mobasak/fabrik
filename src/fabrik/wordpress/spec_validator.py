@@ -68,7 +68,7 @@ class SpecValidator:
         # Log warnings
         if warnings:
             for warning in warnings:
-                logger.warning(f"⚠️  {warning}")
+                logger.warning("⚠️  %s", warning)
 
     def _validate_required(self):
         """Validate required fields are present."""

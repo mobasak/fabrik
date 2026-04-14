@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Kilo CLI documentation update (2026-04-14)
+- `docs/reference/kilo/KILO_CLI_REFERENCE.md`: Added HTTP Server API (OpenAPI 3.1 REST endpoints, SSE streaming, JSON output format, programmatic Python access), Custom Agents (config + markdown file definition), Custom Commands (reusable prompt templates), Plugins (custom tools/hooks/npm), missing CLI commands (`acp`, `config`, `remote`, `plugin`, `db`), missing `kilo run` flags (`--command`, `--prompt`), server auth env vars (`OPENCODE_SERVER_PASSWORD`). Updated version to 7.0.33+.
+- `docs/reference/kilo/KILO_PLATFORM_FEATURES.md`: Updated date, added cross-reference to HTTP Server API.
+- `docs/reference/kilo/README.md`: Added Free tier to agent tiers table, replaced stale "Recent Enhancements" with "Key Capabilities" table covering LLM Gateway, HTTP API, custom agents/commands/plugins, JSON output, SSE streaming. Added Kilo version/identity line.
+
 ### Added — Alertmanager deployment + observability docs (2026-04-14)
 - Deployed `prom/alertmanager:v0.28.1` into `/opt/monitoring/compose.yaml` monitoring stack (now 7 services)
 - Created `configs/alertmanager/alertmanager.yml` — routes to ARO Brain webhook (future) with Apprise fallback
@@ -25,6 +30,10 @@ All notable changes to this project will be documented in this file.
 - `AGENTS-compact.md`: Added port exposure, Authelia, and X-Internal-Token hard stops.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
+
+### Fixed — WordPress pipeline: indefinite deep review round 19 (2026-04-14)
+- `src/fabrik/wordpress/spec_validator.py:71`: `logger.warning(f"...")` used f-string — violates project logging rule requiring lazy `%s` formatting; changed to `logger.warning("⚠️  %s", warning)`
+- `src/fabrik/wordpress/stages/__init__.py:19`: `skipped` field had stale comment "Reserved for Phase 2b" — `skipped` has been actively used across all stages since round 13; comment removed
 
 ### Fixed — WordPress pipeline: indefinite deep review round 18 (2026-04-14)
 - `src/fabrik/wordpress/stages/forms.py:32,36`: empty-contact and dry-run were silent `pass`; empty-contact now sets `skipped=True` with reason; dry-run emits recipient and fields that would be configured

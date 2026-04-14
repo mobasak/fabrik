@@ -16,7 +16,7 @@ class StageResult:
 
     name: str
     success: bool
-    skipped: bool = False  # Reserved for Phase 2b
+    skipped: bool = False
     warnings: list[str] = field(default_factory=list)
     duration_ms: float = 0.0
     errors: list[str] = field(default_factory=list)
