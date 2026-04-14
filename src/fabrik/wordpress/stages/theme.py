@@ -1,11 +1,14 @@
 """Theme installation and customization stage."""
 
+import logging
 from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient
 from fabrik.drivers.wordpress_api import WordPressAPIClient
 from fabrik.wordpress.stages import StageResult, time_stage
 from fabrik.wordpress.theme import ThemeCustomizer
+
+logger = logging.getLogger(__name__)
 
 
 @time_stage
@@ -34,11 +37,14 @@ def apply(
             # Install theme
             try:
                 customizer.install_theme(activate=True)
-            except Exception:
-                pass  # May already be installed
+            except Exception as exc:
+                result.warnings.append(f"Theme install raised: {exc} — may already be installed")
+                logger.warning("Theme install warning: %s", exc)
 
             # Apply customizations
-            customizer.apply_from_spec(spec)
+            applied = customizer.apply_from_spec(spec)
+            result.metadata["applied"] = applied
+            logger.info("Theme customizations applied: %s", list(applied.keys()))
 
     except Exception as e:
         result.success = False

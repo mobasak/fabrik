@@ -1,11 +1,14 @@
 """Navigation menu creation stage."""
 
+import logging
 from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient
 from fabrik.drivers.wordpress_api import WordPressAPIClient
 from fabrik.wordpress.menus import MenuCreator
 from fabrik.wordpress.stages import StageResult, time_stage
+
+logger = logging.getLogger(__name__)
 
 
 @time_stage
@@ -34,7 +37,11 @@ def apply(
             if not wp:
                 raise RuntimeError("WordPressClient required for menus stage")
             creator = MenuCreator(site_name, wp)
-            creator.create_all(navigation)
+            created = creator.create_all(navigation)
+            result.metadata["menus_created"] = {
+                name: {"id": m.id, "items": len(m.items)} for name, m in created.items()
+            }
+            logger.info("Menus created: %s", list(created.keys()))
 
     except Exception as e:
         result.success = False

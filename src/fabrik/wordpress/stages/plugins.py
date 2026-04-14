@@ -41,6 +41,8 @@ def apply(
         raw_list: list[dict] = plugin_list_result if isinstance(plugin_list_result, list) else []
         installed: dict[str, str] = {entry["name"]: entry["status"] for entry in raw_list}
 
+        counts = {"installed": 0, "activated": 0, "skipped": 0, "failed": 0}
+
         for entry in manifest:
             slug = entry["slug"]
 
@@ -63,13 +65,25 @@ def apply(
 
             if status == "active":
                 # Already active — nothing to do
+                counts["skipped"] += 1
                 continue
             elif status == "inactive":
                 # Activate using the real installed slug, not the zip path
                 wp.plugin_activate(lookup_key)
+                counts["activated"] += 1
+                logger.info("Plugin activated: %s", lookup_key)
             else:
                 # Not installed — install and activate
                 wp.plugin_install(install_target, activate=True)
+                counts["installed"] += 1
+                logger.info("Plugin installed: %s", install_target)
+
+        result.metadata["counts"] = counts
+        result.metadata["total"] = len(manifest)
+        logger.info(
+            "Plugins: %d installed, %d activated, %d skipped (total=%d)",
+            counts["installed"], counts["activated"], counts["skipped"], len(manifest),
+        )
 
     except Exception as e:
         result.success = False

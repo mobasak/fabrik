@@ -26,6 +26,14 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 7 (2026-04-14)
+- `src/fabrik/wordpress/manifests/plugins.py:39`: `_normalize_plugin_name()` still used old aggressive regex `^[a-zA-Z0-9]+-` (no minimum length) — diverged from the round-5 fix in `spec_loader.py`; `contact-form-7` → `form-7`, `rank-math-seo` → `math-seo`; synced to `{8,}` min-length; also extended version regex from `(\.\d+)?` → `(\.\d+)*` to handle 4-part versions like `1.2.3.4`
+- `src/fabrik/wordpress/spec_loader.py:238`: same version regex inconsistency — `(\.\d+)?` did not match `1.2.3.4`; extended to `(\.\d+)*`
+- `src/fabrik/wordpress/stages/theme.py:37`: bare `except: pass` on `install_theme()` silently swallowed disk-full, permission-denied, and network errors; replaced with warning emission + logging so errors surface without aborting the stage; also capture `apply_from_spec()` return value in `result.metadata["applied"]`
+- `src/fabrik/wordpress/stages/menus.py`: `create_all()` return value discarded — apply-report showed nothing for menus stage; captured in `result.metadata["menus_created"]`
+- `src/fabrik/wordpress/stages/post_deploy.py:54`: `artifact_path.write_text(ga4_measurement_id)` missing `encoding="utf-8"` — silent corruption risk on non-UTF-8 systems
+- `src/fabrik/wordpress/stages/plugins.py`: no metadata captured — apply-report showed nothing for plugins stage; added `counts` dict (installed/activated/skipped) and `total` in `result.metadata`
+
 ### Fixed — WordPress pipeline: indefinite deep review round 6 (2026-04-14)
 - `src/fabrik/wordpress/stages/__init__.py`: `time_stage` decorator missing `@functools.wraps` — every stage's `__name__` was `"wrapper"`, causing `stage.__name__.split(".")[-1]` in deployer to return `"wrapper"` for all stages; plan.json, apply-report.json, and skip-if-unchanged logic all used wrong names
 - `src/fabrik/wordpress/stages/forms.py`: `detect_form_plugin()` result and created form metadata not captured in `result.metadata`; no-plugin path silently did nothing with no warning; now emits warning + `skipped=True` and captures `form_id`/`shortcode` in metadata

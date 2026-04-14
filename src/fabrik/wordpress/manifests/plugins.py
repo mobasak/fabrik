@@ -32,11 +32,11 @@ def _normalize_plugin_name(plugin: str) -> str:
     """
     name = plugin.replace(".zip", "")
 
-    # Remove version numbers
-    name = re.sub(r"-v?\d+\.\d+(\.\d+)?", "", name)
+    # Remove version numbers (e.g. -1.2.3 or -v1.2.3.4)
+    name = re.sub(r"-v?\d+\.\d+(\.\d+)*", "", name)
 
-    # Remove hash prefixes
-    name = re.sub(r"^[a-zA-Z0-9]+-", "", name)
+    # Remove hash prefixes (min 8 chars to avoid stripping real plugin name words)
+    name = re.sub(r"^[a-zA-Z0-9]{8,}-", "", name)
 
     return name.lower()
 

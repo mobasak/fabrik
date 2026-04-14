@@ -51,7 +51,7 @@ def apply(
             ga4_measurement_id = integrations.get("google_analytics", {}).get("measurement_id")
             if ga4_measurement_id:
                 artifact_path = build_dir / GA4_ARTIFACT_FILENAME
-                artifact_path.write_text(ga4_measurement_id)
+                artifact_path.write_text(ga4_measurement_id, encoding="utf-8")
                 result.artifacts_written.append(str(artifact_path))
                 result.metadata["ga4_measurement_id"] = ga4_measurement_id
                 logger.info("GA4 measurement_id written: %s → %s", ga4_measurement_id, artifact_path)
