@@ -1,8 +1,10 @@
 # Kilo CLI Complete Reference
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-04-14
 
-This document provides comprehensive reference for Kilo Code CLI features, covering installation, configuration, interactive mode, autonomous mode, permissions, and session management.
+This document provides comprehensive reference for Kilo Code CLI features, covering installation, configuration, interactive mode, autonomous mode, HTTP server API, custom agents, plugins, permissions, and session management.
+
+> **Kilo CLI version:** 7.0.33+ (fork of OpenCode)
 
 ---
 
@@ -14,10 +16,14 @@ This document provides comprehensive reference for Kilo Code CLI features, cover
 4. [Autonomous Mode](#autonomous-mode)
 5. [Slash Commands](#slash-commands)
 6. [Configuration](#configuration)
-7. [Permissions](#permissions)
-8. [Session Management](#session-management)
-9. [CLI Commands](#cli-commands)
-10. [Environment Variables](#environment-variables)
+7. [Custom Agents](#custom-agents)
+8. [Custom Commands](#custom-commands)
+9. [Plugins](#plugins)
+10. [HTTP Server API](#http-server-api)
+11. [Permissions](#permissions)
+12. [Session Management](#session-management)
+13. [CLI Commands](#cli-commands)
+14. [Environment Variables](#environment-variables)
 
 ---
 
@@ -854,10 +860,12 @@ kilo import <file>
 | `kilo [project]` | Start the TUI |
 | `kilo run [message..]` | Run with message (non-interactive) |
 | `kilo attach <url>` | Attach to running server |
-| `kilo serve` | Start headless server |
+| `kilo serve` | Start headless HTTP server (OpenAPI 3.1) |
 | `kilo web` | Start server and open web interface |
+| `kilo acp` | Start ACP (Agent Client Protocol) server |
 | `kilo auth` | Manage credentials (login, logout, list) |
 | `kilo agent` | Manage agents (create, list) |
+| `kilo config` | View/edit configuration |
 | `kilo mcp` | Manage MCP servers (list, add, auth) |
 | `kilo models [provider]` | List available models |
 | `kilo stats` | Show token usage and cost statistics |
@@ -868,6 +876,9 @@ kilo import <file>
 | `kilo uninstall` | Uninstall and remove related files |
 | `kilo pr <number>` | Fetch and checkout GitHub PR branch |
 | `kilo github` | Manage GitHub agent (install, run) |
+| `kilo remote` | Manage remote connections |
+| `kilo plugin <module>` | Load a plugin module |
+| `kilo db` | Database tools |
 | `kilo debug` | Debugging and troubleshooting tools |
 | `kilo completion` | Generate shell completion script |
 
@@ -888,17 +899,19 @@ kilo import <file>
 | `-s`, `--session` | Session ID to continue |
 | `--fork` | Fork session before continuing |
 | `--share` | Share the session |
-| `-m`, `--model` | Model to use (provider/model format) |
-| `--agent` | Agent to use |
-| `--format` | Format: default or json |
-| `-f`, `--file` | File(s) to attach |
+| `-m`, `--model` | Model to use (`kilo/provider/model` format) |
+| `--agent` | Agent to use (built-in or custom) |
+| `--format` | Format: `default` (formatted) or `json` (raw JSON events) |
+| `-f`, `--file` | File(s) to attach to message |
 | `--title` | Session title |
-| `--attach` | Attach to running server |
-| `--dir` | Directory to run in |
-| `--port` | Local server port |
-| `--variant` | Model variant (minimal, low, high, max) |
+| `--attach` | Attach to running server (e.g., `http://localhost:4096`) |
+| `--dir` | Directory to run in (path on remote server if attaching) |
+| `--port` | Local server port (random if not set) |
+| `--variant` | Model variant / reasoning effort (e.g., `minimal`, `low`, `high`, `max`) |
 | `--thinking` | Show thinking blocks |
-| `--auto` | Auto-approve all permissions |
+| `--auto` | Auto-approve all permissions (for autonomous/pipeline usage) |
+| `--command` | The command to run (use message for args) |
+| `--prompt` | Prompt to use |
 
 ---
 
@@ -909,6 +922,9 @@ kilo import <file>
 - `KILO_PROVIDER` - Override active provider ID
 - For kilocode provider: `KILOCODE_<FIELD_NAME>` (e.g., `KILOCODE_MODEL`)
 - For other providers: `KILO_<FIELD_NAME>` (e.g., `KILO_API_KEY`)
+- `OPENCODE_SERVER_PASSWORD` - Enable HTTP basic auth on `kilo serve` / `kilo web`
+- `OPENCODE_SERVER_USERNAME` - Override basic auth username (default: `opencode`)
+- `OPENCODE_TUI_CONFIG` - Custom path to TUI config file
 
 ### Usage
 
@@ -920,6 +936,297 @@ kilo run "Fix the bug"
 # Override API key
 export KILO_API_KEY="sk-..."
 kilo
+```
+
+---
+
+## Custom Agents
+
+Define specialized agents with specific models, system prompts, and tool restrictions.
+
+### Via Configuration
+
+```json
+{
+  "$schema": "https://kilo.ai/config.json",
+  "agent": {
+    "aro-reasoner": {
+      "description": "Alert reasoning agent for ARO Brain",
+      "model": "anthropic/claude-haiku-4.5",
+      "prompt": "You are an infrastructure alert analyst. Given Prometheus metrics and Loki logs, determine severity and suggest remediation. Respond with structured JSON.",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      }
+    },
+    "code-reviewer": {
+      "description": "Reviews code for best practices and potential issues",
+      "model": "anthropic/claude-sonnet-4.5",
+      "prompt": "You are a code reviewer. Focus on security, performance, and maintainability.",
+      "tools": {
+        "write": false,
+        "edit": false
+      }
+    }
+  }
+}
+```
+
+### Via Markdown Files
+
+Place agent definitions in `~/.config/opencode/agents/` (global) or `.opencode/agents/` (project-level):
+
+```markdown
+---
+name: aro-reasoner
+description: Alert reasoning agent
+model: anthropic/claude-haiku-4.5
+---
+
+You are an infrastructure alert analyst...
+```
+
+### Using Custom Agents
+
+```bash
+# CLI
+kilo run --agent aro-reasoner "Analyze this alert context"
+
+# HTTP API
+POST /session/:id/message
+{"agent": "aro-reasoner", "parts": [{"type": "text", "text": "..."}]}
+```
+
+### Default Agent
+
+```json
+{
+  "default_agent": "plan"
+}
+```
+
+The default agent must be a primary agent (not a subagent). Built-in options: `"build"`, `"plan"`.
+
+---
+
+## Custom Commands
+
+Reusable prompt templates for repetitive tasks.
+
+### Via Configuration
+
+```json
+{
+  "$schema": "https://kilo.ai/config.json",
+  "command": {
+    "test": {
+      "template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes.",
+      "description": "Run tests with coverage",
+      "agent": "build",
+      "model": "anthropic/claude-haiku-4.5"
+    },
+    "component": {
+      "template": "Create a new React component named $ARGUMENTS with TypeScript support.\nInclude proper typing and basic structure.",
+      "description": "Create a new component"
+    }
+  }
+}
+```
+
+### Via Markdown Files
+
+Place command definitions in `~/.config/opencode/commands/` or `.opencode/commands/`.
+
+### Usage
+
+```bash
+# In TUI
+/test
+/component MyButton
+
+# Via CLI
+kilo run --command test
+```
+
+---
+
+## Plugins
+
+Extend Kilo with custom tools, hooks, and integrations.
+
+### Plugin Locations
+
+- **Project-level:** `.opencode/plugins/`
+- **Global:** `~/.config/opencode/plugins/`
+- **npm packages:** via `plugin` config option
+
+### Configuration
+
+```json
+{
+  "$schema": "https://kilo.ai/config.json",
+  "plugin": ["opencode-helicone-session", "@my-org/custom-plugin"]
+}
+```
+
+---
+
+## HTTP Server API
+
+Kilo exposes a full **OpenAPI 3.1** REST API when running as a server. This is the same API that the TUI, desktop app, and IDE extensions use internally.
+
+### Starting the Server
+
+```bash
+# Headless server (default port: random, or specify)
+kilo serve --port 4096 --hostname 127.0.0.1
+
+# With authentication
+OPENCODE_SERVER_PASSWORD=your-password kilo serve
+
+# Web interface (opens browser)
+kilo web
+```
+
+### OpenAPI Spec
+
+Browse the spec at `http://localhost:4096/doc` after starting the server.
+
+### Key Endpoints
+
+#### Global
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/global/health` | Server health check |
+| GET | `/global/event` | SSE stream for system-wide events |
+| GET | `/global/config` | Get configuration |
+| PUT | `/global/config` | Update configuration |
+| POST | `/global/dispose` | Shutdown server |
+
+#### Sessions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/session` | List all sessions |
+| POST | `/session` | Create new session |
+| GET | `/session/:id` | Get session details |
+| DELETE | `/session/:id` | Delete session |
+| PATCH | `/session/:id` | Update session (e.g., title) |
+| POST | `/session/:id/abort` | Abort in-progress generation |
+| POST | `/session/:id/fork` | Fork session from a message |
+| POST | `/session/:id/summarize` | Summarize session |
+| GET | `/session/:id/diff` | Get file diffs for session |
+| GET | `/session/:id/event` | SSE stream for session events |
+| GET | `/session/:id/todo` | Get session todo list |
+| POST | `/session/:id/revert` | Revert a message/part |
+
+#### Messages (Core Chat)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/session/:id/message` | List messages |
+| POST | `/session/:id/message` | Send message (with model/agent/tools control) |
+| GET | `/session/:id/message/:msgID` | Get specific message |
+| POST | `/session/:id/prompt_async` | Send message async (returns 204) |
+| POST | `/session/:id/command` | Run a custom command |
+| POST | `/session/:id/shell` | Run a shell command |
+
+**Message body** (`POST /session/:id/message`):
+
+```json
+{
+  "model": "anthropic/claude-haiku-4.5",
+  "agent": "aro-reasoner",
+  "system": "Optional system prompt override",
+  "tools": {"bash": false, "edit": false},
+  "noReply": false,
+  "parts": [
+    {"type": "text", "text": "Analyze this alert..."}
+  ]
+}
+```
+
+#### Files & Search
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/find?pattern=<pat>` | Ripgrep search |
+| GET | `/find/file?query=<q>` | Fuzzy file search |
+| GET | `/find/symbol?query=<q>` | Symbol search |
+| GET | `/file?path=<path>` | List directory tree |
+| GET | `/file/content?path=<p>` | Read file content |
+| GET | `/file/status` | Git status of files |
+
+#### Agents, Tools & MCP
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/agent` | List available agents |
+| GET | `/experimental/tool/ids` | List tool IDs |
+| GET | `/experimental/tool` | List tools (with provider/model) |
+| GET | `/mcp` | MCP server status |
+| POST | `/mcp` | Add MCP server |
+| GET | `/lsp` | LSP server status |
+| GET | `/formatter` | Formatter status |
+
+#### Auth & Events
+
+| Method | Path | Description |
+|--------|------|-------------|
+| PUT | `/auth/:id` | Set provider credentials |
+| GET | `/event` | SSE stream (`server.connected`) |
+
+### SSE Event Streaming
+
+Real-time events via Server-Sent Events:
+
+- **`GET /global/event`** — system-wide events (e.g., `installation.updated`)
+- **`GET /session/:id/event`** — per-session events (e.g., `message.updated`, token streaming)
+
+### JSON Output Format (`kilo run --format json`)
+
+When using `--format json`, each line is a JSON event:
+
+```json
+{"type":"step_start","timestamp":1776189961522,"sessionID":"ses_...","part":{...}}
+{"type":"text","timestamp":1776189961614,"sessionID":"ses_...","part":{"type":"text","text":"4",...}}
+{"type":"step_finish","timestamp":1776189961620,"sessionID":"ses_...","part":{"type":"step-finish","reason":"stop","cost":0.0016839,"tokens":{"total":12726,"input":337,"output":5,"reasoning":0,"cache":{"read":12384,"write":0}}}}
+```
+
+Each `step_finish` event includes cost and token breakdown.
+
+### Programmatic Access from Python
+
+The HTTP API can be called from any language. Example with Python `httpx`:
+
+```python
+import httpx
+
+BASE = "http://localhost:4096"
+
+# Create session
+session = httpx.post(f"{BASE}/session").json()
+sid = session["id"]
+
+# Send message with model/agent control
+resp = httpx.post(f"{BASE}/session/{sid}/message", json={
+    "model": "anthropic/claude-haiku-4.5",
+    "agent": "aro-reasoner",
+    "parts": [{"type": "text", "text": "Analyze: container memory at 92%"}]
+})
+result = resp.json()
+```
+
+### Connecting to a Running Server
+
+```bash
+# From another terminal or machine
+kilo attach http://localhost:4096
+
+# Or use kilo run with --attach
+kilo run --attach http://localhost:4096 "Fix the bug"
 ```
 
 ---

@@ -17,7 +17,6 @@ from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
 from fabrik.drivers.wordpress_api import WordPressAPIClient, WPCredentials
-from fabrik.wordpress.pages import CreatedPage
 from fabrik.wordpress.planner import BUILD_ROOT
 from fabrik.wordpress.spec_loader import load_spec_from_path, resolve_spec_path
 from fabrik.wordpress.spec_validator import SpecValidator, ValidationError
@@ -54,7 +53,7 @@ class DeploymentResult:
     domain: str
     steps_completed: list[str] = field(default_factory=list)
     steps_failed: list[str] = field(default_factory=list)
-    pages_created: dict[str, CreatedPage] = field(default_factory=dict)
+    pages_created: dict[str, dict] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 

@@ -1,8 +1,10 @@
 # Kilo AI Agent System Documentation
 
-**Last Updated:** 2026-03-23
+**Last Updated:** 2026-04-14
 
 This directory contains all documentation for the Kilo AI agent system used in Fabrik for code generation and review.
+
+> **Kilo CLI version:** 7.0.33+ (fork of OpenCode). Kilo is both a coding agent CLI and a **full LLM gateway** with an HTTP Server API, custom agents, plugins, and access to hundreds of models via Kilo Gateway.
 
 ---
 
@@ -10,15 +12,12 @@ This directory contains all documentation for the Kilo AI agent system used in F
 
 | Document | Purpose |
 |----------|---------|
-| **KILO_CLI_REFERENCE.md** | Complete Kilo CLI reference (install, commands, config, permissions) |
+| **KILO_CLI_REFERENCE.md** | Complete Kilo CLI reference (install, commands, config, HTTP Server API, custom agents, plugins, permissions) |
 | **KILO_MODEL_SELECTION.md** | Real-time model selection guide, Auto Model, and leaderboards |
-| **KILO_IMPROVEMENTS_PROPOSAL.md** | Proposed enhancements to agent scripts and code review system |
 | **KILO_PLATFORM_FEATURES.md** | Slack integration and App Builder features |
 | **KILO_AGENT_NAMING.md** | Tier-based naming convention for agent scripts |
 | **KILO_UPDATE_SCHEDULE.md** | Update automation schedule and process |
-| **KILO_EXTRACTION_SUMMARY.md** | Extraction summary and statistics |
 | **KILO_AGENT_SELECTION_GUIDE.md** | Provider highlights and model selection guide |
-| **MANUAL_PRICING_GUIDE.md** | Guide for manually collecting token pricing |
 
 ---
 
@@ -32,6 +31,7 @@ This directory contains all documentation for the Kilo AI agent system used in F
 | **Strong** | Production-grade coding/review | `Strong01-gpt53codex-code-high-i001-o005.sh` |
 | **Balanced** | Cost-effective, good performance | `Balanced04-grok41fast-code-high-i020-o050.sh` |
 | **Economy** | Budget-friendly, fast iteration | `Economy01-flash3-code-minimal-i000-o001.sh` |
+| **Free** | Zero-cost models via Kilo Gateway | `Free01-minimax21-code-medium-i000-o000.sh` |
 
 ### Data Files
 
@@ -53,16 +53,19 @@ This directory contains all documentation for the Kilo AI agent system used in F
 | `kilo_agent_health.sh` | Verify agent integrity (executable, shebang, syntax) |
 | `extract_pricing.py` | Extract input/output pricing |
 
-### Recent Enhancements (2026-03-23)
+### Key Capabilities
 
-| Feature | Location | Description |
-|---------|----------|-------------|
-| **Escalation Fix** | `kilo_code_review.py` | Fixed `'str' object has no attribute 'get'` crash in `format_gate_results_compact` |
-| **DB-Driven Selection** | `scripts/kilo-benchmarks/` | SQLite-based model selection with role assignments |
-| **Live Streaming** | `kilo_docs_enforcer.py` | Real-time AI output streaming in verbose mode |
-| **Doc Auto-Generation** | `kilo_docs_enforcer.py` | Generates missing docs using Kilo agents |
-| **Mypy Recovery** | `final_gate.py` | Auto-clears cache on timeout, retries with --no-incremental |
-| **Cost Tracking** | `.droid/kilo_metrics.jsonl` | Per-model/filetype performance metrics |
+| Capability | Description |
+|------------|-------------|
+| **LLM Gateway** | Access 400+ models via Kilo Gateway with unified billing |
+| **HTTP Server API** | `kilo serve` exposes full OpenAPI 3.1 REST API for programmatic access |
+| **Custom Agents** | Define agents with specific models, system prompts, and tool restrictions |
+| **Custom Commands** | Reusable prompt templates for repetitive tasks |
+| **Plugins** | Extend with custom tools, hooks, and npm integrations |
+| **JSON Output** | `--format json` for machine-parseable event streams with cost/token breakdown |
+| **SSE Streaming** | Real-time events via Server-Sent Events for session monitoring |
+| **DB-Driven Selection** | SQLite-based model selection with role assignments |
+| **Cost Tracking** | Per-model/filetype performance metrics in `.droid/kilo_metrics.jsonl` |
 
 ### Active Agents (~/.traycer/cli-agents/)
 

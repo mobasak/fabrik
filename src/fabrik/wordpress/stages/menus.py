@@ -31,7 +31,9 @@ def apply(
             result.skipped = True
             result.metadata["skipped_reason"] = "no navigation defined in spec"
         elif dry_run:
-            result.metadata["dry_run"] = {"menus": list(navigation.keys()) if isinstance(navigation, dict) else []}
+            result.metadata["dry_run"] = {
+                "menus": list(navigation.keys()) if isinstance(navigation, dict) else []
+            }
         else:
             if not wp:
                 raise RuntimeError("WordPressClient required for menus stage")

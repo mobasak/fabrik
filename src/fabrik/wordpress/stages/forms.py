@@ -29,11 +29,13 @@ def apply(
         form_config = contact.get("form", {})
 
         if not contact:
-            # No contact info: not an error
-            pass
+            result.skipped = True
+            result.metadata["skipped_reason"] = "no contact section in spec"
         elif dry_run:
-            # Dry-run: just log intent
-            pass
+            result.metadata["dry_run"] = {
+                "recipient": contact.get("email", ""),
+                "fields": form_config.get("fields", ["name", "email", "message"]),
+            }
         else:
             if not wp:
                 raise RuntimeError("WordPressClient required for forms stage")

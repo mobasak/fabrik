@@ -1,8 +1,10 @@
 # Kilo Platform Features
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-04-14
 
 This document covers Kilo Code platform features accessed through integrations and web interfaces, complementing the CLI-based workflows.
+
+> **See also:** [KILO_CLI_REFERENCE.md](KILO_CLI_REFERENCE.md) for the HTTP Server API, custom agents, plugins, and full CLI reference.
 
 ---
 

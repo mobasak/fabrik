@@ -26,6 +26,10 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 18 (2026-04-14)
+- `src/fabrik/wordpress/stages/forms.py:32,36`: empty-contact and dry-run were silent `pass`; empty-contact now sets `skipped=True` with reason; dry-run emits recipient and fields that would be configured
+- `src/fabrik/wordpress/deployer.py:20,57`: `CreatedPage` import was left dangling after round 17 converted `metadata["pages_created"]` to plain dicts; `pages_created` field type annotation updated from `dict[str, CreatedPage]` to `dict[str, dict]`; unused import removed
+
 ### Fixed — WordPress pipeline: indefinite deep review round 17 (2026-04-14)
 - `src/fabrik/wordpress/stages/pages.py:120`: **critical** — `metadata["pages_created"]` stored `dict[str, CreatedPage]` dataclass objects; `json.dumps()` in `_write_apply_report()` would raise `TypeError: Object of type CreatedPage is not JSON serializable` on every real deployment, silently crashing apply-report generation; fixed by converting each `CreatedPage` to a plain dict before storage
 - `src/fabrik/wordpress/stages/pages.py:36,40`: no-pages and dry-run branches were silent `pass`; no-pages now sets `skipped=True` with reason; dry-run emits page count and slug list
