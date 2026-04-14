@@ -52,7 +52,12 @@ def apply(
             if not wp:
                 raise RuntimeError("WordPressClient required for analytics stage")
             injector = AnalyticsInjector(site_name, wp)
-            injector.apply_from_spec(seo)
+            applied = {}
+            if ga4:
+                applied["ga4"] = injector.inject_ga4(ga4)
+            if gtm:
+                applied["gtm"] = injector.inject_gtm(gtm)
+            result.metadata["applied"] = applied
 
     except Exception as e:
         result.success = False

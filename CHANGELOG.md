@@ -26,6 +26,15 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: 5-pass deep review round 5 (2026-04-14)
+- `src/fabrik/wordpress/section_renderer.py:276`: Gutenberg closing comment `<!-- /wp/columns -->` used slash instead of colon — WordPress block parser silently dropped entire testimonials section; corrected to `<!-- /wp:columns -->`
+- `src/fabrik/wordpress/section_renderer.py:153,193`: `section.get("columns", 3)` result discarded (dead code) in both `_render_features` and `_render_services_grid`; assigned to `columns` and wired into `wp:columns` block attribute as `columnCount` so spec value is actually respected by Gutenberg
+- `src/fabrik/wordpress/spec_loader.py:241`: `_normalize_plugin_name()` regex `^[a-zA-Z0-9]+-` stripped the first word of every hyphenated plugin name (`contact-form-7` → `form-7`, `rank-math-seo` → `math-seo`); minimum length raised to 8 chars to match hash prefix pattern, consistent with `manifests/plugins.py`
+- `src/fabrik/wordpress/spec_validator.py:228`: `_is_localized_string()` called `all()` on empty dict — Python's `all([])` returns `True`, so `{}` was classified as a valid localized string, causing spurious "missing primary locale" validation errors; added `not obj` guard
+- `src/fabrik/wordpress/stages/analytics.py`: GA4 ID sourced from post_deploy artifact was injected as `seo["ga4_id"]` then passed to `apply_from_spec(seo)` which reads `seo.analytics.ga4` — lookup path mismatch meant artifact GA4 ID was silently ignored; replaced with direct `injector.inject_ga4(ga4)` / `inject_gtm(gtm)` calls
+- `src/fabrik/wordpress/planner.py:42`: `analytics` STAGE_KEYS included `site_name` and `dry_run` — both are injected by deployer at runtime, not read from spec; hash changed on every run, breaking skip-if-unchanged for the analytics stage; removed runtime keys
+- `src/fabrik/wordpress/stages/pages.py`: entity child pages referencing a `parent_slug` with no matching top-level page spec were silently dropped into `pages_by_parent` and never created; added explicit warning listing each orphaned parent slug
+
 ### Fixed — WordPress pipeline: 5-pass deep review round 4 (2026-04-14)
 - `src/fabrik/wordpress/deployer.py`: `self.spec` mutated in-place by injecting `dry_run` and `site_name` — spec is shared state; replaced with `stage_spec = dict(self.spec)` shallow copy passed to all stages
 - `src/fabrik/wordpress/deployer.py`: `verify` stage imported and present in codebase but **never added to the stage registry** — fully dead; added as the final stage after `monitoring`

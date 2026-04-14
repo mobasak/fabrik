@@ -39,7 +39,7 @@ STAGE_KEYS: dict[str, list[str]] = {
     "forms": ["contact", "forms"],
     "seo": ["seo", "site", "pages"],
     "post_deploy": ["post_deploy", "site"],
-    "analytics": ["seo", "site", "site_name", "dry_run"],
+    "analytics": ["seo", "site"],
     "monitoring": ["monitoring", "site"],
 }
 

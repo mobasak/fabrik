@@ -150,14 +150,14 @@ class SectionRenderer:
     def _render_features(self, section: dict) -> str:
         """Render features grid."""
         headline = self._get_localized(section, "headline")
-        section.get("columns", 3)
+        columns = section.get("columns", 3)
         items = self._get_items(section)
 
         html = f"""<!-- wp:heading {{"textAlign":"center"}} -->
 <h2 class="has-text-align-center">{headline}</h2>
 <!-- /wp:heading -->
 
-<!-- wp:columns {{"align":"wide"}} -->
+<!-- wp:columns {{"align":"wide","columnCount":{columns}}} -->
 <div class="wp-block-columns alignwide">"""
 
         for item in items:
@@ -190,7 +190,7 @@ class SectionRenderer:
         """Render services grid."""
         headline = self._get_localized(section, "headline")
         source = section.get("source", "entities.services")
-        section.get("columns", 3)
+        columns = section.get("columns", 3)
         show_summary = section.get("show_summary", True)
 
         # Get services from spec
@@ -206,7 +206,7 @@ class SectionRenderer:
 <h2 class="has-text-align-center">{headline}</h2>
 <!-- /wp:heading -->
 
-<!-- wp:columns {{"align":"wide"}} -->
+<!-- wp:columns {{"align":"wide","columnCount":{columns}}} -->
 <div class="wp-block-columns alignwide">"""
 
         for service in services:
@@ -273,7 +273,7 @@ class SectionRenderer:
 
         html += """
 </div>
-<!-- /wp/columns -->"""
+<!-- /wp:columns -->"""
 
         return html
 

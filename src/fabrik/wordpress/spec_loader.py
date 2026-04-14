@@ -237,8 +237,8 @@ class SpecLoader:
         # Remove version numbers
         name = re.sub(r"-v?\d+\.\d+(\.\d+)?", "", name)
 
-        # Remove hash prefixes
-        name = re.sub(r"^[a-zA-Z0-9]+-", "", name)
+        # Remove hash prefixes (min 8 chars to avoid stripping real plugin name words)
+        name = re.sub(r"^[a-zA-Z0-9]{8,}-", "", name)
 
         return name.lower()
 

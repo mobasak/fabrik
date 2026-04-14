@@ -93,6 +93,16 @@ def apply(
 
                 top_level_pages.append(page_dict)
 
+            # Warn about orphaned entity children (parent_slug with no matching top-level page)
+            top_level_slugs = {p.get("slug", "") for p in top_level_specs}
+            for orphan_parent in sorted(set(pages_by_parent) - top_level_slugs):
+                msg = (
+                    f"Entity children reference parent_slug='{orphan_parent}' "
+                    "but no top-level page with that slug exists — children will not be created"
+                )
+                result.warnings.append(msg)
+                logger.warning(msg)
+
             # Create all pages (idempotent, path-based keys)
             pages_created = creator.create_all(top_level_pages)
 

@@ -220,7 +220,7 @@ class SpecValidator:
 
     def _is_localized_string(self, obj: dict) -> bool:
         """Check if dict looks like a localized string."""
-        if not isinstance(obj, dict):
+        if not isinstance(obj, dict) or not obj:
             return False
 
         # Check if all keys look like locales (en_US, tr_TR, etc)
