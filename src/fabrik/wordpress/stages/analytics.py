@@ -46,8 +46,10 @@ def apply(
             result.skipped = True
             return result
         elif dry_run:
-            # Dry-run: just log intent
-            pass
+            result.metadata["dry_run"] = {
+                "ga4": ga4 or None,
+                "gtm": gtm or None,
+            }
         else:
             if not wp:
                 raise RuntimeError("WordPressClient required for analytics stage")

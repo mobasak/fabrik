@@ -26,6 +26,12 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 8 (2026-04-14)
+- `src/fabrik/wordpress/stages/pages.py:152`: when REST API client is `None`, branch silently passed with no warning — pages were never created and nothing appeared in the report; now emits warning + `skipped=True` with actionable message to set `WP_ADMIN_PASSWORD`
+- `src/fabrik/wordpress/page_generator.py:241`: `section.copy()` is a shallow copy — nested dicts/lists inside section remain shared with the original spec, so entity `entity.*` substitutions silently mutated the spec object; replaced with `copy.deepcopy(section)`
+- `src/fabrik/wordpress/seo.py:configure_sitemap,set_archives_noindex,set_breadcrumbs,set_open_graph`: four methods called `option_update()` with a partial JSON blob, performing a destructive full overwrite of compound WordPress options (`wpseo`, `rank_math_general`, `wpseo_titles`, `rank_math_titles`, `wpseo_social`) — destroys all existing plugin settings; replaced with `_merge_option()` (read-merge-write) which was already available in the class but only used for title/description updates
+- `src/fabrik/wordpress/stages/analytics.py:48`: dry-run branch was a silent `pass` — apply-report showed nothing for analytics in dry-run mode; now emits `dry_run` metadata with `ga4`/`gtm` IDs that would be injected
+
 ### Fixed — WordPress pipeline: indefinite deep review round 7 (2026-04-14)
 - `src/fabrik/wordpress/manifests/plugins.py:39`: `_normalize_plugin_name()` still used old aggressive regex `^[a-zA-Z0-9]+-` (no minimum length) — diverged from the round-5 fix in `spec_loader.py`; `contact-form-7` → `form-7`, `rank-math-seo` → `math-seo`; synced to `{8,}` min-length; also extended version regex from `(\.\d+)?` → `(\.\d+)*` to handle 4-part versions like `1.2.3.4`
 - `src/fabrik/wordpress/spec_loader.py:238`: same version regex inconsistency — `(\.\d+)?` did not match `1.2.3.4`; extended to `(\.\d+)*`

@@ -285,15 +285,9 @@ class SEOApplicator:
         plugin = self.detect_seo_plugin()
 
         if plugin == "yoast":
-            self.wp.option_update(
-                "wpseo",
-                json.dumps({"enable_xml_sitemap": enabled}),
-            )
+            self._merge_option("wpseo", {"enable_xml_sitemap": enabled})
         elif plugin == "rankmath":
-            self.wp.option_update(
-                "rank_math_general",
-                json.dumps({"sitemap": "on" if enabled else "off"}),
-            )
+            self._merge_option("rank_math_general", {"sitemap": "on" if enabled else "off"})
 
         return True
 
@@ -307,23 +301,17 @@ class SEOApplicator:
         plugin = self.detect_seo_plugin()
 
         if plugin == "rankmath":
-            self.wp.option_update(
-                "rank_math_titles",
-                json.dumps({
-                    "noindex_archive_date": 1,
-                    "noindex_archive_author": 1,
-                    "noindex_archive_tag": 1,
-                }),
-            )
+            self._merge_option("rank_math_titles", {
+                "noindex_archive_date": 1,
+                "noindex_archive_author": 1,
+                "noindex_archive_tag": 1,
+            })
         elif plugin == "yoast":
-            self.wp.option_update(
-                "wpseo_titles",
-                json.dumps({
-                    "noindex-tax-post_tag": True,
-                    "noindex-author-wpseo": True,
-                    "noindex-archive-wpseo": True,
-                }),
-            )
+            self._merge_option("wpseo_titles", {
+                "noindex-tax-post_tag": True,
+                "noindex-author-wpseo": True,
+                "noindex-archive-wpseo": True,
+            })
 
         logger.info("archives noindex configured for plugin=%s", plugin)
         return True
@@ -341,15 +329,9 @@ class SEOApplicator:
         plugin = self.detect_seo_plugin()
 
         if plugin == "rankmath":
-            self.wp.option_update(
-                "rank_math_general",
-                json.dumps({"breadcrumbs": 1 if enabled else 0}),
-            )
+            self._merge_option("rank_math_general", {"breadcrumbs": 1 if enabled else 0})
         elif plugin == "yoast":
-            self.wp.option_update(
-                "wpseo_titles",
-                json.dumps({"breadcrumbs-enable": enabled}),
-            )
+            self._merge_option("wpseo_titles", {"breadcrumbs-enable": enabled})
 
         logger.info("breadcrumbs enabled=%s for plugin=%s", enabled, plugin)
         return True
@@ -368,22 +350,16 @@ class SEOApplicator:
         plugin = self.detect_seo_plugin()
 
         if plugin == "rankmath":
-            self.wp.option_update(
-                "rank_math_titles",
-                json.dumps({
-                    "social_networks": 1 if enabled else 0,
-                    "twitter_card_type": twitter_card,
-                }),
-            )
+            self._merge_option("rank_math_titles", {
+                "social_networks": 1 if enabled else 0,
+                "twitter_card_type": twitter_card,
+            })
         elif plugin == "yoast":
-            self.wp.option_update(
-                "wpseo_social",
-                json.dumps({
-                    "opengraph": enabled,
-                    "twitter": enabled,
-                    "twitter_card_type": twitter_card,
-                }),
-            )
+            self._merge_option("wpseo_social", {
+                "opengraph": enabled,
+                "twitter": enabled,
+                "twitter_card_type": twitter_card,
+            })
 
         logger.info("OG enabled=%s twitter_card=%s for plugin=%s", enabled, twitter_card, plugin)
         return True

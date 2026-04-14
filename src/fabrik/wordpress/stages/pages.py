@@ -150,8 +150,13 @@ def apply(
                         )
 
         else:
-            # API not available: log but don't fail
-            pass
+            # REST API not available — pages cannot be created
+            result.warnings.append(
+                "REST API client not available — pages stage skipped. "
+                "Set WP_ADMIN_PASSWORD env var to enable page creation."
+            )
+            result.skipped = True
+            logger.warning("pages stage skipped: REST API client not available")
 
     except Exception as e:
         result.success = False

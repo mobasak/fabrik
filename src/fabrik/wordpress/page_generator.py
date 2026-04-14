@@ -14,6 +14,7 @@ Handles:
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from fabrik.wordpress.section_renderer import SectionRenderer
@@ -238,7 +239,7 @@ class PageGenerator:
         # Replace entity.* references with actual entity data
         entity_sections = []
         for section in sections:
-            section_copy = section.copy()
+            section_copy = copy.deepcopy(section)
 
             # Replace entity.* refs
             for key, value in section_copy.items():
