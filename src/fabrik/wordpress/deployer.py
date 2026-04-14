@@ -393,24 +393,24 @@ class SiteDeployer:
     def _print_summary(self):
         """Print deployment summary."""
         logger.info("\n" + "=" * 50)
-        logger.info(f"DEPLOYMENT {'SUCCESS' if self.result.success else 'FAILED'}")
+        logger.info("DEPLOYMENT %s", "SUCCESS" if self.result.success else "FAILED")
         logger.info("=" * 50)
-        logger.info(f"Site: {self.domain}")
-        logger.info(f"Steps completed: {len(self.result.steps_completed)}")
-        logger.info(f"Steps failed: {len(self.result.steps_failed)}")
+        logger.info("Site: %s", self.domain)
+        logger.info("Steps completed: %d", len(self.result.steps_completed))
+        logger.info("Steps failed: %d", len(self.result.steps_failed))
 
         if self.result.pages_created:
-            logger.info(f"Pages created: {len(self.result.pages_created)}")
+            logger.info("Pages created: %d", len(self.result.pages_created))
 
         if self.result.warnings:
-            logger.warning(f"\nWarnings ({len(self.result.warnings)}):")
+            logger.warning("Warnings (%d):", len(self.result.warnings))
             for w in self.result.warnings:
-                logger.warning(f"  - {w}")
+                logger.warning("  - %s", w)
 
         if self.result.errors:
-            logger.error(f"\nErrors ({len(self.result.errors)}):")
+            logger.error("Errors (%d):", len(self.result.errors))
             for e in self.result.errors:
-                logger.error(f"  - {e}")
+                logger.error("  - %s", e)
 
         logger.info("=" * 50)
 

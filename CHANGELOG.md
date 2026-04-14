@@ -31,6 +31,9 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 20 (2026-04-14)
+- `src/fabrik/wordpress/deployer.py:396-413`: `_print_summary()` used f-strings in 8 direct `logger.info/warning/error` calls — same violation fixed in `spec_validator.py` round 19; replaced all with lazy `%s`/`%d` formatting
+
 ### Fixed — WordPress pipeline: indefinite deep review round 19 (2026-04-14)
 - `src/fabrik/wordpress/spec_validator.py:71`: `logger.warning(f"...")` used f-string — violates project logging rule requiring lazy `%s` formatting; changed to `logger.warning("⚠️  %s", warning)`
 - `src/fabrik/wordpress/stages/__init__.py:19`: `skipped` field had stale comment "Reserved for Phase 2b" — `skipped` has been actively used across all stages since round 13; comment removed
