@@ -26,6 +26,10 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 14 (2026-04-14)
+- `src/fabrik/wordpress/spec_loader.py:143`: `_apply_secrets()` used `os.getenv(var, "")` — unset env vars were silently substituted with empty strings; `deployment.vps_ip` becoming `""` passed string type validation then failed at network calls with zero explanation; now logs `WARNING` for each missing var before substituting
+- `src/fabrik/wordpress/spec_loader.py:301`: corrupt `project.yaml` in CWD caused silent fall-through to legacy path lookup — user saw "spec not found in legacy path" with no hint that their local `project.yaml` was unreadable; now logs `WARNING` with the parse error before continuing
+
 ### Fixed — WordPress pipeline: indefinite deep review round 13 (2026-04-14)
 - `src/fabrik/wordpress/manifests/checks.py:43`: `url_checks` list comprehension always double-wrapped every URL in `{"url": url, "expected_status": 200}` — if spec supplied `{"url": "/contact", "expected_status": 404}` it became `{"url": {"url": "/contact", "expected_status": 404}, "expected_status": 200}`, silently discarding the custom status; fixed to pass-through dicts unchanged and only wrap plain strings
 - `src/fabrik/wordpress/settings.py:191`: `create_editor()` generated passwords with `secrets.token_urlsafe(16)` — 22-char URL-safe base64, violating project password policy (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`); replaced with policy-compliant generator

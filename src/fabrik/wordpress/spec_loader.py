@@ -11,12 +11,15 @@ Implements merge rules from schema/MERGE_RULES.md
 
 import copy
 import json
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 class SpecLoader:
@@ -140,7 +143,13 @@ class SpecLoader:
                 pattern = r"\$\{([A-Z0-9_]+)\}"
                 matches = re.findall(pattern, obj)
                 for var in matches:
-                    value = os.getenv(var, "")
+                    value = os.getenv(var)
+                    if value is None:
+                        logger.warning(
+                            "spec references env var ${%s} which is not set — substituting empty string",
+                            var,
+                        )
+                        value = ""
                     obj = obj.replace(f"${{{var}}}", value)
                 return obj
             elif isinstance(obj, dict):
@@ -297,8 +306,8 @@ def resolve_spec_path(site_id: str, project_path: str | None = None) -> tuple[Pa
                 project_data = yaml.safe_load(f) or {}
             if project_data.get("type") == "wordpress":
                 return cwd_site_yaml, False
-        except (yaml.YAMLError, OSError):
-            pass  # Fall through to legacy
+        except (yaml.YAMLError, OSError) as exc:
+            logger.warning("Could not read %s for CWD auto-detection: %s", cwd_project_yaml, exc)
 
     # Priority 3: Legacy fallback (specs/sites/<site_id>.yaml)
     specs_dir = SpecLoader.SPECS_DIR
