@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-04-13 15:32:22 -->
+<!-- Last synced: 2026-04-14 13:41:05 -->
 
 ### ⚠️ Port Conflicts Detected
 
@@ -121,7 +121,6 @@ If you encounter a port conflict:
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
 | 8029 | **youtube** | python-api | /opt/youtube |
 | 8033 | **ComplianceOps** | python-api | /opt/ComplianceOps |
-| 8050 | **fabrik-api** | python-api | /opt/fabrik-api |
 | 18011 | **captcha** | python-api | /opt/captcha |
 | 18012 | **translator** | python-api | /opt/translator |
 | 18013 | **proxy** | automation | /opt/proxy |
