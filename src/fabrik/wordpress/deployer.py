@@ -28,8 +28,10 @@ from fabrik.wordpress.stages import (
     forms,
     languages,
     menus,
+    monitoring,
     pages,
     plugins,
+    post_deploy,
     seo,
     settings,
     theme,
@@ -195,7 +197,7 @@ class SiteDeployer:
             self.spec["site_name"] = self.site_name
 
             # Stage registry - ordered execution
-            stages = (dns, settings, theme, plugins, languages, pages, menus, forms, seo, analytics)
+            stages = (dns, settings, theme, plugins, languages, pages, menus, forms, seo, post_deploy, analytics, monitoring)
 
             # Initialize local clients once for reuse, preserving lazy behavior in dry-run mode
             wp_client = None if self.dry_run else self.wp

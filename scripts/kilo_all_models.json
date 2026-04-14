@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-04-13T13:30:34.285576",
-  "total_models": 328,
+  "timestamp": "2026-04-14T14:22:30.944908",
+  "total_models": 326,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -507,11 +507,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "meituan/longcat-flash-chat": {
-      "id": "meituan/longcat-flash-chat",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "meta-llama/llama-3-70b-instruct": {
       "id": "meta-llama/llama-3-70b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -804,11 +799,6 @@
     },
     "nvidia/llama-3.1-nemotron-70b-instruct": {
       "id": "nvidia/llama-3.1-nemotron-70b-instruct",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "nvidia/llama-3.1-nemotron-ultra-253b-v1": {
-      "id": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1137,6 +1127,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "openrouter/elephant-alpha": {
+      "id": "openrouter/elephant-alpha",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "openrouter/free": {
       "id": "openrouter/free",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1454,11 +1449,6 @@
     },
     "stepfun/step-3.5-flash": {
       "id": "stepfun/step-3.5-flash",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "stepfun/step-3.5-flash:free": {
-      "id": "stepfun/step-3.5-flash:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

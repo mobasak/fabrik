@@ -26,6 +26,7 @@
 2. **Structured logging** — No `print()` / `console.log()` in production code; use the project's structured logger.
 3. **User guide** — If the change is user-facing and `project.yaml` has `has_user_guide: true`, add/update a page in `docs/user-guide/`.
 4. **Reusable modules** — Utility code goes in `src/utils/` or `src/lib/` with zero project-specific imports; tag `[reusable]` in `INDEX.md`.
+5. **Naming** — All files/folders use kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `Makefile`, `Dockerfile`, Python packages (snake_case per PEP 8), auto-generated files, dotfiles.
 
 ---
 
@@ -40,3 +41,6 @@
 | edit files outside task scope | stay strictly within the assigned task boundaries |
 | modify `pyproject.toml` / `requirements.txt` | only if the task explicitly requires dependency changes |
 | create files outside project tree | use local project paths only |
+| expose Docker ports to host via `ports:` | route through Traefik; Docker bypasses UFW |
+| deploy admin dashboard without Authelia | add `authelia-forward@docker` middleware |
+| deploy API service without `X-Internal-Token` | validate `SERVICE_INTERNAL_SECRET_KEY` header |

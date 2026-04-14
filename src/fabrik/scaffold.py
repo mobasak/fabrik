@@ -1635,7 +1635,12 @@ B2_BUCKET={name_underscored}-wp-backup
         "coverage/\n"
     )
 
-    # g) Render site.yaml from Jinja2 template (T1)
+    # g) Copy Makefile.wordpress as Makefile
+    makefile_src = TEMPLATE_DIR / "docker" / "Makefile.wordpress"
+    if makefile_src.exists():
+        shutil.copy2(makefile_src, project_dir / "Makefile")
+
+    # h) Render site.yaml from Jinja2 template (T1)
     import jinja2
 
     jinja_env = jinja2.Environment(

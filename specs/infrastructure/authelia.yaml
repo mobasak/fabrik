@@ -1,0 +1,49 @@
+# ARM64: ✓ SUPPORTED — linux/amd64, linux/arm64
+
+name: authelia
+type: docker
+domain: auth.vps1.ocoron.com
+image: authelia/authelia:latest
+deployment: docker-compose (standalone, not Coolify-managed)
+compose_path: /opt/authelia/compose.yaml
+config_path: /opt/authelia/config/configuration.yml
+
+volumes:
+  - /opt/authelia/config:/config
+
+networks:
+  - coolify
+
+healthcheck:
+  test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9091/api/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+
+environment:
+  # Secrets are in configuration.yml (not env vars)
+  # See /opt/fabrik/.env for backup copies
+
+purpose: |
+  SSO/2FA forward-auth gateway for all admin dashboards.
+  Traefik services add 'authelia-forward@docker' middleware label
+  to require Authelia login before accessing the dashboard.
+
+access_control:
+  bypass:
+    - ocoron.com
+    - www.ocoron.com
+    - status.vps1.ocoron.com
+    - wp-test.vps1.ocoron.com
+    - "*.vps1.ocoron.com /health, /healthz, /metrics"
+    - "API services (pdf, browser, search, images, captcha, proxy, translator, files-api, emailgateway, dns)"
+  two_factor:
+    - "*.vps1.ocoron.com (everything else — admin dashboards)"
+
+session:
+  backend: redis-main:6379 (database_index: 3)
+  inactivity: 5m
+  expiration: 1h
+  remember_me: 1M
+
+deployed: 2026-04-14

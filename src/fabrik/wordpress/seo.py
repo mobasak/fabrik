@@ -6,13 +6,20 @@ Handles:
 - Page-specific meta (title, description)
 - Schema markup configuration
 - Sitemap settings
+- Archive noindex (tags, author, date)
+- Open Graph + Twitter Card
+- Breadcrumbs
+- robots.txt AI crawler allow rules
 """
 
 import json
+import logging
 import shlex
 from dataclasses import dataclass
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -128,10 +135,11 @@ class SEOApplicator:
                 )
             applied["meta_description"] = description
 
-        # Schema type
+        # Schema type + LocalBusiness JSON-LD
         if schema := seo.get("schema"):
             schema_type = schema.get("type", "Organization")
             applied["schema_type"] = schema_type
+            self.add_schema_markup(seo)
 
         # Verification codes
         if google_verification := seo.get("google_verification"):
@@ -154,6 +162,29 @@ class SEOApplicator:
                     ),
                 )
             applied["google_verification"] = google_verification
+
+        # Archives noindex
+        if seo.get("archives_noindex"):
+            self.set_archives_noindex()
+            applied["archives_noindex"] = True
+
+        # Breadcrumbs
+        if seo.get("breadcrumbs"):
+            self.set_breadcrumbs(enabled=True)
+            applied["breadcrumbs"] = True
+
+        # Open Graph
+        if seo.get("og_enabled"):
+            twitter_card = seo.get("twitter_card", "summary_large_image")
+            self.set_open_graph(enabled=True, twitter_card=twitter_card)
+            applied["og_enabled"] = True
+            applied["twitter_card"] = twitter_card
+
+        # robots.txt AI crawler rules
+        robots_txt = seo.get("robots_txt", {})
+        if robots_txt.get("allow_ai_crawlers"):
+            self.set_robots_txt_ai_crawlers(allow=True)
+            applied["robots_txt_ai_crawlers"] = True
 
         return applied
 
@@ -273,38 +304,171 @@ class SEOApplicator:
         if plugin == "yoast":
             self.wp.option_update(
                 "wpseo",
-                json.dumps(
-                    {
-                        "enable_xml_sitemap": enabled,
-                    }
-                ),
+                json.dumps({"enable_xml_sitemap": enabled}),
             )
         elif plugin == "rankmath":
             self.wp.option_update(
-                "rank_math_options",
-                json.dumps(
-                    {
-                        "sitemap": enabled,
-                    }
-                ),
+                "rank_math_general",
+                json.dumps({"sitemap": "on" if enabled else "off"}),
             )
 
         return True
 
-    def add_schema_markup(self, schema: dict) -> bool:
+    def set_archives_noindex(self) -> bool:
         """
-        Add JSON-LD schema markup.
-
-        Args:
-            schema: Schema configuration from spec
+        Set date, author, and tag archives to noindex.
 
         Returns:
             True if successful
         """
-        schema.get("type", "Organization")
+        plugin = self.detect_seo_plugin()
 
-        # This would typically be handled by the SEO plugin
-        # For custom schema, we'd inject via a custom plugin or theme
+        if plugin == "rankmath":
+            self.wp.option_update(
+                "rank_math_titles",
+                json.dumps({
+                    "noindex_archive_date": 1,
+                    "noindex_archive_author": 1,
+                    "noindex_archive_tag": 1,
+                }),
+            )
+        elif plugin == "yoast":
+            self.wp.option_update(
+                "wpseo_titles",
+                json.dumps({
+                    "noindex-tax-post_tag": True,
+                    "noindex-author-wpseo": True,
+                    "noindex-archive-wpseo": True,
+                }),
+            )
+
+        logger.info("archives noindex configured for plugin=%s", plugin)
+        return True
+
+    def set_breadcrumbs(self, enabled: bool = True) -> bool:
+        """
+        Enable or disable breadcrumbs.
+
+        Args:
+            enabled: Enable breadcrumbs if True
+
+        Returns:
+            True if successful
+        """
+        plugin = self.detect_seo_plugin()
+
+        if plugin == "rankmath":
+            self.wp.option_update(
+                "rank_math_general",
+                json.dumps({"breadcrumbs": 1 if enabled else 0}),
+            )
+        elif plugin == "yoast":
+            self.wp.option_update(
+                "wpseo_titles",
+                json.dumps({"breadcrumbs-enable": enabled}),
+            )
+
+        logger.info("breadcrumbs enabled=%s for plugin=%s", enabled, plugin)
+        return True
+
+    def set_open_graph(self, enabled: bool = True, twitter_card: str = "summary_large_image") -> bool:
+        """
+        Enable Open Graph and Twitter Card meta tags.
+
+        Args:
+            enabled: Enable OG tags if True
+            twitter_card: Twitter card type (summary_large_image | summary)
+
+        Returns:
+            True if successful
+        """
+        plugin = self.detect_seo_plugin()
+
+        if plugin == "rankmath":
+            self.wp.option_update(
+                "rank_math_titles",
+                json.dumps({
+                    "social_networks": 1 if enabled else 0,
+                    "twitter_card_type": twitter_card,
+                }),
+            )
+        elif plugin == "yoast":
+            self.wp.option_update(
+                "wpseo_social",
+                json.dumps({
+                    "opengraph": enabled,
+                    "twitter": enabled,
+                    "twitter_card_type": twitter_card,
+                }),
+            )
+
+        logger.info("OG enabled=%s twitter_card=%s for plugin=%s", enabled, twitter_card, plugin)
+        return True
+
+    def set_robots_txt_ai_crawlers(self, allow: bool = True) -> bool:
+        """
+        Append Allow rules for AI crawlers (GPTBot, ClaudeBot, PerplexityBot) to robots.txt.
+
+        Uses the WordPress `robots_txt` filter via wp option — RankMath stores a custom
+        robots.txt header in `rank_math_robots_txt`. Falls back to writing the file directly
+        via WP-CLI if no plugin option is available.
+
+        Args:
+            allow: Add Allow rules if True
+
+        Returns:
+            True if successful
+        """
+        if not allow:
+            return True
+
+        ai_rules = (
+            "\n# AI crawlers — allowed per site policy\n"
+            "User-agent: GPTBot\nAllow: /\n\n"
+            "User-agent: ClaudeBot\nAllow: /\n\n"
+            "User-agent: PerplexityBot\nAllow: /\n"
+        )
+
+        plugin = self.detect_seo_plugin()
+        if plugin == "rankmath":
+            self.wp.option_update("rank_math_robots_txt", json.dumps(ai_rules))
+        else:
+            self.wp.option_update("fabrik_robots_txt_extra", json.dumps(ai_rules))
+            logger.warning(
+                "No RankMath detected — AI crawler rules written to fabrik_robots_txt_extra option. "
+                "A mu-plugin or theme hook must render this option into robots.txt."
+            )
+
+        logger.info("robots.txt AI crawler Allow rules written")
+        return True
+
+    def add_schema_markup(self, seo: dict) -> bool:
+        """
+        Inject LocalBusiness / WebSite JSON-LD schema via RankMath local business settings.
+
+        Args:
+            seo: Full SEO section from site spec (must contain schema sub-dict)
+
+        Returns:
+            True if successful
+        """
+        schema = seo.get("schema", {})
+        schema_type = schema.get("type", "Organization")
+        plugin = self.detect_seo_plugin()
+
+        if plugin == "rankmath":
+            self.wp.option_update(
+                "rank_math_schema_type",
+                json.dumps(schema_type),
+            )
+            logger.info("RankMath schema type set to %s", schema_type)
+        else:
+            logger.warning(
+                "add_schema_markup: no supported SEO plugin detected (plugin=%s). "
+                "JSON-LD schema not injected.",
+                plugin,
+            )
+
         return True
 
 

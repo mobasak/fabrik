@@ -89,6 +89,12 @@ async def health():
 
 **No class-level config** — use function-level loading.
 
+**Naming: kebab-case** for all files/folders. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `Makefile`, `Dockerfile`, Python packages (snake_case per PEP 8), auto-generated files, dotfiles.
+
+**Docker port security:** Never expose container ports to the host via `ports:` or `ports_mappings`. All external traffic goes through Traefik. Docker bypasses UFW — the `DOCKER-USER` iptables chain enforces access control. See `30-ops.md` for details.
+
+**Service auth (4-layer model):** Iptables blocks raw ports → Authelia protects admin dashboards (2FA) → `X-Internal-Token` validates API service calls → Traefik routes public sites. New admin services MUST add `authelia-forward@docker` middleware. New API services MUST validate `X-Internal-Token` header.
+
 ---
 
 ## Sensitive Data Protection

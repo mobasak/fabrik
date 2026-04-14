@@ -50,8 +50,8 @@ import os
 engine = create_async_engine(os.getenv("DATABASE_URL"))
 ```
 
-**WSL:** `DATABASE_URL=postgresql://postgres@localhost:5432/my_project_dev`
-**VPS:** `DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/my_project`
+**WSL:** `DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/my_project_dev`
+**VPS:** `DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/my_project`
 
 No code changes needed between environments.
 
@@ -80,6 +80,36 @@ class Base(DeclarativeBase):
 ```
 
 - Periodically squash migrations into a single baseline once a major version stabilises. Long migration histories slow CI and obscure current schema state.
+
+### Driver Consistency
+
+- **Single Driver Policy:** Use `asyncpg` for both runtime and migrations. One driver, one connection string format (`postgresql+asyncpg://`).
+- **Banned:** `psycopg2` or `psycopg2-binary`. They add unnecessary C-extension bloat (`libpq-dev` build dep) and force dual-URL management (`postgresql://` vs `postgresql+asyncpg://`).
+- **Alembic Configuration:** Use `alembic init -t async` to generate the async template. The template uses `connection.run_sync()` to bridge Alembic's sync migration runner over the async `asyncpg` connection.
+
+### Alembic Async `env.py` Pattern
+
+```python
+import asyncio
+from sqlalchemy.ext.asyncio import create_async_engine
+from alembic import context
+
+def do_run_migrations(connection):
+    context.configure(connection=connection, target_metadata=target_metadata)
+    with context.begin_transaction():
+        context.run_migrations()
+
+async def run_migrations_online():
+    connectable = create_async_engine(get_url())
+    async with connectable.connect() as connection:
+        await connection.run_sync(do_run_migrations)
+    await connectable.dispose()
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    asyncio.run(run_migrations_online())
+```
 
 ## Primary Keys
 
@@ -176,6 +206,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 | JSONB for frequently filtered data | Extract to typed relational columns |
 | Implicit `ON DELETE` on foreign keys | Explicit `CASCADE` or `RESTRICT` |
 | `expire_on_commit=True` with async | Set `expire_on_commit=False` on sessionmaker |
+| `psycopg2` / `psycopg2-binary` | `asyncpg` + `connection.run_sync()` in Alembic |
+| `postgresql://` in DATABASE_URL | `postgresql+asyncpg://` for universal compatibility |
 
 ---
 
@@ -190,3 +222,5 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 - [ ] `AsyncSession` provided via `Depends()`, not middleware.
 - [ ] `expire_on_commit=False` set on `async_sessionmaker`.
 - [ ] `pool_pre_ping=True` configured on the engine.
+- [ ] No `psycopg2` or `psycopg2-binary` in dependencies — `asyncpg` only.
+- [ ] `DATABASE_URL` uses `postgresql+asyncpg://` scheme everywhere.

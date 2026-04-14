@@ -4,6 +4,69 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — VPS Security Hardening: 4-Layer Auth Model (2026-04-14)
+- **DOCKER-USER iptables rules:** Created `/etc/iptables/add-docker-user-rules.sh` + systemd service to block external access to Docker-published ports. Only 80/443/6001/6002 allowed externally.
+- **Authelia SSO:** Deployed at `auth.vps1.ocoron.com` with TOTP 2FA. Protects admin dashboards (n8n, Grafana, Netdata, Duplicati, Apprise) via Traefik `authelia-forward@docker` middleware.
+- **X-Internal-Token pattern:** Documented `SERVICE_INTERNAL_SECRET_KEY` for machine-to-machine API service auth per `35-security-auth.md`.
+- **DNS records:** Created A records for `pdf`, `browser`, `search`, `control`, `auth` via site-provisioner.
+- **Traefik entrypoint fix:** Patched Gotenberg, Browserless, MeiliSearch custom labels from `http`/`https` → `web`/`websecure` (Coolify API entrypoint mismatch).
+- **Removed host port mappings:** Gotenberg and Browserless no longer bind to host ports.
+- `.windsurf/rules/30-ops.md`: Added Docker Port Security, Authelia SSO, Traefik Entrypoint Names sections.
+- `.windsurfrules`: Added Docker port security invariant and 4-layer service auth model.
+- `AGENTS.md`: Added Authelia to infrastructure services, VPS Security Architecture section.
+- `AGENTS-compact.md`: Added port exposure, Authelia, and X-Internal-Token hard stops.
+- `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
+- `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
+
+### Added — WordPress pipeline Phase 0: code gap fixes (2026-04-14)
+- `src/fabrik/wordpress/seo.py`: added `set_archives_noindex()`, `set_breadcrumbs()`, `set_open_graph()`, `set_robots_txt_ai_crawlers()` methods; fixed `add_schema_markup()` stub (now sets RankMath schema type); fixed `configure_sitemap()` RankMath option key (`rank_math_general`); extended `apply_site_seo()` to call all new methods from spec flags
+- `src/fabrik/wordpress/stages/seo.py`: added `configure_sitemap(enabled=True)` call before `apply_site_seo()` — was never called (Gap 1)
+- `src/fabrik/wordpress/stages/monitoring.py`: NEW — Uptime Kuma HTTP monitor registration stage; reads `monitoring.uptime_kuma` spec section; registers site HTTP monitor + optional WP cron monitor (Gap 2)
+- `src/fabrik/wordpress/stages/post_deploy.py`: NEW — GSC/Bing/IndexNow/GA4 registration via `DNSClient.provision()`; writes `ga4_measurement_id.txt` artifact to build_dir; exposes `read_ga4_measurement_id()` helper (Gap 3)
+- `src/fabrik/wordpress/stages/analytics.py`: GA4 ID fallback — reads from `GA4_ID` env var then from `post_deploy` artifact `ga4_measurement_id.txt` if `seo.ga4_id` is empty (Gap 4)
+- `src/fabrik/wordpress/deployer.py`: added `monitoring` and `post_deploy` imports; reordered stages to `dns → settings → theme → plugins → languages → pages → menus → forms → seo → post_deploy → analytics → monitoring` (Gap 4)
+- `src/fabrik/wordpress/planner.py`: added `post_deploy` and `monitoring` to `STAGE_KEYS` — previously absent, causing planner to generate plan without these stages (Gap 12)
+- `src/fabrik/wordpress/stages/settings.py`: admin username rename — reads `security.admin_username` from spec, calls `wp user update 1 --user_login=<name>` if different from `admin` (Gap 8)
+- `templates/scaffold/docker/Makefile.wordpress`: NEW — WordPress WP-CLI Makefile with targets: `update`, `cache-flush`, `scaffold`, `backup`, `harden`, `security-check`, `logs`, `shell` (Gap 9)
+- `src/fabrik/scaffold.py`: `_scaffold_wordpress()` now copies `Makefile.wordpress` as `Makefile` into new WordPress project (Gap 9)
+
+### Changed — PostgreSQL asyncpg single-driver policy (2026-04-14)
+- `.windsurf/rules/25-data-postgres.md`: added Driver Consistency subsection — asyncpg only, psycopg2 banned
+- Added Alembic async `env.py` canonical pattern with `connection.run_sync()`
+- Updated DATABASE_URL examples to `postgresql+asyncpg://` scheme (WSL + VPS)
+- Added `psycopg2` and bare `postgresql://` to Banned Patterns table
+- Added asyncpg-only and URL scheme checks to Done When checklist
+- Synced to 35 projects via `sync_enforcement_to_projects.py`
+
+### Added — File & folder naming convention (2026-04-14)
+- `AGENTS.md`: added `## File & Folder Naming` section with kebab-case rule, exceptions, and examples
+- `AGENTS-compact.md`: added naming rule #5 to CROSS-CUTTING section
+- `.windsurfrules`: added naming invariant in Essential Invariants
+
+### Added — Browserless deployed via Coolify API (2026-04-14)
+
+- Deployed Browserless headless Chrome service at https://browser.vps1.ocoron.com
+- Configuration: browserless/chrome:1-chrome-stable, 2G RAM, 1.0 CPU
+- Port mapping: 3001:3000 (port 3000 allocated to Gotenberg)
+- Health check disabled initially (service running successfully)
+- Updated AGENTS.md with deployment status
+
+### Added — Gotenberg deployed via Coolify API (2026-04-14)
+
+- Deployed Gotenberg PDF conversion service at https://pdf.vps1.ocoron.com
+- Configuration: gotenberg/gotenberg:8, 512M RAM, 1.0 CPU
+- API endpoints: HTML/Office/PDF conversion via /forms/chromium/convert/html
+- Health check: / endpoint on port 3000
+- Updated AGENTS.md with deployment status
+
+### Added — MeiliSearch deployed via Coolify API (2026-04-14)
+- Deployed MeiliSearch search service at https://search.vps1.ocoron.com
+- Configuration: getmeili/meilisearch:v1.13, 512M RAM, 1.0 CPU
+- Environment: production with master key n7mjRrSipeqy8nWzadLZYarxiUqO35tW
+- Persistent storage: meilisearch-data volume for /meili_data
+- Health check: /health endpoint on port 7700
+- Updated AGENTS.md with deployment status
+
 ### Fixed — WordPress schema, code defaults, and scaffold template compliance pass (2026-04-13)
 - `templates/wordpress/schema/v1.yaml`: `languages.plugin` default changed `wpml`→`polylang`; allowed list now `[polylang, none]` (wpml/translatepress banned per 62-wordpress.md); backup `destination` default changed `r2`→`b2`
 - `templates/wordpress/site-spec-schema.yaml`: `languages.plugin` default changed `wpml`→`polylang`; backup `destination` default changed `r2`→`b2`

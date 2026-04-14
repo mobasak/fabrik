@@ -161,3 +161,65 @@ Ensures base images support amd64 (required for VPS deployment).
 **Note:** Child projects don't have this script - use Docker Hub/registry docs to verify amd64 support.
 
 **If script missing:** Check `prebuilt-app-containers.md` manually or skip and flag.
+
+---
+
+## Docker Port Security (CRITICAL)
+
+Docker bypasses UFW by inserting NAT rules in `PREROUTING`/`FORWARD` chains. The `DOCKER-USER` iptables chain is the **only** place to filter forwarded traffic before it reaches containers.
+
+**Rules (enforced via `/etc/systemd/system/iptables-docker-user.service` on VPS):**
+
+| Rule | Effect |
+|------|--------|
+| Allow established/related | Don't break existing sessions |
+| Allow Docker internal nets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) | Container-to-container OK |
+| Allow ports 80, 443 | Traefik front door |
+| Allow ports 6001, 6002 | Coolify realtime WebSocket |
+| DROP all other external traffic | Blocks raw port access to containers |
+
+**Invariant:** Never use `ports_mappings` in Coolify or `ports:` in compose.yaml to expose internal services to the host. All external traffic must go through Traefik.
+
+**Exception:** Only Traefik (80/443) and Coolify WebSocket (6001/6002) may bind to host ports.
+
+---
+
+## Authelia SSO (Forward Auth)
+
+All admin dashboards are protected by Authelia (`auth.vps1.ocoron.com`) via Traefik forward-auth middleware.
+
+**Service categories:**
+
+| Category | Auth Mechanism | Examples |
+|----------|---------------|----------|
+| Public | None (bypass) | `ocoron.com`, `status.vps1.ocoron.com` |
+| Admin dashboards | Authelia (2FA) | `coolify`, `auto` (n8n), `monitor` (Grafana), `netdata`, `backup`, `notify` |
+| API services | `X-Internal-Token` header | `pdf`, `browser`, `search`, `images`, `captcha`, `proxy`, `translator`, `files-api`, `emailgateway`, `dns` |
+
+**Adding Authelia to a new admin service:**
+
+```yaml
+labels:
+  - traefik.http.routers.<name>.middlewares=authelia-forward@docker
+```
+
+**Adding a new API service (bypass Authelia, use token):**
+
+1. Add the domain to Authelia's `access_control.rules` bypass list in `/opt/authelia/config/configuration.yml`
+2. Add `X-Internal-Token` validation middleware to the service
+3. Restart Authelia: `docker compose -f /opt/authelia/compose.yaml restart`
+
+**Health endpoints (`/health`, `/healthz`, `/metrics`) bypass Authelia on all services** — required for Uptime Kuma and Prometheus monitoring.
+
+---
+
+## Traefik Entrypoint Names
+
+Coolify's Traefik uses these entrypoint names:
+
+| Entrypoint | Port | Usage |
+|------------|------|-------|
+| `web` | 80 | HTTP → redirect to HTTPS |
+| `websecure` | 443 | HTTPS with Let's Encrypt |
+
+**CRITICAL:** When deploying Docker Image apps via Coolify API, the auto-generated labels use `http`/`https` entrypoints which **do not exist**. You MUST patch `custom_labels` to use `web`/`websecure` after creating the app. See Coolify API reference for the PATCH workflow.

@@ -1,13 +1,13 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-04-13T15:32:52.787426
+**Last Updated:** 2026-04-14T13:50:07.106768
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
 
 | Rank | Model | Provider | Elo | TBench% | In$/M | Out$/M | Ctx | Vision | Tools | Agentic | Tier | $/Perf | Status |
 |------|-------|----------|-----|---------|-------|--------|-----|--------|-------|---------|------|--------|--------|
-| 1 | **claude-opus-4.6** | anthropic | 1535 | 82.9 | $5.00 | $25.00 | 1000K | ✓ | ✓ | ✓ | 3 | 77 | ✅ |
+| 1 | **claude-opus-4.6** | anthropic | 1535 | 81.8 | $5.00 | $25.00 | 1000K | ✓ | ✓ | ✓ | 3 | 77 | ✅ |
 | 2 | **gemini-3.1-pro-preview** | google | 1531 | 80.2 | $2.00 | $12.00 | 1048K | ✓ | ✓ | ✓ | 3 | 161 | ✅ |
 | 3 | **grok-4.20** | x-ai | 1518 | ~ | $2.00 | $6.00 | 2000K | ✓ | ✓ | ✓ | 3 | 304 | ✅ |
 | 4 | **gemini-3-pro-preview** | google | 1501 | 69.4 | $2.00 | $12.00 | 1048K | ✓ | ✓ | ✓ | 3 | 158 | ✅ |
@@ -21,11 +21,11 @@
 | 12 | **gemini-2.5-pro-preview** | google | 1465 | 32.6 | $1.25 | $10.00 | 1048K | ✓ | ✓ | ✓ | 3 | 188 | ✅ |
 | 13 | **gpt-5.2** | openai | 1465 | 64.9 | $1.75 | $14.00 | 400K | ✓ | ✓ | ✓ | 3 | 134 | ✅ |
 | 14 | **claude-sonnet-4.5** | anthropic | 1464 | 46.5 | $3.00 | $15.00 | 1000K | ✓ | ✓ | ✓ | 3 | 122 | ✅ |
-| 15 | **gemma-4-31b-it** | google | 1462 | ~ | $0.14 | $0.40 | 262K | ✓ | ✓ | ✓ | 1 | 4364 | ✅ |
+| 15 | **gemma-4-31b-it** | google | 1462 | ~ | $0.13 | $0.38 | 262K | ✓ | ✓ | ✓ | 1 | 4605 | ✅ |
 | 16 | **longcat-flash-chat** | meituan | 1461 | ~ | $0.20 | $0.80 | 131K |  | ✓ |  | 2 | 2248 | ✅ |
 | 17 | **glm-5** | z-ai | 1461 | 52.4 | $0.72 | $2.30 | 80K |  | ✓ | ✓ | 2 | 767 | ✅ |
 | 18 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.39 | $1.75 | 202K |  | ✓ | ✓ | 2 | 1035 | ✅ |
-| 19 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.12 | $0.40 | 262K | ✓ | ✓ | ✓ | 1 | 4424 | ✅ |
+| 19 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.08 | $0.35 | 262K | ✓ | ✓ | ✓ | 1 | 5168 | ✅ |
 | 20 | **glm-4.6** | z-ai | 1458 | 24.5 | $0.39 | $1.90 | 204K |  | ✓ | ✓ | 2 | 958 | ✅ |
 | 21 | **qwen3-235b-a22b-2507** | qwen | 1457 | ~ | $0.07 | $0.10 | 262K |  | ✓ | ✓ | 1 | 15709 | ✅ |
 | 22 | **qwen3-vl-235b-a22b-instruct** | qwen | 1457 | ~ | $0.20 | $0.88 | 262K | ✓ | ✓ |  | 2 | 2052 | ✅ |
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-04-13:** Auto-updated from benchmarks
+- **2026-04-14:** Auto-updated from benchmarks

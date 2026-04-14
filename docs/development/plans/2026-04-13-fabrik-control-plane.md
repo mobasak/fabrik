@@ -247,6 +247,7 @@ Browser
 - [ ] Each stage appears in the UI as it starts and completes, with duration
 - [ ] `FABRIK_EXEC_MODE=local` confirmed working: `docker exec` reaches WP container without SSH
 - [ ] Written `site.yaml` contains all compliance fields: `security.table_prefix` ≠ `wp_`, `backup.duplicati.enabled: true`, `monitoring.wp_cron_ping_url` set, `post_deploy.browserless_screenshot: true`
+- [ ] All created files and folders must use kebab-case naming. Exceptions: README.md, CHANGELOG.md, AGENTS.md, Dockerfile, Makefile, migration files.
 
 ---
 

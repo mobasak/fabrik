@@ -60,6 +60,17 @@ def apply(
             applicator.cleanup_defaults()
             applicator.apply_settings(spec)
 
+            admin_username = spec.get("security", {}).get("admin_username")
+            if admin_username and admin_username != "admin":
+                try:
+                    wp.run(f"user update 1 --user_login={admin_username}")
+                    result.metadata["admin_username_renamed"] = admin_username
+                    logger.info("Admin username renamed from 'admin' to '%s'", admin_username)
+                except RuntimeError as exc:
+                    result.warnings.append(
+                        f"Could not rename admin username to '{admin_username}': {exc}"
+                    )
+
             email = spec.get("contact", {}).get("email")
             if not email:
                 warning = "Skipping editor provisioning: contact.email not provided"

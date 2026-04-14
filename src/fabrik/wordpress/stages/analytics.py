@@ -1,11 +1,16 @@
 """Analytics injection stage."""
 
+import logging
+import os
 from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient
 from fabrik.drivers.wordpress_api import WordPressAPIClient
 from fabrik.wordpress.analytics import AnalyticsInjector
 from fabrik.wordpress.stages import StageResult, time_stage
+from fabrik.wordpress.stages.post_deploy import read_ga4_measurement_id
+
+logger = logging.getLogger(__name__)
 
 
 @time_stage
@@ -24,7 +29,16 @@ def apply(
         )
         seo = spec.get("seo", {})
 
-        ga4 = seo.get("ga4_id")
+        ga4 = seo.get("ga4_id") or os.getenv("GA4_ID")
+
+        if not ga4:
+            ga4 = read_ga4_measurement_id(build_dir)
+            if ga4:
+                seo = dict(seo)
+                seo["ga4_id"] = ga4
+                result.metadata["ga4_source"] = "post_deploy_artifact"
+                logger.info("GA4 ID sourced from post_deploy artifact: %s", ga4)
+
         gtm = seo.get("gtm_id")
 
         if not ga4 and not gtm:

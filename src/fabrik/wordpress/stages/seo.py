@@ -38,6 +38,7 @@ def apply(
             # Check if SEO plugin available
             plugin = applicator.detect_seo_plugin()
             if plugin:
+                applicator.configure_sitemap(enabled=True)
                 applicator.apply_site_seo(seo)
             else:
                 # No plugin: not an error, just skip

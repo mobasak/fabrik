@@ -38,6 +38,23 @@
 | fabrik-fixer | hybrid-gpu | ~9GB (8GB VRAM + 1GB RAM) | Fast (~40-60 tok/s) | Stable |
 | fabrik-docs | gpu | ~5GB VRAM | Instant (~80-100 tok/s) | Rock solid |
 
+## File & Folder Naming
+
+All files and folders use **kebab-case** unless listed as an exception.
+
+✅ `user-profile.ts`, `auth-service.py`, `api-client.md`, `docs/setup-guide.md`
+❌ `UserProfile.ts`, `auth_service.py`, `ApiClient.md`
+
+**Exceptions (do not rename):**
+- `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `Makefile`, `Dockerfile`
+- Python packages use snake_case per PEP 8: `src/apidoccreator/`, `src/fabrik/`
+- Auto-generated files (migrations, lock files, `__pycache__/`, `__init__.py`)
+- Dotfiles and dotdirs (`.env`, `.windsurf/`, `.gitignore`)
+
+**Document files follow the same rule:**
+- Specs, guides, ADRs, plans → kebab-case
+- Example: `seo-module-spec.md`, `deployment-guide.md`, `2026-01-refactor-adr.md`
+
 ## Tech Stack Defaults
 
 | Layer | Default | Deviate When |
@@ -51,10 +68,12 @@
 | Base images | `python:<current-stable>-slim-bookworm`, `node:<current-LTS>-bookworm-slim` | Never Alpine |
 | PDF | Gotenberg (self-hosted) | WeasyPrint for simple cases |
 | Search | MeiliSearch (self-hosted) | PostgreSQL FTS for simple cases |
+| MeiliSearch | search.vps1.ocoron.com | `specs/infrastructure/meilisearch.yaml` | **Deployed:** 2026-04-14 |
 | Notifications | Apprise (self-hosted) | Direct API for single-channel |
 | Object storage | MinIO (self-hosted, S3-compatible) | Backblaze B2 for cold storage |
+| PDF Generation | Gotenberg (self-hosted) | HTML/Office/PDF conversion API | **Deployed:** 2026-04-14 |
 
-## Infrastructure Services — Running on VPS (Verified 2026-04-13)
+## Infrastructure Services — Running on VPS (Verified 2026-04-14)
 
 | Service | URL | Purpose |
 |---------|-----|--------|
@@ -74,16 +93,32 @@
 | cAdvisor | (internal :8080) | Container CPU/RAM/net metrics |
 | node-exporter | (internal :9100) | Host-level VPS metrics |
 | fabrik-api | (localhost :8050) | FastAPI bridge — executes fabrik CLI + streams SSE; native VPS host process |
-| fabrik-control-plane | control.vps1.ocoron.com | Next.js conversational UI → Kilo AI negotiation → approve & deploy |
+| fabrik-control-plane | control.vps1.ocoron.com | Next.js conversational UI → Kilo AI negotiation → approve & deploy wp sites|
+| Gotenberg | pdf.vps1.ocoron.com | HTML/Office/PDF conversion API for document generation |
+| MeiliSearch | search.vps1.ocoron.com | Search service with full-text and vector search capabilities |
+| Browserless | browser.vps1.ocoron.com | Headless Chrome as a service for web scraping and automation |
+| Authelia | auth.vps1.ocoron.com | SSO/2FA forward-auth for admin dashboards via Traefik |
+
+## VPS Security Architecture (4-Layer Model)
+
+| Layer | Target | Mechanism |
+|-------|--------|-----------|
+| **Iptables (DOCKER-USER)** | All Docker ports | Blocks external access to raw container ports. Only 80/443/6001/6002 allowed. |
+| **Authelia** | Admin dashboards | 2FA login required for Coolify, n8n, Grafana, Netdata, Duplicati, Apprise |
+| **X-Internal-Token** | API services | Machine-to-machine auth for Gotenberg, Browserless, MeiliSearch, etc. |
+| **Traefik** | Public sites | Routes traffic without auth for ocoron.com, status page |
+
+**Key files on VPS:**
+- `/etc/iptables/add-docker-user-rules.sh` — iptables rules
+- `/etc/systemd/system/iptables-docker-user.service` — persistence
+- `/opt/authelia/config/configuration.yml` — Authelia access control policies
+- `/opt/authelia/compose.yaml` — Authelia Docker Compose
 
 ## Infrastructure Services — Ready to Deploy
 
 Specs and configs complete. Deploy via Coolify when needed.
 
-| Service | Planned URL | Config Location |
-| Browserless | browser.vps1.ocoron.com | `specs/infrastructure/browserless.yaml` |
-| Gotenberg | pdf.vps1.ocoron.com | `specs/infrastructure/gotenberg.yaml` |
-| MeiliSearch | search.vps1.ocoron.com | `specs/infrastructure/meilisearch.yaml` |
+*No services currently ready to deploy - all planned services have been deployed.*
 
 ## Infrastructure Services — Deferred (explicit decision)
 
