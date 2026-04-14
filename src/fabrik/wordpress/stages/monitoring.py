@@ -5,8 +5,6 @@ import os
 from pathlib import Path
 
 from fabrik.drivers.uptime_kuma import UptimeKumaClient
-from fabrik.drivers.wordpress import WordPressClient
-from fabrik.drivers.wordpress_api import WordPressAPIClient
 from fabrik.wordpress.stages import StageResult, time_stage
 
 logger = logging.getLogger(__name__)
@@ -14,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @time_stage
 def apply(
-    spec: dict, wp: WordPressClient | None, api: WordPressAPIClient | None, build_dir: Path
+    spec: dict, wp: object | None, api: object | None, build_dir: Path
 ) -> StageResult:
     """Register site HTTP monitor in Uptime Kuma."""
     result = StageResult(name="monitoring", success=True)

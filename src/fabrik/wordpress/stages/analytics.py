@@ -42,7 +42,7 @@ def apply(
         gtm = seo.get("gtm_id")
 
         if not ga4 and not gtm:
-            result.warnings.append("  No analytics IDs defined")
+            result.warnings.append("No analytics IDs defined")
             result.skipped = True
             return result
         elif dry_run:

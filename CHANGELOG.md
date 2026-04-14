@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Alertmanager deployment (2026-04-14)
+- Deployed `prom/alertmanager:v0.28.1` into `/opt/monitoring/compose.yaml` monitoring stack
+- Created `/opt/monitoring/configs/alertmanager/alertmanager.yml` — routes to ARO Brain webhook (future) with Apprise fallback
+- Created `/opt/monitoring/configs/prometheus/rules/alerts.yml` — 8 alert rules: ContainerDown, ContainerHighCPU, ContainerHighMemory, ContainerRestarting, HostHighCPU, HostHighMemory, HostDiskFull, ServiceUnhealthy
+- Updated `configs/prometheus/prometheus.yml` — added alerting section, rule_files, and alertmanager scrape target
+- `AGENTS.md`: Added Alertmanager to infrastructure services
+
 ### Added — VPS Security Hardening: 4-Layer Auth Model (2026-04-14)
 - **DOCKER-USER iptables rules:** Created `/etc/iptables/add-docker-user-rules.sh` + systemd service to block external access to Docker-published ports. Only 80/443/6001/6002 allowed externally.
 - **Authelia SSO:** Deployed at `auth.vps1.ocoron.com` with TOTP 2FA. Protects admin dashboards (n8n, Grafana, Netdata, Duplicati, Apprise) via Traefik `authelia-forward@docker` middleware.
@@ -17,6 +24,13 @@ All notable changes to this project will be documented in this file.
 - `AGENTS-compact.md`: Added port exposure, Authelia, and X-Internal-Token hard stops.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
+
+### Fixed — WordPress pipeline: 5-pass deep review (2026-04-14)
+- `src/fabrik/drivers/dns.py`: `get_integrations()` docstring example used wrong `ga4` key — corrected to `google_analytics` per confirmed API schema
+- `src/fabrik/wordpress/stages/post_deploy.py`: removed false-negative skip guard (`if not post_deploy:`) — empty `{}` is falsy, causing silent skip for sites without explicit `post_deploy:` section; stage now always runs when domain is set
+- `src/fabrik/wordpress/stages/monitoring.py`: removed dead imports `WordPressClient` and `WordPressAPIClient` (never used); typed `wp`/`api` params as `object | None` to match stage contract
+- `src/fabrik/wordpress/stages/dns.py`: corrected dry-run action label `add_subdomain (root A)` → `add_record (root A)` (root uses `add_record`, only www uses `add_subdomain`)
+- `src/fabrik/wordpress/stages/analytics.py`: removed leading spaces from "No analytics IDs defined" warning
 
 ### Fixed — WordPress pipeline: site-provisioner schema corrections + sitemap-on-pages (2026-04-14)
 - `src/fabrik/wordpress/stages/post_deploy.py`: GA4 response key corrected — site-provisioner returns `google_analytics.measurement_id`, not `ga4.measurement_id`

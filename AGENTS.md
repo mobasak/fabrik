@@ -88,6 +88,7 @@ All files and folders use **kebab-case** unless listed as an exception.
 | Apprise | notify.vps1.ocoron.com | Multi-channel notifications (used by n8n) |
 | Grafana | monitor.vps1.ocoron.com | Dashboards (Prometheus + Loki) |
 | Prometheus | (internal :9090) | Metrics scraper/storage |
+| Alertmanager | (internal :9093) | Alert routing — fires to ARO Brain webhook, then Apprise fallback |
 | Loki | (internal :3100) | Log aggregation |
 | Promtail | (internal) | Log shipper (Docker containers → Loki) |
 | cAdvisor | (internal :8080) | Container CPU/RAM/net metrics |

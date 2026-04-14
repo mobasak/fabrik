@@ -22,11 +22,6 @@ def apply(
         domain = spec.get("site", {}).get("domain", "")
         post_deploy = spec.get("post_deploy", {})
 
-        if not post_deploy:
-            result.skipped = True
-            result.metadata["reason"] = "post_deploy section not present in spec"
-            return result
-
         if not domain:
             result.warnings.append("site.domain not set — skipping post_deploy stage")
             result.skipped = True

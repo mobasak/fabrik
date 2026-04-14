@@ -41,7 +41,7 @@ def apply(
                 "domain": domain,
                 "vps_ip": vps_ip,
                 "proxied": proxied,
-                "actions": ["add_subdomain (root A)", "add_subdomain (www CNAME)"],
+                "actions": ["add_record (root A)", "add_subdomain (www CNAME)"],
             }
             return result
 

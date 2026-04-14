@@ -389,12 +389,12 @@ class DNSClient:
             domain: Root domain (e.g., "example.com")
 
         Returns:
-            Dict with cloudflare_zone_id, ga4, google_search_console,
+            Dict with cloudflare_zone_id, google_analytics, google_search_console,
             bing_webmaster, indexnow fields
 
         Example:
             info = dns.get_integrations("example.com")
-            ga4_id = info["ga4"]["measurement_id"]  # e.g. "G-XXXXXXXXXX"
+            ga4_id = info["google_analytics"]["measurement_id"]  # e.g. "G-XXXXXXXXXX"
         """
         return self._request("GET", f"/api/websites/{domain}/integrations")
 
