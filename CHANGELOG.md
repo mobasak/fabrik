@@ -31,6 +31,11 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: ocoron.com deployment audit (2026-04-14)
+- `src/fabrik/wordpress/stages/forms.py:29-31`: Gap 5 fix was incomplete — stage read `contact.form.fields` but `ocoron.com.v2.yaml` uses `forms.contact.fields` (rich spec) with 5 fields including phone and service; added priority lookup: `forms.contact` → `contact.form` → fallback; also handles `notification_email` alias for recipient
+- `src/fabrik/wordpress/stages/seo.py:40-51`: SEO stage passed `seo` dict directly to `apply_site_seo()` which reads flat `title_template`/`meta_description` keys; `ocoron.com.v2.yaml` uses `seo.default_meta.{locale}.{title,description}` (localized dict); added normalisation step that resolves primary locale values into flat keys before passing to applicator — meta title/description were silently skipped on every real apply
+- `docs/development/plans/2026-04-13-fabrik-control-plane.md`: Updated status to reflect Phase 0 complete; updated pipeline stage order in Option 1 description; added Phase 0 completion block to Execution Order
+
 ### Fixed — WordPress pipeline: indefinite deep review round 21 (2026-04-14)
 - `src/fabrik/wordpress/pages.py:331`: `get_page_by_slug()` WP-CLI fallback used bare `except Exception: return None` — same silent-swallow pattern fixed in `find_page()` during round 18; added `logger.warning` with slug and exception before returning `None`
 

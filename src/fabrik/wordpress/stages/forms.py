@@ -26,7 +26,9 @@ def apply(
             or spec.get("site", {}).get("domain", "").replace(".", "-")
         )
         contact = spec.get("contact", {})
-        form_config = contact.get("form", {})
+        # Priority: forms.contact (rich spec) → contact.form → contact.form_fields fallback
+        forms_section = spec.get("forms", {}).get("contact", {})
+        form_config = forms_section or contact.get("form", {})
 
         if not contact:
             result.skipped = True
@@ -47,7 +49,9 @@ def apply(
             if plugin:
                 created = creator.create_contact_form(
                     title="Contact Form",
-                    recipient=form_config.get("recipient") or contact.get("email", ""),
+                    recipient=form_config.get("recipient")
+                    or form_config.get("notification_email")
+                    or contact.get("email", ""),
                     fields=form_config.get("fields", ["name", "email", "message"]),
                 )
                 result.metadata["form_id"] = created.id

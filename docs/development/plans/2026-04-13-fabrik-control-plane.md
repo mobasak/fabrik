@@ -1,7 +1,7 @@
 # Fabrik Control Plane — Implementation Plan
 
 **Created:** 2026-04-13
-**Status:** APPROVED — Phase 3 (SSH bypass) COMPLETE · Phase 1 + 2 in progress
+**Status:** APPROVED — Phase 0 (pipeline gaps) COMPLETE · Phase 3 (SSH bypass) COMPLETE · Phase 1 + 2 pending
 **Ports:** 8050 (`fabrik-api`) · 3004 (`fabrik-control-plane`)
 **URL:** `https://control.vps1.ocoron.com`
 
@@ -53,7 +53,7 @@ Three options were evaluated for where the Next.js UI should POST the approved J
 
 ### Option 1 — Direct to `site-provisioner` + Coolify ("Bypass Route") — REJECTED
 
-The Next.js API route would POST directly to infrastructure microservices. **Rejected** because this would completely abandon the `fabrik` CLI's 12-stage WordPress pipeline (`dns → settings → theme → plugins → languages → pages → menus → forms → seo → analytics → post_deploy → monitoring`). All that Python orchestration logic would have to be rewritten in Next.js TypeScript — a massive waste of existing work.
+The Next.js API route would POST directly to infrastructure microservices. **Rejected** because this would completely abandon the `fabrik` CLI's 12-stage WordPress pipeline (`dns → settings → theme → plugins → languages → pages → menus → forms → seo → post_deploy → analytics → monitoring → verify`). All that Python orchestration logic would have to be rewritten in Next.js TypeScript — a massive waste of existing work.
 
 ### Option 2 — n8n Workflow Orchestration ("Event-Driven Route") — DEFERRED
 
@@ -496,6 +496,16 @@ Zero impact on existing WSL workflow (default remains `ssh`). See `src/fabrik/dr
 ## Execution Order
 
 ```text
+Phase 0:   ✅ All pipeline code gaps closed — DONE (2026-04-14)
+           Gap 1: seo.py — archives_noindex, breadcrumbs, og_enabled, robots_txt, sitemap, schema all implemented
+           Gap 2: stages/monitoring.py — created, registered in deployer.py
+           Gap 3: stages/post_deploy.py — created, registered in deployer.py
+           Gap 4: Stage order fixed — seo → post_deploy → analytics → monitoring → verify
+           Gap 5: forms.py — reads contact.form.fields from spec
+           Gap 8: settings.py — reads security.admin_username, renames from 'admin'
+           Gap 9: Makefile.wordpress — created in templates/scaffold/docker/
+           Gap 12: planner.py STAGE_KEYS — post_deploy + monitoring added
+
 Phase 3:   ✅ FABRIK_EXEC_MODE patch in wordpress.py — DONE
 
 Phase 1a:  Scaffold /opt/fabrik-api — pyproject.toml, main.py, config.py, auth.py
