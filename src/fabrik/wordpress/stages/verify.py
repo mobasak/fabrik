@@ -243,7 +243,7 @@ def apply(
             result.success = False
             return result
 
-        with open(checks_path) as f:
+        with open(checks_path, encoding="utf-8") as f:
             manifest = json.load(f)
 
         urls = manifest.get("urls", [])
@@ -323,7 +323,7 @@ def apply(
         }
 
         verify_report_path = reports_dir / "verify-report.json"
-        with open(verify_report_path, "w") as f:
+        with open(verify_report_path, "w", encoding="utf-8") as f:
             json.dump(verify_report, f, indent=2)
 
         result.artifacts_written.append(str(verify_report_path))

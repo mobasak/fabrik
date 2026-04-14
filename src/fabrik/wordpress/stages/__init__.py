@@ -5,6 +5,7 @@ Each stage is a self-contained module that exports a single `apply()` function.
 Stages are executed sequentially by SiteDeployer.
 """
 
+import functools
 import time
 from dataclasses import dataclass, field
 
@@ -26,6 +27,7 @@ class StageResult:
 def time_stage(func):
     """Decorator to time stage execution."""
 
+    @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start = time.perf_counter()
         result = func(*args, **kwargs)

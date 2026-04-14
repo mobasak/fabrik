@@ -26,6 +26,14 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 6 (2026-04-14)
+- `src/fabrik/wordpress/stages/__init__.py`: `time_stage` decorator missing `@functools.wraps` — every stage's `__name__` was `"wrapper"`, causing `stage.__name__.split(".")[-1]` in deployer to return `"wrapper"` for all stages; plan.json, apply-report.json, and skip-if-unchanged logic all used wrong names
+- `src/fabrik/wordpress/stages/forms.py`: `detect_form_plugin()` result and created form metadata not captured in `result.metadata`; no-plugin path silently did nothing with no warning; now emits warning + `skipped=True` and captures `form_id`/`shortcode` in metadata
+- `src/fabrik/wordpress/stages/verify.py`: two `open()` calls missing `encoding="utf-8"` — silent data corruption risk on non-UTF-8 default locale systems
+- `src/fabrik/wordpress/handoff.py`: four `open()` calls missing `encoding="utf-8"` (apply-report, verify-report, blueprint, handoff.md write)
+- `src/fabrik/wordpress/forms.py`: convenience function `create_contact_form()` read `contact.form_fields` and `contact.form_recipient` (old flat keys, schema v1 removed them) — always fell back to defaults; corrected to `contact.form.fields` and `contact.form.recipient` matching stages/forms.py
+- `src/fabrik/wordpress/deployer.py`: pipeline loop never broke on stage failure — if `dns`, `settings`, or `plugins` failed, all 10+ subsequent stages still executed against a broken state producing cascading misleading errors; added `BLOCKING_STAGES` set with early `break` and halt log message
+
 ### Fixed — WordPress pipeline: 5-pass deep review round 5 (2026-04-14)
 - `src/fabrik/wordpress/section_renderer.py:276`: Gutenberg closing comment `<!-- /wp/columns -->` used slash instead of colon — WordPress block parser silently dropped entire testimonials section; corrected to `<!-- /wp:columns -->`
 - `src/fabrik/wordpress/section_renderer.py:153,193`: `section.get("columns", 3)` result discarded (dead code) in both `_render_features` and `_render_services_grid`; assigned to `columns` and wired into `wp:columns` block attribute as `columnCount` so spec value is actually respected by Gutenberg

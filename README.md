@@ -397,6 +397,9 @@ class ProvisionState(str, Enum):
 | **Redis** | redis-main container | Shared cache |
 | **Site Provisioner** | https://provision.vps1.ocoron.com | Domain provisioning, DNS, SSL, CDN, analytics |
 | **Uptime Kuma** | https://status.vps1.ocoron.com | Status monitoring |
+| **Grafana** | https://monitor.vps1.ocoron.com | Dashboards (Prometheus + Loki) |
+| **Prometheus + Alertmanager** | (internal :9090 / :9093) | Metrics, 9 alert rules → ARO Brain / Apprise |
+| **Loki + Promtail** | (internal :3100) | Log aggregation from all containers |
 | **Duplicati** | https://backup.vps1.ocoron.com | Encrypted backups to B2 |
 | **File API** | https://files-api.vps1.ocoron.com | File uploads (R2 storage) |
 
@@ -757,7 +760,7 @@ fabrik scaffold my-service
 | **Database** | PostgreSQL 16, Supabase |
 | **Cache** | Redis |
 | **Storage** | Cloudflare R2 (S3-compatible) |
-| **Monitoring** | Uptime Kuma, custom health checks |
+| **Monitoring** | Uptime Kuma, Grafana, Prometheus, Alertmanager, Loki |
 | **Backups** | Duplicati → Backblaze B2 |
 | **WordPress** | WP-CLI, REST API automation (2,500+ lines) |
 

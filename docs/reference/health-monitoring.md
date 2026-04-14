@@ -1,7 +1,7 @@
 # Health Monitoring
 
-**Version:** 1.1.0
-**Last Updated:** 2026-04-05
+**Version:** 1.2.0
+**Last Updated:** 2026-04-14
 
 ---
 
@@ -18,31 +18,56 @@
 | **Promtail** | Log shipper | Reads Docker container logs and sends them to Loki. |
 | **Uptime Kuma** | Uptime monitoring | External availability checks, status page, alerting. |
 
-### Current Decision (Single VPS)
+### Current Stack (Single VPS)
 
-**Netdata alone is sufficient for a single VPS.** It already does what Prometheus + Grafana does for basic server metrics — out of the box, with a nicer UI for real-time monitoring.
+The full observability stack is deployed and operational. Netdata provides real-time metrics; Prometheus + Grafana handle alerting, dashboards, and long-term trend analysis; Loki + Promtail aggregate container logs.
 
-The Prometheus/Grafana/Loki stack makes sense when you need:
-
-- Custom dashboards across **multiple servers**
-- Correlation of metrics from **application-level custom instrumentation**
-- **Long-term trend analysis** (>30 days retention with custom queries)
-- **Log aggregation** across many services in one searchable place
-
-**Verdict:** Configs for the full stack exist in `configs/` and `specs/infrastructure/monitoring-stack.yaml` but are not deployed. Deploy only when scaling beyond a single VPS or when application-level custom metrics become necessary.
-
-### Deployed Services (Verified 2026-04-05 via SSH)
+### Deployed Services (Verified 2026-04-14)
 
 | Service | URL | Status |
 |---------|-----|--------|
-| Uptime Kuma | status.vps1.ocoron.com | ✅ Running (Up 2 weeks, healthy) |
-| Netdata | netdata.vps1.ocoron.com | ✅ Running (Up 11 days, healthy) |
-| Grafana | monitor.vps1.ocoron.com | ❌ Not deployed (config ready at `specs/infrastructure/monitoring-stack.yaml`) |
-| Prometheus | (internal :9090) | ❌ Not deployed (config ready at `configs/prometheus/`) |
-| Loki | (internal :3100) | ❌ Not deployed (config ready at `configs/loki/`) |
-| Promtail | (internal) | ❌ Not deployed (config ready at `configs/promtail/`) |
-| cAdvisor | (internal :8080) | ❌ Not deployed |
-| node-exporter | (internal :9100) | ❌ Not deployed |
+| Uptime Kuma | status.vps1.ocoron.com | ✅ Running |
+| Netdata | netdata.vps1.ocoron.com | ✅ Running |
+| Grafana | monitor.vps1.ocoron.com | ✅ Running |
+| Prometheus | (internal :9090) | ✅ Running |
+| Alertmanager | (internal :9093) | ✅ Running |
+| Loki | (internal :3100) | ✅ Running |
+| Promtail | (internal) | ✅ Running |
+| cAdvisor | (internal :8080) | ✅ Running |
+| node-exporter | (internal :9100) | ✅ Running |
+
+**Compose file:** `/opt/monitoring/compose.yaml` on VPS (7 services)
+**Local source:** `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik
+
+### Notification Chain
+
+```
+Prometheus (rules) → Alertmanager → ARO Brain webhook (http://aro-brain:8017/api/alerts)
+                                  └→ Apprise fallback  (http://apprise:8000/notify)
+```
+
+### Prometheus Alert Rules (9 total)
+
+Source of truth: `configs/prometheus/rules/alerts.yml`
+
+| # | Alert | Severity | Threshold | For |
+|---|-------|----------|-----------|-----|
+| 1 | ContainerDown | critical | not seen >2min | 2m |
+| 2 | ContainerHighCPU | warning | >80% | 5m |
+| 3 | ContainerHighMemory | warning | >85% limit | 5m |
+| 4 | ContainerOOMKilled | critical | any OOM in 5m | 0m |
+| 5 | ContainerRestarting | critical | >3 in 15m | 0m |
+| 6 | HostHighCPU | warning | >85% | 10m |
+| 7 | HostHighMemory | critical | >90% | 5m |
+| 8 | HostDiskFull | critical | >85% | 5m |
+| 9 | ServiceUnhealthy | critical | target down | 2m |
+
+All applicable rules include `value` annotations for ARO Brain quantitative reasoning.
+
+**Key config files (local mirror in Fabrik `configs/`):**
+- `configs/alertmanager/alertmanager.yml` — routing, receivers, inhibit rules
+- `configs/prometheus/prometheus.yml` — scrape targets, alerting config
+- `configs/prometheus/rules/alerts.yml` — alert rules
 
 ---
 

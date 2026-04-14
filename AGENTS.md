@@ -27,7 +27,7 @@
 - **Database:** PostgreSQL on VPS (default) · Supabase (when managed auth/realtime/pgvector needed)
 - **Reverse proxy:** Traefik (managed by Coolify) — HTTPS/SSL via Let's Encrypt
 - **Domains:** `*.vps1.ocoron.com` — managed by site-provisioner (supports Namecheap, Cloudflare, auto-purchase) and others
-- **Monitoring:** Uptime Kuma · Netdata (active) — Grafana + Prometheus + Loki configs ready but not deployed
+- **Monitoring:** Uptime Kuma · Netdata · Grafana · Prometheus · Alertmanager · Loki (all active, deployed 2026-04-13)
 
 ### Local LLM Agents
 

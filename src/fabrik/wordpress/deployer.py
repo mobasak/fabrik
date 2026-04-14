@@ -201,6 +201,10 @@ class SiteDeployer:
             # Stage registry - ordered execution
             stages = (dns, settings, theme, plugins, languages, pages, menus, forms, seo, post_deploy, analytics, monitoring, verify)
 
+            # Stages whose failure should halt the entire pipeline immediately.
+            # Later stages depend on these succeeding (e.g. plugins must be installed before seo).
+            BLOCKING_STAGES = {"dns", "settings", "plugins"}
+
             # Initialize local clients once for reuse, preserving lazy behavior in dry-run mode
             wp_client = None if self.dry_run else self.wp
             api_client = None if self.dry_run else self.api
@@ -240,7 +244,13 @@ class SiteDeployer:
                 else:
                     self.result.steps_failed.append(stage_result.name)
                     self.result.errors.extend(stage_result.errors)
-                    logger.error(f"❌   {stage_result.name.capitalize()} failed")
+                    logger.error("❌  %s failed", stage_result.name.capitalize())
+                    if stage_result.name in BLOCKING_STAGES:
+                        self.log(
+                            f"Halting pipeline: '{stage_result.name}' is a blocking stage",
+                            "error",
+                        )
+                        break
 
                 # Special handling for pages stage - extract pages_created
                 if stage_result.name == "pages" and "pages_created" in stage_result.metadata:

@@ -26,14 +26,14 @@ def generate_handoff(site_id: str, build_dir: Path) -> Path:
             f"apply-report.json not found at {apply_report_path}. Run 'fabrik wp apply' first."
         )
 
-    with open(apply_report_path) as f:
+    with open(apply_report_path, encoding="utf-8") as f:
         apply_report = json.load(f)
 
     # Read verify report (optional)
     verify_report_path = build_dir / "reports" / "verify-report.json"
     verify_report = None
     if verify_report_path.exists():
-        with open(verify_report_path) as f:
+        with open(verify_report_path, encoding="utf-8") as f:
             verify_report = json.load(f)
 
     # Read blueprint for metadata (optional)
@@ -42,7 +42,7 @@ def generate_handoff(site_id: str, build_dir: Path) -> Path:
     if blueprint_path.exists():
         import yaml
 
-        with open(blueprint_path) as f:
+        with open(blueprint_path, encoding="utf-8") as f:
             blueprint = yaml.safe_load(f)
             # Extract non-secret metadata only
             if "site" in blueprint:
@@ -141,7 +141,7 @@ def generate_handoff(site_id: str, build_dir: Path) -> Path:
 
     # Write handoff.md
     handoff_path = build_dir / "handoff.md"
-    with open(handoff_path, "w") as f:
+    with open(handoff_path, "w", encoding="utf-8") as f:
         f.write(handoff_content)
 
     return handoff_path

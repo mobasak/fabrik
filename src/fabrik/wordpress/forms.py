@@ -342,8 +342,9 @@ def create_contact_form(
     """
     creator = FormCreator(site_name)
 
-    recipient = contact.get("email", contact.get("form_recipient", ""))
-    fields = contact.get("form_fields", ["name", "email", "message"])
+    form_config = contact.get("form", {})
+    recipient = form_config.get("recipient") or contact.get("email", "")
+    fields = form_config.get("fields", ["name", "email", "message"])
 
     return creator.create_contact_form(
         title=form_title,

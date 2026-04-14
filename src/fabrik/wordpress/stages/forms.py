@@ -1,11 +1,14 @@
 """Contact forms creation stage."""
 
+import logging
 from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient
 from fabrik.drivers.wordpress_api import WordPressAPIClient
 from fabrik.wordpress.forms import FormCreator
 from fabrik.wordpress.stages import StageResult, time_stage
+
+logger = logging.getLogger(__name__)
 
 
 @time_stage
@@ -38,15 +41,20 @@ def apply(
 
             # Check if form plugin is available
             plugin = creator.detect_form_plugin()
+            result.metadata["form_plugin"] = plugin
             if plugin:
-                creator.create_contact_form(
+                created = creator.create_contact_form(
                     title="Contact Form",
                     recipient=form_config.get("recipient") or contact.get("email", ""),
                     fields=form_config.get("fields", ["name", "email", "message"]),
                 )
+                result.metadata["form_id"] = created.id
+                result.metadata["shortcode"] = created.shortcode
+                logger.info("Contact form created via %s: %s", plugin, created.shortcode)
             else:
-                # No plugin: not an error, just skip
-                pass
+                result.warnings.append("No active form plugin detected (wpforms/cf7) — skipping form creation")
+                logger.warning("No active form plugin detected")
+                result.skipped = True
 
     except Exception as e:
         result.success = False
