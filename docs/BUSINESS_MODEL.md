@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-14 23:56:21 -->
-<!-- Total projects: 39 -->
+<!-- Last synced: 2026-04-15 00:00:49 -->
+<!-- Total projects: 35 -->
 
 ### Production Services (10 projects)
 
@@ -109,16 +109,12 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (12 projects)
+### Active Development (8 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | - | ✅ Current |
 | **candle** | FastAPI microservice project (in development). | FastAPI | 🔨 Development | - | ✅ Current |
-| **gate-chrome** | Gate test | Python | 🔨 Development | - | ✅ Current |
-| **gate-desktop** | Gate test | Node.js | 🔨 Development | - | ✅ Current |
-| **gate-mobile** | Gate test | Node.js | 🔨 Development | - | ✅ Current |
-| **gate-saas** | Gate test | Node.js | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
@@ -147,5 +143,14 @@ With ~$50/month infrastructure cost:
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
+
+### Recently Removed (4 projects)
+
+| Project | Note |
+|---------|------|
+| ~~gate-chrome~~ | Folder deleted since last scan |
+| ~~gate-desktop~~ | Folder deleted since last scan |
+| ~~gate-mobile~~ | Folder deleted since last scan |
+| ~~gate-saas~~ | Folder deleted since last scan |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

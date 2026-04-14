@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-04-14T14:22:30.944908",
-  "total_models": 326,
+  "timestamp": "2026-04-15T00:00:54.760026",
+  "total_models": 325,
   "models": {
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
@@ -389,11 +389,6 @@
     },
     "google/gemma-2-27b-it": {
       "id": "google/gemma-2-27b-it",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "google/gemma-2-9b-it": {
-      "id": "google/gemma-2-9b-it",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1217,11 +1212,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "qwen/qwen2.5-coder-7b-instruct": {
-      "id": "qwen/qwen2.5-coder-7b-instruct",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "qwen/qwen2.5-vl-32b-instruct": {
       "id": "qwen/qwen2.5-vl-32b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1449,6 +1439,11 @@
     },
     "stepfun/step-3.5-flash": {
       "id": "stepfun/step-3.5-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "stepfun/step-3.5-flash:free": {
+      "id": "stepfun/step-3.5-flash:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

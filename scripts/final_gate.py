@@ -40,9 +40,9 @@ import sys
 from pathlib import Path
 
 # Paths
-FABRIK_ROOT = Path.cwd()  # Use current working directory, not script location
-VENV_PYTHON = FABRIK_ROOT / ".venv" / "bin" / "python"
-VENV_RUFF = FABRIK_ROOT / ".venv" / "bin" / "ruff"
+PROJECT_ROOT = Path.cwd()  # Use current working directory, not script location
+VENV_PYTHON = PROJECT_ROOT / ".venv" / "bin" / "python"
+VENV_RUFF = PROJECT_ROOT / ".venv" / "bin" / "ruff"
 # Use venv python only if it has the required tools (ruff) installed
 PYTHON = str(VENV_PYTHON) if (VENV_PYTHON.exists() and VENV_RUFF.exists()) else sys.executable
 
@@ -88,14 +88,14 @@ def run_ai_fixes(tool: str, tool_output: str | None = None) -> tuple[bool, str]:
 
     # Pass tool output via environment variable (avoids re-running tool)
     env = os.environ.copy()
-    env["FABRIK_ROOT"] = str(FABRIK_ROOT)
+    env["PROJECT_ROOT"] = str(PROJECT_ROOT)
     if tool_output:
         env["TOOL_OUTPUT"] = tool_output
 
     try:
         result = subprocess.run(
             cmd,
-            cwd=FABRIK_ROOT,
+            cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
             timeout=120,
@@ -112,13 +112,13 @@ def run_ai_fixes(tool: str, tool_output: str | None = None) -> tuple[bool, str]:
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None) -> tuple[int, str]:
     """Run a command and return (returncode, output)."""
     timeout = timeout or TIMEOUTS["default"]
-    # Pass FABRIK_ROOT to enforcement scripts so they know the correct project root
+    # Pass PROJECT_ROOT to enforcement scripts so they know the correct project root
     env = os.environ.copy()
-    env["FABRIK_ROOT"] = str(FABRIK_ROOT)
+    env["PROJECT_ROOT"] = str(PROJECT_ROOT)
     try:
         result = subprocess.run(
             cmd,
-            cwd=cwd or FABRIK_ROOT,
+            cwd=cwd or PROJECT_ROOT,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -142,7 +142,7 @@ def run_optional_check(
     """Run an optional enforcement check, skipping if script doesn't exist.
 
     Args:
-        script_path: Relative path to script from FABRIK_ROOT
+        script_path: Relative path to script from PROJECT_ROOT
         check_name: Display name for the check
         *args: Additional command arguments
         module: If provided, run as 'python -m <module>' instead of direct script
@@ -151,7 +151,7 @@ def run_optional_check(
     Returns:
         (check_name, passed, message) tuple
     """
-    full_path = FABRIK_ROOT / script_path
+    full_path = PROJECT_ROOT / script_path
     if not full_path.exists():
         return (check_name, True, "(check not present, skipping)")
 
@@ -182,14 +182,14 @@ def run_mypy_with_recovery(target: str, timeout: int = 30) -> tuple[int, str]:
     """
     import shutil
 
-    mypy_cache = FABRIK_ROOT / ".mypy_cache"
+    mypy_cache = PROJECT_ROOT / ".mypy_cache"
     cmd_base = [PYTHON, "-m", "mypy", "--config-file=pyproject.toml", target]
 
     # First attempt: with incremental cache (fast path)
     try:
         result = subprocess.run(
             cmd_base,
-            cwd=FABRIK_ROOT,
+            cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -204,7 +204,7 @@ def run_mypy_with_recovery(target: str, timeout: int = 30) -> tuple[int, str]:
     try:
         result = subprocess.run(
             cmd_base + ["--no-incremental"],
-            cwd=FABRIK_ROOT,
+            cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
             timeout=60,  # Generous timeout for recovery
@@ -278,7 +278,7 @@ def fix_trailing_whitespace() -> tuple[bool, str, int]:
     errors = []
     files = [f for f in out.split("\0") if f]
     for f in files:
-        path = FABRIK_ROOT / f
+        path = PROJECT_ROOT / f
         if not path.exists():
             continue
         try:
@@ -322,7 +322,7 @@ def fix_end_of_files() -> tuple[bool, str, int]:
     errors = []
     files = [f for f in out.split("\0") if f]
     for f in files:
-        path = FABRIK_ROOT / f
+        path = PROJECT_ROOT / f
         if not path.exists():
             continue
         try:
@@ -361,7 +361,7 @@ def run_formatting_fixes(tier: int = 2) -> list[tuple[str, bool, str]]:
 
     # Ruff format (skip src/ if not present for non-Python projects)
     ruff_targets = ["scripts/"]
-    if (FABRIK_ROOT / "src").exists():
+    if (PROJECT_ROOT / "src").exists():
         ruff_targets.append("src/")
     code, out = run_cmd(
         [PYTHON, "-m", "ruff", "format"] + ruff_targets,
@@ -371,7 +371,7 @@ def run_formatting_fixes(tier: int = 2) -> list[tuple[str, bool, str]]:
 
     # Ruff fix (use returncode, not substring matching)
     ruff_targets = ["scripts/"]
-    if (FABRIK_ROOT / "src").exists():
+    if (PROJECT_ROOT / "src").exists():
         ruff_targets.append("src/")
     code, out = run_cmd(
         [PYTHON, "-m", "ruff", "check", "--fix"] + ruff_targets,
@@ -392,7 +392,7 @@ def detect_src_package() -> str:
 
     If exactly one package exists, return it. Otherwise return src/ for whole tree.
     """
-    src_dir = FABRIK_ROOT / "src"
+    src_dir = PROJECT_ROOT / "src"
     if not src_dir.exists():
         return "src/"
     # Find all package directories (not dot/underscore prefixed)
@@ -422,7 +422,7 @@ def run_static_checks(
 
     # --- Ruff check (Tier 1 + Tier 2) ---
     ruff_targets = ["scripts/"]
-    if (FABRIK_ROOT / "src").exists():
+    if (PROJECT_ROOT / "src").exists():
         ruff_targets.append("src/")
     code, out = run_cmd(
         [PYTHON, "-m", "ruff", "check"] + ruff_targets,
@@ -439,7 +439,7 @@ def run_static_checks(
     if code == 0 and out:
         files = [f for f in out.split("\0") if f]
         for f in files:
-            path = FABRIK_ROOT / f
+            path = PROJECT_ROOT / f
             if path.exists():
                 try:
                     json.loads(path.read_text(encoding="utf-8"))
@@ -465,7 +465,7 @@ def run_static_checks(
         else:
             files = [f for f in yaml_files if "templates/wordpress/schema/v1.yaml" not in f]
             for f in files:
-                path = FABRIK_ROOT / f
+                path = PROJECT_ROOT / f
                 if path.exists():
                     try:
                         yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -484,7 +484,7 @@ def run_static_checks(
         return results
 
     # Mypy (skip if pyproject.toml doesn't exist for non-Python projects)
-    if (FABRIK_ROOT / "pyproject.toml").exists():
+    if (PROJECT_ROOT / "pyproject.toml").exists():
         mypy_target = detect_src_package()
         code, out = run_mypy_with_recovery(mypy_target, timeout=30)
         results.append(("mypy", code == 0, out if code != 0 else ""))
@@ -511,7 +511,7 @@ def run_static_checks(
         try:
             result = subprocess.run(
                 ["semgrep", "--config", "auto", "src/"],
-                cwd=FABRIK_ROOT,
+                cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
                 timeout=semgrep_timeout,
@@ -740,7 +740,7 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check")
         )
-        validate_conv = FABRIK_ROOT / "scripts/enforcement/validate_conventions.py"
+        validate_conv = PROJECT_ROOT / "scripts/enforcement/validate_conventions.py"
         if validate_conv.exists():
             code, out = run_cmd(
                 [PYTHON, "-m", "scripts.enforcement.validate_conventions", "--strict"]
@@ -751,7 +751,7 @@ def run_consistency_checks(
 
     # Kilo CLI Health Check (all tiers that reach here)
     if tier >= 2:
-        kilo_health = FABRIK_ROOT / "scripts/check_kilo_health.sh"
+        kilo_health = PROJECT_ROOT / "scripts/check_kilo_health.sh"
         if kilo_health.exists():
             code, out = run_cmd(["./scripts/check_kilo_health.sh"])
             results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
@@ -787,7 +787,7 @@ def check_symlinks() -> tuple[bool, str]:
     fabrik_master = Path("/opt/fabrik")
 
     # Self-exemption: skip check when running inside /opt/fabrik itself
-    if FABRIK_ROOT.resolve() == fabrik_master.resolve():
+    if PROJECT_ROOT.resolve() == fabrik_master.resolve():
         return True, "(source repo — isolation check skipped)"
 
     # Governance files to validate
@@ -811,7 +811,7 @@ def check_symlinks() -> tuple[bool, str]:
             return False
 
     for rel_path in governance_files:
-        path = FABRIK_ROOT / rel_path
+        path = PROJECT_ROOT / rel_path
 
         # Check 1: File/directory exists
         if not path.exists():
@@ -837,7 +837,7 @@ def check_symlinks() -> tuple[bool, str]:
             for descendant in path.rglob("*"):
                 if descendant.is_symlink():
                     resolved = descendant.resolve()
-                    rel_descendant = descendant.relative_to(FABRIK_ROOT)
+                    rel_descendant = descendant.relative_to(PROJECT_ROOT)
                     if is_under_fabrik(resolved):
                         failures.append(
                             f"{rel_descendant}: symlink → {resolved}"
@@ -881,14 +881,14 @@ def log_gate_issues(results: list[tuple[str, bool, str]], gate_type: str) -> Non
     if not failed:
         return
 
-    log_dir = FABRIK_ROOT / ".droid"
+    log_dir = PROJECT_ROOT / ".droid"
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "gate_issues.jsonl"
 
     entry = {
         "timestamp": datetime.now().isoformat(),
         "gate_type": gate_type,
-        "project": str(FABRIK_ROOT),
+        "project": str(PROJECT_ROOT),
         "issues": [{"check": name, "output": output[:500]} for name, output in failed],
     }
 
