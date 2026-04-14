@@ -236,10 +236,16 @@ def apply(
     result = StageResult(name="verify", success=True)
 
     try:
+        dry_run = spec.get("dry_run", False)
+        domain = spec.get("site", {}).get("domain", "")
+        site_id = spec.get("site_name") or domain
+
         # Read checks manifest
         checks_path = build_dir / "manifests" / "checks.json"
         if not checks_path.exists():
-            result.errors.append("checks.json not found")
+            result.errors.append(
+                f"checks.json not found at {checks_path}. Run 'fabrik wp plan {site_id}' first."
+            )
             result.success = False
             return result
 
@@ -249,9 +255,6 @@ def apply(
         urls = manifest.get("urls", [])
         require_ssl = manifest.get("require_ssl", False)
         require_sitemap = manifest.get("require_sitemap", False)
-        dry_run = spec.get("dry_run", False)
-        domain = spec.get("site", {}).get("domain", "")
-        site_id = spec.get("site_name") or domain
 
         checks = []
 
@@ -290,9 +293,9 @@ def apply(
                         )
                         result.errors.append(f"{full_url}: {str(e)}")
 
-        # Determine overall result from URL checks
-        overall = "pass" if all(c.get("passed", False) for c in checks) else "fail"
-        result.success = overall == "pass"
+        # Determine result from URL checks first
+        url_checks_passed = all(c.get("passed", False) for c in checks)
+        result.success = url_checks_passed
 
         # Run baseline checks (always run in production; skip only in dry-run)
         if not dry_run:
@@ -309,6 +312,9 @@ def apply(
                 result.errors.append(
                     f"baseline check '{check['name']}' failed (fatal): {check['detail']}"
                 )
+
+        # overall must reflect both URL checks AND baseline — not just URL checks
+        overall = "pass" if result.success else "fail"
 
         # Write verify report
         reports_dir = build_dir / "reports"

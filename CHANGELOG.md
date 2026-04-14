@@ -26,6 +26,12 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 10 (2026-04-14)
+- `src/fabrik/wordpress/stages/verify.py:293-295`: `overall` was computed from URL checks only and written to the verify-report before baseline checks ran; fatal baseline failures that flipped `result.success=False` were not reflected in `overall`; report showed `overall: "pass"` while `result.success=False` — contradictory state; fixed by computing `overall` after all checks complete
+- `src/fabrik/wordpress/stages/verify.py:241`: error message for missing `checks.json` was not actionable (`"checks.json not found"` with no path or remediation); improved to include full path and `fabrik wp plan <site_id>` instruction; also moved `domain`/`site_id` extraction before the guard so `site_id` is available in the error message
+- `src/fabrik/wordpress/stages/languages.py:56`: dry-run returned with zero metadata — apply-report showed nothing for languages stage in dry-run; now emits `dry_run` dict with `primary`, `additional`, `multilingual_plugin`
+- `src/fabrik/wordpress/stages/settings.py:54`: dry-run was `pass` — apply-report showed nothing; now emits `dry_run` dict with `site_name`, `brand_name`, `timezone`, `contact_email`
+
 ### Fixed — WordPress pipeline: indefinite deep review round 9 (2026-04-14)
 - `src/fabrik/wordpress/deployer.py:155`: `SiteDeployer.log()` always called `logger.info()` regardless of level — warning and error messages appeared as INFO in the log stream making monitoring alerts miss real errors; now routes to `logger.warning()` / `logger.error()` correctly
 - `src/fabrik/wordpress/deployer.py:210`: `BLOCKING_STAGES` defined inside `deploy()` method — ruff N806 violation (uppercase name in function); moved to module level as `frozenset` constant

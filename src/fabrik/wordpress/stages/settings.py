@@ -52,8 +52,12 @@ def apply(
         )
 
         if dry_run:
-            # Dry-run: just log intent
-            pass
+            result.metadata["dry_run"] = {
+                "site_name": site_name,
+                "brand_name": spec.get("brand", {}).get("name"),
+                "timezone": spec.get("settings", {}).get("timezone_string", "UTC"),
+                "contact_email": spec.get("contact", {}).get("email"),
+            }
         else:
             if not wp:
                 raise RuntimeError("WordPressClient required for settings stage")

@@ -54,6 +54,11 @@ def apply(
     additional: list[str] = lang_config.get("additional", [])
 
     if dry_run:
+        result.metadata["dry_run"] = {
+            "primary": primary,
+            "additional": additional,
+            "multilingual_plugin": _resolve_multilingual_slug(lang_config) if additional else None,
+        }
         logger.info("[dry-run] languages: would install %s and activate primary=%s", additional, primary)
         return result
 
