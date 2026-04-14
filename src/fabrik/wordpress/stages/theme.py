@@ -27,8 +27,9 @@ def apply(
         )
 
         if dry_run:
-            # Dry-run: just log intent
-            pass
+            brand = spec.get("brand", {})
+            theme_name = brand.get("theme") or spec.get("theme", {}).get("name", "unknown")
+            result.metadata["dry_run"] = {"theme": theme_name}
         else:
             if not wp:
                 raise RuntimeError("WordPressClient required for theme stage")

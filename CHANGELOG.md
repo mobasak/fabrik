@@ -26,6 +26,11 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 17 (2026-04-14)
+- `src/fabrik/wordpress/stages/pages.py:120`: **critical** — `metadata["pages_created"]` stored `dict[str, CreatedPage]` dataclass objects; `json.dumps()` in `_write_apply_report()` would raise `TypeError: Object of type CreatedPage is not JSON serializable` on every real deployment, silently crashing apply-report generation; fixed by converting each `CreatedPage` to a plain dict before storage
+- `src/fabrik/wordpress/stages/pages.py:36,40`: no-pages and dry-run branches were silent `pass`; no-pages now sets `skipped=True` with reason; dry-run emits page count and slug list
+- `src/fabrik/wordpress/stages/theme.py:29-31`: dry-run was silent `pass`; now emits theme name that would be installed
+
 ### Fixed — WordPress pipeline: indefinite deep review round 16 (2026-04-14)
 - `src/fabrik/wordpress/stages/seo.py:31,34`: empty-seo and dry-run branches were silent `pass` — apply-report showed nothing; empty-seo now sets `skipped=True` with reason; dry-run emits `seo_keys` list of what would be configured
 - `src/fabrik/wordpress/stages/post_deploy.py:88`: `read_ga4_measurement_id()` called `read_text()` without `encoding="utf-8"` — inconsistent with all other file reads in the pipeline and broken on non-UTF-8 system locales; added explicit encoding

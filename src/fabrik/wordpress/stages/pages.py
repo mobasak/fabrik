@@ -34,11 +34,13 @@ def apply(
         pages_created: dict = {}
 
         if not page_specs:
-            # Key fix: No early return. Fall through to mark stage complete.
-            pass
+            result.skipped = True
+            result.metadata["skipped_reason"] = "no pages generated from spec"
         elif dry_run:
-            # Dry-run: just log intent
-            pass
+            result.metadata["dry_run"] = {
+                "page_count": len(page_specs),
+                "slugs": [p.get("slug", "") for p in page_specs],
+            }
         elif api:
             if not wp:
                 raise RuntimeError("WordPressClient required for pages stage")
@@ -117,7 +119,11 @@ def apply(
                 creator.set_blog_page(blog_page.id)
 
             # Store pages_created in metadata for SiteDeployer
-            result.metadata["pages_created"] = pages_created
+            # Convert CreatedPage dataclasses to plain dicts for JSON serialisation
+            result.metadata["pages_created"] = {
+                path: {"id": p.id, "title": p.title, "slug": p.slug, "url": p.url}
+                for path, p in pages_created.items()
+            }
 
             # Resubmit sitemap after pages are created so search engines
             # index new content. Skipped gracefully if not configured.
