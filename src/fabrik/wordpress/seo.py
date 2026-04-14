@@ -78,6 +78,21 @@ class SEOApplicator:
 
         return None
 
+    def _merge_option(self, option_name: str, updates: dict) -> None:
+        """
+        Read-merge-write a WordPress option stored as a JSON object.
+
+        Writing only the keys we care about prevents destroying other keys
+        already stored in compound options like wpseo_titles or rank_math_titles.
+        """
+        try:
+            raw = self.wp.run(f"option get {shlex.quote(option_name)} --format=json")
+            existing: dict = json.loads(raw) if raw.strip() else {}
+        except (RuntimeError, json.JSONDecodeError):
+            existing = {}
+        merged = {**existing, **updates}
+        self.wp.option_update(option_name, json.dumps(merged))
+
     def apply_site_seo(self, seo: dict) -> dict:
         """
         Apply site-wide SEO settings.
@@ -91,49 +106,31 @@ class SEOApplicator:
         applied = {}
         plugin = self.detect_seo_plugin()
 
+        # Batch Yoast wpseo_titles updates to avoid multiple destructive overwrites
+        yoast_titles_updates: dict = {}
+        rankmath_titles_updates: dict = {}
+
         # Title template
         if title := seo.get("title_template"):
             if plugin == "yoast":
-                self.wp.option_update(
-                    "wpseo_titles",
-                    json.dumps(
-                        {
-                            "title-home-wpseo": title,
-                        }
-                    ),
-                )
+                yoast_titles_updates["title-home-wpseo"] = title
             elif plugin == "rankmath":
-                self.wp.option_update(
-                    "rank_math_titles",
-                    json.dumps(
-                        {
-                            "homepage_title": title,
-                        }
-                    ),
-                )
+                rankmath_titles_updates["homepage_title"] = title
             applied["title_template"] = title
 
         # Meta description
         if description := seo.get("meta_description"):
             if plugin == "yoast":
-                self.wp.option_update(
-                    "wpseo_titles",
-                    json.dumps(
-                        {
-                            "metadesc-home-wpseo": description,
-                        }
-                    ),
-                )
+                yoast_titles_updates["metadesc-home-wpseo"] = description
             elif plugin == "rankmath":
-                self.wp.option_update(
-                    "rank_math_titles",
-                    json.dumps(
-                        {
-                            "homepage_description": description,
-                        }
-                    ),
-                )
+                rankmath_titles_updates["homepage_description"] = description
             applied["meta_description"] = description
+
+        # Flush batched Yoast / RankMath title option in a single read-merge-write
+        if yoast_titles_updates:
+            self._merge_option("wpseo_titles", yoast_titles_updates)
+        if rankmath_titles_updates:
+            self._merge_option("rank_math_titles", rankmath_titles_updates)
 
         # Schema type + LocalBusiness JSON-LD
         if schema := seo.get("schema"):
@@ -144,23 +141,9 @@ class SEOApplicator:
         # Verification codes
         if google_verification := seo.get("google_verification"):
             if plugin == "yoast":
-                self.wp.option_update(
-                    "wpseo",
-                    json.dumps(
-                        {
-                            "googleverify": google_verification,
-                        }
-                    ),
-                )
+                self._merge_option("wpseo", {"googleverify": google_verification})
             elif plugin == "rankmath":
-                self.wp.option_update(
-                    "rank_math_options",
-                    json.dumps(
-                        {
-                            "google_verify": google_verification,
-                        }
-                    ),
-                )
+                self._merge_option("rank_math_options", {"google_verify": google_verification})
             applied["google_verification"] = google_verification
 
         # Archives noindex

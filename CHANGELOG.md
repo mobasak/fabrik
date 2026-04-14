@@ -26,6 +26,13 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: 5-pass deep review round 4 (2026-04-14)
+- `src/fabrik/wordpress/deployer.py`: `self.spec` mutated in-place by injecting `dry_run` and `site_name` — spec is shared state; replaced with `stage_spec = dict(self.spec)` shallow copy passed to all stages
+- `src/fabrik/wordpress/deployer.py`: `verify` stage imported and present in codebase but **never added to the stage registry** — fully dead; added as the final stage after `monitoring`
+- `src/fabrik/wordpress/seo.py`: `apply_site_seo()` called `option_update()` multiple times on the same Yoast/RankMath option (e.g. `wpseo_titles`) — each call replaced the entire serialized dict, destroying all previously stored keys; replaced with batched `_merge_option()` (read-merge-write pattern)
+- `src/fabrik/wordpress/settings.py`: `timezone` and `date_format` read from nonexistent top-level spec keys (`spec.get("timezone")`, `spec.get("date_format")`) — schema v1 stores both under `settings.*`; corrected to read from `settings` dict only
+- `src/fabrik/wordpress/stages/seo.py`: `configure_sitemap()` and `apply_site_seo()` return values discarded — apply-report showed nothing for the SEO stage; captured into `result.metadata`; also converted silent `pass` on no-plugin to an explicit warning
+
 ### Fixed — WordPress pipeline: 5-pass deep review round 3 (2026-04-14)
 - `src/fabrik/wordpress/menus.py`: menu item deletion used shell pipe `| xargs` inside `wp.run()` — `wp.run()` is `docker exec`, not a bash shell; pipes are silently ignored, idempotency logic was broken; replaced with explicit json-based item list + per-item delete loop
 - `src/fabrik/wordpress/pages.py`: dead `WPPost(...)` construction in `create_page()` — object created and immediately discarded, no effect; removed object construction and unused `WPPost` import

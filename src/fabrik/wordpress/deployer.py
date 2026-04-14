@@ -35,6 +35,7 @@ from fabrik.wordpress.stages import (
     seo,
     settings,
     theme,
+    verify,
 )
 
 logger = logging.getLogger(__name__)
@@ -192,12 +193,13 @@ class SiteDeployer:
         stage_results_for_report: list[dict] = []
 
         try:
-            # Inject dry_run into spec for stage runners
-            self.spec["dry_run"] = self.dry_run
-            self.spec["site_name"] = self.site_name
+            # Build a stage-local copy of spec — do NOT mutate self.spec
+            stage_spec = dict(self.spec)
+            stage_spec["dry_run"] = self.dry_run
+            stage_spec["site_name"] = self.site_name
 
             # Stage registry - ordered execution
-            stages = (dns, settings, theme, plugins, languages, pages, menus, forms, seo, post_deploy, analytics, monitoring)
+            stages = (dns, settings, theme, plugins, languages, pages, menus, forms, seo, post_deploy, analytics, monitoring, verify)
 
             # Initialize local clients once for reuse, preserving lazy behavior in dry-run mode
             wp_client = None if self.dry_run else self.wp
@@ -219,7 +221,7 @@ class SiteDeployer:
                     self.log(f"  {stage_name.capitalize()} skipped (unchanged)", "info")
                 else:
                     # Run stage
-                    stage_result = stage.apply(self.spec, wp_client, api_client, build_dir)
+                    stage_result = stage.apply(stage_spec, wp_client, api_client, build_dir)
 
                     # Update plan.json atomically after successful non-skipped stage
                     if stage_result.success and not stage_result.skipped and not self.dry_run:

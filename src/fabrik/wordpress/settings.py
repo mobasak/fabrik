@@ -130,13 +130,13 @@ class SettingsApplicator:
         self.wp.rewrite_flush()
         applied["permalink_structure"] = permalink
 
-        # Timezone
-        timezone = spec.get("timezone", settings.get("timezone_string", "UTC"))
+        # Timezone — read from settings.timezone_string (schema v1 path)
+        timezone = settings.get("timezone_string", "UTC")
         self.wp.option_update("timezone_string", timezone)
         applied["timezone_string"] = timezone
 
-        # Date format
-        date_format = spec.get("date_format", settings.get("date_format", "Y-m-d"))
+        # Date format — read from settings.date_format (schema v1 path)
+        date_format = settings.get("date_format", "Y-m-d")
         self.wp.option_update("date_format", date_format)
         applied["date_format"] = date_format
 

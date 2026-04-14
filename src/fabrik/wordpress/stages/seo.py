@@ -1,5 +1,6 @@
 """SEO settings application stage."""
 
+import logging
 from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient
@@ -7,6 +8,7 @@ from fabrik.drivers.wordpress_api import WordPressAPIClient
 from fabrik.wordpress.seo import SEOApplicator
 from fabrik.wordpress.stages import StageResult, time_stage
 
+logger = logging.getLogger(__name__)
 
 @time_stage
 def apply(
@@ -37,12 +39,17 @@ def apply(
 
             # Check if SEO plugin available
             plugin = applicator.detect_seo_plugin()
+            result.metadata["seo_plugin"] = plugin
             if plugin:
-                applicator.configure_sitemap(enabled=True)
-                applicator.apply_site_seo(seo)
+                sitemap_result = applicator.configure_sitemap(enabled=True)
+                result.metadata["sitemap_configured"] = sitemap_result
+                applied = applicator.apply_site_seo(seo)
+                result.metadata["applied"] = applied
+                logger.info("SEO applied via %s: %s", plugin, list(applied.keys()))
             else:
-                # No plugin: not an error, just skip
-                pass
+                result.warnings.append("No active SEO plugin detected — skipping SEO settings")
+                logger.warning("No active SEO plugin detected (yoast/rankmath)")
+                result.skipped = True
 
     except Exception as e:
         result.success = False
