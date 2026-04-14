@@ -111,7 +111,7 @@ if ($http_cookie ~* "comment_author|wordpress_[a-f0-9]+|wp-postpass|wordpress_no
 location ~ \.php$ {
     include snippets/fastcgi-php.conf;
     fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
-    
+
     fastcgi_cache WORDPRESS;
     fastcgi_cache_valid 200 301 302 60m;
     fastcgi_cache_bypass $skip_cache;
@@ -239,7 +239,7 @@ function agency_force_smtp_config( $phpmailer ) {
     $phpmailer->SMTPSecure = 'tls';
     $phpmailer->Username   = 'YOUR_SES_SMTP_USERNAME';
     $phpmailer->Password   = 'YOUR_SES_SMTP_PASSWORD';
-    
+
     // Force specific 'From' address to align with SPF/DKIM
     $phpmailer->From       = 'noreply@yourdomain.com';
     $phpmailer->FromName   = 'Your Brand Name';
@@ -261,7 +261,7 @@ function agency_cleanup_head() {
     remove_action( 'wp_print_styles', 'print_emoji_styles' );      // Removes emoji CSS
     remove_action( 'wp_head', 'feed_links', 2 );               // Removes main RSS feeds
     remove_action( 'wp_head', 'feed_links_extra', 3 );         // Removes extra RSS feeds
-    
+
     // Obscure WP Version from scripts/styles
     add_filter( 'script_loader_src', 'agency_remove_wp_ver', 15 );
     add_filter( 'style_loader_src', 'agency_remove_wp_ver', 15 );

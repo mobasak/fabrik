@@ -207,7 +207,21 @@ class SiteDeployer:
             stage_spec["site_name"] = self.site_name
 
             # Stage registry - ordered execution
-            stages = (dns, settings, theme, plugins, languages, pages, menus, forms, seo, post_deploy, analytics, monitoring, verify)
+            stages = (
+                dns,
+                settings,
+                theme,
+                plugins,
+                languages,
+                pages,
+                menus,
+                forms,
+                seo,
+                post_deploy,
+                analytics,
+                monitoring,
+                verify,
+            )
 
             # Initialize local clients once for reuse, preserving lazy behavior in dry-run mode
             wp_client = None if self.dry_run else self.wp

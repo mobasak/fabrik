@@ -194,7 +194,9 @@ def _run_baseline_checks(
             raw = wp.plugin_list()
             plugins: list[dict] = raw if isinstance(raw, list) else []
             plugin_statuses = {p["name"]: p["status"] for p in plugins}
-            required_plugins: list[str] = []  # akismet + hello-dolly are deleted by cleanup_defaults()
+            required_plugins: list[
+                str
+            ] = []  # akismet + hello-dolly are deleted by cleanup_defaults()
             missing_inactive = [
                 p
                 for p in required_plugins

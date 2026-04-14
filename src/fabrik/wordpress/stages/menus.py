@@ -28,11 +28,10 @@ def apply(
         navigation = spec.get("navigation") or spec.get("menus", {})
 
         if not navigation:
-            # No navigation defined: not an error
-            pass
+            result.skipped = True
+            result.metadata["skipped_reason"] = "no navigation defined in spec"
         elif dry_run:
-            # Dry-run: just log intent
-            pass
+            result.metadata["dry_run"] = {"menus": list(navigation.keys()) if isinstance(navigation, dict) else []}
         else:
             if not wp:
                 raise RuntimeError("WordPressClient required for menus stage")

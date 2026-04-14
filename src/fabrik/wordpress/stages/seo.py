@@ -10,6 +10,7 @@ from fabrik.wordpress.stages import StageResult, time_stage
 
 logger = logging.getLogger(__name__)
 
+
 @time_stage
 def apply(
     spec: dict, wp: WordPressClient | None, api: WordPressAPIClient | None, build_dir: Path

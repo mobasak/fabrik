@@ -26,6 +26,11 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 15 (2026-04-14)
+- `src/fabrik/wordpress/stages/plugins.py:75-79`: individual plugin install failure jumped to the outer `except`, aborting all remaining plugins in the manifest; a single bad plugin blocked the entire pipeline; wrapped per-install in its own try/except to count failures and continue; `result.success=False` set after the loop when any failures occurred
+- `src/fabrik/wordpress/stages/plugins.py:25`: dry-run returned with zero metadata; now reads manifest and emits `dry_run.would_install` list and `total`
+- `src/fabrik/wordpress/stages/menus.py:30,33`: no-navigation and dry-run branches were silent `pass` — apply-report showed nothing; no-navigation now sets `skipped=True` with reason; dry-run emits menu names that would be created
+
 ### Fixed — WordPress pipeline: indefinite deep review round 14 (2026-04-14)
 - `src/fabrik/wordpress/spec_loader.py:143`: `_apply_secrets()` used `os.getenv(var, "")` — unset env vars were silently substituted with empty strings; `deployment.vps_ip` becoming `""` passed string type validation then failed at network calls with zero explanation; now logs `WARNING` for each missing var before substituting
 - `src/fabrik/wordpress/spec_loader.py:301`: corrupt `project.yaml` in CWD caused silent fall-through to legacy path lookup — user saw "spec not found in legacy path" with no hint that their local `project.yaml` was unreadable; now logs `WARNING` with the parse error before continuing

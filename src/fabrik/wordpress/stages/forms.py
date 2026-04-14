@@ -52,7 +52,9 @@ def apply(
                 result.metadata["shortcode"] = created.shortcode
                 logger.info("Contact form created via %s: %s", plugin, created.shortcode)
             else:
-                result.warnings.append("No active form plugin detected (wpforms/cf7) — skipping form creation")
+                result.warnings.append(
+                    "No active form plugin detected (wpforms/cf7) — skipping form creation"
+                )
                 logger.warning("No active form plugin detected")
                 result.skipped = True
 

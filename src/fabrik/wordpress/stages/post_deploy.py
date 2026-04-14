@@ -11,9 +11,7 @@ GA4_ARTIFACT_FILENAME = "ga4_measurement_id.txt"
 
 
 @time_stage
-def apply(
-    spec: dict, wp: object | None, api: object | None, build_dir: Path
-) -> StageResult:
+def apply(spec: dict, wp: object | None, api: object | None, build_dir: Path) -> StageResult:
     """Resubmit sitemap and retrieve GA4 measurement ID from site-provisioner integrations."""
     result = StageResult(name="post_deploy", success=True)
 
@@ -54,7 +52,9 @@ def apply(
                 artifact_path.write_text(ga4_measurement_id, encoding="utf-8")
                 result.artifacts_written.append(str(artifact_path))
                 result.metadata["ga4_measurement_id"] = ga4_measurement_id
-                logger.info("GA4 measurement_id written: %s → %s", ga4_measurement_id, artifact_path)
+                logger.info(
+                    "GA4 measurement_id written: %s → %s", ga4_measurement_id, artifact_path
+                )
             else:
                 result.warnings.append(
                     f"GA4 measurement_id not found in site-provisioner integrations for {domain}. "

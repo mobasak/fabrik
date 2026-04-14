@@ -123,13 +123,13 @@ def apply(
             # index new content. Skipped gracefully if not configured.
             if not dry_run and pages_created:
                 domain = spec.get("site", {}).get("domain", "")
-                sitemap_url = (
-                    spec.get("post_deploy", {}).get("sitemap_url")
-                    or (f"https://{domain}/sitemap.xml" if domain else None)
+                sitemap_url = spec.get("post_deploy", {}).get("sitemap_url") or (
+                    f"https://{domain}/sitemap.xml" if domain else None
                 )
                 if domain and sitemap_url:
                     try:
                         from fabrik.drivers.dns import DNSClient
+
                         dns_client = DNSClient()
                         try:
                             sitemap_result = dns_client.update_sitemap(domain, sitemap_url)
@@ -145,9 +145,7 @@ def apply(
                         result.warnings.append(
                             f"Sitemap resubmit after pages skipped: {sitemap_exc}"
                         )
-                        logger.warning(
-                            "Sitemap resubmit skipped (non-fatal): %s", sitemap_exc
-                        )
+                        logger.warning("Sitemap resubmit skipped (non-fatal): %s", sitemap_exc)
 
         else:
             # REST API not available — pages cannot be created

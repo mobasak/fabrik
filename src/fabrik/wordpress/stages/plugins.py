@@ -22,6 +22,15 @@ def apply(
         dry_run = spec.get("dry_run", False)
 
         if dry_run:
+            manifest_path = build_dir / "manifests" / "plugins.json"
+            if manifest_path.exists():
+                manifest_preview: list[dict] = json.loads(manifest_path.read_text(encoding="utf-8"))
+            else:
+                manifest_preview = []
+            result.metadata["dry_run"] = {
+                "would_install": [e["slug"] for e in manifest_preview],
+                "total": len(manifest_preview),
+            }
             return result
 
         if wp is None:
@@ -74,15 +83,27 @@ def apply(
                 logger.info("Plugin activated: %s", lookup_key)
             else:
                 # Not installed — install and activate
-                wp.plugin_install(install_target, activate=True)
-                counts["installed"] += 1
-                logger.info("Plugin installed: %s", install_target)
+                try:
+                    wp.plugin_install(install_target, activate=True)
+                    counts["installed"] += 1
+                    logger.info("Plugin installed: %s", install_target)
+                except Exception as install_exc:
+                    counts["failed"] += 1
+                    msg = f"Plugin {slug}: install failed — {install_exc}"
+                    result.errors.append(msg)
+                    logger.error(msg)
 
         result.metadata["counts"] = counts
         result.metadata["total"] = len(manifest)
+        if counts["failed"] > 0:
+            result.success = False
         logger.info(
-            "Plugins: %d installed, %d activated, %d skipped (total=%d)",
-            counts["installed"], counts["activated"], counts["skipped"], len(manifest),
+            "Plugins: %d installed, %d activated, %d skipped, %d failed (total=%d)",
+            counts["installed"],
+            counts["activated"],
+            counts["skipped"],
+            counts["failed"],
+            len(manifest),
         )
 
     except Exception as e:

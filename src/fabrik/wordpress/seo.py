@@ -301,17 +301,23 @@ class SEOApplicator:
         plugin = self.detect_seo_plugin()
 
         if plugin == "rankmath":
-            self._merge_option("rank_math_titles", {
-                "noindex_archive_date": 1,
-                "noindex_archive_author": 1,
-                "noindex_archive_tag": 1,
-            })
+            self._merge_option(
+                "rank_math_titles",
+                {
+                    "noindex_archive_date": 1,
+                    "noindex_archive_author": 1,
+                    "noindex_archive_tag": 1,
+                },
+            )
         elif plugin == "yoast":
-            self._merge_option("wpseo_titles", {
-                "noindex-tax-post_tag": True,
-                "noindex-author-wpseo": True,
-                "noindex-archive-wpseo": True,
-            })
+            self._merge_option(
+                "wpseo_titles",
+                {
+                    "noindex-tax-post_tag": True,
+                    "noindex-author-wpseo": True,
+                    "noindex-archive-wpseo": True,
+                },
+            )
 
         logger.info("archives noindex configured for plugin=%s", plugin)
         return True
@@ -336,7 +342,9 @@ class SEOApplicator:
         logger.info("breadcrumbs enabled=%s for plugin=%s", enabled, plugin)
         return True
 
-    def set_open_graph(self, enabled: bool = True, twitter_card: str = "summary_large_image") -> bool:
+    def set_open_graph(
+        self, enabled: bool = True, twitter_card: str = "summary_large_image"
+    ) -> bool:
         """
         Enable Open Graph and Twitter Card meta tags.
 
@@ -350,16 +358,22 @@ class SEOApplicator:
         plugin = self.detect_seo_plugin()
 
         if plugin == "rankmath":
-            self._merge_option("rank_math_titles", {
-                "social_networks": 1 if enabled else 0,
-                "twitter_card_type": twitter_card,
-            })
+            self._merge_option(
+                "rank_math_titles",
+                {
+                    "social_networks": 1 if enabled else 0,
+                    "twitter_card_type": twitter_card,
+                },
+            )
         elif plugin == "yoast":
-            self._merge_option("wpseo_social", {
-                "opengraph": enabled,
-                "twitter": enabled,
-                "twitter_card_type": twitter_card,
-            })
+            self._merge_option(
+                "wpseo_social",
+                {
+                    "opengraph": enabled,
+                    "twitter": enabled,
+                    "twitter_card_type": twitter_card,
+                },
+            )
 
         logger.info("OG enabled=%s twitter_card=%s for plugin=%s", enabled, twitter_card, plugin)
         return True

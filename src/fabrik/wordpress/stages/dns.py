@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 @time_stage
-def apply(
-    spec: dict, wp: object | None, api: object | None, build_dir: Path
-) -> StageResult:
+def apply(spec: dict, wp: object | None, api: object | None, build_dir: Path) -> StageResult:
     """Sync DNS A record and www CNAME via site-provisioner (DNSClient)."""
     result = StageResult(name="dns", success=True)
 
@@ -51,7 +49,8 @@ def apply(
             result.metadata["existing_records"] = len(existing_records)
 
             root_a = [
-                r for r in existing_records
+                r
+                for r in existing_records
                 if r.get("type") == "A" and r.get("name") in (domain, f"{domain}.")
             ]
             if not root_a:
@@ -63,8 +62,7 @@ def apply(
                 logger.info("DNS A record already exists for %s", domain)
 
             www_records = [
-                r for r in existing_records
-                if r.get("name") in (f"www.{domain}", f"www.{domain}.")
+                r for r in existing_records if r.get("name") in (f"www.{domain}", f"www.{domain}.")
             ]
             if not www_records:
                 client.add_subdomain(domain, "www", vps_ip, proxied=proxied)

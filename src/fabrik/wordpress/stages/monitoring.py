@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 @time_stage
-def apply(
-    spec: dict, wp: object | None, api: object | None, build_dir: Path
-) -> StageResult:
+def apply(spec: dict, wp: object | None, api: object | None, build_dir: Path) -> StageResult:
     """Register site HTTP monitor in Uptime Kuma."""
     result = StageResult(name="monitoring", success=True)
 

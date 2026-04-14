@@ -59,7 +59,9 @@ def apply(
             "additional": additional,
             "multilingual_plugin": _resolve_multilingual_slug(lang_config) if additional else None,
         }
-        logger.info("[dry-run] languages: would install %s and activate primary=%s", additional, primary)
+        logger.info(
+            "[dry-run] languages: would install %s and activate primary=%s", additional, primary
+        )
         return result
 
     try:
