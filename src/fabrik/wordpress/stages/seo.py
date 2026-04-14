@@ -28,11 +28,10 @@ def apply(
         seo = spec.get("seo", {})
 
         if not seo:
-            # No SEO settings: not an error
-            pass
+            result.skipped = True
+            result.metadata["skipped_reason"] = "no seo section in spec"
         elif dry_run:
-            # Dry-run: just log intent
-            pass
+            result.metadata["dry_run"] = {"seo_keys": list(seo.keys())}
         else:
             if not wp:
                 raise RuntimeError("WordPressClient required for seo stage")

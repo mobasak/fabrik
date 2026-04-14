@@ -26,6 +26,10 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 16 (2026-04-14)
+- `src/fabrik/wordpress/stages/seo.py:31,34`: empty-seo and dry-run branches were silent `pass` — apply-report showed nothing; empty-seo now sets `skipped=True` with reason; dry-run emits `seo_keys` list of what would be configured
+- `src/fabrik/wordpress/stages/post_deploy.py:88`: `read_ga4_measurement_id()` called `read_text()` without `encoding="utf-8"` — inconsistent with all other file reads in the pipeline and broken on non-UTF-8 system locales; added explicit encoding
+
 ### Fixed — WordPress pipeline: indefinite deep review round 15 (2026-04-14)
 - `src/fabrik/wordpress/stages/plugins.py:75-79`: individual plugin install failure jumped to the outer `except`, aborting all remaining plugins in the manifest; a single bad plugin blocked the entire pipeline; wrapped per-install in its own try/except to count failures and continue; `result.success=False` set after the loop when any failures occurred
 - `src/fabrik/wordpress/stages/plugins.py:25`: dry-run returned with zero metadata; now reads manifest and emits `dry_run.would_install` list and `total`

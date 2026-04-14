@@ -85,5 +85,5 @@ def read_ga4_measurement_id(build_dir: Path) -> str | None:
     """
     artifact_path = build_dir / GA4_ARTIFACT_FILENAME
     if artifact_path.exists():
-        return artifact_path.read_text().strip() or None
+        return artifact_path.read_text(encoding="utf-8").strip() or None
     return None
