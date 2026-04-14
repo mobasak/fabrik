@@ -1,11 +1,8 @@
-"""Post-deploy integrations stage: GSC, Bing, IndexNow, GA4 via site-provisioner."""
+"""Post-deploy integrations stage: sitemap resubmission + GA4 ID retrieval via site-provisioner."""
 
 import logging
-import os
 from pathlib import Path
 
-from fabrik.drivers.wordpress import WordPressClient
-from fabrik.drivers.wordpress_api import WordPressAPIClient
 from fabrik.wordpress.stages import StageResult, time_stage
 
 logger = logging.getLogger(__name__)
@@ -15,9 +12,9 @@ GA4_ARTIFACT_FILENAME = "ga4_measurement_id.txt"
 
 @time_stage
 def apply(
-    spec: dict, wp: WordPressClient | None, api: WordPressAPIClient | None, build_dir: Path
+    spec: dict, wp: object | None, api: object | None, build_dir: Path
 ) -> StageResult:
-    """Register site with GSC, Bing, IndexNow, and GA4 via site-provisioner."""
+    """Resubmit sitemap and retrieve GA4 measurement ID from site-provisioner integrations."""
     result = StageResult(name="post_deploy", success=True)
 
     try:
@@ -35,62 +32,41 @@ def apply(
             result.skipped = True
             return result
 
-        setup_google = post_deploy.get("setup_google", True)
-        setup_bing = post_deploy.get("setup_bing", True)
-        setup_indexnow = post_deploy.get("setup_indexnow", True)
-        setup_ga4 = post_deploy.get("setup_ga4", False)
-        ga4_account_id = post_deploy.get("ga4_account_id") or os.getenv("GA4_ACCOUNT_ID")
         sitemap_url = post_deploy.get("sitemap_url", f"https://{domain}/sitemap.xml")
 
         if dry_run:
             result.metadata["dry_run"] = {
                 "domain": domain,
-                "setup_google": setup_google,
-                "setup_bing": setup_bing,
-                "setup_indexnow": setup_indexnow,
-                "setup_ga4": setup_ga4,
-                "ga4_account_id": ga4_account_id,
                 "sitemap_url": sitemap_url,
+                "actions": ["update_sitemap", "get_integrations (GA4 ID)"],
             }
             return result
 
         from fabrik.drivers.dns import DNSClient
 
-        target_ip = os.getenv("VPS_IP", "172.93.160.197")
         dns_client = DNSClient()
 
-        provision_result = dns_client.provision(
-            domain=domain,
-            target_ip=target_ip,
-            subdomains=["www"],
-            setup_google=setup_google,
-            setup_bing=setup_bing,
-            setup_indexnow=setup_indexnow,
-            setup_ga4=setup_ga4,
-            ga4_account_id=ga4_account_id,
-            sitemap_url=sitemap_url,
-        )
-        result.metadata["provision"] = provision_result
+        sitemap_result = dns_client.update_sitemap(domain, sitemap_url)
+        result.metadata["sitemap"] = sitemap_result
+        logger.info("sitemap resubmitted for %s → %s", domain, sitemap_url)
 
-        ga4_measurement_id = (
-            provision_result.get("ga4", {}).get("measurement_id")
-            or provision_result.get("ga4_measurement_id")
-        )
+        integrations = dns_client.get_integrations(domain)
+        result.metadata["integrations"] = integrations
+
+        ga4_measurement_id = integrations.get("ga4", {}).get("measurement_id")
         if ga4_measurement_id:
             artifact_path = build_dir / GA4_ARTIFACT_FILENAME
             artifact_path.write_text(ga4_measurement_id)
             result.artifacts_written.append(str(artifact_path))
             result.metadata["ga4_measurement_id"] = ga4_measurement_id
             logger.info("GA4 measurement_id written: %s → %s", ga4_measurement_id, artifact_path)
+        else:
+            result.warnings.append(
+                f"GA4 measurement_id not found in site-provisioner integrations for {domain}. "
+                "Run 'fabrik domain integrations <domain>' to verify GA4 was set up during provisioning."
+            )
 
-        logger.info(
-            "post_deploy complete for %s: google=%s bing=%s indexnow=%s ga4=%s",
-            domain,
-            setup_google,
-            setup_bing,
-            setup_indexnow,
-            setup_ga4,
-        )
+        logger.info("post_deploy complete for %s", domain)
 
     except Exception as e:
         result.success = False

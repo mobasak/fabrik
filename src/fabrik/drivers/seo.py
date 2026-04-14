@@ -113,6 +113,7 @@ class SEOClient:
         language_code: str,
         rendering_mode: str = "ssr",
         category: str | None = None,
+        author_profile_url: str | None = None,
         knowledge_base: dict | None = None,
     ) -> dict[str, Any]:
         """
@@ -125,9 +126,10 @@ class SEOClient:
             default_locale: Locale string (e.g. "en-US")
             country_code: ISO-2 country (e.g. "us")
             language_code: Language (e.g. "en")
-            rendering_mode: "ssr" or "ssg" (CSR rejected by SEO service)
+            rendering_mode: "ssr" | "ssg" | "csr" (default "ssr"; SEO service may reject "csr")
             category: Site category (e.g. "saas", "company")
-            knowledge_base: Optional JSONB config
+            author_profile_url: URL to author/about page (e.g. "https://mysite.com/about")
+            knowledge_base: Optional JSONB config (may include indexnow_api_key, search_console_property)
 
         Returns:
             Created site dict with site_id
@@ -143,6 +145,8 @@ class SEOClient:
         }
         if category is not None:
             payload["category"] = category
+        if author_profile_url is not None:
+            payload["author_profile_url"] = author_profile_url
         if knowledge_base is not None:
             payload["knowledge_base"] = knowledge_base
         return self._request("POST", "/api/v1/sites", json=payload)

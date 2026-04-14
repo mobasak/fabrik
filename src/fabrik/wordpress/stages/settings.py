@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import secrets
+import shlex
 from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient
@@ -63,7 +64,7 @@ def apply(
             admin_username = spec.get("security", {}).get("admin_username")
             if admin_username and admin_username != "admin":
                 try:
-                    wp.run(f"user update 1 --user_login={admin_username}")
+                    wp.run(f"user update 1 --user_login={shlex.quote(admin_username)}")
                     result.metadata["admin_username_renamed"] = admin_username
                     logger.info("Admin username renamed from 'admin' to '%s'", admin_username)
                 except RuntimeError as exc:

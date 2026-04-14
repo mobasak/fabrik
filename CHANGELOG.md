@@ -18,6 +18,12 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline Phase 0: review pass corrections (2026-04-14)
+- `src/fabrik/wordpress/stages/dns.py`: Gap 7 — replaced unauthenticated `DomainSetup` (bare httpx) with `DNSClient` (X-API-Key auth, correct site-provisioner endpoints); now syncs A record + www CNAME idempotently and calls `check_ready()` to surface zone-pending warnings
+- `src/fabrik/wordpress/stages/post_deploy.py`: corrected Gap 3 — was incorrectly calling `DNSClient.provision()` (full zone creation) post-deploy; now correctly calls `update_sitemap()` + `get_integrations()` to resubmit sitemap and retrieve GA4 measurement ID from site-provisioner; removed unused imports
+- `src/fabrik/drivers/seo.py`: `register_site()` — added missing `author_profile_url` parameter confirmed by SEO service API schema
+- `src/fabrik/wordpress/stages/settings.py`: `shlex.quote()` applied to `admin_username` before passing to `wp user update` to prevent shell injection
+
 ### Added — WordPress pipeline Phase 0: code gap fixes (2026-04-14)
 - `src/fabrik/wordpress/seo.py`: added `set_archives_noindex()`, `set_breadcrumbs()`, `set_open_graph()`, `set_robots_txt_ai_crawlers()` methods; fixed `add_schema_markup()` stub (now sets RankMath schema type); fixed `configure_sitemap()` RankMath option key (`rank_math_general`); extended `apply_site_seo()` to call all new methods from spec flags
 - `src/fabrik/wordpress/stages/seo.py`: added `configure_sitemap(enabled=True)` call before `apply_site_seo()` — was never called (Gap 1)
