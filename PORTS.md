@@ -83,12 +83,13 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-04-14 23:00:10 -->
+<!-- Last synced: 2026-04-14 23:56:21 -->
 
 ### ⚠️ Port Conflicts Detected
 
 | Port | Conflicting Projects |
 |------|---------------------|
+| **8019** | gate-desktop, gate-mobile |
 | **18014** | dns-manager, site-provisioner |
 
 ### Project Port Allocations (from project.yaml)
@@ -96,7 +97,8 @@ If you encounter a port conflict:
 | Port | Project | Type | Path |
 |------|---------|------|------|
 | 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
-| 8000 | **gate-test** | python-api | /opt/gate-test |
+| 3002 | **gate-saas** | saas-skeleton | /opt/gate-saas |
+| 8000 | **gate-chrome** | chrome-extension | /opt/gate-chrome |
 | 8002 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 8003 | **apps** | python-api | /opt/apps |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
@@ -114,6 +116,8 @@ If you encounter a port conflict:
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **supplement-tracker-advisor** | python-api | /opt/supplement-tracker-advisor |
 | 8018 | **Reference_Creator** | python-api | /opt/Reference_Creator |
+| 8019 ⚠️ | **gate-desktop** | desktop-app | /opt/gate-desktop |
+| 8019 ⚠️ | **gate-mobile** | mobile-app | /opt/gate-mobile |
 | 8022 | **trade-intelligence** | python-api | /opt/trade-intelligence |
 | 8023 | **trading-core** | python-api | /opt/trading-core |
 | 8024 | **transcriber** | python-api | /opt/transcriber |

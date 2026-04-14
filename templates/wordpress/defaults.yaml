@@ -32,9 +32,9 @@ theme:
 plugins:
   # Core functionality
   base:
-    - generatepress           # Theme (free)
-    - gp-premium              # Theme premium features
-    - rank-math-seo           # SEO (or rank-math-seo-pro)
+    # NOTE: generatepress is a THEME — installed by theme stage, NOT here
+    # NOTE: gp-premium is a premium ZIP — listed under premium section below
+    - seo-by-rank-math        # SEO (wordpress.org slug; pro version is rank-math-seo-pro ZIP)
     - wp-mail-smtp            # Email delivery (fallback — prefer Fabrik Email Gateway on VPS per 62-wordpress.md)
     - complianz-gdpr          # Cookie consent / GDPR
     - wordfence               # Security (MANDATORY — brute-force, firewall, malware scan)

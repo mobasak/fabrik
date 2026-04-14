@@ -1,7 +1,7 @@
 # ocoron.com — Full Deployment Plan (Fresh Start)
 
 **Created:** 2026-04-13
-**Status:** READY_TO_EXECUTE
+**Status:** IN_PROGRESS — Phase 2 complete, Phase 4 in progress (2026-04-14)
 **Purpose:** Deploy ocoron.com end-to-end as the reference run for fully automated WordPress site creation. Every gap found here becomes a code fix that benefits all future sites.
 
 ---
@@ -67,43 +67,59 @@ Key sections every site spec must have for the full pipeline to run:
 Run before any `fabrik wp` command or container operations:
 
 ```bash
-# 1. Container running?
-ssh ozgur@172.93.160.197 "sudo docker ps | grep ocoron"
+# 1. All 5 containers running?
+ssh vps "sudo docker ps | grep ocoron-com"
+# Expected: nginx, wordpress, db (healthy), redis (healthy), backup
 
-# 2. Required env vars set?
-grep "WP_ADMIN_PASSWORD\|GA4_ID\|GA4_ACCOUNT_ID\|SITE_PROVISIONER_API_KEY\|VPS_IP" /opt/fabrik/.env
+# 2. WP-CLI installed in container? (ephemeral — lost on restart)
+ssh vps "sudo docker exec ocoron-com-wordpress-1 wp --info --allow-root 2>&1 | head -1"
+# If missing:
+# ssh vps "sudo docker exec ocoron-com-wordpress-1 sh -c 'curl -sO https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp'"
 
-# 3. site-provisioner live?
-curl -s https://dns.vps1.ocoron.com/health | python3 -m json.tool
+# 2b. WP core installed? (fresh volume = no tables)
+ssh vps "sudo docker exec ocoron-com-wordpress-1 wp core is-installed --allow-root 2>&1"
+# If not: run Step 2.5 below before fabrik wp apply
 
-# 4. DNS resolving to VPS?
+# 3. Required env vars set?
+grep "WP_ADMIN_PASSWORD\|GA4_ID\|GA4_ACCOUNT_ID\|SITE_PROVISIONER_API_KEY\|SITE_PROVISIONER_INTERNAL_URL\|VPS_IP" /opt/fabrik/.env
+
+# 4. site-provisioner reachable via SSH proxy?
+ssh vps "curl -s -H 'X-API-Key: $(grep SITE_PROVISIONER_API_KEY /opt/fabrik/.env | cut -d= -f2)' http://10.0.1.30:8001/health"
+
+# 5. DNS resolving to VPS?
 dig +short ocoron.com
 
-# 5. Code gaps fixed? (check stage registry)
+# 6. DB volume is fresh (no stale credentials)?
+ssh vps "sudo docker exec ocoron-com-db-1 mysql -u wp_user -p\$(grep OCORON_DB_PASSWORD /opt/fabrik/.env | cut -d= -f2) -e 'SELECT 1;' 2>&1"
+
+# 7. Code gaps fixed?
 grep "post_deploy\|monitoring" /opt/fabrik/src/fabrik/wordpress/deployer.py
 ```
 
 ---
 
-## Current State (Verified 2026-04-13)
+## Current State (Updated 2026-04-14)
 
 | Item | State | Action |
 |---|---|---|
-| Coolify service UUID | `zwgsgwkwosws84o4sk4kwkso` | DELETE and recreate |
-| WP container | Up 3 weeks, bare install | DELETE |
-| Active theme | `twentytwentyfive` | Will be replaced by GeneratePress |
-| Plugins | Only akismet + hello (inactive) | Full stack will be installed |
-| Pages | Sample Page only | All pages will be created |
-| Permalinks | `/%year%/%monthnum%/%day%/%postname%/` | Will be set to `/%postname%/` |
-| `WP_ADMIN_PASSWORD` in .env | **BLANK** | Must set before Phase 2 |
-| `GA4_ID` in .env | **MISSING** | Must set before Phase 3 |
-| `SITE_PROVISIONER_API_KEY` in .env | **MISSING** | Must set before Phase 1 |
-| `GA4_ACCOUNT_ID` in .env | **MISSING** | Must set before Phase 1 |
-| Last apply result | `overall_success: false`, 0 stages | Fresh start fixes this |
+| Coolify service UUID | `acc0k8o0gk08g080wwsoggk4` | Active — project "WordPress Sites" |
+| WP container | `ocoron-com-wordpress-1` php8.3-fpm, fresh volumes | Running |
+| nginx container | `ocoron-com-nginx-1` nginx:stable-alpine | Running |
+| db container | `ocoron-com-db-1` mariadb:10.11, healthy | Running |
+| redis container | `ocoron-com-redis-1` redis:7-bookworm, healthy | Running |
+| backup container | `ocoron-com-backup-1` debian:bookworm-slim | Running |
+| WP-CLI | Manually installed in fpm container | Ephemeral — lost on restart |
+| Active theme | Not yet set — fresh install | Will be set by settings stage |
+| `WP_ADMIN_PASSWORD` in .env | **SET** | ✅ |
+| `GA4_ID` in .env | **MISSING** | Set after Phase 3 |
+| `GA4_ACCOUNT_ID` in .env | **MISSING** | Required for post_deploy stage |
+| `SITE_PROVISIONER_INTERNAL_URL` in .env | `http://10.0.1.30:8001` | ✅ SSH-proxy for WSL DNS calls |
+| DNS stage | ✅ PASSING | |
+| Settings stage | Running 2026-04-14 | In progress |
 
 ---
 
-## Code Gaps — Verified Against Source (10 Total)
+## Code Gaps — Verified Against Source (16 Total)
 
 All gaps verified by reading actual stage source, not assumptions. Fix before `fabrik wp apply`.
 
@@ -219,6 +235,38 @@ Similarly, `spec_validator` validates `schema_version`, `site.domain`, `brand.na
 
 **Fix:** Add `post_deploy` and `monitoring` to `STAGE_KEYS`. Add optional warnings to `spec_validator` for `security.admin_username != "admin"` and `post_deploy.ga4_account_id` presence.
 
+### Gap 16 — `user_login` is immutable in WordPress — **DISCOVERED 2026-04-14**
+
+`settings.py` tried `wp user update 1 --user_login=ocoronadm` which silently fails (`User logins can't be changed`). The admin username was never actually replaced.
+
+**Fix:** Create new admin user with desired username → reassign all content from old user (ID 1) → delete old `admin` user. Implemented in `stages/settings.py` 2026-04-14.
+
+### Gap 15 — Wrong plugin slugs in `defaults.yaml` — **DISCOVERED 2026-04-14**
+
+`defaults.yaml` had `generatepress` and `gp-premium` in `plugins.base` — but GeneratePress is a **theme**, not a plugin. `rank-math-seo` is also wrong — the actual wordpress.org slug is `seo-by-rank-math`.
+
+**Fix (applied 2026-04-14):**
+- Removed `generatepress` from `plugins.base` (installed by theme stage)
+- Removed `gp-premium` from `plugins.base` (premium ZIP, not on wordpress.org)
+- Changed `rank-math-seo` → `seo-by-rank-math`
+
+### Gap 14 — Pipeline assumes WP core is already installed — **DISCOVERED 2026-04-14**
+
+`stages/settings.py` runs WP-CLI against the container immediately. On a fresh volume, MariaDB starts empty — WordPress tables don't exist yet. Every WP-CLI call fails with `The site you have requested is not installed. Run wp core install`.
+
+The pipeline has no install step. This means **`wp core install` must be run manually as Phase 2 Step 2.5** before `fabrik wp apply`. Alternatively, the `settings` stage should check `wp core is-installed` first and run `wp core install` with spec values if not.
+
+**Spec keys needed for core install:**
+- `site.url` → `--url`
+- `brand.name` → `--title`
+- `security.admin_username` → `--admin_user`
+- `WP_ADMIN_PASSWORD` env var → `--admin_password`
+- `contact.email` → `--admin_email`
+
+**Fix (two options):**
+1. Add auto-install check to top of `stages/settings.py` (preferred — fully automated)
+2. Document manual step in pre-flight checklist (workaround)
+
 ### Gap 13 — Duplicate `contact:` top-level key in `site.yaml.j2` (YAML parse bug — now fixed)
 
 `site.yaml.j2` had `contact:` at line 55 (email/phone/address) AND again at line 129 (form_fields). YAML parsers silently drop the first key when a duplicate exists — meaning `email`, `phone`, `address` would all be lost, only `form_fields` surviving.
@@ -247,6 +295,13 @@ Similarly, `spec_validator` validates `schema_version`, `site.domain`, `brand.na
 | Gap fixes not deployed | SEO stage succeeds but breadcrumbs/OG/robots.txt not configured | Fix gaps first, `--force-stage seo` |
 | GA4 ID not in `.env` | Analytics stage injects empty string | Get ID from site-provisioner response, set `GA4_ID` in `.env` |
 | Container name mismatch | WP-CLI stages crash on connection | Verify `docker ps` name matches `{site.name}-wordpress-1` |
+| `docker ps` permission denied | ContainerResolver fails silently, `No container found` error | VPS user lacks docker group — driver uses `sudo docker ps` (fixed in drivers/wordpress.py) |
+| Stale DB volume | `Error establishing a database connection` | `docker compose down -v` then `up -d` to wipe volumes and reinit with fresh credentials |
+| WP-CLI missing in fpm image | `exec: "wp": executable file not found` | `wordpress:php8.3-fpm` has no WP-CLI — install manually or use `-apache` image instead |
+| Coolify relative bind mount | Container exits immediately, StartService completes in 450ms but nothing runs | Use absolute paths in compose (e.g. `/opt/ocoron-com/nginx/...`) not `./nginx/...` |
+| Coolify varchar(255) env limit | 500 error on service create, SQL error 22001 | Never put multiline `WORDPRESS_CONFIG_EXTRA` in compose env — apply via WP-CLI post-install |
+| site-provisioner 403 from WSL | DNS stage fails, `403 Forbidden` | Traefik IP allowlist blocks WSL — set `SITE_PROVISIONER_INTERNAL_URL` and use SSH proxy in DNSClient |
+| Coolify StartService queues but no containers | `status: exited` after start | Coolify /start endpoint is GET not POST; also check bind mount paths resolve on VPS host |
 | Premium plugin ZIP missing | Plugins stage fails for gp-premium etc. | Check VPS paths; place ZIPs before apply |
 | GSC service account not owner | post_deploy GSC verify fails | One-time manual: add service account as GSC owner |
 

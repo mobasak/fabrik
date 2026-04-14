@@ -1,5 +1,7 @@
 # SaaS Skeleton Template
 
+## Overview
+
 A reusable Next.js SaaS starter with marketing pages, authenticated app shell, and AI chat integration.
 
 ## Features
@@ -26,6 +28,10 @@ cp .env.example .env
 # Start development
 npm run dev
 ```
+
+## Documentation
+
+See `AGENTS.md` for build instructions, local development, and coding conventions.
 
 ## Project Structure
 

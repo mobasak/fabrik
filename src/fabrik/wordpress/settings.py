@@ -101,6 +101,16 @@ class SettingsApplicator:
 
         return results
 
+    @staticmethod
+    def _resolve_i18n(value: str | dict, spec: dict) -> str:
+        """Extract primary-language string from a multilingual dict or pass through a string."""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            primary = spec.get("languages", {}).get("primary", "en_US")
+            return value.get(primary) or value.get("en_US") or next(iter(value.values()), "")
+        return str(value)
+
     def apply_settings(self, spec: dict) -> dict:
         """
         Apply WordPress settings from site spec.
@@ -116,14 +126,16 @@ class SettingsApplicator:
         brand = spec.get("brand", {})
         settings = spec.get("settings", {})
 
-        # Site identity
+        # Site identity (resolve multilingual dicts to primary language string)
         if brand.get("name"):
-            self.wp.option_update("blogname", brand["name"])
-            applied["blogname"] = brand["name"]
+            name_str = self._resolve_i18n(brand["name"], spec)
+            self.wp.option_update("blogname", name_str)
+            applied["blogname"] = name_str
 
         if brand.get("tagline"):
-            self.wp.option_update("blogdescription", brand["tagline"])
-            applied["blogdescription"] = brand["tagline"]
+            tagline_str = self._resolve_i18n(brand["tagline"], spec)
+            self.wp.option_update("blogdescription", tagline_str)
+            applied["blogdescription"] = tagline_str
 
         # Permalinks
         permalink = settings.get("permalink_structure", "/%postname%/")

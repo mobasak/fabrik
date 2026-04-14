@@ -359,16 +359,22 @@ def run_formatting_fixes(tier: int = 2) -> list[tuple[str, bool, str]]:
     ok, msg, _ = fix_end_of_files()
     results.append(("fix end of files", ok, msg if not ok else ""))
 
-    # Ruff format
+    # Ruff format (skip src/ if not present for non-Python projects)
+    ruff_targets = ["scripts/"]
+    if (FABRIK_ROOT / "src").exists():
+        ruff_targets.append("src/")
     code, out = run_cmd(
-        [PYTHON, "-m", "ruff", "format", "src/", "scripts/"],
+        [PYTHON, "-m", "ruff", "format"] + ruff_targets,
         timeout=TIMEOUTS["ruff"],
     )
     results.append(("ruff-format", code == 0, out if code != 0 else ""))
 
     # Ruff fix (use returncode, not substring matching)
+    ruff_targets = ["scripts/"]
+    if (FABRIK_ROOT / "src").exists():
+        ruff_targets.append("src/")
     code, out = run_cmd(
-        [PYTHON, "-m", "ruff", "check", "--fix", "src/", "scripts/"],
+        [PYTHON, "-m", "ruff", "check", "--fix"] + ruff_targets,
         timeout=TIMEOUTS["ruff"],
     )
     # returncode 0 = clean, 1 = issues found (some fixed), other = error
@@ -415,8 +421,11 @@ def run_static_checks(
         return results
 
     # --- Ruff check (Tier 1 + Tier 2) ---
+    ruff_targets = ["scripts/"]
+    if (FABRIK_ROOT / "src").exists():
+        ruff_targets.append("src/")
     code, out = run_cmd(
-        [PYTHON, "-m", "ruff", "check", "src/", "scripts/"],
+        [PYTHON, "-m", "ruff", "check"] + ruff_targets,
         timeout=TIMEOUTS["ruff"],
     )
     results.append(("ruff", code == 0, out if code != 0 else ""))
@@ -474,10 +483,13 @@ def run_static_checks(
     if tier == 1:
         return results
 
-    # Mypy
-    mypy_target = detect_src_package()
-    code, out = run_mypy_with_recovery(mypy_target, timeout=30)
-    results.append(("mypy", code == 0, out if code != 0 else ""))
+    # Mypy (skip if pyproject.toml doesn't exist for non-Python projects)
+    if (FABRIK_ROOT / "pyproject.toml").exists():
+        mypy_target = detect_src_package()
+        code, out = run_mypy_with_recovery(mypy_target, timeout=30)
+        results.append(("mypy", code == 0, out if code != 0 else ""))
+    else:
+        results.append(("mypy", True, "(no pyproject.toml, skipping)"))
 
     # Bandit (skip if no src/ files changed)
     if not changed or _has_path_prefix(changed, "src/"):

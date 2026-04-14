@@ -68,12 +68,36 @@ def apply(
             admin_username = spec.get("security", {}).get("admin_username")
             if admin_username and admin_username != "admin":
                 try:
-                    wp.run(f"user update 1 --user_login={shlex.quote(admin_username)}")
-                    result.metadata["admin_username_renamed"] = admin_username
-                    logger.info("Admin username renamed from 'admin' to '%s'", admin_username)
+                    # WordPress does not allow changing user_login.
+                    # Strategy: create new admin → reassign content → delete old.
+                    existing_users = wp.run("user list --field=user_login")
+                    existing_logins = [u.strip() for u in existing_users.splitlines() if u.strip()]
+
+                    if admin_username in existing_logins:
+                        logger.info(
+                            "Admin user '%s' already exists — skipping replacement", admin_username
+                        )
+                        result.metadata["admin_username_exists"] = admin_username
+                    elif "admin" in existing_logins:
+                        admin_email = spec.get("contact", {}).get("email", "admin@localhost")
+                        admin_password = os.getenv("WP_ADMIN_PASSWORD", secrets.token_urlsafe(24))
+                        wp.run(
+                            f"user create {shlex.quote(admin_username)} {shlex.quote(admin_email)}"
+                            f" --role=administrator --user_pass={shlex.quote(admin_password)}"
+                        )
+                        new_id = wp.run(
+                            f"user get {shlex.quote(admin_username)} --field=ID"
+                        ).strip()
+                        wp.run(f"user delete 1 --reassign={new_id} --yes")
+                        result.metadata["admin_username_replaced"] = admin_username
+                        logger.info(
+                            "Admin replaced: 'admin' → '%s' (ID %s)", admin_username, new_id
+                        )
+                    else:
+                        logger.info("No 'admin' user found to replace — skipping")
                 except RuntimeError as exc:
                     result.warnings.append(
-                        f"Could not rename admin username to '{admin_username}': {exc}"
+                        f"Could not replace admin username with '{admin_username}': {exc}"
                     )
 
             email = spec.get("contact", {}).get("email")

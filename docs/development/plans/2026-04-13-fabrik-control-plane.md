@@ -444,6 +444,29 @@ WantedBy=multi-user.target
 └── project.yaml
 ```
 
+### Admin Credential UX — Phase B compilation requirement
+
+During the **Phase B compilation** step (when Kilo AI outputs the final JSON spec), the UI **must**:
+
+1. **Auto-generate WP admin password** using CSPRNG (32 chars, `[a-zA-Z0-9]`) — never ask the user to type one
+2. **Show the password prominently** in a copyable field with a "Save this now — it will not be shown again" warning before the Approve & Deploy button becomes clickable
+3. **Collect admin email** from the user as an explicit input field in the chat negotiation phase (e.g. "What email should be used for the WordPress admin account?")
+4. **Admin username** comes from spec `security.admin_username` (Kilo AI sets it, never `admin`)
+
+```typescript
+// In spec_writer / Phase B compilation:
+const adminPassword = generateCsprng(32); // crypto.randomBytes based
+const adminEmail = collectedFromUser;     // required chat field
+
+// Show in UI before approve:
+<PasswordReveal password={adminPassword} label="WordPress Admin Password" />
+<Warning>Save this password now — it cannot be recovered after deployment.</Warning>
+```
+
+**`fabrik-api` receives** `admin_password` in the deploy payload (treated as a secret, never logged). It writes `WP_ADMIN_PASSWORD` to the site-specific `.env` on VPS, not to the shared `/opt/fabrik/.env`.
+
+**Why not store in Fabrik .env:** Each site gets its own credentials. The shared `.env` is for platform-level secrets (Coolify token, R2 keys, etc.), not per-site WP passwords. Future: store in a secrets vault keyed by domain.
+
 ### Kilo AI system prompt (stored server-side, never in browser)
 
 The system prompt gives Kilo full awareness of the Fabrik infrastructure:
@@ -523,6 +546,97 @@ Phase 2b:  Implement server-side Kilo AI chat route (system prompt includes full
 Phase 2c:  Build ChatWindow, SpecPreview, DeployStream components
 Phase 2d:  Wire API routes (plan POST + stream GET proxy)
 Phase 2e:  Deploy to Coolify, verify SSE stream end-to-end
+```
+
+---
+
+## Lessons Learned — ocoron.com Reference Deployment (2026-04-14)
+
+These constraints were discovered during the first real pipeline run and must be encoded into all future site deployments via `fabrik-api` and `provisioner.py`.
+
+### 1. Coolify API — compose constraints
+
+| Constraint | Impact | Fix applied |
+|---|---|---|
+| `docker_compose_raw` must be base64-encoded ASCII | 422 validation error on service create | Encode before POST; strip non-ASCII from compose |
+| `WORDPRESS_CONFIG_EXTRA` multiline block | SQL varchar(255) overflow, 500 error | Removed from compose env; apply via WP-CLI post-install |
+| Relative bind mounts (`./nginx/...`) | Container exits instantly — path resolves to Coolify workdir | Use absolute paths (`/opt/<site>/nginx/...`) in all bind mounts |
+| `build_pack` field disallowed on `/applications/dockercompose` | 422 validation | Never send `build_pack` in dockercompose payload |
+| Coolify `/start` endpoint is `GET` not `POST` | Silent no-op when called with POST | Always use `GET /api/v1/services/{uuid}/start` |
+| `storages` API endpoint (`POST /api/v1/services/{uuid}/storages`) | 404 — not implemented in this Coolify version | Use absolute bind mount paths instead |
+
+### 2. WordPress image — always use `-apache`, never `-fpm`
+
+`wordpress:php8.3-fpm` has no WP-CLI. The entire pipeline relies on `wp` CLI inside the container.
+
+- **Always use:** `wordpress:php8.3-apache` in `compose-coolify.yaml.j2`
+- **Template fixed:** `compose-coolify.yaml.j2` updated 2026-04-14
+- **Note:** With `-apache`, nginx is still used as a reverse proxy in front (nginx handles TLS termination + Traefik labels; Apache handles PHP inside the `wordpress` container on port 80 internal). This is intentional.
+
+### 3. Site-provisioner access from WSL
+
+`dns.vps1.ocoron.com` has a Traefik IP allowlist middleware. WSL's NAT IP is not in it. Direct HTTPS calls from WSL return 403.
+
+**Pattern for all Fabrik drivers calling VPS-internal services:**
+
+```python
+# In driver __init__:
+self._internal_url = os.getenv("SITE_PROVISIONER_INTERNAL_URL")
+# When set, proxy requests through SSH to the container's Docker IP
+
+# .env:
+SITE_PROVISIONER_INTERNAL_URL=http://10.0.1.30:8001
+```
+
+`10.0.1.30` is the site-provisioner container's IP on the `coolify` network. Find it via:
+```bash
+ssh vps "sudo docker inspect <container> | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d[0]['NetworkSettings']['Networks']['coolify']['IPAddress'])\""
+```
+
+**`fabrik-api` on VPS host** does not have this problem — it calls Docker IPs directly without Traefik. No SSH proxy needed.
+
+### 4. Docker permissions on VPS
+
+VPS user `ozgur` is not in the `docker` group. All `docker` commands require `sudo`.
+
+- **`drivers/wordpress.py` `ContainerResolver`:** Fixed to use `sudo docker ps` 2026-04-14
+- **`drivers/wordpress.py` `WordPressClient._exec()`:** Already uses `sudo docker exec` via SSH
+- **`fabrik-api` on VPS:** Runs as `ozgur` — must prefix all `docker` calls with `sudo`
+
+### 6. Plugin slugs must match wordpress.org exactly (Gap 15)
+
+`defaults.yaml` had `generatepress` in `plugins.base` — but it's a **theme**, not a plugin. Also `rank-math-seo` is wrong; the real slug is `seo-by-rank-math`. `gp-premium` is premium-only (not on wordpress.org).
+
+**`fabrik-api` implication:** The Phase B compilation (Kilo AI JSON) must reference correct wordpress.org slugs. Add a validation step in `spec_writer.py` that verifies each plugin slug against a known-good list or queries the wordpress.org API before writing `site.yaml`.
+
+### 7. WordPress `user_login` is immutable (Gap 16)
+
+`wp user update --user_login=...` silently fails. WordPress does not allow renaming `user_login`.
+
+**Pattern for admin replacement:**
+```bash
+wp user create <new_admin> <email> --role=administrator --user_pass=<pass>
+wp user delete 1 --reassign=<new_id> --yes
+```
+
+**`fabrik-api` implication:** The `wp core install` step should create the admin with the correct username from the start (never use `admin`). This eliminates the need for the replacement dance entirely.
+
+### 5. WP core install is a pipeline prerequisite (Gap 14)
+
+Fresh Docker volumes = empty MariaDB = no WP tables. The pipeline calls WP-CLI immediately in `settings` stage without checking if WP is installed. Error: `The site you have requested is not installed`.
+
+**Resolution for `fabrik-api`:** Before calling `fabrik wp apply`, run `wp core install` programmatically using spec values. Add this as a pre-apply step in `spec_writer.py` or as an auto-check at the top of `stages/settings.py`.
+
+```python
+# Top of stages/settings.py apply():
+if not wp.is_installed():
+    wp.core_install(
+        url=spec["site"]["url"],
+        title=spec["brand"]["name"],
+        admin_user=spec["security"]["admin_username"],
+        admin_password=os.getenv("WP_ADMIN_PASSWORD"),
+        admin_email=spec["contact"]["email"],
+    )
 ```
 
 ---

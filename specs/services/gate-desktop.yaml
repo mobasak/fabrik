@@ -1,0 +1,37 @@
+id: gate-desktop
+kind: service
+template: desktop-app
+domain: gate-desktop.vps1.ocoron.com
+expose:
+  http: true
+  internal_only: false
+source:
+  type: template
+  branch: main
+coolify:
+  project: default
+  server: localhost
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env: {}
+secrets:
+  required: []
+  generate: []
+  from_env: []
+  from_file: {}
+resources:
+  memory: 256M
+  cpu: '0.5'
+health:
+  path: /health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30

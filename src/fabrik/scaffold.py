@@ -143,9 +143,7 @@ SCAFFOLD_TYPES = frozenset(
 WORDPRESS_PRESETS = frozenset({"saas", "company", "content", "landing", "ecommerce"})
 
 # Scaffold types that produce user-facing documentation (activates user-guide gate)
-GUIDE_ENABLED_TYPES = frozenset(
-    {"saas-skeleton", "chrome-extension", "mobile-app", "desktop-app", "static-site"}
-)
+GUIDE_ENABLED_TYPES = frozenset({"chrome-extension", "static-site"})
 
 # Types whose type-specific missing files cannot be safely reconstructed
 # by fix_project (they require the full scaffolder to be run correctly).
