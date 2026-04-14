@@ -18,6 +18,12 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: site-provisioner schema corrections + sitemap-on-pages (2026-04-14)
+- `src/fabrik/wordpress/stages/post_deploy.py`: GA4 response key corrected — site-provisioner returns `google_analytics.measurement_id`, not `ga4.measurement_id`
+- `src/fabrik/wordpress/stages/dns.py`: readiness gate corrected — site-provisioner returns `ready_for_deployment`, not `ready`
+- `src/fabrik/drivers/dns.py`: `provision()` `enable_dnssec` default changed `True→False` to match site-provisioner default; `check_ready()` docstring updated to use `ready_for_deployment`; `provision()` return docs updated to reference `google_analytics` key
+- `src/fabrik/wordpress/stages/pages.py`: sitemap resubmitted after every page creation run (`DNSClient.update_sitemap()`) — skipped gracefully if domain or site-provisioner not configured; failure is non-fatal warning only
+
 ### Fixed — WordPress pipeline Phase 0: review pass corrections (2026-04-14)
 - `src/fabrik/wordpress/stages/dns.py`: Gap 7 — replaced unauthenticated `DomainSetup` (bare httpx) with `DNSClient` (X-API-Key auth, correct site-provisioner endpoints); now syncs A record + www CNAME idempotently and calls `check_ready()` to surface zone-pending warnings
 - `src/fabrik/wordpress/stages/post_deploy.py`: corrected Gap 3 — was incorrectly calling `DNSClient.provision()` (full zone creation) post-deploy; now correctly calls `update_sitemap()` + `get_integrations()` to resubmit sitemap and retrieve GA4 measurement ID from site-provisioner; removed unused imports

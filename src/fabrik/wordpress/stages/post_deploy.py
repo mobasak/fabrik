@@ -53,7 +53,7 @@ def apply(
         integrations = dns_client.get_integrations(domain)
         result.metadata["integrations"] = integrations
 
-        ga4_measurement_id = integrations.get("ga4", {}).get("measurement_id")
+        ga4_measurement_id = integrations.get("google_analytics", {}).get("measurement_id")
         if ga4_measurement_id:
             artifact_path = build_dir / GA4_ARTIFACT_FILENAME
             artifact_path.write_text(ga4_measurement_id)

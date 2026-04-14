@@ -76,7 +76,7 @@ def apply(
 
             ready = client.check_ready(domain)
             result.metadata["ready"] = ready
-            if not ready.get("ready"):
+            if not ready.get("ready_for_deployment"):
                 result.warnings.append(
                     f"Domain {domain} zone not yet active in Cloudflare. "
                     "Nameservers may not have propagated. Re-run dns stage later."

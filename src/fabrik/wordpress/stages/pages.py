@@ -1,5 +1,6 @@
 """Page creation stage."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,8 @@ from fabrik.drivers.wordpress_api import WordPressAPIClient
 from fabrik.wordpress.page_generator import generate_pages
 from fabrik.wordpress.pages import PageCreator
 from fabrik.wordpress.stages import StageResult, time_stage
+
+logger = logging.getLogger(__name__)
 
 
 @time_stage
@@ -104,6 +107,36 @@ def apply(
 
             # Store pages_created in metadata for SiteDeployer
             result.metadata["pages_created"] = pages_created
+
+            # Resubmit sitemap after pages are created so search engines
+            # index new content. Skipped gracefully if not configured.
+            if not dry_run and pages_created:
+                domain = spec.get("site", {}).get("domain", "")
+                sitemap_url = (
+                    spec.get("post_deploy", {}).get("sitemap_url")
+                    or (f"https://{domain}/sitemap.xml" if domain else None)
+                )
+                if domain and sitemap_url:
+                    try:
+                        from fabrik.drivers.dns import DNSClient
+                        dns_client = DNSClient()
+                        try:
+                            sitemap_result = dns_client.update_sitemap(domain, sitemap_url)
+                            result.metadata["sitemap_resubmit"] = sitemap_result
+                            logger.info(
+                                "Sitemap resubmitted after page creation: %s → %s",
+                                domain,
+                                sitemap_url,
+                            )
+                        finally:
+                            dns_client.close()
+                    except Exception as sitemap_exc:
+                        result.warnings.append(
+                            f"Sitemap resubmit after pages skipped: {sitemap_exc}"
+                        )
+                        logger.warning(
+                            "Sitemap resubmit skipped (non-fatal): %s", sitemap_exc
+                        )
 
         else:
             # API not available: log but don't fail

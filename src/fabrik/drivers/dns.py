@@ -289,7 +289,7 @@ class DNSClient:
         domain: str,
         target_ip: str,
         subdomains: list[str] | None = None,
-        enable_dnssec: bool = True,
+        enable_dnssec: bool = False,
         enable_tiered_cache: bool = True,
         enable_page_shield: bool = True,
         create_threat_rule: bool = True,
@@ -331,7 +331,8 @@ class DNSClient:
 
         Returns:
             Dict with success, zone_id, dns_records, features_enabled,
-            google_search_console, bing_webmaster, indexnow, google_analytics
+            google_search_console, bing_webmaster, indexnow, google_analytics.
+            GA4 measurement ID: response["google_analytics"]["measurement_id"]
         """
         payload: dict[str, Any] = {
             "target_ip": target_ip,
@@ -358,17 +359,17 @@ class DNSClient:
         """
         Check if domain is ready for Coolify deployment.
 
-        Poll this after provision() until ready=true, then deploy to Coolify.
+        Poll this after provision() until ready_for_deployment=true, then deploy to Coolify.
 
         Args:
             domain: Root domain (e.g., "newsite.com")
 
         Returns:
-            Dict with ready (bool), zone_status, a_records, dnssec_enabled
+            Dict with ready_for_deployment (bool), zone_exists, zone_status, dns_records, features
 
         Example:
             result = dns.check_ready("newsite.com")
-            if result["ready"]:
+            if result["ready_for_deployment"]:
                 # proceed with Coolify deploy
         """
         return self._request("GET", f"/api/cloudflare/zones/{domain}/ready")
