@@ -39,7 +39,8 @@ def check_env_updates(repo_root: Path, changed_files: list[str]) -> tuple[bool, 
         missing_in_env = example_vars - env_vars
         if missing_in_env:
             errors.append(
-                f"WARNING: These variables are in .env.example but not in .env: {', '.join(sorted(missing_in_env))}\n"
+                f"WARNING: These variables are in .env.example but not in .env:\n"
+                f"{', '.join(sorted(missing_in_env))}\n"
                 "If user provided values for these, add them to .env"
             )
             # Warning only - user might not have provided all secrets yet

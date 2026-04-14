@@ -78,7 +78,8 @@ def generate_toc(headers: list[tuple[str, str]]) -> str:
     """Generate TOC content from headers."""
     lines = [
         "<!-- AUTO-GENERATED:TOC:START -->",
-        "<!-- This section is auto-generated. Do not edit manually. Run: python scripts/update_agents_toc.py -->",
+        "<!-- This section is auto-generated. Do not edit manually."
+        " Run: python scripts/update_agents_toc.py -->",
         "## Table of Contents",
     ]
 

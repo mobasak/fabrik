@@ -43,7 +43,7 @@ def apply(
             seo_resolved = dict(seo)
             if default_meta := seo.get("default_meta"):
                 primary_locale = spec.get("languages", {}).get("primary", "en_US")
-                locale_meta = default_meta.get(primary_locale) or next(
+                locale_meta: dict = default_meta.get(primary_locale) or next(
                     iter(default_meta.values()), {}
                 )
                 if isinstance(locale_meta, dict):

@@ -10,7 +10,8 @@ from pathlib import Path
 # Patterns that indicate hardcoded localhost
 HARDCODED_PATTERNS = [
     (
-        r'(?:host|HOST|url|URL|uri|URI|server|SERVER)\s*[=:]\s*[\'"](?:localhost|127\.0\.0\.1)[\'"]',
+        r"(?:host|HOST|url|URL|uri|URI|server|SERVER)"
+        r"""\s*[=:]\s*['"](?:localhost|127\.0\.0\.1)['"]""",
         "hardcoded host assignment",
     ),
     (r'["\']localhost:\d+["\']', "hardcoded localhost with port"),

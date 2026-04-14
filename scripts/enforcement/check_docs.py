@@ -57,7 +57,9 @@ def check_new_module_docs(changed_files: list[Path]) -> list[CheckResult]:
                     severity=Severity.WARN,
                     message=f"New module '{module_name}' has no documentation",
                     file_path=str(module_path / "__init__.py"),
-                    fix_hint=f"Add entry to docs/INDEX.md or create docs/reference/{module_name}.md",
+                    fix_hint=(
+                        f"Add entry to docs/INDEX.md or create docs/reference/{module_name}.md"
+                    ),
                 )
             )
 

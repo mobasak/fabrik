@@ -710,7 +710,8 @@ try:
     MAX_RETRIES = max(1, int(os.getenv("KILO_MAX_RETRIES", "3")))  # Max retry attempts (min 1)
 except ValueError:
     print(
-        f"Warning: Invalid KILO_MAX_RETRIES value '{os.getenv('KILO_MAX_RETRIES')}', using default 3",
+        f"Warning: Invalid KILO_MAX_RETRIES value"
+        f" '{os.getenv('KILO_MAX_RETRIES')}', using default 3",
         file=sys.stderr,
     )
     MAX_RETRIES = 3
@@ -1019,7 +1020,8 @@ def _init_high_risk_paths(*, verbose: bool = False) -> None:
         HIGH_RISK_DIR_PREFIXES.extend(extra_paths)
         if verbose:
             print(
-                f"[ROUTING] Extended high-risk paths with {len(extra_paths)} entries from KILO_HIGH_RISK_PATHS",
+                f"[ROUTING] Extended high-risk paths with {len(extra_paths)}"
+                " entries from KILO_HIGH_RISK_PATHS",
                 file=sys.stderr,
             )
 
@@ -1520,7 +1522,8 @@ def update_issue_state(
         tracked_review_id: Review cycle ID
         current_issues: Issues found in this iteration
         iteration: Current iteration number
-        allow_auto_fix_close: If True, mark unseen issues as fixed (safe only for full-scope reviews)
+        allow_auto_fix_close: If True, mark unseen issues as fixed
+            (safe only for full-scope reviews)
     """
     state = load_issue_state(tracked_review_id)
     issues = state.get("issues", {})
@@ -2050,7 +2053,9 @@ def parse_kilo_jsonl(output: str) -> dict[str, Any]:
                 if parse_error_count > 10:
                     error_msg = "; ".join(parse_errors[:3])
                     raise RuntimeError(
-                        f"Too many parse errors ({parse_error_count}) - possible attack or corruption. First errors: {error_msg}"
+                        f"Too many parse errors ({parse_error_count})"
+                        f" - possible attack or corruption."
+                        f" First errors: {error_msg}"
                     )
 
                 # Skip malformed content
@@ -2424,16 +2429,20 @@ You are Kilo Reviewer (Opus). LAST gate before Traycer verification + commit.
 ITERATION CONTEXT
 - Review #: {iteration_number}
 - Previous issues (if any): {previous_issues}
-Re-review rule: verify previous BLOCKER/MAJOR issues are resolved. You may report newly discovered issues.
+Re-review rule: verify previous BLOCKER/MAJOR issues are resolved.
+You may report newly discovered issues.
 
 SCOPE (HARD)
-- Review ONLY the uncommitted diff in this worktree (staged + unstaged if present), OR only the explicitly provided diff/files.
+- Review ONLY the uncommitted diff in this worktree (staged + unstaged if present),
+  OR only the explicitly provided diff/files.
 - Do NOT commit. Do NOT apply fixes unless explicitly instructed in a separate step.
-- Do NOT propose redesigns/refactors. Do NOT expand scope beyond the diff unless necessary to demonstrate a real bug/security issue.
+- Do NOT propose redesigns/refactors.
+  Do NOT expand scope beyond the diff unless necessary to demonstrate a real bug/security issue.
 
 INPUTS (REQUIRED)
 1) **Traycer plan/spec:** {traycer_plan}
-2) Repo conventions if present (AGENTS.md / existing patterns). If conflicts: report as SPEC/CONVENTION mismatch.
+2) Repo conventions if present (AGENTS.md / existing patterns).
+   If conflicts: report as SPEC/CONVENTION mismatch.
 3) Diff/files: obtained from the workspace or attached via --file.
 
 {requirements_section}
@@ -2443,18 +2452,22 @@ A) SPEC
    - Every behavior change maps to an explicit plan/spec requirement.
    - No missing plan steps; no extra features beyond plan.
 B) SECURITY
-   - Injection risks, auth/authz flaws, sensitive data exposure, unsafe deserialization, SSRF/path traversal, crypto misuse.
+   - Injection risks, auth/authz flaws, sensitive data exposure,
+     unsafe deserialization, SSRF/path traversal, crypto misuse.
 C) CONFIG & SECRETS HYGIENE
-   - Env var misuse (wrong names, missing defaults, leaking secrets to logs, reading env at import-time if problematic).
+   - Env var misuse (wrong names, missing defaults, leaking secrets to logs,
+     reading env at import-time if problematic).
    - Hardcoded values that should be config-driven (URLs/keys/ports/feature flags).
 D) EDGE CASES & CORRECTNESS
-   - Null/empty handling, error paths, retries/timeouts, idempotency, concurrency/race hazards (if relevant).
+   - Null/empty handling, error paths, retries/timeouts, idempotency,
+     concurrency/race hazards (if relevant).
 E) FABRIK CONVENTIONS (PROJECT-SPECIFIC)
    - Container images: MUST use -slim-bookworm (never Alpine).
      ❌ FROM python:3.12-alpine → ✅ FROM python:3.12-slim-bookworm
      ❌ FROM alpine:latest → ✅ FROM debian:bookworm-slim
    - Health checks: MUST test actual dependencies (not just return {{"status": "ok"}}).
-     ❌ return {{"status": "ok"}} → ✅ await db.execute("SELECT 1"); return {{"status": "ok", "db": "connected"}}
+     ❌ return {{"status": "ok"}}
+     → ✅ await db.execute("SELECT 1"); return {{"status": "ok", "db": "connected"}}
    - Config loading: MUST be function-level (never class-level os.getenv at definition time).
      ❌ class Config: DB_URL = f"postgresql://{{os.getenv('DB_USER')}}:..."
      ✅ def get_db_url(): return f"postgresql://{{os.getenv('DB_USER')}}:..."
@@ -2469,7 +2482,8 @@ F) DOCS & DEV WORKFLOW
 
 EVIDENCE REQUIREMENT (CRITICAL)
 - EVERY issue MUST include an evidence object with type + ref/explanation
-- Evidence types: diff, file_line, tool_output (need ref), missing, multi_file, external (need explanation)
+- Evidence types: diff, file_line, tool_output (need ref),
+  missing, multi_file, external (need explanation)
 - File + line references required for all issues (line ranges preferred)
 
 PLAN COVERAGE REQUIREMENT (CRITICAL)
@@ -2478,7 +2492,8 @@ PLAN COVERAGE REQUIREMENT (CRITICAL)
 - Status: satisfied, missing, partial, n/a
 - Evidence field REQUIRED for all coverage items
 
-If you cannot access the diff/files or the plan/spec input is missing, return FAIL with a single SPEC issue explaining exactly what is missing.
+If you cannot access the diff/files or the plan/spec input is missing,
+return FAIL with a single SPEC issue explaining exactly what is missing.
 
 OUTPUT FORMAT (JSON ONLY - SCHEMA ENFORCED)
 Return ONLY valid JSON with this exact schema:
@@ -2507,7 +2522,8 @@ Return ONLY valid JSON with this exact schema:
 - MUST match pattern: ^(L\\d+(-L\\d+)?|N/A)$
 - Valid: "L10", "L10-L20", "N/A"
 - INVALID: "L10-L11,L155-L157" (NO commas, NO multi-ranges)
-- If issue spans multiple non-contiguous ranges → create separate issue entries OR use primary range only
+- If issue spans multiple non-contiguous ranges
+  → create separate issue entries OR use primary range only
   "plan_coverage": [
     {{
       "requirement": "Exact text from plan (or general description if no explicit requirements)",
@@ -2548,10 +2564,12 @@ BLOCKING RULES (HARD)
     }}
   ],
   "plan_coverage": [
-    {{"requirement": "Add user lookup endpoint", "status": "satisfied", "evidence": "src/api.py:L20-L30"}}
+    {{"requirement": "Add user lookup endpoint", "status": "satisfied",
+      "evidence": "src/api.py:L20-L30"}}
   ],
   "notes": [],
-  "stats": {{"files_reviewed": 2, "lines_changed": 45, "issues_by_severity": {{"BLOCKER": 1, "MAJOR": 0, "MINOR": 0}}}}
+  "stats": {{"files_reviewed": 2, "lines_changed": 45,
+    "issues_by_severity": {{"BLOCKER": 1, "MAJOR": 0, "MINOR": 0}}}}
 }}
 ```
 
@@ -2610,7 +2628,8 @@ OUTPUT FORMAT (JSON ONLY - SCHEMA ENFORCED)
     }}
   ],
 
-⚠️ **LINES FIELD FORMAT**: Must match ^(L\\d+(-L\\d+)?|N/A)$ - Valid: "L10", "L10-L20", "N/A" - INVALID: "L10,L20" (NO commas)
+⚠️ **LINES FIELD FORMAT**: Must match ^(L\\d+(-L\\d+)?|N/A)$
+  Valid: "L10", "L10-L20", "N/A" — INVALID: "L10,L20" (NO commas)
 
   "plan_coverage": [
     {{
@@ -2677,7 +2696,8 @@ OUTPUT FORMAT (JSON ONLY - SCHEMA ENFORCED)
     }}
   ],
 
-⚠️ **LINES FIELD FORMAT**: Must match ^(L\\d+(-L\\d+)?|N/A)$ - Valid: "L10", "L10-L20", "N/A" - INVALID: "L10,L20" (NO commas)
+⚠️ **LINES FIELD FORMAT**: Must match ^(L\\d+(-L\\d+)?|N/A)$
+  Valid: "L10", "L10-L20", "N/A" — INVALID: "L10,L20" (NO commas)
 
   "plan_coverage": [
     {{
@@ -2700,7 +2720,8 @@ FILES TO VERIFY:
 """
 
 
-FIX_PROMPT_TEMPLATE = """You are a code fixer. Fix the following issues found in the previous code review.
+FIX_PROMPT_TEMPLATE = """
+You are a code fixer. Fix the following issues found in the previous code review.
 
 PREVIOUS REVIEW ISSUES TO FIX:
 {issues_json}
@@ -3249,7 +3270,10 @@ def parse_review_output(raw_output: str) -> ReviewResult:
                     category="SPEC",
                     file="<reviewer>",
                     lines="N/A",
-                    why=f"Reviewer output does not conform to required schema. Errors: {error_summary}",
+                    why=(
+                        f"Reviewer output does not conform to required schema."
+                        f" Errors: {error_summary}"
+                    ),
                     fix_hint="Ensure all required fields are present and types are correct.",
                     evidence={"type": "tool_output", "ref": "schema_validator:validation_failed"},
                 )
@@ -3803,7 +3827,8 @@ async def _run_single_batch_review(
     attempt_results.append(result)
 
     # Update session ID from Kilo response (capture real Kilo session ID)
-    # Check length because local tracking IDs are shorter (20 chars) than real Kilo sessions (30+ chars)
+    # Check length because local tracking IDs are shorter (20 chars)
+    # than real Kilo sessions (30+ chars)
     kilo_session = result.get("session_id", "")
     if kilo_session and len(kilo_session) > 20 and kilo_session != config.session_id:
         config.session_id = kilo_session
@@ -3898,7 +3923,10 @@ Original task: {plan_str[:300]}...
                     category="SPEC",
                     file="<reviewer>",
                     lines="N/A",
-                    why=f"Missing required evidence. Violations: {'; '.join(evidence_violations[:3])}",
+                    why=(
+                        f"Missing required evidence."
+                        f" Violations: {'; '.join(evidence_violations[:3])}"
+                    ),
                     fix_hint="Add structured evidence to all BLOCKER/MAJOR issues",
                     evidence={"type": "tool_output", "ref": "evidence_validator:failed"},
                 ),
@@ -3923,7 +3951,10 @@ Original task: {plan_str[:300]}...
                             category="SPEC",
                             file="<reviewer>",
                             lines="N/A",
-                            why=f"Incomplete plan coverage. Violations: {'; '.join(coverage_violations[:3])}",
+                            why=(
+                                f"Incomplete plan coverage."
+                                f" Violations: {'; '.join(coverage_violations[:3])}"
+                            ),
                             fix_hint="Include all requirements in plan_coverage array",
                             evidence={"type": "tool_output", "ref": "coverage_validator:failed"},
                         ),
@@ -4027,7 +4058,10 @@ async def run_multi_pass_review(
     Returns:
         Merged ReviewResult from both passes
     """
-    print("⚠️  HIGH RISK detected - running multi-pass review (general + security)", file=sys.stderr)
+    print(
+        "⚠️  HIGH RISK detected - running multi-pass review (general + security)",
+        file=sys.stderr,
+    )
 
     # Pass 1: General review (all categories)
     print("  [PASS 1/2] General review...", file=sys.stderr)
@@ -4066,7 +4100,8 @@ async def run_multi_pass_review(
     # Merge notes
     merged_notes = list(pass1_result.notes)
     merged_notes.append(
-        f"Multi-pass review: {len(pass1_result.issues)} general + {len(pass2_result.issues)} security-focused"
+        f"Multi-pass review: {len(pass1_result.issues)} general"
+        f" + {len(pass2_result.issues)} security-focused"
     )
 
     # Compute merged verdict (FAIL if either pass failed)
@@ -4127,7 +4162,8 @@ async def run_review(
     # Route based on risk (gated by KILO_ENABLE_MULTI_PASS)
     if KILO_ENABLE_MULTI_PASS and risk_assessment["requires_multi_pass"]:
         print(
-            f"[RISK] {risk_assessment['risk_level'].upper()} risk detected: {', '.join(risk_assessment['triggers'])}",
+            f"[RISK] {risk_assessment['risk_level'].upper()} risk detected:"
+            f" {', '.join(risk_assessment['triggers'])}",
             file=sys.stderr,
         )
         return await run_multi_pass_review(
@@ -4345,7 +4381,8 @@ async def review_loop(
     is_doc_review = config.doc_mode or is_doc_only_review(files)
     if is_doc_review and config.max_iterations > MAX_ITERATIONS_DOCS:
         print(
-            f"[DOC MODE] Auto-reducing max iterations: {config.max_iterations} → {MAX_ITERATIONS_DOCS}",
+            f"[DOC MODE] Auto-reducing max iterations:"
+            f" {config.max_iterations} → {MAX_ITERATIONS_DOCS}",
             file=sys.stderr,
         )
         config.max_iterations = MAX_ITERATIONS_DOCS
@@ -4388,7 +4425,8 @@ async def review_loop(
                 )
             elif use_max:
                 print(
-                    f"\n=== Review Iteration {iteration}/{effective_max} (variant=max, reason={max_reason}) ===",
+                    f"\n=== Review Iteration {iteration}/{effective_max}"
+                    f" (variant=max, reason={max_reason}) ===",
                     file=sys.stderr,
                 )
             else:
@@ -4468,7 +4506,8 @@ async def review_loop(
                                 max=max_model_escalations,
                             )
                             print(
-                                f"  [ABORT] Model escalation limit reached ({max_model_escalations} fallbacks tried)",
+                                f"  [ABORT] Model escalation limit reached"
+                                f" ({max_model_escalations} fallbacks tried)",
                                 file=sys.stderr,
                             )
                             raise
@@ -4494,7 +4533,9 @@ async def review_loop(
                         )
 
                         print(
-                            f"  [ESCALATE] Retrying with {next_model} ({next_tier} tier) (escalation {model_escalation_count}/{max_model_escalations})",
+                            f"  [ESCALATE] Retrying with {next_model}"
+                            f" ({next_tier} tier)"
+                            f" (escalation {model_escalation_count}/{max_model_escalations})",
                             file=sys.stderr,
                         )
                         config.model = next_model
@@ -4539,7 +4580,8 @@ async def review_loop(
                             "verdict": review_result.verdict,
                             "summary": review_result.summary,
                             "issues": [i.to_dict() for i in review_result.issues],
-                            "plan_coverage": review_result.plan_coverage,  # NEW: must persist coverage
+                            # NEW: must persist coverage
+                            "plan_coverage": review_result.plan_coverage,
                             "notes": review_result.notes,
                             "stats": review_result.stats,
                             "tokens": {
@@ -4624,7 +4666,8 @@ async def review_loop(
                 )
                 if can_verify:
                     escalation_state.verification_performed = True
-                    # Get appropriate tier model for verification (Prime for critical, Strong for high)
+                    # Get appropriate tier model for verification
+                    # (Prime for critical, Strong for high)
                     verify_model = get_tier_model(verify_tier, escalation_state.failed_models)
                     if verify_model and verify_model != config.model:
                         print(
@@ -4741,7 +4784,9 @@ async def review_loop(
                         remaining_issues=[],
                         usage=asdict(usage),
                         session_id=config.session_id or "",
-                        summary=f"Review passed after {iteration} iteration(s). {review_result.summary}",
+                        summary=(
+                            f"Review passed after {iteration} iteration(s). {review_result.summary}"
+                        ),
                     )
 
             previous_verdict = review_result.verdict  # For max variant decision
@@ -4805,7 +4850,10 @@ async def review_loop(
                         remaining_issues=[],
                         usage=asdict(usage),
                         session_id=config.session_id or "",
-                        summary=f"Review failed but returned no issues (possible parse error). {review_result.summary}",
+                        summary=(
+                            f"Review failed but returned no issues (possible parse error)."
+                            f" {review_result.summary}"
+                        ),
                     )
 
                 # Only MINOR issues remain - this is a pass
@@ -5053,7 +5101,8 @@ def format_report_text(report: FinalReport) -> str:
     lines.append("📊 This Run:")
     lines.append(f"   Session: {report.session_id}")
     lines.append(
-        f"   Review: {review_tokens:,} tokens, ${review_cost:.4f} ({usage.get('review_calls', 0)} calls)"
+        f"   Review: {review_tokens:,} tokens, ${review_cost:.4f}"
+        f" ({usage.get('review_calls', 0)} calls)"
     )
     lines.append(
         f"   Fix:    {fix_tokens:,} tokens, ${fix_cost:.4f} ({usage.get('fix_calls', 0)} calls)"
@@ -5140,7 +5189,10 @@ Examples:
         "--strategy",
         default=None,
         choices=["free", "economy", "standard", "premium", "critical"],
-        help="Cost strategy: free ($0), economy (~$0.02/M), standard (~$0.5/M), premium (~$3/M), critical (~$5/M)",
+        help=(
+            "Cost strategy: free ($0), economy (~$0.02/M), standard (~$0.5/M),"
+            " premium (~$3/M), critical (~$5/M)"
+        ),
     )
     common.add_argument(
         "--max-cost",
@@ -5551,15 +5603,18 @@ async def main() -> int:
             # Show cumulative stats with review/fix breakdown
             print(f"\n📈 Project Total ({cumulative['total_runs']} runs):", file=sys.stderr)
             print(
-                f"   Review: {cumulative['review_tokens']:,} tokens, ${cumulative['review_cost_usd']:.4f}",
+                f"   Review: {cumulative['review_tokens']:,} tokens,"
+                f" ${cumulative['review_cost_usd']:.4f}",
                 file=sys.stderr,
             )
             print(
-                f"   Fix:    {cumulative['fix_tokens']:,} tokens, ${cumulative['fix_cost_usd']:.4f}",
+                f"   Fix:    {cumulative['fix_tokens']:,} tokens,"
+                f" ${cumulative['fix_cost_usd']:.4f}",
                 file=sys.stderr,
             )
             print(
-                f"   Total:  {cumulative['total_tokens']:,} tokens, ${cumulative['total_cost_usd']:.4f}",
+                f"   Total:  {cumulative['total_tokens']:,} tokens,"
+                f" ${cumulative['total_cost_usd']:.4f}",
                 file=sys.stderr,
             )
 

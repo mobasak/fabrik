@@ -47,7 +47,8 @@ def main() -> int:
     md_files = list(guide_dir.glob("*.md"))
     if not md_files:
         print(
-            "ERROR: docs/user-guide/ is empty (no .md files) but project.yaml has has_user_guide: true"
+            "ERROR: docs/user-guide/ is empty (no .md files)"
+            " but project.yaml has has_user_guide: true"
         )
         return 1
 

@@ -53,7 +53,10 @@ def check_file(file_path: Path) -> list[CheckResult]:
                             severity=Severity.ERROR,
                             message=f"Invalid plan filename: {file_path.name}",
                             file_path=str(file_path),
-                            fix_hint="Rename to YYYY-MM-DD-plan-<name>.md format (e.g., 2026-01-14-plan-my-feature.md)",
+                            fix_hint=(
+                                "Rename to YYYY-MM-DD-plan-<name>.md format"
+                                " (e.g., 2026-01-14-plan-my-feature.md)"
+                            ),
                         )
                     )
     except ValueError:

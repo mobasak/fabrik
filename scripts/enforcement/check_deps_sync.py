@@ -145,7 +145,9 @@ def check_file(file_path: Path) -> list[CheckResult]:
                 severity=Severity.WARN,
                 message=f"Package '{pkg}' in requirements.txt but not in pyproject.toml",
                 file_path=str(file_path),
-                fix_hint=f"Add '{pkg}' to pyproject.toml dependencies or remove from requirements.txt",
+                fix_hint=(
+                    f"Add '{pkg}' to pyproject.toml dependencies or remove from requirements.txt"
+                ),
             )
         )
 

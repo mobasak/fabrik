@@ -571,7 +571,9 @@ def analyze_diff_for_triggers(diff: str, staged_files: list[str]) -> list[DocVio
                         source_file=cf,
                         matched_line=f"{added} additions, {removed} deletions",
                         required_docs=["CHANGELOG.md"],
-                        description=f"Large code change ({added + removed} lines) requires CHANGELOG entry",
+                        description=(
+                            f"Large code change ({added + removed} lines) requires CHANGELOG entry"
+                        ),
                     )
                 )
 
@@ -722,7 +724,10 @@ def enforce_documentation(
         trigger_count = len(req.triggers)
         severity_emoji = {"CRITICAL": "🔴", "MAJOR": "🟡", "MINOR": "🟢"}[req.severity]
 
-        error_msg = f"{severity_emoji} [{req.severity}] {doc_path} must be updated ({trigger_count} trigger(s))"
+        error_msg = (
+            f"{severity_emoji} [{req.severity}] {doc_path}"
+            f" must be updated ({trigger_count} trigger(s))"
+        )
         errors.append(error_msg)
 
         if req.severity == "CRITICAL":
@@ -1186,7 +1191,10 @@ async def run_kilo(
 # PROMPT TEMPLATES
 # =============================================================================
 
-CHANGELOG_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a CHANGELOG entry generator. You output ONLY the changelog entry text. You NEVER output conversational responses, greetings, or explanations. Your entire output is a valid Keep a Changelog format entry.
+CHANGELOG_PROMPT_TEMPLATE = """
+SYSTEM ROLE: You are a CHANGELOG entry generator. You output ONLY the changelog
+entry text. You NEVER output conversational responses, greetings, or explanations.
+Your entire output is a valid Keep a Changelog format entry.
 
 **Git Diff:**
 {git_diff}
@@ -1220,7 +1228,10 @@ Now generate the CHANGELOG entry. Start your output with "###" and continue:
 
 ###"""
 
-API_DOCS_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a documentation generator. You output ONLY markdown documentation. You NEVER output conversational text, greetings, or explanations. You NEVER say "I am ready to assist". Your entire output is valid markdown documentation.
+API_DOCS_PROMPT_TEMPLATE = """
+SYSTEM ROLE: You are a documentation generator. You output ONLY markdown documentation.
+You NEVER output conversational text, greetings, or explanations.
+You NEVER say "I am ready to assist". Your entire output is valid markdown documentation.
 
 **Source Files:**
 {source_files}
@@ -1272,7 +1283,10 @@ Now generate the documentation. Start your output with "##" and continue with th
 
 ##"""
 
-ENV_VAR_DOCS_PROMPT_TEMPLATE = """SYSTEM ROLE: You are an environment variable documentation generator. You output ONLY markdown documentation. You NEVER output conversational text or greetings. Your entire output is valid markdown documenting environment variables.
+ENV_VAR_DOCS_PROMPT_TEMPLATE = """
+SYSTEM ROLE: You are an environment variable documentation generator.
+You output ONLY markdown documentation. You NEVER output conversational text or greetings.
+Your entire output is valid markdown documenting environment variables.
 
 **Source Files:**
 {source_files}
@@ -1311,7 +1325,10 @@ Now generate the documentation. Start your output with "###" and continue:
 
 ###"""
 
-MIGRATION_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a migration guide generator. You output ONLY markdown documentation for migration guides. You NEVER output conversational text, greetings, or explanations. Your entire output is a valid migration guide.
+MIGRATION_PROMPT_TEMPLATE = """
+SYSTEM ROLE: You are a migration guide generator. You output ONLY markdown documentation
+for migration guides. You NEVER output conversational text, greetings, or explanations.
+Your entire output is a valid migration guide.
 
 **Git Diff:**
 {git_diff}
@@ -1360,7 +1377,11 @@ Now generate the migration guide. Start your output with "##" and continue:
 
 ##"""
 
-SCHEMA_DOCS_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a database schema documentation generator. You output ONLY markdown documentation for database schemas. You NEVER output conversational text, greetings, or explanations. Your entire output is valid schema documentation.
+SCHEMA_DOCS_PROMPT_TEMPLATE = """
+SYSTEM ROLE: You are a database schema documentation generator.
+You output ONLY markdown documentation for database schemas.
+You NEVER output conversational text, greetings, or explanations.
+Your entire output is valid schema documentation.
 
 **Source Files:**
 {source_files}
@@ -1404,7 +1425,10 @@ Now generate the schema documentation. Start your output with "##" and continue:
 
 ##"""
 
-README_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a README/documentation updater. You output ONLY the markdown section(s) that need to be added or updated. You NEVER output conversational text, greetings, or explanations. Your entire output is valid markdown.
+README_PROMPT_TEMPLATE = """
+SYSTEM ROLE: You are a README/documentation updater. You output ONLY the markdown
+section(s) that need to be added or updated. You NEVER output conversational text,
+greetings, or explanations. Your entire output is valid markdown.
 
 **Current File:** {doc_path}
 
@@ -1449,9 +1473,14 @@ Now generate the documentation section. Start your output with "##" and continue
 ##"""
 
 
-CONFIGURATION_GUIDE_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a configuration guide generator. You output ONLY markdown documentation for a configuration guide. You NEVER output conversational text, greetings, or explanations. Your entire output is valid markdown.
+CONFIGURATION_GUIDE_PROMPT_TEMPLATE = """
+SYSTEM ROLE: You are a configuration guide generator. You output ONLY markdown
+documentation for a configuration guide. You NEVER output conversational text,
+greetings, or explanations. Your entire output is valid markdown.
 
-**IMPORTANT:** `.env.example` is the AUTHORITATIVE variable reference. This configuration guide documents HOW to configure the service and WHY certain configurations exist — it does NOT list individual variables.
+**IMPORTANT:** `.env.example` is the AUTHORITATIVE variable reference.
+This configuration guide documents HOW to configure the service and WHY certain
+configurations exist — it does NOT list individual variables.
 
 **Source Files:**
 {source_files}
@@ -1507,7 +1536,11 @@ Now generate the configuration guide section. Start your output with "##" and co
 
 ##"""
 
-TROUBLESHOOTING_PROMPT_TEMPLATE = """SYSTEM ROLE: You are a troubleshooting guide generator. You output ONLY markdown documentation for a troubleshooting guide. You NEVER output conversational text, greetings, or explanations. Your entire output is valid markdown with issue/cause/solution structure.
+TROUBLESHOOTING_PROMPT_TEMPLATE = """
+SYSTEM ROLE: You are a troubleshooting guide generator. You output ONLY markdown
+documentation for a troubleshooting guide. You NEVER output conversational text,
+greetings, or explanations. Your entire output is valid markdown with
+issue/cause/solution structure.
 
 **Source Files:**
 {source_files}
@@ -1748,7 +1781,8 @@ def validate_generated_content(
     if total_lines > 5 and fence_lines / total_lines > 0.8:
         return (
             False,
-            f"Content is >80% code fences ({fence_lines}/{total_lines} lines) — likely template echo",
+            f"Content is >80% code fences ({fence_lines}/{total_lines} lines)"
+            " — likely template echo",
         )
 
     # --- 9. Markdown Formatting Check ---

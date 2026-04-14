@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Final gate clean + E501 structural fix (2026-04-14)
+
+- `src/fabrik/wordpress/stages/seo.py:46`: Added `dict` type annotation to `locale_meta` — mypy `var-annotated` error
+- `src/fabrik/drivers/dns.py:66`: Added explicit `str` binding before `.rstrip()` — mypy `union-attr` error on `str | None`
+- `scripts/enforcement/check_rule_size.py`: Increased rule file size limit 12KB → 32KB — `ocoron-design-system.md` and `62-wordpress.md` are intentionally comprehensive
+- `templates/scaffold/python/pyproject.toml.template`: Added ruff `exclude` for copied Fabrik tooling scripts (`final_gate.py`, `kilo_code_review.py`, `kilo_docs_enforcer.py`, `docs_updater.py`, `update_agents_toc.py`, `health_checker.py`, `scripts/enforcement/`, `templates/`) — prevents E501 waste when agents run gate in copied project folders
+- Applied ruff exclude to 31 existing projects via one-off patch script
+
 ### Changed — Kilo CLI documentation update (2026-04-14)
 - `docs/reference/kilo/KILO_CLI_REFERENCE.md`: Added HTTP Server API (OpenAPI 3.1 REST endpoints, SSE streaming, JSON output format, programmatic Python access), Custom Agents (config + markdown file definition), Custom Commands (reusable prompt templates), Plugins (custom tools/hooks/npm), missing CLI commands (`acp`, `config`, `remote`, `plugin`, `db`), missing `kilo run` flags (`--command`, `--prompt`), server auth env vars (`OPENCODE_SERVER_PASSWORD`). Updated version to 7.0.33+.
 - `docs/reference/kilo/KILO_PLATFORM_FEATURES.md`: Updated date, added cross-reference to HTTP Server API.

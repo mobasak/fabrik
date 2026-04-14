@@ -107,16 +107,25 @@ def get_suggestion(path_str: str) -> str:
         return "UPDATE docs/DEPLOYMENT.md instead. docs/operations/ is blocked."
 
     if path_str.startswith("docs/"):
-        return "UPDATE existing docs/*.md (see docs/.doc-policy.md). New docs files limited to scaffold set."
+        return (
+            "UPDATE existing docs/*.md (see docs/.doc-policy.md)."
+            " New docs files limited to scaffold set."
+        )
 
     if path_str.startswith(".droid/review-context/"):
-        return "Review context files (.droid/review-context/*.md) are blocked. Agent artifacts should not be auto-created."
+        return (
+            "Review context files (.droid/review-context/*.md) are blocked."
+            " Agent artifacts should not be auto-created."
+        )
 
     if "/" not in path_str:  # root level
         root_list = ", ".join(sorted(ALLOWED_NEW_ROOT_DOCS))
         return f"Root .md files limited to: {root_list}"
 
-    return "New .md files blocked by default-deny policy. Update existing docs or use allowed patterns."
+    return (
+        "New .md files blocked by default-deny policy."
+        " Update existing docs or use allowed patterns."
+    )
 
 
 def check_file(file_path: Path) -> list[CheckResult]:
@@ -159,7 +168,10 @@ def check_file(file_path: Path) -> list[CheckResult]:
         CheckResult(
             check_name="doc_sprawl",
             severity=Severity.ERROR,
-            message=f"BLOCKED: New .md file '{file_path.name}' not in allowlist or allowed patterns (default-deny)",
+            message=(
+                f"BLOCKED: New .md file '{file_path.name}' not in allowlist"
+                " or allowed patterns (default-deny)"
+            ),
             file_path=path_str,
             fix_hint=get_suggestion(path_str),
         )

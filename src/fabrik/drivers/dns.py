@@ -63,9 +63,12 @@ class DNSClient:
                      env var. If not set, requests are unauthenticated (local/dev only).
             timeout: Request timeout in seconds
         """
-        self.base_url = (
-            base_url or os.getenv("SITE_PROVISIONER_URL", "https://dns.vps1.ocoron.com")
-        ).rstrip("/")
+        resolved_url: str = (
+            base_url
+            or os.getenv("SITE_PROVISIONER_URL", "https://dns.vps1.ocoron.com")
+            or "https://dns.vps1.ocoron.com"
+        )
+        self.base_url = resolved_url.rstrip("/")
         self.api_key = api_key or os.getenv("SITE_PROVISIONER_API_KEY")
         self.timeout = timeout
 

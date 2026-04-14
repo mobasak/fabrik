@@ -50,7 +50,8 @@ def check_compose_arm64(file_path: Path) -> list:
                 message="Missing 'platform: linux/amd64' in compose file with build directive",
                 file_path=str(file_path),
                 line_number=1,
-                fix_hint="Add 'platform: linux/amd64' under services that use build: (VPS is x86_64)",
+                fix_hint="Add 'platform: linux/amd64' under services"
+                " that use build: (VPS is x86_64)",
             )
         )
     elif "platform:" in content and "linux/amd64" not in content:
@@ -97,7 +98,8 @@ def check_file(file_path: Path) -> list:
                     CheckResult(
                         check_name="docker",
                         severity=Severity.ERROR,
-                        message="Alpine image detected in compose file. Use Debian/Ubuntu slim-bookworm.",
+                        message="Alpine image detected in compose file."
+                        " Use Debian/Ubuntu slim-bookworm.",
                         file_path=str(file_path),
                         line_number=line_num,
                         fix_hint="Use debian:bookworm-slim or specific -bookworm-slim variants",
@@ -143,7 +145,10 @@ def check_file(file_path: Path) -> list:
                 message="No HEALTHCHECK instruction found",
                 file_path=str(file_path),
                 line_number=1,
-                fix_hint="Add: HEALTHCHECK --interval=30s CMD curl -f http://localhost:${PORT:-8000}/health || exit 1",  # noqa: E501
+                fix_hint=(
+                    "Add: HEALTHCHECK --interval=30s"
+                    " CMD curl -f http://localhost:${PORT:-8000}/health || exit 1"
+                ),
             )
         )
 
@@ -173,9 +178,14 @@ def check_file(file_path: Path) -> list:
                         CheckResult(
                             check_name="docker_ports",
                             severity=Severity.WARN,
-                            message=f"Dockerfile EXPOSE {dockerfile_port} not found in compose.yaml ports",
+                            message=(
+                                f"Dockerfile EXPOSE {dockerfile_port}"
+                                " not found in compose.yaml ports"
+                            ),
                             file_path=str(file_path),
-                            fix_hint=f"Ensure compose.yaml uses port {dockerfile_port} or update EXPOSE",
+                            fix_hint=(
+                                f"Ensure compose.yaml uses port {dockerfile_port} or update EXPOSE"
+                            ),
                         )
                     )
             except (OSError, UnicodeDecodeError):

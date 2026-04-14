@@ -813,7 +813,8 @@ def check_symlinks() -> tuple[bool, str]:
                 )
             else:
                 failures.append(
-                    f"{rel_path}: symlink → {resolved} (governance must be local copies, not symlinks)"
+                    f"{rel_path}: symlink → {resolved}"
+                    " (governance must be local copies, not symlinks)"
                 )
             continue
 
@@ -825,11 +826,13 @@ def check_symlinks() -> tuple[bool, str]:
                     rel_descendant = descendant.relative_to(FABRIK_ROOT)
                     if is_under_fabrik(resolved):
                         failures.append(
-                            f"{rel_descendant}: symlink → {resolved} (points to /opt/fabrik — isolation broken)"
+                            f"{rel_descendant}: symlink → {resolved}"
+                            " (points to /opt/fabrik — isolation broken)"
                         )
                     else:
                         failures.append(
-                            f"{rel_descendant}: symlink → {resolved} (governance must be local copies, not symlinks)"
+                            f"{rel_descendant}: symlink → {resolved}"
+                            " (governance must be local copies, not symlinks)"
                         )
 
     if failures:
@@ -1012,7 +1015,8 @@ def run_iteration(
             if failed_tools:
                 tool_names = [t[0] for t in failed_tools]
                 print(
-                    f"\n{BLUE}[AI FIX] Attempting cheap_fix_agent for: {', '.join(tool_names)}{RESET}"
+                    f"\n{BLUE}[AI FIX] Attempting cheap_fix_agent for: "
+                    f"{', '.join(tool_names)}{RESET}"
                 )
                 for tool, tool_output in failed_tools:
                     success, msg = run_ai_fixes(tool, tool_output)
@@ -1057,7 +1061,8 @@ def main() -> int:
         if changed_files:
             exts = {Path(f).suffix for f in changed_files if Path(f).suffix}
             print(
-                f"Changed files: {len(changed_files)} ({', '.join(sorted(exts)) or 'no extensions'})"
+                f"Changed files: {len(changed_files)}"
+                f" ({', '.join(sorted(exts)) or 'no extensions'})"
             )
         else:
             print("Changed files: none detected (running all checks)")
@@ -1068,7 +1073,8 @@ def main() -> int:
     for iteration in range(1, MAX_ITERATIONS + 1):
         if not args.check and iteration > 1 and not args.json:
             print(
-                f"\n{BOLD}{YELLOW}=== Iteration {iteration}/{MAX_ITERATIONS} (convergence rerun) ==={RESET}"
+                f"\n{BOLD}{YELLOW}=== Iteration {iteration}/{MAX_ITERATIONS}"
+                f" (convergence rerun) ==={RESET}"
             )
 
         status_before = get_git_status_hash()

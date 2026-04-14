@@ -18,7 +18,8 @@ def check_android_env() -> bool:
     if not android_home:
         print("FAIL: ANDROID_HOME environment variable is not set.")
         print(
-            "Tip: Add 'export ANDROID_HOME=/mnt/c/Users/YourUser/AppData/Local/Android/Sdk' to ~/.bashrc"
+            "Tip: Add 'export ANDROID_HOME=/mnt/c/Users/YourUser/AppData/Local/Android/Sdk'"
+            " to ~/.bashrc"
         )
         return False
 

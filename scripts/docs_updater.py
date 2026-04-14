@@ -25,10 +25,12 @@ Usage:
     python scripts/docs_updater.py --file src/api.py
 
     # Custom prompt from task file (with files to check)
-    python scripts/docs_updater.py --task-file tasks/update-docs.md --check-files src/api.py src/models.py
+    python scripts/docs_updater.py --task-file tasks/update-docs.md \
+        --check-files src/api.py src/models.py
 
     # Custom prompt directly
-    python scripts/docs_updater.py --prompt "Update CHANGELOG for auth changes" --check-files src/auth/*.py
+    python scripts/docs_updater.py --prompt "Update CHANGELOG for auth changes" \
+        --check-files src/auth/*.py
 
     # Validation and sync
     python scripts/docs_updater.py --check           # Validate docs, fail on drift
@@ -312,7 +314,8 @@ IMPORTANT:
 - Write changes DIRECTLY to the doc files
 - Keep documentation concise and practical
 
-Start by reading the changed files, then update CHANGELOG.md first, then other relevant documentation."""
+Start by reading the changed files, then update CHANGELOG.md first,
+then other relevant documentation."""
 
 
 def run_docs_update(files: list[str]) -> dict[str, Any]:
@@ -683,7 +686,10 @@ def replace_block(
     stamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
 
     def replacer(m):
-        return f"{m.group(1)}\n<!-- AUTO-GENERATED:{block_name} v1 | {stamp} -->\n{new_body}\n{m.group(2)}"
+        return (
+            f"{m.group(1)}\n<!-- AUTO-GENERATED:{block_name} v1 | {stamp} -->"
+            f"\n{new_body}\n{m.group(2)}"
+        )
 
     return block_re.sub(replacer, text), True
 
@@ -880,12 +886,20 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
 def generate_plans_table() -> str:
     """Generate markdown table of all plan files with real status."""
     if not PLANS_DIR.exists():
-        return "| Plan | Date | Status | Progress |\n|------|------|--------|----------|\n| (none) | - | - | - |"
+        return (
+            "| Plan | Date | Status | Progress |"
+            "\n|------|------|--------|----------|"
+            "\n| (none) | - | - | - |"
+        )
 
     # Use glob for top-level only (subfolders are for grouped incomplete work)
     plans = sorted(PLANS_DIR.glob("*.md"))
     if not plans:
-        return "| Plan | Date | Status | Progress |\n|------|------|--------|----------|\n| (none) | - | - | - |"
+        return (
+            "| Plan | Date | Status | Progress |"
+            "\n|------|------|--------|----------|"
+            "\n| (none) | - | - | - |"
+        )
 
     lines = ["| Plan | Date | Status | Progress |", "|------|------|--------|----------|"]
     for p in plans:
@@ -936,7 +950,8 @@ def validate_plan_consistency() -> list[str]:
                 age = datetime.now() - plan_date
                 if age > timedelta(days=14):
                     errors.append(
-                        f"WARNING: {p.name} is COMPLETE and {age.days} days old - consider archiving"
+                        f"WARNING: {p.name} is COMPLETE and {age.days} days old"
+                        " - consider archiving"
                     )
             except ValueError:
                 pass  # Invalid date format, skip age check
@@ -1005,7 +1020,8 @@ def check_stub_completeness() -> list[str]:
         for marker in STUB_MARKERS:
             if marker in content:
                 issues.append(
-                    f"Incomplete stub: {doc.relative_to(PROJECT_ROOT)} (contains '{marker[:20]}...')"
+                    f"Incomplete stub: {doc.relative_to(PROJECT_ROOT)}"
+                    f" (contains '{marker[:20]}...')"
                 )
                 break
     return issues

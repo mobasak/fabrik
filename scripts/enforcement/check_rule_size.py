@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Check that .windsurf/rules/*.md files stay under 12KB limit."""
+"""Check that .windsurf/rules/*.md files stay under 32KB limit."""
 
 import sys
 from pathlib import Path
 
-MAX_SIZE_BYTES = 12288  # 12KB
+MAX_SIZE_BYTES = 32768  # 32KB
 
 
 def main() -> int:

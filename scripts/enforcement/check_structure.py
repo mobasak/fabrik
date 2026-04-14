@@ -149,7 +149,9 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
                             "file": str(rel_path),
                             "severity": "warning",
                             "message": f"'{filename}' should be in a docs/ subdirectory",
-                            "fix_hint": f"Move to docs/reference/{filename} or docs/guides/{filename}",
+                            "fix_hint": (
+                                f"Move to docs/reference/{filename} or docs/guides/{filename}"
+                            ),
                         }
                     )
             elif len(parts) >= 3:
