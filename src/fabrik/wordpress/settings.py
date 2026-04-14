@@ -10,6 +10,7 @@ Handles:
 
 import secrets
 import shlex
+import string
 from dataclasses import dataclass
 
 from fabrik.drivers.wordpress import WordPressClient, get_wordpress_client
@@ -188,7 +189,8 @@ class SettingsApplicator:
         if not username:
             username = email.split("@")[0].replace(".", "_").replace("+", "_")
 
-        password = secrets.token_urlsafe(16)
+        _alphabet = string.ascii_letters + string.digits
+        password = "".join(secrets.choice(_alphabet) for _ in range(32))
 
         self.wp.user_create(username=username, email=email, role="editor", password=password)
 

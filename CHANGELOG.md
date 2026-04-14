@@ -26,6 +26,10 @@ All notable changes to this project will be documented in this file.
 - `.env.example`: Added Authelia, SERVICE_INTERNAL_SECRET_KEY, Gotenberg basic auth variables.
 - `specs/infrastructure/authelia.yaml`: New spec for Authelia deployment.
 
+### Fixed — WordPress pipeline: indefinite deep review round 13 (2026-04-14)
+- `src/fabrik/wordpress/manifests/checks.py:43`: `url_checks` list comprehension always double-wrapped every URL in `{"url": url, "expected_status": 200}` — if spec supplied `{"url": "/contact", "expected_status": 404}` it became `{"url": {"url": "/contact", "expected_status": 404}, "expected_status": 200}`, silently discarding the custom status; fixed to pass-through dicts unchanged and only wrap plain strings
+- `src/fabrik/wordpress/settings.py:191`: `create_editor()` generated passwords with `secrets.token_urlsafe(16)` — 22-char URL-safe base64, violating project password policy (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`); replaced with policy-compliant generator
+
 ### Fixed — WordPress pipeline: indefinite deep review round 12 (2026-04-14)
 - `src/fabrik/wordpress/deployer.py:264-272`: apply-report silently dropped `warnings` and `metadata` from each stage entry — operators had no visibility into what each stage did or its warnings without grepping logs; both fields now included in per-stage report dict
 - `src/fabrik/wordpress/deployer.py:368-369`: `_step_finalize()` had `except Exception: pass` on `cache_flush()` — silently swallowed failures; replaced with `logger.warning()` so cache errors surface without aborting the pipeline

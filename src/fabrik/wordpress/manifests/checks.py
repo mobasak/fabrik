@@ -39,8 +39,13 @@ def generate(resolved_spec: ResolvedSpec, build_dir: Path) -> Path:
     # Extract URL list (default from schema: ["/", "/contact"])
     urls = checks_config.get("urls", ["/", "/contact"])
 
-    # Build URL check list
-    url_checks = [{"url": url, "expected_status": 200} for url in urls]
+    # Build URL check list — spec may supply plain strings or full dicts
+    url_checks = []
+    for url in urls:
+        if isinstance(url, dict):
+            url_checks.append(url)
+        else:
+            url_checks.append({"url": url, "expected_status": 200})
 
     # Extract SSL and sitemap flags
     require_ssl = checks_config.get("require_ssl", True)
