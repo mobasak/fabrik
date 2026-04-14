@@ -303,8 +303,9 @@ monitoring:
 
 deployment:
   target: production
+  vps_ip: ${VPS_IP}
   coolify:
-    service_uuid: zwgsgwkwosws84o4sk4kwkso
+    service_uuid: acc0k8o0gk08g080wwsoggk4
   targets:
     production:
       server_profile: vps1

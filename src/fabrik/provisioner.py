@@ -545,12 +545,19 @@ class SiteProvisioner:
         )
         template = env.get_template("compose-coolify.yaml.j2")
 
+        site_dir = f"/opt/{job.site_name}"
         return template.render(
             name=job.site_name,
             domain=job.domain,
-            php_version="php8.2",
+            site_dir=site_dir,
+            php_version="php8.3",
             db_password=job.db_password,
             db_root_password=job.db_root_password,
+            table_prefix=job.site_name.replace("-", "_") + "_prod_",
+            r2_endpoint=f"https://{os.getenv('R2_ACCOUNT_ID', '')}.r2.cloudflarestorage.com",
+            r2_access_key=os.getenv("R2_ACCESS_KEY_ID", ""),
+            r2_secret_key=os.getenv("R2_SECRET_ACCESS_KEY", ""),
+            r2_bucket=f"{job.site_name}-backups",
         )
 
     def _step2_create_coolify_app(self, job: ProvisionJob, retry_count: int = 0):

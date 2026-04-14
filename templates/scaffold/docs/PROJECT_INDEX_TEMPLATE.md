@@ -39,7 +39,7 @@
 
 ---
 
-## docs/ — Documentation
+## docs/ Files
 
 | File | Purpose | Update When |
 |------|---------|-------------|

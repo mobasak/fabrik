@@ -836,7 +836,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f"\n"
         f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
         f'    """Return a structlog logger bound with service name."""\n'
-        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))\n'
+        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))  # type: ignore[no-any-return]\n'
     )
 
     # middleware.py — X-Request-ID correlation middleware
@@ -869,7 +869,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f"        try:\n"
         f"            response = await call_next(request)\n"
         f'            response.headers["X-Request-ID"] = req_id\n'
-        f"            return response\n"
+        f"            return response  # type: ignore[no-any-return]\n"
         f"        finally:\n"
         f'            structlog.contextvars.unbind_contextvars("correlation_id")\n'
     )
@@ -1416,7 +1416,7 @@ _setup_logging()
 
 def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:
     """Return a bound logger with service identity."""
-    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{name}"))
+    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{name}"))  # type: ignore[no-any-return]
 '''
     )
 
@@ -1850,7 +1850,7 @@ export default defineConfig({
         f"\n"
         f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
         f'    """Return a structlog logger bound with service name."""\n'
-        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))\n'
+        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))  # type: ignore[no-any-return]\n'
     )
 
     # server/src/<package_name>/middleware.py — X-Request-ID correlation middleware
@@ -1883,7 +1883,7 @@ export default defineConfig({
         f"        try:\n"
         f"            response = await call_next(request)\n"
         f'            response.headers["X-Request-ID"] = req_id\n'
-        f"            return response\n"
+        f"            return response  # type: ignore[no-any-return]\n"
         f"        finally:\n"
         f'            structlog.contextvars.unbind_contextvars("correlation_id")\n'
     )

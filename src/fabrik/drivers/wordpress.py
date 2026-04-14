@@ -43,7 +43,7 @@ class ContainerResolver:
                 [
                     "ssh",
                     self.ssh_host,
-                    f"docker ps --filter name={self.site_name} --format '{{{{.Names}}}}'",
+                    f"sudo docker ps --filter name={self.site_name}-wordpress --format '{{{{.Names}}}}'",
                 ],
                 capture_output=True,
                 text=True,

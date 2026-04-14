@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-04-14 13:49:35 -->
+<!-- Last synced: 2026-04-14 23:00:10 -->
 
 ### ⚠️ Port Conflicts Detected
 
@@ -96,6 +96,7 @@ If you encounter a port conflict:
 | Port | Project | Type | Path |
 |------|---------|------|------|
 | 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
+| 8000 | **gate-test** | python-api | /opt/gate-test |
 | 8002 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 8003 | **apps** | python-api | /opt/apps |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |

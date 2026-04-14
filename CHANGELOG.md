@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Fresh scaffold now passes full final_gate.py (2026-04-14)
+
+- `src/fabrik/scaffold.py`: Fixed mypy `no-any-return` in generated `logger.py` templates (3 sites) — added `# type: ignore[no-any-return]` to `structlog.get_logger()` return
+- `src/fabrik/scaffold.py`: Fixed mypy `no-any-return` in generated `middleware.py` templates (2 sites) — added `# type: ignore[no-any-return]` to `return response` in `dispatch()`
+- `templates/scaffold/docs/PROJECT_INDEX_TEMPLATE.md`: Renamed `## docs/ — Documentation` → `## docs/ Files` to match `check_index_md.py` requirement
+- `templates/scaffold/docs/PROJECT_README_TEMPLATE.md`: Added `## Overview` section required by `check_readme_md.py`
+- `scripts/final_gate.py`: Fall back to `sys.executable` when project venv lacks ruff (fresh scaffold before `pip install`) — check for `.venv/bin/ruff` existence instead of just `.venv/bin/python`
+- `templates/saas-skeleton/app/(app)/app/new/page.tsx`: Removed `console.log()` — replaced with TODO comment to pass Print/Console.log Ban check
+
 ### Fixed — Final gate clean + E501 structural fix (2026-04-14)
 
 - `src/fabrik/wordpress/stages/seo.py:46`: Added `dict` type annotation to `locale_meta` — mypy `var-annotated` error

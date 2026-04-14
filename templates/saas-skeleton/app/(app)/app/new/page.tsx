@@ -9,8 +9,7 @@ export default function NewJobPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement job creation
-    console.log("Creating job with file:", file?.name);
+    // TODO: Implement job creation — file: file?.name
   };
 
   return (

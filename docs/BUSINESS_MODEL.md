@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-14 13:49:35 -->
-<!-- Total projects: 35 -->
+<!-- Last synced: 2026-04-14 23:00:10 -->
+<!-- Total projects: 36 -->
 
 ### Production Services (10 projects)
 
@@ -109,12 +109,13 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (8 projects)
+### Active Development (9 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | - | ✅ Current |
 | **candle** | FastAPI microservice project (in development). | FastAPI | 🔨 Development | - | ✅ Current |
+| **gate-test** | Gate test project | FastAPI | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
@@ -128,7 +129,7 @@ With ~$50/month infrastructure cost:
 |---------|---------|-------|--------|-----|----------|
 | **ComplianceOps** | Async compliance service platform for HealthTech startups. | Python | 🔨 Development | - | ✅ Current |
 | **Reference_Creator** | Automated reference document creator from source materials. | Python | 🔨 Development | - | ✅ Current |
-| **apidoccreator** | Automated API documentation reference creator from URLs using web crawling. | Python | 🔨 Development | - | ✅ Current |
+| **apidoccreator** | External documentation registry. Scrapes, generates, stores and serves docs for AI agent consum... | FastAPI | 🔨 Development | - | ✅ Current |
 | **apps** | Multi-service application container for shared Fabrik utilities. | Python | 🔨 Development | - | ✅ Current |
 | **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | Python | 🔨 Development | - | ✅ Current |
 | **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | - | ✅ Current |
@@ -143,5 +144,11 @@ With ~$50/month infrastructure cost:
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
+
+### Recently Removed (1 projects)
+
+| Project | Note |
+|---------|------|
+| ~~fabrik~~ | Folder deleted since last scan |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

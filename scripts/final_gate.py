@@ -42,7 +42,9 @@ from pathlib import Path
 # Paths
 FABRIK_ROOT = Path.cwd()  # Use current working directory, not script location
 VENV_PYTHON = FABRIK_ROOT / ".venv" / "bin" / "python"
-PYTHON = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
+VENV_RUFF = FABRIK_ROOT / ".venv" / "bin" / "ruff"
+# Use venv python only if it has the required tools (ruff) installed
+PYTHON = str(VENV_PYTHON) if (VENV_PYTHON.exists() and VENV_RUFF.exists()) else sys.executable
 
 # Colors
 RED = "\033[91m"

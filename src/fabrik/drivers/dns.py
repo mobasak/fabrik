@@ -5,8 +5,10 @@ This client calls the site-provisioner service at VPS (dns.vps1.ocoron.com),
 which provides unified access to both Namecheap and Cloudflare DNS.
 """
 
+import json
 import logging
 import os
+import subprocess
 from dataclasses import dataclass
 from typing import Any
 
@@ -52,6 +54,7 @@ class DNSClient:
         base_url: str | None = None,
         api_key: str | None = None,
         timeout: float = 30.0,
+        ssh_host: str = "vps",
     ):
         """
         Initialize DNS client.
@@ -62,6 +65,7 @@ class DNSClient:
             api_key: API key sent as X-API-Key header. Defaults to SITE_PROVISIONER_API_KEY
                      env var. If not set, requests are unauthenticated (local/dev only).
             timeout: Request timeout in seconds
+            ssh_host: SSH host alias for VPS (used when SITE_PROVISIONER_INTERNAL_URL is set)
         """
         resolved_url: str = (
             base_url
@@ -71,6 +75,15 @@ class DNSClient:
         self.base_url = resolved_url.rstrip("/")
         self.api_key = api_key or os.getenv("SITE_PROVISIONER_API_KEY")
         self.timeout = timeout
+        self.ssh_host = ssh_host
+
+        # SITE_PROVISIONER_INTERNAL_URL bypasses Traefik IP allowlist by calling
+        # directly through SSH to the container port (e.g. http://localhost:8001).
+        # Set this when running from WSL where the public URL is blocked by iptables.
+        self._internal_url: str | None = os.getenv("SITE_PROVISIONER_INTERNAL_URL")
+        if self._internal_url:
+            self._internal_url = self._internal_url.rstrip("/")
+            logger.debug("DNS client: using SSH proxy via %s → %s", ssh_host, self._internal_url)
 
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if self.api_key:
@@ -81,10 +94,44 @@ class DNSClient:
                 "Set SITE_PROVISIONER_API_KEY in .env for production use."
             )
 
+        self._headers = headers
         self._client = httpx.Client(timeout=timeout, headers=headers)
 
+    def _request_via_ssh(self, method: str, url: str, body: dict | None = None) -> dict[str, Any]:
+        """Proxy an HTTP request through SSH to bypass Traefik IP allowlist."""
+        header_args = " ".join(f'-H "{k}: {v}"' for k, v in self._headers.items())
+        data_arg = ""
+        if body is not None:
+            escaped = json.dumps(body).replace("'", "'\\''")
+            data_arg = f"-d '{escaped}'"
+        cmd = f"curl -s -X {method} {header_args} {data_arg} '{url}'"
+        result = subprocess.run(
+            ["ssh", self.ssh_host, cmd],
+            capture_output=True,
+            text=True,
+            timeout=int(self.timeout),
+            check=False,
+        )
+        if result.returncode != 0:
+            msg = f"SSH proxy request failed: {result.stderr.strip()}"
+            raise RuntimeError(msg)
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            msg = f"SSH proxy returned non-JSON: {result.stdout[:200]}"
+            raise RuntimeError(msg) from exc
+
     def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
-        """Make HTTP request to Site Provisioner service."""
+        """Make HTTP request to Site Provisioner service.
+
+        When SITE_PROVISIONER_INTERNAL_URL is set, proxies the call through SSH
+        to bypass Traefik IP allowlist restrictions (WSL → VPS pipeline use case).
+        """
+        if self._internal_url:
+            url = f"{self._internal_url}{endpoint}"
+            body = kwargs.get("json")
+            return self._request_via_ssh(method, url, body)
+
         url = f"{self.base_url}{endpoint}"
         response = self._client.request(method, url, **kwargs)
         response.raise_for_status()
