@@ -1,0 +1,51 @@
+id: fabrik-smoke-test
+kind: service
+template: python-api
+domain: fabrik-smoke-test.ozgurbasak.com
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: true
+  has_bearer_api: true
+  has_persistent_data: true
+  needs_database: true
+  has_search_feature: true
+expose:
+  http: true
+  internal_only: false
+source:
+  type: docker
+  image: traefik/whoami:latest
+  image_port: 80
+  image_command: --port 80
+coolify:
+  project: default
+  server: localhost
+depends: {}
+infra:
+  glitchtip: false
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  PORT: ${PORT:-8000}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+secrets:
+  required: []
+  generate: []
+  from_env: []
+  from_file: {}
+resources:
+  memory: 512M
+  cpu: '0.5'
+health:
+  # traefik/whoami has no shell/wget/curl — any healthcheck would always
+  # fail and Traefik v3 filters unhealthy containers out of its router set
+  disabled: true
+  path: /
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30
