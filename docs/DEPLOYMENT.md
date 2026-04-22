@@ -43,8 +43,9 @@
 │   6. ComposeLinter          (Coolify-compat, no public `ports:`, etc.)   │
 │   7. CoolifyClient          (drivers/coolify.py → base64 compose PATCH   │
 │                              then POST /deploy?uuid=…&force=true)        │
-│   8. InfrastructureProvisioner (planned — shape-driven:                  │
-│         gatus, backrest, glitchtip, grafana, authelia, meilisearch)      │
+│   8. InfrastructureProvisioner (shape-driven, live 2026-04-22:           │
+│         postgres · gatus · backrest · glitchtip+DSN · grafana ·          │
+│         authelia+^/api/ bypass · meilisearch)                            │
 │   9. DeploymentVerifier     (orchestrator/verifier.py — HTTP 200,        │
 │                              DSN injected, DNS resolves, SSL valid)      │
 │                                                                          │
