@@ -13,7 +13,7 @@ All services deployed on VPS1 (172.93.160.197) with HTTPS via Traefik.
 | `files-api.vps1.ocoron.com` | A | 172.93.160.197 | File API service |
 | `images.vps1.ocoron.com` | A | 172.93.160.197 | Image Broker API |
 | `netdata.vps1.ocoron.com` | A | 172.93.160.197 | Netdata monitoring |
-| `status.vps1.ocoron.com` | A | 172.93.160.197 | Uptime Kuma |
+| `status.vps1.ocoron.com` | A | 172.93.160.197 | Gatus |
 | `translator.vps1.ocoron.com` | A | 172.93.160.197 | Translation API |
 | `wp-test.vps1.ocoron.com` | A | 172.93.160.197 | WordPress test site |
 | `emailgateway.vps1.ocoron.com` | A | 172.93.160.197 | Email Gateway API |
@@ -27,7 +27,7 @@ All services deployed on VPS1 (172.93.160.197) with HTTPS via Traefik.
 |---------|-----|------|---------|
 | **Coolify** | `https://vps1.ocoron.com:8000` | Login | Container deployment |
 | **Netdata** | `https://netdata.vps1.ocoron.com` | Basic Auth | System monitoring |
-| **Uptime Kuma** | `https://status.vps1.ocoron.com` | Login | Service monitoring |
+| **Gatus** | `https://status.vps1.ocoron.com` | Login | Service monitoring |
 | **Duplicati** | `https://backup.vps1.ocoron.com` | Password | Backup management |
 
 ### APIs
@@ -87,7 +87,7 @@ curl -s "https://dns.vps1.ocoron.com/api/cloudflare/dns/ocoron.com" \
 |-----------|------|-----|
 | `coolify` | 8000 | `https://vps1.ocoron.com:8000` |
 | `netdata` | 19999 | `https://netdata.vps1.ocoron.com` |
-| `uptime-kuma` | 3001 | `https://status.vps1.ocoron.com` |
+| `gatus` | 3001 | `https://status.vps1.ocoron.com` |
 | `duplicati` | 8200 | `https://backup.vps1.ocoron.com` |
 | `image-broker` | 8010 | `https://images.vps1.ocoron.com` |
 | `dns-manager` | 8001 | `https://dns.vps1.ocoron.com` |

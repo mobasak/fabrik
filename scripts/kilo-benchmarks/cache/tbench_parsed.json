@@ -1,7 +1,7 @@
 {
   "source": "tbench.ai",
   "url": "https://www.tbench.ai/leaderboard/terminal-bench/2.0",
-  "scraped_at": "2026-04-15T00:01:05.294639",
+  "scraped_at": "2026-04-22T11:23:05.030233",
   "total_entries": 118,
   "entries": [
     {
@@ -16,22 +16,22 @@
     },
     {
       "rank": 2,
-      "model": "Claude Opus 4.6",
-      "score": 81.8,
-      "provider": "ForgeCode",
-      "extra": {
-        "metric": "accuracy_percent",
-        "agent": "ForgeCode"
-      }
-    },
-    {
-      "rank": 3,
       "model": "Gemini 3.1 Pro",
       "score": 80.2,
       "provider": "TongAgents",
       "extra": {
         "metric": "accuracy_percent",
         "agent": "TongAgents"
+      }
+    },
+    {
+      "rank": 3,
+      "model": "Claude Opus 4.6",
+      "score": 79.8,
+      "provider": "ForgeCode",
+      "extra": {
+        "metric": "accuracy_percent",
+        "agent": "ForgeCode"
       }
     },
     {

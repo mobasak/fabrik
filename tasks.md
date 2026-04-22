@@ -43,7 +43,7 @@
 |---------|-----|--------|
 | Coolify | vps1.ocoron.com:8000 | ✅ |
 | Netdata | netdata.vps1.ocoron.com | ✅ |
-| Uptime Kuma | status.vps1.ocoron.com | ✅ |
+| Gatus | status.vps1.ocoron.com | ✅ |
 | Duplicati | backup.vps1.ocoron.com | ✅ |
 | Image Broker | images.vps1.ocoron.com | ✅ |
 | DNS Manager | dns.vps1.ocoron.com | ✅ |

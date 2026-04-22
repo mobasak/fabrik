@@ -46,6 +46,7 @@ CORE_SCRIPTS = [
 GOVERNANCE_FILES = [
     "AGENTS.md",
     "AGENTS-compact.md",
+    "AFCL.md",
     "opencode.json",
     ".windsurfrules",
     ".pre-commit-config.yaml",

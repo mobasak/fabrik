@@ -1,5 +1,8 @@
 # QUICKSTART.md — {PROJECT_NAME}
 
+**Last Updated:** YYYY-MM-DD
+
+> **Purpose:** INTEGRATION CONTRACT — ENDPOINTS, SDKS, DOCKER WIRING. START HERE FOR INTEGRATION AND SETUP.
 > **One-liner:** {What this project does in one sentence — who it's for and what problem it solves.}
 > **Type:** {python-api | node-api | saas-skeleton | chrome-extension | mobile-app | desktop-app | static-site}
 > **Owner:** {Team or person responsible.}

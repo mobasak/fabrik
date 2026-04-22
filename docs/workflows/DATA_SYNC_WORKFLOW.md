@@ -2,6 +2,7 @@
 
 **Last Updated:** 2026-04-05
 **Status:** PRODUCTION
+**Scripts:** Multiple (see sections below)
 
 > Complete reference for all data synchronization between `/opt/*` project folders and `/opt/fabrik`.
 

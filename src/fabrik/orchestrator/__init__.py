@@ -6,6 +6,7 @@ Unified controller for end-to-end deployments.
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 from fabrik.drivers.cloudflare import CloudflareClient
 from fabrik.drivers.dns import DNSClient
@@ -52,23 +53,43 @@ class DeploymentOrchestrator:
         deployer: ServiceDeployer | None = None,
         verifier: DeploymentVerifier | None = None,
         rollback_manager: RollbackManager | None = None,
+        infrastructure_provisioner: Any | None = None,
     ):
-        """Initialize orchestrator with optional component overrides."""
+        """Initialize orchestrator with optional component overrides.
+
+        Args:
+            infrastructure_provisioner: Post-deploy registrar dispatcher.
+                Defaults to :class:`fabrik.orchestrator.infrastructure.InfrastructureProvisioner`.
+                Override in tests to inject a stub and avoid driver-side
+                network calls. See Plan §Phase 7.
+        """
+        from fabrik.orchestrator.infrastructure import InfrastructureProvisioner
+
         self.validator = validator or SpecValidator()
         self.secrets_manager = secrets_manager or SecretsManager()
         self.deployer = deployer or ServiceDeployer()
         self.verifier = verifier or DeploymentVerifier()
         self.rollback_manager = rollback_manager or RollbackManager()
+        self.infrastructure_provisioner = infrastructure_provisioner or InfrastructureProvisioner()
 
-    def deploy(self, spec_path: Path, dry_run: bool = False) -> DeploymentContext:
+    def deploy(
+        self, spec_path: Path, dry_run: bool = False, skip_health_check: bool = False
+    ) -> DeploymentContext:
         """Run full deployment pipeline.
 
         Args:
             spec_path: Path to spec YAML file
             dry_run: If True, simulate without making changes
+            skip_health_check: If True, skip health check verification (useful for initial deployments)
 
         Returns:
-            DeploymentContext with results
+            DeploymentContext with deployment details
+
+        Raises:
+            ValidationError: Spec validation fails
+            ProvisioningError: Infrastructure provisioning fails
+            DeployError: Deployment fails
+            VerificationError: Post-deployment verification fails
         """
         ctx = DeploymentContext(spec_path=spec_path, dry_run=dry_run)
 
@@ -154,9 +175,28 @@ class DeploymentOrchestrator:
             self._transition(ctx, DeploymentState.DEPLOYING)
             self.deployer.deploy(ctx)
 
+            # Step 4b: Provision infrastructure registrars (post-deploy).
+            # Must run AFTER deployer.deploy so ctx.coolify_uuid is set
+            # (glitchtip needs it for SENTRY_DSN injection) and the
+            # deployed FQDN has Traefik routers up (authelia + gatus
+            # attach to live routes). Non-fatal by contract, except for
+            # glitchtip's DSN-injection verification which rolls back on
+            # failure. See fabrik.orchestrator.infrastructure.
+            try:
+                self.infrastructure_provisioner.provision(ctx)
+            except Exception as infra_err:
+                # Only glitchtip's DSN-verify path re-raises from
+                # InfrastructureProvisioner. Bubble it up as a
+                # ProvisioningError so the main handler attempts
+                # rollback with the resources tracked so far.
+                raise ProvisioningError(
+                    f"Infrastructure provisioning failed: {infra_err}",
+                    resource_type="infrastructure",
+                ) from infra_err
+
             # Step 5: Verify
             self._transition(ctx, DeploymentState.VERIFYING)
-            self.verifier.verify(ctx)
+            self.verifier.verify(ctx, skip_health_check=skip_health_check)
 
             # Success
             self._transition(ctx, DeploymentState.COMPLETE)

@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-04-19 (Lesson 28 — Scaffolded-project self-runnability)
+**Last Updated:** 2026-04-22 (Lesson 31 — Env-var verification via `docker inspect`)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
@@ -3396,3 +3396,146 @@ Uses time.time() * 1000 for epoch milliseconds (rendering correct).
 
 - **Trigger:** Deployment pipeline fix task requiring full smoke test validation
 - **Detection Method:** Manual execution of 9 smoke tests + dummy project deployment
+
+---
+
+# Lesson 30: Coolify Docker Compose Healthcheck Validation
+
+**Date:** 2026-04-22
+**Status:** Permanent Rule
+
+## 1. Context
+
+- **Project/Module:** Fabrik Deployment / Coolify Integration
+- **Environment:** VPS Ubuntu 24.04, Coolify v4 API
+- **AI Agent Used:** Windsurf Cascade
+
+## 2. The Problem
+
+`fabrik deploy` for docker-compose applications was failing with HTTP 422 from Coolify: `"docker_compose_raw should be base64 encoded."` Despite base64 encoding being correctly applied, Coolify rejected the payload. Investigation revealed the issue was NOT the base64 encoding, but the presence of a healthcheck section in the docker-compose YAML when the application image lacks healthcheck tools (`wget`/`curl`).
+
+**Impact:** High — Blocked automated docker-compose deployments, required manual debugging.
+
+## 3. Root Cause Analysis
+
+- **Technical Trigger:** Template healthcheck condition `{% if not (health and health.disabled) %}` evaluated to false when `health.disabled=true`, causing healthcheck generation even when explicitly disabled
+- **Model Behavior:** Jinja2 template logic error — negation of boolean condition caused inverted behavior
+- **Why it happened:** Template used double-negative logic that failed when health object existed but disabled was true
+
+## 4. The Solution & "Aha!" Moment
+
+Changed healthcheck condition from `{% if not (health and health.disabled) %}` to `{% if health and not health.disabled %}` so healthchecks only generate when explicitly enabled:
+
+```jinja2
+{% if health and not health.disabled %}
+healthcheck:
+  test: ["CMD-SHELL", "wget -q --spider http://localhost:80/health || exit 1"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+{% endif %}
+```
+
+Also fixed:
+- Spec model added `name` field as alias for `id`
+- Deployer converts source dict to Source object with proper enum conversion
+- Template env_file made conditional for non-docker image sources
+- Template prevents duplicate PYTHONUNBUFFERED environment variable
+
+## 5. Tests Performed
+
+- Minimal compose (image + platform only) successfully deploys to Coolify
+- Full compose with `health.disabled: true` deploys without 422 error
+- Docker image sources correctly render with `image:` instead of `build:`
+
+## 6. Key Findings
+
+1. **Coolify validates healthcheck commands** — If the container image lacks `wget`/`curl`, any healthcheck referencing these tools causes 422 validation error
+2. **Template double-negative logic is error-prone** — `{% if not (condition) %}` is harder to reason about than `{% if condition %}`
+3. **Spec file location matters** — Validator was loading from `/opt/fabrik/specs/services/` instead of project's own `specs/services/`, causing spec edits to be ignored
+4. **Pydantic default_factory overrides** — Source field with `default_factory=Source` overrode dict values unless explicitly converted to Source object
+
+## 7. Prevention Rules
+
+- Always set `health.disabled: true` for images without healthcheck tools
+- Use positive logic in Jinja2 templates (`{% if condition %}`) over double-negatives
+- Ensure spec files are in the correct location (`<project>/specs/services/<name>.yaml`)
+- Convert nested dict fields to their Pydantic types before creating parent models when default_factory is used
+
+## 8. Triggered By
+
+- **Trigger:** Test deployment of `fabrik-deploy-test-2` to validate end-to-end deployment flow
+- **Detection Method:** Manual debugging of Coolify 422 error with compose content inspection
+
+---
+
+# Lesson 31: Env-var verification must use `docker inspect`, never `docker exec`
+
+**Date:** 2026-04-22
+**Status:** Permanent Rule
+
+**TL;DR:** When verifying that Coolify (or any orchestrator) injected an env var into a running container, read the value via `docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}'`. Never use `docker exec {c} printenv`. The latter fails with `OCI runtime exec failed` on any shell-less image (scratch, distroless, `traefik/whoami`, production minimal images).
+
+## 1. Context
+
+- **Project/Module:** Fabrik / GlitchTip registrar (`src/fabrik/drivers/glitchtip.py`)
+- **Environment:** VPS Ubuntu 24.04, Coolify v4, `traefik/whoami:latest` test image
+- **AI Agent Used:** Windsurf Cascade
+
+## 2. The Problem
+
+Maximal-shape test deployment (`fabrik-e2e-full-test`) repeatedly failed at `verify_dsn_injection` with `SENTRY_DSN injection NOT verified for fabrik-e2e-full-test after 60s (9 attempts)`, triggering full project rollback. The Coolify API correctly applied the env var (`bulk_update_env_vars` + `deploy(force=True)`), and the container was up. But every 60s poll round saw:
+
+```
+actual='OCI runtime exec failed: exec failed: unable to start container process: exec: "'
+```
+
+**Impact:** High — Blocked maximal-shape deployments (admin dashboards, services with error tracking) for any project using a shell-less image, silently rolling back successful Coolify deploys.
+
+## 3. Root Cause Analysis
+
+- **Technical Trigger:** `docker exec` requires a process to exec IN the container. `traefik/whoami` is built `FROM scratch` — no `/bin/sh`, no `printenv`, no coreutils. The OCI runtime refuses to start the exec target.
+- **Model Behavior:** The original `verify_dsn_injection` implementation assumed every deployed container has a shell — true for Python/Node/Alpine, false for scratch/distroless/minimal production images.
+- **Why it happened:** The canonical Sentry SDK verification pattern uses `docker exec printenv`. This was copied wholesale without considering that Fabrik supports arbitrary images.
+- **Why smoke tests didn't catch it:** `fabrik-smoke-test` has `infra.glitchtip: false`, so the verification path never ran. The bug was latent behind a shape-gate.
+
+## 4. The Solution & "Aha!" Moment
+
+Replaced `docker exec` with `docker inspect` — a **daemon-side metadata read** that never touches the container's process namespace:
+
+```python
+actual = ssh(
+    f"sudo docker inspect {container} "
+    f"--format '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "
+    f"2>/dev/null | grep '^SENTRY_DSN=' | cut -d= -f2- || echo ''"
+).strip()
+```
+
+- `docker inspect` reads `Config.Env` from daemon state. No exec, no shell, no image dependency.
+- `grep '^SENTRY_DSN=' | cut -d= -f2-` tolerates `=` in the value (common in DSN query strings).
+
+Also widened the container-match regex from `grep '^{name}-'` to `grep -E '^{name}(-|$)'` so it works for both Coolify's auto-naming (`<name>-<uuid>`) and explicit `container_name: <name>` compose directives.
+
+## 5. Tests Performed
+
+- **Regression test** `test_scratch_image_uses_docker_inspect_not_exec` in `tests/drivers/test_glitchtip.py` asserts the verification path NEVER issues a `docker exec` call.
+- **Live E2E** Full maximal-shape deployment (`fabrik-e2e-full-test` with whoami) went green on iteration 3; all 9 registrars provisioned correctly; idempotent re-deploy also succeeded.
+
+## 6. Key Findings
+
+1. **`docker inspect` is the canonical env-var read.** Any Fabrik code asserting "the container has env var X" must use `docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}'` + `grep '^X='`.
+2. **`docker exec` is only for live commands that need the container's runtime.** Use it for `pg_isready`, `curl localhost/health`, etc. — never for metadata.
+3. **Shape-gated code paths need explicit test coverage with the maximal shape.** This bug lived behind `has_error_tracking=false` in all smoke tests.
+4. **Fail-loud tracing saves hours.** The fix took one debug iteration (`print()` inside the poll loop) once we could see `actual={OCI runtime exec failed...}`. Logger.info was invisible because the CLI suppresses below-WARNING.
+
+## 7. Prevention Rules
+
+- **Never `docker exec` to read a container's env.** Always `docker inspect --format '{{range .Config.Env}}...'`.
+- **When verifying any container-side state** (env, mounts, network, labels), prefer daemon-side inspects over in-container execs.
+- **Add `print()` tracing under shape-gated verification loops** when debugging deployment, not `logger.info` — the CLI suppresses INFO.
+- **Run the maximal-shape test project** (all `shape.*` flags true + scratch image like `traefik/whoami`) after any change to a registrar driver, orchestrator, or compose template.
+
+## 8. Triggered By
+
+- **Trigger:** End-to-end deployment workflow validation with `fabrik-e2e-full-test` (maximal shape)
+- **Detection Method:** Live print-tracing inside `verify_dsn_injection` during iteration 2 of the debug loop

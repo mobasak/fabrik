@@ -604,6 +604,29 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_print_ban.py", "Print/Console.log Ban")
         )
+        # Host-port ban for Traefik-routed compose templates (Phase 4l §5).
+        # Scans templates/**/compose.yaml.j2 every run (fast — ~13 small files).
+        # The check is stateless w.r.t. staged files: any template with a
+        # Traefik router + host-bound ports: fails the gate regardless of
+        # what changed in this commit, because it's a repo-invariant guard.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_no_host_ports.py",
+                "No Host Ports on Traefik Services",
+            )
+        )
+        # Full Traefik label-set enforcement (Phase 4l §7). Every service
+        # with traefik.enable=true in any templates/**/compose.yaml.j2 MUST
+        # declare the full five-label set (rule, entrypoints, tls=true,
+        # tls.certresolver, loadbalancer.server.port). Relying on Coolify's
+        # runtime auto-inject has silently broken admin-dashboard 2FA in
+        # production — see docs/LESSONS_LEARNT.md §8.7 (GlitchTip incident).
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_traefik_labels.py",
+                "Full Traefik Label Set (§7)",
+            )
+        )
 
     # Tier 1 stops here
     if tier == 1:

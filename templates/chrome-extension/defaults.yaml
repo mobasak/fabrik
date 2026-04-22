@@ -1,3 +1,19 @@
+# ─── shape: project-shape descriptor (Phase 4k) ───
+# Consumed by `fabrik apply` via `orchestrator/infrastructure.py::resolve_applicability`.
+# Authoritative matrix: `spec_loader.Shape` docstring + plan §CLI Entry Points.
+# Changing a flag here changes which infrastructure registrars run for every
+# project scaffolded from this template. Keep in sync with the pydantic Shape model.
+# NOTE: chrome-extension is packaged (CRX / app-store binary / installer),
+# NOT deployed to the VPS. All applicability flags are intentionally false.
+shape:
+  kind: static
+  is_public: false
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: false
+  needs_database: false
+  has_search_feature: false
+
 env:
   LOG_LEVEL: INFO
   PYTHONUNBUFFERED: "1"

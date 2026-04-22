@@ -25,10 +25,12 @@ class UptimeKumaClient:
         url: str | None = None,
         username: str | None = None,
         password: str | None = None,
+        timeout: int = 30,
     ):
         self.url = url or os.getenv("UPTIME_KUMA_URL", "https://status.vps1.ocoron.com")
         self.username = username or os.getenv("UPTIME_KUMA_USERNAME")
         self.password = password or os.getenv("UPTIME_KUMA_PASSWORD")
+        self.timeout = timeout
         self._api: UptimeKumaApi | None = None
 
     def _ensure_connected(self) -> None:
@@ -36,7 +38,7 @@ class UptimeKumaClient:
         if not HAS_UPTIME_KUMA:
             raise ImportError("uptime-kuma-api not installed. Run: pip install uptime-kuma-api")
         if self._api is None:
-            self._api = UptimeKumaApi(self.url)
+            self._api = UptimeKumaApi(self.url, timeout=self.timeout)
             self._api.login(self.username, self.password)
 
     def _get_api(self) -> UptimeKumaApi:

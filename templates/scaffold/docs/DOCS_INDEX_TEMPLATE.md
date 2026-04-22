@@ -1,5 +1,8 @@
 # Documentation — [Project Name]
 
+**Last Updated:** YYYY-MM-DD
+
+> **Purpose:** DOCUMENTATION INDEX — TABLE OF CONTENTS FOR ALL DOCS.
 > Start with [QUICKSTART.md](QUICKSTART.md) for integration and setup.
 > See [INDEX.md](../INDEX.md) for the master file index.
 

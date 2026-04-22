@@ -153,6 +153,21 @@ class ServiceDeployer:
         if not isinstance(spec_dict.get("env"), dict):
             spec_dict["env"] = {}
 
+        # Convert nested dict fields to their proper types to avoid default_factory overrides
+        from fabrik.spec_loader import Source, SourceType
+
+        if "source" in spec_dict and isinstance(spec_dict["source"], dict):
+            source_dict = spec_dict["source"]
+            # Convert type string to enum
+            if "type" in source_dict and isinstance(source_dict["type"], str):
+                type_map = {
+                    "docker": SourceType.DOCKER,
+                    "git": SourceType.GIT,
+                    "template": SourceType.TEMPLATE,
+                }
+                source_dict["type"] = type_map.get(source_dict["type"], SourceType.TEMPLATE)
+            spec_dict["source"] = Source(**source_dict)
+
         spec_obj = Spec(**spec_dict)
 
         rendered = TemplateRenderer().render(spec_obj, secrets=ctx.secrets, dry_run=True)
@@ -172,7 +187,41 @@ class ServiceDeployer:
                 "Coolify API response missing 'uuid' or 'id'",
                 coolify_error=str(result),
             )
+
+        # Coolify's `instant_deploy: true` on POST /applications/dockercompose
+        # does NOT reliably start the container (leaves service at status=exited).
+        # Explicitly trigger /deploy to ensure the container is created and started.
+        try:
+            self.client.deploy(uuid, force=True)
+            logger.info("Triggered deploy for %s", uuid)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Post-create deploy trigger failed (non-fatal): %s", e)
+
+        # Give Coolify some time to actually spin up the container before
+        # downstream steps (verification, Traefik router check) probe it.
+        self._wait_for_container(spec["name"], max_wait=90)
         return uuid
+
+    def _wait_for_container(self, name: str, max_wait: int = 90) -> bool:
+        """Poll via SSH until a container named `<name>-*` is Up, or timeout."""
+        import time
+
+        from fabrik.drivers.ssh import ssh
+
+        start = time.time()
+        while time.time() - start < max_wait:
+            try:
+                out = ssh(
+                    f"sudo docker ps --format '{{{{.Names}}}}\\t{{{{.Status}}}}' | grep '^{name}-' | head -1"
+                ).strip()
+            except Exception:  # noqa: BLE001
+                out = ""
+            if out and "Up" in out:
+                logger.info("Container ready: %s", out.split()[0])
+                return True
+            time.sleep(5)
+        logger.warning("Container %s-* did not come up within %ds", name, max_wait)
+        return False
 
     def _update_deployment(self, uuid: str, ctx: DeploymentContext) -> None:
         """Update an existing Coolify deployment.
@@ -184,12 +233,16 @@ class ServiceDeployer:
         spec = ctx.spec
         domain = spec.get("domain")
 
-        # Update application metadata (fqdn only if domain is set)
+        # fqdn can only be set on `/applications/{uuid}`, not `/services/{uuid}`.
+        # For services (dockercompose), the domain is carried by the compose's
+        # Traefik labels (rendered by TemplateRenderer). Auto-route by UUID.
         if domain:
-            self.client.update_application(
-                uuid=uuid,
-                fqdn=f"https://{domain}",
-            )
+            resource_base = self.client._resolve_resource_base(uuid)
+            if resource_base == "applications":
+                self.client.update_application(
+                    uuid=uuid,
+                    fqdn=f"https://{domain}",
+                )
 
         # Build environment from spec + secrets
         # NOTE: Secrets are passed to Coolify API. Ensure HTTP client debug

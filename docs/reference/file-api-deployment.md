@@ -1,6 +1,6 @@
 # File API Deployment Guide
 
-**Last Updated:** 2025-12-23
+**Last Updated:** 2026-04-16
 
 This guide covers deploying the File API service that provides presigned URLs for R2 file uploads/downloads.
 
@@ -76,112 +76,108 @@ curl http://localhost:3000/health
 
 ---
 
-## Option B: VPS Deployment via Coolify
+## Option B: VPS Deployment via Fabrik Orchestrator
 
-Deploy to your VPS using Coolify's Docker Compose support.
+Deploy to your VPS using Fabrik's orchestrator pipeline with automatic DNS, secrets, and health verification.
 
-### What is Coolify?
+### What is Fabrik Orchestrator?
 
-Coolify is the deployment platform running on your VPS (at `https://coolify.yourdomain.com`). It:
-- Manages Docker containers
-- Handles SSL certificates via Let's Encrypt
-- Provides a web dashboard for deployments
-- Supports Docker Compose files
+Fabrik's orchestrator automates the entire deployment pipeline:
+- Validates spec YAML
+- Loads secrets from project .env files
+- Provisions DNS records (via site-provisioner or Cloudflare)
+- Deploys to Coolify with compose.yaml
+- Verifies health endpoint with retries
+- Automatic rollback on failure
 
-### Step 1: Prepare Git Repository
+### Step 1: Create Deployment Spec
 
-Coolify pulls code from Git. You need to push the file-api code to a repository.
+Create a spec file for the File API service:
 
 ```bash
-# Create a new repo on GitHub (or use existing)
-cd /opt/apps/file-api
-
-# Initialize git
-git init
-git add .
-git commit -m "File API service"
-
-# Add remote and push
-git remote add origin https://github.com/YOUR_USERNAME/file-api.git
-git branch -M main
-git push -u origin main
+cd /opt/fabrik/specs/services
+vim file-api.yaml
 ```
 
-**Alternative:** Use Coolify's "Docker Compose" deployment without Git by copying files directly to VPS.
+**Spec content:**
+```yaml
+id: file-api
+kind: service
+template: file-api
+domain: files-api.vps1.ocoron.com
+env:
+  # Supabase
+  SUPABASE_URL: https://xjmsceegyztgtcpywhry.supabase.co
+  SUPABASE_ANON_KEY: from_env
+  SUPABASE_SERVICE_ROLE_KEY: from_env
 
-### Step 2: Create Application in Coolify
+  # R2 Storage
+  R2_ACCOUNT_ID: from_env
+  R2_ACCESS_KEY_ID: from_env
+  R2_SECRET_ACCESS_KEY: from_env
+  R2_BUCKET: from_env
+  R2_ENDPOINT: from_env
 
-1. Open Coolify dashboard: `https://coolify.vps1.ocoron.com`
-2. Go to **Projects** → Select or create project (e.g., "fabrik-services")
-3. Click **+ New** → **Application**
-4. Choose deployment type:
-   - **Public Repository** if your repo is public
-   - **Private Repository (GitHub)** if private (requires GitHub app connection)
-   - **Docker Compose** to paste compose.yaml directly
+  # App Config
+  PORT: 3000
+  NODE_ENV: production
 
-### Step 3: Configure Application
-
-**If using Git repository:**
-- Repository URL: `https://github.com/YOUR_USERNAME/file-api.git`
-- Branch: `main`
-- Build Pack: `Dockerfile`
-- Dockerfile Location: `Dockerfile` (not `.j2` - you'll need to render the template first)
-
-**If using Docker Compose:**
-1. First render the Jinja2 template to plain compose.yaml
-2. Paste the rendered compose.yaml in Coolify
-
-### Step 4: Set Environment Variables
-
-In Coolify application settings → **Environment Variables**, add:
-
+secrets:
+  required:
+    - SUPABASE_ANON_KEY
+    - SUPABASE_SERVICE_ROLE_KEY
+    - R2_ACCOUNT_ID
+    - R2_ACCESS_KEY_ID
+    - R2_SECRET_ACCESS_KEY
+    - R2_BUCKET
+    - R2_ENDPOINT
 ```
-# Supabase
-SUPABASE_URL=https://xjmsceegyztgtcpywhry.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
 
-# R2 Storage
+### Step 2: Set Secrets in Project .env
+
+Fabrik automatically loads secrets from the project's `.env` file:
+
+```bash
+# /opt/file-api/.env
+SUPABASE_ANON_KEY=your_actual_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_actual_service_role_key
 R2_ACCOUNT_ID=066f5cf1dfe20ba18549a592809aa080
 R2_ACCESS_KEY_ID=735f0af6ebb94674962a918ee19d99d8
 R2_SECRET_ACCESS_KEY=2c2c01c9cdc01e27e004baa80b0e9aa5546013347f7305722fea2efce9d6d6c5
 R2_BUCKET=fabrik-files
 R2_ENDPOINT=https://066f5cf1dfe20ba18549a592809aa080.r2.cloudflarestorage.com
-
-# App Config
-PORT=3000
-NODE_ENV=production
 ```
 
-### Step 5: Configure Domain
+### Step 3: Deploy with Fabrik
 
-In Coolify application settings → **Domains**:
-
-1. Add domain: `files-api.vps1.ocoron.com` (or your choice)
-2. Enable HTTPS (Coolify auto-provisions Let's Encrypt cert)
-
-### Step 6: Deploy
-
-1. Click **Deploy** button in Coolify
-2. Watch build logs
-3. Wait for "Running" status
-
-### Step 7: Add DNS Record
-
-Add A record pointing your domain to VPS:
-
-```
-Type: A
-Host: files-api
-Value: 172.93.160.197
-TTL: 1800
+```bash
+cd /opt/fabrik
+fabrik apply specs/services/file-api.yaml
 ```
 
-### Step 8: Verify Deployment
+**What happens automatically:**
+1. **Validation** - Spec YAML is validated
+2. **Secrets Loading** - Secrets loaded from `/opt/file-api/.env`
+3. **DNS Provisioning** - A record created: `files-api.vps1.ocoron.com → 172.93.160.197`
+4. **Coolify Deployment** - App deployed with compose.yaml + env vars
+5. **Health Verification** - Checks `/health` endpoint (6 retries, 5s interval)
+6. **Rollback** - Automatic if any step fails
+
+### Step 4: Verify Deployment
 
 ```bash
 curl https://files-api.vps1.ocoron.com/health
 # Expected: {"status":"healthy","timestamp":"..."}
+```
+
+### Step 5: Check Deployment Status
+
+```bash
+# View Coolify app status
+fabrik app-logs file-api
+
+# Or check in Coolify UI
+# https://coolify.vps1.ocoron.com
 ```
 
 ---

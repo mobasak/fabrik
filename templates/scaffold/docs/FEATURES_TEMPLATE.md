@@ -2,6 +2,7 @@
 
 **Last Updated:** YYYY-MM-DD
 
+> **Purpose:** FEATURE DOCUMENTATION.
 > Complete feature reference for [Project Name]. Serves as both internal inventory and public-facing feature documentation.
 
 ---

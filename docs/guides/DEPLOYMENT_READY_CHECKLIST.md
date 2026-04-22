@@ -23,6 +23,8 @@ This avoids two common failures:
 
 ## The Development → Deployment Flow
 
+### Fabrik Orchestrator Pipeline (Current)
+
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           WSL (Development Factory)                         │
@@ -34,43 +36,95 @@ This avoids two common failures:
 │                                                                             │
 │  DOCKER PARITY (gate):                                                      │
 │    - make docker-smoke (build + run + health check)                         │
-│    - Run before every push to main                                          │
+│    - Run before every deployment                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           GitHub Repository                                 │
+│                           Fabrik Orchestrator                               │
 │                                                                             │
-│  - Source code                                                              │
-│  - Dockerfile + .dockerignore                                               │
-│  - compose.yaml (prod-like) + compose.dev.yaml (optional)                   │
-│  - .env.example (never .env!)                                               │
-│  - CI: docker build + health check on every PR                              │
+│  fabrik apply specs/my-service.yaml                                         │
+│                                                                             │
+│  Pipeline Steps:                                                            │
+│  1. VALIDATION - Load and validate spec YAML                                 │
+│  2. SECRETS LOADING - Load from:                                           │
+│     - Project .env file (auto-detected from scaffold)                        │
+│     - Environment variables                                                 │
+│     - from_file secrets                                                     │
+│     - generate secrets (auto-generated CSPRNG)                              │
+│  3. DNS PROVISIONING - Create A record:                                     │
+│     - Try DNS Manager (site-provisioner) first                              │
+│     - Fall back to Cloudflare if DNS Manager fails                          │
+│     - Point domain to VPS IP (172.93.160.197)                              │
+│  4. DEPLOY - Deploy to Coolify:                                            │
+│     - Render spec + secrets into compose.yaml via TemplateRenderer          │
+│     - Create/update Coolify app via create_dockercompose_application         │
+│     - Inject environment variables                                          │
+│  5. VERIFICATION - Health check:                                           │
+│     - Check /health endpoint with 6 retries, 5s interval                     │
+│     - Only set deployed_url after successful health check                   │
+│  6. ROLLBACK (on failure) - Automatic:                                     │
+│     - Delete DNS record if created                                          │
+│     - Delete Coolify app if created                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           Coolify (VPS Control Plane)                       │
 │                                                                             │
-│  1. Webhook from GitHub on push                                             │
-│  2. Pulls code, builds Docker image                                         │
-│  3. Runs migrations (pre-deploy command)                                    │
-│  4. Starts container, routes traffic                                        │
-│  5. Manages HTTPS certificates                                              │
-│  6. Env vars set in Coolify UI (not in repo)                                │
+│  - Receives docker_compose_raw from Fabrik                                 │
+│  - Builds Docker image (if using git) or uses inline compose               │
+│  - Starts container on coolify network                                     │
+│  - Traefik routes HTTPS traffic based on domain labels                     │
+│  - Manages Let's Encrypt certificates                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           VPS (Production)                                  │
 │                                                                             │
-│  - ONE shared PostgreSQL (Coolify managed or dedicated container)           │
+│  - ONE shared PostgreSQL (postgres-main container)                          │
 │  - Per-project databases: project1_db, project2_db, etc.                    │
 │  - App containers connect via DATABASE_URL                                  │
 │  - Persistent volumes for data                                              │
-│  - HTTPS endpoints via Coolify reverse proxy                                │
+│  - HTTPS endpoints via Traefik (managed by Coolify)                         │
+│  - Logs collected by Promtail → Loki                                        │
+│  - Metrics scraped by Prometheus (cAdvisor + node-exporter)                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### What Fabrik Automates vs Manual Steps
+
+**Fabrik automates:**
+- ✅ DNS A record creation (site-provisioner → Cloudflare fallback)
+- ✅ Coolify app creation/update
+- ✅ Environment variable injection
+- ✅ Health check verification (with retries)
+- ✅ Automatic rollback on failure
+
+**Manual steps required:**
+- ❌ Iptables rules (pre-configured, no per-service changes)
+- ❌ Authelia middleware (add to Traefik labels for admin dashboards)
+- ❌ Gatus monitor (add manually)
+- ❌ Traefik labels (must be in compose template)
+- ❌ Observability registration (automatic via Docker labels)
+
+### Legacy Git-based Deployment (Not Recommended)
+
+The old workflow using GitHub webhooks is still supported but **not recommended**:
+
+```text
+GitHub → Webhook → Coolify → Build → Deploy
+```
+
+**Problems with Git-based deployment:**
+- Requires GitHub integration setup
+- No DNS provisioning automation
+- No secrets management
+- No health verification
+- No automatic rollback
+
+**Use `fabrik apply` instead for full automation.**
 
 ---
 

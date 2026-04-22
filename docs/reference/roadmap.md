@@ -36,7 +36,7 @@
 | 23 | Implement WP post-deploy hooks | 1 hr |
 | 24 | Deploy test WordPress site | 1 hr |
 | **Monitoring** |
-| 25 | Deploy Uptime Kuma | 30 min |
+| 25 | Deploy Gatus | 30 min |
 | 26 | Configure checks + alerts | 30 min |
 | **Validation** |
 | 27 | Test backup + restore | 1 hr |

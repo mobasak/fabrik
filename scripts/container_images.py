@@ -614,7 +614,7 @@ def cmd_recommend(args):
                         "alpine",
                         "linuxserver",
                         "netdata",
-                        "uptime-kuma",
+                        "gatus",
                         "postgres",
                         "redis",
                         "nginx",

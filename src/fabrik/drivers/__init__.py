@@ -16,16 +16,15 @@ from fabrik.drivers.r2 import R2Client
 from fabrik.drivers.seo import SEOClient
 from fabrik.drivers.supabase import SupabaseClient
 from fabrik.drivers.tco import TCOClient
-from fabrik.drivers.uptime_kuma import UptimeKumaClient, add_fabrik_service_to_monitoring
 
 __all__ = [
     "DNSClient",
     "CoolifyClient",
-    "UptimeKumaClient",
+    # "GatusClient",
     "SupabaseClient",
     "R2Client",
     "SEOClient",
     "TCOClient",
     "ImageBrokerClient",
-    "add_fabrik_service_to_monitoring",
+    # "add_fabrik_service_to_monitoring",
 ]

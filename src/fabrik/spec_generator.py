@@ -13,10 +13,17 @@ from fabrik.spec_loader import (
     Kind,
     Resources,
     SecretsPolicy,
+    Shape,
     Spec,
     create_spec,
     save_spec,
 )
+
+# Templates directory — single source of truth for shape: blocks per scaffold type.
+# Phase 4k moved shape defaults out of Python (`_TYPE_DEFAULTS`) and into
+# `templates/<type>/defaults.yaml` so they can be grep'd / diff'd / version-controlled
+# alongside the template itself.
+_TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +119,60 @@ def _parse_compose_env(compose_path: Path) -> dict[str, str]:
     except Exception:
         logger.debug("Failed to parse compose env from %s", compose_path, exc_info=True)
         return {}
+
+
+def _load_template_defaults(project_type: str) -> dict:
+    """Load ``templates/<project_type>/defaults.yaml`` as a dict.
+
+    Returns an empty dict if the file is missing or fails to parse (both are
+    non-fatal — caller treats missing data as "use all-False Shape defaults").
+
+    Phase 4k: this replaces the Python-hardcoded ``_TYPE_DEFAULTS`` for shape
+    fields. Resource / health defaults still live in ``_TYPE_DEFAULTS`` below
+    (they are not yet migrated to defaults.yaml to keep this phase focused).
+    """
+    defaults_path = _TEMPLATES_DIR / project_type / "defaults.yaml"
+    if not defaults_path.exists():
+        logger.debug(
+            "No defaults.yaml for project_type=%s at %s — returning empty dict",
+            project_type,
+            defaults_path,
+        )
+        return {}
+    try:
+        data = yaml.safe_load(defaults_path.read_text(encoding="utf-8")) or {}
+        if not isinstance(data, dict):
+            logger.warning(
+                "defaults.yaml for %s is not a mapping (type=%s) — ignoring",
+                project_type,
+                type(data).__name__,
+            )
+            return {}
+        return data
+    except Exception:
+        logger.warning("Failed to parse %s — returning empty dict", defaults_path, exc_info=True)
+        return {}
+
+
+def _build_shape_for_type(project_type: str) -> Shape | None:
+    """Build a validated :class:`Shape` from ``templates/<type>/defaults.yaml``.
+
+    Returns ``None`` if the template has no ``shape:`` block (e.g. a template
+    predating Phase 4k). Returning ``None`` keeps the generated spec
+    backwards-compatible — the orchestrator's ``resolve_applicability`` already
+    tolerates a missing shape via ``spec.get("shape", {})``.
+
+    Raises:
+        pydantic.ValidationError: If the shape block contains an unknown key.
+            This is intentional — a typo in defaults.yaml (e.g.
+            ``need_database: true`` instead of ``needs_database: true``)
+            MUST fail loudly at scaffold/apply time, never silently.
+    """
+    data = _load_template_defaults(project_type)
+    shape_raw = data.get("shape")
+    if shape_raw is None:
+        return None
+    return Shape(**shape_raw)
 
 
 def _parse_env_example(env_example_path: Path) -> list[str]:
@@ -257,6 +318,10 @@ def generate_spec(
         depends=depends,
         secrets=secrets_policy,
         env=ctx.get("env", {}),
+        # Phase 4k: emit shape: from templates/<type>/defaults.yaml.
+        # None is passed through when the template predates Phase 4k
+        # (back-compat path — orchestrator tolerates a missing shape).
+        shape=_build_shape_for_type(project_type),
     )
 
 

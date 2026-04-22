@@ -37,10 +37,10 @@
 | `git commit` | Traycer commits |
 | `git add` | `final_gate.py` handles auto-staging |
 | bare `pip install` | `/opt/<project>/.venv/bin/pip install` |
-| Alpine base image | `python:3.12-slim-bookworm` or `node:22-bookworm-slim` |
+| Alpine base image | `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim` |
 | edit files outside task scope | stay strictly within the assigned task boundaries |
 | modify `pyproject.toml` / `requirements.txt` | only if the task explicitly requires dependency changes |
 | create files outside project tree | use local project paths only |
 | expose Docker ports to host via `ports:` | route through Traefik; Docker bypasses UFW |
-| deploy admin dashboard without Authelia | add `authelia-forward@docker` middleware |
+| deploy admin dashboard without an auth boundary | Authelia forward-auth IF service lacks native TOTP; app-layer native TOTP IF it has one (GlitchTip/Grafana/GitLab pattern). See `docs/LESSONS_LEARNT.md §8.13`. |
 | deploy API service without `X-Internal-Token` | validate `SERVICE_INTERNAL_SECRET_KEY` header |

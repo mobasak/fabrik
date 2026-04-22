@@ -12,7 +12,7 @@
 | File | Purpose | Update When |
 |------|---------|-------------|
 | **INDEX.md** | This file — master index of all files and their purposes | Add/remove/rename any file |
-| **README.md** | Primary entry point — features, architecture, tech stack, quick start | New features, tech changes, setup changes |
+| **README.md** | Primary entry point — overview, tech stack, requirements, link to INDEX.md | Tech changes, setup changes |
 | **CHANGELOG.md** | Change history — what changed, why, when (Keep-a-Changelog format) | Every code change |
 | **AGENTS.md** | AI agent identity, tech stack, infra context | Read-only (synced from Fabrik) |
 | **AGENTS-compact.md** | Compressed agent contract for Kilo CLI | Read-only (synced from Fabrik) |
@@ -39,21 +39,9 @@
 
 ---
 
-## docs/ Files
+## docs/ Structure
 
-| File | Purpose | Update When |
-|------|---------|-------------|
-| **docs/README.md** | Documentation index — table of contents for all docs | New docs added |
-| **docs/QUICKSTART.md** | Integration contract — how to use this project, all endpoints, SDK modules, Docker wiring | API changes, new endpoints, setup changes |
-| **docs/CONFIGURATION.md** | Complete config reference — all env vars, defaults, examples | New env vars added |
-| **docs/TROUBLESHOOTING.md** | Common issues and solutions | New complex dependencies, recurring issues |
-| **docs/FEATURES.md** | Detailed feature documentation and endpoint reference | New features, endpoint changes |
-| **docs/BUSINESS_MODEL.md** | Go-to-market, monetization, pricing strategy | Strategy or pricing changes |
-
-<!-- These files are created as the project matures. Add rows when they exist. -->
-<!-- | **docs/DEPLOYMENT.md** | Coolify/Docker deployment instructions | Infra changes | -->
-<!-- | **docs/SERVICES.md** | Microservices architecture | New services added | -->
-<!-- | **docs/MIGRATION.md** | Data migration guides | Schema or data changes | -->
+See [docs/README.md](docs/README.md) for documentation index with purposes.
 
 ---
 

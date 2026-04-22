@@ -26,13 +26,21 @@ map $http_cookie $skip_cache_cookie {
     "~*wordpress_logged_in|woocommerce_items_in_cart|wp-postpass|comment_author"  1;
 }
 
-upstream php {
-    server wordpress:9000;
+# Map Fabrik deploy header — bypass cache during post-deploy warming so
+# cache is rebuilt from fresh content (not stale "Nothing Found" pages).
+map $http_x_fabrik_deploy $skip_cache_deploy {
+    default 0;
+    "~.+"   1;
 }
 
 server {
     listen 80;
     server_name _;
+
+    # Force Docker DNS to resolve via IPv4 only — prevents AAAA ghost records
+    # causing 502 when Docker bridge has partial IPv6 support (Gap 18)
+    resolver 127.0.0.11 ipv6=off;
+    set $upstream_fpm {{ name }}-wordpress-1;
 
     root /var/www/html;
     index index.php index.html;
@@ -101,17 +109,18 @@ server {
     location ~ \.php$ {
         try_files $uri =404;
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
-        fastcgi_pass php;
+        fastcgi_pass $upstream_fpm:9000;
         fastcgi_index index.php;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;  # Pass Authorization header for REST API auth
 
         # FastCGI cache
         fastcgi_cache wp_cache;
         fastcgi_cache_valid 200 60m;
-        fastcgi_cache_bypass $http_authorization $skip_cache_method $skip_cache_cookie $skip_cache_woo $skip_cache_consent;
-        fastcgi_no_cache    $http_authorization $skip_cache_method $skip_cache_cookie $skip_cache_woo $skip_cache_consent;
+        fastcgi_cache_bypass $http_authorization $skip_cache_method $skip_cache_cookie $skip_cache_woo $skip_cache_consent $skip_cache_deploy;
+        fastcgi_no_cache    $http_authorization $skip_cache_method $skip_cache_cookie $skip_cache_woo $skip_cache_consent $skip_cache_deploy;
         fastcgi_cache_lock on;  # prevent cache stampede on cache miss
         add_header X-FastCGI-Cache $upstream_cache_status;
     }

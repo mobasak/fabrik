@@ -39,11 +39,28 @@ class ContainerResolver:
             return env_var
 
         try:
+            # Try exact match first (Docker Compose without -1 suffix)
             result = subprocess.run(
                 [
                     "ssh",
                     self.ssh_host,
                     f"sudo docker ps --filter name={self.site_name}-wordpress --format '{{{{.Names}}}}'",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
+            )
+            lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            if lines:
+                return lines[0]
+
+            # Try Docker Compose naming convention (with -1 suffix)
+            result = subprocess.run(
+                [
+                    "ssh",
+                    self.ssh_host,
+                    f"sudo docker ps --filter name={self.site_name}-wordpress- --format '{{{{.Names}}}}'",
                 ],
                 capture_output=True,
                 text=True,

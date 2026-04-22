@@ -79,20 +79,57 @@ def apply(
                         )
                         result.metadata["admin_username_exists"] = admin_username
                     elif "admin" in existing_logins:
-                        admin_email = spec.get("contact", {}).get("email", "admin@localhost")
+                        admin_email = os.getenv(
+                            "WP_ADMIN_EMAIL",
+                            spec.get("contact", {}).get("email", "admin@localhost"),
+                        )
                         admin_password = os.getenv("WP_ADMIN_PASSWORD", secrets.token_urlsafe(24))
-                        wp.run(
-                            f"user create {shlex.quote(admin_username)} {shlex.quote(admin_email)}"
-                            f" --role=administrator --user_pass={shlex.quote(admin_password)}"
-                        )
-                        new_id = wp.run(
-                            f"user get {shlex.quote(admin_username)} --field=ID"
-                        ).strip()
-                        wp.run(f"user delete 1 --reassign={new_id} --yes")
-                        result.metadata["admin_username_replaced"] = admin_username
-                        logger.info(
-                            "Admin replaced: 'admin' → '%s' (ID %s)", admin_username, new_id
-                        )
+
+                        # Check for email conflict before user creation
+                        try:
+                            email_check = wp.run(
+                                f"user get {shlex.quote(admin_email)} --field=ID", check=False
+                            )
+                            if email_check.strip():
+                                logger.warning(
+                                    "Email %s already exists (ID: %s). Skipping user creation.",
+                                    admin_email,
+                                    email_check.strip(),
+                                )
+                                result.metadata["admin_email_conflict"] = {
+                                    "email": admin_email,
+                                    "existing_id": email_check.strip(),
+                                }
+                                result.warnings.append(
+                                    f"Admin email {admin_email} already in use by user ID {email_check.strip()}"
+                                )
+                            else:
+                                wp.run(
+                                    f"user create {shlex.quote(admin_username)} {shlex.quote(admin_email)}"
+                                    f" --role=administrator --user_pass={shlex.quote(admin_password)}"
+                                )
+                                new_id = wp.run(
+                                    f"user get {shlex.quote(admin_username)} --field=ID"
+                                ).strip()
+                                wp.run(f"user delete 1 --reassign={new_id} --yes")
+                                result.metadata["admin_username_replaced"] = admin_username
+                                logger.info(
+                                    "Admin replaced: 'admin' → '%s' (ID %s)", admin_username, new_id
+                                )
+                        except RuntimeError:
+                            # User get failed (user doesn't exist), proceed with creation
+                            wp.run(
+                                f"user create {shlex.quote(admin_username)} {shlex.quote(admin_email)}"
+                                f" --role=administrator --user_pass={shlex.quote(admin_password)}"
+                            )
+                            new_id = wp.run(
+                                f"user get {shlex.quote(admin_username)} --field=ID"
+                            ).strip()
+                            wp.run(f"user delete 1 --reassign={new_id} --yes")
+                            result.metadata["admin_username_replaced"] = admin_username
+                            logger.info(
+                                "Admin replaced: 'admin' → '%s' (ID %s)", admin_username, new_id
+                            )
                     else:
                         logger.info("No 'admin' user found to replace — skipping")
                 except RuntimeError as exc:

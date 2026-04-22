@@ -359,7 +359,7 @@ R2_PUBLIC_URL=https://files.example.com  # Optional
 | `src/fabrik/drivers/__init__.py` | Driver exports |
 | `src/fabrik/drivers/dns.py` | DNS client |
 | `src/fabrik/drivers/coolify.py` | Coolify client |
-| `src/fabrik/drivers/uptime_kuma.py` | Uptime Kuma client |
+| `src/fabrik/drivers/gatus.py` | Gatus API for monitor management |
 | `src/fabrik/drivers/supabase.py` | Supabase client |
 | `src/fabrik/drivers/r2.py` | Cloudflare R2 client |
 | `.env` | Credentials (gitignored) |

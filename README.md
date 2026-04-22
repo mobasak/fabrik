@@ -396,7 +396,7 @@ class ProvisionState(str, Enum):
 | **PostgreSQL** | postgres-main container | Shared database |
 | **Redis** | redis-main container | Shared cache |
 | **Site Provisioner** | https://provision.vps1.ocoron.com | Domain provisioning, DNS, SSL, CDN, analytics |
-| **Uptime Kuma** | https://status.vps1.ocoron.com | Status monitoring |
+| **Gatus** | https://status.vps1.ocoron.com | Status monitoring |
 | **Grafana** | https://monitor.vps1.ocoron.com | Dashboards (Prometheus + Loki) |
 | **Prometheus + Alertmanager** | (internal :9090 / :9093) | Metrics, 9 alert rules → ARO Brain / Apprise |
 | **Loki + Promtail** | (internal :3100) | Log aggregation from all containers |
@@ -482,13 +482,17 @@ nano .env
 ### Create Your First Project
 
 ```bash
-# Option 1: Full project structure (recommended for development)
-fabrik scaffold my-api -d "User authentication API"
-# Creates complete structure with docs, tests, Docker, pre-commit hooks
+# Canonical project-creation entry point.
+# Creates complete project structure + emits a deployment spec with a
+# populated shape: block that drives which infrastructure registrars run.
+fabrik scaffold my-api --type python-api -d "User authentication API"
+# Creates: INDEX.md, README, tests/, Dockerfile, compose.yaml, pre-commit hooks,
+# and specs/services/my-api.yaml with the python-api shape: block.
 # See: docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
 
-# Option 2: Deployment spec only (for existing projects)
-fabrik new my-api --template python-api --domain api.example.com
+# Note: `fabrik new` existed pre-Phase-4k for spec-only creation; it is deprecated
+# as of 2026-04-19 (hidden from --help, prints a warning) and scheduled for removal.
+# Use `fabrik scaffold` for new work.
 
 # Preview deployment plan
 fabrik plan specs/my-api.yaml
@@ -760,7 +764,7 @@ fabrik scaffold my-service
 | **Database** | PostgreSQL 16, Supabase |
 | **Cache** | Redis |
 | **Storage** | Cloudflare R2 (S3-compatible) |
-| **Monitoring** | Uptime Kuma, Grafana, Prometheus, Alertmanager, Loki |
+| **Monitoring** | Gatus, Grafana, Prometheus, Alertmanager, Loki |
 | **Backups** | Duplicati → Backblaze B2 |
 | **WordPress** | WP-CLI, REST API automation (2,500+ lines) |
 
@@ -870,8 +874,8 @@ mkdir templates/my-template
 # 2. Add Dockerfile, compose.yaml, defaults.yaml
 # 3. Register in templates/
 
-# 4. Test
-fabrik new test-service --template my-template
+# 4. Test (use scaffold, not the deprecated `new` verb)
+fabrik scaffold test-service --type my-template -d "smoke test for my-template"
 ```
 
 ---

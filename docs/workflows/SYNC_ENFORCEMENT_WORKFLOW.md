@@ -18,18 +18,17 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 |----------|----------|
 | `AGENTS.md` | Agent workflow rules |
 | `AGENTS-compact.md` | Compact reference |
+| `AFCL.md` | Agent Function Calling Language |
 | `opencode.json` | Kilo-safe rules |
 | `.windsurfrules` | Cascade compact agent contract |
+| `.pre-commit-config.yaml` | Pre-commit hooks |
 | `.windsurf/rules/` | Cascade rule files (recursive) |
-| `.windsurf/workflows/` | Cascade slash-command workflows |
 
 ### Reference Documentation
 
 | File | Purpose |
 |------|----------|
-| `cascade-models.md` | Windsurf AI model reference |
-| `technology-stack-decision-guide.md` | Technology selection guidance |
-| `prebuilt-app-containers.md` | Prebuilt Docker container catalog |
+| `docs/reference/windsurf/cascade-models.md` | Windsurf AI model reference |
 
 **Auto-sync trigger:** Pre-commit hook in `/opt/fabrik/.pre-commit-config.yaml` runs sync when any governance or reference file is committed. No cron needed.
 

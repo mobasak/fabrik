@@ -28,8 +28,10 @@ class TestBackfillMissingKey:
     """fix_project() adds has_user_guide when the key is absent."""
 
     def test_guide_enabled_type_gets_true(self, tmp_path):
-        project_dir = tmp_path / "my-saas"
-        _make_project_yaml(project_dir, {"name": "my-saas", "type": "saas-skeleton"})
+        # chrome-extension is guide-enabled per GUIDE_ENABLED_TYPES
+        # (saas-skeleton was removed in commit f557c35, 2026-04-15)
+        project_dir = tmp_path / "my-ext"
+        _make_project_yaml(project_dir, {"name": "my-ext", "type": "chrome-extension"})
 
         added = fix_project(project_dir, dry_run=False)
 
@@ -92,9 +94,11 @@ class TestDryRun:
     """Dry-run reports backfill without writing."""
 
     def test_dry_run_reports_backfill(self, tmp_path):
+        # static-site is guide-enabled per GUIDE_ENABLED_TYPES
+        # (mobile-app was removed in commit f557c35, 2026-04-15)
         project_dir = tmp_path / "dry-run-test"
         yaml_path = _make_project_yaml(
-            project_dir, {"name": "dry-run-test", "type": "mobile-app"}
+            project_dir, {"name": "dry-run-test", "type": "static-site"}
         )
         original = yaml_path.read_text()
 

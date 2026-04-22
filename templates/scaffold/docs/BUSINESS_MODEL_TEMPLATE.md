@@ -3,6 +3,7 @@
 **Last Updated:** YYYY-MM-DD
 **Status:** Draft
 
+> **Purpose:** MONETIZATION AND POSITIONING.
 > Fill this in when exploring monetization. Not required for internal tools or infrastructure services.
 
 ---

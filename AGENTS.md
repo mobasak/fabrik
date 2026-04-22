@@ -1,6 +1,6 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer Only)
 
-**Last Updated:** 2026-04-01
+**Last Updated:** 2026-04-17
 **Read by:** Traycer only (auto-loaded every interaction)
 **Coding agents:** Read `AGENTS-compact.md` via `opencode.json`
 
@@ -11,7 +11,7 @@
 
 ## Owner & Working Style
 
-- **Solo developer** — Özgür Başak, 46, Turkish electronics engineer & entrepreneur
+- **Solo developer** — Özgür Başak, 45, Turkish electronics engineer & entrepreneur
 - **Capacity:** ~50 focused hours/week
 - **Budget:** Limited — prefer free/cheap but good, fast tools, maximize ROI
 - **Philosophy:** Fast but good. Ship fast, iterate, automate. No over-engineering.
@@ -27,7 +27,7 @@
 - **Database:** PostgreSQL on VPS (default) · Supabase (when managed auth/realtime/pgvector needed)
 - **Reverse proxy:** Traefik (managed by Coolify) — HTTPS/SSL via Let's Encrypt
 - **Domains:** `*.vps1.ocoron.com` — managed by site-provisioner (supports Namecheap, Cloudflare, auto-purchase) and others
-- **Monitoring:** Uptime Kuma · Netdata · Grafana · Prometheus · Alertmanager · Loki (all active, deployed 2026-04-13)
+- **Monitoring:** Gatus · Netdata · Grafana · Prometheus · Alertmanager · Loki (all active, deployed 2026-04-13)
 
 ### Local LLM Agents
 
@@ -46,7 +46,7 @@ All files and folders use **kebab-case** unless listed as an exception.
 ❌ `UserProfile.ts`, `auth_service.py`, `ApiClient.md`
 
 **Exceptions (do not rename):**
-- `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `Makefile`, `Dockerfile`
+- `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `Makefile`, `Dockerfile`
 - Python packages use snake_case per PEP 8: `src/apidoccreator/`, `src/fabrik/`
 - Auto-generated files (migrations, lock files, `__pycache__/`, `__init__.py`)
 - Dotfiles and dotdirs (`.env`, `.windsurf/`, `.gitignore`)
@@ -70,10 +70,10 @@ All files and folders use **kebab-case** unless listed as an exception.
 | Search | MeiliSearch (self-hosted) | PostgreSQL FTS for simple cases |
 | MeiliSearch | search.vps1.ocoron.com | `specs/infrastructure/meilisearch.yaml` | **Deployed:** 2026-04-14 |
 | Notifications | Apprise (self-hosted) | Direct API for single-channel |
-| Object storage | MinIO (self-hosted, S3-compatible) | Backblaze B2 for cold storage |
+| Object storage | Backblaze B2 (via Backrest, deployed 2026-04-17) | MinIO for self-hosted S3-compatible when needed |
 | PDF Generation | Gotenberg (self-hosted) | HTML/Office/PDF conversion API | **Deployed:** 2026-04-14 |
 
-## Infrastructure Services — Running on VPS (Verified 2026-04-14)
+## Infrastructure Services — Running on VPS (Verified 2026-04-17)
 
 | Service | URL | Purpose |
 |---------|-----|--------|
@@ -81,9 +81,10 @@ All files and folders use **kebab-case** unless listed as an exception.
 | PostgreSQL | (internal) | Shared database |
 | Redis | (internal) | Shared cache |
 | Traefik | (internal) | Reverse proxy (managed by Coolify) |
-| Uptime Kuma | status.vps1.ocoron.com | Uptime monitoring |
+| Gatus | status.vps1.ocoron.com | Uptime monitoring (memory storage, 30 endpoints) |
+| GlitchTip | errors.vps1.ocoron.com | Error tracking (web + worker, Celery concurrency=2) |
 | Netdata | netdata.vps1.ocoron.com | Real-time server metrics |
-| Duplicati | backup.vps1.ocoron.com | Full VPS backup to Backblaze B2 (/opt, docker volumes, Coolify, pg_dump) |
+| Backrest | backup.vps1.ocoron.com | Restic-based backup UI → Backblaze B2 (deployed 2026-04-17) |
 | n8n | auto.vps1.ocoron.com | Workflow automation |
 | Apprise | notify.vps1.ocoron.com | Multi-channel notifications (used by n8n) |
 | Grafana | monitor.vps1.ocoron.com | Dashboards (Prometheus + Loki) |
@@ -93,19 +94,17 @@ All files and folders use **kebab-case** unless listed as an exception.
 | Promtail | (internal) | Log shipper (Docker containers → Loki) |
 | cAdvisor | (internal :8080) | Container CPU/RAM/net metrics |
 | node-exporter | (internal :9100) | Host-level VPS metrics |
-| fabrik-api | (localhost :8050) | FastAPI bridge — executes fabrik CLI + streams SSE; native VPS host process |
-| fabrik-control-plane | control.vps1.ocoron.com | Next.js conversational UI → Kilo AI negotiation → approve & deploy wp sites|
-| Gotenberg | pdf.vps1.ocoron.com | HTML/Office/PDF conversion API for document generation |
-| MeiliSearch | search.vps1.ocoron.com | Search service with full-text and vector search capabilities |
 | Browserless | browser.vps1.ocoron.com | Headless Chrome as a service for web scraping and automation |
 | Authelia | auth.vps1.ocoron.com | SSO/2FA forward-auth for admin dashboards via Traefik |
+| Gotenberg | pdf.vps1.ocoron.com | HTML/Office/PDF conversion API for document generation |
+| MeiliSearch | search.vps1.ocoron.com | Search service with full-text and vector search capabilities |
 
 ## VPS Security Architecture (4-Layer Model)
 
 | Layer | Target | Mechanism |
 |-------|--------|-----------|
 | **Iptables (DOCKER-USER)** | All Docker ports | Blocks external access to raw container ports. Only 80/443/6001/6002 allowed. |
-| **Authelia** | Admin dashboards | 2FA login required for Coolify, n8n, Grafana, Netdata, Duplicati, Apprise |
+| **Authelia** | Admin dashboards w/o native TOTP | Forward-auth 2FA for n8n, Netdata, Backrest, Apprise; + forward-auth with `^/api/` bypass for Coolify, Grafana. **Note:** GlitchTip is on full-bypass — uses app-layer django-allauth TOTP instead (canonical Sentry pattern). See `docs/LESSONS_LEARNT.md §8.13` for the decision matrix. |
 | **X-Internal-Token** | API services | Machine-to-machine auth for Gotenberg, Browserless, MeiliSearch, etc. |
 | **Traefik** | Public sites | Routes traffic without auth for ocoron.com, status page |
 
@@ -117,13 +116,28 @@ All files and folders use **kebab-case** unless listed as an exception.
 
 ## Observability & Alerting
 
-**Compose file:** `/opt/monitoring/compose.yaml` on VPS (7 services)
-**Local source:** `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik
+**Compose file:** All monitoring services are Coolify-managed (migrated 2026-04-17). Local source: `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik
 
-**Notification chain:**
+**Notification chains:**
+
+Prometheus alerts:
 ```
-Prometheus (rules) → Alertmanager → ARO Brain webhook (http://aro-brain:8017/api/alerts)
-                                  └→ Apprise fallback  (http://apprise:8000/notify)
+Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
+```
+> Alertmanager uses its native `telegram_configs` receiver (same bot as Apprise).
+> ARO Brain (LLM alert triage) is planned; when it ships, it will be added as a
+> new receiver routed BEFORE `telegram` with telegram as the fallback route.
+> Apprise's stateless `/notify` endpoint does NOT accept Alertmanager's webhook
+> schema — do not point AM at it.
+
+Gatus monitoring:
+```
+Gatus (30 endpoints) → Apprise (http://apprise:8000/notify/alerts) → Telegram
+```
+
+Authelia 2FA codes:
+```
+Authelia → filesystem (/config/notification.txt) — SMTP disabled (SES port 465 failed)
 ```
 
 **Alert rules** (9 total, in `configs/prometheus/rules/alerts.yml`):
@@ -146,7 +160,7 @@ Prometheus (rules) → Alertmanager → ARO Brain webhook (http://aro-brain:8017
 - `configs/prometheus/rules/alerts.yml` — alert rules
 
 **Grafana password:** in `/opt/fabrik/.env` as `GRAFANA_ADMIN_PASSWORD`
-**Start/stop:** `ssh vps "sudo docker compose -f /opt/monitoring/compose.yaml up/down -d"`
+**Start/stop:** Manage via Coolify dashboard — all monitoring services are Coolify-managed as of 2026-04-17
 
 ## Infrastructure Services — Ready to Deploy
 
@@ -156,25 +170,24 @@ Specs and configs complete. Deploy via Coolify when needed.
 
 ## Infrastructure Services — Deferred (explicit decision)
 
-| Service | Reason | Alternative in use |
-|---------|--------|-------------------|
-| MinIO | VPS disk is not redundant storage; R2 free tier covers File API needs; B2 covers backups | Cloudflare R2 (File API), Backblaze B2 (Duplicati backups) |
+*No services currently deferred.*
 
 ## Fabrik Microservices (Custom-Built, on VPS)
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| Translator | 8000 | DeepL + Azure translation |
-| Captcha | 8000 | Anti-Captcha solving |
-| Proxy | 8000 | Webshare.io proxy management |
-| Site Provisioner | 8001 | Domain registration, DNS (Namecheap/Cloudflare), SSL, CDN, analytics (GA4/GSC), webmaster tools. See `docs/reference/service-contracts/site-provisioner.md` |
-| File API | 8004 | File operations |
-| Image Broker | 8010 | Stock image API (Pexels/Pixabay) with smart routing, scoring, caching |
-| Email Gateway | 3000 | Resend + SES email sending |
+| Service | Port (VPS Host) | Purpose |
+|---------|-----------------|---------|
+| Captcha | 18011 | Anti-Captcha solving |
+| Translator | 18012 | DeepL + Azure translation |
+| Proxy | 18013 | Webshare.io proxy management |
+| DNS Manager (site-provisioner) | 18014 | Domain registration, DNS (Namecheap/Cloudflare), SSL, CDN, analytics (GA4/GSC), webmaster tools. Runs as `site-provisioner` in Coolify. See `docs/reference/service-contracts/site-provisioner.md` |
+| File API | 18015 | File operations |
+| Image Broker | 18016 | Stock image API (Pexels/Pixabay) with smart routing, scoring, caching |
+| Email Gateway | 18017 | Resend + SES email sending |
+| File Worker   | 8007  | Background file processing worker |
 
-### Site Provisioner — Key Capabilities
+### DNS Manager — Key Capabilities
 
-Site Provisioner (`provision.vps1.ocoron.com`) is the **single gateway** for all domain/DNS/provisioning operations. Fabrik calls it via `fabrik domain` CLI or `DNSClient` driver.
+DNS Manager (`dns.vps1.ocoron.com`) is the **single gateway** for all domain/DNS/provisioning operations. Fabrik calls it via `fabrik domain` CLI or `DNSClient` driver.
 
 | Workflow | CLI Command | Endpoint |
 |----------|-------------|----------|
@@ -195,7 +208,7 @@ Site Provisioner (`provision.vps1.ocoron.com`) is the **single gateway** for all
 
 ## Active Projects
 
-Full auto-generated project list (39 projects) in `docs/BUSINESS_MODEL.md` under ``.
+Full auto-generated project list (35 projects) in `docs/BUSINESS_MODEL.md` under ``.
 
 ## 🛑 MANDATORY ORCHESTRATOR PRE-FLIGHT
 
@@ -236,9 +249,12 @@ Traycer injects rule-pack guidance into agent execution queries based on project
 | `API_CONTRACTS` | `.windsurf/rules/15-api-contracts.md` | Backend |
 | `TS_CORE` | `.windsurf/rules/20-typescript.md` | Core |
 | `DATA_PG` | `.windsurf/rules/25-data-postgres.md` | Backend |
+| `OPS` | `.windsurf/rules/30-ops.md` | Backend |
 | `SECURITY` | `.windsurf/rules/35-security-auth.md` | Backend |
+| `DOCUMENTATION` | `.windsurf/rules/40-documentation.md` | Backend |
 | `DOCUSAURUS` | `.windsurf/rules/42-docusaurus.md` | Platform |
 | `TESTING` | `.windsurf/rules/45-testing-strategy.md` | Backend |
+| `CODE_REVIEW` | `.windsurf/rules/50-code-review.md` | Backend |
 | `OBSERVABILITY` | `.windsurf/rules/55-observability.md` | Backend |
 | `SAAS_UI` | `.windsurf/rules/60-saas-ui.md` | Core |
 | `WORDPRESS` | `.windsurf/rules/62-wordpress.md` | Platform |
@@ -247,7 +263,10 @@ Traycer injects rule-pack guidance into agent execution queries based on project
 | `WORKERS` | `.windsurf/rules/75-workers-jobs.md` | Backend |
 | `MOBILE_UI` | `.windsurf/rules/80-mobile.md` | Core |
 | `PAYMENTS` | `.windsurf/rules/85-payments-billing.md` | Domain |
+| `AUTOMATION` | `.windsurf/rules/90-automation.md` | Backend |
 | `MULTI_TENANT` | `.windsurf/rules/95-multi-tenant-saas.md` | Domain |
+| `CROSS_CUTTING` | `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` | Cross-cutting |
+| `DESIGN_SYSTEM` | `.windsurf/rules/ocoron-design-system.md` | Cross-cutting |
 
 ### Project Type → Default Packs
 
@@ -392,21 +411,25 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 
 ## Scaffold Types
 
-| Type | Template | Stack |
-|------|----------|-------|
-| python-api | templates/scaffold/ | FastAPI + Uvicorn + Docker |
-| saas-skeleton | templates/saas-skeleton/ | Next.js 14 + TypeScript + Tailwind |
-| node-api | templates/node-api/ | Node.js API + Docker |
-| file-api | templates/file-api/ | File operations API |
-| file-worker | templates/file-worker/ | Background file worker |
-| wordpress | templates/wordpress/ | WordPress + WP-CLI |
-| docusaurus | templates/docusaurus/ | Documentation site (Docusaurus framework) |
-| chrome-extension | templates/chrome-extension/ | Chrome extension + Python backend |
-| mobile-app | templates/mobile-app/ | React Native app |
-| desktop-app | templates/desktop-app/ | Electron app |
-| static-site | templates/saas-skeleton/ | Next.js / static HTML (landing pages, portfolios) |
+**Canonical entry point (Phase 4k, 2026-04-19):** `fabrik scaffold <name> --type <type>`. This creates the full project tree AND emits `specs/services/<name>.yaml` with a populated `shape:` block per `templates/<type>/defaults.yaml`. The `shape:` block is what drives which infrastructure registrars run during `fabrik apply` (postgres / gatus / backrest / glitchtip / grafana / authelia / meilisearch). `fabrik new` is deprecated (hidden from `--help`, prints a warning, scheduled for removal one release after next).
+
+| Type | Template | Stack | shape.kind | shape flags (true only) |
+|------|----------|-------|------------|------------------------|
+| python-api | templates/scaffold/ | FastAPI + Uvicorn + Docker | service | is_public |
+| saas-skeleton | templates/saas-skeleton/ | Next.js 14 + TypeScript + Tailwind | service | is_public, has_persistent_data, needs_database |
+| node-api | templates/node-api/ | Node.js API + Docker | service | is_public |
+| file-api | templates/file-api/ | File operations API | service | is_public, has_persistent_data |
+| file-worker | templates/file-worker/ | Background file worker | worker | has_persistent_data |
+| wordpress | templates/wordpress/ | WordPress + WP-CLI | wordpress | is_public, has_persistent_data, needs_database |
+| docusaurus | templates/docusaurus/ | Documentation site (Docusaurus framework) | static | is_public |
+| chrome-extension | templates/chrome-extension/ | Chrome extension + Python backend | static | (none — packaged as CRX, not VPS-deployed) |
+| mobile-app | templates/mobile-app/ | React Native app | static | (none — distributed via app stores) |
+| desktop-app | templates/desktop-app/ | Electron app | static | (none — distributed as installer binary) |
+| static-site | templates/saas-skeleton/ | Next.js / static HTML (landing pages, portfolios) | static | is_public |
 
 > Each scaffold type propagates `.windsurfrules`, `.windsurf/rules/`, and `.windsurf/workflows/` to generated projects automatically.
+>
+> **Authoritative shape matrix:** `src/fabrik/spec_loader.py::Shape` docstring. Change it there, then run the full scaffold suite — a divergence between the docstring and `templates/<type>/defaults.yaml` is a failing test (`tests/test_spec_generator.py`).
 
 ## Reference Documents
 
@@ -422,6 +445,6 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 | Port Allocations | PORTS.md | Assigning ports to new services |
 | Scaffold Decision Guide | docs/reference/scaffold-type-decision-guide.md | Choosing WordPress vs Docusaurus vs static-site |
 | SaaS UI Patterns | docs/reference/Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md | Planning SaaS frontend |
-| Chrome Extension UI | docs/reference/Modern GUI Approaches for Chrome Extensionst.md | Planning Chrome extensions |
+| Chrome Extension UI | docs/reference/Modern GUI Approaches for Chrome Extensions.md | Planning Chrome extensions |
 | Mobile UI | docs/reference/Modern Mobile GUI Approaches for Android and iOS.md | Planning mobile apps |
 | Ocoron Design System | .windsurf/rules/ocoron-design-system.md | Visual + verbal identity for all UI projects — color tokens, typography, component patterns, brand voice |

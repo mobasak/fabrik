@@ -6,6 +6,9 @@
 .env.*BACKUP*
 .env.env.backup.*
 
+# Rendered monitoring configs (contain secrets; .example files are tracked)
+configs/alertmanager/alertmanager.yml
+
 # Python
 __pycache__/
 *.py[cod]

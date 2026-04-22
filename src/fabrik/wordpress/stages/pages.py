@@ -108,10 +108,17 @@ def apply(
             # Create all pages (idempotent, path-based keys)
             pages_created = creator.create_all(top_level_pages)
 
-            # Set homepage if defined
-            homepage = pages_created.get("")
+            # Set homepage if defined (WordPress auto-generates "home" slug for empty slug).
+            # PageCreator.create_all stores the homepage under both "" and the actual
+            # WordPress slug (typically "home"), so check all possible keys.
+            homepage = pages_created.get("") or pages_created.get("home")
             if homepage:
                 creator.set_homepage(homepage.id)
+                # Flush rewrite rules and object cache to ensure WordPress
+                # resolves the front page correctly on the next request.
+                wp.rewrite_flush()
+                wp.cache_flush()
+                logger.info("Homepage set and caches flushed: page ID %d", homepage.id)
 
             # Set blog page if defined
             blog_page = pages_created.get("insights") or pages_created.get("blog")
@@ -133,25 +140,32 @@ def apply(
                     f"https://{domain}/sitemap.xml" if domain else None
                 )
                 if domain and sitemap_url:
-                    try:
-                        from fabrik.drivers.dns import DNSClient
+                    import threading
 
-                        dns_client = DNSClient()
+                    def resubmit_sitemap_bg(domain: str, sitemap_url: str) -> None:
+                        """Background thread for sitemap resubmit to prevent blocking."""
                         try:
-                            sitemap_result = dns_client.update_sitemap(domain, sitemap_url)
-                            result.metadata["sitemap_resubmit"] = sitemap_result
-                            logger.info(
-                                "Sitemap resubmitted after page creation: %s → %s",
-                                domain,
-                                sitemap_url,
-                            )
-                        finally:
-                            dns_client.close()
-                    except Exception as sitemap_exc:
-                        result.warnings.append(
-                            f"Sitemap resubmit after pages skipped: {sitemap_exc}"
-                        )
-                        logger.warning("Sitemap resubmit skipped (non-fatal): %s", sitemap_exc)
+                            from fabrik.drivers.dns import DNSClient
+
+                            dns_client = DNSClient()
+                            try:
+                                _ = dns_client.update_sitemap(domain, sitemap_url)
+                                logger.info(
+                                    "Sitemap resubmitted after page creation: %s → %s",
+                                    domain,
+                                    sitemap_url,
+                                )
+                            finally:
+                                dns_client.close()
+                        except Exception as e:
+                            logger.warning("Background sitemap resubmit failed: %s", e)
+
+                    threading.Thread(
+                        target=resubmit_sitemap_bg,
+                        args=(domain, sitemap_url),
+                        daemon=True,
+                    ).start()
+                    logger.info("Sitemap resubmit triggered in background.")
 
         else:
             # REST API not available — pages cannot be created

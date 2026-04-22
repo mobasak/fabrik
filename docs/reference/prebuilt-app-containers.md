@@ -50,7 +50,7 @@ python scripts/container_images.py pull nginx:alpine
 
 - `database` — PostgreSQL, MariaDB, Redis
 - `webserver` — Nginx, Traefik, Caddy
-- `monitoring` — Netdata, Uptime Kuma, Prometheus, Grafana
+- `monitoring` — Netdata, Gatus, Prometheus, Grafana
 - `backup` — Duplicati, Restic
 - `development` — Code Server, Gitea
 - `media` — Jellyfin, Plex
@@ -65,7 +65,7 @@ python scripts/container_images.py pull nginx:alpine
 |---------|--------|-------|---------|
 | Duplicati | LinuxServer | `lscr.io/linuxserver/duplicati` | Backup to B2 |
 | Netdata | Official | `netdata/netdata` | System monitoring |
-| Uptime Kuma | Official | `louislam/uptime-kuma` | Uptime monitoring |
+| Gatus | Official | `TwinProduction/gatus` | Uptime monitoring |
 | Coolify | Official | Self-managed | Deployment control plane |
 | PostgreSQL | Official | `postgres:16` | Shared database |
 | Redis | Official | `redis:7-bookworm` | Caching |
@@ -296,8 +296,8 @@ services:
     image: grafana/grafana:latest
   loki:
     image: grafana/loki:latest
-  uptime-kuma:
-    image: louislam/uptime-kuma:latest
+  gatus:
+    image: TwinProduction/gatus:latest
 ```
 
 **Fabrik integration:** Replace/complement Netdata for multi-service dashboards.

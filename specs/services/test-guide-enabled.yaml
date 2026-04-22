@@ -1,7 +1,15 @@
 id: test-guide-enabled
 kind: service
-template: chrome-extension
+template: static-site
 domain: test-guide-enabled.vps1.ocoron.com
+shape:
+  kind: static
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: false
+  needs_database: false
+  has_search_feature: false
 expose:
   http: true
   internal_only: false
@@ -17,11 +25,15 @@ infrastructure:
   storage: local
   auth: none
 env:
-  PORT: ${PORT:-8000}
+  NODE_ENV: production
+  NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-SaaS App}
+  NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
 secrets:
   required: []
   generate: []
-  from_env: []
+  from_env:
+  - NEXT_PUBLIC_SUPABASE_ANON_KEY
+  - SUPABASE_SERVICE_ROLE_KEY
   from_file: {}
 resources:
   memory: 256M

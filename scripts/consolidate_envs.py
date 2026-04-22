@@ -60,32 +60,71 @@ def get_project_dirs() -> list[Path]:
     return projects
 
 
+# Sentinels that bracket the auto-generated project sections in the
+# consolidated /opt/fabrik/.env.  Everything BETWEEN these two markers is
+# regenerated on every consolidation run; everything OUTSIDE them is
+# manually-curated FABRIK_CORE content that MUST be preserved verbatim.
+#
+# See docs/LESSONS_LEARNT.md §8.16 for the full trap this solves:
+# prior to sentinels, parse_env_file(..., stop_at_project_sections=True)
+# dropped any manual edit that landed below the first `# Project:` header
+# (e.g. `echo K=v >> .env` from any tool appending at EOF).
+AUTO_BEGIN_SENTINEL = "# >>> FABRIK AUTO-GENERATED PROJECT SECTIONS BEGIN <<<"
+AUTO_END_SENTINEL = "# <<< FABRIK AUTO-GENERATED PROJECT SECTIONS END >>>"
+
+
 def parse_env_file(
     env_path: Path,
+    skip_auto_sections: bool = False,
     stop_at_project_sections: bool = False,
 ) -> dict[str, tuple[str, list[str]]]:
     """Parse .env file into dict of {var_name: (value, [comment_lines])}.
 
     Args:
         env_path: Path to the .env file.
-        stop_at_project_sections: If True, stop parsing when a ``# Project:``
-            section header is encountered.  This prevents re-ingesting
-            auto-generated project sections from a previous consolidation run.
+        skip_auto_sections: If True, skip lines that fall between the
+            ``AUTO_BEGIN_SENTINEL`` and ``AUTO_END_SENTINEL`` markers.
+            Used when parsing ``/opt/fabrik/.env`` so that FABRIK_CORE
+            vars are preserved regardless of file position (top, middle,
+            bottom) while auto-generated project mirrors are ignored.
+        stop_at_project_sections: Legacy fallback. If True AND the file
+            has no sentinels, stop parsing at the first ``# Project: ``
+            header (pre-sentinel behavior, kept for backward-compat with
+            any .env file that predates the sentinel migration).
 
     Returns:
-        OrderedDict with variables and their values plus preceding comments
+        OrderedDict with variables and their values plus preceding comments.
     """
     if not env_path.exists():
         return OrderedDict()
 
+    raw = env_path.read_text()
+    lines = raw.splitlines()
+    has_sentinels = AUTO_BEGIN_SENTINEL in raw and AUTO_END_SENTINEL in raw
+
     result = OrderedDict()
     current_comments = []
+    in_auto_section = False
 
-    for line in env_path.read_text().splitlines():
+    for line in lines:
         stripped = line.strip()
 
-        # Stop before auto-generated project sections to avoid re-ingestion
-        if stop_at_project_sections and re.match(r"^# Project: ", stripped):
+        # Sentinel-based skipping (preferred, post-migration):
+        if skip_auto_sections and has_sentinels:
+            if stripped == AUTO_BEGIN_SENTINEL:
+                in_auto_section = True
+                current_comments = []  # drop any trailing comments before auto block
+                continue
+            if stripped == AUTO_END_SENTINEL:
+                in_auto_section = False
+                current_comments = []
+                continue
+            if in_auto_section:
+                continue
+
+        # Legacy fallback: stop at first `# Project:` header (only when
+        # no sentinels exist AND the caller opted in).
+        if stop_at_project_sections and not has_sentinels and re.match(r"^# Project: ", stripped):
             break
 
         # Collect comment lines
@@ -116,10 +155,17 @@ def consolidate_envs(dry_run: bool = True) -> tuple[str, dict[str, int]]:
     fabrik_env = Path("/opt/fabrik/.env")
     fabrik_env_example = Path("/opt/fabrik/.env.example")
 
-    # Parse existing Fabrik .env — only FABRIK_CORE section (stop before
-    # auto-generated project sections to prevent re-ingestion bloat)
+    # Parse existing Fabrik .env — preserve every FABRIK_CORE var,
+    # regardless of file position (top, between project sections, or EOF).
+    # The sentinel-aware parser skips only the auto-generated project
+    # block.  Legacy files without sentinels fall back to the pre-migration
+    # "stop at first `# Project:`" behavior.
     fabrik_vars = (
-        parse_env_file(fabrik_env, stop_at_project_sections=True)
+        parse_env_file(
+            fabrik_env,
+            skip_auto_sections=True,
+            stop_at_project_sections=True,
+        )
         if fabrik_env.exists()
         else OrderedDict()
     )
@@ -177,30 +223,39 @@ def consolidate_envs(dry_run: bool = True) -> tuple[str, dict[str, int]]:
     lines.append("# Manual edits will be preserved in FABRIK_CORE section")
     lines.append("")
 
-    for section_name, variables in sections.items():
-        if not variables:
-            continue
-
-        # Section header
+    # --- Emit FABRIK_CORE first (outside sentinels; user-editable) ------
+    core = sections.pop("FABRIK_CORE", OrderedDict())
+    if core:
         lines.append("")
         lines.append("# " + "=" * 77)
-        if section_name == "FABRIK_CORE":
-            lines.append("# Fabrik Core Configuration")
-        else:
+        lines.append("# Fabrik Core Configuration")
+        lines.append("# " + "=" * 77)
+        for var_name, (value, comments) in core.items():
+            for comment in comments:
+                if comment.strip():
+                    lines.append(comment)
+            lines.append(f"{var_name}={value}")
+        lines.append("")
+
+    # --- Emit auto-generated project sections INSIDE sentinels ----------
+    # Everything between the two sentinel lines is rewritten on every
+    # consolidation run. Never put manual edits in here.
+    project_sections = [(n, v) for n, v in sections.items() if v]
+    if project_sections:
+        lines.append(AUTO_BEGIN_SENTINEL)
+        for section_name, variables in project_sections:
+            lines.append("")
+            lines.append("# " + "=" * 77)
             project_name = section_name.replace("PROJECT_", "").replace("_", "-").lower()
             lines.append(f"# Project: {project_name}")
-        lines.append("# " + "=" * 77)
-
-        # Variables in this section
-        for var_name, (value, comments) in variables.items():
-            # Add preserved comments
-            for comment in comments:
-                if comment.strip():  # Skip empty lines from comments
-                    lines.append(comment)
-
-            # Add variable
-            lines.append(f"{var_name}={value}")
-
+            lines.append("# " + "=" * 77)
+            for var_name, (value, comments) in variables.items():
+                for comment in comments:
+                    if comment.strip():
+                        lines.append(comment)
+                lines.append(f"{var_name}={value}")
+            lines.append("")
+        lines.append(AUTO_END_SENTINEL)
         lines.append("")
 
     return "\n".join(lines), stats

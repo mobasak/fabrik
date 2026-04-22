@@ -1,0 +1,40 @@
+services:
+  authelia:
+    image: authelia/authelia:latest
+    platform: linux/amd64
+    restart: unless-stopped
+    volumes:
+      - authelia-config:/config
+    networks:
+      - coolify
+    environment:
+      - TZ=Europe/Istanbul
+    labels:
+      - coolify.managed=true
+      - traefik.enable=true
+      - traefik.http.routers.authelia.entryPoints=websecure
+      - traefik.http.routers.authelia.rule=Host(`auth.vps1.ocoron.com`)
+      - traefik.http.routers.authelia.tls=true
+      - traefik.http.routers.authelia.tls.certresolver=letsencrypt
+      - traefik.http.services.authelia.loadbalancer.server.port=9091
+      - traefik.http.routers.authelia-http.entryPoints=web
+      - traefik.http.routers.authelia-http.rule=Host(`auth.vps1.ocoron.com`)
+      - traefik.http.routers.authelia-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.authelia-forward.forwardAuth.address=http://authelia:9091/api/authz/forward-auth
+      - traefik.http.middlewares.authelia-forward.forwardAuth.trustForwardHeader=true
+      - traefik.http.middlewares.authelia-forward.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9091/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  authelia-config:
+    driver: local
+
+networks:
+  coolify:
+    external: true

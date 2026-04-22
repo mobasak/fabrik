@@ -29,11 +29,31 @@ fi
 DEBOUNCE_SECS=5
 DEBOUNCE_STAMP="/tmp/.fabrik-env-watcher-last-run"
 
-log "Monitoring .env files in /opt/*/..."
+# Build watch list: every /opt/<proj>/.env EXCEPT /opt/fabrik/.env itself.
+# Rationale (design intent, see docs/LESSONS_LEARNT.md §8.16):
+#   The consolidator's SINK is /opt/fabrik/.env. If we watch it too, any
+#   manual Fabrik-native edit (FABRIK_CORE additions, trailing appends)
+#   races with the consolidator's own regeneration cycle — trailing-append
+#   edits get silently dropped because parse_env_file(..., stop_at_project_sections=True)
+#   doesn't see them. Per design: watch SOURCES, not the SINK.
+shopt -s nullglob
+WATCH_FILES=()
+for env_file in /opt/*/.env; do
+    [ "$env_file" = "/opt/fabrik/.env" ] && continue
+    WATCH_FILES+=("$env_file")
+done
+shopt -u nullglob
+
+if [ ${#WATCH_FILES[@]} -eq 0 ]; then
+    warn "No project .env files found under /opt/*/ (excluding fabrik). Exiting."
+    exit 0
+fi
+
+log "Monitoring ${#WATCH_FILES[@]} project .env files (fabrik excluded by design)"
 log "Press Ctrl+C to stop"
 
-# Monitor all .env files under /opt/*/
-inotifywait -m -e modify,create,close_write --format '%w%f' /opt/*/.env 2>/dev/null | while read -r changed_file; do
+# Monitor all project .env files under /opt/*/ EXCEPT /opt/fabrik/.env
+inotifywait -m -e modify,create,close_write --format '%w%f' "${WATCH_FILES[@]}" 2>/dev/null | while read -r changed_file; do
     # Debounce: skip if last consolidation was less than DEBOUNCE_SECS ago
     # (uses a stamp file because pipeline runs in a subshell)
     if [ -f "$DEBOUNCE_STAMP" ]; then

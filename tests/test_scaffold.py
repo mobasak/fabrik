@@ -148,7 +148,9 @@ class TestProjectYamlHasUserGuide:
         data = yaml.safe_load(content)
         assert data["has_user_guide"] is False, "has_user_guide should default to false"
 
-    @pytest.mark.parametrize("project_type", ["saas-skeleton", "chrome-extension"])
+    # Aligned 2026-04-19 with intentional narrowing in commit f557c35 (2026-04-15)
+    # which removed saas-skeleton/mobile-app/desktop-app from GUIDE_ENABLED_TYPES.
+    @pytest.mark.parametrize("project_type", ["chrome-extension", "static-site"])
     def test_guide_enabled_type_sets_true(self, tmp_path, project_type):
         """Verify guide-enabled scaffold types set has_user_guide: true."""
         create_project(

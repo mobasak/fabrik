@@ -1,6 +1,7 @@
 # WordPress Site Workflow
 
 **Last Updated:** 2026-04-13
+**Script:** `src/fabrik/wordpress/deployer.py` (deploy) + `src/fabrik/cli.py` (CLI)
 **Scope:** End-to-end lifecycle for launching and maintaining a WordPress site via Fabrik —
 from domain registration through content publishing.
 
@@ -257,9 +258,12 @@ Stages run sequentially. Each writes its result to `plan.json` so re-runs skip u
 | 7 | **menus** | Creates navigation menus and assigns to theme locations |
 | 8 | **forms** | Creates contact forms (Contact Form 7 / WPForms) |
 | 9 | **seo** | Configures RankMath: site name, social profiles, homepage SEO, schema |
-| 10 | **analytics** | Injects GA4 / GTM tracking code |
+| 10 | **post_deploy** | Registers site with GSC, Bing, IndexNow, and GA4 via site-provisioner |
+| 11 | **analytics** | Injects GA4 / GTM tracking code |
+| 12 | **monitoring** | Creates Uptime Kuma HTTP monitor for the site |
+| 13 | **verify** | Runs HTTP checks against live site to verify deployment |
 
-> **Pending code gaps (not yet in `deployer.py`):** `post_deploy` (Gap 3 — GSC/Bing/IndexNow/GA4 via site-provisioner) and `monitoring` (Gap 2 — Uptime Kuma HTTP monitor). When implemented, they run at positions 11 and 12. After all stages, `_step_finalize()` flushes rewrite rules and object cache — this is a post-stage method, not a registered stage and cannot be targeted by `--force-stage`.
+> After all stages, `_step_finalize()` flushes rewrite rules and object cache — this is a post-stage method, not a registered stage and cannot be targeted by `--force-stage`.
 
 ### Skip logic
 
@@ -398,8 +402,7 @@ fabrik wp apply tojlo.com
 fabrik wp apply tojlo.com --force-stage plugins
 
 # Available stage names:
-# Current (deployer.py): dns, settings, theme, plugins, languages, pages, menus, forms, seo, analytics
-# Target (post gap-fix):  dns, settings, theme, plugins, languages, pages, menus, forms, seo, post_deploy, analytics, monitoring
+# dns, settings, theme, plugins, languages, pages, menus, forms, seo, post_deploy, analytics, monitoring, verify
 ```
 
 ### Add/update DNS records
@@ -586,6 +589,26 @@ a single `apply(spec, wp_client, api_client, build_dir) -> StageResult` function
 - Injects GA4 measurement ID or GTM container ID
 - Reads from `spec["seo"]["ga4_id"]` or `spec["seo"]["gtm_id"]`
 
+### post_deploy
+
+- Registers site with Google Search Console, Bing Webmaster Tools, and IndexNow via site-provisioner
+- Submits sitemap to search engines
+- Sets up GA4 property if enabled
+- Requires `SITE_PROVISIONER_URL` and `SITE_PROVISIONER_API_KEY` env vars
+
+### monitoring
+
+- Creates Uptime Kuma HTTP monitor for the site
+- Configures check interval and alerts
+- Requires `UPTIME_KUMA_URL`, `UPTIME_KUMA_USERNAME`, and `UPTIME_KUMA_PASSWORD` env vars
+
+### verify
+
+- Runs HTTP checks against the live site
+- Verifies homepage and key pages return 200
+- Checks SSL certificate validity
+- Verifies redirect behavior
+
 ### finalize (post-stage step)
 
 Not a registered stage — cannot be targeted by `--force-stage`. Called automatically by `_step_finalize()` after all stages complete:
@@ -615,9 +638,9 @@ Not a registered stage — cannot be targeted by `--force-stage`. Called automat
 | `N8N_WEBHOOK_DEPLOY` | optional | n8n webhook for deploy notifications |
 | `N8N_WEBHOOK_CONTENT` | optional | n8n webhook for content publish notifications |
 | `FABRIK_EXEC_MODE` | VPS only | `local` on VPS (direct docker exec), `ssh` on WSL (default) |
-| `UPTIME_KUMA_URL` | for monitoring stage | Uptime Kuma base URL (e.g. `https://status.vps1.ocoron.com`) |
-| `UPTIME_KUMA_USERNAME` | for monitoring stage | Uptime Kuma username |
-| `UPTIME_KUMA_PASSWORD` | for monitoring stage | Uptime Kuma password |
+| `GATUS_URL` | for monitoring stage | Gatus base URL (e.g. `https://status.vps1.ocoron.com`) |
+| `GATUS_USERNAME` | for monitoring stage | Gatus username |
+| `GATUS_PASSWORD` | for monitoring stage | Gatus password |
 
 ---
 

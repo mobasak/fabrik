@@ -97,13 +97,21 @@ class DNSClient:
         self._headers = headers
         self._client = httpx.Client(timeout=timeout, headers=headers)
 
-    def _request_via_ssh(self, method: str, url: str, body: dict | None = None) -> dict[str, Any]:
+    def _request_via_ssh(
+        self, method: str, url: str, body: dict | None = None, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Proxy an HTTP request through SSH to bypass Traefik IP allowlist."""
         header_args = " ".join(f'-H "{k}: {v}"' for k, v in self._headers.items())
         data_arg = ""
         if body is not None:
             escaped = json.dumps(body).replace("'", "'\\''")
             data_arg = f"-d '{escaped}'"
+        # Append query params to URL if present
+        if params:
+            from urllib.parse import urlencode
+
+            query_string = urlencode(params)
+            url = f"{url}?{query_string}"
         cmd = f"curl -s -X {method} {header_args} {data_arg} '{url}'"
         result = subprocess.run(
             ["ssh", self.ssh_host, cmd],
@@ -130,7 +138,8 @@ class DNSClient:
         if self._internal_url:
             url = f"{self._internal_url}{endpoint}"
             body = kwargs.get("json")
-            return self._request_via_ssh(method, url, body)
+            params = kwargs.get("params")
+            return self._request_via_ssh(method, url, body, params)
 
         url = f"{self.base_url}{endpoint}"
         response = self._client.request(method, url, **kwargs)

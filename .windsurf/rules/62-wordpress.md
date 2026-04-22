@@ -158,7 +158,7 @@ Every new WordPress site must complete these steps **before going live**:
 16. [ ] `make security-check` passes all checks
 17. [ ] Browserless headless screenshot taken of homepage — confirms CSS rendering, layout, and content injection beyond HTTP 200
 18. [ ] GSC domain verified via Cloudflare DNS TXT record; sitemap_index.xml submitted
-19. [ ] Duplicati volume backup configured for this site's named volumes
+19. [ ] Backrest volume backup configured for this site's named volumes
 20. [ ] `make db-clean` run monthly to prevent `wp_options`, `wp_postmeta`, and `wp_posts` from becoming query-performance bottlenecks
 
 ## Plugin & Theme Discipline
@@ -198,10 +198,10 @@ Every new WordPress site must complete these steps **before going live**:
 
 ## Backups
 
-- Execute backups at the **server level** via bash scripts: `mysqldump` for the database, `tar` for `wp-content`, sync to S3-compatible storage (Backblaze B2 / MinIO).
+- Execute backups at the **server level** via bash scripts: `mysqldump` for the database, `tar` for `wp-content`, sync to Backblaze B2. MinIO is not deployed — use Backblaze B2 directly.
 - PHP-based backup plugins (UpdraftPlus, BackWPup) are banned — they're constrained by PHP timeouts/memory limits and are vulnerable if the server is compromised.
 - Monthly: restore the backup to a staging environment and verify data integrity.
-- **Duplicati per-site volume registration (MANDATORY for VPS deployments):** after deploy, register the site's specific named Docker volumes (`<name>_wp_content`, `<name>_db_data`) with the Duplicati container via its API or web UI. Set a daily cron schedule (e.g. 03:00 AM) and target a **dedicated, isolated Backblaze B2 bucket** (not shared with other sites). Enable AES-256 encryption. This supersedes bare `mysqldump` + `tar` for production Coolify deployments.
+- **Backrest per-site volume registration (MANDATORY for VPS deployments):** after deploy, register the site's specific named Docker volumes (`<name>_wp_content`, `<name>_db_data`) with the Backrest container by adding them to `/opt/backrest/config/config.json` as new backup plans. Set a daily cron schedule (e.g. 03:00 AM) and target the shared Backblaze B2 repository. Restic handles deduplication and encryption automatically. This supersedes bare `mysqldump` + `tar` for production Coolify deployments.
 
 ## Media Offloading
 
@@ -219,7 +219,7 @@ Every new WordPress site must complete these steps **before going live**:
 - Run `make db-clean` monthly (or after major content changes) to prevent `wp_options`, `wp_postmeta`, and `wp_posts` from becoming query-performance bottlenecks.
 - `make db-clean` executes: `wp transient delete --expired`, delete spam comments, delete all post revisions, delete orphaned postmeta, `wp db optimize`.
 - **System cron implementation:** `DISABLE_WP_CRON=true` is set. Two options:
-  - **Preferred (VPS):** configure **Uptime Kuma** to ping `https://<domain>/wp-cron.php?doing_wp_cron` every 5 minutes. This reuses the existing monitoring infrastructure, requires no host crontab management, and provides cron execution visibility in the Uptime Kuma dashboard.
+  - **Preferred (VPS):** configure **Gatus** to ping `https://<domain>/wp-cron.php?doing_wp_cron` every 5 minutes. This reuses the existing monitoring infrastructure, requires no host crontab management, and provides cron execution visibility in the Gatus dashboard.
   - **Alternative (local/dev):** add to host crontab via `docker exec`:
 
   ```bash
@@ -230,7 +230,7 @@ Every new WordPress site must complete these steps **before going live**:
 
 ## Email Deliverability
 
-- **Preferred (VPS deployments):** route all transactional email through the **internal Fabrik Email Gateway** (port 3000) via a `phpmailer_init` MU-plugin. This keeps all email traffic inside the Docker internal network and centralises deliverability management in one service. Configure `$phpmailer->Host = 'emailgateway'` (service name) and `$phpmailer->Port = 587`.
+- **Preferred (VPS deployments):** route all transactional email through the **internal Fabrik Email Gateway** (HTTP REST API, internal port 3000) via a `phpmailer_init` MU-plugin or custom MU-plugin that calls `http://emailgateway:3000/send` directly. The Email Gateway is an HTTP API — do NOT configure PHPMailer SMTP to point at it. Instead, use `wp_mail` filter or a custom MU-plugin to intercept outgoing mail and POST to the Email Gateway REST endpoint.
 - **Alternative:** use `wp-mail-smtp` configured to send via **Postmark** or **Amazon SES** — never the default PHP `mail()` function.
 - Before go-live, verify DNS authentication:
   - **SPF:** TXT record authorising the sending service's IP range

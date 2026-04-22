@@ -71,10 +71,17 @@ def is_private_ip(hostname: str) -> bool:
             future = executor.submit(_resolve)
             addr_info = future.result(timeout=DNS_TIMEOUT)
     except FuturesTimeoutError:
-        logger.warning("DNS resolution timeout for %s", hostname)
-        return True  # Fail-safe: treat timeout as blocked
+        logger.warning(
+            "DNS resolution timeout for %s - allowing deployment (domain may not exist yet)",
+            hostname,
+        )
+        return False  # Allow deployment - domain may be provisioned as part of this deployment
     except socket.gaierror:
-        return True  # DNS resolution failed - fail-safe
+        logger.info(
+            "DNS resolution failed for %s - domain likely doesn't exist yet, allowing deployment",
+            hostname,
+        )
+        return False  # Allow deployment - domain will be created during provisioning
 
     try:
         for _family, _type, _proto, _canonname, sockaddr in addr_info:

@@ -39,7 +39,7 @@ fabrik plan my-api      # Execute and exit
 | PostgreSQL | postgres-main | 5432 | - (internal) | 🔐 Password | Shared database |
 | Redis | redis-main | 6379 | - (internal) | 🔒 Internal | Caching (optional) |
 | Netdata | netdata | 19999 | `https://netdata.vps1.ocoron.com` | 🔐 Password | System monitoring |
-| Uptime Kuma | uptime-kuma | 3001 | `https://status.vps1.ocoron.com` | 🔐 Password | Service monitoring |
+| Gatus | gatus | 3001 | `https://status.vps1.ocoron.com` | 🔐 Password | Service monitoring |
 | Duplicati | duplicati | 8200 | `https://backup.vps1.ocoron.com` | 🔐 Password | Backup management |
 | Image Broker | image-broker | 8010 | `https://images.vps1.ocoron.com` | ⚠️ Open | Stock image API |
 | DNS Manager | dns-manager | 8001 | `https://dns.vps1.ocoron.com` | ⚠️ Open | DNS record management |
@@ -77,7 +77,7 @@ For VPS setup (one-time):
 2. Coolify (self-managing)
 3. postgres-main (Coolify database)
 4. redis-main (Coolify database)
-5. Uptime Kuma (Coolify application)
+5. Gatus (Coolify application)
 
 For Fabrik usage (each run):
 
@@ -99,7 +99,7 @@ curl -s https://coolify.yourdomain.com/api/health
 ssh deploy@vps "docker exec postgres-main pg_isready"
 ```
 
-### Uptime Kuma
+### Gatus
 
 ```bash
 curl -s https://status.vps1.ocoron.com
@@ -509,7 +509,7 @@ coolify         Up 2 days
 postgres-main   Up 2 days
 redis-main      Up 2 days
 netdata         Up 2 days
-uptime-kuma     Up 2 days
+gatus          Up 2 days
 duplicati       Up 2 days
 image-broker    Up 1 hour (healthy)
 dns-manager     Up 2 days

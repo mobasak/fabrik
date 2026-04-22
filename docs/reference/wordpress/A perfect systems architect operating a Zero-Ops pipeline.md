@@ -117,7 +117,7 @@ Step 17: Email Gateway Routing
 Native PHP mail() is disabled. The fabrik pipeline drops a lightweight MU-plugin that hooks into phpmailer_init. It forces all transactional emails (password resets, fatal error alerts) to route directly to your internal Fabrik Email Gateway container on Port 3000 via SMTP or REST API, entirely bypassing local mail routing.
 
 Step 18: System-Level Cron Activation
-Since DISABLE_WP_CRON was set in Step 9, background tasks are dead. To revive them correctly, your pipeline instructs Uptime Kuma (via API) to ping https://ocoron.com/wp-cron.php?doing_wp_cron exactly every 5 minutes. This offloads the cron trigger to your monitoring stack, guaranteeing execution without slowing down user page loads.
+Since DISABLE_WP_CRON was set in Step 9, background tasks are dead. To revive them correctly, your pipeline instructs Gatus (via API) to ping https://ocoron.com/wp-cron.php?doing_wp_cron exactly every 5 minutes. This offloads the cron trigger to your monitoring stack, guaranteeing execution without slowing down user page loads.
 
 Step 19: Telemetry & Log Integration
 The container's standard output (Nginx access logs, PHP error logs) is automatically captured by the Coolify Docker daemon. fabrik ensures your Promtail container is mapped to read these Docker logs and ship them to your central Loki instance. Simultaneously, a Prometheus exporter plugin is activated to expose PHP worker metrics on a hidden endpoint.

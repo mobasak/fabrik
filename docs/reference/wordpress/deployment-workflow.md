@@ -589,7 +589,7 @@ python -c "from fabrik.wordpress import SiteDeployer; SiteDeployer('wp-test', dr
 
 After deployment:
 1. **Configure backups** (Duplicati or custom script)
-2. **Set up monitoring** (Uptime Kuma for ocoron.com)
+2. **Set up monitoring** (Gatus for ocoron.com)
 3. **Configure CDN** (Cloudflare proxy already enabled via DNS)
 4. **Add security** (Cloudflare WAF rules, rate limiting)
 5. **SEO verification** (Submit sitemap to Google Search Console)

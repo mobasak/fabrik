@@ -42,15 +42,21 @@ def apply(
             # or seo.{title_template,meta_description} (flat form). Support both.
             seo_resolved = dict(seo)
             if default_meta := seo.get("default_meta"):
-                primary_locale = spec.get("languages", {}).get("primary", "en_US")
-                locale_meta: dict = default_meta.get(primary_locale) or next(
-                    iter(default_meta.values()), {}
-                )
-                if isinstance(locale_meta, dict):
-                    if "title_template" not in seo_resolved and locale_meta.get("title"):
-                        seo_resolved["title_template"] = locale_meta["title"]
-                    if "meta_description" not in seo_resolved and locale_meta.get("description"):
-                        seo_resolved["meta_description"] = locale_meta["description"]
+                if isinstance(default_meta, dict):
+                    primary_locale = spec.get("languages", {}).get("primary", "en_US")
+                    locale_meta = default_meta.get(primary_locale)
+                    # Fallback: find the first dict value (skip flat string keys like 'description')
+                    if not isinstance(locale_meta, dict):
+                        locale_meta = next(
+                            (v for v in default_meta.values() if isinstance(v, dict)), {}
+                        )
+                    if isinstance(locale_meta, dict):
+                        if "title_template" not in seo_resolved and locale_meta.get("title"):
+                            seo_resolved["title_template"] = locale_meta["title"]
+                        if "meta_description" not in seo_resolved and locale_meta.get(
+                            "description"
+                        ):
+                            seo_resolved["meta_description"] = locale_meta["description"]
 
             # Check if SEO plugin available
             plugin = applicator.detect_seo_plugin()

@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Distribute lessons-learnt.md template to all existing projects."""
+
+import shutil
+from pathlib import Path
+
+FABRIK_ROOT = Path("/opt/fabrik")
+TEMPLATE_SOURCE = FABRIK_ROOT / "templates/scaffold/docs/LESSONS_LEARNT_TEMPLATE.md"
+OPT_ROOT = Path("/opt")
+
+# Paths to skip (not real projects)
+SKIP_PATTERNS = [
+    "_project_management",
+    "_tools",
+    "_backups",
+    "_final-verify",
+    "config",  # nested config folders
+    "specs",  # spec files
+    "apps",  # apps folder (not a project)
+]
+
+
+def is_valid_project(project_path: Path) -> bool:
+    """Check if a path is a valid project folder."""
+    # Skip if parent directory matches skip patterns
+    for part in project_path.parts:
+        if any(skip in part for skip in SKIP_PATTERNS):
+            return False
+
+    # Skip if it's fabrik itself
+    if project_path.name == "fabrik":
+        return False
+
+    # Skip templates
+    return project_path.name != "templates"
+
+
+def main():
+    if not TEMPLATE_SOURCE.exists():
+        print(f"Template not found: {TEMPLATE_SOURCE}")
+        return
+
+    # Find all project.yaml files
+    project_count = 0
+    skipped_count = 0
+    copied_count = 0
+    already_exists_count = 0
+
+    for project_yaml in OPT_ROOT.rglob("project.yaml"):
+        project_dir = project_yaml.parent
+
+        if not is_valid_project(project_dir):
+            skipped_count += 1
+            continue
+
+        project_count += 1
+
+        # Target path: docs/lessons-learnt.md
+        target_dir = project_dir / "docs"
+        target_file = target_dir / "lessons-learnt.md"
+
+        # Create docs directory if it doesn't exist
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Skip if already exists
+        if target_file.exists():
+            already_exists_count += 1
+            print(f"SKIP (exists): {project_dir.name}")
+            continue
+
+        # Copy template
+        shutil.copy(TEMPLATE_SOURCE, target_file)
+        copied_count += 1
+        print(f"COPIED: {project_dir.name}")
+
+    print("\nSummary:")
+    print(f"  Valid projects found: {project_count}")
+    print(f"  Skipped (non-projects): {skipped_count}")
+    print(f"  Copied: {copied_count}")
+    print(f"  Already exists: {already_exists_count}")
+
+
+if __name__ == "__main__":
+    main()

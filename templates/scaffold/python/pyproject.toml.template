@@ -127,6 +127,7 @@ disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]  # Make src-layout packages importable without `pip install -e .`
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
 

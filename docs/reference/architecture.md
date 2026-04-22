@@ -12,9 +12,9 @@ Fabrik is a spec-driven deployment automation CLI. You write a YAML spec file de
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           FABRIK CLI                                     │
 │                                                                          │
-│   fabrik new my-api --template python-api                                │
-│   fabrik plan specs/my-api.yaml                                          │
-│   fabrik apply specs/my-api.yaml                                         │
+│   fabrik scaffold my-api --type python-api                              │
+│   fabrik plan specs/services/my-api.yaml                                 │
+│   fabrik apply specs/services/my-api.yaml                                │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │
                                ▼
@@ -144,7 +144,8 @@ files = render_template(spec, template="python-api")
 
 | Command | Purpose |
 |---------|---------|
-| `fabrik new <name> --template <t>` | Create new spec from template |
+| `fabrik scaffold <name> --type <t>` | Canonical: create project tree + emit spec with `shape:` block |
+| `fabrik new` | **DEPRECATED** (Phase 4k, 2026-04-19) — hidden + warning; use `scaffold` |
 | `fabrik plan <spec>` | Show what will change (dry run) |
 | `fabrik apply <spec>` | Execute deployment |
 | `fabrik status <spec>` | Check deployment status |
@@ -271,7 +272,7 @@ Core platform services running on VPS:
 |---------|-----|--------|
 | Coolify | https://coolify.vps1.ocoron.com | Container orchestration, deployment management |
 | Traefik | (internal) | Reverse proxy, SSL termination, routing |
-| Uptime Kuma | https://status.vps1.ocoron.com | Uptime monitoring, alerts |
+| Gatus | https://status.vps1.ocoron.com | Uptime monitoring, alerts |
 | Netdata | https://netdata.vps1.ocoron.com | Real-time server metrics |
 | Duplicati | (internal) | Postgres backup to Backblaze B2 |
 | postgres-main | (internal) | Shared PostgreSQL database |

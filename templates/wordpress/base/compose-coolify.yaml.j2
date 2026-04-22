@@ -1,6 +1,6 @@
 services:
   wordpress:
-    image: wordpress:{{ php_version | default('php8.3') }}-apache
+    image: wordpress:{{ php_version | default('php8.3') }}-fpm
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -13,7 +13,17 @@ services:
       # post-install by the settings pipeline stage via WP-CLI to stay within
       # Coolify's varchar(255) env var limit.
     volumes:
-      - wp_content:/var/www/html/wp-content
+      - wp_html:/var/www/html
+      - {{ site_dir }}/php-fpm/zz-fabrik-listen.conf:/usr/local/etc/php-fpm.d/zz-fabrik-listen.conf:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        # Install WP-CLI (php8.3-fpm image doesn't include it, unlike apache)
+        curl -fsSL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+        chmod +x /usr/local/bin/wp
+        # Start PHP-FPM
+        php-fpm
     networks:
       - {{ name }}-internal
     depends_on:
@@ -27,7 +37,7 @@ services:
     platform: linux/amd64
     restart: unless-stopped
     volumes:
-      - wp_content:/var/www/html/wp-content:ro
+      - wp_html:/var/www/html:ro
       - {{ site_dir }}/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - coolify
@@ -112,7 +122,7 @@ services:
       SITE_NAME: "{{ name }}"
     volumes:
       - {{ site_dir }}/backup:/scripts:ro
-      - wp_content:/wordpress/wp-content:ro
+      - wp_html:/var/www/html/wp-content:ro
       - backup_data:/backups
     networks:
       - {{ name }}-internal
@@ -129,7 +139,7 @@ services:
         condition: service_healthy
 
 volumes:
-  wp_content:
+  wp_html:
   db_data:
   redis_data:
   backup_data:

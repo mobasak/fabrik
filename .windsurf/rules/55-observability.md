@@ -110,14 +110,14 @@ Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Durat
 
 | Metric | Source | Threshold | Action |
 |--------|--------|-----------|--------|
-| External availability | Uptime Kuma | 3 consecutive failures / 60s | Push notification |
+| External availability | Gatus | 3 consecutive failures / 60s | Push notification |
 | HTTP 5xx error rate | Grafana Loki (LogQL) | > 5% of requests over 5 min | Push notification |
 | P95 latency | Grafana Loki (LogQL) | > 2.0s sustained over 5 min | Push notification |
 | CPU / RAM spikes | Netdata | N/A — do not page | Dashboard only |
 
 ## Synthetic Monitoring
 
-- Uptime Kuma provides black-box availability checks completely decoupled from the internal logging pipeline. If Loki is down, Uptime Kuma still detects application failure.
+- Gatus provides black-box availability checks completely decoupled from the internal logging pipeline. If Loki is down, Gatus still detects application failure.
 
 ## Chrome Extension Telemetry
 
@@ -152,4 +152,4 @@ Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Durat
 - [ ] Docker Compose `HEALTHCHECK` includes `start_period`.
 - [ ] Loki labels limited to low-cardinality values (`service`, `environment`, `level`).
 - [ ] Alert rules target RED symptoms only — no infrastructure cause-based paging.
-- [ ] Uptime Kuma configured for external synthetic monitoring of all public endpoints.
+- [ ] Gatus configured for external synthetic monitoring of all public endpoints.

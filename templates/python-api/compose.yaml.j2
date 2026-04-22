@@ -1,8 +1,13 @@
+{%- set svc_port = spec.source.image_port or 8000 %}
 services:
   {{ spec.id }}:
+    {% if spec.source.image %}
+    image: {{ spec.source.image }}
+    {% else %}
     build:
       context: .
       dockerfile: Dockerfile
+    {% endif %}
     platform: linux/amd64  # Mandatory for x86_64 VPS
     container_name: {{ spec.id }}
     restart: unless-stopped
@@ -11,16 +16,26 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"
       - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
+      - "traefik.http.routers.{{ spec.id }}.tls=true"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
-      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=8000"
+      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port={{ svc_port }}"
+      {% if spec.shape and spec.shape.is_admin_dashboard %}
+      - "traefik.http.routers.{{ spec.id }}.middlewares=authelia-forward@docker"
+      {% endif %}
     {% endif %}
-    {% if depends.postgres %}
+    {% if spec.source.image_command %}
+    command: {{ spec.source.image_command }}
+    {% elif depends.postgres and not spec.source.image %}
     # Run migrations if Alembic is configured (fail loud if migration errors)
-    command: sh -c "if [ -f alembic.ini ]; then alembic upgrade head || exit 1; fi && uvicorn src.{{ spec.id.replace('-', '_') }}.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "if [ -f alembic.ini ]; then alembic upgrade head || exit 1; fi && uvicorn src.{{ spec.id.replace('-', '_') }}.main:app --host 0.0.0.0 --port {{ svc_port }}"
     {% endif %}
     environment:
+      {% if 'PYTHONUNBUFFERED' not in env %}
       - PYTHONUNBUFFERED=1
+      {% endif %}
+      {% if 'LOG_LEVEL' not in env %}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      {% endif %}
       {% for key, value in env.items() %}
       - {{ key }}={{ value | env_escape }}
       {% endfor %}
@@ -41,13 +56,23 @@ services:
         limits:
           memory: {{ resources.memory }}
           cpus: '{{ resources.cpu }}'
-    healthcheck:  # Mandatory for Coolify orchestration
-      test: ["CMD", "curl", "-f", "http://localhost:8000{{ health.path if health else '/health' }}"]
-      interval: {{ health.interval if health else '30s' }}
-      timeout: {{ health.timeout if health else '10s' }}
-      retries: {{ health.retries if health else 3 }}
+    {% if health and not health.disabled %}
+    healthcheck:  # Mandatory for Coolify orchestration — Traefik v3 filters unhealthy containers
+      {% if health.test %}
+      test: {{ health.test }}
+      {% else %}
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:{{ svc_port }}{{ health.path if health else '/health' }} || curl -fsS http://localhost:{{ svc_port }}{{ health.path if health else '/health' }} || exit 1"]
+      {% endif %}
+      interval: {{ health.interval if health.interval else '30s' }}
+      timeout: {{ health.timeout if health.timeout else '10s' }}
+      retries: {{ health.retries if health.retries else 3 }}
+    {% endif %}
     networks:
       - coolify
+    {% if not spec.source.image %}
+    env_file:
+      - .env
+    {% endif %}
 
 {% if volumes %}
 volumes:

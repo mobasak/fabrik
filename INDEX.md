@@ -269,7 +269,12 @@ docs/
 │   ├── traycer-free-tier-agents-testing.md # Traycer free-tier agent testing
 │   └── traycer-kilo-workflow-analysis.md # Traycer + Kilo workflow analysis
 ├── infrastructure                  # Infrastructure docs
-│   └── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
+│   ├── AUTHELIA_MIGRATION_SUMMARY.md # Authelia migration executive summary
+│   ├── COOLIFY_STATUS.md           # Coolify management status report
+│   ├── MIGRATION_SUMMARY.md        # Infrastructure migration summary
+│   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
+│   ├── authelia-migration-plan.md  # Authelia Phase 12 migration plan
+│   └── backrest-deployment-plan.md # Backrest backup deployment plan
 ├── operations                      # Operational runbooks and VPS state
 │   ├── backup-strategy.md          # VPS backup strategy
 │   ├── coolify-migration.md        # Coolify migration procedures
@@ -331,7 +336,7 @@ docs/
 │   ├── template_renderer.md
 │   ├── templates.md                # Available deployment templates
 │   ├── trueforge-images.md         # Trueforge image catalog
-│   ├── uptime-kuma.md              # Uptime Kuma runbook
+│   ├── gatus.md                    # Gatus runbook
 │   ├── windsurf                    # Windsurf IDE optimization
 │   │   ├── cascade-guide.md
 │   │   ├── cascade-models.md

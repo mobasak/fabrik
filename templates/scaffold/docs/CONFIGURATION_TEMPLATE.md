@@ -2,7 +2,8 @@
 
 **Last Updated:** YYYY-MM-DD
 
-> How to configure this project. For the variable list itself, see `.env.example` — it's self-documenting.
+> **Purpose:** ENVIRONMENT VARIABLES AND SETTINGS.
+> For the variable list itself, see `.env.example` — it's self-documenting.
 
 ---
 

@@ -88,6 +88,9 @@ class SEOApplicator:
         try:
             raw = self.wp.run(f"option get {shlex.quote(option_name)} --format=json")
             existing: dict = json.loads(raw) if raw.strip() else {}
+            # Guard: Ensure existing is actually a dict (WP-CLI may return "none" or empty string)
+            if not isinstance(existing, dict):
+                existing = {}
         except (RuntimeError, json.JSONDecodeError):
             existing = {}
         merged = {**existing, **updates}
@@ -134,9 +137,12 @@ class SEOApplicator:
 
         # Schema type + LocalBusiness JSON-LD
         if schema := seo.get("schema"):
-            schema_type = schema.get("type", "Organization")
-            applied["schema_type"] = schema_type
-            self.add_schema_markup(seo)
+            if isinstance(schema, dict):
+                schema_type = schema.get("type", "Organization")
+                applied["schema_type"] = schema_type
+                self.add_schema_markup(seo)
+            else:
+                logger.warning("SEO schema is not a dict, skipping schema markup")
 
         # Verification codes
         if google_verification := seo.get("google_verification"):
@@ -165,7 +171,7 @@ class SEOApplicator:
 
         # robots.txt AI crawler rules
         robots_txt = seo.get("robots_txt", {})
-        if robots_txt.get("allow_ai_crawlers"):
+        if isinstance(robots_txt, dict) and robots_txt.get("allow_ai_crawlers"):
             self.set_robots_txt_ai_crawlers(allow=True)
             applied["robots_txt_ai_crawlers"] = True
 
@@ -426,7 +432,10 @@ class SEOApplicator:
             True if successful
         """
         schema = seo.get("schema", {})
-        schema_type = schema.get("type", "Organization")
+        if isinstance(schema, dict):
+            schema_type = schema.get("type", "Organization")
+        else:
+            schema_type = "Organization"  # Fallback if schema is not a dict
         plugin = self.detect_seo_plugin()
 
         if plugin == "rankmath":

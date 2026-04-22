@@ -1,6 +1,14 @@
 id: test-fw-log
 kind: worker
 template: file-worker
+shape:
+  kind: worker
+  is_public: false
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: true
+  needs_database: false
+  has_search_feature: false
 expose:
   http: false
   internal_only: false

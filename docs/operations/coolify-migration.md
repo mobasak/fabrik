@@ -1,8 +1,8 @@
 # Coolify Migration Runbook
 
 **Created:** 2025-12-26
-**Completed:** 2025-12-27
-**Status:** ✅ COMPLETE
+**Last Updated:** 2026-04-17
+**Status:** 🔄 IN PROGRESS (Infrastructure Services Phase)
 
 ---
 
@@ -441,3 +441,57 @@ done
   {"name":"file-api","url":"https://files-api.vps1.ocoron.com/healthz"}
 ]
 ```
+
+---
+
+## Phase 2: Infrastructure Services Migration (2026-04-17)
+
+**Goal:** Migrate standalone infrastructure services (netdata, n8n, apprise, authelia) to Coolify management.
+
+### Services Migrated
+
+| Service | UUID | Status | Date | Duration | Issues |
+|---------|------|--------|------|----------|--------|
+| netdata | kk4kcw4csksc48848go4o0wo | ✅ SUCCESS | 2026-04-17 | 15 min | Minor (Traefik routing) |
+| n8n | s8gwccsws0ccssw0wwgwsoks | ✅ SUCCESS | 2026-04-17 | 5 min | None |
+| apprise | lcocgs4gs8ksg4g08w40ows8 | ✅ SUCCESS | 2026-04-17 | 4 min | None |
+| authelia | ⏳ PENDING | - | - | - |
+
+### Key Learnings
+
+1. **Coolify API requires base64-encoded compose** - `docker_compose_raw` must be base64-encoded
+2. **Traefik restart needed** - After deploying new services, restart Traefik to pick up routes
+3. **External volumes preserve data** - Use `external: true` with exact volume names
+4. **Parallel testing minimizes risk** - Deploy test container first, verify, then switch traffic
+5. **Network verification critical** - Always verify actual network topology with `docker inspect`
+
+### Migration Pattern
+
+```python
+import base64
+from fabrik.drivers.coolify import CoolifyClient
+
+# 1. Base64-encode compose
+compose_b64 = base64.b64encode(compose_yaml.encode()).decode()
+
+# 2. Create in Coolify
+client.create_dockercompose_application(
+    project_uuid="z4ok8804o0s440gsk0wgcggw",
+    server_uuid="jk4wskkcks8csg4gcokwgw8s",
+    docker_compose_raw=compose_b64,
+    name="service-name",
+    instant_deploy=False
+)
+
+# 3. Deploy
+client.deploy(app_uuid)
+
+# 4. Restart Traefik
+ssh vps "sudo docker restart traefik"
+```
+
+### Documentation
+
+- **Migration logs:** `docs/infrastructure/migration-log-phase1.md`, `migration-log-phase2.md`
+- **Step-by-step guide:** `docs/infrastructure/coolify-migration-step-by-step.md`
+- **Lessons learnt:** `docs/LESSONS_LEARNT.md`

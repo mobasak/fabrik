@@ -1,6 +1,7 @@
 # Kilo Code Review Workflow
 
 **Last Updated:** 2026-03-31
+**Script:** `scripts/kilo_code_review.py`
 
 > Complete workflow documentation for `scripts/kilo_code_review.py` — the AI-powered iterative code review system using Kilo CLI.
 
@@ -142,7 +143,7 @@ python scripts/kilo_code_review.py staged --output text
 ```
 1. INPUT VALIDATION (Pre-Review Checks)
    ├── Check files exist
-   ├── Verify file sizes < 500KB (not 50KB)
+   ├── Verify file sizes < 50KB
    ├── Python syntax validation for .py files
    ├── Check for empty files
    ├── Count total lines
@@ -153,7 +154,7 @@ python scripts/kilo_code_review.py staged --output text
    │   (auth, login, password, secret, token, session, crypto, jwt, oauth, etc.)
    ├── Calculate diff size (total lines changed)
    ├── Determine risk level: low | medium | high | critical
-   │   (diff > 400 lines = HIGH risk)
+   │   (diff > 500 lines = HIGH risk)
    └── Set review depth and model tier accordingly
 
 3. MODEL SELECTION (Tiered Routing)
@@ -280,10 +281,12 @@ The script uses DB-driven model selection from `kilo-benchmarks/` when available
 | Strategy | Models (in fallback order) | Use Case |
 |----------|---------------------------|----------|
 | `free` | gemini-3-flash-preview (or KILO_DEFAULT_MODEL) | Quick checks, low-risk |
-| `economy` | qwen3-vl-235b → gemini-3-flash | Budget-conscious |
-| `standard` | gemini-3.1-pro-preview → qwen3-vl | Default balance |
-| `premium` | claude-opus-4.6 → gemini-3.1-pro | High-quality review |
-| `critical` | gpt-5.4 → claude-opus-4.6 | Mission-critical code |
+| `economy` | Economy → Balanced → Strong | Budget-conscious |
+| `standard` | Balanced → Strong → Prime | Default balance |
+| `premium` | Strong → Prime | High-quality review |
+| `critical` | Prime only | Mission-critical code |
+
+**Note:** Actual models loaded from DB (`kilo_agents.db`) based on `agent_roles` table for 'reviewing' role. The script uses DB-driven model selection when available, with fallback to env vars.
 
 ### Auto-Selection Logic
 

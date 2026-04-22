@@ -57,7 +57,7 @@ With ~$50/month infrastructure cost:
 | Metric | Target | Measurement |
 |--------|--------|-------------|
 | Deployment time | <5 min | From spec to live |
-| Uptime | >99% | Uptime Kuma |
+| Uptime | >99% | Gatus |
 | Products deployed | 3+ | YT, Wellness, QMS |
 | Monthly revenue | $30k+ | 12-month goal |
 
@@ -91,7 +91,7 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-15 00:00:49 -->
+<!-- Last synced: 2026-04-22 14:11:26 -->
 <!-- Total projects: 35 -->
 
 ### Production Services (10 projects)
@@ -99,22 +99,23 @@ With ~$50/month infrastructure cost:
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **captcha** | A REST API service for solving captchas. Other applications can call this service to solve reCA... | Python | ✅ Production | https://captcha.vps1.ocoron.com | ✅ Current |
-| **dns-manager** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://dns.vps1.ocoron.com | ✅ Current |
+| **dns-manager** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, id... | Fastify | ✅ Production | - | ✅ Current |
 | **file-api** | Presigned URL service for Cloudflare R2 file uploads/downloads. | Express | ✅ Production | https://files-api.vps1.ocoron.com | ✅ Current |
 | **file-worker** | Background file processing worker for async file operations. | Python | ✅ Production | - | ✅ Current |
 | **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C... | Python | ✅ Production | - | ✅ Current |
 | **proxy** | Service-isolated proxy management API with Webshare.io integration and per-service health track... | Python | ✅ Production | - | ✅ Current |
-| **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://dns.vps1.ocoron.com | ✅ Current |
+| **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (8 projects)
+### Active Development (9 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | - | ✅ Current |
 | **candle** | FastAPI microservice project (in development). | FastAPI | 🔨 Development | - | ✅ Current |
+| **fabrik-smoke-test** | Smoke test project for all Fabrik deployment features | FastAPI | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
@@ -122,14 +123,13 @@ With ~$50/month infrastructure cost:
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (17 projects)
+### Planning/Research (16 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **ComplianceOps** | Async compliance service platform for HealthTech startups. | Python | 🔨 Development | - | ✅ Current |
 | **Reference_Creator** | Automated reference document creator from source materials. | Python | 🔨 Development | - | ✅ Current |
 | **apidoccreator** | External documentation registry. Scrapes, generates, stores and serves docs for AI agent consum... | FastAPI | 🔨 Development | - | ✅ Current |
-| **apps** | Multi-service application container for shared Fabrik utilities. | Python | 🔨 Development | - | ✅ Current |
 | **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | Python | 🔨 Development | - | ✅ Current |
 | **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | - | ✅ Current |
 | **exam-coach** | AI-powered exam preparation and coaching assistant. | Python | 🔨 Development | - | ✅ Current |
@@ -143,14 +143,5 @@ With ~$50/month infrastructure cost:
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
-
-### Recently Removed (4 projects)
-
-| Project | Note |
-|---------|------|
-| ~~gate-chrome~~ | Folder deleted since last scan |
-| ~~gate-desktop~~ | Folder deleted since last scan |
-| ~~gate-mobile~~ | Folder deleted since last scan |
-| ~~gate-saas~~ | Folder deleted since last scan |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

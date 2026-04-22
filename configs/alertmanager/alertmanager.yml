@@ -1,37 +1,52 @@
-# Alertmanager Configuration — Fabrik VPS
-# Deployed: 2026-04-14
-# Routes alerts to ARO Brain (future) and Apprise (fallback)
+# Alertmanager Configuration — Fabrik VPS (template)
+# Last updated: 2026-04-18
+#
+# This is the GIT-VERSIONED TEMPLATE. The real file (with secrets) lives at:
+#   /opt/monitoring/configs/alertmanager/alertmanager.yml  (on VPS only)
+#
+# Render the real file by substituting the bot-token and chat-id placeholders
+# (see the `receivers:` block below) with values from /opt/fabrik/.env before
+# deploying.
+#
+# Notification chain (current): Alertmanager → Telegram (native telegram_configs).
+# ARO Brain (LLM-based alert triage) is planned but not yet developed; when it
+# ships, add it as a new receiver routed BEFORE `telegram` with telegram as the
+# fallback route.
 
 global:
   resolve_timeout: 5m
 
 route:
-  receiver: aro-brain
+  receiver: telegram
   group_by: ['alertname', 'container']
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
   routes:
-    # Critical alerts — short repeat
+    # Critical alerts — shorter repeat interval
     - match:
         severity: critical
-      receiver: aro-brain
+      receiver: telegram
       repeat_interval: 30m
 
 receivers:
-  # Primary: ARO Brain webhook (future — will process via LLM)
-  # Until ARO is deployed, this will 404 silently (Alertmanager retries gracefully)
-  - name: aro-brain
-    webhook_configs:
-      - url: http://aro-brain:8017/api/alerts
+  # Primary: Alertmanager native Telegram integration.
+  # Uses the same bot/chat as Apprise — credentials mirrored from .env.
+  - name: telegram
+    telegram_configs:
+      - bot_token: '8751835294:AAHwhKgeCUoG2ovr9Sg-xo9fMl5Gy6kXj1I'
+        chat_id: 6999645768
+        parse_mode: HTML
         send_resolved: true
-        max_alerts: 10
-
-  # Fallback: Direct to Apprise for immediate notification
-  - name: apprise-fallback
-    webhook_configs:
-      - url: http://apprise:8000/notify
-        send_resolved: true
+        message: |
+          <b>[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}</b>
+          {{ if .CommonLabels.severity }}Severity: <code>{{ .CommonLabels.severity }}</code>{{ end }}
+          {{ if .CommonLabels.container }}Container: <code>{{ .CommonLabels.container }}</code>{{ end }}
+          {{ if .CommonLabels.instance }}Instance: <code>{{ .CommonLabels.instance }}</code>{{ end }}
+          {{ range .Alerts }}
+          • {{ .Annotations.summary }}{{ if .Annotations.description }}
+            {{ .Annotations.description }}{{ end }}
+          {{ end }}
 
 inhibit_rules:
   # If a node is down, suppress all container alerts on that node

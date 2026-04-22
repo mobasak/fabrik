@@ -11,6 +11,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"
       - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
+      - "traefik.http.routers.{{ spec.id }}.tls=true"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
       - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=8000"
       # CORS middleware for Chrome extension

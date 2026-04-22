@@ -24,14 +24,36 @@ groups:
           description: "Container {{ $labels.name }} CPU usage above 80% for 5 minutes."
           value: "{{ $value }}"
 
+      # Watches containers that have an explicit `mem_limit:` / `deploy.resources.limits.memory`.
+      # The `> 0` guard on the denominator skips containers with no limit, where cAdvisor
+      # reports `container_spec_memory_limit_bytes = 0` and the division yields `+Inf`,
+      # which would permanently exceed any threshold (root-cause of the 2026-04-19 spam).
+      # For unlimited containers, see `ContainerMemoryHighOfHost` below.
       - alert: ContainerHighMemory
-        expr: (container_memory_usage_bytes{name!=""} / container_spec_memory_limit_bytes{name!=""}) * 100 > 85
+        expr: |
+          100 * container_memory_usage_bytes{name!=""}
+          / (container_spec_memory_limit_bytes{name!=""} > 0) > 85
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "Container {{ $labels.name }} high memory ({{ printf \"%.1f\" $value }}%)"
-          description: "Container {{ $labels.name }} memory usage above 85% of limit for 5 minutes."
+          description: "Container {{ $labels.name }} memory usage above 85% of its configured limit for 5 minutes."
+          value: "{{ $value }}"
+
+      # Catches memory pressure from containers WITHOUT an explicit limit. Without this
+      # rule they'd be invisible to ContainerHighMemory (the `> 0` guard above skips them).
+      # Threshold is % of HOST memory, not of container limit.
+      - alert: ContainerMemoryHighOfHost
+        expr: |
+          100 * container_memory_usage_bytes{name!=""}
+          / on() group_left() node_memory_MemTotal_bytes > 15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} using {{ printf \"%.1f\" $value }}% of host memory"
+          description: "Container {{ $labels.name }} (no memory limit) is using above 15% of VPS total memory for 10 minutes."
           value: "{{ $value }}"
 
       - alert: ContainerOOMKilled

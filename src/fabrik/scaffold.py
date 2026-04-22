@@ -179,6 +179,8 @@ SHARED_TEMPLATE_MAP = {
     "docs/BUSINESS_MODEL_TEMPLATE.md": "docs/BUSINESS_MODEL.md",
     "docs/FEATURES_TEMPLATE.md": "docs/FEATURES.md",
     "docs/STRATEGIC_BACKLOG_TEMPLATE.md": "docs/STRATEGIC_BACKLOG.md",
+    "docs/LESSONS_LEARNT_TEMPLATE.md": "docs/LESSONS_LEARNT.md",
+    "docs/workflows/KILO_CONSULT_WORKFLOW.md": "docs/workflows/kilo-consult-workflow.md",
     # Note: Phase docs removed - Traycer Phases replace manual phase tracking
     # Note: tasks.md removed - Traycer UI replaces manual task dashboard
     # Note: PLANS.md and archive/README.md are generated inline, not from templates
@@ -244,6 +246,7 @@ SHARED_DIRS = [
     "docs/development",
     "docs/development/plans",
     "docs/archive",
+    "docs/workflows",  # Required by SHARED_TEMPLATE_MAP entry for kilo-consult-workflow.md
     "config",
     "scripts",
     "tests",
@@ -482,6 +485,11 @@ def _scaffold_shared(
     fabrik_compact = FABRIK_ROOT / "AGENTS-compact.md"
     if fabrik_compact.exists():
         shutil.copy(fabrik_compact, project_dir / "AGENTS-compact.md")
+
+    # Copy AFCL.md (Agentic Friction & Constraint Log template)
+    afcl_template = FABRIK_ROOT / "templates" / "scaffold" / "AFCL_TEMPLATE.md"
+    if afcl_template.exists():
+        shutil.copy(afcl_template, project_dir / "AFCL.md")
 
     # Copy cascade-models.md (Windsurf AI model reference)
     fabrik_cascade_models = FABRIK_ROOT / "docs" / "reference" / "windsurf" / "cascade-models.md"
@@ -789,8 +797,19 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
     )
 
     # Create requirements-dev.txt (includes dev dependencies)
+    # pytest + pytest-asyncio are explicit because tests/test_health.py is
+    # scaffolded alongside this file; relying on transitive resolution via
+    # semgrep etc. is brittle across environments.
     (project_dir / "requirements-dev.txt").write_text(
-        "-r requirements.txt\nruff\nmypy\nbandit\nsemgrep\nsqlfluff\nvulture\n"
+        "-r requirements.txt\n"
+        "pytest>=8.3.0\n"
+        "pytest-asyncio>=0.24.0\n"
+        "ruff\n"
+        "mypy\n"
+        "bandit\n"
+        "semgrep\n"
+        "sqlfluff\n"
+        "vulture\n"
     )
 
     # Create starter src/<package_name>/ package with logger, middleware, and main
@@ -2903,6 +2922,13 @@ def fix_project(
             shutil.copy(compact_target, compact_path)
             added.append("AGENTS-compact.md (copied)")
 
+        # Copy AFCL.md (Agentic Friction & Constraint Log template)
+        afcl_template = FABRIK_ROOT / "templates" / "scaffold" / "AFCL_TEMPLATE.md"
+        afcl_target = project_path / "AFCL.md"
+        if afcl_template.exists():
+            shutil.copy(afcl_template, afcl_target)
+            added.append("AFCL.md (copied)")
+
         # Always refresh opencode.json from master (single source of truth)
         fabrik_opencode = FABRIK_ROOT / "opencode.json"
         if fabrik_opencode.exists():
@@ -2991,6 +3017,10 @@ def fix_project(
         # AGENTS-compact.md - always copied (symlink migration)
         if (FABRIK_ROOT / "AGENTS-compact.md").exists():
             added.append("AGENTS-compact.md (copied)")
+
+        # AFCL.md - always copied (symlink migration)
+        if (FABRIK_ROOT / "templates" / "scaffold" / "AFCL_TEMPLATE.md").exists():
+            added.append("AFCL.md (copied)")
 
         # opencode.json — always refresh
         if (FABRIK_ROOT / "opencode.json").exists():

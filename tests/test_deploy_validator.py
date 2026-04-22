@@ -71,14 +71,35 @@ class TestCheckDockerfile:
 
     def test_present_passes(self, tmp_path: Path):
         (tmp_path / "Dockerfile").write_text("FROM python:3.12-slim-bookworm\n")
-        result = _check_dockerfile(tmp_path)
+        result = _check_dockerfile(tmp_path, "python-api")
         assert result.passed is True
         assert result.check == "dockerfile"
 
     def test_missing_fails(self, tmp_path: Path):
-        result = _check_dockerfile(tmp_path)
+        result = _check_dockerfile(tmp_path, "python-api")
         assert result.passed is False
         assert result.check == "dockerfile"
+
+    def test_skipped_for_wordpress(self, tmp_path: Path):
+        """WordPress uses compose.yaml.j2 + php-fpm/ + nginx/ Dockerfiles, never a root Dockerfile."""
+        result = _check_dockerfile(tmp_path, "wordpress")
+        assert result.passed is True
+        assert "N/A for wordpress" in result.message
+
+    def test_skipped_for_static_site(self, tmp_path: Path):
+        """static-site deploys as static files (Netlify/Vercel/S3), no container."""
+        result = _check_dockerfile(tmp_path, "static-site")
+        assert result.passed is True
+
+    def test_skipped_for_mobile_app(self, tmp_path: Path):
+        """mobile-app distributes via app stores, no container image."""
+        result = _check_dockerfile(tmp_path, "mobile-app")
+        assert result.passed is True
+
+    def test_skipped_for_chrome_extension(self, tmp_path: Path):
+        """chrome-extension packages as CRX for the web store, no container."""
+        result = _check_dockerfile(tmp_path, "chrome-extension")
+        assert result.passed is True
 
 
 # ---------------------------------------------------------------------------
@@ -124,11 +145,56 @@ class TestCheckHealthEndpoint:
         assert result.passed is True
 
     def test_node_type_checks_ts_files(self, tmp_path: Path):
+        # saas-skeleton was the original test vehicle here, but it is now in
+        # _NO_SRC_LAYOUT_TYPES (Next.js uses app/, not src/). node-api still
+        # uses the src/ convention and is the correct exemplar for TS detection.
         src_dir = tmp_path / "src"
         src_dir.mkdir()
         (src_dir / "index.ts").write_text('router.get("/health", handler);\n')
+        result = _check_health_endpoint(tmp_path, "node-api")
+        assert result.passed is True
+
+    def test_skipped_for_saas_skeleton(self, tmp_path: Path):
+        """saas-skeleton uses Next.js app/ layout — no src/ dir expected."""
         result = _check_health_endpoint(tmp_path, "saas-skeleton")
         assert result.passed is True
+        assert "N/A for saas-skeleton" in result.message
+
+    def test_skipped_for_chrome_extension(self, tmp_path: Path):
+        """chrome-extension has manifest.json + scripts at root — no src/ dir."""
+        result = _check_health_endpoint(tmp_path, "chrome-extension")
+        assert result.passed is True
+
+    def test_skipped_for_wordpress(self, tmp_path: Path):
+        """WordPress uses wp-content/ + plugins/ + themes/ — no src/ dir."""
+        result = _check_health_endpoint(tmp_path, "wordpress")
+        assert result.passed is True
+
+    def test_skipped_for_static_site(self, tmp_path: Path):
+        """static-site is short-circuited via _STATIC_TYPES — health targets /."""
+        result = _check_health_endpoint(tmp_path, "static-site")
+        assert result.passed is True
+
+    def test_skipped_for_file_worker(self, tmp_path: Path):
+        """file-worker is a background worker — no HTTP /health endpoint by design."""
+        result = _check_health_endpoint(tmp_path, "file-worker")
+        assert result.passed is True
+        assert "no HTTP server by design" in result.message
+
+    def test_skipped_for_mobile_app(self, tmp_path: Path):
+        """mobile-app is a native client — no HTTP server."""
+        result = _check_health_endpoint(tmp_path, "mobile-app")
+        assert result.passed is True
+        assert "no HTTP server by design" in result.message
+
+    def test_skipped_for_desktop_app(self, tmp_path: Path):
+        """desktop-app is an electron/native client — no HTTP server by default."""
+        # Note: with no electron/ dir present, the short-circuit at _NO_HTTP_HEALTH_TYPES
+        # applies first — this test verifies that short-circuit path, not the older
+        # electron-dir scanning path (covered by test_desktop_app_checks_electron_dir_not_src).
+        result = _check_health_endpoint(tmp_path, "desktop-app")
+        assert result.passed is True
+        assert "no HTTP server by design" in result.message
 
     def test_docusaurus_health_check_passes_without_src_dir(self, tmp_path: Path):
         """Docusaurus is a static type — passes without src/ directory."""

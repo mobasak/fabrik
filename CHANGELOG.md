@@ -4,6 +4,67 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — End-to-end deployment workflow validated (maximal shape) — 2026-04-22
+
+**Context:** Scaffolded `fabrik-e2e-full-test` with the maximal shape (all `shape.*` flags true) to stress-test every registrar in a single deployment. Used `traefik/whoami:latest` image + `fabrik-e2e-full-test.vps1.ocoron.com` domain for fast iteration. Three iterations to green:
+
+1. **Iteration 1** — Deploy failed at `SENTRY_DSN injection NOT verified`. Initial hypothesis: `verify_dsn_injection` grep only matched Coolify's auto-name `^{project}-<uuid>`, not explicit `container_name: {project}`. Patched the grep to `^{project}(-|$)`.
+2. **Iteration 2** — Same failure. Added print-level tracing inside the verification loop. Trace revealed the REAL root cause: `docker exec {container} printenv SENTRY_DSN` fails on scratch/distroless images (`traefik/whoami`) with `OCI runtime exec failed: exec failed: unable to start container process: exec: "`. Whoami has no `/bin/sh`.
+3. **Iteration 3** — Replaced `docker exec printenv` with `docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}'` + `grep '^SENTRY_DSN='`. This is a daemon-side metadata read — works for any image (scratch, distroless, alpine, full). Deployment succeeded end-to-end.
+
+**Changes:**
+
+1. **`@/opt/fabrik/src/fabrik/drivers/glitchtip.py:362-384`** — Rewrote `verify_dsn_injection` env-var read:
+   - **Container match:** `grep -E '^{project_name}(-|$)'` — accepts both Coolify's `<name>-<uuid>` auto-naming AND explicit `container_name: <name>` from compose.
+   - **Env-var read:** `docker inspect ... --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^SENTRY_DSN=' | cut -d= -f2-` — works for shell-less images.
+2. **`@/opt/fabrik/tests/drivers/test_glitchtip.py:314-334`** — New regression test `test_scratch_image_uses_docker_inspect_not_exec` asserts the verification path never invokes `docker exec`. Also updated the 4 existing tests to assert the new `docker inspect` invocation and `grep -E '^project(-|$)'` pattern.
+
+**Verified registrars (all 9 green on first successful run):**
+
+| Registrar | Check | Result |
+|-----------|-------|--------|
+| Coolify | `docker ps` shows container `fabrik-e2e-full-test-<uuid>` | ✅ Up |
+| Traefik | `localhost:8080/api/http/routers` shows `fabrik-e2e-full-test@docker enabled` | ✅ enabled |
+| Let's Encrypt | `curl -I https://fabrik-e2e-full-test.vps1.ocoron.com` → HTTP/2 302 | ✅ cert valid |
+| Authelia | Container `/config/configuration.yml` has 2 rules (bypass `^/api/` + two_factor) | ✅ present |
+| Postgres | `postgres-main` contains DB `fabrik_e2e_full_test` | ✅ created |
+| Backrest | `/opt/backrest/config/config.json` has plan `fabrik-e2e-full-test-data` | ✅ registered |
+| Gatus | `https://status.vps1.ocoron.com/api/v1/endpoints/statuses` reports `apps_fabrik-e2e-full-test` with recent lastCheck | ✅ monitored |
+| GlitchTip | `create_project('fabrik-e2e-full-test')` returns `{status: exists, dsn: http://...@localhost:8000/21}` | ✅ project + DSN |
+| MeiliSearch | `_index_exists('fabrik_e2e_full_test')` → True | ✅ index |
+
+**Verified idempotency:** Second `fabrik deploy` on the same project exits 0 with no regressions (all registrars return `status: exists`).
+
+**Lesson captured (LESSONS_LEARNT.md §31):** Container env-var verification MUST use `docker inspect` (daemon-side metadata read), never `docker exec` (requires shell in the image). This is a latent class of bug: ANY future code doing `ssh(f"docker exec {c} printenv X")` against a potentially-distroless container will silently fail-loud on specific images. The fix pattern is portable: `docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^VAR='`.
+
+**Cleanup:** Test project fully removed from /opt, Coolify, DNS, Authelia, Gatus, GlitchTip, MeiliSearch, Backrest, Postgres, and the projects registry. `sync_projects.py` confirms 35 projects (back to baseline).
+
+### Fixed — Coolify 422 error on docker compose deployments — 2026-04-22
+
+**Context:** `fabrik deploy` for docker-compose applications was failing with HTTP 422 from Coolify API: `"docker_compose_raw should be base64 encoded."` Despite base64 encoding being correctly applied in `CoolifyClient.create_dockercompose_application()`, Coolify rejected the payload. Investigation revealed the issue was NOT the base64 encoding itself, but the presence of a healthcheck section in the docker-compose YAML when the application image (e.g., `traefik/whoami`) lacks the healthcheck tools (`wget`/`curl`). Coolify's validation rejects composes with healthchecks that reference unavailable commands.
+
+**Root causes diagnosed and resolved:**
+1. **Template healthcheck logic** — The `compose.yaml.j2` template had `{% if not (health and health.disabled) %}` which evaluated to false when `health.disabled=true`, causing the healthcheck to be generated even when explicitly disabled. Fixed to `{% if health and not health.disabled %}` so healthchecks only generate when explicitly enabled.
+2. **Spec file location bug** — The validator's `load_spec()` was loading from `/opt/fabrik/specs/services/<name>.yaml` instead of the project's own `specs/services/<name>.yaml`. This caused edits to the project's spec to be ignored during deployment. The deploy_router's `resolve_service_spec_path()` correctly resolves to the project directory, but the validator was not using it. Fixed by ensuring the correct spec path is used throughout.
+3. **Spec model name field** — The `Spec` Pydantic model lacked a `name` field, but the deployer expected it. Added `name: str | None = None` with a validator that sets `name=id` if missing, maintaining backward compatibility.
+4. **Template env_file conditional** — The template was unconditionally adding `env_file: .env` for all builds, but Coolify's docker-compose endpoint doesn't support env_file for image-based deployments. Fixed to only add env_file for non-image builds (`{% if not spec.source.image %}`).
+5. **Duplicate PYTHONUNBUFFERED** — The template and defaults.yaml both set `PYTHONUNBUFFERED=1`, causing duplicates in the compose. Fixed to only add if not already present in the env dict.
+
+**Changes:**
+
+1. **`@/opt/fabrik/templates/python-api/compose.yaml.j2:59`** — Changed healthcheck condition from `{% if not (health and health.disabled) %}` to `{% if health and not health.disabled %}` to properly respect the `health.disabled` field.
+2. **`@/opt/fabrik/src/fabrik/spec_loader.py:325`** — Added `name: str | None = None` field to `Spec` model as an alias for `id`, with validator that sets `name=id` if missing.
+3. **`@/opt/fabrik/src/fabrik/orchestrator/deployer.py:156-164`** — Added logic to convert source dict to `Source` object with proper enum type conversion to avoid default_factory overrides.
+4. **`@/opt/fabrik/templates/python-api/compose.yaml.j2:33-34`** — Added conditional check to prevent duplicate `PYTHONUNBUFFERED` environment variable.
+5. **`@/opt/fabrik/templates/python-api/compose.yaml.j2:72-75`** — Made env_file conditional to only add for non-docker image sources.
+
+**Verification:**
+- Minimal compose (image + platform only) successfully deploys to Coolify
+- Full compose with `health.disabled: true` and proper source type now deploys without 422 error
+- Docker image sources (e.g., `traefik/whoami:latest`) correctly render with `image:` instead of `build:`
+
+**Lesson captured:** Coolify's docker-compose API is strict about healthcheck commands. If the container image lacks `wget`/`curl`, any healthcheck referencing these tools will cause a 422 validation error. Always set `health.disabled: true` for images without healthcheck tools, or ensure the healthcheck command uses tools available in the image.
+
 ### Fixed — Deployment pipeline end-to-end smoke test on VPS — 2026-04-21
 
 **Context:** Live deploy of `fabrik-smoke-test` (admin dashboard + bearer API shape) failed at the last mile with HTTPS `400 Bad Request` despite Traefik router registered and Let's Encrypt cert issued. Root cause was **Authelia `session.cookies.domain` mismatch**: the test domain `fabrik-smoke-test.ozgurbasak.com` has an apex (`ozgurbasak.com`) that is NOT in Authelia's `session.cookies[]` config — Authelia rejected every forward-auth sub-request with `400` and body `"unable to retrieve session cookie domain provider: no configured session cookie domain matches the url"`. Traefik propagated the 400 to clients.

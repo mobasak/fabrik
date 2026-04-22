@@ -2,6 +2,14 @@ id: test-docs
 kind: service
 template: docusaurus
 domain: test-docs.vps1.ocoron.com
+shape:
+  kind: static
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: false
+  needs_database: false
+  has_search_feature: false
 expose:
   http: true
   internal_only: false

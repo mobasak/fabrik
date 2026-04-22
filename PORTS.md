@@ -26,7 +26,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | Port | Service | Project | URL |
 |------|---------|---------|-----|
 | 8000 | Coolify | coolify | https://coolify.vps1.ocoron.com |
-| 3001 | Uptime Kuma | uptime-kuma | https://status.vps1.ocoron.com |
+| 3001 | Gatus | gatus | https://status.vps1.ocoron.com |
 | 8200 | Duplicati | duplicati | https://backup.vps1.ocoron.com |
 | 19999 | Netdata | netdata | https://netdata.vps1.ocoron.com |
 | 3000 | browserless | specs/infrastructure/browserless.yaml | https://browser.vps1.ocoron.com |
@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-04-15 00:00:49 -->
+<!-- Last synced: 2026-04-22 14:11:26 -->
 
 ### ⚠️ Port Conflicts Detected
 
@@ -96,8 +96,7 @@ If you encounter a port conflict:
 | Port | Project | Type | Path |
 |------|---------|------|------|
 | 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
-| 8002 | **apidoccreator** | python-api | /opt/apidoccreator |
-| 8003 | **apps** | python-api | /opt/apps |
+| 8000 | **fabrik-smoke-test** | python-api | /opt/fabrik-smoke-test |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
 | 8005 | **candle** | python-api | /opt/candle |
 | 8006 | **exam-coach** | python-api | /opt/exam-coach |
@@ -121,6 +120,7 @@ If you encounter a port conflict:
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
 | 8029 | **youtube** | python-api | /opt/youtube |
 | 8033 | **ComplianceOps** | python-api | /opt/ComplianceOps |
+| 8302 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 18011 | **captcha** | python-api | /opt/captcha |
 | 18012 | **translator** | python-api | /opt/translator |
 | 18013 | **proxy** | automation | /opt/proxy |

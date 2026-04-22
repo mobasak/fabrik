@@ -128,7 +128,7 @@ B2_BUCKET_NAME=fabrik-backups
 - Supabase (multi-tenant database)
 - Cloudflare R2 (file storage)
 - AI services (Anthropic, OpenAI, Factory.ai)
-- Monitoring (Uptime Kuma credentials)
+- Monitoring (Gatus credentials)
 
 ### How do I get Coolify API credentials?
 
@@ -186,9 +186,12 @@ cd /opt/my-saas-app
 
 **For microservices:**
 ```bash
-fabrik new my-api --template python-api --domain api.example.com
-# Edit specs/my-api.yaml
-fabrik apply specs/my-api.yaml
+# `fabrik scaffold` is canonical as of Phase 4k (2026-04-19). It creates the
+# full project tree AND emits a spec with a populated shape: block in one step.
+# The legacy `fabrik new` verb is deprecated (hidden + warning).
+fabrik scaffold my-api --type python-api -d "my api"
+# Edit specs/services/my-api.yaml if you need to change defaults.
+fabrik apply specs/services/my-api.yaml
 ```
 
 ### Why can't I use `/tmp/` for temporary files?
@@ -394,7 +397,7 @@ services:
    # Should return: {"status": "ok"}
    ```
 
-3. **Uptime Kuma dashboard:**
+3. **Gatus dashboard:**
    ```
    https://status.vps1.ocoron.com
    # Visual status of all services
@@ -656,7 +659,10 @@ Worker → Process file → Upload result → R2
 
 **Use file-worker template:**
 ```bash
-fabrik new my-worker --template file-worker --domain worker.example.com
+# Workers don't expose HTTP, so no --domain is needed. The file-worker shape:
+# block marks is_public=false and has_persistent_data=true — Backrest backup
+# runs automatically, Gatus does not.
+fabrik scaffold my-worker --type file-worker -d "background job processor"
 ```
 
 **Customize processor:**

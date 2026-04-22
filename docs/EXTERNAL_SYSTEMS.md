@@ -968,13 +968,13 @@ This document catalogs all external systems, APIs, and services that Fabrik inte
 
 ## Monitoring & Observability
 
-### Uptime Kuma
+### Gatus
 
 **Purpose:** Status monitoring
 
 **Documentation:**
-- GitHub: https://github.com/louislam/uptime-kuma
-- API Docs: https://github.com/louislam/uptime-kuma/wiki/API
+- GitHub: https://github.com/TwinProduction/gatus
+- API Docs: https://github.com/TwinProduction/gatus
 
 **Authentication:**
 - Type: Username + Password
@@ -1148,7 +1148,7 @@ Fabrik also deploys and manages several internal services on the VPS:
 - **Email Gateway** (`https://emailgateway.vps1.ocoron.com`) - Email routing
 - **DNS Manager** (`https://dns.vps1.ocoron.com`) - DNS management
 - **Image Broker** (`https://images.vps1.ocoron.com`) - Stock photo search
-- **Uptime Kuma** (`https://status.vps1.ocoron.com`) - Status monitoring
+- **Gatus** (`https://status.vps1.ocoron.com`) - Status monitoring
 - **Netdata** (`https://netdata.vps1.ocoron.com`) - System monitoring
 - **Backup** (`https://backup.vps1.ocoron.com`) - Duplicati web UI
 

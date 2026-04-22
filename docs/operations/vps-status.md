@@ -258,7 +258,7 @@ All standard Ubuntu cron jobs — nothing custom.
 | Docker log rotation verified | ✅ |
 | VPS /opt cleanup - freed 15GB | ✅ |
 | Duplicati complete backup with postgres-main | ✅ |
-| Uptime Kuma deployed | ✅ |
+| Gatus deployed | ✅ |
 
 **VPS Cleanup (2025-12-23 15:00):**
 - Deleted: youtube/ (15GB), Proxy/, BackupSystem/, shared-docs/, test-project/, CLEANUP-BACKUP-*/, backup/, backupsystem/

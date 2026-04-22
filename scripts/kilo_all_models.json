@@ -1,7 +1,12 @@
 {
-  "timestamp": "2026-04-15T00:00:54.760026",
-  "total_models": 325,
+  "timestamp": "2026-04-22T11:59:04.491106",
+  "total_models": 323,
   "models": {
+    "~anthropic/claude-opus-latest": {
+      "id": "~anthropic/claude-opus-latest",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "ai21/jamba-large-1.7": {
       "id": "ai21/jamba-large-1.7",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -34,11 +39,6 @@
     },
     "alibaba/tongyi-deepresearch-30b-a3b": {
       "id": "alibaba/tongyi-deepresearch-30b-a3b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "allenai/olmo-2-0325-32b-instruct": {
-      "id": "allenai/olmo-2-0325-32b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -137,6 +137,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "anthropic/claude-opus-4.7": {
+      "id": "anthropic/claude-opus-4.7",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "anthropic/claude-sonnet-4": {
       "id": "anthropic/claude-sonnet-4",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -169,11 +174,6 @@
     },
     "arcee-ai/trinity-large-thinking": {
       "id": "arcee-ai/trinity-large-thinking",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "arcee-ai/trinity-large-thinking:free": {
-      "id": "arcee-ai/trinity-large-thinking:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -442,18 +442,13 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "inception/mercury": {
-      "id": "inception/mercury",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "inception/mercury-2": {
       "id": "inception/mercury-2",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "inception/mercury-coder": {
-      "id": "inception/mercury-coder",
+    "inclusionai/ling-2.6-flash:free": {
+      "id": "inclusionai/ling-2.6-flash:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -752,6 +747,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "moonshotai/kimi-k2.6": {
+      "id": "moonshotai/kimi-k2.6",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "morph/morph-v3-fast": {
       "id": "morph/morph-v3-fast",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -929,11 +929,6 @@
     },
     "openai/gpt-4o-search-preview": {
       "id": "openai/gpt-4o-search-preview",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "openai/gpt-4o:extended": {
-      "id": "openai/gpt-4o:extended",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1122,13 +1117,13 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "openrouter/elephant-alpha": {
-      "id": "openrouter/elephant-alpha",
+    "openrouter/free": {
+      "id": "openrouter/free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "openrouter/free": {
-      "id": "openrouter/free",
+    "openrouter/pareto-code": {
+      "id": "openrouter/pareto-code",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1209,11 +1204,6 @@
     },
     "qwen/qwen-vl-plus": {
       "id": "qwen/qwen-vl-plus",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "qwen/qwen2.5-vl-32b-instruct": {
-      "id": "qwen/qwen2.5-vl-32b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

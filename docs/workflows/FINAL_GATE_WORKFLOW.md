@@ -1,6 +1,7 @@
 # Final Gate Workflow
 
 **Last Updated:** 2026-04-03
+**Script:** `scripts/final_gate.py`
 
 > Complete reference for `scripts/final_gate.py` — deterministic quality checks that validate code and documentation before Traycer commit.
 
@@ -170,7 +171,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Purpose:** Full quality gate before Traycer commit
 
-**Phase 3: Repo Consistency (18 checks)**
+**Phase 3: Repo Consistency (17 checks)**
 - **Project Structure** - `check_structure.py`
   - Validates directory layout matches Fabrik conventions
 - **Rule File Size** - `check_rule_size.py`
@@ -779,7 +780,7 @@ API_KEY = os.getenv('API_KEY')
 | bandit | 180 |
 | sqlfluff | 180 |
 | ruff | 120 |
-| semgrep | 30 |
+| semgrep | 300 |
 
 ### Max Iterations
 

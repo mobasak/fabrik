@@ -1,9 +1,11 @@
 # Fabrik Control Plane — Implementation Plan
 
 **Created:** 2026-04-13
+**Last Updated:** 2026-04-18 21:10 UTC+3 (scope re-clarified; zero-touch content moved out to its own plan)
 **Status:** APPROVED — Phase 0 (pipeline gaps) COMPLETE · Phase 3 (SSH bypass) COMPLETE · Phase 1 + 2 pending
 **Ports:** 8050 (`fabrik-api`) · 3004 (`fabrik-control-plane`)
 **URL:** `https://control.vps1.ocoron.com`
+**Scope:** Conversational UI + FastAPI bridge fronting the **WordPress 12-stage pipeline** only. Generic-project auto-deployment lives in `2026-04-18-zero-touch-deployment.md`.
 
 ---
 
@@ -59,7 +61,7 @@ The Next.js API route would POST directly to infrastructure microservices. **Rej
 
 Next.js POSTs the JSON to an n8n webhook. n8n acts as the central brain, executing bash nodes to trigger `fabrik` CLI or making HTTP requests itself. **Deferred** because `fabrik` Python CLI is already the orchestrator — forcing n8n to wrap a perfectly functional CLI script just adds an unnecessary point of failure.
 
-**However:** n8n is the correct choice for the *content/SEO pipeline* in a future phase — hooking into `SEOClient`, `TCOClient`, and `ImageBrokerClient` for the automated content creation loop after a site deploys. That is Phase 4 (not in scope here).
+**However:** n8n is the correct choice for the *content/SEO pipeline* in a future phase — hooking into `SEOClient`, `TCOClient`, and `ImageBrokerClient` for the automated content creation loop after a site deploys. That is Phase 5 (not in scope here).
 
 ### Option 3 — FastAPI Wrapper Around `fabrik` ("Bridge Route") — CHOSEN
 
@@ -218,6 +220,10 @@ Browser
 4. **fabrik-api is not containerized** — runs as a native process on the VPS host so it can call `docker exec` without socket exposure.
 5. **All Kilo AI calls happen server-side** — API key never reaches the browser.
 6. **SSE events are structured JSON, not raw text** — frontend drops them directly into React state without regex parsing.
+7. **Traefik labels for Coolify-managed apps are declared explicitly, never auto-relied** — every compose emitted by Fabrik must contain the full label set (`enable`, rule, entrypoints, tls, certresolver, service-port, and middlewares where applicable). Coolify's runtime label injection is non-deterministic after `PATCH /services/{uuid}` and breaks routers. See `LESSONS_LEARNT.md §8.7`.
+8. **Authelia protection requires BOTH the policy rule AND the Traefik middleware** — an `access_control` rule in `/config/configuration.yml` alone does not gate a host; Traefik must also attach `authelia-forward@docker` to that router. For every `shape.is_admin_dashboard=true` deploy, Fabrik MUST write both. See `LESSONS_LEARNT.md §8.9`.
+9. **Compose source-of-truth depends on `build_pack` + `git_repository`** — for `build_pack=dockercompose` apps WITH a `git_repository` set, the upstream repo wins; `PATCH /applications/{uuid}.docker_compose_raw` is silently overwritten on the next deploy. The Fabrik orchestrator MUST branch on this: git-sourced → push to repo + `/deploy`; pure Coolify service → `PATCH /services/{uuid}`. See `LESSONS_LEARNT.md §8.10`.
+10. **Authelia must bypass any Bearer-token API path on an admin dashboard's domain** — forward-auth on `example.vps1.ocoron.com/*` gates `/api/*` too, returning HTTP 401 to Bearer-token callers (e.g., Fabrik→Coolify, Fabrik→Grafana). For every admin dashboard with a programmatic API, Fabrik MUST add a `^/api/` bypass rule in `configuration.yml` before the catch-all `two_factor` policy. See `LESSONS_LEARNT.md §8.11`.
 
 ---
 
@@ -415,6 +421,15 @@ WantedBy=multi-user.target
 
 ## Phase 2 — `fabrik-control-plane` (Next.js 14)
 
+> **Deployment invariants** — this project IS an admin dashboard with a Bearer-token API (`fabrik-api` at `/api/v1/*`), so its own Coolify deployment MUST satisfy all four 2026-04-18 invariants from the top of this document:
+>
+> - **§7 Full Traefik label set** in its compose (don't rely on Coolify auto-inject).
+> - **§8 Authelia policy rule + `authelia-forward@docker` middleware** — write both, not just one.
+> - **§9 Compose source-of-truth:** if deployed via `git_repository`, compose changes go through the Git repo; Coolify API PATCH is silently reverted.
+> - **§10 `^/api/` Authelia bypass** on `control.vps1.ocoron.com` so Next.js can call `fabrik-api` with Bearer tokens without the 2FA gate intercepting the API traffic.
+>
+> These are the same invariants enforced by the zero-touch plan (`2026-04-18-zero-touch-deployment.md` CSFs §7–§10). A post-deploy `verify.py` run against this project is the single source of truth that all four are satisfied.
+
 ### fabrik-control-plane project structure
 
 ```text
@@ -550,9 +565,102 @@ Phase 2e:  Deploy to Coolify, verify SSE stream end-to-end
 
 ---
 
-## Lessons Learned — ocoron.com Reference Deployment (2026-04-14)
+## Lessons Learned — ocoron.com Reference Deployment (2026-04-14 to 2026-04-15)
 
 These constraints were discovered during the first real pipeline run and must be encoded into all future site deployments via `fabrik-api` and `provisioner.py`.
+
+**Total fixes: 50+ issues resolved across infrastructure, WordPress core, pages, REST API, SEO, plugins, monitoring, verify stage, error handling, VPS deployment, and root cause analysis.**
+
+### Summary of All Fixes (2026-04-13 to 2026-04-15)
+
+**Infrastructure & Docker:**
+- `compose-coolify.yaml.j2` mounts full web root → Fixed to mount only `wp_html` volume
+- nginx FastCGI cache uses `/tmp/wp_cache` → Fixed to use `/var/cache/nginx/wp_cache`
+- nginx+FPM requires shared `/var/www/html` volume → Fixed with `wp_html` volume
+- PHP-FPM IPv6-only binding breaks nginx upstream → Fixed with FPM override config
+- Docker DNS collision with service name `wordpress` → Fixed to use full container name
+- WP-CLI missing in php8.3-fpm container → Fixed by installing WP-CLI manually
+
+**WordPress Core & Settings:**
+- Pipeline assumes WP core is installed → Fixed with auto-install check in settings stage
+- `user_login` is immutable in WordPress → Fixed with create-new-user workflow
+- Admin username `admin` never renamed → Fixed with user replacement logic
+- Duplicate `contact:` top-level key in `site.yaml.j2` → Fixed YAML structure
+- Wrong plugin slugs in `defaults.yaml` → Fixed plugin slugs to match wordpress.org
+
+**Pages & Content:**
+- Homepage creation fails with large HTML content → Fixed with temporary file + `wp post update`
+- Revert status=publish,draft query → Fixed to avoid 400 error
+- WP-CLI invalid page template error → Fixed with retry without template
+- Pages stage hang (DNSClient sitemap resubmit) → Fixed with daemon thread timeout
+- Homepage not created (empty slug issue) → Fixed to check both '' and 'home' slugs
+- Homepage not set as static front page → Fixed with set_homepage logic
+- Rewrite rules not flushed → Added rewrite_flush after set_homepage
+
+**REST API & Authentication:**
+- 401 Unauthorized — missing HTTP_AUTHORIZATION → Fixed nginx template
+- 401 — Application Password not quoted → Fixed .env quoting
+- Generate WordPress Application Password → Fixed with app password generation
+- WP-CLI fallback in PageCreator → Implemented for page creation
+- ContainerResolver naming convention → Fixed to match Docker Compose
+- Pages 401 Unauthorized — fallback to 'admin' → Fixed username fallback logic
+
+**SEO & Schema:**
+- `seo.py`: 5 spec keys read nowhere → Implemented missing SEO methods
+- SEO stage crashes on mixed i18n `default_meta` → Fixed isinstance guard
+- SEO — isinstance guard in _merge_option → Fixed json.loads result
+- SEO — isinstance guard for robots_txt → Fixed apply_site_seo
+- SEO 'str object is not a mapping' → Fixed add_schema_markup method
+- configure_sitemap() never called → Fixed to call in seo stage
+- add_schema_markup() was stub → Implemented LocalBusiness JSON-LD
+
+**Plugins & Languages:**
+- Polylang not auto-injected for multilingual sites → Fixed in spec_loader.py
+- Polylang injection timing → Fixed direct injection into plugins.base
+- Wordfence whitelist config variable → Fixed to use DB (wfConfig option)
+- Add Wordfence whitelist for VPS IP → Implemented in plugins.py
+- Disable Wordfence rate limiting → Implemented as direct fix
+- No active form plugin detected → Handled with skip logic
+
+**Monitoring & Analytics:**
+- `stages/monitoring.py` does not exist → Created monitoring stage
+- uptime-kuma-api missing from dependencies → Added to pyproject.toml
+- Uptime Kuma socketio timeout → Fixed with timeout increase
+- `stages/post_deploy.py` does not exist → Created post_deploy stage
+- GA4 measurement ID feedback loop → Fixed stage order
+- STAGE_KEYS missing new stages → Added post_deploy + monitoring
+
+**Verify Stage:**
+- Cloudflare rate limiting in verify stage → Fixed with increased delay (2s → 5s)
+- Add delay between URL checks → Implemented 1-second delay (later increased to 5s)
+- Verify 404 homepage → Fixed homepage creation
+- Verify 429 rate limit → Fixed with Cloudflare delay
+
+**Forms & Contact:**
+- Forms field structure mismatch → Documented workaround
+- admin email conflict → Fixed by changing to old-admin@ocoron.com
+- Move admin email to .env → Implemented with conflict detection
+
+**Error Handling & Logging:**
+- create_page() hides REST failure → Fixed with better error logging (exc_info=True)
+- create_page_cli() large content failure → Fixed with temporary file approach
+- Broad except clauses → Fixed with specific exception handling
+
+**VPS & Deployment:**
+- Restart VPS compose stack → Implemented to pick up config changes
+- Update nginx config directly on VPS → Applied manual config fix
+- Apply WP-CLI fix to VPS compose → Recreated container with fix
+- Manual homepage creation on VPS → Direct fix to unblock pipeline
+- Manual Wordfence disable → Direct fix to unblock pipeline
+- Manual rewrite rules flush → Direct fix to unblock pipeline
+
+**Consultations & Root Cause:**
+- 4 AI consultations (Claude Opus, GPT-4o, Claude Sonnet, GPT-5.4) → Used to identify root causes
+- Root cause: find_page("") returns ALL pages → Fixed empty slug handling
+- Root cause: create_page_cli() shell argument limit → Fixed with file-based approach
+- Root cause: Cloudflare rate limiting → Fixed with increased delays
+
+---
 
 ### 1. Coolify API — compose constraints
 
@@ -603,13 +711,13 @@ VPS user `ozgur` is not in the `docker` group. All `docker` commands require `su
 - **`drivers/wordpress.py` `WordPressClient._exec()`:** Already uses `sudo docker exec` via SSH
 - **`fabrik-api` on VPS:** Runs as `ozgur` — must prefix all `docker` calls with `sudo`
 
-### 6. Plugin slugs must match wordpress.org exactly (Gap 15)
+### 5. Plugin slugs must match wordpress.org exactly (Gap 15)
 
 `defaults.yaml` had `generatepress` in `plugins.base` — but it's a **theme**, not a plugin. Also `rank-math-seo` is wrong; the real slug is `seo-by-rank-math`. `gp-premium` is premium-only (not on wordpress.org).
 
 **`fabrik-api` implication:** The Phase B compilation (Kilo AI JSON) must reference correct wordpress.org slugs. Add a validation step in `spec_writer.py` that verifies each plugin slug against a known-good list or queries the wordpress.org API before writing `site.yaml`.
 
-### 7. WordPress `user_login` is immutable (Gap 16)
+### 6. WordPress `user_login` is immutable (Gap 16)
 
 `wp user update --user_login=...` silently fails. WordPress does not allow renaming `user_login`.
 
@@ -621,7 +729,7 @@ wp user delete 1 --reassign=<new_id> --yes
 
 **`fabrik-api` implication:** The `wp core install` step should create the admin with the correct username from the start (never use `admin`). This eliminates the need for the replacement dance entirely.
 
-### 5. WP core install is a pipeline prerequisite (Gap 14)
+### 7. WP core install is a pipeline prerequisite (Gap 14)
 
 Fresh Docker volumes = empty MariaDB = no WP tables. The pipeline calls WP-CLI immediately in `settings` stage without checking if WP is installed. Error: `The site you have requested is not installed`.
 
@@ -639,9 +747,122 @@ if not wp.is_installed():
     )
 ```
 
+### 8. nginx+FPM requires shared `/var/www/html` volume (Gap 17)
+
+The compose template only shared `wp_content:/var/www/html/wp-content`. Nginx needs the **full WordPress root** (`index.php`, `wp-admin/`, `wp-includes/`) to serve static assets and pass PHP files via `try_files $uri =404`.
+
+Without the full root, nginx returns 403 on every request because `index.php` doesn't exist on its filesystem.
+
+**Fix:** Replace `wp_content` volume with `wp_html` volume mapping to `/var/www/html` on both `wordpress` (read-write) and `nginx` (read-only). Backup container mounts same volume for content access.
+
+**Compose template implication:** `compose-coolify.yaml.j2` must always use a shared `wp_html` volume, never separate `wp_content`.
+
+### 9. PHP-FPM IPv6-only binding breaks nginx upstream (Gap 18)
+
+Modern `wordpress:php8.3-fpm` images bind FPM to `[::]:9000` (IPv6 only). Docker's internal DNS resolves service names to IPv4 addresses. Nginx connects to `fastcgi://10.x.x.x:9000` (IPv4), but FPM only listens on IPv6 → **502 Bad Gateway**.
+
+**Fix:** Mount a PHP-FPM config override that forces IPv4 binding:
+
+```ini
+# /usr/local/etc/php-fpm.d/zz-fabrik-listen.conf
+[www]
+listen = 0.0.0.0:9000
+```
+
+Prefix `zz-` ensures it loads last and overrides `zz-docker.conf`. Mount via compose volume from host file or Coolify File Storage.
+
+### 10. Docker DNS collision with bare service name `wordpress` (Gap 18a)
+
+Nginx on the `coolify` external network resolved `wordpress` to `wp-test-wordpress` (a different compose project's container) instead of `ocoron-com-wordpress-1`. Docker DNS returns results from ALL networks a container is connected to.
+
+**`fabrik-api` implication:** The nginx config template must use the **full container name** (`{{ name }}-wordpress-1`) instead of the bare compose service name (`wordpress`). Combined with `resolver 127.0.0.11 ipv6=off;` and variable-based `fastcgi_pass $upstream_fpm:9000;`.
+
+### 11. SEO stage crashes on mixed i18n `default_meta` (Gap 20)
+
+`seo.default_meta` in specs mixes flat string keys (`description: "{{brand.tagline}}"`) with locale dicts (`en_US: {...}`). The fallback `next(iter(values))` returns a string, then `.get()` fails.
+
+**`fabrik-api` implication:** `spec_writer.py` should normalize `default_meta` to a clean locale-dict-only structure during Phase B compilation. Never mix flat strings and locale dicts in the same dict.
+
+### 12. Polylang auto-injection for multilingual sites (Gap 19)
+
+When `languages.additional` is set, the languages stage requires Polylang. But it wasn't in `plugins.base` (not needed for monolingual sites). Pipeline silently fails.
+
+**`fabrik-api` implication:** The spec compilation must auto-add `polylang` to the plugin list when `languages.additional` is non-empty. This is now handled in `spec_loader.py:apply_plugin_rules()` but `spec_writer.py` should also enforce it.
+
+### 13. Homepage creation fails with large HTML content (Gap 22) — **DISCOVERED 2026-04-15**
+
+`PageCreator.create_page_cli()` passes full page content as a shell argument to WP-CLI: `f"--post_content={content}"`. For large homepage HTML (~10KB), this exceeds shell argument length limits and causes quoting failures. The page creation silently fails, homepage is never created.
+
+**Fix:** Modified `create_page_cli()` to:
+1. Create page without content first using `wp post create`
+2. Write content to temporary file
+3. Use `wp post update <id> --post_content=< <file>` to set content
+4. Clean up temporary file
+
+Also added better error logging in `create_page()` with `exc_info=True` to show full traceback when REST API fails.
+
+**`fabrik-api` implication:** The spec compilation should warn if page content exceeds ~8KB. Split large pages into smaller chunks or use file-based content delivery.
+
+### 14. Cloudflare rate limiting in verify stage (Gap 23) — **DISCOVERED 2026-04-15**
+
+The verify stage checks 14 URLs with a 2-second delay between each check. Cloudflare's rate limiting triggers on the rapid succession of requests from the same IP, returning 429 Too Many Requests on later URLs (e.g., `/terms`).
+
+**Fix:** Increased delay between URL checks from 2 seconds to 5 seconds in `stages/verify.py`. This gives Cloudflare more time between requests and avoids triggering rate limits.
+
+**`fabrik-api` implication:** The verify stage should use exponential backoff instead of fixed delay. Start at 1s, double on each 429 response, max 30s. This adapts to Cloudflare's dynamic rate limits.
+
+### 15. SEO methods all implemented (Gap 1) — **CORRECTED 2026-04-15**
+
+Earlier plan document claimed `seo.py` had 5 missing methods. This was incorrect — all methods are implemented:
+- `configure_sitemap()` — line 281-298
+- `set_archives_noindex()` — line 300-329
+- `set_breadcrumbs()` — line 331-349
+- `set_open_graph()` — line 351-385
+- `set_robots_txt_ai_crawlers()` — line 387-422
+- `add_schema_markup()` — line 424-454 (injects LocalBusiness JSON-LD via RankMath)
+
+**`fabrik-api` implication:** None — SEO stage is fully functional.
+
 ---
 
-## Phase 4 — n8n Content Pipeline (Future, Not This Sprint)
+## Phase 4 — Zero-Touch Infrastructure Provisioning (moved)
+
+> **Moved to its own plan:** `docs/development/plans/2026-04-18-zero-touch-deployment.md`
+>
+> Reason: this plan (`fabrik-control-plane.md`) is scoped to the **conversational UI + `fabrik-api` bridge** that fronts the WordPress 12-stage pipeline (Phases 0–3 above). The zero-touch auto-deployment of generic projects (PostgreSQL + Gatus + Backrest + GlitchTip + Grafana + Authelia + MeiliSearch drivers, `fabrik apply <project>`) is a separate, larger deliverable that was temporarily consolidated here during a 2026-04-18 doc-reorg pass. Keeping the two concerns in one file blurred the scope and made the title misleading. The zero-touch plan has been restored to its own file.
+
+### What stays in THIS plan (Phases 0–3)
+
+- `fabrik-api` FastAPI bridge that wraps the **WordPress** 12-stage flow (`fabrik wp apply`)
+- Next.js `fabrik-control-plane` UI at `https://control.vps1.ocoron.com`
+- Kilo-AI conversational negotiation → JSON spec → "Approve & Deploy" → SSE live progress
+- The `FABRIK_EXEC_MODE` SSH-bypass switch and systemd deployment of `fabrik-api` on the VPS
+
+### What moved out to `2026-04-18-zero-touch-deployment.md`
+
+- Generic `fabrik apply <project>` orchestrator (non-WordPress projects)
+- Drivers: `ssh.py`, `postgres.py`, `gatus.py`, `backrest.py`, `meilisearch.py`, `glitchtip.py`, `grafana.py`, `authelia.py`, `compose_updater.py`
+- `InfrastructureProvisioner` orchestrator step 6a–6g
+- Backrest config structure, volume topology, Traefik-restart CSF
+- The 10 Critical Success Factors (§§1–6 original + §§7–10 added 2026-04-18 from `LESSONS_LEARNT.md §8.7–§8.11`)
+- Migration Velocity appendix and service-config audit
+
+### Cross-cutting invariants still enforced here
+
+The Key Invariants §7–§10 at the top of this document remain applicable to the control-plane UI project itself, because the control-plane-UI is a Coolify-managed app that:
+
+- Deploys behind Traefik → needs the full explicit label set (Invariant §7)
+- Is an admin dashboard with 2FA → needs Authelia policy rule **and** `authelia-forward@docker` middleware (Invariant §8)
+- Will likely be git-sourced on `build_pack=dockercompose` → compose updates must go via git push, not `docker_compose_raw` PATCH (Invariant §9)
+- Exposes `fabrik-api` Bearer-token endpoints on the same host → Authelia must bypass `^/api/` (Invariant §10)
+
+Phase 2 (the Next.js project) MUST follow all four when its own compose is authored.
+
+See `2026-04-18-zero-touch-deployment.md` for the full driver specs and acceptance criteria that implement these invariants across all project types.
+
+---
+
+## Phase 5 — n8n Content Pipeline (Future, Not This Sprint)
 
 Once `fabrik-api` and the control plane UI are running, the next natural extension is automated post-deploy content creation via n8n. This is the correct use case for n8n in this stack.
 

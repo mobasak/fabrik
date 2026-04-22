@@ -143,10 +143,45 @@ class SiteDeployer:
         """Get REST API client if credentials available."""
         if self._api is None:
             api_url = f"https://{self.domain}"
-            api_user = os.getenv("WP_ADMIN_USER", "admin")
             api_password = os.getenv("WP_ADMIN_PASSWORD", "")
 
             if api_password:
+                # Resolve admin user strictly from spec (security.admin_username) or
+                # WP_ADMIN_USER env var. No silent fallback to "admin": the REST
+                # password is provisioned for the spec user, and falling back to
+                # "admin" while keeping the spec-user's password guarantees 401s.
+                api_user = self.spec.get("security", {}).get("admin_username") or os.getenv(
+                    "WP_ADMIN_USER"
+                )
+                if not api_user:
+                    raise RuntimeError(
+                        "REST API auth misconfigured: set spec.security.admin_username "
+                        "or WP_ADMIN_USER env var. Refusing to fall back to 'admin' "
+                        "because WP_ADMIN_PASSWORD is provisioned for the spec user."
+                    )
+
+                # Best-effort existence check via WP-CLI. If the user is missing we
+                # fail loudly rather than silently swap to a different account that
+                # the password does not match.
+                if self.wp:
+                    try:
+                        existing_users = self.wp.run("user list --field=user_login")
+                        if api_user not in existing_users.split():
+                            raise RuntimeError(
+                                f"REST API user '{api_user}' not found in WordPress. "
+                                "Run the settings stage first (it creates the admin) "
+                                "or fix spec.security.admin_username."
+                            )
+                    except RuntimeError as exc:
+                        # Re-raise our own errors; only swallow WP-CLI transport errors
+                        if "REST API user" in str(exc):
+                            raise
+                        logger.warning(
+                            "WP-CLI user list failed (%s); proceeding with spec user '%s'",
+                            exc,
+                            api_user,
+                        )
+
                 creds = WPCredentials(url=api_url, username=api_user, password=api_password)
                 self._api = WordPressAPIClient(creds)
 

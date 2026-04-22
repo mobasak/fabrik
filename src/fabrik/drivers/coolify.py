@@ -5,11 +5,17 @@ Coolify API v4 documentation: https://coolify.io/docs/api-reference
 API Base: http://<ip>:8000/api/v1
 """
 
+import base64
+import json
+import logging
 import os
+import subprocess
 from dataclasses import dataclass
 from typing import Any, Literal
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -59,7 +65,11 @@ class CoolifyClient:
     """
 
     def __init__(
-        self, base_url: str | None = None, token: str | None = None, timeout: float = 60.0
+        self,
+        base_url: str | None = None,
+        token: str | None = None,
+        timeout: float = 60.0,
+        ssh_host: str = "vps",
     ):
         """
         Initialize Coolify client.
@@ -68,6 +78,7 @@ class CoolifyClient:
             base_url: Coolify API URL. Defaults to COOLIFY_API_URL env var
             token: API token. Defaults to COOLIFY_API_TOKEN env var
             timeout: Request timeout in seconds
+            ssh_host: SSH host alias for VPS (used when COOLIFY_INTERNAL_URL is set)
         """
         env_base_url = os.getenv("COOLIFY_API_URL")  # No default - must be configured
         self.base_url: str = base_url if base_url is not None else (env_base_url or "")
@@ -90,17 +101,70 @@ class CoolifyClient:
             self.base_url = f"{self.base_url.rstrip('/')}/api/v1"
 
         self.timeout = timeout
-        self._client = httpx.Client(
-            timeout=timeout,
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            },
+        self.ssh_host = ssh_host
+
+        # COOLIFY_INTERNAL_URL bypasses Traefik IP allowlist by calling
+        # directly through SSH to the container port (e.g. http://localhost:8002).
+        # Set this when running from WSL where the public URL is blocked by iptables.
+        self._internal_url: str | None = os.getenv("COOLIFY_INTERNAL_URL")
+        if self._internal_url:
+            self._internal_url = self._internal_url.rstrip("/")
+            logger.debug(
+                "Coolify client: using SSH proxy via %s → %s", ssh_host, self._internal_url
+            )
+
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        self._headers = headers
+        self._client = httpx.Client(timeout=timeout, headers=headers)
+
+    def _request_via_ssh(
+        self, method: str, url: str, body: dict | None = None, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Proxy an HTTP request through SSH to bypass Traefik IP allowlist."""
+        header_args = " ".join(f'-H "{k}: {v}"' for k, v in self._headers.items())
+        data_arg = ""
+        if body is not None:
+            escaped = json.dumps(body).replace("'", "'\\''")
+            data_arg = f"-d '{escaped}'"
+        # Append query params to URL if present
+        if params:
+            from urllib.parse import urlencode
+
+            query_string = urlencode(params)
+            url = f"{url}?{query_string}"
+        cmd = f"curl -s -X {method} {header_args} {data_arg} '{url}'"
+        result = subprocess.run(
+            ["ssh", self.ssh_host, cmd],
+            capture_output=True,
+            text=True,
+            timeout=int(self.timeout),
+            check=False,
         )
+        if result.returncode != 0:
+            msg = f"SSH proxy request failed: {result.stderr.strip()}"
+            raise RuntimeError(msg)
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            msg = f"SSH proxy returned non-JSON: {result.stdout[:200]}"
+            raise RuntimeError(msg) from exc
 
     def _request(self, method: str, endpoint: str, **kwargs) -> Any:
-        """Make HTTP request to Coolify API."""
+        """Make HTTP request to Coolify API.
+
+        When COOLIFY_INTERNAL_URL is set, proxies the call through SSH
+        to bypass Traefik IP allowlist restrictions (WSL → VPS pipeline use case).
+        """
+        if self._internal_url:
+            url = f"{self._internal_url}{endpoint}"
+            body = kwargs.get("json")
+            params = kwargs.get("params")
+            return self._request_via_ssh(method, url, body, params)
+
         url = f"{self.base_url}{endpoint}"
         response = self._client.request(method, url, **kwargs)
         response.raise_for_status()
@@ -184,12 +248,21 @@ class CoolifyClient:
 
     def list_applications(self) -> list[dict[str, Any]]:
         """
-        List all applications.
+        List all applications AND services.
+
+        Dockercompose deployments created via `/applications/dockercompose`
+        are stored under `/services`, not `/applications`. This method
+        merges both so `find_existing(name)` returns either resource type.
 
         Returns:
-            List of application dicts
+            List of application/service dicts (each with 'uuid' and 'name')
         """
-        return self._request("GET", "/applications")
+        apps = self._request("GET", "/applications") or []
+        try:
+            services = self._request("GET", "/services") or []
+        except httpx.HTTPStatusError:
+            services = []
+        return list(apps) + list(services)
 
     def get_application(self, uuid: str) -> dict[str, Any]:
         """Get application details by UUID."""
@@ -264,6 +337,7 @@ class CoolifyClient:
         description: str = "",
         instant_deploy: bool = True,
         destination_uuid: str | None = None,
+        fqdn: str | None = None,
     ) -> dict[str, Any]:
         """
         Create a Docker Compose application with inline YAML (no git required).
@@ -279,6 +353,7 @@ class CoolifyClient:
             description: Optional description
             instant_deploy: Deploy immediately after creation (default: True)
             destination_uuid: Optional destination UUID
+            fqdn: Optional fully-qualified domain name (e.g., https://example.com)
 
         Returns:
             Created application dict with uuid
@@ -286,11 +361,23 @@ class CoolifyClient:
         Raises:
             HTTPStatusError: 409 if app already exists (handle as idempotent)
         """
+        # Coolify API v4 requires base64-encoded docker_compose_raw
+        try:
+            docker_compose_b64 = base64.b64encode(docker_compose_raw.encode()).decode()
+            logger.info(
+                "Encoding docker_compose_raw (length=%d) to base64 (length=%d)",
+                len(docker_compose_raw),
+                len(docker_compose_b64),
+            )
+        except Exception as e:
+            logger.error("Base64 encoding failed: %s", e)
+            raise
+
         payload = {
             "project_uuid": project_uuid,
             "server_uuid": server_uuid,
             "environment_name": environment_name,
-            "docker_compose_raw": docker_compose_raw,
+            "docker_compose_raw": docker_compose_b64,
             "name": name,
             "instant_deploy": instant_deploy,
         }
@@ -299,23 +386,70 @@ class CoolifyClient:
             payload["description"] = description
         if destination_uuid:
             payload["destination_uuid"] = destination_uuid
+        # NOTE: `fqdn` is NOT accepted by Coolify on either the create
+        # endpoint (422) or on PATCH /services/{uuid} (422). The domain
+        # must be wired into the compose's Traefik labels (which Fabrik's
+        # template renderer already does). The ``fqdn`` argument below is
+        # intentionally ignored for that reason, kept only for API
+        # compatibility with callers written before this was understood.
+        del fqdn  # noqa: F821
 
         return self._request("POST", "/applications/dockercompose", json=payload)
 
+    def _resolve_resource_base(self, uuid: str) -> str:
+        """Resolve whether `uuid` is an application or a service.
+
+        Coolify's `POST /applications/dockercompose` creates a resource that
+        is actually addressable via `/services/{uuid}/*`, not
+        `/applications/{uuid}/*`. This helper probes both endpoints.
+
+        Returns:
+            "applications" or "services"
+        """
+        cache = getattr(self, "_resource_type_cache", None)
+        if cache is None:
+            cache = {}
+            self._resource_type_cache = cache
+        if uuid in cache:
+            return cache[uuid]
+
+        # Try /applications first
+        try:
+            self._request("GET", f"/applications/{uuid}")
+            cache[uuid] = "applications"
+            return "applications"
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code != 404:
+                raise
+        # Fall through to /services
+        try:
+            self._request("GET", f"/services/{uuid}")
+            cache[uuid] = "services"
+            return "services"
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                # Neither exists; default to applications so caller gets a clean 404
+                return "applications"
+            raise
+
     def update_application(self, uuid: str, **kwargs) -> dict[str, Any]:
         """
-        Update application settings.
+        Update application or service settings (auto-routes by UUID).
 
         Args:
-            uuid: Application UUID
+            uuid: Application/Service UUID
             **kwargs: Fields to update (name, fqdn, etc.)
         """
-        return self._request("PATCH", f"/applications/{uuid}", json=kwargs)
+        base = self._resolve_resource_base(uuid)
+        return self._request("PATCH", f"/{base}/{uuid}", json=kwargs)
 
     def delete_application(self, uuid: str, delete_volumes: bool = False) -> dict[str, Any]:
-        """Delete application."""
+        """Delete application or service (auto-routes by UUID)."""
         params = {"delete_volumes": str(delete_volumes).lower()}
-        return self._request("DELETE", f"/applications/{uuid}", params=params)
+        base = self._resolve_resource_base(uuid)
+        if base == "services":
+            params["delete_connected_networks"] = "true"
+        return self._request("DELETE", f"/{base}/{uuid}", params=params)
 
     # =========================================================================
     # Deployments
@@ -332,8 +466,8 @@ class CoolifyClient:
         Returns:
             Deployment info with deployment_uuid
         """
-        params = {"force": str(force).lower()} if force else {}
-        return self._request("POST", f"/applications/{uuid}/deploy", params=params)
+        params = {"uuid": uuid, "force": str(force).lower()} if force else {"uuid": uuid}
+        return self._request("GET", "/deploy", params=params)
 
     def get_deployments(self, uuid: str) -> list[dict[str, Any]]:
         """Get deployment history for application."""
@@ -398,17 +532,37 @@ class CoolifyClient:
 
     def bulk_update_env_vars(self, uuid: str, env_vars: dict[str, str]) -> dict[str, Any]:
         """
-        Bulk update environment variables.
+        Bulk update environment variables (auto-routes to applications or services).
+
+        Coolify v4 doesn't have a bulk endpoint - iterate and update each var individually.
+        POST creates new vars, PATCH updates existing ones.
 
         Args:
-            uuid: Application UUID
+            uuid: Application/Service UUID
             env_vars: Dict of key-value pairs
         """
-        return self._request(
-            "PATCH",
-            f"/applications/{uuid}/envs/bulk",
-            json={"data": [{"key": k, "value": v} for k, v in env_vars.items()]},
-        )
+        base = self._resolve_resource_base(uuid)
+        results = []
+        for key, value in env_vars.items():
+            try:
+                # Try POST first (create new)
+                self._request(
+                    "POST",
+                    f"/{base}/{uuid}/envs",
+                    json={"key": key, "value": value, "is_literal": True},
+                )
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 409:
+                    # Already exists, use PATCH to update
+                    self._request(
+                        "PATCH",
+                        f"/{base}/{uuid}/envs",
+                        json={"key": key, "value": value, "is_literal": True},
+                    )
+                else:
+                    raise
+            results.append({"key": key, "status": "updated"})
+        return {"updated": len(results)}
 
     # =========================================================================
     # Services (One-click services like databases)
@@ -455,6 +609,27 @@ class CoolifyClient:
                 "environment_variables": env_vars,
             },
         )
+
+    def update_service(self, uuid: str, **kwargs) -> dict[str, Any]:
+        """
+        Update arbitrary fields on a Coolify service (PATCH /services/{uuid}).
+
+        Mirrors :meth:`update_application` for services. Used by
+        :mod:`fabrik.drivers.compose_updater` to push a new compose YAML.
+
+        IMPORTANT: ``docker_compose_raw`` MUST be base64-encoded per Coolify
+        API contract (see ``docs/LESSONS_LEARNT.md §1``). The caller is
+        responsible for encoding; this method does NOT encode on your behalf
+        to keep the wire payload transparent and match ``update_application``.
+
+        Args:
+            uuid: Service UUID
+            **kwargs: Fields to update (e.g. ``docker_compose_raw=<base64>``)
+
+        Returns:
+            Coolify API response dict.
+        """
+        return self._request("PATCH", f"/services/{uuid}", json=kwargs)
 
     # =========================================================================
     # Databases

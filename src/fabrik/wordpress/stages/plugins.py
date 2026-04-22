@@ -50,6 +50,34 @@ def apply(
         raw_list: list[dict] = plugin_list_result if isinstance(plugin_list_result, list) else []
         installed: dict[str, str] = {entry["name"]: entry["status"] for entry in raw_list}
 
+        # --- Wordfence whitelist for VPS IP to prevent 429 in Verify stage ---
+        # Wordfence stores its config in its own DB table (not wp_options),
+        # accessible only via its PHP class wfConfig.  Use `wp eval` to call
+        # the native API so the value is written to the correct table.
+        if "wordfence" in installed and installed["wordfence"] == "active":
+            try:
+                vps_ip = spec.get("deployment", {}).get("vps_ip", "172.93.160.197")
+                php_code = (
+                    "if(class_exists('wfConfig')){"
+                    f"$ip='{vps_ip}';"
+                    "$cur=wfConfig::get('whitelistedIPs','');"
+                    "if(strpos($cur,$ip)===false){"
+                    '$new=$cur?$cur."\\n".$ip:$ip;'
+                    "wfConfig::set('whitelistedIPs',$new);"
+                    "echo 'added';"
+                    "}else{echo 'exists';}"
+                    "}else{echo 'no_wfConfig';}"
+                )
+                wf_result = wp.run(f"eval {json.dumps(php_code)}")
+                if "added" in wf_result:
+                    logger.info("VPS IP %s added to Wordfence whitelist via wfConfig API", vps_ip)
+                elif "exists" in wf_result:
+                    logger.info("VPS IP %s already in Wordfence whitelist", vps_ip)
+                else:
+                    logger.warning("Wordfence whitelist result: %s", wf_result)
+            except Exception as e:
+                logger.warning("Failed to whitelist VPS IP in Wordfence: %s", e)
+
         counts = {"installed": 0, "activated": 0, "skipped": 0, "failed": 0}
 
         for entry in manifest:

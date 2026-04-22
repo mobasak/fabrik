@@ -2,6 +2,14 @@ id: test-file-log
 kind: service
 template: file-api
 domain: test-file-log.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: true
+  needs_database: false
+  has_search_feature: false
 expose:
   http: true
   internal_only: false

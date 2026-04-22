@@ -522,7 +522,7 @@ APPRISE_STATELESS_URLS=tgram://BOTTOKEN/CHATID  # set in /opt/apprise/.env
 |------|-------|-------|
 | `01-deploy-notify.json` | `deploy.success` / `deploy.failure` from Fabrik | Webhook → Code → Apprise |
 | `02-content-notify.json` | `content.published` from Fabrik | Webhook → Code → Apprise |
-| `03-health-alert.json` | Uptime Kuma DOWN/UP | Webhook → Code → Apprise |
+| `03-health-alert.json` | Gatus DOWN/UP | Webhook → Code → Apprise |
 | `04-content-trigger.json` | Schedule every 6h | Schedule → HTTP → Apprise |
 
 ---

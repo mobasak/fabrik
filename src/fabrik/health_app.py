@@ -1,7 +1,7 @@
 """Minimal FastAPI app exposing dependency-aware health checks.
 
 The health endpoint exercises real dependencies (Coolify + DNS manager)
-so Coolify healthchecks and Uptime Kuma can detect upstream outages.
+so Coolify healthchecks and Gatus can detect upstream outages.
 """
 
 from __future__ import annotations

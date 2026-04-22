@@ -85,9 +85,59 @@ class PageCreator:
         Returns:
             CreatedPage if found, None otherwise
         """
+        # Guard: empty slug queries return ALL pages from WordPress REST API
+        # (the ?slug= parameter matches everything when empty).  For homepage
+        # pages the spec uses slug="" but WordPress auto-generates "home", so
+        # search for "home" instead.
+        if not slug:
+            # Try to find the actual page set as front page first
+            try:
+                front_page_id = self.wp.option_get("page_on_front")
+                if front_page_id and int(front_page_id) > 0:
+                    # Fetch this specific page details
+                    page_id = int(front_page_id)
+                    try:
+                        if self.api:
+                            page = self.api.get_page(page_id)
+                            return CreatedPage(
+                                id=page["id"],
+                                title=page.get("title", {}).get("rendered", ""),
+                                slug=page.get("slug", ""),
+                                url=page.get("link", ""),
+                                parent_id=page.get("parent"),
+                            )
+                    except Exception:
+                        pass
+
+                    # Fallback to WP-CLI to get details of this ID
+                    try:
+                        output = self.wp.run(
+                            f"post get {page_id} --format=json --fields=ID,post_title,post_name,guid,post_parent"
+                        )
+                        page = json.loads(output)
+                        return CreatedPage(
+                            id=int(page.get("ID", page_id)),
+                            title=page.get("post_title", ""),
+                            slug=page.get("post_name", ""),
+                            url=page.get("guid", ""),
+                            parent_id=int(page.get("post_parent", 0)) or None,
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # Fallback to searching for "home" slug
+            return self.find_page("home", parent_id)
+
+        # Try REST API first
         try:
-            # Query pages by slug
-            params: dict[str, str | int] = {"slug": slug, "status": "publish,draft"}
+            if not self.api:
+                return self.find_page_cli(slug, parent_id)
+
+            # Query pages by slug (WordPress REST API returns 400 with comma-separated status)
+            # Query without status filter and check results locally
+            params: dict[str, str | int] = {"slug": slug}
             if parent_id is not None:
                 params["parent"] = parent_id
 
@@ -105,7 +155,56 @@ class PageCreator:
 
             return None
         except Exception as exc:
-            logger.warning("find_page(%s, parent=%s) unexpected error: %s", slug, parent_id, exc)
+            logger.warning(
+                "find_page(%s, parent=%s) REST API error: %s, falling back to WP-CLI",
+                slug,
+                parent_id,
+                exc,
+            )
+            return self.find_page_cli(slug, parent_id)
+
+    def find_page_cli(self, slug: str, parent_id: int | None = None) -> CreatedPage | None:
+        """
+        Find existing page by slug using WP-CLI (fallback for REST API auth issues).
+
+        Args:
+            slug: Page slug
+            parent_id: Parent page ID (None for top-level)
+
+        Returns:
+            CreatedPage if found, None otherwise
+        """
+        try:
+            # Build WP-CLI command
+            cmd = [
+                "post",
+                "list",
+                "--post_type=page",
+                f"--name={slug}",
+                "--format=json",
+                "--fields=ID,post_title,post_name,guid",
+            ]
+
+            if parent_id is not None:
+                cmd.append(f"--post_parent={parent_id}")
+
+            result = self.wp.run(" ".join(shlex.quote(arg) for arg in cmd))
+
+            if result:
+                pages = json.loads(result)
+                if pages and len(pages) > 0:
+                    page = pages[0]
+                    return CreatedPage(
+                        id=int(page.get("ID", 0)),
+                        title=page.get("post_title", ""),
+                        slug=page.get("post_name", slug),
+                        url=page.get("guid", ""),
+                        parent_id=parent_id,
+                    )
+
+            return None
+        except Exception as exc:
+            logger.warning("find_page_cli(%s, parent=%s) error: %s", slug, parent_id, exc)
             return None
 
     def create_or_get_page(
@@ -169,34 +268,158 @@ class PageCreator:
         Returns:
             CreatedPage with details
         """
-        if not self.api:
-            raise ValueError("REST API client required for page creation")
+        # Try REST API first
+        try:
+            if not self.api:
+                raise ValueError("REST API client required for page creation")
 
-        # Create page
-        data: dict[str, str | int] = {
-            "title": title,
-            "content": content,
-            "status": status,
-        }
+            # Create page
+            data: dict[str, str | int] = {
+                "title": title,
+                "content": content,
+                "status": status,
+            }
 
-        if slug:
-            data["slug"] = slug
+            if slug:
+                data["slug"] = slug
 
-        if template:
-            data["template"] = template
+            if template:
+                data["template"] = template
 
-        if parent_id is not None:
-            data["parent"] = parent_id
+            if parent_id is not None:
+                data["parent"] = parent_id
 
-        result = self.api._request("POST", "/pages", json=data)
+            result = self.api._request("POST", "/pages", json=data)
 
-        return CreatedPage(
-            id=result["id"],
-            title=result.get("title", {}).get("rendered", title),
-            slug=result.get("slug", slug),
-            url=result.get("link", ""),
-            parent_id=parent_id,
-        )
+            return CreatedPage(
+                id=result["id"],
+                title=result.get("title", {}).get("rendered", title),
+                slug=result.get("slug", slug),
+                url=result.get("link", ""),
+                parent_id=parent_id,
+            )
+        except Exception as exc:
+            logger.error(
+                "create_page(%s) REST API error: %s, falling back to WP-CLI. "
+                "Title: %s, Slug: %s, Template: %s, Parent: %s",
+                title,
+                exc,
+                title,
+                slug,
+                template,
+                parent_id,
+                exc_info=True,
+            )
+            return self.create_page_cli(title, slug, content, status, template, parent_id)
+
+    def create_page_cli(
+        self,
+        title: str,
+        slug: str = "",
+        content: str = "",
+        status: str = "publish",
+        template: str = "",
+        parent_id: int | None = None,
+    ) -> CreatedPage:
+        """
+        Create a single page using WP-CLI (fallback for REST API auth issues).
+
+        Args:
+            title: Page title
+            slug: URL slug (empty for auto-generated)
+            content: Page content (HTML)
+            status: publish, draft, private
+            template: Page template filename
+            parent_id: Parent page ID for hierarchical pages
+
+        Returns:
+            CreatedPage with details
+        """
+        try:
+            # Build WP-CLI command - create page without content first
+            # to avoid shell argument length limits with large HTML
+            cmd = [
+                "post",
+                "create",
+                "--post_type=page",
+                f"--post_title={shlex.quote(title)}",
+                f"--post_status={status}",
+                "--porcelain",
+            ]
+
+            if slug:
+                cmd.append(f"--post_name={shlex.quote(slug)}")
+
+            if template:
+                cmd.append(f"--page_template={shlex.quote(template)}")
+
+            if parent_id is not None:
+                cmd.append(f"--post_parent={parent_id}")
+
+            result = self.wp.run(" ".join(cmd))
+
+            if result:
+                post_id = int(result.strip())
+
+                # Set content separately using post update to avoid shell limits
+                if content:
+                    # Write content to temporary file
+                    import os
+                    import subprocess
+                    import tempfile
+
+                    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+                        f.write(content)
+                        content_file = f.name
+
+                    try:
+                        # Copy temp file to VPS for remote execution
+                        vps_file = f"/tmp/wp_page_{post_id}.txt"
+                        subprocess.run(
+                            ["scp", content_file, f"vps:{vps_file}"],
+                            check=True,
+                            capture_output=True,
+                        )
+
+                        # Use post update with content from VPS file
+                        update_cmd = (
+                            f"post update {post_id} --post_content=< {shlex.quote(vps_file)}"
+                        )
+                        self.wp.run(update_cmd)
+                    finally:
+                        os.unlink(content_file)
+
+                # Get the created page details
+                list_cmd = [
+                    "post",
+                    "get",
+                    str(post_id),
+                    "--format=json",
+                    "--fields=ID,post_title,post_name,guid",
+                ]
+                page_data = self.wp.run(" ".join(shlex.quote(arg) for arg in list_cmd))
+                page = json.loads(page_data)
+
+                return CreatedPage(
+                    id=int(page.get("ID", post_id)),
+                    title=page.get("post_title", title),
+                    slug=page.get("post_name", slug),
+                    url=page.get("guid", ""),
+                    parent_id=parent_id,
+                )
+
+            raise RuntimeError("WP-CLI page creation returned no result")
+        except Exception as exc:
+            # If template is invalid, retry without template
+            if template and "Invalid page template" in str(exc):
+                logger.warning(
+                    "create_page_cli(%s) invalid template '%s', retrying without template",
+                    title,
+                    template,
+                )
+                return self.create_page_cli(title, slug, content, status, "", parent_id)
+            logger.warning("create_page_cli(%s) error: %s", title, exc)
+            raise
 
     def create_all(
         self,
@@ -247,8 +470,13 @@ class PageCreator:
                 parent_id=parent_id,
             )
 
-            # Store by full path
+            # Store by full path.  WordPress auto-generates slug "home" for
+            # pages created with an empty slug, so also store under "home"
+            # to let the homepage lookup in stages/pages.py find it via
+            # either key.
             created[path] = page
+            if not path and page.slug and page.slug != path:
+                created[page.slug] = page
 
             # Handle child pages
             children = page_spec.get("children", [])

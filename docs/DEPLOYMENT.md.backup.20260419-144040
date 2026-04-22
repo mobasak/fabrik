@@ -1,0 +1,601 @@
+# Deployment
+
+How Fabrik deploys applications to production.
+
+**Last Updated:** 2026-04-16
+
+## Architecture
+
+```text
+┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+│   Spec File     │ ──▶  │   Fabrik CLI    │ ──▶  │    Coolify      │
+│  (specs/*.yaml) │      │  plan → apply   │      │  Docker Compose │
+└─────────────────┘      └─────────────────┘      └─────────────────┘
+                                │
+                                ▼
+                         ┌─────────────────┐
+                         │   DNS Provider  │
+                         │ Namecheap/CF    │
+                         └─────────────────┘
+                                │
+                                ▼
+                         ┌─────────────────┐
+                         │  VPS Security   │
+                         │ 4-Layer Model  │
+                         └─────────────────┘
+                                │
+                ┌───────────────┼───────────────┐
+                ▼               ▼               ▼
+         ┌──────────┐    ┌──────────┐    ┌──────────┐
+         │ Traefik  │    │ Authelia │    │ Iptables │
+         └──────────┘    └──────────┘    └──────────┘
+```
+
+## VPS Infrastructure Settings
+
+### VPS Details
+- **Platform:** x86_64 (amd64) — AMD EPYC-Genoa, 6 vCPU, 12 GB RAM
+- **OS:** Ubuntu 24.04, timezone Europe/Istanbul (+03)
+- **Platform directive:** `platform: linux/amd64` (required for all Docker builds)
+
+### Traefik (Reverse Proxy)
+- **Provider:** Docker (labels on containers)
+- **EntryPoints:** web (80), websecure (443)
+- **CertResolver:** letsencrypt
+- **Network:** coolify
+- **Config:** Managed by Coolify automatically
+
+**Traefik Labels in compose.yaml:**
+```yaml
+labels:
+  - "traefik.enable=true"
+  - "traefik.docker.network=coolify"       # ← mandatory if service is on >1 Docker network (LESSONS_LEARNT §8.12)
+  - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"
+  - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
+  - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
+  - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=8000"
+networks:
+  coolify:              # ← mandatory — Traefik lives here; without it Traefik can't reach the backend
+    external: true
+services:
+  <svc>:
+    networks:
+      coolify: null     # ← attach the service to the shared network
+```
+
+**Why `traefik.docker.network=coolify` is mandatory:** Coolify auto-generates a per-service private network in addition to the shared `coolify` network. If the service has more than one network, Traefik **non-deterministically** picks one of the network IPs as the backend target. Without this label, a Traefik that is on `coolify` may target the service's private-network IP (unreachable from `coolify`), causing 20-second timeouts on every request. With the label, Traefik always targets the IP on the named network. See `docs/LESSONS_LEARNT.md §8.12` for the live incident and fix pattern.
+
+### Authelia (2FA for Admin Dashboards)
+- **URL:** `auth.vps1.ocoron.com`
+- **Purpose:** TOTP 2FA via Traefik forward-auth — **for services that lack native 2FA**
+- **Compose:** `/opt/authelia/compose.yaml`
+- **Config:** `/opt/authelia/config/configuration.yml` (Coolify-managed; edit via `docker cp`, NEVER re-source from disk)
+- **User:** ozgur (ob@ocoron.com)
+- **Redis:** `redis-main:6379` db 3
+
+**Authelia posture decision matrix** (from `docs/LESSONS_LEARNT.md §8.13` — captured live on 2026-04-18):
+
+| Service class | Authelia posture | Examples | Rationale |
+|---|---|---|---|
+| Native auth + TOTP | **Full bypass** — app-layer is the boundary | GlitchTip, Grafana, GitLab, Nextcloud | Forward-auth breaks SPA auth flows (django-allauth/React XHRs get 302'd to Authelia → SPA renders "500"). Sentry/GitLab upstream deployment pattern. |
+| Native auth, no TOTP | **Forward-auth required** | Backrest, n8n, Apprise | App auth alone is insufficient; Authelia provides the 2FA |
+| No native auth | **Forward-auth mandatory** | Netdata, bare admin panels | Only boundary available |
+| UI + Bearer-token API | **Forward-auth on UI, `^/api/` bypass** | Coolify, Grafana (future external API) | UI stays 2FA; machine callers use Bearer token |
+
+**Adding Authelia forward-auth to a new admin service** (only if it falls into rows 2 or 3 above):
+
+```yaml
+labels:
+  - "traefik.http.routers.my-admin.middlewares=authelia-forward@docker"
+```
+
+**Adding a new domain to Authelia's access_control:** Edit `/config/configuration.yml` inside the Authelia container (pull via `docker exec ... cat`, diff locally, `docker cp` back, `docker restart`). Add the rule **BEFORE** the catch-all `- domain: '*.vps1.ocoron.com'; policy: two_factor` — rules are first-match. Then verify BOTH:
+
+- `curl -sI https://<service>/` → `302` to auth.vps1.ocoron.com (UI gated) for forward-auth tier
+- `curl -sI -H "Authorization: Bearer $TOKEN" https://<service>/api/v1/something` → `2xx` from backend (API bypass works) for Bearer-API tier
+
+### Iptables (DOCKER-USER Chain)
+- **File:** `/etc/iptables/add-docker-user-rules.sh`
+- **Service:** systemd service for persistence
+- **Rules:** Only allows 80/443/6001/6002 externally
+- **Purpose:** Blocks direct access to raw container ports
+
+**WSL Access:** The Coolify API is blocked from WSL by iptables. Use SSH tunnel for CLI access:
+```bash
+# Set up SSH tunnel (run once per WSL session)
+ssh -f -N -L 8002:localhost:8000 vps
+
+# Update .env to use tunnel
+COOLIFY_API_URL=http://localhost:8002
+```
+
+### Observability Stack (7 services in `/opt/monitoring/compose.yaml`)
+
+**Services:** Loki, Promtail, Prometheus, Alertmanager, node-exporter, cAdvisor, Grafana
+
+**Notification chain:**
+```
+Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
+```
+
+> Alertmanager uses its native `telegram_configs` receiver. ARO Brain (LLM alert
+> triage) is planned but not yet developed; when it ships it will be added as a
+> primary receiver with `telegram` as the fallback. Apprise's stateless `/notify`
+> does NOT accept Alertmanager's webhook JSON schema and must not be used here.
+
+**9 alert rules** in `configs/prometheus/rules/alerts.yml`:
+ContainerDown, ContainerHighCPU, ContainerHighMemory, ContainerOOMKilled, ContainerRestarting, HostHighCPU, HostHighMemory, HostDiskFull, ServiceUnhealthy
+
+**Local config mirrors (Fabrik repo):**
+- `configs/alertmanager/alertmanager.yml`
+- `configs/prometheus/prometheus.yml`
+- `configs/prometheus/rules/alerts.yml`
+
+**Spec:** `specs/infrastructure/monitoring-stack.yaml`
+
+**Key files on VPS:**
+- `/opt/monitoring/compose.yaml` — the deployed compose
+- `/opt/monitoring/configs/alertmanager/alertmanager.yml`
+- `/opt/monitoring/configs/prometheus/rules/alerts.yml`
+- `/opt/monitoring/configs/prometheus/prometheus.yml`
+
+**Grafana password:** in `/opt/fabrik/.env` as `GRAFANA_ADMIN_PASSWORD`
+
+**Start/stop:** `ssh vps "sudo docker compose -f /opt/monitoring/compose.yaml up/down -d"`
+
+### 4-Layer Security Model
+
+| Layer | Target | Mechanism |
+|-------|--------|-----------|
+| **Iptables (DOCKER-USER)** | All Docker ports | `/etc/iptables/add-docker-user-rules.sh` + systemd service. Only 80/443/6001/6002 allowed externally. |
+| **Authelia** | Admin dashboards | `auth.vps1.ocoron.com` — TOTP 2FA via Traefik forward-auth. Compose: `/opt/authelia/compose.yaml`. Config: `/opt/authelia/config/configuration.yml`. User: ozgur (ob@ocoron.com). Redis: `redis-main:6379` db 3. |
+| **X-Internal-Token** | API services | `SERVICE_INTERNAL_SECRET_KEY` env var, validated via header. |
+| **Traefik** | Public sites | No auth for ocoron.com, status page, wp-test. |
+
+## VPS Deployment Requirements (Already Deployed)
+
+The following infrastructure is **already deployed and configured** on the VPS. No manual setup required for new deployments.
+
+### 1. Coolify (Already Running)
+- **URL:** `coolify.vps1.ocoron.com`
+- **API:** Accessible at `http://172.93.160.197:8000/api/v1`
+- **WSL Access:** Blocked by iptables - use SSH tunnel:
+  ```bash
+  ssh -f -N -L 8002:localhost:8000 vps
+  export COOLIFY_API_URL=http://localhost:8002
+  ```
+- **Fabrik Configuration:**
+  - `COOLIFY_API_TOKEN` in `/opt/fabrik/.env`
+  - `COOLIFY_API_URL` in `/opt/fabrik/.env` (use SSH tunnel from WSL)
+
+### 2. Docker (Already Running)
+- Docker daemon running
+- `coolify` Docker network exists (external network)
+- Platform: `linux/amd64` (all compose files must specify this)
+
+### 3. Traefik (Managed by Coolify, Already Configured)
+- EntryPoints: `web` (80), `websecure` (443)
+- CertResolver: `letsencrypt`
+- Network: `coolify`
+- Labels automatically applied by Coolify to route traffic
+- No manual Traefik configuration required
+
+### 4. Iptables DOCKER-USER Chain (Already Configured)
+- **File:** `/etc/iptables/add-docker-user-rules.sh`
+- **Service:** systemd service for persistence
+- **Rules:** Only allow 80/443/6001/6002 externally
+- **Purpose:** Blocks direct access to raw container ports
+- **Status:** Active and persistent
+
+### 5. Authelia (Already Deployed)
+- **URL:** `auth.vps1.ocoron.com`
+- **Compose:** `/opt/authelia/compose.yaml`
+- **Config:** `/opt/authelia/config/configuration.yml`
+- **User:** ozgur (ob@ocoron.com)
+- **Redis:** `redis-main:6379` db 3
+- **Status:** Deployed and functional
+- **For new admin services:** Add `authelia-forward@docker` middleware to Traefik labels
+
+### 6. DNS Configuration (Already Available)
+- **Site Provisioner Service:** `https://dns.vps1.ocoron.com`
+- **API Key:** `SITE_PROVISIONER_API_KEY` in `/opt/fabrik/.env`
+- **Fabrik Integration:** DNSClient in `src/fabrik/drivers/dns.py`
+- **Capabilities:** Automated DNS management via Namecheap/Cloudflare
+- **Status:** Deployed and functional
+- **For new deployments:** Ensure DNS A record points to VPS IP (172.93.160.197) before SSL will work
+
+### 7. SSL/TLS (Automatic via Traefik)
+- Let's Encrypt certificates issued automatically when:
+  - Domain DNS points to VPS IP
+  - Ports 80/443 are open
+  - Domain is configured in Coolify app
+- No manual certificate management required
+
+### 8. Network Requirements (Already Configured)
+- `coolify` Docker network exists
+- All services use this network
+- Internal service communication via service names (e.g., `redis-main:6379`)
+
+### 9. Environment Variables (Already Configured)
+- `COOLIFY_API_TOKEN` - API authentication
+- `COOLIFY_API_URL` - API endpoint (or SSH tunnel URL)
+- `SITE_PROVISIONER_API_KEY` - DNS management
+- `GRAFANA_ADMIN_PASSWORD` - Grafana access
+- Service-specific secrets in project `.env` files
+
+### 10. Database Services (Already Running)
+- **PostgreSQL 16:** `postgres-main` container
+- **Redis:** `redis-main` container
+- **Access:** Via service names on `coolify` network
+- **Status:** Running and accessible
+
+### 11. Observability Stack (Already Deployed)
+- **Compose:** `/opt/monitoring/compose.yaml`
+- **Services:** Loki, Promtail, Prometheus, Alertmanager, node-exporter, cAdvisor, Grafana
+- **Logs:** Aggregated via Loki
+- **Metrics:** Scraped by Prometheus
+- **Alerts:** Routed via Alertmanager
+- **Status:** Deployed and functional
+
+### 12. Port Allocation (Already Managed)
+- **Python APIs:** 8000-8099 (host ports)
+- **Node.js frontends:** 3000-3099 (host ports)
+- **Production services:** 18000+ (host ports)
+- **Registration:** Auto-managed via `scripts/sync_projects.py`
+- **Documentation:** `PORTS.md` (auto-generated)
+
+## What You Need to Do for New Deployments
+
+Since all infrastructure is already deployed, new deployments only require:
+
+### For Each New Service:
+
+1. **Add platform directive to compose file:**
+   ```yaml
+   services:
+     my-service:
+       platform: linux/amd64
+   ```
+
+2. **Ensure DNS points to VPS** (for public services):
+   - Use site-provisioner: `fabrik domain provision <domain>`
+   - Or manually configure A record to 172.93.160.197
+
+3. **Deploy via Fabrik:**
+   ```bash
+   fabrik apply specs/my-service.yaml
+   ```
+
+4. **Add Authelia middleware** (if admin dashboard):
+   ```yaml
+   labels:
+     - "traefik.http.routers.my-admin.middlewares=authelia-forward@docker"
+   ```
+
+5. **Port allocation** (auto-managed):
+   - Ports auto-allocated during scaffold
+   - Registered in PORTS.md via sync_projects.py
+
+### Environment Setup (One-Time):
+
+1. **Configure SSH tunnel** (for WSL access):
+   ```bash
+   ssh -f -N -L 8002:localhost:8000 vps
+   export COOLIFY_API_URL=http://localhost:8002
+   ```
+
+2. **Verify environment variables** in `/opt/fabrik/.env`:
+   - `COOLIFY_API_TOKEN`
+   - `COOLIFY_API_URL`
+   - `SITE_PROVISIONER_API_KEY`
+   - `GRAFANA_ADMIN_PASSWORD`
+
+That's it - all infrastructure is pre-deployed and configured.
+
+## Spec File Format
+
+### Python API
+
+```yaml
+# specs/my-api.yaml
+name: my-api
+type: python-api
+domain: api.example.com
+
+environment:
+  DATABASE_URL: ${DATABASE_URL:?}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+resources:
+  cpu: 1
+  memory: 512M
+
+healthcheck:
+  path: /health
+  interval: 30s
+```
+
+### WordPress Site
+
+```yaml
+# specs/my-site.yaml
+name: my-site
+type: wordpress
+domain: www.example.com
+
+wordpress:
+  title: "My Site"
+  admin_user: admin
+  admin_email: admin@example.com
+
+plugins:
+  - contact-form-7
+  - yoast-seo
+
+theme: flavor
+```
+
+## CLI Commands
+
+### Create New App
+
+```bash
+# From template
+fabrik new python-api my-api
+fabrik new wordpress my-site
+
+# Lists available templates
+fabrik templates
+```
+
+### Preview Changes
+
+```bash
+# Shows what will be created/modified
+fabrik plan my-api
+```
+
+Output:
+
+```text
+Plan: my-api
+──────────────────────────────
++ DNS: api.example.com → 172.93.160.197
++ Coolify: Create application "my-api"
++ Coolify: Deploy from template python-api
++ SSL: Request Let's Encrypt certificate
+
+Apply with: fabrik apply my-api
+```
+
+### Apply Changes
+
+```bash
+# Deploy/update
+fabrik apply my-api
+
+# Force redeploy
+fabrik apply my-api --force
+```
+
+### Redeploy Existing Applications
+
+```bash
+# Redeploy by app name or UUID
+fabrik redeploy site-provisioner
+fabrik redeploy qokoksogwsk0c04gcs4swwgs
+
+# Force rebuild
+fabrik redeploy site-provisioner --force
+```
+
+**WSL Access:** The Coolify API is blocked from WSL by iptables. Use SSH tunnel for CLI access:
+
+```bash
+# Set up SSH tunnel (run once per WSL session)
+ssh -f -N -L 8002:localhost:8000 vps
+
+# Update .env to use tunnel
+COOLIFY_API_URL=http://localhost:8002
+```
+
+### Status & Logs
+
+```bash
+# Check status
+fabrik status my-api
+
+# View logs
+fabrik logs my-api
+fabrik logs my-api --follow
+```
+
+## Ports
+
+Fabrik assigns ports automatically. Check `/opt/fabrik/PORTS.md` for allocations.
+
+| Range | Purpose |
+|-------|---------|
+| 8000-8099 | Python APIs |
+| 8100-8199 | Workers |
+| 3000-3099 | Frontend apps |
+
+## Backups
+
+Database backups are configured via Coolify:
+
+- Schedule: Daily at 2 AM
+- Retention: 7 days
+- Destination: Backblaze B2
+
+```bash
+# Manual backup
+fabrik backup my-api
+
+# List backups
+fabrik backups my-api
+
+# Restore
+fabrik restore my-api --backup 2024-12-21
+```
+
+## Secrets Management
+
+**Fabrik automatically loads secrets from project `.env` files during deployment.**
+
+### How It Works
+
+1. **Scaffold auto-detection:** When you run `fabrik scaffold`, it reads `.env.example` and auto-detects secret env vars (those matching patterns like `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIALS`). These are added to the spec's `from_env` field.
+
+2. **Project .env file:** During development, set your actual secrets in the project's `.env` file at `/opt/{project}/.env`.
+
+3. **Automatic loading:** When you run `fabrik apply`, it automatically reads from the project's `.env` file before checking system environment variables.
+
+### Secret Loading Precedence
+
+```
+1. Command-line -s flags (highest)
+2. Project .env file
+3. Environment variables (lowest)
+```
+
+### Example Workflow
+
+```bash
+# 1. Scaffold project (spec auto-generated with from_env secrets)
+fabrik scaffold my-api --type python-api
+
+# 2. Set secrets in project .env file
+# /opt/my-api/.env
+API_KEY=your_actual_key
+DATABASE_PASSWORD=your_actual_password
+
+# 3. Deploy - secrets auto-loaded from .env file
+fabrik apply /opt/fabrik/specs/services/my-api.yaml
+```
+
+**No manual environment variable setting needed.** Just set secrets in the project's `.env` file.
+
+### Spec Format for Secrets
+
+```yaml
+# specs/my-api.yaml
+secrets:
+  required: []  # Empty when from_env is used
+  generate: []
+  from_env:
+    - API_KEY
+    - DATABASE_PASSWORD
+    - SECRET_TOKEN
+  from_file:
+    GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON: /tmp/my-api-creds.json
+```
+
+### Manual Override
+
+If you need to override .env values for a specific deployment:
+
+```bash
+fabrik apply my-api -s API_KEY=override_value -s DATABASE_PASSWORD=override_password
+```
+
+---
+
+## SSL/HTTPS
+
+Coolify handles SSL via Let's Encrypt automatically when:
+
+1. Domain DNS points to VPS IP
+2. Ports 80/443 are open
+3. Domain is configured in spec
+
+### DNS Integration
+
+Fabrik uses **dns-manager** service for automated domain management (supports both Namecheap and Cloudflare):
+
+- **Service:** dns-manager (runs in WSL + VPS)
+- **Service URL:** `https://dns.vps1.ocoron.com`
+- **Supported providers:** Namecheap, Cloudflare
+- **Auto-configured:** DNS A records are created automatically when deploying with a domain in the spec
+
+**Required env vars:**
+- DNS Manager: `DNS_MANAGER_URL` (service-based, handles Namecheap + Cloudflare)
+- Or direct Cloudflare: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`
+
+No manual DNS configuration needed - dns-manager handles record creation for both providers.
+
+No manual certificate management needed.
+
+---
+
+## Build & Deploy Strategy
+
+### Option 1: Coolify Builds from GitHub (Current)
+
+Coolify pulls repo and builds Docker image using Dockerfile or Docker Compose build pack.
+
+```
+GitHub Push → Coolify Pull → Build on VPS → Deploy
+```
+
+**Pros:**
+- No registry needed
+- Source-of-truth stays in GitHub
+- Simple setup
+
+**Cons:**
+- Builds happen on VPS (slower for heavy images)
+- VPS must have enough resources for builds
+
+**Use when:** Standard services, early stage, non-ML workloads.
+
+### Option 2: GHCR Registry (Future - ML/Heavy Builds)
+
+GitHub Actions builds image, pushes to GHCR, Coolify pulls pre-built image.
+
+```
+GitHub Push → Actions Build → GHCR Push → Coolify Pull → Deploy
+```
+
+**Pros:**
+- Faster deploys (no build on VPS)
+- Repeatable builds
+- Easy rollbacks via image tags
+
+**Cons:**
+- More complex setup
+- Need multi-arch builds for amd64
+
+**Use when:** ML models, large dependencies, need quick rollbacks.
+
+### Architecture Consideration
+
+**VPS is x86_64 (amd64).** When using Option 2 (GHCR), builds need:
+
+```yaml
+# .github/workflows/build.yaml
+- name: Build and push
+  uses: docker/build-push-action@v5
+  with:
+    platforms: linux/amd64
+    push: true
+    tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+```
+
+### Decision Matrix
+
+| Factor | Option 1 (Coolify Build) | Option 2 (GHCR) |
+|--------|--------------------------|-----------------|
+| Setup complexity | Low | Medium |
+| Build time | On VPS | On GitHub runners |
+| Best for | Standard apps | ML, heavy deps |
+| Rollback | Redeploy from Git | Pull previous tag |
+
+### Current Fabrik Default
+
+All services use **Option 1** until a specific project needs Option 2.
+
+Criteria to switch:
+- Build takes >10 minutes on VPS
+- Image size >2GB
+- Need instant rollbacks

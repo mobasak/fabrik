@@ -19,9 +19,11 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture()
 def scaffold_pair(tmp_path):
     """Scaffold one guide-enabled project and one non-guide project."""
+    # static-site is guide-enabled per GUIDE_ENABLED_TYPES
+    # (saas-skeleton was removed in commit f557c35, 2026-04-15)
     create_project(
         name="guide-proj",
-        project_type="saas-skeleton",
+        project_type="static-site",
         description="Guide-enabled project",
         base=tmp_path,
     )

@@ -1,7 +1,78 @@
 # Scaffold → Deploy Integration Analysis
 
-**Date:** 2026-04-10
+**Date:** 2026-04-16
 **Purpose:** Gap analysis and recommendations for AI agents creating deploy-ready projects
+
+---
+
+## VPS Infrastructure (Current State)
+
+### VPS Details
+- **Platform:** x86_64 (amd64) — AMD EPYC-Genoa, 6 vCPU, 12 GB RAM
+- **OS:** Ubuntu 24.04, timezone Europe/Istanbul (+03)
+- **Platform directive:** `platform: linux/amd64` (required for all Docker builds)
+
+### Infrastructure Services — Running (Verified 2026-04-14)
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| Coolify | coolify.vps1.ocoron.com | Deployment control plane |
+| PostgreSQL 16 | (internal) | postgres-main container |
+| Redis | (internal) | redis-main container |
+| Traefik | (internal) | Reverse proxy managed by Coolify |
+| Gatus | status.vps1.ocoron.com | |
+| Netdata | netdata.vps1.ocoron.com | Real-time metrics |
+| Duplicati | backup.vps1.ocoron.com | Backblaze B2 backups |
+| n8n | auto.vps1.ocoron.com | Workflow automation |
+| Apprise | notify.vps1.ocoron.com | Multi-channel notifications |
+| Grafana | monitor.vps1.ocoron.com | Dashboards — deployed 2026-04-13 |
+| Prometheus | (internal :9090) | Metrics — deployed 2026-04-13 |
+| Loki | (internal :3100) | Logs — deployed 2026-04-13 |
+| Promtail | (internal) | Log shipper — deployed 2026-04-13 |
+| cAdvisor | (internal :8080) | Container metrics — deployed 2026-04-13 |
+| node-exporter | (internal :9100) | Host metrics — deployed 2026-04-13 |
+
+### 4-Layer Security Model (Deployed 2026-04-14)
+
+| Layer | Target | Mechanism |
+|-------|--------|-----------|
+| **Iptables (DOCKER-USER)** | All Docker ports | `/etc/iptables/add-docker-user-rules.sh` + systemd service. Only 80/443/6001/6002 allowed externally. |
+| **Authelia** | Admin dashboards | `auth.vps1.ocoron.com` — TOTP 2FA via Traefik forward-auth. Compose: `/opt/authelia/compose.yaml`. Config: `/opt/authelia/config/configuration.yml`. User: ozgur (ob@ocoron.com). Redis: `redis-main:6379` db 3. |
+| **X-Internal-Token** | API services | `SERVICE_INTERNAL_SECRET_KEY` env var, validated via header. |
+| **Traefik** | Public sites | No auth for ocoron.com, status page, wp-test. |
+
+### Observability Stack (7 services in `/opt/monitoring/compose.yaml`)
+
+**Services:** Loki, Promtail, Prometheus, Alertmanager, node-exporter, cAdvisor, Grafana
+
+**Notification chain:**
+```
+Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
+```
+
+> ARO Brain (LLM alert triage) is planned; when it ships it will be added as a
+> primary receiver with `telegram` as the fallback. Apprise's `/notify` endpoint
+> does NOT accept Alertmanager's webhook schema — do not route AM through Apprise.
+
+**9 alert rules** in `configs/prometheus/rules/alerts.yml`:
+ContainerDown, ContainerHighCPU, ContainerHighMemory, ContainerOOMKilled, ContainerRestarting, HostHighCPU, HostHighMemory, HostDiskFull, ServiceUnhealthy
+
+**Local config mirrors (Fabrik repo):**
+- `configs/alertmanager/alertmanager.yml`
+- `configs/prometheus/prometheus.yml`
+- `configs/prometheus/rules/alerts.yml`
+
+**Spec:** `specs/infrastructure/monitoring-stack.yaml`
+
+**Key files on VPS:**
+- `/opt/monitoring/compose.yaml` — the deployed compose
+- `/opt/monitoring/configs/alertmanager/alertmanager.yml`
+- `/opt/monitoring/configs/prometheus/rules/alerts.yml`
+- `/opt/monitoring/configs/prometheus/prometheus.yml`
+
+**Grafana password:** in `/opt/fabrik/.env` as `GRAFANA_ADMIN_PASSWORD`
+
+**Start/stop:** `ssh vps "sudo docker compose -f /opt/monitoring/compose.yaml up/down -d"`
 
 ---
 
@@ -140,6 +211,29 @@ health:
 
 ```bash
 fabrik apply specs/services/my-api.yaml -s DATABASE_PASSWORD=xxx -s API_KEY=yyy
+```
+
+### Step 4: Redeploy (Optional)
+
+After deployment, you can redeploy existing applications without modifying the spec:
+
+```bash
+# Redeploy by app name or UUID
+fabrik redeploy my-api
+fabrik redeploy qokoksogwsk0c04gcs4swwgs
+
+# Force rebuild
+fabrik redeploy my-api --force
+```
+
+**WSL Access:** The Coolify API is blocked from WSL by iptables. Use SSH tunnel for CLI access:
+
+```bash
+# Set up SSH tunnel (run once per WSL session)
+ssh -f -N -L 8002:localhost:8000 vps
+
+# Update .env to use tunnel
+COOLIFY_API_URL=http://localhost:8002
 ```
 
 ---

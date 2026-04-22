@@ -16,7 +16,7 @@
 | **Grafana** | Visualization layer | Connects to Prometheus (and other sources including Netdata) and builds custom dashboards, alerts, and graphs. Best for "show me trends over the last 30 days." |
 | **Loki** | Log aggregator | Collects logs from all containers/services into one searchable place. Prometheus but for logs instead of metrics. |
 | **Promtail** | Log shipper | Reads Docker container logs and sends them to Loki. |
-| **Uptime Kuma** | Uptime monitoring | External availability checks, status page, alerting. |
+| **Gatus** | Uptime monitoring | External availability checks, status page, alerting. |
 
 ### Current Stack (Single VPS)
 
@@ -26,7 +26,7 @@ The full observability stack is deployed and operational. Netdata provides real-
 
 | Service | URL | Status |
 |---------|-----|--------|
-| Uptime Kuma | status.vps1.ocoron.com | ✅ Running |
+| Gatus | status.vps1.ocoron.com | ✅ Running |
 | Netdata | netdata.vps1.ocoron.com | ✅ Running |
 | Grafana | monitor.vps1.ocoron.com | ✅ Running |
 | Prometheus | (internal :9090) | ✅ Running |
@@ -42,9 +42,16 @@ The full observability stack is deployed and operational. Netdata provides real-
 ### Notification Chain
 
 ```
-Prometheus (rules) → Alertmanager → ARO Brain webhook (http://aro-brain:8017/api/alerts)
-                                  └→ Apprise fallback  (http://apprise:8000/notify)
+Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
 ```
+
+> **Why not Apprise?** Apprise's stateless `/notify` endpoint expects `{body,title,type}`
+> JSON and returns HTTP 400 on Alertmanager's native webhook schema. Alertmanager →
+> Apprise is not a valid chain. Gatus → Apprise still works because Gatus posts the
+> Apprise-compatible shape.
+>
+> **ARO Brain (planned):** LLM-based alert triage. When deployed, add as a primary
+> receiver routed before `telegram`, with `telegram` as the fallback.
 
 ### Prometheus Alert Rules (9 total)
 

@@ -52,7 +52,7 @@ def _split_domain_for_dns(domain: str) -> tuple[str, str] | None:
     return subdomain, base_domain
 
 
-@cli.command()
+@cli.command(hidden=True)
 @click.argument("name")
 @click.option("--template", "-t", required=True, help="Template to use (e.g., python-api)")
 @click.option("--domain", "-d", help="Domain for the service")
@@ -65,11 +65,32 @@ def _split_domain_for_dns(domain: str) -> tuple[str, str] | None:
     help="Path to scaffolded project to extract env/secrets from",
 )
 def new(name: str, template: str, domain: str | None, output: str, from_project: str | None):
-    """Create a new spec from a template.
+    """[DEPRECATED — use ``fabrik scaffold``] Create a spec from a template.
 
-    Example:
+    Phase 4k (2026-04-19) made ``fabrik scaffold`` the canonical project-creation
+    entry point. ``fabrik scaffold`` creates the full project tree AND emits a
+    spec with a populated ``shape:`` block in one step. This command (``fabrik new``)
+    only produces a spec file, predates the ``shape:`` schema, and is scheduled
+    for removal in the release after next.
+
+    Hidden from ``fabrik --help`` via ``hidden=True``; direct invocation still
+    works but prints a deprecation warning.
+
+    Example (deprecated — DO NOT USE):
         fabrik new my-api --template python-api --domain api.example.com
+
+    Example (use this instead):
+        fabrik scaffold my-api --type python-api -d "my api description"
     """
+    # Deprecation warning on every invocation. Stderr so it doesn't corrupt
+    # stdout parsing if the command is being scripted.
+    click.echo(
+        "⚠️  DEPRECATED: `fabrik new` will be removed in the release after next. "
+        "Use `fabrik scaffold` instead — it creates the project tree AND emits a "
+        "spec with a populated `shape:` block in one step. "
+        "See `fabrik scaffold --help`.",
+        err=True,
+    )
     # Validate template exists
     available = list_templates()
     if template not in available:
@@ -216,7 +237,7 @@ def plan(spec_path: str, secrets: tuple):
     if spec.domain:
         click.echo(f"   2. Create DNS record: {spec.domain}")
     click.echo("   3. Deploy to Coolify")
-    click.echo("   4. Add Uptime Kuma monitor")
+    click.echo("   4. Add Gatus monitor")
     click.echo()
 
     click.echo("=" * 60)
@@ -232,6 +253,7 @@ def plan(spec_path: str, secrets: tuple):
 @click.option("--skip-deploy", is_flag=True, help="Skip Coolify deployment (files only)")
 @click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
 @click.option("--use-orchestrator", is_flag=True, help="Use new orchestrator pipeline")
+@click.option("--skip-health-check", is_flag=True, help="Skip health check verification")
 def apply(
     spec_path: str,
     secrets: tuple,
@@ -240,6 +262,7 @@ def apply(
     skip_deploy: bool,
     dry_run: bool,
     use_orchestrator: bool,
+    skip_health_check: bool,
 ):
     """Deploy a service from spec.
 
@@ -263,7 +286,9 @@ def apply(
             for key, value in secrets_dict.items():
                 os.environ[key] = value
         orchestrator = DeploymentOrchestrator()
-        ctx = orchestrator.deploy(Path(spec_path), dry_run=dry_run)
+        ctx = orchestrator.deploy(
+            Path(spec_path), dry_run=dry_run, skip_health_check=skip_health_check
+        )
 
         if ctx.state == DeploymentState.COMPLETE:
             click.echo(f"✅ Deployment complete: {ctx.deployed_url or ctx.spec.get('domain')}")
@@ -676,6 +701,41 @@ def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
     click.echo("=" * 60)
     click.echo(f"✅ Destroyed: {spec.id}")
     click.echo("=" * 60)
+
+
+@cli.command()
+@click.argument("app")
+@click.option("--force", "-f", is_flag=True, help="Force rebuild")
+def redeploy(app: str, force: bool):
+    """Redeploy a Coolify application by name or UUID.
+
+    Example:
+        fabrik redeploy site-provisioner
+        fabrik redeploy qokoksogwsk0c04gcs4swwgs
+    """
+    from fabrik.drivers.coolify import CoolifyClient
+
+    try:
+        coolify = CoolifyClient()
+        click.echo(f"🔄 Redeploying: {app}...")
+
+        # Check if app is a UUID or name
+        apps = coolify.list_applications()
+        target = next((a for a in apps if a.get("uuid") == app or a.get("name") == app), None)
+
+        if not target:
+            click.echo(f"✗ Application not found: {app}", err=True)
+            click.echo("Available apps:")
+            for a in apps:
+                click.echo(f"  - {a.get('name')} ({a.get('uuid')})")
+            raise SystemExit(1)
+
+        result = coolify.deploy(target["uuid"], force=force)
+        click.echo(f"✅ Redeployed: {target['name']} ({target['uuid']})")
+        click.echo(f"   Status: {result}")
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
+        raise SystemExit(1)
 
 
 @cli.command()
@@ -1291,6 +1351,38 @@ def wp_verify(domain: str):
     except Exception as e:
         click.echo(f"❌ Verification error: {e}", err=True)
         raise SystemExit(1)
+
+
+@wp.command("flush")
+@click.argument("domain")
+@click.option("--ssh-host", default="vps", help="SSH alias for VPS (default: vps)")
+def wp_flush(domain: str, ssh_host: str):
+    """Atomically invalidate every cache layer for DOMAIN.
+
+    Clears Cloudflare edge cache, nginx FastCGI cache, Redis object cache,
+    and WordPress rewrite rules in one operation. Use after manual content
+    changes or when recovering from a deploy that left stale content live.
+
+    Example:
+        fabrik wp flush ocoron.com
+    """
+    from fabrik.wordpress.cache import flush_all
+
+    click.echo(f"🔄 Flushing all caches for {domain}...")
+    result = flush_all(domain, ssh_host=ssh_host)
+
+    click.echo(f"  Cloudflare : {result.cloudflare}")
+    click.echo(f"  Nginx      : {result.nginx}")
+    click.echo(f"  Redis      : {result.redis}")
+    click.echo(f"  WordPress  : {result.wordpress}")
+
+    if result.ok:
+        click.echo("✅ All layers flushed")
+        raise SystemExit(0)
+    click.echo(f"❌ {len(result.errors)} layer(s) failed:", err=True)
+    for err in result.errors:
+        click.echo(f"    - {err}", err=True)
+    raise SystemExit(1)
 
 
 @cli.group()

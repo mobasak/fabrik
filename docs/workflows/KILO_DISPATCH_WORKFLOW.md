@@ -1,6 +1,7 @@
 # Kilo Dispatch Workflow
 
 **Last Updated:** 2026-04-03
+**Script:** `scripts/kilo_dispatch.py`
 
 > Dispatch tasks from Windsurf Cascade to Kilo CLI agents. This is the reference doc for `scripts/kilo_dispatch.py` and the `/kilo` Windsurf workflow.
 

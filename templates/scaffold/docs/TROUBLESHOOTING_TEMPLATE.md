@@ -2,6 +2,8 @@
 
 **Last Updated:** YYYY-MM-DD
 
+> **Purpose:** COMMON ISSUES AND FIXES.
+
 ---
 
 ## Quick Diagnostics

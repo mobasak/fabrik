@@ -16,6 +16,21 @@ from fabrik.wordpress.stages import StageResult, time_stage
 
 logger = logging.getLogger(__name__)
 
+# Identify verify-stage requests to Wordfence and other security plugins
+# so they are not classified as bot traffic.
+_VERIFY_HEADERS = {
+    "User-Agent": "Fabrik-Deploy/1.0 (site verification; +https://fabrik.dev)",
+    # Signals nginx FastCGI cache to bypass (see templates/wordpress/base/nginx/default.conf.j2).
+    # Guarantees verify checks hit PHP and see post-deploy content, not cached stale pages.
+    "X-Fabrik-Deploy": "verify",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+}
+
+# Retry parameters for transient errors (429 rate-limiting, 503, etc.)
+_MAX_RETRIES = 3
+_RETRY_BACKOFF_BASE = 3  # seconds; doubles each retry
+
 
 def _run_baseline_checks(
     domain: str,
@@ -95,7 +110,7 @@ def _run_baseline_checks(
         )
 
     # --- Checks 4-8: reuse a single httpx.Client ---
-    with httpx.Client(timeout=15, follow_redirects=True) as client:
+    with httpx.Client(timeout=15, follow_redirects=True, headers=_VERIFY_HEADERS) as client:
         # --- Check 4: Homepage 200 ---
         try:
             resp = client.get(f"https://{domain}/")
@@ -268,32 +283,67 @@ def apply(
                 full_url = url if url.startswith("http") else f"https://{domain}{url}"
                 checks.append({"url": full_url, "status": expected_status, "passed": True})
         else:
-            # Perform actual HTTP checks
-            with httpx.Client(timeout=15, follow_redirects=True) as client:
-                for entry in urls:
+            # Perform actual HTTP checks with retry for transient errors (429, 503)
+            with httpx.Client(timeout=15, follow_redirects=True, headers=_VERIFY_HEADERS) as client:
+                for i, entry in enumerate(urls):
+                    # Add delay between checks to avoid triggering rate limits
+                    if i > 0:
+                        time.sleep(5)
+
                     url = entry.get("url", "")
                     expected_status = entry.get("expected_status", 200)
 
                     # Prepend domain if relative
                     full_url = url if url.startswith("http") else f"https://{domain}{url}"
 
-                    try:
-                        response = client.get(full_url)
-                        status = response.status_code
+                    status = None
+                    last_error = None
+                    for attempt in range(_MAX_RETRIES):
+                        try:
+                            response = client.get(full_url)
+                            status = response.status_code
+
+                            # Retry on rate-limiting or temporary server errors
+                            if status in (429, 503) and attempt < _MAX_RETRIES - 1:
+                                wait = _RETRY_BACKOFF_BASE * (2**attempt)
+                                logger.info(
+                                    "URL %s returned %d, retrying in %ds (attempt %d/%d)",
+                                    full_url,
+                                    status,
+                                    wait,
+                                    attempt + 1,
+                                    _MAX_RETRIES,
+                                )
+                                time.sleep(wait)
+                                continue
+
+                            # Final status (either success or non-retryable error)
+                            break
+
+                        except httpx.RequestError as e:
+                            last_error = str(e)
+                            if attempt < _MAX_RETRIES - 1:
+                                time.sleep(_RETRY_BACKOFF_BASE * (2**attempt))
+                                continue
+                            break
+
+                    if status is not None:
                         passed = status == expected_status
-
                         checks.append({"url": full_url, "status": status, "passed": passed})
-
                         if not passed:
                             result.errors.append(
                                 f"{full_url}: expected {expected_status}, got {status}"
                             )
-
-                    except httpx.RequestError as e:
+                    else:
                         checks.append(
-                            {"url": full_url, "status": None, "passed": False, "error": str(e)}
+                            {
+                                "url": full_url,
+                                "status": None,
+                                "passed": False,
+                                "error": last_error,
+                            }
                         )
-                        result.errors.append(f"{full_url}: {str(e)}")
+                        result.errors.append(f"{full_url}: {last_error}")
 
         # Determine result from URL checks first
         url_checks_passed = all(c.get("passed", False) for c in checks)

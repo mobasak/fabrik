@@ -40,8 +40,52 @@ _NODE_TYPES: frozenset[str] = frozenset(
     }
 )
 
-_STATIC_TYPES: frozenset[str] = frozenset({"docusaurus"})
+_STATIC_TYPES: frozenset[str] = frozenset({"docusaurus", "static-site"})
 _ELECTRON_TYPES: frozenset[str] = frozenset({"desktop-app"})
+
+# Types that don't produce a container image at the project root:
+#  - docusaurus / static-site → static files (Netlify / Vercel / S3)
+#  - mobile-app / desktop-app → binaries (app stores / distributable installers)
+#  - chrome-extension → browser packaging (CRX / web store)
+#  - wordpress → uses compose.yaml(.j2) with multi-stage php-fpm/ + nginx/ Dockerfiles,
+#    never a root-level Dockerfile
+_NO_DOCKERFILE_TYPES: frozenset[str] = frozenset(
+    {
+        "docusaurus",
+        "static-site",
+        "mobile-app",
+        "desktop-app",
+        "chrome-extension",
+        "wordpress",
+    }
+)
+
+# Types whose application code does NOT live under src/ (different layout):
+#  - saas-skeleton → Next.js app-router layout uses app/ + components/ + lib/
+#  - chrome-extension → manifest.json + content/background scripts at root or in scripts/
+#  - wordpress → wp-content/ + plugins/ + themes/ (no src/)
+# static-site / docusaurus are already short-circuited as _STATIC_TYPES above.
+_NO_SRC_LAYOUT_TYPES: frozenset[str] = frozenset(
+    {
+        "saas-skeleton",
+        "chrome-extension",
+        "wordpress",
+    }
+)
+
+# Types that legitimately do NOT serve an HTTP /health endpoint:
+#  - file-worker → background worker (processes tasks, uses worker/ dir, no HTTP server)
+#  - mobile-app → native mobile app, no server
+#  - desktop-app → electron/native desktop app, no HTTP server by default
+# For these, operators monitor liveness via the process manager (Coolify container
+# restart policy / watchdog scripts) rather than an HTTP route.
+_NO_HTTP_HEALTH_TYPES: frozenset[str] = frozenset(
+    {
+        "file-worker",
+        "mobile-app",
+        "desktop-app",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Private check functions
@@ -80,8 +124,20 @@ def _check_env_example(project_path: Path) -> ValidationResult:
     )
 
 
-def _check_dockerfile(project_path: Path) -> ValidationResult:
-    """Check whether a Dockerfile is present in the project root."""
+def _check_dockerfile(project_path: Path, project_type: str) -> ValidationResult:
+    """Check whether a Dockerfile is present in the project root.
+
+    Some project types legitimately don't produce a root-level Dockerfile —
+    see ``_NO_DOCKERFILE_TYPES`` for the rationale per type. Returning
+    ``passed=True`` with an explanatory message avoids alarming the operator
+    after a clean scaffold.
+    """
+    if project_type in _NO_DOCKERFILE_TYPES:
+        return ValidationResult(
+            check="dockerfile",
+            passed=True,
+            message=f"N/A for {project_type} (no root Dockerfile expected)",
+        )
     if (project_path / "Dockerfile").exists():
         return ValidationResult(
             check="dockerfile",
@@ -102,6 +158,32 @@ def _check_health_endpoint(project_path: Path, project_type: str) -> ValidationR
             check="health_endpoint",
             passed=True,
             message="Static site — health check targets / (root), no /health route required",
+        )
+
+    # Project types whose code does NOT live under src/ use a different layout
+    # convention (Next.js app/, chrome-extension root scripts, WordPress wp-content/).
+    # Skip the src-based scan; operators verify health manually for these.
+    if project_type in _NO_SRC_LAYOUT_TYPES:
+        return ValidationResult(
+            check="health_endpoint",
+            passed=True,
+            message=(
+                f"N/A for {project_type} — code lives outside src/ "
+                "(check manually if the project serves a /health route)"
+            ),
+        )
+
+    # Project types that don't expose an HTTP /health route by design:
+    # workers (file-worker), mobile apps, desktop apps. Liveness is monitored
+    # at the process-manager layer instead.
+    if project_type in _NO_HTTP_HEALTH_TYPES:
+        return ValidationResult(
+            check="health_endpoint",
+            passed=True,
+            message=(
+                f"N/A for {project_type} — no HTTP server by design "
+                "(liveness monitored by the process manager / watchdog)"
+            ),
         )
 
     src_dir = project_path / "electron" if project_type in _ELECTRON_TYPES else project_path / "src"
@@ -181,7 +263,7 @@ def validate(
     return [
         _check_template_exists(project_type),
         _check_env_example(project_path),
-        _check_dockerfile(project_path),
+        _check_dockerfile(project_path, project_type),
         _check_health_endpoint(project_path, project_type),
         _check_spec_exists(project_name, specs_dir),
     ]

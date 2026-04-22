@@ -29,7 +29,7 @@ n8n is deployed as a business automation platform at `https://auto.vps1.ocoron.c
 
 | Webhook | Path | Method | Trigger |
 |---------|------|--------|---------|
-| Uptime Alert | `/webhook/uptime-alert` | POST | Uptime Kuma notification |
+| Uptime Alert | `/webhook/uptime-alert` | POST | Gatus notification |
 | Test Endpoint | `/webhook/test` | POST | Manual testing |
 
 ---
@@ -112,11 +112,11 @@ n8n returns a standard `200 OK` with an empty body after processing. The notific
 
 ---
 
-## Uptime Kuma Integration
+## Gatus Integration
 
-Configure Uptime Kuma to send alerts to n8n:
+Configure Gatus to send alerts to n8n:
 
-1. Open Uptime Kuma: `https://status.vps1.ocoron.com`
+1. Open Gatus: `https://status.vps1.ocoron.com`
 2. Go to **Settings** > **Notifications**
 3. Click **Setup Notification**
 4. Select type: **Webhook**

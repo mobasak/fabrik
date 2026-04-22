@@ -747,7 +747,7 @@ def generate_docs_structure_tree() -> str:
         "technology-stack-decision-guide.md": "Tech decision flowchart",
         "templates.md": "Available deployment templates",
         "trueforge-images.md": "Trueforge image catalog",
-        "uptime-kuma.md": "Uptime Kuma runbook",
+        "gatus.md": "Gatus runbook",
         "traycer-evaluation.md": "Traycer integration evaluation",
         "global-gates.md": "Global gate definitions",
         "kilo-benchmarks-testing.md": "Kilo benchmarks testing",

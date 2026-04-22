@@ -210,7 +210,7 @@ This checks for:
 
 | File | Purpose |
 |------|---------|
-| `scripts/dev_tracker.py` | Main CLI script (~450 lines) |
+| `scripts/dev_tracker.py` | Main CLI script (495 lines) |
 | `.droid/dev_tracker.db` | SQLite database |
 | `.droid/kilo_usage.jsonl` | Raw Kilo usage logs (source) |
 | `.droid/gate_issues.jsonl` | Raw gate issue logs (source) |

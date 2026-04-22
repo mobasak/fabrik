@@ -1,6 +1,7 @@
 # Fabrik Scaffold Structure
 
 **Last Updated:** 2026-04-10
+**Script:** `src/fabrik/scaffold.py` (scaffold command)
 
 > Complete reference for the folder and file structure created by `fabrik scaffold`.
 
@@ -134,6 +135,8 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 | `BUSINESS_MODEL_TEMPLATE.md` | `docs/BUSINESS_MODEL.md` | Business model doc |
 | `FEATURES_TEMPLATE.md` | `docs/FEATURES.md` | Features overview |
 | `STRATEGIC_BACKLOG_TEMPLATE.md` | `docs/STRATEGIC_BACKLOG.md` | Strategic backlog for paused work |
+| `LESSONS_LEARNT_TEMPLATE.md` | `docs/lessons-learnt.md` | Lessons learned documentation |
+| `workflows/KILO_CONSULT_WORKFLOW.md` | `docs/workflows/kilo-consult-workflow.md` | Kilo consultation workflow reference |
 
 ### Inline Generated (No Templates)
 

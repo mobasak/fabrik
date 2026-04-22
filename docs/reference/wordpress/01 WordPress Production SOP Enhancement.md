@@ -37,7 +37,7 @@ A site does not go live cold.
 ### 7. The DNS Flip & Automated Monitoring
 The final step is purely infrastructural.
 * The provisioning microservice makes the API call to Cloudflare to update the A/CNAME records, pointing the domain to the Traefik load balancer.
-* Simultaneously, a webhook fires to the monitoring suite (like Uptime Kuma) to begin actively polling the new domain's HTTP status and SSL certificate validity.
+* Simultaneously, a webhook fires to the monitoring suite (like Gatus) to begin actively polling the new domain's HTTP status and SSL certificate validity.
 
 ***
 

@@ -66,7 +66,14 @@ class TestWordPressSiteYaml:
         assert data["site"]["name"] == "t1-sn"
 
     def test_site_yaml_site_domain(self, tmp_path: Path) -> None:
-        """site.yaml site.domain matches <name>.vps1.ocoron.com."""
+        """site.yaml site.domain defaults to <name>.com — placeholder for customer's real domain.
+
+        Aligned 2026-04-19 with intentional template change in commit 93bd6def
+        (2026-04-13) which moved from vps1 subdomain to a `.com` placeholder.
+        Rationale: WordPress sites are customer sites on their own domain; the
+        `.com` default is a visual hint prompting the user to edit site.yaml
+        before `fabrik wp apply`.
+        """
         create_project(
             name="t1-sd",
             project_type="wordpress",
@@ -74,7 +81,7 @@ class TestWordPressSiteYaml:
             base=tmp_path,
         )
         data = yaml.safe_load((tmp_path / "t1-sd" / "site.yaml").read_text())
-        assert data["site"]["domain"] == "t1-sd.vps1.ocoron.com"
+        assert data["site"]["domain"] == "t1-sd.com"
 
     def test_site_yaml_deployment_target(self, tmp_path: Path) -> None:
         """site.yaml deployment.target == 'production'."""

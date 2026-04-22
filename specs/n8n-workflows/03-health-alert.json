@@ -1,5 +1,5 @@
 {
-  "name": "03 \u00b7 Health Alert (Uptime Kuma)",
+  "name": "03 \u00b7 Health Alert (Gatus)",
   "nodes": [
     {
       "parameters": {
@@ -8,7 +8,7 @@
         "options": {}
       },
       "id": "webhook-health",
-      "name": "Webhook \u2013 Health Alert",
+      "name": "Gatus Health Alert",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [

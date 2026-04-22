@@ -1,6 +1,10 @@
 # Strategic Backlog
 
-Vetted, high-impact work paused for bandwidth. Items move to active status once specific triggers are met.
+**Last Updated:** YYYY-MM-DD
+
+> **Purpose:** ISSUE PREVENTION — CAPTURES ISSUES FROM KILO CLI SESSIONS TO PREVENT FUTURE OCCURRENCES.
+
+Filled by Cascade agent watching active Kilo CLI terminal. Detects issues faced by AI coder and fixer to prevent them happening in the future.
 
 ---
 

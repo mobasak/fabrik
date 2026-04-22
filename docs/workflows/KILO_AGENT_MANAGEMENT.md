@@ -1,5 +1,7 @@
 # Kilo Agent Management
 
+**Script:** `scripts/kilo-benchmarks/` (multiple scripts)
+
 > Automated agent discovery, benchmarking, role assignment, and runtime selection.
 
 This document covers tools for managing AI agents in `scripts/kilo-benchmarks/`.
@@ -342,22 +344,58 @@ sqlite3 /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db \
 Task complexity determines which priority agents are tried:
 
 | Complexity | Tries Priorities | Use Case |
-|------------|------------------|----------|
-| `simple` | 5 → 4 → 3 → 2 → 1 | Cheapest first |
-| `medium` | 3 → 2 → 4 → 1 → 5 | Balanced |
-| `complex` | 1 → 2 → 3 | Best only (fails if unavailable) |
+|-----------|------------------|----------|
+| `simple`   | 5 → 4 → 3 → 2 → 1 | Cheapest first |
+| `medium`   | 3 → 2 → 4 → 1 → 5 | Balanced |
+| `complex`  | 1 → 2 → 3         | Best only (fails if unavailable) |
 
 ---
 
-## Roles
+## Roles and Selection Criteria
 
-| Role | Primary Criteria | Agents |
-|------|------------------|--------|
-| `coding` | tbench_accuracy + has_tools | 5 |
-| `reviewing` | arena_elo + has_vision | 5 |
-| `fixing` | tbench + elo combined | 5 |
-| `documentation` | perf_per_dollar | 5 |
-| `testing` | tbench_accuracy | 5 |
+### Priority Scale
+
+| Priority | Description                                                  | Cost Sensitivity |
+|----------|--------------------------------------------------------------|------------------|
+| 1        | Best capability, cost irrelevant — for hardest tasks          | None             |
+| 2        | High capability, cost secondary                              | Low              |
+| 3        | Balanced capability and cost (perf_per_dollar matters)       | Medium           |
+| 4        | Cost-efficient, adequate capability                           | High             |
+| 5        | Cheapest adequate model — must still meet min_elo floor      | Very High        |
+
+### Role-Specific Criteria
+
+| Role | Primary Metric | Secondary Metric | HARD Minimums | Required Capabilities | Priority 4-5 Rules |
+|------|----------------|------------------|---------------|----------------------|-------------------|
+| `coding` | tbench_accuracy | arena_elo | tbench_accuracy >= 70.0 (NO exceptions) | has_tools=1 AND is_agentic=1 | perf_per_dollar > 500 |
+| `fixing` | tbench_accuracy + arena_elo combined | — | tbench_accuracy >= 70.0 (NO exceptions) | has_tools=1 AND is_agentic=1 | perf_per_dollar > 300 |
+| `reviewing` | arena_elo | has_vision=1 | has_reasoning=1 (models without reasoning cannot review) | has_reasoning=1, prefer is_agentic=1 | Cost irrelevant for P1-2 |
+| `documentation` | perf_per_dollar | high context_window_k | arena_elo >= 1350 | — | All priorities cost-optimized |
+| `testing` | tbench_accuracy | perf_per_dollar | — | has_tools=1 AND is_agentic=1 | perf_per_dollar > 500 |
+
+### Hard Rules (Enforced by role_mapper.py)
+
+1. **SKIP** any agent where both arena_elo AND tbench_accuracy are null
+2. Each role gets UP TO 5 agents. If hard minimums cannot be met, assign fewer agents. DO NOT assign agents below hard minimums just to fill slots
+3. Only status='active' AND blocked=0 agents are considered
+4. Set min_elo as recommended runtime floor for that role
+5. **CRITICAL:** For coding and fixing roles, tbench_accuracy >= 70.0 is MANDATORY. Any agent below 70% tbench MUST be skipped
+6. The SAME agent CAN appear in multiple roles. Multiple agents from the SAME provider CAN appear in the same role if they both meet criteria
+7. **INCLUDE ALL agents meeting hard minimums** — if 4 agents meet the 70% threshold, assign all 4 (don't force 5)
+
+### AI Assignment Process
+
+**Model Used:** Gemini 3.1 Pro (max thinking mode) with fallback chain:
+- Primary: `kilo/google/gemini-3.1-pro-preview` (max)
+- Fallback 1: `kilo/openai/gpt-5.4` (max)
+- Fallback 2: `kilo/anthropic/claude-opus-4.6` (max)
+
+**Candidate Pool:**
+- 80+ top models from database (UNION of high-tbench + top combined score)
+- Filter: status='active' AND blocked=0
+- Ranked by: (tbench_accuracy * 15) + arena_elo (tbench weighted 15x higher)
+
+**Cost:** ~$0.18/day | **Duration:** ~3-4 minutes | **Log:** `scripts/kilo-benchmarks/cache/update.log`
 
 ---
 
@@ -583,7 +621,7 @@ The 120-second **idle timeout** triggers when:
 
 ---
 
-## Final Assignment Table (2026-04-15)
+## Final Assignment Table (2026-04-20)
 
 **Source:** `kilo_agents.db` agent_roles table | **Assigned by:** `kilo/google/gemini-3.1-pro-preview`
 
@@ -596,8 +634,8 @@ The 120-second **idle timeout** triggers when:
 | documentation | 1 | OpenAI: gpt-oss-20b | 1371 | 3.4% | — | ✅ | $0.03 | $0.14 | 12187 |
 | documentation | 2 | Google: Gemma 3 27B | 1356 | — | ✅ | — | $0.08 | $0.16 | 9686 |
 | documentation | 3 | OpenAI: gpt-oss-120b | 1398 | 18.7% | — | ✅ | $0.04 | $0.19 | 9182 |
-| documentation | 4 | Qwen: Qwen3 32B | 1376 | — | — | ✅ | $0.08 | $0.24 | 6880 |
-| documentation | 5 | Xiaomi: MiMo-V2-Flash | 1411 | — | — | ✅ | $0.09 | $0.29 | 5879 |
+| documentation | 4 | Xiaomi: MiMo-V2-Flash | 1411 | — | — | ✅ | $0.09 | $0.29 | 5879 |
+| documentation | 5 | Google: Gemini 2.0 Flash | 1371 | — | ✅ | — | $0.10 | $0.40 | 4218 |
 | fixing | 1 | Anthropic: Claude Opus 4.6 | 1535 | 81.8% | ✅ | ✅ | $5.00 | $25.00 | 77 |
 | fixing | 2 | Google: Gemini 3.1 Pro Preview | 1531 | 80.2% | ✅ | ✅ | $2.00 | $12.00 | 161 |
 | fixing | 3 | OpenAI: GPT-5.4 | 1468 | 81.8% | ✅ | ✅ | $2.50 | $15.00 | 124 |

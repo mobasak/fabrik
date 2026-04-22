@@ -78,6 +78,20 @@ class SpecLoader:
         # Normalize (top-level entities → entities.*)
         merged = self._normalize(merged)
 
+        # Auto-inject polylang for multilingual sites (before plugin rules for manifest gen)
+        if merged.get("languages", {}).get("additional"):
+            plugins = merged.get("plugins", {})
+            base_plugins = plugins.get("base", [])
+            if not any(self._normalize_plugin_name(p) == "polylang" for p in base_plugins):
+                base_plugins.append("polylang")
+                merged["plugins"] = merged.get("plugins", {})
+                merged["plugins"]["base"] = base_plugins
+
+        # Apply plugin layering rules (e.g., deduplication, skip list)
+        plugins_final = self.apply_plugin_rules(merged)
+        merged["plugins"] = merged.get("plugins", {})
+        merged["plugins"]["final"] = plugins_final
+
         # Apply canonical sort for deterministic hashing
         merged = json.loads(json.dumps(merged, sort_keys=True))
 
@@ -223,6 +237,11 @@ class SpecLoader:
         skip_normalized = {self._normalize_plugin_name(p) for p in skip}
 
         plugins = [p for p in plugins if self._normalize_plugin_name(p) not in skip_normalized]
+
+        # Auto-inject polylang when multilingual is configured (Gap 19)
+        if spec.get("languages", {}).get("additional"):
+            if not any(self._normalize_plugin_name(p) == "polylang" for p in plugins):
+                plugins.append("polylang")
 
         # Deduplicate (last occurrence wins)
         seen = {}

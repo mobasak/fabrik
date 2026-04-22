@@ -1,6 +1,7 @@
 # Kilo CLI Output & Completion Workflow
 
 **Last Updated:** 2026-03-26
+**Script:** Kilo CLI (agent output capture) + Traycer (completion detection)
 
 > How Kilo CLI agent output is captured, saved, and how Traycer detects task completion.
 

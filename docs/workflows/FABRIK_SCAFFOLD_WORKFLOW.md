@@ -1,6 +1,7 @@
 # Fabrik Scaffold Specification
 
 **Last Updated:** 2026-04-10
+**Script:** `src/fabrik/scaffold.py` (scaffold) + `src/fabrik/cli.py` (CLI)
 
 > Complete specification for project creation, templates, deployment, and management in the Fabrik ecosystem.
 >
@@ -52,7 +53,7 @@ Fabrik is a **spec-driven deployment automation** system that:
 ├─────────────────────────────────────────────────────────────────┤
 │  Deployment Target: Coolify (VPS Docker Compose)                │
 │  DNS: Cloudflare via API                                        │
-│  Monitoring: Uptime Kuma                                        │
+│  Monitoring: Gatus                                        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

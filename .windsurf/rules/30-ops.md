@@ -209,7 +209,7 @@ labels:
 2. Add `X-Internal-Token` validation middleware to the service
 3. Restart Authelia: `docker compose -f /opt/authelia/compose.yaml restart`
 
-**Health endpoints (`/health`, `/healthz`, `/metrics`) bypass Authelia on all services** — required for Uptime Kuma and Prometheus monitoring.
+**Health endpoints (`/health`, `/healthz`, `/metrics`) bypass Authelia on all services** — required for Gatus and Prometheus monitoring.
 
 ---
 

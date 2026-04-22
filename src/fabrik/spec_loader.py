@@ -14,10 +14,20 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class Kind(str, Enum):
-    """Type of deployment."""
+    """Type of deployment.
+
+    Widened 2026-04-19 (Phase 4k): ``STATIC`` + ``WORDPRESS`` added so the
+    `shape:` block can carry the project-type signal through to the
+    applicability dispatcher in :mod:`fabrik.orchestrator.infrastructure`.
+    Prior to this, the orchestrator hard-coded the string ``"wordpress"``
+    in its glitchtip rule (`infrastructure.py:184`) with no enum backing
+    it — a latent bug waiting for the first real wordpress deploy.
+    """
 
     SERVICE = "service"
     WORKER = "worker"
+    STATIC = "static"
+    WORDPRESS = "wordpress"
 
 
 class SourceType(str, Enum):
@@ -83,6 +93,10 @@ class Source(BaseModel):
     repository: str | None = Field(default=None, description="Git repo URL")
     branch: str = "main"
     image: str | None = Field(default=None, description="Docker image")
+    image_port: int | None = Field(default=None, description="Container port for image deployments")
+    image_command: str | None = Field(
+        default=None, description="Override container command for image deployments"
+    )
 
 
 class Expose(BaseModel):
@@ -106,6 +120,13 @@ class Health(BaseModel):
     interval: str = "30s"
     timeout: str = "10s"
     retries: int = 3
+    disabled: bool = False
+    """When true, no HEALTHCHECK is emitted. Use only for images that lack
+    shell tooling (e.g. ``traefik/whoami``) where any healthcheck would
+    always fail and Traefik v3 would then filter the container out."""
+    test: list[str] | None = None
+    """Custom HEALTHCHECK test command (docker-compose ``test`` form).
+    Overrides the default wget/curl probe when set."""
 
 
 class Volume(BaseModel):
@@ -162,6 +183,114 @@ class Infrastructure(BaseModel):
     auth: AuthType = AuthType.NONE
 
 
+class Shape(BaseModel):
+    """Project-shape descriptor consumed by the infrastructure dispatcher.
+
+    Purpose
+    -------
+    ``shape:`` declares what the project IS — orthogonal properties that
+    determine which infrastructure registrars (postgres, gatus, backrest,
+    glitchtip, grafana, authelia, meilisearch) are applicable. The
+    applicability matrix lives in :mod:`fabrik.orchestrator.infrastructure`;
+    ``shape:`` is the authoritative source it reads.
+
+    Invariants
+    ----------
+    * ``extra="forbid"``: unknown keys are a hard error. New applicability
+      axes MUST be added here AND in the dispatcher in the same commit so
+      the two never drift.
+    * Every field defaults to ``False`` (except ``kind``, which defaults
+      to ``SERVICE``). The absence of a shape block therefore resolves
+      to "a plain HTTP service with no database, no storage, no admin
+      auth, no search" — which matches the historical scaffold default.
+
+    `infra:` relationship
+    ---------------------
+    ``shape:`` is the positive signal (what applies). ``infra:`` is the
+    negative override (what to force-skip). The only valid ``infra:``
+    entry is ``<registrar>: false``. See
+    :func:`fabrik.orchestrator.infrastructure.resolve_applicability`.
+
+    Matrix (Phase 4k, locked 2026-04-19):
+
+    ==================  =======  ==========  ====================  ================  ===================  ================  ====================
+     Template            kind     is_public   is_admin_dashboard    has_bearer_api    has_persistent_data   needs_database    has_search_feature
+    ==================  =======  ==========  ====================  ================  ===================  ================  ====================
+     python-api          service  true        false                 false             false                false             false
+     node-api            service  true        false                 false             false                false             false
+     saas-skeleton       service  true        false                 false             true                 true              false
+     static-site         static   true        false                 false             false                false             false
+     docusaurus          static   true        false                 false             false                false             false
+     wordpress           wordpress true       false                 false             true                 true              false
+     file-worker         worker   false       false                 false             true                 false             false
+     file-api            service  true        false                 false             true                 false             false
+     chrome-extension    static   false       false                 false             false                false             false
+     mobile-app          static   false       false                 false             false                false             false
+     desktop-app         static   false       false                 false             false                false             false
+    ==================  =======  ==========  ====================  ================  ===================  ================  ====================
+
+    The last three (chrome-extension / mobile-app / desktop-app) are
+    packaged artefacts (CRX, app-store binary, installer) rather than
+    VPS deployments — every flag is ``false`` because no VPS registrar
+    applies. They get a ``shape:`` block anyway for schema uniformity,
+    so downstream tooling can assume it's always present.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    kind: Kind = Field(
+        default=Kind.SERVICE,
+        description=(
+            "Deployment class. Gates glitchtip (service/worker/wordpress) "
+            "and drives the default expose/domain logic."
+        ),
+    )
+    is_public: bool = Field(
+        default=False,
+        description=(
+            "True if the service is reachable from the public internet via "
+            "Traefik. Combined with spec.domain, gates Gatus uptime monitoring."
+        ),
+    )
+    is_admin_dashboard: bool = Field(
+        default=False,
+        description=(
+            "True if the service hosts an admin UI that must sit behind "
+            "Authelia 2FA forward-auth. When combined with has_bearer_api=true, "
+            "the dispatcher installs the ^/api/ bypass rule first (CSF §10)."
+        ),
+    )
+    has_bearer_api: bool = Field(
+        default=False,
+        description=(
+            "True if the service exposes a machine-to-machine API path "
+            "(typically ^/api/) that MUST bypass Authelia to keep X-Internal-Token "
+            "authentication flows intact."
+        ),
+    )
+    has_persistent_data: bool = Field(
+        default=False,
+        description=(
+            "True if the service writes state to disk that must survive container "
+            "restarts. Gates Backrest → B2 backup plan creation."
+        ),
+    )
+    needs_database: bool = Field(
+        default=False,
+        description=(
+            "True if the service requires a PostgreSQL database on postgres-main. "
+            "Gates the postgres registrar (creates DB + DATABASE_URL secret)."
+        ),
+    )
+    has_search_feature: bool = Field(
+        default=False,
+        description=(
+            "True if the service uses MeiliSearch for full-text/vector search. "
+            "Gates creation of a project-scoped index."
+        ),
+    )
+
+
 class WordPressPlugin(BaseModel):
     """WordPress plugin configuration."""
 
@@ -193,15 +322,32 @@ class Spec(BaseModel):
     id: str = Field(
         ..., min_length=1, max_length=63, pattern=r"^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$"
     )
+    name: str | None = None  # Alias for id, set by validator if missing
     kind: Kind = Kind.SERVICE
     template: str = Field(..., min_length=1)
     domain: str | None = None
+
+    # Shape: project-shape descriptor consumed by the infrastructure
+    # dispatcher (`orchestrator/infrastructure.py::resolve_applicability`).
+    # Optional for backwards compatibility with pre-Phase-4k specs that
+    # relied on the top-level `kind:` field alone. When present, shape is
+    # authoritative — shape.kind overrides the top-level kind at dispatch
+    # time. Phase 4k scaffold emits both, kept in sync.
+    shape: Shape | None = None
 
     expose: Expose = Field(default_factory=Expose)
     source: Source = Field(default_factory=Source)
     coolify: CoolifyConfig = Field(default_factory=CoolifyConfig)
     depends: Depends = Field(default_factory=Depends)
     infrastructure: Infrastructure = Field(default_factory=Infrastructure)
+
+    # NOTE (Phase 4k): `infra:` is intentionally NOT a field on this model.
+    # It is an override-only block consumed by `orchestrator/infrastructure.py`,
+    # which reads the raw YAML via `orchestrator/validator.py::load_spec`
+    # (yaml.safe_load) rather than through pydantic. Keeping it off the model
+    # prevents scaffolded specs from gaining a noisy `infra: {}` default and
+    # matches the plan's acceptance criterion ("no `infra:` block in scaffolded
+    # specs"). Operators write `infra: {gatus: false}` by hand when overriding.
 
     env: dict[str, str] = Field(default_factory=dict)
     secrets: SecretsPolicy = Field(default_factory=SecretsPolicy)
