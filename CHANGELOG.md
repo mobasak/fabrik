@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Deployment documentation refreshed end-to-end — 2026-04-22
+
+- **`@/opt/fabrik/docs/DEPLOYMENT.md`**
+  - Bumped "Last Updated" to **2026-04-22** with the new "validated end-to-end against live VPS, all 9 registrars green, ~63s wall time for maximal shape" subtitle.
+  - Moved the 6 "Planned drivers (Phase 4)" entries into a new **"Shape-driven registrar drivers (all implemented as of 2026-04-22)"** table that lists each file's entry points, purpose, and shape gate. Added `drivers/postgres.py` (was missing).
+  - Added a new row in section 2.2 for `orchestrator/infrastructure.py` (`InfrastructureProvisioner`) documenting the "non-fatal except glitchtip DSN mismatch" contract.
+  - Updated section 9.2 step 7 from "planned, Phase 4" to the real shape-driven registrar list; step 8 now mentions `docker inspect` for SENTRY_DSN verification.
+  - Added new **section 9.6 "End-to-end validation (maximal-shape test)"** — the canonical E2E test procedure with full scaffold → deploy → 9-registrar verify → idempotency check → teardown script, plus a **timing benchmark table** (~63s total wall time, broken down by phase).
+  - Renumbered subsequent subsections (9.7 Emergency, 9.8 Rollback).
+  - Added Lessons 30 and 31 rows to the "Key Invariants Summary" table in section 11.
+- **`@/opt/fabrik/.windsurf/workflows/deploy.md`** — fully rewrote the slash-command workflow. Replaced the stale "git push origin main → Coolify auto-deploy" flow with the actual `fabrik deploy` / `fabrik apply` CLI-driven flow, step-by-step, including shape-gated registrar list, rollback reference, and idempotency check. Now points at `docs/DEPLOYMENT.md` §9.6 for the maximal-shape E2E test.
+- **`@/opt/fabrik/INDEX.md`** — added `orchestrator/infrastructure.py` to the source-tree listing (was missing).
+
 ### Fixed — End-to-end deployment workflow validated (maximal shape) — 2026-04-22
 
 **Context:** Scaffolded `fabrik-e2e-full-test` with the maximal shape (all `shape.*` flags true) to stress-test every registrar in a single deployment. Used `traefik/whoami:latest` image + `fabrik-e2e-full-test.vps1.ocoron.com` domain for fast iteration. Three iterations to green:

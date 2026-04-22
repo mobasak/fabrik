@@ -184,6 +184,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   │   ├── context.py               # DeploymentContext
 │   │   ├── deployer.py              # ServiceDeployer
 │   │   ├── exceptions.py            # Custom exceptions
+│   │   ├── infrastructure.py        # InfrastructureProvisioner — shape-driven registrar dispatch (postgres, gatus, backrest, glitchtip, grafana, authelia, meilisearch)
 │   │   ├── rollback.py              # RollbackManager
 │   │   ├── secrets.py               # SecretsManager
 │   │   ├── states.py                # DeploymentState

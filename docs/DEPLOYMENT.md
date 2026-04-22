@@ -2,7 +2,7 @@
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.
 
-**Last Updated:** 2026-04-19
+**Last Updated:** 2026-04-22 (validated end-to-end against live VPS, all 9 registrars green, ~63s wall time for maximal shape)
 **Backup of prior version:** `docs/DEPLOYMENT.md.backup.*` (pre-rewrite)
 
 ## Table of Contents
@@ -94,7 +94,8 @@ The **new** deployment pipeline. Activated today via `--use-orchestrator` on `fa
 | `orchestrator/states.py` | `DeploymentState`, `can_transition()` | State machine enum: `PENDING → VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE` / `FAILED → ROLLING_BACK → ROLLED_BACK`. Illegal transitions raise `InvalidStateTransitionError`. |
 | `orchestrator/validator.py` | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` | Pydantic spec validation + SSRF check (no private IPs, no reserved ranges) + idempotency hash. |
 | `orchestrator/secrets.py` | `SecretsManager`, `generate_secret()`, `load_dotenv()` | Load secrets precedence: env vars → project `.env` → `-s KEY=VALUE` (highest wins). CSPRNG for generated secrets (`secrets.choice()`, 32 chars). |
-| `orchestrator/deployer.py` | `ServiceDeployer.deploy(ctx)` | Coolify-side mutations. Idempotent: if `ctx.coolify_uuid` exists, PATCH; else create. Returns UUID. |
+| `orchestrator/deployer.py` | `ServiceDeployer.deploy(ctx)`, `ServiceDeployer.find_existing(name)` | Coolify-side mutations. Idempotent: `find_existing` looks up by name in `list_applications()` — if found, PATCH + update env; else POST new `dockercompose` app + `deploy(force=True)`. Returns UUID. Also waits up to 90s for the container to come Up. |
+| `orchestrator/infrastructure.py` | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` | **Live** shape-driven dispatcher. Invoked between Deploy and Verify. Decides per-registrar applicability (`postgres`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`), then calls each driver's `create_*`/`add_*` entry in contract order. Each registrar failure is logged non-fatal **except glitchtip's `verify_dsn_injection` mismatch**, which rolls back the GlitchTip project and re-raises (prevents silent error-tracking outages). |
 | `orchestrator/verifier.py` | `DeploymentVerifier.verify(ctx)` | Post-conditions: HTTP 200 on `/health`; DNS resolves to VPS IP; SSL cert valid; `SENTRY_DSN` in container env (when GlitchTip provisioned). |
 | `orchestrator/rollback.py` | `RollbackManager.rollback(ctx)` | Reverse-order cleanup of every `ctx.resources[*]`. Destructive actions (DB drops) are **logged for operator**, not auto-executed. Config mutations and ephemeral resources (annotations, projects, DNS records) are auto-cleaned. |
 | `orchestrator/exceptions.py` | Typed exceptions | `DeploymentError`, `ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`. Orchestrator catches these and routes to rollback. |
@@ -130,16 +131,17 @@ The **new** deployment pipeline. Activated today via `--use-orchestrator` on `fa
 | `drivers/wordpress.py` | `WordPressClient`, `WPSite`, `ContainerResolver` | WP-CLI via `docker exec` | WordPress-specific deploys (plugins, themes, settings). |
 | `drivers/wordpress_api.py` | `WordPressAPIClient`, `WPCredentials`, `WPPost` | WordPress REST API | Content CRUD for WordPress sites. |
 
-**Planned drivers (Phase 4 of the zero-touch plan):**
+**Shape-driven registrar drivers (all implemented as of 2026-04-22):**
 
-| File (planned) | Purpose |
-|---|---|
-| `drivers/authelia.py` | `docker exec` into Authelia to add/remove `access_control` rules. Uses `run_locked("authelia-config", ...)`. Supports `insert_before_twofactor=True` for `^/api/` bypass ordering. |
-| `drivers/gatus.py` | Git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()`. |
-| `drivers/backrest.py` | Restic-policy mutations via Backrest UI API. Uses `run_locked("backrest-config", ...)` with atomic `.tmp` → `json.tool` validate → `mv` pattern. |
-| `drivers/glitchtip.py` | Sentry-compatible API (`POST /api/0/teams/{org}/{team}/projects/`). Contract captured in `docs/reference/glitchtip-api.md`. |
-| `drivers/grafana.py` | Global deployment annotations (`POST /api/annotations`). Non-fatal (decorative). Env var `GRAFANA_SERVICE_ACCOUNT_TOKEN`. |
-| `drivers/meilisearch.py` | Index creation when `spec.has_search_feature`. |
+| File | Entry points | Purpose | Shape gate |
+|---|---|---|---|
+| `drivers/authelia.py` | `add_access_rule()`, `remove_access_rule()` | `docker exec` into Authelia to add/remove `access_control` rules. Uses `run_locked("authelia-config", ...)`. Supports `insert_before_twofactor=True` for `^/api/` bypass ordering. | `shape.is_admin_dashboard` + `domain` set (+ `^/api/` bypass when `shape.has_bearer_api`) |
+| `drivers/gatus.py` | `add_endpoint()`, `remove_endpoint()` | Git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()`. | `shape.is_public` + `domain` set |
+| `drivers/backrest.py` | `add_backup_plan()`, `remove_backup_plan()` | Restic-policy mutations via Backrest UI API. Uses `run_locked("backrest-config", ...)` with atomic `.tmp` → `json.tool` validate → `mv` pattern. | `shape.has_persistent_data` |
+| `drivers/glitchtip.py` | `create_project()`, `delete_project()`, `verify_dsn_injection()` | Sentry-compatible API (`POST /api/0/teams/{org}/{team}/projects/`). Contract captured in `docs/reference/glitchtip-api.md`. **`verify_dsn_injection` reads env via `docker inspect`, never `docker exec`** — see Lesson 31. | `shape.kind in {service, worker, wordpress}` |
+| `drivers/grafana.py` | `post_deployment_annotation()`, `delete_annotation()` | Global deployment annotations (`POST /api/annotations`). Non-fatal (decorative). Env var `GRAFANA_SERVICE_ACCOUNT_TOKEN`. | Always (universal) |
+| `drivers/meilisearch.py` | `create_index()`, `delete_index()` | Index creation when `spec.has_search_feature`. Container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside the container — no secret on SSH wire. | `shape.has_search_feature` |
+| `drivers/postgres.py` | `create_database()`, `drop_database()` | Ensures per-service Postgres DB on `postgres-main` (SQL identifier validation upstream). Destructive drops deferred to operator. | `shape.needs_database` |
 
 ### 2.5 Site-provisioner saga — `src/fabrik/provisioner.py`
 
@@ -526,8 +528,8 @@ Internally this runs:
 4. `DNSClient.add_record(domain, VPS_IP)` — skipped if `--skip-dns`
 5. `TemplateRenderer.render()` + `ComposeLinter.lint()`
 6. `CoolifyClient.{create,update}_application()` + `deploy(force=true)` — skipped if `--skip-deploy`
-7. `InfrastructureProvisioner.provision(ctx)` (shape-driven — planned, Phase 4)
-8. `DeploymentVerifier.verify()` (HTTP 200 on `/health`, DNS resolves, SSL valid)
+7. `InfrastructureProvisioner.provision(ctx)` — shape-driven: `postgres` · `gatus` · `backrest` · `glitchtip` (+ DSN injection) · `grafana` annotation · `authelia` rules (+ `^/api/` bypass) · `meilisearch` index (see `orchestrator/infrastructure.py`)
+8. `DeploymentVerifier.verify()` (HTTP 200 on `/health`, DNS resolves, SSL valid, `SENTRY_DSN` present in container via `docker inspect`)
 
 ### 9.3 Redeploy an existing service (trigger Coolify rebuild)
 
@@ -571,7 +573,91 @@ fabrik domain provision example.com
 fabrik domain ready example.com
 ```
 
-### 9.6 Emergency: delete an orphaned Coolify app via API
+### 9.6 End-to-end validation (maximal-shape test)
+
+The **canonical way to verify the deployment pipeline after any change** to a registrar driver, the orchestrator, or the compose template. Produces a project that exercises every code path in a single deploy.
+
+```bash
+# 1. Scaffold a throwaway project with a scratch image (fast feedback, no build)
+fabrik scaffold fabrik-e2e-full-test --type python-api --db
+
+# 2. Overwrite the auto-generated spec with a MAXIMAL-SHAPE spec:
+#    every shape.* flag true, whoami image, health disabled, vps1.ocoron.com subdomain.
+#    See CHANGELOG.md Unreleased for the exact spec used 2026-04-22.
+cat > /opt/fabrik/specs/services/fabrik-e2e-full-test.yaml <<'EOF'
+id: fabrik-e2e-full-test
+kind: service
+template: python-api
+domain: fabrik-e2e-full-test.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: true
+  has_bearer_api: true
+  has_persistent_data: true
+  needs_database: true
+  has_search_feature: true
+source: {type: docker, image: traefik/whoami:latest, image_port: 80, image_command: --port 80}
+expose: {http: true, internal_only: false}
+coolify: {project: default, server: localhost}
+health: {disabled: true, path: /}   # whoami has no shell
+backup: {enabled: true, frequency: daily, retention: 30}
+EOF
+
+# 3. Deploy and time it
+time fabrik deploy --project /opt/fabrik-e2e-full-test
+# Expected: ~63s wall time (measured 2026-04-22, all 9 registrars green)
+
+# 4. Verify every registrar touched the right place
+ssh vps 'sudo docker ps --format "{{.Names}}" | grep fabrik-e2e-full'            # Coolify
+ssh vps 'sudo docker exec traefik wget -qO- http://localhost:8080/api/http/routers' \
+    | jq '[.[]|select(.name|contains("fabrik-e2e-full"))]'                        # Traefik
+curl -sI https://fabrik-e2e-full-test.vps1.ocoron.com | head -3                    # Authelia 302 + LE cert
+ssh vps 'sudo docker exec authelia-... grep -c fabrik-e2e-full /config/configuration.yml'  # Authelia rules (expect 2)
+ssh vps 'sudo docker exec postgres-main-... psql -U postgres -tAc "SELECT datname FROM pg_database WHERE datname LIKE '"'"'fabrik_e2e_full%'"'"'"'       # Postgres
+ssh vps 'sudo cat /opt/backrest/config/config.json' | jq '.plans[]|select(.id|contains("fabrik-e2e-full"))'  # Backrest
+curl -s https://status.vps1.ocoron.com/api/v1/endpoints/statuses | jq '[.[]|select(.name|contains("fabrik-e2e-full"))]'  # Gatus
+python -c "from fabrik.drivers.glitchtip import create_project; print(create_project('fabrik-e2e-full-test'))"       # GlitchTip (expect status=exists, dsn=...)
+python -c "from fabrik.drivers.meilisearch import _resolve_container,_index_exists; print(_index_exists(_resolve_container(),'fabrik_e2e_full_test'))"   # MeiliSearch
+
+# 5. Idempotency — re-run the same deploy; every registrar should report 'exists'
+fabrik deploy --project /opt/fabrik-e2e-full-test
+
+# 6. TEAR DOWN EVERYTHING (important — this is a throwaway test)
+fabrik destroy /opt/fabrik/specs/services/fabrik-e2e-full-test.yaml -y
+python -c "
+from dotenv import load_dotenv; load_dotenv('/opt/fabrik/.env')
+from fabrik.drivers.authelia import remove_access_rule
+from fabrik.drivers.glitchtip import delete_project
+from fabrik.drivers.meilisearch import delete_index
+from fabrik.drivers.gatus import remove_endpoint
+from fabrik.drivers.backrest import remove_backup_plan
+remove_access_rule('fabrik-e2e-full-test.vps1.ocoron.com')
+delete_project('fabrik-e2e-full-test')
+delete_index('fabrik_e2e_full_test')
+remove_endpoint('fabrik-e2e-full-test')
+remove_backup_plan('fabrik-e2e-full-test-data')
+"
+ssh vps 'sudo docker exec postgres-main-... psql -U postgres -c "DROP DATABASE IF EXISTS fabrik_e2e_full_test"'
+rm -rf /opt/fabrik-e2e-full-test /opt/fabrik/specs/services/fabrik-e2e-full-test.yaml
+python scripts/sync_projects.py   # back to baseline project count
+```
+
+**Why this test matters:** every shape-gated code path runs exactly once per deploy. Problems hidden by smoke tests with `infra.glitchtip: false` / `has_search_feature: false` surface here. Lesson 31 (`docker inspect` not `docker exec` for env-var reads) was discovered by exactly this test on 2026-04-22.
+
+**Timing benchmark (reference, 2026-04-22 VPS, maximal shape, whoami image, Coolify auto-deploy):**
+
+| Phase | Time |
+|---|---|
+| Coolify API create + initial deploy | ~15–25s |
+| Container pull + start | ~5–10s |
+| GlitchTip DSN injection + verify | ~10–20s |
+| Remaining registrars (authelia, gatus, backrest, grafana, meilisearch, postgres) | ~10–15s |
+| **Total wall time** | **~63s** |
+
+A real app with a Dockerfile build adds 30s–3min depending on cache state. DNS propagation is excluded (domains are pre-registered under `*.vps1.ocoron.com`).
+
+### 9.7 Emergency: delete an orphaned Coolify app via API
 
 ```bash
 # From VPS (bypasses iptables)
@@ -580,7 +666,7 @@ curl -X DELETE \
   "https://coolify.vps1.ocoron.com/api/v1/applications/<uuid>"
 ```
 
-### 9.7 Rollback (automatic)
+### 9.8 Rollback (automatic)
 
 Orchestrator catches any exception, transitions to `ROLLING_BACK`, and calls `RollbackManager.rollback(ctx)`. Reverse-order cleanup of every `ctx.resources[*]`:
 
@@ -674,6 +760,8 @@ Every invariant below has a live-incident writeup in `docs/LESSONS_LEARNT.md`. C
 | 25 §8.12 | Multi-network containers need `traefik.docker.network=coolify` label | §8.12 |
 | 25 §8.13 | Authelia forward-auth breaks SPA auth flows (django-allauth etc.); use app-layer TOTP | §8.13 |
 | 25 §8.14 | Never `source` `.env` files with shell metacharacters; use `grep \| cut` | §8.14 |
+| 30 | Healthchecks that reference tools absent from the container image (`wget`/`curl` on scratch) make Coolify 422 the deploy — keep `health.disabled: true` for scratch/distroless; template uses positive logic `{% if health and not health.disabled %}` | Lesson 30 |
+| 31 | Verify container env vars with `docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}'`, **never** `docker exec printenv` (fails on scratch/distroless with `OCI runtime exec failed`) | Lesson 31 |
 
 ---
 
