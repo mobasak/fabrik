@@ -1,8 +1,10 @@
 # Site Provisioner Reference
 
-**Last Updated:** 2026-02-23
+**Last Updated:** 2026-04-22 (verified against `src/fabrik/provisioner.py`)
 
-The Site Provisioner orchestrates Steps 0-1-2 for new WordPress site deployment using a saga pattern with granular states for safe retries and partial failure recovery.
+The Site Provisioner orchestrates Steps 0-1-2 for **brand-new WordPress site bootstrap** (domain registration → DNS + CF zone → Coolify app + WP install) using a saga pattern with granular states for safe retries and partial failure recovery.
+
+**Scope:** this module handles **new-site setup only**. Routine WordPress deploys go through `fabrik deploy` → `deploy_router` → WordPress pipeline (`wordpress/stages/*.py`). For generic service deploys, see `src/fabrik/orchestrator/` (`DeploymentOrchestrator`).
 
 ## Overview
 

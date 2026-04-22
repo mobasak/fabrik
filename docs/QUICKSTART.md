@@ -1,8 +1,8 @@
 # Quick Start
 
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-04-22
 
-Get Fabrik running in 5 minutes.
+Get Fabrik running in 5 minutes. Full reference: [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Prerequisites
 
@@ -65,29 +65,45 @@ B2_BUCKET_NAME=your-bucket
 ## First Deployment
 
 ```bash
-# Scaffold a new project (spec auto-generated with secrets)
+# Scaffold a new project — spec auto-generated with `shape:` defaults from the template
 fabrik scaffold hello-api --type python-api
 
-# Set secrets in project .env file
-# /opt/hello-api/.env
+# (Optional) Tune the spec
+nano /opt/fabrik/specs/services/hello-api.yaml   # shape: / domain: / env: / health:
+
+# Put secrets in the project .env
+cat > /opt/hello-api/.env <<'EOF'
 API_KEY=your_api_key
 DATABASE_PASSWORD=your_password
+EOF
 
-# Deploy - secrets auto-loaded from .env file
+# Dry-run first (always uses the orchestrator)
+fabrik apply /opt/fabrik/specs/services/hello-api.yaml --dry-run
+
+# Deploy
 fabrik apply /opt/fabrik/specs/services/hello-api.yaml
+
+# Or: project-based deploy (reads /opt/hello-api/project.yaml)
+fabrik deploy --project /opt/hello-api
 ```
 
-**No manual environment variable setting needed.** Fabrik automatically reads secrets from the project's `.env` file.
+**Secret precedence:** `-s KEY=VALUE` flag > `/opt/<project>/.env` > `/opt/fabrik/.env` > process env.
 
 ## Verify
 
 ```bash
-# Check deployment status
-fabrik status hello-api
+# Deployment status (needs a spec path)
+fabrik status /opt/fabrik/specs/services/hello-api.yaml
 
-# Test endpoint
-curl https://hello-api.yourdomain.com/health
+# Tail logs (Loki or Coolify)
+fabrik logs /opt/fabrik/specs/services/hello-api.yaml
+fabrik app-logs /opt/fabrik/specs/services/hello-api.yaml -n 50
+
+# Hit the endpoint
+curl https://hello-api.vps1.ocoron.com/health
 ```
+
+Expected wall time for a first deploy: **~60–90s** (published-image templates) or **2–5 min** (build-from-source). See [DEPLOYMENT.md](DEPLOYMENT.md) §9.6 for the validated maximal-shape E2E test.
 
 ## Scan Project Health
 
@@ -103,6 +119,11 @@ See `docs/workflows/HEALTH_SUMMARY_WORKFLOW.md` for details.
 
 ## Next Steps
 
-- [Configuration Reference](CONFIGURATION.md) — All settings explained
-- [Deployment Guide](DEPLOYMENT.md) — Detailed deployment options
-- [VPS Status](operations/vps-status.md) — Current VPS state and configuration
+- [DEPLOYMENT.md](DEPLOYMENT.md) — **canonical deploy reference**, read this next
+- [CONFIGURATION.md](CONFIGURATION.md) — every env var explained
+- [reference/architecture.md](reference/architecture.md) — how the pieces fit together
+- [reference/fabrik-cli-reference.md](reference/fabrik-cli-reference.md) — all 22 CLI commands
+- [reference/templates.md](reference/templates.md) — 12 deploy templates (11 scaffold types + `next-tailwind` deploy-only)
+- [reference/orchestrator.md](reference/orchestrator.md) + [reference/drivers.md](reference/drivers.md)
+- [LESSONS_LEARNT.md](LESSONS_LEARNT.md) — every live-incident invariant (read before deep changes)
+- [operations/vps-status.md](operations/vps-status.md) — VPS inventory

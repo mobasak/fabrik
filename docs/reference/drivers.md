@@ -1,366 +1,266 @@
 # Fabrik Drivers
 
-**Last Updated:** 2025-12-23
+**Last Updated:** 2026-04-22
 
-Fabrik drivers provide Python clients for external services used in deployment automation.
+Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to external APIs or the VPS**. Every deploy mutation goes through exactly one driver — no ad-hoc HTTP/SSH calls allowed in the orchestrator or CLI.
 
----
-
-## Available Drivers
-
-### CloudflareClient (Phase 1c)
-
-Cloudflare DNS management with per-record CRUD operations.
-
-```python
-from fabrik.drivers.cloudflare import CloudflareClient
-
-cf = CloudflareClient()
-
-# Health check
-cf.health()
-
-# List zones
-zones = cf.list_zones()
-
-# Get zone ID by domain
-zone_id = cf.get_zone_id("ocoron.com")
-
-# List records
-records = cf.list_records(zone_id)
-
-# Create/update record (idempotent)
-cf.ensure_record("ocoron.com", "A", "myapp.vps1", "172.93.160.197", proxied=False)
-
-# Delete record
-cf.delete_record_by_name("ocoron.com", "A", "myapp.vps1")
-
-# Fabrik-compatible helper
-cf.add_subdomain("ocoron.com", "myapp.vps1", "172.93.160.197")
-```
-
-**Environment Variables:**
-```bash
-CLOUDFLARE_API_TOKEN=xxx
-CLOUDFLARE_ACCOUNT_ID=066f5cf1dfe20ba18549a592809aa080
-CLOUDFLARE_ZONE_ID_OCORON=b3494f947c71683f94b6afe1331a1ba6
-```
+**Canonical catalog** (with shape gates and contract details) lives in `docs/DEPLOYMENT.md` §2.4. This file is the module reference with usage examples.
 
 ---
 
-| Driver | Purpose | Config |
-|--------|---------|--------|
-| `DNSClient` | DNS management via unified DNS service | `DNS_MANAGER_URL` |
-| `WordPressClient` | WP-CLI wrapper for WordPress containers | SSH to VPS |
-| `WordPressAPIClient` | WordPress REST API for content operations | Site URL + App Password |
-| `CloudflareClient` | Cloudflare DNS (direct or via service) | `CLOUDFLARE_API_TOKEN` |
-| `CoolifyClient` | Coolify deployment API | `COOLIFY_API_URL`, `COOLIFY_API_TOKEN` |
-| `UptimeKumaClient` | Status monitoring | `UPTIME_KUMA_URL`, `UPTIME_KUMA_USERNAME`, `UPTIME_KUMA_PASSWORD` |
-| `SupabaseClient` | Auth + Database (Phase 1b) | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
-| `R2Client` | Cloudflare R2 storage (Phase 1b) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` |
+## All Drivers (22 modules, 2026-04-22)
+
+| File | Lines | Used during deploy for | Shape gate |
+|---|---:|---|---|
+| `ssh.py` | 126 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`) | always |
+| `locks.py` | 160 | `run_locked(resource, script, timeout)`, `git_commit_config(path)` — VPS `flock -x -w` + whitelisted git commits | always |
+| `coolify.py` | 714 | `CoolifyClient` — Coolify v4 API; `docker_compose_raw` MUST be base64 (Lesson 1); git-sourced apps ignore compose PATCH (§8.10) | always |
+| `dns.py` | 575 | `DNSClient` — site-provisioner service at `dns.vps1.ocoron.com`; domain registration, A/CNAME/TXT records, Cloudflare zone provisioning | always when `domain` set |
+| `cloudflare.py` | 368 | `CloudflareClient` — direct Cloudflare API fallback when site-provisioner is down | fallback |
+| `postgres.py` | 205 | `create_database()`, `drop_database()` — per-service DB on `postgres-main`; SQL identifier validation; drops deferred to operator | `shape.needs_database` |
+| `gatus.py` | 249 | `add_endpoint()`, `remove_endpoint()` — git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()` | `shape.is_public` + `domain` |
+| `backrest.py` | 273 | `add_backup_plan()`, `remove_backup_plan()` — Restic policy via Backrest API; atomic `.tmp` → `json.tool` validate → `mv` | `shape.has_persistent_data` |
+| `glitchtip.py` | 403 | `create_project()`, `delete_project()`, `verify_dsn_injection()` — Sentry-compatible; **DSN verification via `docker inspect`** (Lesson 31) | `shape.kind in {service, worker, wordpress}` |
+| `grafana.py` | 291 | `post_deployment_annotation()`, `delete_annotation()` — global annotations; non-fatal (decorative) | always (universal) |
+| `authelia.py` | 520 | `add_access_rule()`, `remove_access_rule()` — `docker exec` into Authelia + `run_locked()`; supports `insert_before_twofactor=True` for `^/api/` bypass | `shape.is_admin_dashboard` + `domain` (+ bypass when `shape.has_bearer_api`) |
+| `meilisearch.py` | 262 | `create_index()`, `delete_index()` — container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside container (no secret on SSH wire) | `shape.has_search_feature` |
+| `compose_updater.py` | 445 | `update_compose_service()` — surgical YAML patching of Coolify's `docker_compose_raw` (used for env-var plumbing, label additions) | on demand |
+| `preflight.py` | 312 | Readiness probes invoked before deploy (DNS resolves, Coolify reachable, required secrets present) | always |
+| `supabase.py` | 437 | `SupabaseClient` — Auth + DB when `spec.infrastructure.database == supabase` | on demand |
+| `r2.py` | 408 | `R2Client` — Cloudflare R2 (S3-compatible) when `spec.storage.type == r2` | on demand |
+| `wordpress.py` | 346 | `WordPressClient`, `WPSite`, `ContainerResolver` — WP-CLI via `docker exec` | WordPress sites |
+| `wordpress_api.py` | 371 | `WordPressAPIClient`, `WPCredentials`, `WPPost` — WordPress REST API for content CRUD | WordPress content |
+| `image_broker.py` | 176 | `ImageBrokerClient` — stock image fetching (**not deploy** — content pipeline) | content |
+| `seo.py` | 384 | `SEOClient` — keyword research (**not deploy** — content pipeline) | content |
+| `tco.py` | 114 | `TCOClient` — content generation (**not deploy** — content pipeline) | content |
+| `uptime_kuma.py` | 193 | `UptimeKumaClient` — **superseded by Gatus**; kept for old projects only | legacy |
+
+Total: 22 driver modules + `__init__.py`.
 
 ---
 
-## DNS Client
+## Usage examples (most common)
 
-Wraps the DNS Manager service deployed at VPS. Supports multiple providers (Namecheap, Cloudflare).
-
-### Usage
-
-```python
-from fabrik.drivers.dns import DNSClient
-
-# Initialize (uses DNS_MANAGER_URL env var or default)
-dns = DNSClient()
-
-# Or specify URL explicitly
-dns = DNSClient(base_url="https://dns.vps1.ocoron.com")
-
-# Add subdomain (most common operation)
-dns.add_subdomain("ocoron.com", "myapp.vps1", "172.93.160.197")
-# Creates: myapp.vps1.ocoron.com -> 172.93.160.197
-
-# List domains
-domains = dns.list_domains()
-for d in domains:
-    print(d.get("@Name"), d.get("@Expires"))
-
-# Get DNS records
-records = dns.get_records("ocoron.com")
-for r in records:
-    print(r.get("type"), r.get("name"), r.get("value"))
-
-# Check health
-print(dns.health())
-
-# Always close when done
-dns.close()
-
-# Or use context manager
-with DNSClient() as dns:
-    dns.add_subdomain("ocoron.com", "api.vps1", "172.93.160.197")
-```
-
-### Quick Helper
-
-```python
-from fabrik.drivers.dns import add_dns_record
-
-# One-liner for adding subdomain
-add_dns_record("ocoron.com", "api.vps1", "172.93.160.197")
-```
-
-### Available Methods
-
-| Method | Description |
-|--------|-------------|
-| `health()` | Check service health |
-| `list_domains()` | List all domains in account |
-| `get_domain(domain)` | Get domain details |
-| `get_records(domain)` | Get all DNS records |
-| `add_subdomain(domain, subdomain, ip)` | Add A record for subdomain |
-| `set_records(domain, records)` | Replace all records (careful!) |
-| `get_nameservers(domain)` | Get current nameservers |
-| `set_nameservers(domain, ns_list)` | Set custom nameservers |
-| `get_balance()` | Get account balance |
-
----
-
-## Coolify Client
-
-Interacts with Coolify API for deployment management.
-
-### Prerequisites
-
-1. Generate API token in Coolify UI: **Settings → Keys & Tokens → API tokens**
-2. Set `COOLIFY_API_TOKEN` in `.env`
-
-### Usage
+### CoolifyClient — primary deploy driver
 
 ```python
 from fabrik.drivers.coolify import CoolifyClient
 
-# Initialize (uses env vars)
-coolify = CoolifyClient()
+c = CoolifyClient()  # reads COOLIFY_API_URL, COOLIFY_API_TOKEN from env
 
-# Or specify explicitly
-coolify = CoolifyClient(
-    base_url="http://172.93.160.197:8000",
-    token="your-api-token"
+# Discover
+servers = c.list_servers()
+projects = c.list_projects()
+apps = c.list_applications()
+
+# Create a dockercompose application (base64-encoded compose)
+app = c.create_dockercompose_application(
+    name="my-api",
+    project_uuid=projects[0]["uuid"],
+    server_uuid=servers[0]["uuid"],
+    docker_compose_raw=compose_yaml,  # client base64-encodes internally
 )
 
-# Get version
-print(coolify.version())  # "4.0.0-beta.455"
+# Set env vars (Coolify v4 API: key/value; HTTP 409 if key exists → use PATCH)
+c.bulk_update_env_vars(app["uuid"], {"SENTRY_DSN": dsn, "LOG_LEVEL": "info"})
 
-# List servers
-servers = coolify.list_servers()
-for s in servers:
-    print(s.get("name"), s.get("ip"))
+# Deploy
+c.deploy(app["uuid"], force=True)
 
-# List projects
-projects = coolify.list_projects()
-
-# List applications
-apps = coolify.list_applications()
-
-# Deploy an application
-coolify.deploy("app-uuid")
-
-# Stop/Start/Restart
-coolify.stop_application("app-uuid")
-coolify.start_application("app-uuid")
-coolify.restart_application("app-uuid")
-
-# Environment variables
-coolify.create_env_var("app-uuid", "API_KEY", "secret123")
-coolify.get_env_vars("app-uuid")
-
-# Always close
-coolify.close()
+# Lifecycle
+c.stop_application(uuid); c.start_application(uuid); c.restart_application(uuid)
+c.delete_application(uuid)
 ```
 
-### Available Methods
-
-#### Servers
-| Method | Description |
-|--------|-------------|
-| `list_servers()` | List all servers |
-| `get_server(uuid)` | Get server details |
-| `get_server_resources(uuid)` | Get all resources on server |
-| `get_server_domains(uuid)` | Get all domains on server |
-
-#### Projects
-| Method | Description |
-|--------|-------------|
-| `list_projects()` | List all projects |
-| `get_project(uuid)` | Get project details |
-| `create_project(name, description)` | Create new project |
-
-#### Applications
-| Method | Description |
-|--------|-------------|
-| `list_applications()` | List all applications |
-| `get_application(uuid)` | Get application details |
-| `create_application(...)` | Create new application |
-| `update_application(uuid, **kwargs)` | Update application |
-| `delete_application(uuid)` | Delete application |
-| `deploy(uuid, force=False)` | Deploy/redeploy |
-| `stop_application(uuid)` | Stop application |
-| `start_application(uuid)` | Start application |
-| `restart_application(uuid)` | Restart application |
-
-#### Environment Variables
-| Method | Description |
-|--------|-------------|
-| `get_env_vars(uuid)` | Get all env vars |
-| `create_env_var(uuid, key, value)` | Create env var |
-| `update_env_var(uuid, env_uuid, **kwargs)` | Update env var |
-| `delete_env_var(uuid, env_uuid)` | Delete env var |
-| `bulk_update_env_vars(uuid, dict)` | Bulk update env vars |
-
-#### Services & Databases
-| Method | Description |
-|--------|-------------|
-| `list_services()` | List all services |
-| `list_databases()` | List all databases |
-| `create_database(...)` | Create database |
-| `start_database(uuid)` | Start database |
-| `stop_database(uuid)` | Stop database |
-
----
-
-## Environment Variables
-
-All credentials are stored in `/opt/fabrik/.env`:
-
-```bash
-# DNS
-DNS_MANAGER_URL=https://dns.vps1.ocoron.com
-
-# Coolify
-COOLIFY_API_URL=http://172.93.160.197:8000
-COOLIFY_API_TOKEN=5|YA40VYboS...
-
-# B2 Backups
-B2_KEY_ID=0044e7ca36a086b0000000001
-B2_APPLICATION_KEY=K004hcjQVRBA...
-```
-
-**Never commit `.env` to git!** It's already in `.gitignore`.
-
----
-
-## Testing Drivers
-
-```bash
-cd /opt/fabrik
-PYTHONPATH=src python3 -c "
-from fabrik.drivers.dns import DNSClient
-from fabrik.drivers.coolify import CoolifyClient
-
-dns = DNSClient()
-print('DNS Health:', dns.health())
-dns.close()
-
-coolify = CoolifyClient()
-print('Coolify Version:', coolify.version())
-coolify.close()
-"
-```
-
----
-
-## Supabase Client (Phase 1b)
-
-Client for Supabase Auth and Database operations.
-
-### Usage
+### DNSClient — all DNS/domain ops
 
 ```python
-from fabrik.drivers.supabase import SupabaseClient
+from fabrik.drivers.dns import DNSClient, add_dns_record
 
-# Initialize
-supabase = SupabaseClient()
+# Most common: add a subdomain under an existing zone
+add_dns_record("ocoron.com", "myapp.vps1", "172.93.160.197")
 
-# Check health
-print(supabase.health())
-
-# Verify JWT token
-result = supabase.verify_jwt(token)
-if result["valid"]:
-    user = result["user"]
-
-# Database operations
-rows = supabase.query("files", filters={"tenant_id": "abc"})
-supabase.insert("files", {"filename": "test.pdf", "tenant_id": "abc"})
-supabase.update("files", {"status": "ready"}, {"id": "123"})
-
-# File processing jobs
-job = supabase.create_processing_job(file_id="123", job_type="transcribe")
-claimed = supabase.claim_next_job(["transcribe", "ocr"], worker_id="w1")
-supabase.complete_job(job_id="123", success=True, result_data={"duration": 120})
-
-supabase.close()
+# Full API via context manager
+with DNSClient() as dns:
+    dns.add_subdomain("ocoron.com", "api.vps1", "172.93.160.197")
+    records = dns.get_records("ocoron.com")
+    dns.check_availability("new-domain.com")
+    dns.register_domain("new-domain.com", contact={...})
 ```
 
-### Environment Variables
+`DNSClient` routes through site-provisioner at `dns.vps1.ocoron.com`; falls back to `drivers/cloudflare.py` if the service is unreachable.
 
-```bash
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
-```
-
----
-
-## R2 Client (Phase 1b)
-
-Client for Cloudflare R2 object storage with S3-compatible API.
-
-### Usage
+### GlitchTip — error tracking (shape-gated)
 
 ```python
-from fabrik.drivers.r2 import R2Client
+from fabrik.drivers.glitchtip import create_project, verify_dsn_injection
 
-# Initialize
-r2 = R2Client(bucket="my-bucket")
+result = create_project("my-api")  # {status: "created"|"exists", dsn: "http://..."}
 
-# Generate presigned URLs
-upload_url = r2.generate_presigned_url("uploads/file.pdf", method="PUT", expires_in=3600)
-download_url = r2.generate_presigned_url("uploads/file.pdf", method="GET")
-
-# Direct operations
-r2.put_object("test.txt", b"Hello World", content_type="text/plain")
-data = r2.get_object("test.txt")
-r2.delete_object("test.txt")
-
-# List objects
-objects = r2.list_objects(prefix="uploads/")
-
-r2.close()
+# Inject DSN into Coolify app env, then verify container picks it up
+# verify_dsn_injection uses `docker inspect` — works on scratch/distroless (Lesson 31)
+ok = verify_dsn_injection("my-api", expected_dsn=result["dsn"], timeout=60)
 ```
 
-### Environment Variables
+### Authelia — SSO/2FA forward-auth
 
-```bash
-R2_ACCOUNT_ID=abc123
-R2_ACCESS_KEY_ID=xxx
-R2_SECRET_ACCESS_KEY=xxx
-R2_BUCKET=my-bucket
-R2_PUBLIC_URL=https://files.example.com  # Optional
+```python
+from fabrik.drivers.authelia import add_access_rule, remove_access_rule
+
+# Admin dashboard: two_factor
+add_access_rule(domain="dashboard.vps1.ocoron.com", policy="two_factor")
+
+# Admin dashboard with a bearer-token API: add ^/api/ bypass FIRST
+add_access_rule(
+    domain="dashboard.vps1.ocoron.com",
+    policy="bypass",
+    resources=["^/api/"],
+    insert_before_twofactor=True,   # critical: ordering matters (Lesson 25 §8.11)
+)
+add_access_rule(domain="dashboard.vps1.ocoron.com", policy="two_factor")
 ```
+
+### Gatus — uptime monitoring
+
+```python
+from fabrik.drivers.gatus import add_endpoint, remove_endpoint
+
+add_endpoint(
+    name="my-api",
+    url="https://my-api.vps1.ocoron.com/health",
+    interval="60s",
+    group="apps",
+)
+```
+
+Config edits auto-commit via `drivers/locks.py::git_commit_config()` (only `/opt/monitoring/configs/gatus` is whitelisted).
+
+### Backrest — restic-based backups
+
+```python
+from fabrik.drivers.backrest import add_backup_plan, remove_backup_plan
+
+add_backup_plan(
+    plan_id="my-api-data",
+    paths=["/opt/my-api/data"],
+    schedule="0 3 * * *",     # daily 03:00
+    retention={"daily": 7, "weekly": 4, "monthly": 12},
+)
+```
+
+Atomic write pattern: `.tmp` → `json.tool` validate → `mv`. Lock held for the full script via `run_locked("backrest-config", ...)`.
+
+### MeiliSearch — search index
+
+```python
+from fabrik.drivers.meilisearch import create_index, delete_index
+
+create_index("my_api_documents", primary_key="id")
+```
+
+Inside the container, the shell evaluates `$MEILI_MASTER_KEY` from env — secret never leaves the container.
+
+### Grafana — deployment annotations (decorative, non-fatal)
+
+```python
+from fabrik.drivers.grafana import post_deployment_annotation
+
+post_deployment_annotation(
+    service="my-api",
+    version=spec_hash,
+    tags=["deploy", "prod"],
+)
+```
+
+Failure is logged but does not fail the deploy.
+
+### Postgres — per-service DB
+
+```python
+from fabrik.drivers.postgres import create_database
+
+create_database("my_api_prod", owner="postgres")
+# SQL identifiers validated upstream; drop_database() is deferred to operator
+```
+
+### SSH & locks — the low-level primitives
+
+```python
+from fabrik.drivers.ssh import ssh, scp_to_vps
+from fabrik.drivers.locks import run_locked, git_commit_config
+
+# Fire-and-parse SSH
+uptime = ssh("uptime").strip()
+ssh("sudo systemctl restart foo", timeout=30)
+
+# Whole-script locking (NOT per-SSH-call — that pattern is broken, see module docstring)
+run_locked("authelia-config", """
+    docker exec authelia-... cat /config/configuration.yml > /tmp/cfg.yml
+    # edit /tmp/cfg.yml ...
+    docker cp /tmp/cfg.yml authelia-...:/config/configuration.yml
+    docker restart authelia-...
+""", timeout=60)
+
+# Git-commit whitelisted VPS configs
+git_commit_config("/opt/monitoring/configs/gatus")
+```
+
+### Supabase & R2 — optional infra
+
+Used only when `spec.infrastructure.database == supabase` or `spec.storage.type == r2`. See DEPLOYMENT.md §2.4 for shape-gate details.
 
 ---
 
-## File Locations
+## Environment variables
 
-| File | Purpose |
-|------|---------|
-| `src/fabrik/drivers/__init__.py` | Driver exports |
-| `src/fabrik/drivers/dns.py` | DNS client |
-| `src/fabrik/drivers/coolify.py` | Coolify client |
-| `src/fabrik/drivers/gatus.py` | Gatus API for monitor management |
-| `src/fabrik/drivers/supabase.py` | Supabase client |
-| `src/fabrik/drivers/r2.py` | Cloudflare R2 client |
-| `.env` | Credentials (gitignored) |
-| `.env.example` | Template for .env |
+Canonical source: `/opt/fabrik/.env` (git-ignored; `.env.example` is tracked). Required for deploy:
+
+| Driver | Variables |
+|---|---|
+| `coolify` | `COOLIFY_API_URL`, `COOLIFY_API_TOKEN` |
+| `dns` | `DNS_MANAGER_URL` (defaults to `https://dns.vps1.ocoron.com`), `SITE_PROVISIONER_API_KEY` |
+| `cloudflare` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID_OCORON` |
+| `glitchtip` | `GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG`, `GLITCHTIP_ADMIN_EMAIL`, `GLITCHTIP_ADMIN_PASSWORD` |
+| `grafana` | `GRAFANA_SERVICE_ACCOUNT_TOKEN` |
+| `backrest` | `BACKREST_URL`, `BACKREST_AUTH` |
+| `meilisearch` | `MEILI_MASTER_KEY` (read inside container, never on wire) |
+| `supabase` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
+| `r2` | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` |
+| `ssh`, `locks` | `FABRIK_VPS_SSH_HOST` (default `vps`) |
+
+Never commit `.env`. Never `source` a `.env` file — values can contain shell metacharacters (Lesson 25 §8.14); use `python-dotenv` in Python, `grep | cut` in shell.
+
+---
+
+## Tests
+
+```bash
+# All driver tests (331 tests as of 2026-04-22, across 12 driver modules)
+pytest tests/drivers/ -q
+
+# One driver
+pytest tests/drivers/test_glitchtip.py -q
+```
+
+Test files: `test_authelia.py`, `test_backrest.py`, `test_compose_updater.py`, `test_container_resolver.py`, `test_gatus.py`, `test_glitchtip.py`, `test_grafana.py`, `test_locks.py`, `test_meilisearch.py`, `test_postgres.py`, `test_preflight.py`, `test_ssh.py`.
+
+---
+
+## Live contract probes
+
+Contract tests against live services — run before shipping driver changes. Also serve as living API documentation.
+
+| Script | Tests |
+|---|---|
+| `scripts/probes/glitchtip_probe.sh` | Create project → fetch DSN → delete. Contract captured in `docs/reference/glitchtip-api.md`. |
+| `scripts/probes/grafana_token_check.sh` | `/api/annotations` write + delete. Validates `GRAFANA_SERVICE_ACCOUNT_TOKEN` scope. |
+
+---
+
+## Related
+
+- [DEPLOYMENT.md](../DEPLOYMENT.md) — canonical deploy reference with full driver catalog (§2.4) and shape gates
+- [Orchestrator](orchestrator.md) — how drivers are invoked during a deploy
+- [CLI Reference](fabrik-cli-reference.md)
+- [Templates](templates.md)
+- [glitchtip-api.md](glitchtip-api.md) — live-captured GlitchTip API contract

@@ -1,7 +1,28 @@
 # Scaffold → Deploy Integration Analysis
 
 **Date:** 2026-04-16
-**Purpose:** Gap analysis and recommendations for AI agents creating deploy-ready projects
+**Status:** 📜 **HISTORICAL** — superseded 2026-04-22. Most gaps identified here are now closed.
+**Purpose (original):** Gap analysis and recommendations for AI agents creating deploy-ready projects
+
+---
+
+> ## ⚠️ Read this first (2026-04-22 update)
+>
+> **Canonical deploy reference is now [DEPLOYMENT.md](../DEPLOYMENT.md).** Use this file only for historical context on how the architecture evolved.
+>
+> **What has changed since 2026-04-16:**
+>
+> - **Scaffold types: still 11** (`SCAFFOLD_TYPES` in `src/fabrik/scaffold.py`); **deploy templates: 12** (the extra `templates/next-tailwind/` is used by spec-driven deploys but not exposed as a `fabrik scaffold --type` option). All scaffold types emit `project.yaml` + `specs/services/<name>.yaml` automatically.
+> - **Template coverage: 100%** — all deploy-able templates have `defaults.yaml` with canonical `shape:` flags (`kind`, `is_public`, `is_admin_dashboard`, `has_bearer_api`, `has_persistent_data`, `needs_database`, `has_search_feature`).
+> - **`fabrik new` is DEPRECATED** — hidden with warning since Phase 4k; use `fabrik scaffold` exclusively.
+> - **Shape-driven orchestrator is live** (`src/fabrik/orchestrator/infrastructure.py`, 510 lines). Scaffold → deploy is no longer "disconnected": the spec's `shape:` block decides which registrars run (Postgres, Gatus, Backrest, GlitchTip+DSN, Grafana, Authelia+`^/api/` bypass, MeiliSearch).
+> - **Backup is Backrest, not Duplicati** — `backup.vps1.ocoron.com`, restic via Backrest, Backblaze B2 remote (migrated 2026-04-17).
+> - **Observability is fully Coolify-managed** (Prometheus, Alertmanager, Grafana, Loki, Promtail, cAdvisor, node-exporter).
+> - **Authelia + X-Internal-Token + iptables DOCKER-USER** is the live 4-layer security model (see DEPLOYMENT.md §8.4).
+> - **Live E2E validated 2026-04-22:** ~63s wall time for maximal shape (all 9 registrars green + idempotent re-deploy). See DEPLOYMENT.md §9.6 for the script.
+> - **P3/P4/P5 roadmap items** in this doc are effectively replaced by the orchestrator + `deploy_validator.py` + `compose_linter.py`.
+>
+> Any recommendation below that contradicts this banner is obsolete.
 
 ---
 

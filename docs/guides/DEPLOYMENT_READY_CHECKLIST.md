@@ -1,6 +1,10 @@
 # Deployment-Ready Checklist
 
+**Last Updated:** 2026-04-22
+
 > **Container-first development: fast local dev + production parity**
+>
+> **Canonical deploy reference:** [`docs/DEPLOYMENT.md`](../DEPLOYMENT.md). This file is a practical checklist for agents preparing a scaffolded project for its first deploy; the deploy pipeline itself (shape-driven orchestrator with 7 registrars) is documented in DEPLOYMENT.md §1 and `reference/orchestrator.md`.
 
 ---
 

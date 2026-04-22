@@ -2,9 +2,12 @@
 
 **Source:** Phase 4-pre Task 1 live probe against `https://errors.vps1.ocoron.com` (GlitchTip v6.1.5)
 **Captured:** 2026-04-18 UTC+3 via `scripts/probes/glitchtip_probe.sh`
+**Last Verified:** 2026-04-22 (E2E deploy validation — all registrars green including DSN injection)
 **Artifacts:** `.tmp/phase-4-pre/glitchtip-probe-{create,keys}.json` (regenerate by rerunning the probe)
 
-This document locks the **exact JSON field names the `glitchtip.py` driver (Phase 4f) must parse**. Any drift between GlitchTip versions silently breaking the driver will be caught by rerunning this probe as a contract test.
+This document locks the **exact JSON field names the `glitchtip.py` driver (Phase 4f, 403 lines) must parse**. Any drift between GlitchTip versions silently breaking the driver will be caught by rerunning this probe as a contract test.
+
+> **Lesson 31 (2026-04-22):** DSN injection into the container MUST be verified via `docker inspect "{{.Config.Env}}"` — NOT via `docker exec printenv`. Published images with `ENTRYPOINT ["something"]` reject `docker exec` with exit 126, making `printenv` unreliable for verification. The driver's `verify_dsn_injection()` helper already uses the correct method. See `docs/LESSONS_LEARNT.md` §Lesson 31.
 
 ## Authentication
 

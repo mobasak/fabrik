@@ -1,279 +1,236 @@
 # Fabrik Architecture
 
-**Last Updated:** 2025-12-27
+**Last Updated:** 2026-04-22
 
 ---
 
 ## Overview
 
-Fabrik is a spec-driven deployment automation CLI. You write a YAML spec file describing what you want deployed, and Fabrik handles the rest.
+Fabrik is a **spec-driven, shape-gated deployment automation CLI**. You write a YAML spec describing what you want deployed; the orchestrator runs a state machine that provisions Coolify + Traefik + every relevant registrar (Postgres, Gatus, Backrest, GlitchTip, Grafana, Authelia, MeiliSearch) and verifies the result — all atomic, with automatic rollback on failure.
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           FABRIK CLI                                     │
-│                                                                          │
-│   fabrik scaffold my-api --type python-api                              │
-│   fabrik plan specs/services/my-api.yaml                                 │
-│   fabrik apply specs/services/my-api.yaml                                │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         SPEC LOADER                                      │
-│                                                                          │
-│   • Parses YAML spec files                                               │
-│   • Validates schema (required fields, types)                            │
-│   • Sets defaults for optional fields                                    │
-│   • Returns typed Pydantic model                                         │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                       TEMPLATE RENDERER                                  │
-│                                                                          │
-│   • Takes validated spec + template                                      │
-│   • Generates compose.yaml, Dockerfile, configs                          │
-│   • Variable substitution from spec.env                                  │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          DRIVERS                                         │
-│                                                                          │
-│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
-│   │  DNS        │  │  Coolify    │  │  Uptime     │  │  Supabase   │    │
-│   │  Client     │  │  Client     │  │  Kuma       │  │  (Phase 1b) │    │
-│   └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘    │
-│          │                │                │                │           │
-└──────────┼────────────────┼────────────────┼────────────────┼───────────┘
-           │                │                │                │
-           ▼                ▼                ▼                ▼
-    ┌────────────┐   ┌────────────┐   ┌────────────┐   ┌────────────┐
-    │ Namecheap  │   │  Coolify   │   │   Uptime   │   │  Supabase  │
-    │   API      │   │    API     │   │    Kuma    │   │    API     │
-    └────────────┘   └────────────┘   └────────────┘   └────────────┘
-```
+**Entry point of truth:** `docs/DEPLOYMENT.md` — single canonical reference. This file is the quick architectural map.
 
 ---
 
-## Core Components
+## High-Level Pipeline
 
-### 1. Spec Loader (`spec_loader.py`) ✅ Implemented
+```text
+fabrik scaffold <name> --type <t>         →  /opt/<name>/ tree + spec
+                                             +
+fabrik apply <spec> | fabrik deploy       →  DeploymentOrchestrator state machine:
 
-**Status:** Complete (2025-12-23)
-
-**Purpose:** Parse and validate YAML spec files into typed Python objects.
-
-**Why it exists:**
-- **Single source of truth** for spec schema
-- **Fail fast** — Invalid specs rejected before any deployment starts
-- **Type safety** — All downstream code works with validated objects, not raw dicts
-- **Default values** — Missing optional fields get sensible defaults
-
-**Key Models:**
-
-| Model | Purpose |
-|-------|---------|
-| `Spec` | Main deployment specification |
-| `Kind` | Service type (service/worker) |
-| `Source` | App source (template/git/docker) |
-| `Infrastructure` | Backend options (database/storage/auth) |
-| `Depends` | Service dependencies (postgres/redis) |
-
-**Public Functions:**
-
-```python
-from fabrik import load_spec, save_spec, create_spec, Spec
-
-# Load from YAML
-spec = load_spec("specs/my-api.yaml")
-
-# Create programmatically
-spec = create_spec(id="my-api", template="python-api", domain="api.example.com")
-
-# Save to file
-save_spec(spec, "specs/my-api.yaml")
+    PENDING → VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE
+                   ↓            ↓            ↓            ↓
+                 FAILED  ←  ROLLING_BACK  ←  ROLLING_BACK  ←  ROLLING_BACK
+                                              ↓
+                                        ROLLED_BACK
 ```
 
-**Validation Examples:**
-- ID must be DNS-safe (`^[a-z0-9][a-z0-9-]*[a-z0-9]$`)
-- HTTP services require domain
-- Git source requires repository URL
-- Docker source requires image name
+Each transition invokes a specific module; each module only talks to one external system via a single driver.
 
 ---
 
-### 2. Template Renderer (`template_renderer.py`) ✅ Implemented
+## Layered Components
 
-**Status:** Complete (2025-12-23)
+### 1. Spec layer — `src/fabrik/spec_loader.py`
 
-**Purpose:** Generate deployment files from spec + template.
+Pydantic models with `model_config = {"extra": "forbid"}`.
 
-**Why it exists:**
-- **DRY** — Common patterns (Python API, Node API, WordPress) defined once as templates
-- **Consistency** — All services follow same structure
-- **Variable substitution** — `${VAR}` replaced with spec values
+Key classes: `Spec`, `Shape`, `Source`, `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `CoolifyConfig`, `Depends`, `Infrastructure`, `WordPressConfig`.
 
-**Input:** Validated `Spec` + template name
-**Output:** Generated `compose.yaml`, `Dockerfile`, config files
+**The `Shape` model drives everything downstream.** Shape flags (`is_public`, `is_admin_dashboard`, `has_bearer_api`, `has_persistent_data`, `needs_database`, `has_search_feature`) decide which registrars run.
 
-```python
-from fabrik.template_renderer import render_template
+### 2. Template layer — `src/fabrik/template_renderer.py` + `templates/`
 
-files = render_template(spec, template="python-api")
-# Returns dict of filename -> content
-```
+Jinja2-rendered `compose.yaml` + `Dockerfile` + auxiliary files per template type. **12 deploy templates** (11 also exposed as `fabrik scaffold --type` options; `next-tailwind` is deploy-only): python-api, node-api, saas-skeleton, static-site, wordpress, docusaurus, file-api, file-worker, chrome-extension, desktop-app, mobile-app, next-tailwind.
 
----
+Each template has `defaults.yaml` declaring its default shape flags.
 
-### 3. Drivers
+### 3. Orchestrator — `src/fabrik/orchestrator/`
 
-**Purpose:** Communicate with external services.
+11 modules, 3102 lines total (2026-04-22, includes 613-line `content_publisher.py` which is not on the deploy path). Stage-by-stage pipeline with a state machine:
 
-| Driver | Service | Operations |
-|--------|---------|------------|
-| `DNSClient` | Namecheap + Cloudflare APIs | Add/remove DNS records |
-| `CoolifyClient` | Coolify API | Create apps, deploy, manage env vars |
-| `UptimeKumaClient` | Uptime Kuma | Add/remove monitors |
-| `SupabaseClient` | Supabase (Phase 1b) | Auth, database, vectors |
-| `R2Client` | Cloudflare R2 (Phase 1b) | Presigned URLs, bucket management |
+| Module | Role |
+|---|---|
+| `__init__.py` | `DeploymentOrchestrator` — top-level runner + rollback wiring |
+| `states.py` | State enum + illegal-transition guard |
+| `context.py` | `DeploymentContext` — shared state, resource log for rollback |
+| `validator.py` | Pydantic validation + SSRF check + idempotency hash |
+| `secrets.py` | `SecretsManager` — CSPRNG generate, `-s` > project `.env` > fabrik `.env` > env |
+| `deployer.py` | `ServiceDeployer` — idempotent Coolify create/update + deploy(force=True) |
+| `infrastructure.py` | **`InfrastructureProvisioner`** — shape-driven registrar dispatch |
+| `verifier.py` | HTTP 200, DNS, SSL, SENTRY_DSN injection (via `docker inspect`) |
+| `rollback.py` | `RollbackManager` — LIFO cleanup; DB drops logged, not auto-executed |
+| `exceptions.py` | Typed exceptions |
+| `content_publisher.py` | **Not deploy** — SEO→TCO→Image→WordPress pipeline |
 
----
+### 4. Drivers — `src/fabrik/drivers/` (22 modules)
 
-### 4. CLI Commands
+Every external call goes through a driver. No ad-hoc HTTP or SSH allowed in CLI/orchestrator code.
 
-| Command | Purpose |
-|---------|---------|
-| `fabrik scaffold <name> --type <t>` | Canonical: create project tree + emit spec with `shape:` block |
-| `fabrik new` | **DEPRECATED** (Phase 4k, 2026-04-19) — hidden + warning; use `scaffold` |
-| `fabrik plan <spec>` | Show what will change (dry run) |
-| `fabrik apply <spec>` | Execute deployment |
-| `fabrik status <spec>` | Check deployment status |
-| `fabrik logs <spec>` | View service logs |
+| Category | Drivers |
+|---|---|
+| **VPS primitives** | `ssh.py`, `locks.py` |
+| **Coolify + networking** | `coolify.py`, `compose_updater.py`, `preflight.py`, `dns.py`, `cloudflare.py` |
+| **Shape-gated registrars** | `postgres.py`, `gatus.py`, `backrest.py`, `glitchtip.py`, `grafana.py`, `authelia.py`, `meilisearch.py` |
+| **Optional infra** | `supabase.py`, `r2.py` |
+| **WordPress** | `wordpress.py`, `wordpress_api.py` |
+| **Content pipeline** | `image_broker.py`, `seo.py`, `tco.py` |
+| **Legacy** | `uptime_kuma.py` (superseded by Gatus) |
+
+See `docs/reference/drivers.md` for shape gates and usage.
+
+### 5. CLI — `src/fabrik/cli.py` (2048 lines)
+
+Click-based. 22 top-level commands. See `docs/reference/fabrik-cli-reference.md`.
+
+### 6. Supporting modules
+
+| File | Role |
+|---|---|
+| `deploy_router.py` | `route_deploy(project_path)` — WordPress vs. service pipeline dispatch |
+| `deploy_validator.py` | Scaffold-level readiness (Dockerfile, `.env`, healthcheck, platform) |
+| `compose_linter.py` | Coolify compatibility: no public ports, amd64 platform, coolify network |
+| `registry.py` | `ProjectRegistry` → `/opt/fabrik/data/projects.yaml` |
+| `provisioner.py` | Saga for brand-new-site setup (domain → DNS → Coolify bootstrap) |
+| `verify.py` | `PostconditionChecker` framework for declarative post-deploy checks |
 
 ---
 
 ## Data Flow Example
 
-```
-User runs: fabrik apply specs/my-api.yaml
+```text
+User: fabrik deploy --project /opt/my-api
 
-1. CLI parses args
-2. spec_loader.load_spec("specs/my-api.yaml")
-   → Validates YAML, returns Spec object
-3. template_renderer.render_template(spec, "python-api")
-   → Generates compose.yaml, Dockerfile
-4. dns_client.add_subdomain(spec.domain)
-   → Creates DNS record
-5. coolify_client.create_application(spec)
-   → Creates app in Coolify
-6. coolify_client.deploy()
-   → Triggers deployment
-7. uptime_kuma_client.add_http_monitor(spec.domain)
-   → Adds monitoring
-8. Print success summary
+  1. deploy_router reads /opt/my-api/project.yaml → routes to service pipeline
+  2. DeploymentOrchestrator.deploy(spec_path)
+     a. SpecValidator.validate() + SSRF check + spec_hash
+     b. deploy_validator (scaffold readiness warnings)
+     c. SecretsManager.load() — project .env merged with fabrik .env
+     d. DNSClient.add_record(domain, VPS_IP)              [if --skip-dns not set]
+     e. TemplateRenderer.render() + ComposeLinter.lint()
+     f. ServiceDeployer — Coolify PATCH+deploy or POST+deploy
+     g. InfrastructureProvisioner.provision(ctx)          [SHAPE-GATED]:
+          postgres.create_database()      if needs_database
+          gatus.add_endpoint()            if is_public + domain
+          backrest.add_backup_plan()      if has_persistent_data
+          glitchtip.create_project() + verify_dsn_injection()
+                                          if shape.kind in service|worker|wordpress
+          grafana.post_deployment_annotation()            always
+          authelia.add_access_rule()      if is_admin_dashboard + domain
+          authelia.add_access_rule(^/api/ bypass, insert_before_twofactor=True)
+                                          if has_bearer_api
+          meilisearch.create_index()      if has_search_feature
+     h. DeploymentVerifier — HTTP 200, DNS, SSL, SENTRY_DSN via docker inspect
+  3. Any exception → RollbackManager.rollback(ctx) — LIFO cleanup
+  4. Success → print deployed URL, exit 0
 ```
+
+Expected wall time for maximal shape (all flags true, scratch image): **~63s** (measured 2026-04-22, see `docs/DEPLOYMENT.md` §9.6).
 
 ---
 
-## Spec File Example
+## Spec File Example (maximal shape)
 
 ```yaml
 id: my-api
 kind: service
 template: python-api
-domain: myapi.vps1.ocoron.com
+domain: my-api.vps1.ocoron.com
 
-depends:
-  postgres: main
+shape:
+  kind: service
+  is_public: true            # → Gatus endpoint
+  is_admin_dashboard: true   # → Authelia forward-auth
+  has_bearer_api: true       # → Authelia ^/api/ bypass
+  has_persistent_data: true  # → Backrest backup
+  needs_database: true       # → Postgres DB
+  has_search_feature: true   # → MeiliSearch index
 
-env:
-  LOG_LEVEL: INFO
-  API_KEY: ${secrets.API_KEY}
-
-resources:
-  memory: 512M
-  cpu: 1
-
-health:
-  path: /health
-  interval: 30s
+source: {type: docker, image: my/image:tag, image_port: 8000}
+coolify: {project: default, server: localhost}
+env: {LOG_LEVEL: INFO}
+resources: {memory: 512M, cpu: '1'}
+health: {path: /health, disabled: false}
+backup: {enabled: true, frequency: daily, retention: 30}
 ```
 
 ---
 
 ## Directory Structure
 
-```
+```text
 /opt/fabrik/
 ├── src/fabrik/
-│   ├── __init__.py
-│   ├── main.py              # CLI entry point
-│   ├── config.py            # Environment config
-│   ├── spec_loader.py       # YAML parsing + validation
-│   ├── template_renderer.py # Template → files
-│   └── drivers/
-│       ├── __init__.py
-│       ├── dns.py           # DNS operations
-│       ├── coolify.py       # Coolify API
-│       └── uptime_kuma.py   # Monitoring
-├── templates/               # Service templates
-│   ├── python-api/
-│   ├── node-api/
-│   └── wordpress/
-├── specs/                   # Deployment specs
-└── docs/reference/
-    ├── Phase1.md
-    ├── Phase1b.md           # Supabase + R2
-    ├── Phase1c.md           # Cloudflare DNS
-    └── architecture.md      # This file
+│   ├── cli.py                        # 22-command CLI (2048 lines)
+│   ├── spec_loader.py                # Pydantic Spec + Shape models
+│   ├── template_renderer.py          # Jinja2 + ComposeLinter hook
+│   ├── scaffold.py                   # fabrik scaffold logic
+│   ├── deploy_router.py              # project-type dispatch
+│   ├── deploy_validator.py           # scaffold-level readiness
+│   ├── compose_linter.py             # Coolify-compat checks
+│   ├── registry.py                   # project registry
+│   ├── provisioner.py                # brand-new-site saga
+│   ├── verify.py                     # postcondition framework
+│   ├── orchestrator/                 # 11 modules — deployment state machine
+│   └── drivers/                      # 22 modules — external API clients
+├── templates/                        # 12 deploy templates (11 also scaffold-exposed)
+├── specs/
+│   ├── services/                     # per-app specs (~52 services)
+│   ├── infrastructure/               # platform-wide specs
+│   ├── sites/                        # WordPress site specs
+│   └── verification/                 # declarative postconditions
+├── configs/                          # local mirrors of VPS configs
+├── scripts/
+│   ├── enforcement/                  # pre-deploy invariant checks
+│   ├── probes/                       # live API contract tests
+│   └── final_gate.py                 # tier-1/2/3 quality gate
+├── tests/
+│   ├── orchestrator/                 # 144 tests
+│   └── drivers/                      # 331 tests across 12 modules
+└── docs/
+    ├── DEPLOYMENT.md                 # canonical deploy reference (790 lines)
+    ├── LESSONS_LEARNT.md             # every live-incident invariant
+    └── reference/                    # this directory
 ```
 
 ---
 
-## Phase Roadmap
+## External surface (VPS)
 
-| Phase | Focus | Status |
-|-------|-------|--------|
-| **1** | Foundation (CLI, drivers, templates) | ✅ Complete |
-| **1b** | Cloud Infrastructure (Supabase, R2) | Pending |
-| **1c** | Cloudflare DNS Migration | ✅ Complete |
-| **2** | WordPress Automation | Deferred |
-| **3** | AI Content Integration | Deferred |
+| Layer | Service |
+|---|---|
+| **Control plane** | Coolify (`coolify.vps1.ocoron.com`) |
+| **Reverse proxy** | Traefik (managed by Coolify) — 80/443 only |
+| **Auth** | Authelia forward-auth (`auth.vps1.ocoron.com`) for admin dashboards without native TOTP |
+| **Data** | `postgres-main` (shared), `redis-main` (shared), Backblaze B2 (via Backrest) |
+| **Observability** | Prometheus + Grafana + Alertmanager + Loki + Promtail; GlitchTip (errors); Gatus (uptime); Apprise (notifications) |
+| **Search / PDF / Browser** | MeiliSearch, Gotenberg, Browserless (all internal APIs) |
+| **DNS** | site-provisioner service (`dns.vps1.ocoron.com`) → Namecheap + Cloudflare |
 
----
-
-## Coolify-Managed Services
-
-The following services are deployed via Coolify with GitHub webhook auto-deploy:
-
-| Service | Domain | GitHub Repo |
-|---------|--------|-------------|
-| captcha | captcha.vps1.ocoron.com | mobasak/captcha |
-| dns-manager | dns.vps1.ocoron.com | mobasak/dns-manager |
-| translator | translator.vps1.ocoron.com | mobasak/translator |
-| emailgateway | emailgateway.vps1.ocoron.com | mobasak/emailgateway |
-| image-broker | images.vps1.ocoron.com | mobasak/image-broker |
-| proxy | proxy.vps1.ocoron.com | mobasak/proxy |
-| file-api | files-api.vps1.ocoron.com | mobasak/file-api |
-| file-worker | (background worker) | mobasak/file-worker |
-
-**Coolify UI:** https://coolify.vps1.ocoron.com
-
-**Auto-deploy:** Push to GitHub → Webhook → Coolify rebuilds & deploys
+Full inventory in `docs/infrastructure/vps-complete-inventory.md` and `AGENTS.md`.
 
 ---
 
-## Infrastructure Services
+## Security model (4-layer)
 
-Core platform services running on VPS:
+| Layer | Target |
+|---|---|
+| **iptables DOCKER-USER** | Only 80/443/6001/6002 public; Docker bypasses UFW |
+| **Authelia** | 2FA forward-auth for admin dashboards w/o native TOTP |
+| **X-Internal-Token** | Machine-to-machine auth for internal microservices |
+| **Bearer tokens** | API endpoints on admin dashboards (Coolify, Grafana, GlitchTip) |
 
-| Service | URL | Purpose |
-|---------|-----|--------|
-| Coolify | https://coolify.vps1.ocoron.com | Container orchestration, deployment management |
-| Traefik | (internal) | Reverse proxy, SSL termination, routing |
-| Gatus | https://status.vps1.ocoron.com | Uptime monitoring, alerts |
-| Netdata | https://netdata.vps1.ocoron.com | Real-time server metrics |
-| Duplicati | (internal) | Postgres backup to Backblaze B2 |
-| postgres-main | (internal) | Shared PostgreSQL database |
-| redis-main | (internal) | Shared Redis cache |
+Details: `docs/DEPLOYMENT.md` §8.4.
+
+---
+
+## Related
+
+- [DEPLOYMENT.md](../DEPLOYMENT.md) — the canonical deploy reference (§1–11)
+- [Orchestrator](orchestrator.md)
+- [Drivers](drivers.md)
+- [CLI Reference](fabrik-cli-reference.md)
+- [Templates](templates.md)
+- [LESSONS_LEARNT.md](../LESSONS_LEARNT.md) — every live-incident invariant
+- [AGENTS.md](../../AGENTS.md) — Fabrik identity + tech stack + VPS inventory

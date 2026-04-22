@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Deploy-workflow reference docs refreshed to match live code — 2026-04-22
+
+Audited 13 deploy-workflow-adjacent docs against `src/fabrik/` reality (orchestrator/11 modules/3102 lines, drivers/22 modules, cli.py/2048 lines, templates/12, SCAFFOLD_TYPES/11). Fixed every factual drift found.
+
+- **`@/opt/fabrik/docs/reference/orchestrator.md`** (rewritten, 195→233 lines) — bumped date to 2026-04-22; rewrote Components table with line counts + detailed per-module contracts; added `infrastructure.py` (was missing) and `content_publisher.py` (clearly labeled not-deploy); fixed spec example (`healthcheck:`→`health:`, added `shape:` block, `disabled: false` for scratch-image handling); corrected test count (73→144); added E2E §9.6 pointer.
+- **`@/opt/fabrik/docs/reference/drivers.md`** (rewritten, 367→266 lines) — replaced 4-month-stale catalog (was missing 10 drivers) with a complete 22-driver table including line counts, shape gates, and live contract probes. Removed obsolete "Phase 1b/1c" labels.
+- **`@/opt/fabrik/docs/reference/fabrik-cli-reference.md`** (rewritten, 186→236 lines) — added missing commands (`deploy`, `redeploy`, `validate-deploy`, `domain *`, `app-logs`, `content`, `seo`, `wp *`); marked `fabrik new` deprecated; added Command→Module map and secret-precedence table.
+- **`@/opt/fabrik/docs/reference/architecture.md`** (rewritten, 280→210 lines) — replaced outdated "Phase 1b Pending" roadmap with the current shape-driven pipeline; added 4-layer security model reference; fixed template-count distinction (12 deploy templates, 11 scaffold types); aligned directory structure with current repo.
+- **`@/opt/fabrik/docs/reference/templates.md`** (rewritten, 243→205 lines) — expanded from 4 to 12 templates with default-shape matrix per template; added maximal-shape + scratch-image spec examples; removed `fabrik new` usage (→`fabrik scaffold`).
+- **`@/opt/fabrik/docs/reference/provisioner.md`** — bumped date; clarified scope (new-site WordPress bootstrap only; routine deploys go via `deploy_router` or `DeploymentOrchestrator`).
+- **`@/opt/fabrik/docs/reference/glitchtip-api.md`** — added "Last Verified 2026-04-22" line + Lesson 31 callout (use `docker inspect` not `docker exec printenv` for DSN verification).
+- **`@/opt/fabrik/docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md`** — added "HISTORICAL" banner at top listing what has changed since 2026-04-16 (shape pipeline, Backrest not Duplicati, Coolify-managed observability, E2E validated).
+- **`@/opt/fabrik/docs/reference/DEPLOY_TEMPLATE_AUDIT_2026-04-10.md`** — marked HISTORICAL with pointer to `templates.md`.
+- **`@/opt/fabrik/docs/guides/DEPLOYMENT_READY_CHECKLIST.md`** — added "Last Updated 2026-04-22" + pointer to canonical `DEPLOYMENT.md`.
+- **`@/opt/fabrik/docs/QUICKSTART.md`** — bumped date; fixed `fabrik status` signature (takes spec path); added `--dry-run`, `fabrik deploy --project`, `fabrik app-logs`; mentioned secret precedence chain and expected wall time.
+
 ### Changed — Deployment documentation refreshed end-to-end — 2026-04-22
 
 - **`@/opt/fabrik/docs/DEPLOYMENT.md`**

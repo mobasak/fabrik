@@ -1,6 +1,6 @@
 # Deploy Template System Audit - 2026-04-10
 
-**Status:** ✅ **COMPLETE - All 11 scaffold types ready for deployment**
+**Status:** 📜 **HISTORICAL** — dated audit snapshot. Current template catalog lives in [`docs/reference/templates.md`](templates.md) (12 templates as of 2026-04-22, all with `defaults.yaml` and canonical `shape:` flags). For the current deploy reference, read [`docs/DEPLOYMENT.md`](../DEPLOYMENT.md).
 
 ---
 
