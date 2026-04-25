@@ -1,8 +1,8 @@
 {
   "source": "openlm.ai",
   "url": "https://openlm.ai/chatbot-arena/",
-  "scraped_at": "2026-04-22T11:23:03.060367",
-  "total_entries": 260,
+  "scraped_at": "2026-04-24T18:54:18.774575",
+  "total_entries": 263,
   "entries": [
     {
       "rank": 1,
@@ -141,6 +141,15 @@
     },
     {
       "rank": 22,
+      "model": "Kimi-K2.6-Thinking \u2705",
+      "score": 1493,
+      "provider": "",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 23,
       "model": "Qwen3.5-Max",
       "score": 1493,
       "provider": "Alibaba",
@@ -149,7 +158,16 @@
       }
     },
     {
-      "rank": 26,
+      "rank": 25,
+      "model": "DeepSeek-V4-Pro \u2705",
+      "score": 1491,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 28,
       "model": "Claude Sonnet 4.5 (thinking-32k)",
       "score": 1485,
       "provider": "Anthropic",
@@ -158,7 +176,7 @@
       }
     },
     {
-      "rank": 27,
+      "rank": 29,
       "model": "Grok-4.1-Thinking",
       "score": 1483,
       "provider": "xAI",
@@ -167,7 +185,7 @@
       }
     },
     {
-      "rank": 29,
+      "rank": 31,
       "model": "Qwen3.6-Plus",
       "score": 1482,
       "provider": "Alibaba",
@@ -176,8 +194,8 @@
       }
     },
     {
-      "rank": 30,
-      "model": "Kimi-K2.5-Thinking \u2705",
+      "rank": 32,
+      "model": "Kimi-K2.5-Thinking",
       "score": 1480,
       "provider": "",
       "extra": {
@@ -185,7 +203,7 @@
       }
     },
     {
-      "rank": 31,
+      "rank": 33,
       "model": "Claude Opus 4.1 (thinking-16k)",
       "score": 1475,
       "provider": "Anthropic",
@@ -194,7 +212,7 @@
       }
     },
     {
-      "rank": 32,
+      "rank": 34,
       "model": "Gemini-3-Flash",
       "score": 1470,
       "provider": "Google",
@@ -203,7 +221,7 @@
       }
     },
     {
-      "rank": 33,
+      "rank": 35,
       "model": "GPT-5.2-high",
       "score": 1470,
       "provider": "OpenAI",
@@ -212,7 +230,7 @@
       }
     },
     {
-      "rank": 36,
+      "rank": 38,
       "model": "GPT-5.4",
       "score": 1468,
       "provider": "OpenAI",
@@ -221,7 +239,7 @@
       }
     },
     {
-      "rank": 37,
+      "rank": 39,
       "model": "Qwen3-Max",
       "score": 1468,
       "provider": "Alibaba",
@@ -230,7 +248,7 @@
       }
     },
     {
-      "rank": 42,
+      "rank": 46,
       "model": "GPT-5.1-high",
       "score": 1466,
       "provider": "OpenAI",
@@ -239,7 +257,7 @@
       }
     },
     {
-      "rank": 45,
+      "rank": 49,
       "model": "GPT-5.2",
       "score": 1465,
       "provider": "OpenAI",
@@ -248,7 +266,7 @@
       }
     },
     {
-      "rank": 46,
+      "rank": 50,
       "model": "Gemini-2.5-Pro",
       "score": 1465,
       "provider": "Google",
@@ -257,7 +275,7 @@
       }
     },
     {
-      "rank": 47,
+      "rank": 51,
       "model": "Claude Opus 4.1",
       "score": 1465,
       "provider": "Anthropic",
@@ -266,7 +284,7 @@
       }
     },
     {
-      "rank": 50,
+      "rank": 54,
       "model": "Claude Sonnet 4.5",
       "score": 1464,
       "provider": "Anthropic",
@@ -275,7 +293,7 @@
       }
     },
     {
-      "rank": 51,
+      "rank": 55,
       "model": "Grok-4.1",
       "score": 1463,
       "provider": "xAI",
@@ -284,8 +302,8 @@
       }
     },
     {
-      "rank": 53,
-      "model": "Qwen3.5-397B-A17B \u2705",
+      "rank": 57,
+      "model": "Qwen3.5-397B-A17B",
       "score": 1463,
       "provider": "Alibaba",
       "extra": {
@@ -293,7 +311,7 @@
       }
     },
     {
-      "rank": 55,
+      "rank": 59,
       "model": "Gemma-4-31B-it",
       "score": 1462,
       "provider": "",
@@ -302,7 +320,7 @@
       }
     },
     {
-      "rank": 56,
+      "rank": 60,
       "model": "GPT-5.4-mini-high",
       "score": 1461,
       "provider": "OpenAI",
@@ -311,7 +329,7 @@
       }
     },
     {
-      "rank": 58,
+      "rank": 62,
       "model": "ERNIE-5.0",
       "score": 1461,
       "provider": "",
@@ -320,7 +338,7 @@
       }
     },
     {
-      "rank": 59,
+      "rank": 63,
       "model": "GLM-5",
       "score": 1461,
       "provider": "Zhipu",
@@ -329,7 +347,7 @@
       }
     },
     {
-      "rank": 60,
+      "rank": 64,
       "model": "LongCat-Flash-Chat",
       "score": 1461,
       "provider": "",
@@ -338,7 +356,7 @@
       }
     },
     {
-      "rank": 63,
+      "rank": 67,
       "model": "GLM-4.7",
       "score": 1460,
       "provider": "Zhipu",
@@ -347,7 +365,16 @@
       }
     },
     {
-      "rank": 64,
+      "rank": 68,
+      "model": "DeepSeek-V4-Flash",
+      "score": 1460,
+      "provider": "DeepSeek",
+      "extra": {
+        "metric": "elo_rating"
+      }
+    },
+    {
+      "rank": 69,
       "model": "GPT-5-high",
       "score": 1460,
       "provider": "OpenAI",
@@ -356,7 +383,7 @@
       }
     },
     {
-      "rank": 65,
+      "rank": 70,
       "model": "Gemma-4-26B-A4B-it",
       "score": 1460,
       "provider": "",
@@ -365,7 +392,7 @@
       }
     },
     {
-      "rank": 67,
+      "rank": 72,
       "model": "GLM-4.6",
       "score": 1458,
       "provider": "Zhipu",
@@ -374,7 +401,7 @@
       }
     },
     {
-      "rank": 68,
+      "rank": 73,
       "model": "Qwen3-VL-235B-A22B-Instruct",
       "score": 1457,
       "provider": "Alibaba",
@@ -383,7 +410,7 @@
       }
     },
     {
-      "rank": 69,
+      "rank": 74,
       "model": "Qwen3-235B-A22B-Instruct-2507",
       "score": 1457,
       "provider": "Alibaba",
@@ -392,7 +419,7 @@
       }
     },
     {
-      "rank": 71,
+      "rank": 76,
       "model": "Qwen3-Next-80B-A3B-Instruct",
       "score": 1456,
       "provider": "Alibaba",
@@ -401,7 +428,7 @@
       }
     },
     {
-      "rank": 72,
+      "rank": 77,
       "model": "Grok-4",
       "score": 1453,
       "provider": "xAI",
@@ -410,7 +437,7 @@
       }
     },
     {
-      "rank": 76,
+      "rank": 81,
       "model": "GPT-5.1",
       "score": 1450,
       "provider": "OpenAI",
@@ -419,7 +446,7 @@
       }
     },
     {
-      "rank": 77,
+      "rank": 82,
       "model": "Kimi-K2-Thinking",
       "score": 1450,
       "provider": "",
@@ -428,7 +455,7 @@
       }
     },
     {
-      "rank": 78,
+      "rank": 83,
       "model": "Mistral Large 3",
       "score": 1450,
       "provider": "Mistral",
@@ -437,7 +464,7 @@
       }
     },
     {
-      "rank": 80,
+      "rank": 85,
       "model": "GLM-4.5",
       "score": 1448,
       "provider": "Zhipu",
@@ -446,7 +473,7 @@
       }
     },
     {
-      "rank": 81,
+      "rank": 86,
       "model": "Minimax-M2.7",
       "score": 1448,
       "provider": "",
@@ -455,7 +482,7 @@
       }
     },
     {
-      "rank": 87,
+      "rank": 93,
       "model": "Qwen3-235B-A22B-Thinking-2507",
       "score": 1442,
       "provider": "Alibaba",
@@ -464,7 +491,7 @@
       }
     },
     {
-      "rank": 89,
+      "rank": 95,
       "model": "MiMo-V2-Pro",
       "score": 1441,
       "provider": "",
@@ -473,7 +500,7 @@
       }
     },
     {
-      "rank": 90,
+      "rank": 96,
       "model": "o3-2025-04-16",
       "score": 1441,
       "provider": "OpenAI",
@@ -482,7 +509,7 @@
       }
     },
     {
-      "rank": 91,
+      "rank": 97,
       "model": "Grok-4-Fast",
       "score": 1441,
       "provider": "xAI",
@@ -491,7 +518,7 @@
       }
     },
     {
-      "rank": 93,
+      "rank": 99,
       "model": "Qwen-VL-Max-2025-08-13",
       "score": 1440,
       "provider": "Alibaba",
@@ -500,7 +527,7 @@
       }
     },
     {
-      "rank": 94,
+      "rank": 100,
       "model": "Grok-3-Preview-02-24",
       "score": 1439,
       "provider": "xAI",
@@ -509,7 +536,7 @@
       }
     },
     {
-      "rank": 96,
+      "rank": 102,
       "model": "DeepSeek-V3.2-Thinking",
       "score": 1438,
       "provider": "DeepSeek",
@@ -518,7 +545,7 @@
       }
     },
     {
-      "rank": 97,
+      "rank": 103,
       "model": "DeepSeek-V3.1-Thinking",
       "score": 1437,
       "provider": "DeepSeek",
@@ -527,7 +554,7 @@
       }
     },
     {
-      "rank": 98,
+      "rank": 104,
       "model": "DeepSeek-R1-0528",
       "score": 1436,
       "provider": "DeepSeek",
@@ -536,7 +563,7 @@
       }
     },
     {
-      "rank": 99,
+      "rank": 105,
       "model": "Minimax-M2.5",
       "score": 1436,
       "provider": "",
@@ -545,7 +572,7 @@
       }
     },
     {
-      "rank": 100,
+      "rank": 106,
       "model": "Claude Haiku 4.5",
       "score": 1436,
       "provider": "Anthropic",
@@ -554,7 +581,7 @@
       }
     },
     {
-      "rank": 101,
+      "rank": 107,
       "model": "ChatGPT-4o-latest (2025-03-26)",
       "score": 1434,
       "provider": "OpenAI",
@@ -563,7 +590,7 @@
       }
     },
     {
-      "rank": 102,
+      "rank": 108,
       "model": "Claude Opus 4 (thinking-16k)",
       "score": 1434,
       "provider": "Anthropic",
@@ -572,7 +599,7 @@
       }
     },
     {
-      "rank": 103,
+      "rank": 109,
       "model": "Step-3.5-Flash",
       "score": 1433,
       "provider": "",
@@ -581,7 +608,7 @@
       }
     },
     {
-      "rank": 105,
+      "rank": 111,
       "model": "Qwen3-VL-235B-A22B-Thinking",
       "score": 1432,
       "provider": "Alibaba",
@@ -590,7 +617,7 @@
       }
     },
     {
-      "rank": 107,
+      "rank": 113,
       "model": "DeepSeek-V3.2",
       "score": 1431,
       "provider": "DeepSeek",
@@ -599,7 +626,7 @@
       }
     },
     {
-      "rank": 108,
+      "rank": 114,
       "model": "Amazon-Nova-Chat-11-10",
       "score": 1431,
       "provider": "",
@@ -608,7 +635,7 @@
       }
     },
     {
-      "rank": 110,
+      "rank": 116,
       "model": "DeepSeek-V3.1",
       "score": 1430,
       "provider": "DeepSeek",
@@ -617,7 +644,7 @@
       }
     },
     {
-      "rank": 111,
+      "rank": 117,
       "model": "Minimax-M2.1",
       "score": 1430,
       "provider": "",
@@ -626,7 +653,7 @@
       }
     },
     {
-      "rank": 117,
+      "rank": 123,
       "model": "Qwen3-30B-A3B-Instruct-2507",
       "score": 1425,
       "provider": "Alibaba",
@@ -635,7 +662,7 @@
       }
     },
     {
-      "rank": 121,
+      "rank": 127,
       "model": "Gemini-3.1-Flash-Lite",
       "score": 1421,
       "provider": "Google",
@@ -644,7 +671,7 @@
       }
     },
     {
-      "rank": 122,
+      "rank": 128,
       "model": "GPT-5-chat",
       "score": 1421,
       "provider": "OpenAI",
@@ -653,7 +680,7 @@
       }
     },
     {
-      "rank": 125,
+      "rank": 131,
       "model": "Gemini-2.5-Flash",
       "score": 1420,
       "provider": "Google",
@@ -662,7 +689,7 @@
       }
     },
     {
-      "rank": 128,
+      "rank": 134,
       "model": "GPT-4.5-Preview",
       "score": 1419,
       "provider": "OpenAI",
@@ -671,7 +698,7 @@
       }
     },
     {
-      "rank": 129,
+      "rank": 135,
       "model": "Hunyuan-Vision-1.5-Thinking",
       "score": 1419,
       "provider": "",
@@ -680,7 +707,7 @@
       }
     },
     {
-      "rank": 130,
+      "rank": 136,
       "model": "GPT-5-mini",
       "score": 1419,
       "provider": "OpenAI",
@@ -689,7 +716,7 @@
       }
     },
     {
-      "rank": 142,
+      "rank": 148,
       "model": "Mistral Medium 3.1",
       "score": 1412,
       "provider": "Mistral",
@@ -698,7 +725,7 @@
       }
     },
     {
-      "rank": 143,
+      "rank": 149,
       "model": "Claude Sonnet 4 (thinking-32k)",
       "score": 1412,
       "provider": "Anthropic",
@@ -707,7 +734,7 @@
       }
     },
     {
-      "rank": 145,
+      "rank": 151,
       "model": "MiMo-V2-Flash",
       "score": 1411,
       "provider": "",
@@ -716,7 +743,7 @@
       }
     },
     {
-      "rank": 147,
+      "rank": 153,
       "model": "GLM-4.5-Air",
       "score": 1410,
       "provider": "Zhipu",
@@ -725,7 +752,7 @@
       }
     },
     {
-      "rank": 148,
+      "rank": 154,
       "model": "Hunyuan-T1-20250711",
       "score": 1409,
       "provider": "",
@@ -734,7 +761,7 @@
       }
     },
     {
-      "rank": 150,
+      "rank": 156,
       "model": "MAI-1-Preview",
       "score": 1406,
       "provider": "",
@@ -743,7 +770,7 @@
       }
     },
     {
-      "rank": 151,
+      "rank": 157,
       "model": "Qwen3-Coder-480B-A35B-Instruct",
       "score": 1406,
       "provider": "Alibaba",
@@ -752,7 +779,7 @@
       }
     },
     {
-      "rank": 152,
+      "rank": 158,
       "model": "Claude Opus 4",
       "score": 1405,
       "provider": "Anthropic",
@@ -761,7 +788,7 @@
       }
     },
     {
-      "rank": 153,
+      "rank": 159,
       "model": "Kimi-K2-0905-Preview",
       "score": 1403,
       "provider": "",
@@ -770,7 +797,7 @@
       }
     },
     {
-      "rank": 156,
+      "rank": 162,
       "model": "Kimi-K2-0711-Preview",
       "score": 1402,
       "provider": "",
@@ -779,7 +806,7 @@
       }
     },
     {
-      "rank": 158,
+      "rank": 164,
       "model": "Nemotron-3-Super-120B-A12B",
       "score": 1401,
       "provider": "",
@@ -788,7 +815,7 @@
       }
     },
     {
-      "rank": 160,
+      "rank": 166,
       "model": "Step-3",
       "score": 1400,
       "provider": "",
@@ -797,7 +824,7 @@
       }
     },
     {
-      "rank": 163,
+      "rank": 169,
       "model": "Gemini-2.0-Pro-Exp-02-05",
       "score": 1398,
       "provider": "Google",
@@ -806,7 +833,7 @@
       }
     },
     {
-      "rank": 164,
+      "rank": 170,
       "model": "gpt-oss-120b",
       "score": 1398,
       "provider": "OpenAI",
@@ -815,7 +842,7 @@
       }
     },
     {
-      "rank": 165,
+      "rank": 171,
       "model": "Gemini-2.0-Flash-Thinking-Exp-01-21",
       "score": 1397,
       "provider": "Google",
@@ -824,7 +851,7 @@
       }
     },
     {
-      "rank": 167,
+      "rank": 173,
       "model": "GPT-4.1-2025-04-14",
       "score": 1396,
       "provider": "OpenAI",
@@ -833,7 +860,7 @@
       }
     },
     {
-      "rank": 168,
+      "rank": 174,
       "model": "Qwen3-235B-A22B",
       "score": 1394,
       "provider": "Alibaba",
@@ -842,7 +869,7 @@
       }
     },
     {
-      "rank": 169,
+      "rank": 175,
       "model": "DeepSeek-V3-0324",
       "score": 1391,
       "provider": "DeepSeek",
@@ -851,7 +878,7 @@
       }
     },
     {
-      "rank": 170,
+      "rank": 176,
       "model": "Hunyuan-Turbos-20250416",
       "score": 1390,
       "provider": "",
@@ -860,7 +887,7 @@
       }
     },
     {
-      "rank": 172,
+      "rank": 178,
       "model": "Mistral Medium 3",
       "score": 1387,
       "provider": "Mistral",
@@ -869,7 +896,7 @@
       }
     },
     {
-      "rank": 174,
+      "rank": 180,
       "model": "o4-mini-2025-04-16",
       "score": 1385,
       "provider": "OpenAI",
@@ -878,7 +905,7 @@
       }
     },
     {
-      "rank": 175,
+      "rank": 181,
       "model": "Claude Sonnet 4",
       "score": 1384,
       "provider": "Anthropic",
@@ -887,7 +914,7 @@
       }
     },
     {
-      "rank": 179,
+      "rank": 185,
       "model": "DeepSeek-R1",
       "score": 1382,
       "provider": "DeepSeek",
@@ -896,7 +923,7 @@
       }
     },
     {
-      "rank": 183,
+      "rank": 189,
       "model": "Grok-3-mini-high",
       "score": 1380,
       "provider": "xAI",
@@ -905,7 +932,7 @@
       }
     },
     {
-      "rank": 184,
+      "rank": 190,
       "model": "o3-mini-high",
       "score": 1380,
       "provider": "OpenAI",
@@ -914,7 +941,7 @@
       }
     },
     {
-      "rank": 186,
+      "rank": 192,
       "model": "o1-2024-12-17",
       "score": 1378,
       "provider": "OpenAI",
@@ -923,7 +950,7 @@
       }
     },
     {
-      "rank": 190,
+      "rank": 196,
       "model": "INTELLECT-3",
       "score": 1376,
       "provider": "",
@@ -932,7 +959,7 @@
       }
     },
     {
-      "rank": 191,
+      "rank": 197,
       "model": "Qwen3-32B",
       "score": 1376,
       "provider": "Alibaba",
@@ -941,7 +968,7 @@
       }
     },
     {
-      "rank": 194,
+      "rank": 200,
       "model": "Qwen2.5-Max",
       "score": 1373,
       "provider": "Alibaba",
@@ -950,7 +977,7 @@
       }
     },
     {
-      "rank": 195,
+      "rank": 201,
       "model": "Gemini-2.0-Flash-Exp",
       "score": 1371,
       "provider": "Google",
@@ -959,7 +986,7 @@
       }
     },
     {
-      "rank": 196,
+      "rank": 202,
       "model": "gpt-oss-20b",
       "score": 1371,
       "provider": "OpenAI",
@@ -968,7 +995,7 @@
       }
     },
     {
-      "rank": 198,
+      "rank": 204,
       "model": "GPT-4.1-mini-2025-04-14",
       "score": 1370,
       "provider": "OpenAI",
@@ -977,7 +1004,7 @@
       }
     },
     {
-      "rank": 201,
+      "rank": 207,
       "model": "Minimax-M1",
       "score": 1369,
       "provider": "",
@@ -986,7 +1013,7 @@
       }
     },
     {
-      "rank": 207,
+      "rank": 213,
       "model": "o1-mini",
       "score": 1366,
       "provider": "OpenAI",
@@ -995,7 +1022,7 @@
       }
     },
     {
-      "rank": 208,
+      "rank": 214,
       "model": "GPT-5-nano",
       "score": 1363,
       "provider": "OpenAI",
@@ -1004,7 +1031,7 @@
       }
     },
     {
-      "rank": 210,
+      "rank": 216,
       "model": "Gemini-2.5-Flash-Lite",
       "score": 1362,
       "provider": "Google",
@@ -1013,7 +1040,7 @@
       }
     },
     {
-      "rank": 211,
+      "rank": 217,
       "model": "Step-1o-Turbo-202506",
       "score": 1361,
       "provider": "",
@@ -1022,7 +1049,7 @@
       }
     },
     {
-      "rank": 212,
+      "rank": 218,
       "model": "Mistral-Small-3.2-2506",
       "score": 1361,
       "provider": "Mistral",
@@ -1031,7 +1058,7 @@
       }
     },
     {
-      "rank": 213,
+      "rank": 219,
       "model": "o3-mini",
       "score": 1361,
       "provider": "OpenAI",
@@ -1040,7 +1067,7 @@
       }
     },
     {
-      "rank": 215,
+      "rank": 221,
       "model": "Llama-3.3-Nemotron-Super-49B-v1.5",
       "score": 1359,
       "provider": "Meta",
@@ -1049,7 +1076,7 @@
       }
     },
     {
-      "rank": 218,
+      "rank": 224,
       "model": "Gemma-3-27B-it",
       "score": 1356,
       "provider": "",
@@ -1058,7 +1085,7 @@
       }
     },
     {
-      "rank": 220,
+      "rank": 226,
       "model": "Claude 3.7 Sonnet (thinking-32k)",
       "score": 1355,
       "provider": "Anthropic",
@@ -1067,7 +1094,7 @@
       }
     },
     {
-      "rank": 223,
+      "rank": 229,
       "model": "QwQ-32B",
       "score": 1351,
       "provider": "",
@@ -1076,7 +1103,7 @@
       }
     },
     {
-      "rank": 225,
+      "rank": 231,
       "model": "Qwen3-30B-A3B",
       "score": 1346,
       "provider": "Alibaba",
@@ -1085,7 +1112,7 @@
       }
     },
     {
-      "rank": 226,
+      "rank": 232,
       "model": "Llama-3.1-Nemotron-Ultra-253B-v1",
       "score": 1345,
       "provider": "Meta",
@@ -1094,7 +1121,7 @@
       }
     },
     {
-      "rank": 228,
+      "rank": 234,
       "model": "Claude 3.7 Sonnet",
       "score": 1341,
       "provider": "Anthropic",
@@ -1103,7 +1130,7 @@
       }
     },
     {
-      "rank": 230,
+      "rank": 236,
       "model": "Claude 3.5 Sonnet (20241022)",
       "score": 1340,
       "provider": "Anthropic",
@@ -1112,7 +1139,7 @@
       }
     },
     {
-      "rank": 232,
+      "rank": 238,
       "model": "Qwen-Plus-0125",
       "score": 1339,
       "provider": "Alibaba",
@@ -1121,7 +1148,7 @@
       }
     },
     {
-      "rank": 235,
+      "rank": 241,
       "model": "Gemini-2.0-Flash-Lite",
       "score": 1338,
       "provider": "Google",
@@ -1130,7 +1157,7 @@
       }
     },
     {
-      "rank": 238,
+      "rank": 244,
       "model": "DeepSeek-V3",
       "score": 1337,
       "provider": "DeepSeek",
@@ -1139,7 +1166,7 @@
       }
     },
     {
-      "rank": 239,
+      "rank": 245,
       "model": "Amazon-Nova-Chat-05-14",
       "score": 1337,
       "provider": "",
@@ -1148,7 +1175,7 @@
       }
     },
     {
-      "rank": 240,
+      "rank": 246,
       "model": "Command A (03-2025)",
       "score": 1336,
       "provider": "",
@@ -1157,7 +1184,7 @@
       }
     },
     {
-      "rank": 242,
+      "rank": 248,
       "model": "Gemma-3-12B-it",
       "score": 1335,
       "provider": "",
@@ -1166,7 +1193,7 @@
       }
     },
     {
-      "rank": 243,
+      "rank": 249,
       "model": "Hunyuan-Turbo-0110",
       "score": 1335,
       "provider": "",
@@ -1175,7 +1202,7 @@
       }
     },
     {
-      "rank": 247,
+      "rank": 253,
       "model": "GLM-4-Plus-0111",
       "score": 1332,
       "provider": "Zhipu",
@@ -1184,7 +1211,7 @@
       }
     },
     {
-      "rank": 251,
+      "rank": 257,
       "model": "OLMo-3-32b-think",
       "score": 1327,
       "provider": "OpenAI",
@@ -1193,7 +1220,7 @@
       }
     },
     {
-      "rank": 254,
+      "rank": 260,
       "model": "Step-2-16K-Exp",
       "score": 1321,
       "provider": "",
@@ -1202,7 +1229,7 @@
       }
     },
     {
-      "rank": 255,
+      "rank": 261,
       "model": "Yi-Lightning",
       "score": 1321,
       "provider": "",
@@ -1211,7 +1238,7 @@
       }
     },
     {
-      "rank": 257,
+      "rank": 263,
       "model": "Gemini-1.5-Pro-002",
       "score": 1320,
       "provider": "Google",
@@ -1220,7 +1247,7 @@
       }
     },
     {
-      "rank": 258,
+      "rank": 264,
       "model": "Llama-3.3-Nemotron-Super-49B-v1",
       "score": 1320,
       "provider": "Meta",
@@ -1229,7 +1256,7 @@
       }
     },
     {
-      "rank": 259,
+      "rank": 265,
       "model": "Athene-v2-Chat-72B",
       "score": 1320,
       "provider": "",
@@ -1238,7 +1265,7 @@
       }
     },
     {
-      "rank": 263,
+      "rank": 269,
       "model": "Deepseek-v2.5-1210",
       "score": 1316,
       "provider": "DeepSeek",
@@ -1247,7 +1274,7 @@
       }
     },
     {
-      "rank": 267,
+      "rank": 273,
       "model": "Llama-4-Maverick-17B-128E-Instruct",
       "score": 1312,
       "provider": "Meta",
@@ -1256,7 +1283,7 @@
       }
     },
     {
-      "rank": 268,
+      "rank": 274,
       "model": "GPT-4.1-nano-2025-04-14",
       "score": 1312,
       "provider": "OpenAI",
@@ -1265,7 +1292,7 @@
       }
     },
     {
-      "rank": 270,
+      "rank": 276,
       "model": "Hunyuan-Large-2025-02-10",
       "score": 1311,
       "provider": "",
@@ -1274,7 +1301,7 @@
       }
     },
     {
-      "rank": 276,
+      "rank": 282,
       "model": "Claude 3.5 Sonnet (20240620)",
       "score": 1309,
       "provider": "Anthropic",
@@ -1283,7 +1310,7 @@
       }
     },
     {
-      "rank": 278,
+      "rank": 284,
       "model": "GPT-4o-2024-05-13",
       "score": 1307,
       "provider": "OpenAI",
@@ -1292,7 +1319,7 @@
       }
     },
     {
-      "rank": 279,
+      "rank": 285,
       "model": "magistral-medium-2506",
       "score": 1307,
       "provider": "",
@@ -1301,7 +1328,7 @@
       }
     },
     {
-      "rank": 281,
+      "rank": 287,
       "model": "Deepseek-v2.5",
       "score": 1306,
       "provider": "DeepSeek",
@@ -1310,7 +1337,7 @@
       }
     },
     {
-      "rank": 282,
+      "rank": 288,
       "model": "Grok-2-08-13",
       "score": 1305,
       "provider": "xAI",
@@ -1319,7 +1346,7 @@
       }
     },
     {
-      "rank": 284,
+      "rank": 290,
       "model": "Gemma-3n-e4b-it",
       "score": 1304,
       "provider": "",
@@ -1328,7 +1355,7 @@
       }
     },
     {
-      "rank": 287,
+      "rank": 293,
       "model": "Qwen2.5-72B-Instruct",
       "score": 1302,
       "provider": "Alibaba",
@@ -1337,7 +1364,7 @@
       }
     },
     {
-      "rank": 289,
+      "rank": 295,
       "model": "GLM-4-Plus",
       "score": 1301,
       "provider": "Zhipu",
@@ -1346,7 +1373,7 @@
       }
     },
     {
-      "rank": 291,
+      "rank": 297,
       "model": "GPT-4o-mini-2024-07-18",
       "score": 1300,
       "provider": "OpenAI",
@@ -1355,7 +1382,7 @@
       }
     },
     {
-      "rank": 293,
+      "rank": 299,
       "model": "Llama-3.1-405B-Instruct-bf16",
       "score": 1299,
       "provider": "Meta",
@@ -1364,7 +1391,7 @@
       }
     },
     {
-      "rank": 296,
+      "rank": 302,
       "model": "Hunyuan-Large-Vision",
       "score": 1298,
       "provider": "",
@@ -1373,7 +1400,7 @@
       }
     },
     {
-      "rank": 299,
+      "rank": 305,
       "model": "Qwen-Max-0919",
       "score": 1296,
       "provider": "Alibaba",
@@ -1382,7 +1409,7 @@
       }
     },
     {
-      "rank": 300,
+      "rank": 306,
       "model": "Mistral-Small-3.1-24B-Instruct-2503",
       "score": 1295,
       "provider": "Mistral",
@@ -1391,7 +1418,7 @@
       }
     },
     {
-      "rank": 303,
+      "rank": 309,
       "model": "Gemma-3-4B-it",
       "score": 1293,
       "provider": "",
@@ -1400,7 +1427,7 @@
       }
     },
     {
-      "rank": 307,
+      "rank": 313,
       "model": "Llama-3.1-405B-Instruct-fp8",
       "score": 1292,
       "provider": "Meta",
@@ -1409,7 +1436,7 @@
       }
     },
     {
-      "rank": 310,
+      "rank": 316,
       "model": "Gemini-1.5-Flash-002",
       "score": 1290,
       "provider": "Google",
@@ -1418,7 +1445,7 @@
       }
     },
     {
-      "rank": 311,
+      "rank": 317,
       "model": "Llama-4-Scout-17B-16E-Instruct",
       "score": 1290,
       "provider": "Meta",
@@ -1427,7 +1454,7 @@
       }
     },
     {
-      "rank": 313,
+      "rank": 319,
       "model": "Llama-3.1-Nemotron-70B-Instruct",
       "score": 1289,
       "provider": "Meta",
@@ -1436,7 +1463,7 @@
       }
     },
     {
-      "rank": 314,
+      "rank": 320,
       "model": "Hunyuan-Standard-2025-02-10",
       "score": 1289,
       "provider": "",
@@ -1445,7 +1472,7 @@
       }
     },
     {
-      "rank": 317,
+      "rank": 323,
       "model": "Claude 3.5 Haiku (20241022)",
       "score": 1287,
       "provider": "Anthropic",
@@ -1454,7 +1481,7 @@
       }
     },
     {
-      "rank": 319,
+      "rank": 326,
       "model": "Yi-Lightning-lite",
       "score": 1286,
       "provider": "",
@@ -1463,7 +1490,7 @@
       }
     },
     {
-      "rank": 320,
+      "rank": 327,
       "model": "Deepseek-Coder-v2-0724",
       "score": 1286,
       "provider": "DeepSeek",
@@ -1472,7 +1499,7 @@
       }
     },
     {
-      "rank": 325,
+      "rank": 332,
       "model": "Mistral-Large-2411",
       "score": 1284,
       "provider": "Mistral",
@@ -1481,7 +1508,7 @@
       }
     },
     {
-      "rank": 327,
+      "rank": 334,
       "model": "Grok-2-mini-08-13",
       "score": 1283,
       "provider": "xAI",
@@ -1490,7 +1517,7 @@
       }
     },
     {
-      "rank": 328,
+      "rank": 335,
       "model": "Amazon Nova Pro 1.0",
       "score": 1282,
       "provider": "",
@@ -1499,7 +1526,7 @@
       }
     },
     {
-      "rank": 330,
+      "rank": 337,
       "model": "GPT-4-Turbo-2024-04-09",
       "score": 1280,
       "provider": "OpenAI",
@@ -1508,7 +1535,7 @@
       }
     },
     {
-      "rank": 333,
+      "rank": 340,
       "model": "Llama-3.3-70B-Instruct",
       "score": 1279,
       "provider": "Meta",
@@ -1517,7 +1544,7 @@
       }
     },
     {
-      "rank": 334,
+      "rank": 341,
       "model": "Qwen2.5-Coder-32B-Instruct",
       "score": 1279,
       "provider": "Alibaba",
@@ -1526,7 +1553,7 @@
       }
     },
     {
-      "rank": 343,
+      "rank": 350,
       "model": "Athene-70B",
       "score": 1274,
       "provider": "",
@@ -1535,7 +1562,7 @@
       }
     },
     {
-      "rank": 350,
+      "rank": 357,
       "model": "GPT-4-1106-preview",
       "score": 1269,
       "provider": "OpenAI",
@@ -1544,7 +1571,7 @@
       }
     },
     {
-      "rank": 351,
+      "rank": 358,
       "model": "Claude 3 Opus",
       "score": 1269,
       "provider": "Anthropic",
@@ -1553,7 +1580,7 @@
       }
     },
     {
-      "rank": 353,
+      "rank": 360,
       "model": "Llama-3.1-70B-Instruct",
       "score": 1268,
       "provider": "Meta",
@@ -1562,7 +1589,7 @@
       }
     },
     {
-      "rank": 356,
+      "rank": 363,
       "model": "GPT-4-0125-preview",
       "score": 1266,
       "provider": "OpenAI",
@@ -1571,7 +1598,7 @@
       }
     },
     {
-      "rank": 360,
+      "rank": 367,
       "model": "Qwen-Plus-0828",
       "score": 1263,
       "provider": "Alibaba",
@@ -1580,7 +1607,7 @@
       }
     },
     {
-      "rank": 363,
+      "rank": 370,
       "model": "Llama-3.1-Tulu-3-70B",
       "score": 1260,
       "provider": "Meta",
@@ -1589,7 +1616,7 @@
       }
     },
     {
-      "rank": 364,
+      "rank": 371,
       "model": "Deepseek-v2-API-0628",
       "score": 1260,
       "provider": "DeepSeek",
@@ -1598,7 +1625,7 @@
       }
     },
     {
-      "rank": 365,
+      "rank": 372,
       "model": "DeepSeek-Coder-V2-Instruct",
       "score": 1259,
       "provider": "DeepSeek",
@@ -1607,7 +1634,7 @@
       }
     },
     {
-      "rank": 368,
+      "rank": 375,
       "model": "Amazon Nova Lite 1.0",
       "score": 1253,
       "provider": "",
@@ -1616,7 +1643,7 @@
       }
     },
     {
-      "rank": 369,
+      "rank": 376,
       "model": "Reka-Core-20240904",
       "score": 1252,
       "provider": "",
@@ -1625,7 +1652,7 @@
       }
     },
     {
-      "rank": 372,
+      "rank": 379,
       "model": "Mistral-Small-3-24B-Instruct-2501",
       "score": 1251,
       "provider": "Mistral",
@@ -1634,7 +1661,7 @@
       }
     },
     {
-      "rank": 374,
+      "rank": 381,
       "model": "Reka-Core-20240722",
       "score": 1250,
       "provider": "",
@@ -1643,7 +1670,7 @@
       }
     },
     {
-      "rank": 377,
+      "rank": 384,
       "model": "Jamba-1.5-Large",
       "score": 1244,
       "provider": "",
@@ -1652,7 +1679,7 @@
       }
     },
     {
-      "rank": 378,
+      "rank": 385,
       "model": "Hunyuan-Standard-256K",
       "score": 1244,
       "provider": "",
@@ -1661,7 +1688,7 @@
       }
     },
     {
-      "rank": 383,
+      "rank": 390,
       "model": "Phi-4",
       "score": 1242,
       "provider": "",
@@ -1670,7 +1697,7 @@
       }
     },
     {
-      "rank": 388,
+      "rank": 395,
       "model": "Yi-Large",
       "score": 1238,
       "provider": "",
@@ -1679,7 +1706,7 @@
       }
     },
     {
-      "rank": 390,
+      "rank": 397,
       "model": "GLM-4-0520",
       "score": 1237,
       "provider": "Zhipu",
@@ -1688,7 +1715,7 @@
       }
     },
     {
-      "rank": 392,
+      "rank": 399,
       "model": "Gemma-2-27B-it",
       "score": 1236,
       "provider": "",
@@ -1697,7 +1724,7 @@
       }
     },
     {
-      "rank": 396,
+      "rank": 403,
       "model": "Gemma-2-9B-it-SimPO",
       "score": 1233,
       "provider": "",
@@ -1706,7 +1733,7 @@
       }
     },
     {
-      "rank": 397,
+      "rank": 404,
       "model": "Command R+ (08-2024)",
       "score": 1233,
       "provider": "",
@@ -1715,7 +1742,7 @@
       }
     },
     {
-      "rank": 399,
+      "rank": 406,
       "model": "Claude 3 Sonnet",
       "score": 1232,
       "provider": "Anthropic",
@@ -1724,7 +1751,7 @@
       }
     },
     {
-      "rank": 400,
+      "rank": 407,
       "model": "Gemini-1.5-Flash-8B-001",
       "score": 1231,
       "provider": "Google",
@@ -1733,7 +1760,7 @@
       }
     },
     {
-      "rank": 401,
+      "rank": 408,
       "model": "Llama-3.1-Nemotron-51B-Instruct",
       "score": 1231,
       "provider": "Meta",
@@ -1742,7 +1769,7 @@
       }
     },
     {
-      "rank": 404,
+      "rank": 411,
       "model": "Nemotron-4-340B-Instruct",
       "score": 1229,
       "provider": "",
@@ -1751,7 +1778,7 @@
       }
     },
     {
-      "rank": 405,
+      "rank": 412,
       "model": "Aya-Expanse-32B",
       "score": 1229,
       "provider": "",
@@ -1760,7 +1787,7 @@
       }
     },
     {
-      "rank": 407,
+      "rank": 414,
       "model": "Amazon Nova Micro 1.0",
       "score": 1228,
       "provider": "",
@@ -1769,7 +1796,7 @@
       }
     },
     {
-      "rank": 411,
+      "rank": 418,
       "model": "Reka-Flash-20240904",
       "score": 1225,
       "provider": "",
@@ -1778,7 +1805,7 @@
       }
     },
     {
-      "rank": 412,
+      "rank": 419,
       "model": "Llama-3-70B-Instruct",
       "score": 1224,
       "provider": "Meta",
@@ -1787,7 +1814,7 @@
       }
     },
     {
-      "rank": 414,
+      "rank": 421,
       "model": "OLMo-2-0325-32B-Instruct",
       "score": 1223,
       "provider": "OpenAI",
@@ -1796,7 +1823,7 @@
       }
     },
     {
-      "rank": 419,
+      "rank": 426,
       "model": "Ministral-8B-2410",
       "score": 1219,
       "provider": "",
@@ -1805,7 +1832,7 @@
       }
     },
     {
-      "rank": 421,
+      "rank": 428,
       "model": "Reka-Flash-20240722",
       "score": 1218,
       "provider": "",
@@ -1814,7 +1841,7 @@
       }
     },
     {
-      "rank": 428,
+      "rank": 435,
       "model": "Gemma-2-9B-it",
       "score": 1213,
       "provider": "",
@@ -1823,7 +1850,7 @@
       }
     },
     {
-      "rank": 432,
+      "rank": 439,
       "model": "Command R+ (04-2024)",
       "score": 1209,
       "provider": "",
@@ -1832,7 +1859,7 @@
       }
     },
     {
-      "rank": 433,
+      "rank": 440,
       "model": "GLM-4-0116",
       "score": 1209,
       "provider": "Zhipu",
@@ -1841,7 +1868,7 @@
       }
     },
     {
-      "rank": 436,
+      "rank": 443,
       "model": "Qwen2-72B-Instruct",
       "score": 1208,
       "provider": "Alibaba",
@@ -1850,7 +1877,7 @@
       }
     },
     {
-      "rank": 437,
+      "rank": 444,
       "model": "Claude 3 Haiku",
       "score": 1208,
       "provider": "Anthropic",
@@ -1859,7 +1886,7 @@
       }
     },
     {
-      "rank": 438,
+      "rank": 445,
       "model": "Qwen-Max-0428",
       "score": 1208,
       "provider": "Alibaba",
@@ -1868,7 +1895,7 @@
       }
     },
     {
-      "rank": 442,
+      "rank": 449,
       "model": "Llama-3.1-8B-Instruct",
       "score": 1203,
       "provider": "Meta",
@@ -1877,7 +1904,7 @@
       }
     },
     {
-      "rank": 446,
+      "rank": 453,
       "model": "Llama-3.1-Tulu-3-8B",
       "score": 1200,
       "provider": "Meta",
@@ -1886,7 +1913,7 @@
       }
     },
     {
-      "rank": 451,
+      "rank": 458,
       "model": "Jamba-1.5-Mini",
       "score": 1197,
       "provider": "",
@@ -1895,7 +1922,7 @@
       }
     },
     {
-      "rank": 453,
+      "rank": 460,
       "model": "Command R (08-2024)",
       "score": 1195,
       "provider": "",
@@ -1904,7 +1931,7 @@
       }
     },
     {
-      "rank": 457,
+      "rank": 464,
       "model": "Aya-Expanse-8B",
       "score": 1193,
       "provider": "",
@@ -1913,7 +1940,7 @@
       }
     },
     {
-      "rank": 459,
+      "rank": 466,
       "model": "Qwen1.5-110B-Chat",
       "score": 1192,
       "provider": "Alibaba",
@@ -1922,7 +1949,7 @@
       }
     },
     {
-      "rank": 461,
+      "rank": 468,
       "model": "Granite-3.1-8B-Instruct",
       "score": 1191,
       "provider": "",
@@ -1931,7 +1958,7 @@
       }
     },
     {
-      "rank": 470,
+      "rank": 477,
       "model": "Yi-1.5-34B-Chat",
       "score": 1181,
       "provider": "",
@@ -1940,7 +1967,7 @@
       }
     },
     {
-      "rank": 473,
+      "rank": 480,
       "model": "InternLM2.5-20B-chat",
       "score": 1179,
       "provider": "",
@@ -1949,7 +1976,7 @@
       }
     },
     {
-      "rank": 475,
+      "rank": 482,
       "model": "Claude-1",
       "score": 1178,
       "provider": "Anthropic",
@@ -1958,7 +1985,7 @@
       }
     },
     {
-      "rank": 477,
+      "rank": 484,
       "model": "Qwen1.5-72B-Chat",
       "score": 1175,
       "provider": "Alibaba",
@@ -1967,7 +1994,7 @@
       }
     },
     {
-      "rank": 478,
+      "rank": 485,
       "model": "Mixtral-8x22b-Instruct-v0.1",
       "score": 1175,
       "provider": "",
@@ -1976,7 +2003,7 @@
       }
     },
     {
-      "rank": 481,
+      "rank": 488,
       "model": "Mistral Medium",
       "score": 1172,
       "provider": "Mistral",
@@ -1985,7 +2012,7 @@
       }
     },
     {
-      "rank": 483,
+      "rank": 490,
       "model": "Llama-3-8B-Instruct",
       "score": 1171,
       "provider": "Meta",
@@ -1994,7 +2021,7 @@
       }
     },
     {
-      "rank": 486,
+      "rank": 493,
       "model": "Command R (04-2024)",
       "score": 1169,
       "provider": "",
@@ -2003,7 +2030,7 @@
       }
     },
     {
-      "rank": 492,
+      "rank": 499,
       "model": "Granite-3.1-2B-Instruct",
       "score": 1166,
       "provider": "",
@@ -2012,7 +2039,7 @@
       }
     },
     {
-      "rank": 494,
+      "rank": 501,
       "model": "GPT-3.5-Turbo-0613",
       "score": 1164,
       "provider": "OpenAI",
@@ -2021,7 +2048,7 @@
       }
     },
     {
-      "rank": 496,
+      "rank": 503,
       "model": "Gemma-2-2b-it",
       "score": 1163,
       "provider": "",
@@ -2030,7 +2057,7 @@
       }
     },
     {
-      "rank": 497,
+      "rank": 504,
       "model": "Qwen1.5-32B-Chat",
       "score": 1163,
       "provider": "Alibaba",
@@ -2039,7 +2066,7 @@
       }
     },
     {
-      "rank": 499,
+      "rank": 506,
       "model": "Claude-2.0",
       "score": 1160,
       "provider": "Anthropic",
@@ -2048,7 +2075,7 @@
       }
     },
     {
-      "rank": 504,
+      "rank": 511,
       "model": "Claude-2.1",
       "score": 1158,
       "provider": "Anthropic",
@@ -2057,7 +2084,7 @@
       }
     },
     {
-      "rank": 505,
+      "rank": 512,
       "model": "Gemini-1.0-Pro-001",
       "score": 1155,
       "provider": "Google",
@@ -2066,7 +2093,7 @@
       }
     },
     {
-      "rank": 506,
+      "rank": 513,
       "model": "Starling-LM-7B-beta",
       "score": 1151,
       "provider": "",
@@ -2075,7 +2102,7 @@
       }
     },
     {
-      "rank": 507,
+      "rank": 514,
       "model": "Zephyr-ORPO-141b-A35b-v0.1",
       "score": 1150,
       "provider": "",
@@ -2084,7 +2111,7 @@
       }
     },
     {
-      "rank": 508,
+      "rank": 515,
       "model": "Qwen2.5-VL-32B-Instruct",
       "score": 1149,
       "provider": "Alibaba",
@@ -2093,7 +2120,7 @@
       }
     },
     {
-      "rank": 510,
+      "rank": 517,
       "model": "Phi-3-Medium-4k-Instruct",
       "score": 1146,
       "provider": "",
@@ -2102,7 +2129,7 @@
       }
     },
     {
-      "rank": 517,
+      "rank": 524,
       "model": "Qwen1.5-14B-Chat",
       "score": 1144,
       "provider": "Alibaba",
@@ -2111,7 +2138,7 @@
       }
     },
     {
-      "rank": 519,
+      "rank": 526,
       "model": "DBRX-Instruct-Preview",
       "score": 1141,
       "provider": "",
@@ -2120,7 +2147,7 @@
       }
     },
     {
-      "rank": 521,
+      "rank": 528,
       "model": "Mixtral-8x7B-Instruct-v0.1",
       "score": 1138,
       "provider": "",
@@ -2129,7 +2156,7 @@
       }
     },
     {
-      "rank": 522,
+      "rank": 529,
       "model": "GPT-3.5-Turbo-0314",
       "score": 1138,
       "provider": "OpenAI",
@@ -2138,7 +2165,7 @@
       }
     },
     {
-      "rank": 527,
+      "rank": 534,
       "model": "Claude-Instant-1",
       "score": 1136,
       "provider": "Anthropic",
@@ -2147,7 +2174,7 @@
       }
     },
     {
-      "rank": 532,
+      "rank": 539,
       "model": "Yi-34B-Chat",
       "score": 1134,
       "provider": "",
@@ -2156,7 +2183,7 @@
       }
     },
     {
-      "rank": 535,
+      "rank": 542,
       "model": "Tulu-2-DPO-70B",
       "score": 1127,
       "provider": "",
@@ -2165,7 +2192,7 @@
       }
     },
     {
-      "rank": 538,
+      "rank": 545,
       "model": "WizardLM-70B-v1.0",
       "score": 1126,
       "provider": "",
@@ -2174,7 +2201,7 @@
       }
     },
     {
-      "rank": 540,
+      "rank": 547,
       "model": "Phi-3-Small-8k-Instruct",
       "score": 1123,
       "provider": "",
@@ -2183,7 +2210,7 @@
       }
     },
     {
-      "rank": 542,
+      "rank": 549,
       "model": "Llama-2-70B-chat",
       "score": 1122,
       "provider": "Meta",
@@ -2192,7 +2219,7 @@
       }
     },
     {
-      "rank": 545,
+      "rank": 552,
       "model": "Nous-Hermes-2-Mixtral-8x7B-DPO",
       "score": 1119,
       "provider": "",
@@ -2201,7 +2228,7 @@
       }
     },
     {
-      "rank": 546,
+      "rank": 553,
       "model": "OpenChat-3.5-0106",
       "score": 1119,
       "provider": "OpenAI",
@@ -2210,7 +2237,7 @@
       }
     },
     {
-      "rank": 547,
+      "rank": 554,
       "model": "Step-1o-Vision-32k (highres)",
       "score": 1119,
       "provider": "",
@@ -2219,7 +2246,7 @@
       }
     },
     {
-      "rank": 548,
+      "rank": 555,
       "model": "Llama-3.2-3B-Instruct",
       "score": 1118,
       "provider": "Meta",
@@ -2228,7 +2255,7 @@
       }
     },
     {
-      "rank": 551,
+      "rank": 558,
       "model": "Granite-3.0-8B-Instruct",
       "score": 1115,
       "provider": "",
@@ -2237,7 +2264,7 @@
       }
     },
     {
-      "rank": 553,
+      "rank": 560,
       "model": "Starling-LM-7B-alpha",
       "score": 1114,
       "provider": "",
@@ -2246,7 +2273,7 @@
       }
     },
     {
-      "rank": 554,
+      "rank": 561,
       "model": "Vicuna-33B",
       "score": 1113,
       "provider": "",
@@ -2255,7 +2282,7 @@
       }
     },
     {
-      "rank": 555,
+      "rank": 562,
       "model": "DeepSeek-LLM-67B-Chat",
       "score": 1111,
       "provider": "DeepSeek",
@@ -2264,7 +2291,7 @@
       }
     },
     {
-      "rank": 556,
+      "rank": 563,
       "model": "Qwen1.5-7B-Chat",
       "score": 1110,
       "provider": "Alibaba",
@@ -2273,7 +2300,7 @@
       }
     },
     {
-      "rank": 557,
+      "rank": 564,
       "model": "Snowflake Arctic Instruct",
       "score": 1109,
       "provider": "",
@@ -2282,7 +2309,7 @@
       }
     },
     {
-      "rank": 560,
+      "rank": 567,
       "model": "NV-Llama2-70B-SteerLM-Chat",
       "score": 1106,
       "provider": "Meta",
@@ -2291,7 +2318,7 @@
       }
     },
     {
-      "rank": 561,
+      "rank": 568,
       "model": "Gemma-1.1-7B-it",
       "score": 1105,
       "provider": "",
@@ -2300,7 +2327,7 @@
       }
     },
     {
-      "rank": 563,
+      "rank": 570,
       "model": "Granite-3.0-2B-Instruct",
       "score": 1104,
       "provider": "",
@@ -2309,7 +2336,7 @@
       }
     },
     {
-      "rank": 564,
+      "rank": 571,
       "model": "Qwen2.5-VL-72B-Instruct",
       "score": 1104,
       "provider": "Alibaba",
@@ -2318,7 +2345,7 @@
       }
     },
     {
-      "rank": 566,
+      "rank": 573,
       "model": "OpenChat-3.5",
       "score": 1103,
       "provider": "OpenAI",
@@ -2327,7 +2354,7 @@
       }
     },
     {
-      "rank": 568,
+      "rank": 575,
       "model": "Phi-3-Mini-4k-Instruct",
       "score": 1102,
       "provider": "",
@@ -2336,7 +2363,7 @@
       }
     },
     {
-      "rank": 570,
+      "rank": 577,
       "model": "OpenHermes-2.5-Mistral-7B",
       "score": 1100,
       "provider": "OpenAI",

@@ -4,32 +4,60 @@ template: python-api
 domain: youtube.vps1.ocoron.com
 
 source:
-  type: local
-  path: /opt/youtube
+  type: git
+  repository: https://github.com/mobasak/youtube-pipeline.git
+  branch: main
 
 env:
   PORT: "8029"
   LOG_LEVEL: INFO
   APP_ENV: production
+  SERVICE_NAME: youtube-pipeline
+  ALLOWED_ORIGINS: https://youtube.vps1.ocoron.com
 
 secrets:
   required:
     - DATABASE_URL
-    - SUPABASE_URL
-    - SUPABASE_SERVICE_ROLE_KEY
+  from_env:
+    - DB_HOST
+    - DB_PORT
+    - DB_NAME
+    - DB_USER
+    - DB_PASSWORD
+    - SONIOX_API_KEYS
+    - WEBSHARE_API_KEY
+    - YOUTUBE_API_KEY
+    - RAPIDAPI_KEY
+    - APIFY_API_TOKEN
+
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: true
+  needs_database: true
+  has_search_feature: false
 
 depends:
   postgres: youtube
 
 resources:
-  limits:
-    memory: 2G
-    cpus: "2.0"
+  memory: 2G
+  cpu: "2.0"
 
 health:
   path: /health
-  port: 8029
   interval: 30s
   timeout: 10s
   retries: 3
   start_period: 10s
+
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30
+
+coolify:
+  project: default
+  server: localhost

@@ -406,14 +406,20 @@ class InfrastructureProvisioner:
             coolify.bulk_update_env_vars(ctx.coolify_uuid, {"SENTRY_DSN": dsn})
             coolify.deploy(ctx.coolify_uuid, force=True)
 
-            if not verify_dsn_injection(name, dsn, max_wait=60):
+            # Real application rebuilds (git pull + pip/npm install + image
+            # build + container start) can easily take 90-180s for non-scratch
+            # images. The previous 60s timeout was only safe for scratch-image
+            # smoke tests. Bumped to 240s after observing a real Python app
+            # (site-provisioner, 2026-04-22) rebuild successfully in ~100s but
+            # past the 60s window, causing false-negative rollback.
+            if not verify_dsn_injection(name, dsn, max_wait=240):
                 # Ground-truth check failed: roll back the project so we
                 # don't leave an orphan, then raise so the caller can
                 # decide (typically: fail the deploy with full rollback).
                 delete_project(name)
                 raise RuntimeError(
                     f"SENTRY_DSN not injected into {name!r} container "
-                    f"within 60s after Coolify force-deploy. Project "
+                    f"within 240s after Coolify force-deploy. Project "
                     f"rolled back."
                 )
 

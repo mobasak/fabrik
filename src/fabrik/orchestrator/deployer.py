@@ -6,6 +6,7 @@ from typing import Any
 
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.exceptions import DeployError
+from fabrik.spec_loader import Source, SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -128,11 +129,224 @@ class ServiceDeployer:
 
         return server_uuid, project_uuid
 
+    def _resolve_environment_uuid(self, project_uuid: str) -> str:
+        """Resolve the UUID of the 'production' environment for a project.
+
+        The /applications/private-deploy-key endpoint requires an explicit
+        ``environment_uuid`` (unlike /applications/dockercompose which only
+        needs ``environment_name"). This helper fetches it from the
+        Coolify project details.
+
+        Args:
+            project_uuid: Coolify project UUID
+
+        Returns:
+            Environment UUID
+
+        Raises:
+            DeployError: If no production environment found
+        """
+        env_uuid = os.environ.get("COOLIFY_ENVIRONMENT_UUID")
+        if env_uuid:
+            return env_uuid
+
+        project = self.client.get_project(project_uuid)
+        envs = project.get("environments", [])
+        for env in envs:
+            if env.get("name") == "production":
+                return env["uuid"]
+        # Fallback: first environment
+        if envs:
+            return envs[0]["uuid"]
+
+        raise DeployError(
+            f"No environments found in Coolify project {project_uuid}. "
+            "Set COOLIFY_ENVIRONMENT_UUID or create an environment in Coolify."
+        )
+
+    def _resolve_private_key_uuid(self) -> str | None:
+        """Resolve the UUID of a git-related SSH deploy key in Coolify.
+
+        Looks up Coolify's security keys and returns the first key
+        marked as ``is_git_related`` or whose name suggests it's a deploy
+        key. Returns None if no suitable key is found (public repos
+        don't need one).
+
+        Returns:
+            Private key UUID or None
+        """
+        key_uuid = os.environ.get("COOLIFY_PRIVATE_KEY_UUID")
+        if key_uuid:
+            return key_uuid
+
+        try:
+            keys = self.client.list_private_keys()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Could not list Coolify private keys: %s", e)
+            return None
+
+        # Prefer git-related keys, then fall back to any non-localhost key
+        for key in keys:
+            if key.get("is_git_related"):
+                return key["uuid"]
+        for key in keys:
+            name = (key.get("name") or "").lower()
+            if "deploy" in name or "github" in name:
+                return key["uuid"]
+
+        logger.warning(
+            "No git-related SSH key found in Coolify; "
+            "set COOLIFY_PRIVATE_KEY_UUID for private repos"
+        )
+        return None
+
     def _create_deployment(self, ctx: DeploymentContext) -> str:
         """Create a new Coolify deployment.
 
+        Dispatches to the correct Coolify API endpoint based on source type:
+        - ``source.type=git`` → ``/applications/private-deploy-key`` (or
+          ``/applications`` for public repos) with ``build_pack=dockercompose``.
+          The compose is pulled from the git repo, not rendered inline.
+        - ``source.type=template`` or ``docker`` → ``/applications/dockercompose``
+          with inline rendered compose YAML.
+
         Args:
             ctx: Deployment context
+
+        Returns:
+            New application UUID
+        """
+        spec = ctx.spec
+        source = spec.get("source", {})
+
+        # Normalize source to a Source object if it's a raw dict
+        if isinstance(source, dict):
+            source_type_str = source.get("type", "template")
+            type_map = {
+                "docker": SourceType.DOCKER,
+                "git": SourceType.GIT,
+                "template": SourceType.TEMPLATE,
+            }
+            source = Source(
+                **{**source, "type": type_map.get(source_type_str, SourceType.TEMPLATE)}
+            )
+
+        server_uuid, project_uuid = self._resolve_project_server_uuids()
+
+        if source.type == SourceType.GIT:
+            uuid = self._create_git_deployment(ctx, source, server_uuid, project_uuid)
+        else:
+            uuid = self._create_inline_deployment(ctx, server_uuid, project_uuid)
+
+        # Coolify's `instant_deploy: true` on POST /applications/dockercompose
+        # does NOT reliably start the container (leaves service at status=exited).
+        # Explicitly trigger /deploy to ensure the container is created and started.
+        try:
+            self.client.deploy(uuid, force=True)
+            logger.info("Triggered deploy for %s", uuid)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Post-create deploy trigger failed (non-fatal): %s", e)
+
+        # Give Coolify some time to actually spin up the container before
+        # downstream steps (verification, Traefik router check) probe it.
+        self._wait_for_container(spec["name"], max_wait=90)
+        return uuid
+
+    def _create_git_deployment(
+        self,
+        ctx: DeploymentContext,
+        source: Source,
+        server_uuid: str,
+        project_uuid: str,
+    ) -> str:
+        """Create a git-sourced Coolify application.
+
+        Uses Coolify's ``/applications/private-deploy-key`` endpoint for
+        private repos (with SSH deploy key) or ``/applications`` for public
+        repos. The compose is pulled from the git repo on deploy — no
+        inline compose YAML is rendered.
+
+        Args:
+            ctx: Deployment context
+            source: Parsed Source object with type=GIT
+            server_uuid: Coolify server UUID
+            project_uuid: Coolify project UUID
+
+        Returns:
+            New application UUID
+
+        Raises:
+            DeployError: If git_repository is missing or private key not found
+        """
+        spec = ctx.spec
+        git_repository = source.repository
+        if not git_repository:
+            raise DeployError("Git-sourced deployment requires 'source.repository' in spec")
+
+        environment_uuid = self._resolve_environment_uuid(project_uuid)
+
+        # Resolve SSH deploy key for private repos
+        private_key_uuid = None
+        repo_url = git_repository.lower()
+        is_private = repo_url.startswith("git@") or "git@github.com" in repo_url
+        if is_private:
+            private_key_uuid = self._resolve_private_key_uuid()
+            if not private_key_uuid:
+                raise DeployError(
+                    f"Private git repo '{git_repository}' requires an SSH deploy key. "
+                    "Set COOLIFY_PRIVATE_KEY_UUID or register a git-related key in Coolify."
+                )
+
+        # Determine compose location from spec or default
+        docker_compose_location = spec.get("coolify", {}).get(
+            "docker_compose_location", "/compose.yaml"
+        )
+
+        result = self.client.create_git_application(
+            project_uuid=project_uuid,
+            server_uuid=server_uuid,
+            environment_uuid=environment_uuid,
+            git_repository=git_repository,
+            git_branch=source.branch,
+            private_key_uuid=private_key_uuid,
+            build_pack="dockercompose",
+            docker_compose_location=docker_compose_location,
+            name=spec["name"],
+            description=spec.get("description", ""),
+            instant_deploy=False,  # Git apps: first deploy = git pull + build
+        )
+
+        uuid = result.get("uuid") or result.get("id")
+        if not uuid:
+            raise DeployError(
+                "Coolify API response missing 'uuid' or 'id'",
+                coolify_error=str(result),
+            )
+        logger.info(
+            "Created git-sourced app %s (uuid=%s, repo=%s, branch=%s)",
+            spec["name"],
+            uuid,
+            git_repository,
+            source.branch,
+        )
+        return uuid
+
+    def _create_inline_deployment(
+        self,
+        ctx: DeploymentContext,
+        server_uuid: str,
+        project_uuid: str,
+    ) -> str:
+        """Create an inline-compose Coolify application.
+
+        Renders compose.yaml from the spec template and posts it to
+        Coolify's ``/applications/dockercompose`` endpoint. This is the
+        original path for template/docker-sourced apps.
+
+        Args:
+            ctx: Deployment context
+            server_uuid: Coolify server UUID
+            project_uuid: Coolify project UUID
 
         Returns:
             New application UUID
@@ -141,8 +355,6 @@ class ServiceDeployer:
         from fabrik.template_renderer import TemplateRenderer
 
         spec = ctx.spec
-
-        server_uuid, project_uuid = self._resolve_project_server_uuids()
 
         # Build spec_dict preserving all user fields (resources, volumes, depends, etc.)
         spec_dict = dict(spec)
@@ -154,8 +366,6 @@ class ServiceDeployer:
             spec_dict["env"] = {}
 
         # Convert nested dict fields to their proper types to avoid default_factory overrides
-        from fabrik.spec_loader import Source, SourceType
-
         if "source" in spec_dict and isinstance(spec_dict["source"], dict):
             source_dict = spec_dict["source"]
             # Convert type string to enum
@@ -187,19 +397,7 @@ class ServiceDeployer:
                 "Coolify API response missing 'uuid' or 'id'",
                 coolify_error=str(result),
             )
-
-        # Coolify's `instant_deploy: true` on POST /applications/dockercompose
-        # does NOT reliably start the container (leaves service at status=exited).
-        # Explicitly trigger /deploy to ensure the container is created and started.
-        try:
-            self.client.deploy(uuid, force=True)
-            logger.info("Triggered deploy for %s", uuid)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Post-create deploy trigger failed (non-fatal): %s", e)
-
-        # Give Coolify some time to actually spin up the container before
-        # downstream steps (verification, Traefik router check) probe it.
-        self._wait_for_container(spec["name"], max_wait=90)
+        logger.info("Created inline-compose app %s (uuid=%s)", spec["name"], uuid)
         return uuid
 
     def _wait_for_container(self, name: str, max_wait: int = 90) -> bool:
@@ -233,16 +431,37 @@ class ServiceDeployer:
         spec = ctx.spec
         domain = spec.get("domain")
 
-        # fqdn can only be set on `/applications/{uuid}`, not `/services/{uuid}`.
-        # For services (dockercompose), the domain is carried by the compose's
-        # Traefik labels (rendered by TemplateRenderer). Auto-route by UUID.
+        # fqdn PATCH is only valid for dockerfile / buildpack applications on
+        # `/applications/{uuid}`. It is rejected (HTTP 422 "fqdn: not allowed")
+        # for dockercompose applications and for `/services/{uuid}`. In both
+        # of those cases the domain is carried by the compose's Traefik labels
+        # (rendered by TemplateRenderer for template-sourced apps, or by the
+        # upstream repo's compose.yaml for git-sourced apps). Auto-route by
+        # UUID AND skip when the application's build_pack is dockercompose.
         if domain:
             resource_base = self.client._resolve_resource_base(uuid)
             if resource_base == "applications":
-                self.client.update_application(
-                    uuid=uuid,
-                    fqdn=f"https://{domain}",
-                )
+                # Look up build_pack — dockercompose apps reject fqdn PATCH.
+                build_pack = None
+                try:
+                    apps = self.client.list_applications()
+                    match = next((a for a in apps if a.get("uuid") == uuid), None)
+                    if match:
+                        build_pack = match.get("build_pack")
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("Could not resolve build_pack for %s: %s", uuid, e)
+
+                if build_pack == "dockercompose":
+                    logger.info(
+                        "Skipping fqdn PATCH for dockercompose app %s "
+                        "(domain carried by compose Traefik labels)",
+                        uuid,
+                    )
+                else:
+                    self.client.update_application(
+                        uuid=uuid,
+                        fqdn=f"https://{domain}",
+                    )
 
         # Build environment from spec + secrets
         # NOTE: Secrets are passed to Coolify API. Ensure HTTP client debug

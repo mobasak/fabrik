@@ -1,5 +1,6 @@
 """Tests for Coolify deployer."""
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -7,6 +8,7 @@ import pytest
 
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer import ServiceDeployer
+from fabrik.orchestrator.exceptions import DeployError
 
 
 class TestServiceDeployer:
@@ -99,6 +101,7 @@ class TestServiceDeployer:
         mock_client.list_applications.return_value = [
             {"name": "test-app", "uuid": "existing-uuid"},
         ]
+        mock_client._resolve_resource_base.return_value = "applications"
 
         deployer = ServiceDeployer(coolify_client=mock_client)
 
@@ -112,6 +115,32 @@ class TestServiceDeployer:
         assert result == "existing-uuid"
         mock_client.update_application.assert_called_once()
         mock_client.create_dockercompose_application.assert_not_called()
+
+    def test_update_skips_fqdn_patch_for_dockercompose(self):
+        """Regression: dockercompose apps reject fqdn PATCH (422 "not allowed").
+
+        For dockercompose apps the domain is carried by the compose's Traefik
+        labels, not by the fqdn field. Attempting to PATCH fqdn returns HTTP
+        422 and fails the deployment. See `orchestrator/deployer.py` +
+        CHANGELOG entry (2026-04-22, site-provisioner redeploy).
+        """
+        mock_client = MagicMock()
+        mock_client.list_applications.return_value = [
+            {"name": "test-app", "uuid": "existing-uuid", "build_pack": "dockercompose"},
+        ]
+        # Simulate CoolifyClient._resolve_resource_base returning "applications"
+        # for a dockercompose app (which is the real-world case).
+        mock_client._resolve_resource_base.return_value = "applications"
+
+        deployer = ServiceDeployer(coolify_client=mock_client)
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={"name": "test-app", "domain": "test.com"},
+        )
+        deployer.deploy(ctx)
+
+        # fqdn PATCH MUST NOT happen for dockercompose apps
+        mock_client.update_application.assert_not_called()
 
     def test_update_does_not_track_for_rollback(self):
         """UPDATE should NOT add to created_resources (prevents deleting pre-existing apps)."""
@@ -187,3 +216,168 @@ class TestServiceDeployer:
         result = deployer.delete("some-uuid")
 
         assert result is False
+
+    def test_deploy_creates_git_sourced_private_repo(self):
+        """Git-sourced spec with private repo uses create_git_application."""
+        mock_client = MagicMock()
+        mock_client.list_applications.return_value = []
+        mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
+        mock_client.list_projects.return_value = [
+            {"name": "fabrik", "uuid": "project-uuid"}
+        ]
+        mock_client.get_project.return_value = {
+            "environments": [{"name": "production", "uuid": "env-uuid"}]
+        }
+        mock_client.list_private_keys.return_value = [
+            {"uuid": "key-1", "name": "localhost's key", "is_git_related": False},
+            {"uuid": "deploy-key-uuid", "name": "github-deploy-key", "is_git_related": False},
+        ]
+        mock_client.create_git_application.return_value = {"uuid": "new-git-uuid"}
+        mock_client.deploy.return_value = {"deployment_uuid": "deploy-1"}
+
+        deployer = ServiceDeployer(coolify_client=mock_client)
+
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={
+                "name": "my-git-app",
+                "domain": "my-git.vps1.ocoron.com",
+                "source": {
+                    "type": "git",
+                    "repository": "git@github.com:mobasak/my-app.git",
+                    "branch": "main",
+                },
+            },
+        )
+
+        result = deployer.deploy(ctx)
+
+        assert result == "new-git-uuid"
+        assert ctx.coolify_uuid == "new-git-uuid"
+        # Must call create_git_application, NOT create_dockercompose_application
+        mock_client.create_git_application.assert_called_once()
+        mock_client.create_dockercompose_application.assert_not_called()
+        # Verify the call includes private_key_uuid for private repo
+        call_kwargs = mock_client.create_git_application.call_args
+        assert call_kwargs.kwargs["private_key_uuid"] == "deploy-key-uuid"
+        assert call_kwargs.kwargs["git_repository"] == "git@github.com:mobasak/my-app.git"
+        assert call_kwargs.kwargs["build_pack"] == "dockercompose"
+
+    def test_deploy_creates_git_sourced_public_repo(self):
+        """Git-sourced spec with public repo (https://) omits private_key_uuid."""
+        mock_client = MagicMock()
+        mock_client.list_applications.return_value = []
+        mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
+        mock_client.list_projects.return_value = [
+            {"name": "fabrik", "uuid": "project-uuid"}
+        ]
+        mock_client.get_project.return_value = {
+            "environments": [{"name": "production", "uuid": "env-uuid"}]
+        }
+        mock_client.create_git_application.return_value = {"uuid": "new-git-uuid"}
+        mock_client.deploy.return_value = {"deployment_uuid": "deploy-1"}
+
+        deployer = ServiceDeployer(coolify_client=mock_client)
+
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={
+                "name": "my-public-app",
+                "domain": "my-public.vps1.ocoron.com",
+                "source": {
+                    "type": "git",
+                    "repository": "https://github.com/mobasak/public-app.git",
+                    "branch": "main",
+                },
+            },
+        )
+
+        result = deployer.deploy(ctx)
+
+        assert result == "new-git-uuid"
+        mock_client.create_git_application.assert_called_once()
+        call_kwargs = mock_client.create_git_application.call_args
+        # Public repo: no private_key_uuid
+        assert call_kwargs.kwargs["private_key_uuid"] is None
+
+    def test_deploy_git_sourced_missing_repository_raises(self):
+        """Git-sourced spec without repository raises DeployError."""
+        mock_client = MagicMock()
+        mock_client.list_applications.return_value = []
+        mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
+        mock_client.list_projects.return_value = [
+            {"name": "fabrik", "uuid": "project-uuid"}
+        ]
+
+        deployer = ServiceDeployer(coolify_client=mock_client)
+
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={
+                "name": "broken-app",
+                "source": {
+                    "type": "git",
+                    "branch": "main",
+                    # repository intentionally missing
+                },
+            },
+        )
+
+        with pytest.raises(DeployError, match="source.repository"):
+            deployer.deploy(ctx)
+
+    def test_deploy_git_sourced_no_deploy_key_raises(self):
+        """Private git repo with no deploy key in Coolify raises DeployError."""
+        mock_client = MagicMock()
+        mock_client.list_applications.return_value = []
+        mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
+        mock_client.list_projects.return_value = [
+            {"name": "fabrik", "uuid": "project-uuid"}
+        ]
+        mock_client.get_project.return_value = {
+            "environments": [{"name": "production", "uuid": "env-uuid"}]
+        }
+        mock_client.list_private_keys.return_value = [
+            {"uuid": "key-1", "name": "localhost's key", "is_git_related": False},
+        ]
+
+        deployer = ServiceDeployer(coolify_client=mock_client)
+
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={
+                "name": "private-app",
+                "source": {
+                    "type": "git",
+                    "repository": "git@github.com:mobasak/private.git",
+                    "branch": "main",
+                },
+            },
+        )
+
+        with pytest.raises(DeployError, match="SSH deploy key"):
+            deployer.deploy(ctx)
+
+    def test_resolve_environment_uuid_from_env_var(self):
+        """COOLIFY_ENVIRONMENT_UUID env var short-circuits API call."""
+        mock_client = MagicMock()
+        deployer = ServiceDeployer(coolify_client=mock_client)
+
+        with patch.dict(os.environ, {"COOLIFY_ENVIRONMENT_UUID": "env-from-var"}):
+            result = deployer._resolve_environment_uuid("project-uuid")
+
+        assert result == "env-from-var"
+        mock_client.get_project.assert_not_called()
+
+    def test_resolve_private_key_uuid_prefers_git_related(self):
+        """_resolve_private_key_uuid picks git-related key over others."""
+        mock_client = MagicMock()
+        mock_client.list_private_keys.return_value = [
+            {"uuid": "localhost-key", "name": "localhost's key", "is_git_related": False},
+            {"uuid": "git-key", "name": "deploy-key", "is_git_related": True},
+        ]
+        deployer = ServiceDeployer(coolify_client=mock_client)
+
+        result = deployer._resolve_private_key_uuid()
+
+        assert result == "git-key"

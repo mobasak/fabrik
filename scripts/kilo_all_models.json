@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-04-22T11:59:04.491106",
-  "total_models": 323,
+  "timestamp": "2026-04-24T18:44:57.800712",
+  "total_models": 330,
   "models": {
     "~anthropic/claude-opus-latest": {
       "id": "~anthropic/claude-opus-latest",
@@ -172,6 +172,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "arcee-ai/trinity-large-preview": {
+      "id": "arcee-ai/trinity-large-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "arcee-ai/trinity-large-thinking": {
       "id": "arcee-ai/trinity-large-thinking",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -212,8 +217,8 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "bytedance-seed/dola-seed-2.0-pro:free": {
-      "id": "bytedance-seed/dola-seed-2.0-pro:free",
+    "baidu/qianfan-ocr-fast:free": {
+      "id": "baidu/qianfan-ocr-fast:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -319,6 +324,16 @@
     },
     "deepseek/deepseek-v3.2-speciale": {
       "id": "deepseek/deepseek-v3.2-speciale",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-v4-flash": {
+      "id": "deepseek/deepseek-v4-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-v4-pro": {
+      "id": "deepseek/deepseek-v4-pro",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -444,6 +459,11 @@
     },
     "inception/mercury-2": {
       "id": "inception/mercury-2",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "inclusionai/ling-2.6-1t:free": {
+      "id": "inclusionai/ling-2.6-1t:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1447,6 +1467,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "tencent/hy3-preview:free": {
+      "id": "tencent/hy3-preview:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "thedrummer/cydonia-24b-v4.1": {
       "id": "thedrummer/cydonia-24b-v4.1",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1554,6 +1579,16 @@
     },
     "xiaomi/mimo-v2-pro": {
       "id": "xiaomi/mimo-v2-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "xiaomi/mimo-v2.5": {
+      "id": "xiaomi/mimo-v2.5",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "xiaomi/mimo-v2.5-pro": {
+      "id": "xiaomi/mimo-v2.5-pro",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

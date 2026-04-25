@@ -3,35 +3,68 @@ kind: service
 template: python-api
 domain: provision.vps1.ocoron.com
 
+# Project-shape descriptor (Phase 4k). Drives InfrastructureProvisioner.
+# site-provisioner is a public API that fronts Namecheap/Cloudflare/DomainNameAPI,
+# uses a Postgres database on postgres-main, and stores no local persistent data
+# (DB handles all state; backups handled at postgres-main level via existing Backrest plans).
+shape:
+  kind: service
+  is_public: true                # → Gatus endpoint for /health
+  is_admin_dashboard: false      # API only, no HTML admin UI (no Authelia)
+  has_bearer_api: false          # bearer auth exists (API_KEY) but not behind Authelia
+  has_persistent_data: false     # DB lives on postgres-main, backed up separately
+  needs_database: true           # uses postgres-main::site_provisioner (already created)
+  has_search_feature: false
+
+# Git-sourced dockercompose app. Coolify ignores our rendered compose for this
+# build_pack and always uses the repo's /compose.yaml — which contains the
+# custom IP allowlist middleware + alembic migration runner + service-account
+# file mount. fabrik apply here is effectively: env-var sync + shape-gated
+# registrars + git pull + rebuild (via deploy(force=True) from glitchtip step).
+source:
+  type: git
+  repository: git@github.com:mobasak/site-provisioner.git
+  branch: main
+
+coolify:
+  project: fabrik-services
+  server: localhost
+
+# Non-secret runtime config. Hardcoded values; NAMECHEAP_CLIENT_IP must be the
+# VPS public IP (Namecheap validates source IP against this), not a dev IP —
+# this is why it's here and NOT in secrets.from_env.
 env:
   API_HOST: "0.0.0.0"
   API_PORT: "8001"
-  NAMECHEAP_USE_PROXY: "true"
-  NAMECHEAP_SANDBOX: "false"
   LOG_LEVEL: INFO
   APP_ENV: production
+  NAMECHEAP_USE_PROXY: "true"
+  NAMECHEAP_SANDBOX: "false"
+  NAMECHEAP_CLIENT_IP: "172.93.160.197"
 
 secrets:
+  # Pulled from /opt/fabrik/.env at apply time. Values verified to match
+  # live Coolify state (2026-04-22) except DOMAINNAMEAPI_* which are currently
+  # empty on both sides (driver not in use).
   from_env:
     - NAMECHEAP_API_KEY
     - NAMECHEAP_API_USER
-    - NAMECHEAP_CLIENT_IP
     - CLOUDFLARE_API_TOKEN
     - CLOUDFLARE_ACCOUNT_ID
     - CLOUDFLARE_GLOBAL_API_KEY
     - CLOUDFLARE_EMAIL
-    - DOMAINNAMEAPI_USERNAME
-    - DOMAINNAMEAPI_PASSWORD
+
+# NOTE: These live env vars are NOT in our spec and remain untouched by
+# bulk_update_env_vars (additive-only): API_KEY, DATABASE_URL,
+# BING_WEBMASTER_API_KEY, GOOGLE_APPLICATION_CREDENTIALS,
+# DOMAINNAMEAPI_USERNAME, DOMAINNAMEAPI_PASSWORD, NAMECHEAP_PROXY_URL.
 
 resources:
-  limits:
-    memory: 512M
-    cpus: "0.5"
+  memory: 512M
+  cpu: "0.5"
 
 health:
   path: /health
-  port: 8001
   interval: 30s
   timeout: 10s
   retries: 3
-  start_period: 20s

@@ -396,6 +396,103 @@ class CoolifyClient:
 
         return self._request("POST", "/applications/dockercompose", json=payload)
 
+    def create_git_application(
+        self,
+        project_uuid: str,
+        server_uuid: str,
+        environment_uuid: str,
+        git_repository: str,
+        git_branch: str = "main",
+        private_key_uuid: str | None = None,
+        build_pack: Literal["dockercompose", "dockerfile", "nixpacks"] = "dockercompose",
+        docker_compose_location: str = "/compose.yaml",
+        name: str | None = None,
+        description: str = "",
+        environment_name: str = "production",
+        instant_deploy: bool = False,
+        ports_exposes: str = "8000",
+    ) -> dict[str, Any]:
+        """Create an application from a git repository (private or public).
+
+        Uses POST /applications/private-deploy-key for private repos and
+        POST /applications for public repos. The private-deploy-key endpoint
+        is Coolify's dedicated path for SSH-key-authenticated git clones.
+
+        Args:
+            project_uuid: UUID of project to add app to
+            server_uuid: UUID of server to deploy on
+            environment_uuid: UUID of the environment (required by Coolify)
+            git_repository: Git repository URL (e.g. git@github.com:user/repo.git)
+            git_branch: Git branch to deploy (default: main)
+            private_key_uuid: UUID of the SSH deploy key in Coolify.
+                Required for private repos. Omit for public repos.
+            build_pack: Build method (default: dockercompose for compose-based deploys)
+            docker_compose_location: Path to compose file in repo (default: /compose.yaml)
+            name: Application name
+            description: Optional description
+            environment_name: Environment name (default: production)
+            instant_deploy: Deploy immediately after creation (default: False
+                for git-sourced apps — the first deploy triggers git pull + build)
+            ports_exposes: Exposed ports string (default: "8000")
+
+        Returns:
+            Created application dict with uuid
+
+        Raises:
+            ValueError: If private_key_uuid is missing for private repos
+            HTTPStatusError: On Coolify API errors
+        """
+        if private_key_uuid:
+            # Private repo: use dedicated endpoint
+            payload = {
+                "project_uuid": project_uuid,
+                "server_uuid": server_uuid,
+                "environment_name": environment_name,
+                "environment_uuid": environment_uuid,
+                "private_key_uuid": private_key_uuid,
+                "git_repository": git_repository,
+                "git_branch": git_branch,
+                "build_pack": build_pack,
+                "ports_exposes": ports_exposes,
+                "instant_deploy": instant_deploy,
+            }
+            if name:
+                payload["name"] = name
+            if description:
+                payload["description"] = description
+            if build_pack == "dockercompose":
+                payload["docker_compose_location"] = docker_compose_location
+            return self._request("POST", "/applications/private-deploy-key", json=payload)
+        else:
+            # Public repo: use generic /applications endpoint
+            payload = {
+                "project_uuid": project_uuid,
+                "server_uuid": server_uuid,
+                "environment_name": environment_name,
+                "environment_uuid": environment_uuid,
+                "type": "public",
+                "git_repository": git_repository,
+                "git_branch": git_branch,
+                "build_pack": build_pack,
+                "ports_exposes": ports_exposes,
+                "instant_deploy": instant_deploy,
+            }
+            if name:
+                payload["name"] = name
+            if description:
+                payload["description"] = description
+            if build_pack == "dockercompose":
+                payload["docker_compose_location"] = docker_compose_location
+            return self._request("POST", "/applications", json=payload)
+
+    def list_private_keys(self) -> list[dict[str, Any]]:
+        """List SSH private keys registered in Coolify.
+
+        Returns:
+            List of key dicts with: id, uuid, name, description, is_git_related
+        """
+        return self._request("GET", "/security/keys")
+
     def _resolve_resource_base(self, uuid: str) -> str:
         """Resolve whether `uuid` is an application or a service.
 

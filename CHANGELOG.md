@@ -4,6 +4,60 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Git-sourced Docker Compose deployment support (2026-04-23)
+
+**Context:** The orchestrator's `_create_deployment` hardcoded `/applications/dockercompose` (inline YAML) and could not CREATE git-sourced dockercompose apps — those need `/applications/private-deploy-key` with `build_pack=dockercompose`. This was the root cause of the manual Coolify app creation needed during the proxy service redeployment (2026-04-22).
+
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_create_deployment` now branches on `source.type`:
+  - `SourceType.GIT` → `_create_git_deployment()` (new method) — calls `CoolifyClient.create_git_application()` which uses `/applications/private-deploy-key` for private repos or `/applications` for public repos with `build_pack=dockercompose`. No inline compose YAML is rendered; Coolify pulls the compose from the git repo on deploy.
+  - `SourceType.TEMPLATE` / `SourceType.DOCKER` → `_create_inline_deployment()` (extracted from original logic) — renders compose.yaml from template and posts to `/applications/dockercompose`.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_resolve_environment_uuid` — resolves the production environment UUID (required by `/applications/private-deploy-key`, unlike `/applications/dockercompose` which only needs `environment_name`). Supports `COOLIFY_ENVIRONMENT_UUID` env var override.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_resolve_private_key_uuid` — auto-discovers SSH deploy keys from Coolify's `/security/keys` endpoint. Prefers `is_git_related` keys, then falls back to keys with "deploy" or "github" in the name. Supports `COOLIFY_PRIVATE_KEY_UUID` env var override.
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::create_git_application` — new CoolifyClient method for creating git-sourced applications. Handles both private repos (SSH deploy key) and public repos (HTTPS).
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::list_private_keys` — new method to list SSH private keys registered in Coolify.
+- `@/opt/fabrik/.env.example` — added `COOLIFY_ENVIRONMENT_UUID` and `COOLIFY_PRIVATE_KEY_UUID` (both optional, auto-detected).
+- `@/opt/fabrik/tests/orchestrator/test_deployer.py` — 7 new tests: private repo creation, public repo creation, missing repository error, missing deploy key error, environment UUID from env var, private key UUID preference, and fixed pre-existing `test_deploy_updates_existing` (was missing `_resolve_resource_base` mock).
+
+### Fixed — Orchestrator pipeline validated end-to-end on live prod service (site-provisioner) — 2026-04-22
+
+**Context:** First real-world run of `fabrik apply --use-orchestrator` on an existing live production service (`site-provisioner`, `provision.vps1.ocoron.com`, 40h uptime before run, git-sourced dockercompose app). The maximal-shape E2E test done on 2026-04-22 earlier used `traefik/whoami` (scratch image) which masked two bugs exposed by a real Python application rebuild. Both bugs found and fixed; service is now green with all shape-gated registrars (postgres/gatus/glitchtip/grafana) fired.
+
+**Bug 1 — fqdn PATCH rejected for dockercompose apps:**
+
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_update_deployment` unconditionally called `update_application(uuid, fqdn=...)` whenever `_resolve_resource_base(uuid) == "applications"`. This is correct for `dockerfile`/`buildpack` apps but **Coolify rejects `fqdn` for `dockercompose` apps** with `HTTP 422: {"errors":{"fqdn":["This field is not allowed."]}}` because dockercompose apps carry the domain via Traefik labels, not via the top-level `fqdn` field.
+- Fix: look up the app's `build_pack` via `list_applications()` and skip the `fqdn` PATCH when `build_pack == "dockercompose"`.
+- `@/opt/fabrik/tests/orchestrator/test_deployer.py::test_update_skips_fqdn_patch_for_dockercompose` added as regression test. Verifies `update_application` is NOT called for `build_pack="dockercompose"` apps.
+- Note: pre-existing test `test_deploy_updates_existing` was already broken on master (MagicMock `_resolve_resource_base` returns a mock object, not the string `"applications"`, so fqdn was never being PATCHed in tests anyway). Out of scope for this fix; tracked separately.
+
+**Bug 2 — `verify_dsn_injection` timeout too short for real application rebuilds:**
+
+- `@/opt/fabrik/src/fabrik/orchestrator/infrastructure.py::_provision_glitchtip` called `verify_dsn_injection(name, dsn, max_wait=60)`. The 60s window was sufficient for scratch-image smoke tests (traefik/whoami rebuild is instant) but insufficient for real apps: site-provisioner (`python:3.12-slim-bookworm` + `pip install -r requirements.txt`) takes ~100s to rebuild + restart. The DSN arrived correctly at ~100s but after the 60s verification window had already expired → false-negative rollback (GlitchTip project deleted, though the DSN was successfully injected and the container was healthy).
+- Fix: bumped `max_wait` from 60 to 240 seconds in `@/opt/fabrik/src/fabrik/orchestrator/infrastructure.py:415`. Updated inline error message accordingly.
+- Observed real wall times: scratch image ≈10s, slim-bookworm + pip install ≈100s, slim-bookworm + npm install (Node apps) estimated up to ~180s. 240s leaves reasonable headroom without being so long as to mask genuine failures.
+
+**Spec migration:**
+
+- `@/opt/fabrik/specs/services/site-provisioner.yaml` rewritten from the pre-Phase-4k schema to current pydantic-valid form: added `shape:` block (service / public / needs_database / no persistent data / no dashboard / no search), explicit `source:` with git repository + branch, `coolify:` config, flat `resources:` (was nested `resources.limits.*`), standard `health:` (removed non-schema `port` and `start_period` fields). Moved `NAMECHEAP_CLIENT_IP` from `secrets.from_env` to `env:` with hardcoded VPS IP (172.93.160.197) — pre-flight audit caught that `/opt/fabrik/.env` had a WSL dev IP which would have been wrongly PATCHed to live, breaking Namecheap auth.
+
+**Safe-by-construction observations (not fixes, but reinforced by this run):**
+
+- For an existing git-sourced dockercompose app, `find_existing` → PATCH path → `bulk_update_env_vars` is **additive-only** (POST-or-PATCH per key; never DELETEs). Live env vars not in our spec (API_KEY, DATABASE_URL, BING_WEBMASTER_API_KEY, GOOGLE_APPLICATION_CREDENTIALS, DOMAINNAMEAPI_*, NAMECHEAP_PROXY_URL) were preserved untouched.
+- Coolify ignores the rendered compose for git-sourced dockercompose apps (uses `/compose.yaml` from repo) — so the custom IP allowlist middleware, alembic migration runner, and `dns-manager-gsc-*.json` service-account file mount were preserved automatically. No template extension required.
+- Postgres `create_database` is idempotent (`IF EXISTS` guard) — the existing `site_provisioner` DB on `postgres-main` was not touched.
+
+**Net effect on live service:**
+
+- Container rebuilt once (~100s); brief 404 during container swap, health returned 200 on verifier retry.
+- New env var: `SENTRY_DSN` (points at internal GlitchTip; app now ships errors to `errors.vps1.ocoron.com`).
+- New Gatus endpoint (`apps_site-provisioner`, actively probing /health every 60s, returning 200).
+- New GlitchTip project (`site-provisioner` under `ocoron` org).
+- Grafana annotation recorded.
+- IP allowlist middleware, alembic command, all 42 existing env vars, Traefik host rule: **unchanged**.
+
+**Pre-flight artefact (kept for rollback reference):** `@/opt/fabrik/.tmp/site-provisioner-preflight/app.json` (Coolify app JSON snapshot) + `envs.json` (42 env vars snapshot) taken immediately before run.
+
+**Total wall time:** 3 attempts × ~60-110s each = ~5 min of actual deploy time. First two attempts rolled back cleanly without affecting the live service.
+
 ### Changed — Deploy-workflow reference docs refreshed to match live code — 2026-04-22
 
 Audited 13 deploy-workflow-adjacent docs against `src/fabrik/` reality (orchestrator/11 modules/3102 lines, drivers/22 modules, cli.py/2048 lines, templates/12, SCAFFOLD_TYPES/11). Fixed every factual drift found.
