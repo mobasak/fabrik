@@ -1,0 +1,29 @@
+{
+  "exclude": [
+    "**/.git",
+    "**/.venv",
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.droid",
+    "**/logs",
+    "**/data",
+    "**/output",
+    "**/.tmp",
+    "**/.cache",
+    "**/dist",
+    "**/build",
+    "**/*.egg-info",
+    "**/.mypy_cache",
+    "**/.coverage",
+    "**/.tox",
+    "**/.env*",
+    "**/.factory",
+    "**/scripts/enforcement"
+  ],
+  "include": [
+    "src",
+    "scripts",
+    "tests"
+  ]
+}

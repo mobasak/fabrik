@@ -27,7 +27,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 |------|---------|---------|-----|
 | 8000 | Coolify | coolify | https://coolify.vps1.ocoron.com |
 | 3001 | Gatus | gatus | https://status.vps1.ocoron.com |
-| 8200 | Duplicati | duplicati | https://backup.vps1.ocoron.com |
+| 9898 | Backrest | backrest | https://backup.vps1.ocoron.com (Duplicati on 8200 retired 2026-04-17) |
 | 19999 | Netdata | netdata | https://netdata.vps1.ocoron.com |
 | 3000 | browserless | specs/infrastructure/browserless.yaml | https://browser.vps1.ocoron.com |
 | 3003 | gotenberg | specs/infrastructure/gotenberg.yaml | https://pdf.vps1.ocoron.com |
@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-04-24 18:54:06 -->
+<!-- Last synced: 2026-04-29 00:01:40 -->
 
 ### ⚠️ Port Conflicts Detected
 
@@ -95,8 +95,14 @@ If you encounter a port conflict:
 
 | Port | Project | Type | Path |
 |------|---------|------|------|
+| 3000 | **fabrik-test-node-api** | node-api | /opt/fabrik-test-node-api |
 | 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
+| 3003 | **fabrik-test-file-api** | file-api | /opt/fabrik-test-file-api |
+| 3004 | **fabrik-test-saas-skeleton** | saas-skeleton | /opt/fabrik-test-saas-skeleton |
+| 3005 | **fabrik-test-static-site** | static-site | /opt/fabrik-test-static-site |
 | 8000 | **fabrik-smoke-test** | python-api | /opt/fabrik-smoke-test |
+| 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |
+| 8003 | **fabrik-test-docusaurus** | docusaurus | /opt/fabrik-test-docusaurus |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
 | 8005 | **candle** | python-api | /opt/candle |
 | 8006 | **exam-coach** | python-api | /opt/exam-coach |
@@ -112,18 +118,24 @@ If you encounter a port conflict:
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **supplement-tracker-advisor** | python-api | /opt/supplement-tracker-advisor |
 | 8018 | **Reference_Creator** | python-api | /opt/Reference_Creator |
+| 8019 | **fabrik-test-file-worker** | file-worker | /opt/fabrik-test-file-worker |
+| 8020 | **fabrik-test-wordpress** | wordpress | /opt/fabrik-test-wordpress |
+| 8021 | **fabrik-test-chrome-extension** | chrome-extension | /opt/fabrik-test-chrome-extension |
 | 8022 | **trade-intelligence** | python-api | /opt/trade-intelligence |
 | 8023 | **trading-core** | python-api | /opt/trading-core |
 | 8024 | **transcriber** | python-api | /opt/transcriber |
 | 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
 | 8026 | **ugc** | python-api | /opt/ugc |
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
+| 8028 | **fabrik-test-desktop-app** | desktop-app | /opt/fabrik-test-desktop-app |
 | 8029 | **youtube** | python-api | /opt/youtube |
+| 8030 | **fabrik-test-mobile-app** | mobile-app | /opt/fabrik-test-mobile-app |
+| 8031 | **fabrik-test-python-api** | python-api | /opt/fabrik-test-python-api |
 | 8033 | **ComplianceOps** | python-api | /opt/ComplianceOps |
 | 8302 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 18011 | **captcha** | python-api | /opt/captcha |
 | 18012 | **translator** | python-api | /opt/translator |
-| 18013 | **proxy** | automation | /opt/proxy |
+| 18013 | **proxy** | python-api | /opt/proxy |
 | 18014 ⚠️ | **dns-manager** | python-api | /opt/dns-manager |
 | 18014 ⚠️ | **site-provisioner** | python-api | /opt/site-provisioner |
 | 18015 | **file-api** | node-api | /opt/file-api |

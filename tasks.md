@@ -44,7 +44,7 @@
 | Coolify | vps1.ocoron.com:8000 | ✅ |
 | Netdata | netdata.vps1.ocoron.com | ✅ |
 | Gatus | status.vps1.ocoron.com | ✅ |
-| Duplicati | backup.vps1.ocoron.com | ✅ |
+| Backrest | backup.vps1.ocoron.com | ✅ | (replaced Duplicati 2026-04-17)
 | Image Broker | images.vps1.ocoron.com | ✅ |
 | DNS Manager | dns.vps1.ocoron.com | ✅ |
 | Translator | translator.vps1.ocoron.com | ✅ |

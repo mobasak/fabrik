@@ -61,7 +61,7 @@ services:
       - "traefik.http.routers.{{ name }}-xmlrpc.middlewares={{ name }}-block-xmlrpc"
       - "traefik.http.middlewares.{{ name }}-block-xmlrpc.replacepathregex.regex=.*"
       - "traefik.http.middlewares.{{ name }}-block-xmlrpc.replacepathregex.replacement=/wp-login.php?blocked=xmlrpc"
-      # Security: Rate-limit wp-login.php (10 req/min per IP, burst 20) — 62-wordpress.md
+      # Security: Rate-limit wp-login.php (10 req/min per IP, burst 20) - 62-wordpress.md
       - "traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.average=10"
       - "traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.burst=20"
       - "traefik.http.middlewares.{{ name }}-rate-limit.ratelimit.period=1m"
@@ -117,10 +117,10 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      R2_ENDPOINT: ${R2_ENDPOINT}    # B2 endpoint preferred (62-wordpress.md §Backups) — same S3-compatible API
+      R2_ENDPOINT: ${R2_ENDPOINT}    # B2 endpoint preferred (62-wordpress.md §Backups) - same S3-compatible API
       R2_ACCESS_KEY: ${R2_ACCESS_KEY}
       R2_SECRET_KEY: ${R2_SECRET_KEY}
-      R2_BUCKET: ${R2_BUCKET}          # Use a dedicated per-site bucket — not shared with other sites
+      R2_BUCKET: ${R2_BUCKET}          # Use a dedicated per-site bucket - not shared with other sites
       SITE_NAME: {{ name }}
     volumes:
       - ./backup:/scripts:ro

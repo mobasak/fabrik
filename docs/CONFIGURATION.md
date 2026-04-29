@@ -1,6 +1,6 @@
 # Configuration Guide
 
-**Last Updated:** 2026-02-26
+**Last Updated:** 2026-04-26
 
 **Purpose:** This guide explains HOW to configure Fabrik and WHY certain configurations exist. For WHAT variables are needed, see `.env.example` which is self-documenting.
 
@@ -169,7 +169,7 @@ VPS_IP=172.93.160.197
 DATABASE_URL=postgresql://fabrik:${SECURE_PASSWORD}@postgres-main:5432/fabrik
 LOG_LEVEL=INFO
 LOG_FORMAT=json
-DUPLICATI_PASSPHRASE=${SECURE_PASSPHRASE}
+# Backups: Backrest manages credentials internally; no env var required (replaced Duplicati 2026-04-17)
 ```
 
 **Why:** Real IPs, secure passwords, structured logs, encrypted backups.
@@ -341,7 +341,7 @@ Before deploying:
 - [ ] All required credentials obtained (VPS, Coolify, B2)
 - [ ] SSH access verified: `ssh deploy@$VPS_HOST`
 - [ ] Database accessible: `psql $DATABASE_URL`
-- [ ] Backups configured: `DUPLICATI_PASSPHRASE` set
+- [ ] Backups configured: Backrest configured at `backup.vps1.ocoron.com` (Backblaze B2 remote)
 - [ ] Verification passed: `python -m fabrik.config --verify`
 - [ ] Master backup exists: `/opt/fabrik/.env` synced
 

@@ -59,7 +59,7 @@ SSH_KEY_UUID=xc80wwcggsc0wwwsc0swko4w
 **One-time setup:**
 1. Coolify UI → Settings → Git → GitHub → Create GitHub App
 2. GitHub → Install the app → Select repos (captcha, dns-manager, etc.)
-3. Use `github_app_uuid` instead of `private_key_uuid` in API calls
+3. Coolify v4.0.0+ auto-selects SSH keys based on repo URL — no manual `private_key_uuid` needed
 
 **Reference:** https://coolify.io/docs/applications/ci-cd/github/integration
 ## Traefik Config
@@ -217,23 +217,7 @@ curl -sS -X POST "$COOLIFY/api/v1/applications" \
 ```
 
 ### Option B: Using Deploy Key (single repo only)
-```bash
-curl -sS -X POST "$COOLIFY/api/v1/applications/private-deploy-key" \
-  -H "$AUTH" -H "Content-Type: application/json" \
-  -d "{
-    \"project_uuid\":\"$PROJECT_UUID\",
-    \"server_uuid\":\"$SERVER_UUID\",
-    \"private_key_uuid\":\"$KEY_UUID\",
-    \"git_repository\":\"git@github.com:mobasak/SERVICE.git\",
-    \"git_branch\":\"main\",
-    \"build_pack\":\"docker-compose\",
-    \"docker_compose_location\":\"compose.yaml\",
-    \"name\":\"fabrik-SERVICE\",
-    \"description\":\"SERVICE (migrated)\",
-    \"instant_deploy\":false
-  }"
-```
-**Result:** `APP_UUID = ___________`
+**DEPRECATED in Coolify v4.0.0+** - The `/applications/private-deploy-key` endpoint was removed. Coolify v4.0.0+ auto-selects SSH keys based on the repo URL from configured SSH keys in Coolify settings. Use Option A (GitHub App) or the regular `/applications` endpoint with `git_repository`/`git_branch` fields.
 
 ---
 

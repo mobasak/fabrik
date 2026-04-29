@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-04-29
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -12,7 +12,7 @@
 
 ## Overview
 
-**Total Models:** 118 across 7 provider categories
+**Total Models:** 128 across 7 provider categories
 
 ---
 
@@ -141,12 +141,22 @@
 | GPT-5.3-Codex (Extra High Reasoning Fast) | 6 | — | 78.4% |  |
 | GPT-5.2 (High Reasoning Fast) | 6 | 1465 | 64.9% |  |
 | GPT-5.2-Codex (Extra High Reasoning Fast) | 6 | — | 66.5% |  |
+| GPT-5.5 (No Reasoning) | 7 | — | 82.0% |  |
 | GPT-5.4 (High Reasoning) Fast | 8 | 1468 | 81.8% |  |
+| GPT-5.5 (Low Reasoning) | 8 | — | 82.0% |  |
 | GPT-5.2 (Extra High Reasoning) | 8 | 1465 | 64.9% |  |
 | GPT-5.4 (Extra High Reasoning) | 12 | 1468 | 81.8% |  |
 | GPT-5.4 Mini (Extra High Reasoning) | 12 | — | — |  |
+| GPT-5.5 (Medium Reasoning) | 14 | — | 82.0% |  |
 | GPT-5.2 (Extra High Reasoning Fast) | 16 | 1465 | 64.9% |  |
+| GPT-5.5 (No Reasoning) Fast | 17.5 | — | 82.0% |  |
+| GPT-5.5 (Low Reasoning) Fast | 20 | — | 82.0% |  |
 | GPT-5.4 (Extra High Reasoning) Fast | 24 | 1468 | 81.8% |  |
+| GPT-5.5 (High Reasoning) | 24 | — | 82.0% |  |
+| GPT-5.5 (Extra High Reasoning) | 32 | — | 82.0% |  |
+| GPT-5.5 (Medium Reasoning) Fast | 35 | — | 82.0% |  |
+| GPT-5.5 (High Reasoning) Fast | 60 | — | 82.0% |  |
+| GPT-5.5 (Extra High Reasoning) Fast | 80 | — | 82.0% |  |
 
 ---
 

@@ -197,9 +197,83 @@ def create_database(
     }
 
 
+def drop_database(
+    db_name: str,
+    db_user: str | None = None,
+    container: str = POSTGRES_CONTAINER,
+    dry_run: bool = False,
+) -> dict:
+    """Drop a PostgreSQL database (and optional role) on ``postgres-main``.
+
+    Destructive — data loss is immediate and irreversible. The
+    orchestrator's :class:`RollbackManager` intentionally does NOT call
+    this; auto-rollback leaves databases in place by policy (see the
+    module docstring and ``rollback.py::_rollback_postgres``). This
+    function exists for **explicit, human-authorized** teardown paths:
+
+    * ``fabrik destroy --drop-data <spec>`` — test-cleanup workflow
+      after a throwaway deploy.
+    * Direct operator invocation during post-mortem cleanup.
+
+    Idempotent: ``DROP DATABASE IF EXISTS`` + ``DROP ROLE IF EXISTS``.
+
+    Args:
+        db_name: Database name. Must match identifier regex.
+        db_user: Optional role to drop alongside the database.
+        container: Override for the postgres container name.
+        dry_run: Skip the actual DROP; log and return ``status=dry_run``.
+
+    Returns:
+        ``{"status": "dropped" | "not_found" | "dry_run", "database": db_name}``.
+
+    Raises:
+        ValueError: ``db_name`` or ``db_user`` failed identifier validation.
+        RuntimeError: The underlying ``ssh`` call failed (non-zero exit).
+    """
+    _validate_identifier(db_name, "database")
+    if db_user is not None and db_user != "postgres":
+        _validate_identifier(db_user, "user")
+
+    # Existence check so the caller can tell "really dropped now" from
+    # "was already gone". Matches the idempotency contract of
+    # ``create_database`` which returns ``status=exists`` vs ``created``.
+    check = _run_sql(
+        f"SELECT 1 FROM pg_database WHERE datname='{db_name}';",
+        container=container,
+        dry_run=dry_run,
+    )
+    exists = check.strip() == "1"
+
+    if dry_run:
+        logger.info(
+            "[DRY RUN] Would DROP DATABASE %s (exists=%s)",
+            db_name,
+            exists,
+        )
+        return {"status": "dry_run", "database": db_name, "existed": exists}
+
+    if not exists:
+        logger.info("PostgreSQL database not found (nothing to drop): %s", db_name)
+        return {"status": "not_found", "database": db_name}
+
+    # DROP DATABASE cannot run inside a transaction; psql's ``-tA`` +
+    # stdin pattern is autocommit per statement, so this is fine.
+    # WITH (FORCE) kicks off any idle connections (Postgres 13+) so the
+    # drop doesn't hang behind a stale connection from the just-destroyed
+    # app container.
+    sql = f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE);\n'
+    if db_user and db_user != "postgres":
+        sql += f'DROP ROLE IF EXISTS "{db_user}";\n'
+    _run_sql(sql, container=container)
+    logger.info("Dropped PostgreSQL database: %s", db_name)
+
+    return {"status": "dropped", "database": db_name}
+
+
 __all__ = (
     "POSTGRES_CONTAINER",
     "PASSWORD_ALPHABET",
     "PASSWORD_LENGTH",
     "create_database",
+    "drop_database",
 )

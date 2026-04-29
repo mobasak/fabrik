@@ -4,19 +4,339 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added — Git-sourced Docker Compose deployment support (2026-04-23)
+### Changed — Scaffold workflow doc full code-truth rewrite (2026-04-29)
 
-**Context:** The orchestrator's `_create_deployment` hardcoded `/applications/dockercompose` (inline YAML) and could not CREATE git-sourced dockercompose apps — those need `/applications/private-deploy-key` with `build_pack=dockercompose`. This was the root cause of the manual Coolify app creation needed during the proxy service redeployment (2026-04-22).
+**Context:** Owner asked whether `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` "fully reflects the actual coded implementation 100%". Audit identified ~30–40% drift across 15 distinct sites (wrong `SPEC_ENABLED_TYPES` member, ghost `fabrik sync-models` command, ~half of `fabrik apply`/`destroy` flags missing, `--dev-port` flag absent, "Template Complexity Tiers" section referencing files that were never built, "Factory Configuration" referencing `factory-{settings,hooks,mcp}.json` that don't exist, `templates/scaffold/PYTHON_PRODUCTION_STANDARDS.md` referenced but absent, "30 enforcement scripts" actual=35, `fabrik logs <spec>` signature wrong, etc.). Owner approved Option B (full rewrite + prune).
 
-- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_create_deployment` now branches on `source.type`:
-  - `SourceType.GIT` → `_create_git_deployment()` (new method) — calls `CoolifyClient.create_git_application()` which uses `/applications/private-deploy-key` for private repos or `/applications` for public repos with `build_pack=dockercompose`. No inline compose YAML is rendered; Coolify pulls the compose from the git repo on deploy.
-  - `SourceType.TEMPLATE` / `SourceType.DOCKER` → `_create_inline_deployment()` (extracted from original logic) — renders compose.yaml from template and posts to `/applications/dockercompose`.
-- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_resolve_environment_uuid` — resolves the production environment UUID (required by `/applications/private-deploy-key`, unlike `/applications/dockercompose` which only needs `environment_name`). Supports `COOLIFY_ENVIRONMENT_UUID` env var override.
-- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_resolve_private_key_uuid` — auto-discovers SSH deploy keys from Coolify's `/security/keys` endpoint. Prefers `is_git_related` keys, then falls back to keys with "deploy" or "github" in the name. Supports `COOLIFY_PRIVATE_KEY_UUID` env var override.
-- `@/opt/fabrik/src/fabrik/drivers/coolify.py::create_git_application` — new CoolifyClient method for creating git-sourced applications. Handles both private repos (SSH deploy key) and public repos (HTTPS).
-- `@/opt/fabrik/src/fabrik/drivers/coolify.py::list_private_keys` — new method to list SSH private keys registered in Coolify.
-- `@/opt/fabrik/.env.example` — added `COOLIFY_ENVIRONMENT_UUID` and `COOLIFY_PRIVATE_KEY_UUID` (both optional, auto-detected).
-- `@/opt/fabrik/tests/orchestrator/test_deployer.py` — 7 new tests: private repo creation, public repo creation, missing repository error, missing deploy key error, environment UUID from env var, private key UUID preference, and fixed pre-existing `test_deploy_updates_existing` (was missing `_resolve_resource_base` mock).
+**Code ground truth verified against:**
+
+- `src/fabrik/cli.py` — full enumeration: 17 top-level commands (`new` hidden + 16 visible) and 5 groups (`wp`, `ai`, `domain`, `content`, `seo`); all flag signatures captured per-command
+- `src/fabrik/cli.py:248` — `fabrik apply` has 8 flags including `--use-orchestrator`, `--keep-on-failure`, `--skip-health-check`, `--dry-run`
+- `src/fabrik/cli.py:617` — `fabrik destroy` has 5 flags including `--keep-files`, `--drop-data`
+- `src/fabrik/cli.py:850` — `fabrik scaffold` has 6 options including `--dev-port` (was missing from doc)
+- `src/fabrik/cli.py:521,576` — distinct `app-logs` (Coolify) vs `logs` (Loki by service) commands; doc previously conflated them
+- `src/fabrik/spec_generator.py:58` — `SPEC_ENABLED_TYPES` is exactly: python-api, saas-skeleton, node-api, file-api, file-worker, static-site, **docusaurus** (NOT chrome-extension as doc previously claimed)
+- `src/fabrik/scaffold.py:127` — `SCAFFOLD_TYPES` (11 members) + per-type scaffolders verified
+- `templates/scaffold/` — actual contents: `complex.yaml` only (no `simple.yaml`/`medium.yaml`); `AFCL_TEMPLATE.md`; subdirs `db/`, `docker/`, `docs/`, `python/`, `scripts/`. No `factory-*.json`, no `pre-commit-config.yaml`, no `PYTHON_PRODUCTION_STANDARDS.md`
+- `templates/scaffold/docs/` — 14 templates, named per actual ls output (doc previously listed 6 templates that don't exist)
+- `templates/` root — 16 directories (doc previously listed 13, missed `static-site/`, `next-tailwind/`, `prompts/`)
+- `scripts/enforcement/` — 35 files including `__init__.py` (was "~30" in both docs)
+
+**Patches:**
+
+- `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` — Last Updated 2026-04-28 → 2026-04-29; Architecture box rewritten to enumerate actual 17 commands + 5 groups + drivers + observability stack; `--dev-port` row added to scaffold options table; CLI Commands Reference Deployment + Project Management subsections rebuilt with real flag signatures; Maintenance subsection (containing `fabrik sync-models` ghost) deleted; new "Command Groups" subsection added; SPEC_ENABLED_TYPES list corrected (`chrome-extension` → `docusaurus`) with "Excluded by design" rationale; "Available Templates" table rebuilt with VPS-Deploy + Spec-Auto-Generated columns; "Template Locations" tree rebuilt to all 16 dirs; "Template Complexity Tiers" section replaced with REMOVED notice (only `complex.yaml` ever shipped, `CLAUDE.md` reference was wrong, scaffolder uses `AGENTS.md`); "Factory Configuration" section replaced with REMOVED notice (none of the `factory-*.json` files exist); "Documentation Templates" table rebuilt to actual 14 templates + workflows subdir; "File Reference Links" rebuilt with only verified-existing paths; bottom "Fabrik CLI Reference" table rebuilt with full command list including `validate-deploy`, `redeploy`, `app-logs`, `deploy`, all 5 groups; ghost `fabrik sync-models` row removed; "184 directories, 333 files" magic-number claim replaced with "run `find … | wc -l` to verify" disclaimer; Scope banner added at top pointing deploy half to `docs/DEPLOYMENT.md`
+- `docs/workflows/SCAFFOLD_STRUCTURE.md` — Last Updated 2026-04-28 → 2026-04-29; enforcement script count "~30" → "35"; `SPEC_ENABLED_TYPES` corrected against `spec_generator.py:58`; "Post-Scaffold Initialization" section rewritten — previously instructed users to run `git init`/`uv venv`/`pre-commit install` which `create_project()` already performs automatically; now correctly distinguishes scaffolder-performed steps from user follow-up steps with explicit "do not re-run" warning
+- `CHANGELOG.md` — this entry
+
+**Convergence verified — final empty greps (run on patched files):**
+
+```text
+sync-models / sync_models                       → 0
+CLAUDE.md                                        → 0
+PYTHON_PRODUCTION_STANDARDS                      → 0
+simple.yaml / medium.yaml (live refs)            → 0
+factory-settings / factory-hooks / factory-mcp   → 0
+"30 enforcement scripts" / "30 files"            → 0
+SPEC_ENABLED_TYPES with chrome-extension         → 0 (only in "excluded" rationale)
+```
+
+No further drift detected via targeted grep. Aspirational sections were pruned with REMOVED notices (kept as audit trail) rather than deleted outright, so anyone hunting for "where did Template Complexity Tiers go?" lands on an explanation instead of a 404.
+
+**Out-of-scope for this pass (flagged for follow-up if/when relevant):**
+
+- `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` has many pre-existing markdownlint warnings (compact tables, missing fence languages, blanks-around-fences) — none introduced by this rewrite, all stylistic. Fixing would require a sweeping cosmetic pass orthogonal to code-truth currency. Same for `SCAFFOLD_STRUCTURE.md`.
+- 17 commands in `cli.py` is correct count, but full per-flag CHANGELOG-style reference for every command is in `docs/reference/fabrik-cli-reference.md`; this workflow doc intentionally summarizes rather than duplicates.
+
+### Changed — Scaffold→VPS deployment workflow doc currency pass (2026-04-28)
+
+**Context:** Iterative second-pass sweep specifically targeting documentation that describes the scaffold→VPS deployment workflow. Continued until consecutive grep iterations returned empty — covers `fabrik new` deprecation, registrar count drift, monitoring stack migration, and verifier-key alignment (B23) cross-references.
+
+**Code ground truth verified against:**
+
+- `src/fabrik/scaffold.py:127` — `SCAFFOLD_TYPES` (11 types)
+- `src/fabrik/cli.py:248` — `fabrik apply` flags (`--use-orchestrator`, `--keep-on-failure`, `--skip-health-check`, `--dry-run`, `--skip-dns`, `--skip-deploy`, `-s`, `--yes`)
+- `src/fabrik/cli.py:850` — `fabrik scaffold` flags (`--type`, `--preset`, `--description`, `--no-spec`, `--dev-port`, `--db`)
+- `src/fabrik/cli.py:55` — `fabrik new` is `@cli.command(hidden=True)` with stderr deprecation warning
+- `src/fabrik/orchestrator/infrastructure.py:84` — `_REGISTRAR_ORDER` is exactly 7: postgres, gatus, backrest, glitchtip, grafana, authelia, meilisearch
+- `src/fabrik/orchestrator/states.py` — state machine: PENDING → VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE / FAILED → ROLLING_BACK → ROLLED_BACK
+- `src/fabrik/orchestrator/__init__.py:187` — registrars dispatch between DEPLOYING and VERIFYING (no own state)
+- `src/fabrik/orchestrator/deployer.py:493` — `terminal_grace_period = 180.0`
+- `src/fabrik/orchestrator/verifier.py:106` — reads `ctx.spec.get("health")` (canonical key, B23 fix)
+
+**Patches:**
+
+- `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` — Last Updated bumped; deprecation banner for `fabrik new`; canonical command examples replaced (lines 198–212, 678–699, 1080–1097, 1244–1253); strikethrough on the deprecated row in the CLI Reference table
+- `docs/workflows/SCAFFOLD_STRUCTURE.md` — Last Updated bumped; "CLI Enhancements (P3)" section marked HISTORICAL with explanation of Phase 4k supersession
+- `docs/reference/fabrik.md` — `fabrik new` example annotated with deprecation comment and pointer to `fabrik scaffold` canonical replacement
+- `docs/DEPLOYMENT.md` — fixed two stale "all 9 registrars green" → "all 7 registrars green" (with explicit list + code citation)
+- `docs/reference/health-monitoring.md` — Last Updated bumped to 2026-04-28; clarified that this doc covers Fabrik's own `/health` endpoint and the observability stack (NOT the deploy verifier — see `orchestrator.md:47`); standalone `/opt/monitoring/compose.yaml` annotated as migrated to Coolify 2026-04-17
+- `docs/TROUBLESHOOTING.md` — Last Updated bumped (was 2026-01-07; content already current as of today)
+- `docs/SERVICES.md` — Last Updated bumped (was 2026-02-28; content already current)
+
+**Convergence verification (final pass — all empty):**
+
+```text
+A. `fabrik new` without deprecation context     → 0 matches
+B. "9 registrars" / "nine registrars"           → 0 matches
+C. live Duplicati references                    → 0 matches
+D. standalone `/opt/monitoring/compose.yaml`    → 0 matches
+E. spec-level `healthcheck:` (only Docker compose) → 0 matches
+F. stale verifier-hardcoded-`/health` text      → 0 matches
+G. `_REGISTRAR_ORDER` member count               → 7 (matches docs)
+```
+
+### Changed — Documentation archive sweep & currency review (2026-04-28)
+
+**Context:** Post-mission doc cleanup after the B23–B46 live-deploy proof. Eleven historical/superseded docs moved to archive; remaining doc set audited for currency against current VPS state (Backrest, not Duplicati; shape-driven orchestrator; 7 deployable scaffold types; B23 healthcheck-key fix).
+
+**Archived (`git mv` to preserve history):**
+
+- `docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md` → `docs/archive/2026-04-28-scaffold-to-deploy-integration.md` (self-marked HISTORICAL since 2026-04-22; superseded by `docs/DEPLOYMENT.md`)
+- `docs/reference/DEPLOY_TEMPLATE_AUDIT_2026-04-10.md` → `docs/archive/2026-04-28-deploy-template-audit.md` (self-marked HISTORICAL; superseded by `docs/reference/templates.md` + `docs/DEPLOYMENT.md`)
+- `docs/reference/POSTGRESQL_LOCAL_DEV_PLAN.md` → `docs/archive/2026-04-28-postgresql-local-dev-plan.md` (impl shipped; live config in `.env.example` + `src/fabrik/scaffold.py::_scaffold_python_api`)
+- `docs/reference/POSTGRESQL_LOCAL_DEV_REVISED_PLAN.md` → `docs/archive/2026-04-28-postgresql-local-dev-revised-plan.md`
+- `docs/reference/POSTGRESQL_LOCAL_DEV_SUMMARY.md` → `docs/archive/2026-04-28-postgresql-local-dev-summary.md`
+- `docs/reference/POSTGRESQL_LOCAL_DEV_FINAL.md` → `docs/archive/2026-04-28-postgresql-local-dev-final.md`
+- `docs/operations/duplicati-setup.md` → `docs/archive/2026-04-28-duplicati-setup.md` (Duplicati replaced by Backrest 2026-04-17)
+- `docs/DEPLOYMENT.md.backup.20260419-144040` → `docs/archive/2026-04-28-DEPLOYMENT.md.backup.20260419-144040` (explicit backup file)
+- `docs/development/plans/2026-04-13-ocoron-com-full-deployment.md` → `docs/development/plans/archived/` (Status: COMPLETE 2026-04-15)
+- `docs/development/plans/2026-04-27-dev-to-vps-workflow-test.md` → `docs/development/plans/archived/` (proof mission complete; outputs: `PROOF.md` + Lesson 32)
+- `docs/development/plans/fabrik-phase-gap-analysis.md` → `docs/development/plans/archived/` (2026-04-06 snapshot; phases now resolved)
+
+**Updated referrers / removed stale Duplicati mentions (replaced with Backrest):**
+
+- `INDEX.md` — annotated archived doc rows; removed three stale list entries
+- `README.md` — VPS Services table + Backups tech-stack row (Duplicati → Backrest)
+- `PORTS.md` — port row 8200/Duplicati → 9898/Backrest
+- `docs/SERVICES.md` — services table + sample container output
+- `docs/CONFIGURATION.md` — dropped `DUPLICATI_PASSPHRASE` from production env example + checklist
+- `docs/TROUBLESHOOTING.md` — replaced 80-line Duplicati troubleshooting block with one-paragraph migration notice pointing to archive
+- `docs/DEPLOYMENT.md` — corrected backup-of-prior-version path
+- `tasks.md` — VPS services table row
+- `.env.example` — removed `DUPLICATI_PASSPHRASE` (Backrest manages credentials internally)
+
+**Kept active (still in flight):**
+
+- `docs/development/plans/2026-04-13-fabrik-control-plane.md` — Phase 1+2 pending
+- `docs/development/plans/2026-04-18-zero-touch-deployment.md` — IN PROGRESS
+
+**Doc-currency review report:** see new `docs/reference/DOC_REVIEW_2026-04-28.md` for the deeper audit (stale areas not yet fixed, recommendations).
+
+### Fixed — Live-deploy proof for all 7 scaffold types (B23–B46) (2026-04-28)
+
+**Context:** First end-to-end live-deploy verification of every type in
+`SCAFFOLD_TYPES` against the production VPS (172.93.160.197) via a new
+proof-run harness (`scripts/proof_run.py`). Surfaced **22 distinct
+defects** in the deploy pipeline that the existing test suite never
+caught — including a silent-fallback bug in the verifier (B23) that had
+been masking 404s on every non-`/health` deploy. Pre-mission only
+`python-api` actually deployed correctly (and only by coincidence: its
+`/health` path matched the verifier's hardcoded fallback after B23
+silently swallowed the spec's intent). Post-mission: **7/7 scaffold types
+deploy live with HTTP 200** (or `running:healthy` for `file-worker`).
+
+**Orchestrator fixes:**
+
+- `@/opt/fabrik/src/fabrik/orchestrator/verifier.py` — **B23**. Verifier
+  read `healthcheck:` key but the spec generator emits `health:`. Silent
+  fallback to `/health` masked every non-`/health` deploy as a 404
+  rollback. Also fixed `KeyError` on `ctx.spec["domain"]` for workers
+  (B35a) — workers have no domain.
+- `@/opt/fabrik/src/fabrik/orchestrator/validator.py` — **B23 + B34**.
+  Aligned with `health:` spec key. Made `domain` field conditional on
+  HTTP exposure so worker types pass validation.
+- `@/opt/fabrik/src/fabrik/orchestrator/__init__.py` — **B27 + B35b**.
+  Added `--keep-on-failure` plumbing so failed deploys leave the Coolify
+  app + build logs intact for inspection. Fixed an illegal
+  `COMPLETE → FAILED` state transition triggered by the success-log line
+  raising `KeyError` for workers.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_app_status`
+  — **B46**. Bumped `terminal_grace_period` from 30s to 180s. Docusaurus
+  + saas-skeleton multi-stage builds take 60–90s during which Coolify
+  reports `exited:unhealthy` (old container removed, new image not yet
+  running). 30s gave up before the new container even started.
+- `@/opt/fabrik/src/fabrik/cli.py` — **B27**. New `--keep-on-failure`
+  flag on `fabrik apply`.
+
+**Scaffolder fixes:**
+
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_saas_skeleton` —
+  **B26**. Replace `RUN npm ci` with `RUN npm install` (no lockfile is
+  generated at scaffold time).
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_node_api`,
+  `_scaffold_file_api` — **B31**. Patched `/app/dist` → `/app/src` in
+  the runtime-stage `COPY` (node-api has no compile step).
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_docusaurus` — **B36 +
+  B37 + B38 + B42 + B43 + B45**. Render `Dockerfile.j2` (was missing,
+  Coolify failed at "no such file"). Empty placeholder `docs/api/sidebar.js`
+  (was referencing nonexistent `api/health-check` doc id). Removed
+  `docusaurus-plugin-openapi-docs` and theme from defaults. Added
+  `markdown: { format: 'detect' }` so `.md` is plain CommonMark, not
+  MDX 3 (Fabrik meta-docs contain markdown tables that MDX rejects).
+  Flipped `onBrokenLinks: 'throw'` → `'warn'`. Pointed compose
+  `healthcheck_path` at `/docs/intro` (not `/`) — Docusaurus's
+  preset-classic does not auto-generate a root landing page.
+- `@/opt/fabrik/src/fabrik/spec_generator.py` — **B45**. Updated
+  `_TYPE_DEFAULTS["docusaurus"].health_path` to `/docs/intro`.
+
+**Template fixes:**
+
+- `@/opt/fabrik/templates/saas-skeleton/Dockerfile` — **B24**. Added
+  `RUN apt-get install -y curl` to the runtime stage; without it the
+  compose healthcheck (`curl -f localhost:3000/api/health`) silently
+  failed.
+- `@/opt/fabrik/templates/saas-skeleton/public/.gitkeep` — **B29**.
+  Template was missing the `public/` directory; Dockerfile's
+  `COPY --from=builder /app/public ./public` failed.
+- `@/opt/fabrik/templates/file-api/src/index.js` — **B32 + B33**. Made
+  `createClient(SUPABASE_URL,...)` lazy so missing env vars don't crash
+  the process at module-load (was killing the listener and producing
+  Traefik 404). Added `/api/health` route to match what the spec
+  generator emits.
+- `@/opt/fabrik/templates/docusaurus/package.json.j2` — **B38 + B39 +
+  B41**. Removed openapi plugin/theme. Pinned `@docusaurus/core` and
+  `@docusaurus/preset-classic` to `3.7.0`. Added
+  `"overrides": { "webpack": "5.95.0" }` — the actual root cause of the
+  ProgressPlugin schema error (webpack peer-dep instance mismatch:
+  `webpackbar` extended one webpack instance but `Compiler.validate()`
+  ran against another).
+- `@/opt/fabrik/templates/docusaurus/Dockerfile.j2` — **B44**. Added
+  `COPY --from=builder /app/docusaurus.config.js ./` and
+  `COPY --from=builder /app/sidebars.js ./` to the runtime stage;
+  `docusaurus serve` needs both at runtime.
+
+**Harness (proof-run):**
+
+- `@/opt/fabrik/scripts/proof_run.py` — **B25 + H1–H4**. Switched
+  `gh repo create` from `--private` to `--public` (Coolify deployer
+  hardcodes `/applications/public`). Replaced silent `subprocess.run`
+  with line-by-line `Popen` tee. Pulls real Coolify deployment build
+  logs via `/deployments/applications/{uuid}` and writes them to a
+  per-type `<type>-<ts>-build.log` for inspection. When `fabrik destroy`'s
+  DNS step fails (ambient `SSH proxy request failed:` from the
+  site-provisioner), the harness now bypasses it via direct Cloudflare
+  API to delete the A record — cuts iteration cost by ~110s.
+
+**Verified:** all 7 deployable scaffold types deploy live end-to-end
+with HTTP 200 (or `Coolify status == running:healthy` for `file-worker`).
+See `@/opt/fabrik/PROOF.md` for per-type curl output, Coolify UUIDs,
+elapsed times, and the full bug ledger. Diffs at `proof-logs/*.diff`.
+
+**Lessons Learnt:** see `docs/LESSONS_LEARNT.md` Lesson 32 (live-deploy
+proof methodology + the silent-fallback class of bug). Out of scope but
+documented as ambient infra: DNS Manager (`site-provisioner`) returning
+`SSH proxy request failed:` on every destroy call — needs ops triage,
+not a Fabrik fix.
+
+**Per repo policy:** no commits made; all 22 fixes live in
+`@/opt/fabrik/proof-logs/*.diff` as applyable patches.
+
+### Fixed — Scaffolded compose parity across all deployable types (B20–B22) (2026-04-28)
+
+**Context:** The B16/B18 fixes from 2026-04-27 only landed for `python-api`. A coverage audit (`tests/test_scaffold_compose_traefik.py`, 40 parametric invariants) showed every other deployable scaffold type was broken in distinct ways: `node-api`/`file-api`/`file-worker`/`docusaurus` emitted no `compose.yaml` at all (so `coolify deploy` would error with `compose-file not found` on git source), `saas-skeleton`/`static-site` shipped a compose with unexpanded `${COMPOSE_PROJECT_NAME:-saas}` and `${DOMAIN:-localhost}` placeholders inside Traefik labels (same root cause as B18 — Coolify's compose parser does not interpolate inside label strings), and `chrome-extension` had a hand-rolled compose with no Traefik labels and `${PORT:-8000}` literals. All eight types now share one canonical compose shape.
+
+- `@/opt/fabrik/src/fabrik/scaffold.py::_write_canonical_compose` — **NEW**. Single source of truth for Coolify-correct `compose.yaml` shape. Enforces: service name == project name (drives Traefik routing + container lookup); `platform: linux/amd64`; external `coolify` network; hardcoded port + Host(...) in Traefik labels; healthcheck shaped to workload (HTTP/TCP/process). Supports `with_traefik=False` for workers, `extra_labels` for CORS middleware, and process-pattern healthchecks. ~135 lines incl. docstring.
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_saas_skeleton` — **B21**. Now overwrites the `templates/saas-skeleton/compose.yaml` with `_write_canonical_compose(port=3000, healthcheck_path="/api/health")` after the template copy. The shipped template's `${COMPOSE_PROJECT_NAME:-saas}` / `${DOMAIN:-localhost}` literals 404'd at Traefik. Also fixes `static-site` (shares the same scaffolder).
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_node_api` — **B20**. Adds `_write_canonical_compose(port=3000, healthcheck_path="/api/health")` at the end of the scaffolder.
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_file_api` — **B20**. Same call.
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_file_worker` — **B20**. Calls helper with `with_traefik=False, healthcheck_kind="process", process_pattern="python worker/main.py"` — worker has no HTTP surface but still needs a compose so git-source deploy works.
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_chrome_extension` — **B22**. Replaces the hand-rolled inline compose (no Traefik labels, `${PORT:-8000}` literals in `ports:` and healthcheck) with a `_write_canonical_compose` call carrying CORS middleware via `extra_labels` (`accesscontrolalloworiginlist=chrome-extension://*`).
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_docusaurus` — **B20**. Adds compose for git-source deploy. Healthcheck hits `/` (Docusaurus has no dedicated health endpoint).
+- `@/opt/fabrik/src/fabrik/scaffold.py::TYPE_REQUIRED_FILES` — Added `compose.yaml` to the required-files list for `saas-skeleton`, `static-site`, `node-api`, `file-api`, `file-worker`, and `docusaurus`. `fix_project` will now flag a missing compose for these types.
+- `@/opt/fabrik/tests/test_scaffold_compose_traefik.py` — **NEW**. 40 parametric invariants run against all 7 deployable types: `test_compose_exists`, `test_compose_service_name_matches_project`, `test_compose_joins_coolify_network` (HTTP+worker types); `test_traefik_labels_present`, `test_traefik_labels_have_no_unexpanded_vars`, `test_traefik_host_uses_real_domain` (HTTP types only); `test_worker_compose_has_no_traefik` (worker exemption). Uses `generate_spec=False` to keep the test hermetic — without it, `create_project` leaks specs into the real `specs/services/` directory.
+
+**Verified:** new test file 40/40 passing; full scaffold suite 148/148 passing; orchestrator suite 171/174 passing (3 pre-existing rollback-test failures on master, unrelated to this change).
+
+**Lessons Learnt:** (1) `_PYTHON_API_TEMPLATE_MAP`-style template-file substitution and per-scaffolder hand-rolled compose strings drifted in different directions — centralising the compose shape in one helper kills both bug classes at once. (2) Hermetic tests for scaffolders must pass `generate_spec=False` or assert against `tmp_path` only, otherwise `create_project` writes to `/opt/fabrik/specs/services/` regardless of `base=tmp_path`. (3) Worker types still need a compose.yaml for git-source deploy even with no HTTP surface — Coolify's git-source path requires `/compose.yaml` to exist.
+
+### Fixed — Coolify v4 git-deploy verifier path (B13–B19) (2026-04-27)
+
+**Context:** After landing the B7–B11 batch, `fabrik apply` of `fabrik-test-python-api` still rolled back with `Health check failed: 404 Not Found` even though the container was provably `Up (healthy)` on the VPS. Five layered bugs were unmasked between Coolify-side routing and the local DNS resolver.
+
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::create_git_application` — **B13**. Added `domains` param. Coolify v4's `POST /applications/public` accepts `domains: "https://<host>"` as a first-class field; without it, Coolify auto-generates an `<uuid>.<server-ip>.sslip.io` FQDN and the verifier (which probes the *spec* domain) gets 404 from Traefik because no router exists for the spec hostname.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_create_git_deployment` — Plumbs `spec["domain"]` → `domains="https://<domain>"` into the driver. Also flipped `instant_deploy=True` for the git path (verified clean) and removed the redundant post-create `force=True` deploy that was racing with the in-progress build (caused `exited:unhealthy` even on healthy deploys).
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_app_status` — **B17**. Coolify briefly reports the *previous* container's `exited:unhealthy` status during deploy-recreate transitions. Added a 30 s grace period before treating terminal states as real failures. Without this, healthy deploys were rolled back on the very first poll.
+- `@/opt/fabrik/templates/scaffold/docker/compose.yaml.template` — **B16, B18**. Scaffolded compose now (a) uses `<project>` as the service name (substituted at scaffold time), (b) emits explicit Traefik labels with `Host(\`<domain>\`)` so Traefik gets a router, and (c) hardcodes the loadbalancer port (`8000`). Coolify's compose parser does *not* expand `${PORT:-8000}` inside Traefik label strings, so the literal text `${PORT:-8000}` was being passed to Traefik as the port → router config invalid → 404. The scaffolder substitutes `<project>` and `<domain>=<name>.vps1.ocoron.com` at scaffold time.
+- `@/opt/fabrik/src/fabrik/scaffold.py::_scaffold_python_api` — Adds `<domain>` substitution alongside `<project>`/`<package_name>` so the new template tokens render correctly.
+- `@/opt/fabrik/src/fabrik/orchestrator/verifier.py` — **B19**. The `ocoron.com` Cloudflare zone has SOA `minimum=1800`, so any resolver that saw NXDOMAIN for the host (e.g. the validator's own pre-flight `DNS resolution failed` probe seconds before DNS creation) caches NXDOMAIN for 30 minutes. The local WSL → Windows → public-resolver chain inherits that, and `socket.gethostbyname` keeps failing for half an hour even though the Cloudflare record is live. New `_wait_for_dns` queries the zone's authoritative NS via `dig +short` (authoritative answers are not negative-cached upstream), then `_check_health` probes the resolved IP directly with the spec hostname as the `Host` header — bypassing the local resolver entirely.
+- `@/opt/fabrik/docs/reference/coolify-api-reference.md` — **B14**. Rewritten end-to-end after probing the live Coolify v4.0.0-beta.459 instance. Previous version asserted the wrong endpoint URLs (`POST /applications` is 404, not the canonical create path) and omitted critical fields (`domains`, `docker_compose_domains`, `is_force_https_enabled`, `autogenerate_domain`, `health_check_*`). Documents the verified endpoint map, the `domains` requirement for compose deploys, the Coolify-treats-compose-as-service quirk, and the `instant_deploy` reliability gradient by endpoint.
+- `@/opt/fabrik-test-python-api/compose.yaml` — Hand-patched to match the new scaffolded template (Traefik labels + hardcoded port) so the existing test repo could verify the fix without re-scaffolding.
+- `@/opt/fabrik/tests/orchestrator/test_verifier.py::test_verify_sets_deployed_url` — Patched to mock `_wait_for_dns` so the stdlib-urlopen branch is exercised by the mock, not the new httpx IP-probe branch.
+
+**Verified end-to-end on `fabrik-test-python-api` (2026-04-28 02:44 UTC):** Coolify create → `running:healthy` (53 s) → SENTRY_DSN inject + verify (9 attempts) → DNS resolution via `kiki.ns.cloudflare.com` (1st attempt, 0 s) → `https://172.93.160.197/health` with `Host: fabrik-test-python-api.vps1.ocoron.com` → 200 OK on first attempt. Final probe via the public DNS path also returns `{"service":"fabrik-test-python-api","status":"ok"}`.
+
+**Lessons Learnt (added to `docs/LESSONS_LEARNT.md` later):** (1) Coolify's compose-app `domains` field is required for spec-domain routing; without it Traefik 404s even on a healthy container. (2) Docker compose `${VAR:-default}` interpolation does *not* fire inside Traefik label strings under Coolify's parser — hardcode the port. (3) Cloudflare zone SOA `minimum` directly drives upstream NXDOMAIN cache duration; for orchestration-driven domain creation, always either lower SOA min or query authoritative NS. (4) `running:*` is not the only Coolify state to wait on — terminal-state grace period is mandatory because Coolify reports the previous container's exited state during recreates. (5) For compose-deploy via git, `instant_deploy=True` + no follow-up force-deploy is the only correct pattern; the redundant force races with the build.
+
+### Fixed — Coolify v4 git-deploy pipeline (B7-B11) (2026-04-27)
+
+**Context:** Continuing the dev→VPS workflow test after the B5 fix, `fabrik apply` of `fabrik-test-python-api` failed with the cryptic `Container fabrik-test-python-api-* did not come up within 300s` even though Coolify reported the app as `running:healthy`. Root-cause excavation surfaced 5 distinct bugs in the git-source deploy path that together prevented every `source.type=template` spec from ever reaching a healthy container — even though the inline-compose path itself (B5 fix) now works for ASCII-clean templates.
+
+- `@/opt/fabrik/src/fabrik/spec_generator.py::detect_git_source` — **B7 (NEW)**. Detects a configured git remote on the scaffolded project path and returns `Source(type=GIT, repository, branch)`. `generate_spec` accepts a new `project_path` kwarg and prefers git source over the legacy `template` default. When no remote is configured, logs a clear warning that the spec cannot deploy via Coolify's inline-compose endpoint until a remote is added. `generate_and_save_spec` plumbs the project path through. Closes the architectural blocker where every scaffolded project emitted `source.type=template` but Coolify's inline endpoint has no source for `build:` to consume.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_create_inline_deployment` — **B7 preflight**. Raises `DeployError` with a remediation message when the rendered compose contains `build:` but `source.type != git`. Prevents the silent "Coolify accepts the spec but never starts a container" failure mode.
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::create_git_application` — **B8**. Switched the legacy `POST /applications` (which returns 404 on Coolify v4) to `POST /applications/public`. Coolify v4 split git-create by auth method (`/public`, `/private-deploy-key`, `/private-github-app`); the public endpoint covers HTTPS-cloneable repos which is the common Fabrik pattern.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_resolve_environment_uuid` — **B9**. Defensive parsing of `COOLIFY_ENVIRONMENT_UUID`: strips inline `# comment` suffixes (python-dotenv parses the entire RHS including the comment as the value, so `KEY=  # auto-detect` yielded the literal string `"# auto-detect"`), validates length ≥ 8 and the alphanumeric-plus-`-_` charset, and falls back to the project-API lookup on malformed input.
+- `@/opt/fabrik/.env` — fixed the malformed `COOLIFY_ENVIRONMENT_UUID=  # comment` value to the actual production env UUID.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_app_status` — **B11 (NEW)**. Polls Coolify's `GET /applications/{uuid}` until status reaches `running:*`, replacing the brittle `docker ps | grep <project_name>-` strategy. The docker container name is derived from the compose service name, not the Coolify app name; the scaffolder's generic `app:` service made every container `app-<uuid>-<ts>` which never matched the project-name pattern. Also detects terminal-failure states (`exited:*`, `degraded:exited`, `killed`) and bails early instead of waiting the full timeout. Increased git-deploy wait to 600s to cover cold first builds.
+- `@/opt/fabrik/src/fabrik/drivers/glitchtip.py::verify_dsn_injection` — **B11 follow-up**. Optional `coolify_app_uuid` parameter widens container resolution: when present, the grep regex matches `^<project_name>(-|$)` OR `-<coolify_app_uuid>-` so containers named `app-<uuid>-<ts>` (Coolify's default for generic compose service names) are found.
+- `@/opt/fabrik/src/fabrik/orchestrator/infrastructure.py:415` — passes `coolify_app_uuid=ctx.coolify_uuid` into `verify_dsn_injection` so the SENTRY_DSN injection check works regardless of compose service naming.
+- `@/opt/fabrik/tests/test_spec_generator.py::TestB7DetectGitSource` — 5 new tests pinning the B7 contract: `detect_git_source` returns None without git / without remote, returns Source(GIT) with correct URL+branch when remote exists, `generate_spec` emits git source when `project_path` resolves, falls back to template otherwise.
+- `@/opt/fabrik-test-{python-api,node-api,static-site,file-worker,saas-skeleton}` — pushed to `mobasak/fabrik-test-*` on GitHub (public) so Coolify can clone them. All 5 specs re-emitted with `source.type: git` + `repository: https://github.com/mobasak/fabrik-test-*.git`.
+
+**Verified end-to-end on `fabrik-test-python-api`:** spec emission, GitHub repo creation, `fabrik apply` reaching Coolify `/applications/public`, app create + deploy trigger, app-status polling detecting the actual container state, container build proceeding to completion. The deploy now fails cleanly at health-check (B12 — the scaffolded python-api artifact's own `/health` endpoint returns 404, a separate concern from the deploy pipeline). Rollback is clean (snapshot diff: 0 leaks).
+
+**Lessons Learnt:** Coolify v4 split git-create endpoints by auth method (B8). Compose service-name vs Coolify-app-name conflation breaks any docker-name-based polling (B11) — uuid-based polling is the only stable strategy. python-dotenv parses comments literally as values (B9) — never assume `KEY=  # comment` yields empty string. The legacy `source.type=template` path was never validated end-to-end against Coolify; all working Fabrik services already used `source.type=git` (B7).
+
+### Fixed — Coolify v4 non-ASCII compose rejection (B5) (2026-04-27)
+
+**Context:** During the dev→VPS workflow test (`docs/development/plans/2026-04-27-dev-to-vps-workflow-test.md`), `fabrik apply specs/services/fabrik-test-python-api.yaml` failed with Coolify 422 `"The docker_compose_raw should be base64 encoded."` even though the driver does base64-encode. Bisected against a working minimal nginx compose: the failure was triggered by a single em-dash character `—` (U+2014) in a comment line in `templates/python-api/compose.yaml.j2`. Coolify v4's inline-compose endpoint silently rejects any non-ASCII content in the decoded payload and returns a misleading "should be base64 encoded" error.
+
+- `@/opt/fabrik/templates/python-api/compose.yaml.j2:60` — replaced em-dash with ASCII hyphen in the healthcheck comment.
+- `@/opt/fabrik/templates/wordpress/compose.yaml.j2:1`, `@/opt/fabrik/templates/wordpress/base/compose.yaml.j2:64`, `:120`, `:123` — replaced 4 em-dashes with ASCII hyphens.
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::create_dockercompose_application` — added a defensive ASCII pre-check that raises `ValueError` with a clear message **before** the request hits Coolify, so future template regressions fail loudly instead of producing the misleading 422.
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::_request` — surface the response body in error logs when status >= 400 (was previously swallowed by `raise_for_status()`, which cost ~30 minutes of debug time on this bug).
+- `@/opt/fabrik/scripts/snapshot_vps_state.py` — **NEW**. Read-only snapshot tool for VPS state (Coolify apps+services, Cloudflare DNS on `*.vps1.ocoron.com`, GlitchTip projects, Gatus endpoint files). Supports `--label` and `--diff A B` for leak detection. Used during the deployment loop to verify zero-leak baseline after each cycle.
+
+**Lessons Learnt:** Coolify v4's `/applications/dockercompose` validator rejects non-ASCII bytes in the decoded payload with a misleading error. Cascade now fails-fast in the driver to prevent re-debugging this. Logged to `docs/LESSONS_LEARNT.md` §VPS-Coolify if/when that section is created.
+
+### Fixed — Scaffolder spec-emission bugs + comprehensive shape-driven destroy (2026-04-27)
+
+**Context:** Auditing the scaffold→apply→destroy pipeline against `docs/DEPLOYMENT.md` surfaced four scaffolder bugs (B1–B4) and one major destroy-path gap (B5). Together they meant: `--db` silently deployed without a VPS database; auto-generated specs deployed to a phantom Coolify project; client-artifact templates emitted phantom DNS + Coolify resources; and `fabrik destroy` leaked every shape-gated registrar (Authelia, GlitchTip, Gatus, Backrest, MeiliSearch, Postgres) plus DNS records.
+
+- `@/opt/fabrik/src/fabrik/spec_generator.py::generate_spec` — **B1**: added `use_database` parameter that overlays `shape.needs_database = True` and wires `depends.postgres = "main"`. The CLI's `--db` flag now reaches the emitted spec; pre-fix the kwarg was silently dropped at `scaffold.py:2746`. **B2**: emits `coolify.project = "fabrik-services"` (canonical VPS project) instead of the pydantic `CoolifyConfig` default `"default"`. **B4**: derives top-level `kind` from `shape.kind` so static-site/docusaurus emit `kind: static` (was `kind: service` while shape said `static`). New `_SHAPE_KIND_TO_TOP_KIND` mapping pins the contract.
+- `@/opt/fabrik/src/fabrik/spec_generator.py::SPEC_ENABLED_TYPES` — **B3**: removed `chrome-extension`, `desktop-app`, `mobile-app`. These are packaged client artifacts (CRX, .dmg/.exe, APK/IPA), not VPS services — their own `defaults.yaml` even says so. Pre-fix the scaffolder emitted `specs/services/<name>.yaml` for them with public domains; `fabrik apply` would have created phantom Cloudflare DNS records + Coolify apps on every run.
+- `@/opt/fabrik/src/fabrik/scaffold.py:2746` — propagates `use_database=kwargs.get("use_database", False)` into `generate_and_save_spec`. Fixes B1 plumbing.
+- `@/opt/fabrik/src/fabrik/orchestrator/destroyer.py` — **NEW** module. Comprehensive shape-driven teardown that mirrors `InfrastructureProvisioner.provision` in reverse contract order: MeiliSearch → Authelia → GlitchTip → Backrest → Gatus → Postgres → Coolify app → DNS → local files. Driven by `resolve_applicability(spec)` so no apply-time context is needed. Destructive operations (Postgres DROP, MeiliSearch DELETE INDEX) gated behind `--drop-data` flag, mirroring the rollback manager's data-preservation policy. Every step is best-effort: a single driver failure logs WARNING and the remaining steps still run. `DestroyReport.had_errors` lets the CLI exit-code non-zero on partial failure.
+- `@/opt/fabrik/src/fabrik/cli.py::destroy` — rewritten to call `destroy_deployment`. Adds `--drop-data` and `--dry-run` flags. The pre-existing not-yet-implemented stub on DNS deletion is now implemented via `DNSClient.delete_record`. Fixed pre-existing bug where the files step removed `apps/<name>/` (relative) but Fabrik scaffolds to `/opt/<name>/` — the path never matched, files always leaked.
+- `@/opt/fabrik/src/fabrik/drivers/postgres.py::drop_database` — **NEW**. Idempotent `DROP DATABASE IF EXISTS … WITH (FORCE)` + optional `DROP ROLE IF EXISTS`. Used only by `destroy --drop-data`; auto-rollback intentionally does not call it.
+- `@/opt/fabrik/specs/services/fabrik-test-*.yaml` — re-emitted with the fixed scaffolder. Removed phantom artifact specs (chrome-extension/desktop-app/mobile-app). Remaining 7 specs now declare `coolify.project: fabrik-services` and the correct top-level `kind`.
+- `@/opt/fabrik/tests/test_spec_generator.py` — pinned all four B-fixes: `test_artifact_types_excluded_from_enabled_types`, `test_artifact_types_raise_value_error`, `test_use_database_propagates_to_shape`, `test_emits_canonical_coolify_project`, `test_static_site_generates_static_kind`, `test_docusaurus_generates_static_kind`. Updated `test_spec_enabled_types_has_seven_entries` (was `_has_10`).
+- `@/opt/fabrik/tests/test_scaffold_spec_generation.py` — replaced the old `test_spec_generated_for_{mobile,desktop}_app` (which pinned the buggy behavior) with `test_spec_not_generated_for_{mobile,desktop,chrome}_*` plus `test_db_flag_propagates_to_generate_and_save_spec`.
+- `@/opt/fabrik/tests/orchestrator/test_destroyer.py` — **NEW**. 11 tests covering: maximal-shape teardown calls every driver in reverse order; `drop_data=False` preserves Postgres + MeiliSearch (mirrors rollback policy); minimal-shape (static-site) only runs Gatus + Coolify + DNS; `--keep-dns`, `--keep-files`, `--dry-run` flags; driver exception in one step doesn't abort remaining steps; re-running destroy on already-destroyed app reports `not_found`, not error.
+
+**Lessons Learnt:** none.
+
+### Fixed — Deployment-pipeline discrepancies surfaced by proxy.yaml audit (2026-04-27)
+
+**Context:** Auditing every deployment-path file before re-running `fabrik apply` on `proxy.yaml` surfaced three latent bugs in the orchestrator's Coolify integration. All three are silent failures: the code worked only because `/opt/fabrik/.env` happened to set `COOLIFY_PROJECT_UUID` to the right project. Any environment without that override (CI, fresh clone, scaffolded test project) would silently create or use the wrong Coolify project.
+
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_resolve_project_server_uuids` — now accepts the `DeploymentContext` and honors `spec.coolify.project` / `spec.coolify.server` (resolved by name against `list_projects()` / `list_servers()`). Previously the spec fields were declared in `spec_loader.CoolifyConfig` but completely ignored by the deployer, which hard-coded `name == "fabrik"` and the first server. Resolution order is now: env-var override → spec field → legacy fallback. Auto-create now uses the spec-declared project name, not the literal `"fabrik"`.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_create_deployment` — call site updated to pass `ctx` into `_resolve_project_server_uuids`.
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::create_git_application` — dropped the redundant `environment_name` field from the `POST /applications` payload. Coolify v4 accepts either `environment_name` or `environment_uuid`; sending both creates two sources of truth. We send only `environment_uuid` (the project-scoped, unambiguous id resolved by `_resolve_environment_uuid`). Signature kept for API compat.
+- `@/opt/fabrik/.env` — removed stale `COOLIFY_PRIVATE_KEY_UUID` (no longer referenced by any code after the v4.0.0+ migration on 2026-04-26). Backup at `.env.backup.20260427-165528`.
+- `@/opt/fabrik/tests/orchestrator/test_deployer.py::test_resolve_project_server_uuids_honors_spec_coolify` — One-Test-Rule regression test. Pins the new resolution order: with `spec.coolify.project="fabrik-services"` and `coolify.server="vps1"` and no env overrides, the deployer must look up those exact names against `list_projects()` / `list_servers()`, not fall back to `"fabrik"` and not auto-create. 16/16 tests passing.
+
+**Lessons Learnt:** none.
+
+### Fixed — Coolify v4.0.0+ API compatibility for git-sourced deployments (2026-04-26)
+
+**Context:** Coolify v4.0.0-beta.459 removed the `/applications/private-deploy-key` endpoint. The new API uses a single `/applications` endpoint with `git_repository` and `git_branch` fields for all git-sourced apps. Coolify v4.0.0+ auto-selects SSH keys based on the repo URL from configured SSH keys in Coolify settings — no manual private key UUID resolution needed.
+
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::create_git_application` — removed `private_key_uuid` parameter and the split between `/applications/private-deploy-key` (private) and `/applications` (public). Now uses only `/applications` with `git_repository`/`git_branch` fields. Coolify auto-selects SSH keys.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_create_git_deployment` — removed `private_key_uuid` resolution logic and the check for private vs public repos. Simply calls `create_git_application` with the repo URL and branch.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_resolve_private_key_uuid` — removed (no longer needed, Coolify auto-selects SSH keys).
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_create_deployment` — updated docstring to reflect Coolify v4.0.0+ API change (no more `/applications/private-deploy-key`).
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_container` — increased timeout to 300s for git-sourced apps (git clone + docker build takes longer than inline compose).
+- `@/opt/fabrik/tests/orchestrator/test_deployer.py` — removed tests for private key UUID resolution (`test_deploy_creates_git_sourced_private_repo`, `test_deploy_creates_git_sourced_public_repo`, `test_deploy_git_sourced_no_deploy_key_raises`, `test_resolve_private_key_uuid_prefers_git_related`). Renamed `test_deploy_creates_git_sourced_private_repo` to `test_deploy_creates_git_sourced` and removed `private_key_uuid` assertions. 15/15 tests passing.
 
 ### Fixed — Orchestrator pipeline validated end-to-end on live prod service (site-provisioner) — 2026-04-22
 

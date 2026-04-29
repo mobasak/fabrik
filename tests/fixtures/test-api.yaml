@@ -13,6 +13,6 @@ secrets:
   - DATABASE_URL
   - API_KEY
 
-healthcheck:
+health:
   path: /health
   timeout: 30

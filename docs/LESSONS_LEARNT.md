@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-04-22 (Lesson 31 — Env-var verification via `docker inspect`)
+**Last Updated:** 2026-04-28 (Lesson 32 — Live-deploy proof harness: silent fallbacks are the dominant failure class)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
@@ -3539,3 +3539,75 @@ Also widened the container-match regex from `grep '^{name}-'` to `grep -E '^{nam
 
 - **Trigger:** End-to-end deployment workflow validation with `fabrik-e2e-full-test` (maximal shape)
 - **Detection Method:** Live print-tracing inside `verify_dsn_injection` during iteration 2 of the debug loop
+
+
+# Lesson 32: Live-deploy proof harness — silent fallbacks are the dominant failure class
+
+**Date:** 2026-04-28
+**Discovered during:** First end-to-end live-deploy proof run of every type in `SCAFFOLD_TYPES` against the production VPS via `scripts/proof_run.py`.
+
+## 1. The headline finding
+
+Pre-mission, Fabrik shipped passing tests, a maximal-shape e2e on `python-api`, and ~150 scaffolder unit tests. We claimed "deployment works." It did not. Of 7 deployable scaffold types, **only `python-api` actually deployed end-to-end** — and only because of a coincidence: the verifier had a hardcoded `/health` fallback, and `python-api` happens to use that same path. Every other type was silently 404-rolling-back during verification, then `--keep-on-failure`-less destroy was wiping the evidence. The unit suite never noticed because no test compared the spec key the verifier read (`healthcheck:`) with the spec key the generator wrote (`health:`).
+
+**Outcome:** 22 distinct defects (B23–B46) surfaced in one mission; all 7 types now deploy live with HTTP 200 (or `running:healthy` for the worker type). See `CHANGELOG.md [Unreleased]` and `PROOF.md` for the full ledger.
+
+## 2. The silent-fallback pattern
+
+The pattern that caused the most damage:
+
+```python
+healthcheck = ctx.spec.get("healthcheck") or {}        # WRONG key
+path = healthcheck.get("path", DEFAULT_HEALTHCHECK_PATH)  # silent fallback
+```
+
+The spec generator emits `health:`, not `healthcheck:`. The `.get("healthcheck")` returns `None`, the `or {}` swallows it, the `.get("path", DEFAULT)` falls back to `/health`. No exception, no warning, no log line. The verifier then probes `/health` regardless of what the spec actually said. For `python-api` (`/health`) it worked; for `saas-skeleton`/`file-api`/`static-site` (`/api/health`) and `docusaurus` (`/docs/intro`) it always 404'd, and the orchestrator dutifully rolled back the (otherwise healthy) deploy.
+
+**Generalised lesson:** **never use `dict.get(key, default)` to read spec/contract data without a spec-key alignment check upstream.** Either:
+
+- `assert key in spec, f"spec missing required key {key}"` (cheap, catches typos)
+- `if key not in spec: raise ContractError(...)` (loud)
+- Pydantic-validate the spec at orchestrator entry (best, catches structural drift)
+
+This is a member of a broader class — silent fallback in any contract reader. We hit it in five places this round (B23 verifier health-key, B25 harness `--private`/`--public` mismatch, B33 file-api `/health` vs `/api/health`, B45 docusaurus `/` vs `/docs/intro`, and B23 again on the worker domain field). Audit every `.get(key, default)` in `src/fabrik/orchestrator/` and `src/fabrik/spec_generator.py`.
+
+## 3. Test-suite blind spot
+
+The unit tests asserted scaffolders produced *something*, and the orchestrator tests asserted state transitions. Neither asserted the **end-to-end key alignment**: that what the scaffolder writes into the spec is what the orchestrator reads from the spec is what the verifier probes against the live deploy. The whole pipeline can be green at every unit boundary while the contract keys drift.
+
+**Generalised lesson:** for any pipeline that crosses module boundaries (scaffolder → spec generator → orchestrator → verifier → live target), add at least one **contract-shape test** that flows a real spec through every read site. A 10-line property test (`every key the verifier `.get()`s must exist in a spec the generator emits for every supported type`) would have caught B23, B33, and B45 in milliseconds.
+
+## 4. Live-deploy is the only ground truth
+
+Every defect B23–B46 was reproducible only against a real VPS. None of them surface in:
+
+- unit tests (mocked Coolify)
+- compose-validation linting (compose was syntactically fine)
+- driver-level integration tests (drivers worked in isolation)
+- container smoke tests (containers were healthy; the verifier was wrong)
+
+**Generalised lesson:** **maintain a live-deploy proof harness** (`scripts/proof_run.py`) that runs against every deployable type at least quarterly, at every release boundary, and on demand after any change to: the verifier, the validator, the spec generator, the scaffolder, or any template Dockerfile. The harness must:
+
+- Use `--keep-on-failure` so the Coolify app and build logs survive long enough to inspect.
+- Pull real Coolify deployment build logs (not just the orchestrator's `logger.info` lines).
+- Tee subprocess output line-by-line (NOT `subprocess.run(capture_output=True)` — silent for 5–15 min).
+- When ambient infra fails (DNS Manager outage, Cloudflare 5xx), fall back to direct API calls so a single ambient outage doesn't burn 110s × N iterations.
+- Compare HTTP status code AND content type AND a fragment of body against expected (curl just checking 200 misses captive-portal/Traefik-default-backend cases).
+
+## 5. Stop-rule discipline (and where I broke it)
+
+The repo's stop rule is "if a single fix vector fails 3× in a row, stop and consult." I correctly invoked it on `docusaurus` after three Docusaurus version-pinning attempts (B38 drop openapi, B39 pin 3.9.2, B40 pin 3.7.0). But I had been treating each version pin as a separate "fix vector" — they were the same vector ("change the Docusaurus version"). The user correctly pushed me onto a *genuinely different* vector: webpack `overrides`, targeting the actual root cause (peer-dep instance mismatch). That fix (B41) succeeded on first attempt and unblocked B42–B46 in sequence — none repeated.
+
+**Generalised lesson:** the stop rule counts **vectors**, not attempts. Three different version pins is not three vectors; it is one vector tried three ways. Before invoking the stop rule, write the actual hypothesis being tested in one sentence. If the hypothesis is the same across the three attempts, it is one vector. If you cannot articulate a new hypothesis on attempt N+1, that is the stop signal — **not** the attempt count.
+
+## 6. Orchestrator timing tolerance vs build duration
+
+`_wait_for_app_status`'s `terminal_grace_period` was 30s, tuned for fast builds. Docusaurus's `npm install` + `npm run build` + image export takes 60–90s, during which Coolify reports `exited:unhealthy` (old container removed, new image not yet running). The orchestrator gave up at 30s, then the verifier 6×404'd before the new container was even up. **The deploy was succeeding** (Container reached `running:healthy` ~110s after the orchestrator gave up), but the harness reported FAIL.
+
+**Generalised lesson:** any orchestrator timeout must be sized to the slowest *legitimate* build in the supported matrix, not the median. Bumped to 180s with comfortable margin for the slowest observed type. Genuine build failures still terminate via the explicit Coolify `failed` deployment-job state (which is reported promptly), so the longer grace only affects the transient deploy-recreate path.
+
+## 7. Triggered By
+
+- **Trigger:** Mission to prove every scaffold type deploys live end-to-end on the production VPS
+- **Detection Method:** New `scripts/proof_run.py` harness running `scaffold → push → apply → curl` against `172.93.160.197`, with H1–H4 instrumentation (line-by-line tee, build-log fetch, Cloudflare fallback for DNS-Manager outage).
+- **Files:** see `CHANGELOG.md [Unreleased]` for the per-bug file list; `proof-logs/*.diff` for applyable patches; `PROOF.md` for the per-type curl evidence.

@@ -30,10 +30,17 @@ const UPLOAD_EXPIRY = parseInt(process.env.UPLOAD_URL_EXPIRY_SECONDS || '3600');
 const DOWNLOAD_EXPIRY = parseInt(process.env.DOWNLOAD_URL_EXPIRY_SECONDS || '3600');
 
 // Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// B32: only create the client when env vars are present. The shipped
+// template previously called ``createClient(undefined, undefined)`` at
+// module load, which throws ``Error: supabaseUrl is required`` and
+// prevents the process from ever binding port 3000 — Traefik then 404s
+// every request, including the healthcheck. Surfaced by proof-run on
+// 2026-04-28. When Supabase isn't configured, ``supabase`` stays null and
+// the auth-protected routes return a clear 503 at request time (see
+// ``authMiddleware``). The healthcheck doesn't touch Supabase.
+const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
 
 // R2 client
 const r2 = new S3Client({
@@ -49,6 +56,13 @@ const R2_BUCKET = process.env.R2_BUCKET;
 
 // Middleware: Extract user from Supabase JWT
 async function authMiddleware(req, res, next) {
+  // B32: 503 (instead of crashing) when Supabase isn't configured.
+  if (!supabase) {
+    return res.status(503).json({
+      error: 'Supabase not configured',
+      detail: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to enable auth-protected routes',
+    });
+  }
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing authorization header' });
@@ -82,9 +96,20 @@ async function authMiddleware(req, res, next) {
 }
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
-});
+// B33: serve at both ``/health`` (template's original path) and
+// ``/api/health`` (the path emitted by ``spec_generator`` for file-api).
+// Without ``/api/health`` the orchestrator's verifier hits 404 and the
+// deploy is rolled back even when the container is up.
+function healthHandler(req, res) {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    supabase_configured: Boolean(process.env.SUPABASE_URL),
+    r2_configured: Boolean(process.env.R2_BUCKET),
+  });
+}
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 // Get presigned upload URL
 app.post('/api/files/upload-url', authMiddleware, async (req, res) => {

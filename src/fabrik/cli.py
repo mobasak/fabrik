@@ -254,6 +254,17 @@ def plan(spec_path: str, secrets: tuple):
 @click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
 @click.option("--use-orchestrator", is_flag=True, help="Use new orchestrator pipeline")
 @click.option("--skip-health-check", is_flag=True, help="Skip health check verification")
+@click.option(
+    "--keep-on-failure",
+    is_flag=True,
+    default=False,
+    help=(
+        "B27: do NOT roll back created resources (Coolify app, DNS, GlitchTip, "
+        "etc.) if the deployment fails. Used by the proof-run harness to "
+        "preserve build logs and container state for diagnosis. Production "
+        "deploys should NOT pass this flag \u2014 default behavior is fail-closed."
+    ),
+)
 def apply(
     spec_path: str,
     secrets: tuple,
@@ -263,6 +274,7 @@ def apply(
     dry_run: bool,
     use_orchestrator: bool,
     skip_health_check: bool,
+    keep_on_failure: bool,
 ):
     """Deploy a service from spec.
 
@@ -287,7 +299,10 @@ def apply(
                 os.environ[key] = value
         orchestrator = DeploymentOrchestrator()
         ctx = orchestrator.deploy(
-            Path(spec_path), dry_run=dry_run, skip_health_check=skip_health_check
+            Path(spec_path),
+            dry_run=dry_run,
+            skip_health_check=skip_health_check,
+            keep_on_failure=keep_on_failure,
         )
 
         if ctx.state == DeploymentState.COMPLETE:
@@ -604,99 +619,110 @@ def logs(service: str, tail: int, since: str):
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 @click.option("--keep-dns", is_flag=True, help="Keep DNS records")
 @click.option("--keep-files", is_flag=True, help="Keep generated files")
-def destroy(spec_path: str, yes: bool, keep_dns: bool, keep_files: bool):
-    """Remove a deployment.
+@click.option(
+    "--drop-data",
+    is_flag=True,
+    default=False,
+    help=(
+        "Also DROP the per-service Postgres database and DELETE the MeiliSearch "
+        "index. Off by default to mirror auto-rollback's data-preservation "
+        "policy. Use for throwaway-test cleanup."
+    ),
+)
+@click.option("--dry-run", is_flag=True, default=False, help="Plan only; mutate nothing")
+def destroy(
+    spec_path: str,
+    yes: bool,
+    keep_dns: bool,
+    keep_files: bool,
+    drop_data: bool,
+    dry_run: bool,
+):
+    """Tear down every resource ``fabrik apply`` created for SPEC_PATH.
 
-    Example:
-        fabrik destroy specs/my-api.yaml
-        fabrik destroy specs/my-api.yaml --keep-dns
+    Reverses ``InfrastructureProvisioner`` step-for-step (MeiliSearch,
+    Authelia, GlitchTip, Backrest, Gatus, Postgres) before deleting the
+    Coolify app, DNS record, and local project tree. Driven by the
+    spec's ``shape`` block — no live-state polling required.
+
+    Pre-fix this command only deleted the Coolify app and TODO'd DNS;
+    every other registrar leaked. See ``orchestrator/destroyer.py``.
+
+    Examples:
+        fabrik destroy specs/services/my-api.yaml
+        fabrik destroy specs/services/my-api.yaml --drop-data -y
+        fabrik destroy specs/services/my-api.yaml --keep-dns --dry-run
     """
-    # Load spec
+    from fabrik.orchestrator.destroyer import destroy_deployment
+
     try:
         spec = load_spec(spec_path)
     except Exception as e:
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
 
-    click.echo(f"🗑️  Destroying: {spec.id}")
+    click.echo(f"🗑️  Destroying: {spec.id}{' [DRY RUN]' if dry_run else ''}")
     click.echo()
 
-    if not yes:
-        click.echo("This will:")
-        click.echo("  - Stop and remove the application from Coolify")
-        if not keep_dns:
-            click.echo(f"  - Remove DNS record for {spec.domain}")
+    if not yes and not dry_run:
+        click.echo("This will tear down (in order):")
+        click.echo("  - MeiliSearch index           (only with --drop-data)")
+        click.echo("  - Authelia access rules       (if shape.is_admin_dashboard)")
+        click.echo("  - GlitchTip project           (if kind=service/worker/wordpress)")
+        click.echo("  - Backrest backup plan        (if shape.has_persistent_data)")
+        click.echo("  - Gatus uptime endpoint       (if shape.is_public + domain)")
+        click.echo("  - Postgres database           (only with --drop-data)")
+        click.echo("  - Coolify application")
+        if not keep_dns and spec.domain:
+            click.echo(f"  - DNS A record for {spec.domain}")
         if not keep_files:
-            click.echo(f"  - Delete generated files in apps/{spec.id}/")
+            click.echo(f"  - Project tree at /opt/{spec.id}/")
+        if not drop_data:
+            click.echo()
+            click.echo(
+                "  ⚠  Postgres + MeiliSearch data WILL be preserved. Pass --drop-data to remove."
+            )
         click.echo()
         if not click.confirm("Are you sure?"):
             click.echo("Aborted.")
             raise SystemExit(0)
+        click.echo()
 
+    report = destroy_deployment(
+        spec,
+        drop_data=drop_data,
+        keep_dns=keep_dns,
+        keep_files=keep_files,
+        project_base=Path("/opt"),
+        dry_run=dry_run,
+    )
+
+    # Render the per-step result. Symbols mirror the apply-time output for
+    # at-a-glance correlation when grepping logs.
+    symbol = {
+        "removed": "✅",
+        "not_found": "ℹ️ ",
+        "skipped": "⏭️ ",
+        "dry_run": "🧪",
+        "error": "❌",
+    }
+    for action in report.actions:
+        sym = symbol.get(action.status, "•")
+        line = f"  {sym} {action.step:<11} {action.status:<10}"
+        if action.detail:
+            line += f"  {action.detail}"
+        if action.error:
+            line += f"  ERROR: {action.error}"
+        click.echo(line)
     click.echo()
 
-    # Step 1: Remove from Coolify
-    click.echo("🐳 Step 1: Removing from Coolify...")
-    try:
-        coolify = CoolifyClient()
-        apps = coolify.list_applications()
-        matching = [a for a in apps if a.get("name") == spec.id]
-
-        if matching:
-            app = matching[0]
-            app_uuid = app.get("uuid")
-            if not app_uuid:
-                click.echo("   Error: Application UUID missing in Coolify response", err=True)
-                raise SystemExit(1)
-            coolify.delete_application(app_uuid)
-            click.echo("   ✅ Removed from Coolify")
-        else:
-            click.echo("   ℹ️  Not found in Coolify (already removed?)")
-    except Exception as e:
-        click.echo(f"   ⚠️  Error: {e}")
-    click.echo()
-
-    # Step 2: Remove DNS
-    if not keep_dns and spec.domain:
-        click.echo("🌐 Step 2: Removing DNS record...")
-        try:
-            split = _split_domain_for_dns(spec.domain)
-            if split:
-                # TODO: Implement DNS deletion when DNSClient supports it
-                # subdomain = ".".join(parts[:-2])
-                # base_domain = ".".join(parts[-2:])
-                # dns = DNSClient()
-                # dns.delete_subdomain(base_domain, subdomain)
-                click.echo("   ℹ️  DNS removal not implemented yet")
-                click.echo(f"   ℹ️  Manually remove: {spec.domain}")
-            else:
-                click.echo("   ⚠️  Skipping: domain format not recognized")
-        except Exception as e:
-            click.echo(f"   ⚠️  Error: {e}")
-    else:
-        click.echo("🌐 Step 2: DNS removal skipped")
-    click.echo()
-
-    # Step 3: Remove files
-    if not keep_files:
-        click.echo("📁 Step 3: Removing generated files...")
-        app_root = Path("apps").resolve()
-        app_dir = (app_root / spec.id).resolve()
-        display_path = Path("apps") / spec.id
-        if not app_dir.is_relative_to(app_root):
-            click.echo("   Error: Refusing to remove path outside apps directory", err=True)
-            raise SystemExit(1)
-
-        if app_dir.exists():
-            import shutil
-
-            shutil.rmtree(app_dir)
-            click.echo(f"   ✅ Removed {display_path}/")
-        else:
-            click.echo("   ℹ️  No files to remove")
-    else:
-        click.echo("📁 Step 3: File removal skipped")
-    click.echo()
+    if report.had_errors:
+        click.echo(
+            f"⚠️  Destroy completed with {len(report.errors)} error(s); "
+            "see WARNING-level logs above.",
+            err=True,
+        )
+        raise SystemExit(2)
 
     click.echo("=" * 60)
     click.echo(f"✅ Destroyed: {spec.id}")

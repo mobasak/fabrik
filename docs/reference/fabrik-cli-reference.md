@@ -50,7 +50,7 @@ fabrik templates
 Primary deploy entry point. Reads a spec YAML and runs the full pipeline.
 
 ```bash
-fabrik apply <spec_path> [--dry-run] [--skip-dns] [--skip-deploy] [-s KEY=VALUE] [--use-orchestrator] [--yes]
+fabrik apply <spec_path> [--dry-run] [--skip-dns] [--skip-deploy] [-s KEY=VALUE] [--use-orchestrator] [--yes] [--keep-on-failure]
 ```
 
 - `--dry-run` — simulate every mutation without executing (always uses orchestrator)
@@ -58,6 +58,7 @@ fabrik apply <spec_path> [--dry-run] [--skip-dns] [--skip-deploy] [-s KEY=VALUE]
 - `--skip-deploy` — validate + prepare, but don't call Coolify
 - `-s KEY=VALUE` — override a single secret on the command line (beats `.env`)
 - `--use-orchestrator` — use the new orchestrator pipeline (default today: legacy path; Phase 4 will flip this)
+- `--keep-on-failure` — when a deploy fails verification, **leave the Coolify app, container, and build logs in place** instead of rolling back. Use this when iterating on a broken deploy: the verifier's failure plus the live container state plus the Coolify deployment build log together pinpoint the root cause. Without this flag the orchestrator auto-rolls-back and wipes the evidence. Added 2026-04-28 (B27, surfaced by `scripts/proof_run.py`).
 
 ```bash
 fabrik apply /opt/fabrik/specs/services/my-api.yaml --dry-run

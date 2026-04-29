@@ -1,7 +1,7 @@
 # Health Monitoring
 
-**Version:** 1.2.0
-**Last Updated:** 2026-04-14
+**Version:** 1.3.0
+**Last Updated:** 2026-04-28 (monitoring migrated to Coolify 2026-04-17; verifier-key alignment fix [B23, Lesson 32] noted in `docs/reference/orchestrator.md:47` — this doc covers Fabrik's own `/health` endpoint and the observability stack, NOT the deploy verifier)
 
 ---
 
@@ -36,8 +36,8 @@ The full observability stack is deployed and operational. Netdata provides real-
 | cAdvisor | (internal :8080) | ✅ Running |
 | node-exporter | (internal :9100) | ✅ Running |
 
-**Compose file:** `/opt/monitoring/compose.yaml` on VPS (7 services)
-**Local source:** `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik
+**Compose file:** ~~`/opt/monitoring/compose.yaml` (standalone)~~ → all 7 services migrated to Coolify management 2026-04-17. Manage start/stop via the Coolify dashboard.
+**Local source:** `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik (mirror; production state lives in Coolify)
 
 ### Notification Chain
 

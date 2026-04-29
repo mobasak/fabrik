@@ -1,9 +1,9 @@
 # Fabrik Scaffold Structure
 
-**Last Updated:** 2026-04-10
-**Script:** `src/fabrik/scaffold.py` (scaffold command)
+**Last Updated:** 2026-04-29 (code-truth pass: enforcement script count corrected to 35, `SPEC_ENABLED_TYPES` list corrected against `src/fabrik/spec_generator.py:58`, post-scaffold initialization section trimmed to only describe steps the user must do manually — `git init` / `.venv` / `pre-commit install` are now performed by `create_project()` itself; `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.)
+**Script:** `@/opt/fabrik/src/fabrik/scaffold.py` (scaffold command)
 
-> Complete reference for the folder and file structure created by `fabrik scaffold`.
+> Complete reference for the folder and file structure created by `fabrik scaffold`. Sister doc to the broader `FABRIK_SCAFFOLD_WORKFLOW.md` (this file is narrowly scoped to the file tree).
 
 ---
 
@@ -76,7 +76,7 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   ├── README.md
 │   └── TROUBLESHOOTING.md
 ├── scripts/
-│   ├── enforcement/              # Entire dir copied from Fabrik (~30 scripts)
+│   ├── enforcement/              # Entire dir copied from Fabrik (35 files inc. __init__.py)
 │   ├── docs_updater.py
 │   ├── final_gate.py
 │   ├── health_checker.py
@@ -221,14 +221,17 @@ Templates use Jinja2 syntax for variable substitution:
 
 After scaffold completes, `fabrik scaffold` automatically generates a deployment spec file for supported types:
 
-**Supported types (SPEC_ENABLED_TYPES):**
+**Supported types (`SPEC_ENABLED_TYPES`, source: `@/opt/fabrik/src/fabrik/spec_generator.py:58`):**
+
 - `python-api`
 - `saas-skeleton`
 - `node-api`
 - `file-api`
 - `file-worker`
-- `chrome-extension`
 - `static-site`
+- `docusaurus`
+
+> **Excluded by design:** `chrome-extension`, `mobile-app`, `desktop-app` are packaged artifacts (Chrome Web Store / app stores / direct dist) — no VPS deploy, so no spec. `wordpress` uses the `fabrik wp` pipeline with its own `site.yaml` schema.
 
 **Spec file location:** `/opt/fabrik/specs/services/{project-name}.yaml`
 
@@ -237,13 +240,9 @@ After scaffold completes, `fabrik scaffold` automatically generates a deployment
 fabrik scaffold my-api --type python-api --no-spec
 ```
 
-### CLI Enhancements (P3)
+### CLI Enhancements (P3 — superseded by Phase 4k 2026-04-22)
 
-**`fabrik new --from-project` flag:**
-Extracts env vars, secrets, and dependencies from an existing scaffolded project to populate a new spec.
-
-**`fabrik new --output` default:**
-Changed from `specs` to `specs/services` (correct location for service specs).
+> 📜 **HISTORICAL:** P3 added `fabrik new --from-project` and `fabrik new --output` flags. Phase 4k deprecated `fabrik new` entirely (hidden from `--help`, deprecation warning to stderr, removal scheduled). `fabrik scaffold` now emits the spec in lock-step with the project tree, with a `shape:` block driven by `templates/<type>/defaults.yaml` — there is no longer any need for a separate spec-generation command.
 
 ### Deployment Validation (P4)
 
@@ -282,26 +281,26 @@ Different scaffold types create variations:
 
 ## Post-Scaffold Initialization
 
-After scaffold creation, run:
+`create_project()` (`@/opt/fabrik/src/fabrik/scaffold.py:2915`) **already performs** these steps automatically before returning:
+
+1. `git init` + `git checkout -b mobasak/<project-name>`
+2. `.venv` creation + `pip install -r requirements-dev.txt` (Python types only)
+3. `pre-commit install` (via `_install_pre_commit()`, `scaffold.py:327`)
+4. Initial commit (`git add . && git commit -m "Initial commit"`)
+5. `_post_scaffold_sync()` registers the project in `data/projects.yaml` and refreshes `docs/BUSINESS_MODEL.md`
+6. `generate_and_save_spec()` for `SPEC_ENABLED_TYPES` (skipped if `--no-spec`)
+7. `validate-deploy` warnings printed (non-blocking)
+
+What the **user** typically does next:
 
 ```bash
-# Initialize git repository
 cd /opt/<project-name>
-git init
-git add -A
-git commit -m "chore: initial scaffold"
-
-# Set up Python virtual environment (for Python projects)
-uv venv
-source .venv/bin/activate  # or: . .venv/bin/activate
-uv pip install -e ".[dev]"
-
-# Install pre-commit hooks
-pre-commit install
-
-# Verify setup
-python scripts/final_gate.py --lean
+source .venv/bin/activate          # activate the venv scaffold already created
+uv pip install -e ".[dev]"         # editable install if you want imports to resolve from src/
+python scripts/final_gate.py --lean # sanity-check the freshly-scaffolded tree
 ```
+
+> **Do not re-run** `git init` or `pre-commit install` — they have already executed and a clean initial commit exists on a `mobasak/<project-name>` branch.
 
 ---
 

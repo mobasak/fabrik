@@ -76,18 +76,44 @@ class DeploymentVerifier:
             logger.info("[DRY RUN] Would verify deployment")
             return True
 
+        # B35: workers (kind=worker, expose.http=false) have no domain and
+        # no Traefik route. Don't try to HTTP-probe them — the container's
+        # compose-level healthcheck (already polled by the orchestrator's
+        # post-deploy status loop) is the proof of life. Without this guard
+        # the verifier raises ``KeyError: 'domain'`` even when the worker
+        # is ``running:healthy``. Surfaced by proof-run on 2026-04-28.
+        shape = ctx.spec.get("shape", {}) or {}
+        expose = ctx.spec.get("expose", {}) or {}
+        if shape.get("kind") == "worker" or not expose.get("http", True):
+            logger.info(
+                "Worker / non-HTTP service detected; skipping HTTP health "
+                "verification (Coolify container status was the proof)."
+            )
+            return True
+
         domain = ctx.spec["domain"]
-        shape = ctx.spec.get("shape", {})
 
         # Health check
         if not skip_health_check:
-            healthcheck = ctx.spec.get("healthcheck", {})
+            # B23: spec field is `health:` per `spec_loader.Spec.health` and
+            # `spec_generator.generate_spec` (line 393-394 emits `Health(...)`
+            # which serializes as `health:`). Reading `healthcheck:` here
+            # silently returns None and falls back to DEFAULT_HEALTHCHECK_PATH
+            # (`/health`), which masked every non-`/health` deploy as a 404
+            # rollback. python-api worked by coincidence (its path is also
+            # `/health`); saas-skeleton (`/api/health`) and docusaurus (`/`)
+            # silently failed verification on every apply.
+            healthcheck = ctx.spec.get("health") or {}
             path = healthcheck.get("path", DEFAULT_HEALTHCHECK_PATH)
 
             url = f"https://{domain}{path}"
 
             logger.info("Verifying deployment at %s", url)
-            self._check_health(url)
+            # B19: resolve via authoritative NS (bypasses 30-min SOA
+            # negative-cache). If we get an IP back, pass it to
+            # _check_health so it can skip the local resolver entirely.
+            resolved_ip = self._wait_for_dns(domain, max_wait=120)
+            self._check_health(url, resolved_ip=resolved_ip, host_header=domain)
         else:
             logger.info("Skipping health check (skip_health_check=True)")
 
@@ -114,11 +140,99 @@ class DeploymentVerifier:
         ctx.deployed_url = f"https://{domain}"
         return True
 
-    def _check_health(self, url: str) -> bool:
+    def _wait_for_dns(self, domain: str, max_wait: int = 120) -> str | None:
+        """Resolve ``domain`` directly against the zone's authoritative NS.
+
+        B19: The `ocoron.com` Cloudflare zone has SOA minimum=1800s, so
+        any resolver that saw NXDOMAIN for the name (e.g. the validator's
+        pre-flight ``DNS resolution failed`` probe just before DNS was
+        created) will negative-cache NXDOMAIN for 30 minutes. That
+        cached NXDOMAIN trickles all the way down to the WSL resolver
+        and ``socket.gethostbyname`` keeps failing for 30 min even
+        though the Cloudflare record is live.
+
+        Workaround: query the zone's authoritative Cloudflare NS
+        directly via ``dig +short`` — authoritative answers are not
+        subject to upstream negative-cache. Returns the resolved IP so
+        callers can optionally use it to bypass the local resolver in
+        the subsequent HTTP probe.
+
+        Best-effort: returns ``None`` on timeout; caller proceeds to
+        the health check anyway (which uses the local resolver and may
+        still fail, but retries + authoritative-resolved IP fallback
+        will catch real success cases).
+        """
+        import shutil
+        import subprocess
+        import time
+
+        if not shutil.which("dig"):
+            logger.info("dig not available; skipping authoritative DNS wait for %s", domain)
+            return None
+
+        # Figure out the zone (last two labels) and its NS once.
+        parts = domain.split(".")
+        zone = ".".join(parts[-2:]) if len(parts) >= 2 else domain
+        try:
+            ns_result = subprocess.run(
+                ["dig", "+short", "NS", zone, "@1.1.1.1"],
+                capture_output=True, text=True, timeout=10, check=False,
+            )
+            nameservers = [ns.rstrip(".") for ns in ns_result.stdout.splitlines() if ns.strip()]
+        except (subprocess.TimeoutExpired, OSError):
+            nameservers = []
+        if not nameservers:
+            logger.info("Could not resolve NS for %s; using public resolver", zone)
+            nameservers = ["1.1.1.1"]
+
+        auth_ns = nameservers[0]
+        logger.info("Waiting for DNS propagation of %s (authoritative NS: %s)", domain, auth_ns)
+        start = time.time()
+        attempt = 0
+        while time.time() - start < max_wait:
+            attempt += 1
+            try:
+                r = subprocess.run(
+                    ["dig", "+short", "+time=3", "+tries=1", "A", domain, f"@{auth_ns}"],
+                    capture_output=True, text=True, timeout=10, check=False,
+                )
+                addr = next(
+                    (line.strip() for line in r.stdout.splitlines()
+                     if line.strip() and line[0].isdigit()),
+                    None,
+                )
+                if addr:
+                    logger.info(
+                        "DNS resolved %s -> %s via %s after %.0fs (attempt %d)",
+                        domain, addr, auth_ns, time.time() - start, attempt,
+                    )
+                    return addr
+            except (subprocess.TimeoutExpired, OSError):
+                pass
+            time.sleep(5)
+        logger.warning(
+            "DNS for %s did not propagate within %ds (queried %s); "
+            "proceeding to health check anyway",
+            domain, max_wait, auth_ns,
+        )
+        return None
+
+    def _check_health(
+        self,
+        url: str,
+        resolved_ip: str | None = None,
+        host_header: str | None = None,
+    ) -> bool:
         """Check health endpoint with retries.
 
         Args:
             url: Full URL to health endpoint
+            resolved_ip: Pre-resolved IP (from authoritative NS). When set,
+                connect to this IP and pass ``host_header`` as the Host
+                header / SNI hostname. Bypasses the local OS resolver,
+                which is important when negative-cached NXDOMAIN blocks
+                normal resolution (see B19 in ``_wait_for_dns``).
+            host_header: Hostname to send in Host header / SNI.
 
         Returns:
             True if health check passes
@@ -128,13 +242,37 @@ class DeploymentVerifier:
         """
         last_error: str | None = None
 
+        # B19: Build the probe URL. If we have an authoritative IP,
+        # substitute the host part with the IP but keep host_header for
+        # SNI+Host. Python's stdlib does not support manual SNI override
+        # cleanly via urlopen, so we use httpx for the override path.
+        probe_via_ip = bool(resolved_ip and host_header)
+
         for attempt in range(1, self.max_retries + 1):
             try:
                 # Only allow https:// URLs for security
                 if not url.startswith("https://"):
                     raise ValueError(f"Only HTTPS URLs allowed: {url}")
-                response = urlopen(url, timeout=self.timeout, context=SSL_CONTEXT_NO_VERIFY)  # nosec B310
-                status = response.getcode()
+                if probe_via_ip:
+                    import httpx  # lazy — keeps import cost off the common path
+                    from urllib.parse import urlsplit, urlunsplit
+                    sp = urlsplit(url)
+                    ip_url = urlunsplit((sp.scheme, resolved_ip or "", sp.path, sp.query, sp.fragment))
+                    resp = httpx.get(
+                        ip_url,
+                        headers={"Host": host_header or ""},
+                        verify=False,  # nosec B501 - ceritificate check skipped, Host header routes via Traefik
+                        timeout=self.timeout,
+                        follow_redirects=True,
+                        # server_hostname SNI cannot be forced with httpx either;
+                        # since cert is Let's Encrypt for host_header, SNI is
+                        # derived from the URL host (our IP) — cert name
+                        # won't match but verify=False sidesteps that.
+                    )
+                    status = resp.status_code
+                else:
+                    response = urlopen(url, timeout=self.timeout, context=SSL_CONTEXT_NO_VERIFY)  # nosec B310
+                    status = response.getcode()
 
                 if status == 200:
                     logger.info("Health check passed: %s (attempt %d)", url, attempt)

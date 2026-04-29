@@ -209,11 +209,13 @@ _SHARED_REQUIRED_FILES = [
 
 TYPE_REQUIRED_FILES: dict[str, list[str]] = {
     "python-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "compose.yaml"],
-    "saas-skeleton": _SHARED_REQUIRED_FILES[:],
-    "static-site": _SHARED_REQUIRED_FILES[:],
-    "node-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "package.json"],
-    "file-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "package.json", "src/index.js"],
-    "file-worker": _SHARED_REQUIRED_FILES + ["Dockerfile", "requirements.txt", "worker/main.py"],
+    "saas-skeleton": _SHARED_REQUIRED_FILES + ["compose.yaml"],
+    "static-site": _SHARED_REQUIRED_FILES + ["compose.yaml"],
+    "node-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "package.json", "compose.yaml"],
+    "file-api": _SHARED_REQUIRED_FILES
+    + ["Dockerfile", "package.json", "src/index.js", "compose.yaml"],
+    "file-worker": _SHARED_REQUIRED_FILES
+    + ["Dockerfile", "requirements.txt", "worker/main.py", "compose.yaml"],
     "wordpress": _SHARED_REQUIRED_FILES
     + ["compose.yaml.j2", "compose-coolify.yaml.j2", ".env.example"],
     "docusaurus": _SHARED_REQUIRED_FILES
@@ -224,6 +226,7 @@ TYPE_REQUIRED_FILES: dict[str, list[str]] = {
         "docs/intro.md",
         "openapi.yaml",
         "docs/api/sidebar.js",
+        "compose.yaml",
     ],
     "chrome-extension": _SHARED_REQUIRED_FILES
     + [
@@ -373,6 +376,144 @@ def _next_available_port(port_range: tuple[int, int] = (8000, 8099)) -> int:
         return port_range[1] + 1  # Overflow
     except Exception:
         return port_range[0]
+
+
+def _write_canonical_compose(
+    project_dir: Path,
+    name: str,
+    *,
+    port: int = 8000,
+    domain: str | None = None,
+    healthcheck_path: str = "/health",
+    with_traefik: bool = True,
+    extra_labels: tuple[str, ...] = (),
+    extra_env_lines: tuple[str, ...] = (),
+    healthcheck_kind: str = "http",  # "http" | "tcp" | "process:<pattern>"
+    process_pattern: str | None = None,
+) -> None:
+    """Write the canonical Coolify-compatible ``compose.yaml`` for a scaffold.
+
+    Born from B16/B18/B20-B22: the scaffolded compose is what Coolify
+    clones for git-source deploys, so it must be Coolify-correct on the
+    first commit. Hand-rolling per scaffolder repeatedly drifted into
+    bugs (missing Traefik labels, unexpanded ``${PORT}`` in label
+    strings, generic ``app:`` service names, missing ``coolify``
+    network) — this helper centralises the invariants enforced by
+    ``tests/test_scaffold_compose_traefik.py``:
+
+    1. Service name == project name (drives Traefik routing + container
+       lookup).
+    2. ``platform: linux/amd64`` (mandatory for the VPS).
+    3. External ``coolify`` network so Traefik can discover the
+       container.
+    4. Hardcoded port + Host(...) in Traefik labels — Coolify's compose
+       parser does not expand ``${VAR:-default}`` inside label strings.
+    5. Healthcheck shaped to the workload (HTTP for web services,
+       process probe for workers).
+
+    Args:
+        project_dir: Project root; ``compose.yaml`` is written at the top.
+        name: Project / service name (must equal ``project_dir.name``).
+        port: Container port the service listens on. Hardcoded into
+            both the healthcheck and the Traefik loadbalancer label.
+        domain: Public hostname used in the ``Host(...)`` rule. Defaults
+            to ``<name>.vps1.ocoron.com`` (Fabrik convention).
+        healthcheck_path: Path appended to ``http://localhost:<port>``
+            for the HTTP healthcheck.
+        with_traefik: When False (e.g. ``file-worker``), omit Traefik
+            labels entirely. The container still joins the ``coolify``
+            network so Coolify can manage it, but no router is created.
+        extra_labels: Additional raw label strings (e.g. CORS or auth
+            middlewares) appended verbatim under ``labels:``.
+        extra_env_lines: Additional ``- KEY=VALUE`` env entries appended
+            verbatim under ``environment:``.
+        healthcheck_kind: ``"http"`` (default), ``"tcp"``, or
+            ``"process"`` to use ``pgrep -f <process_pattern>``.
+        process_pattern: Pattern for the ``process`` healthcheck kind.
+
+    Existing files are overwritten — type-specific scaffolders that
+    historically wrote their own broken compose should call this last.
+    """
+    fqdn = domain or f"{name}.vps1.ocoron.com"
+
+    if healthcheck_kind == "http":
+        hc_test = f'["CMD", "curl", "-f", "http://localhost:{port}{healthcheck_path}"]'
+    elif healthcheck_kind == "tcp":
+        hc_test = (
+            f'["CMD-SHELL", "(echo > /dev/tcp/localhost/{port}) >/dev/null 2>&1 || exit 1"]'
+        )
+    elif healthcheck_kind == "process":
+        if not process_pattern:
+            raise ValueError("process_pattern is required for healthcheck_kind='process'")
+        hc_test = f'["CMD-SHELL", "pgrep -f \\"{process_pattern}\\" || exit 1"]'
+    else:
+        raise ValueError(f"Unknown healthcheck_kind: {healthcheck_kind!r}")
+
+    env_block = "\n".join(f"      {line}" for line in extra_env_lines) if extra_env_lines else ""
+    extra_labels_block = (
+        "\n".join(f'      - "{label}"' for label in extra_labels) if extra_labels else ""
+    )
+
+    if with_traefik:
+        traefik_labels = f"""    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=coolify"
+      - "traefik.http.routers.{name}.rule=Host(`{fqdn}`)"
+      - "traefik.http.routers.{name}.entrypoints=websecure"
+      - "traefik.http.routers.{name}.tls=true"
+      - "traefik.http.routers.{name}.tls.certresolver=letsencrypt"
+      # B18: hardcoded port — Coolify's compose parser does not expand
+      # ${{VAR:-default}} inside Traefik label strings, so a literal
+      # ``${{PORT:-8000}}`` reaches Traefik as the port and 404s the
+      # router. Edit alongside the healthcheck above if the app moves.
+      - "traefik.http.services.{name}.loadbalancer.server.port={port}"
+"""
+        if extra_labels_block:
+            traefik_labels = traefik_labels + extra_labels_block + "\n"
+    else:
+        traefik_labels = ""
+
+    env_section = f"""    environment:
+      - PORT={port}
+      - LOG_LEVEL=${{LOG_LEVEL:-INFO}}
+"""
+    if env_block:
+        env_section = env_section + env_block + "\n"
+
+    content = f"""# compose.yaml - Production-like Docker Compose
+# Auto-generated by fabrik scaffold (_write_canonical_compose).
+# Used by Coolify (git source) for first-deploy and by ``make docker-smoke``.
+#
+# B16/B18/B20-B22 invariants (do not regress):
+#   - service name == project name (drives Traefik routing + ``docker ps``)
+#   - hardcoded port in the loadbalancer label (no ${{VAR:-...}})
+#   - Host(...) uses the literal FQDN (no shell-fallback placeholders)
+#   - container joins the external ``coolify`` network for Traefik mesh
+#
+# See ``tests/test_scaffold_compose_traefik.py`` for the enforced contract.
+
+services:
+  {name}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: {name}
+{env_section}    healthcheck:
+      test: {hc_test}
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - coolify
+{traefik_labels}
+networks:
+  coolify:
+    external: true
+"""
+    (project_dir / "compose.yaml").write_text(content, encoding="utf-8")
 
 
 def _scaffold_shared(
@@ -772,17 +913,23 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         (project_dir / d).mkdir(parents=True, exist_ok=True)
 
     # Copy Python API templates
+    # B16: ``<domain>`` is substituted into compose.yaml.template's Traefik
+    # labels so the scaffolded compose carries the correct Host(...) rule.
+    # Default Fabrik convention is ``<name>.vps1.ocoron.com``; users can
+    # edit the file post-scaffold for staging/custom domains.
+    domain = f"{name}.vps1.ocoron.com"
     for src, dest in _PYTHON_API_TEMPLATE_MAP.items():
         src_path = TEMPLATE_DIR / src
         if src_path.exists():
             content = src_path.read_text()
             for old, new in [
                 ("[Project Name]", name),
-                ("<project>", name),  # QUICKSTART paths
+                ("<project>", name),  # QUICKSTART paths + compose service name
                 ("project-name", name),  # pyproject.toml
                 ("myproject", name),  # Makefile
                 ("[package_name]", package_name),  # README imports
                 ("<package_name>", package_name),  # QUICKSTART imports
+                ("<domain>", domain),  # compose Traefik labels (B16)
                 ("YYYY-MM-DD", today),
                 ("[Brief description]", description),
                 ("[One-line description]", description),
@@ -1125,6 +1272,21 @@ def _scaffold_saas_skeleton(
         try:
             content = src.read_text(encoding="utf-8")
             content = content.replace("saas-skeleton", name)
+            # B26: replace `npm ci` with `npm install` in the Dockerfile.
+            # The shipped template Dockerfile uses `RUN npm ci`, but `npm ci`
+            # requires a `package-lock.json` and the scaffolder does not run
+            # `npm install` to generate one. Without this patch the first
+            # Coolify build fails with::
+            #
+            #   npm error code EUSAGE
+            #   npm error The `npm ci` command can only install with an
+            #   existing package-lock.json or npm-shrinkwrap.json
+            #
+            # `_scaffold_node_api` and `_scaffold_file_api` already do this
+            # exact substitution (see lines 1325-1327 and 1487); saas-skeleton
+            # was the lone gap. Surfaced by proof-run on 2026-04-28.
+            if rel.name == "Dockerfile":
+                content = content.replace("RUN npm ci", "RUN npm install")
             dest.write_text(content, encoding="utf-8")
         except UnicodeDecodeError:
             shutil.copy2(src, dest)
@@ -1146,6 +1308,20 @@ def _scaffold_saas_skeleton(
         f"export default logger;\n"
     )
 
+    # B21: Overwrite the template's compose.yaml with a Coolify-correct
+    # version. The shipped ``templates/saas-skeleton/compose.yaml`` uses
+    # ``${COMPOSE_PROJECT_NAME:-saas}`` and ``${DOMAIN:-localhost}`` as
+    # literals inside Traefik labels — Coolify's compose parser does not
+    # expand those, so the deployed app 404s at Traefik even when
+    # healthy. Next.js listens on 3000 by default with
+    # ``/api/health`` as the default healthcheck.
+    _write_canonical_compose(
+        project_dir,
+        name,
+        port=3000,
+        healthcheck_path="/api/health",
+    )
+
 
 def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create Node API-specific project structure."""
@@ -1161,6 +1337,16 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
         content = content.replace("PROJECT_NAME", name)
         content = content.replace("dist/index.js", "src/index.js")
         content = content.replace("./dist", "./src")
+        # B31: also rewrite the absolute /app/dist path in the runtime stage's
+        # ``COPY --from=builder /app/dist ./src`` directive. The node-api
+        # scaffold has no compile step (source is plain JS in ``src/``), so
+        # ``/app/dist`` never exists in the builder image and the COPY fails:
+        #   failed to compute cache key: failed to calculate checksum of ref
+        #   ...: "/app/dist": not found
+        # The other replacements above only catch ``./dist`` and ``dist/index.js``
+        # — they don't match the absolute path. Surfaced by proof-run on
+        # 2026-04-28.
+        content = content.replace("/app/dist", "/app/src")
         # Replace `npm ci` with `npm install` — no lockfile is generated during
         # scaffold, so `npm ci` would fail on a fresh docker build.
         content = content.replace("RUN npm ci", "RUN npm install")
@@ -1275,6 +1461,18 @@ server.listen(PORT, () => {{
         "build/\n"
     )
 
+    # B20: Emit a Coolify-correct compose.yaml. node-api scaffolders
+    # previously relied on the .j2 deploy-time template, which is never
+    # consulted on git-source deploys (Coolify clones the repo and
+    # reads ``/compose.yaml`` directly). Without this, git-source
+    # deployment errors with ``compose-file not found``.
+    _write_canonical_compose(
+        project_dir,
+        name,
+        port=3000,
+        healthcheck_path="/api/health",
+    )
+
 
 def _scaffold_file_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create File API-specific project structure."""
@@ -1311,6 +1509,8 @@ module.exports = logger;
         content = content.replace("PROJECT_NAME", name)
         content = content.replace("dist/index.js", "src/index.js")
         content = content.replace("./dist", "./src")
+        # B31: see above — same fix for file-api.
+        content = content.replace("/app/dist", "/app/src")
         content = content.replace("RUN npm ci", "RUN npm install")
         (project_dir / "Dockerfile").write_text(content)
 
@@ -1393,6 +1593,14 @@ SERVICE_NAME={name}
         "# Build & Test\n"
         "coverage/\n"
         "build/\n"
+    )
+
+    # B20: Coolify-correct compose for git-source deploys.
+    _write_canonical_compose(
+        project_dir,
+        name,
+        port=3000,
+        healthcheck_path="/api/health",
     )
 
 
@@ -1558,6 +1766,19 @@ SERVICE_NAME={name}
         "dist/\n"
         "build/\n"
         "*.egg-info/\n"
+    )
+
+    # B20: Worker-style compose. file-worker has no HTTP surface, so no
+    # Traefik labels — Coolify still manages the container via the
+    # ``coolify`` network. Healthcheck probes the worker process by
+    # name (``python worker/main.py``) instead of HTTP.
+    _write_canonical_compose(
+        project_dir,
+        name,
+        with_traefik=False,
+        healthcheck_kind="process",
+        process_pattern="python worker/main.py",
+        port=8000,  # unused but required by signature
     )
 
 
@@ -2025,31 +2246,23 @@ CMD ["sh", "-c", "uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:
 """
     )
 
-    # compose.yaml
-    (project_dir / "compose.yaml").write_text(
-        f"""services:
-  {name}:
-    build: .
-    container_name: {name}
-    platform: linux/amd64  # MANDATORY - VPS is x86_64
-    restart: unless-stopped
-    ports:
-      - "${{PORT:-8000}}:${{PORT:-8000}}"
-    environment:
-      - PORT=${{PORT:-8000}}
-    networks:
-      - coolify
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${{PORT:-8000}}/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-networks:
-  coolify:
-    external: true  # Join existing Coolify mesh
-"""
+    # compose.yaml — chrome-extension's backend ships an FastAPI server
+    # at port 8000 and the extension hits it cross-origin, so we add CORS
+    # middleware via Traefik. B16/B18: the previous inline compose had
+    # no Traefik labels at all and used unexpanded ``${PORT:-8000}`` for
+    # the host port, so the deployed backend 404'd at the gateway.
+    _write_canonical_compose(
+        project_dir,
+        name,
+        port=8000,
+        healthcheck_path="/health",
+        extra_labels=(
+            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS",
+            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolalloworiginlist=chrome-extension://*",
+            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowheaders=*",
+            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolmaxage=100",
+            f"traefik.http.routers.{name}.middlewares={name}-cors",
+        ),
     )
 
     # 4. Makefile
@@ -2406,8 +2619,27 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "  organizationName: 'ocoron',\n"
         f"  projectName: '{name}',\n"
         "\n"
-        "  onBrokenLinks: 'throw',\n"
+        "  // B43: ``warn`` instead of ``throw``. The scaffold imports the\n"
+        "  // full Fabrik docs tree (BUSINESS_MODEL.md, STRATEGIC_BACKLOG.md,\n"
+        "  // README.md, etc.) which contain inter-doc links written for the\n"
+        "  // GitHub renderer (relative paths, ``.md`` suffixes, anchors that\n"
+        "  // don't match Docusaurus's slugified IDs). ``throw`` would block\n"
+        "  // every single proof-run on the first dangling link; ``warn``\n"
+        "  // surfaces the same information in build logs without failing.\n"
+        "  onBrokenLinks: 'warn',\n"
         "  onBrokenMarkdownLinks: 'warn',\n"
+        "\n"
+        "  // B42: treat ``.md`` files as plain CommonMark, ``.mdx`` as MDX.\n"
+        "  // Without this Docusaurus 3.x runs every ``.md`` through MDX 3,\n"
+        "  // which rejects markdown tables containing ``[brackets]``,\n"
+        "  // template-literal-like ``${var}`` strings, raw HTML attribute\n"
+        "  // values, and various other constructs that the scaffold's\n"
+        "  // standard meta-docs (``BUSINESS_MODEL.md``, ``CONFIGURATION.md``,\n"
+        "  // ``FEATURES.md``, ``QUICKSTART.md``) all contain. Surfaced by\n"
+        "  // proof-run on 2026-04-28.\n"
+        "  markdown: {\n"
+        "    format: 'detect',\n"
+        "  },\n"
         "\n"
         "  i18n: {\n"
         "    defaultLocale: 'en',\n"
@@ -2421,7 +2653,6 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "      ({\n"
         "        docs: {\n"
         "          sidebarPath: './sidebars.js',\n"
-        '          docItemComponent: "@theme/ApiItem",\n'
         "        },\n"
         "        blog: false,\n"
         "        theme: {\n"
@@ -2431,26 +2662,14 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "    ],\n"
         "  ],\n"
         "\n"
-        "  plugins: [\n"
-        "    [\n"
-        "      'docusaurus-plugin-openapi-docs',\n"
-        "      {\n"
-        "        id: 'api',\n"
-        "        docsPluginId: 'classic',\n"
-        "        config: {\n"
-        "          api: {\n"
-        "            specPath: './openapi.yaml',\n"
-        "            outputDir: 'docs/api',\n"
-        "            sidebarOptions: {\n"
-        "              groupPathsBy: 'tag',\n"
-        "            },\n"
-        "          },\n"
-        "        },\n"
-        "      },\n"
-        "    ],\n"
-        "  ],\n"
-        "\n"
-        "  themes: ['docusaurus-theme-openapi-docs'],\n"
+        "  // B38: ``docusaurus-plugin-openapi-docs`` and its theme were\n"
+        "  // removed from the default scaffold. The 4.3.x line passes an\n"
+        "  // options object to webpack's ProgressPlugin that fails schema\n"
+        "  // validation under @docusaurus/core 3.10.x (unknown properties:\n"
+        "  // 'name', 'color', 'reporters', 'reporter'). A bare Docusaurus\n"
+        "  // site builds and deploys cleanly; users who need OpenAPI-driven\n"
+        "  // API docs can opt back in by adding the plugin + theme and\n"
+        "  // restoring the apiSidebar. Surfaced by proof-run on 2026-04-28.\n"
         "\n"
         "  themeConfig:\n"
         "    /** @type {import('@docusaurus/preset-classic').ThemeConfig} */\n"
@@ -2464,12 +2683,6 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "            position: 'left',\n"
         "            label: 'Guides',\n"
         "          },\n"
-        "          {\n"
-        "            type: 'docSidebar',\n"
-        "            sidebarId: 'apiSidebar',\n"
-        "            position: 'left',\n"
-        "            label: 'API Reference',\n"
-        "          },\n"
         "        ],\n"
         "      },\n"
         "      footer: {\n"
@@ -2479,7 +2692,6 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "            title: 'Docs',\n"
         "            items: [\n"
         "              { label: 'Getting Started', to: '/docs/intro' },\n"
-        "              { label: 'API Reference', to: '/docs/api' },\n"
         "            ],\n"
         "          },\n"
         "        ],\n"
@@ -2496,23 +2708,18 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     )
     (project_dir / "docusaurus.config.js").write_text(config_js)
 
-    # Generate sidebars.js (with apiSidebar matching template contract)
+    # B38: sidebars.js without the apiSidebar entry (openapi plugin
+    # dropped from defaults). guideSidebar is autogenerated from the
+    # ``docs/`` tree, which now contains only ``intro.md`` plus whatever
+    # the user adds. Removing apiSidebar also removes the dangling
+    # ``require("./docs/api/sidebar.js")`` which would otherwise crash
+    # ``npm run build`` once that file is also gone.
     (project_dir / "sidebars.js").write_text(
         "// @ts-check\n"
         "/** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */\n"
         "const sidebars = {\n"
         "  // Instructional Guides\n"
         "  guideSidebar: [{type: 'autogenerated', dirName: '.'}],\n"
-        "\n"
-        "  // API Reference (Auto-generated from OpenAPI spec)\n"
-        "  apiSidebar: [\n"
-        "    {\n"
-        '      type: "category",\n'
-        '      label: "API Reference",\n'
-        '      link: { type: "generated-index", title: "API Reference" },\n'
-        '      items: require("./docs/api/sidebar.js"),\n'
-        "    },\n"
-        "  ],\n"
         "};\n"
         "\n"
         "export default sidebars;\n"
@@ -2548,22 +2755,23 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     # Create docs/api/sidebar.js (required by sidebars.js apiSidebar)
     api_dir = project_dir / "docs" / "api"
     api_dir.mkdir(parents=True, exist_ok=True)
+    # B37: empty placeholder. The previous version referenced a doc
+    # ``api/health-check`` that was never generated, causing every fresh
+    # docusaurus scaffold to fail ``npm run build`` with::
+    #
+    #   Invalid sidebar file at "sidebars.js".
+    #   These sidebar document ids do not exist: - api/health-check
+    #
+    # The real ``api/`` subtree is meant to be produced by
+    # ``docusaurus-plugin-openapi-docs`` via ``npm run gen-api``; until
+    # that runs there are no docs under ``docs/api/``, so the placeholder
+    # must be empty (not stub-pointing at a non-existent doc).
+    # Surfaced by proof-run on 2026-04-28.
     (api_dir / "sidebar.js").write_text(
-        "// Auto-generated placeholder — run `npm run gen-api` to regenerate\n"
-        "// from openapi.yaml via docusaurus-plugin-openapi-docs.\n"
-        "module.exports = [\n"
-        "  {\n"
-        '    type: "category",\n'
-        '    label: "System",\n'
-        "    items: [\n"
-        "      {\n"
-        '        type: "doc",\n'
-        '        id: "api/health-check",\n'
-        '        label: "Health Check",\n'
-        "      },\n"
-        "    ],\n"
-        "  },\n"
-        "];\n"
+        "// Auto-generated placeholder — empty until `npm run gen-api`\n"
+        "// regenerates this file from openapi.yaml via\n"
+        "// docusaurus-plugin-openapi-docs.\n"
+        "module.exports = [];\n"
     )
 
     # Create docs/intro.md
@@ -2632,6 +2840,39 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "# Node.js\n"
         "npm-debug.log*\n"
         "yarn-debug.log*\n"
+    )
+
+    # B36: render Dockerfile from the shipped Dockerfile.j2 template.
+    # The scaffolder previously generated ``compose.yaml``, ``package.json``,
+    # ``docusaurus.config.js`` and the docs tree but \u2014 as discovered by
+    # proof-run on 2026-04-28 \u2014 silently skipped the Dockerfile, so Coolify's
+    # buildpack failed at:
+    #   failed to read dockerfile: open Dockerfile: no such file or directory
+    # The .j2 here has no actual Jinja vars; it's a literal Dockerfile that
+    # needs ``npm ci`` swapped for ``npm install`` (no lockfile is generated
+    # at scaffold time \u2014 same pattern as ``_scaffold_node_api``,
+    # ``_scaffold_file_api``, ``_scaffold_saas_skeleton``).
+    dockerfile_src = DOCUSAURUS_TEMPLATE_DIR / "Dockerfile.j2"
+    if dockerfile_src.exists():
+        dockerfile = dockerfile_src.read_text().replace("RUN npm ci", "RUN npm install")
+        (project_dir / "Dockerfile").write_text(dockerfile)
+
+    # B20+B45: Coolify-correct compose for git-source deploys. Docusaurus
+    # serves its built static site on port 3000 by default
+    # (``docusaurus serve`` or the production server output of
+    # ``docusaurus build``). Healthcheck hits ``/docs/intro`` instead of
+    # ``/`` because Docusaurus's preset-classic does NOT auto-generate a
+    # root landing page \u2014 ``/`` returns 404 (404.html), while
+    # ``/docs/intro`` is the first guaranteed-200 page (the scaffolder
+    # always emits ``docs/intro.md``). Surfaced by proof-run on
+    # 2026-04-28: container ran fine, ``docusaurus serve`` reported
+    # success, but the healthcheck looped 404 for the entire start
+    # period and Coolify marked the app exited:unhealthy.
+    _write_canonical_compose(
+        project_dir,
+        name,
+        port=3000,
+        healthcheck_path="/docs/intro",
     )
 
 
@@ -2733,7 +2974,11 @@ def create_project(
     # Post-scaffold hook: sync project registry
     _post_scaffold_sync(project_dir)
 
-    # Auto-generate deployment spec for supported types
+    # Auto-generate deployment spec for supported types.
+    # ``use_database`` propagates the CLI ``--db`` flag through so the emitted
+    # spec carries ``shape.needs_database: true`` and the postgres registrar
+    # fires on ``fabrik apply``. Pre-fix (B1) the flag was silently dropped,
+    # so DB-backed projects deployed without a VPS Postgres database.
     if generate_spec and project_type in SPEC_ENABLED_TYPES:
         try:
             specs_dir = FABRIK_ROOT / "specs" / "services"
@@ -2746,6 +2991,7 @@ def create_project(
                 specs_dir,
                 secrets_from_env=secrets_from_env,
                 secrets_from_file=secrets_from_file,
+                use_database=bool(kwargs.get("use_database", False)),
             )
             logger.info("Generated spec: %s", spec_path.relative_to(FABRIK_ROOT))
         except Exception as exc:

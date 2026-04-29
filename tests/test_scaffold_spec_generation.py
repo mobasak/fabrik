@@ -146,7 +146,20 @@ class TestScaffoldSpecHook:
 
 
 class TestScaffoldSpecHookNewTypes:
-    """Tests that new scaffold types (docusaurus, mobile-app, desktop-app) trigger spec generation."""
+    """Tests for spec generation across project-type categories.
+
+    Two contracts are pinned here:
+
+    * **Deployable types** (docusaurus, plus the rest in
+      ``SPEC_ENABLED_TYPES``) trigger ``generate_and_save_spec`` so the
+      project is ready for ``fabrik apply``.
+    * **Artifact-only types** (mobile-app, desktop-app, chrome-extension)
+      MUST NOT trigger spec generation. These ship as packaged client
+      binaries (CRX, .dmg/.exe, APK/IPA), not VPS services. Pre-fix
+      (B3) the scaffolder emitted ``specs/services/<name>.yaml`` for
+      them with public domains \u2014 ``fabrik apply`` would have created
+      phantom Cloudflare DNS + Coolify resources.
+    """
 
     @patch("fabrik.scaffold.generate_and_save_spec")
     @patch("fabrik.scaffold._post_scaffold_sync")
@@ -177,10 +190,10 @@ class TestScaffoldSpecHookNewTypes:
     @patch("fabrik.scaffold.generate_and_save_spec")
     @patch("fabrik.scaffold._post_scaffold_sync")
     @patch("fabrik.scaffold._scaffold_shared")
-    def test_spec_generated_for_mobile_app(
+    def test_spec_not_generated_for_mobile_app(
         self, mock_shared: MagicMock, mock_sync: MagicMock, mock_gen: MagicMock, tmp_path: Path
     ) -> None:
-        """generate_and_save_spec is called for mobile-app when generate_spec=True."""
+        """B3 regression: mobile-app must NOT emit a deployment spec."""
         from fabrik.scaffold import create_project
 
         def fake_shared(pd: Path, *_args: object, **_kw: object) -> None:
@@ -198,15 +211,15 @@ class TestScaffoldSpecHookNewTypes:
             )
 
         assert result == tmp_path / "test-mobile"
-        mock_gen.assert_called_once()
+        mock_gen.assert_not_called()
 
     @patch("fabrik.scaffold.generate_and_save_spec")
     @patch("fabrik.scaffold._post_scaffold_sync")
     @patch("fabrik.scaffold._scaffold_shared")
-    def test_spec_generated_for_desktop_app(
+    def test_spec_not_generated_for_desktop_app(
         self, mock_shared: MagicMock, mock_sync: MagicMock, mock_gen: MagicMock, tmp_path: Path
     ) -> None:
-        """generate_and_save_spec is called for desktop-app when generate_spec=True."""
+        """B3 regression: desktop-app must NOT emit a deployment spec."""
         from fabrik.scaffold import create_project
 
         def fake_shared(pd: Path, *_args: object, **_kw: object) -> None:
@@ -226,7 +239,75 @@ class TestScaffoldSpecHookNewTypes:
             )
 
         assert result == tmp_path / "test-desktop"
+        mock_gen.assert_not_called()
+
+    @patch("fabrik.scaffold.generate_and_save_spec")
+    @patch("fabrik.scaffold._post_scaffold_sync")
+    @patch("fabrik.scaffold._scaffold_shared")
+    def test_spec_not_generated_for_chrome_extension(
+        self, mock_shared: MagicMock, mock_sync: MagicMock, mock_gen: MagicMock, tmp_path: Path
+    ) -> None:
+        """B3 regression: chrome-extension must NOT emit a deployment spec."""
+        from fabrik.scaffold import create_project
+
+        def fake_shared(pd: Path, *_args: object, **_kw: object) -> None:
+            pd.mkdir(parents=True, exist_ok=True)
+
+        mock_shared.side_effect = fake_shared
+
+        with patch.dict(
+            "fabrik.scaffold._TYPE_SCAFFOLDERS", {"chrome-extension": lambda *a, **kw: None}
+        ):
+            result = create_project(
+                "test-ext",
+                "A chrome extension",
+                base=tmp_path,
+                project_type="chrome-extension",
+                generate_spec=True,
+            )
+
+        assert result == tmp_path / "test-ext"
+        mock_gen.assert_not_called()
+
+    @patch("fabrik.scaffold.generate_and_save_spec")
+    @patch("fabrik.scaffold._post_scaffold_sync")
+    @patch("fabrik.scaffold._scaffold_shared")
+    def test_db_flag_propagates_to_generate_and_save_spec(
+        self,
+        mock_shared: MagicMock,
+        mock_sync: MagicMock,
+        mock_gen: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """B1 regression: ``--db`` must flow through to ``generate_and_save_spec``.
+
+        When the scaffolder is invoked with ``use_database=True``, the
+        kwarg must reach ``generate_and_save_spec`` so the emitted spec
+        carries ``shape.needs_database: true``. Pre-fix the kwarg was
+        silently dropped at the spec hook.
+        """
+        from fabrik.scaffold import create_project
+
+        def fake_shared(pd: Path, *_args: object, **_kw: object) -> None:
+            pd.mkdir(parents=True, exist_ok=True)
+
+        mock_shared.side_effect = fake_shared
+
+        with patch.dict("fabrik.scaffold._TYPE_SCAFFOLDERS", {"python-api": lambda *a, **kw: None}):
+            create_project(
+                "test-db-prop",
+                "A DB-backed API",
+                base=tmp_path,
+                project_type="python-api",
+                generate_spec=True,
+                use_database=True,
+            )
+
         mock_gen.assert_called_once()
+        kwargs = mock_gen.call_args.kwargs
+        assert kwargs.get("use_database") is True, (
+            f"--db must propagate; got use_database={kwargs.get('use_database')!r}"
+        )
 
 
 # ---------------------------------------------------------------------------

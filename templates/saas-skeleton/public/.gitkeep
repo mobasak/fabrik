@@ -1,0 +1,10 @@
+# B29: Next.js `public/` is where static assets (favicon, robots.txt, OG images)
+# live. The scaffold Dockerfile's runner stage runs
+# `COPY --from=builder /app/public ./public`. When the template ships WITHOUT
+# a `public/` directory the build fails with:
+#   failed to compute cache key: failed to calculate checksum of ref ...:
+#   "/app/public": not found
+# Surfaced by proof-run on 2026-04-28. Keeping this .gitkeep ensures the
+# directory survives `git` and `docker build`'s COPY. Real static assets
+# (favicon.ico, logo.svg, etc.) should replace this file when a project
+# actually needs them.

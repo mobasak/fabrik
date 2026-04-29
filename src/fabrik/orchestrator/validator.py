@@ -24,7 +24,12 @@ from fabrik.orchestrator.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
-REQUIRED_FIELDS = ["name", "template", "domain"]
+REQUIRED_FIELDS = ["name", "template"]
+# B34: ``domain`` is only required for HTTP-exposed services. Workers
+# (``kind: worker`` or ``expose.http: false``) have no Traefik route and
+# therefore no domain — emitting one would just be noise. The check is
+# applied conditionally below.
+DOMAIN_REQUIRED_FOR_HTTP = True
 
 # DNS resolution timeout for SSRF checks (seconds)
 DNS_TIMEOUT = 5
@@ -255,17 +260,35 @@ class SpecValidator:
         if not template_path.exists():
             warnings.append(f"Template not found: {template}")
 
-        # Validate domain format and security (SSRF prevention)
-        domain = spec["domain"]
-        if not isinstance(domain, str):
-            raise ValidationError("Domain must be a string", field="domain")
+        # B34: domain is only required when the service exposes HTTP.
+        # Workers (``kind: worker`` or ``expose.http: false``) skip this
+        # block entirely; they get no Traefik route, so no domain.
+        shape = spec.get("shape") or {}
+        expose = spec.get("expose") or {}
+        is_http_exposed = (
+            expose.get("http", True)
+            and shape.get("kind", spec.get("kind")) != "worker"
+        )
+        if is_http_exposed:
+            if "domain" not in spec:
+                raise ValidationError("Missing required field: domain", field="domain")
+            domain = spec["domain"]
+            if not isinstance(domain, str):
+                raise ValidationError("Domain must be a string", field="domain")
 
-        domain_error, normalized_domain = validate_domain_security(domain)
-        if domain_error:
-            raise ValidationError(domain_error, field="domain")
+            domain_error, normalized_domain = validate_domain_security(domain)
+            if domain_error:
+                raise ValidationError(domain_error, field="domain")
 
-        # Store normalized domain back to spec for consistent downstream usage
-        spec["domain"] = normalized_domain
+            # Store normalized domain back to spec for consistent downstream usage
+            spec["domain"] = normalized_domain
+        elif "domain" in spec:
+            # Worker spec accidentally has a domain — keep it but warn so we
+            # don't break anything that already works.
+            warnings.append(
+                "Worker spec has a 'domain' field but kind=worker / expose.http=false; "
+                "it will be ignored by the deployer."
+            )
 
         # Validate secrets - accepts both old list format and new SecretsPolicy dict
         if "secrets" in spec:
@@ -292,13 +315,16 @@ class SpecValidator:
             else:
                 raise ValidationError("Secrets must be a list or dict", field="secrets")
 
-        # Validate healthcheck
-        if "healthcheck" in spec:
-            hc = spec["healthcheck"]
+        # Validate health (B23: canonical key is `health`, not `healthcheck`.
+        # See `spec_loader.Spec.health` and `spec_generator.generate_spec`.
+        # Old code read `healthcheck:` which never existed on any spec, so
+        # this block was silently a no-op for 100% of deploys.)
+        if "health" in spec:
+            hc = spec["health"]
             if not isinstance(hc, dict):
-                raise ValidationError("Healthcheck must be a mapping", field="healthcheck")
+                raise ValidationError("Health must be a mapping", field="health")
             if "path" not in hc:
-                warnings.append("Healthcheck missing 'path', using /health")
+                warnings.append("Health missing 'path', using /health")
 
         logger.info("Spec validated: %s", spec["name"])
         return warnings

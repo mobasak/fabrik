@@ -44,7 +44,7 @@ fabrik apply --use-orchestrator spec.yaml  # Use new orchestrator
 | `validator.py` | 318 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
 | `deployer.py` | 278 | `ServiceDeployer.deploy(ctx)`, `find_existing(name)` — idempotent Coolify mutations (PATCH existing by name or POST new `dockercompose` app + `deploy(force=True)`), waits up to 90s for container Up |
 | `infrastructure.py` | 510 | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` — shape-driven dispatcher invoked between Deploy and Verify; runs postgres → gatus → backrest → glitchtip+DSN → grafana annotation → authelia rules (+ `^/api/` bypass) → meilisearch |
-| `verifier.py` | 372 | `DeploymentVerifier.verify(ctx)` — HTTP 200 on `/health`, DNS resolves, SSL valid, `SENTRY_DSN` in container env via `docker inspect` (see Lesson 31) |
+| `verifier.py` | 372 | `DeploymentVerifier.verify(ctx)` — HTTP 200 on the path declared in `spec["health"]["path"]` (see Lesson 32 — was previously hardcoded to `/health` via a silent fallback that masked all non-`/health` deploys as 404s; fixed B23, 2026-04-28), DNS resolves, SSL valid, `SENTRY_DSN` in container env via `docker inspect` (Lesson 31). Workers (no HTTP) skip the HTTP probe and assert `Coolify status == running:healthy`. |
 | `rollback.py` | 382 | `RollbackManager.rollback(ctx)` — LIFO reverse-order cleanup. DB drops are **logged for operator, not auto-executed**; config mutations and ephemeral resources (annotations, projects, DNS records) are auto-cleaned |
 | `content_publisher.py` | 613 | **Not deploy** — SEO → TCO → Image → WordPress content pipeline; reuses the context/state pattern |
 

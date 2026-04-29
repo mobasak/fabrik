@@ -320,6 +320,7 @@ def verify_dsn_injection(
     expected_dsn: str,
     max_wait: int = 60,
     poll_interval: float = 2.0,
+    coolify_app_uuid: str | None = None,
 ) -> bool:
     """Poll the running container until ``SENTRY_DSN`` matches ``expected_dsn``.
 
@@ -354,13 +355,22 @@ def verify_dsn_injection(
     attempts = 0
     while time.time() - start < max_wait:
         attempts += 1
-        # Match container by either Coolify's auto-name ``<name>-<uuid>-<ts>``
-        # (prefix + trailing dash) OR an explicit ``container_name: <name>``
-        # set by the compose template (exact match, no suffix). A project may
-        # be recreated mid-deploy, so the container name may not exist yet
-        # for the first few polls.
+        # Match container by either:
+        #   1. Coolify's auto-name ``<name>-<uuid>-<ts>`` (prefix + trailing dash)
+        #   2. An explicit ``container_name: <name>`` set by the compose
+        #      template (exact match, no suffix)
+        #   3. Coolify's app-uuid embedded in the name as ``<svc>-<uuid>-<ts>``
+        #      when the compose service is generic (e.g. ``app:``) — the
+        #      project_name prefix won't match in that case but the Coolify
+        #      app uuid is unique per resource and always present.
+        # A project may be recreated mid-deploy, so the container name may
+        # not exist yet for the first few polls.
+        if coolify_app_uuid:
+            grep_expr = f"^{project_name}(-|$)|-{coolify_app_uuid}-"
+        else:
+            grep_expr = f"^{project_name}(-|$)"
         container = ssh(
-            f"sudo docker ps --format '{{{{.Names}}}}' | grep -E '^{project_name}(-|$)' | head -1"
+            f"sudo docker ps --format '{{{{.Names}}}}' | grep -E '{grep_expr}' | head -1"
         ).strip()
         if container:
             # Read the env var from Docker daemon metadata rather than

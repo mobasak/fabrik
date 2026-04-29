@@ -2,8 +2,8 @@
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.
 
-**Last Updated:** 2026-04-22 (validated end-to-end against live VPS, all 9 registrars green, ~63s wall time for maximal shape)
-**Backup of prior version:** `docs/DEPLOYMENT.md.backup.*` (pre-rewrite)
+**Last Updated:** 2026-04-28 (live-deploy proof for all 7 deployable scaffold types — see `@/opt/fabrik/PROOF.md` and `CHANGELOG.md [Unreleased]` B23–B46. New harness: `@/opt/fabrik/scripts/proof_run.py`. New flag: `fabrik apply --keep-on-failure`. Previous milestone: 2026-04-22 — maximal-shape e2e on `python-api`, ~63s wall time, all 7 registrars green [postgres, gatus, backrest, glitchtip, grafana, authelia, meilisearch] — see `_REGISTRAR_ORDER` in `src/fabrik/orchestrator/infrastructure.py:84`.)
+**Backup of prior version:** `docs/archive/2026-04-28-DEPLOYMENT.md.backup.20260419-144040` (pre-rewrite)
 
 ## Table of Contents
 
@@ -607,7 +607,7 @@ EOF
 
 # 3. Deploy and time it
 time fabrik deploy --project /opt/fabrik-e2e-full-test
-# Expected: ~63s wall time (measured 2026-04-22, all 9 registrars green)
+# Expected: ~63s wall time (measured 2026-04-22, all 7 registrars green)
 
 # 4. Verify every registrar touched the right place
 ssh vps 'sudo docker ps --format "{{.Names}}" | grep fabrik-e2e-full'            # Coolify

@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-04-24 18:54:06 -->
-<!-- Total projects: 35 -->
+<!-- Last synced: 2026-04-29 00:01:40 -->
+<!-- Total projects: 47 -->
 
 ### Production Services (10 projects)
 
@@ -100,44 +100,56 @@ With ~$50/month infrastructure cost:
 |---------|---------|-------|--------|-----|----------|
 | **captcha** | A REST API service for solving captchas. Other applications can call this service to solve reCA... | Python | ✅ Production | https://captcha.vps1.ocoron.com | ✅ Current |
 | **dns-manager** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
-| **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, id... | Fastify | ✅ Production | - | ✅ Current |
+| **emailgateway** | A provider-agnostic email gateway service with built-in routing, retry logic, rate limiting, id... | Fastify | ✅ Production | https://emailgateway.vps1.ocoron.com | ✅ Current |
 | **file-api** | Presigned URL service for Cloudflare R2 file uploads/downloads. | Express | ✅ Production | https://files-api.vps1.ocoron.com | ✅ Current |
 | **file-worker** | Background file processing worker for async file operations. | Python | ✅ Production | - | ✅ Current |
-| **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C... | Python | ✅ Production | - | ✅ Current |
-| **proxy** | Service-isolated proxy management API with Webshare.io integration and per-service health track... | Python | ✅ Production | - | ✅ Current |
+| **image-broker** | Unified API for stock image providers with **smart routing, deterministic scoring, and Option C... | Python | ✅ Production | https://images.vps1.ocoron.com | ✅ Current |
+| **proxy** | **Status:** Production Ready - Proxy Management API ✅ | Python | ✅ Production | Multi-service proxy broker | ✅ Current |
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (9 projects)
+### Active Development (21 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
-| **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | - | ✅ Current |
+| **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | https://calendar-orchestration-engine.vps1.ocoron.com | ✅ Current |
 | **candle** | FastAPI microservice project (in development). | FastAPI | 🔨 Development | - | ✅ Current |
 | **fabrik-smoke-test** | Smoke test project for all Fabrik deployment features | FastAPI | 🔨 Development | - | ✅ Current |
-| **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | - | ✅ Current |
-| **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | - | ✅ Current |
-| **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | - | ✅ Current |
-| **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | - | ✅ Current |
+| **fabrik-test-chrome-extension** | Test scaffold: Chrome extension (MV3) | Python | 🔨 Development | - | ✅ Current |
+| **fabrik-test-desktop-app** | Test scaffold: Electron desktop | Node.js | 🔨 Development | - | ✅ Current |
+| **fabrik-test-docusaurus** | proof-run dummy for docusaurus | Node.js | 🔨 Development | - | ✅ Current |
+| **fabrik-test-file-api** | proof-run dummy for file-api | Express | 🔨 Development | - | ✅ Current |
+| **fabrik-test-file-worker** | proof-run dummy for file-worker | Python | 🔨 Development | - | ✅ Current |
+| **fabrik-test-mobile-app** | Test scaffold: React Native mobile | Node.js | 🔨 Development | - | ✅ Current |
+| **fabrik-test-node-api** | proof-run dummy for node-api | Node.js | 🔨 Development | - | ✅ Current |
+| **fabrik-test-python-api** | proof-run dummy for python-api | FastAPI | 🔨 Development | - | ✅ Current |
+| **fabrik-test-saas-skeleton** | proof-run dummy for saas-skeleton | Node.js | 🔨 Development | - | ✅ Current |
+| **fabrik-test-static-site** | proof-run dummy for static-site | Node.js | 🔨 Development | - | ✅ Current |
+| **fabrik-test-wordpress** | Test scaffold: WordPress (saas preset) | WordPress | 🔨 Development | - | ✅ Current |
+| **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | https://job-agent.vps1.ocoron.com | ✅ Current |
+| **longephedia-vault** | Structured ontology + RAG over Longephedia constitution (12 themes, discipline rules, protocols... | FastAPI | 🔨 Development | - | ✅ Current |
+| **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | https://proposal-creator.vps1.ocoron.com | ✅ Current |
+| **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | https://seo.vps1.ocoron.com | ✅ Current |
+| **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | https://trade-intelligence.vps1.ocoron.com | ✅ Current |
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
-| **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | - | ✅ Current |
+| **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | https://triggered-content-orchestration.vps1.ocoron.com | ✅ Current |
 
 ### Planning/Research (16 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
-| **ComplianceOps** | Async compliance service platform for HealthTech startups. | Python | 🔨 Development | - | ✅ Current |
-| **Reference_Creator** | Automated reference document creator from source materials. | Python | 🔨 Development | - | ✅ Current |
+| **ComplianceOps** | Async compliance service platform for HealthTech startups. | Python | 🔨 Development | https://compliance-ops.vps1.ocoron.com | ✅ Current |
+| **Reference_Creator** | Automated reference document creator from source materials. | Python | 🔨 Development | https://reference-creator.vps1.ocoron.com | ✅ Current |
 | **apidoccreator** | External documentation registry. Scrapes, generates, stores and serves docs for AI agent consum... | FastAPI | 🔨 Development | - | ✅ Current |
-| **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | Python | 🔨 Development | - | ✅ Current |
-| **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | - | ✅ Current |
-| **exam-coach** | AI-powered exam preparation and coaching assistant. | Python | 🔨 Development | - | ✅ Current |
+| **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | Python | 🔨 Development | https://brand-identity-creator.vps1.ocoron.com | ✅ Current |
+| **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | https://email-reader.vps1.ocoron.com | ✅ Current |
+| **exam-coach** | AI-powered exam preparation and coaching assistant. | Python | 🔨 Development | https://exam-coach.vps1.ocoron.com | ✅ Current |
 | **gmailaccountcreator** | Automated Gmail account creation and management tool. | Python | 🔨 Development | - | ✅ Current |
 | **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Python | 🔨 Development | - | ✅ Current |
-| **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | - | ✅ Current |
+| **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | https://iterative-image-editor.vps1.ocoron.com | ✅ Current |
 | **llm_batch_processor** | A self-hosted automation tool for processing documents through Claude and ChatGPT web interface... | Python | 🔨 Development | - | ✅ Current |
-| **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | - | ✅ Current |
+| **marketing-argumant-generator** | AI-powered marketing argument and copy generation tool. | Python | 🔨 Development | https://marketing-argument-generator.vps1.ocoron.com | ✅ Current |
 | **namecheap** | Namecheap domain management utilities (precursor to dns-manager). | Python | 🔨 Development | - | ✅ Current |
 | **supplement-tracker-advisor** | Health supplement tracking and personalized advisory system. | Python | 🔨 Development | - | ✅ Current |
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |

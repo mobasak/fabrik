@@ -80,6 +80,12 @@ Code must work in all three envs without modification:
 - **Present before execute:** present plan, wait for approval, then execute. Read-only commands (`ls`/`cat`/`find`/`grep`/`head`/`tail`) exempt.
 - **No unsolicited advice:** no breaks, no lifestyle tips, no non-task commentary.
 
+## Web Search Tools (for agents without native web search)
+When web search is needed, use these available tools:
+- `mcp2_web_search_exa` - Exa web search (superior results, requires Exa MCP configured)
+- `mcp3_firecrawl_search` - Firecrawl search (available, requires Firecrawl API key)
+- `search_web` - General web search (native Windsurf tool, no quota)
+
 ## Essential Invariants
 - No hardcoded `localhost`/`127.0.0.1`/DB strings/keys/passwords. Always `os.getenv("KEY", "default")`.
 - Base images: `slim-bookworm` only. Never Alpine.

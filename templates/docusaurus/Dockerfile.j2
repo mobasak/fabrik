@@ -24,6 +24,12 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json ./
+# B44: ``docusaurus serve`` needs the config file at runtime to know what
+# to serve and the sidebar to render. Without these the container exits 1
+# with "No config file found in site dir" and Coolify reports
+# exited:unhealthy. Surfaced by proof-run on 2026-04-28.
+COPY --from=builder /app/docusaurus.config.js ./
+COPY --from=builder /app/sidebars.js ./
 RUN npm install --omit=dev
 
 # Create non-root user

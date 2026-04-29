@@ -27,14 +27,34 @@ from fabrik.spec_loader import Kind, load_spec
 class TestConstants:
     """Verify module-level constants are correctly defined."""
 
-    def test_spec_enabled_types_has_10_entries(self):
-        assert len(SPEC_ENABLED_TYPES) == 10
+    def test_spec_enabled_types_has_seven_entries(self):
+        # 7 deployable types: python-api, node-api, saas-skeleton, file-api,
+        # file-worker, static-site, docusaurus. Artifact-only types
+        # (chrome-extension, desktop-app, mobile-app) and the WordPress path
+        # are intentionally excluded — see ``SPEC_ENABLED_TYPES`` docstring.
+        assert len(SPEC_ENABLED_TYPES) == 7
 
     def test_file_worker_in_enabled_types(self):
         assert "file-worker" in SPEC_ENABLED_TYPES
 
     def test_wordpress_excluded_from_enabled_types(self):
         assert "wordpress" not in SPEC_ENABLED_TYPES
+
+    def test_artifact_types_excluded_from_enabled_types(self):
+        """B3 regression: chrome-extension/desktop-app/mobile-app must NOT
+        emit a deployable spec.
+
+        Why: those types are packaged client artifacts (CRX, .dmg/.exe,
+        APK/IPA), not VPS services. Pre-fix the scaffolder emitted
+        ``specs/services/<name>.yaml`` for them with a public domain
+        and ``expose.http: true`` — ``fabrik apply`` would have created
+        a phantom Cloudflare DNS record + Coolify app on every run.
+        """
+        for artifact_type in ("chrome-extension", "desktop-app", "mobile-app"):
+            assert artifact_type not in SPEC_ENABLED_TYPES, (
+                f"{artifact_type!r} is a client-side artifact (not VPS-deployable) "
+                f"and must not be in SPEC_ENABLED_TYPES"
+            )
 
     def test_secret_patterns_are_uppercase(self):
         for pattern in SECRET_PATTERNS:
@@ -52,11 +72,12 @@ class TestNewTypeDefaults:
     def test_docusaurus_health_path(self):
         assert _TYPE_DEFAULTS["docusaurus"]["health_path"] == "/"
 
-    def test_mobile_app_health_path(self):
-        assert _TYPE_DEFAULTS["mobile-app"]["health_path"] == "/health"
-
-    def test_desktop_app_health_path(self):
-        assert _TYPE_DEFAULTS["desktop-app"]["health_path"] == "/health"
+    def test_artifact_types_have_no_type_defaults(self):
+        """B3 regression: artifact-only types must not appear in
+        ``_TYPE_DEFAULTS`` either — the resource/health defaults are
+        meaningless for non-deployable types."""
+        for artifact_type in ("chrome-extension", "desktop-app", "mobile-app"):
+            assert artifact_type not in _TYPE_DEFAULTS
 
 
 # ---------------------------------------------------------------------------
@@ -369,29 +390,75 @@ class TestGenerateSpec:
         assert spec.resources.memory == "256M"
         assert spec.resources.cpu == "0.5"
 
-    def test_docusaurus_generates_service_kind(self):
+    def test_docusaurus_generates_static_kind(self):
+        """B4 regression: top-level ``kind`` is derived from
+        ``shape.kind``. Docusaurus is a static site, so both the
+        top-level ``kind`` and ``shape.kind`` must be ``static`` —
+        pre-fix they disagreed (top=service, shape=static)."""
         spec = generate_spec("my-docs", "docusaurus", "my-docs.vps1.ocoron.com")
-        assert spec.kind == Kind.SERVICE
+        assert spec.kind == Kind.STATIC
+        assert spec.shape is not None and spec.shape.kind == "static"
 
-    def test_mobile_app_generates_service_kind(self):
-        spec = generate_spec("my-mobile", "mobile-app", "my-mobile.vps1.ocoron.com")
-        assert spec.kind == Kind.SERVICE
-
-    def test_desktop_app_generates_service_kind(self):
-        spec = generate_spec("my-desktop", "desktop-app", "my-desktop.vps1.ocoron.com")
-        assert spec.kind == Kind.SERVICE
+    def test_static_site_generates_static_kind(self):
+        """B4 regression for static-site (same rationale as docusaurus)."""
+        spec = generate_spec("my-site", "static-site", "my-site.vps1.ocoron.com")
+        assert spec.kind == Kind.STATIC
+        assert spec.shape is not None and spec.shape.kind == "static"
 
     def test_docusaurus_health_path_is_root(self):
         spec = generate_spec("my-docs", "docusaurus", "my-docs.vps1.ocoron.com")
         assert spec.health.path == "/"
 
-    def test_mobile_app_health_path(self):
-        spec = generate_spec("my-mobile", "mobile-app", "my-mobile.vps1.ocoron.com")
-        assert spec.health.path == "/health"
+    def test_artifact_types_raise_value_error(self):
+        """B3 regression: passing an artifact-only type to generate_spec
+        must raise ``ValueError``, not silently emit a phantom spec."""
+        for artifact_type in ("chrome-extension", "desktop-app", "mobile-app"):
+            with pytest.raises(ValueError, match="Unsupported project type"):
+                generate_spec(
+                    f"my-{artifact_type}",
+                    artifact_type,
+                    f"my-{artifact_type}.vps1.ocoron.com",
+                )
 
-    def test_desktop_app_health_path(self):
-        spec = generate_spec("my-desktop", "desktop-app", "my-desktop.vps1.ocoron.com")
-        assert spec.health.path == "/health"
+    def test_use_database_propagates_to_shape(self):
+        """B1 regression: ``use_database=True`` must overlay
+        ``shape.needs_database = True`` even when the template's
+        ``defaults.yaml`` says false.
+
+        Why: ``fabrik scaffold --db`` creates a local PostgreSQL DB but
+        pre-fix the flag was silently dropped at spec generation, so
+        the postgres registrar would skip on apply — a DB-backed
+        project would deploy without a VPS database (silent feature
+        breakage).
+        """
+        spec_off = generate_spec("db-off", "python-api", "db-off.vps1.ocoron.com")
+        assert spec_off.shape is not None
+        assert spec_off.shape.needs_database is False
+
+        spec_on = generate_spec(
+            "db-on",
+            "python-api",
+            "db-on.vps1.ocoron.com",
+            use_database=True,
+        )
+        assert spec_on.shape is not None
+        assert spec_on.shape.needs_database is True
+        # Also verify ``depends.postgres`` is wired so the rendered
+        # compose / orchestrator dependency graph reflects the DB.
+        assert spec_on.depends.postgres == "main"
+
+    def test_emits_canonical_coolify_project(self):
+        """B2 regression: emitted specs MUST declare the canonical
+        ``coolify.project`` (``fabrik-services``), not the pydantic
+        default ``"default"``.
+
+        Why: post the deployer fix from the same session, an unset
+        ``COOLIFY_PROJECT_UUID`` env var falls back to
+        ``spec.coolify.project`` and would auto-create a useless
+        ``default`` project on every fresh-environment deploy.
+        """
+        spec = generate_spec("my-api", "python-api", "my-api.vps1.ocoron.com")
+        assert spec.coolify.project == "fabrik-services"
 
 
 # ---------------------------------------------------------------------------
@@ -467,3 +534,77 @@ class TestGenerateAndSaveSpec:
         result = generate_and_save_spec("my-api", "python-api", project, specs_dir)
         assert isinstance(result, Path)
         assert result.name == "my-api.yaml"
+
+
+# ---------------------------------------------------------------------------
+# B7: git remote detection -> source.type=git
+# ---------------------------------------------------------------------------
+
+
+class TestB7DetectGitSource:
+    """`detect_git_source` flips source.type to git when a remote exists.
+
+    Coolify v4 inline-compose has no source for `build:` to consume; spec must
+    point at a git repo so Coolify can clone it. See spec_generator.detect_git_source.
+    """
+
+    def _make_repo(self, tmp_path: Path, remote: str | None = "https://github.com/x/y.git") -> Path:
+        import subprocess
+        project = tmp_path / "p"
+        project.mkdir()
+        subprocess.run(["git", "-C", str(project), "init", "-q", "-b", "main"], check=True)
+        # need at least one commit so symbolic-ref works in some git versions
+        (project / "README.md").write_text("x")
+        subprocess.run(["git", "-C", str(project), "add", "-A"], check=True)
+        subprocess.run(
+            ["git", "-C", str(project), "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "i"],
+            check=True,
+        )
+        if remote:
+            subprocess.run(["git", "-C", str(project), "remote", "add", "origin", remote], check=True)
+        return project
+
+    def test_returns_none_when_no_git(self, tmp_path: Path):
+        from fabrik.spec_generator import detect_git_source
+        project = tmp_path / "no-git"
+        project.mkdir()
+        assert detect_git_source(project) is None
+
+    def test_returns_none_when_git_but_no_remote(self, tmp_path: Path):
+        from fabrik.spec_generator import detect_git_source
+        project = self._make_repo(tmp_path, remote=None)
+        assert detect_git_source(project) is None
+
+    def test_returns_source_with_git_type_and_remote_url(self, tmp_path: Path):
+        from fabrik.spec_generator import detect_git_source
+        from fabrik.spec_loader import SourceType
+        project = self._make_repo(tmp_path, remote="https://github.com/mobasak/foo.git")
+        src = detect_git_source(project)
+        assert src is not None
+        assert src.type == SourceType.GIT
+        assert src.repository == "https://github.com/mobasak/foo.git"
+        assert src.branch == "main"
+
+    def test_generate_spec_emits_git_source_when_project_path_has_remote(self, tmp_path: Path):
+        from fabrik.spec_generator import generate_spec
+        from fabrik.spec_loader import SourceType
+        project = self._make_repo(tmp_path, remote="git@github.com:mobasak/bar.git")
+        spec = generate_spec(
+            name="bar",
+            project_type="python-api",
+            domain="bar.vps1.ocoron.com",
+            project_path=project,
+        )
+        assert spec.source.type == SourceType.GIT
+        assert spec.source.repository == "git@github.com:mobasak/bar.git"
+
+    def test_generate_spec_falls_back_to_template_without_path(self):
+        from fabrik.spec_generator import generate_spec
+        from fabrik.spec_loader import SourceType
+        spec = generate_spec(
+            name="x",
+            project_type="python-api",
+            domain="x.vps1.ocoron.com",
+        )
+        assert spec.source.type == SourceType.TEMPLATE
+

@@ -1,5 +1,5 @@
 id: test-docs
-kind: service
+kind: static
 template: docusaurus
 domain: test-docs.vps1.ocoron.com
 shape:
@@ -17,14 +17,16 @@ source:
   type: template
   branch: main
 coolify:
-  project: default
+  project: fabrik-services
   server: localhost
 depends: {}
 infrastructure:
   database: local
   storage: local
   auth: none
-env: {}
+env:
+  PORT: '3000'
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
 secrets:
   required: []
   generate: []
@@ -38,6 +40,7 @@ health:
   interval: 30s
   timeout: 10s
   retries: 3
+  disabled: false
 volumes: []
 backup:
   enabled: true

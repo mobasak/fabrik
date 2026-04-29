@@ -34,7 +34,7 @@ class TestDeploymentVerifier:
             spec={
                 "name": "test",
                 "domain": "test.com",
-                "healthcheck": {"path": "/api/health"},
+                "health": {"path": "/api/health"},
             },
         )
 
@@ -58,7 +58,10 @@ class TestDeploymentVerifier:
             spec={"name": "test", "domain": "example.com"},
         )
 
-        with patch("fabrik.orchestrator.verifier.urlopen") as mock_urlopen:
+        # Force the stdlib-urlopen branch (no IP returned from DNS wait)
+        # so the test's ``urlopen`` mock is the one that's exercised.
+        with patch.object(verifier, "_wait_for_dns", return_value=None), \
+             patch("fabrik.orchestrator.verifier.urlopen") as mock_urlopen:
             mock_response = MagicMock()
             mock_response.getcode.return_value = 200
             mock_urlopen.return_value = mock_response
@@ -169,7 +172,7 @@ def _admin_spec(
     return {
         "name": "test-app",
         "domain": domain,
-        "healthcheck": {"path": "/"},
+        "health": {"path": "/"},
         "shape": {
             "is_admin_dashboard": is_admin_dashboard,
             "has_bearer_api": has_bearer_api,

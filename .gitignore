@@ -87,3 +87,8 @@ windsurf-memories/
 .hypothesis/
 # Pip install artifacts
 =*
+
+# Local debug/working artifacts (do not commit)
+proof-logs/
+FOLLOWUPS.md
+PROOF.md

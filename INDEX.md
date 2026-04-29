@@ -280,7 +280,7 @@ docs/
 │   ├── backup-strategy.md          # VPS backup strategy
 │   ├── coolify-migration.md        # Coolify migration procedures
 │   ├── disaster-recovery.md        # Backup and recovery procedures
-│   ├── duplicati-setup.md          # Duplicati backup configuration
+│   ├── (duplicati-setup.md → archived 2026-04-28; replaced by Backrest)
 │   ├── n8n-webhooks.md             # n8n webhook configuration
 │   ├── vps-status.md               # Current VPS state and configuration
 │   └── vps-urls.md                 # All deployed service URLs
@@ -414,8 +414,7 @@ docs/
 | [drivers.md](docs/reference/drivers.md) | Fabrik driver API (Coolify, DNS, etc.) |
 | [templates.md](docs/reference/templates.md) | Available deployment templates |
 | [SaaS-GUI.md](docs/reference/SaaS-GUI.md) | SaaS skeleton template guide |
-| [SCAFFOLD_TO_DEPLOY_INTEGRATION.md](docs/reference/SCAFFOLD_TO_DEPLOY_INTEGRATION.md) | Scaffold → Deploy workflow gaps & AI agent guidance |
-| [DEPLOY_TEMPLATE_AUDIT_2026-04-10.md](docs/reference/DEPLOY_TEMPLATE_AUDIT_2026-04-10.md) | Complete deploy template system audit & verification |
+<!-- archived 2026-04-28: SCAFFOLD_TO_DEPLOY_INTEGRATION.md (HISTORICAL gap analysis), DEPLOY_TEMPLATE_AUDIT_2026-04-10.md (HISTORICAL audit), POSTGRESQL_LOCAL_DEV_*.md ×4 (impl shipped, see CHANGELOG line 4041); see docs/archive/2026-04-28-* and docs/DEPLOYMENT.md for current canonical reference -->
 | [CRITICAL_RULES.md](docs/reference/CRITICAL_RULES.md) | Non-negotiable execution rules |
 | [DOCUMENTATION_STANDARD.md](docs/reference/DOCUMENTATION_STANDARD.md) | Documentation standards and conventions |
 | [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |
@@ -438,7 +437,7 @@ docs/
 | [vps-status.md](docs/operations/vps-status.md) | Current VPS state and configuration |
 | [vps-urls.md](docs/operations/vps-urls.md) | All deployed service URLs |
 | [disaster-recovery.md](docs/operations/disaster-recovery.md) | Backup and recovery procedures |
-| [duplicati-setup.md](docs/operations/duplicati-setup.md) | Duplicati backup configuration |
+<!-- duplicati-setup.md archived 2026-04-28; Backrest is the live backup tool — see backup.vps1.ocoron.com and AGENTS.md -->
 | [coolify-migration.md](docs/operations/coolify-migration.md) | Coolify migration procedures |
 
 ### Guides
@@ -475,6 +474,7 @@ docs/
 | [kilo_code_review.py](scripts/kilo_code_review.py) | Kilo CLI code review runner |
 | [kilo_docs_enforcer.py](scripts/kilo_docs_enforcer.py) | AI documentation enforcement |
 | [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (33 enforcement scripts) |
+| [proof_run.py](scripts/proof_run.py) | Live-deploy proof harness — scaffolds → pushes → `fabrik apply` → curl-verifies every type in `SCAFFOLD_TYPES` against the production VPS. Pulls Coolify build logs into `proof-logs/<type>-<ts>-build.log`. Supports `--keep-on-failure` and direct-Cloudflare DNS-cleanup fallback. Run quarterly + after any change to verifier/validator/spec_generator/scaffolder. See `PROOF.md` for the latest run output and `CHANGELOG.md [Unreleased]` B23–B46 for the 22 defects it surfaced on first execution. |
 | [check_print_ban.py](scripts/enforcement/check_print_ban.py) | Tier 1: Ban print()/console.log() in production code [reusable] |
 | [check_user_guide.py](scripts/enforcement/check_user_guide.py) | Tier 2: Verify docs/user-guide/ when has_user_guide: true [reusable] |
 | [check_reusable_modules.py](scripts/enforcement/check_reusable_modules.py) | Tier 2 advisory: Check [reusable] tags in INDEX.md [reusable] |

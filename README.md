@@ -1,6 +1,6 @@
 # Fabrik
 
-**Last Updated:** 2026-02-26
+**Last Updated:** 2026-04-26
 
 **AI-Driven Development Platform with Spec-to-Production Automation**
 
@@ -400,7 +400,7 @@ class ProvisionState(str, Enum):
 | **Grafana** | https://monitor.vps1.ocoron.com | Dashboards (Prometheus + Loki) |
 | **Prometheus + Alertmanager** | (internal :9090 / :9093) | Metrics, 9 alert rules → ARO Brain / Apprise |
 | **Loki + Promtail** | (internal :3100) | Log aggregation from all containers |
-| **Duplicati** | https://backup.vps1.ocoron.com | Encrypted backups to B2 |
+| **Backrest** | https://backup.vps1.ocoron.com | Restic-based backups to Backblaze B2 (replaced Duplicati 2026-04-17) |
 | **File API** | https://files-api.vps1.ocoron.com | File uploads (R2 storage) |
 
 ---
@@ -765,7 +765,7 @@ fabrik scaffold my-service
 | **Cache** | Redis |
 | **Storage** | Cloudflare R2 (S3-compatible) |
 | **Monitoring** | Gatus, Grafana, Prometheus, Alertmanager, Loki |
-| **Backups** | Duplicati → Backblaze B2 |
+| **Backups** | Backrest (restic) → Backblaze B2 |
 | **WordPress** | WP-CLI, REST API automation (2,500+ lines) |
 
 ---

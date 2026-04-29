@@ -3,21 +3,33 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 from pathlib import Path
 
 import yaml
 
 from fabrik.spec_loader import (
+    CoolifyConfig,
     Expose,
     Health,
     Kind,
     Resources,
     SecretsPolicy,
     Shape,
+    Source,
+    SourceType,
     Spec,
     create_spec,
     save_spec,
 )
+
+# Canonical Coolify project name on the live VPS. Every Fabrik-managed app
+# lives under this project unless the spec explicitly overrides ``coolify.project``.
+# Auto-generated specs declare it explicitly so a fresh clone (no
+# ``COOLIFY_PROJECT_UUID`` in env) deploys to the right place — see
+# ``orchestrator/deployer.py::_resolve_project_server_uuids`` for the
+# resolution order (env > spec > legacy fallback).
+DEFAULT_COOLIFY_PROJECT: str = "fabrik-services"
 
 # Templates directory — single source of truth for shape: blocks per scaffold type.
 # Phase 4k moved shape defaults out of Python (`_TYPE_DEFAULTS`) and into
@@ -31,6 +43,18 @@ logger = logging.getLogger(__name__)
 # Module-level constants
 # ---------------------------------------------------------------------------
 
+# Project types that are deployed to the VPS via Coolify. Each of these gets an
+# auto-generated ``specs/services/<name>.yaml`` so ``fabrik apply`` has
+# something to consume.
+#
+# **Excluded by design** (do NOT add):
+#   - ``chrome-extension`` / ``desktop-app`` / ``mobile-app``: packaged client
+#     artifacts (CRX, .dmg/.exe installer, APK/IPA). They ship via GitHub
+#     releases or app stores, never run on the VPS. Their ``defaults.yaml``
+#     even says so explicitly. Emitting a spec for them would create a
+#     phantom DNS record + Coolify app on every ``fabrik apply``.
+#   - ``wordpress``: uses the dedicated ``fabrik wp`` pipeline with a
+#     separate ``site.yaml`` schema, not ``specs/services/*``.
 SPEC_ENABLED_TYPES: frozenset[str] = frozenset(
     {
         "python-api",
@@ -38,11 +62,8 @@ SPEC_ENABLED_TYPES: frozenset[str] = frozenset(
         "node-api",
         "file-api",
         "file-worker",
-        "chrome-extension",
         "static-site",
         "docusaurus",
-        "mobile-app",
-        "desktop-app",
     }
 )
 
@@ -55,17 +76,17 @@ SECRET_PATTERNS: tuple[str, ...] = (
     "PRIVATE",
 )
 
+# Resource & health defaults per VPS-deployable project type. Keys MUST match
+# ``SPEC_ENABLED_TYPES``; artifact-only types (chrome-extension, desktop-app,
+# mobile-app) have no entry here because they don't deploy.
 _TYPE_DEFAULTS: dict[str, dict] = {
     "python-api": {"memory": "512M", "cpu": "0.5", "health_path": "/health"},
     "node-api": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "saas-skeleton": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "static-site": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
-    "chrome-extension": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "file-api": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "file-worker": {"memory": "256M", "cpu": "0.5", "health_path": None},
-    "docusaurus": {"memory": "256M", "cpu": "0.5", "health_path": "/"},
-    "mobile-app": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
-    "desktop-app": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
+    "docusaurus": {"memory": "256M", "cpu": "0.5", "health_path": "/docs/intro"},
 }
 
 # ---------------------------------------------------------------------------
@@ -255,13 +276,81 @@ def extract_project_context(project_path: Path) -> dict:
     }
 
 
+_SHAPE_KIND_TO_TOP_KIND: dict[str, Kind] = {
+    "service": Kind.SERVICE,
+    "worker": Kind.WORKER,
+    "static": Kind.STATIC,
+    "wordpress": Kind.WORDPRESS,
+}
+
+
+def detect_git_source(project_path: Path) -> Source | None:
+    """Detect a git remote on ``project_path`` and return a Source(type=git).
+
+    B7: Coolify v4's inline-compose endpoint receives only the rendered
+    compose YAML, no source tree. Compose templates that use ``build:
+    context: .`` therefore cannot deploy via the inline path — there is
+    nothing to build from. When the scaffolded project already has a git
+    remote we can flip ``source.type`` to ``git`` so Coolify clones the
+    repo before building. Working services (``proxy``, ``site-provisioner``,
+    etc.) all use this path; ``source.type=template`` was a dead path.
+
+    Returns:
+        ``Source(type=GIT, repository=<remote-url>, branch=<HEAD>)`` when a
+        remote is configured, otherwise ``None`` (caller falls back to the
+        legacy ``template`` source — which now logs a clear warning).
+    """
+    try:
+        url = (
+            subprocess.check_output(
+                ["git", "-C", str(project_path), "remote", "get-url", "origin"],
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            )
+            .decode()
+            .strip()
+        )
+        if not url:
+            return None
+        try:
+            branch = (
+                subprocess.check_output(
+                    ["git", "-C", str(project_path), "symbolic-ref", "--short", "HEAD"],
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                )
+                .decode()
+                .strip()
+                or "main"
+            )
+        except subprocess.SubprocessError:
+            branch = "main"
+        return Source(type=SourceType.GIT, repository=url, branch=branch)
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return None
+
+
 def generate_spec(
     name: str,
     project_type: str,
     domain: str | None,
     context: dict | None = None,
+    use_database: bool = False,
+    project_path: Path | None = None,
 ) -> Spec:
     """Build a :class:`Spec` for a scaffolded project.
+
+    Args:
+        name: Project name (also the Coolify app name).
+        project_type: One of :data:`SPEC_ENABLED_TYPES`.
+        domain: FQDN for the deployed service (or ``None`` for workers).
+        context: Extracted project context (env vars, secrets, deps).
+        use_database: When ``True``, force ``shape.needs_database = True``
+            in the emitted spec. This is what the ``fabrik scaffold --db``
+            flag plumbs through: ``--db`` creates a local PostgreSQL DB on
+            WSL **and** must trigger the postgres registrar on VPS apply.
+            Pre-fix (B1) the flag was silently dropped here, so apply
+            skipped the registrar even though the project was DB-backed.
 
     Raises:
         ValueError: If *project_type* is not in :data:`SPEC_ENABLED_TYPES`.
@@ -275,27 +364,39 @@ def generate_spec(
     ctx = context or {}
     defaults = _TYPE_DEFAULTS[project_type]
 
-    # Kind & expose
-    if project_type == "file-worker":
+    # Build shape from templates/<type>/defaults.yaml first — it is the
+    # source of truth for kind + applicability flags. ``use_database`` then
+    # overlays on top so the CLI ``--db`` flag survives spec emission.
+    shape = _build_shape_for_type(project_type)
+    if shape is not None and use_database:
+        shape = shape.model_copy(update={"needs_database": True})
+
+    # Top-level ``kind`` MUST match ``shape.kind`` so the spec is internally
+    # consistent (validators and downstream tooling key off both). Pre-fix
+    # (B4) static-site / docusaurus had top-level ``kind=service`` while
+    # ``shape.kind=static`` — semantically wrong even if benign at deploy.
+    if shape is not None:
+        kind = _SHAPE_KIND_TO_TOP_KIND.get(shape.kind, Kind.SERVICE)
+    elif project_type == "file-worker":
         kind = Kind.WORKER
-        expose = Expose(http=False)
-        domain = None  # workers have no domain
     else:
         kind = Kind.SERVICE
+
+    if kind == Kind.WORKER:
+        expose = Expose(http=False)
+        domain = None  # workers have no domain (no Traefik route, no Gatus)
+    else:
         expose = Expose()
 
-    # Resources
     resources = Resources(memory=defaults["memory"], cpu=defaults["cpu"])
 
-    # Health
     health_path = defaults["health_path"]
     health = Health(path=health_path) if health_path is not None else None
 
-    # Dependencies
     from fabrik.spec_loader import Depends
 
     depends = Depends(
-        postgres="main" if ctx.get("depends_postgres") else None,
+        postgres="main" if (ctx.get("depends_postgres") or use_database) else None,
         redis="main" if ctx.get("depends_redis") else None,
     )
 
@@ -306,6 +407,33 @@ def generate_spec(
         from_env=secrets_from_env,
         from_file=ctx.get("secrets_from_file", {}),
     )
+
+    # B2: emit the canonical Coolify project explicitly. Pre-fix the spec
+    # carried the pydantic CoolifyConfig defaults (``project="default"``,
+    # ``server="localhost"``) which, post deployer fix, would auto-create a
+    # useless "default" project on every fresh-environment deploy.
+    coolify = CoolifyConfig(project=DEFAULT_COOLIFY_PROJECT)
+
+    # B7: detect git remote → emit ``source.type: git`` so Coolify clones
+    # the repo before building. Falls back to ``template`` (the pydantic
+    # default) when no remote is configured; a clear warning is logged so
+    # the user knows the spec can't deploy until they push to a remote.
+    source: Source | None = None
+    if project_path is not None:
+        source = detect_git_source(project_path)
+    if source is None and project_path is not None:
+        logger.warning(
+            "No git remote configured at %s — emitting source.type=template. "
+            "This spec will fail Coolify deploy because the inline-compose "
+            "endpoint has no source for `build:`. Add a git remote and "
+            "re-emit: `git -C %s remote add origin <url> && git push -u origin main`",
+            project_path,
+            project_path,
+        )
+
+    extra: dict = {}
+    if source is not None:
+        extra["source"] = source
 
     return create_spec(
         id=name,
@@ -318,10 +446,12 @@ def generate_spec(
         depends=depends,
         secrets=secrets_policy,
         env=ctx.get("env", {}),
+        coolify=coolify,
         # Phase 4k: emit shape: from templates/<type>/defaults.yaml.
         # None is passed through when the template predates Phase 4k
         # (back-compat path — orchestrator tolerates a missing shape).
-        shape=_build_shape_for_type(project_type),
+        shape=shape,
+        **extra,
     )
 
 
@@ -332,10 +462,17 @@ def generate_and_save_spec(
     specs_dir: Path,
     secrets_from_env: list[str] | None = None,
     secrets_from_file: dict[str, str] | None = None,
+    use_database: bool = False,
 ) -> Path:
     """Extract project context, generate a spec, and save it.
 
     Returns the path to the saved spec file.
+
+    Args:
+        use_database: Forwarded to :func:`generate_spec`. ``True`` when the
+            scaffolder was invoked with ``--db`` — propagates through so the
+            emitted spec carries ``shape.needs_database: true`` and the
+            postgres registrar fires on apply.
 
     Raises:
         RuntimeError: If spec generation or saving fails.
@@ -352,6 +489,8 @@ def generate_and_save_spec(
             project_type=project_type,
             domain=f"{name}.vps1.ocoron.com",
             context=context,
+            use_database=use_database,
+            project_path=project_path,
         )
         spec_path = specs_dir / f"{name}.yaml"
         save_spec(spec, spec_path)

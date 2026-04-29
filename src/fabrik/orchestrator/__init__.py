@@ -73,7 +73,11 @@ class DeploymentOrchestrator:
         self.infrastructure_provisioner = infrastructure_provisioner or InfrastructureProvisioner()
 
     def deploy(
-        self, spec_path: Path, dry_run: bool = False, skip_health_check: bool = False
+        self,
+        spec_path: Path,
+        dry_run: bool = False,
+        skip_health_check: bool = False,
+        keep_on_failure: bool = False,
     ) -> DeploymentContext:
         """Run full deployment pipeline.
 
@@ -81,6 +85,11 @@ class DeploymentOrchestrator:
             spec_path: Path to spec YAML file
             dry_run: If True, simulate without making changes
             skip_health_check: If True, skip health check verification (useful for initial deployments)
+            keep_on_failure: B27 — when True, do NOT roll back created resources
+                on failure. The Coolify app, DNS records, GlitchTip project,
+                etc. all stay in place. Used by the proof-run harness so build
+                logs and container state survive long enough to be inspected.
+                Default ``False`` preserves the production fail-closed behavior.
 
         Returns:
             DeploymentContext with deployment details
@@ -200,15 +209,23 @@ class DeploymentOrchestrator:
 
             # Success
             self._transition(ctx, DeploymentState.COMPLETE)
-            logger.info("Deployment complete: %s", ctx.deployed_url or spec["domain"])
+            # B35: workers have no domain (validator/verifier already
+            # short-circuit for them). Fall back to the spec id so this
+            # log line doesn't raise ``KeyError: 'domain'`` and trigger the
+            # broad ``except Exception`` block below \u2014 which would then
+            # attempt an illegal COMPLETE -> FAILED transition.
+            logger.info(
+                "Deployment complete: %s",
+                ctx.deployed_url or spec.get("domain") or spec.get("id") or spec.get("name"),
+            )
 
         except (ValidationError, ProvisioningError, DeployError, VerificationError) as e:
             ctx.error = str(e)
             ctx.error_step = e.step if hasattr(e, "step") else None
             logger.error("Deployment failed at %s: %s", ctx.error_step, e)
 
-            # Attempt rollback
-            if ctx.created_resources:
+            # Attempt rollback (skipped under keep_on_failure)
+            if ctx.created_resources and not keep_on_failure:
                 self._transition(ctx, DeploymentState.ROLLING_BACK)
                 errors = self.rollback_manager.rollback(ctx)
                 if errors:
@@ -216,14 +233,20 @@ class DeploymentOrchestrator:
                 else:
                     self._transition(ctx, DeploymentState.ROLLED_BACK)
             else:
+                if keep_on_failure and ctx.created_resources:
+                    logger.warning(
+                        "keep_on_failure=True; skipping rollback of %d resource(s) "
+                        "so they can be inspected. Manual cleanup required.",
+                        len(ctx.created_resources),
+                    )
                 self._transition(ctx, DeploymentState.FAILED)
 
         except Exception as e:
             ctx.error = str(e)
             logger.exception("Unexpected error during deployment")
 
-            # Attempt rollback for unexpected errors too
-            if ctx.created_resources:
+            # Attempt rollback for unexpected errors too (skipped under keep_on_failure)
+            if ctx.created_resources and not keep_on_failure:
                 self._transition(ctx, DeploymentState.ROLLING_BACK)
                 errors = self.rollback_manager.rollback(ctx)
                 if errors:
@@ -231,6 +254,12 @@ class DeploymentOrchestrator:
                 else:
                     self._transition(ctx, DeploymentState.ROLLED_BACK)
             else:
+                if keep_on_failure and ctx.created_resources:
+                    logger.warning(
+                        "keep_on_failure=True; skipping rollback of %d resource(s) "
+                        "so they can be inspected. Manual cleanup required.",
+                        len(ctx.created_resources),
+                    )
                 self._transition(ctx, DeploymentState.FAILED)
 
         return ctx

@@ -62,6 +62,13 @@ Creates a new deployment spec from a selected template and writes it to the spec
 **Example:**
 
 ```bash
+# DEPRECATED 2026-04-22 (Phase 4k) — hidden from `fabrik --help`, prints deprecation
+# warning to stderr, scheduled for removal one release after next.
+# Canonical replacement: `fabrik scaffold` (auto-generates the spec in lock-step):
+#
+#   fabrik scaffold my-api --type python-api -d "REST API for users"
+#
+# Old form (still works for one more release):
 fabrik new my-api --template python-api --domain api.example.com
 ```
 

@@ -1,6 +1,6 @@
 # Troubleshooting
 
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-04-28 (added B23 verifier 404 / Docusaurus terminal grace entries from B23–B46 proof mission; replaced Duplicati block with one-paragraph migration notice — Backrest is the live backup tool since 2026-04-17)
 
 Common issues and solutions.
 
@@ -82,6 +82,37 @@ docker system prune -a
 du -sh /var/lib/docker/containers/*
 ```
 
+### Deploy succeeds in Coolify but `fabrik apply` reports "Health check failed: 404"
+
+**Symptom:** Coolify shows the container as `Up (healthy)`, but the orchestrator rolls the deploy back with a 404. Curl-ing the live URL works.
+
+**Cause (historical):** Pre-2026-04-28, the verifier read `spec["healthcheck"]["path"]` but the spec generator emitted `health.path`. The silent fallback was `/health`. For any scaffold type whose healthcheck wasn't `/health` (`saas-skeleton`, `static-site`, `node-api`, `file-api` all use `/api/health`; `docusaurus` uses `/docs/intro`), the verifier always probed `/health` and 404'd. Fixed in B23 (see `CHANGELOG.md [Unreleased]` and Lesson 32).
+
+**If you still see this:** verify the spec on disk matches the verifier's read site:
+
+```bash
+cat specs/services/<name>.yaml | grep -A2 '^health:'
+# health:
+#   path: /api/health     ← what the verifier should probe
+```
+
+Then re-run with `--keep-on-failure` to leave the container alive for inspection:
+
+```bash
+fabrik apply specs/services/<name>.yaml --use-orchestrator --keep-on-failure --yes
+curl -fsS https://<name>.vps1.ocoron.com/api/health   # verify path manually
+```
+
+If the manual curl succeeds but the orchestrator still 404s, the verifier is reading the wrong key — open an issue.
+
+### Docusaurus deploy reaches `running:healthy` after orchestrator gives up
+
+**Symptom:** `fabrik apply <docusaurus-spec>` fails verification, but `coolify` shows the container as `running:healthy` 1–2 minutes later.
+
+**Cause:** Multi-stage Node builds (`docusaurus`, `saas-skeleton`) take 60–90s during which Coolify reports the application as `exited:unhealthy` (old container removed, new one not yet running). Pre-2026-04-28 the orchestrator's `terminal_grace_period` was 30s — it gave up before the new container even started. Fixed in B46 (now 180s).
+
+**If you still see this with another slow-build type:** bump `terminal_grace_period` further in `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_app_status`. Genuine failures still terminate via Coolify's explicit `failed` deployment-job state, so longer grace only affects the legitimate deploy-recreate path.
+
 ### Port Already in Use
 
 **Symptom:** `Error: Port 8000 is already in use`
@@ -116,85 +147,9 @@ du -sh /var/lib/docker/containers/*
 3. Review backup logs in Coolify
 4. Test B2 connection: `b2 authorize-account`
 
-## Duplicati Issues
+## Backup Issues (Backrest)
 
-### Duplicati Bad Gateway
-
-**Symptom:** https://backup.vps1.ocoron.com returns "Bad Gateway" error
-
-**Cause:** Duplicati server crashed inside the container (often due to file permission issues or lock file conflicts). Container shows as "Up" but the internal server process is dead.
-
-**Diagnosis:**
-```bash
-# Check if container is running (misleading - may show Up)
-ssh vps "sudo docker ps --filter name=duplicati"
-
-# Check actual server status - look for crash traces
-ssh vps "sudo docker logs duplicati 2>&1 | tail -20"
-
-# Test if server is responding internally
-ssh vps "sudo docker exec duplicati curl -s http://localhost:8200/"
-```
-
-**Solution:**
-```bash
-# Restart the container
-ssh vps "sudo docker restart duplicati"
-
-# Verify it's working
-curl -s -o /dev/null -w '%{http_code}' https://backup.vps1.ocoron.com/
-# Should return 200
-```
-
-### Duplicati Login Not Working
-
-**Symptom:** Password rejected at login page
-
-**Cause:** Password is set via `CLI_ARGS` environment variable when container starts
-
-**Solution:**
-```bash
-# Check current password in container env
-ssh vps "sudo docker inspect duplicati --format '{{.Config.Env}}' | tr ' ' '\n' | grep webservice-password"
-
-# Password is in fabrik .env
-grep DUPLICATI_PASSWORD /opt/fabrik/.env
-```
-
-### Backup Job Not Visible in Web UI
-
-**Symptom:** Created backup job via script but doesn't appear in UI
-
-**Cause:** Job created in wrong database or server not restarted after DB changes
-
-**Solution:**
-```bash
-# Verify job exists in server database
-ssh vps "sudo sqlite3 /var/lib/docker/volumes/duplicati_duplicati-config/_data/Duplicati-server.sqlite 'SELECT * FROM Backup;'"
-
-# Restart Duplicati to reload
-ssh vps "sudo docker restart duplicati"
-```
-
-### Restore Not Working (Empty File List)
-
-**Symptom:** Backup exists but restore shows no files
-
-**Cause:** Local SQLite database (restore DB) not populated - happens when backup was run via CLI without `--dbpath` pointing to the correct location
-
-**Solution:**
-```bash
-# Check if restore DB exists
-ssh vps "sudo docker exec duplicati ls -la /config/*.sqlite"
-
-# Verify DBPath is set in Backup table
-ssh vps "sudo sqlite3 /var/lib/docker/volumes/duplicati_duplicati-config/_data/Duplicati-server.sqlite 'SELECT Name, DBPath FROM Backup;'"
-
-# If DBPath is empty, update it:
-ssh vps "sudo docker stop duplicati"
-ssh vps "sudo sqlite3 /var/lib/docker/volumes/duplicati_duplicati-config/_data/Duplicati-server.sqlite \"UPDATE Backup SET DBPath='/config/VPS-Complete-Backup.sqlite' WHERE ID=2;\""
-ssh vps "sudo docker start duplicati"
-```
+> **2026-04-17 migration:** Duplicati was replaced by Backrest at `backup.vps1.ocoron.com`. Backrest is restic-based with Backblaze B2 as the remote. Old Duplicati troubleshooting was archived to `docs/archive/2026-04-28-duplicati-setup.md`. For Backrest operations, see Backrest's web UI and `docs/operations/backup-strategy.md`.
 
 ## Getting Help
 

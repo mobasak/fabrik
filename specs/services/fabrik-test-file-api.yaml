@@ -1,0 +1,51 @@
+id: fabrik-test-file-api
+kind: service
+template: file-api
+domain: fabrik-test-file-api.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: true
+  needs_database: false
+  has_search_feature: false
+expose:
+  http: true
+  internal_only: false
+source:
+  type: git
+  repository: https://github.com/mobasak/fabrik-test-file-api.git
+  branch: mobasak/fabrik-test-file-api
+coolify:
+  project: fabrik-services
+  server: localhost
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  PORT: '3000'
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+secrets:
+  required: []
+  generate: []
+  from_env:
+  - SUPABASE_SERVICE_ROLE_KEY
+  - R2_SECRET_ACCESS_KEY
+  from_file: {}
+resources:
+  memory: 256M
+  cpu: '0.5'
+health:
+  path: /api/health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  disabled: false
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30

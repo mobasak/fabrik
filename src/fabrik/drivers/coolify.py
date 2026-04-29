@@ -167,6 +167,15 @@ class CoolifyClient:
 
         url = f"{self.base_url}{endpoint}"
         response = self._client.request(method, url, **kwargs)
+        if response.status_code >= 400:
+            body_preview = response.text[:2000] if response.content else ""
+            logger.error(
+                "Coolify API %s %s failed: status=%d body=%s",
+                method,
+                endpoint,
+                response.status_code,
+                body_preview,
+            )
         response.raise_for_status()
 
         # Some endpoints return empty response
@@ -361,6 +370,22 @@ class CoolifyClient:
         Raises:
             HTTPStatusError: 409 if app already exists (handle as idempotent)
         """
+        # Coolify v4's /applications/dockercompose endpoint rejects compose YAML
+        # containing non-ASCII characters with a misleading "should be base64
+        # encoded" 422 error (verified 2026-04-27 via bisect against a working
+        # minimal compose). Surface a clear error here instead of letting the
+        # request hit Coolify and waste debugging time.
+        try:
+            docker_compose_raw.encode("ascii")
+        except UnicodeEncodeError as exc:
+            non_ascii = sorted({c for c in docker_compose_raw if ord(c) > 127})
+            raise ValueError(
+                f"docker_compose_raw contains non-ASCII characters {non_ascii!r}. "
+                "Coolify v4 rejects these with a misleading 422 'should be base64 "
+                "encoded' error. Replace em-dashes/smart-quotes/etc. in the source "
+                "template with ASCII equivalents."
+            ) from exc
+
         # Coolify API v4 requires base64-encoded docker_compose_raw
         try:
             docker_compose_b64 = base64.b64encode(docker_compose_raw.encode()).decode()
@@ -403,7 +428,6 @@ class CoolifyClient:
         environment_uuid: str,
         git_repository: str,
         git_branch: str = "main",
-        private_key_uuid: str | None = None,
         build_pack: Literal["dockercompose", "dockerfile", "nixpacks"] = "dockercompose",
         docker_compose_location: str = "/compose.yaml",
         name: str | None = None,
@@ -411,12 +435,13 @@ class CoolifyClient:
         environment_name: str = "production",
         instant_deploy: bool = False,
         ports_exposes: str = "8000",
+        domains: str | None = None,
     ) -> dict[str, Any]:
-        """Create an application from a git repository (private or public).
+        """Create an application from a git repository.
 
-        Uses POST /applications/private-deploy-key for private repos and
-        POST /applications for public repos. The private-deploy-key endpoint
-        is Coolify's dedicated path for SSH-key-authenticated git clones.
+        Uses POST /applications with git_repository and git_branch fields.
+        Coolify v4.0.0+ auto-selects SSH keys based on the repo URL from configured
+        SSH keys in Coolify settings — no manual private key UUID resolution needed.
 
         Args:
             project_uuid: UUID of project to add app to
@@ -424,8 +449,6 @@ class CoolifyClient:
             environment_uuid: UUID of the environment (required by Coolify)
             git_repository: Git repository URL (e.g. git@github.com:user/repo.git)
             git_branch: Git branch to deploy (default: main)
-            private_key_uuid: UUID of the SSH deploy key in Coolify.
-                Required for private repos. Omit for public repos.
             build_pack: Build method (default: dockercompose for compose-based deploys)
             docker_compose_location: Path to compose file in repo (default: /compose.yaml)
             name: Application name
@@ -439,51 +462,48 @@ class CoolifyClient:
             Created application dict with uuid
 
         Raises:
-            ValueError: If private_key_uuid is missing for private repos
             HTTPStatusError: On Coolify API errors
         """
-        if private_key_uuid:
-            # Private repo: use dedicated endpoint
-            payload = {
-                "project_uuid": project_uuid,
-                "server_uuid": server_uuid,
-                "environment_name": environment_name,
-                "environment_uuid": environment_uuid,
-                "private_key_uuid": private_key_uuid,
-                "git_repository": git_repository,
-                "git_branch": git_branch,
-                "build_pack": build_pack,
-                "ports_exposes": ports_exposes,
-                "instant_deploy": instant_deploy,
-            }
-            if name:
-                payload["name"] = name
-            if description:
-                payload["description"] = description
-            if build_pack == "dockercompose":
-                payload["docker_compose_location"] = docker_compose_location
-            return self._request("POST", "/applications/private-deploy-key", json=payload)
-        else:
-            # Public repo: use generic /applications endpoint
-            payload = {
-                "project_uuid": project_uuid,
-                "server_uuid": server_uuid,
-                "environment_name": environment_name,
-                "environment_uuid": environment_uuid,
-                "type": "public",
-                "git_repository": git_repository,
-                "git_branch": git_branch,
-                "build_pack": build_pack,
-                "ports_exposes": ports_exposes,
-                "instant_deploy": instant_deploy,
-            }
-            if name:
-                payload["name"] = name
-            if description:
-                payload["description"] = description
-            if build_pack == "dockercompose":
-                payload["docker_compose_location"] = docker_compose_location
-            return self._request("POST", "/applications", json=payload)
+        # Coolify v4.0.0+ accepts either ``environment_name`` or
+        # ``environment_uuid`` on POST /applications. We send ``environment_uuid``
+        # (the project-scoped, unambiguous identifier resolved by
+        # ``ServiceDeployer._resolve_environment_uuid``); ``environment_name``
+        # is intentionally dropped to avoid sending two source-of-truth fields.
+        del environment_name  # unused — kept in signature for API compat
+        payload = {
+            "project_uuid": project_uuid,
+            "server_uuid": server_uuid,
+            "environment_uuid": environment_uuid,
+            "git_repository": git_repository,
+            "git_branch": git_branch,
+            "build_pack": build_pack,
+            "ports_exposes": ports_exposes,
+            "instant_deploy": instant_deploy,
+        }
+        if name:
+            payload["name"] = name
+        if description:
+            payload["description"] = description
+        if build_pack == "dockercompose":
+            payload["docker_compose_location"] = docker_compose_location
+        # B13: ``domains`` is a first-class field on POST /applications/public
+        # (per Coolify v4 OpenAPI). Without it Coolify auto-generates a
+        # ``<uuid>.<server-ip>.sslip.io`` FQDN and our verifier — which probes
+        # the *spec* domain — gets 404 from Traefik because no route exists.
+        # Format: ``https://<fqdn>`` (Coolify accepts comma-separated list).
+        if domains:
+            payload["domains"] = domains
+        # Coolify v4 split git-create by auth method:
+        #   /applications/public            — publicly cloneable repo
+        #   /applications/private-deploy-key — private repo + deploy key
+        #   /applications/private-github-app — private repo + GitHub App
+        # The legacy /applications endpoint returns 404. Public is the
+        # right default for HTTPS-cloneable URLs; private flavors require
+        # extra config (deploy-key UUID or GitHub App install) that is
+        # out of scope for this driver path. Callers using a private repo
+        # without a configured key will see Coolify's auth-failure log on
+        # the build, not a driver-side error.
+        return self._request("POST", "/applications/public", json=payload)
 
     def list_private_keys(self) -> list[dict[str, Any]]:
         """List SSH private keys registered in Coolify.

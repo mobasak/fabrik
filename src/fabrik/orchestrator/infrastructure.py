@@ -412,7 +412,7 @@ class InfrastructureProvisioner:
             # smoke tests. Bumped to 240s after observing a real Python app
             # (site-provisioner, 2026-04-22) rebuild successfully in ~100s but
             # past the 60s window, causing false-negative rollback.
-            if not verify_dsn_injection(name, dsn, max_wait=240):
+            if not verify_dsn_injection(name, dsn, max_wait=240, coolify_app_uuid=ctx.coolify_uuid):
                 # Ground-truth check failed: roll back the project so we
                 # don't leave an orphan, then raise so the caller can
                 # decide (typically: fail the deploy with full rollback).

@@ -1,6 +1,6 @@
 # Required Services
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-04-28 (services table refreshed — Backrest replaces Duplicati [migrated 2026-04-17]; Authelia, Gotenberg, MeiliSearch added; monitoring stack [Prometheus/Grafana/Loki/Promtail/Alertmanager/cAdvisor/node-exporter] migrated to Coolify management)
 
 Services Fabrik needs to function.
 
@@ -40,7 +40,7 @@ fabrik plan my-api      # Execute and exit
 | Redis | redis-main | 6379 | - (internal) | 🔒 Internal | Caching (optional) |
 | Netdata | netdata | 19999 | `https://netdata.vps1.ocoron.com` | 🔐 Password | System monitoring |
 | Gatus | gatus | 3001 | `https://status.vps1.ocoron.com` | 🔐 Password | Service monitoring |
-| Duplicati | duplicati | 8200 | `https://backup.vps1.ocoron.com` | 🔐 Password | Backup management |
+| Backrest | backrest | 9898 | `https://backup.vps1.ocoron.com` | 🔐 Authelia 2FA | Backup management (restic + Backblaze B2; replaced Duplicati 2026-04-17) |
 | Image Broker | image-broker | 8010 | `https://images.vps1.ocoron.com` | ⚠️ Open | Stock image API |
 | DNS Manager | dns-manager | 8001 | `https://dns.vps1.ocoron.com` | ⚠️ Open | DNS record management |
 | Translator | translator | 8000 | `https://translator.vps1.ocoron.com` | 🔑 API Key | Translation API |
@@ -510,7 +510,7 @@ postgres-main   Up 2 days
 redis-main      Up 2 days
 netdata         Up 2 days
 gatus          Up 2 days
-duplicati       Up 2 days
+backrest        Up 2 days
 image-broker    Up 1 hour (healthy)
 dns-manager     Up 2 days
 translator      Up 2 days
