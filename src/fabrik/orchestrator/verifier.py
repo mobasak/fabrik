@@ -176,7 +176,10 @@ class DeploymentVerifier:
         try:
             ns_result = subprocess.run(
                 ["dig", "+short", "NS", zone, "@1.1.1.1"],
-                capture_output=True, text=True, timeout=10, check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
             )
             nameservers = [ns.rstrip(".") for ns in ns_result.stdout.splitlines() if ns.strip()]
         except (subprocess.TimeoutExpired, OSError):
@@ -194,17 +197,27 @@ class DeploymentVerifier:
             try:
                 r = subprocess.run(
                     ["dig", "+short", "+time=3", "+tries=1", "A", domain, f"@{auth_ns}"],
-                    capture_output=True, text=True, timeout=10, check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
                 )
                 addr = next(
-                    (line.strip() for line in r.stdout.splitlines()
-                     if line.strip() and line[0].isdigit()),
+                    (
+                        line.strip()
+                        for line in r.stdout.splitlines()
+                        if line.strip() and line[0].isdigit()
+                    ),
                     None,
                 )
                 if addr:
                     logger.info(
                         "DNS resolved %s -> %s via %s after %.0fs (attempt %d)",
-                        domain, addr, auth_ns, time.time() - start, attempt,
+                        domain,
+                        addr,
+                        auth_ns,
+                        time.time() - start,
+                        attempt,
                     )
                     return addr
             except (subprocess.TimeoutExpired, OSError):
@@ -213,7 +226,9 @@ class DeploymentVerifier:
         logger.warning(
             "DNS for %s did not propagate within %ds (queried %s); "
             "proceeding to health check anyway",
-            domain, max_wait, auth_ns,
+            domain,
+            max_wait,
+            auth_ns,
         )
         return None
 
@@ -254,10 +269,14 @@ class DeploymentVerifier:
                 if not url.startswith("https://"):
                     raise ValueError(f"Only HTTPS URLs allowed: {url}")
                 if probe_via_ip:
-                    import httpx  # lazy — keeps import cost off the common path
                     from urllib.parse import urlsplit, urlunsplit
+
+                    import httpx  # lazy — keeps import cost off the common path
+
                     sp = urlsplit(url)
-                    ip_url = urlunsplit((sp.scheme, resolved_ip or "", sp.path, sp.query, sp.fragment))
+                    ip_url = urlunsplit(
+                        (sp.scheme, resolved_ip or "", sp.path, sp.query, sp.fragment)
+                    )
                     resp = httpx.get(
                         ip_url,
                         headers={"Host": host_header or ""},

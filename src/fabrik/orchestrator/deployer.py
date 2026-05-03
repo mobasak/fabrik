@@ -510,12 +510,16 @@ class ServiceDeployer:
                     logger.info(
                         "Coolify app %s reported terminal state %s; "
                         "waiting up to %.0fs to confirm (deploy-recreate transient possible)",
-                        uuid, status, terminal_grace_period,
+                        uuid,
+                        status,
+                        terminal_grace_period,
                     )
                 elif time.time() - terminal_first_seen >= terminal_grace_period:
                     logger.warning(
                         "Coolify app %s sustained terminal-failure state %s for %.0fs",
-                        uuid, status, terminal_grace_period,
+                        uuid,
+                        status,
+                        terminal_grace_period,
                     )
                     return False
             else:

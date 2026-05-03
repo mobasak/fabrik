@@ -58,9 +58,9 @@ Explore the project folder and derive the scaffold type from concrete signals �
 
 **Note on filesystem-indistinguishable scaffolds:** these groups share a base template (per `AGENTS.md` § Scaffold Types) and look identical on disk. Disambiguation requires `project.yaml.type` or an explicit user answer:
 
-- `python-api` ↔ `file-worker` 
-- `node-api` ↔ `file-api` 
-- `saas-skeleton` ↔ `static-site` 
+- `python-api` ↔ `file-worker`
+- `node-api` ↔ `file-api`
+- `saas-skeleton` ↔ `static-site`
 
 For new projects created via `fabrik scaffold.py`, `project.yaml.type` is set by the scaffolder, so no ambiguity arises in fresh scaffolds.
 
@@ -120,7 +120,7 @@ The base set is `AGENTS.md` § Planning Constraints (currently 10 items). The wo
 **Workflow overlays:**
 
 11. **Duplicate project** — similar project already in `docs/BUSINESS_MODEL.md`? State explicitly.
-12. **Design System** — for UI scaffolds, confirm `.windsurf/rules/ocoron-design-system.md` was read. State `Design system read.` or `No UI surface.` 
+12. **Design System** — for UI scaffolds, confirm `.windsurf/rules/ocoron-design-system.md` was read. State `Design system read.` or `No UI surface.`
 13. **Coolify health (operational readiness)** — Read `docs/infrastructure/COOLIFY_STATUS.md` for the last human-recorded status. State `Coolify: healthy / degraded / unknown` in INFRA-CHECK. *Architectural compatibility is constraint #7; do not collapse the two.* Heuristic staleness rule (subject to revision once `run_check_coolify_status()` ships per SN-9 in `docs/development/plans/fabrik-phase-gap-analysis.md`): treat the doc as **stale** if any of: (a) the date stated at the top of the doc is older than 7 days; (b) the doc contains internal contradictions (e.g. a service listed as both migrated and "Phase X — NEXT", or self-contradicting counts); (c) the user reports a deployment incident not yet reflected. When stale, render the field as `unknown — status doc stale, recommend regeneration via Coolify API`.
 14. **Platform debt** — aggregate open items from (a) `PORTS.md` `### ⚠️ Port Conflicts Detected`, (b) `docs/infrastructure/COOLIFY_STATUS.md` `## Summary → What Needs Attention`, and (c) `docs/infrastructure/COOLIFY_STATUS.md` `## Next Steps → Immediate`. **Always informational — never blocks the workflow.** Surface count + one-line summaries below INFRA-CHECK; the user decides whether to address or proceed.
 
@@ -171,7 +171,7 @@ State which rubric branch was chosen and why.
 
 Begin the summary with this header line emitted **verbatim**, all fields populated (use `unknown` if unverifiable, never blank):
 
-> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / project name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Coolify:* `healthy/degraded/unknown` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` 
+> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / project name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Coolify:* `healthy/degraded/unknown` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open`
 
 Immediately below the header, list the platform-debt items (one line each) when `<N>` &gt; 0.
 

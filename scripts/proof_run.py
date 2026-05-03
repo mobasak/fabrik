@@ -24,11 +24,10 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # --- config -----------------------------------------------------------------
@@ -71,18 +70,19 @@ NO_HTTP_TYPES = {"file-worker"}
 # `docusaurus` healthcheck.path defaults to `/` per spec_generator._TYPE_DEFAULTS.
 # `/` on a Docusaurus build serves the landing page with 200, so 200 is correct.
 ACCEPT_CODES: dict[str, set[int]] = {
-    "python-api":     {200},
-    "node-api":       {200},
-    "saas-skeleton":  {200},
-    "file-api":       {200},
-    "docusaurus":     {200},
-    "static-site":    {200},
+    "python-api": {200},
+    "node-api": {200},
+    "saas-skeleton": {200},
+    "file-api": {200},
+    "docusaurus": {200},
+    "static-site": {200},
     # file-worker: handled by NO_HTTP_TYPES, never curled
 }
 DEFAULT_ACCEPT = {200}
 
 
 # --- subprocess helpers -----------------------------------------------------
+
 
 class CmdFailed(RuntimeError):
     def __init__(self, cmd: list[str], returncode: int, stdout: str, stderr: str):
@@ -179,6 +179,7 @@ def run(
 
 # --- env loading ------------------------------------------------------------
 
+
 def load_env() -> dict[str, str]:
     """Load /opt/fabrik/.env keys we actually need. Skip malformed lines.
 
@@ -188,11 +189,18 @@ def load_env() -> dict[str, str]:
     infrastructure breakage unrelated to this mission).
     """
     keys_needed = {
-        "VPS_IP", "COOLIFY_API_URL", "COOLIFY_API_TOKEN",
-        "COOLIFY_SERVER_UUID", "COOLIFY_PROJECT_UUID", "COOLIFY_ENVIRONMENT_UUID",
-        "DNS_MANAGER_URL", "GITHUB_TOKEN", "GITHUB_USERNAME",
+        "VPS_IP",
+        "COOLIFY_API_URL",
+        "COOLIFY_API_TOKEN",
+        "COOLIFY_SERVER_UUID",
+        "COOLIFY_PROJECT_UUID",
+        "COOLIFY_ENVIRONMENT_UUID",
+        "DNS_MANAGER_URL",
+        "GITHUB_TOKEN",
+        "GITHUB_USERNAME",
         # H4: Cloudflare bypass
-        "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ZONE_ID_OCORON",
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ZONE_ID_OCORON",
     }
     loaded = {}
     env_file = FABRIK_ROOT / ".env"
@@ -212,15 +220,14 @@ def load_env() -> dict[str, str]:
 
 # --- per-step implementations ----------------------------------------------
 
+
 def cleanup(name: str, env: dict[str, str], log) -> None:
     """Destroy any prior deployment state for ``name``. Idempotent."""
     # SCOPE LOCK: belt-and-suspenders against typo / env-var injection.
     # Every destructive call below assumes name is bounded to fabrik-test-*.
     # If anything ever passes a different name, blow up loudly before touching
     # Coolify / DNS / GitHub / filesystem.
-    assert name.startswith("fabrik-test-"), (
-        f"refusing to cleanup non-test resource: {name!r}"
-    )
+    assert name.startswith("fabrik-test-"), f"refusing to cleanup non-test resource: {name!r}"
     print(f"\n━━━━━ cleanup({name}) ━━━━━", flush=True)
     log.write(f"\n━━━━━ cleanup({name}) ━━━━━\n")
 
@@ -230,7 +237,10 @@ def cleanup(name: str, env: dict[str, str], log) -> None:
         try:
             run(
                 [str(VENV_FABRIK), "destroy", str(spec_path), "--yes", "--drop-data"],
-                cwd=FABRIK_ROOT, check=False, logfile=log, timeout=300,
+                cwd=FABRIK_ROOT,
+                check=False,
+                logfile=log,
+                timeout=300,
             )
         except CmdFailed:
             pass
@@ -246,7 +256,8 @@ def cleanup(name: str, env: dict[str, str], log) -> None:
     # 3. Delete GitHub repo (idempotent — tolerate "not found")
     run(
         ["gh", "repo", "delete", f"{GH_USER}/{name}", "--yes"],
-        check=False, logfile=log,
+        check=False,
+        logfile=log,
         env_extra={"GH_TOKEN": env["GITHUB_TOKEN"]},
         timeout=30,
     )
@@ -271,11 +282,9 @@ def _cf_delete_dns_record(name: str, env: dict[str, str], log) -> None:
 
     Idempotent: missing record is not an error. Scope-locked to fabrik-test-*.
     """
-    assert name.startswith("fabrik-test-"), (
-        f"refusing to delete DNS for non-test record: {name!r}"
-    )
-    import urllib.request
+    assert name.startswith("fabrik-test-"), f"refusing to delete DNS for non-test record: {name!r}"
     import urllib.error
+    import urllib.request
 
     host = f"{name}.vps1.ocoron.com"
     zone_id = env["CLOUDFLARE_ZONE_ID_OCORON"]
@@ -318,6 +327,7 @@ def _delete_coolify_app_by_name(name: str, env: dict[str, str], log) -> None:
     sys.path.insert(0, str(FABRIK_ROOT / "src"))
     try:
         from fabrik.drivers.coolify import CoolifyClient
+
         c = CoolifyClient()
         apps = c.list_applications()
         for a in apps:
@@ -350,7 +360,9 @@ def assert_nxdomain(name: str, log, max_wait: int = 180) -> None:
     while time.time() < deadline:
         r = subprocess.run(
             ["dig", "+short", "+time=3", "+tries=1", "A", host, "@1.1.1.1"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         answer = r.stdout.strip()
         if not answer or "NXDOMAIN" in r.stderr:
@@ -360,8 +372,10 @@ def assert_nxdomain(name: str, log, max_wait: int = 180) -> None:
         print(f"  still resolves to {answer!r}, retrying in 10s…")
         log.write(f"  still resolves to {answer!r}\n")
         time.sleep(10)
-    print(f"  ⚠ {host} still resolves after {max_wait}s — proceeding anyway "
-          f"(fabrik apply will hit stale A)")
+    print(
+        f"  ⚠ {host} still resolves after {max_wait}s — proceeding anyway "
+        f"(fabrik apply will hit stale A)"
+    )
     log.write(f"  WARN: {host} still resolves after {max_wait}s\n")
 
 
@@ -370,10 +384,19 @@ def scaffold(name: str, project_type: str, log) -> Path:
     print(f"\n━━━━━ scaffold({name}, {project_type}) ━━━━━", flush=True)
     log.write(f"\n━━━━━ scaffold({name}, {project_type}) ━━━━━\n")
     run(
-        [str(VENV_FABRIK), "scaffold", name, "--type", project_type,
-         "-d", f"proof-run dummy for {project_type}",
-         "--no-spec"],
-        cwd=PROJECT_BASE, logfile=log, timeout=120,
+        [
+            str(VENV_FABRIK),
+            "scaffold",
+            name,
+            "--type",
+            project_type,
+            "-d",
+            f"proof-run dummy for {project_type}",
+            "--no-spec",
+        ],
+        cwd=PROJECT_BASE,
+        logfile=log,
+        timeout=120,
     )
     project_dir = PROJECT_BASE / name
     if not project_dir.exists():
@@ -400,15 +423,26 @@ def push_to_github(name: str, project_dir: Path, env: dict[str, str], log) -> st
     print(f"\n━━━━━ push_to_github({name}) ━━━━━", flush=True)
     log.write(f"\n━━━━━ push_to_github({name}) ━━━━━\n")
     run(
-        ["gh", "repo", "create", f"{GH_USER}/{name}",
-         "--public", "--source=.", "--push", "--remote=origin"],
-        cwd=project_dir, logfile=log,
+        [
+            "gh",
+            "repo",
+            "create",
+            f"{GH_USER}/{name}",
+            "--public",
+            "--source=.",
+            "--push",
+            "--remote=origin",
+        ],
+        cwd=project_dir,
+        logfile=log,
         env_extra={"GH_TOKEN": env["GITHUB_TOKEN"]},
         timeout=120,
     )
     remote = subprocess.run(
         ["git", "-C", str(project_dir), "remote", "get-url", "origin"],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.strip()
     log.write(f"remote: {remote}\n")
     return remote
@@ -442,6 +476,7 @@ def regenerate_spec(name: str, project_type: str, project_dir: Path, log) -> Pat
 
     # Sanity: assert source.type == git
     import yaml
+
     spec = yaml.safe_load(spec_path.read_text())
     src = spec.get("source", {})
     src_type = src.get("type") if isinstance(src, dict) else src
@@ -475,13 +510,16 @@ def apply(spec_path: Path, log) -> subprocess.CompletedProcess:
             "--use-orchestrator",
             "--keep-on-failure",
         ],
-        cwd=FABRIK_ROOT, logfile=log, check=False,
+        cwd=FABRIK_ROOT,
+        logfile=log,
+        check=False,
         timeout=1500,  # 25 min — covers first-build cold caches
     )
 
 
 def read_spec(spec_path: Path) -> dict:
     import yaml
+
     return yaml.safe_load(spec_path.read_text())
 
 
@@ -499,11 +537,19 @@ def curl_healthcheck(name: str, hc_path: str, log) -> tuple[int, str]:
     # GET, follow redirects, capture status + first 500 bytes of body for
     # diagnostics. Body is logged but not used for pass/fail — only status.
     r = subprocess.run(
-        ["curl", "-sL", "--max-time", "30",
-         "-o", "/tmp/proof-hc-body",
-         "-w", "HTTP/%{http_version} %{http_code}\\ncontent-type: %{content_type}\\nsize: %{size_download}\\nfinal-url: %{url_effective}\\n",
-         url],
-        capture_output=True, text=True,
+        [
+            "curl",
+            "-sL",
+            "--max-time",
+            "30",
+            "-o",
+            "/tmp/proof-hc-body",
+            "-w",
+            "HTTP/%{http_version} %{http_code}\\ncontent-type: %{content_type}\\nsize: %{size_download}\\nfinal-url: %{url_effective}\\n",
+            url,
+        ],
+        capture_output=True,
+        text=True,
     )
     body = ""
     try:
@@ -547,6 +593,7 @@ def dump_diagnostics(name: str, env: dict[str, str], log) -> None:
     sys.path.insert(0, str(FABRIK_ROOT / "src"))
     try:
         from fabrik.drivers.coolify import CoolifyClient
+
         c = CoolifyClient()
         apps = c.list_applications()
         app = next((a for a in apps if a.get("name") == name), None)
@@ -565,10 +612,12 @@ def dump_diagnostics(name: str, env: dict[str, str], log) -> None:
                     bf.write(f"# Coolify deployment logs for {name} (uuid={uuid})\n")
                     bf.write(f"# {len(deps)} deployment(s) recorded\n\n")
                     for i, d in enumerate(deps):
-                        bf.write(f"=== deployment {i+1}/{len(deps)} "
-                                 f"uuid={d.get('deployment_uuid')} "
-                                 f"status={d.get('status')} "
-                                 f"created={d.get('created_at')} ===\n")
+                        bf.write(
+                            f"=== deployment {i + 1}/{len(deps)} "
+                            f"uuid={d.get('deployment_uuid')} "
+                            f"status={d.get('status')} "
+                            f"created={d.get('created_at')} ===\n"
+                        )
                         try:
                             entries = json.loads(d.get("logs") or "[]")
                         except json.JSONDecodeError:
@@ -592,16 +641,18 @@ def dump_diagnostics(name: str, env: dict[str, str], log) -> None:
                 print(f"  build log fetch FAILED: {e}")
         else:
             log.write(f"No Coolify app found for {name}\n")
-            print(f"  no Coolify app found for {name} "
-                  f"(rollback fired despite --keep-on-failure?)")
+            print(f"  no Coolify app found for {name} (rollback fired despite --keep-on-failure?)")
     except Exception as e:
         log.write(f"diagnostics Coolify phase failed: {e}\n")
 
     # SSH to VPS for docker + traefik info (best-effort)
     try:
         from fabrik.drivers.ssh import ssh  # type: ignore
+
         try:
-            ps = ssh(f"sudo docker ps -a --format '{{{{.Names}}}}\\t{{{{.Status}}}}' | grep {name} || true")
+            ps = ssh(
+                f"sudo docker ps -a --format '{{{{.Names}}}}\\t{{{{.Status}}}}' | grep {name} || true"
+            )
             log.write(f"\ndocker ps:\n{ps}\n")
         except Exception as e:
             log.write(f"(docker ps failed: {e})\n")
@@ -619,13 +670,14 @@ def dump_diagnostics(name: str, env: dict[str, str], log) -> None:
 
 # --- main loop --------------------------------------------------------------
 
+
 def process_type(
     project_type: str,
     env: dict[str, str],
 ) -> dict:
     """Run the full per-type loop. Return a result dict."""
     name = f"fabrik-test-{project_type}"
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     log_path = LOG_DIR / f"{project_type}-{ts}.log"
     t_start = time.time()
@@ -673,13 +725,12 @@ def process_type(
 
             proc = apply(spec_path, log)
             if proc.returncode != 0:
-                raise RuntimeError(
-                    f"fabrik apply exited rc={proc.returncode}"
-                )
+                raise RuntimeError(f"fabrik apply exited rc={proc.returncode}")
 
             # Pull Coolify UUID from the just-applied app
             sys.path.insert(0, str(FABRIK_ROOT / "src"))
             from fabrik.drivers.coolify import CoolifyClient
+
             c = CoolifyClient()
             app = next(
                 (a for a in c.list_applications() if a.get("name") == name),
@@ -694,9 +745,7 @@ def process_type(
                 result["http_code"] = None
                 result["curl_raw"] = f"(worker, no curl) coolify status={status!r}"
                 if not status.startswith("running"):
-                    raise RuntimeError(
-                        f"worker not in running:* state after apply: {status!r}"
-                    )
+                    raise RuntimeError(f"worker not in running:* state after apply: {status!r}")
                 result["ok"] = True
             else:
                 # Poll healthcheck with retries — cert + DNS may lag apply a bit
@@ -722,6 +771,7 @@ def process_type(
             result["error"] = repr(e)
             log.write(f"\n!!! FAILURE: {e}\n")
             import traceback
+
             tb = traceback.format_exc()
             log.write(tb)
             print(tb)
@@ -736,12 +786,12 @@ def process_type(
 
 
 def write_proof(results: list[dict]) -> None:
-    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    ts = datetime.now(UTC).isoformat(timespec="seconds")
     lines = [
-        f"# Fabrik Scaffold Proof — Live End-to-End Deploy",
+        "# Fabrik Scaffold Proof — Live End-to-End Deploy",
         "",
         f"**Generated:** {ts}",
-        f"**Harness:** `@/opt/fabrik/scripts/proof_run.py`",
+        "**Harness:** `@/opt/fabrik/scripts/proof_run.py`",
         "",
         "## Summary",
         "",
@@ -785,8 +835,10 @@ def main() -> int:
         r = process_type(t, env)
         results.append(r)
         status = "✅ PASS" if r["ok"] else "❌ FAIL"
-        print(f"\n\n{'#' * 60}\n# {status}  {t}  http={r.get('http_code')}"
-              f"  elapsed={r.get('elapsed_s')}s\n{'#' * 60}\n")
+        print(
+            f"\n\n{'#' * 60}\n# {status}  {t}  http={r.get('http_code')}"
+            f"  elapsed={r.get('elapsed_s')}s\n{'#' * 60}\n"
+        )
         if not r["ok"]:
             all_ok = False
             break  # stop on first failure per mission rules

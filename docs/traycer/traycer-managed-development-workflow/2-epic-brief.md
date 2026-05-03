@@ -71,8 +71,8 @@ Sections, in this order:
 4. **Infrastructure Notes** — Existing services or projects that overlap, with explicit `extends / wraps / replaces / complements / consumes` designation. Stack deviations from `AGENTS.md` defaults. **This is the only section that may be omitted entirely** — drop it only if there is genuinely nothing infrastructure-related to note.
 5. **Out of Scope** — 1–5 explicit exclusions. Name what this epic deliberately does not address. "Everything else" is not acceptable.
 6. **Metadata** — Carry forward from `trigger_workflow`'s INFRA-CHECK exactly:
-  - `HAS_USER_GUIDE: true/false` 
-  - `Scaffold: <type>` 
+  - `HAS_USER_GUIDE: true/false`
+  - `Scaffold: <type>`
   - `Port: <value>` — preserve any parenthetical annotation from INFRA-CHECK verbatim (e.g. `8023 (proposed)`, `8023 (proposed; final allocation by scaffold.py at creation)`, `N/A`).
 
 **Length:**

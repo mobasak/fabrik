@@ -47,9 +47,9 @@ Look up the scaffold-specific UI rule pack from `AGENTS.md` § Project Type → 
 
 Also read **only when the epic touches the relevant domain** (judged from Epic Brief):
 
-- Auth, sessions, login, signup → `.windsurf/rules/35-security-auth.md` 
-- Payments, billing, subscriptions → `.windsurf/rules/85-payments-billing.md` 
-- Multi-tenant or tenant-scoped UI → `.windsurf/rules/95-multi-tenant-saas.md` 
+- Auth, sessions, login, signup → `.windsurf/rules/35-security-auth.md`
+- Payments, billing, subscriptions → `.windsurf/rules/85-payments-billing.md`
+- Multi-tenant or tenant-scoped UI → `.windsurf/rules/95-multi-tenant-saas.md`
 
 State which rule packs were read.
 

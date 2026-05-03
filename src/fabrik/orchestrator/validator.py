@@ -266,8 +266,7 @@ class SpecValidator:
         shape = spec.get("shape") or {}
         expose = spec.get("expose") or {}
         is_http_exposed = (
-            expose.get("http", True)
-            and shape.get("kind", spec.get("kind")) != "worker"
+            expose.get("http", True) and shape.get("kind", spec.get("kind")) != "worker"
         )
         if is_http_exposed:
             if "domain" not in spec:

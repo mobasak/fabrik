@@ -36,7 +36,7 @@ resources:
   memory: 256M
   cpu: '0.5'
 health:
-  path: /
+  path: /docs/intro
   interval: 30s
   timeout: 10s
   retries: 3

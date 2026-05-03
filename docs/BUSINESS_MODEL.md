@@ -91,7 +91,7 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-05-03 00:55:40 -->
+<!-- Last synced: 2026-05-03 17:43:32 -->
 <!-- Total projects: 49 -->
 
 ### Production Services (10 projects)
@@ -136,7 +136,7 @@ With ~$50/month infrastructure cost:
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |
 | **triggered-content-orchestration** | Multi-platform content orchestration pipeline for automated content creation and distribution. | FastAPI | 🔨 Development | https://triggered-content-orchestration.vps1.ocoron.com | ✅ Current |
 
-### Planning/Research (17 projects)
+### Planning/Research (16 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -146,7 +146,6 @@ With ~$50/month infrastructure cost:
 | **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | Python | 🔨 Development | https://brand-identity-creator.vps1.ocoron.com | ✅ Current |
 | **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | https://email-reader.vps1.ocoron.com | ✅ Current |
 | **exam-coach** | AI-powered exam preparation and coaching assistant. | Python | 🔨 Development | https://exam-coach.vps1.ocoron.com | ✅ Current |
-| **fabrik-citation-verifier** | Citation verification microservice. Resolves citations against PubMed → Europe PMC → OpenAlex →... | FastAPI | 🔨 Development | - | ❌ No scaffold |
 | **gmailaccountcreator** | Automated Gmail account creation and management tool. | Python | 🔨 Development | - | ✅ Current |
 | **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Python | 🔨 Development | - | ✅ Current |
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | https://iterative-image-editor.vps1.ocoron.com | ✅ Current |
@@ -157,11 +156,5 @@ With ~$50/month infrastructure cost:
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
-
-### Recently Removed (1 projects)
-
-| Project | Note |
-|---------|------|
-| ~~fabrik~~ | Folder deleted since last scan |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->
