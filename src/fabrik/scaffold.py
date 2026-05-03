@@ -306,6 +306,7 @@ def _copy_windsurf_hooks(project_dir: Path) -> bool:
     target.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     return True
 
+
 # Canonical .droid/ gitignore block — shared across all scaffold types
 # Runtime files written by:
 #   - kilo_code_review.py: reviews/, kilo_models_cache.json, .kilo_cache_last_refresh
@@ -475,9 +476,7 @@ def _write_canonical_compose(
     if healthcheck_kind == "http":
         hc_test = f'["CMD", "curl", "-f", "http://localhost:{port}{healthcheck_path}"]'
     elif healthcheck_kind == "tcp":
-        hc_test = (
-            f'["CMD-SHELL", "(echo > /dev/tcp/localhost/{port}) >/dev/null 2>&1 || exit 1"]'
-        )
+        hc_test = f'["CMD-SHELL", "(echo > /dev/tcp/localhost/{port}) >/dev/null 2>&1 || exit 1"]'
     elif healthcheck_kind == "process":
         if not process_pattern:
             raise ValueError("process_pattern is required for healthcheck_kind='process'")
@@ -3215,11 +3214,14 @@ def fix_project(
             added.append(".windsurf/hooks.json (copied)")
 
         # Copy AFCL.md (Agentic Friction & Constraint Log template)
+        # Only created if missing — preserves accumulated project-specific findings.
+        # Once a project starts logging friction/constraints into AFCL, those entries
+        # are project-local lore that fix_project must not overwrite.
         afcl_template = FABRIK_ROOT / "templates" / "scaffold" / "AFCL_TEMPLATE.md"
         afcl_target = project_path / "AFCL.md"
-        if afcl_template.exists():
+        if afcl_template.exists() and not afcl_target.exists():
             shutil.copy(afcl_template, afcl_target)
-            added.append("AFCL.md (copied)")
+            added.append("AFCL.md (created)")
 
         # Always refresh opencode.json from master (single source of truth)
         fabrik_opencode = FABRIK_ROOT / "opencode.json"
@@ -3227,35 +3229,33 @@ def fix_project(
             shutil.copy(fabrik_opencode, project_path / "opencode.json")
             added.append("opencode.json (refreshed from master)")
 
-        # Copy reference docs if they don't exist or need refresh
+        # Always refresh reference docs from canonical source — Fabrik root is
+        # authoritative and these files may have been updated since last fix.
         for doc_name in ["technology-stack-decision-guide.md", "prebuilt-app-containers.md"]:
             source = FABRIK_ROOT / "docs" / "reference" / doc_name
             if source.exists():
                 target = project_path / "docs" / "reference" / doc_name
-                if not target.exists():
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy(source, target)
-                    added.append(f"docs/reference/{doc_name} (copied)")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(source, target)
+                added.append(f"docs/reference/{doc_name} (refreshed from master)")
 
-        # Copy KILO_AGENT_NAMING.md if it doesn't exist
+        # Always refresh KILO_AGENT_NAMING.md from canonical source.
         kilo_naming_source = FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
         if kilo_naming_source.exists():
             kilo_naming_target = (
                 project_path / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md"
             )
-            if not kilo_naming_target.exists():
-                kilo_naming_target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(kilo_naming_source, kilo_naming_target)
-                added.append("docs/reference/kilo/KILO_AGENT_NAMING.md (copied)")
+            kilo_naming_target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(kilo_naming_source, kilo_naming_target)
+            added.append("docs/reference/kilo/KILO_AGENT_NAMING.md (refreshed from master)")
 
-        # Copy kilo_47_agents_final.json if it doesn't exist
+        # Always refresh kilo_47_agents_final.json from canonical source.
         kilo_config_source = FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json"
         if kilo_config_source.exists():
             kilo_config_target = project_path / "scripts" / "kilo_47_agents_final.json"
-            if not kilo_config_target.exists():
-                kilo_config_target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(kilo_config_source, kilo_config_target)
-                added.append("scripts/kilo_47_agents_final.json (copied)")
+            kilo_config_target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(kilo_config_source, kilo_config_target)
+            added.append("scripts/kilo_47_agents_final.json (refreshed from master)")
 
         # Ensure .droid/ structure is current
         droid_dir = project_path / ".droid"
@@ -3314,13 +3314,29 @@ def fix_project(
         if FABRIK_WINDSURF_HOOKS.exists():
             added.append(".windsurf/hooks.json (copied)")
 
-        # AFCL.md - always copied (symlink migration)
-        if (FABRIK_ROOT / "templates" / "scaffold" / "AFCL_TEMPLATE.md").exists():
-            added.append("AFCL.md (copied)")
+        # AFCL.md - only created if missing (preserves project-local findings)
+        afcl_template = FABRIK_ROOT / "templates" / "scaffold" / "AFCL_TEMPLATE.md"
+        afcl_target = project_path / "AFCL.md"
+        if afcl_template.exists() and not afcl_target.exists():
+            added.append("AFCL.md (created)")
 
         # opencode.json — always refresh
         if (FABRIK_ROOT / "opencode.json").exists():
             added.append("opencode.json (refresh from master)")
+
+        # Reference docs — always refreshed (no longer guarded by "missing only")
+        for doc_name in ["technology-stack-decision-guide.md", "prebuilt-app-containers.md"]:
+            source = FABRIK_ROOT / "docs" / "reference" / doc_name
+            if source.exists():
+                added.append(f"docs/reference/{doc_name} (refreshed from master)")
+
+        # KILO_AGENT_NAMING.md — always refreshed
+        if (FABRIK_ROOT / "docs" / "reference" / "kilo" / "KILO_AGENT_NAMING.md").exists():
+            added.append("docs/reference/kilo/KILO_AGENT_NAMING.md (refreshed from master)")
+
+        # kilo_47_agents_final.json — always refreshed
+        if (FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json").exists():
+            added.append("scripts/kilo_47_agents_final.json (refreshed from master)")
 
         # .droid/ structure dry_run reporting
         droid_dir = project_path / ".droid"

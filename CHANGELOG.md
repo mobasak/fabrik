@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fix_project() AFCL preservation + reference-doc refresh semantics (2026-05-03)
+
+`src/fabrik/scaffold.py` `fix_project()` now (1) creates `AFCL.md` only-if-missing instead of always overwriting (preserves accumulated project-local friction/constraint findings), and (2) always refreshes the 4 canonical reference files from Fabrik root instead of skipping when target exists: `docs/reference/technology-stack-decision-guide.md`, `docs/reference/prebuilt-app-containers.md`, `docs/reference/kilo/KILO_AGENT_NAMING.md`, `scripts/kilo_47_agents_final.json`. Dry-run reporting block updated to mirror the new live behavior. Added 8 regression tests in `tests/test_scaffold_fix.py` covering AFCL preservation, missing-AFCL creation, dry-run accuracy for AFCL, and overwrite + dry-run preview for each of the 4 reference docs.
+
 ### Changed — AGENTS.md realignment: freshness, File Ownership, dual-CLI deploy/apply note, Active Projects, fabrik-new removal date, Tech Stack table cleanup, registrar matrix pointer (2026-05-03)
 
 ### Changed — AGENTS.md trimmed: Code Patterns / Documentation Rules sections replaced with rule-pack pointers (headings retained) (2026-05-03)
