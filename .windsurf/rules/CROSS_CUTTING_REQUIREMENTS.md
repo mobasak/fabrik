@@ -7,17 +7,28 @@ trigger: always_on
 
 ## 1. Documentation Currency
 
-Every ticket that adds, removes, or modifies functionality MUST update:
+Update matched docs in the SAME staged change. Skipping = task failure.
 
-- `INDEX.md` — add/remove file entries
-- `README.md` — update overview if scope changed
-- `CHANGELOG.md` — append entry under [Unreleased]
-- `docs/FEATURES.md` — update if user-facing feature changed
-- `docs/CONFIGURATION.md` — update if new env var or config added
-- `docs/QUICKSTART.md` — update if API endpoints, SDK modules, or integration surface changed
+| Change | Update |
+|---|---|
+| New env var added | `.env.example` (with comment block: Why / How to get / Default) |
+| User provided real secret value | `.env` (write actual value; never staged — gitignored) |
+| External service credential setup changed | `docs/CONFIGURATION.md` (How to get credentials section) |
+| Code, Docker, deps changed | `CHANGELOG.md` (gate-enforced Tier 1) |
+| Any file added / removed / renamed | `INDEX.md` |
+| Tech stack or setup steps changed | `README.md` |
+| API endpoint / SDK / CLI / Docker wiring / integration surface changed | `docs/QUICKSTART.md` |
+| New port allocated | `PORTS.md` |
+| Symptom encountered that future-you will hit again | `docs/TROUBLESHOOTING.md` (Symptom / Cause / Fix) |
+| Feature shipped / deprecated / removed | `docs/FEATURES.md` (Status table; Removed table for deprecations) |
+| New plan started | `docs/development/plans/YYYY-MM-DD-plan-<name>.md` |
+| Schema migration | Alembic file + `db/schema.sql` |
+| Future feature/refactor idea surfaces during work | `docs/STRATEGIC_BACKLOG.md` (Now / Later / Context) |
+| Agent struggled then solved (with or without user help) — the "Aha!" moment | `docs/LESSONS_LEARNT.md` (full template entry; name target rule pack to update) |
+| Agent hit a "silicon ceiling" — context drift, model limit, repeated mistake pattern | `AFCL.md` (Constraint table + Guardrail Recommendation) |
+| Monetization / pricing / target customer / GTM decision | `docs/BUSINESS_MODEL.md` |
 
-Acceptance criteria for ANY ticket implicitly includes:
-"All scaffold docs reflect the changes made in this ticket."
+**Skip:** refactor-only / docs-only / test-only → `CHANGELOG.md` only.
 
 ## 2. Observability (ref: .windsurf/rules/55-observability.md)
 

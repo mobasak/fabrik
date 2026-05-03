@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Documentation Currency contract + MANDATORY FINAL OUTPUT block (2026-05-04)
+
+`.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` § 1: replaced the flat 6-bullet "Documentation Currency" list with an explicit 16-row Change → Update table covering env files, CONFIGURATION, CHANGELOG, INDEX, README, QUICKSTART, PORTS, TROUBLESHOOTING, FEATURES, plans, schema.sql, STRATEGIC_BACKLOG, LESSONS_LEARNT, AFCL, and BUSINESS_MODEL. Added "Skip" rule for refactor/docs/test-only changes (CHANGELOG only). `.windsurfrules`: appended MANDATORY FINAL OUTPUT block specifying the 4-line ticket-close footer (GATE / DOCS UPDATED / CHANGELOG / LESSONS LEARNT) and the gate command per ticket tier (lean / full / systemic). Pre-commit hook auto-propagates both files to all 34 git-tracked projects under /opt/. No code changes; behavioral contract only.
+
+### Added — VPS documentation automation (2026-05-04)
+
+- `scripts/enforcement/check_vps_docs.py` — Staleness gate for VPS docs (warns if >30 days old). Wired into `final_gate.py --systemic` (Tier 3).
+- `scripts/vps_sync.py` — Refreshes vps-status.md container tables, timestamps in all 3 VPS docs, and runs sync_projects.py from live SSH state.
+- `fabrik vps-sync` CLI command — Delegates to `scripts/vps_sync.py` (supports `--dry-run`).
+- Post-deploy hook (`_post_deploy_sync()`) — Runs sync_projects.py automatically after `fabrik apply`, `fabrik deploy`, and `fabrik destroy` on success.
+
 ### Fixed — fix_project() AFCL preservation + reference-doc refresh semantics (2026-05-03)
 
 `src/fabrik/scaffold.py` `fix_project()` now (1) creates `AFCL.md` only-if-missing instead of always overwriting (preserves accumulated project-local friction/constraint findings), and (2) always refreshes the 4 canonical reference files from Fabrik root instead of skipping when target exists: `docs/reference/technology-stack-decision-guide.md`, `docs/reference/prebuilt-app-containers.md`, `docs/reference/kilo/KILO_AGENT_NAMING.md`, `scripts/kilo_47_agents_final.json`. Dry-run reporting block updated to mirror the new live behavior. Added 8 regression tests in `tests/test_scaffold_fix.py` covering AFCL preservation, missing-AFCL creation, dry-run accuracy for AFCL, and overwrite + dry-run preview for each of the 4 reference docs.

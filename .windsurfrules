@@ -82,3 +82,23 @@ WSL Ubuntu only — Linux paths, never Windows tooling. Code must work in WSL de
 | n8n / automation | `.windsurf/rules/90-automation.md` |
 | Multi-tenant / RLS | `.windsurf/rules/95-multi-tenant-saas.md` |
 | Visual + verbal identity (UI) | `.windsurf/rules/ocoron-design-system.md` |
+
+## ⚠️ MANDATORY FINAL OUTPUT
+
+Last 4 lines of every implementation response:
+
+```
+GATE: <command run> → success|failure
+DOCS UPDATED: <files | none>
+CHANGELOG: <entry title | n/a>
+LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
+```
+
+Gate command per ticket type:
+
+- Standard ticket → `python scripts/final_gate.py --lean --json`
+- Milestone / multi-component / schema / auth → `python scripts/final_gate.py --json`
+- Epic closure → `python scripts/final_gate.py --systemic --json`
+
+Run gate. If `failure`, fix and re-run until `success`. Then output the 4 lines.
+Missing any line = task failure.
