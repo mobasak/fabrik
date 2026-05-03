@@ -52,3 +52,31 @@ Code MUST be structured for cross-project extraction:
   be in its own module with its own docstring and type hints
 - No hardcoded project-specific values in utility modules
 - Tag reusable modules in INDEX.md with `[reusable]` marker
+
+## 5. Sensitive Data Protection
+
+Before modifying any credentials file (`.env`, `*.key`, `*.pem`, files under `secrets/`, files under `.ssh/`):
+
+```bash
+cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
+```
+
+**Forbidden without dry-run:** Destructive scripts on production data.
+**Forbidden without full diff approval:** Any credentials change.
+
+## 6. Password Policy
+
+Generated passwords for service accounts, DB users, and internal tokens:
+
+- **Length:** 32 characters
+- **Charset:** `[a-zA-Z0-9]` only (no symbols — survives `.env` round-trips and shell quoting)
+- **Generator:** Python `secrets.choice()` over `string.ascii_letters + string.digits`
+- **Banned values:** `postgres`, `admin`, `password`, `password123`, default vendor credentials
+
+```python
+import secrets, string
+alphabet = string.ascii_letters + string.digits
+password = ''.join(secrets.choice(alphabet) for _ in range(32))
+```
+
+Applies wherever a password/secret is generated programmatically (Authelia bootstrap, `fabrik scaffold` credential generation, manual ops scripts).

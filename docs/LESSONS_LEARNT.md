@@ -3611,3 +3611,21 @@ The repo's stop rule is "if a single fix vector fails 3× in a row, stop and con
 - **Trigger:** Mission to prove every scaffold type deploys live end-to-end on the production VPS
 - **Detection Method:** New `scripts/proof_run.py` harness running `scaffold → push → apply → curl` against `172.93.160.197`, with H1–H4 instrumentation (line-by-line tee, build-log fetch, Cloudflare fallback for DNS-Manager outage).
 - **Files:** see `CHANGELOG.md [Unreleased]` for the per-bug file list; `proof-logs/*.diff` for applyable patches; `PROOF.md` for the per-type curl evidence.
+
+# Lesson 33: Stale doc bypassed — anchor pointers to non-existent sections
+
+`.windsurfrules` carried two anchor pointers (`§ Sensitive Data Protection`, `§ Password Policy`) into `.windsurf/rules/35-security-auth.md` for an undetermined period. Neither section existed in that pack. Only surfaced by cross-artifact audit.
+
+**Lesson:** Add a pre-merge check that every `§ <heading>` reference in `.windsurfrules` and `AGENTS.md` resolves to an actual heading in the cited file.
+
+# Lesson 34: Broken Reference Documents row + drifted INDEX auto-gen
+
+`docs/reference/Modern GUI Approaches for Chrome Extensionst.md` (extra `t`) lived on disk and in INDEX.md's AUTO-GENERATED block; AGENTS.md cited the correct name (`...Extensions.md`) → broken link. INDEX.md AUTO-GENERATED also listed `COOLIFY_STATUS.md` which does not exist.
+
+**Lesson:** Add `test -e` verification on every row in `AGENTS.md § Reference Documents` as a pre-merge gate. Always run `scripts/docs_updater.py` after renames/deletions under `docs/`.
+
+# Lesson 35: Auto-generated count drift + structurally invalid markdown rows
+
+`AGENTS.md § Active Projects` hardcoded `35` projects while auto-gen scan said `49`; trailing empty backtick anchor (` `` `) rendered as broken markdown. § Tech Stack Defaults had two 4-cell rows in a 3-column table (MeiliSearch, PDF Generation duplicates).
+
+**Lesson:** Never duplicate numbers from auto-generated sources inline — always use `see X` pointers. Treat structurally-malformed markdown tables as gate-blockable, not stylistic.

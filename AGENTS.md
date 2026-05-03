@@ -1,6 +1,6 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer Only)
 
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-05-03
 **Read by:** Traycer only (auto-loaded every interaction)
 **Coding agents:** Read `AGENTS-compact.md` via `opencode.json`
 
@@ -9,9 +9,23 @@
 
 ---
 
+## File Ownership
+
+Traycer's planning context lives in `AGENTS.md`. Rule enforcement, agent contracts, and workflow definitions live elsewhere and are out of Traycer's edit scope.
+
+| File / Path | Owner | Traycer May Edit? |
+|---|---|---|
+| `AGENTS.md` | Traycer (planner context) | ✅ Yes |
+| `AGENTS-compact.md` | Kilo CLI (via `opencode.json`) | ❌ No |
+| `.windsurfrules` | Windsurf Cascade | ❌ No |
+| `.windsurf/rules/**` | All agents (auto-loaded packs) | ❌ No |
+| `.windsurf/workflows/**` | Cascade workflow definitions | ❌ No |
+| `docs/traycer/traycer-managed-development-workflow/**` | Traycer workflow definitions | ✅ Yes |
+| Per-project `CLAUDE.md`, per-project `AGENTS-compact.md`, per-project `project.yaml` | Project-scoped (out of Fabrik-monorepo scope) | ❌ No |
+
 ## Owner & Working Style
 
-- **Solo developer** — Özgür Başak, 45, Turkish electronics engineer & entrepreneur
+- **Solo developer** — Özgür Başak, 46, Turkish electronics engineer & entrepreneur
 - **Capacity:** ~50 focused hours/week
 - **Budget:** Limited — prefer free/cheap but good, fast tools, maximize ROI
 - **Philosophy:** Fast but good. Ship fast, iterate, automate. No over-engineering.
@@ -23,7 +37,7 @@
 - **IDE:** Windsurf (Cascade AI agents for interactive work)
 - **Coding agents:** Windsurf Cascade (manual/interactive) · Kilo CLI (YOLO) · Local LLM agents
 - **VPS:** x86_64 (amd64) Ubuntu at 172.93.160.197 — AMD EPYC-Genoa, 6 vCPU, 12 GB RAM
-- **Deployment:** Coolify on VPS (Docker Compose) — `fabrik apply` automates DNS + Coolify + monitoring
+- **Deployment:** Coolify on VPS (Docker Compose). Two CLI entry points: `fabrik deploy` (project.yaml-driven, modern) and `fabrik apply` (spec-driven, legacy). Both route through the orchestrator pipeline. Full reference in `docs/DEPLOYMENT.md`.
 - **Database:** PostgreSQL on VPS (default) · Supabase (when managed auth/realtime/pgvector needed)
 - **Reverse proxy:** Traefik (managed by Coolify) — HTTPS/SSL via Let's Encrypt
 - **Domains:** `*.vps1.ocoron.com` — managed by site-provisioner (supports Namecheap, Cloudflare, auto-purchase) and others
@@ -68,12 +82,10 @@ All files and folders use **kebab-case** unless listed as an exception.
 | Base images | `python:<current-stable>-slim-bookworm`, `node:<current-LTS>-bookworm-slim` | Never Alpine |
 | PDF | Gotenberg (self-hosted) | WeasyPrint for simple cases |
 | Search | MeiliSearch (self-hosted) | PostgreSQL FTS for simple cases |
-| MeiliSearch | search.vps1.ocoron.com | `specs/infrastructure/meilisearch.yaml` | **Deployed:** 2026-04-14 |
 | Notifications | Apprise (self-hosted) | Direct API for single-channel |
 | Object storage | Backblaze B2 (via Backrest, deployed 2026-04-17) | MinIO for self-hosted S3-compatible when needed |
-| PDF Generation | Gotenberg (self-hosted) | HTML/Office/PDF conversion API | **Deployed:** 2026-04-14 |
 
-## Infrastructure Services — Running on VPS (Verified 2026-04-17)
+## Infrastructure Services — Running on VPS
 
 | Service | URL | Purpose |
 |---------|-----|--------|
@@ -208,7 +220,7 @@ DNS Manager (`dns.vps1.ocoron.com`) is the **single gateway** for all domain/DNS
 
 ## Active Projects
 
-Full auto-generated project list (35 projects) in `docs/BUSINESS_MODEL.md` under ``.
+Full auto-generated project list at `docs/BUSINESS_MODEL.md` § Project Portfolio. Source of truth: `data/projects.yaml` (auto-synced by `scripts/sync_projects.py`).
 
 ## 🛑 MANDATORY ORCHESTRATOR PRE-FLIGHT
 
@@ -330,74 +342,19 @@ Traycer injects rule-pack guidance into agent execution queries based on project
 
 ## Code Patterns
 
-### Python / FastAPI
-```python
-# Config — always function-level, never class/module-level
-def get_db_url() -> str:
-    return f"postgresql://{os.getenv('DB_HOST','localhost')}:{os.getenv('DB_PORT','5432')}/db"
+Canonical patterns live in the rule packs:
 
-# Health — always test real dependencies
-@app.get("/health")
-async def health():
-    await db.execute("SELECT 1")
-    return {"status": "ok", "db": "connected"}
-
-# Temp files — never /tmp/
-TEMP_DIR = Path(__file__).parent.parent / ".tmp"
-```
-
-### Logging (Pre-Scaffolded — DO NOT Recreate)
-
-```python
-# Python — already at src/{package}/logger.py
-from {package}.logger import get_logger
-logger = get_logger(__name__)
-logger.info("user_created", user_id=uid)
-# NEVER use print() — logger is already there
-```
-
-```javascript
-// Node — already at src/logger.js
-const logger = require('./logger');
-logger.info({ event: 'user_created', user_id: uid });
-// NEVER use console.log() — logger is already there
-```
-
-### Docker
-
-```dockerfile
-FROM python:<current-stable>-slim-bookworm
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
-```
-
-### compose.yaml
-
-```yaml
-networks:
-  coolify:
-    external: true
-environment:
-  - DB_HOST=postgres-main   # service name, never localhost
-```
+- Python / FastAPI / config / temp files → `.windsurf/rules/10-python.md`
+- Pre-scaffolded logging (Python / Node / Next.js) → `.windsurf/rules/55-observability.md` § Pre-Scaffolded Logging
+- Dockerfile / `compose.yaml` / Coolify network → `.windsurf/rules/30-ops.md`
 
 ## Documentation Rules
 
-- **CHANGELOG.md:** Entry required for every code change. Format: `### Added/Changed/Fixed — Title (YYYY-MM-DD)`
-- **README.md features table:** Every new feature added with ✅/🚧/❌ status
-- **New `.md` files:** Blocked outside allowlist. Allowed: root files, scaffold docs, `docs/development/plans/YYYY-MM-DD-plan-<n>.md`, `docs/reference/**/*.md`, `docs/archive/**`
-- **`.env.example`:** Authoritative variable reference. `docs/CONFIGURATION.md` is a guide only.
+See `.windsurf/rules/40-documentation.md` (CHANGELOG, README features, plans, AUTO-GENERATED blocks, `.env.example`, new-`.md`-file allowlist, writing style).
 
 ## Sensitive Data Protection
 
-Before modifying any credentials file (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`):
-
-```bash
-cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
-```
-
-**Forbidden without dry-run:** Destructive scripts on production data.
-**Forbidden without full diff approval:** Any credentials change.
+See `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` § Sensitive Data Protection and § Password Policy. (Auto-loaded `always_on` — applies to every Cascade interaction including edits to `.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`.)
 
 ## Quality Gates
 
@@ -411,7 +368,7 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 
 ## Scaffold Types
 
-**Canonical entry point (Phase 4k, 2026-04-19):** `fabrik scaffold <name> --type <type>`. This creates the full project tree AND emits `specs/services/<name>.yaml` with a populated `shape:` block per `templates/<type>/defaults.yaml`. The `shape:` block is what drives which infrastructure registrars run during `fabrik apply` (postgres / gatus / backrest / glitchtip / grafana / authelia / meilisearch). `fabrik new` is deprecated (hidden from `--help`, prints a warning, scheduled for removal one release after next).
+**Canonical entry point (Phase 4k, 2026-04-19):** `fabrik scaffold <name> --type <type>`. This creates the full project tree AND emits `specs/services/<name>.yaml` with a populated `shape:` block per `templates/<type>/defaults.yaml`. The `shape:` block is what drives which infrastructure registrars run during `fabrik apply` (postgres / gatus / backrest / glitchtip / grafana / authelia / meilisearch). `fabrik new` is deprecated (hidden from `--help`, prints a warning; scheduled for removal on 2026-05-31).
 
 | Type | Template | Stack | shape.kind | shape flags (true only) |
 |------|----------|-------|------------|------------------------|
@@ -430,6 +387,8 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 > Each scaffold type propagates `.windsurfrules`, `.windsurf/rules/`, and `.windsurf/workflows/` to generated projects automatically.
 >
 > **Authoritative shape matrix:** `src/fabrik/spec_loader.py::Shape` docstring. Change it there, then run the full scaffold suite — a divergence between the docstring and `templates/<type>/defaults.yaml` is a failing test (`tests/test_spec_generator.py`).
+>
+> **Registrar applicability matrix:** `src/fabrik/orchestrator/infrastructure.py` docstring + `resolve_applicability()`. Source of truth for which of (postgres / gatus / backrest / glitchtip / grafana / authelia / meilisearch) runs for a given `shape:` block.
 
 ## Reference Documents
 
@@ -448,3 +407,9 @@ cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 | Chrome Extension UI | docs/reference/Modern GUI Approaches for Chrome Extensions.md | Planning Chrome extensions |
 | Mobile UI | docs/reference/Modern Mobile GUI Approaches for Android and iOS.md | Planning mobile apps |
 | Ocoron Design System | .windsurf/rules/ocoron-design-system.md | Visual + verbal identity for all UI projects — color tokens, typography, component patterns, brand voice |
+| Cascade Models | docs/reference/windsurf/cascade-models.md | Selecting Windsurf Cascade model tier |
+| Deployment Guide | docs/DEPLOYMENT.md | Full deployment / `fabrik apply` / `fabrik deploy` reference |
+| Kilo Agent Naming | docs/reference/kilo/KILO_AGENT_NAMING.md | Naming new Kilo CLI agents |
+| Kilo Agent Registry | scripts/kilo_47_agents_final.json | Authoritative agent selection list |
+| Lessons Learnt | docs/LESSONS_LEARNT.md | Past incidents, decisions, anti-patterns |
+| Traycer Workflow | docs/traycer/traycer-managed-development-workflow/ | Trigger / brief / plan / breakdown / execute commands |

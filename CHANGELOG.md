@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — AGENTS.md realignment: freshness, File Ownership, dual-CLI deploy/apply note, Active Projects, fabrik-new removal date, Tech Stack table cleanup, registrar matrix pointer (2026-05-03)
+
+### Changed — AGENTS.md trimmed: Code Patterns / Documentation Rules sections replaced with rule-pack pointers (headings retained) (2026-05-03)
+
+### Changed — Sensitive Data Protection + Password Policy moved from AGENTS.md to CROSS_CUTTING_REQUIREMENTS.md; .windsurfrules pointers updated (2026-05-03)
+
+### Changed — AGENTS.md Reference Documents +6 rows; Chrome Extensions reference doc renamed; INDEX.md regenerated and date-stamped; TROUBLESHOOTING.md gained git-remote-required deploy gotcha entry (2026-05-03)
+
 ### Changed — Fabrik workflow commands updated (2026-05-03)
 
 Split Fabrik workflow documentation into modular files in `docs/traycer/traycer-managed-development-workflow/` for better maintainability. Created 9 dedicated workflow files:

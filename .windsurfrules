@@ -43,8 +43,8 @@
 For technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, Authelia, `X-Internal-Token`, kebab-case naming, `/tmp/` ban, port ranges, etc.) the auto-loaded packs in `.windsurf/rules/` are authoritative.
 
 ## Pointers (content lives in the linked packs)
-- **Backup before editing secrets** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) — see `.windsurf/rules/35-security-auth.md` § Sensitive Data Protection.
-- **Password policy** (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`, banned: `postgres`/`admin`/`password123`) — see `.windsurf/rules/35-security-auth.md` § Password Policy.
+- **Backup before editing secrets** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) — see `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` § Sensitive Data Protection.
+- **Password policy** (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`, banned: `postgres`/`admin`/`password123`) — see `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` § Password Policy.
 
 ## Before Creating New Scripts
 `grep_search` `scripts/` and `scripts/enforcement/` first. Extend existing code; don't duplicate.

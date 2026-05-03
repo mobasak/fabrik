@@ -123,6 +123,25 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 2. Find process: `ss -tlnp | grep 8000`
 3. Use different port in spec
 
+### `fabrik apply` fails with "spec renders compose with `build:` but `source.type` is 'template'"
+
+**Symptom:** `fabrik apply specs/services/<name>.yaml` fail-fasts before deploying with the message `source.type is 'template' (not 'git'). Coolify's inline-compose endpoint has no source for 'build:' to consume — the build will never run.`
+
+**Cause:** The project has no git remote. `spec_generator.detect_git_source()` (`src/fabrik/spec_generator.py` line 291) runs `git -C <project> remote get-url origin` with 5s timeout at scaffold time. Without a remote, the emitted spec keeps `source.type: template`, and the deployer's B7 preflight in `src/fabrik/orchestrator/deployer.py` rejects the deploy. A `WARNING` is logged at scaffold time (`spec_generator.py` line 426): *"No git remote configured at <path> — emitting source.type=template. This spec will fail Coolify deploy..."*
+
+**Fix:** Add a remote and re-emit the spec.
+
+```bash
+cd /opt/<project-name>
+git remote add origin git@github.com:<user>/<project-name>.git
+git push -u origin main
+# Re-run the spec emitter so detect_git_source() picks up the remote:
+fabrik scaffold <project-name> --type <type>   # if project tree exists, this re-runs spec emission
+# OR cleanest: delete and rescaffold from a directory that already has a remote.
+```
+
+Reference path used by automation: `scripts/proof_run.py` lines 410–423 demonstrate the canonical sequence (scaffold → push → regenerate spec → apply).
+
 ## Database Issues
 
 ### Cannot Connect to PostgreSQL

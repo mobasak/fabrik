@@ -1,6 +1,6 @@
 # Project File Index
 
-**Last Updated:** 2026-03-01
+**Last Updated:** 2026-05-03
 
 > **Purpose:** Single source of truth for all file purposes in this project.
 > **For AI Agents:** Read this FIRST before making changes. Every file's purpose and update trigger is documented here.
@@ -238,7 +238,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-03-26T00:13 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-05-03T21:25 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -247,19 +247,22 @@ docs/
 ├── EXTERNAL_SYSTEMS.md             # External service dependencies
 ├── FAQ.md                          # Frequently asked questions
 ├── FEATURES.md                     # Feature list
+├── LESSONS_LEARNT.md
 ├── QUICKSTART.md                   # Get Fabrik running in 5 minutes
 ├── SERVICES.md                     # External services Fabrik depends on
 ├── TROUBLESHOOTING.md              # Common issues & solutions
 ├── architecture
 │   └── WORDPRESS-MODULE-INTEGRATION.md # WordPress module integration
 ├── archive                         # Archived and completed documentation
-├── design                          # System design and architecture proposals
 ├── development                     # Active development plans and specs
 │   ├── PLANS.md                    # Development plans index
-│   └── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
-│       ├── archived
-│       ├── issues
-│       └── previously-planned-fabrik-phases
+│   ├── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
+│   │   ├── 2026-04-13-fabrik-control-plane.md
+│   │   ├── 2026-04-18-zero-touch-deployment.md
+│   │   ├── archived
+│   │   ├── issues
+│   │   └── previously-planned-fabrik-phases
+│   └── wordpress-files-index.md
 ├── examples                        # Example code and configuration
 │   └── health_check_usage.py
 ├── guides                          # Step-by-step guides and tutorials
@@ -270,17 +273,14 @@ docs/
 │   ├── traycer-free-tier-agents-testing.md # Traycer free-tier agent testing
 │   └── traycer-kilo-workflow-analysis.md # Traycer + Kilo workflow analysis
 ├── infrastructure                  # Infrastructure docs
-│   ├── AUTHELIA_MIGRATION_SUMMARY.md # Authelia migration executive summary
-│   ├── COOLIFY_STATUS.md           # Coolify management status report
-│   ├── MIGRATION_SUMMARY.md        # Infrastructure migration summary
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
-│   ├── authelia-migration-plan.md  # Authelia Phase 12 migration plan
-│   └── backrest-deployment-plan.md # Backrest backup deployment plan
+│   ├── archive                     # Archived and completed documentation
+│   ├── grafana-dashboards-setup.md
+│   └── vps-complete-inventory.md
 ├── operations                      # Operational runbooks and VPS state
 │   ├── backup-strategy.md          # VPS backup strategy
 │   ├── coolify-migration.md        # Coolify migration procedures
 │   ├── disaster-recovery.md        # Backup and recovery procedures
-│   ├── (duplicati-setup.md → archived 2026-04-28; replaced by Backrest)
 │   ├── n8n-webhooks.md             # n8n webhook configuration
 │   ├── vps-status.md               # Current VPS state and configuration
 │   └── vps-urls.md                 # All deployed service URLs
@@ -290,8 +290,9 @@ docs/
 │   ├── CRITICAL_RULES.md           # Non-negotiable execution rules
 │   ├── DATABASE_STRATEGY.md        # Database selection
 │   ├── DOCUMENTATION_STANDARD.md   # Documentation standards and conventions
-│   ├── EXTENSIONS.md
-│   ├── Modern GUI Approaches for Chrome Extensionst.md
+│   ├── DOC_REVIEW_2026-04-28.md
+│   ├── LOCAL_LLM_INFRASTRUCTURE.md
+│   ├── Modern GUI Approaches for Chrome Extensions.md
 │   ├── Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md
 │   ├── Modern Mobile GUI Approaches for Android and iOS.md
 │   ├── PLANNING_REFERENCES.md      # INDEX for AI planning phases
@@ -300,15 +301,21 @@ docs/
 │   ├── ai_agent_prompt_directives.html
 │   ├── ai_agent_prompt_directives.md # AI agent prompt directives
 │   ├── architecture.md             # System architecture overview
+│   ├── coolify-api-reference.md
+│   ├── coolify-openapi.json
 │   ├── drivers.md                  # Fabrik driver API (Coolify, DNS, etc.)
 │   ├── exampleconsultancysitemap.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik.md
 │   ├── file-api-deployment.md      # File API deployment guide
+│   ├── glitchtip-api.md
 │   ├── global-gates.md             # Global gate definitions
+│   ├── gpu
+│   │   ├── Architectural Paradigms in Specialized GPU Infrastructure A Comparative Technical Analysis of TensorDock, RunPod, and Vast.ai for Q2 2026.md
+│   │   ├── Choosing ML Framework Templates.md
+│   │   ├── The 2026 DePIN GPU Landscape A Technical Audit of Akash, Spheron, and Salad Cloud for Solo PaaS Infrastructure.md
+│   │   └── The 2026 Zero-Maintenance AI Inference Landscape A Strategic Analysis for Solo Developers.md
 │   ├── health-monitoring.md        # Health monitoring patterns
-│   ├── image
-│   │   └── AI_TAXONOMY
 │   ├── kilo
 │   │   ├── KILO-TOKEN-LEAN-WORKFLOW.md # Kilo token-lean workflow
 │   │   ├── KILO_AGENT_NAMING.md
@@ -330,15 +337,20 @@ docs/
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── project-registry.md         # Master inventory of all /opt projects
 │   ├── provisioner.md
+│   ├── research-prompt-preamble-for-agent-rules.md
 │   ├── roadmap.md                  # Complete 8-phase roadmap summary
+│   ├── scaffold-type-decision-guide.md
 │   ├── scripts.md
+│   ├── service-contracts
+│   │   └── site-provisioner.md
 │   ├── stack.md                    # Technology stack & tools inventory
 │   ├── technology-stack-decision-guide.md # Tech decision flowchart
 │   ├── template_renderer.md
 │   ├── templates.md                # Available deployment templates
 │   ├── trueforge-images.md         # Trueforge image catalog
-│   ├── gatus.md                    # Gatus runbook
+│   ├── uptime-kuma.md
 │   ├── windsurf                    # Windsurf IDE optimization
+│   │   ├── actively-used-windsurf-extensions.md
 │   │   ├── cascade-guide.md
 │   │   ├── cascade-models.md
 │   │   ├── csharp-cpp-setup.md
@@ -346,6 +358,9 @@ docs/
 │   │   ├── overview.md
 │   │   └── recommended-extensions.md
 │   ├── wordpress                   # WordPress technical docs
+│   │   ├── 01 WordPress Production SOP Enhancement.md
+│   │   ├── 02 Techinical Implementation Addendum.md
+│   │   ├── A perfect systems architect operating a Zero-Ops pipeline.md
 │   │   ├── architecture.md         # System architecture overview
 │   │   ├── deployment-workflow.md  # WordPress deployment workflow
 │   │   ├── fixes.md                # Critical fixes
@@ -354,7 +369,6 @@ docs/
 │   │   ├── plugin-stack.md         # Curated WordPress plugin stack
 │   │   └── site-specification.md   # Site spec YAML format
 │   └── wordpress.md                # WordPress module overview
-├── trajectories
 ├── traycer
 │   ├── AGENT-TIMEOUT-POLICY.md     # Agent timeout policy
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -364,6 +378,7 @@ docs/
 │   ├── TRAYCER-KILO-AGENTS-GUIDE.md # Traycer Kilo agents guide
 │   ├── TRAYCER-KILO-DIRECT-CLI.md  # Traycer Kilo direct CLI
 │   ├── epic-kilo-integration.md    # Epic Kilo integration
+│   ├── fabrik-workflow.md
 │   ├── kilo_selected_agents.md     # Kilo selected agents
 │   ├── mcp-kilo-setup-guide.md     # MCP Kilo setup guide
 │   ├── templates
@@ -372,9 +387,20 @@ docs/
 │   │   └── verification_template.md
 │   ├── traycer-agile-workflow.md   # 8-command Traycer Agile Workflow reference
 │   ├── traycer-evaluation.md       # Traycer integration evaluation
+│   ├── traycer-managed-development-workflow
+│   │   ├── 1-trigger-workflow.md
+│   │   ├── 2-epic-brief.md
+│   │   ├── 3-core-flows.md
+│   │   ├── 4-tech-plan.md
+│   │   ├── 5-ticket-breakdown.md
+│   │   ├── 6-execute.md
+│   │   ├── 7-implementation-validation.md
+│   │   ├── 8-revise-requirements.md
+│   │   └── 9-cross-artifact-validation.md
 │   ├── traycer-refactoring-workflow.md # 4-command Traycer Refactoring Workflow reference
 │   └── traycer-yolo-workflow.md
 └── workflows                       # Workflow documentation
+    ├── DATA_SYNC_WORKFLOW.md
     ├── DEV_TRACKER_WORKFLOW.md     # Development tracker workflow
     ├── DOCUMENTATOR_WORKFLOW.md    # Documentator workflow
     ├── FABRIK_SCAFFOLD_WORKFLOW.md # Fabrik scaffold workflow
@@ -382,10 +408,15 @@ docs/
     ├── HEALTH_CHECKER_WORKFLOW.md  # Health checker workflow
     ├── HEALTH_SUMMARY_WORKFLOW.md
     ├── KILO_AGENT_MANAGEMENT.md    # Kilo agent management
+    ├── KILO_CLI_OUTPUT_WORKFLOW.md
+    ├── KILO_CONSULT_WORKFLOW.md
     ├── KILO_DISPATCH_WORKFLOW.md
     ├── KILO_REVIEW_WORKFLOW.md     # Kilo review workflow
+    ├── SCAFFOLD_STRUCTURE.md
     ├── SYNC_ENFORCEMENT_WORKFLOW.md # Sync enforcement workflow
-    └── SYNC_PROJECTS_WORKFLOW.md   # Sync projects workflow
+    ├── SYNC_PROJECTS_WORKFLOW.md   # Sync projects workflow
+    ├── windsurf-triggered-workflows.md
+    └── wordpress-site-workflow.md
 ```
 <!-- AUTO-GENERATED:STRUCTURE:END -->
 
