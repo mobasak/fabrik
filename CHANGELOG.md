@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Browserless upgraded v1 → v2 on VPS (2026-05-04)
+
+Coolify app `vckgs8c00o40o884k48cgow8` (`browser.vps1.ocoron.com`) migrated from `browserless/chrome:1-chrome-stable` to `ghcr.io/browserless/chromium:latest` (Browserless v2 OSS). v2 enforces TOKEN auth on all WS/REST endpoints — generated 32-char alnum token via `secrets.choice()`, injected into Coolify via POST `/api/v1/applications/{uuid}/envs` (TOKEN, CONCURRENT=10, TIMEOUT=60000). Image swap done via PATCH `/api/v1/applications/{uuid}` (`docker_registry_image_name`, `docker_registry_image_tag`). Deploy queued via GET `/api/v1/deploy?uuid=...&force=false`, deployment_uuid `rowgko84o48sogw4ccgcc0ww`.
+
+Verification:
+
+- `GET /pressure?token=<TOKEN>` → 200, returns v2-format JSON `{maxConcurrent: 10, maxQueued: 10, ...}`
+- `GET /pressure` (no token) → 401 `Bad or missing authentication.`
+- `GET /docs` → 301 (v2 swagger redirect)
+
+`specs/infrastructure/browserless.yaml` rewritten to canonical v2 (image, env vars, healthcheck `/docs`). v1-only env vars removed: `MAX_CONCURRENT_SESSIONS`, `PREBOOT_CHROME`, `ENABLE_DEBUGGER`, `USE_CHROME_STABLE`. Future Fabrik scaffolds/redeploys reading this spec will get v2 by default — making the upgrade permanent.
+
+`.env`: added `BROWSERLESS_TOKEN`, switched `BROWSERLESS_WS_URL` from `ws://` to `wss://` (TLS via Traefik).
+`.env.example`: added documented `BROWSERLESS_TOKEN=` stub with Why/How-to-get/Default comment block per CROSS_CUTTING_REQUIREMENTS § 1.
+
+Cleanup: orphan `browserless` container (non-Coolify v1 instance, no Traefik labels, not routed) stopped + removed via `docker stop browserless && docker rm browserless`.
+
+Consumer migration note: any service reading `BROWSERLESS_URL` / `BROWSERLESS_WS_URL` from `.env` MUST now also read `BROWSERLESS_TOKEN` and append `?token=$BROWSERLESS_TOKEN` to every request URL (or set `Authorization: Bearer $BROWSERLESS_TOKEN` header — both supported).
+
 ### Changed — Documentation Currency contract + MANDATORY FINAL OUTPUT block (2026-05-04)
 
 `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` § 1: replaced the flat 6-bullet "Documentation Currency" list with an explicit 16-row Change → Update table covering env files, CONFIGURATION, CHANGELOG, INDEX, README, QUICKSTART, PORTS, TROUBLESHOOTING, FEATURES, plans, schema.sql, STRATEGIC_BACKLOG, LESSONS_LEARNT, AFCL, and BUSINESS_MODEL. Added "Skip" rule for refactor/docs/test-only changes (CHANGELOG only). `.windsurfrules`: appended MANDATORY FINAL OUTPUT block specifying the 4-line ticket-close footer (GATE / DOCS UPDATED / CHANGELOG / LESSONS LEARNT) and the gate command per ticket tier (lean / full / systemic). Pre-commit hook auto-propagates both files to all 34 git-tracked projects under /opt/. No code changes; behavioral contract only.

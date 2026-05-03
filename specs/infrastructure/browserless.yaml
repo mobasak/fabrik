@@ -1,20 +1,26 @@
 # ARM64: ✓ SUPPORTED — linux/amd64, linux/arm64
+# Browserless v2 (open-source). Reference: https://docs.browserless.io/baas/start
+# Image registry: ghcr.io/browserless/chromium (formerly browserless/chrome v1)
 
 name: browserless
 type: docker
 domain: browser.vps1.ocoron.com
-image: browserless/chrome:latest
+image: ghcr.io/browserless/chromium:latest
 environment:
-  MAX_CONCURRENT_SESSIONS: "10"
-  CONNECTION_TIMEOUT: "60000"
-  PREBOOT_CHROME: "true"
-  ENABLE_DEBUGGER: "false"
+  # v2 mandatory-ish: TOKEN gates all WebSocket/REST clients (consumers must pass ?token=...)
+  # Real value lives in /opt/fabrik/.env as BROWSERLESS_TOKEN; injected via Coolify env API.
+  TOKEN: "${BROWSERLESS_TOKEN}"
+  # v2 names (replace v1 MAX_CONCURRENT_SESSIONS / CONNECTION_TIMEOUT)
+  CONCURRENT: "10"
+  TIMEOUT: "60000"
+  # v1-only env vars REMOVED: PREBOOT_CHROME, ENABLE_DEBUGGER, USE_CHROME_STABLE
 ports:
   - "3000:3000"
 networks:
   - coolify
 healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+  # v2 exposes /docs at root; /pressure is the health/queue endpoint
+  test: ["CMD", "curl", "-f", "http://localhost:3000/docs"]
   interval: 30s
   timeout: 10s
   retries: 3
