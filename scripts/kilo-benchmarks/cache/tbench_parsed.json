@@ -1,17 +1,17 @@
 {
   "source": "tbench.ai",
   "url": "https://www.tbench.ai/leaderboard/terminal-bench/2.0",
-  "scraped_at": "2026-04-29T00:01:48.880362",
+  "scraped_at": "2026-05-03T00:55:13.788510",
   "total_entries": 119,
   "entries": [
     {
       "rank": 1,
       "model": "GPT-5.5",
       "score": 82.0,
-      "provider": "Codex",
+      "provider": "Codex CLI",
       "extra": {
         "metric": "accuracy_percent",
-        "agent": "Codex"
+        "agent": "Codex CLI"
       }
     },
     {

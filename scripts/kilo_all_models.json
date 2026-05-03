@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-29T00:01:43.662945",
+  "timestamp": "2026-05-03T11:59:10.536044",
   "total_models": 348,
   "models": {
     "~anthropic/claude-haiku-latest": {
@@ -492,6 +492,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "ibm-granite/granite-4.1-8b": {
+      "id": "ibm-granite/granite-4.1-8b",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "inception/mercury-2": {
       "id": "inception/mercury-2",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -504,11 +509,6 @@
     },
     "inclusionai/ling-2.6-flash": {
       "id": "inclusionai/ling-2.6-flash",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "inclusionai/ling-2.6-flash:free": {
-      "id": "inclusionai/ling-2.6-flash:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -759,11 +759,6 @@
     },
     "mistralai/mistral-small-3.2-24b-instruct": {
       "id": "mistralai/mistral-small-3.2-24b-instruct",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "mistralai/mistral-small-creative": {
-      "id": "mistralai/mistral-small-creative",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1197,6 +1192,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "openrouter/owl-alpha": {
+      "id": "openrouter/owl-alpha",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "openrouter/pareto-code": {
       "id": "openrouter/pareto-code",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1487,11 +1487,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "qwen/qwq-32b": {
-      "id": "qwen/qwq-32b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "rekaai/reka-edge": {
       "id": "rekaai/reka-edge",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1644,6 +1639,11 @@
     },
     "x-ai/grok-4.20-multi-agent": {
       "id": "x-ai/grok-4.20-multi-agent",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-4.3": {
+      "id": "x-ai/grok-4.3",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

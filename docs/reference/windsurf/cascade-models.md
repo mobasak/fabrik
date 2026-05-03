@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-04-29
+**Last Updated:** 2026-05-03
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -12,7 +12,7 @@
 
 ## Overview
 
-**Total Models:** 128 across 7 provider categories
+**Total Models:** 126 across 7 provider categories
 
 ---
 
@@ -22,19 +22,17 @@
 |-------|---------|-----------|--------|-------|
 | Adaptive | — | — | — |  |
 | SWE-1.6 | 0 | — | — | Promo pricing |
-| GPT-5.4 (Low Reasoning) | 1.5 | 1468 | 81.8% |  |
 | GPT-5.4 Mini (Low Reasoning) | 1.5 | — | — |  |
-| GPT-5.3-Codex (Medium Reasoning) | 2 | — | 78.4% |  |
 | GPT-5.2-Codex (Low Reasoning Fast) | 2 | — | 66.5% |  |
 | Claude Sonnet 4.5 | 3 | 1464 | 46.5% |  |
 | Claude Sonnet 4.6 | 4 | 1500 | — |  |
 | Claude Opus 4.6 | 6 | 1535 | 79.8% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
-| Claude Opus 4.7 (Low Thinking) | 7 | 1554 | — | Promo pricing |
-| Claude Opus 4.7 (Medium Thinking) | 10 | 1554 | — | Promo pricing |
-| Claude Opus 4.7 (High Thinking) | 14 | 1554 | — | Promo pricing |
-| Claude Opus 4.7 (XHigh Thinking) | 16 | 1554 | — | Promo pricing |
-| Claude Opus 4.7 (Max Thinking) | 30 | 1554 | — | Promo pricing |
+| Claude Opus 4.7 (Low Thinking) | 20 | 1554 | — |  |
+| Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | — |  |
+| Claude Opus 4.7 (High Thinking) | 60 | 1554 | — |  |
+| Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | — |  |
+| Claude Opus 4.7 (Max Thinking) | 75 | 1554 | — |  |
 
 ---
 
@@ -63,19 +61,19 @@
 | Claude Opus 4.6 | 6 | 1535 | 79.8% |  |
 | Claude Sonnet 4.6 (Thinking) | 6 | 1500 | — |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
-| Claude Opus 4.7 (Low Thinking) | 7 | 1554 | — | Promo pricing |
 | Claude Opus 4.6 (Thinking) | 8 | 1535 | 79.8% |  |
 | Claude Opus 4.5 (Thinking) | 8 | 1496 | 63.1% |  |
 | Claude Opus 4.6 1M | 10 | 1535 | 79.8% |  |
-| Claude Opus 4.7 (Medium Thinking) | 10 | 1554 | — | Promo pricing |
 | Claude Opus 4.6 Thinking 1M | 12 | 1535 | 79.8% |  |
 | Claude Sonnet 4.6 1M | 12 | 1500 | — |  |
-| Claude Opus 4.7 (High Thinking) | 14 | 1554 | — | Promo pricing |
-| Claude Opus 4.7 (XHigh Thinking) | 16 | 1554 | — | Promo pricing |
 | Claude Sonnet 4.6 Thinking 1M | 16 | 1500 | — |  |
+| Claude Opus 4.7 (Low Thinking) | 20 | 1554 | — |  |
 | Claude Opus 4.6 Fast | 24 | 1535 | 79.8% |  |
 | Claude Opus 4.6 Fast Thinking | 30 | 1535 | 79.8% |  |
-| Claude Opus 4.7 (Max Thinking) | 30 | 1554 | — | Promo pricing |
+| Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | — |  |
+| Claude Opus 4.7 (High Thinking) | 60 | 1554 | — |  |
+| Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | — |  |
+| Claude Opus 4.7 (Max Thinking) | 75 | 1554 | — |  |
 
 ---
 

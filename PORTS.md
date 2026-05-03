@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-04-29 00:01:40 -->
+<!-- Last synced: 2026-05-03 00:55:40 -->
 
 ### ⚠️ Port Conflicts Detected
 
@@ -102,6 +102,7 @@ If you encounter a port conflict:
 | 3005 | **fabrik-test-static-site** | static-site | /opt/fabrik-test-static-site |
 | 8000 | **fabrik-smoke-test** | python-api | /opt/fabrik-smoke-test |
 | 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |
+| 8002 | **fabrik-claim-validator** | python-api | /opt/fabrik-claim-validator |
 | 8003 | **fabrik-test-docusaurus** | docusaurus | /opt/fabrik-test-docusaurus |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
 | 8005 | **candle** | python-api | /opt/candle |
@@ -131,6 +132,7 @@ If you encounter a port conflict:
 | 8029 | **youtube** | python-api | /opt/youtube |
 | 8030 | **fabrik-test-mobile-app** | mobile-app | /opt/fabrik-test-mobile-app |
 | 8031 | **fabrik-test-python-api** | python-api | /opt/fabrik-test-python-api |
+| 8032 | **fabrik-citation-verifier** | python-api | /opt/fabrik-citation-verifier |
 | 8033 | **ComplianceOps** | python-api | /opt/ComplianceOps |
 | 8302 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 18011 | **captcha** | python-api | /opt/captcha |

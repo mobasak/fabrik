@@ -5,6 +5,7 @@
   - docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md (detailed tree + file tables + examples)
 """
 
+import json
 import logging
 import os
 import re
@@ -269,6 +270,41 @@ SCRIPT_FILES = ["runc", "rund", "rundsh", "runk", "sync_cascade_backup.sh", "syn
 
 # Master AGENTS.md location
 FABRIK_AGENTS_MD = FABRIK_ROOT / "AGENTS.md"
+
+# Master .windsurf/hooks.json location
+FABRIK_WINDSURF_HOOKS = FABRIK_ROOT / ".windsurf" / "hooks.json"
+
+
+def _copy_windsurf_hooks(project_dir: Path) -> bool:
+    """Copy .windsurf/hooks.json from fabrik root into project_dir, rewriting the
+    hardcoded ``cwd: /opt/fabrik`` to point at the new project's root so the
+    Cascade hooks invoke the project's own copy of ``scripts/enforcement/``.
+
+    Returns True if the file was copied, False if the source is missing.
+    """
+    if not FABRIK_WINDSURF_HOOKS.exists():
+        return False
+
+    raw = FABRIK_WINDSURF_HOOKS.read_text(encoding="utf-8")
+    try:
+        config = json.loads(raw)
+    except json.JSONDecodeError:
+        # Source is malformed — copy verbatim and let the user notice
+        target = project_dir / ".windsurf" / "hooks.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(raw, encoding="utf-8")
+        return True
+
+    project_root_str = str(project_dir.resolve())
+    fabrik_root_str = str(FABRIK_ROOT.resolve())
+    for hook in config.get("hooks", []):
+        if hook.get("cwd") == fabrik_root_str:
+            hook["cwd"] = project_root_str
+
+    target = project_dir / ".windsurf" / "hooks.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    return True
 
 # Canonical .droid/ gitignore block — shared across all scaffold types
 # Runtime files written by:
@@ -626,6 +662,9 @@ def _scaffold_shared(
     fabrik_compact = FABRIK_ROOT / "AGENTS-compact.md"
     if fabrik_compact.exists():
         shutil.copy(fabrik_compact, project_dir / "AGENTS-compact.md")
+
+    # Copy .windsurf/hooks.json (rewriting cwd to point at the new project)
+    _copy_windsurf_hooks(project_dir)
 
     # Copy AFCL.md (Agentic Friction & Constraint Log template)
     afcl_template = FABRIK_ROOT / "templates" / "scaffold" / "AFCL_TEMPLATE.md"
@@ -3168,6 +3207,13 @@ def fix_project(
             shutil.copy(compact_target, compact_path)
             added.append("AGENTS-compact.md (copied)")
 
+        # Copy .windsurf/hooks.json (rewriting cwd to point at the project)
+        hooks_path = project_path / ".windsurf" / "hooks.json"
+        if hooks_path.is_symlink():
+            hooks_path.unlink()
+        if _copy_windsurf_hooks(project_path):
+            added.append(".windsurf/hooks.json (copied)")
+
         # Copy AFCL.md (Agentic Friction & Constraint Log template)
         afcl_template = FABRIK_ROOT / "templates" / "scaffold" / "AFCL_TEMPLATE.md"
         afcl_target = project_path / "AFCL.md"
@@ -3263,6 +3309,10 @@ def fix_project(
         # AGENTS-compact.md - always copied (symlink migration)
         if (FABRIK_ROOT / "AGENTS-compact.md").exists():
             added.append("AGENTS-compact.md (copied)")
+
+        # .windsurf/hooks.json - always copied (with cwd rewrite)
+        if FABRIK_WINDSURF_HOOKS.exists():
+            added.append(".windsurf/hooks.json (copied)")
 
         # AFCL.md - always copied (symlink migration)
         if (FABRIK_ROOT / "templates" / "scaffold" / "AFCL_TEMPLATE.md").exists():

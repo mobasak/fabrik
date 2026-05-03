@@ -1,125 +1,84 @@
 # Cascade Agent Contract
 
-## ⚠️ MANDATORY FIRST OUTPUT
-`RULES ACTIVE: CASCADE | [3 specific rules from this file]`
+**Last Updated:** 2026-05-03
+**Read by:** Windsurf Cascade only
+**Other agents:** Kilo CLI reads `AGENTS-compact.md` (via `opencode.json`); Traycer reads `AGENTS.md`.
+**Auto-loaded with this ** every `.windsurf/rules/*.md` pack with `activation: always_on` (currently `CROSS_CUTTING_REQUIREMENTS.md`), plus any pack whose `activation: glob` matches the touched files. Do not duplicate their content here.
 
-## Completion Contract (every task)
-1. **IMPLEMENT** — Stay in Scope. No hardcoded secrets/localhost (use `os.getenv()`). No silent failures. Write 1 test for the core path (skip docs-only). Adjacent fixes allowed only inside files already in Scope; never broaden Scope.
-2. **QUALITY GATE** — Run the literal command from the ticket's `Final Gate Instruction` field; fix until `status: "success"`:
+## ⚠️ MANDATORY FIRST OUTPUT
+`RULES ACTIVE: CASCADE | <3 rules from this file you actually applied>`
+
+## Orient (do first, every task)
+1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml` / `package.json`.
+2. If `AFCL.md` exists, append friction / constraint findings as you encounter them.
+3. Rule packs in `.windsurf/rules/` self-activate via frontmatter — trust the frontmatter; the navigation table at the bottom is for human discovery only.
+4. When writing a plan in `docs/development/plans/`, include Key Invariants, Failure Modes, and 5–10 testable Acceptance Criteria.
+
+## Behavior
+- **Check before create:** verify the file does not already exist before any write. File-already-exists = STOP.
+- **Present before execute:** present the plan, wait for approval, then execute. Read-only IDE calls (`read_file`, `grep_search`, `list_dir`, `find_references`) are exempt.
+- **No unsolicited advice:** stay on the assigned task; no lifestyle / process commentary.
+- **Conflict resolution:** when a rule pack contradicts the ticket, the rule wins; surface the conflict before proceeding.
+- **State conflict:** if the task contradicts existing project state, stop and report — never silently overwrite.
+
+## Completion Contract
+1. **IMPLEMENT** — Stay strictly in ticket Scope. Adjacent fixes allowed only inside files already in Scope. Write 1 test for the core path (skip docs-only).
+2. **QUALITY GATE** — Run the literal command from the ticket's `Final Gate Instruction` field; fix until `status: "success"`. If absent, default by tier:
    - Standard: `python scripts/final_gate.py --lean --json`
-   - Milestone/multi-component/schema/auth: `python scripts/final_gate.py --json`
+   - Milestone / multi-component / schema / auth: `python scripts/final_gate.py --json`
    - Epic Closure: `python scripts/final_gate.py --systemic --json`
 3. **CHANGELOG** — One entry under `## [Unreleased]` (gate-enforced).
-4. **EXIT** — Gate auto-stages (`git add -A`). Do not commit, do not stage manually.
+4. **LESSONS LEARNT** — Fill the ticket's `Lessons Learnt:` line with `none` OR a structured entry appended to `docs/LESSONS_LEARNT.md`. Silence = failure.
+5. **EXIT** — Gate auto-stages on success. Do not commit, do not stage manually.
 
-## Cross-Cutting (every task)
-- **Doc currency:** Update `INDEX.md`, `CHANGELOG.md`, `README.md` on file/feature change. Update `docs/CONFIGURATION.md` + `.env.example` on env-var change. Update `docs/user-guide/<feature>.md` if user-facing AND `HAS_USER_GUIDE: true`.
-- **Logging:** No `print()` / `console.log()` in prod. Use scaffolded logger (`src/{package}/logger.py` Python, `src/logger.js` Node). Don't create custom logging modules.
-- **Reusable code:** Goes in `src/utils/` or `src/lib/`, zero project-specific imports, tagged `[reusable]` in `INDEX.md`, with docstrings + types.
-- **Lessons Learnt:** Fill the ticket's `Lessons Learnt:` line explicitly with `none` OR a structured entry appended to `docs/LESSONS_LEARNT.md` per ticket-breakdown Step 5 triggers. Silence = failure.
-
-## HARD STOPS — NEVER
+## HARD STOPS — Cascade mechanics
 | Rule | Instead |
 |:--|:--|
 | `git commit` / `git add` | Gate auto-stages on success |
-| bare `pip install` | `/opt/<project>/.venv/bin/pip install` |
-| Alpine base image | `python:<stable>-slim-bookworm` / `node:<LTS>-bookworm-slim` |
-| edit files outside Scope | stay strictly in ticket Scope |
-| modify `pyproject.toml` / `requirements.txt` | only if ticket explicitly requires deps change |
-| create files outside project tree | local project paths only |
-| expose Docker ports via `ports:` | route through Traefik (DOCKER-USER iptables blocks raw ports) |
-| admin dashboard without Authelia | add `authelia-forward@docker` middleware |
-| API service without `X-Internal-Token` | validate `SERVICE_INTERNAL_SECRET_KEY` header |
+| edit files outside ticket Scope | stay strictly in ticket Scope |
+| modify `pyproject.toml` / `requirements.txt` / `package.json` / `uv.lock` / `package-lock.json` | only if the ticket explicitly authorises a deps change |
+| create files outside the project tree | use local project paths only |
+| recreate `.venv` or replace existing Docker config | extend, don't replace |
 
-## Orientation (do first)
-Scan repo root and read any present: `README.md`, `.windsurf/rules/*.md` (see catalog below), `.windsurf/workflows/`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`, `package.json`. Don't recreate `.venv` or replace existing Docker config. When creating a plan in `docs/development/plans/`, include Key Invariants, Failure Modes, and 5–10 testable Acceptance Criteria.
+For technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, Authelia, `X-Internal-Token`, kebab-case naming, `/tmp/` ban, port ranges, etc.) the auto-loaded packs in `.windsurf/rules/` are authoritative.
 
-## Rule Pack Catalog (`.windsurf/rules/`)
-
-**Always-loaded** (auto-applied): `CROSS_CUTTING_REQUIREMENTS.md` (doc/observability/user-guide/reusability), `60-saas-ui.md` (SaaS UI patterns + 5 required states), `ocoron-design-system.md` (visual + verbal identity).
-
-**Read on-demand:**
-
-| When task involves... | Open |
-|:--|:--|
-| Python | `10-python.md` |
-| API endpoints/schemas | `15-api-contracts.md` |
-| TypeScript | `20-typescript.md` |
-| PostgreSQL queries/migrations | `25-data-postgres.md` |
-| Docker/compose/ops | `30-ops.md` |
-| Auth/sessions/secrets | `35-security-auth.md` |
-| Doc generation | `40-documentation.md` |
-| Docusaurus | `42-docusaurus.md` |
-| Testing/One-Test Rule | `45-testing-strategy.md` |
-| Code review/gates | `50-code-review.md` |
-| Logging/health/monitoring | `55-observability.md` |
-| WordPress | `62-wordpress.md` |
-| RAG/vector search | `65-rag-search.md` |
-| Chrome extensions (MV3) | `70-chrome-ext.md` |
-| Background workers/jobs | `75-workers-jobs.md` |
-| React Native/mobile | `80-mobile.md` |
-| Paddle/billing | `85-payments-billing.md` |
-| n8n/automation | `90-automation.md` |
-| Multi-tenant/RLS | `95-multi-tenant-saas.md` |
-
-**Conflict rule:** Rule wins over task spec; surface the conflict to user before proceeding.
-
-## Environment
-WSL Ubuntu only — Linux paths, never Windows tooling. Follow scaffold structure verbatim; don't reorganize. If task contradicts existing project state, stop and report — never silently overwrite.
-
-Code must work in all three envs without modification:
-
-| Env | DB | Config |
-|:--|:--|:--|
-| WSL dev | PostgreSQL localhost | `.env` |
-| VPS Docker | `postgres-main` | `compose.yaml` |
-| Supabase | Supabase PG | env vars |
-
-## Cascade Behavior
-- **Check before create:** verify file exists (`ls`/`find`/`read_file`) before `write_to_file`. File-already-exists = STOP.
-- **Present before execute:** present plan, wait for approval, then execute. Read-only commands (`ls`/`cat`/`find`/`grep`/`head`/`tail`) exempt.
-- **No unsolicited advice:** no breaks, no lifestyle tips, no non-task commentary.
-
-## Web Search Tools (for agents without native web search)
-When web search is needed, use these available tools:
-- `mcp2_web_search_exa` - Exa web search (superior results, requires Exa MCP configured)
-- `mcp3_firecrawl_search` - Firecrawl search (available, requires Firecrawl API key)
-- `search_web` - General web search (native Windsurf tool, no quota)
-
-## Essential Invariants
-- No hardcoded `localhost`/`127.0.0.1`/DB strings/keys/passwords. Always `os.getenv("KEY", "default")`.
-- Base images: `slim-bookworm` only. Never Alpine.
-- `compose.yaml` includes `platform: linux/amd64` for all build services.
-- Health endpoints test real deps (e.g. `await db.execute("SELECT 1")`).
-- CHANGELOG entry required for any code/config/infra change (format in `50-code-review.md`).
-- DB schema → Alembic migrations only (raw SQL DDL banned per `25-data-postgres.md`); `db/schema.sql` is reference only.
-- `.env.example` updated when adding env vars.
-- Ports: Python 8000–8099, Frontend 3000–3099. Register in `PORTS.md` before use.
-- No `/tmp/` — use project `.tmp/`.
-- No class-level config — function-level only.
-- **Naming: kebab-case.** Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.
-- Docker port security: never expose container ports via `ports:`. Traefik handles external. Docker bypasses UFW; DOCKER-USER iptables enforces. See `30-ops.md`.
-- Service auth (4 layers): iptables → Authelia (admin 2FA) → `X-Internal-Token` (API m2m) → Traefik (public). New admin dashboards add `authelia-forward@docker`. New API services validate `X-Internal-Token`.
-
-## Sensitive Data Protection
-Before modifying `.env`/`*.key`/`*.pem`/`secrets/`/`.ssh/`:
-```bash
-cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
-```
-No backup = STOP.
+## Pointers (content lives in the linked packs)
+- **Backup before editing secrets** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) — see `.windsurf/rules/35-security-auth.md` § Sensitive Data Protection.
+- **Password policy** (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`, banned: `postgres`/`admin`/`password123`) — see `.windsurf/rules/35-security-auth.md` § Password Policy.
 
 ## Before Creating New Scripts
-grep_search scripts/ and scripts/enforcement/ first. Extend existing code; don't duplicate.
+`grep_search` `scripts/` and `scripts/enforcement/` first. Extend existing code; don't duplicate.
 
-## PEP 668: Venv
-NEVER bare pip install (fails "externally-managed-environment"). Use /opt/<project>/.venv/bin/pip install <pkg>.
+## Web Search Tools (Cascade-specific MCP inventory)
+Use the first available:
+1. `search_web` — native Windsurf, no quota.
+2. Any tool whose name ends in `web_search_exa` — Exa MCP if configured.
+3. Any tool whose name ends in `firecrawl_search` — Firecrawl MCP if configured.
 
-## Password Policy
-32 chars, [a-zA-Z0-9], secrets.choice(). Forbidden: postgres, admin, password123.
+## Environment
+WSL Ubuntu only — Linux paths, never Windows tooling. Code must work in WSL dev (PostgreSQL localhost, `.env`), VPS Docker (`postgres-main` service name, `compose.yaml`), and Supabase (Supabase PG, env vars) without modification.
 
-## Decision-Grade Audit (before reporting done)
-- Error handling: silent/misleading/brittle failures handled?
-- Complexity: any "debugging footgun" in 6 months?
-- One-Test Rule: propose exactly ONE test (highest risk reduction). Document Why + Given/When/Then + mocked vs real. In plan file or commit msg.
-
-For mechanical checks and gate commands, see 50-code-review.md.
+## Rule Pack Pointers (navigation only — frontmatter governs loading)
+| When task involves… | Open |
+|:--|:--|
+| Python | `.windsurf/rules/10-python.md` |
+| API endpoints / schemas | `.windsurf/rules/15-api-contracts.md` |
+| TypeScript | `.windsurf/rules/20-typescript.md` |
+| PostgreSQL queries / migrations | `.windsurf/rules/25-data-postgres.md` |
+| Docker / compose / ops | `.windsurf/rules/30-ops.md` |
+| Auth / sessions / secrets | `.windsurf/rules/35-security-auth.md` |
+| Doc generation | `.windsurf/rules/40-documentation.md` |
+| Docusaurus | `.windsurf/rules/42-docusaurus.md` |
+| Testing / One-Test Rule | `.windsurf/rules/45-testing-strategy.md` |
+| Code review / gates | `.windsurf/rules/50-code-review.md` |
+| Logging / health / monitoring | `.windsurf/rules/55-observability.md` |
+| SaaS UI | `.windsurf/rules/60-saas-ui.md` |
+| WordPress | `.windsurf/rules/62-wordpress.md` |
+| RAG / vector search | `.windsurf/rules/65-rag-search.md` |
+| Chrome extensions (MV3) | `.windsurf/rules/70-chrome-ext.md` |
+| Background workers / jobs | `.windsurf/rules/75-workers-jobs.md` |
+| React Native / mobile | `.windsurf/rules/80-mobile.md` |
+| Paddle / billing | `.windsurf/rules/85-payments-billing.md` |
+| n8n / automation | `.windsurf/rules/90-automation.md` |
+| Multi-tenant / RLS | `.windsurf/rules/95-multi-tenant-saas.md` |
+| Visual + verbal identity (UI) | `.windsurf/rules/ocoron-design-system.md` |

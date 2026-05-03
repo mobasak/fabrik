@@ -1,0 +1,68 @@
+id: fabrik-citation-verifier
+kind: service
+template: python-api
+domain: citations.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: true           # SERVICE_INTERNAL_SECRET_KEY validates X-Internal-Token
+  has_persistent_data: true      # Alembic migrations, citations + verifications tables
+  needs_database: true
+  has_search_feature: false
+expose:
+  http: true
+  internal_only: false
+source:
+  type: git
+  repository: https://github.com/mobasak/fabrik-citation-verifier.git
+  branch: main
+coolify:
+  project: fabrik-services
+  server: localhost
+depends: {}
+infra:
+  glitchtip: true                # real service, error tracking worthwhile
+infrastructure:
+  database: shared               # postgres-main on VPS
+  storage: local
+  auth: internal_token
+env:
+  PORT: ${PORT:-8032}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  SERVICE_NAME: fabrik-citation-verifier
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+  RESOLVER_TIMEOUT_SECONDS: ${RESOLVER_TIMEOUT_SECONDS:-15}
+  CHAIN_BUDGET_SECONDS: ${CHAIN_BUDGET_SECONDS:-60}
+  VERIFICATION_TTL_DAYS: ${VERIFICATION_TTL_DAYS:-90}
+  NCBI_TOOL_NAME: fabrik-citation-verifier
+  CRAWL4AI_URL: http://crawl4ai:11235
+secrets:
+  required:
+    - DATABASE_URL                    # postgresql://postgres:PW@postgres-main:5432/fabrik_citation_verifier
+    - SERVICE_INTERNAL_SECRET_KEY     # X-Internal-Token auth for m2m calls
+    - NCBI_API_KEY                    # NCBI polite-pool (strongly recommended)
+    - NCBI_CONTACT_EMAIL
+    - OPENALEX_MAILTO                 # polite-pool email
+    - CROSSREF_MAILTO                 # polite-pool email
+    - UNPAYWALL_EMAIL                 # CV-104 fulltext annotator
+    - SEMANTIC_SCHOLAR_API_KEY        # CV-101
+    - SCOPUS_API_KEY                  # CV-106
+    - CORE_API_KEY                    # CV-105
+  generate: []
+  from_env: []
+  from_file: {}
+resources:
+  memory: 1G                          # resolver chain + crawl4ai is memory-hungry
+  cpu: '1.0'
+health:
+  path: /health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  disabled: false
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30

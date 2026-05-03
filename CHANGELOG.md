@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Fabrik workflow commands updated (2026-05-03)
+
+Split Fabrik workflow documentation into modular files in `docs/traycer/traycer-managed-development-workflow/` for better maintainability. Created 9 dedicated workflow files:
+- `1-trigger-workflow.md` — Project orientation, scaffold detection, constraint verification, smart routing
+- `2-epic-brief.md` — Product manager role, problem/context statement
+- `3-core-flows.md` — User experience flow mapping for UI scaffolds
+- `4-tech-plan.md` — Technical architecture design
+- `5-ticket-breakdown.md` — Spec translation into executable work units
+- `6-execute.md` — Sequential execution orchestrator with validation gates
+- `7-implementation-validation.md` — Evidence-based validation against specs
+- `8-revise-requirements.md` — Strategic planner for requirement changes with implementation state awareness
+- `9-cross-artifact-validation.md` — Cross-artifact consistency reviewer with 8 analysis dimensions
+
+Updated `docs/traycer/fabrik-workflow.md` § implementation-validation, § revise-requirements, and § cross-artifact-validation with the new detailed content.
+
 ### Changed — Scaffold workflow doc full code-truth rewrite (2026-04-29)
 
 **Context:** Owner asked whether `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md` "fully reflects the actual coded implementation 100%". Audit identified ~30–40% drift across 15 distinct sites (wrong `SPEC_ENABLED_TYPES` member, ghost `fabrik sync-models` command, ~half of `fabrik apply`/`destroy` flags missing, `--dev-port` flag absent, "Template Complexity Tiers" section referencing files that were never built, "Factory Configuration" referencing `factory-{settings,hooks,mcp}.json` that don't exist, `templates/scaffold/PYTHON_PRODUCTION_STANDARDS.md` referenced but absent, "30 enforcement scripts" actual=35, `fabrik logs <spec>` signature wrong, etc.). Owner approved Option B (full rewrite + prune).
