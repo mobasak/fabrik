@@ -816,16 +816,67 @@ def vps_sync(dry_run: bool):
 
 
 @cli.command()
-@click.argument("app")
+@click.argument("app", required=False)
 @click.option("--force", "-f", is_flag=True, help="Force rebuild")
-def redeploy(app: str, force: bool):
+@click.option(
+    "--refresh-infra",
+    is_flag=True,
+    help=(
+        "Re-run only the InfrastructureProvisioner against an existing app "
+        "(no Coolify rebuild). Requires --spec. Closes DEPLOYMENT.md §9.9 G2."
+    ),
+)
+@click.option(
+    "--spec",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Spec YAML path (required with --refresh-infra).",
+)
+@click.option("--dry-run", is_flag=True, help="Simulate without making changes (--refresh-infra only).")
+def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | None, dry_run: bool):
     """Redeploy a Coolify application by name or UUID.
 
     Example:
         fabrik redeploy site-provisioner
         fabrik redeploy qokoksogwsk0c04gcs4swwgs
+        fabrik redeploy --refresh-infra --spec specs/services/proxy.yaml
     """
     from fabrik.drivers.coolify import CoolifyClient
+
+    if refresh_infra:
+        if not spec:
+            click.echo("✗ --refresh-infra requires --spec PATH", err=True)
+            raise SystemExit(2)
+        if app:
+            click.echo(
+                "ℹ APP argument ignored under --refresh-infra; "
+                "the Coolify app is resolved from the spec name.",
+                err=True,
+            )
+        try:
+            from fabrik.orchestrator import DeploymentOrchestrator
+
+            click.echo(f"🔧 Refreshing infrastructure registrars for spec: {spec}")
+            if dry_run:
+                click.echo("   (dry-run — no changes will be applied)")
+            orch = DeploymentOrchestrator()
+            ctx = orch.refresh_infrastructure(spec_path=spec, dry_run=dry_run)
+            click.echo(
+                f"✅ Infrastructure refreshed for {ctx.spec.get('name')} "
+                f"({ctx.coolify_uuid})"
+            )
+            if ctx.created_resources:
+                click.echo(f"   Tracked resources: {len(ctx.created_resources)}")
+                for r in ctx.created_resources:
+                    click.echo(f"     - {r.resource_type}: {r.resource_id}")
+            _post_deploy_sync()
+            return
+        except Exception as e:
+            click.echo(f"✗ Error: {e}", err=True)
+            raise SystemExit(1)
+
+    if not app:
+        click.echo("✗ Missing APP argument (or use --refresh-infra --spec PATH)", err=True)
+        raise SystemExit(2)
 
     try:
         coolify = CoolifyClient()

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — G2: `fabrik redeploy --refresh-infra` re-runs only the InfrastructureProvisioner (2026-05-05)
+
+Closes gap G2 in `@/opt/fabrik/docs/DEPLOYMENT.md` §9.9. Previously, when a spec's `shape` flags or `infra` overrides changed, the only way to pick them up was a full `fabrik deploy` — touching DNS, rebuilding code, and re-running the verifier. The new flag does just the registrar dispatch.
+
+- `@/opt/fabrik/src/fabrik/orchestrator/__init__.py::DeploymentOrchestrator.refresh_infrastructure` — new method. Validates spec, loads secrets via the extracted `_load_secrets()` helper, resolves `ctx.coolify_uuid` from the live Coolify app list (matched on `spec.name`, with `fabrik-<name>` as fallback), then calls `InfrastructureProvisioner.provision(ctx)`. Skips DNS, deploy, and verify entirely.
+- `@/opt/fabrik/src/fabrik/orchestrator/__init__.py::DeploymentOrchestrator._load_secrets` — extracted from the inline 60-line block in `deploy()` so both deploy paths share identical semantics.
+- `@/opt/fabrik/src/fabrik/cli.py::redeploy` — added `--refresh-infra`, `--spec PATH`, and `--dry-run` flags. The `APP` argument becomes optional under `--refresh-infra` (the Coolify app is resolved from the spec name).
+- `@/opt/fabrik/tests/orchestrator/test_refresh_infrastructure.py` — new regression suite (5 tests) covering UUID resolution, `fabrik-` prefix fallback, the not-found error path, the skip-DNS/deploy/verify guarantee, and ProvisioningError wrapping.
+- Verification: live `fabrik redeploy --refresh-infra --spec specs/services/proxy.yaml` — completed in <2s, fired 3 registrars (gatus, glitchtip, grafana annotation), zero Coolify rebuild, zero DNS calls.
+
 ### Fixed — G8: Coolify env-var upsert avoids 409 storm on every re-apply (2026-05-05)
 
 Closes gap G8 in DEPLOYMENT.md §9.9. Pre-fix, `bulk_update_env_vars()` always POSTed and caught 409 to fall back to PATCH. The code worked, but every re-apply logged `Coolify API POST /applications/.../envs failed: status=409` for every env var — alarming false-positive ERROR noise on the happy path.

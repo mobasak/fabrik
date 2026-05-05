@@ -112,68 +112,7 @@ class DeploymentOrchestrator:
                 logger.warning("Validation warning: %s", w)
 
             # Step 2: Load secrets
-            secrets_config = spec.get("secrets", {})
-            if secrets_config:
-                if isinstance(secrets_config, list):
-                    # Old format: simple list of required secret names
-                    ctx.secrets = self.secrets_manager.load_all(secrets_config)
-                elif isinstance(secrets_config, dict):
-                    # New format: SecretsPolicy with required, generate, from_env, from_file
-                    all_secrets = {}
-
-                    # Load required secrets (use SecretsManager for env/.env/generate)
-                    required = secrets_config.get("required", [])
-                    if required:
-                        all_secrets.update(self.secrets_manager.load_all(required))
-
-                    # Load generate secrets
-                    generate = secrets_config.get("generate", [])
-                    if generate:
-                        all_secrets.update(self.secrets_manager.load_all(generate))
-
-                    # Load from_env secrets (command-line and .env take precedence)
-                    from_env = secrets_config.get("from_env", [])
-
-                    # Load from project .env file if it exists
-                    project_path = Path(f"/opt/{spec.get('id', spec.get('name'))}")
-                    env_file = project_path / ".env"
-                    if env_file.exists():
-                        try:
-                            for line in env_file.read_text().splitlines():
-                                line = line.strip()
-                                if line and not line.startswith("#") and "=" in line:
-                                    key, value = line.split("=", 1)
-                                    key = key.strip()
-                                    value = value.strip()
-                                    # Only load if it's a secret (in from_env list)
-                                    if key in from_env and key not in all_secrets:
-                                        all_secrets[key] = value
-                        except Exception as e:
-                            logger.warning("Failed to read .env file: %s", e)
-
-                    # Load from environment variables
-                    for key in from_env:
-                        if key not in all_secrets:
-                            env_value = os.getenv(key)
-                            if env_value:
-                                all_secrets[key] = env_value
-                            else:
-                                logger.warning("Secret %s not found in environment", key)
-
-                    # Load from_file secrets
-                    from_file = secrets_config.get("from_file", {})
-                    for env_var, file_path in from_file.items():
-                        if env_var not in all_secrets:
-                            try:
-                                all_secrets[env_var] = Path(file_path).read_text()
-                            except FileNotFoundError:
-                                logger.warning(
-                                    "File not found for secret %s: %s", env_var, file_path
-                                )
-                            except Exception as e:
-                                logger.warning("Failed to read file for secret %s: %s", env_var, e)
-
-                    ctx.secrets = all_secrets
+            self._load_secrets(ctx, spec)
 
             # Step 3: Provision (DNS)
             self._transition(ctx, DeploymentState.PROVISIONING)
@@ -261,6 +200,158 @@ class DeploymentOrchestrator:
                         len(ctx.created_resources),
                     )
                 self._transition(ctx, DeploymentState.FAILED)
+
+        return ctx
+
+    def _load_secrets(self, ctx: DeploymentContext, spec: dict) -> None:
+        """Populate ``ctx.secrets`` from the spec's ``secrets`` block.
+
+        Supports both the legacy list form (required-only) and the
+        SecretsPolicy dict form with ``required`` / ``generate`` /
+        ``from_env`` / ``from_file`` sub-blocks. Extracted from
+        :meth:`deploy` so :meth:`refresh_infrastructure` can reuse the
+        exact same loading semantics.
+        """
+        secrets_config = spec.get("secrets", {})
+        if not secrets_config:
+            return
+
+        if isinstance(secrets_config, list):
+            ctx.secrets = self.secrets_manager.load_all(secrets_config)
+            return
+
+        if not isinstance(secrets_config, dict):
+            return
+
+        all_secrets: dict[str, str] = {}
+
+        required = secrets_config.get("required", [])
+        if required:
+            all_secrets.update(self.secrets_manager.load_all(required))
+
+        generate = secrets_config.get("generate", [])
+        if generate:
+            all_secrets.update(self.secrets_manager.load_all(generate))
+
+        from_env = secrets_config.get("from_env", [])
+        project_path = Path(f"/opt/{spec.get('id', spec.get('name'))}")
+        env_file = project_path / ".env"
+        if env_file.exists():
+            try:
+                for line in env_file.read_text().splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key, value = line.split("=", 1)
+                        key = key.strip()
+                        value = value.strip()
+                        if key in from_env and key not in all_secrets:
+                            all_secrets[key] = value
+            except Exception as e:
+                logger.warning("Failed to read .env file: %s", e)
+
+        for key in from_env:
+            if key not in all_secrets:
+                env_value = os.getenv(key)
+                if env_value:
+                    all_secrets[key] = env_value
+                else:
+                    logger.warning("Secret %s not found in environment", key)
+
+        from_file = secrets_config.get("from_file", {})
+        for env_var, file_path in from_file.items():
+            if env_var not in all_secrets:
+                try:
+                    all_secrets[env_var] = Path(file_path).read_text()
+                except FileNotFoundError:
+                    logger.warning("File not found for secret %s: %s", env_var, file_path)
+                except Exception as e:
+                    logger.warning("Failed to read file for secret %s: %s", env_var, e)
+
+        ctx.secrets = all_secrets
+
+    def refresh_infrastructure(
+        self,
+        spec_path: Path,
+        dry_run: bool = False,
+    ) -> DeploymentContext:
+        """Re-run only the InfrastructureProvisioner against an existing app.
+
+        Closes DEPLOYMENT.md §9.9 G2. Use this when the spec's ``shape``
+        flags or ``infra`` overrides change but the application code itself
+        does not need a rebuild — for example after adding
+        ``shape.needs_database: true`` or flipping ``infra.gatus: false``.
+
+        Pipeline:
+          1. Validate spec.
+          2. Load secrets (same path as :meth:`deploy`).
+          3. Resolve ``ctx.coolify_uuid`` from the live Coolify app list
+             matched on spec name (with the conventional ``fabrik-`` prefix
+             tried as a fallback).
+          4. Call ``InfrastructureProvisioner.provision(ctx)``.
+
+        Skipped vs :meth:`deploy`: DNS provisioning, ``ServiceDeployer.deploy``,
+        post-deploy verification, rollback. The infrastructure provisioner is
+        already idempotent per-registrar, so re-running is safe.
+
+        Args:
+            spec_path: Path to the spec YAML.
+            dry_run: If True, the provisioner runs in dry-run mode
+                (each registrar checks ``ctx.dry_run``).
+
+        Returns:
+            DeploymentContext with ``coolify_uuid`` and any
+            ``created_resources`` recorded by the registrars.
+
+        Raises:
+            ValidationError: Spec validation fails.
+            ProvisioningError: Coolify app not found, or any registrar
+                raises (notably the GlitchTip DSN-injection verifier).
+        """
+        from fabrik.drivers.coolify import CoolifyClient
+
+        ctx = DeploymentContext(spec_path=spec_path, dry_run=dry_run)
+
+        spec, spec_hash, warnings = self.validator.load_and_validate(spec_path)
+        ctx.spec = spec
+        ctx.spec_hash = spec_hash
+        for w in warnings:
+            logger.warning("Validation warning: %s", w)
+
+        self._load_secrets(ctx, spec)
+
+        spec_name = spec.get("name") or spec.get("id")
+        if not spec_name:
+            raise ProvisioningError(
+                "Spec is missing both 'name' and 'id' — cannot resolve Coolify app.",
+                resource_type="infrastructure",
+            )
+
+        coolify = CoolifyClient()
+        apps = coolify.list_applications()
+        candidate_names = {spec_name, f"fabrik-{spec_name}"}
+        match = next((a for a in apps if a.get("name") in candidate_names), None)
+        if not match:
+            available = ", ".join(sorted(a.get("name", "<unnamed>") for a in apps))
+            raise ProvisioningError(
+                f"No Coolify app found matching spec name {spec_name!r} "
+                f"(also tried 'fabrik-{spec_name}'). Available: {available}",
+                resource_type="infrastructure",
+            )
+        ctx.coolify_uuid = match.get("uuid")
+        ctx.deployed_url = (
+            f"https://{spec['domain']}" if spec.get("domain") else None
+        )
+        logger.info(
+            "refresh_infrastructure: matched %s -> %s", spec_name, ctx.coolify_uuid
+        )
+
+        try:
+            self.infrastructure_provisioner.provision(ctx)
+        except Exception as e:
+            raise ProvisioningError(
+                f"Infrastructure refresh failed: {e}",
+                resource_type="infrastructure",
+            ) from e
 
         return ctx
 
