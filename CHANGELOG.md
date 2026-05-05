@@ -4,6 +4,75 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — G1: `fabrik apply` now runs the orchestrator pipeline by default (2026-05-05)
+
+Closes gap G1 in DEPLOYMENT.md §9.9. Pre-fix, `fabrik apply specs/x.yaml` ran the legacy render-only path (render → DNS → Coolify deploy); the 7-registrar `InfrastructureProvisioner` sweep only ran when the caller remembered to pass `--use-orchestrator`. Every service applied this way silently leaked GlitchTip / Gatus / Backrest / Authelia / Grafana / Meilisearch / Postgres registration.
+
+- `@/opt/fabrik/src/fabrik/cli.py::apply` — flipped the routing: orchestrator pipeline is now the default, legacy path is opt-in via `--legacy`. `--use-orchestrator` kept as a deprecated no-op flag for backward compatibility with `scripts/proof_run.py` and older docs.
+- Help text updated: docstring documents the default and the G1 escape hatch; `--legacy` option includes a "do NOT use for new deploys" warning.
+- Verification (proxy dry-run, 2026-05-05): `fabrik apply specs/services/proxy.yaml --dry-run --yes -s DB_USER=ozgur -s DB_PASSWORD=dummy` with debug logging prints the registrar-resolution table (`postgres skipped (infra.postgres=false override), gatus RUNS, backrest skipped, glitchtip RUNS, grafana RUNS, authelia skipped, meilisearch skipped`) and invokes all 3 applicable drivers in dry-run mode.
+
+### Fixed — DNS driver: live container-IP resolution via SSH (2026-05-05)
+
+`fabrik destroy /opt/fabrik/specs/services/proxy.yaml --yes` failed at the DNS step with `SSH proxy request failed: curl: (7) Failed to connect to 10.0.1.35 port 8001`. Root cause: `.env` hardcoded `SITE_PROVISIONER_INTERNAL_URL=http://10.0.1.35:8001`, but Coolify had recreated the `site-provisioner` container on a later redeploy and its Docker-network IP was now `10.0.1.25`. Every Coolify rebuild of the provisioner broke every subsequent `fabrik` DNS call.
+
+- `@/opt/fabrik/src/fabrik/drivers/dns.py::DNSClient.__init__` — added three env vars: `SITE_PROVISIONER_CONTAINER` (container name prefix, e.g. `site-provisioner`), `SITE_PROVISIONER_CONTAINER_PORT` (default `8001`), `SITE_PROVISIONER_CONTAINER_NETWORK` (default `coolify`).
+- `@/opt/fabrik/src/fabrik/drivers/dns.py::DNSClient._resolve_container_url` — new method that SSHes to the VPS and runs `sudo docker ps --filter name=^<prefix>` then `sudo docker inspect ... --format '{{(index .NetworkSettings.Networks "coolify").IPAddress}}'` to read the live IP. Result cached per client instance.
+- `@/opt/fabrik/src/fabrik/drivers/dns.py::DNSClient._request` — resolution order is now `container → static internal URL → public Traefik URL`. Static `SITE_PROVISIONER_INTERNAL_URL` is preserved as a fallback.
+- `@/opt/fabrik/.env` — added `SITE_PROVISIONER_CONTAINER=site-provisioner` (non-secret).
+- Verification (2026-05-05): `DNSClient()._resolve_container_url()` → `http://10.0.1.25:8001`; `.health()` → `{'status': 'healthy', ...}`; stale `proxy.vps1.ocoron.com` A record deleted cleanly via `delete_record()` after driver fix applied.
+
+### Changed — DEPLOYMENT.md §9.2 per-command factual tables + §9.9 infra-coverage matrix (2026-05-04)
+
+- `@/opt/fabrik/docs/DEPLOYMENT.md:503-586` — rewrote §9.2 "Deploy a service" to a command-by-command table (apply legacy / apply --use-orchestrator / deploy / redeploy / destroy / vps-sync) with source-file line refs and an explicit column for "Triggers `InfrastructureProvisioner`?". Split the orchestrator pipeline (9 steps) from the legacy `fabrik apply` pipeline (6 steps) so it is unambiguous which path runs the 7 registrars.
+- `@/opt/fabrik/docs/DEPLOYMENT.md:566-586` — rewrote §9.3 "Redeploy" to document that it is a **pure Coolify rebuild** (no DNS / Authelia / GlitchTip / Gatus / Backrest / Meilisearch touch) and that spec-shape changes require a fresh `fabrik deploy`. Added a DB-schema-migration reminder.
+- `@/opt/fabrik/docs/DEPLOYMENT.md:723-757` — added §9.9 "Infrastructure-service coverage matrix": 16-row audit of every infra service the user asked about (PostgreSQL, Redis, Traefik, GlitchTip web+worker, Grafana, Loki, Promtail, Prometheus, Alertmanager, cAdvisor, node-exporter, Netdata, Authelia, Gatus, Backrest, Meilisearch) marking which are registered, which are auto-discovered, and which are gaps. Followed by a **G1–G7 gap list** with fix recipes and "Blocking today?" column — the two blocking items are (G1) legacy `fabrik apply` skipping the provisioner entirely, and (G7) GlitchTip DSNs embedding `localhost:8000`.
+- `@/opt/fabrik/docs/DEPLOYMENT.md:5` — bumped Last Updated to 2026-05-04 with diff summary.
+
+**Verification (proxy service, 2026-05-04):**
+
+- Container: `fabrik-proxy-f44gcs4oso4k0sosw4s8wcow-205243257047` — `Up 41 minutes (healthy)`.
+- `curl -I https://proxy.vps1.ocoron.com/health` → `HTTP 200`.
+- Postgres: `proxy_management` DB exists on `postgres-main-l0k4gk0kggc8okcwk0s4c8s8`; container env `DB_HOST=postgres-main`, `DB_NAME=proxy_management` (correct, via `docker inspect`).
+- Gatus: `/opt/monitoring/configs/gatus/apps/fabrik-proxy.yaml` present, hits `https://proxy.vps1.ocoron.com/health` (no stale container UUID).
+- GlitchTip: project `fabrik-proxy` exists in org `ocoron`; DSN `http://bb2d…@localhost:8000/60` — **broken** (GlitchTip server-side `GLITCHTIP_DOMAIN` misconfig, captured as gap G7).
+
+### Fixed — Git-sourced Coolify apps missing SSH deploy key + `infra:` override silently dropped by `model_dump` (2026-05-04)
+
+**Context:** Both bugs surfaced during the `/opt/fabrik-proxy` redeploy. The app was recreated via orchestrator but the first git clone died with `Permission denied (publickey)` because the new Coolify application had `private_key_id=NULL`. Manual recovery (re-running the `InfrastructureProvisioner` by hand) then created an orphan `fabrik_proxy` Postgres database alongside the real `proxy_management` one — the spec's `infra: {postgres: false}` override was silently stripped because `spec.model_dump()` didn't include it.
+
+**Bug 1 — SSH deploy key not linked to new git-sourced apps:**
+
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::create_git_application` — restored `private_key_uuid` parameter. When set, routes to `POST /applications/private-deploy-key`; when unset, keeps `/applications/public` for HTTPS-cloneable repos.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_resolve_private_key_uuid` — restored resolver with precedence `spec.coolify.private_key_uuid` → `COOLIFY_PRIVATE_KEY_UUID` env var → auto-discovery via `list_private_keys()` (prefer `is_git_related=True`, then name heuristic containing `deploy`/`github`). Observed on VPS 2026-05-04: both keys have `is_git_related=false`, so the name heuristic is what actually matches `github-deploy-key` in practice.
+- `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_create_git_deployment` — detects SSH URLs (`git@…` or `ssh://…`) and requires a resolvable key; raises `DeployError` with an actionable message pre-create if none found. HTTPS URLs pass `None` and route to the public endpoint unchanged.
+- `@/opt/fabrik/src/fabrik/spec_loader.py::CoolifyConfig` — added optional `private_key_uuid` field for per-service spec override.
+- `@/opt/fabrik/.env.example` — re-added `COOLIFY_PRIVATE_KEY_UUID` (optional; auto-discovered when unset).
+- `@/opt/fabrik/.env` — set `COOLIFY_PRIVATE_KEY_UUID=xc80wwcggsc0wwwsc0swko4w` (`github-deploy-key`) for deterministic resolution in production.
+- Prior history: the 2026-04-26 removal of this code path was based on the incorrect assumption that Coolify v4.0.0+ auto-selects SSH keys from configured Private Keys. Empirical verification during this session proved otherwise — new git apps created via `/applications/public` land with `private_key_id=NULL` in the Coolify DB.
+
+**Bug 2 — `infra:` override dropped on `Spec.model_dump()`:**
+
+- `@/opt/fabrik/src/fabrik/spec_loader.py::Spec.infra` — added `infra: dict[str, bool] | None = None` as a real pydantic field. Previously it was intentionally NOT on the model so consumers had to read raw YAML; that broke `orchestrator/destroyer.py::_spec_to_dict` which calls `model_dump(mode="json")`, stripping the override and causing `resolve_applicability` to run the postgres registrar for services with `infra.postgres: false` set (outcome: orphan `fabrik_<name>` DB created). `save_spec` still uses `exclude_none=True` so scaffolded specs stay clean.
+
+**Regression tests (One-Test-Rule — one test per failure mode, five added):**
+
+- `@/opt/fabrik/tests/orchestrator/test_deployer.py::test_deploy_creates_git_sourced` — updated to assert `private_key_uuid` is passed through to `create_git_application`.
+- `@/opt/fabrik/tests/orchestrator/test_deployer.py::test_deploy_git_sourced_ssh_without_deploy_key_raises` — SSH URL + no resolvable key → `DeployError` raised pre-create, `create_git_application` not called.
+- `@/opt/fabrik/tests/orchestrator/test_deployer.py::test_deploy_git_sourced_https_skips_deploy_key` — HTTPS URL → `list_private_keys` not called, `private_key_uuid=None` passed.
+- `@/opt/fabrik/tests/orchestrator/test_deployer.py::test_resolve_private_key_uuid_precedence` — spec override > env var > auto-discovery; malformed inline-comment env var falls through correctly.
+- `@/opt/fabrik/tests/orchestrator/test_infrastructure.py::TestInfraSurvivesModelDump` — the exact failure path: `load_spec` → `model_dump(mode="json")` → `resolve_applicability` must return `(False, "infra.postgres=false override")` for postgres. Second test locks `save_spec` to omit `infra:` when the spec didn't set it.
+
+**Test count:** 59/59 in `tests/orchestrator/test_deployer.py` + `tests/orchestrator/test_infrastructure.py`. Full suite: 412/413 passing (one pre-existing e2e rollback failure unrelated to this change, verified on `git stash`).
+
+**Operational recovery performed during debugging:**
+
+- `apps/fabrik-proxy/` → `UPDATE applications SET private_key_id=1 WHERE uuid='f44gcs4oso4k0sosw4s8wcow';` via `coolify-db` psql (one-shot workaround; the code fix above makes this unnecessary going forward).
+- Dropped orphan `fabrik_proxy` database in `postgres-main`.
+- Redeploy verified healthy — `https://proxy.vps1.ocoron.com/health` returns `{"status":"ok"}`; container up, SENTRY_DSN + all 7 service env vars injected; Gatus, GlitchTip (project `fabrik-proxy`, platform=python), and Grafana (annotation 159) all registered.
+
+**Lessons Learnt:** [LESSONS_LEARNT §8.14 pending — will add under same commit: "Never assume an upstream vendor auto-resolves identifiers just because the release notes say so; verify against the actual DB row, not the API response shape."]
+
 ### Changed — Browserless upgraded v1 → v2 on VPS (2026-05-04)
 
 Coolify app `vckgs8c00o40o884k48cgow8` (`browser.vps1.ocoron.com`) migrated from `browserless/chrome:1-chrome-stable` to `ghcr.io/browserless/chromium:latest` (Browserless v2 OSS). v2 enforces TOKEN auth on all WS/REST endpoints — generated 32-char alnum token via `secrets.choice()`, injected into Coolify via POST `/api/v1/applications/{uuid}/envs` (TOKEN, CONCURRENT=10, TIMEOUT=60000). Image swap done via PATCH `/api/v1/applications/{uuid}` (`docker_registry_image_name`, `docker_registry_image_tag`). Deploy queued via GET `/api/v1/deploy?uuid=...&force=false`, deployment_uuid `rowgko84o48sogw4ccgcc0ww`.

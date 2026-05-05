@@ -52,6 +52,32 @@ def _split_domain_for_dns(domain: str) -> tuple[str, str] | None:
     return subdomain, base_domain
 
 
+def _post_deploy_sync() -> None:
+    """Run sync_projects.py after deploy/apply/destroy to keep data/projects.yaml current.
+
+    Non-fatal: swallows errors so it never blocks the primary command.
+    """
+    import subprocess
+
+    sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
+    if not sync_script.exists():
+        return
+    try:
+        result = subprocess.run(
+            ["python3", str(sync_script)],
+            cwd=str(FABRIK_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            click.echo("📊 Project registry updated")
+        else:
+            click.echo(f"⚠️  Registry sync failed: {result.stderr[:200]}", err=True)
+    except Exception as e:
+        click.echo(f"⚠️  Registry sync error: {e}", err=True)
+
+
 @cli.command(hidden=True)
 @click.argument("name")
 @click.option("--template", "-t", required=True, help="Template to use (e.g., python-api)")
@@ -252,7 +278,22 @@ def plan(spec_path: str, secrets: tuple):
 @click.option("--skip-dns", is_flag=True, help="Skip DNS record creation")
 @click.option("--skip-deploy", is_flag=True, help="Skip Coolify deployment (files only)")
 @click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
-@click.option("--use-orchestrator", is_flag=True, help="Use new orchestrator pipeline")
+@click.option(
+    "--use-orchestrator",
+    is_flag=True,
+    hidden=True,
+    help="DEPRECATED: orchestrator is the default since 2026-05-05 (G1). Flag is a no-op kept for backward compatibility.",
+)
+@click.option(
+    "--legacy",
+    is_flag=True,
+    help=(
+        "G1 escape hatch: use the pre-orchestrator pipeline (render + DNS + "
+        "deploy_to_coolify only, NO InfrastructureProvisioner). Skips "
+        "GlitchTip, Gatus, Authelia, Backrest, Meilisearch, Grafana, and "
+        "Postgres registrars. Do NOT use for new deploys."
+    ),
+)
 @click.option("--skip-health-check", is_flag=True, help="Skip health check verification")
 @click.option(
     "--keep-on-failure",
@@ -273,15 +314,23 @@ def apply(
     skip_deploy: bool,
     dry_run: bool,
     use_orchestrator: bool,
+    legacy: bool,
     skip_health_check: bool,
     keep_on_failure: bool,
 ):
     """Deploy a service from spec.
 
+    As of 2026-05-05 (G1), the orchestrator pipeline is the default — this
+    runs the full 7-registrar sweep (postgres, gatus, backrest, glitchtip,
+    grafana, authelia, meilisearch). Pass --legacy to force the legacy
+    render-only path; --use-orchestrator is accepted as a no-op for
+    backward compatibility with proof_run.py and older docs.
+
     Example:
         fabrik apply specs/my-api.yaml -s API_KEY=xxx
         fabrik apply specs/my-api.yaml --yes  # Skip confirmation
         fabrik apply specs/my-api.yaml --dry-run  # Simulate deployment
+        fabrik apply specs/my-api.yaml --legacy  # OLD path, no registrars
     """
     # Parse secrets
     secrets_dict = {}
@@ -292,8 +341,14 @@ def apply(
         key, value = s.split("=", 1)
         secrets_dict[key] = value
 
-    # Use orchestrator pipeline if requested or dry-run
-    if use_orchestrator or dry_run:
+    if use_orchestrator:
+        click.echo(
+            "ℹ️  --use-orchestrator is deprecated (orchestrator is now the "
+            "default since 2026-05-05). Flag accepted as no-op."
+        )
+
+    # Default: orchestrator pipeline. Legacy path only when explicitly requested.
+    if not legacy:
         if secrets_dict:
             for key, value in secrets_dict.items():
                 os.environ[key] = value
@@ -307,6 +362,7 @@ def apply(
 
         if ctx.state == DeploymentState.COMPLETE:
             click.echo(f"✅ Deployment complete: {ctx.deployed_url or ctx.spec.get('domain')}")
+            _post_deploy_sync()
             raise SystemExit(0)
         elif ctx.state == DeploymentState.ROLLED_BACK:
             click.echo(f"⚠️  Deployment failed and rolled back: {ctx.error}")
@@ -454,6 +510,7 @@ def apply(
     if spec.domain:
         click.echo(f"🌐 URL: https://{spec.domain}")
     click.echo(f"📁 Files: apps/{spec.id}/")
+    _post_deploy_sync()
     click.echo()
     click.echo("Verify deployment:")
     click.echo(f"  fabrik status {spec_path}")
@@ -727,6 +784,35 @@ def destroy(
     click.echo("=" * 60)
     click.echo(f"✅ Destroyed: {spec.id}")
     click.echo("=" * 60)
+    _post_deploy_sync()
+
+
+@cli.command("vps-sync")
+@click.option("--dry-run", is_flag=True, help="Show what would change without writing")
+def vps_sync(dry_run: bool):
+    """Refresh VPS documentation from live state.
+
+    SSHes to VPS, runs docker ps, and updates container tables in
+    vps-status.md, timestamps in vps-urls.md and vps-complete-inventory.md,
+    and reruns sync_projects.py.
+
+    Example:
+        fabrik vps-sync
+        fabrik vps-sync --dry-run
+    """
+    import subprocess
+
+    script = FABRIK_ROOT / "scripts" / "vps_sync.py"
+    if not script.exists():
+        click.echo("❌ scripts/vps_sync.py not found", err=True)
+        raise SystemExit(1)
+
+    cmd = ["python3", str(script)]
+    if dry_run:
+        cmd.append("--dry-run")
+
+    result = subprocess.run(cmd, cwd=str(FABRIK_ROOT))
+    raise SystemExit(result.returncode)
 
 
 @cli.command()
@@ -759,6 +845,7 @@ def redeploy(app: str, force: bool):
         result = coolify.deploy(target["uuid"], force=force)
         click.echo(f"✅ Redeployed: {target['name']} ({target['uuid']})")
         click.echo(f"   Status: {result}")
+        _post_deploy_sync()
     except Exception as e:
         click.echo(f"✗ Error: {e}", err=True)
         raise SystemExit(1)
@@ -1867,6 +1954,7 @@ def deploy_cmd(project_path: str | None, dry_run: bool):
 
     if exit_code == 0:
         click.echo(f"Deployment successful: {project_dir.name}")
+        _post_deploy_sync()
     else:
         click.echo(f"Deployment failed: {project_dir.name}", err=True)
 

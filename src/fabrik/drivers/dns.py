@@ -78,12 +78,23 @@ class DNSClient:
         self.ssh_host = ssh_host
 
         # SITE_PROVISIONER_INTERNAL_URL bypasses Traefik IP allowlist by calling
-        # directly through SSH to the container port (e.g. http://localhost:8001).
+        # directly through SSH to the container port (e.g. http://10.0.1.25:8001).
         # Set this when running from WSL where the public URL is blocked by iptables.
+        #
+        # Coolify recreates containers on every redeploy → the IP changes. Set
+        # SITE_PROVISIONER_CONTAINER=<name-prefix> (e.g. "site-provisioner") to
+        # have the driver resolve the live IP via `docker inspect` over SSH on
+        # each request. Falls back to SITE_PROVISIONER_INTERNAL_URL on miss.
         self._internal_url: str | None = os.getenv("SITE_PROVISIONER_INTERNAL_URL")
         if self._internal_url:
             self._internal_url = self._internal_url.rstrip("/")
             logger.debug("DNS client: using SSH proxy via %s → %s", ssh_host, self._internal_url)
+        self._container_prefix: str | None = os.getenv("SITE_PROVISIONER_CONTAINER")
+        self._container_port: str = os.getenv("SITE_PROVISIONER_CONTAINER_PORT", "8001")
+        self._container_network: str = os.getenv(
+            "SITE_PROVISIONER_CONTAINER_NETWORK", "coolify"
+        )
+        self._resolved_url_cache: str | None = None
 
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if self.api_key:
@@ -93,9 +104,81 @@ class DNSClient:
                 "SITE_PROVISIONER_API_KEY not set — requests will be unauthenticated. "
                 "Set SITE_PROVISIONER_API_KEY in .env for production use."
             )
-
         self._headers = headers
         self._client = httpx.Client(timeout=timeout, headers=headers)
+
+    def _resolve_container_url(self) -> str | None:
+        """Resolve the live internal URL via ``docker inspect`` over SSH.
+
+        Returns ``None`` when ``SITE_PROVISIONER_CONTAINER`` is unset or
+        the container can't be resolved (caller falls back to
+        ``SITE_PROVISIONER_INTERNAL_URL``). Result is cached per client
+        instance — create a fresh ``DNSClient`` after a Coolify redeploy.
+        """
+        if not self._container_prefix:
+            return None
+        if self._resolved_url_cache:
+            return self._resolved_url_cache
+        # Find full container name by prefix, then read its IP on the
+        # shared coolify network (avoids picking the per-app UUID net).
+        try:
+            name_proc = subprocess.run(
+                [
+                    "ssh",
+                    self.ssh_host,
+                    f"sudo docker ps --filter name=^{self._container_prefix} "
+                    "--format '{{.Names}}' | head -1",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=int(self.timeout),
+                check=False,
+            )
+            container = name_proc.stdout.strip()
+            if name_proc.returncode != 0 or not container:
+                logger.warning(
+                    "DNS client: container prefix %r not found on VPS (stderr=%r)",
+                    self._container_prefix,
+                    name_proc.stderr.strip(),
+                )
+                return None
+            fmt = (
+                "{{(index .NetworkSettings.Networks \""
+                + self._container_network
+                + "\").IPAddress}}"
+            )
+            ip_proc = subprocess.run(
+                [
+                    "ssh",
+                    self.ssh_host,
+                    f"sudo docker inspect {container} --format '{fmt}'",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=int(self.timeout),
+                check=False,
+            )
+            ip = ip_proc.stdout.strip()
+            if ip_proc.returncode != 0 or not ip or ip == "<no value>":
+                logger.warning(
+                    "DNS client: could not resolve %s IP on %s (stderr=%r)",
+                    container,
+                    self._container_network,
+                    ip_proc.stderr.strip(),
+                )
+                return None
+            url = f"http://{ip}:{self._container_port}"
+            self._resolved_url_cache = url
+            logger.debug(
+                "DNS client: resolved %s → %s (container=%s)",
+                self._container_prefix,
+                url,
+                container,
+            )
+            return url
+        except Exception as e:  # noqa: BLE001
+            logger.warning("DNS client: container resolution failed: %s", e)
+            return None
 
     def _request_via_ssh(
         self, method: str, url: str, body: dict | None = None, params: dict[str, Any] | None = None
@@ -132,11 +215,14 @@ class DNSClient:
     def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """Make HTTP request to Site Provisioner service.
 
-        When SITE_PROVISIONER_INTERNAL_URL is set, proxies the call through SSH
-        to bypass Traefik IP allowlist restrictions (WSL → VPS pipeline use case).
+        Resolution order:
+        1. SITE_PROVISIONER_CONTAINER → resolve live IP via ``docker inspect`` over SSH.
+        2. SITE_PROVISIONER_INTERNAL_URL → static SSH-proxied URL.
+        3. Fallback → public Traefik URL (requires IP allowlist hit).
         """
-        if self._internal_url:
-            url = f"{self._internal_url}{endpoint}"
+        resolved = self._resolve_container_url() or self._internal_url
+        if resolved:
+            url = f"{resolved}{endpoint}"
             body = kwargs.get("json")
             params = kwargs.get("params")
             return self._request_via_ssh(method, url, body, params)
