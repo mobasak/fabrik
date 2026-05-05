@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — G8: Coolify env-var upsert avoids 409 storm on every re-apply (2026-05-05)
+
+Closes gap G8 in DEPLOYMENT.md §9.9. Pre-fix, `bulk_update_env_vars()` always POSTed and caught 409 to fall back to PATCH. The code worked, but every re-apply logged `Coolify API POST /applications/.../envs failed: status=409` for every env var — alarming false-positive ERROR noise on the happy path.
+
+- `@/opt/fabrik/src/fabrik/drivers/coolify.py::bulk_update_env_vars` — now GETs `/applications/{uuid}/envs` first to learn existing keys, then picks POST (create) vs PATCH (update) per key. Fallback POST-then-PATCH-on-409 path retained for the cold-start case where the GET fails.
+- `@/opt/fabrik/tests/drivers/test_coolify.py` — new regression suite (2 tests) covering the pre-fetched-upsert path and the fallback 409 path.
+- Verification: live `fabrik apply specs/services/proxy.yaml -s DB_USER=... -s DB_PASSWORD=...` on a previously-deployed service — zero 409 lines in stderr, zero ERROR-level Coolify log lines. Deploy still completes green.
+
 ### Changed — G1: `fabrik apply` now runs the orchestrator pipeline by default (2026-05-05)
 
 Closes gap G1 in DEPLOYMENT.md §9.9. Pre-fix, `fabrik apply specs/x.yaml` ran the legacy render-only path (render → DNS → Coolify deploy); the 7-registrar `InfrastructureProvisioner` sweep only ran when the caller remembered to pass `--use-orchestrator`. Every service applied this way silently leaked GlitchTip / Gatus / Backrest / Authelia / Grafana / Meilisearch / Postgres registration.

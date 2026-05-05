@@ -436,12 +436,26 @@ class CoolifyClient:
         instant_deploy: bool = False,
         ports_exposes: str = "8000",
         domains: str | None = None,
+        private_key_uuid: str | None = None,
     ) -> dict[str, Any]:
         """Create an application from a git repository.
 
-        Uses POST /applications with git_repository and git_branch fields.
-        Coolify v4.0.0+ auto-selects SSH keys based on the repo URL from configured
-        SSH keys in Coolify settings — no manual private key UUID resolution needed.
+        Routes to the correct Coolify v4 endpoint based on ``private_key_uuid``:
+
+        * ``private_key_uuid`` set → ``POST /applications/private-deploy-key``
+          (required for SSH repo URLs such as ``git@github.com:...``).
+        * ``private_key_uuid`` unset → ``POST /applications/public``
+          (HTTPS-cloneable repos only).
+
+        History (2026-05-04): an earlier change on 2026-04-26 removed
+        ``private_key_uuid`` under the assumption that Coolify v4.0.0+
+        auto-selects SSH keys from configured Private Keys. Empirical
+        verification during the /opt/fabrik-proxy redeploy that day proved
+        otherwise — git-sourced apps created via ``/applications/public``
+        land with ``private_key_id=NULL`` in the Coolify DB and their first
+        ``git ls-remote`` fails with ``Permission denied (publickey)``.
+        The parameter is now restored and the endpoint is routed
+        explicitly.
 
         Args:
             project_uuid: UUID of project to add app to
@@ -457,6 +471,10 @@ class CoolifyClient:
             instant_deploy: Deploy immediately after creation (default: False
                 for git-sourced apps — the first deploy triggers git pull + build)
             ports_exposes: Exposed ports string (default: "8000")
+            domains: Optional ``https://<fqdn>`` list for Traefik routing
+            private_key_uuid: Coolify UUID of a registered SSH deploy key.
+                Required for SSH-URL repos. Resolve via ``list_private_keys()``
+                or set ``COOLIFY_PRIVATE_KEY_UUID`` in the fabrik env.
 
         Returns:
             Created application dict with uuid
@@ -494,15 +512,12 @@ class CoolifyClient:
         if domains:
             payload["domains"] = domains
         # Coolify v4 split git-create by auth method:
-        #   /applications/public            — publicly cloneable repo
-        #   /applications/private-deploy-key — private repo + deploy key
+        #   /applications/public            — publicly cloneable repo (HTTPS)
+        #   /applications/private-deploy-key — private repo + deploy key (SSH)
         #   /applications/private-github-app — private repo + GitHub App
-        # The legacy /applications endpoint returns 404. Public is the
-        # right default for HTTPS-cloneable URLs; private flavors require
-        # extra config (deploy-key UUID or GitHub App install) that is
-        # out of scope for this driver path. Callers using a private repo
-        # without a configured key will see Coolify's auth-failure log on
-        # the build, not a driver-side error.
+        if private_key_uuid:
+            payload["private_key_uuid"] = private_key_uuid
+            return self._request("POST", "/applications/private-deploy-key", json=payload)
         return self._request("POST", "/applications/public", json=payload)
 
     def list_private_keys(self) -> list[dict[str, Any]]:
@@ -649,37 +664,46 @@ class CoolifyClient:
 
     def bulk_update_env_vars(self, uuid: str, env_vars: dict[str, str]) -> dict[str, Any]:
         """
-        Bulk update environment variables (auto-routes to applications or services).
+        Bulk upsert environment variables (auto-routes to applications or services).
 
-        Coolify v4 doesn't have a bulk endpoint - iterate and update each var individually.
-        POST creates new vars, PATCH updates existing ones.
+        Coolify v4 doesn't have a bulk endpoint; iterate per key. To avoid the noisy
+        409 "already exists" ERROR that POST generates on every re-apply, we first
+        fetch the current env list and pick POST (create) or PATCH (update) per key.
+        Falls back to POST-then-PATCH-on-409 if the initial fetch fails (e.g. a brand
+        new app whose `/envs` endpoint isn't yet queryable).
 
         Args:
             uuid: Application/Service UUID
             env_vars: Dict of key-value pairs
         """
         base = self._resolve_resource_base(uuid)
-        results = []
+
+        existing_keys: set[str] = set()
+        try:
+            current = self._request("GET", f"/{base}/{uuid}/envs")
+            if isinstance(current, list):
+                existing_keys = {e.get("key") for e in current if isinstance(e, dict) and e.get("key")}
+        except httpx.HTTPStatusError as e:
+            logger.debug("bulk_update_env_vars: GET /envs failed (%s); will fall back to POST+409 retry", e.response.status_code)
+
+        created = 0
+        updated = 0
         for key, value in env_vars.items():
+            payload = {"key": key, "value": value, "is_literal": True}
+            if key in existing_keys:
+                self._request("PATCH", f"/{base}/{uuid}/envs", json=payload)
+                updated += 1
+                continue
             try:
-                # Try POST first (create new)
-                self._request(
-                    "POST",
-                    f"/{base}/{uuid}/envs",
-                    json={"key": key, "value": value, "is_literal": True},
-                )
+                self._request("POST", f"/{base}/{uuid}/envs", json=payload)
+                created += 1
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 409:
-                    # Already exists, use PATCH to update
-                    self._request(
-                        "PATCH",
-                        f"/{base}/{uuid}/envs",
-                        json={"key": key, "value": value, "is_literal": True},
-                    )
+                    self._request("PATCH", f"/{base}/{uuid}/envs", json=payload)
+                    updated += 1
                 else:
                     raise
-            results.append({"key": key, "status": "updated"})
-        return {"updated": len(results)}
+        return {"created": created, "updated": updated}
 
     # =========================================================================
     # Services (One-click services like databases)

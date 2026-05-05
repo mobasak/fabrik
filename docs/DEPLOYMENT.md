@@ -2,7 +2,7 @@
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.
 
-**Last Updated:** 2026-04-28 (live-deploy proof for all 7 deployable scaffold types — see `@/opt/fabrik/PROOF.md` and `CHANGELOG.md [Unreleased]` B23–B46. New harness: `@/opt/fabrik/scripts/proof_run.py`. New flag: `fabrik apply --keep-on-failure`. Previous milestone: 2026-04-22 — maximal-shape e2e on `python-api`, ~63s wall time, all 7 registrars green [postgres, gatus, backrest, glitchtip, grafana, authelia, meilisearch] — see `_REGISTRAR_ORDER` in `src/fabrik/orchestrator/infrastructure.py:84`.)
+**Last Updated:** 2026-05-04 (new §9.2 per-command factual pipeline tables + §9.9 infra-coverage matrix & gap list G1–G7, derived from `cli.py`, `deploy_router.py`, `orchestrator/infrastructure.py`. Previous milestone: 2026-04-28 — live-deploy proof for all 7 deployable scaffold types — see `@/opt/fabrik/PROOF.md` and `CHANGELOG.md [Unreleased]` B23–B46. New harness: `@/opt/fabrik/scripts/proof_run.py`. New flag: `fabrik apply --keep-on-failure`. Previous milestone: 2026-04-22 — maximal-shape e2e on `python-api`, ~63s wall time, all 7 registrars green [postgres, gatus, backrest, glitchtip, grafana, authelia, meilisearch] — see `_REGISTRAR_ORDER` in `src/fabrik/orchestrator/infrastructure.py:84`.)
 **Backup of prior version:** `docs/archive/2026-04-28-DEPLOYMENT.md.backup.20260419-144040` (pre-rewrite)
 
 ## Table of Contents
@@ -500,49 +500,89 @@ python3 scripts/sync_projects.py
 fabrik validate-deploy /opt/my-api
 ```
 
-### 9.2 Deploy a service
+### 9.2 Deploy a service — command-by-command, factual
+
+**Two deploy entry points exist, with materially different behaviour. The table below is authoritative; source is `src/fabrik/cli.py` and `src/fabrik/deploy_router.py`.**
+
+| Entry point | Source fn | Path through code | Triggers `InfrastructureProvisioner`? |
+|---|---|---|---|
+| `fabrik apply <spec>` (default, legacy) | `cli.py::apply()` L294–487 | Renders → DNS → `deploy.py::deploy_to_coolify()` → `_post_deploy_sync()` | **NO** — legacy path bypasses the orchestrator. |
+| `fabrik apply <spec> --use-orchestrator` or `--dry-run` | `cli.py::apply()` L322–343 | `DeploymentOrchestrator.deploy()` → validate → DNS → Coolify → **provisioner** → verify → `_post_deploy_sync()` | **YES** — full 7-registrar sweep. |
+| `fabrik deploy [--project P]` | `cli.py::deploy_cmd()` L1886–1929 → `deploy_router.route_deploy()` → `DeploymentOrchestrator.deploy()` | Same orchestrator pipeline as `--use-orchestrator`. | **YES.** |
+| `fabrik redeploy <app>` | `cli.py::redeploy()` L789–822 | `CoolifyClient.deploy(uuid, force)` → `_post_deploy_sync()` | **NO** — intentional: rebuild-only, reuses existing registrations. |
+| `fabrik destroy <spec>` | `cli.py::destroy()` L661–758 | `CoolifyClient.delete_application()` + `DNSClient.delete_record()` + optional file cleanup → `_post_deploy_sync()` | **NO** — destroy is a separate teardown path, not a provisioner inverse. Registrars (GlitchTip, Gatus, Authelia, Backrest, Meilisearch) are **not** auto-unregistered. |
+| `fabrik vps-sync [--dry-run]` | `cli.py::vps_sync()` L761–787 → `scripts/vps_sync.py` | SSHes to VPS, runs `sudo docker ps`, rewrites container tables + timestamps in `vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`, then runs `sync_projects.py`. | **NO** — docs refresh only, no mutations. |
+
+**Typical usage from WSL:**
 
 ```bash
-# From WSL (with SSH tunnel to Coolify API if needed):
-ssh -f -N -L 8002:localhost:8000 vps    # one-time per WSL session
+# One-time SSH tunnel per WSL session (if hitting Coolify over the internal network)
+ssh -f -N -L 8002:localhost:8000 vps
 export COOLIFY_API_URL=http://localhost:8002
 
-# Dry run first — shows every mutation without executing
+# Preferred path for new deploys — runs the orchestrator + all 7 registrars
+fabrik apply /opt/fabrik/specs/services/my-api.yaml --use-orchestrator
+#   or, functionally equivalent (still orchestrator, reads project.yaml):
+fabrik deploy --project /opt/my-api
+
+# Dry-run (also forces orchestrator path)
 fabrik apply /opt/fabrik/specs/services/my-api.yaml --dry-run
 
-# Actually deploy
-fabrik apply /opt/fabrik/specs/services/my-api.yaml
+# Legacy path (NO registrars — only Coolify + DNS + files). Kept for backward-compat:
+fabrik apply specs/services/my-api.yaml
 
-# Skip DNS (if already set up) or skip the Coolify deploy step
-fabrik apply specs/services/my-api.yaml --skip-dns
-fabrik apply specs/services/my-api.yaml --skip-deploy
-
-# Override a secret on the command line (beats .env)
-fabrik apply specs/services/my-api.yaml -s API_KEY=override_val
+# Flags
+fabrik apply specs/services/my-api.yaml --skip-dns           # skip DNS record
+fabrik apply specs/services/my-api.yaml --skip-deploy        # render files only
+fabrik apply specs/services/my-api.yaml -s API_KEY=override  # override a secret
+fabrik apply specs/services/my-api.yaml --keep-on-failure    # suppress rollback (proof-run only)
 ```
 
-Internally this runs:
+**Orchestrator pipeline (used by `fabrik deploy` and `fabrik apply --use-orchestrator`/`--dry-run`):**
 
-1. `SpecValidator.validate()` (pydantic + SSRF + hash)
-2. `deploy_validator.validate()` (scaffold readiness)
-3. `SecretsManager.load()` (env → .env → `-s` flags)
-4. `DNSClient.add_record(domain, VPS_IP)` — skipped if `--skip-dns`
-5. `TemplateRenderer.render()` + `ComposeLinter.lint()`
-6. `CoolifyClient.{create,update}_application()` + `deploy(force=true)` — skipped if `--skip-deploy`
-7. `InfrastructureProvisioner.provision(ctx)` — shape-driven: `postgres` · `gatus` · `backrest` · `glitchtip` (+ DSN injection) · `grafana` annotation · `authelia` rules (+ `^/api/` bypass) · `meilisearch` index (see `orchestrator/infrastructure.py`)
-8. `DeploymentVerifier.verify()` (HTTP 200 on `/health`, DNS resolves, SSL valid, `SENTRY_DSN` present in container via `docker inspect`)
+1. `SpecValidator.validate()` — pydantic + SSRF + `compute_spec_hash()` for idempotency.
+2. `deploy_validator.validate()` — scaffold readiness (Dockerfile, `.env`, healthcheck).
+3. `SecretsManager.load()` — precedence env → `.env` → `-s` flag.
+4. `DNSClient.add_record(domain, VPS_IP)` — skipped if `--skip-dns`.
+5. `TemplateRenderer.render()` + `ComposeLinter.lint()`.
+6. `ServiceDeployer.deploy(ctx)` — `CoolifyClient.{find_existing, create, update}_application()` + `deploy(force=true)`; waits up to 90 s for container `Up`.
+7. `InfrastructureProvisioner.provision(ctx)` — shape-driven dispatch. Registrar order (`_REGISTRAR_ORDER` in `orchestrator/infrastructure.py:84`): `postgres` → `gatus` → `backrest` → `glitchtip` (+DSN injection & verification) → `grafana` (annotation) → `authelia` (+`^/api/` bypass) → `meilisearch`. All failures are non-fatal **except** GlitchTip DSN-injection mismatch, which triggers rollback.
+8. `DeploymentVerifier.verify()` — HTTP 200 on `/health`, DNS resolves, SSL valid, `SENTRY_DSN` present (when GlitchTip applicable) via `docker inspect`.
+9. `_post_deploy_sync()` — runs `scripts/sync_projects.py` to refresh `data/projects.yaml` + `PORTS.md`.
 
-### 9.3 Redeploy an existing service (trigger Coolify rebuild)
+On any exception, orchestrator transitions `ROLLING_BACK` and `RollbackManager` undoes every `ctx.resources[*]` in reverse order (§9.8).
+
+**Legacy `fabrik apply` pipeline (NO orchestrator):**
+
+1. Load spec + merge secrets (project `.env` + `-s` flags + `from_env`).
+2. Prompt for confirmation (unless `--yes`).
+3. `render_template(spec)` → writes `apps/<id>/compose.yaml` + `Dockerfile`.
+4. `DNSClient.add_subdomain(base, sub, VPS_IP)` — skipped if `--skip-dns`.
+5. `deploy.py::deploy_to_coolify(spec.id, compose_content)` — creates or reuses Coolify app.
+6. `_post_deploy_sync()`.
+
+**Steps NOT run on the legacy path:** spec hashing, health verification, DNS/SSL verification, **and every infrastructure registrar** (postgres, gatus, backrest, glitchtip+DSN, grafana, authelia, meilisearch). See §9.9 for the gap list.
+
+### 9.3 Redeploy an existing service (Coolify rebuild only)
 
 ```bash
-# By project name (looks up UUID from registry)
-fabrik redeploy my-api
+fabrik redeploy my-api                         # by name
+fabrik redeploy qokoksogwsk0c04gcs4swwgs       # by UUID
+fabrik redeploy my-api --force                 # bypass build cache
+```
 
-# By UUID directly
-fabrik redeploy qokoksogwsk0c04gcs4swwgs
+Internally (`cli.py::redeploy()` L789–822):
 
-# Force rebuild (bypasses cache)
-fabrik redeploy my-api --force
+1. `CoolifyClient.list_applications()` — resolve name → UUID.
+2. `CoolifyClient.deploy(uuid, force)` — POSTs `/api/v1/deploy?uuid=…&force=true` on Coolify.
+3. `_post_deploy_sync()` — refreshes project registry.
+
+`redeploy` is a **pure rebuild**: it pulls the latest git commit (for git-sourced apps), rebuilds the image, and restarts containers. It does **not** touch DNS, Authelia, GlitchTip, Gatus, Backrest, Meilisearch, or the database — on purpose. Those registrations were created by the first `apply --use-orchestrator` / `fabrik deploy` and are expected to already exist. If you changed the spec's shape (e.g., added `needs_database: true`), `redeploy` will NOT pick that up — you must re-run `fabrik deploy`.
+
+**DB schema changes are never auto-applied.** If your commit contains migrations, run them manually after redeploy completes:
+
+```bash
+ssh vps 'sudo docker exec -i <app-container> alembic upgrade head'
 ```
 
 ### 9.4 Tear down a service
@@ -679,6 +719,44 @@ Orchestrator catches any exception, transitions to `ROLLING_BACK`, and calls `Ro
 - `gatus_endpoint` → remove + commit
 - `backrest_plan` → remove_backup_plan
 - `database_schema` → **NOT auto-dropped** — logged for operator review
+
+### 9.9 Infrastructure-service coverage matrix (what gets registered, what doesn't)
+
+The user's requested list vs. the code as of 2026-05-04. "Auto" means no per-service action needed on deploy; "Registrar" means a real call-out in `InfrastructureProvisioner`.
+
+| Infra service | Per-service registration on deploy? | Mechanism | Status | Gap? |
+|---|---|---|---|---|
+| **PostgreSQL** (shared `postgres-main`) | Yes — creates DB `<snake_name>` when `shape.needs_database` | `drivers/postgres.py::create_database()` | ✅ implemented | — |
+| **Redis** (shared) | **No** | No registrar. Apps get a raw `REDIS_URL` env; no DB-index or namespace isolation. | ⚠️ **missing** | Build `drivers/redis.py` if multi-tenant isolation matters. Currently fine because only 2 services use Redis. |
+| **Traefik** | Implicit | Coolify writes Traefik labels from compose; Traefik picks up automatically. No registrar needed. | ✅ auto | — |
+| **GlitchTip (web)** | Yes — creates Sentry project + DSN; `docker inspect` verifies `SENTRY_DSN` in container | `drivers/glitchtip.py::create_project()` + `verify_dsn_injection()` | ✅ implemented (fatal-on-fail) | — |
+| **GlitchTip worker** | N/A | "Web + worker" refers to GlitchTip's own compose components, not per-app registration. Celery worker just processes events the web tier ingests. | ✅ auto | — |
+| **Grafana** | Yes — writes a global deployment annotation | `drivers/grafana.py::post_deployment_annotation()` | ✅ implemented (non-fatal) | Per-service dashboards are **not** auto-generated (manual). |
+| **Loki** | Auto | Promtail scrapes `/var/lib/docker/containers/*` on the VPS host — picks up every new container automatically. No per-service config. | ✅ auto | — |
+| **Promtail** | Auto | Config is static in `/opt/monitoring/configs/promtail/promtail-config.yaml`; container auto-discovery via Docker socket. | ✅ auto | — |
+| **Prometheus** | **No** | Scrape targets live in `configs/prometheus/prometheus.yml` and are **static**. No registrar appends a scrape_config per service. `cadvisor` + `node-exporter` cover container-level metrics automatically, but app-level `/metrics` endpoints are **not** wired. | ⚠️ **missing** | Build `drivers/prometheus.py::add_scrape_target(job, target)` when/if a service exposes `/metrics`. Not blocking today — no Fabrik service exports Prometheus metrics yet. |
+| **Alertmanager** | **No** | Receivers/routes are static (`configs/alertmanager/alertmanager.yml`). Per-service alert routes (e.g., "app X owner → webhook Y") are manual. | ⚠️ **missing** | Only relevant once per-service alert policies are wanted. Defer. |
+| **cAdvisor** | Auto | Discovers all containers via Docker socket. No per-service config. | ✅ auto | — |
+| **node-exporter** | Auto | Host-level only; no per-service config. | ✅ auto | — |
+| **Netdata** | Auto | Discovers all containers via Docker socket (`/var/run/docker.sock`). | ✅ auto | — |
+| **Authelia** | Yes — `docker cp` configuration.yml patch: `access_control` rule + optional `^/api/` bypass | `drivers/authelia.py::add_access_rule()` | ✅ implemented | — |
+| **Gatus** | Yes — writes `/opt/monitoring/configs/gatus/apps/<service>.yaml` (git-versioned) | `drivers/gatus.py::add_endpoint()` | ✅ implemented | — |
+| **Backrest** | Yes — adds Restic backup plan when `shape.has_persistent_data` | `drivers/backrest.py::add_backup_plan()` | ✅ implemented | — |
+| **Meilisearch** | Yes — creates index when `shape.has_search_feature` | `drivers/meilisearch.py::create_index()` | ✅ implemented | — |
+
+**Gaps to build (reported for prioritisation, not auto-built):**
+
+| # | Gap | Fix recipe | Blocking today? |
+|---|---|---|---|
+| G1 | ~~`fabrik apply` (default legacy path) **silently skips** the entire `InfrastructureProvisioner`.~~ | **✅ CLOSED 2026-05-05** (commit `9d9a1be`) — `cli.py::apply()` now runs the orchestrator pipeline by default; legacy path is opt-in via `--legacy`. `--use-orchestrator` kept as deprecated no-op. Verified end-to-end with live proxy redeploy: 3 applicable registrars (gatus, glitchtip, grafana) all fired. | ✅ Closed |
+| G2 | `fabrik redeploy` does not pick up spec-shape changes (e.g., newly added `needs_database`). Documented above, but a `--refresh-infra` flag would let ops re-run just the provisioner against an existing app. | Add `redeploy --refresh-infra` that loads the spec, resolves the Coolify UUID, and calls `InfrastructureProvisioner.provision(ctx)` only. | No — workaround is `fabrik deploy --project /opt/<name>`. |
+| G3 | ~~`fabrik destroy` does **not** unregister from GlitchTip / Gatus / Authelia / Backrest / Meilisearch — it only deletes the Coolify app + DNS record.~~ | **✅ Already implemented** — `orchestrator/destroyer.py::destroy_deployment()` reverses the full 7-registrar chain in strict reverse-of-provision order (meilisearch → authelia → glitchtip → backrest → gatus → postgres → coolify → dns → files). Verified 2026-05-05: `fabrik destroy specs/services/proxy.yaml` cleanly removed GlitchTip project, Gatus endpoint, Coolify app, DNS A record; Postgres preserved per `infra.postgres: false` override. The original gap claim was stale; this row is kept for historical accountability. | ✅ Already done |
+| G4 | **Redis** has no per-service registrar. All apps share the `coolify` Redis with no namespace isolation. | Add `drivers/redis.py::acquire_db_index()` returning a unique logical DB (0–15) per service; inject `REDIS_URL=redis://redis:6379/<n>`. Defer until second Redis-using service ships. | No. |
+| G5 | **Prometheus scrape target** registration. Services exposing `/metrics` are invisible to Prometheus unless someone hand-edits `prometheus.yml`. | Add `drivers/prometheus.py::add_scrape_target()` that edits `/opt/monitoring/configs/prometheus/prometheus.yml` and hits `POST http://prometheus:9090/-/reload`. Gate on `shape.exposes_metrics` (new flag). | No — no current service exposes Prometheus metrics. |
+| G6 | `scripts/vps_sync.py` pulls container state but does **not** cross-check that every project in `data/projects.yaml` has a live container (drift detector). | Add a `--verify` flag that flags projects with no matching container + registrar (GlitchTip/Gatus) orphans. | No — nice-to-have. |
+| G7 | GlitchTip DSNs are created with `GLITCHTIP_URL=http://localhost:8000` as the DSN host. Proxy's live DSN reads `http://bb2d...@localhost:8000/60` — **useless from inside the container**. This is a GlitchTip server config problem (the web tier's `GLITCHTIP_DOMAIN` env var), not a Fabrik driver bug, but the verifier accepts it today. | Fix GlitchTip's own `GLITCHTIP_DOMAIN=https://errors.vps1.ocoron.com` in Coolify; then tighten `drivers/glitchtip.py::verify_dsn_injection()` to reject DSNs whose host resolves to `localhost`/loopback. | **Yes, partially** — no error reports can actually reach GlitchTip from production containers. |
+| G8 | ~~Coolify env-var POST returns 409 when the key already exists; every re-apply logged noisy ERRORs. The code actually retried via PATCH so values were preserved, but updates to existing keys could slip through unnoticed.~~ | **✅ CLOSED 2026-05-05** — `drivers/coolify.py::bulk_update_env_vars()` now pre-fetches the current env list, picks POST (create) or PATCH (update) per key, and only falls back to POST-then-409-retry if the pre-fetch GET fails. Regression tests at `@/opt/fabrik/tests/drivers/test_coolify.py`. Verified with a live proxy re-apply: zero 409 noise. | ✅ Closed |
+| G9 | ~~`drivers/dns.py` pins a static container IP for `site-provisioner` via `SITE_PROVISIONER_INTERNAL_URL`; every Coolify rebuild of the provisioner container changed the IP and broke all subsequent DNS calls.~~ | **✅ CLOSED 2026-05-05** (commit `9d9a1be`) — driver now resolves live IP via `docker inspect` over SSH when `SITE_PROVISIONER_CONTAINER` is set. Static internal URL kept as fallback. Verified: stale `10.0.1.35` → live `10.0.1.25`, health returns `{'status': 'healthy'}`. | ✅ Closed |
 
 ---
 
