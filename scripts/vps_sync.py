@@ -576,6 +576,27 @@ def verify_residue() -> list[str]:
                 f"  Backrest: test repo '{repo}' at {_BACKREST_REPO_DIR}/{repo} — verify then rm"
             )
 
+    # ── Authelia: test-domain rules ─────────────────────────────────────────
+    section("Authelia test rules")
+    try:
+        from fabrik.drivers.ssh import ssh
+        raw = ssh(
+            "sudo python3 -c \"import yaml; "
+            "cfg=yaml.safe_load(open('/var/lib/docker/volumes/"
+            "$(sudo docker volume ls -q | grep authelia.*config)/_data/configuration.yml').read()); "
+            "[print(r.get('domain','')) for r in cfg.get('access_control',{}).get('rules',[])]\""
+            " 2>/dev/null || true",
+            timeout=15,
+        )
+        for line in raw.strip().splitlines():
+            d = line.strip()
+            if _is_test_name(d):
+                findings.append(
+                    f"  Authelia: stale test rule for '{d}' — remove from configuration.yml"
+                )
+    except Exception as e:
+        findings.append(f"  Authelia test-rule check failed: {e}")
+
     # Strip section headers that produced no findings
     clean: list[str] = []
     i = 0
