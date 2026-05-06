@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — AGENTS-compact.md (Kilo CLI rules): added FIRST/FINAL OUTPUT blocks, ORIENT and LESSONS LEARNT steps, full Doc Sync Matrix, explicit git mutation rule. Brings Kilo contract to parity with Cascade/Claude Code/Traycer (2026-05-06)
+
+`AGENTS-compact.md`: replaced with updated version from Windows source (5211 chars, expected ~4,180). Changes: added FIRST OUTPUT (`RULES ACTIVE: KILO | <3 rules>`), added ORIENT step (read project.yaml/README/INDEX/compose before non-trivial work), rewrote EXIT step with explicit "Do NOT run git commit/push unless user said so this turn", added LESSONS LEARNT step, replaced 1-line doc-currency rule with full 13-row Doc Sync Matrix, added `/tmp/` ban and `package-lock` explicit in HARD STOPS, added 4-line FINAL OUTPUT block. Brings Kilo CLI contract to parity with Cascade, Claude Code, and Traycer agent contracts.
+
+### Changed — External Knowledge Verification added to MANDATORY ORCHESTRATOR PRE-FLIGHT in AGENTS.md (2026-05-06)
+
+`AGENTS.md`: added step 6 to the `## 🛑 MANDATORY ORCHESTRATOR PRE-FLIGHT` section. When the plan touches a third-party API/SDK/vendor product (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n, etc.), Traycer must verify the current contract against live docs BEFORE writing the ticket spec. Order: (a) search repo docs for prior coverage; (b) if absent, fetch vendor's official docs URL and cite it in ticket's `References:` field; (c) pass cited URLs to executing agents so they don't re-research. If verification fails after 3 calls, mark ticket `BLOCKED: external-research-needed` and stop.
+
+### Changed — Lean .windsurfrules + CLAUDE.md (under 6000 char Cascade limit); CLAUDE.md added to GOVERNANCE_FILES so it propagates to all 34 projects (2026-05-06)
+
+`.windsurfrules`: replaced with lean version from Windows source (5850 chars, under 6000 limit). Streamlined language, removed redundant sections, consolidated pointers.
+
+`CLAUDE.md`: replaced with monorepo-wide, project-agnostic version from Windows source. Initial copy was 7235 chars (exceeded 6000 limit). Truncated by removing Rule Packs table (24 lines) to 5594 chars (under 6000 limit). Changed from project-scoped (fabrik-claim-validator, port 8002) to monorepo-wide governance file matching scope of `.windsurfrules` and `AGENTS-compact.md`.
+
+`scripts/sync_enforcement_to_projects.py`: added `CLAUDE.md` to `GOVERNANCE_FILES` list so it propagates to all 34 projects on next commit.
+
+Backups created: `/opt/fabrik-claim-validator/CLAUDE.md.backup.20260506-*` and `/opt/_final-verify/CLAUDE.md.backup.20260506-*` to preserve any project-specific content before propagation.
+
 ### Changed — Search rules added to AGENTS-compact.md and CLAUDE.md (2026-05-06)
 
 `AGENTS-compact.md`: added item 6 under CROSS-CUTTING: "Search before guessing" — requires Kilo CLI agents to use web_search/web_fetch MCPs for 3rd-party API/SDK/vendor verification, cite sources, and output `BLOCKED:` if unresolved.

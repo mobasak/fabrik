@@ -1,106 +1,94 @@
+<!-- MAX 6,000 chars per file (Windsurf Cascade limit). 12,000 total across all rules. Truncation is silent — measure before saving. Current: ~5,340 chars. -->
 # Cascade Agent Contract
 
-**Last Updated:** 2026-05-03
-**Read by:** Windsurf Cascade only
-**Other agents:** Kilo CLI reads `AGENTS-compact.md` (via `opencode.json`); Traycer reads `AGENTS.md`.
-**Auto-loaded with this ** every `.windsurf/rules/*.md` pack with `activation: always_on` (currently `CROSS_CUTTING_REQUIREMENTS.md`), plus any pack whose `activation: glob` matches the touched files. Do not duplicate their content here.
+**Read by:** Windsurf Cascade only. Kilo CLI reads `AGENTS-compact.md` (via `opencode.json`); Traycer reads `AGENTS.md`.
+**Auto-loaded with this:** every `.windsurf/rules/*.md` pack with `activation: always_on` (currently `CROSS_CUTTING_REQUIREMENTS.md`), plus glob-matched packs. Don't duplicate their content here.
 
-## ⚠️ MANDATORY FIRST OUTPUT
-`RULES ACTIVE: CASCADE | <3 rules from this file you actually applied>`
+## ⚠️ FIRST OUTPUT (every response)
+`RULES ACTIVE: CASCADE | <3 rules from this file you applied>`
 
-## Orient (do first, every task)
-1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml` / `package.json`.
-2. If `AFCL.md` exists, append friction / constraint findings as you encounter them.
-3. Rule packs in `.windsurf/rules/` self-activate via frontmatter — trust the frontmatter; the navigation table at the bottom is for human discovery only.
-4. When writing a plan in `docs/development/plans/`, include Key Invariants, Failure Modes, and 5–10 testable Acceptance Criteria.
+## Orient (every task)
+1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`/`package.json`.
+2. If `AFCL.md` exists, append friction findings as encountered.
+3. Rule packs in `.windsurf/rules/` self-activate via frontmatter — trust the frontmatter; the table below is for human discovery.
+4. Plans in `docs/development/plans/` need: Key Invariants, Failure Modes, 5–10 testable Acceptance Criteria.
 
 ## Behavior
-- **Check before create:** verify the file does not already exist before any write. File-already-exists = STOP.
-- **Present before execute:** present the plan, wait for approval, then execute. Read-only IDE calls (`read_file`, `grep_search`, `list_dir`, `find_references`) are exempt.
-- **No unsolicited advice:** stay on the assigned task; no lifestyle / process commentary.
-- **Conflict resolution:** when a rule pack contradicts the ticket, the rule wins; surface the conflict before proceeding.
-- **State conflict:** if the task contradicts existing project state, stop and report — never silently overwrite.
+- **Check before create:** verify file does not exist before write. Exists = STOP.
+- **Present before execute:** plan → approval → execute. Read-only IDE calls (`read_file`, `grep_search`, `list_dir`, `find_references`) are exempt.
+- **Stay on task:** no unsolicited advice or process commentary.
+- **Conflict resolution:** rule pack > ticket. Surface conflict before proceeding.
+- **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 
 ## Completion Contract
-1. **IMPLEMENT** — Stay strictly in ticket Scope. Adjacent fixes allowed only inside files already in Scope. Write 1 test for the core path (skip docs-only).
-2. **QUALITY GATE** — Run the literal command from the ticket's `Final Gate Instruction` field; fix until `status: "success"`. If absent, default by tier:
+1. **IMPLEMENT** — Strict ticket Scope. Adjacent fixes only inside files already in Scope. 1 test for core path (skip docs-only).
+2. **GATE** — Run literal command from ticket's `Final Gate Instruction`; fix until `status: "success"`. Defaults:
    - Standard: `python scripts/final_gate.py --lean --json`
    - Milestone / multi-component / schema / auth: `python scripts/final_gate.py --json`
-   - Epic Closure: `python scripts/final_gate.py --systemic --json`
+   - Epic closure: `python scripts/final_gate.py --systemic --json`
 3. **CHANGELOG** — One entry under `## [Unreleased]` (gate-enforced).
-4. **LESSONS LEARNT** — Fill the ticket's `Lessons Learnt:` line with `none` OR a structured entry appended to `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — Gate auto-stages on success. STOP. Do NOT run `git commit` or `git push` unless the user explicitly says "commit" or "push" in this turn. Manual `git add` is allowed.
+4. **LESSONS LEARNT** — Fill ticket `Lessons Learnt:` line with `none` OR structured entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
+5. **EXIT** — Gate auto-stages on success. STOP. Do NOT run `git commit` / `git push` unless user said "commit" or "push" this turn. Manual `git add` is allowed.
 
 ## HARD STOPS — Cascade mechanics
 | Rule | Instead |
 |:--|:--|
-| `git commit` / `git push` (unless user explicitly said "commit" or "push" this turn) | gate auto-stages — your task ends there |
-| edit files outside ticket Scope | stay strictly in ticket Scope |
-| modify `pyproject.toml` / `requirements.txt` / `package.json` / `uv.lock` / `package-lock.json` | only if the ticket explicitly authorises a deps change |
-| create files outside the project tree | use local project paths only |
+| `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
+| edit files outside ticket Scope | strict Scope only |
+| modify `pyproject.toml` / `requirements.txt` / `package.json` / `uv.lock` / `package-lock.json` | only if ticket explicitly authorises deps change |
+| create files outside project tree | local project paths only |
 | recreate `.venv` or replace existing Docker config | extend, don't replace |
 
-For technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, Authelia, `X-Internal-Token`, kebab-case naming, `/tmp/` ban, port ranges, etc.) the auto-loaded packs in `.windsurf/rules/` are authoritative.
-
-## Pointers (content lives in the linked packs)
-- **Backup before editing secrets** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) — see `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` § Sensitive Data Protection.
-- **Password policy** (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`, banned: `postgres`/`admin`/`password123`) — see `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` § Password Policy.
-
-## Before Creating New Scripts
-`grep_search` `scripts/` and `scripts/enforcement/` first. Extend existing code; don't duplicate.
+Technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, Authelia, `X-Internal-Token`, kebab-case, `/tmp/` ban, port ranges, etc.) → auto-loaded packs are authoritative.
 
 ## External Knowledge — Search, Don't Guess
-Training data is stale. For any third-party API, SDK, vendor product, or library version (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n, etc.):
+Training data is stale. For any 3rd-party API/SDK/vendor (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n):
 1. Search repo first: `grep_search` `docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`.
-2. If absent, search live — try in order until one returns: `search_web` → `*web_search_exa` → `*firecrawl_search`. Cite source URL in code comment.
-3. If 3 search calls don't resolve it, output `BLOCKED: <vendor> — <searched> — <missing>` and stop.
+2. If absent: try in order — `search_web` → `*web_search_exa` → `*firecrawl_search`. Cite source URL in code comment.
+3. If 3 calls don't resolve it, output `BLOCKED: <vendor> — <searched> — <missing>` and stop.
 
 Skip for: stdlib, language syntax, internal Fabrik conventions.
 
+## Pointers (content lives in linked packs)
+- **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `CROSS_CUTTING_REQUIREMENTS.md` § Sensitive Data Protection.
+- **Password policy** (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`, banned: `postgres`/`admin`/`password123`) → `CROSS_CUTTING_REQUIREMENTS.md` § Password Policy.
+- **Before new scripts:** `grep_search` `scripts/` and `scripts/enforcement/`. Extend, don't duplicate.
+
 ## Environment
-WSL Ubuntu only — Linux paths, never Windows tooling. Code must work in WSL dev (PostgreSQL localhost, `.env`), VPS Docker (`postgres-main` service name, `compose.yaml`), and Supabase (Supabase PG, env vars) without modification.
+WSL Ubuntu only. Linux paths, never Windows tooling. Code must work in WSL dev (PG localhost, `.env`), VPS Docker (`postgres-main`, `compose.yaml`), Supabase (env vars) without modification.
 
 ## Rule Pack Pointers (navigation only — frontmatter governs loading)
-| When task involves… | Open |
+All in `.windsurf/rules/`.
+
+| Task involves | Open |
 |:--|:--|
-| Python | `.windsurf/rules/10-python.md` |
-| API endpoints / schemas | `.windsurf/rules/15-api-contracts.md` |
-| TypeScript | `.windsurf/rules/20-typescript.md` |
-| PostgreSQL queries / migrations | `.windsurf/rules/25-data-postgres.md` |
-| Docker / compose / ops | `.windsurf/rules/30-ops.md` |
-| Auth / sessions / secrets | `.windsurf/rules/35-security-auth.md` |
-| Doc generation | `.windsurf/rules/40-documentation.md` |
-| Docusaurus | `.windsurf/rules/42-docusaurus.md` |
-| Testing / One-Test Rule | `.windsurf/rules/45-testing-strategy.md` |
-| Code review / gates | `.windsurf/rules/50-code-review.md` |
-| Logging / health / monitoring | `.windsurf/rules/55-observability.md` |
-| SaaS UI | `.windsurf/rules/60-saas-ui.md` |
-| WordPress | `.windsurf/rules/62-wordpress.md` |
-| RAG / vector search | `.windsurf/rules/65-rag-search.md` |
-| Chrome extensions (MV3) | `.windsurf/rules/70-chrome-ext.md` |
-| Background workers / jobs | `.windsurf/rules/75-workers-jobs.md` |
-| React Native / mobile | `.windsurf/rules/80-mobile.md` |
-| Paddle / billing | `.windsurf/rules/85-payments-billing.md` |
-| n8n / automation | `.windsurf/rules/90-automation.md` |
-| Multi-tenant / RLS | `.windsurf/rules/95-multi-tenant-saas.md` |
-| Visual + verbal identity (UI) | `.windsurf/rules/ocoron-design-system.md` |
+| Python | `10-python.md` |
+| API endpoints / schemas | `15-api-contracts.md` |
+| TypeScript | `20-typescript.md` |
+| PostgreSQL queries / migrations | `25-data-postgres.md` |
+| Docker / compose / ops | `30-ops.md` |
+| Auth / sessions / secrets | `35-security-auth.md` |
+| Doc generation | `40-documentation.md` |
+| Docusaurus | `42-docusaurus.md` |
+| Testing / One-Test Rule | `45-testing-strategy.md` |
+| Code review / gates | `50-code-review.md` |
+| Logging / health / monitoring | `55-observability.md` |
+| SaaS UI | `60-saas-ui.md` |
+| WordPress | `62-wordpress.md` |
+| RAG / vector search | `65-rag-search.md` |
+| Chrome extensions (MV3) | `70-chrome-ext.md` |
+| Background workers / jobs | `75-workers-jobs.md` |
+| React Native / mobile | `80-mobile.md` |
+| Paddle / billing | `85-payments-billing.md` |
+| n8n / automation | `90-automation.md` |
+| Multi-tenant / RLS | `95-multi-tenant-saas.md` |
+| Visual + verbal identity (UI) | `ocoron-design-system.md` |
 
-## ⚠️ MANDATORY FINAL OUTPUT
-
-Last 4 lines of every implementation response:
-
+## ⚠️ FINAL OUTPUT (last 4 lines, every response)
 ```
 GATE: <command run> → success|failure
 DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 ```
-
-Gate command per ticket type:
-
-- Standard ticket → `python scripts/final_gate.py --lean --json`
-- Milestone / multi-component / schema / auth → `python scripts/final_gate.py --json`
-- Epic closure → `python scripts/final_gate.py --systemic --json`
-
-Run gate. If `failure`, fix and re-run until `success`. Then output the 4 lines.
-Missing any line = task failure.
+Missing any line = task failure. Run gate; if `failure`, fix and re-run until `success`, then output the 4 lines.
