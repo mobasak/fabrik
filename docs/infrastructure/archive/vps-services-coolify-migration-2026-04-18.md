@@ -190,3 +190,15 @@
 - Clear separation of concerns
 - Production stability (standalone WordPress, shared databases)
 - Easy troubleshooting and monitoring
+
+---
+
+## Status Update — 2026-05-07
+
+Architecture remains as documented above. Key changes since April 18:
+
+- **40 containers** running (was 39 at migration time)
+- **Security hardened** 2026-05-06: port 8000 blocked, API keys added to proxy/captcha/image-broker/translator, `.dockerignore` added to all projects, resource limits set on 7 Fabrik apps
+- **Observability** fully operational: Grafana, Prometheus, Loki, Gatus, GlitchTip, Netdata all running
+- **Fabrik PaaS** deployed at `/opt/fabrik` — `fabrik apply`, `fabrik redeploy`, `fabrik destroy` workflow operational
+- Current live state: see `docs/operations/vps-status.md` and `docs/infrastructure/vps-complete-inventory.md`

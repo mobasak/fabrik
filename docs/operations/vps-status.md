@@ -1,463 +1,187 @@
 # VPS Status
 
-**Last Updated:** 2026-05-03 23:17 UTC+3
+**Last Updated:** 2026-05-07 UTC+3
 **Host:** vps1.ocoron.com (172.93.160.197)
-**SSH:** `ssh vps` (ozgur user, key-only auth)
+**Location:** Los Angeles, CA, USA (Psychz Networks AS32421)
+**SSH:** `ssh vps` (ozgur user, key-only Ed25519 auth)
+**Uptime:** 48 days
 
 ---
 
 ## System Overview
 
 | Component | Value |
-|-----------|-------|
-| **OS** | Ubuntu 24.04.3 LTS (Noble Numbat) |
-| **Kernel** | 6.8.0-106-generic |
-| **Disk** | 108GB total, 69GB available (37% used) ⚠️ Limited |
-| **Memory** | 11GB total, 6.2GB available |
-| **Swap** | 2GB |
-| **Snap Usage** | 8.1GB in /snap |
+|---|---|
+| **OS** | Ubuntu 24.04 LTS |
+| **CPU** | 6 vCores |
+| **Memory** | 11GB total, ~4.5GB available, 2GB swap (1.7GB used) |
+| **Disk** | 108GB total, 38GB used, 70GB free (35%) |
+| **Docker Images** | 14.2GB (all active — no reclaimable after 2026-05-06 prune) |
+| **Docker Volumes** | 3.6GB |
+| **Build Cache** | 0B (cleared 2026-05-06) |
+| **Load Average** | 1.89 / 2.96 / 3.36 (5m/10m/15m) |
 
-### ⚠️ Storage Warning
-
-**This VPS has limited HDD storage (108GB total).** Plan accordingly:
-
-- No local backup retention - all backups go directly to B2 cloud
-- Monitor `/var/lib/docker` growth regularly
-- Clean up unused Docker images: `docker system prune`
-- PostgreSQL databases stored at `/data/coolify/databases/`
-- Consider upgrading VPS or adding block storage if usage exceeds 70%
+### Storage Notes
+- No local backup retention — all backups go to Backblaze B2 via Backrest
+- Monitor `/var/lib/docker` growth; run `docker image prune -af` monthly
+- PostgreSQL data at `/data/coolify/databases/`
+- Alert threshold: 70% disk usage
 
 ---
 
 ## Security Status
 
 | Component | Status | Notes |
-|-----------|--------|-------|
-| **SSH Hardening** | ✅ Done | Root login disabled, password auth disabled |
-| **UFW Firewall** | ✅ Active | Ports 22, 80, 443 only |
-| **Fail2ban** | ✅ Running | SSH jail active |
-| **Unattended Upgrades** | ✅ Running | apt-daily timers active |
+|---|---|---|
+| **SSH** | ✅ | Root disabled, password auth disabled, Ed25519 key only |
+| **UFW** | ✅ | Active — see Firewall section below |
+| **Port 8000 (Coolify raw)** | ✅ BLOCKED | DENY rule added 2026-05-06; use `coolify.vps1.ocoron.com` |
+| **Traefik dashboard** | ✅ | Bound to `127.0.0.1:8080` only |
+| **Coolify UI** | ✅ | Behind Traefik + Authelia on `coolify.vps1.ocoron.com` |
+| **OpenVPN** | ✅ | Port 1194/tcp, kernel service |
+| **Authelia SSO** | ✅ | Forward-auth on all admin dashboards |
+| **Service API keys** | ✅ | proxy, captcha, image-broker, translator all require `X-API-Key` |
+| **Site-provisioner** | ✅ | IP allowlist middleware (VPS IP + internal Docker ranges only) |
 
-### SSH Configuration
+### Firewall (UFW) — current rules
 
-```text
-PermitRootLogin No
-PasswordAuthentication No
-AllowUsers ozgur (implied)
-```
+| Port | Action | Protocol | Purpose |
+|---|---|---|---|
+| 22/tcp | ALLOW | TCP | SSH |
+| 80/tcp | ALLOW | TCP | HTTP → redirects to HTTPS via Traefik |
+| 443/tcp | ALLOW | TCP | HTTPS + OpenVPN |
+| 1194/tcp | ALLOW | TCP | OpenVPN (redundant with 443, kept for compatibility) |
+| 6001/tcp | ALLOW | TCP | Coolify Realtime (Soketi WebSocket — Coolify UI log streaming) |
+| 6002/tcp | ALLOW | TCP | Coolify Realtime (Soketi WebSocket) |
+| 8000/tcp | **DENY** | TCP | Coolify raw dashboard — blocked, use HTTPS domain instead |
 
-### SSH Troubleshooting (Port 22 Blocked)
+---
 
-**Incident Date:** 2026-01-21
+## Container Status (40 running — 2026-05-07)
 
-**Symptoms:**
-- Port 22 connection refused
-- Web services (80, 443, 8000) still working
-- VPS responds to ping
+### Coolify Platform (5 containers)
 
-**Root Causes Found:**
-1. `/run/sshd` directory was missing (tmpfs issue after reboot)
-2. `ssh.socket` activation got into bad state, blocking `ssh.service`
+| Container | Status | Notes |
+|---|---|---|
+| `coolify` | ✅ Up 2 weeks | Dashboard via `coolify.vps1.ocoron.com` (Authelia-gated) |
+| `coolify-proxy` | ✅ Up 2 weeks | Traefik v3.6 reverse proxy |
+| `coolify-realtime` | ✅ Up 2 weeks | Soketi WebSocket (Coolify UI live logs) |
+| `coolify-db` | ✅ Up 2 weeks | Coolify internal PostgreSQL |
+| `coolify-redis` | ✅ Up 2 weeks | Coolify internal Redis |
+| `coolify-sentinel` | ✅ Up | Redis sentinel |
 
-**Fix Applied (via GreenCloudVPS VNC console):**
+### Infrastructure Services (14 containers)
+
+| Container | Status | URL | Auth |
+|---|---|---|---|
+| `authelia` | ✅ healthy | `auth.vps1.ocoron.com` | SSO/2FA gate |
+| `traefik` | ✅ Up 2 weeks | `127.0.0.1:8080` (local only) | — |
+| `postgres-main` | ✅ healthy | internal only | app credentials |
+| `redis-main` | ✅ healthy | internal only | — |
+| `gatus` | ✅ Up | `status.vps1.ocoron.com` | open (read-only) |
+| `grafana` | ✅ healthy | `monitor.vps1.ocoron.com` | Authelia |
+| `prometheus` | ✅ healthy | internal only | — |
+| `loki` | ✅ healthy | internal only | — |
+| `promtail` | ✅ Up | internal only | — |
+| `cadvisor` | ✅ healthy | internal only | — |
+| `node-exporter` | ✅ Up | internal only | — |
+| `alertmanager` | ✅ healthy | internal only | — |
+| `netdata` | ✅ healthy | `netdata.vps1.ocoron.com` | Authelia |
+| `backrest` | ✅ Up | `backup.vps1.ocoron.com` | Authelia |
+
+### Fabrik Application Services (11 containers)
+
+| Container | Status | URL | Auth |
+|---|---|---|---|
+| `fabrik-proxy` | ✅ healthy | `proxy.vps1.ocoron.com` | X-API-Key |
+| `fabrik-captcha` | ✅ healthy | `captcha.vps1.ocoron.com` | X-API-Key |
+| `fabrik-image-broker` | ✅ healthy | `images.vps1.ocoron.com` | X-API-Key |
+| `fabrik-translator` | ⚠️ Restarting | `translator.vps1.ocoron.com` | X-API-Key |
+| `fabrik-emailgateway` | ✅ Up | `emailgateway.vps1.ocoron.com` | app-layer auth |
+| `fabrik-file-api` | ✅ Up | `files-api.vps1.ocoron.com` | Bearer (Supabase) |
+| `fabrik-file-worker` | ✅ Up | internal only | — |
+| `fabrik-site-provisioner` | ✅ healthy | `provision.vps1.ocoron.com` | IP allowlist |
+| `fabrik-n8n` | ✅ healthy | `auto.vps1.ocoron.com` | Authelia |
+| `fabrik-glitchtip-web` | ✅ Up | `errors.vps1.ocoron.com` | Authelia |
+| `fabrik-glitchtip-worker` | ✅ Up | internal only | — |
+
+### Other Services (4 containers)
+
+| Container | Status | URL | Notes |
+|---|---|---|---|
+| `meilisearch` | ✅ healthy | `search.vps1.ocoron.com` | Coolify-managed |
+| `browserless` | ✅ Up | `browser.vps1.ocoron.com` | 2GB/1CPU limit |
+| `apprise` | ✅ healthy | `notify.vps1.ocoron.com` | Authelia; notification hub |
+| `pdf-service` | ✅ healthy | `pdf.vps1.ocoron.com` | — |
+
+### WordPress Stack (ocoron.com) — 4 containers
+
+| Container | Status | Notes |
+|---|---|---|
+| `ocoron-com-nginx-1` | ✅ Up | Nginx frontend |
+| `ocoron-com-wordpress-1` | ✅ Up | WordPress PHP-FPM |
+| `ocoron-com-db-1` | ✅ healthy | MariaDB |
+| `ocoron-com-redis-1` | ✅ healthy | Redis cache |
+| `ocoron-com-backup-1` | ✅ Up | Backup cron |
+
+---
+
+## Known Issues (2026-05-07)
+
+| # | Service | Issue | Action |
+|---|---|---|---|
+| 1 | `fabrik-translator` | Restarting (exit code 3) | Investigate logs — `docker logs translator-*` |
+| 2 | Swap | 1.7GB / 2GB used | Memory pressure; monitor closely |
+| 3 | Resource limits | Infra services (cadvisor, alertmanager, etc.) have no limits | Set manually via Coolify dashboard |
+| 4 | Wildcard SSL | Per-service Let's Encrypt HTTP challenge | Migrate to Cloudflare DNS challenge in Coolify for wildcard |
+
+---
+
+## Traefik Middleware Registry
+
+| Middleware | Type | Used by |
+|---|---|---|
+| `authelia-forward@docker` | forwardauth | All admin dashboards |
+| `gzip@docker` | compress | Available globally (added 2026-05-06) — wire per-service |
+| `site-provisioner-ipallowlist@docker` | ipallowlist | site-provisioner only |
+| `redirect-to-https@docker` | redirectscheme | All HTTP → HTTPS |
+| `ocoron-com-rate-limit@docker` | ratelimit | ocoron.com WordPress |
+| `ocoron-com-block-xmlrpc@docker` | replacepathregex | ocoron.com WordPress |
+
+---
+
+## Resource Limits (Fabrik apps — set 2026-05-06)
+
+| Service | Memory | CPU |
+|---|---|---|
+| fabrik-proxy | 512m | 0.5 |
+| fabrik-captcha | 512m | 0.5 |
+| fabrik-image-broker | 512m | 0.5 |
+| fabrik-emailgateway | 512m | 0.5 |
+| fabrik-file-api | 1g | 1.0 |
+| fabrik-file-worker | 1g | 1.0 |
+| fabrik-translator | 512m | 0.5 |
+| browserless | 2g | 1.0 |
+| fabrik-n8n | 2g | 2.0 (pending) |
+| Infra services | ⚠️ none | Set via Coolify dashboard |
+
+---
+
+## Maintenance Procedures
+
 ```bash
-# 1. Install SSH if missing
-sudo apt update && sudo apt install -y openssh-server
+# Weekly cleanup (cron or manual)
+ssh vps "sudo docker image prune -f && sudo docker builder prune -f"
 
-# 2. Create missing directory
-sudo mkdir -p /run/sshd
-sudo chmod 755 /run/sshd
+# Check all service health
+cd /opt/fabrik && python3 scripts/vps_sync.py --verify
 
-# 3. Disable socket activation (prevents dependency issues)
-sudo systemctl disable --now ssh.socket
+# Full status
+ssh vps "sudo docker ps --format '{{.Names}}\t{{.Status}}' | sort"
 
-# 4. Add RuntimeDirectory override (prevents /run/sshd missing on reboot)
-sudo mkdir -p /etc/systemd/system/ssh.service.d
-echo -e '[Service]\nRuntimeDirectory=sshd\nRuntimeDirectoryMode=0755' | sudo tee /etc/systemd/system/ssh.service.d/override.conf
+# Restart a specific service
+cd /opt/fabrik && fabrik redeploy <service-name>
 
-# 5. Reload and start
-sudo systemctl daemon-reload
-sudo systemctl enable ssh
-sudo systemctl start ssh
-
-# 6. Verify
-systemctl is-active ssh && ss -lntp | grep :22
+# Check translator crash
+ssh vps "sudo docker logs \$(sudo docker ps -a --filter name=translator --format '{{.Names}}' | head -1) --tail 50"
 ```
-
-**Prevention (Already Applied):**
-- `ssh.socket` disabled permanently
-- `RuntimeDirectory=sshd` override ensures `/run/sshd` created on every boot
-- GreenCloudVPS console credentials stored in `/opt/fabrik/.env`
-
-**Emergency Access:**
-- URL: https://greencloudvps.com
-- Use VNC console when SSH is down
-- Credentials: See `GREENCLOUDVPS_*` in `/opt/fabrik/.env`
-
----
-
-## Installed Software
-
-| Software | Version | Status |
-|----------|---------|--------|
-| **Docker** | 29.0.2 | ✅ Installed |
-| **Docker Compose** | 2.40.3 | ✅ Installed |
-| **PostgreSQL** | - | ✅ Removed (2025-12-21) |
-| **OpenVPN** | Running | ✅ Keep (intentional) |
-| **Tor** | - | ✅ Removed (2025-12-21) — will be per-container |
-| **Postfix (SMTP)** | Running | ✅ Send-only (loopback-only, localhost only) |
-| **CUPS** | Snap | ✅ Disabled (2025-12-21) |
-| **ModemManager** | - | ✅ Disabled (2025-12-21) |
-| **Chromium** | - | ✅ Removed (2025-12-21) — will be per-container |
-| **Coolify** | latest (auto-updated) | ✅ Installed (2025-12-21) |
-
----
-
-## Running Services (Current)
-
-| Port | Service | Binding | Status |
-|------|---------|---------|--------|
-| 22 | SSH | 0.0.0.0 | ✅ Open (UFW allowed) |
-| 25 | SMTP (Postfix) | 127.0.0.1 | ✅ Localhost only (send-only) |
-| 80 | HTTP | - | ✅ UFW allowed (for Coolify) |
-| 443 | OpenVPN + HTTPS | 0.0.0.0 | ✅ Open (UFW allowed) |
-
-**Removed/Disabled:**
-
-- Port 5432 (PostgreSQL) — Uninstalled 2025-12-21
-- Port 631 (CUPS) — Disabled 2025-12-21
-- Port 4713 (PulseAudio) — Killed 2025-12-21
-- proxy_validation/sync services — Removed 2025-12-21
-
----
-
-## Custom Services Found
-
-### Useful (Keep)
-
-| Service | Timer | Purpose |
-|---------|-------|---------|
-| `duplicati` | Daily 02:00 | Incremental backup to B2 via https://backup.vps1.ocoron.com |
-
----
-
-## Systemd Timers (Active)
-
-| Timer | Schedule | Purpose | Status |
-|-------|----------|---------|--------|
-| apt-daily.timer | Daily | Package list update | ✅ Keep |
-| apt-daily-upgrade.timer | Daily | Auto upgrades | ✅ Keep |
-| logrotate.timer | Daily | Log rotation | ✅ Keep |
-| vps-backup.timer | Daily 02:00 | Custom backup | ✅ Keep |
-| fstrim.timer | Weekly | SSD maintenance | ✅ Keep |
-
----
-
-## Cron Jobs
-
-| Location | Jobs |
-|----------|------|
-| root crontab | None |
-| ozgur crontab | None |
-| /etc/cron.daily | apport, apt-compat, dpkg, logrotate, man-db, sysstat |
-| /etc/cron.d | e2scrub_all, sysstat |
-
-All standard Ubuntu cron jobs — nothing custom.
-
----
-
-## Container Strategy: Tor & Headless Browsers
-
-**Decision (2025-12-21):** Per-container approach — each Docker container includes its own dependencies.
-
-| Dependency | System-wide | Per-Container |
-|------------|-------------|---------------|
-| Tor | ❌ Removed | ✅ YouTube docker will install |
-| Chromium | ❌ Removed | ✅ Containers use Playwright install |
-
-**Why per-container:**
-
-- Containers are self-contained and portable
-- No VPS-specific dependencies
-- Easier debugging — everything in one container
-- Clean host system — only Docker + Coolify
-
----
-
-## Docker Status
-
-| Item | Status |
-|------|--------|
-| Docker daemon | ✅ Running |
-| Running containers | 40 (Coolify stack + infra + microservices)|
-| Networks | coolify (shared) |
-
-### Running Containers (2026-05-03)
-
-#### Coolify Platform
-
-| Container | Status |
-|-----------|--------|
-| coolify | ✅ healthy |
-| coolify-db | ✅ healthy |
-| coolify-proxy | ✅ healthy |
-| coolify-realtime | ✅ healthy |
-| coolify-redis | ✅ healthy |
-| coolify-sentinel | ✅ healthy |
-
-#### Data Stores
-
-| Container | Status |
-|-----------|--------|
-| postgres-main | ✅ healthy |
-| redis-main | ✅ healthy |
-
-#### Monitoring Stack
-
-| Container | Status |
-|-----------|--------|
-| alertmanager | ✅ healthy |
-| cadvisor | ✅ healthy |
-| gatus | ✅ running |
-| glitchtip-web | ✅ running |
-| glitchtip-worker | ✅ running |
-| grafana | ✅ healthy |
-| loki | ✅ healthy |
-| netdata | ✅ healthy |
-| node-exporter | ✅ running |
-| promtail | ✅ running |
-
-#### Infrastructure Services
-
-| Container | Status |
-|-----------|--------|
-| apprise | ✅ healthy |
-| authelia | ✅ healthy |
-| backrest | ✅ running |
-| n8n | ✅ healthy |
-| traefik | ✅ running |
-
-#### Fabrik Microservices
-
-| Container | Status |
-|-----------|--------|
-| browserless | ✅ running |
-| bs0wo48k4gwo440gcowscoc8-150802066640 | ✅ healthy |
-| captcha | ✅ healthy |
-| e04k4sco44ow04ccc0o0k00k-151256201601 | ✅ healthy |
-| emailgateway | ✅ running |
-| fabrik-proxy | ✅ healthy |
-| file-api | ✅ running |
-| file-worker | ✅ running |
-| image-broker | ✅ healthy |
-| site-provisioner | ✅ healthy |
-| translator | ⚠️ restarting |
-| vckgs8c00o40o884k48cgow8-150756746544 | ✅ running |
-
-#### Websites
-
-| Container | Status |
-|-----------|--------|
-| ocoron-com-backup-1 | ✅ running |
-| ocoron-com-db-1 | ✅ healthy |
-| ocoron-com-nginx-1 | ✅ running |
-| ocoron-com-redis-1 | ✅ healthy |
-| ocoron-com-wordpress-1 | ✅ running |
-
----
-
-## Completed Actions
-
-### 2025-12-21
-
-| Action | Status |
-|--------|--------|
-| PostgreSQL uninstalled | ✅ |
-| CUPS snap disabled | ✅ |
-| ModemManager disabled | ✅ |
-| PulseAudio killed | ✅ |
-| Proxy services removed | ✅ |
-| Postfix set to loopback-only | ✅ |
-| UFW enabled (22, 80, 443) | ✅ |
-| Fail2ban installed | ✅ |
-| Tor removed (per-container) | ✅ |
-| Chromium snap removed (per-container) | ✅ |
-| Coolify installed | ✅ |
-| PostgreSQL (postgres-main) deployed | ✅ |
-
-### 2025-12-22
-
-| Action | Status |
-|--------|--------|
-| WSL databases migrated to VPS | ✅ |
-| Tier 1 services deployed | ✅ |
-| OpenVPN moved to port 1194 | ✅ |
-| Traefik deployed (80/443) | ✅ |
-| Services moved behind Traefik | ✅ |
-| Host port mappings removed | ✅ |
-| DNS records created via namecheap API | ✅ |
-| Let's Encrypt certs obtained | ✅ |
-| Proxy service DB connection fixed | ✅ |
-| Proxy service DB permissions granted | ✅ |
-| All services restart policy verified | ✅ |
-| Netdata monitoring deployed | ✅ |
-| Netdata secured with basic auth | ✅ |
-| All Tier 1 services functionally verified | ✅ |
-| Redis-main deployed | ✅ |
-| Duplicati backup deployed (replaces bash script) | ✅ |
-| Duplicati backup job created via ServerUtil | ✅ |
-| First backup completed and verified on B2 | ✅ |
-| Docker log rotation verified | ✅ |
-| VPS /opt cleanup - freed 15GB | ✅ |
-| Duplicati complete backup with postgres-main | ✅ |
-| Gatus deployed | ✅ |
-
-**VPS Cleanup (2025-12-23 15:00):**
-- Deleted: youtube/ (15GB), Proxy/, BackupSystem/, shared-docs/, test-project/, CLEANUP-BACKUP-*/, backup/, backupsystem/
-- Kept: All active service folders (synced from WSL or deployed)
-- Disk usage: 34GB → 19GB (17% used, 90GB available)
-
-**Functional verification (2025-12-22 14:10):**
-- captcha: AntiCaptcha provider connected (balance: 0.0)
-- translator: DeepL provider active, API key validation working
-- namecheap: Returns real domains (5) and DNS records (14 for ocoron.com)
-- emailgateway: Resend provider connected (490ms latency)
-- postgres-main: 7 databases, 204 proxies in proxy_management
-
-**Proxy fixes applied:**
-- `db_proxy_manager_api.py`: Changed hardcoded `localhost` to `os.getenv('DB_HOST')`
-- `api.py`: Fixed `PostgresAdapter()` call to pass `DB_CONFIG`
-- `api.py`: Fixed method `execute_query` → `fetchall`
-- PostgreSQL: Granted `ozgur` user permissions on `proxy_management` tables
-
----
-
-## PostgreSQL Connection
-
-```text
-Host: postgres-main (inside coolify network)
-Port: 5432
-User: postgres
-Password: <see .env or Coolify secrets>
-Database: fabrik
-Internal URL: postgres://postgres:<PASSWORD>@postgres-main:5432/fabrik
-```
-
----
-
-## Network Architecture
-
-### Current State (2025-12-22)
-
-```text
-Internet
-    │
-    ├── :22   → SSH (UFW allowed)
-    ├── :80   → Traefik (HTTP → HTTPS redirect)
-    ├── :443  → Traefik (HTTPS with Let's Encrypt)
-    ├── :1194 → OpenVPN
-    ├── :8000 → Coolify UI
-    └── :8080 → Traefik Dashboard
-
-Traefik → coolify network → services (internal, no host ports)
-```
-
-### Traefik Configuration
-
-| Setting | Value |
-|---------|-------|
-| Image | traefik:v2.11 |
-| HTTP | :80 (redirects to HTTPS) |
-| HTTPS | :443 (Let's Encrypt) |
-| Dashboard | :8080 |
-| Config | /opt/traefik/traefik.yml |
-| Certs | /opt/traefik/acme.json |
-
-### Service Routing (via Traefik)
-
-| Service | External URL | Internal URL |
-|---------|--------------|--------------|
-| proxy | https://proxy.vps1.ocoron.com | http://proxy:8000 |
-| captcha | https://captcha.vps1.ocoron.com | http://captcha:8000 |
-| translator | https://translator.vps1.ocoron.com | http://translator:8000 |
-| dns-manager | https://dns.vps1.ocoron.com | http://dns-manager:8001 |
-| emailgateway | https://emailgateway.vps1.ocoron.com | http://emailgateway:3000 |
-| netdata | https://status.vps1.ocoron.com (auth required) | http://netdata:19999 |
-| duplicati | https://backup.vps1.ocoron.com | http://duplicati:8200 |
-| postgres | N/A | postgres-main:5432 |
-| redis | N/A | redis-main:6379 |
-
-**External:** Public HTTPS via Traefik + Let's Encrypt
-**Netdata:** Protected with basic auth (credentials in `/opt/traefik/htpasswd`)
-**Internal:** Container-to-container via Docker DNS on `coolify` network
-
-### UFW Rules (Current)
-
-| Port | Action | Purpose |
-|------|--------|---------|
-| 22 | ALLOW | SSH |
-| 80 | ALLOW | Traefik HTTP |
-| 443 | ALLOW | Traefik HTTPS |
-| 1194 | ALLOW | OpenVPN |
-| 8000 | ALLOW | Coolify UI |
-| 8080 | ALLOW | Traefik Dashboard |
-
----
-
-## Next Steps
-
-### 1. ~~Install Coolify~~ ✅ Done
-
-### 2. ~~Deploy PostgreSQL~~ ✅ Done
-
-### 3. ~~Migrate WSL Databases~~ ✅ Done
-
-### 4. ~~Deploy Tier 1 Services~~ ✅ Done
-
-### 5. ~~Deploy Traefik~~ ✅ Done
-
-### 6. ~~Configure DNS Records~~ ✅ Done
-
-DNS A records created via DNS Manager API:
-
-| Subdomain | IP | Status |
-|-----------|----|----|
-| proxy.vps1.ocoron.com | 172.93.160.197 | ✅ |
-| captcha.vps1.ocoron.com | 172.93.160.197 | ✅ |
-| translator.vps1.ocoron.com | 172.93.160.197 | ✅ |
-| dns.vps1.ocoron.com | 172.93.160.197 | ✅ |
-| emailgateway.vps1.ocoron.com | 172.93.160.197 | ✅ |
-
-### 7. Deploy Tier 2 Services (Pending)
-
-| Service | Status |
-|---------|--------|
-| youtube | Pending |
-| calendar-orchestration-engine | Pending |
-| llm_batch_processor | Pending |
-
----
-
-## Owned Domains (Namecheap)
-
-| Domain | Expires | AutoRenew | Purpose |
-|--------|---------|-----------|---------|
-| **ocoron.com** | 2032-06-18 | ✅ | Primary infrastructure |
-| **ozgurbasak.com** | 2027-11-22 | ✅ | Personal |
-| **aktivitepaketi.com** | 2026-04-10 | ✅ | Project |
-| **longephedia.com** | 2026-04-30 | ✅ | Project |
-| **tojlo.com** | 2026-04-21 | ✅ | Project |
-
-All domains use Namecheap DNS and have WhoisGuard enabled.
-
----
-
-## Reference
-
-- **Phase 1 Tasks:** [tasks.md](../../tasks.md)
-- **Architecture:** [architecture.md](../reference/architecture.md)
-- **Stack Overview:** [stack.md](../reference/stack.md)
-- **Disaster Recovery:** [disaster-recovery.md](disaster-recovery.md)
-- **Duplicati Setup:** [duplicati-setup.md](duplicati-setup.md)
-- **Active Roadmap:** [tasks.md](../../tasks.md)
-- **Fabrik Drivers:** [drivers.md](../reference/drivers.md)

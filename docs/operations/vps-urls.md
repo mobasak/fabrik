@@ -2,85 +2,84 @@
 
 <!-- AUTO-UPDATE: Run `python3 scripts/snapshot_vps_state.py` to refresh -->
 
-**Last Updated:** 2026-05-03
-All services deployed on VPS1 (172.93.160.197) with HTTPS via Traefik (Coolify-managed).
+**Last Updated:** 2026-05-07
+**VPS:** vps1.ocoron.com (172.93.160.197) — Los Angeles, CA
 
-## DNS Records (Cloudflare)
+All services use HTTPS via Traefik (Coolify-managed). HTTP redirects to HTTPS automatically.
 
-| Subdomain | Type | IP | Service |
-|-----------|------|-----|---------|
-| `vps1.ocoron.com` | A | 172.93.160.197 | Base domain |
-| `auth.vps1.ocoron.com` | A | 172.93.160.197 | Authelia SSO/2FA |
-| `auto.vps1.ocoron.com` | A | 172.93.160.197 | n8n automation |
-| `backup.vps1.ocoron.com` | A | 172.93.160.197 | Backrest backup UI |
-| `browser.vps1.ocoron.com` | A | 172.93.160.197 | Browserless headless Chrome |
-| `captcha.vps1.ocoron.com` | A | 172.93.160.197 | Anti-Captcha solver |
-| `coolify.vps1.ocoron.com` | A | 172.93.160.197 | Coolify dashboard |
-| `dns.vps1.ocoron.com` | A | 172.93.160.197 | Site Provisioner (DNS Manager) |
-| `emailgateway.vps1.ocoron.com` | A | 172.93.160.197 | Email Gateway API |
-| `errors.vps1.ocoron.com` | A | 172.93.160.197 | GlitchTip error tracking |
-| `files-api.vps1.ocoron.com` | A | 172.93.160.197 | File API |
-| `images.vps1.ocoron.com` | A | 172.93.160.197 | Image Broker API |
-| `monitor.vps1.ocoron.com` | A | 172.93.160.197 | Grafana dashboards |
-| `netdata.vps1.ocoron.com` | A | 172.93.160.197 | Netdata real-time metrics |
-| `notify.vps1.ocoron.com` | A | 172.93.160.197 | Apprise notifications |
-| `pdf.vps1.ocoron.com` | A | 172.93.160.197 | Gotenberg PDF conversion |
-| `proxy.vps1.ocoron.com` | A | 172.93.160.197 | Proxy management API |
-| `search.vps1.ocoron.com` | A | 172.93.160.197 | MeiliSearch |
-| `status.vps1.ocoron.com` | A | 172.93.160.197 | Gatus uptime monitor |
-| `translator.vps1.ocoron.com` | A | 172.93.160.197 | Translation API |
+---
 
-## Service URLs
+## Public Services (Authelia SSO required)
 
-### Infrastructure (Authelia-protected unless noted)
+| URL | Service | Notes |
+|---|---|---|
+| `https://coolify.vps1.ocoron.com` | Coolify dashboard | Infra management |
+| `https://monitor.vps1.ocoron.com` | Grafana | Metrics & dashboards |
+| `https://netdata.vps1.ocoron.com` | Netdata | Real-time system metrics |
+| `https://errors.vps1.ocoron.com` | GlitchTip | Error tracking |
+| `https://auto.vps1.ocoron.com` | n8n | Workflow automation |
+| `https://backup.vps1.ocoron.com` | Backrest | Backup management UI |
+| `https://notify.vps1.ocoron.com` | Apprise | Notification hub |
+| `https://auth.vps1.ocoron.com` | Authelia | SSO/2FA portal |
 
-| Service | URL | Auth | Purpose |
-|---------|-----|------|---------|
-| **Coolify** | `https://coolify.vps1.ocoron.com` | Authelia + Login | Container deployment |
-| **Grafana** | `https://monitor.vps1.ocoron.com` | Authelia + Login | Dashboards (Prometheus + Loki) |
-| **Netdata** | `https://netdata.vps1.ocoron.com` | Authelia | Real-time server metrics |
-| **Backrest** | `https://backup.vps1.ocoron.com` | Authelia | Restic backup UI → Backblaze B2 |
-| **n8n** | `https://auto.vps1.ocoron.com` | Authelia | Workflow automation |
-| **Apprise** | `https://notify.vps1.ocoron.com` | Authelia | Multi-channel notifications |
-| **GlitchTip** | `https://errors.vps1.ocoron.com` | App-layer TOTP | Error tracking |
-| **Gatus** | `https://status.vps1.ocoron.com` | Public | Uptime monitoring (30 endpoints) |
-| **Authelia** | `https://auth.vps1.ocoron.com` | — | SSO/2FA forward-auth |
+## Public Services (Open)
 
-### APIs (Fabrik Microservices)
+| URL | Service | Notes |
+|---|---|---|
+| `https://status.vps1.ocoron.com` | Gatus | Service health dashboard — read-only |
+| `https://www.ocoron.com` | WordPress | Ocoron corporate site |
 
-| Service | URL | Health Check | Port | Purpose |
-|---------|-----|--------------|------|---------|
-| **Proxy** | `https://proxy.vps1.ocoron.com` | `/health` | 18013 | Webshare.io proxy management |
-| **Captcha** | `https://captcha.vps1.ocoron.com` | `/health` | 18011 | Anti-Captcha solving |
-| **Translator** | `https://translator.vps1.ocoron.com` | `/health` | 18012 | DeepL + Azure translation |
-| **Site Provisioner** | `https://dns.vps1.ocoron.com` | `/health` | 18014 | Domain/DNS management |
-| **Image Broker** | `https://images.vps1.ocoron.com` | `/api/v1/health` | 18016 | Stock image API |
-| **Email Gateway** | `https://emailgateway.vps1.ocoron.com` | `/health` | 18017 | Resend + SES email |
-| **File API** | `https://files-api.vps1.ocoron.com` | `/health` | 18015 | File operations |
-| **File Worker** | (internal) | — | 8007 | Background file processing |
-| **Browserless** | `https://browser.vps1.ocoron.com` | `/pressure` | 3000 | Headless Chrome |
-| **Gotenberg** | `https://pdf.vps1.ocoron.com` | `/health` | 3000 | HTML/PDF conversion |
-| **MeiliSearch** | `https://search.vps1.ocoron.com` | `/health` | 7700 | Full-text search |
+## API Services (X-API-Key header required)
 
-### Websites
+| URL | Service | Key Location |
+|---|---|---|
+| `https://proxy.vps1.ocoron.com` | Proxy Manager | `/opt/proxy/.env` → `PROXY_API_KEY` |
+| `https://captcha.vps1.ocoron.com` | Captcha Solver | `/opt/captcha/.env` → `SERVICE_API_KEY` |
+| `https://images.vps1.ocoron.com` | Image Broker | `/opt/image-broker/.env` → `SERVICE_API_KEY` |
+| `https://translator.vps1.ocoron.com` | Translator | `/opt/translator/.env` → `SERVICE_API_KEY` |
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| **ocoron.com** | `https://ocoron.com` | WordPress (nginx + php-fpm + MariaDB + Redis) |
+## API Services (Other Auth)
 
-## Quick Health Checks
+| URL | Service | Auth Method |
+|---|---|---|
+| `https://files-api.vps1.ocoron.com` | File API | Bearer token (Supabase JWT) |
+| `https://emailgateway.vps1.ocoron.com` | Email Gateway | App-layer auth middleware |
+| `https://search.vps1.ocoron.com` | MeiliSearch | Master key (internal use) |
 
-```bash
-for url in \
-  "https://proxy.vps1.ocoron.com/health" \
-  "https://captcha.vps1.ocoron.com/health" \
-  "https://dns.vps1.ocoron.com/health" \
-  "https://images.vps1.ocoron.com/api/v1/health" \
-  "https://emailgateway.vps1.ocoron.com/health" \
-  "https://translator.vps1.ocoron.com/health" \
-  "https://browser.vps1.ocoron.com/pressure" \
-  "https://status.vps1.ocoron.com"; do
-  echo -n "$url: "
-  curl -s -o /dev/null -w "%{http_code}\n" "$url" --max-time 5
-done
-```
+## IP-Allowlisted (VPS + internal Docker networks only)
+
+| URL | Service | Allowed IPs |
+|---|---|---|
+| `https://provision.vps1.ocoron.com` | Site Provisioner | `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `172.93.160.197/32`, `31.206.44.18/32` |
+
+## Internal Only (no public route)
+
+| Service | Internal address | Purpose |
+|---|---|---|
+| PostgreSQL (main) | `postgres-main:5432` | Shared app database |
+| Redis (main) | `redis-main:6379` | Shared cache |
+| Prometheus | `prometheus:9090` | Metrics scraping |
+| Loki | `loki:3100` | Log aggregation |
+| cAdvisor | `cadvisor:8080` | Container metrics |
+| Traefik dashboard | `127.0.0.1:8080` | SSH tunnel only |
+
+---
+
+## DNS Records (Cloudflare — all A records → 172.93.160.197)
+
+`auth`, `auto`, `backup`, `browser`, `captcha`, `coolify`, `dns`, `emailgateway`, `errors`, `files-api`, `images`, `monitor`, `netdata`, `notify`, `pdf`, `provision`, `proxy`, `search`, `status`, `translator` — all under `vps1.ocoron.com`
+
+Plus: `www.ocoron.com`, `ocoron.com`
+
+---
+
+## Port Reference
+
+| Port | Binding | Purpose |
+|---|---|---|
+| 80 | `0.0.0.0:80` | HTTP (Traefik — redirects to HTTPS) |
+| 443 | `0.0.0.0:443` | HTTPS (Traefik) + OpenVPN |
+| 1194 | `0.0.0.0:1194` | OpenVPN TCP |
+| 6001-6002 | `0.0.0.0:6001-6002` | Coolify Realtime (Soketi WebSocket) |
+| 8000 | **UFW DENY** | Coolify raw — blocked, use domain |
+| 8080 | `127.0.0.1:8080` | Traefik dashboard (localhost only) |
