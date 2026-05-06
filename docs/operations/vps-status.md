@@ -96,7 +96,7 @@
 | `fabrik-proxy` | ✅ healthy | `proxy.vps1.ocoron.com` | X-API-Key |
 | `fabrik-captcha` | ✅ healthy | `captcha.vps1.ocoron.com` | X-API-Key |
 | `fabrik-image-broker` | ✅ healthy | `images.vps1.ocoron.com` | X-API-Key |
-| `fabrik-translator` | ⚠️ Restarting | `translator.vps1.ocoron.com` | X-API-Key |
+| `fabrik-translator` | ✅ healthy | `translator.vps1.ocoron.com` | X-API-Key |
 | `fabrik-emailgateway` | ✅ Up | `emailgateway.vps1.ocoron.com` | app-layer auth |
 | `fabrik-file-api` | ✅ Up | `files-api.vps1.ocoron.com` | Bearer (Supabase) |
 | `fabrik-file-worker` | ✅ Up | internal only | — |
@@ -130,7 +130,6 @@
 
 | # | Service | Issue | Action |
 |---|---|---|---|
-| 1 | `fabrik-translator` | Restarting (exit code 3) | Investigate logs — `docker logs translator-*` |
 | 2 | Swap | 1.7GB / 2GB used | Memory pressure; monitor closely |
 | 3 | Resource limits | Infra services (cadvisor, alertmanager, etc.) have no limits | Set manually via Coolify dashboard |
 | 4 | Wildcard SSL | Per-service Let's Encrypt HTTP challenge | Migrate to Cloudflare DNS challenge in Coolify for wildcard |
