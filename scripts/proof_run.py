@@ -43,11 +43,12 @@ GH_USER = "mobasak"
 
 # Execution order from the mission brief.
 #
-# `chrome-extension` was in the original list but is INTENTIONALLY excluded
-# from VPS deploys per `spec_generator.SPEC_ENABLED_TYPES` (it's a packaged
-# client artifact — ships via GH releases, doesn't deploy). Removing here so
-# the harness doesn't try to apply a non-existent spec. See FOLLOWUPS.md
-# entry F-PROOF-2 for whether to remove the compose.yaml from that scaffold.
+# G9 (2026-05-05): ``chrome-extension`` was added back. The CRX itself
+# ships via the Chrome Web Store, but the scaffolder ALSO emits a real
+# FastAPI backend at ``server/`` plus canonical ``compose.yaml`` with
+# Traefik labels and CORS middleware (see
+# ``scaffold.py::_scaffold_chrome_extension`` B16/B18 fixes). The spec
+# drives the backend, not the CRX. ``SPEC_ENABLED_TYPES`` includes it.
 SCAFFOLD_TYPES = [
     "saas-skeleton",
     "node-api",
@@ -56,6 +57,7 @@ SCAFFOLD_TYPES = [
     "file-worker",
     "docusaurus",
     "static-site",
+    "chrome-extension",
 ]
 
 # `file-worker` has no Traefik / no HTTP surface. We can't curl it. Proof for
@@ -76,6 +78,8 @@ ACCEPT_CODES: dict[str, set[int]] = {
     "file-api": {200},
     "docusaurus": {200},
     "static-site": {200},
+    # chrome-extension: backend FastAPI exposes /health → 200
+    "chrome-extension": {200},
     # file-worker: handled by NO_HTTP_TYPES, never curled
 }
 DEFAULT_ACCEPT = {200}
@@ -84,7 +88,7 @@ DEFAULT_ACCEPT = {200}
 # --- subprocess helpers -----------------------------------------------------
 
 
-class CmdFailed(RuntimeError):
+class CmdError(RuntimeError):
     def __init__(self, cmd: list[str], returncode: int, stdout: str, stderr: str):
         self.cmd = cmd
         self.returncode = returncode
@@ -117,7 +121,7 @@ def run(
       - writes each line immediately to both ``sys.stdout`` AND ``logfile``,
         flushing both after every line
       - enforces ``timeout`` via wall-clock against the read loop
-      - retains the ``CmdFailed`` raise contract for ``check=True`` callers
+      - retains the ``CmdError`` raise contract for ``check=True`` callers
 
     The captured-output convenience attributes on the returned
     ``CompletedProcess`` (``.stdout``, ``.stderr``) are still populated so
@@ -163,7 +167,7 @@ def run(
                 if logfile:
                     logfile.write(msg)
                     logfile.flush()
-                raise CmdFailed(cmd, -1, "".join(captured), "timeout")
+                raise CmdError(cmd, -1, "".join(captured), "timeout")
         rc = proc.wait()
     finally:
         if proc.stdout:
@@ -171,7 +175,7 @@ def run(
 
     full = "".join(captured)
     if check and rc != 0:
-        raise CmdFailed(cmd, rc, full, "")
+        raise CmdError(cmd, rc, full, "")
     # Build a CompletedProcess for backward compatibility with run() callers
     # that read .stdout. .stderr stays empty since we merged streams above.
     return subprocess.CompletedProcess(args=cmd, returncode=rc, stdout=full, stderr="")
@@ -242,7 +246,7 @@ def cleanup(name: str, env: dict[str, str], log) -> None:
                 logfile=log,
                 timeout=300,
             )
-        except CmdFailed:
+        except CmdError:
             pass
     else:
         # No spec → destroy can't run. Manually delete Coolify app if it exists.
@@ -752,7 +756,7 @@ def process_type(
                 accept = ACCEPT_CODES.get(project_type, DEFAULT_ACCEPT)
                 code = 0
                 raw = ""
-                for attempt in range(6):
+                for _attempt in range(6):
                     code, raw = curl_healthcheck(name, hc_path, log)
                     if code in accept:
                         break

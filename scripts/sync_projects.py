@@ -27,7 +27,7 @@ from pathlib import Path
 import yaml
 
 FABRIK_ROOT = Path("/opt/fabrik")
-DEFAULT_EXCLUDES = {"_*", ".*", "fabrik", "__pycache__", "venv", "google"}
+DEFAULT_EXCLUDES = {"_*", ".*", "fabrik", "__pycache__", "venv", "google", "containerd"}
 
 
 @dataclass
@@ -308,13 +308,16 @@ def _auto_categorize(path: Path, status: str) -> str:
             "chrome_profiles",
             "cookies",
         }
-        for item in path.iterdir():
-            if item.is_dir() and item.name not in _skip and not item.name.startswith("."):
-                if any(
-                    f.suffix == ".py" for f in item.rglob("*.py") if "__pycache__" not in str(f)
-                ):
-                    has_code = True
-                    break
+        try:
+            for item in path.iterdir():
+                if item.is_dir() and item.name not in _skip and not item.name.startswith("."):
+                    if any(
+                        f.suffix == ".py" for f in item.rglob("*.py") if "__pycache__" not in str(f)
+                    ):
+                        has_code = True
+                        break
+        except PermissionError:
+            pass
     if has_compose and has_code:
         return "active"
     if (path / "README.md").exists() or (path / "docs").exists():

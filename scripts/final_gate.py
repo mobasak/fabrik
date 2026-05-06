@@ -763,6 +763,13 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check")
         )
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_vps_docs.py",
+                "VPS Docs Freshness",
+                module="scripts.enforcement.check_vps_docs",
+            )
+        )
         validate_conv = PROJECT_ROOT / "scripts/enforcement/validate_conventions.py"
         if validate_conv.exists():
             code, out = run_cmd(

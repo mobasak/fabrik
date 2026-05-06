@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2025-12-23 15:05 UTC+3
+**Last Updated:** 2026-05-03 23:17 UTC+3
 **Host:** vps1.ocoron.com (172.93.160.197)
 **SSH:** `ssh vps` (ozgur user, key-only auth)
 
@@ -11,9 +11,9 @@
 | Component | Value |
 |-----------|-------|
 | **OS** | Ubuntu 24.04.3 LTS (Noble Numbat) |
-| **Kernel** | 6.8.0-87-generic |
-| **Disk** | 108GB total, 75GB available (31% used) ⚠️ Limited |
-| **Memory** | 11GB total, 10GB available |
+| **Kernel** | 6.8.0-106-generic |
+| **Disk** | 108GB total, 69GB available (37% used) ⚠️ Limited |
+| **Memory** | 11GB total, 6.2GB available |
 | **Swap** | 2GB |
 | **Snap Usage** | 8.1GB in /snap |
 
@@ -109,7 +109,7 @@ systemctl is-active ssh && ss -lntp | grep :22
 | **CUPS** | Snap | ✅ Disabled (2025-12-21) |
 | **ModemManager** | - | ✅ Disabled (2025-12-21) |
 | **Chromium** | - | ✅ Removed (2025-12-21) — will be per-container |
-| **Coolify** | 4.0.0-beta.455 | ✅ Installed (2025-12-21) |
+| **Coolify** | latest (auto-updated) | ✅ Installed (2025-12-21) |
 
 ---
 
@@ -189,28 +189,80 @@ All standard Ubuntu cron jobs — nothing custom.
 | Item | Status |
 |------|--------|
 | Docker daemon | ✅ Running |
-| Running containers | 11 (Coolify stack + Tier 1 services) |
+| Running containers | 40 (Coolify stack + infra + microservices)|
 | Networks | coolify (shared) |
 
-### Running Containers (2025-12-22 13:43 UTC+3)
+### Running Containers (2026-05-03)
 
-| Container | Port | Status | Health Check |
-|-----------|------|--------|--------------|
-| traefik | 80, 443, 8080 | ✅ Running | — |
-| postgres-main | internal | ✅ Running | `SELECT 1` ✅ |
-| proxy | internal (via Traefik) | ✅ Running | `/health` ✅ |
-| captcha | internal (via Traefik) | ✅ Running | `/` returns service info ✅ |
-| translator | internal (via Traefik) | ✅ Running | `/health` ✅ (deepl active) |
-| dns-manager | internal (via Traefik) | ✅ Running | `/health` ✅ |
-| emailgateway | internal (via Traefik) | ✅ Running | `/health` ✅ |
-| netdata | internal (via Traefik) | ✅ Running | `/api/v1/info` ✅ |
-| redis-main | internal | ✅ Running | `redis-cli ping` ✅ |
-| duplicati | internal (via Traefik) | ✅ Running | Web UI at :8200 |
-| coolify | 8000 | ✅ Running |
-| coolify-db | internal | ✅ Running |
-| coolify-redis | internal | ✅ Running |
-| coolify-realtime | 6001-6002 | ✅ Running |
-| coolify-sentinel | internal | ✅ Running |
+#### Coolify Platform
+
+| Container | Status |
+|-----------|--------|
+| coolify | ✅ healthy |
+| coolify-db | ✅ healthy |
+| coolify-proxy | ✅ healthy |
+| coolify-realtime | ✅ healthy |
+| coolify-redis | ✅ healthy |
+| coolify-sentinel | ✅ healthy |
+
+#### Data Stores
+
+| Container | Status |
+|-----------|--------|
+| postgres-main | ✅ healthy |
+| redis-main | ✅ healthy |
+
+#### Monitoring Stack
+
+| Container | Status |
+|-----------|--------|
+| alertmanager | ✅ healthy |
+| cadvisor | ✅ healthy |
+| gatus | ✅ running |
+| glitchtip-web | ✅ running |
+| glitchtip-worker | ✅ running |
+| grafana | ✅ healthy |
+| loki | ✅ healthy |
+| netdata | ✅ healthy |
+| node-exporter | ✅ running |
+| promtail | ✅ running |
+
+#### Infrastructure Services
+
+| Container | Status |
+|-----------|--------|
+| apprise | ✅ healthy |
+| authelia | ✅ healthy |
+| backrest | ✅ running |
+| n8n | ✅ healthy |
+| traefik | ✅ running |
+
+#### Fabrik Microservices
+
+| Container | Status |
+|-----------|--------|
+| browserless | ✅ running |
+| bs0wo48k4gwo440gcowscoc8-150802066640 | ✅ healthy |
+| captcha | ✅ healthy |
+| e04k4sco44ow04ccc0o0k00k-151256201601 | ✅ healthy |
+| emailgateway | ✅ running |
+| fabrik-proxy | ✅ healthy |
+| file-api | ✅ running |
+| file-worker | ✅ running |
+| image-broker | ✅ healthy |
+| site-provisioner | ✅ healthy |
+| translator | ⚠️ restarting |
+| vckgs8c00o40o884k48cgow8-150756746544 | ✅ running |
+
+#### Websites
+
+| Container | Status |
+|-----------|--------|
+| ocoron-com-backup-1 | ✅ running |
+| ocoron-com-db-1 | ✅ healthy |
+| ocoron-com-nginx-1 | ✅ running |
+| ocoron-com-redis-1 | ✅ healthy |
+| ocoron-com-wordpress-1 | ✅ running |
 
 ---
 

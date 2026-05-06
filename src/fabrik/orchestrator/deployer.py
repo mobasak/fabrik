@@ -207,6 +207,60 @@ class ServiceDeployer:
             "Set COOLIFY_ENVIRONMENT_UUID or create an environment in Coolify."
         )
 
+    def _resolve_private_key_uuid(self, spec: dict[str, Any]) -> str | None:
+        """Resolve the Coolify SSH deploy-key UUID for a git-sourced app.
+
+        Precedence:
+
+        1. ``spec.coolify.private_key_uuid`` — per-service override.
+        2. ``COOLIFY_PRIVATE_KEY_UUID`` environment variable — operator
+           default, usually the ``github-deploy-key`` UUID.
+        3. Auto-discovery via ``CoolifyClient.list_private_keys()`` —
+           prefer keys with ``is_git_related=True``, then keys whose
+           name contains ``deploy`` or ``github``.
+
+        Only required for SSH-URL repos (``git@...``). Returns ``None``
+        for HTTPS-cloneable repos so the caller routes to
+        ``/applications/public``.
+
+        Context (2026-05-04): the 2026-04-26 removal of this helper
+        assumed Coolify v4.0.0+ auto-selects SSH keys. It does not.
+        Apps created without ``private_key_uuid`` land with
+        ``private_key_id=NULL`` and fail ``git ls-remote`` on the first
+        deploy. See ``create_git_application`` docstring.
+        """
+        spec_key = spec.get("coolify", {}).get("private_key_uuid")
+        if spec_key:
+            return spec_key
+
+        env_key = os.environ.get("COOLIFY_PRIVATE_KEY_UUID", "").strip()
+        if "#" in env_key:
+            env_key = env_key.split("#", 1)[0].strip()
+        if env_key and len(env_key) >= 8 and all(c.isalnum() or c in "-_" for c in env_key):
+            return env_key
+
+        try:
+            keys = self.client.list_private_keys()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Could not list Coolify private keys: %s", e)
+            return None
+
+        # Prefer explicitly git-related keys.
+        for k in keys:
+            if k.get("is_git_related"):
+                return k.get("uuid")
+        # Then name-based heuristic.
+        for k in keys:
+            name = (k.get("name") or "").lower()
+            if "deploy" in name or "github" in name:
+                return k.get("uuid")
+
+        logger.warning(
+            "No git-related SSH key found in Coolify; "
+            "set COOLIFY_PRIVATE_KEY_UUID for private SSH repos"
+        )
+        return None
+
     def _create_deployment(self, ctx: DeploymentContext) -> str:
         """Create a new Coolify deployment.
 
@@ -248,17 +302,16 @@ class ServiceDeployer:
         # Coolify's `instant_deploy: true` on POST /applications/dockercompose
         # (inline) does NOT reliably start the container (leaves service at
         # status=exited). Explicitly trigger /deploy in that case.
-        # For GIT deploys, instant_deploy=True works correctly (verified
-        # 2026-04-27) and a redundant force-deploy fired immediately after
-        # create races with the in-progress build, which produces
-        # ``exited:unhealthy`` even though the build itself was succeeding.
-        # B17 fix: only force-deploy on the inline path.
-        if source.type != SourceType.GIT:
-            try:
-                self.client.deploy(uuid, force=True)
-                logger.info("Triggered deploy for %s", uuid)
-            except Exception as e:  # noqa: BLE001
-                logger.warning("Post-create deploy trigger failed (non-fatal): %s", e)
+        # For GIT deploys (revised 2026-05-04): we now create with
+        # instant_deploy=False and push env vars before triggering the
+        # build, so the FIRST /deploy call must come from here. This is
+        # not a "redundant force-deploy" (the original B17 concern) — it
+        # is the only deploy fired for the app.
+        try:
+            self.client.deploy(uuid, force=True)
+            logger.info("Triggered deploy for %s", uuid)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Post-create deploy trigger failed (non-fatal): %s", e)
 
         # Give Coolify some time to actually spin up the container before
         # downstream steps (verification, Traefik router check) probe it.
@@ -326,6 +379,21 @@ class ServiceDeployer:
             # Traefik issues the redirect and Let's Encrypt cert.
             domains_field = f"https://{spec_domain}"
 
+        # Resolve SSH deploy key for SSH-URL repos. For git@ URLs a key
+        # is required; for https:// URLs we pass None and Coolify routes
+        # to /applications/public. See CoolifyClient.create_git_application
+        # docstring for the 2026-05-04 reason this is not optional.
+        private_key_uuid: str | None = None
+        is_ssh_repo = git_repository.startswith("git@") or git_repository.startswith("ssh://")
+        if is_ssh_repo:
+            private_key_uuid = self._resolve_private_key_uuid(spec)
+            if not private_key_uuid:
+                raise DeployError(
+                    f"SSH git repo '{git_repository}' requires a Coolify deploy key. "
+                    "Set COOLIFY_PRIVATE_KEY_UUID or spec.coolify.private_key_uuid, "
+                    "or register a git-related key in Coolify."
+                )
+
         result = self.client.create_git_application(
             project_uuid=project_uuid,
             server_uuid=server_uuid,
@@ -336,13 +404,18 @@ class ServiceDeployer:
             docker_compose_location=docker_compose_location,
             name=spec["name"],
             description=spec.get("description", ""),
-            # B17: instant_deploy=True so Coolify performs a single,
-            # uninterrupted build. A redundant force-deploy fired after the
-            # create races with the in-progress build and produces
-            # ``exited:unhealthy``. Verified clean run with True on
-            # /applications/public, 2026-04-27.
-            instant_deploy=True,
+            # B17 (revised 2026-05-04): instant_deploy=False so env vars
+            # can be pushed BEFORE the build starts. With instant_deploy=True
+            # the build kicks off immediately with no env vars set, so
+            # services that need DB credentials / API keys at runtime fail
+            # their healthcheck and exit unhealthy. A SINGLE /deploy call
+            # AFTER env-var injection avoids the original B17 race (which
+            # was specifically about firing a redundant force-deploy on top
+            # of an in-progress instant_deploy=True build — different
+            # scenario).
+            instant_deploy=False,
             domains=domains_field,
+            private_key_uuid=private_key_uuid,
         )
 
         uuid = result.get("uuid") or result.get("id")
@@ -351,6 +424,20 @@ class ServiceDeployer:
                 "Coolify API response missing 'uuid' or 'id'",
                 coolify_error=str(result),
             )
+
+        # Push env vars + secrets BEFORE triggering the deploy so the first
+        # build has them in scope. Same construction as _update_existing.
+        env_vars = dict(spec.get("env", {}))
+        for key, value in ctx.secrets.items():
+            env_vars[key] = value
+        if env_vars:
+            self.client.bulk_update_env_vars(uuid, env_vars)
+            logger.info(
+                "Pushed %d env vars to git-sourced app %s before initial deploy",
+                len(env_vars),
+                uuid,
+            )
+
         logger.info(
             "Created git-sourced app %s (uuid=%s, repo=%s, branch=%s)",
             spec["name"],

@@ -1,1 +1,355 @@
 [2026-05-03 17:46:07] Log rotated
+
+=== Fabrik Daily Pipeline — 2026-05-04 00:43:21 ===
+📊 Scanning /opt/* projects...
+   Found 41 projects
+   ⚠️  Port conflicts:
+      Port 18014: dns-manager, site-provisioner
+   📁 Registry: /opt/fabrik/data/projects.yaml
+   📄 Updated docs/BUSINESS_MODEL.md
+   📄 Updated PORTS.md
+
+✅ Sync complete: 41 projects (41 with project.yaml)
+⚠️  1 port conflict(s) — edit project.yaml to resolve
+⚠️  CASCADE BACKUP MISSING
+   Ask Cascade: 'Export memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md'
+Project                         | Status       | Missing Files           
+--------------------------------+--------------+-------------------------
+ComplianceOps                   | ✅ healthy    | -                       
+Reference_Creator               | ✅ healthy    | -                       
+apidoccreator                   | ✅ healthy    | -                       
+brand-identiy-creator           | ✅ healthy    | -                       
+calendar-orchestration-engine   | ✅ healthy    | -                       
+candle                          | ✅ healthy    | -                       
+captcha                         | ✅ healthy    | -                       
+dns-manager                     | ✅ healthy    | -                       
+email-reader                    | ✅ healthy    | -                       
+emailgateway                    | ✅ healthy    | -                       
+exam-coach                      | ✅ healthy    | -                       
+fabrik-citation-verifier        | ✅ healthy    | -                       
+fabrik-claim-validator          | ✅ healthy    | -                       
+fabrik-test-chrome-extension    | ✅ healthy    | -                       
+fabrik-test-desktop-app         | ⚠️  warnings | compose.yaml, Dockerfile
+fabrik-test-mobile-app          | ⚠️  warnings | compose.yaml, Dockerfile
+fabrik-test-wordpress           | ⚠️  warnings | compose.yaml, Dockerfile
+file-api                        | ✅ healthy    | -                       
+file-worker                     | ✅ healthy    | -                       
+gmailaccountcreator             | ✅ healthy    | -                       
+image-broker                    | ✅ healthy    | -                       
+image-generation                | ✅ healthy    | -                       
+iterative_image_editor          | ✅ healthy    | -                       
+job-agent                       | ✅ healthy    | -                       
+llm_batch_processor             | ✅ healthy    | -                       
+longephedia-vault               | ✅ healthy    | -                       
+marketing-argumant-generator    | ✅ healthy    | -                       
+namecheap                       | ✅ healthy    | -                       
+proposal-creator                | ✅ healthy    | -                       
+proxy                           | ✅ healthy    | -                       
+seo                             | ✅ healthy    | -                       
+site-provisioner                | ✅ healthy    | -                       
+supplement-tracker-advisor      | ✅ healthy    | -                       
+trade-intelligence              | ✅ healthy    | -                       
+trading-core                    | ✅ healthy    | -                       
+transcriber                     | ✅ healthy    | -                       
+translator                      | ✅ healthy    | -                       
+triggered-content-orchestration | ✅ healthy    | -                       
+ugc                             | ✅ healthy    | -                       
+web-scraper                     | ✅ healthy    | -                       
+youtube                         | ✅ healthy    | -                       
+41 projects scanned — 38 healthy, 3 warnings, 0 missing
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 348 models
+[kilo-db]   Inserted 0, updated 348 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 266 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[kilo-db]   Updated 107 Elo, 38 TBench scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Created snapshot for 2026-05-04 with 389 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-05-04T00:43:33.142968
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 266 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Scraping provider: Recommended
+[windsurf-scrape]     Clicked Recommended tab
+[windsurf-scrape]     Found 13 models: Adaptive, SWE-1.6, Claude Opus 4.6
+[windsurf-scrape]   Scraping provider: Windsurf
+[windsurf-scrape]     Clicked Windsurf tab
+[windsurf-scrape]     Found 5 models: Adaptive, SWE-1.6, SWE-1.6 Fast
+[windsurf-scrape]   Scraping provider: Anthropic
+[windsurf-scrape]     Clicked Anthropic tab
+[windsurf-scrape]     Found 22 models: Claude Opus 4.6, Claude Opus 4.6 (Thinking), Claude Opus 4.6 1M
+[windsurf-scrape]   Scraping provider: OpenAI
+[windsurf-scrape]     Clicked OpenAI tab
+[windsurf-scrape]     Found 74 models: GPT-5.4 (No Reasoning), GPT-5.4 (Low Reasoning), GPT-5.4 (Medium Reasoning)
+[windsurf-scrape]   Scraping provider: Google
+[windsurf-scrape]     Clicked Google tab
+[windsurf-scrape]     Found 7 models: Gemini 3.1 Pro Low, Gemini 3.1 Pro High, Gemini 3 Flash Minimal
+[windsurf-scrape]   Scraping provider: xAI
+[windsurf-scrape]     Clicked xAI tab
+[windsurf-scrape]     Found 1 models: xAI Grok Code Fast
+[windsurf-scrape]   Scraping provider: Open Source
+[windsurf-scrape]     Clicked Open Source tab
+[windsurf-scrape]     Found 4 models: Kimi K2.5, GLM-5, Minimax M2.5
+[windsurf-scrape]   Extracted 126 models from 7 providers
+[kilo-bench]   Arena: 266 entries
+[kilo-bench]   TBench: 119 entries
+[kilo-bench]   Windsurf: 126 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
+[kilo-bench] Windsurf models updated!
+[kilo-bench] Update complete!
+
+=== Fabrik Daily Pipeline — 2026-05-05 00:33:28 ===
+📊 Scanning /opt/* projects...
+   Found 41 projects
+   ⚠️  Port conflicts:
+      Port 18014: dns-manager, site-provisioner
+   📁 Registry: /opt/fabrik/data/projects.yaml
+   📄 Updated docs/BUSINESS_MODEL.md
+   📄 Updated PORTS.md
+
+✅ Sync complete: 41 projects (41 with project.yaml)
+⚠️  1 port conflict(s) — edit project.yaml to resolve
+⚠️  CASCADE BACKUP MISSING
+   Ask Cascade: 'Export memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md'
+Project                         | Status       | Missing Files           
+--------------------------------+--------------+-------------------------
+ComplianceOps                   | ✅ healthy    | -                       
+Reference_Creator               | ✅ healthy    | -                       
+apidoccreator                   | ✅ healthy    | -                       
+brand-identiy-creator           | ✅ healthy    | -                       
+calendar-orchestration-engine   | ✅ healthy    | -                       
+candle                          | ✅ healthy    | -                       
+captcha                         | ✅ healthy    | -                       
+dns-manager                     | ✅ healthy    | -                       
+email-reader                    | ✅ healthy    | -                       
+emailgateway                    | ✅ healthy    | -                       
+exam-coach                      | ✅ healthy    | -                       
+fabrik-citation-verifier        | ✅ healthy    | -                       
+fabrik-claim-validator          | ✅ healthy    | -                       
+fabrik-test-chrome-extension    | ✅ healthy    | -                       
+fabrik-test-desktop-app         | ⚠️  warnings | compose.yaml, Dockerfile
+fabrik-test-mobile-app          | ⚠️  warnings | compose.yaml, Dockerfile
+fabrik-test-wordpress           | ⚠️  warnings | compose.yaml, Dockerfile
+file-api                        | ✅ healthy    | -                       
+file-worker                     | ✅ healthy    | -                       
+gmailaccountcreator             | ✅ healthy    | -                       
+image-broker                    | ✅ healthy    | -                       
+image-generation                | ✅ healthy    | -                       
+iterative_image_editor          | ✅ healthy    | -                       
+job-agent                       | ✅ healthy    | -                       
+llm_batch_processor             | ✅ healthy    | -                       
+longephedia-vault               | ✅ healthy    | -                       
+marketing-argumant-generator    | ✅ healthy    | -                       
+namecheap                       | ✅ healthy    | -                       
+proposal-creator                | ✅ healthy    | -                       
+proxy                           | ✅ healthy    | -                       
+seo                             | ✅ healthy    | -                       
+site-provisioner                | ✅ healthy    | -                       
+supplement-tracker-advisor      | ✅ healthy    | -                       
+trade-intelligence              | ✅ healthy    | -                       
+trading-core                    | ✅ healthy    | -                       
+transcriber                     | ✅ healthy    | -                       
+translator                      | ✅ healthy    | -                       
+triggered-content-orchestration | ✅ healthy    | -                       
+ugc                             | ✅ healthy    | -                       
+web-scraper                     | ✅ healthy    | -                       
+youtube                         | ✅ healthy    | -                       
+41 projects scanned — 38 healthy, 3 warnings, 0 missing
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 349 models
+[kilo-db]   Inserted 1, updated 348 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 266 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[kilo-db]   Updated 107 Elo, 38 TBench scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Created snapshot for 2026-05-05 with 390 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-05-05T00:33:39.176666
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 266 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Scraping provider: Recommended
+[windsurf-scrape]     Clicked Recommended tab
+[windsurf-scrape]     Found 13 models: Adaptive, SWE-1.6, Claude Opus 4.6
+[windsurf-scrape]   Scraping provider: Windsurf
+[windsurf-scrape]     Clicked Windsurf tab
+[windsurf-scrape]     Found 5 models: Adaptive, SWE-1.6, SWE-1.6 Fast
+[windsurf-scrape]   Scraping provider: Anthropic
+[windsurf-scrape]     Clicked Anthropic tab
+[windsurf-scrape]     Found 22 models: Claude Opus 4.6, Claude Opus 4.6 (Thinking), Claude Opus 4.6 1M
+[windsurf-scrape]   Scraping provider: OpenAI
+[windsurf-scrape]     Clicked OpenAI tab
+[windsurf-scrape]     Found 74 models: GPT-5.4 (No Reasoning), GPT-5.4 (Low Reasoning), GPT-5.4 (Medium Reasoning)
+[windsurf-scrape]   Scraping provider: Google
+[windsurf-scrape]     Clicked Google tab
+[windsurf-scrape]     Found 7 models: Gemini 3.1 Pro Low, Gemini 3.1 Pro High, Gemini 3 Flash Minimal
+[windsurf-scrape]   Scraping provider: xAI
+[windsurf-scrape]     Clicked xAI tab
+[windsurf-scrape]     Found 1 models: xAI Grok Code Fast
+[windsurf-scrape]   Scraping provider: Open Source
+[windsurf-scrape]     Clicked Open Source tab
+[windsurf-scrape]     Found 4 models: Kimi K2.5, GLM-5, Minimax M2.5
+[windsurf-scrape]   Extracted 126 models from 7 providers
+[kilo-bench]   Arena: 266 entries
+[kilo-bench]   TBench: 119 entries
+[kilo-bench]   Windsurf: 126 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
+[kilo-bench] Windsurf models updated!
+[kilo-bench] Update complete!
+
+=== Fabrik Daily Pipeline — 2026-05-06 00:25:48 ===
+📊 Scanning /opt/* projects...
+   Found 41 projects
+   ⚠️  Port conflicts:
+      Port 18014: dns-manager, site-provisioner
+   📁 Registry: /opt/fabrik/data/projects.yaml
+   📄 Updated docs/BUSINESS_MODEL.md
+   📄 Updated PORTS.md
+
+✅ Sync complete: 41 projects (41 with project.yaml)
+⚠️  1 port conflict(s) — edit project.yaml to resolve
+⚠️  CASCADE BACKUP MISSING
+   Ask Cascade: 'Export memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md'
+Project                         | Status       | Missing Files           
+--------------------------------+--------------+-------------------------
+ComplianceOps                   | ✅ healthy    | -                       
+Reference_Creator               | ✅ healthy    | -                       
+apidoccreator                   | ✅ healthy    | -                       
+brand-identiy-creator           | ✅ healthy    | -                       
+calendar-orchestration-engine   | ✅ healthy    | -                       
+candle                          | ✅ healthy    | -                       
+captcha                         | ✅ healthy    | -                       
+dns-manager                     | ✅ healthy    | -                       
+email-reader                    | ✅ healthy    | -                       
+emailgateway                    | ✅ healthy    | -                       
+exam-coach                      | ✅ healthy    | -                       
+fabrik-citation-verifier        | ✅ healthy    | -                       
+fabrik-claim-validator          | ✅ healthy    | -                       
+fabrik-test-chrome-extension    | ✅ healthy    | -                       
+fabrik-test-desktop-app         | ⚠️  warnings | compose.yaml, Dockerfile
+fabrik-test-mobile-app          | ⚠️  warnings | compose.yaml, Dockerfile
+fabrik-test-wordpress           | ⚠️  warnings | compose.yaml, Dockerfile
+file-api                        | ✅ healthy    | -                       
+file-worker                     | ✅ healthy    | -                       
+gmailaccountcreator             | ✅ healthy    | -                       
+image-broker                    | ✅ healthy    | -                       
+image-generation                | ✅ healthy    | -                       
+iterative_image_editor          | ✅ healthy    | -                       
+job-agent                       | ✅ healthy    | -                       
+llm_batch_processor             | ✅ healthy    | -                       
+longephedia-vault               | ✅ healthy    | -                       
+marketing-argumant-generator    | ✅ healthy    | -                       
+namecheap                       | ✅ healthy    | -                       
+proposal-creator                | ✅ healthy    | -                       
+proxy                           | ✅ healthy    | -                       
+seo                             | ✅ healthy    | -                       
+site-provisioner                | ✅ healthy    | -                       
+supplement-tracker-advisor      | ✅ healthy    | -                       
+trade-intelligence              | ✅ healthy    | -                       
+trading-core                    | ✅ healthy    | -                       
+transcriber                     | ✅ healthy    | -                       
+translator                      | ✅ healthy    | -                       
+triggered-content-orchestration | ✅ healthy    | -                       
+ugc                             | ✅ healthy    | -                       
+web-scraper                     | ✅ healthy    | -                       
+youtube                         | ✅ healthy    | -                       
+41 projects scanned — 38 healthy, 3 warnings, 0 missing
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 351 models
+[kilo-db]   Inserted 2, updated 349 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 266 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[kilo-db]   Updated 107 Elo, 38 TBench scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Created snapshot for 2026-05-06 with 392 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-05-06T00:25:54.997088
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 266 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Scraping provider: Recommended
+[windsurf-scrape]     Clicked Recommended tab
+[windsurf-scrape]     Found 13 models: Adaptive, SWE-1.6, Claude Opus 4.6
+[windsurf-scrape]   Scraping provider: Windsurf
+[windsurf-scrape]     Clicked Windsurf tab
+[windsurf-scrape]     Found 5 models: Adaptive, SWE-1.6, SWE-1.6 Fast
+[windsurf-scrape]   Scraping provider: Anthropic
+[windsurf-scrape]     Clicked Anthropic tab
+[windsurf-scrape]     Found 22 models: Claude Opus 4.6, Claude Opus 4.6 (Thinking), Claude Opus 4.6 1M
+[windsurf-scrape]   Scraping provider: OpenAI
+[windsurf-scrape]     Clicked OpenAI tab
+[windsurf-scrape]     Found 74 models: GPT-5.4 (No Reasoning), GPT-5.4 (Low Reasoning), GPT-5.4 (Medium Reasoning)
+[windsurf-scrape]   Scraping provider: Google
+[windsurf-scrape]     Clicked Google tab
+[windsurf-scrape]     Found 7 models: Gemini 3.1 Pro Low, Gemini 3.1 Pro High, Gemini 3 Flash Minimal
+[windsurf-scrape]   Scraping provider: xAI
+[windsurf-scrape]     Clicked xAI tab
+[windsurf-scrape]     Found 1 models: xAI Grok Code Fast
+[windsurf-scrape]   Scraping provider: Open Source
+[windsurf-scrape]     Clicked Open Source tab
+[windsurf-scrape]     Found 4 models: Kimi K2.5, GLM-5, Minimax M2.5
+[windsurf-scrape]   Extracted 126 models from 7 providers
+[kilo-bench]   Arena: 266 entries
+[kilo-bench]   TBench: 119 entries
+[kilo-bench]   Windsurf: 126 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
+[kilo-bench] Windsurf models updated!
+[kilo-bench] Update complete!

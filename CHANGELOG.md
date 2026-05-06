@@ -4,6 +4,63 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — External Knowledge search rule added to .windsurfrules (2026-05-06)
+
+`.windsurfrules`: replaced the `## Web Search Tools` inventory with a new behavioral rule `## External Knowledge — Search, Don't Guess`. The new rule provides a structured search ladder (repo-first, then external tools), defines when to search, and specifies a failure mode (`BLOCKED:`). The change maintains the same line count.
+
+### Fixed — `_write_canonical_compose` shell-fallback broke first-deploy BuildKit bake (2026-05-06)
+
+Live-deploy proof for `chrome-extension` failed at Coolify's `docker buildx bake` with `Extra characters after interpolation expression`. Root cause: canonical compose env section emitted `LOG_LEVEL=${LOG_LEVEL:-INFO}` as a literal. On `fabrik apply`, no `.env` is uploaded, so Coolify auto-extracts compose env keys into its env-vars table storing the unresolved literal. Coolify forwards env entries as `--build-arg`, and BuildKit's HCL bake parser rejects shell-fallback `:-` syntax, hard-failing the build.
+
+Existing services (proxy, etc.) had `LOG_LEVEL=INFO` already resolved in Coolify env config from a prior `.env` upload, masking the bug. Every fresh `fabrik apply` for new scaffolds was broken — proof harness exposed it on first run.
+
+- `@/opt/fabrik/src/fabrik/scaffold.py:511-522` — replaced `LOG_LEVEL=${LOG_LEVEL:-INFO}` with literal `LOG_LEVEL=INFO`. Runtime override still works via Coolify env config or local `.env`. Added an inline NOTE documenting the BuildKit interaction so future agents don't reintroduce shell-fallback patterns in the canonical compose env block.
+- Verified via `PROOF_ONLY=chrome-extension python3 scripts/proof_run.py` → HTTP/2 200 in 248.9s end-to-end (cleanup → scaffold → push → apply → curl).
+
+### Fixed — Template defaults audit: companion backends now ship with GlitchTip; next-tailwind auto-registers Gatus (2026-05-06)
+
+Audit triggered while validating the per-scaffold registrar matrix in `@/opt/fabrik/docs/DEPLOYMENT.md` §9.9. Two silent gaps found in `templates/<t>/defaults.yaml`:
+
+- **T1** — `chrome-extension`, `desktop-app`, `mobile-app` declared `shape.kind: static`. Each of these templates ALSO scaffolds a Python/Node companion backend (`compose.yaml.j2`) that IS deployed to the VPS via Coolify. With `kind=static`, the GlitchTip applicability gate (`shape.kind ∈ {service, worker, wordpress}`) skipped, so every backend shipped with no error tracking by default. Flipped to `kind: service`. `is_public` left `false` so Gatus stays opt-in (operator flips per spec when the backend has a stable public domain).
+- **T2** — `next-tailwind/defaults.yaml` had no `shape:` block at all. Pydantic defaults gave `kind=service, is_public=false`, so a public Next.js site with a domain still skipped Gatus. Added explicit shape block mirroring `static-site` (`kind: service`, `is_public: true`) — Gatus + GlitchTip + Grafana now fire by default.
+
+- `@/opt/fabrik/templates/chrome-extension/defaults.yaml` — `shape.kind: static` → `service`; comment rewritten to reflect that the backend IS deployed.
+- `@/opt/fabrik/templates/desktop-app/defaults.yaml` — same fix.
+- `@/opt/fabrik/templates/mobile-app/defaults.yaml` — same fix.
+- `@/opt/fabrik/templates/next-tailwind/defaults.yaml` — added shape block (`kind: service`, `is_public: true`, all other flags false).
+- `@/opt/fabrik/tests/orchestrator/test_template_defaults.py` — new regression suite. 14 tests: parametrised test loads each template's `defaults.yaml`, runs `resolve_applicability` against a synthetic spec with a domain, and asserts the expected registrar set. Two named tests lock T1 (chrome/desktop/mobile must declare `kind=service`) and T2 (next-tailwind must have an explicit shape block with `is_public=true`). All 14 pass; existing `test_infrastructure.py` (40 tests) still green.
+
+### Documented — DEPLOYMENT.md §9.9 G4/G5 marked closed (2026-05-06)
+
+Documentation drift cleanup discovered during the same audit. Both gaps were claimed open in §9.9 but are actually fully implemented:
+
+- **G4 (Redis per-service registrar)** — `shape.needs_cache` flag exists on `Shape` (`spec_loader.py:297`); applicability resolution at `infrastructure.py:226-234`; `_provision_redis` at `infrastructure.py:534`; `drivers/redis.py` allocates an isolated logical DB. Off by default in every template; opt in per spec.
+- **G5 (Prometheus scrape target)** — `shape.exposes_metrics` flag exists (`spec_loader.py:306`); applicability at `infrastructure.py:236-254` (domain-gated like Gatus, since Prometheus scrapes over public HTTPS — Coolify container names carry unstable UUID suffixes); `_provision_prometheus` at `infrastructure.py:577`; `drivers/prometheus.py` appends scrape target and reloads.
+
+- `@/opt/fabrik/docs/DEPLOYMENT.md` §9.9 — G4 and G5 rows rewritten to reflect closed state with code citations; header timestamp bumped.
+
+### Changed — DEPLOYMENT.md §2.1/§9.2/§9.3/§9.4 resynced with cli.py after G1/G2/G3 closures (2026-05-05)
+
+Documentation drift cleanup. The deploy reference still described the pre-2026-05-05 state where `fabrik apply` defaulted to the legacy render-only path, `fabrik redeploy` was rebuild-only with no registrar refresh, and `fabrik destroy` only deleted the Coolify app + DNS. All three are now wrong relative to the code.
+
+- `@/opt/fabrik/docs/DEPLOYMENT.md` §2.1 (CLI entry-points table): line numbers updated against `cli.py` HEAD; `apply` description flipped to "Default = orchestrator pipeline"; `--legacy` documented; `redeploy --refresh-infra` documented; `destroy` description switched to "tear down all 7 registrars in reverse-of-provision order".
+- `@/opt/fabrik/docs/DEPLOYMENT.md` §9.2 (per-command pipeline table): default-`apply` row split into orchestrator (default) vs `--legacy` (opt-in); new `redeploy --refresh-infra --spec PATH` row added; `destroy` row updated with full registrar reversal order.
+- `@/opt/fabrik/docs/DEPLOYMENT.md` §9.3 (Redeploy): now documents both modes (rebuild-only vs registrar-refresh) with their internal call paths.
+- `@/opt/fabrik/docs/DEPLOYMENT.md` §9.4 (Tear down): full 10-step destroy order documented; `--drop-data`, `--dry-run`, exit-symbol legend added.
+- `@/opt/fabrik/docs/DEPLOYMENT.md` §2.2 header: removed stale "will become the default after Phase 4" wording — orchestrator IS the default since 2026-05-05.
+- Verification: live proxy state cross-checked while editing — `proxy.vps1.ocoron.com/health` returns 200, `proxy_management` DB exists on `postgres-main`, `SENTRY_DSN=https://...@errors.vps1.ocoron.com/61` injected, Gatus endpoint `apps_fabrik-proxy` reporting success.
+
+### Fixed — G7: GlitchTip DSN canonicalisation rewrites loopback hosts to public URL (2026-05-05)
+
+Closes gap G7 in `@/opt/fabrik/docs/DEPLOYMENT.md` §9.9. Pre-fix, the GlitchTip server (with unset `GLITCHTIP_DOMAIN`) handed out DSNs like `http://<key>@localhost:8000/<id>` — unreachable from any container on the VPS network. The orchestrator dutifully injected the loopback DSN, the verifier observed it landed, and error reporting was silently broken in production.
+
+- `@/opt/fabrik/src/fabrik/drivers/glitchtip.py::_canonicalize_dsn` — new helper. Rewrites DSNs whose host is in `{localhost, 127.0.0.1, ::1, 0.0.0.0}` to the public `errors.vps1.ocoron.com` host (scheme bumped to `https`). Idempotent on already-public DSNs; non-DSN strings pass through unchanged for the strict assertion to catch.
+- `@/opt/fabrik/src/fabrik/drivers/glitchtip.py::_assert_routable_dsn` — new helper. Raises `RuntimeError` if a loopback DSN slips through canonicalisation (malformed shape).
+- `_fetch_dsn` now canonicalises before returning, so every caller (`create_project`, `verify_dsn_injection` upstream callers) gets a routable DSN.
+- `verify_dsn_injection` now calls `_assert_routable_dsn(expected_dsn, …)` upfront — a hand-built loopback DSN fails fast instead of burning the 240s polling budget on a value the container could never use.
+- Verification: live `fabrik redeploy --refresh-infra --spec specs/services/proxy.yaml` — driver logged `DSN had loopback host (localhost); rewrote to public host`; live container env now shows `SENTRY_DSN=https://a3c3ff18…@errors.vps1.ocoron.com/61`; `https://proxy.vps1.ocoron.com/health` returns `{"status":"ok"}`; container reports `Up (healthy)`.
+- Out of scope: setting `GLITCHTIP_DOMAIN=https://errors.vps1.ocoron.com` on the GlitchTip Coolify app itself. Tracked as a follow-up nice-to-have — touching it bounces every service's error stream during the GlitchTip restart, and the driver-level fix is self-healing.
+
 ### Added — G2: `fabrik redeploy --refresh-infra` re-runs only the InfrastructureProvisioner (2026-05-05)
 
 Closes gap G2 in `@/opt/fabrik/docs/DEPLOYMENT.md` §9.9. Previously, when a spec's `shape` flags or `infra` overrides changed, the only way to pick them up was a full `fabrik deploy` — touching DNS, rebuilding code, and re-running the verifier. The new flag does just the registrar dispatch.

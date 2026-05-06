@@ -831,7 +831,9 @@ def vps_sync(dry_run: bool):
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Spec YAML path (required with --refresh-infra).",
 )
-@click.option("--dry-run", is_flag=True, help="Simulate without making changes (--refresh-infra only).")
+@click.option(
+    "--dry-run", is_flag=True, help="Simulate without making changes (--refresh-infra only)."
+)
 def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | None, dry_run: bool):
     """Redeploy a Coolify application by name or UUID.
 
@@ -861,8 +863,7 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
             orch = DeploymentOrchestrator()
             ctx = orch.refresh_infrastructure(spec_path=spec, dry_run=dry_run)
             click.echo(
-                f"✅ Infrastructure refreshed for {ctx.spec.get('name')} "
-                f"({ctx.coolify_uuid})"
+                f"✅ Infrastructure refreshed for {ctx.spec.get('name')} ({ctx.coolify_uuid})"
             )
             if ctx.created_resources:
                 click.echo(f"   Tracked resources: {len(ctx.created_resources)}")

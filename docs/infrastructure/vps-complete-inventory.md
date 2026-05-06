@@ -1,8 +1,8 @@
 # VPS Complete Service Inventory
 
-**Date:** 2026-04-18 (snapshot taken 20:00 UTC+3, post-schematic-verification)
-**Method:** SSH docker ps + iptables + Traefik API + external curl probes
-**Total Containers:** 39 running
+**Date:** 2026-05-03
+**Method:** SSH docker ps + Coolify API + Cloudflare DNS verification
+**Total Containers:** 40 running
 
 ## How to re-verify this document
 
@@ -475,7 +475,7 @@ Per Authelia `access_control` bypass rules (no Authelia middleware by design):
 
 ## Summary Statistics
 
-**Total Containers:** 39 running (validated via SSH docker ps on 2026-04-18)
+**Total Containers:** 40 running
 
 ### By Management Type
 
@@ -501,7 +501,7 @@ Per Authelia `access_control` bypass rules (no Authelia middleware by design):
 
 ## DNS Domain Mappings
 
-**Date:** 2026-04-18
+**Date:** 2026-05-03
 **Zone:** ocoron.com (Cloudflare)
 **Total A Records:** 23 (all point to `172.93.160.197`)
 
@@ -656,7 +656,7 @@ Per Authelia `access_control` bypass rules (no Authelia middleware by design):
 
 ## Coolify Management Status (Current)
 
-**Date:** 2026-04-18
+**Date:** 2026-05-03
 **Method:** Validated via SSH docker ps inspection
 
 ### Executive Summary

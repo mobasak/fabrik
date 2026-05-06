@@ -2,7 +2,7 @@
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.
 
-**Last Updated:** 2026-05-04 (new §9.2 per-command factual pipeline tables + §9.9 infra-coverage matrix & gap list G1–G7, derived from `cli.py`, `deploy_router.py`, `orchestrator/infrastructure.py`. Previous milestone: 2026-04-28 — live-deploy proof for all 7 deployable scaffold types — see `@/opt/fabrik/PROOF.md` and `CHANGELOG.md [Unreleased]` B23–B46. New harness: `@/opt/fabrik/scripts/proof_run.py`. New flag: `fabrik apply --keep-on-failure`. Previous milestone: 2026-04-22 — maximal-shape e2e on `python-api`, ~63s wall time, all 7 registrars green [postgres, gatus, backrest, glitchtip, grafana, authelia, meilisearch] — see `_REGISTRAR_ORDER` in `src/fabrik/orchestrator/infrastructure.py:84`.)
+**Last Updated:** 2026-05-06 (§9.9 G4/G5 marked closed — Redis `needs_cache` and Prometheus `exposes_metrics` registrars are live with drivers, applicability resolution, and provisioner methods. Template-defaults audit: chrome-extension/desktop-app/mobile-app `defaults.yaml` flipped from `kind: static` to `kind: service` so their scaffolded backends get GlitchTip; `next-tailwind/defaults.yaml` gained an explicit shape block (`is_public: true`) so Gatus auto-registers. Regression tests: `@/opt/fabrik/tests/orchestrator/test_template_defaults.py` (14 tests covering all 12 scaffold templates). Previous: 2026-05-05 — §2.1, §9.2, §9.3, §9.4 resynced with `cli.py` after G1/G2/G3/G7 closures. 2026-05-04 — initial §9.2 per-command factual pipeline tables + §9.9 infra-coverage matrix. 2026-04-28 — live-deploy proof for all 7 deployable scaffold types — see `@/opt/fabrik/PROOF.md`. 2026-04-22 — maximal-shape e2e on `python-api`, ~63s wall time, all 7 registrars green — see `_REGISTRAR_ORDER` in `src/fabrik/orchestrator/infrastructure.py`.)
 **Backup of prior version:** `docs/archive/2026-04-28-DEPLOYMENT.md.backup.20260419-144040` (pre-rewrite)
 
 ## Table of Contents
@@ -72,12 +72,14 @@ Click-based CLI (~2024 lines). The commands below are the only public entry poin
 
 | Command | Line | Function | Delegates to |
 |---|---|---|---|
-| `fabrik new <template> <name>` | 67 | **DEPRECATED** — kept for backward compatibility; use `scaffold`. | `scaffold.py` wrapper |
-| `fabrik scaffold <name> --type <t>` | 829 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
-| `fabrik apply <spec.yaml>` | 235 | **Primary deploy entry point.** Flags: `--dry-run`, `--skip-dns`, `--skip-deploy`, `-s KEY=VALUE`, `--use-orchestrator`. | legacy path: `deploy_router.py`; new path: `orchestrator/DeploymentOrchestrator.deploy()` |
-| `fabrik deploy [project_path]` | 1777 | Alternate deploy entry that reads `/opt/<project>/project.yaml` and routes by project type. | `deploy_router.route_deploy()` |
-| `fabrik destroy <spec>` | 582 | Tear down Coolify app + DNS records + volumes. `--keep-dns`, `--keep-files` options. | `drivers/coolify.py::delete_application()` + `drivers/dns.py::delete_record()` |
-| `fabrik validate-deploy` | 905 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
+| `fabrik new <template> <name>` | 81 | **DEPRECATED & hidden** — kept for backward compatibility; use `scaffold`. | `scaffold.py` wrapper |
+| `fabrik scaffold <name> --type <t>` | 1018 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
+| `fabrik apply <spec.yaml>` | 309 | **Primary deploy entry point. Default = orchestrator pipeline (full 7-registrar sweep).** Flags: `--dry-run`, `--skip-dns`, `--skip-deploy`, `-s KEY=VALUE`, `--legacy` (opt out, render-only path), `--keep-on-failure` (proof-run only), `--use-orchestrator` (deprecated no-op since 2026-05-05). | `orchestrator/DeploymentOrchestrator.deploy()` (default) or `deploy.py::deploy_to_coolify()` (`--legacy`) |
+| `fabrik deploy [--project P]` | 1966 | Alternate deploy entry that reads `/opt/<project>/project.yaml` and routes by project type. | `deploy_router.route_deploy()` → `DeploymentOrchestrator.deploy()` |
+| `fabrik redeploy <app>` | 835 | Rebuild-only Coolify deploy by name or UUID. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `CoolifyClient.deploy()` or `DeploymentOrchestrator.refresh_infrastructure()` |
+| `fabrik destroy <spec>` | 690 | Tear down **all 7 registrars** (meilisearch → authelia → glitchtip → backrest → gatus → postgres → coolify → dns → files) in reverse-of-provision order. `--keep-dns`, `--keep-files`, `--drop-data`, `--dry-run`. | `orchestrator/destroyer.py::destroy_deployment()` |
+| `fabrik vps-sync [--dry-run]` | 792 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
+| `fabrik validate-deploy <project>` | 1094 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
 | `fabrik domain provision <domain>` | 1503 | Register domain + DNS + CDN via site-provisioner. | `drivers/dns.py::DNSClient` |
 | `fabrik domain ready <domain>` | 1601 | Poll DNS + SSL readiness before deploying. | `drivers/dns.py::DNSClient` |
 | `fabrik domain buy <domain>` | 1726 | Register a new domain via Namecheap. | `drivers/dns.py::DNSClient::register_domain()` |
@@ -86,7 +88,7 @@ Click-based CLI (~2024 lines). The commands below are the only public entry poin
 
 ### 2.2 Orchestrator — `src/fabrik/orchestrator/`
 
-The **new** deployment pipeline. Activated today via `--use-orchestrator` on `fabrik apply`; will become the default after Phase 4 completion (see `docs/development/plans/2026-04-18-zero-touch-deployment.md`).
+The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` and `fabrik deploy`. Opt out via `fabrik apply --legacy` for the render-only path (see §9.2). Phase 4 plan: `docs/development/plans/2026-04-18-zero-touch-deployment.md`.
 
 | File | Class / function | Role in deploy |
 |---|---|---|
@@ -506,12 +508,13 @@ fabrik validate-deploy /opt/my-api
 
 | Entry point | Source fn | Path through code | Triggers `InfrastructureProvisioner`? |
 |---|---|---|---|
-| `fabrik apply <spec>` (default, legacy) | `cli.py::apply()` L294–487 | Renders → DNS → `deploy.py::deploy_to_coolify()` → `_post_deploy_sync()` | **NO** — legacy path bypasses the orchestrator. |
-| `fabrik apply <spec> --use-orchestrator` or `--dry-run` | `cli.py::apply()` L322–343 | `DeploymentOrchestrator.deploy()` → validate → DNS → Coolify → **provisioner** → verify → `_post_deploy_sync()` | **YES** — full 7-registrar sweep. |
-| `fabrik deploy [--project P]` | `cli.py::deploy_cmd()` L1886–1929 → `deploy_router.route_deploy()` → `DeploymentOrchestrator.deploy()` | Same orchestrator pipeline as `--use-orchestrator`. | **YES.** |
-| `fabrik redeploy <app>` | `cli.py::redeploy()` L789–822 | `CoolifyClient.deploy(uuid, force)` → `_post_deploy_sync()` | **NO** — intentional: rebuild-only, reuses existing registrations. |
-| `fabrik destroy <spec>` | `cli.py::destroy()` L661–758 | `CoolifyClient.delete_application()` + `DNSClient.delete_record()` + optional file cleanup → `_post_deploy_sync()` | **NO** — destroy is a separate teardown path, not a provisioner inverse. Registrars (GlitchTip, Gatus, Authelia, Backrest, Meilisearch) are **not** auto-unregistered. |
-| `fabrik vps-sync [--dry-run]` | `cli.py::vps_sync()` L761–787 → `scripts/vps_sync.py` | SSHes to VPS, runs `sudo docker ps`, rewrites container tables + timestamps in `vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`, then runs `sync_projects.py`. | **NO** — docs refresh only, no mutations. |
+| `fabrik apply <spec>` (default, since 2026-05-05) | `cli.py::apply()` L309–372 | `DeploymentOrchestrator.deploy()` → validate → DNS → Coolify → **provisioner** → verify → `_post_deploy_sync()` | **YES** — full 7-registrar sweep. |
+| `fabrik apply <spec> --legacy` | `cli.py::apply()` L374–516 | Renders → DNS → `deploy.py::deploy_to_coolify()` → `_post_deploy_sync()` | **NO** — opt-in render-only path; bypasses every registrar. Kept for backward compat with old scripts. |
+| `fabrik deploy [--project P]` | `cli.py::deploy_cmd()` L1966 → `deploy_router.route_deploy()` → `DeploymentOrchestrator.deploy()` | Same orchestrator pipeline as default `apply`. | **YES.** |
+| `fabrik redeploy <app>` | `cli.py::redeploy()` L835–902 | `CoolifyClient.deploy(uuid, force)` → `_post_deploy_sync()` | **NO** — intentional: rebuild-only, reuses existing registrations. Use `--refresh-infra` (next row) to re-run registrars without a rebuild. |
+| `fabrik redeploy --refresh-infra --spec PATH` | `cli.py::redeploy()` L845–875 | `DeploymentOrchestrator.refresh_infrastructure(spec_path, dry_run)` — resolves Coolify UUID by spec name; runs **only** the provisioner against the existing app. No DNS, no rebuild, no verifier. → `_post_deploy_sync()` | **YES** (registrars only). Picks up newly-set shape flags (e.g. `needs_database: true` added after first deploy). |
+| `fabrik destroy <spec>` | `cli.py::destroy()` L690–787 → `orchestrator/destroyer.py::destroy_deployment()` | Reverse-of-provision: meilisearch → authelia → glitchtip → backrest → gatus → postgres → coolify app → DNS → project tree → `_post_deploy_sync()`. Postgres/Meilisearch data preserved unless `--drop-data`. | **YES** — symmetric inverse of provisioner. |
+| `fabrik vps-sync [--dry-run]` | `cli.py::vps_sync()` L792–815 → `scripts/vps_sync.py` | SSHes to VPS, runs `sudo docker ps`, rewrites container tables + timestamps in `vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`, then runs `sync_projects.py`. | **NO** — docs refresh only, no mutations. |
 
 **Typical usage from WSL:**
 
@@ -520,25 +523,26 @@ fabrik validate-deploy /opt/my-api
 ssh -f -N -L 8002:localhost:8000 vps
 export COOLIFY_API_URL=http://localhost:8002
 
-# Preferred path for new deploys — runs the orchestrator + all 7 registrars
-fabrik apply /opt/fabrik/specs/services/my-api.yaml --use-orchestrator
-#   or, functionally equivalent (still orchestrator, reads project.yaml):
+# Default path — runs the orchestrator + all applicable registrars
+fabrik apply /opt/fabrik/specs/services/my-api.yaml
+#   functionally equivalent (still orchestrator, reads project.yaml):
 fabrik deploy --project /opt/my-api
 
-# Dry-run (also forces orchestrator path)
+# Dry-run (orchestrator path, plans only, no mutations)
 fabrik apply /opt/fabrik/specs/services/my-api.yaml --dry-run
 
-# Legacy path (NO registrars — only Coolify + DNS + files). Kept for backward-compat:
-fabrik apply specs/services/my-api.yaml
+# Legacy path (NO registrars — only Coolify + DNS + files). Opt-in for backward-compat:
+fabrik apply specs/services/my-api.yaml --legacy
 
 # Flags
 fabrik apply specs/services/my-api.yaml --skip-dns           # skip DNS record
 fabrik apply specs/services/my-api.yaml --skip-deploy        # render files only
 fabrik apply specs/services/my-api.yaml -s API_KEY=override  # override a secret
 fabrik apply specs/services/my-api.yaml --keep-on-failure    # suppress rollback (proof-run only)
+fabrik apply specs/services/my-api.yaml --use-orchestrator   # deprecated no-op (orchestrator is default)
 ```
 
-**Orchestrator pipeline (used by `fabrik deploy` and `fabrik apply --use-orchestrator`/`--dry-run`):**
+**Orchestrator pipeline (default for `fabrik apply` and `fabrik deploy`; also forced by `--dry-run`):**
 
 1. `SpecValidator.validate()` — pydantic + SSRF + `compute_spec_hash()` for idempotency.
 2. `deploy_validator.validate()` — scaffold readiness (Dockerfile, `.env`, healthcheck).
@@ -563,21 +567,38 @@ On any exception, orchestrator transitions `ROLLING_BACK` and `RollbackManager` 
 
 **Steps NOT run on the legacy path:** spec hashing, health verification, DNS/SSL verification, **and every infrastructure registrar** (postgres, gatus, backrest, glitchtip+DSN, grafana, authelia, meilisearch). See §9.9 for the gap list.
 
-### 9.3 Redeploy an existing service (Coolify rebuild only)
+### 9.3 Redeploy an existing service
+
+Two modes — pure rebuild (default) or registrar refresh (`--refresh-infra`).
 
 ```bash
+# Mode 1: rebuild only (Coolify pulls latest git, rebuilds image, restarts container)
 fabrik redeploy my-api                         # by name
 fabrik redeploy qokoksogwsk0c04gcs4swwgs       # by UUID
 fabrik redeploy my-api --force                 # bypass build cache
+
+# Mode 2: re-run only the InfrastructureProvisioner against the existing app
+# Use when you added a shape flag (e.g. needs_database, has_search_feature, has_persistent_data)
+# after the first deploy and want the new registrar to fire WITHOUT rebuilding the image.
+fabrik redeploy --refresh-infra --spec specs/services/my-api.yaml
+fabrik redeploy --refresh-infra --spec specs/services/my-api.yaml --dry-run
 ```
 
-Internally (`cli.py::redeploy()` L789–822):
+Internally (`cli.py::redeploy()` L835–902):
 
-1. `CoolifyClient.list_applications()` — resolve name → UUID.
-2. `CoolifyClient.deploy(uuid, force)` — POSTs `/api/v1/deploy?uuid=…&force=true` on Coolify.
-3. `_post_deploy_sync()` — refreshes project registry.
+- **Mode 1 (no `--refresh-infra`):**
+  1. `CoolifyClient.list_applications()` — resolve name → UUID.
+  2. `CoolifyClient.deploy(uuid, force)` — POSTs `/api/v1/deploy?uuid=…&force=true` on Coolify.
+  3. `_post_deploy_sync()` — refreshes project registry.
 
-`redeploy` is a **pure rebuild**: it pulls the latest git commit (for git-sourced apps), rebuilds the image, and restarts containers. It does **not** touch DNS, Authelia, GlitchTip, Gatus, Backrest, Meilisearch, or the database — on purpose. Those registrations were created by the first `apply --use-orchestrator` / `fabrik deploy` and are expected to already exist. If you changed the spec's shape (e.g., added `needs_database: true`), `redeploy` will NOT pick that up — you must re-run `fabrik deploy`.
+  Pure rebuild: pulls the latest git commit (for git-sourced apps), rebuilds the image, restarts containers. Does **not** touch DNS, Authelia, GlitchTip, Gatus, Backrest, Meilisearch, or the database. Those were created on first `apply` / `deploy` and are expected to already exist.
+
+- **Mode 2 (`--refresh-infra --spec PATH`):**
+  1. Loads spec; resolves Coolify UUID by spec `name` (with `fabrik-` prefix fallback).
+  2. `DeploymentOrchestrator.refresh_infrastructure(spec_path, dry_run)` — runs **only** `InfrastructureProvisioner.provision(ctx)`. No deploy stage, no verifier, no DNS provisioning.
+  3. `_post_deploy_sync()`.
+
+  Picks up newly-added shape flags (e.g. you set `needs_database: true` after the first deploy → DB gets created on the next `--refresh-infra` without rebuilding the container).
 
 **DB schema changes are never auto-applied.** If your commit contains migrations, run them manually after redeploy completes:
 
@@ -587,16 +608,37 @@ ssh vps 'sudo docker exec -i <app-container> alembic upgrade head'
 
 ### 9.4 Tear down a service
 
+`fabrik destroy` reverses the full provisioner chain (G3 closed 2026-05-05). Order in `orchestrator/destroyer.py::destroy_deployment()`:
+
+1. **MeiliSearch index** — only with `--drop-data` (data preservation default).
+2. **Authelia access rule** — if `shape.is_admin_dashboard`.
+3. **GlitchTip project** — if `kind in {service, worker, wordpress}`.
+4. **Backrest backup plan** — if `shape.has_persistent_data`.
+5. **Gatus uptime endpoint** — if `shape.is_public` + domain set.
+6. **Postgres database** — only with `--drop-data`.
+7. **Coolify application** — always.
+8. **DNS A record** — unless `--keep-dns`.
+9. **Project tree** at `/opt/<id>/` — unless `--keep-files`.
+10. `_post_deploy_sync()`.
+
 ```bash
-# Default: delete Coolify app + DNS records + project files
+# Default: data-preserving teardown (Postgres DB + Meilisearch index kept)
 fabrik destroy specs/services/my-api.yaml
+
+# Throwaway test cleanup — drop DB + Meilisearch index too
+fabrik destroy specs/services/my-api.yaml --drop-data -y
 
 # Keep DNS or files
 fabrik destroy specs/services/my-api.yaml --keep-dns --keep-files
 
-# Skip confirmation prompt (CI)
+# Plan only — print every action, mutate nothing
+fabrik destroy specs/services/my-api.yaml --dry-run
+
+# Skip confirmation (CI)
 fabrik destroy specs/services/my-api.yaml --yes
 ```
+
+Per-step exit symbol in stdout: `✅ removed`, `ℹ️ not_found`, `⏭️ skipped`, `🧪 dry_run`, `❌ error`. Non-zero exit (`2`) if any step errored.
 
 ### 9.5 Provision a brand-new domain
 
@@ -751,10 +793,10 @@ The user's requested list vs. the code as of 2026-05-04. "Auto" means no per-ser
 | G1 | ~~`fabrik apply` (default legacy path) **silently skips** the entire `InfrastructureProvisioner`.~~ | **✅ CLOSED 2026-05-05** (commit `9d9a1be`) — `cli.py::apply()` now runs the orchestrator pipeline by default; legacy path is opt-in via `--legacy`. `--use-orchestrator` kept as deprecated no-op. Verified end-to-end with live proxy redeploy: 3 applicable registrars (gatus, glitchtip, grafana) all fired. | ✅ Closed |
 | G2 | ~~`fabrik redeploy` does not pick up spec-shape changes (e.g., newly added `needs_database`).~~ | **✅ CLOSED 2026-05-05** — `fabrik redeploy --refresh-infra --spec PATH` re-runs only the `InfrastructureProvisioner` against the existing Coolify app. No DNS provisioning, no code rebuild, no verifier. New method: `DeploymentOrchestrator.refresh_infrastructure(spec_path)`. Resolves UUID by spec name (with `fabrik-` prefix fallback). Tests: `@/opt/fabrik/tests/orchestrator/test_refresh_infrastructure.py`. Verified live on `proxy` spec: 3 registrars fired (gatus, glitchtip, grafana annotation). | ✅ Closed |
 | G3 | ~~`fabrik destroy` does **not** unregister from GlitchTip / Gatus / Authelia / Backrest / Meilisearch — it only deletes the Coolify app + DNS record.~~ | **✅ Already implemented** — `orchestrator/destroyer.py::destroy_deployment()` reverses the full 7-registrar chain in strict reverse-of-provision order (meilisearch → authelia → glitchtip → backrest → gatus → postgres → coolify → dns → files). Verified 2026-05-05: `fabrik destroy specs/services/proxy.yaml` cleanly removed GlitchTip project, Gatus endpoint, Coolify app, DNS A record; Postgres preserved per `infra.postgres: false` override. The original gap claim was stale; this row is kept for historical accountability. | ✅ Already done |
-| G4 | **Redis** has no per-service registrar. All apps share the `coolify` Redis with no namespace isolation. | Add `drivers/redis.py::acquire_db_index()` returning a unique logical DB (0–15) per service; inject `REDIS_URL=redis://redis:6379/<n>`. Defer until second Redis-using service ships. | No. |
-| G5 | **Prometheus scrape target** registration. Services exposing `/metrics` are invisible to Prometheus unless someone hand-edits `prometheus.yml`. | Add `drivers/prometheus.py::add_scrape_target()` that edits `/opt/monitoring/configs/prometheus/prometheus.yml` and hits `POST http://prometheus:9090/-/reload`. Gate on `shape.exposes_metrics` (new flag). | No — no current service exposes Prometheus metrics. |
+| G4 | ~~**Redis** has no per-service registrar.~~ | **✅ CLOSED** — `shape.needs_cache` flag (`spec_loader.Shape:297`) gates `_provision_redis` (`orchestrator/infrastructure.py:534`) which calls `drivers/redis.py` to allocate an isolated logical DB. Off by default in every template; opt in per spec. | ✅ Closed |
+| G5 | ~~**Prometheus scrape target** registration.~~ | **✅ CLOSED** — `shape.exposes_metrics` flag (`spec_loader.Shape:306`) gates `_provision_prometheus` (`orchestrator/infrastructure.py:577`) which calls `drivers/prometheus.py` to append a scrape target and reload Prometheus. Domain-gated (scrape over public HTTPS — same rationale as Gatus). Off by default in every template; opt in per spec. | ✅ Closed |
 | G6 | `scripts/vps_sync.py` pulls container state but does **not** cross-check that every project in `data/projects.yaml` has a live container (drift detector). | Add a `--verify` flag that flags projects with no matching container + registrar (GlitchTip/Gatus) orphans. | No — nice-to-have. |
-| G7 | GlitchTip DSNs are created with `GLITCHTIP_URL=http://localhost:8000` as the DSN host. Proxy's live DSN reads `http://bb2d...@localhost:8000/60` — **useless from inside the container**. This is a GlitchTip server config problem (the web tier's `GLITCHTIP_DOMAIN` env var), not a Fabrik driver bug, but the verifier accepts it today. | Fix GlitchTip's own `GLITCHTIP_DOMAIN=https://errors.vps1.ocoron.com` in Coolify; then tighten `drivers/glitchtip.py::verify_dsn_injection()` to reject DSNs whose host resolves to `localhost`/loopback. | **Yes, partially** — no error reports can actually reach GlitchTip from production containers. |
+| G7 | ~~GlitchTip DSNs are created with `GLITCHTIP_URL=http://localhost:8000` as the DSN host. Proxy's live DSN reads `http://bb2d...@localhost:8000/60` — **useless from inside the container**.~~ | **✅ CLOSED 2026-05-05** — `drivers/glitchtip.py::_canonicalize_dsn()` rewrites loopback DSNs (`localhost`/`127.0.0.1`/`0.0.0.0`) to the public `https://errors.vps1.ocoron.com` host before injection. `_assert_routable_dsn()` is invoked from both `_fetch_dsn` and `verify_dsn_injection`, so any malformed-loopback value still slipping through fails loud instead of silently breaking error reporting. Verified live on `proxy`: container env now shows `SENTRY_DSN=https://a3c3ff18…@errors.vps1.ocoron.com/61` (project id 61, fresh canonical DSN). The driver-level fix is self-healing; the upstream `GLITCHTIP_DOMAIN` env on the GlitchTip Coolify app is still unset and tracked as a follow-up nice-to-have (touching it bounces every service's error stream during the GlitchTip restart). | ✅ Closed |
 | G8 | ~~Coolify env-var POST returns 409 when the key already exists; every re-apply logged noisy ERRORs. The code actually retried via PATCH so values were preserved, but updates to existing keys could slip through unnoticed.~~ | **✅ CLOSED 2026-05-05** — `drivers/coolify.py::bulk_update_env_vars()` now pre-fetches the current env list, picks POST (create) or PATCH (update) per key, and only falls back to POST-then-409-retry if the pre-fetch GET fails. Regression tests at `@/opt/fabrik/tests/drivers/test_coolify.py`. Verified with a live proxy re-apply: zero 409 noise. | ✅ Closed |
 | G9 | ~~`drivers/dns.py` pins a static container IP for `site-provisioner` via `SITE_PROVISIONER_INTERNAL_URL`; every Coolify rebuild of the provisioner container changed the IP and broke all subsequent DNS calls.~~ | **✅ CLOSED 2026-05-05** (commit `9d9a1be`) — driver now resolves live IP via `docker inspect` over SSH when `SITE_PROVISIONER_CONTAINER` is set. Static internal URL kept as fallback. Verified: stale `10.0.1.35` → live `10.0.1.25`, health returns `{'status': 'healthy'}`. | ✅ Closed |
 

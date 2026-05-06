@@ -1,0 +1,51 @@
+id: fabrik-test-chrome-extension
+kind: service
+template: chrome-extension
+domain: fabrik-test-chrome-extension.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: false
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: false
+  needs_database: false
+  has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false
+expose:
+  http: true
+  internal_only: false
+source:
+  type: git
+  repository: https://github.com/mobasak/fabrik-test-chrome-extension.git
+  branch: mobasak/fabrik-test-chrome-extension
+coolify:
+  project: fabrik-services
+  server: localhost
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  PORT: '8000'
+  LOG_LEVEL: INFO
+secrets:
+  required: []
+  generate: []
+  from_env: []
+  from_file: {}
+resources:
+  memory: 256M
+  cpu: '0.5'
+health:
+  path: /health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  disabled: false
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30

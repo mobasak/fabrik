@@ -148,17 +148,21 @@ class TestScaffoldSpecHook:
 class TestScaffoldSpecHookNewTypes:
     """Tests for spec generation across project-type categories.
 
-    Two contracts are pinned here:
+    Three contracts are pinned here:
 
-    * **Deployable types** (docusaurus, plus the rest in
-      ``SPEC_ENABLED_TYPES``) trigger ``generate_and_save_spec`` so the
-      project is ready for ``fabrik apply``.
-    * **Artifact-only types** (mobile-app, desktop-app, chrome-extension)
-      MUST NOT trigger spec generation. These ship as packaged client
-      binaries (CRX, .dmg/.exe, APK/IPA), not VPS services. Pre-fix
-      (B3) the scaffolder emitted ``specs/services/<name>.yaml`` for
-      them with public domains \u2014 ``fabrik apply`` would have created
-      phantom Cloudflare DNS + Coolify resources.
+    * **Deployable types** (docusaurus, chrome-extension, plus the rest
+      in ``SPEC_ENABLED_TYPES``) trigger ``generate_and_save_spec`` so
+      the project is ready for ``fabrik apply``.
+    * **chrome-extension is special**: the CRX itself ships via the
+      Chrome Web Store, but the scaffolder also emits a real FastAPI
+      backend (``server/``) with ``compose.yaml`` + Traefik labels.
+      The spec drives the **backend**, not the CRX.
+    * **Artifact-only types** (mobile-app, desktop-app) MUST NOT trigger
+      spec generation. Their scaffolders do not emit a ``compose.yaml``
+      — they have no companion backend yet. Pre-fix (B3) the scaffolder
+      emitted ``specs/services/<name>.yaml`` for them with public
+      domains — ``fabrik apply`` would have created phantom Cloudflare
+      DNS + Coolify resources for non-existent services.
     """
 
     @patch("fabrik.scaffold.generate_and_save_spec")
@@ -244,10 +248,22 @@ class TestScaffoldSpecHookNewTypes:
     @patch("fabrik.scaffold.generate_and_save_spec")
     @patch("fabrik.scaffold._post_scaffold_sync")
     @patch("fabrik.scaffold._scaffold_shared")
-    def test_spec_not_generated_for_chrome_extension(
+    def test_spec_generated_for_chrome_extension(
         self, mock_shared: MagicMock, mock_sync: MagicMock, mock_gen: MagicMock, tmp_path: Path
     ) -> None:
-        """B3 regression: chrome-extension must NOT emit a deployment spec."""
+        """G9: chrome-extension MUST emit a deployment spec for its backend.
+
+        The CRX itself ships via the Chrome Web Store, but the scaffolder
+        also emits a real FastAPI backend at ``server/`` plus a canonical
+        ``compose.yaml`` with Traefik labels + CORS middleware (B16/B18
+        fixes). ``generate_and_save_spec`` MUST run on scaffold so the
+        backend is ready for ``fabrik apply`` — same contract as every
+        other VPS-deployable type.
+
+        Users who scaffold a pure-client CRX (no backend wanted) opt out
+        with ``--no-spec``; they then delete ``server/`` + ``compose.yaml``
+        manually.
+        """
         from fabrik.scaffold import create_project
 
         def fake_shared(pd: Path, *_args: object, **_kw: object) -> None:
@@ -267,7 +283,18 @@ class TestScaffoldSpecHookNewTypes:
             )
 
         assert result == tmp_path / "test-ext"
-        mock_gen.assert_not_called()
+        mock_gen.assert_called_once()
+        call_kwargs = mock_gen.call_args
+        # Verify the spec is emitted with the chrome-extension type so
+        # _build_shape_for_type pulls in the canonical shape from
+        # templates/chrome-extension/defaults.yaml (kind=service,
+        # is_public=false, etc.). spec_generator.py raises ValueError
+        # if the type is not in SPEC_ENABLED_TYPES, so this also
+        # implicitly verifies the wiring there.
+        assert (
+            call_kwargs[1].get("project_type", call_kwargs[0][1] if len(call_kwargs[0]) > 1 else None)
+            == "chrome-extension"
+        )
 
     @patch("fabrik.scaffold.generate_and_save_spec")
     @patch("fabrik.scaffold._post_scaffold_sync")

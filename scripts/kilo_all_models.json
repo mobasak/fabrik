@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-05-03T11:59:10.536044",
-  "total_models": 348,
+  "timestamp": "2026-05-06T11:59:06.744976",
+  "total_models": 352,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -224,6 +224,11 @@
     },
     "arcee-ai/virtuoso-large": {
       "id": "arcee-ai/virtuoso-large",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "baidu/cobuddy:free": {
+      "id": "baidu/cobuddy:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -622,6 +627,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "microsoft/phi-4-mini-instruct": {
+      "id": "microsoft/phi-4-mini-instruct",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "microsoft/wizardlm-2-8x22b": {
       "id": "microsoft/wizardlm-2-8x22b",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -724,6 +734,11 @@
     },
     "mistralai/mistral-medium-3": {
       "id": "mistralai/mistral-medium-3",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "mistralai/mistral-medium-3-5": {
+      "id": "mistralai/mistral-medium-3-5",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1114,6 +1129,11 @@
     },
     "openai/gpt-audio-mini": {
       "id": "openai/gpt-audio-mini",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "openai/gpt-chat-latest": {
+      "id": "openai/gpt-chat-latest",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

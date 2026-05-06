@@ -682,9 +682,14 @@ class CoolifyClient:
         try:
             current = self._request("GET", f"/{base}/{uuid}/envs")
             if isinstance(current, list):
-                existing_keys = {e.get("key") for e in current if isinstance(e, dict) and e.get("key")}
+                existing_keys = {
+                    e.get("key") for e in current if isinstance(e, dict) and e.get("key")
+                }
         except httpx.HTTPStatusError as e:
-            logger.debug("bulk_update_env_vars: GET /envs failed (%s); will fall back to POST+409 retry", e.response.status_code)
+            logger.debug(
+                "bulk_update_env_vars: GET /envs failed (%s); will fall back to POST+409 retry",
+                e.response.status_code,
+            )
 
         created = 0
         updated = 0

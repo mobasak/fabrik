@@ -27,33 +27,51 @@ from fabrik.spec_loader import Kind, load_spec
 class TestConstants:
     """Verify module-level constants are correctly defined."""
 
-    def test_spec_enabled_types_has_seven_entries(self):
-        # 7 deployable types: python-api, node-api, saas-skeleton, file-api,
-        # file-worker, static-site, docusaurus. Artifact-only types
-        # (chrome-extension, desktop-app, mobile-app) and the WordPress path
-        # are intentionally excluded — see ``SPEC_ENABLED_TYPES`` docstring.
-        assert len(SPEC_ENABLED_TYPES) == 7
+    def test_spec_enabled_types_has_eight_entries(self):
+        # 8 deployable types: python-api, node-api, saas-skeleton, file-api,
+        # file-worker, static-site, docusaurus, chrome-extension. The CRX is
+        # client-side but its companion FastAPI backend (``server/``) IS a
+        # real VPS service — see ``SPEC_ENABLED_TYPES`` docstring.
+        # Still excluded: desktop-app, mobile-app (no companion backend),
+        # next-tailwind (scaffolder not wired yet), wordpress (separate pipeline).
+        assert len(SPEC_ENABLED_TYPES) == 8
 
     def test_file_worker_in_enabled_types(self):
         assert "file-worker" in SPEC_ENABLED_TYPES
 
+    def test_chrome_extension_in_enabled_types(self):
+        """G9: chrome-extension's FastAPI backend is a real VPS service.
+
+        The CRX itself ships via the Chrome Web Store, but the scaffolder
+        emits ``server/`` + a canonical ``compose.yaml`` with Traefik
+        labels + CORS middleware (B16/B18 fixes). ``fabrik apply`` SHOULD
+        deploy that backend by default; pure-client CRX users opt out
+        with ``--no-spec``.
+        """
+        assert "chrome-extension" in SPEC_ENABLED_TYPES
+
     def test_wordpress_excluded_from_enabled_types(self):
         assert "wordpress" not in SPEC_ENABLED_TYPES
 
-    def test_artifact_types_excluded_from_enabled_types(self):
-        """B3 regression: chrome-extension/desktop-app/mobile-app must NOT
+    def test_desktop_mobile_excluded_from_enabled_types(self):
+        """B3 regression (narrowed): desktop-app/mobile-app must NOT
         emit a deployable spec.
 
-        Why: those types are packaged client artifacts (CRX, .dmg/.exe,
-        APK/IPA), not VPS services. Pre-fix the scaffolder emitted
-        ``specs/services/<name>.yaml`` for them with a public domain
-        and ``expose.http: true`` — ``fabrik apply`` would have created
-        a phantom Cloudflare DNS record + Coolify app on every run.
+        Why: the scaffolder does not currently emit a ``compose.yaml``
+        for these — they have no companion backend, only an Electron /
+        React Native build artifact. Adding them to ``SPEC_ENABLED_TYPES``
+        would make ``fabrik apply`` create a phantom Cloudflare DNS
+        record + Coolify app pointing at a service that doesn't exist.
+
+        chrome-extension was removed from this assertion in G9 because
+        its scaffolder DOES emit a real backend ``compose.yaml``.
+        Tracked under Phase C (G11): finish the desktop/mobile backend
+        scaffolders so they can be promoted to deployable too.
         """
-        for artifact_type in ("chrome-extension", "desktop-app", "mobile-app"):
+        for artifact_type in ("desktop-app", "mobile-app"):
             assert artifact_type not in SPEC_ENABLED_TYPES, (
-                f"{artifact_type!r} is a client-side artifact (not VPS-deployable) "
-                f"and must not be in SPEC_ENABLED_TYPES"
+                f"{artifact_type!r} has no companion backend yet "
+                f"and must not be in SPEC_ENABLED_TYPES until Phase C"
             )
 
     def test_secret_patterns_are_uppercase(self):
@@ -72,11 +90,19 @@ class TestNewTypeDefaults:
     def test_docusaurus_health_path(self):
         assert _TYPE_DEFAULTS["docusaurus"]["health_path"] == "/"
 
-    def test_artifact_types_have_no_type_defaults(self):
-        """B3 regression: artifact-only types must not appear in
-        ``_TYPE_DEFAULTS`` either — the resource/health defaults are
-        meaningless for non-deployable types."""
-        for artifact_type in ("chrome-extension", "desktop-app", "mobile-app"):
+    def test_chrome_extension_health_path(self):
+        """G9: chrome-extension defaults to /health (FastAPI backend convention)."""
+        assert _TYPE_DEFAULTS["chrome-extension"]["health_path"] == "/health"
+
+    def test_desktop_mobile_have_no_type_defaults(self):
+        """B3 regression (narrowed): desktop-app/mobile-app must not
+        appear in ``_TYPE_DEFAULTS`` — the resource/health defaults are
+        meaningless for types with no compose.yaml.
+
+        chrome-extension was removed from this assertion in G9 because
+        it now deploys its FastAPI backend.
+        """
+        for artifact_type in ("desktop-app", "mobile-app"):
             assert artifact_type not in _TYPE_DEFAULTS
 
 
@@ -410,15 +436,47 @@ class TestGenerateSpec:
         assert spec.health.path == "/"
 
     def test_artifact_types_raise_value_error(self):
-        """B3 regression: passing an artifact-only type to generate_spec
-        must raise ``ValueError``, not silently emit a phantom spec."""
-        for artifact_type in ("chrome-extension", "desktop-app", "mobile-app"):
+        """B3 regression (narrowed): passing desktop-app or mobile-app
+        to generate_spec must raise ``ValueError``, not silently emit
+        a phantom spec.
+
+        chrome-extension was removed from this assertion in G9 because
+        its FastAPI backend is now deployable. See
+        ``test_chrome_extension_emits_valid_spec`` for the positive
+        contract.
+        """
+        for artifact_type in ("desktop-app", "mobile-app"):
             with pytest.raises(ValueError, match="Unsupported project type"):
                 generate_spec(
                     f"my-{artifact_type}",
                     artifact_type,
                     f"my-{artifact_type}.vps1.ocoron.com",
                 )
+
+    def test_chrome_extension_emits_valid_spec(self):
+        """G9: chrome-extension's FastAPI backend produces a valid Spec.
+
+        The CRX itself ships via Chrome Web Store; this spec drives the
+        backend. Verifies:
+        - top-level kind == SERVICE (mapped from shape.kind=service)
+        - shape pulled from templates/chrome-extension/defaults.yaml
+        - health.path == /health (FastAPI convention)
+        - resources match _TYPE_DEFAULTS
+        - source.type detected (git source if .git exists, else template)
+        """
+        spec = generate_spec(
+            "my-ext", "chrome-extension", "my-ext.vps1.ocoron.com"
+        )
+        assert spec.kind == Kind.SERVICE
+        assert spec.shape is not None
+        assert spec.shape.kind == "service"
+        # is_public defaults to false in chrome-extension/defaults.yaml
+        # (Gatus opt-in) — verify the shape is loaded from the template,
+        # not synthesized from generic defaults.
+        assert spec.shape.is_public is False
+        assert spec.health is not None and spec.health.path == "/health"
+        assert spec.resources.memory == "256M"
+        assert spec.resources.cpu == "0.5"
 
     def test_use_database_propagates_to_shape(self):
         """B1 regression: ``use_database=True`` must overlay

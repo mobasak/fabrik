@@ -155,6 +155,10 @@ class RollbackManager:
             self._rollback_authelia(resource)
         elif rt == "meilisearch":
             self._rollback_meilisearch(resource)
+        elif rt == "redis":
+            self._rollback_redis(resource)
+        elif rt == "prometheus":
+            self._rollback_prometheus(resource)
         else:
             logger.warning("Unknown resource type: %s", resource.resource_type)
 
@@ -358,6 +362,36 @@ class RollbackManager:
             logger.info("Rolled back authelia rules for %s", domain)
         except Exception as e:  # noqa: BLE001
             logger.warning("authelia rollback failed for %s (non-fatal): %s", domain, e)
+
+    def _rollback_redis(self, resource: ResourceRecord) -> None:
+        """Release the Redis logical-DB index for this service (best-effort).
+
+        Same fail-closed data-preservation policy as
+        :meth:`_rollback_postgres`: we only release the registry slot,
+        we do NOT FLUSHDB. The slot becomes available for the next
+        ``acquire_db_index`` call. Any Redis data left in the released
+        DB is preserved for forensic / recovery use; the operator
+        explicitly opts in to FLUSHDB via ``fabrik destroy --drop-data``.
+        """
+        from fabrik.drivers.redis import release_db_index
+
+        name = resource.resource_id
+        try:
+            release_db_index(name, flushdb=False)
+            logger.info("Rolled back redis assignment: %s", name)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("redis rollback failed for %s (non-fatal): %s", name, e)
+
+    def _rollback_prometheus(self, resource: ResourceRecord) -> None:
+        """Remove the Prometheus scrape target for this service (best-effort)."""
+        from fabrik.drivers.prometheus import remove_scrape_target
+
+        name = resource.resource_id
+        try:
+            remove_scrape_target(name)
+            logger.info("Rolled back prometheus scrape target: %s", name)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("prometheus rollback failed for %s (non-fatal): %s", name, e)
 
     def _rollback_meilisearch(self, resource: ResourceRecord) -> None:
         """Destructive-no-op by design (Plan §Rollback Strategy).

@@ -95,6 +95,64 @@ same regex as :mod:`fabrik.drivers.meilisearch` for cross-driver
 consistency — the scaffold emits one project name that must satisfy
 every downstream registrar's constraints."""
 
+# G7 — DSN host sanitisation. GlitchTip emits the DSN host based on its
+# own ``GLITCHTIP_DOMAIN`` env var. When that's unset/misconfigured the
+# server hands out DSNs like ``http://<key>@localhost:8000/<id>`` —
+# unreachable from any other container on the VPS network. We canonicalise
+# at the driver layer so the orchestrator stays self-healing regardless of
+# the GlitchTip server's own config drift; the operator can fix
+# ``GLITCHTIP_DOMAIN`` server-side as a separate follow-up.
+_DSN_RE = re.compile(
+    r"^(?P<scheme>https?)://(?P<key>[^@]+)@(?P<host>[^:/]+)(?::(?P<port>\d+))?/(?P<pid>\d+)$"
+)
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+
+
+def _is_loopback_dsn(dsn: str) -> bool:
+    """Return True iff ``dsn``'s host is loopback/unspecified."""
+    m = _DSN_RE.match(dsn or "")
+    return bool(m and m.group("host") in _LOOPBACK_HOSTS)
+
+
+def _canonicalize_dsn(dsn: str) -> str:
+    """Rewrite a loopback DSN to the public ``GLITCHTIP_URL`` host.
+
+    Idempotent: a DSN already pointing at the public host returns as-is.
+    A non-matching string is returned unchanged so we don't silently
+    corrupt unexpected DSN shapes — the caller's
+    :func:`_assert_routable_dsn` will reject it.
+    """
+    m = _DSN_RE.match(dsn or "")
+    if not m or m.group("host") not in _LOOPBACK_HOSTS:
+        return dsn
+    # GLITCHTIP_URL is "https://errors.vps1.ocoron.com" — strip scheme to
+    # get just the netloc, then rebuild the DSN preserving key + project id.
+    public_host = GLITCHTIP_URL.split("://", 1)[1].rstrip("/")
+    rebuilt = f"https://{m.group('key')}@{public_host}/{m.group('pid')}"
+    logger.warning(
+        "GlitchTip DSN had loopback host (%s); rewrote to public host. "
+        "Fix GLITCHTIP_DOMAIN on the GlitchTip Coolify app to remove "
+        "this driver-level workaround.",
+        m.group("host"),
+    )
+    return rebuilt
+
+
+def _assert_routable_dsn(dsn: str, project_name: str) -> None:
+    """Raise if ``dsn`` would be unreachable from inside a container.
+
+    Called after :func:`_canonicalize_dsn` — a loopback DSN at this
+    point means canonicalisation itself failed (malformed DSN shape),
+    which is a hard error, not a warning.
+    """
+    if _is_loopback_dsn(dsn):
+        raise RuntimeError(
+            f"GlitchTip returned a loopback DSN for project {project_name!r} "
+            f"that could not be canonicalised: {dsn!r}. "
+            "Check GLITCHTIP_DOMAIN on the GlitchTip Coolify app "
+            "(must be https://errors.vps1.ocoron.com)."
+        )
+
 
 def applies_to(shape: dict[str, Any]) -> bool:
     """Return True iff this driver should provision an error-tracking project.
@@ -210,6 +268,10 @@ def _fetch_dsn(org: str, name: str, headers: dict[str, str]) -> str:
     dsn = keys[0].get("dsn", {}).get("public")
     if not isinstance(dsn, str) or not dsn:
         raise RuntimeError(f"GlitchTip project {name!r}: missing dsn.public in keys payload")
+    # G7 — rewrite loopback hosts to the public URL so the value injected
+    # into Coolify env vars is reachable from any container.
+    dsn = _canonicalize_dsn(dsn)
+    _assert_routable_dsn(dsn, name)
     return dsn
 
 
@@ -350,6 +412,12 @@ def verify_dsn_injection(
     """
     if not expected_dsn:
         raise ValueError("expected_dsn must be non-empty")
+    # G7 — reject loopback DSNs at the verifier boundary. _fetch_dsn now
+    # canonicalises, so a loopback value at this point means the caller
+    # bypassed _fetch_dsn or constructed the DSN by hand — surface it
+    # rather than spend ``max_wait`` seconds polling for a value that
+    # would be useless to the running container anyway.
+    _assert_routable_dsn(expected_dsn, project_name)
 
     start = time.time()
     attempts = 0

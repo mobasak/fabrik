@@ -218,7 +218,7 @@ class TestServiceDeployer:
         assert result is False
 
     def test_deploy_creates_git_sourced(self):
-        """Git-sourced spec uses create_git_application."""
+        """Git-sourced spec uses create_git_application with SSH deploy key."""
         mock_client = MagicMock()
         mock_client.list_applications.return_value = []
         mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
@@ -228,6 +228,9 @@ class TestServiceDeployer:
         mock_client.get_project.return_value = {
             "environments": [{"name": "production", "uuid": "env-uuid"}]
         }
+        mock_client.list_private_keys.return_value = [
+            {"uuid": "key-github", "name": "github-deploy-key", "is_git_related": False},
+        ]
         mock_client.create_git_application.return_value = {"uuid": "new-git-uuid"}
         mock_client.deploy.return_value = {"deployment_uuid": "deploy-1"}
 
@@ -246,17 +249,131 @@ class TestServiceDeployer:
             },
         )
 
-        result = deployer.deploy(ctx)
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("COOLIFY_PRIVATE_KEY_UUID", None)
+            result = deployer.deploy(ctx)
 
         assert result == "new-git-uuid"
         assert ctx.coolify_uuid == "new-git-uuid"
         # Must call create_git_application, NOT create_dockercompose_application
         mock_client.create_git_application.assert_called_once()
         mock_client.create_dockercompose_application.assert_not_called()
-        # Verify the call includes git_repository and build_pack
+        # Verify the call includes git_repository and build_pack + SSH key
         call_kwargs = mock_client.create_git_application.call_args
         assert call_kwargs.kwargs["git_repository"] == "git@github.com:mobasak/my-app.git"
         assert call_kwargs.kwargs["build_pack"] == "dockercompose"
+        # Regression 2026-05-04: SSH repos MUST carry a private_key_uuid,
+        # otherwise Coolify creates the app with private_key_id=NULL and
+        # git ls-remote fails with Permission denied (publickey).
+        assert call_kwargs.kwargs["private_key_uuid"] == "key-github"
+
+    def test_deploy_git_sourced_ssh_without_deploy_key_raises(self):
+        """SSH git repo with no resolvable deploy key fails fast.
+
+        Regression for the 2026-05-04 /opt/fabrik-proxy redeploy: prior to
+        the fix, an SSH URL with no key silently routed to
+        /applications/public, the app was created with private_key_id=NULL,
+        and the first deploy died with Permission denied (publickey). That
+        failure mode is now caught pre-create.
+        """
+        mock_client = MagicMock()
+        mock_client.list_applications.return_value = []
+        mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
+        mock_client.list_projects.return_value = [
+            {"name": "fabrik", "uuid": "project-uuid"}
+        ]
+        mock_client.get_project.return_value = {
+            "environments": [{"name": "production", "uuid": "env-uuid"}]
+        }
+        # No git-related keys AND no name-heuristic matches.
+        mock_client.list_private_keys.return_value = [
+            {"uuid": "key-localhost", "name": "localhost's key", "is_git_related": False},
+        ]
+
+        deployer = ServiceDeployer(coolify_client=mock_client)
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={
+                "name": "keyless-app",
+                "source": {
+                    "type": "git",
+                    "repository": "git@github.com:mobasak/keyless.git",
+                    "branch": "main",
+                },
+            },
+        )
+
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("COOLIFY_PRIVATE_KEY_UUID", None)
+            with pytest.raises(DeployError, match="requires a Coolify deploy key"):
+                deployer.deploy(ctx)
+
+        mock_client.create_git_application.assert_not_called()
+
+    def test_deploy_git_sourced_https_skips_deploy_key(self):
+        """HTTPS-cloneable repo doesn't need a private key."""
+        mock_client = MagicMock()
+        mock_client.list_applications.return_value = []
+        mock_client.list_servers.return_value = [{"uuid": "server-uuid"}]
+        mock_client.list_projects.return_value = [
+            {"name": "fabrik", "uuid": "project-uuid"}
+        ]
+        mock_client.get_project.return_value = {
+            "environments": [{"name": "production", "uuid": "env-uuid"}]
+        }
+        mock_client.create_git_application.return_value = {"uuid": "https-uuid"}
+        mock_client.deploy.return_value = {"deployment_uuid": "deploy-1"}
+
+        deployer = ServiceDeployer(coolify_client=mock_client)
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={
+                "name": "public-app",
+                "source": {
+                    "type": "git",
+                    "repository": "https://github.com/public/repo.git",
+                    "branch": "main",
+                },
+            },
+        )
+        deployer.deploy(ctx)
+
+        mock_client.list_private_keys.assert_not_called()
+        call_kwargs = mock_client.create_git_application.call_args
+        assert call_kwargs.kwargs["private_key_uuid"] is None
+
+    def test_resolve_private_key_uuid_precedence(self):
+        """spec override > env var > auto-discovery."""
+        mock_client = MagicMock()
+        mock_client.list_private_keys.return_value = [
+            {"uuid": "key-auto", "name": "github-deploy-key", "is_git_related": False},
+        ]
+        deployer = ServiceDeployer(coolify_client=mock_client)
+
+        # 1. spec override wins
+        with patch.dict(os.environ, {"COOLIFY_PRIVATE_KEY_UUID": "env-value-xxxxxxxx"}):
+            assert (
+                deployer._resolve_private_key_uuid(
+                    {"coolify": {"private_key_uuid": "spec-override-xxx"}}
+                )
+                == "spec-override-xxx"
+            )
+
+        # 2. env var wins over auto-discovery
+        with patch.dict(os.environ, {"COOLIFY_PRIVATE_KEY_UUID": "env-value-xxxxxxxx"}):
+            assert deployer._resolve_private_key_uuid({}) == "env-value-xxxxxxxx"
+
+        # 3. auto-discovery via name heuristic (is_git_related=False on all keys
+        #    — real-world Coolify state observed 2026-05-04).
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("COOLIFY_PRIVATE_KEY_UUID", None)
+            assert deployer._resolve_private_key_uuid({}) == "key-auto"
+
+        # 4. malformed env var (with inline comment) falls through to
+        #    auto-discovery — guards against python-dotenv parsing
+        #    ``KEY=  # comment`` as the literal ``# comment``.
+        with patch.dict(os.environ, {"COOLIFY_PRIVATE_KEY_UUID": "  # auto-detect"}):
+            assert deployer._resolve_private_key_uuid({}) == "key-auto"
 
 
     def test_deploy_git_sourced_missing_repository_raises(self):

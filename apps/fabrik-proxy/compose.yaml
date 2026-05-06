@@ -1,0 +1,45 @@
+services:
+  fabrik-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64  # Mandatory for x86_64 VPS
+    container_name: fabrik-proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fabrik-proxy.rule=Host(`proxy.vps1.ocoron.com`)"
+      - "traefik.http.routers.fabrik-proxy.entrypoints=websecure"
+      - "traefik.http.routers.fabrik-proxy.tls=true"
+      - "traefik.http.routers.fabrik-proxy.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fabrik-proxy.loadbalancer.server.port=8000"
+    environment:
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - DB_HOST=postgres-main
+      - DB_PORT=5432
+      - DB_NAME=proxy_management
+      - APP_ENV=production
+      - DB_USER=ozgur
+      - DB_PASSWORD=proxy_secure_2025
+      - WEBSHARE_API_KEY=7nrio45xo36wsgx0m1h86fbin60oc332o0awd85a
+      - APIFY_API_TOKEN=apify_api_TlXYoSIpQqb3W94oaA5Pb7UyyqQOM505nz3I
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    healthcheck:  # Mandatory for Coolify orchestration - Traefik v3 filters unhealthy containers
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8000/health || curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - coolify
+    env_file:
+      - .env
+
+
+networks:
+  coolify:
+    external: true

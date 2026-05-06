@@ -227,6 +227,77 @@ class TestResolveApplicability:
 
 
 # --------------------------------------------------------------------------- #
+# Regression: Spec.model_dump() must preserve `infra:` override (2026-05-04)   #
+# --------------------------------------------------------------------------- #
+
+
+class TestInfraSurvivesModelDump:
+    """Regression for 2026-05-04 proxy redeploy bug.
+
+    ``Spec`` is a pydantic model. Before this fix, ``infra`` was
+    intentionally NOT a pydantic field (it was read via raw yaml.safe_load
+    in the apply path). That silently broke ``destroyer._spec_to_dict``
+    which uses ``spec.model_dump(mode='json')`` — the ``infra`` override
+    was stripped, so ``resolve_applicability`` never saw
+    ``infra.postgres: false`` and the postgres registrar ran for services
+    that had explicitly disabled it. Outcome: an orphan
+    ``fabrik_<name>`` Postgres database was created alongside the real
+    service database. This test locks the invariant.
+    """
+
+    def test_spec_model_dump_preserves_infra_override(self, tmp_path):
+        """The exact failure mode from /opt/fabrik-proxy redeploy."""
+        from fabrik.spec_loader import load_spec
+
+        spec_file = tmp_path / "spec.yaml"
+        spec_file.write_text(
+            "id: demo\n"
+            "template: python-api\n"
+            "domain: demo.vps1.example.com\n"
+            "shape:\n"
+            "  kind: service\n"
+            "  is_public: true\n"
+            "  needs_database: true\n"
+            "infra:\n"
+            "  postgres: false\n"
+        )
+
+        spec = load_spec(spec_file)
+        dumped = spec.model_dump(mode="json")
+
+        assert dumped["infra"] == {"postgres": False}, (
+            f"infra override lost during model_dump: {dumped.get('infra')!r}"
+        )
+
+        # Round-trip through resolve_applicability — the consumer that
+        # actually drives destroy + rollback.
+        dumped["name"] = dumped["id"]
+        resolved = resolve_applicability(dumped)
+        assert resolved["postgres"][0] is False, (
+            "postgres registrar ran despite infra.postgres=false"
+        )
+        assert "infra.postgres=false override" in resolved["postgres"][1]
+
+    def test_spec_without_infra_dumps_to_none(self, tmp_path):
+        """Scaffolded specs omit `infra:` entirely — save_spec must not invent one."""
+        from fabrik.spec_loader import load_spec, save_spec
+
+        spec_file = tmp_path / "spec.yaml"
+        spec_file.write_text(
+            "id: demo\n"
+            "template: python-api\n"
+            "domain: demo.vps1.example.com\n"
+        )
+        spec = load_spec(spec_file)
+        assert spec.infra is None
+
+        # save_spec uses exclude_none=True — scaffolded specs stay clean.
+        out = tmp_path / "out.yaml"
+        save_spec(spec, out)
+        assert "infra:" not in out.read_text()
+
+
+# --------------------------------------------------------------------------- #
 # format_resolved_summary                                                      #
 # --------------------------------------------------------------------------- #
 

@@ -83,12 +83,14 @@ logger = logging.getLogger(__name__)
 # Kept in the same order as Plan §Phase 7 for operator readability.
 _REGISTRAR_ORDER = (
     "postgres",
+    "redis",
     "gatus",
     "backrest",
     "glitchtip",
     "grafana",
     "authelia",
     "meilisearch",
+    "prometheus",
 )
 
 
@@ -221,6 +223,34 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
     else:
         out["meilisearch"] = (False, "not applicable: shape.has_search_feature=false")
 
+    # redis (G4 — DEPLOYMENT.md §9.9)
+    if shape.get("needs_cache", False):
+        out["redis"] = (
+            _enabled(infra, "redis"),
+            "shape.needs_cache=true"
+            + ("" if _enabled(infra, "redis") else " (infra.redis=false override)"),
+        )
+    else:
+        out["redis"] = (False, "not applicable: shape.needs_cache=false")
+
+    # prometheus (G5 — DEPLOYMENT.md §9.9)
+    # Requires both the metrics flag AND a domain (we scrape over public HTTPS
+    # because Coolify container names carry unstable UUID suffixes — same
+    # rationale as gatus; see drivers/prometheus.py for the long-form notes).
+    if shape.get("exposes_metrics", False) and domain:
+        out["prometheus"] = (
+            _enabled(infra, "prometheus"),
+            "shape.exposes_metrics=true + domain set"
+            + ("" if _enabled(infra, "prometheus") else " (infra.prometheus=false override)"),
+        )
+    else:
+        reason = (
+            "not applicable: shape.exposes_metrics=false"
+            if not shape.get("exposes_metrics", False)
+            else "not applicable: no domain in spec"
+        )
+        out["prometheus"] = (False, reason)
+
     return out
 
 
@@ -286,6 +316,9 @@ class InfrastructureProvisioner:
         if should_run["postgres"]:
             self._provision_postgres(name, ctx, dry_run)
 
+        if should_run["redis"]:
+            self._provision_redis(name, ctx, dry_run)
+
         if should_run["gatus"]:
             self._provision_gatus(name, domain, spec, ctx, dry_run)
 
@@ -303,6 +336,9 @@ class InfrastructureProvisioner:
 
         if should_run["meilisearch"]:
             self._provision_meilisearch(name, ctx, dry_run)
+
+        if should_run["prometheus"]:
+            self._provision_prometheus(name, domain, spec, ctx, dry_run)
 
         logger.info("Infrastructure provisioning complete for %s", name)
 
@@ -494,6 +530,86 @@ class InfrastructureProvisioner:
             logger.info("authelia: %s → protected", domain)
         except Exception as e:  # noqa: BLE001
             logger.warning("authelia provisioning failed (non-fatal): %s", e)
+
+    def _provision_redis(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
+        """Reserve a Redis logical-DB index and inject ``REDIS_URL`` (G4).
+
+        The driver call is idempotent — a re-run picks up the existing
+        assignment from the registry file. Always tracks the resource
+        record (so a same-deploy rollback can release the slot) and
+        always patches the env var when ``coolify_uuid`` is known (so
+        a re-run after a Coolify rebuild repopulates a wiped env).
+        """
+        try:
+            from fabrik.drivers.redis import acquire_db_index
+
+            result = acquire_db_index(name, dry_run=dry_run)
+            ctx.add_resource("redis", name, status=result.get("status"))
+            redis_url = result.get("redis_url")
+            db_index = result.get("db_index")
+            logger.info("redis: %s -> DB %s (%s)", name, db_index, result.get("status"))
+
+            if dry_run or not redis_url:
+                return
+
+            # Inject REDIS_URL via Coolify env-var update. Same pattern as
+            # _provision_glitchtip's SENTRY_DSN injection — except we do
+            # NOT force a deploy here (env-var changes survive the next
+            # deploy automatically; forcing one would cost ~90s for a
+            # cosmetic update). Operator triggers redeploy when ready.
+            from fabrik.drivers.coolify import CoolifyClient
+
+            coolify = CoolifyClient()
+            if not ctx.coolify_uuid:
+                logger.warning(
+                    "redis: ctx.coolify_uuid unset; cannot inject REDIS_URL. "
+                    "Degraded but non-fatal — value will be patched on next "
+                    "deploy."
+                )
+                return
+            coolify.bulk_update_env_vars(ctx.coolify_uuid, {"REDIS_URL": redis_url})
+            logger.info("redis: REDIS_URL patched into Coolify env (no force-deploy)")
+        except Exception as e:  # noqa: BLE001 — bounded non-fatal
+            logger.warning("redis provisioning failed (non-fatal): %s", e)
+
+    def _provision_prometheus(
+        self,
+        name: str,
+        domain: str | None,
+        spec: dict[str, Any],
+        ctx: DeploymentContext,
+        dry_run: bool,
+    ) -> None:
+        """Append a Prometheus scrape job for the service's ``/metrics`` (G5).
+
+        Optional bearer token via ``spec['monitoring']['bearer_token']``
+        for protected metrics endpoints — most Fabrik services leave
+        ``/metrics`` open on the internal network and rely on
+        ``X-Internal-Token`` at the Traefik layer for the public path,
+        so this defaults to no auth.
+        """
+        try:
+            from fabrik.drivers.prometheus import add_scrape_target
+
+            if not domain:
+                logger.warning("prometheus skipped: no domain (unreachable branch)")
+                return
+            monitoring = (
+                (spec.get("monitoring") or {}) if isinstance(spec.get("monitoring"), dict) else {}
+            )
+            metrics_path = monitoring.get("metrics_path", "/metrics")
+            bearer_token = monitoring.get("bearer_token")
+            result = add_scrape_target(
+                name,
+                domain=domain,
+                metrics_path=metrics_path,
+                bearer_token=bearer_token,
+                dry_run=dry_run,
+            )
+            ctx.add_resource("prometheus", name, status=result.get("status"))
+            logger.info("prometheus: %s -> %s", name, result.get("status"))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("prometheus provisioning failed (non-fatal): %s", e)
 
     def _provision_meilisearch(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
         try:

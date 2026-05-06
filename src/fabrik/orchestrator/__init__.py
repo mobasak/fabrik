@@ -338,12 +338,8 @@ class DeploymentOrchestrator:
                 resource_type="infrastructure",
             )
         ctx.coolify_uuid = match.get("uuid")
-        ctx.deployed_url = (
-            f"https://{spec['domain']}" if spec.get("domain") else None
-        )
-        logger.info(
-            "refresh_infrastructure: matched %s -> %s", spec_name, ctx.coolify_uuid
-        )
+        ctx.deployed_url = f"https://{spec['domain']}" if spec.get("domain") else None
+        logger.info("refresh_infrastructure: matched %s -> %s", spec_name, ctx.coolify_uuid)
 
         try:
             self.infrastructure_provisioner.provision(ctx)

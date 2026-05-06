@@ -29,12 +29,12 @@
    - Epic Closure: `python scripts/final_gate.py --systemic --json`
 3. **CHANGELOG** — One entry under `## [Unreleased]` (gate-enforced).
 4. **LESSONS LEARNT** — Fill the ticket's `Lessons Learnt:` line with `none` OR a structured entry appended to `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — Gate auto-stages on success. Do not commit, do not stage manually.
+5. **EXIT** — Gate auto-stages on success. STOP. Do NOT run `git commit` or `git push` unless the user explicitly says "commit" or "push" in this turn. Manual `git add` is allowed.
 
 ## HARD STOPS — Cascade mechanics
 | Rule | Instead |
 |:--|:--|
-| `git commit` / `git add` | Gate auto-stages on success |
+| `git commit` / `git push` (unless user explicitly said "commit" or "push" this turn) | gate auto-stages — your task ends there |
 | edit files outside ticket Scope | stay strictly in ticket Scope |
 | modify `pyproject.toml` / `requirements.txt` / `package.json` / `uv.lock` / `package-lock.json` | only if the ticket explicitly authorises a deps change |
 | create files outside the project tree | use local project paths only |
@@ -49,11 +49,13 @@ For technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, A
 ## Before Creating New Scripts
 `grep_search` `scripts/` and `scripts/enforcement/` first. Extend existing code; don't duplicate.
 
-## Web Search Tools (Cascade-specific MCP inventory)
-Use the first available:
-1. `search_web` — native Windsurf, no quota.
-2. Any tool whose name ends in `web_search_exa` — Exa MCP if configured.
-3. Any tool whose name ends in `firecrawl_search` — Firecrawl MCP if configured.
+## External Knowledge — Search, Don't Guess
+Training data is stale. For any third-party API, SDK, vendor product, or library version (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n, etc.):
+1. Search repo first: `grep_search` `docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`.
+2. If absent, search live — try in order until one returns: `search_web` → `*web_search_exa` → `*firecrawl_search`. Cite source URL in code comment.
+3. If 3 search calls don't resolve it, output `BLOCKED: <vendor> — <searched> — <missing>` and stop.
+
+Skip for: stdlib, language syntax, internal Fabrik conventions.
 
 ## Environment
 WSL Ubuntu only — Linux paths, never Windows tooling. Code must work in WSL dev (PostgreSQL localhost, `.env`), VPS Docker (`postgres-main` service name, `compose.yaml`), and Supabase (Supabase PG, env vars) without modification.

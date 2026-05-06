@@ -237,6 +237,38 @@ def _destroy_gatus(name: str, dry_run: bool) -> ActionResult:
         return ActionResult("gatus", "error", error=repr(e))
 
 
+def _destroy_redis(name: str, drop_data: bool, dry_run: bool) -> ActionResult:
+    """Release the Redis logical-DB index. ``drop_data`` flips FLUSHDB on.
+
+    Symmetric counterpart to ``_provision_redis``: the registry slot is
+    always released so ``acquire_db_index`` can hand it out to the next
+    service. ``--drop-data`` additionally calls ``FLUSHDB`` on the freed
+    DB so the next tenant starts clean — same fail-closed default as
+    ``_destroy_postgres`` (skip data destruction unless asked).
+    """
+    try:
+        from fabrik.drivers.redis import release_db_index
+
+        ok = release_db_index(name, flushdb=drop_data, dry_run=dry_run)
+        status = "dry_run" if dry_run else ("removed" if ok else "error")
+        detail = f"db index for {name}" + (" (+FLUSHDB)" if drop_data else "")
+        return ActionResult("redis", status, detail=detail)
+    except Exception as e:  # noqa: BLE001
+        return ActionResult("redis", "error", error=repr(e))
+
+
+def _destroy_prometheus(name: str, dry_run: bool) -> ActionResult:
+    """Remove the ``fabrik-<name>`` scrape job (best-effort)."""
+    try:
+        from fabrik.drivers.prometheus import remove_scrape_target
+
+        ok = remove_scrape_target(name, dry_run=dry_run)
+        status = "dry_run" if dry_run else ("removed" if ok else "error")
+        return ActionResult("prometheus", status, detail=f"scrape job fabrik-{name}")
+    except Exception as e:  # noqa: BLE001
+        return ActionResult("prometheus", "error", error=repr(e))
+
+
 def _destroy_postgres(name: str, drop_data: bool, dry_run: bool) -> ActionResult:
     if not drop_data:
         return ActionResult(
@@ -253,15 +285,12 @@ def _destroy_postgres(name: str, drop_data: bool, dry_run: bool) -> ActionResult
         # On dry-run we report ``dry_run`` regardless of the driver's
         # response. The driver's own status is informational only when a
         # real mutation happened.
-        if dry_run:
-            status = "dry_run"
-        else:
-            status_map = {
-                "dropped": "removed",
-                "not_found": "not_found",
-                "dry_run": "dry_run",
-            }
-            status = status_map.get(result.get("status", ""), "removed")
+        status_map = {
+            "dropped": "removed",
+            "not_found": "not_found",
+            "dry_run": "dry_run",
+        }
+        status = "dry_run" if dry_run else status_map.get(result.get("status", ""), "removed")
         return ActionResult("postgres", status, detail=f"database {db_name}")
     except Exception as e:  # noqa: BLE001
         return ActionResult("postgres", "error", error=repr(e))
@@ -399,6 +428,14 @@ def destroy_deployment(
     # failure deep in the chain (e.g., Postgres) still leaves the service
     # unreachable to users (Authelia + DNS already gone).
 
+    # Prometheus scrape target — first (mirror of provisioner: prom is
+    # last to come up, so first to come down). Best-effort; a lingering
+    # job only produces ``up{}=0`` until the next manual cleanup.
+    if applicable.get("prometheus"):
+        report.actions.append(_destroy_prometheus(name, dry_run))
+    else:
+        report.add("prometheus", "skipped", detail="not applicable per shape")
+
     if applicable.get("meilisearch"):
         report.actions.append(_destroy_meilisearch(name, drop_data, dry_run))
 
@@ -431,6 +468,14 @@ def destroy_deployment(
         report.actions.append(_destroy_postgres(name, drop_data, dry_run))
     else:
         report.add("postgres", "skipped", detail="not applicable per shape")
+
+    # Redis logical-DB index — released after Postgres so the symmetric
+    # data-handling rule is consistent: both data-bearing registrars
+    # respect ``--drop-data``. The slot itself is always released.
+    if applicable.get("redis"):
+        report.actions.append(_destroy_redis(name, drop_data, dry_run))
+    else:
+        report.add("redis", "skipped", detail="not applicable per shape")
 
     # ── Step B: Coolify app ──
     report.actions.append(_destroy_coolify(name, dry_run))

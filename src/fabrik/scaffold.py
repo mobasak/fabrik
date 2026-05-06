@@ -508,9 +508,17 @@ def _write_canonical_compose(
     else:
         traefik_labels = ""
 
+    # NOTE: do NOT use shell-fallback `${VAR:-default}` here. Coolify
+    # auto-extracts compose env keys into its env-vars table on first
+    # deploy via `fabrik apply` (no .env uploaded), storing the literal
+    # unresolved string. BuildKit's HCL bake parser then rejects `:-`
+    # when the env value is forwarded as a `--build-arg`, breaking the
+    # build with `Extra characters after interpolation expression`.
+    # Use a concrete literal default; runtime override still works via
+    # Coolify env config or a project-local .env file.
     env_section = f"""    environment:
       - PORT={port}
-      - LOG_LEVEL=${{LOG_LEVEL:-INFO}}
+      - LOG_LEVEL=INFO
 """
     if env_block:
         env_section = env_section + env_block + "\n"

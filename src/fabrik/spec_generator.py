@@ -47,12 +47,21 @@ logger = logging.getLogger(__name__)
 # auto-generated ``specs/services/<name>.yaml`` so ``fabrik apply`` has
 # something to consume.
 #
+# ``chrome-extension`` IS enabled because the scaffolder emits a real
+# FastAPI backend at ``server/`` plus a canonical ``compose.yaml`` with
+# Traefik labels + CORS middleware (see ``scaffold.py::_scaffold_chrome_extension``
+# B16/B18 fixes). The CRX itself ships via the Chrome Web Store; the
+# spec drives the **backend**, which is a real VPS service. Users who
+# want a pure-client CRX with no backend can opt out via ``--no-spec``.
+#
 # **Excluded by design** (do NOT add):
-#   - ``chrome-extension`` / ``desktop-app`` / ``mobile-app``: packaged client
-#     artifacts (CRX, .dmg/.exe installer, APK/IPA). They ship via GitHub
-#     releases or app stores, never run on the VPS. Their ``defaults.yaml``
-#     even says so explicitly. Emitting a spec for them would create a
-#     phantom DNS record + Coolify app on every ``fabrik apply``.
+#   - ``desktop-app`` / ``mobile-app``: packaged client artifacts
+#     (.dmg/.exe installer, APK/IPA). The current scaffolder does NOT
+#     emit a ``compose.yaml`` for these — they have no companion backend.
+#     Tracked under Phase C (G11) for backend-scaffolding implementation.
+#   - ``next-tailwind``: template files exist but no ``_scaffold_next_tailwind``
+#     wired up yet; tracked as G10. Add to this set in the same change
+#     that lands the scaffolder.
 #   - ``wordpress``: uses the dedicated ``fabrik wp`` pipeline with a
 #     separate ``site.yaml`` schema, not ``specs/services/*``.
 SPEC_ENABLED_TYPES: frozenset[str] = frozenset(
@@ -64,6 +73,7 @@ SPEC_ENABLED_TYPES: frozenset[str] = frozenset(
         "file-worker",
         "static-site",
         "docusaurus",
+        "chrome-extension",
     }
 )
 
@@ -77,8 +87,9 @@ SECRET_PATTERNS: tuple[str, ...] = (
 )
 
 # Resource & health defaults per VPS-deployable project type. Keys MUST match
-# ``SPEC_ENABLED_TYPES``; artifact-only types (chrome-extension, desktop-app,
-# mobile-app) have no entry here because they don't deploy.
+# ``SPEC_ENABLED_TYPES``; artifact-only types (desktop-app, mobile-app) have
+# no entry here because they don't deploy. ``chrome-extension`` IS here
+# because its FastAPI backend (port 8000, ``/health``) is deployable.
 _TYPE_DEFAULTS: dict[str, dict] = {
     "python-api": {"memory": "512M", "cpu": "0.5", "health_path": "/health"},
     "node-api": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
@@ -87,6 +98,7 @@ _TYPE_DEFAULTS: dict[str, dict] = {
     "file-api": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "file-worker": {"memory": "256M", "cpu": "0.5", "health_path": None},
     "docusaurus": {"memory": "256M", "cpu": "0.5", "health_path": "/docs/intro"},
+    "chrome-extension": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
 }
 
 # ---------------------------------------------------------------------------

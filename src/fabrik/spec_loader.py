@@ -166,6 +166,11 @@ class CoolifyConfig(BaseModel):
     project: str = "default"
     server: str = "localhost"
     compose_path: str | None = None
+    # Per-service Coolify SSH deploy-key override. Resolution precedence
+    # is spec → ``COOLIFY_PRIVATE_KEY_UUID`` env var → auto-discovery.
+    # Required for SSH-URL git repos (``git@...``); ignored otherwise.
+    # See ``orchestrator/deployer.py::_resolve_private_key_uuid``.
+    private_key_uuid: str | None = None
 
 
 class Depends(BaseModel):
@@ -289,6 +294,24 @@ class Shape(BaseModel):
             "Gates creation of a project-scoped index."
         ),
     )
+    needs_cache: bool = Field(
+        default=False,
+        description=(
+            "True if the service needs an isolated Redis logical-DB on the shared "
+            "redis-main container. Gates the redis registrar (assigns a unique DB "
+            "index 1..15 and injects REDIS_URL=redis://redis-main:6379/<n>). "
+            "See drivers/redis.py — DEPLOYMENT.md §9.9 G4."
+        ),
+    )
+    exposes_metrics: bool = Field(
+        default=False,
+        description=(
+            "True if the service exposes a Prometheus-format /metrics endpoint. "
+            "Gates the prometheus registrar (appends a scrape job to the shared "
+            "prometheus.yml and hot-reloads). See drivers/prometheus.py — "
+            "DEPLOYMENT.md §9.9 G5."
+        ),
+    )
 
 
 class WordPressPlugin(BaseModel):
@@ -341,13 +364,21 @@ class Spec(BaseModel):
     depends: Depends = Field(default_factory=Depends)
     infrastructure: Infrastructure = Field(default_factory=Infrastructure)
 
-    # NOTE (Phase 4k): `infra:` is intentionally NOT a field on this model.
-    # It is an override-only block consumed by `orchestrator/infrastructure.py`,
-    # which reads the raw YAML via `orchestrator/validator.py::load_spec`
-    # (yaml.safe_load) rather than through pydantic. Keeping it off the model
-    # prevents scaffolded specs from gaining a noisy `infra: {}` default and
-    # matches the plan's acceptance criterion ("no `infra:` block in scaffolded
-    # specs"). Operators write `infra: {gatus: false}` by hand when overriding.
+    # `infra:` override block consumed by `orchestrator/infrastructure.py::
+    # resolve_applicability`. It is a negative override — ONLY valid entries
+    # are ``<registrar>: false`` to force-skip a registrar that `shape:`
+    # would otherwise activate.
+    #
+    # History (2026-05-04): originally this was intentionally NOT a pydantic
+    # field — consumers were expected to read the raw YAML via
+    # `orchestrator/validator.py::load_spec`. That worked for the apply path
+    # but silently broke `orchestrator/destroyer.py::_spec_to_dict` (which
+    # calls `spec.model_dump()`), dropping the override and causing the
+    # postgres registrar to run for services with `infra.postgres: false`
+    # set. We made it a proper optional field; `exclude_none=True` in
+    # `dump_spec` ensures scaffolded specs still emit no `infra:` block,
+    # preserving the Phase-4k acceptance criterion.
+    infra: dict[str, bool] | None = None
 
     env: dict[str, str] = Field(default_factory=dict)
     secrets: SecretsPolicy = Field(default_factory=SecretsPolicy)

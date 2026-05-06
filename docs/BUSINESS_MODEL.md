@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-05-03 17:43:32 -->
-<!-- Total projects: 49 -->
+<!-- Last synced: 2026-05-06 11:54:11 -->
+<!-- Total projects: 41 -->
 
 ### Production Services (10 projects)
 
@@ -109,24 +109,16 @@ With ~$50/month infrastructure cost:
 | **translator** | A unified translation service wrapper that uses **DeepL** as the primary provider and **Azure T... | Python | ✅ Production | https://translator.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (22 projects)
+### Active Development (14 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **calendar-orchestration-engine** | Automated calendar scheduling system with conflict resolution and multi-provider integration. | Python | 🔨 Development | https://calendar-orchestration-engine.vps1.ocoron.com | ✅ Current |
 | **candle** | FastAPI microservice project (in development). | FastAPI | 🔨 Development | - | ✅ Current |
 | **fabrik-claim-validator** | Multi-tradition claim validation + substance discovery service. Sibling to fabrik-citation-veri... | FastAPI | 🔨 Development | - | ✅ Current |
-| **fabrik-smoke-test** | Smoke test project for all Fabrik deployment features | FastAPI | 🔨 Development | - | ✅ Current |
-| **fabrik-test-chrome-extension** | Test scaffold: Chrome extension (MV3) | Python | 🔨 Development | - | ✅ Current |
+| **fabrik-test-chrome-extension** | proof-run dummy for chrome-extension | Python | 🔨 Development | - | ✅ Current |
 | **fabrik-test-desktop-app** | Test scaffold: Electron desktop | Node.js | 🔨 Development | - | ✅ Current |
-| **fabrik-test-docusaurus** | proof-run dummy for docusaurus | Node.js | 🔨 Development | - | ✅ Current |
-| **fabrik-test-file-api** | proof-run dummy for file-api | Express | 🔨 Development | - | ✅ Current |
-| **fabrik-test-file-worker** | proof-run dummy for file-worker | Python | 🔨 Development | - | ✅ Current |
 | **fabrik-test-mobile-app** | Test scaffold: React Native mobile | Node.js | 🔨 Development | - | ✅ Current |
-| **fabrik-test-node-api** | proof-run dummy for node-api | Node.js | 🔨 Development | - | ✅ Current |
-| **fabrik-test-python-api** | proof-run dummy for python-api | FastAPI | 🔨 Development | - | ✅ Current |
-| **fabrik-test-saas-skeleton** | proof-run dummy for saas-skeleton | Node.js | 🔨 Development | - | ✅ Current |
-| **fabrik-test-static-site** | proof-run dummy for static-site | Node.js | 🔨 Development | - | ✅ Current |
 | **fabrik-test-wordpress** | Test scaffold: WordPress (saas preset) | WordPress | 🔨 Development | - | ✅ Current |
 | **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | https://job-agent.vps1.ocoron.com | ✅ Current |
 | **longephedia-vault** | Structured ontology + RAG over Longephedia constitution (12 themes, discipline rules, protocols... | FastAPI | 🔨 Development | - | ✅ Current |
