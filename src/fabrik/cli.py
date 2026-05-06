@@ -77,6 +77,19 @@ def _post_deploy_sync() -> None:
     except Exception as e:
         click.echo(f"⚠️  Registry sync error: {e}", err=True)
 
+    # Update VPS docs — non-fatal, runs in background
+    docs_script = FABRIK_ROOT / "scripts" / "update_vps_docs.py"
+    if docs_script.exists():
+        try:
+            subprocess.Popen(
+                ["python3", str(docs_script)],
+                cwd=str(FABRIK_ROOT),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass  # never block deploy
+
 
 @cli.command(hidden=True)
 @click.argument("name")

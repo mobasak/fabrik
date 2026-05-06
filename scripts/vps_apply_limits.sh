@@ -55,3 +55,7 @@ apply ocoron-com-nginx-1      256m
 apply ocoron-com-redis-1      256m
 
 echo "=== Done ==="
+
+# Auto-update VPS docs after limits applied
+echo "📝 Updating VPS docs..."
+cd /opt/fabrik && python3 scripts/update_vps_docs.py 2>&1 | tail -5
