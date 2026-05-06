@@ -327,6 +327,260 @@ def verify_gatus_aliases() -> list[str]:
     return findings
 
 
+
+# ---------------------------------------------------------------------------
+# Residue audit — 12-point cleanup contract
+# ---------------------------------------------------------------------------
+
+TEST_PREFIX_RE = __import__('re').compile(r'(?:^|[-_])test(?:[-_]|$)', __import__('re').IGNORECASE)
+"""Pattern that flags a name as test-scoped (prefix, suffix, or infix)."""
+
+_BACKREST_REPO_DIR = "/opt/backrest/repos"
+_OPT_PROJECTS_DIR = "/opt"
+_TMP_LOCK_DIR = "/tmp"
+_GATUS_APPS_DIR = GATUS_APPS_DIR  # already defined above
+
+
+def _ssh_lines(cmd: str, timeout: int = 20) -> list[str]:
+    """Run cmd via SSH and return non-empty stripped lines. Never raises."""
+    from fabrik.drivers.ssh import ssh
+    try:
+        raw = ssh(cmd, timeout=timeout)
+        return [l.strip() for l in raw.splitlines() if l.strip()]
+    except Exception as e:
+        return [f"[SSH ERROR: {e}]"]
+
+
+def _is_test_name(name: str) -> bool:
+    return bool(TEST_PREFIX_RE.search(name))
+
+
+def verify_residue() -> list[str]:
+    """Full 12-point residue audit.
+
+    Checks Coolify apps, GlitchTip projects, Gatus .bak files, Authelia
+    orphan rules, Postgres DBs, Meilisearch indexes, Cloudflare DNS records,
+    Docker dangling volumes/images, /tmp locks, /opt stale dirs, and Backrest
+    repos — all for test-scoped names or dangling state.
+
+    Returns list of human-readable findings. Empty = clean.
+    """
+    import json as _json
+    import os as _os
+
+    findings: list[str] = []
+    section = lambda s: findings.append(f"\n── {s} ──")
+
+    # ── 1. Coolify: test-named apps/services ────────────────────────────────
+    section("Coolify apps")
+    try:
+        from fabrik.drivers.coolify import CoolifyClient
+        coolify = CoolifyClient()
+        for item in coolify.list_applications():
+            name = item.get("name", "")
+            if _is_test_name(name):
+                findings.append(
+                    f"  Coolify: test app/service '{name}' (uuid={item.get('uuid','?')}) — run: fabrik destroy {name}"
+                )
+    except Exception as e:
+        findings.append(f"  Coolify check failed: {e}")
+
+    # ── 2. GlitchTip: test-named projects ───────────────────────────────────
+    section("GlitchTip projects")
+    try:
+        import requests as _req
+        gt_token = _os.getenv("GLITCHTIP_AUTH_TOKEN", "")
+        gt_org = _os.getenv("GLITCHTIP_ORG_SLUG", "")
+        gt_url = f"https://errors.vps1.ocoron.com/api/0/projects/{gt_org}/"
+        resp = _req.get(gt_url, headers={"Authorization": f"Bearer {gt_token}"}, timeout=15)
+        if resp.status_code == 200:
+            for proj in resp.json():
+                slug = proj.get("slug", "")
+                if _is_test_name(slug):
+                    findings.append(
+                        f"  GlitchTip: test project '{slug}' — DELETE /api/0/projects/{gt_org}/{slug}/"
+                    )
+        else:
+            findings.append(f"  GlitchTip list failed: HTTP {resp.status_code}")
+    except Exception as e:
+        findings.append(f"  GlitchTip check failed: {e}")
+
+    # ── 3. Gatus: .bak files ─────────────────────────────────────────────────
+    section("Gatus .bak files")
+    baks = _ssh_lines(f"sudo find {_GATUS_APPS_DIR} -name '*.bak' 2>/dev/null")
+    for b in baks:
+        if b.startswith("[SSH ERROR"):
+            findings.append(f"  {b}")
+        else:
+            findings.append(f"  Gatus leftover: {b} — rm {b}")
+
+    # ── 4. Authelia: rules for domains not in active Coolify apps ───────────
+    section("Authelia orphan rules")
+    try:
+        authelia_domains = _ssh_lines(
+            "sudo docker exec $(sudo docker ps --filter label=coolify.serviceName=authelia "
+            "--format '{{.Names}}' | head -1) "
+            "grep -oP '(?<=domain: )\\S+' /config/configuration.yml 2>/dev/null || true"
+        )
+        from fabrik.drivers.coolify import CoolifyClient
+        try:
+            coolify = CoolifyClient()
+            active_fqdns = set()
+            for item in coolify.list_applications():
+                fqdn = item.get("fqdn") or ""
+                for f in fqdn.split(","):
+                    f = f.strip().lstrip("https://").lstrip("http://").split("/")[0]
+                    if f:
+                        active_fqdns.add(f)
+        except Exception:
+            active_fqdns = set()
+
+        for domain in authelia_domains:
+            if domain.startswith("[SSH ERROR"):
+                findings.append(f"  {domain}")
+                break
+            if active_fqdns and domain not in active_fqdns:
+                findings.append(
+                    f"  Authelia: rule for '{domain}' has no active Coolify app — verify manually"
+                )
+    except Exception as e:
+        findings.append(f"  Authelia check failed: {e}")
+
+    # ── 5. Postgres: test-named databases ────────────────────────────────────
+    section("Postgres test databases")
+    try:
+        import base64 as _b64
+        from fabrik.drivers.postgres import POSTGRES_CONTAINER
+        from fabrik.drivers.ssh import ssh
+        sql = "SELECT datname FROM pg_database WHERE datname NOT IN ('postgres','template0','template1');"
+        payload = _b64.b64encode(sql.encode()).decode()
+        cmd = f"echo {payload} | base64 -d | sudo docker exec -i {POSTGRES_CONTAINER} psql -U postgres -tA"
+        raw = ssh(cmd, timeout=20)
+        for db in raw.strip().splitlines():
+            db = db.strip()
+            if db and _is_test_name(db):
+                findings.append(
+                    f"  Postgres: test database '{db}' — fabrik postgres drop {db}"
+                )
+    except Exception as e:
+        findings.append(f"  Postgres check failed: {e}")
+
+    # ── 6. Meilisearch: test-named indexes ──────────────────────────────────
+    section("Meilisearch test indexes")
+    try:
+        meili_out = _ssh_lines(
+            "CONT=$(sudo docker ps --filter label=coolify.serviceName=meilisearch "
+            "--format '{{.Names}}' | head -1) && "
+            "sudo docker exec $CONT sh -c "
+            "\'curl -s http://localhost:7700/indexes -H \"Authorization: Bearer $MEILI_MASTER_KEY\"\' 2>/dev/null"
+        )
+        raw_json = " ".join(meili_out)
+        if raw_json and not raw_json.startswith("[SSH ERROR"):
+            try:
+                import json as _json2
+                data = _json2.loads(raw_json)
+                results = data.get("results", data) if isinstance(data, dict) else data
+                for idx in (results if isinstance(results, list) else []):
+                    uid = idx.get("uid", "")
+                    if _is_test_name(uid):
+                        findings.append(
+                            f"  Meilisearch: test index '{uid}' — DELETE /indexes/{uid}"
+                        )
+            except Exception:
+                findings.append(f"  Meilisearch: could not parse response: {raw_json[:120]}")
+    except Exception as e:
+        findings.append(f"  Meilisearch check failed: {e}")
+
+    # ── 7. Cloudflare DNS: test subdomains ──────────────────────────────────
+    section("Cloudflare DNS test records")
+    try:
+        import os as _os2, requests as _req2
+        cf_token = _os2.getenv("CLOUDFLARE_API_TOKEN", "")
+        cf_headers = {"Authorization": f"Bearer {cf_token}", "Content-Type": "application/json"}
+        zone_vars = {k: v for k, v in _os2.environ.items() if k.startswith("CLOUDFLARE_ZONE_ID_")}
+        for zone_var, zone_id in zone_vars.items():
+            domain_label = zone_var.replace("CLOUDFLARE_ZONE_ID_", "").lower()
+            r = _req2.get(
+                f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records?per_page=200",
+                headers=cf_headers, timeout=15
+            )
+            if r.status_code == 200:
+                for rec in r.json().get("result", []):
+                    name = rec.get("name", "")
+                    sub = name.split(".")[0] if "." in name else name
+                    if _is_test_name(sub):
+                        findings.append(
+                            f"  DNS [{domain_label}]: test record '{name}' ({rec.get('type')}) id={rec.get('id')}"
+                        )
+            else:
+                findings.append(f"  DNS [{domain_label}] list failed: HTTP {r.status_code}")
+    except Exception as e:
+        findings.append(f"  DNS check failed: {e}")
+
+    # ── 8. Docker dangling volumes ───────────────────────────────────────────
+    section("Docker dangling volumes")
+    vols = _ssh_lines("sudo docker volume ls -q -f dangling=true 2>/dev/null")
+    for v in vols:
+        if v.startswith("[SSH ERROR"):
+            findings.append(f"  {v}")
+        else:
+            findings.append(f"  Docker: dangling volume '{v}' — docker volume rm {v}")
+
+    # ── 9. Docker dangling images ────────────────────────────────────────────
+    section("Docker dangling images")
+    imgs = _ssh_lines("sudo docker images -q -f dangling=true 2>/dev/null")
+    if imgs and not imgs[0].startswith("[SSH ERROR"):
+        count = len(imgs)
+        if count > 0:
+            findings.append(f"  Docker: {count} dangling image(s) — run: docker image prune -f")
+
+    # ── 10. /tmp lock files ──────────────────────────────────────────────────
+    section("/tmp lock files")
+    locks = _ssh_lines(f"sudo find {_TMP_LOCK_DIR} -maxdepth 1 -name 'fabrik-*.lock' 2>/dev/null")
+    for lk in locks:
+        if lk.startswith("[SSH ERROR"):
+            findings.append(f"  {lk}")
+        else:
+            findings.append(f"  /tmp lock: {lk} — verify no process holds it; rm {lk}")
+
+    # ── 11. /opt stale test project dirs ────────────────────────────────────
+    section("/opt stale directories")
+    dirs = _ssh_lines(
+        f"sudo find {_OPT_PROJECTS_DIR} -maxdepth 1 -type d 2>/dev/null | grep -E '/(test[-_]|[-_]test)' || true"
+    )
+    for d in dirs:
+        if d.startswith("[SSH ERROR"):
+            findings.append(f"  {d}")
+        elif d and _is_test_name(d.split("/")[-1]):
+            findings.append(f"  /opt: stale test dir '{d}' — rm -rf {d}")
+
+    # ── 12. Backrest: test-named repos ──────────────────────────────────────
+    section("Backrest repos")
+    repos = _ssh_lines(f"sudo ls {_BACKREST_REPO_DIR} 2>/dev/null || true")
+    for repo in repos:
+        if repo.startswith("[SSH ERROR"):
+            findings.append(f"  {repo}")
+        elif _is_test_name(repo):
+            findings.append(
+                f"  Backrest: test repo '{repo}' at {_BACKREST_REPO_DIR}/{repo} — verify then rm"
+            )
+
+    # Strip section headers that produced no findings
+    clean: list[str] = []
+    i = 0
+    while i < len(findings):
+        line = findings[i]
+        if line.startswith("\n──"):
+            # Include section only if next line(s) are real findings (not another section)
+            if i + 1 < len(findings) and not findings[i + 1].startswith("\n──"):
+                clean.append(line)
+        else:
+            clean.append(line)
+        i += 1
+
+    return clean
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sync VPS docs from live state")
     parser.add_argument("--dry-run", action="store_true", help="Show what would change")
@@ -338,18 +592,35 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.verify:
-        print("🔍 Verifying VPS config for known drift patterns...")
-        findings = verify_gatus_aliases()
-        if not findings:
-            print("✅ No stale Coolify container aliases in Gatus configs.")
+        print("🔍 Verifying VPS config — gatus aliases + full 12-point residue audit...")
+        all_findings: list[str] = []
+
+        # Part A: stale Coolify container aliases in Gatus
+        gatus_findings = verify_gatus_aliases()
+        if gatus_findings:
+            all_findings.append("\n── Gatus stale Coolify aliases ──")
+            all_findings.extend(gatus_findings)
+
+        # Part B: full residue audit
+        print("   Running residue audit (Coolify/GlitchTip/Postgres/Meili/DNS/Docker/etc.)...")
+        residue_findings = verify_residue()
+        all_findings.extend(residue_findings)
+
+        if not all_findings:
+            print("✅ Clean — no stale aliases, no test residue found.")
             return 0
-        print(f"❌ Drift detected — {len(findings)} finding(s):")
-        for f in findings:
-            print(f"   • {f}")
+
+        # Count real findings (skip section headers)
+        real = [f for f in all_findings if not f.startswith("\n──")]
+        print(f"❌ {len(real)} finding(s) across audit:")
+        for f in all_findings:
+            if f.startswith("\n──"):
+                print(f)
+            else:
+                print(f"   • {f.strip()}")
         print(
-            "\nRemediation: replace the stale '<service>-<uuid>-<ts>' hostname "
-            "with the bare service alias (e.g. 'http://captcha:8000/health'). "
-            "Coolify exposes both forms; only the bare alias survives redeploy."
+            "\nRemediation commands are shown inline above. "
+            "Run each manually or use \'fabrik destroy <name>\' for Coolify resources."
         )
         return 1
 
