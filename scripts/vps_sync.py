@@ -327,12 +327,11 @@ def verify_gatus_aliases() -> list[str]:
     return findings
 
 
-
 # ---------------------------------------------------------------------------
 # Residue audit — 12-point cleanup contract
 # ---------------------------------------------------------------------------
 
-TEST_PREFIX_RE = __import__('re').compile(r'(?:^|[-_])test(?:[-_]|$)', __import__('re').IGNORECASE)
+TEST_PREFIX_RE = __import__("re").compile(r"(?:^|[-_])test(?:[-_]|$)", __import__("re").IGNORECASE)
 """Pattern that flags a name as test-scoped (prefix, suffix, or infix)."""
 
 _BACKREST_REPO_DIR = "/opt/backrest/repos"
@@ -344,9 +343,10 @@ _GATUS_APPS_DIR = GATUS_APPS_DIR  # already defined above
 def _ssh_lines(cmd: str, timeout: int = 20) -> list[str]:
     """Run cmd via SSH and return non-empty stripped lines. Never raises."""
     from fabrik.drivers.ssh import ssh
+
     try:
         raw = ssh(cmd, timeout=timeout)
-        return [l.strip() for l in raw.splitlines() if l.strip()]
+        return [line.strip() for line in raw.splitlines() if line.strip()]
     except Exception as e:
         return [f"[SSH ERROR: {e}]"]
 
@@ -365,22 +365,24 @@ def verify_residue() -> list[str]:
 
     Returns list of human-readable findings. Empty = clean.
     """
-    import json as _json
     import os as _os
 
     findings: list[str] = []
-    section = lambda s: findings.append(f"\n── {s} ──")
+
+    def section(title: str) -> None:
+        findings.append(f"\n── {title} ──")
 
     # ── 1. Coolify: test-named apps/services ────────────────────────────────
     section("Coolify apps")
     try:
         from fabrik.drivers.coolify import CoolifyClient
+
         coolify = CoolifyClient()
         for item in coolify.list_applications():
             name = item.get("name", "")
             if _is_test_name(name):
                 findings.append(
-                    f"  Coolify: test app/service '{name}' (uuid={item.get('uuid','?')}) — run: fabrik destroy {name}"
+                    f"  Coolify: test app/service '{name}' (uuid={item.get('uuid', '?')}) — run: fabrik destroy {name}"
                 )
     except Exception as e:
         findings.append(f"  Coolify check failed: {e}")
@@ -389,9 +391,11 @@ def verify_residue() -> list[str]:
     section("GlitchTip projects")
     try:
         import requests as _req
+
         gt_token = _os.getenv("GLITCHTIP_AUTH_TOKEN", "")
         gt_org = _os.getenv("GLITCHTIP_ORG_SLUG", "")
-        gt_url = f"https://errors.vps1.ocoron.com/api/0/projects/{gt_org}/"
+        # Sentry-compatible endpoint: GET /api/0/organizations/{org}/projects/
+        gt_url = f"https://errors.vps1.ocoron.com/api/0/organizations/{gt_org}/projects/"
         resp = _req.get(gt_url, headers={"Authorization": f"Bearer {gt_token}"}, timeout=15)
         if resp.status_code == 200:
             for proj in resp.json():
@@ -423,13 +427,15 @@ def verify_residue() -> list[str]:
             "grep -oP '(?<=domain: )\\S+' /config/configuration.yml 2>/dev/null || true"
         )
         from fabrik.drivers.coolify import CoolifyClient
+
         try:
             coolify = CoolifyClient()
             active_fqdns = set()
             for item in coolify.list_applications():
                 fqdn = item.get("fqdn") or ""
                 for f in fqdn.split(","):
-                    f = f.strip().lstrip("https://").lstrip("http://").split("/")[0]
+                    f = f.strip()
+                    f = f.removeprefix("https://").removeprefix("http://").split("/")[0]
                     if f:
                         active_fqdns.add(f)
         except Exception:
@@ -450,8 +456,10 @@ def verify_residue() -> list[str]:
     section("Postgres test databases")
     try:
         import base64 as _b64
+
         from fabrik.drivers.postgres import POSTGRES_CONTAINER
         from fabrik.drivers.ssh import ssh
+
         sql = "SELECT datname FROM pg_database WHERE datname NOT IN ('postgres','template0','template1');"
         payload = _b64.b64encode(sql.encode()).decode()
         cmd = f"echo {payload} | base64 -d | sudo docker exec -i {POSTGRES_CONTAINER} psql -U postgres -tA"
@@ -459,9 +467,7 @@ def verify_residue() -> list[str]:
         for db in raw.strip().splitlines():
             db = db.strip()
             if db and _is_test_name(db):
-                findings.append(
-                    f"  Postgres: test database '{db}' — fabrik postgres drop {db}"
-                )
+                findings.append(f"  Postgres: test database '{db}' — fabrik postgres drop {db}")
     except Exception as e:
         findings.append(f"  Postgres check failed: {e}")
 
@@ -472,15 +478,16 @@ def verify_residue() -> list[str]:
             "CONT=$(sudo docker ps --filter label=coolify.serviceName=meilisearch "
             "--format '{{.Names}}' | head -1) && "
             "sudo docker exec $CONT sh -c "
-            "\'curl -s http://localhost:7700/indexes -H \"Authorization: Bearer $MEILI_MASTER_KEY\"\' 2>/dev/null"
+            "'curl -s http://localhost:7700/indexes -H \"Authorization: Bearer $MEILI_MASTER_KEY\"' 2>/dev/null"
         )
         raw_json = " ".join(meili_out)
         if raw_json and not raw_json.startswith("[SSH ERROR"):
             try:
                 import json as _json2
+
                 data = _json2.loads(raw_json)
                 results = data.get("results", data) if isinstance(data, dict) else data
-                for idx in (results if isinstance(results, list) else []):
+                for idx in results if isinstance(results, list) else []:
                     uid = idx.get("uid", "")
                     if _is_test_name(uid):
                         findings.append(
@@ -494,7 +501,10 @@ def verify_residue() -> list[str]:
     # ── 7. Cloudflare DNS: test subdomains ──────────────────────────────────
     section("Cloudflare DNS test records")
     try:
-        import os as _os2, requests as _req2
+        import os as _os2
+
+        import requests as _req2
+
         cf_token = _os2.getenv("CLOUDFLARE_API_TOKEN", "")
         cf_headers = {"Authorization": f"Bearer {cf_token}", "Content-Type": "application/json"}
         zone_vars = {k: v for k, v in _os2.environ.items() if k.startswith("CLOUDFLARE_ZONE_ID_")}
@@ -502,7 +512,8 @@ def verify_residue() -> list[str]:
             domain_label = zone_var.replace("CLOUDFLARE_ZONE_ID_", "").lower()
             r = _req2.get(
                 f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records?per_page=200",
-                headers=cf_headers, timeout=15
+                headers=cf_headers,
+                timeout=15,
             )
             if r.status_code == 200:
                 for rec in r.json().get("result", []):
@@ -620,7 +631,7 @@ def main() -> int:
                 print(f"   • {f.strip()}")
         print(
             "\nRemediation commands are shown inline above. "
-            "Run each manually or use \'fabrik destroy <name>\' for Coolify resources."
+            "Run each manually or use 'fabrik destroy <name>' for Coolify resources."
         )
         return 1
 

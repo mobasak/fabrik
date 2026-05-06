@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — vps_sync.py: residue cleanup performed (18 findings: 1 Coolify app, 1 Postgres DB, 14 Cloudflare DNS records, 2 Meili indexes not deployed) (2026-05-06)
+
+`scripts/vps_sync.py`: executed `--verify` residue audit and cleaned 18 findings across VPS infrastructure. Actions taken: (1) Deleted Coolify app `test-quick-deploy` via CLI (queued); (2) Dropped Postgres DB `test_quick_deploy`; (3) Attempted Meili index cleanup for `test_quick_deploy` and `test-quick-deploy` (container not deployed - skipped); (4) Deleted 14 Cloudflare DNS records via `fabrik domain cleanup test_quick_deploy` (13 successful, 1 already deleted). Added G10 gap row to `docs/DEPLOYMENT.md` §9.9 documenting residue audit workflow.
+
+### Fixed — vps_sync.py: GlitchTip list endpoint corrected from /api/0/projects/{org}/ to /api/0/organizations/{org}/projects/ (Sentry-compatible) (2026-05-06)
+
+`scripts/vps_sync.py`: fixed GlitchTip project list endpoint in `verify_residue()`. Changed from incorrect `/api/0/projects/{org}/` to correct Sentry-compatible `/api/0/organizations/{org}/projects/`. The 12-point residue audit now successfully queries GlitchTip for test projects (previously returned HTTP 404). Live run now finds 17 residue findings (down from 18, the GlitchTip error resolved).
+
 ### Changed — AGENTS-compact.md header: documented Kilo CLI injection limits (40,000 char hard cap, <15,000 char verbatim sweet spot) (2026-05-06)
 
 `AGENTS-compact.md`: replaced first-line HTML comment with Kilo CLI injection limits documentation. Documents hard cap of 40,000 characters (silent truncation from bottom), verbatim sweet spot of <15,000 chars / <150 lines, current state (~5,200 chars / ~84 lines). Guidance to use Markdown headers + tables + If-Then logic, avoid dense prose. This inline constraint documentation prevents future bloat.
