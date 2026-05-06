@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-07 UTC+3
+**Last Updated:** 2026-05-07 21:00 UTC+3
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Location:** Los Angeles, CA, USA (Psychz Networks AS32421)
 **SSH:** `ssh vps` (ozgur user, key-only Ed25519 auth)
@@ -131,7 +131,7 @@
 | # | Service | Issue | Action |
 |---|---|---|---|
 | 2 | Swap | 1.7GB / 2GB used | Memory pressure; monitor closely |
-| 3 | Resource limits | Infra services (cadvisor, alertmanager, etc.) have no limits | Set manually via Coolify dashboard |
+| 3 | Resource limits after reboot | `docker update` limits reset on VPS reboot | Run: `ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"` |
 | 4 | Wildcard SSL | Per-service Let's Encrypt HTTP challenge | Migrate to Cloudflare DNS challenge in Coolify for wildcard |
 
 ---
@@ -149,8 +149,11 @@
 
 ---
 
-## Resource Limits (Fabrik apps — set 2026-05-06)
+## Resource Limits (complete — 2026-05-07)
 
+Two mechanisms — Coolify API for applications (survives redeploys), `docker update` for services (resets on reboot).
+
+### Fabrik Applications (Coolify API — persistent)
 | Service | Memory | CPU |
 |---|---|---|
 | fabrik-proxy | 512m | 0.5 |
@@ -160,9 +163,36 @@
 | fabrik-file-api | 1g | 1.0 |
 | fabrik-file-worker | 1g | 1.0 |
 | fabrik-translator | 512m | 0.5 |
+| fabrik-site-provisioner | 512m | 0.5 |
 | browserless | 2g | 1.0 |
-| fabrik-n8n | 2g | 2.0 (pending) |
-| Infra services | ⚠️ none | Set via Coolify dashboard |
+| gotenberg | 512m | 1.0 |
+| meilisearch | 512m | 1.0 |
+
+### Infra Services (`docker update` — reapply after reboot)
+| Service | Memory | Notes |
+|---|---|---|
+| postgres-main | 2g | Shared DB |
+| n8n | 2g | Automation |
+| grafana | 512m | |
+| loki | 512m | |
+| netdata | 512m | |
+| authelia | 512m | |
+| backrest | 512m | |
+| redis-main | 512m | |
+| prometheus | 512m | |
+| traefik | 256m | |
+| alertmanager | 256m | |
+| apprise | 256m | |
+| cadvisor | 256m | |
+| gatus | 256m | |
+| node-exporter | 128m | |
+| promtail | 128m | |
+| ocoron-com-db-1 | 1g | WordPress MariaDB |
+| ocoron-com-wordpress-1 | 512m | |
+| ocoron-com-nginx-1 | 256m | |
+| ocoron-com-redis-1 | 256m | |
+
+⚠️ **After VPS reboot, run:** `ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"`
 
 ---
 
@@ -180,6 +210,9 @@ ssh vps "sudo docker ps --format '{{.Names}}\t{{.Status}}' | sort"
 
 # Restart a specific service
 cd /opt/fabrik && fabrik redeploy <service-name>
+
+# After VPS reboot — reapply infra memory limits
+ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
 
 # Check translator crash
 ssh vps "sudo docker logs \$(sudo docker ps -a --filter name=translator --format '{{.Names}}' | head -1) --tail 50"

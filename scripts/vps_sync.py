@@ -592,6 +592,58 @@ def verify_residue() -> list[str]:
     return clean
 
 
+
+def verify_limits() -> list[str]:
+    """Check that infra containers have memory limits set.
+
+    docker update limits reset on VPS reboot. This detects drift.
+    Returns list of containers with no memory limit (mem=0).
+    """
+    findings: list[str] = []
+    # Containers that MUST have limits (managed via vps_apply_limits.sh)
+    REQUIRED = {
+        'alertmanager', 'apprise', 'authelia', 'backrest', 'cadvisor',
+        'gatus', 'grafana', 'loki', 'n8n', 'netdata', 'node-exporter',
+        'postgres-main', 'prometheus', 'promtail', 'redis-main', 'traefik',
+    }
+    try:
+        from fabrik.drivers.ssh import ssh
+        raw = ssh(
+            "sudo docker inspect $(sudo docker ps -q) "
+            "--format '{{.Name}} {{.HostConfig.Memory}}' 2>/dev/null",
+            timeout=20,
+        )
+        unlimited = []
+        for line in raw.strip().splitlines():
+            line = line.strip().lstrip('/')
+            if not line:
+                continue
+            parts = line.rsplit(' ', 1)
+            if len(parts) != 2:
+                continue
+            name, mem = parts
+            if mem.strip() == '0':
+                # Check if it matches a required container prefix
+                short = name.split('-')[0]
+                base = next((r for r in REQUIRED if name.startswith(r)), None)
+                if base:
+                    unlimited.append(name)
+        if unlimited:
+            findings.append("\n── Memory limits drift (reboot likely) ──")
+            for c in unlimited:
+                findings.append(
+                    f"  No limit: {c} — run: ssh vps 'bash /opt/fabrik/scripts/vps_apply_limits.sh'"
+                )
+            # Only emit the remediation once
+            if unlimited:
+                findings.append(
+                    "  → Fix all at once: ssh vps 'bash /opt/fabrik/scripts/vps_apply_limits.sh'"
+                )
+    except Exception as e:
+        findings.append(f"  Limits check failed: {e}")
+    return findings
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sync VPS docs from live state")
     parser.add_argument("--dry-run", action="store_true", help="Show what would change")
@@ -616,6 +668,11 @@ def main() -> int:
         print("   Running residue audit (Coolify/GlitchTip/Postgres/Meili/DNS/Docker/etc.)...")
         residue_findings = verify_residue()
         all_findings.extend(residue_findings)
+
+        # Part C: memory limits drift (resets on reboot)
+        print("   Checking infra container memory limits...")
+        limits_findings = verify_limits()
+        all_findings.extend(limits_findings)
 
         if not all_findings:
             print("✅ Clean — no stale aliases, no test residue found.")

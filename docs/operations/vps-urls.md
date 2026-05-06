@@ -2,7 +2,7 @@
 
 <!-- AUTO-UPDATE: Run `python3 scripts/snapshot_vps_state.py` to refresh -->
 
-**Last Updated:** 2026-05-07
+**Last Updated:** 2026-05-07 21:00 UTC+3
 **VPS:** vps1.ocoron.com (172.93.160.197) — Los Angeles, CA
 
 All services use HTTPS via Traefik (Coolify-managed). HTTP redirects to HTTPS automatically.
@@ -72,6 +72,25 @@ All services use HTTPS via Traefik (Coolify-managed). HTTP redirects to HTTPS au
 Plus: `www.ocoron.com`, `ocoron.com`
 
 ---
+
+## Maintenance Commands
+
+```bash
+# After VPS reboot — reapply infra memory limits (docker update resets on reboot)
+ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
+
+# Residue audit — verify no test artifacts remain
+cd /opt/fabrik && python3 scripts/vps_sync.py --verify
+
+# Deploy a new service
+cd /opt/fabrik && fabrik apply specs/services/<name>.yaml
+
+# Redeploy existing service (git commit + push first)
+cd /opt/fabrik && fabrik redeploy fabrik-<name>
+
+# Weekly disk cleanup
+ssh vps "sudo docker image prune -f && sudo docker builder prune -f"
+```
 
 ## Port Reference
 

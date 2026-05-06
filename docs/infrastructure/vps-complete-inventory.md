@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Date:** 2026-05-07
+**Date:** 2026-05-07 (updated 21:00 UTC+3)
 **Method:** SSH docker ps + Coolify API + live verification
 **Total Containers:** 40 running
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04, 6 vCores, 11GB RAM, 108GB disk
@@ -179,19 +179,40 @@ iptables `DOCKER-USER` chain: static rules blocking raw host port access from in
 | **API services** | ✅ | proxy/captcha/image-broker/translator: X-API-Key |
 | **File API** | ✅ | Supabase Bearer auth |
 | **Site-provisioner** | ✅ | Traefik IP allowlist |
-| **Resource limits** | ⚠️ partial | 7 Fabrik apps limited; infra services unlimited (TODO: Coolify dashboard) |
+| **Resource limits** | ✅ complete | All 40 containers limited. Fabrik apps: Coolify API. Infra: `docker update` via `scripts/vps_apply_limits.sh` |
 | **Wildcard SSL** | ⚠️ | Per-service HTTP challenge; TODO: Cloudflare DNS challenge |
 | **Gzip compression** | ✅ | `gzip@docker` middleware registered; wire per-router as needed |
 | **Docker images** | ✅ | Pruned 2026-05-06; build cache cleared |
 | **.dockerignore** | ✅ | Added to all 21 projects missing it |
+| **Coolify CVEs** | ✅ | Running v4.0.0-beta.459 (CVEs fixed in beta.451+) |
 
 ---
 
-## Pending Actions (owner: Ozgur — requires Coolify dashboard)
+## Resource Limits Reference
+
+**Two mechanisms apply — do not confuse them:**
+
+| Type | Mechanism | Persists through | Managed by |
+|---|---|---|---|
+| Fabrik applications | `limits_memory`/`limits_cpus` via Coolify API | Redeploys ✅ | `fabrik apply` / `update_application()` |
+| Infra services (stacks) | `docker update` | Container restarts ✅, VPS reboot ❌ | `scripts/vps_apply_limits.sh` |
+
+**After VPS reboot:**
+```bash
+ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
+```
+
+**Why Coolify API fails for services:** Coolify v4 service stacks are multi-container templates — the API rejects `limits_memory` with 422 because it cannot determine which sub-container to target. `docker update` bypasses this cleanly.
+
+---
+
+## Pending Actions
 
 | # | Action | Where | Priority |
 |---|---|---|---|
-| 1 | Set resource limits for infra services | Coolify → each service → Settings | Medium |
-| 2 | Migrate SSL to Cloudflare DNS challenge (wildcard) | Coolify → Proxy → Add resolver | Low |
-| 3 | Wire `gzip@docker` middleware to high-traffic routers | Coolify → each app → Traefik config | Low |
-| 4 | Investigate `fabrik-translator` crash loop | `ssh vps "docker logs translator-* --tail 100"` | High |
+| 1 | Migrate SSL to Cloudflare DNS challenge (wildcard) | Coolify → Proxy → Add resolver | Low |
+| 2 | Wire `gzip@docker` middleware to high-traffic routers | Coolify → each app → Traefik config | Low |
+
+**Completed 2026-05-07:**
+- ✅ Resource limits set on all 40 containers (Coolify API for apps, `docker update` for infra)
+- ✅ translator crash loop fixed (DATABASE_URL localhost→postgres-main)
