@@ -1,0 +1,56 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Dev tooling
+.venv
+venv
+env
+node_modules
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Local config & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & temp
+*.log
+logs/
+.tmp/
+tmp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs & tests (not needed in image)
+docs/
+tests/
+test/
+*.md
+!README.md
+
+# Fabrik tooling (not needed in image)
+scripts/
+.windsurf/
+AGENTS*.md
+CLAUDE.md
+AFCL.md
