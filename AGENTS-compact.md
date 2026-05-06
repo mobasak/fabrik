@@ -27,6 +27,7 @@
 3. **User guide** — If the change is user-facing and `project.yaml` has `has_user_guide: true`, add/update a page in `docs/user-guide/`.
 4. **Reusable modules** — Utility code goes in `src/utils/` or `src/lib/` with zero project-specific imports; tag `[reusable]` in `INDEX.md`.
 5. **Naming** — All files/folders use kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `Makefile`, `Dockerfile`, Python packages (snake_case per PEP 8), auto-generated files, dotfiles.
+6. **Search before guessing** — For any 3rd-party API/SDK/vendor (Coolify, Paddle, Traefik, etc.), training data is stale. Use `web_search` / `web_fetch` MCPs to verify current docs. Cite source URL in code comment. If 3 calls don't resolve it, output `BLOCKED: <vendor> — <missing>` and stop. Skip for stdlib and language syntax.
 
 ---
 

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Search rules added to AGENTS-compact.md and CLAUDE.md (2026-05-06)
+
+`AGENTS-compact.md`: added item 6 under CROSS-CUTTING: "Search before guessing" — requires Kilo CLI agents to use web_search/web_fetch MCPs for 3rd-party API/SDK/vendor verification, cite sources, and output `BLOCKED:` if unresolved.
+
+`CLAUDE.md`: added bullet under Cross-Cutting: "Search, don't guess" — same behavioral rule for Claude Code agents on fabrik-claim-validator, using WebSearch/WebFetch tools.
+
+Both rules align with the new `.windsurfrules` "External Knowledge — Search, Don't Guess" section, ensuring consistent search discipline across all agent types (Cascade, Kilo CLI, Claude Code).
+
 ### Changed — External Knowledge search rule added to .windsurfrules (2026-05-06)
 
 `.windsurfrules`: replaced the `## Web Search Tools` inventory with a new behavioral rule `## External Knowledge — Search, Don't Guess`. The new rule provides a structured search ladder (repo-first, then external tools), defines when to search, and specifies a failure mode (`BLOCKED:`). The change maintains the same line count.

@@ -20,6 +20,7 @@ Solo dev (Özgür). WSL Ubuntu, Linux paths only. `python-api`, port **8002**, C
 - **Logging:** scaffolded logger only (`src/{package}/logger.py`). No `print()` in prod. Don't create custom logging modules.
 - **Reusable code:** `src/utils/` or `src/lib/`, zero project-specific imports, `[reusable]` tag in `INDEX.md`, docstrings + types.
 - **Lessons Learnt:** fill ticket's `Lessons Learnt:` line — `none` or structured entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
+- **Search, don't guess:** for any 3rd-party API/SDK/vendor (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n), training data is stale. Use available `WebSearch` / `WebFetch` tools, cite source URL in code comment. If 3 search calls don't resolve it, output `BLOCKED: <vendor> — <missing>` and stop. Skip for stdlib and language syntax.
 
 ## Hard Stops — NEVER
 

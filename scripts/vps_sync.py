@@ -287,9 +287,7 @@ def update_inventory_count(count: int, dry_run: bool = False) -> bool:
 # segment changes on every redeploy, silently breaking any config that pinned
 # to it (Gatus, Prometheus targets, custom proxies). This regex flags such
 # pinned hostnames so the drift detector can refuse to ship them.
-STALE_COOLIFY_ALIAS_RE = re.compile(
-    r"://[a-z][a-z0-9_-]*-[a-z0-9]{24}-[0-9]{10,13}\b"
-)
+STALE_COOLIFY_ALIAS_RE = re.compile(r"://[a-z][a-z0-9_-]*-[a-z0-9]{24}-[0-9]{10,13}\b")
 
 GATUS_APPS_DIR = "/opt/monitoring/configs/gatus/apps"
 
