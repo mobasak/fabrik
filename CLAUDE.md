@@ -43,6 +43,7 @@ Solo dev (Özgür). WSL Ubuntu, Linux paths only. **Fast but good. Ship, iterate
 | API service w/o `X-Internal-Token` | validate `SERVICE_INTERNAL_SECRET_KEY` header |
 | FastAPI `except Exception` without re-raising `HTTPException` first | always: `except HTTPException: raise` before generic catch — HTTPException is a subclass of Exception; bare catch converts 403/404 → 500 |
 | `fabrik redeploy` on git-sourced app without `git push` first | sequence is `git commit` → `git push` → `fabrik redeploy`; Coolify pulls from GitHub remote, not local `/opt/` clone |
+| `DB_HOST=localhost` or `DATABASE_URL=...@localhost:` in any env | always `postgres-main:5432` and `redis-main:6379` — `localhost` resolves to the container itself, not the shared DB |
 | `/tmp/` | project `.tmp/` |
 | class/module-level config | function-level only |
 | raw SQL DDL | Alembic migrations only; `db/schema.sql` reference only |

@@ -91,3 +91,23 @@ password = ''.join(secrets.choice(alphabet) for _ in range(32))
 ```
 
 Applies wherever a password/secret is generated programmatically (Authelia bootstrap, `fabrik scaffold` credential generation, manual ops scripts).
+
+## 7. Database & Cache Connection Strings (Docker environment)
+
+**CRITICAL — applies to every service deployed via Coolify/Fabrik:**
+
+| Variable | ❌ Wrong (local dev) | ✅ Correct (Docker/VPS) |
+|---|---|---|
+| `DB_HOST` | `localhost` | `postgres-main` |
+| `DATABASE_URL` | `...@localhost:5432/...` | `...@postgres-main:5432/...` |
+| `REDIS_URL` | `redis://localhost:6379` | `redis://redis-main:6379` |
+
+**Why:** Inside a Docker container, `localhost` is the container itself — not the host, not `postgres-main`. Every service on this VPS connects to shared databases via Docker network DNS names.
+
+**Rule:** Never use `localhost` in any `DATABASE_URL`, `DB_HOST`, `REDIS_URL`, or equivalent env var in production `.env` files or Coolify env var settings. Scaffold templates already emit the correct values — do not override them with localhost.
+
+**Verify before deploy:**
+```bash
+grep -E "^(DB_HOST|DATABASE_URL|REDIS_URL)=" .env | grep localhost
+# Should return nothing. If it returns anything, fix it first.
+```
