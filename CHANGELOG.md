@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — AGENTS-compact.md header: documented Kilo CLI injection limits (40,000 char hard cap, <15,000 char verbatim sweet spot) (2026-05-06)
+
+`AGENTS-compact.md`: replaced first-line HTML comment with Kilo CLI injection limits documentation. Documents hard cap of 40,000 characters (silent truncation from bottom), verbatim sweet spot of <15,000 chars / <150 lines, current state (~5,200 chars / ~84 lines). Guidance to use Markdown headers + tables + If-Then logic, avoid dense prose. This inline constraint documentation prevents future bloat.
+
 ### Changed — AGENTS-compact.md (Kilo CLI rules): added FIRST/FINAL OUTPUT blocks, ORIENT and LESSONS LEARNT steps, full Doc Sync Matrix, explicit git mutation rule. Brings Kilo contract to parity with Cascade/Claude Code/Traycer (2026-05-06)
 
 `AGENTS-compact.md`: replaced with updated version from Windows source (5211 chars, expected ~4,180). Changes: added FIRST OUTPUT (`RULES ACTIVE: KILO | <3 rules>`), added ORIENT step (read project.yaml/README/INDEX/compose before non-trivial work), rewrote EXIT step with explicit "Do NOT run git commit/push unless user said so this turn", added LESSONS LEARNT step, replaced 1-line doc-currency rule with full 13-row Doc Sync Matrix, added `/tmp/` ban and `package-lock` explicit in HARD STOPS, added 4-line FINAL OUTPUT block. Brings Kilo CLI contract to parity with Cascade, Claude Code, and Traycer agent contracts.

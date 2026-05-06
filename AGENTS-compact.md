@@ -1,4 +1,4 @@
-<!-- Read by Kilo CLI agents only (via opencode.json). Cascade reads .windsurfrules; Claude Code reads CLAUDE.md; Traycer reads AGENTS.md. Keep lean — Kilo is YOLO/headless and benefits from short, command-response rules. -->
+<!-- KILO CLI INJECTION LIMITS: hard cap 40,000 chars (silent truncation from bottom). Verbatim sweet spot <15,000 chars / <150 lines. Current: ~5,200 chars / ~84 lines. Use Markdown headers + tables + If-Then logic; avoid dense prose. Read by Kilo CLI only (via opencode.json). Cascade reads .windsurfrules; Claude Code reads CLAUDE.md; Traycer reads AGENTS.md. -->
 # Kilo CLI Agent Rules
 
 ## ⚠️ FIRST OUTPUT (every response)
