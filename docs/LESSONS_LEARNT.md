@@ -3629,3 +3629,70 @@ The repo's stop rule is "if a single fix vector fails 3× in a row, stop and con
 `AGENTS.md § Active Projects` hardcoded `35` projects while auto-gen scan said `49`; trailing empty backtick anchor (` `` `) rendered as broken markdown. § Tech Stack Defaults had two 4-cell rows in a 3-column table (MeiliSearch, PDF Generation duplicates).
 
 **Lesson:** Never duplicate numbers from auto-generated sources inline — always use `see X` pointers. Treat structurally-malformed markdown tables as gate-blockable, not stylistic.
+
+---
+
+# Lesson 36: Git-sourced Coolify apps — commits must be pushed to GitHub before redeploy
+
+**Date:** 2026-05-06  
+**Context:** `/opt/proxy` is a git-sourced Coolify app (deploys from `github.com:mobasak/proxy.git`). Fixes were committed locally to `/opt/proxy` then `fabrik redeploy` was triggered — but the container kept running the old code.
+
+**Root cause:** Coolify git-sourced apps pull from the **remote** (GitHub), not from the local `/opt/<project>` clone. Local commits that aren't pushed are invisible to Coolify. `fabrik redeploy` just triggers a `git pull` + rebuild from the configured remote.
+
+**Rule:** For git-sourced apps: `git commit` → **`git push`** → `fabrik redeploy`. Always in that order. Without the push, redeploy is a no-op rebuild from stale remote HEAD.
+
+**Detection:** If `fabrik redeploy` succeeds but the container still runs old code, check `git log origin/main` vs local `git log` — if they diverge, you forgot to push.
+
+---
+
+# Lesson 37: FastAPI `except Exception` swallows `HTTPException` — always re-raise it first
+
+**Date:** 2026-05-06  
+**Context:** Added `X-API-Key` auth to `/opt/proxy/api.py`. Auth dependency correctly raised `HTTPException(403)` but callers received `500` instead.
+
+**Root cause:** Route handlers wrapped the entire body in `try/except Exception as e: raise HTTPException(500)`. Since `HTTPException` is a subclass of `Exception`, the generic handler caught the 403 and re-raised it as 500, erasing the auth rejection.
+
+**Rule:** Every `except Exception` block in a FastAPI route must start with `except HTTPException: raise` before the generic catch. Without it, all intentional HTTP errors (auth, validation, 404) get silently converted to 500.
+
+**Pattern:**
+```python
+try:
+    ...
+except HTTPException:
+    raise          # ← always first
+except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+```
+
+---
+
+# Lesson 38: `self.DB_CONFIG` vs imported `DB_CONFIG` — silent localhost fallback
+
+**Date:** 2026-05-06  
+**Context:** `/opt/proxy/db_proxy_manager_api.py` called `psycopg2.connect(**self.DB_CONFIG)` but `DB_CONFIG` was never assigned to `self` — it was only imported at module level.
+
+**Root cause:** Python attribute lookup on `self.DB_CONFIG` raises `AttributeError` when the attribute doesn't exist, but psycopg2's `connect()` accepts `**{}` (empty dict) and falls back to libpq defaults — which means `localhost:5432`. No error at connection-creation time; error only surfaces when the actual TCP connect fails.
+
+**Rule:** When using a module-level config dict in a class method, reference it directly by its import name (`DB_CONFIG`), not via `self`. Add a startup assertion: `assert DB_CONFIG.get('host') != 'localhost'` in non-dev environments.
+
+---
+
+# Lesson 39: Open services audit — check Traefik middleware on every public route
+
+**Date:** 2026-05-06  
+**Context:** Security audit of all VPS services revealed multiple publicly accessible APIs with no auth: `proxy`, `captcha`, `image-broker`, `file-api`, `emailgateway`. Only services explicitly added to Authelia or with their own auth middleware were protected.
+
+**Rule:** After every `fabrik apply`, run:
+```bash
+ssh vps "sudo docker inspect $(sudo docker ps -q) --format '{{.Name}} | {{range \$k,\$v := .Config.Labels}}{{if contains \$k \"middlewares\"}}{{\\$v}}{{end}}{{end}}' | grep -v authelia | grep -v ipallow"
+```
+Any service with `traefik.enable=true` and no middleware entry is open. Every public-facing service must have either: (a) Authelia forward-auth, (b) IP allowlist, or (c) app-level API key auth.
+
+**Services status as of 2026-05-06:**
+- `proxy` → ✅ API key added (X-API-Key header)
+- `translator` → ✅ already had API key
+- `file-api` → ✅ already had Bearer auth (Supabase)
+- `emailgateway` → ✅ already had auth middleware
+- `captcha` → ⚠️ open — needs API key (swe-1.6 task)
+- `image-broker` → ⚠️ open — needs API key (swe-1.6 task)
+- `gatus` → ℹ️ read-only status page, acceptable open
