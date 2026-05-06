@@ -69,6 +69,8 @@ Skip: refactor-only / docs-only / test-only → `CHANGELOG.md` only.
 | create files outside project tree | local project paths only |
 | expose Docker ports via `ports:` | route through Traefik; Docker bypasses UFW |
 | admin dashboard w/o auth boundary | Authelia forward-auth (no native TOTP) OR app-layer TOTP (has one). See `docs/LESSONS_LEARNT.md §8.13` |
+| FastAPI `except Exception` without re-raising `HTTPException` first | always: `except HTTPException: raise` before generic catch — bare catch silently converts 403/404 → 500 |
+| `fabrik redeploy` on git-sourced app without `git push` first | sequence: `git commit` → `git push` → `fabrik redeploy`; Coolify pulls from GitHub remote, not local `/opt/` clone |
 | API service w/o `X-Internal-Token` | validate `SERVICE_INTERNAL_SECRET_KEY` header |
 | `/tmp/` | project `.tmp/` |
 

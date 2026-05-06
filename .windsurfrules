@@ -34,6 +34,7 @@
 | Rule | Instead |
 |:--|:--|
 | `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
+| `fabrik redeploy` without `git push` first (git-sourced apps) | always: `git commit` → `git push` → `fabrik redeploy`; Coolify pulls from GitHub, not local `/opt/` — skipping push redeploys stale code |
 | edit files outside ticket Scope | strict Scope only |
 | modify `pyproject.toml` / `requirements.txt` / `package.json` / `uv.lock` / `package-lock.json` | only if ticket explicitly authorises deps change |
 | create files outside project tree | local project paths only |
