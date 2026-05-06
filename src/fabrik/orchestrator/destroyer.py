@@ -270,6 +270,20 @@ def _destroy_prometheus(name: str, dry_run: bool) -> ActionResult:
 
 
 def _destroy_postgres(name: str, drop_data: bool, dry_run: bool) -> ActionResult:
+    """Drop the PostgreSQL database for a service.
+
+    **CAVEAT:** PostgreSQL data is preserved by default. You must pass
+    ``drop_data=True`` to drop the database. This is intentional to protect
+    against accidental data loss on teardown.
+
+    Args:
+        name: Service name (used to derive the database name).
+        drop_data: If True, drop the database. If False, skip deletion.
+        dry_run: If True, plan only without mutating state.
+
+    Returns:
+        ActionResult with status (skipped/removed/not_found/error).
+    """
     if not drop_data:
         return ActionResult(
             "postgres",

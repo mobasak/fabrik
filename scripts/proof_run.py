@@ -236,6 +236,9 @@ def cleanup(name: str, env: dict[str, str], log) -> None:
     log.write(f"\n━━━━━ cleanup({name}) ━━━━━\n")
 
     # 1. fabrik destroy (handles Coolify app + DNS + registrars + local tree)
+    # CAVEAT: Postgres and Meilisearch data are preserved by default.
+    # We pass --drop-data here because this is a throwaway-test-cleanup workflow.
+    # For production teardowns, omit --drop-data to protect against accidental data loss.
     spec_path = SPECS_DIR / f"{name}.yaml"
     if spec_path.exists():
         try:

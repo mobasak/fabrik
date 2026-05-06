@@ -2,7 +2,8 @@
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.
 
-**Last Updated:** 2026-05-06 (§9.9 G4/G5 marked closed — Redis `needs_cache` and Prometheus `exposes_metrics` registrars are live with drivers, applicability resolution, and provisioner methods. Template-defaults audit: chrome-extension/desktop-app/mobile-app `defaults.yaml` flipped from `kind: static` to `kind: service` so their scaffolded backends get GlitchTip; `next-tailwind/defaults.yaml` gained an explicit shape block (`is_public: true`) so Gatus auto-registers. Regression tests: `@/opt/fabrik/tests/orchestrator/test_template_defaults.py` (14 tests covering all 12 scaffold templates). Previous: 2026-05-05 — §2.1, §9.2, §9.3, §9.4 resynced with `cli.py` after G1/G2/G3/G7 closures. 2026-05-04 — initial §9.2 per-command factual pipeline tables + §9.9 infra-coverage matrix. 2026-04-28 — live-deploy proof for all 7 deployable scaffold types — see `@/opt/fabrik/PROOF.md`. 2026-04-22 — maximal-shape e2e on `python-api`, ~63s wall time, all 7 registrars green — see `_REGISTRAR_ORDER` in `src/fabrik/orchestrator/infrastructure.py`.)
+**Last Updated:** 2026-05-06 (§9.10 added — template-defaults registrar matrix, derived from live defaults.yaml HEAD).
+Previous: 2026-05-06 (§9.9 G4/G5 marked closed — Redis `needs_cache` and Prometheus `exposes_metrics` registrars are live with drivers, applicability resolution, and provisioner methods. Template-defaults audit: chrome-extension/desktop-app/mobile-app `defaults.yaml` flipped from `kind: static` to `kind: service` so their scaffolded backends get GlitchTip; `next-tailwind/defaults.yaml` gained an explicit shape block (`is_public: true`) so Gatus auto-registers. Regression tests: `@/opt/fabrik/tests/orchestrator/test_template_defaults.py` (14 tests covering all 12 scaffold templates). Previous: 2026-05-05 — §2.1, §9.2, §9.3, §9.4 resynced with `cli.py` after G1/G2/G3/G7 closures. 2026-05-04 — initial §9.2 per-command factual pipeline tables + §9.9 infra-coverage matrix. 2026-04-28 — live-deploy proof for all 7 deployable scaffold types — see `@/opt/fabrik/PROOF.md`. 2026-04-22 — maximal-shape e2e on `python-api`, ~63s wall time, all 7 registrars green — see `_REGISTRAR_ORDER` in `src/fabrik/orchestrator/infrastructure.py`.)
 **Backup of prior version:** `docs/archive/2026-04-28-DEPLOYMENT.md.backup.20260419-144040` (pre-rewrite)
 
 ## Table of Contents
@@ -802,6 +803,31 @@ The user's requested list vs. the code as of 2026-05-04. "Auto" means no per-ser
 | G10 | ~~`vps_sync.py --verify` only checked stale Gatus aliases; no audit for test residue across Coolify/GlitchTip/Postgres/Meili/DNS/Docker.~~ | **✅ CLOSED 2026-05-06** — `verify_residue()` added: 12-point audit (Coolify apps, GlitchTip projects, Gatus .bak files, Authelia orphan rules, Postgres DBs, Meilisearch indexes, Cloudflare DNS records, Docker dangling volumes/images, /tmp locks, /opt stale dirs, Backrest repos) with inline remediation commands, exit 1 on findings. Drift detection now covers both Gatus alias drift and full test residue cleanup. | ✅ Closed |
 
 ---
+
+### 9.10 Template-defaults registrar matrix (what fires on `fabrik apply` by default)
+
+Source of truth: live `templates/*/defaults.yaml` as of 2026-05-06. Derived by running
+`resolve_applicability()` against each template's default shape.
+
+✅ = fires by default (when `spec.domain` set where noted) · ⚙ = opt-in via spec flag · ✗ = never applicable
+
+| Template | kind | postgres | redis | gatus | backrest | glitchtip | grafana | authelia | meili | prometheus | DNS | Traefik | Loki/cAdvisor/etc |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **python-api** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ | ✅* | auto | auto |
+| **node-api** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ | ✅* | auto | auto |
+| **saas-skeleton** | service | ✅ | ⚙ | ✅* | ✅ | ✅ | ✅ | ⚙ | ⚙ | ⚙ | ✅* | auto | auto |
+| **next-tailwind** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ | ✅* | auto | auto |
+| **static-site** | static | ⚙ | ⚙ | ✅* | ⚙ | ✗ | ✅ | ⚙ | ⚙ | ⚙ | ✅* | auto | auto |
+| **docusaurus** | static | ⚙ | ⚙ | ✅* | ⚙ | ✗ | ✅ | ⚙ | ⚙ | ⚙ | ✅* | auto | auto |
+| **wordpress** | wordpress | ✅ | ⚙ | ✅* | ✅ | ✅ | ✅ | ⚙ | ⚙ | ⚙ | ✅* | auto | auto |
+| **file-api** | service | ⚙ | ⚙ | ✅* | ✅ | ✅ | ✅ | ⚙ | ⚙ | ⚙ | ✅* | auto | auto |
+| **file-worker** | worker | ⚙ | ⚙ | ✗ | ✅ | ✅ | ✅ | ✗ | ⚙ | ✗ | ✗ | ✗ | auto |
+| **chrome-extension** _(backend)_ | service | ⚙ | ⚙ | ⚙ | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ | ⚙ | auto | auto |
+| **desktop-app** _(backend)_ | service | ⚙ | ⚙ | ⚙ | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ | ⚙ | auto | auto |
+| **mobile-app** _(backend)_ | service | ⚙ | ⚙ | ⚙ | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ | ⚙ | auto | auto |
+
+`*` requires `spec.domain` to be set.
+chrome/desktop/mobile backends default `is_public: false` — Gatus is opt-in (flip `is_public: true` in spec when the backend has a stable public domain).
 
 ## 10. Secrets & `.env`
 
