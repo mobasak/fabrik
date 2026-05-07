@@ -8,7 +8,7 @@ fabrik vps-sync --verify                    # confirm clean
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.
 
-**Last Updated:** 2026-05-06 (§9.10 added — template-defaults registrar matrix, derived from live defaults.yaml HEAD).
+**Last Updated:** 2026-05-07 (§11.x added — 2026-05-06/07 lessons; §7.4 prometheus retention; §8.4 M2M auth; §10.4 canonical env vars).10 added — template-defaults registrar matrix, derived from live defaults.yaml HEAD).
 Previous: 2026-05-06 (§9.9 G4/G5 marked closed — Redis `needs_cache` and Prometheus `exposes_metrics` registrars are live with drivers, applicability resolution, and provisioner methods. Template-defaults audit: chrome-extension/desktop-app/mobile-app `defaults.yaml` flipped from `kind: static` to `kind: service` so their scaffolded backends get GlitchTip; `next-tailwind/defaults.yaml` gained an explicit shape block (`is_public: true`) so Gatus auto-registers. Regression tests: `@/opt/fabrik/tests/orchestrator/test_template_defaults.py` (14 tests covering all 12 scaffold templates). Previous: 2026-05-05 — §2.1, §9.2, §9.3, §9.4 resynced with `cli.py` after G1/G2/G3/G7 closures. 2026-05-04 — initial §9.2 per-command factual pipeline tables + §9.9 infra-coverage matrix. 2026-04-28 — live-deploy proof for all 7 deployable scaffold types — see `@/opt/fabrik/PROOF.md`. 2026-04-22 — maximal-shape e2e on `python-api`, ~63s wall time, all 7 registrars green — see `_REGISTRAR_ORDER` in `src/fabrik/orchestrator/infrastructure.py`.)
 **Backup of prior version:** `docs/archive/2026-04-28-DEPLOYMENT.md.backup.20260419-144040` (pre-rewrite)
 
@@ -397,7 +397,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 
 | Path | Purpose | Edit mechanism |
 |---|---|---|
-| `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config | Edit on VPS (volume-mounted) → `curl -X POST http://127.0.0.1:9090/-/reload` (port internal). |
+| `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config (7 static jobs + `fabrik-services` job at 30s). Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit on VPS → `cd /opt/prometheus && sudo docker compose restart` (`--web.enable-lifecycle` enabled but no curl in image). |
 | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | 9 alert rules (ContainerDown, HighCPU, HighMemory, OOMKilled, etc.) | Same pattern. |
 | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Routes, receivers (Telegram), inhibit rules | Edit → `docker restart alertmanager-...`. **Secret-bearing** (Telegram bot token). |
 | `/opt/monitoring/configs/gatus/config.yaml` | 30 uptime endpoints | **Git-versioned** (whitelisted in `drivers/locks.py::git_commit_config()`). Edit → `git commit` → deploy. |
@@ -880,6 +880,10 @@ Python: always `python-dotenv` or `pydantic-settings`.
 
 ---
 
+| `SERVICE_INTERNAL_SECRET_KEY` | All Fabrik API services | Shared M2M secret. One value, all services. Copy from `/opt/fabrik/.env`. Push to Coolify env for every deployed API service. Never rotated manually. |
+| `DATABASE_URL` / `DB_HOST` | Python services with DB | Always `postgres-main:5432` — never `localhost` (inside container, localhost = the container itself). |
+| `REDIS_URL` | Services using Redis | Always `redis-main:6379` — never `localhost`. |
+
 ## 11. Key Invariants Summary (from LESSONS_LEARNT)
 
 Every invariant below has a live-incident writeup in `docs/LESSONS_LEARNT.md`. Cross-reference the lesson number when adding new deploy code.
@@ -918,6 +922,19 @@ Every invariant below has a live-incident writeup in `docs/LESSONS_LEARNT.md`. C
 | 31 | Verify container env vars with `docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}'`, **never** `docker exec printenv` (fails on scratch/distroless with `OCI runtime exec failed`) | Lesson 31 |
 
 ---
+
+### 11.x New Lessons (2026-05-06/07)
+
+| Lesson | Rule |
+|---|---|
+| SIGHUP to Authelia exits the process (no hot-reload) | Always `docker restart <authelia-container>` after config changes. Never SIGHUP. |
+| cadvisor OOM at 256m with 40 containers | Set to 512m + add `--docker_only=true --disable_metrics=sched,tcp,udp,percpu,advtcp,hugetlb,...` to compose command |
+| Prometheus OOM at 512m scraping 40 containers | Set to 1g minimum + `--storage.tsdb.retention.size=5GB` |
+| Netdata cache unbounded growth (hit 2.2GB) | Set `NETDATA_DBENGINE_DISK_SPACE_MB=512` + `NETDATA_DBENGINE_RETENTION_DAYS=7` |
+| Per-service `X-API-Key` with different env var names | Canonical pattern: `X-Internal-Token` header + `SERVICE_INTERNAL_SECRET_KEY`; one shared key |
+| `from internal_auth import` fails when uvicorn uses `app.main:app` | Import must match module path: `from app.internal_auth import` when `uvicorn app.main:app` |
+| Prometheus lifecycle reload (`curl -X POST /-/reload`) fails — no curl in image | Use `cd /opt/prometheus && sudo docker compose restart` instead |
+| Business metrics: scaffold now emits `metrics.py` + `/metrics` endpoint | `prometheus-client>=0.21.0` in requirements; `fabrik-services` job in prometheus.yml (targets commented) |
 
 ## Appendix A: Quick reference — where to look
 
