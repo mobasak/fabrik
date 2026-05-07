@@ -330,6 +330,26 @@ Traycer injects rule-pack guidance into agent execution queries based on project
 5. `AGENTS-compact.md` carries the completion contract and cross-cutting rules for Kilo CLI agents. Stays under 60 lines.
 6. `final_gate.py` handles objective checks only; packs are enforced via injection, not gate.
 
+## Gatus Monitoring — Stable DNS Rule
+
+**Never use UUID container names in Gatus config.** Coolify single-image Applications assign `<app-uuid>-<timestamp>` as the container name — the timestamp changes on every redeploy, silently breaking monitoring.
+
+### After deploying a new single-image Application:
+1. Add stable alias to compose: `networks.coolify.aliases` in `/data/coolify/applications/<uuid>/docker-compose.yaml`
+2. Apply live: `docker network disconnect coolify <uuid-name> && docker network connect --alias <stable> --alias <uuid-name> coolify <uuid-name>`
+3. Register in `scripts/vps_apply_limits.sh` `apply_alias` section (reboot persistence)
+4. Gatus config: use `tcp://<stable-name>:<port>` — never the UUID form
+
+### Registered stable aliases (as of 2026-05-07)
+| Stable name | Container | Gatus URL |
+|---|---|---|
+| `browserless` | `vckgs8c00o40o884k48cgow8-220643454460` | `tcp://browserless:3000` |
+| `gotenberg` | `e04k4sco44ow04ccc0o0k00k-151256201601` | `tcp://gotenberg:3000` |
+| `meilisearch` | `bs0wo48k4gwo440gcowscoc8-150802066640` | `tcp://meilisearch:7700` |
+| `glitchtip-web` | `glitchtip-web-z00kkck8c8cwo800kk440csk` | `tcp://glitchtip-web:8000` |
+
+Coolify Service stacks (multi-container) use `container_name: <service>-<coolify-service-uuid>` which IS stable (UUID = Coolify service ID, doesn't change on redeploy).
+
 ## Post-Deploy Checklist (Every New Service)
 
 Run these 4 steps every time a new container is deployed via Coolify:

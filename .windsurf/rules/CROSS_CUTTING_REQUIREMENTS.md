@@ -153,3 +153,43 @@ import os, httpx
 headers = {"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]}
 resp = httpx.get("https://<service>.vps1.ocoron.com/api/endpoint", headers=headers)
 ```
+
+## 9. Gatus Monitoring — Stable DNS Names (Mandatory)
+
+**Rule:** Never use a UUID container name in Gatus config or any inter-service URL.
+
+Coolify generates two types of containers:
+- **Service stacks** (`/data/coolify/services/<uuid>/`): have a `container_name: <service>-<uuid>` that is stable because the UUID is the Coolify service ID (doesn't change on redeploy).
+- **Single-image Applications** (`/data/coolify/applications/<uuid>/`): container name is `<app-uuid>-<timestamp>` — the **timestamp** changes on every redeploy. DNS breaks silently.
+
+### For every new single-image Application deployed via Coolify:
+
+```bash
+# 1. Add stable alias to compose (persists through Coolify-managed redeploys)
+sudo python3 -c "
+import yaml
+path = '/data/coolify/applications/<app-uuid>/docker-compose.yaml'
+cfg = yaml.safe_load(open(path).read())
+svc = cfg['services']['<uuid-name>']
+svc['networks']['coolify']['aliases'].append('<stable-name>')
+open(path, 'w').write(yaml.dump(cfg, default_flow_style=False))
+"
+
+# 2. Apply alias to live container (zero-downtime)
+sudo docker network disconnect coolify <uuid-name>
+sudo docker network connect --alias <stable-name> --alias <uuid-name> coolify <uuid-name>
+
+# 3. Add to vps_apply_limits.sh (persists through VPS reboots)
+# Add: apply_alias <uuid-name> <stable-name>
+
+# 4. Use stable name in Gatus config
+# url: "tcp://<stable-name>:<port>"
+```
+
+### Currently registered stable aliases
+| Stable name | Container | Service |
+|---|---|---|
+| `browserless` | `vckgs8c00o40o884k48cgow8-220643454460` | Chromium headless |
+| `gotenberg` | `e04k4sco44ow04ccc0o0k00k-151256201601` | PDF (Gotenberg) |
+| `meilisearch` | `bs0wo48k4gwo440gcowscoc8-150802066640` | MeiliSearch |
+| `glitchtip-web` | `glitchtip-web-z00kkck8c8cwo800kk440csk` | GlitchTip web |

@@ -59,3 +59,30 @@ echo "=== Done ==="
 # Auto-update VPS docs after limits applied
 echo "📝 Updating VPS docs..."
 cd /opt/fabrik && python3 scripts/update_vps_docs.py 2>&1 | tail -5
+
+# ── Stable Docker network aliases (Gatus DNS fix) ──────────────────────────
+# Coolify single-image Applications generate UUID container names with no stable
+# DNS alias. These `network connect --alias` calls add a stable name that Gatus
+# and inter-service callers can rely on across redeploys.
+# Run automatically on every VPS reboot via this script.
+echo "Applying stable Docker network aliases..."
+
+apply_alias() {
+  local container=$1
+  local alias=$2
+  # Check container is running
+  if ! sudo docker inspect "$container" &>/dev/null; then
+    echo "  SKIP $alias: container $container not found"
+    return
+  fi
+  # Disconnect then reconnect with alias (idempotent)
+  sudo docker network disconnect coolify "$container" 2>/dev/null || true
+  sudo docker network connect --alias "$alias" --alias "$container" coolify "$container" 2>/dev/null \
+    && echo "  ✅ $alias → $container" \
+    || echo "  ⚠️  $alias: connect failed (may already be connected)"
+}
+
+apply_alias vckgs8c00o40o884k48cgow8-220643454460 browserless
+apply_alias e04k4sco44ow04ccc0o0k00k-151256201601  gotenberg
+apply_alias bs0wo48k4gwo440gcowscoc8-150802066640  meilisearch
+apply_alias glitchtip-web-z00kkck8c8cwo800kk440csk glitchtip-web
