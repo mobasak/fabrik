@@ -400,7 +400,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 | `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config (7 static jobs + `fabrik-services` job at 30s). Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit on VPS → `cd /opt/prometheus && sudo docker compose restart` (`--web.enable-lifecycle` enabled but no curl in image). |
 | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | 9 alert rules (ContainerDown, HighCPU, HighMemory, OOMKilled, etc.) | Same pattern. |
 | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Routes, receivers (Telegram), inhibit rules | Edit → `docker restart alertmanager-...`. **Secret-bearing** (Telegram bot token). |
-| `/opt/monitoring/configs/gatus/config.yaml` | 30 uptime endpoints | **Git-versioned** (whitelisted in `drivers/locks.py::git_commit_config()`). Edit → `git commit` → deploy. |
+| `/opt/monitoring/configs/gatus/` | Gatus blackbox monitoring — 6 subdirs, auto-reloads on file change. Never use UUID container names; use stable aliases (see §8.x). `_base.yaml` for global alerting → Apprise; group files per service type. | **Git-versioned** (whitelisted in `drivers/locks.py::git_commit_config()`). Edit → `git commit` → deploy. |
 | `/opt/monitoring/configs/loki/loki-config.yaml` | Loki storage config | Edit → `docker restart loki-...`. |
 | `/opt/monitoring/configs/promtail/promtail-config.yaml` | Log shipper → Loki | Edit → `docker restart promtail-...`. |
 
@@ -934,7 +934,8 @@ Every invariant below has a live-incident writeup in `docs/LESSONS_LEARNT.md`. C
 | Per-service `X-API-Key` with different env var names | Canonical pattern: `X-Internal-Token` header + `SERVICE_INTERNAL_SECRET_KEY`; one shared key |
 | `from internal_auth import` fails when uvicorn uses `app.main:app` | Import must match module path: `from app.internal_auth import` when `uvicorn app.main:app` |
 | Prometheus lifecycle reload (`curl -X POST /-/reload`) fails — no curl in image | Use `cd /opt/prometheus && sudo docker compose restart` instead |
-| Business metrics: scaffold now emits `metrics.py` + `/metrics` endpoint | `prometheus-client>=0.21.0` in requirements; `fabrik-services` job in prometheus.yml (targets commented) |
+| Business metrics: scaffold now emits `metrics.py` + `/metrics` endpoint |
+| Gatus UUID container names break silently on Coolify Application redeploy | Three-layer fix: compose alias + `docker network connect --alias` + `vps_apply_limits.sh apply_alias()`. Service stacks are stable; single-image Applications need the alias treatment. See CROSS_CUTTING_REQUIREMENTS.md §9. | `prometheus-client>=0.21.0` in requirements; `fabrik-services` job in prometheus.yml (targets commented) |
 
 ## Appendix A: Quick reference — where to look
 

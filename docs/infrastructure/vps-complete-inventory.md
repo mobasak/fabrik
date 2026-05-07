@@ -245,6 +245,48 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 
 ---
 
+## Gatus Monitoring Architecture
+
+**Config dir:** `/opt/monitoring/configs/gatus/` (volume-mounted at `/config` in container)
+**Auto-reload:** Gatus watches config dir, reloads within 30s of any file change — no container restart needed.
+**Alert chain:** Gatus → custom alerter → Apprise (`http://apprise:8000/notify/alerts`) → Telegram + others
+**Alerting defaults:** `failure-threshold: 3`, `success-threshold: 2`, `send-on-resolved: true`
+**Storage:** `type: memory` (no persistence; status dashboard only)
+**Connectivity check:** `1.1.1.1:53` (external DNS — VPS network health signal)
+
+### Config file structure
+```
+/opt/monitoring/configs/gatus/
+├── _base.yaml          # Global: alerting, storage, UI, connectivity
+├── core/infra.yaml     # traefik, authelia, coolify, n8n, apprise
+├── data/databases.yaml # postgres-main, redis-main, meilisearch
+├── observability/stack.yaml  # grafana, prometheus, alertmanager, loki, netdata
+├── apps/               # Per-service files (17 files, one per service)
+├── services/services.yaml    # gotenberg, browserless, glitchtip-web
+└── external/public.yaml      # 5 external HTTPS + SSL cert checks
+```
+
+### Stable DNS aliases — critical architecture rule
+Coolify single-image Applications (`/data/coolify/applications/<uuid>/`) use
+`container_name: <app-uuid>-<timestamp>`. The **timestamp changes on every redeploy**,
+silently breaking all `tcp://` or `http://` URLs that reference it.
+
+**Three-layer permanent fix implemented 2026-05-07:**
+1. Compose: `networks.coolify.aliases` contains both UUID and stable name
+2. Live: `docker network disconnect/connect --alias <stable>` (zero-downtime)
+3. Reboot: `scripts/vps_apply_limits.sh` `apply_alias()` function
+
+| Stable alias | UUID container | Port | Coolify app UUID |
+|---|---|---|---|
+| `browserless` | `vckgs8c00o40o884k48cgow8-220643454460` | 3000 | `vckgs8c00o40o884k48cgow8` |
+| `gotenberg` | `e04k4sco44ow04ccc0o0k00k-151256201601` | 3000 | `e04k4sco44ow04ccc0o0k00k` |
+| `meilisearch` | `bs0wo48k4gwo440gcowscoc8-150802066640` | 7700 | `bs0wo48k4gwo440gcowscoc8` |
+| `glitchtip-web` | `glitchtip-web-z00kkck8c8cwo800kk440csk` | 8000 | Coolify service (stable) |
+
+**Coolify Service stacks** (`/data/coolify/services/<uuid>/`) use `container_name: <service>-<coolify-service-uuid>`. The UUID here is the **Coolify service ID** — does NOT change on redeploy. These are already stable (authelia, loki, netdata, gatus, etc.).
+
+**For every new single-image Application:** see `CROSS_CUTTING_REQUIREMENTS.md §9`.
+
 ## Resource Limits Reference
 
 <!-- AUTO:limits_summary -->

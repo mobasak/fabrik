@@ -68,6 +68,19 @@ Key stored in `/opt/fabrik/.env` → push to Coolify env for each service.
 
 ---
 
+## Gatus Monitoring URLs
+
+| Purpose | URL |
+|---|---|
+| Public status page | `https://status.vps1.ocoron.com` |
+| Gatus internal health | `http://gatus:8080` (Docker internal) |
+
+### Stable Docker DNS aliases
+Gatus uses these names — never the raw UUID container names:
+`browserless:3000`, `gotenberg:3000`, `meilisearch:7700`, `glitchtip-web:8000`
+
+See `CROSS_CUTTING_REQUIREMENTS.md §9` for the full procedure when adding new single-image Applications.
+
 ## DNS Records (Cloudflare — all A → 172.93.160.197)
 
 Active subdomains under `*.vps1.ocoron.com`:

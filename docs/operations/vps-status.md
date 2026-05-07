@@ -181,6 +181,38 @@
 
 ---
 
+## Gatus Monitoring
+
+**Config:** `/opt/monitoring/configs/gatus/` (6 subdirs, volume-mounted, auto-reloads)
+**Alert path:** Gatus → Apprise → (Telegram / multi-channel)
+**Storage:** `type: memory` (leaner than SQLite; no persistence needed for status)
+**Status page:** `https://status.vps1.ocoron.com` (public, read-only)
+
+### Groups and endpoints
+| Group | Endpoints | Check type |
+|---|---|---|
+| `core` | traefik, authelia, coolify, n8n, apprise | TCP + HTTP health |
+| `data` | postgres-main, redis-main, meilisearch | TCP connect |
+| `observability` | grafana, prometheus, alertmanager, loki, netdata | HTTP health + body check |
+| `microservices` | captcha, translator, file-api, image-broker, email-gateway | HTTP /health |
+| `apps` | n8n, netdata, prometheus, site-provisioner, grafana, loki, alertmanager, backrest, apprise, glitchtip | HTTP health |
+| `services` | gotenberg, browserless, glitchtip-web | TCP connect |
+| `external` | coolify-public, status-page, glitchtip-public, search-public, monitor-public | HTTPS + `[CERTIFICATE_EXPIRATION] > 168h` |
+
+### Stable DNS aliases (Coolify single-image Application fix)
+Coolify assigns `<app-uuid>-<timestamp>` container names that break on redeploy.
+Four services have stable aliases registered:
+
+| Stable alias | Container | Port |
+|---|---|---|
+| `browserless` | `vckgs8c00o40o884k48cgow8-220643454460` | 3000 |
+| `gotenberg` | `e04k4sco44ow04ccc0o0k00k-151256201601` | 3000 |
+| `meilisearch` | `bs0wo48k4gwo440gcowscoc8-150802066640` | 7700 |
+| `glitchtip-web` | `glitchtip-web-z00kkck8c8cwo800kk440csk` | 8000 |
+
+Aliases persist via: compose file (Coolify redeploy) + `vps_apply_limits.sh` (VPS reboot).
+For new single-image Application: see `CROSS_CUTTING_REQUIREMENTS.md §9`.
+
 ## Resource Limits
 
 <!-- AUTO:limits_summary -->
