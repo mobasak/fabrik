@@ -191,7 +191,7 @@ Deployed once when bootstrapping the VPS; not touched by normal `fabrik apply` o
 
 | File | Deploys | Current state |
 |---|---|---|
-| `specs/infrastructure/monitoring-stack.yaml` | Prometheus, Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor (7 services) | ✅ deployed; all 7 migrated to Coolify 2026-04-17 |
+| `specs/infrastructure/monitoring-stack.yaml` | Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor (6 services in Coolify) + Prometheus standalone (1 service, `/opt/prometheus/compose.yaml`) | ✅ deployed. **6/7 in Coolify** (`coolify.type=service`). **Prometheus intentionally standalone** — Coolify strips `coolify` network attachments on service redeploy, breaking scrape targets. Managed via `cd /opt/prometheus && sudo docker compose up -d`. Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: `sudo docker compose restart` (no curl — no curl binary in image). |
 | `specs/infrastructure/authelia.yaml` + `authelia-coolify.yaml` | Authelia (SSO/2FA forward-auth) | ✅ deployed on Coolify |
 | `specs/infrastructure/apprise.yaml` | Apprise (notifications gateway) | ✅ deployed |
 | `specs/infrastructure/browserless.yaml` | Browserless (headless Chrome) | ✅ deployed |
