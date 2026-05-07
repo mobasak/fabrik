@@ -998,7 +998,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
 
     # Create requirements.txt (production dependencies only)
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\nprometheus-client>=0.21.0\n"
     )
 
     # Create requirements-dev.txt (includes dev dependencies)
@@ -1052,6 +1052,71 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         '        raise HTTPException(status_code=403, detail="Missing or invalid token")\n'
         '    return token\n'
     )
+    # metrics.py — Prometheus business metrics registry
+    # Usage: from {pkg}.metrics import REQUEST_COUNT, ERROR_COUNT, record_request
+    # Wire to FastAPI: app.mount("/metrics", make_asgi_app())
+    (package_dir / "metrics.py").write_text(
+        f'''"""
+Prometheus metrics for {name}.
+
+Business metrics — add counters/histograms here for domain events.
+Exposed at /metrics (wired in main.py lifespan).
+
+Usage example:
+    from {package_name}.metrics import REQUEST_COUNT, PROCESSING_SECONDS
+    REQUEST_COUNT.labels(endpoint="/api/translate", status="success").inc()
+"""
+import os
+
+from prometheus_client import CollectorRegistry, Counter, Histogram, make_asgi_app
+
+REGISTRY = CollectorRegistry()
+
+# ── Core request metrics (all services) ──────────────────────────────────────
+REQUEST_COUNT = Counter(
+    "fabrik_requests_total",
+    "Total HTTP requests processed",
+    ["endpoint", "status"],
+    registry=REGISTRY,
+)
+
+REQUEST_DURATION = Histogram(
+    "fabrik_request_duration_seconds",
+    "HTTP request duration in seconds",
+    ["endpoint"],
+    registry=REGISTRY,
+)
+
+# ── Business metrics (customize per service) ──────────────────────────────────
+# Example: rename/add counters relevant to this service's domain
+PROCESSING_COUNT = Counter(
+    "fabrik_{name.replace("-", "_")}_processed_total",
+    "Items successfully processed",
+    ["type"],
+    registry=REGISTRY,
+)
+
+ERROR_COUNT = Counter(
+    "fabrik_{name.replace("-", "_")}_errors_total",
+    "Processing errors",
+    ["type", "reason"],
+    registry=REGISTRY,
+)
+
+ACTIVE_JOBS = Histogram(
+    "fabrik_{name.replace("-", "_")}_job_duration_seconds",
+    "Job processing duration in seconds",
+    ["job_type"],
+    registry=REGISTRY,
+)
+
+
+def metrics_app():
+    """Return ASGI app for /metrics endpoint. Mount in main.py lifespan."""
+    return make_asgi_app(registry=REGISTRY)
+''')
+
+
 
     # logger.py — structlog JSON logger with service name from env
     (package_dir / "logger.py").write_text(
@@ -1153,6 +1218,11 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f"\n"
         f'app = FastAPI(title="{name}", lifespan=lifespan)\n'
         f"app.add_middleware(CorrelationMiddleware)\n"
+        f"\n"
+        f"# Prometheus metrics endpoint — scraped by Prometheus at /metrics\n"
+        f"# Add prometheus_scrape=true label in Coolify if using docker_sd_config\n"
+        f"from {package_name}.metrics import metrics_app\n"
+        f'app.mount("/metrics", metrics_app())\n'
         f"\n"
         f"\n"
         f'@app.get("/health")\n'
