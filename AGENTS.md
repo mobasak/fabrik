@@ -330,6 +330,12 @@ Traycer injects rule-pack guidance into agent execution queries based on project
 5. `AGENTS-compact.md` carries the completion contract and cross-cutting rules for Kilo CLI agents. Stays under 60 lines.
 6. `final_gate.py` handles objective checks only; packs are enforced via injection, not gate.
 
+## Authelia Config Changes
+**Never SIGHUP Authelia — it exits.** After any edit to `configuration.yml`:
+```bash
+ssh vps "sudo docker restart authelia-hks48k8sg8o4co4co08co00o"
+```
+
 ## Gatus Monitoring — Stable DNS Rule
 
 **Never use UUID container names in Gatus config.** Coolify single-image Applications assign `<app-uuid>-<timestamp>` as the container name — the timestamp changes on every redeploy, silently breaking monitoring.
@@ -396,6 +402,11 @@ import os, httpx
 headers = {"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]}
 resp = httpx.get("https://translator.vps1.ocoron.com/api/translate", headers=headers)
 ```
+
+**Scaffold emits (auto, no manual action):**
+- `internal_auth.py` — M2M auth module
+- `metrics.py` — Prometheus business metrics (REQUEST_COUNT, ERROR_COUNT, ACTIVE_JOBS)
+- `/metrics` endpoint — mounted in `main.py`, Authelia-bypassed
 
 **Key facts:**
 - One shared secret: `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`

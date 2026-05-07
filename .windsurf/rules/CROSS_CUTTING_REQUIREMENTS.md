@@ -147,6 +147,13 @@ Every Fabrik service that exposes HTTP endpoints must use the canonical internal
 
 **D — Health check:** `/health` endpoint must exist and return 200. Authelia bypass rule `*.vps1.ocoron.com → /health` covers it automatically. Set healthcheck interval to 60s in Coolify for stable services.
 
+### Scaffold-emitted files (python-api)
+Every `fabrik scaffold <name> --type python-api` automatically emits:
+- `<pkg>/internal_auth.py` — M2M auth (never write inline)
+- `<pkg>/metrics.py` — Prometheus counters (REQUEST_COUNT, ERROR_COUNT, ACTIVE_JOBS, PROCESSING_COUNT)
+- `/metrics` endpoint wired in `main.py` — Authelia-bypassed, Prometheus scrapes it
+- `SERVICE_INTERNAL_SECRET_KEY` in `.env.example`
+
 ### Calling a service (agent pattern)
 ```python
 import os, httpx
