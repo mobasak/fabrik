@@ -41,9 +41,11 @@ Solo dev (Özgür). WSL Ubuntu, Linux paths only. **Fast but good. Ship, iterate
 | Docker `ports:` exposure | route through Traefik (DOCKER-USER iptables blocks raw ports) |
 | admin dashboard w/o auth boundary | Authelia forward-auth OR app-layer TOTP (see `docs/LESSONS_LEARNT.md §8.13`) |
 | API service w/o `X-Internal-Token` | validate `SERVICE_INTERNAL_SECRET_KEY` header |
+| Writing inline `APIKeyHeader`/`require_api_key` for M2M | always copy `internal_auth.py` into service `app/` or `src/` dir; `from internal_auth import require_internal_token` — zero inline auth logic |
 | FastAPI `except Exception` without re-raising `HTTPException` first | always: `except HTTPException: raise` before generic catch — HTTPException is a subclass of Exception; bare catch converts 403/404 → 500 |
 | `fabrik redeploy` on git-sourced app without `git push` first | sequence is `git commit` → `git push` → `fabrik redeploy`; Coolify pulls from GitHub remote, not local `/opt/` clone |
 | `DB_HOST=localhost` or `DATABASE_URL=...@localhost:` in any env | always `postgres-main:5432` and `redis-main:6379` — `localhost` resolves to the container itself, not the shared DB |
+| Authelia config reload via SIGHUP | Authelia exits on SIGHUP, does NOT hot-reload — always `docker restart <authelia-container>` after config edits |
 | `/tmp/` | project `.tmp/` |
 | class/module-level config | function-level only |
 | raw SQL DDL | Alembic migrations only; `db/schema.sql` reference only |

@@ -111,3 +111,22 @@ Applies wherever a password/secret is generated programmatically (Authelia boots
 grep -E "^(DB_HOST|DATABASE_URL|REDIS_URL)=" .env | grep localhost
 # Should return nothing. If it returns anything, fix it first.
 ```
+
+## 8. M2M Service-to-Service Authentication
+
+Every Fabrik service that exposes HTTP endpoints must use the canonical internal auth pattern:
+
+| Variable | Value |
+|---|---|
+| Header | `X-Internal-Token` |
+| Env var | `SERVICE_INTERNAL_SECRET_KEY` |
+| Module | `internal_auth.py` (copy into `app/` or `src/`) |
+| Import | `from internal_auth import require_internal_token` |
+| Validation | `hmac.compare_digest` / `timingSafeEqual` (constant-time) |
+
+**Never** write inline `APIKeyHeader`/`require_api_key` logic. Never use per-service key names (`SERVICE_API_KEY`, `PROXY_API_KEY`).
+
+### Authelia config changes
+- Authelia does **NOT** support SIGHUP hot-reload — it exits.
+- After any edit to `configuration.yml`: `docker restart <authelia-container-name>`
+- Get container name: `ssh vps "sudo docker ps --filter name=authelia --format '{{.Names}}'"`

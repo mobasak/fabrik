@@ -1,3 +1,9 @@
+# You run this yourself in WSL — takes seconds
+fabrik apply specs/services/myapp.yaml      # provision infra + deploy
+fabrik redeploy fabrik-myapp                # redeploy
+fabrik destroy specs/services/myapp.yaml    # teardown
+fabrik vps-sync --verify                    # confirm clean
+
 # Deployment — Canonical Reference
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Document Postgres/Meilisearch data preservation caveat (2025-01-20)
+- Added docstrings to `_destroy_meilisearch` and `_destroy_postgres` in `destroyer.py` clarifying that data is preserved by default and requires `--drop-data` flag to delete
+- Added comment in `proof_run.py` explaining why it uses `--drop-data` (throwaway-test-cleanup workflow)
+
 ### Fixed — vps_sync.py: residue cleanup performed (18 findings: 1 Coolify app, 1 Postgres DB, 14 Cloudflare DNS records, 2 Meili indexes not deployed) (2026-05-06)
 
 `scripts/vps_sync.py`: executed `--verify` residue audit and cleaned 18 findings across VPS infrastructure. Actions taken: (1) Deleted Coolify app `test-quick-deploy` via CLI (queued); (2) Dropped Postgres DB `test_quick_deploy`; (3) Attempted Meili index cleanup for `test_quick_deploy` and `test-quick-deploy` (container not deployed - skipped); (4) Deleted 14 Cloudflare DNS records via `fabrik domain cleanup test_quick_deploy` (13 successful, 1 already deleted). Added G10 gap row to `docs/DEPLOYMENT.md` §9.9 documenting residue audit workflow.

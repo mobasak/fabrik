@@ -24,15 +24,15 @@ echo "=== VPS resource limits ==="
 
 # Observability
 apply alertmanager-   256m
-apply apprise-        256m
-apply cadvisor-       256m
+apply apprise-        512m
+apply cadvisor-       512m
 apply gatus-          256m
 apply grafana-        512m
 apply loki-           512m
-apply netdata-        512m
+apply netdata-        768m
 apply node-exporter-  128m
 apply promtail-       128m
-apply prometheus      512m
+apply prometheus      1g
 
 # Auth & ops
 apply authelia-       512m
