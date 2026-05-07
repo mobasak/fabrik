@@ -87,3 +87,9 @@ CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 ```
 Missing any line = task failure. Run gate; if `failure`, fix and re-run until `success`, then output the 4 lines.
+
+## Post-Deploy Steps (every new service)
+A. Network: `coolify` Docker network (default ✅)
+B. Labels: scaffold emits — verify `gzip@docker` on all routes
+C. Env: push `SERVICE_INTERNAL_SECRET_KEY` from `/opt/fabrik/.env` to Coolify
+D. Health: `/health` is Authelia-bypassed — interval 60s for stable services

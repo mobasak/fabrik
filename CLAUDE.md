@@ -46,6 +46,9 @@ Solo dev (Özgür). WSL Ubuntu, Linux paths only. **Fast but good. Ship, iterate
 | `fabrik redeploy` on git-sourced app without `git push` first | sequence is `git commit` → `git push` → `fabrik redeploy`; Coolify pulls from GitHub remote, not local `/opt/` clone |
 | `DB_HOST=localhost` or `DATABASE_URL=...@localhost:` in any env | always `postgres-main:5432` and `redis-main:6379` — `localhost` resolves to the container itself, not the shared DB |
 | Authelia config reload via SIGHUP | Authelia exits on SIGHUP, does NOT hot-reload — always `docker restart <authelia-container>` after config edits |
+| Health check `/health` behind auth | Authelia bypass rule covers `*.vps1.ocoron.com → /health` automatically — never protect `/health` |
+| Binding container ports to host directly | all services must be on `coolify` Docker network only; let Traefik route — never expose raw container ports |
+| Not wiring `gzip@docker` middleware on router | scaffold emits it automatically; admin UIs: `authelia-forward@docker,gzip@docker`; API services: `gzip@docker`; public: none |
 | `/tmp/` | project `.tmp/` |
 | class/module-level config | function-level only |
 | raw SQL DDL | Alembic migrations only; `db/schema.sql` reference only |

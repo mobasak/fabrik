@@ -14,6 +14,11 @@ services:
       - "traefik.http.routers.{{ spec.id }}.tls=true"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
       - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=3000"
+      {% if spec.shape and spec.shape.is_admin_dashboard %}
+      - "traefik.http.routers.{{ spec.id }}.middlewares=authelia-forward@docker,gzip@docker"
+      {% else %}
+      - "traefik.http.routers.{{ spec.id }}.middlewares=gzip@docker"
+      {% endif %}
     {% endif %}
     environment:
       - NODE_ENV=${NODE_ENV:-production}

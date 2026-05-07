@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-05-06T11:59:06.744976",
-  "total_models": 352,
+  "timestamp": "2026-05-07T11:59:06.643576",
+  "total_models": 350,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -79,11 +79,6 @@
     },
     "allenai/olmo-3-32b-think": {
       "id": "allenai/olmo-3-32b-think",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "allenai/olmo-3.1-32b-instruct": {
-      "id": "allenai/olmo-3.1-32b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -889,11 +884,6 @@
     },
     "nvidia/nemotron-3-super-120b-a12b:free": {
       "id": "nvidia/nemotron-3-super-120b-a12b:free",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "nvidia/nemotron-nano-12b-v2-vl": {
-      "id": "nvidia/nemotron-nano-12b-v2-vl",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

@@ -117,7 +117,7 @@ All files and folders use **kebab-case** unless listed as an exception.
 |-------|--------|-----------|
 | **Iptables (DOCKER-USER)** | All Docker ports | Blocks external access to raw container ports. Only 80/443/6001/6002 allowed. |
 | **Authelia** | Admin dashboards w/o native TOTP | Forward-auth 2FA for n8n, Netdata, Backrest, Apprise; + forward-auth with `^/api/` bypass for Coolify, Grafana. **Note:** GlitchTip is on full-bypass — uses app-layer django-allauth TOTP instead (canonical Sentry pattern). See `docs/LESSONS_LEARNT.md §8.13` for the decision matrix. |
-| **X-Internal-Token** | API services | Machine-to-machine auth for Gotenberg, Browserless, MeiliSearch, etc. |
+| **X-Internal-Token** | API services | Machine-to-machine auth for all Fabrik API services. Header: `X-Internal-Token`. Env: `SERVICE_INTERNAL_SECRET_KEY` (shared across all services). Module: `internal_auth.py` in each service's `app/` or `src/`. |
 | **Traefik** | Public sites | Routes traffic without auth for ocoron.com, status page |
 
 **Key files on VPS:**
@@ -329,6 +329,61 @@ Traycer injects rule-pack guidance into agent execution queries based on project
 4. Injection is performed by Traycer at query-construction time. Agents do not self-select packs.
 5. `AGENTS-compact.md` carries the completion contract and cross-cutting rules for Kilo CLI agents. Stays under 60 lines.
 6. `final_gate.py` handles objective checks only; packs are enforced via injection, not gate.
+
+## Post-Deploy Checklist (Every New Service)
+
+Run these 4 steps every time a new container is deployed via Coolify:
+
+**A — Network:** Confirm container is on the `coolify` Docker network (Coolify default ✅). Never expose raw ports to host — let Traefik route.
+
+**B — Traefik Labels:** Scaffold emits correct labels automatically. Verify:
+- Admin UI → `authelia-forward@docker,gzip@docker` middleware
+- API service → `gzip@docker` middleware (auth is app-layer X-Internal-Token)
+- Public service → no auth middleware
+
+**C — Env Vars in Coolify:** For every new API service:
+1. Add `SERVICE_INTERNAL_SECRET_KEY` — copy value from `/opt/fabrik/.env`
+2. Add `DATABASE_URL` using `postgres-main:5432` (never `localhost`)
+3. Add `REDIS_URL` using `redis-main:6379` (never `localhost`)
+
+**D — Health Check:** Verify `/health` endpoint returns 200. It is bypassed in Authelia automatically via `*.vps1.ocoron.com` → `/health` rule. Default healthcheck interval is 30s — set to 60s in Coolify for stable services.
+
+## M2M Authentication — Implementation Rules
+
+All Fabrik API services use `X-Internal-Token`. **Never** write inline auth logic.
+
+### Python (FastAPI)
+```python
+# File: app/internal_auth.py or src/internal_auth.py (scaffold emits this automatically)
+from app.internal_auth import require_internal_token  # if uvicorn app.main:app
+# OR
+from internal_auth import require_internal_token  # if uvicorn api:app (root-level)
+
+# In router:
+router = APIRouter(dependencies=[Depends(require_internal_token)])
+```
+
+### Node.js (Fastify)
+```javascript
+// File: src/internal_auth.js (scaffold emits this automatically)
+import { requireInternalToken } from './internal_auth.js';
+fastify.addHook('preHandler', requireInternalToken);
+```
+
+### Calling a service from another service
+```python
+import os, httpx
+headers = {"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]}
+resp = httpx.get("https://translator.vps1.ocoron.com/api/translate", headers=headers)
+```
+
+**Key facts:**
+- One shared secret: `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`
+- Same key pushed to Coolify env for every deployed service
+- Validation is constant-time (`hmac.compare_digest` / `timingSafeEqual`)
+- Health check `/health` is NOT protected (Authelia bypass rule covers it)
+- `file-api` uses Supabase Bearer JWT instead (user auth, different pattern)
+- `site-provisioner` uses Traefik IP allowlist (no app-level auth)
 
 ## Environment Constraints
 

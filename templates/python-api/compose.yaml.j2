@@ -20,7 +20,10 @@ services:
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
       - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port={{ svc_port }}"
       {% if spec.shape and spec.shape.is_admin_dashboard %}
-      - "traefik.http.routers.{{ spec.id }}.middlewares=authelia-forward@docker"
+      - "traefik.http.routers.{{ spec.id }}.middlewares=authelia-forward@docker,gzip@docker"
+      {% elif spec.shape and not spec.shape.is_public %}
+      {# API service — gzip only; auth is app-layer X-Internal-Token, not Traefik #}
+      - "traefik.http.routers.{{ spec.id }}.middlewares=gzip@docker"
       {% endif %}
     {% endif %}
     {% if spec.source.image_command %}

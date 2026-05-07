@@ -130,3 +130,26 @@ Every Fabrik service that exposes HTTP endpoints must use the canonical internal
 - Authelia does **NOT** support SIGHUP hot-reload — it exits.
 - After any edit to `configuration.yml`: `docker restart <authelia-container-name>`
 - Get container name: `ssh vps "sudo docker ps --filter name=authelia --format '{{.Names}}'"`
+
+### Post-deploy checklist (every new service)
+
+**A — Network:** All containers must be on `coolify` Docker network. Never bind ports to host. Let Traefik route via labels.
+
+**B — Traefik labels:** Scaffold emits these automatically. Verify pattern:
+- Admin dashboard → `authelia-forward@docker,gzip@docker`
+- API service (X-Internal-Token auth) → `gzip@docker`
+- Public service → no auth middleware
+
+**C — Environment variables in Coolify:**
+- `SERVICE_INTERNAL_SECRET_KEY` — same value as `/opt/fabrik/.env`
+- `DATABASE_URL` → `postgresql://...@postgres-main:5432/<db>` (never localhost)
+- `REDIS_URL` → `redis://redis-main:6379/0` (never localhost)
+
+**D — Health check:** `/health` endpoint must exist and return 200. Authelia bypass rule `*.vps1.ocoron.com → /health` covers it automatically. Set healthcheck interval to 60s in Coolify for stable services.
+
+### Calling a service (agent pattern)
+```python
+import os, httpx
+headers = {"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]}
+resp = httpx.get("https://<service>.vps1.ocoron.com/api/endpoint", headers=headers)
+```

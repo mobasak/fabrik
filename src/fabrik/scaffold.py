@@ -751,7 +751,19 @@ def _scaffold_shared(
     )
     # Example .env template with placeholder values (not real credentials)
     (project_dir / ".env.example").write_text(
-        f"# {name} Configuration\n# Required\nPORT=8000\nLOG_LEVEL=INFO\n\n# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n"
+        f"# {name} Configuration\n"
+        f"# Required\n"
+        f"PORT=8000\n"
+        f"LOG_LEVEL=INFO\n"
+        f"\n"
+        f"# M2M Authentication — REQUIRED for all Fabrik API services\n"
+        f"# Value: copy SERVICE_INTERNAL_SECRET_KEY from /opt/fabrik/.env\n"
+        f"# Set via Coolify env vars on deploy (never hardcode the real value here)\n"
+        f"SERVICE_INTERNAL_SECRET_KEY=change-me-copy-from-fabrik-env\n"
+        f"\n"
+        f"# Optional - uncomment if using database\n"
+        f"# DATABASE_URL=postgresql://postgres:<pass>@postgres-main:5432/{name}_dev\n"
+        f"# REDIS_URL=redis://redis-main:6379/0\n"
     )
 
     # Note: templates/docs/ removed - templates/scaffold/docs/ is the canonical source
@@ -1009,6 +1021,37 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
     package_dir = project_dir / "src" / package_name
     package_dir.mkdir(parents=True, exist_ok=True)
     (package_dir / "__init__.py").write_text("")
+
+    # internal_auth.py — canonical M2M auth module (X-Internal-Token pattern)
+    # Agents: always use require_internal_token from this module, never inline auth logic
+    (package_dir / "internal_auth.py").write_text(
+        '"""\n'
+        "Canonical internal token auth — shared M2M auth pattern for all Fabrik services.\n"
+        "Header:  X-Internal-Token\n"
+        "Env var: SERVICE_INTERNAL_SECRET_KEY\n"
+        "\n"
+        "Usage:\n"
+        f"  from {package_name}.internal_auth import require_internal_token\n"
+        "  # In router: dependencies=[Depends(require_internal_token)]\n"
+        '"""\n'
+        "import hmac\n"
+        "import os\n"
+        "\n"
+        "from fastapi import HTTPException, Security\n"
+        "from fastapi.security.api_key import APIKeyHeader\n"
+        "\n"
+        "_HEADER = APIKeyHeader(name=\"X-Internal-Token\", auto_error=False)\n"
+        "\n"
+        "\n"
+        "def require_internal_token(token: str = Security(_HEADER)) -> str:\n"
+        '    """FastAPI dependency — validates X-Internal-Token in constant time."""\n'
+        '    expected = os.getenv("SERVICE_INTERNAL_SECRET_KEY", "")\n'
+        '    if not token or not expected:\n'
+        '        raise HTTPException(status_code=403, detail="Missing or invalid token")\n'
+        '    if not hmac.compare_digest(token, expected):\n'
+        '        raise HTTPException(status_code=403, detail="Missing or invalid token")\n'
+        '    return token\n'
+    )
 
     # logger.py — structlog JSON logger with service name from env
     (package_dir / "logger.py").write_text(
@@ -1375,6 +1418,36 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
 
     # a) Create src/ directory
     (project_dir / "src").mkdir(parents=True, exist_ok=True)
+
+    # src/internal_auth.js — canonical M2M auth for Node.js Fastify services
+    (project_dir / "src" / "internal_auth.js").write_text(
+        "/**\n"
+        " * Canonical internal token auth for Fabrik Node.js services.\n"
+        " * Header:  X-Internal-Token\n"
+        " * Env var: SERVICE_INTERNAL_SECRET_KEY\n"
+        " * Usage: import { requireInternalToken } from './internal_auth.js';\n"
+        " *        fastifyApp.addHook('preHandler', requireInternalToken);\n"
+        " */\n"
+        "import { timingSafeEqual } from 'node:crypto';\n"
+        "\n"
+        "function safeCompare(a, b) {\n"
+        "  try {\n"
+        "    const ba = Buffer.from(a);\n"
+        "    const bb = Buffer.from(b);\n"
+        "    if (ba.length !== bb.length) return false;\n"
+        "    return timingSafeEqual(ba, bb);\n"
+        "  } catch { return false; }\n"
+        "}\n"
+        "\n"
+        "export async function requireInternalToken(request, reply) {\n"
+        "  const token = request.headers['x-internal-token'];\n"
+        "  const secret = process.env.SERVICE_INTERNAL_SECRET_KEY ?? '';\n"
+        "  if (!token || !secret || !safeCompare(token, secret)) {\n"
+        "    return reply.code(403).send({ error: 'Missing or invalid token' });\n"
+        "  }\n"
+        "}\n"
+    )
+
 
     # b) Copy and patch Dockerfile.node -> Dockerfile
     dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.node"

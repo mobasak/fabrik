@@ -37,6 +37,9 @@
 | `fabrik redeploy` without `git push` first (git-sourced apps) | always: `git commit` → `git push` → `fabrik redeploy`; Coolify pulls from GitHub, not local `/opt/` — skipping push redeploys stale code |
 | `DB_HOST=localhost` / `DATABASE_URL=...@localhost:` in `.env` or Coolify env vars | always use Docker service names: `postgres-main:5432`, `redis-main:6379` — `localhost` inside a container is the container itself, not the host |
 | Authelia config reload via SIGHUP | Authelia exits on SIGHUP, does NOT hot-reload — always `docker restart <authelia-container>` after config edits |
+| Health check `/health` behind auth | Authelia bypass rule covers `*.vps1.ocoron.com → /health` automatically — never protect `/health` |
+| Binding container ports to host directly | all services must be on `coolify` Docker network only; let Traefik route — never expose raw container ports |
+| Not wiring `gzip@docker` middleware on router | scaffold emits it automatically; admin UIs: `authelia-forward@docker,gzip@docker`; API services: `gzip@docker`; public: none |
 | edit files outside ticket Scope | strict Scope only |
 | modify `pyproject.toml` / `requirements.txt` / `package.json` / `uv.lock` / `package-lock.json` | only if ticket explicitly authorises deps change |
 | create files outside project tree | local project paths only |
