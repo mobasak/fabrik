@@ -336,6 +336,9 @@ Changes: 7 projects (`gmailaccountcreator`, `image-generation`, `llm_batch_proce
 ### Grafana — 5 dashboards provisioned
 The Fabrik observability stack now ships with 5 dashboards in the `Fabrik` folder, auto-loaded from `/opt/monitoring/configs/grafana/provisioning/json-dashboards/` via the existing `provisioning` bind mount. **No compose changes were needed** — the cleanest deploy path. See dashboard catalog earlier in this doc.
 
+### Healthcheck override — redis-exporter (2026-05-08)
+The `oliver006/redis_exporter:v1.66.0` image is distroless (no `wget`, no shell). Its baked-in healthcheck `[CMD wget -qO- http://localhost:9121/metrics]` cannot execute, producing a permanent `(unhealthy)` status — purely cosmetic since metrics flow normally. Fix in `/opt/monitoring/compose.yaml`: `healthcheck.disable: true`. Liveness signal is now Prometheus's `up{job="redis"}` metric, which is more reliable for an exporter than any internal check. `postgres-exporter` keeps its image healthcheck because the `prometheuscommunity/postgres-exporter` image bundles wget.
+
 ## Known Issues
 
 > Issues #1, #2 RESOLVED 2026-05-08 by systemd watcher services. Issue #3 documented as a permanent operational gotcha. See `docs/infrastructure/vps-complete-inventory.md` for full Issue #1/#2/#3/#4 history with root causes and solutions; see `docs/operations/deployment.md` for the 8 deployment gotchas.

@@ -463,29 +463,46 @@ Single-call updates miss the duplicate. Bulk-update endpoint behaves the same.
 
 **Tracking:** captured in `deployment.md` Gotcha 7. Future Fabrik orchestrator env-injection should iterate over all rows by default.
 
-### Issue 4: `/opt/monitoring/compose.yaml` is a wishful aggregated reference, NOT what Coolify deploys
+### Issue 4: `/opt/monitoring/compose.yaml` is a HYBRID file — partly aggregated reference, partly source of truth
 
-**Discovered:** 2026-05-08 during Grafana dashboard deployment.
+**Discovered:** 2026-05-08 during Grafana dashboard deployment + redis-exporter healthcheck fix.
 
-**Reality:** Coolify deploys each "service" in `/opt/monitoring/compose.yaml` (grafana, loki, prometheus, promtail, alertmanager, gatus, cadvisor, netdata, node-exporter, postgres-exporter, redis-exporter, meilisearch, gotenberg, browserless, glitchtip-web, glitchtip-worker) as a **separate Coolify Service**, each with its own UUID and its own DB-stored compose. Examples:
+**The reality is hybrid.** The 198-line file at `/opt/monitoring/compose.yaml` contains ~16 service definitions, but they fall into **two categories** with different deployment lifecycles:
 
-| Container | Coolify Service UUID | Coolify project name |
+#### Category A — Coolify-managed (the majority)
+For these, the disk file is a **wishful aggregated reference** for human readability. Coolify stores its own `docker_compose_raw` per Service in its DB. Editing the disk file changes nothing.
+
+| Container | Coolify Service UUID | Compose lifecycle |
 |---|---|---|
-| `grafana-loc484owg8gsw04owo0go8kc` | `loc484owg8gsw04owo0go8kc` | (per-service) |
-| `loki-r48swckog008wosgwcs4g0g0` | `r48swckog008wosgwcs4g0g0` | (per-service) |
-| `prometheus` | (project=prometheus, separate Coolify Service) | — |
-| `promtail-w0000ckgsgg048w0848okk08` | `w0000ckgsgg048w0848okk08` | (per-service) |
+| `grafana-loc484owg8gsw04owo0go8kc` | `loc484owg8gsw04owo0go8kc` | Coolify Service → `docker_compose_raw` in DB |
+| `loki-r48swckog008wosgwcs4g0g0` | `r48swckog008wosgwcs4g0g0` | Coolify Service → `docker_compose_raw` in DB |
+| `prometheus` | (separate Coolify project) | Coolify Service → `docker_compose_raw` in DB |
+| `promtail-w0000ckgsgg048w0848okk08` | `w0000ckgsgg048w0848okk08` | Coolify Service → `docker_compose_raw` in DB |
+| `alertmanager`, `gatus`, `cadvisor`, `netdata`, `node-exporter` | (each its own Coolify Service) | Coolify Service → `docker_compose_raw` in DB |
+| `meilisearch`, `gotenberg`, `browserless` | (each is a Coolify **Application**, not Service) | Coolify Application → git build pipeline |
 
-The disk file at `/opt/monitoring/compose.yaml` is ~198 lines covering all services. Each Coolify Service's actual compose (in `services` table column `docker_compose_raw`) is ~30–50 lines containing only that one service. **Editing the disk file changes nothing in production.**
+#### Category B — Host-managed sidecars (the minority — 2 services)
+These were added as plain `docker compose` containers from `/opt/monitoring/compose.yaml`, not via Coolify. **For these, the disk file IS the source of truth** and edits propagate via `docker compose up -d --no-deps --force-recreate <name>`.
 
-**Operational implication:**
-- Volume bind mounts in the disk file don't apply to running containers — the running container's mounts come from Coolify-stored compose. Use `docker inspect <name> --format '{{ range .Mounts }}{{ .Source }} -> {{ .Destination }}{{ println }}{{ end }}'` to see the actual mounts.
-- Running `docker compose -f /opt/monitoring/compose.yaml up -d <svc>` from the host will create **competing standalone containers and volumes** (since `container_name:` is set) without affecting the Coolify-deployed ones. This was hit during this session and produced 1 orphan `loki` container + 3 dangling `monitoring_*` volumes. Cleaned up.
-- The right path for editing observability service compose is via the Coolify UI or API on the specific Service.
+| Container | Project label | Compose lifecycle |
+|---|---|---|
+| `postgres-exporter` | `monitoring` | Plain docker compose, `restart: unless-stopped` |
+| `redis-exporter` | `monitoring` | Plain docker compose, `restart: unless-stopped` |
 
-**Workaround for "extending an existing service" (e.g. adding a dashboard mount to Grafana):**
-- Look first at the existing bind mounts of the running container.
-- If a parent dir is already bind-mounted, drop new files inside it on the host — they appear inside the container without any compose change. (This is how Gap #4 dashboards were deployed: dropped under the existing `/opt/monitoring/configs/grafana/provisioning` bind mount.)
-- Otherwise, edit the Coolify Service's compose via API/UI and trigger a Service redeploy.
+**How to tell them apart:**
+```bash
+sudo docker inspect <container> --format '{{ index .Config.Labels "coolify.serviceId" }} | {{ index .Config.Labels "com.docker.compose.project" }}'
+```
+Empty serviceId + `com.docker.compose.project=monitoring` → Category B (host-managed). Otherwise → Category A (Coolify-managed).
+
+**Why the hybrid is acceptable:**
+- Postgres & Redis exporters are simple read-only sidecars, no persistent state, no migration risk.
+- `restart: unless-stopped` survives reboots; behavior matches Coolify-managed containers in practice.
+- Migrating them under Coolify management would require creating Coolify Services and is not strictly necessary.
+
+**Operational cautions when working with the file:**
+1. Bind-mount edits in the file ONLY apply to Category B services. For Category A, look at running container's actual mounts via `docker inspect`.
+2. `docker compose -f /opt/monitoring/compose.yaml up -d <svc>` for Category A creates **competing standalone containers and volumes** alongside the Coolify-managed ones (project=`monitoring`). This was hit during this session: `up -d grafana` created an orphan `loki` container + 3 dangling `monitoring_*` volumes. Cleaned up.
+3. Use `--no-deps --force-recreate` to scope changes precisely when targeting Category B services.
 
 **Tracking:** captured in `deployment.md` Gotcha 8.

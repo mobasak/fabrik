@@ -509,33 +509,43 @@ for row in /api/v1/applications/<uuid>/envs:
 This was hit on 2026-05-08 rotating `WEBSHARE_API_KEY` on fabrik-proxy — the prod row updated cleanly, the preview row was discovered only by listing all envs first.
 
 
-### Gotcha 8: `/opt/monitoring/compose.yaml` is NOT what Coolify deploys
+### Gotcha 8: `/opt/monitoring/compose.yaml` is HYBRID — partly aggregated reference, partly source of truth
 
-The 198-line file at `/opt/monitoring/compose.yaml` aggregates all observability services for human reference, but **none of it is the source of truth for production**. Coolify stores its own `docker_compose_raw` per Service in its `services` table. Each "service" block in the disk file is deployed as a **separate Coolify Service** with its own UUID and ~30-50 line compose.
+The 198-line file at `/opt/monitoring/compose.yaml` mixes two deployment lifecycles. **You must know which category a service belongs to before editing the file expecting changes to take effect.**
 
-**What this means in practice:**
-- `sed`-editing the disk file changes nothing.
-- `docker compose -f /opt/monitoring/compose.yaml up -d <svc>` from the host **creates competing standalone containers** (since `container_name:` is set in the file) without touching the Coolify-managed ones. It also creates dangling volumes (project name `monitoring`, e.g. `monitoring_grafana-data`) which never get used.
-- To extend an observability service's compose (e.g. add a bind mount), edit the Coolify Service's `docker_compose_raw` via API or UI and redeploy the Service.
+**Category A — Coolify-managed (~14 services):** grafana, loki, prometheus, promtail, alertmanager, gatus, cadvisor, netdata, node-exporter, meilisearch, gotenberg, browserless, glitchtip-web, glitchtip-worker. For these, Coolify stores its own `docker_compose_raw` per Service in its DB. **Editing the disk file changes nothing.** To extend their compose, edit via Coolify UI or API and trigger a Service redeploy.
 
-**Diagnostic snippet — find what's REALLY deployed for a container:**
+**Category B — Host-managed sidecars (2 services):** `postgres-exporter`, `redis-exporter`. These were added via plain `docker compose up -d`. **For these, the disk file IS the source of truth** and `docker compose up -d --no-deps --force-recreate <name>` from `/opt/monitoring/` applies edits.
+
+**Distinguishing:**
 ```bash
-# 1. Get running container's actual mounts:
-sudo docker inspect <name> --format '{{ range .Mounts }}{{ .Type }}: {{ .Source }} -> {{ .Destination }}{{ println }}{{ end }}'
+sudo docker inspect <container> \
+  --format '{{ index .Config.Labels "coolify.serviceId" }} | {{ index .Config.Labels "com.docker.compose.project" }}'
+```
+- Empty serviceId + `project=monitoring` → Category B (host-managed, edit the file).
+- Non-empty serviceId + `project=<UUID>` → Category A (find the Coolify Service compose).
 
-# 2. Get Coolify's stored compose for the matching Service UUID:
+**Diagnostic snippets:**
+```bash
+# Find a container's actual deployed mounts (works for both categories):
+sudo docker inspect <name> \
+  --format '{{ range .Mounts }}{{ .Type }}: {{ .Source }} -> {{ .Destination }}{{ println }}{{ end }}'
+
+# For Category A — get Coolify's stored compose:
 sudo docker exec coolify-db psql -U coolify coolify -At \
   -c "SELECT docker_compose_raw FROM services WHERE uuid = '<UUID>';"
 ```
 
+**Pitfall 1 — running `docker compose up -d <svc>` for Category A:** creates **competing standalone containers** (since `container_name:` is set) without affecting the Coolify-managed ones. It also creates dangling volumes named `monitoring_*` from the file's top-level `volumes:` block via the depends_on chain.
+
+**Pitfall 2 — bind-mount edits in the file for Category A:** silent no-op. The running container's mounts come from Coolify's stored compose, not the disk file.
+
 **Cheaper workaround when you only need to add files under an existing bind mount:**
-- Drop the new files on the host inside the bind-mounted parent dir.
+- Drop new files on the host inside the bind-mounted parent dir.
 - They appear inside the container without any compose change.
 - Example: Gap #4 Grafana dashboards used this — `/opt/monitoring/configs/grafana/provisioning` is already bind-mounted as `/etc/grafana/provisioning:ro`, so we placed `provisioning/json-dashboards/*.json` inside it. Only one Grafana restart was needed because Grafana loads provisioning **provider** yamls only at startup (the dashboard JSONs themselves auto-reload every `updateIntervalSeconds`).
 
-This was hit on 2026-05-08 during Gap #4 dashboard deployment — produced 1 orphan `loki` container + 3 dangling `monitoring_*` volumes that had to be cleaned up post-hoc.
-
-
+**Hit during this session (2026-05-08):** A `docker compose up -d grafana` for Category A produced 1 orphan `loki` container + 3 dangling `monitoring_*` volumes that had to be cleaned up post-hoc. Later, a Category B operation (`up -d --no-deps --force-recreate redis-exporter`) worked cleanly because the `--no-deps` flag prevented the depends_on chain from triggering.
 ## Governance file propagation
 
 **Last verified: 2026-05-08 — 41 projects, 0 failures.**
