@@ -1,0 +1,22 @@
+apiVersion: 1
+
+# Provider config for Fabrik dashboards.
+# Lives at: /etc/grafana/provisioning/dashboards/fabrik.yaml inside the container
+# (host: /opt/monitoring/configs/grafana/provisioning/dashboards/fabrik.yaml)
+#
+# Path below is inside the container — points to a sibling dir under the same
+# /opt/monitoring/configs/grafana/provisioning bind mount. No compose changes
+# needed because the entire /etc/grafana/provisioning tree is already mounted.
+
+providers:
+  - name: fabrik
+    orgId: 1
+    folder: Fabrik
+    folderUid: fabrik
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/json-dashboards
+      foldersFromFilesStructure: false
