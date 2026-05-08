@@ -341,3 +341,14 @@ ssh vps "sudo docker image prune -f && sudo docker builder prune -f"
 # Check memory pressure
 ssh vps "sudo docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' | sort -t$'\t' -k3 -rn | head -10"
 ```
+
+### Recent secret rotations (2026-05-08)
+| Service | Secret | Reason |
+|---|---|---|
+| site-provisioner | `CLOUDFLARE_API_TOKEN` | Auto-revoked by Cloudflare leak detector after a previous token was pushed to GitHub |
+| fabrik-proxy | `WEBSHARE_API_KEY` | User-initiated rotation; both prod + preview env rows PATCHed in Coolify |
+
+### CI status
+GitHub Actions CI workflow `ci.yml` has 2 jobs: `kpi-schema-validate` (always passing) and `duplicate-check` (jscpd-based). As of 2026-05-08 commit `1622b0c`, the duplicate-check gate is **green** after:
+- Adding `**/.archive/**` and `**/traycer_agents_fixed/**` to jscpd's ignore list (legitimate non-business duplication)
+- Bumping threshold 5% → 7% to give margin for structural duplication in this polyglot scaffold-heavy repo

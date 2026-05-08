@@ -491,3 +491,19 @@ Calling the wrong one returns `HTTP 404 "Service not found"` even though the UUI
 ### Gotcha 6: Coolify env-var POST rejects `is_build_time` field
 
 The Coolify v4 env-var POST API rejects `is_build_time` with `HTTP 422 "This field is not allowed."` Use only `key`, `value`, `is_preview`, `is_literal`. This was a breaking change between Coolify v4 versions; older docs/scripts using `is_build_time` need updating.
+### Gotcha 7: Coolify keeps separate prod + preview env rows for every key
+
+When rotating a secret in a Coolify Application's env, expect to find **two rows** for each key — one with `is_preview=false` (production) and one with `is_preview=true` (preview). A simple `PATCH /api/v1/applications/<uuid>/envs` with `{"key": K, "value": V}` only updates the matching row and silently leaves the other one stale.
+
+**Symptom:** Next preview deploy uses the old value even though the UI showed "updated".
+
+**Fix:** When rotating, iterate over current envs and PATCH every row whose key matches, preserving each row's existing `is_preview` flag:
+
+```bash
+# Pseudocode
+for row in /api/v1/applications/<uuid>/envs:
+    if row.key == TARGET:
+        PATCH with {"key": TARGET, "value": NEW, "is_preview": row.is_preview, "is_literal": true}
+```
+
+This was hit on 2026-05-08 rotating `WEBSHARE_API_KEY` on fabrik-proxy — the prod row updated cleanly, the preview row was discovered only by listing all envs first.

@@ -441,4 +441,25 @@ The two had drifted (`/opt/authelia/config/` was the older version). On 2026-05-
 4. Verify: `docker logs --since 30s authelia-... | grep "Listening"` shows expected addresses
 
 **Permanent fix (not yet applied):** establish a one-way sync hook from working copy → volume on file change, OR convert the volume to a bind mount of `/opt/authelia/config/`.
+### Issue 3: Coolify maintains duplicate prod/preview env rows for every key
+
+**Symptom:** When rotating an env value via the Coolify UI or API, the production deploy picks up the new value but the preview environment still uses the old value (or vice-versa).
+
+**Root cause:** Coolify's data model stores production and preview env vars as **separate rows** in `environment_variables` table, both with the same key but different `is_preview` flags. Calling `PATCH /api/v1/applications/<uuid>/envs` with `{"key": K, "value": V}` only updates the row matching the `is_preview` flag in the request body (defaults to `false` = production only).
+
+**Affected services** (any with non-trivial env footprint): every Coolify Application. Confirmed seen on `fabrik-proxy` (`WEBSHARE_API_KEY` had 2 rows: prod + preview).
+
+**Fix when rotating:**
+```python
+# Iterate over ALL existing env rows and PATCH each separately:
+for e in current_envs:
+    if e["key"] == TARGET_KEY:
+        body = {"key": TARGET_KEY, "value": NEW_VALUE,
+                "is_preview": e["is_preview"], "is_literal": True}
+        # PATCH /api/v1/applications/<uuid>/envs with body
+```
+
+Single-call updates miss the duplicate. Bulk-update endpoint behaves the same.
+
+**Tracking:** captured in `deployment.md` Gotcha 7. Future Fabrik orchestrator env-injection should iterate over all rows by default.
 

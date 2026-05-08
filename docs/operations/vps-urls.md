@@ -79,6 +79,26 @@ All 7 Fabrik microservices report errors to GlitchTip via Sentry-API-compatible 
 | file-worker | 70 | ⚠️ idle (no errors yet) |
 | site-provisioner | 24 | ✅ flowing (CF errors visible) |
 
+## Webshare.io API Key (fabrik-proxy)
+
+The fabrik-proxy service uses Webshare's residential proxy backbone for outbound
+egress (LinkedIn, Instagram, etc.). It also pulls a list of country-targeted
+proxy IPs via Webshare's API.
+
+- **Coolify env keys** on Application UUID `zsccsksoc8sssc8k00sgcc08`:
+  - `WEBSHARE_API_KEY` (account-level API token)
+  - `WEBSHARE_BACKBONE_USERNAME`
+  - `WEBSHARE_BACKBONE_PASSWORD`
+  - `WEBSHARE_BACKBONE_HOST` (default: `p.webshare.io`)
+  - `WEBSHARE_BACKBONE_PORT` (default: `80`)
+  - `WEBSHARE_IP_AUTH` (default: `false`)
+- **Local working copy**: `/opt/proxy/.env` (must be kept in sync with Coolify)
+- **IMPORTANT — env duplication**: Coolify maintains separate prod and preview env
+  rows for each key. When rotating a value, **both must be PATCHed** otherwise
+  the next preview deploy uses the stale value. See `docs/operations/deployment.md`
+  Gotcha 7.
+- **Last rotated**: 2026-05-08 (`WEBSHARE_API_KEY` only; backbone creds unchanged)
+
 ## Cloudflare API Token (site-provisioner)
 
 The token used by site-provisioner to manage DNS lives in:
