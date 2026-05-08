@@ -149,6 +149,19 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 - **Retention:** `limits_config.retention_period: 168h` (7 days); compactor enabled
 - **Reload:** `ssh vps "sudo docker restart loki-..."`
 
+### Promtail (log shipping)
+- **Config:** `/opt/monitoring/configs/promtail/promtail-config.yaml`
+- **Source:** `/var/lib/docker/containers/*/*log` (all Docker JSON logs)
+- **Pipeline:** JSON parse → extract `container_name` → drop noise → label → ship to Loki
+- **Noise filter (drop stage):** `coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel`, `ocoron-com-backup-1`
+- **Reload:** `sudo docker restart promtail-w0000ckgsgg048w0848okk08` after config edit
+
+### Grafana (dashboards + provisioning)
+- **Bind mount:** `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning:ro` (added to Coolify service compose)
+- **Datasources file:** `/opt/monitoring/configs/grafana/provisioning/datasources/fabrik.yaml`
+- **Provisioned datasources:** Prometheus (default, `http://prometheus:9090`), Loki (`http://loki:3100`)
+- **Why bind mount:** Grafana reads provisioning from `/etc/grafana/provisioning`, NOT from the data volume `/var/lib/grafana`. Without this mount, datasources only exist in SQLite (`grafana.db`) and are lost on volume wipe or fresh redeploy.
+
 ### Alertmanager
 - **Config:** `/opt/monitoring/configs/alertmanager/alertmanager.yml`
 - **Receiver:** Telegram (native `telegram_configs`)

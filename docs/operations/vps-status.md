@@ -181,6 +181,20 @@
 
 ---
 
+## Promtail Noise Filter
+
+**Config:** `/opt/monitoring/configs/promtail/promtail-config.yaml`
+**Filter:** drops Coolify infrastructure logs that produce no actionable signal.
+Filtered out: `coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel`, `ocoron-com-backup-1`.
+All Fabrik services, monitoring stack, and WordPress logs continue to ship to Loki.
+
+## Grafana Datasource Provisioning
+
+**Bind mount:** `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning:ro`
+**Config:** `/opt/monitoring/configs/grafana/provisioning/datasources/fabrik.yaml`
+**Provisioned datasources:** `Prometheus` (default, `http://prometheus:9090`) and `Loki` (`http://loki:3100`).
+Datasources persist as code — survive volume wipes, container redeploys, and complete Grafana reinstalls.
+
 ## Gatus Monitoring
 
 **Config:** `/opt/monitoring/configs/gatus/` (6 subdirs, volume-mounted, auto-reloads)

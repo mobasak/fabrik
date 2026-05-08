@@ -935,6 +935,8 @@ Every invariant below has a live-incident writeup in `docs/LESSONS_LEARNT.md`. C
 | `from internal_auth import` fails when uvicorn uses `app.main:app` | Import must match module path: `from app.internal_auth import` when `uvicorn app.main:app` |
 | Prometheus lifecycle reload (`curl -X POST /-/reload`) fails — no curl in image | Use `cd /opt/prometheus && sudo docker compose restart` instead |
 | Business metrics: scaffold now emits `metrics.py` + `/metrics` endpoint |
+| Promtail unfiltered ships every container log including Coolify infra noise | Add `drop` stage to promtail config with regex on container_name. Currently filtered: coolify-db, coolify-redis, coolify-realtime, coolify-sentinel, ocoron-com-backup-1. |
+| Grafana datasources stored only in SQLite db are lost on volume wipe | Bind-mount `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning:ro` in Coolify service compose. Provisioning YAML files persist as code. |
 | Gatus UUID container names break silently on Coolify Application redeploy | Three-layer fix: compose alias + `docker network connect --alias` + `vps_apply_limits.sh apply_alias()`. Service stacks are stable; single-image Applications need the alias treatment. See CROSS_CUTTING_REQUIREMENTS.md §9. | `prometheus-client>=0.21.0` in requirements; `fabrik-services` job in prometheus.yml (targets commented) |
 
 ## Appendix A: Quick reference — where to look
