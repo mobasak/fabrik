@@ -761,6 +761,12 @@ def _scaffold_shared(
         f"# Set via Coolify env vars on deploy (never hardcode the real value here)\n"
         f"SERVICE_INTERNAL_SECRET_KEY=change-me-copy-from-fabrik-env\n"
         f"\n"
+        f"# Error reporting (GlitchTip) — recommended for production deploys\n"
+        f"# Get DSN by running: scripts/provision_glitchtip_project.sh {name}\n"
+        f"# Push to Coolify env on deploy. If unset, SDK becomes a no-op (zero overhead).\n"
+        f"GLITCHTIP_DSN=\n"
+        f"ENVIRONMENT=production\n"
+        f"\n"
         f"# Optional - uncomment if using database\n"
         f"# DATABASE_URL=postgresql://postgres:<pass>@postgres-main:5432/{name}_dev\n"
         f"# REDIS_URL=redis://redis-main:6379/0\n"
@@ -998,7 +1004,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
 
     # Create requirements.txt (production dependencies only)
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\nprometheus-client>=0.21.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\nprometheus-client>=0.21.0\nsentry-sdk[fastapi]>=2.18.0\n"
     )
 
     # Create requirements-dev.txt (includes dev dependencies)
@@ -1116,6 +1122,58 @@ def metrics_app():
     return make_asgi_app(registry=REGISTRY)
 ''')
 
+    # glitchtip_init.py — GlitchTip / Sentry SDK initialization (no-op if GLITCHTIP_DSN unset)
+    # Errors auto-report to GlitchTip when DSN is set in environment.
+    # Wire by importing this module BEFORE creating FastAPI app in main.py.
+    (package_dir / "glitchtip_init.py").write_text('''"""GlitchTip / Sentry SDK initialization.
+
+If GLITCHTIP_DSN is set, errors and traces auto-report to GlitchTip.
+If unset, init is a no-op (zero overhead, zero exceptions).
+
+Import this module BEFORE FastAPI app creation in main.py:
+    from {pkg}.glitchtip_init import init_glitchtip
+    init_glitchtip()  # call once at module load
+    app = FastAPI(...)
+
+Provision a project + DSN: scripts/provision_glitchtip_project.sh <service-name>
+Push DSN to Coolify env on deploy.
+"""
+import os
+
+
+def init_glitchtip() -> bool:
+    """Initialize Sentry SDK pointed at GlitchTip.
+
+    Returns True if init ran (DSN was set), False if no-op.
+    Safe to call multiple times — Sentry SDK handles re-init internally.
+    """
+    dsn = os.environ.get("GLITCHTIP_DSN", "").strip()
+    if not dsn:
+        return False
+
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+    except ImportError:
+        # sentry-sdk not installed; no-op rather than crash
+        return False
+
+    sentry_sdk.init(
+        dsn=dsn,
+        environment=os.environ.get("ENVIRONMENT", "production"),
+        release=os.environ.get("GIT_SHA") or os.environ.get("COOLIFY_DEPLOYMENT_UUID"),
+        # Lean defaults — keep volume manageable on shared GlitchTip
+        traces_sample_rate=float(os.environ.get("GLITCHTIP_TRACES_SAMPLE_RATE", "0.05")),
+        profiles_sample_rate=float(os.environ.get("GLITCHTIP_PROFILES_SAMPLE_RATE", "0.0")),
+        send_default_pii=False,
+        integrations=[
+            FastApiIntegration(transaction_style="endpoint"),
+            StarletteIntegration(transaction_style="endpoint"),
+        ],
+    )
+    return True
+''')
 
 
     # logger.py — structlog JSON logger with service name from env
@@ -1202,8 +1260,13 @@ def metrics_app():
         f"from fastapi import FastAPI\n"
         f"from fastapi.responses import JSONResponse\n"
         f"\n"
+        f"from {package_name}.glitchtip_init import init_glitchtip\n"
         f"from {package_name}.logger import get_logger\n"
         f"from {package_name}.middleware import CorrelationMiddleware\n"
+        f"\n"
+        f"# Initialize error reporting BEFORE app construction so SDK\n"
+        f"# instruments FastAPI from the very first request.\n"
+        f"init_glitchtip()\n"
         f"\n"
         f"logger = get_logger(__name__)\n"
         f"\n"
@@ -1562,6 +1625,7 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
         },
         "dependencies": {
             "pino": "^9.0.0",
+            "@sentry/node": "^8.40.0",
         },
     }
     (project_dir / "package.json").write_text(json.dumps(package_json, indent=2) + "\n")
@@ -1582,9 +1646,57 @@ module.exports = logger;
 """
     )
 
+    # e2) Generate src/glitchtip_init.js — GlitchTip / Sentry SDK init (no-op if DSN unset)
+    # Require this module BEFORE creating any HTTP server / Express app so SDK
+    # instruments outgoing handlers from the very first request. Errors auto-report
+    # to GlitchTip when GLITCHTIP_DSN is set in environment.
+    (project_dir / "src" / "glitchtip_init.js").write_text(
+        """'use strict';
+/**
+ * GlitchTip / Sentry SDK initialization.
+ *
+ * If GLITCHTIP_DSN is set, errors and unhandled rejections auto-report to GlitchTip.
+ * If unset, init is a no-op (zero overhead).
+ *
+ * Require this module BEFORE any other imports that may throw or create handlers:
+ *   require('./glitchtip_init');
+ *
+ * Provision a project + DSN: scripts/provision_glitchtip_project.sh <service-name> --platform javascript-node
+ * Push DSN to Coolify env on deploy.
+ */
+const dsn = (process.env.GLITCHTIP_DSN || '').trim();
+
+if (dsn) {
+  try {
+    const Sentry = require('@sentry/node');
+    Sentry.init({
+      dsn,
+      environment: process.env.ENVIRONMENT || 'production',
+      release: process.env.GIT_SHA || process.env.COOLIFY_DEPLOYMENT_UUID || undefined,
+      tracesSampleRate: parseFloat(process.env.GLITCHTIP_TRACES_SAMPLE_RATE || '0.05'),
+      profilesSampleRate: parseFloat(process.env.GLITCHTIP_PROFILES_SAMPLE_RATE || '0'),
+      sendDefaultPii: false,
+    });
+    module.exports = Sentry;
+  } catch (err) {
+    // @sentry/node not installed; emit a one-time warning rather than crash.
+    process.stderr.write('[glitchtip_init] @sentry/node not installed; error reporting disabled\\n');
+    module.exports = null;
+  }
+} else {
+  module.exports = null;
+}
+"""
+    )
+
     # f) Generate src/index.js inline (with pino logging and X-Request-ID correlation)
     (project_dir / "src" / "index.js").write_text(
         f"""'use strict';
+
+// Initialize error reporting BEFORE any other imports / handler creation
+// so the SDK instruments the runtime from the very first request.
+// No-op if GLITCHTIP_DSN env var is unset.
+require('./glitchtip_init');
 
 const http = require('http');
 const {{ randomUUID }} = require('crypto');
@@ -1616,7 +1728,12 @@ server.listen(PORT, () => {{
 
     # g) Overwrite .env.example with Node-appropriate content
     (project_dir / ".env.example").write_text(
-        f"# {name} Configuration\nPORT=3000\nNODE_ENV=development\nLOG_LEVEL=info\n\n# Service identity for structured logging\nSERVICE_NAME={name}\n"
+        f"# {name} Configuration\nPORT=3000\nNODE_ENV=development\nLOG_LEVEL=info\n\n"
+        f"# Service identity for structured logging\nSERVICE_NAME={name}\n\n"
+        f"# Error reporting (GlitchTip) — recommended for production deploys\n"
+        f"# Get DSN: scripts/provision_glitchtip_project.sh {name} --platform javascript-node\n"
+        f"# Push to Coolify env on deploy. If unset, SDK is a no-op (zero overhead).\n"
+        f"GLITCHTIP_DSN=\nENVIRONMENT=production\n"
     )
 
     # h) Overwrite .gitignore with Node-appropriate content

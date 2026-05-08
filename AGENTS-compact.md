@@ -50,6 +50,7 @@
 Skip: refactor-only / docs-only / test-only → `CHANGELOG.md` only.
 
 2. **Structured logging** — No `print()` / `console.log()` in production code; use the project's structured logger.
+2a. **Error reporting** — `glitchtip_init` module is scaffold-emitted; if `GLITCHTIP_DSN` is set, unhandled errors auto-report to GlitchTip. DO NOT also `logger.exception()` full tracebacks (duplicates events). Use `capture_exception()` only for caught-then-rethrown control flow.
 3. **User guide** — If the change is user-facing AND `project.yaml` has `has_user_guide: true`, add/update a page in `docs/user-guide/`.
 4. **Reusable modules** — Utility code in `src/utils/` or `src/lib/` with zero project-specific imports; tag `[reusable]` in `INDEX.md`.
 5. **Naming** — kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `Makefile`, `Dockerfile`, Python packages (snake_case per PEP 8), auto-generated, dotfiles.

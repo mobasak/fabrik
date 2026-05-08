@@ -41,6 +41,7 @@ Every service MUST implement:
 - No print() — use logger exclusively
 - Pre-scaffolded logger exists at `src/{package}/logger.py` (Python) or `src/logger.js` (Node)
 - DO NOT create custom logging modules — import the existing one
+- Error reporting via GlitchTip is auto-wired by scaffold (`glitchtip_init.py` / `glitchtip_init.js`). If `GLITCHTIP_DSN` env is set, unhandled errors auto-report — do NOT also call `logger.exception()` with full tracebacks (Loki duplication). Use `capture_exception()` ONLY for caught-then-rethrown control flow. See `.windsurf/rules/55-observability.md § Error Reporting (GlitchTip)`.
 - DO NOT use `print()` or `console.log()` — use the scaffolded logger
 
 ## 3. Docusaurus User Guide

@@ -47,6 +47,65 @@ logger.info({ event: 'event_name', key: 'value' });
 
 **Chrome extension frontend:** Use `chrome.storage.local` buffer pattern per the Chrome Extension Telemetry section below. Do not use pino directly in service workers.
 
+## Error Reporting (GlitchTip)
+
+Every Fabrik project ships with a pre-scaffolded GlitchTip / Sentry SDK init module.
+DO NOT create custom Sentry init code or use a different DSN library.
+
+**Python projects** (`python-api`, `file-worker`):
+
+- Module: `src/{package}/glitchtip_init.py` — `init_glitchtip()` with `FastApiIntegration`
+- Wired in `main.py` BEFORE `app = FastAPI(...)` (the SDK must instrument the framework before app construction)
+- Dependency: `sentry-sdk[fastapi]>=2.18.0` (in `requirements.txt`)
+
+**Node projects** (`node-api`, `file-api`):
+
+- Module: `src/glitchtip_init.js` — `Sentry.init()` from `@sentry/node`
+- Wired via `require('./glitchtip_init')` at the top of `src/index.js`, BEFORE other imports
+- Dependency: `@sentry/node` (in `package.json`)
+
+**No-op semantics (BOTH platforms):**
+
+- If `GLITCHTIP_DSN` env var is unset/empty → init returns early, ZERO overhead, ZERO crashes
+- If the SDK package itself is missing (rare) → init still no-ops, does NOT crash the service
+- This is intentional: services without DSN configured never pay for SDK runtime cost
+
+**Capture discipline — when DSN is set, errors auto-report:**
+
+- Unhandled exceptions (FastAPI 500s, uncaught Node throws, unhandled promise rejections) → AUTO-CAPTURED. Do nothing extra.
+- DO NOT call `logger.exception()` / `logger.error()` with full tracebacks for unhandled errors — that duplicates the GlitchTip event AND wastes Loki storage. Log a short event name with correlation_id; let GlitchTip carry the stacktrace.
+- Use `sentry_sdk.capture_exception(e)` (Python) or `Sentry.captureException(e)` (Node) ONLY for **caught-then-rethrown** control flow where the exception would otherwise be swallowed (e.g., catch in a worker loop to keep the worker alive, log the event, then continue).
+- DO NOT call `capture_exception` from inside a FastAPI handler that re-raises `HTTPException` — the integration already handles it.
+
+**Provisioning a project + DSN:**
+
+```bash
+# From WSL — auto-extracts creds from /opt/fabrik/.env, re-execs on VPS via SSH.
+bash /opt/fabrik/scripts/provision_glitchtip_project.sh <service-name>
+
+# For Node services use the matching platform tag:
+bash /opt/fabrik/scripts/provision_glitchtip_project.sh <service-name> --platform javascript-node
+
+# Optionally push the DSN straight into a Coolify service env:
+bash /opt/fabrik/scripts/provision_glitchtip_project.sh <service-name> --coolify-uuid <uuid>
+```
+
+The script is idempotent (re-runs return the same DSN). The DSN host is rewritten
+to `glitchtip-web:8000` (stable Docker DNS alias on the coolify network) so events
+flow through the internal network without Authelia or TLS overhead.
+
+Environment variables consumed by the init modules (set via Coolify env, not in `.env.example`):
+
+| Variable | Default | Notes |
+| :--- | :--- | :--- |
+| `GLITCHTIP_DSN` | (unset → no-op) | The DSN returned by the provisioner |
+| `ENVIRONMENT` | `production` | Tags events; useful for prod vs staging filtering |
+| `GIT_SHA` | (unset) | Release tag — falls back to `COOLIFY_DEPLOYMENT_UUID` |
+| `GLITCHTIP_TRACES_SAMPLE_RATE` | `0.05` | Keep low; perf events flood the shared GlitchTip |
+| `GLITCHTIP_PROFILES_SAMPLE_RATE` | `0` | Profiling off by default — adds native deps |
+
+Runbook: `docs/infrastructure/glitchtip-sdk-integration-setup.md`
+
 ## Structured Logging
 
 - All production logs must be **JSON-formatted**. Human-readable colorised output is for local development only.

@@ -407,6 +407,7 @@ resp = httpx.get("https://translator.vps1.ocoron.com/api/translate", headers=hea
 - `internal_auth.py` — M2M auth module
 - `metrics.py` — Prometheus business metrics (REQUEST_COUNT, ERROR_COUNT, ACTIVE_JOBS)
 - `/metrics` endpoint — mounted in `main.py`, Authelia-bypassed
+- `glitchtip_init.py` / `glitchtip_init.js` — Sentry SDK init pointed at GlitchTip; no-op if `GLITCHTIP_DSN` env unset. Wired in `main.py` BEFORE app construction.
 
 **Key facts:**
 - One shared secret: `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`

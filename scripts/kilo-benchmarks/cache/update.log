@@ -353,3 +353,292 @@ youtube                         | ✅ healthy    | -
 [windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
 [kilo-bench] Windsurf models updated!
 [kilo-bench] Update complete!
+
+=== Fabrik Daily Pipeline — 2026-05-07 14:41:40 ===
+📊 Scanning /opt/* projects...
+   Found 41 projects
+   ⚠️  Port conflicts:
+      Port 18014: dns-manager, site-provisioner
+   📁 Registry: /opt/fabrik/data/projects.yaml
+   📄 Updated docs/BUSINESS_MODEL.md
+   📄 Updated PORTS.md
+
+✅ Sync complete: 41 projects (41 with project.yaml)
+⚠️  1 port conflict(s) — edit project.yaml to resolve
+⚠️  CASCADE BACKUP MISSING
+   Ask Cascade: 'Export memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md'
+Project                         | Status       | Missing Files           
+--------------------------------+--------------+-------------------------
+ComplianceOps                   | ✅ healthy    | -                       
+Reference_Creator               | ✅ healthy    | -                       
+apidoccreator                   | ✅ healthy    | -                       
+brand-identiy-creator           | ✅ healthy    | -                       
+calendar-orchestration-engine   | ✅ healthy    | -                       
+candle                          | ✅ healthy    | -                       
+captcha                         | ✅ healthy    | -                       
+dns-manager                     | ✅ healthy    | -                       
+email-reader                    | ✅ healthy    | -                       
+emailgateway                    | ✅ healthy    | -                       
+exam-coach                      | ✅ healthy    | -                       
+fabrik-citation-verifier        | ✅ healthy    | -                       
+fabrik-claim-validator          | ✅ healthy    | -                       
+fabrik-test-chrome-extension    | ✅ healthy    | -                       
+fabrik-test-desktop-app         | ⚠️  warnings | compose.yaml, Dockerfile
+fabrik-test-mobile-app          | ⚠️  warnings | compose.yaml, Dockerfile
+fabrik-test-wordpress           | ⚠️  warnings | compose.yaml, Dockerfile
+file-api                        | ✅ healthy    | -                       
+file-worker                     | ✅ healthy    | -                       
+gmailaccountcreator             | ✅ healthy    | -                       
+image-broker                    | ✅ healthy    | -                       
+image-generation                | ✅ healthy    | -                       
+iterative_image_editor          | ✅ healthy    | -                       
+job-agent                       | ✅ healthy    | -                       
+llm_batch_processor             | ✅ healthy    | -                       
+longephedia-vault               | ✅ healthy    | -                       
+marketing-argumant-generator    | ✅ healthy    | -                       
+namecheap                       | ✅ healthy    | -                       
+proposal-creator                | ✅ healthy    | -                       
+proxy                           | ✅ healthy    | -                       
+seo                             | ✅ healthy    | -                       
+site-provisioner                | ✅ healthy    | -                       
+supplement-tracker-advisor      | ✅ healthy    | -                       
+trade-intelligence              | ✅ healthy    | -                       
+trading-core                    | ✅ healthy    | -                       
+transcriber                     | ✅ healthy    | -                       
+translator                      | ✅ healthy    | -                       
+triggered-content-orchestration | ✅ healthy    | -                       
+ugc                             | ✅ healthy    | -                       
+web-scraper                     | ✅ healthy    | -                       
+youtube                         | ✅ healthy    | -                       
+41 projects scanned — 38 healthy, 3 warnings, 0 missing
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 350 models
+[kilo-db]   Inserted 1, updated 349 agents
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 266 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[kilo-db]   Updated 107 Elo, 38 TBench scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Created snapshot for 2026-05-07 with 393 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-05-07T14:41:46.899480
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 266 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Scraping provider: Recommended
+[windsurf-scrape]     Clicked Recommended tab
+[windsurf-scrape]     Found 13 models: Adaptive, SWE-1.6, Claude Opus 4.6
+[windsurf-scrape]   Scraping provider: Windsurf
+[windsurf-scrape]     Clicked Windsurf tab
+[windsurf-scrape]     Found 5 models: Adaptive, SWE-1.6, SWE-1.6 Fast
+[windsurf-scrape]   Scraping provider: Anthropic
+[windsurf-scrape]     Clicked Anthropic tab
+[windsurf-scrape]     Found 22 models: Claude Opus 4.6, Claude Opus 4.6 (Thinking), Claude Opus 4.6 1M
+[windsurf-scrape]   Scraping provider: OpenAI
+[windsurf-scrape]     Clicked OpenAI tab
+[windsurf-scrape]     Found 74 models: GPT-5.4 (No Reasoning), GPT-5.4 (Low Reasoning), GPT-5.4 (Medium Reasoning)
+[windsurf-scrape]   Scraping provider: Google
+[windsurf-scrape]     Clicked Google tab
+[windsurf-scrape]     Found 7 models: Gemini 3.1 Pro Low, Gemini 3.1 Pro High, Gemini 3 Flash Minimal
+[windsurf-scrape]   Scraping provider: xAI
+[windsurf-scrape]     Clicked xAI tab
+[windsurf-scrape]     Found 1 models: xAI Grok Code Fast
+[windsurf-scrape]   Scraping provider: Open Source
+[windsurf-scrape]     Clicked Open Source tab
+[windsurf-scrape]     Found 4 models: Kimi K2.5, GLM-5, Minimax M2.5
+[windsurf-scrape]   Extracted 126 models from 7 providers
+[kilo-bench]   Arena: 266 entries
+[kilo-bench]   TBench: 119 entries
+[kilo-bench]   Windsurf: 126 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
+[kilo-bench] Windsurf models updated!
+[kilo-bench] Update complete!
+
+=== Fabrik Daily Pipeline — 2026-05-08 14:46:43 ===
+📊 Scanning /opt/* projects...
+   Found 42 projects
+   ⚠️  Port conflicts:
+      Port 18014: dns-manager, site-provisioner
+   📁 Registry: /opt/fabrik/data/projects.yaml
+   📄 Updated docs/BUSINESS_MODEL.md
+   📄 Updated PORTS.md
+
+✅ Sync complete: 42 projects (41 with project.yaml)
+⚠️  1 port conflict(s) — edit project.yaml to resolve
+⚠️  CASCADE BACKUP MISSING
+   Ask Cascade: 'Export memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md'
+Project                         | Status       | Missing Files                                                                  
+--------------------------------+--------------+--------------------------------------------------------------------------------
+ComplianceOps                   | ✅ healthy    | -                                                                              
+Reference_Creator               | ✅ healthy    | -                                                                              
+apidoccreator                   | ✅ healthy    | -                                                                              
+brand-identiy-creator           | ✅ healthy    | -                                                                              
+calendar-orchestration-engine   | ✅ healthy    | -                                                                              
+candle                          | ✅ healthy    | -                                                                              
+captcha                         | ✅ healthy    | -                                                                              
+dns-manager                     | ✅ healthy    | -                                                                              
+email-reader                    | ✅ healthy    | -                                                                              
+emailgateway                    | ✅ healthy    | -                                                                              
+exam-coach                      | ✅ healthy    | -                                                                              
+fabrik-citation-verifier        | ✅ healthy    | -                                                                              
+fabrik-claim-validator          | ✅ healthy    | -                                                                              
+fabrik-test-chrome-extension    | ✅ healthy    | -                                                                              
+fabrik-test-desktop-app         | ⚠️  warnings | compose.yaml, Dockerfile                                                       
+fabrik-test-mobile-app          | ⚠️  warnings | compose.yaml, Dockerfile                                                       
+fabrik-test-wordpress           | ⚠️  warnings | compose.yaml, Dockerfile                                                       
+file-api                        | ✅ healthy    | -                                                                              
+file-worker                     | ✅ healthy    | -                                                                              
+gmailaccountcreator             | ✅ healthy    | -                                                                              
+image-broker                    | ✅ healthy    | -                                                                              
+image-generation                | ✅ healthy    | -                                                                              
+iterative_image_editor          | ✅ healthy    | -                                                                              
+job-agent                       | ✅ healthy    | -                                                                              
+llm_batch_processor             | ✅ healthy    | -                                                                              
+logs                            | ❌ missing    | AGENTS.md, .env.example, project.yaml, compose.yaml, Dockerfile, .windsurfrules
+longephedia-vault               | ✅ healthy    | -                                                                              
+marketing-argumant-generator    | ✅ healthy    | -                                                                              
+namecheap                       | ✅ healthy    | -                                                                              
+proposal-creator                | ✅ healthy    | -                                                                              
+proxy                           | ✅ healthy    | -                                                                              
+seo                             | ✅ healthy    | -                                                                              
+site-provisioner                | ✅ healthy    | -                                                                              
+supplement-tracker-advisor      | ✅ healthy    | -                                                                              
+trade-intelligence              | ✅ healthy    | -                                                                              
+trading-core                    | ✅ healthy    | -                                                                              
+transcriber                     | ✅ healthy    | -                                                                              
+translator                      | ✅ healthy    | -                                                                              
+triggered-content-orchestration | ✅ healthy    | -                                                                              
+ugc                             | ✅ healthy    | -                                                                              
+web-scraper                     | ✅ healthy    | -                                                                              
+youtube                         | ✅ healthy    | -                                                                              
+42 projects scanned — 38 healthy, 3 warnings, 1 missing
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 0 models
+[kilo-db]   No models found
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Error scraping Chatbot Arena: HTTPSConnectionPool(host='openlm.ai', port=443): Max retries exceeded with url: /chatbot-arena/ (Caused by NameResolutionError("HTTPSConnection(host='openlm.ai', port=443): Failed to resolve 'openlm.ai' ([Errno -3] Temporary failure in name resolution)"))
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Error scraping Terminal Bench: HTTPSConnectionPool(host='www.tbench.ai', port=443): Max retries exceeded with url: /leaderboard/terminal-bench/2.0 (Caused by NameResolutionError("HTTPSConnection(host='www.tbench.ai', port=443): Failed to resolve 'www.tbench.ai' ([Errno -3] Temporary failure in name resolution)"))
+[kilo-db]   Updated 0 Elo, 0 TBench scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Created snapshot for 2026-05-08 with 393 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+Traceback (most recent call last):
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/http/client.py", line 1448, in getresponse
+    response.begin()
+  File "/usr/lib/python3.12/http/client.py", line 336, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/http/client.py", line 297, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/socket.py", line 707, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+TimeoutError: timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/opt/fabrik/scripts/kilo-benchmarks/scrape_windsurf_models.py", line 176, in scrape_windsurf_models
+    driver = get_browser()
+             ^^^^^^^^^^^^^
+  File "/opt/fabrik/scripts/kilo-benchmarks/scrape_windsurf_models.py", line 104, in get_browser
+    driver = webdriver.Chrome(options=chrome_options)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/selenium/webdriver/chrome/webdriver.py", line 45, in __init__
+    super().__init__(
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/selenium/webdriver/chromium/webdriver.py", line 66, in __init__
+    super().__init__(command_executor=executor, options=self.options)
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/selenium/webdriver/common/webdriver.py", line 25, in __init__
+    super().__init__(*args, **kwargs)
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/selenium/webdriver/remote/webdriver.py", line 271, in __init__
+    self.start_session(capabilities)
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/selenium/webdriver/remote/webdriver.py", line 366, in start_session
+    response = self.execute(Command.NEW_SESSION, caps)["value"]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/selenium/webdriver/remote/webdriver.py", line 443, in execute
+    response = cast(RemoteConnection, self.command_executor).execute(driver_command, params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/selenium/webdriver/remote/remote_connection.py", line 407, in execute
+    return self._request(command_info[0], url, body=data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/selenium/webdriver/remote/remote_connection.py", line 431, in _request
+    response = self._conn.request(method, url, body=body, headers=headers, timeout=self._client_config.timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/_request_methods.py", line 143, in request
+    return self.request_encode_body(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/_request_methods.py", line 278, in request_encode_body
+    return self.urlopen(method, url, **extra_kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/poolmanager.py", line 457, in urlopen
+    response = conn.urlopen(method, u.request_uri, **kw)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/util/retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/util/util.py", line 39, in reraise
+    raise value
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/opt/fabrik/.venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host='localhost', port=42521): Read timed out. (read timeout=120)
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-05-08T14:47:14.475543
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 266 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 119 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Error scraping Windsurf models: HTTPConnectionPool(host='localhost', port=42521): Read timed out. (read timeout=120)
+[kilo-bench]   Arena: 266 entries
+[kilo-bench]   TBench: 119 entries
+[kilo-bench]   Windsurf: 0 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[kilo-bench] No Windsurf models updated (fetch failed or no data)
+[kilo-bench] Update complete!
