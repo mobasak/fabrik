@@ -161,6 +161,16 @@
 - Default `repeat_interval: 4h`; critical alerts `repeat_interval: 30m`
 - LLM-based triage (ARO Brain) planned — will route before Telegram as fallback
 
+### Error Reporting (GlitchTip) — Live since 2026-05-08
+- **Public URL:** `https://errors.vps1.ocoron.com` (Authelia-protected)
+- **Internal alias:** `glitchtip-web:8000` on `coolify` Docker network — used by SDK ingestion (bypasses Authelia/TLS)
+- **Containers:** `glitchtip-web-z00kkck8c8cwo800kk440csk` (web, 512m), `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` (worker, 512m)
+- **Storage:** `glitchtip` DB on `postgres-main`; events retained 90 days (`GLITCHTIP_RETENTION_DAYS` default)
+- **SDK integration:** `fabrik scaffold` auto-emits `glitchtip_init.py` (python-api) and `glitchtip_init.js` (node-api). Zero-overhead no-op when `GLITCHTIP_DSN` env unset.
+- **Provisioner:** `scripts/provision_glitchtip_project.sh <service-name> [--platform javascript-node] [--coolify-uuid <uuid>]` — idempotent, returns DSN with internal alias rewrite
+- **Capture discipline:** when DSN is set, unhandled exceptions auto-report — DO NOT also `logger.exception()` full tracebacks (duplicates events). See `.windsurf/rules/55-observability.md § Error Reporting`.
+- **Runbook:** `docs/infrastructure/glitchtip-sdk-integration-setup.md`
+
 ---
 
 ## Promtail Noise Filter

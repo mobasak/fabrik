@@ -52,6 +52,15 @@ Gatus uses these names — never the raw UUID container names:
 
 See `CROSS_CUTTING_REQUIREMENTS.md §9` for the full procedure when adding new single-image Applications.
 
+## Manually-Added Public URLs (not in Coolify Apps)
+
+| Purpose | URL | Auth |
+|---|---|---|
+| GlitchTip error reporting UI | `https://errors.vps1.ocoron.com` | Authelia |
+| Public status page (Gatus) | `https://status.vps1.ocoron.com` | None |
+
+GlitchTip is reachable internally (no auth) via `http://glitchtip-web:8000` on the `coolify` Docker network — the SDK ingestion uses this alias, not the public URL.
+
 ## DNS Records (Cloudflare — all A → 172.93.160.197)
 
 Active subdomains under `*.vps1.ocoron.com`:

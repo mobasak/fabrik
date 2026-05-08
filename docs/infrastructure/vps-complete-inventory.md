@@ -187,6 +187,32 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 - Prometheus `fabrik-services` job ready — uncomment targets as services add `/metrics`
 - To add to existing service: add `prometheus-client`, copy `metrics.py`, mount `/metrics`, uncomment in `prometheus.yml`
 
+### Error Reporting (GlitchTip) — Live since 2026-05-08
+
+**Architecture:**
+- GlitchTip 6.1.5 deployed via Coolify (web + worker containers, 512MB limits each)
+- Storage: `glitchtip` database on shared `postgres-main` (PostgreSQL 16.11)
+- Public URL: `https://errors.vps1.ocoron.com` (Authelia-protected)
+- Internal SDK ingestion: `http://glitchtip-web:8000` (stable Docker DNS alias on `coolify` network)
+- DSN host rewrite: provisioner replaces public host with internal alias so SDK events bypass Authelia/TLS
+
+**Scaffold integration (auto-emitted, every project):**
+- `python-api` / `file-worker`: `src/{pkg}/glitchtip_init.py` — `init_glitchtip()` with FastApiIntegration; wired BEFORE `app = FastAPI()`. Dependency: `sentry-sdk[fastapi]>=2.18`.
+- `node-api` / `file-api`: `src/glitchtip_init.js` — `Sentry.init()` from `@sentry/node`; wired via `require('./glitchtip_init')` BEFORE `http.createServer`. Dependency: `@sentry/node`.
+- Both: zero-overhead no-op when `GLITCHTIP_DSN` env var is unset/empty. ImportError-safe (graceful no-op if SDK package missing).
+
+**Provisioner script:** `scripts/provision_glitchtip_project.sh <name> [--platform <p>] [--coolify-uuid <uuid>]`
+- Idempotent (GET first, POST on 404, refetch DSN on existing)
+- WSL-aware (auto re-execs on VPS via SSH with creds from `/opt/fabrik/.env`)
+- Optional `--coolify-uuid` flag pushes DSN straight to Coolify service env
+
+**Capture discipline (enforced by `.windsurf/rules/55-observability.md § Error Reporting`):**
+- Unhandled exceptions auto-report to GlitchTip when `GLITCHTIP_DSN` is set — do nothing extra
+- DO NOT call `logger.exception()` with full tracebacks for unhandled errors (duplicates GlitchTip event AND wastes Loki retention)
+- Use `sentry_sdk.capture_exception(e)` (Python) / `Sentry.captureException(e)` (Node) ONLY for caught-then-rethrown control flow
+
+**Runbook:** `docs/infrastructure/glitchtip-sdk-integration-setup.md`
+
 ---
 
 ## Complete Container Inventory
