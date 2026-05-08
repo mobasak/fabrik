@@ -1,69 +1,40 @@
 # VPS1 Service URLs
 
-**Last Updated:** 2026-05-07 13:00 UTC+3
+**Last Updated:** 2026-05-08 16:52 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Los Angeles, CA
 **Pattern:** All services via HTTPS through Traefik. HTTP auto-redirects to HTTPS.
 
 ---
 
 <!-- AUTO:coolify_apps -->
-## Admin Dashboards (Authelia SSO + TOTP)
-
-| URL | Service | Notes |
+| Name | FQDN | Status |
 |---|---|---|
-| `https://coolify.vps1.ocoron.com` | Coolify | Infrastructure management |
-| `https://monitor.vps1.ocoron.com` | Grafana | Metrics + Prometheus data |
-| `https://netdata.vps1.ocoron.com` | Netdata | Real-time system metrics (512MB/7d retention) |
-| `https://errors.vps1.ocoron.com` | GlitchTip | Error tracking (Sentry-compatible) |
-| `https://auto.vps1.ocoron.com` | n8n | Workflow automation |
-| `https://backup.vps1.ocoron.com` | Backrest | Backblaze B2 backup UI |
-| `https://notify.vps1.ocoron.com` | Apprise | Multi-channel notification hub |
-| `https://auth.vps1.ocoron.com` | Authelia | SSO/TOTP portal |
-
-## Public Services (No Auth)
-
-| URL | Service | Notes |
-|---|---|---|
-| `https://status.vps1.ocoron.com` | Gatus | Service uptime — read-only |
-| `https://www.ocoron.com` | WordPress | Ocoron corporate site |
-
-## API Services — X-Internal-Token Required
-
-Send header `X-Internal-Token: <SERVICE_INTERNAL_SECRET_KEY>` on every request.
-Key stored in `/opt/fabrik/.env` → push to Coolify env for each service.
-
-| URL | Service | Notes |
-|---|---|---|
-| `https://proxy.vps1.ocoron.com` | Proxy Manager | Webshare proxy pool; DB: `proxy_management` |
-| `https://captcha.vps1.ocoron.com` | Captcha Solver | AntiCaptcha integration |
-| `https://images.vps1.ocoron.com` | Image Broker | Pexels/Pixabay |
-| `https://translator.vps1.ocoron.com` | Translator | DB: `translator_service` |
-| `https://emailgateway.vps1.ocoron.com` | Email Gateway | Also accepts legacy `Authorization: Bearer` |
-
-## API Services — Other Auth
-
-| URL | Service | Auth |
-|---|---|---|
-| `https://files-api.vps1.ocoron.com` | File API | `Authorization: Bearer <supabase-jwt>` (user auth) |
-| `https://search.vps1.ocoron.com` | MeiliSearch | Master key (internal use only) |
-
-## IP-Allowlisted Services
-
-| URL | Service | Allowed from |
-|---|---|---|
-| `https://provision.vps1.ocoron.com` | Site Provisioner | `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `172.93.160.197/32`, `31.206.44.18/32` |
-
-## Internal-Only (No Public Route)
-
-| Service | Address | Purpose |
-|---|---|---|
-| PostgreSQL (main) | `postgres-main:5432` | Shared app DB — `proxy_management`, `translator_service`, etc. |
-| Redis (main) | `redis-main:6379` | Shared cache; Authelia sessions on DB index 3 |
-| Prometheus | `prometheus:9090` | Metrics; reload via `docker compose restart` in `/opt/prometheus` |
-| Loki | `loki:3100` | Log aggregation; 7-day retention |
-| cAdvisor | `cadvisor:8080` | Container metrics → Prometheus |
-| Alertmanager | `alertmanager:9093` | Alert routing → Telegram |
-| Traefik dashboard | `127.0.0.1:8080` | SSH tunnel: `ssh vps -L 8080:localhost:8080` |
+| `alertmanager` | internal | ⚠️ running:healthy |
+| `apprise` | internal | ⚠️ running:healthy |
+| `authelia` | internal | ⚠️ running:healthy |
+| `backrest` | internal | ⚠️ running:unknown |
+| `browserless` | https://browser.vps1.ocoron.com | ⚠️ running:unknown |
+| `cadvisor` | internal | ⚠️ running:healthy |
+| `fabrik-captcha` | internal | ⚠️ running:healthy |
+| `fabrik-emailgateway` | internal | ⚠️ running:healthy |
+| `fabrik-file-api` | internal | ⚠️ running:unknown |
+| `fabrik-file-worker` | internal | ⚠️ running:unknown |
+| `fabrik-image-broker` | internal | ⚠️ running:healthy |
+| `fabrik-proxy` | https://proxy.vps1.ocoron.com | ⚠️ running:healthy |
+| `fabrik-translator` | internal | ⚠️ running:healthy |
+| `gatus` | internal | ⚠️ running:unknown |
+| `glitchtip-web` | internal | ⚠️ running:unknown |
+| `glitchtip-worker-v10` | internal | ⚠️ running:unknown |
+| `gotenberg` | https://pdf.vps1.ocoron.com | ⚠️ running:healthy |
+| `grafana` | internal | ⚠️ running:healthy |
+| `loki` | internal | ⚠️ running:healthy |
+| `meilisearch` | https://search.vps1.ocoron.com | ⚠️ running:healthy |
+| `n8n` | internal | ⚠️ running:healthy |
+| `netdata` | internal | ⚠️ running:healthy |
+| `node-exporter` | internal | ⚠️ running:unknown |
+| `postgres-main` | internal | ⚠️ running:healthy |
+| `promtail` | internal | ⚠️ running:unknown |
+| `site-provisioner` | internal | ⚠️ running:healthy |
 <!-- /AUTO -->
 
 ---

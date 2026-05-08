@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-07 13:00 UTC+3
+**Last Updated:** 2026-05-08 16:52 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 40 running
@@ -80,14 +80,22 @@ Internet
 ## Firewall (UFW)
 
 <!-- AUTO:ufw_rules -->
-| Port | Action | Purpose |
-|---|---|---|
-| 22/tcp | ALLOW | SSH — Ed25519 key only, root disabled |
-| 80/tcp | ALLOW | HTTP → Traefik → HTTPS |
-| 443/tcp | ALLOW | HTTPS + OpenVPN |
-| 1194/tcp | ALLOW | OpenVPN (kernel service) |
-| 6001-6002/tcp | ALLOW | Coolify Realtime / Soketi WebSocket |
-| 8000/tcp | **DENY** | Coolify raw port — use `coolify.vps1.ocoron.com` |
+| Rule | Notes |
+|---|---|
+| `22/tcp                     ALLOW IN    Anywhere                   # SSH` | |
+| `80/tcp                     ALLOW IN    Anywhere                   # HTTP` | |
+| `443/tcp                    ALLOW IN    Anywhere                   # HTTPS+OpenVPN` | |
+| `1194/tcp                   ALLOW IN    Anywhere` | |
+| `6001/tcp                   ALLOW IN    Anywhere` | |
+| `6002/tcp                   ALLOW IN    Anywhere` | |
+| `8000/tcp                   DENY IN     Anywhere                   # Coolify raw port — use coolify.vps1.ocoron.com instead` | |
+| `22/tcp (v6)                ALLOW IN    Anywhere (v6)              # SSH` | |
+| `80/tcp (v6)                ALLOW IN    Anywhere (v6)              # HTTP` | |
+| `443/tcp (v6)               ALLOW IN    Anywhere (v6)              # HTTPS+OpenVPN` | |
+| `1194/tcp (v6)              ALLOW IN    Anywhere (v6)` | |
+| `6001/tcp (v6)              ALLOW IN    Anywhere (v6)` | |
+| `6002/tcp (v6)              ALLOW IN    Anywhere (v6)` | |
+| `8000/tcp (v6)              DENY IN     Anywhere (v6)              # Coolify raw port — use coolify.vps1.ocoron.com instead` | |
 <!-- /AUTO -->
 
 ---
@@ -184,76 +192,48 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 ## Complete Container Inventory
 
 <!-- AUTO:container_inventory -->
-### 1. Coolify Platform (6)
-| Container | Memory | Notes |
+| Container | Status | Memory limit |
 |---|---|---|
-| `coolify` | — | UI: `coolify.vps1.ocoron.com`; 8000 UFW-blocked |
-| `coolify-proxy` (Traefik v3.6) | — | 80, 443, 127.0.0.1:8080 |
-| `coolify-realtime` (Soketi) | — | 6001-6002 |
-| `coolify-db` | — | Internal PostgreSQL |
-| `coolify-redis` | — | Internal Redis |
-| `coolify-sentinel` | — | Redis Sentinel |
-
-### 2. Security (1)
-| Container | Memory | URL |
-|---|---|---|
-| `authelia` | 512m | `auth.vps1.ocoron.com` |
-
-### 3. Observability (9)
-| Container | Memory | Notes |
-|---|---|---|
-| `grafana` | 512m | `monitor.vps1.ocoron.com` (Authelia) |
-| `prometheus` | 1g | 30d+5GB; `--web.enable-lifecycle`; `/opt/prometheus/compose.yaml` |
-| `loki` | 512m | 7-day; `loki:3100` |
-| `promtail` | 128m | Ships logs → Loki |
-| `cadvisor` | 512m | `--docker_only=true --disable_metrics=sched,tcp,udp,percpu,advtcp,hugetlb,...` |
-| `node-exporter` | 128m | Host metrics |
-| `alertmanager` | 256m | Telegram; group_by alertname+container |
-| `netdata` | 768m | 512MB/7d; `netdata.vps1.ocoron.com` |
-| `gatus` | 256m | `status.vps1.ocoron.com` (open) |
-
-### 4. Shared Data (2)
-| Container | Memory | Address |
-|---|---|---|
-| `postgres-main` | 2g | `postgres-main:5432` |
-| `redis-main` | 512m | `redis-main:6379` |
-
-### 5. Fabrik Services (11)
-| Container | Memory | URL | Auth | DB |
-|---|---|---|---|---|
-| `fabrik-proxy` | 512m | `proxy.vps1.ocoron.com` | X-Internal-Token | `proxy_management` |
-| `fabrik-captcha` | 512m | `captcha.vps1.ocoron.com` | X-Internal-Token | — |
-| `fabrik-image-broker` | 512m | `images.vps1.ocoron.com` | X-Internal-Token | — |
-| `fabrik-translator` | 512m | `translator.vps1.ocoron.com` | X-Internal-Token | `translator_service` |
-| `fabrik-emailgateway` | 512m | `emailgateway.vps1.ocoron.com` | X-Internal-Token + legacy Bearer | — |
-| `fabrik-file-api` | 1g | `files-api.vps1.ocoron.com` | Supabase Bearer JWT | external |
-| `fabrik-file-worker` | 1g | internal | — | — |
-| `fabrik-site-provisioner` | 512m | `provision.vps1.ocoron.com` | IP allowlist | — |
-| `fabrik-n8n` | 2g | `auto.vps1.ocoron.com` | Authelia | — |
-| `fabrik-glitchtip-web` | 512m | `errors.vps1.ocoron.com` | Authelia | — |
-| `fabrik-glitchtip-worker` | 512m | internal | — | — |
-
-### 6. Utilities (3)
-| Container | Memory | URL |
-|---|---|---|
-| `apprise` | 512m | `notify.vps1.ocoron.com` (Authelia) |
-| `backrest` | 512m | `backup.vps1.ocoron.com` (Authelia) |
-| `meilisearch` | 512m | `search.vps1.ocoron.com` |
-
-### 7. Other (2)
-| Container | Memory | URL |
-|---|---|---|
-| `browserless` | 2g | `browser.vps1.ocoron.com` |
-| `pdf-service` | 512m | `pdf.vps1.ocoron.com` |
-
-### 8. WordPress — ocoron.com (5)
-| Container | Memory |
-|---|---|
-| `ocoron-com-nginx-1` | 256m |
-| `ocoron-com-wordpress-1` | 512m |
-| `ocoron-com-db-1` (MariaDB) | 1g |
-| `ocoron-com-redis-1` | 256m |
-| `ocoron-com-backup-1` | — |
+| `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 2 weeks (healthy) | 256m |
+| `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 2 weeks (healthy) | 512m |
+| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 31 hours (healthy) | — |
+| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 4 days | 512m |
+| `bs0wo48k4gwo440gcowscoc8-150802066640` | ✅ Up 2 weeks (healthy) | 512m |
+| `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 32 hours (healthy) | — |
+| `captcha-j8gg4ggskkossc4gkwowk4os-084910621771` | ✅ Up 32 hours (healthy) | — |
+| `coolify` | ✅ Up 2 weeks (healthy) | — |
+| `coolify-db` | ✅ Up 2 weeks (healthy) | — |
+| `coolify-proxy` | ✅ Up 2 weeks (healthy) | — |
+| `coolify-realtime` | ✅ Up 2 weeks (healthy) | — |
+| `coolify-redis` | ✅ Up 2 weeks (healthy) | — |
+| `coolify-sentinel` | ✅ Up 53 minutes (healthy) | — |
+| `e04k4sco44ow04ccc0o0k00k-151256201601` | ✅ Up 2 weeks (healthy) | 512m |
+| `emailgateway-w4oocckkwko8kowggsw8sogc-083819438364` | ✅ Up 32 hours (healthy) | — |
+| `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-105616821752` | ✅ Up 30 hours (healthy) | — |
+| `file-api-bsswwg4kg480c000gksw004k-140449896537` | ✅ Up 2 weeks | 1g |
+| `file-worker-nwcckwggw0o0g40gwskk8kk8-154849864122` | ✅ Up 4 days | 1g |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 2 days | 256m |
+| `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 2 weeks | 512m |
+| `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 2 weeks | 512m |
+| `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 29 hours (healthy) | — |
+| `image-broker-zo4ggs4g880skwkocwwkscgk-084711841807` | ✅ Up 32 hours (healthy) | — |
+| `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 2 weeks (healthy) | 512m |
+| `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 2 weeks (healthy) | 2g |
+| `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 31 hours (healthy) | — |
+| `node-exporter-doc8c8gkcgs88s8ckggw84o4` | ✅ Up 2 weeks | 128m |
+| `ocoron-com-backup-1` | ✅ Up 2 weeks | — |
+| `ocoron-com-db-1` | ✅ Up 2 weeks (healthy) | 1g |
+| `ocoron-com-nginx-1` | ✅ Up 2 weeks | 256m |
+| `ocoron-com-redis-1` | ✅ Up 2 weeks (healthy) | 256m |
+| `ocoron-com-wordpress-1` | ✅ Up 2 weeks | 512m |
+| `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | ✅ Up 2 weeks (healthy) | 2g |
+| `prometheus` | ✅ Up 31 hours (healthy) | — |
+| `promtail-w0000ckgsgg048w0848okk08` | ✅ Up 29 hours | 128m |
+| `redis-main` | ✅ Up 2 weeks (healthy) | 512m |
+| `site-provisioner-qokoksogwsk0c04gcs4swwgs-143727579258` | ✅ Up 2 weeks (healthy) | 512m |
+| `traefik` | ✅ Up 2 weeks | 256m |
+| `translator-kgws0s4cscsosw8gg848cwgw-084335048255` | ✅ Up 32 hours (healthy) | — |
+| `vckgs8c00o40o884k48cgow8-220643454460` | ✅ Up 4 days | 2g |
 <!-- /AUTO -->
 
 ---
@@ -303,15 +283,31 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 ## Resource Limits Reference
 
 <!-- AUTO:limits_summary -->
-**Two mechanisms:**
-| Mechanism | Applies to | Survives reboot | Script |
-|---|---|---|---|
-| Coolify API `limits_memory`/`limits_cpus` | Fabrik applications | ✅ yes | `fabrik apply` |
-| `docker update --memory` | Infra service stacks | ❌ no | `scripts/vps_apply_limits.sh` |
-
-**Why docker update for infra:** Coolify v4 rejects `limits_memory` for service stacks (422 — can't target sub-containers).
-
-**After any VPS reboot:** `ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"`
+| Container | Memory |
+|---|---|
+| `alertmanager-zw4swgkwk0s4s8kg048gw80o` | 256m |
+| `apprise-lcocgs4gs8ksg4g08w40ows8` | 512m |
+| `backrest-l48000k44wc4gk8os88s8k0c` | 512m |
+| `bs0wo48k4gwo440gcowscoc8-150802066640` | 512m |
+| `e04k4sco44ow04ccc0o0k00k-151256201601` | 512m |
+| `file-api-bsswwg4kg480c000gksw004k-140449896537` | 1g |
+| `file-worker-nwcckwggw0o0g40gwskk8kk8-154849864122` | 1g |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | 256m |
+| `glitchtip-web-z00kkck8c8cwo800kk440csk` | 512m |
+| `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | 512m |
+| `loki-r48swckog008wosgwcs4g0g0` | 512m |
+| `n8n-s8gwccsws0ccssw0wwgwsoks` | 2g |
+| `node-exporter-doc8c8gkcgs88s8ckggw84o4` | 128m |
+| `ocoron-com-db-1` | 1g |
+| `ocoron-com-nginx-1` | 256m |
+| `ocoron-com-redis-1` | 256m |
+| `ocoron-com-wordpress-1` | 512m |
+| `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | 2g |
+| `promtail-w0000ckgsgg048w0848okk08` | 128m |
+| `redis-main` | 512m |
+| `site-provisioner-qokoksogwsk0c04gcs4swwgs-143727579258` | 512m |
+| `traefik` | 256m |
+| `vckgs8c00o40o884k48cgow8-220643454460` | 2g |
 <!-- /AUTO -->
 
 ---
@@ -338,20 +334,34 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 ## Security Posture Summary
 
 <!-- AUTO:coolify_apps -->
-| Layer | Status | Notes |
+| Name | FQDN | Status |
 |---|---|---|
-| SSH | ✅ | Ed25519 key-only, root disabled |
-| UFW | ✅ | 8000 DENY, minimal rules |
-| Traefik | ✅ | Dashboard localhost-only |
-| Authelia | ✅ | TOTP 2FA, Redis sessions, 8 rules, no stale test rules |
-| M2M auth | ✅ | X-Internal-Token on all 5 API services |
-| Resource limits | ✅ | All 40 containers |
-| .dockerignore | ✅ | All projects |
-| Coolify CVEs | ✅ | beta.459 |
-| Observability retention | ✅ | Prometheus 30d+5GB, Loki 7d, Netdata 512MB/7d |
-| Business metrics | 🔵 | Scaffold emits metrics.py; wire existing services manually |
-| SSL | ⚠️ | Per-service HTTP challenge — TODO wildcard Cloudflare |
-| Gzip | ✅ | Registered; scaffold wires to new services |
+| `alertmanager` | internal | ⚠️ running:healthy |
+| `apprise` | internal | ⚠️ running:healthy |
+| `authelia` | internal | ⚠️ running:healthy |
+| `backrest` | internal | ⚠️ running:unknown |
+| `browserless` | https://browser.vps1.ocoron.com | ⚠️ running:unknown |
+| `cadvisor` | internal | ⚠️ running:healthy |
+| `fabrik-captcha` | internal | ⚠️ running:healthy |
+| `fabrik-emailgateway` | internal | ⚠️ running:healthy |
+| `fabrik-file-api` | internal | ⚠️ running:unknown |
+| `fabrik-file-worker` | internal | ⚠️ running:unknown |
+| `fabrik-image-broker` | internal | ⚠️ running:healthy |
+| `fabrik-proxy` | https://proxy.vps1.ocoron.com | ⚠️ running:healthy |
+| `fabrik-translator` | internal | ⚠️ running:healthy |
+| `gatus` | internal | ⚠️ running:unknown |
+| `glitchtip-web` | internal | ⚠️ running:unknown |
+| `glitchtip-worker-v10` | internal | ⚠️ running:unknown |
+| `gotenberg` | https://pdf.vps1.ocoron.com | ⚠️ running:healthy |
+| `grafana` | internal | ⚠️ running:healthy |
+| `loki` | internal | ⚠️ running:healthy |
+| `meilisearch` | https://search.vps1.ocoron.com | ⚠️ running:healthy |
+| `n8n` | internal | ⚠️ running:healthy |
+| `netdata` | internal | ⚠️ running:healthy |
+| `node-exporter` | internal | ⚠️ running:unknown |
+| `postgres-main` | internal | ⚠️ running:healthy |
+| `promtail` | internal | ⚠️ running:unknown |
+| `site-provisioner` | internal | ⚠️ running:healthy |
 <!-- /AUTO -->
 
 ---
