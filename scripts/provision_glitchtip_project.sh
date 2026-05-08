@@ -167,9 +167,9 @@ if [[ -n "$COOLIFY_UUID" ]]; then
   : "${COOLIFY_API_URL:?--coolify-uuid given but COOLIFY_API_URL not set}"
   : "${COOLIFY_API_TOKEN:?--coolify-uuid given but COOLIFY_API_TOKEN not set}"
   echo "[coolify] pushing GLITCHTIP_DSN to service ${COOLIFY_UUID}..." >&2
-  PUSH_RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X PATCH \
+  PUSH_RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
     -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" -H "Content-Type: application/json" \
-    "${COOLIFY_API_URL}/api/v1/services/${COOLIFY_UUID}/envs" \
+    "${COOLIFY_API_URL}/api/v1/applications/${COOLIFY_UUID}/envs" \
     -d "{\"key\":\"GLITCHTIP_DSN\",\"value\":\"${DSN}\",\"is_preview\":false,\"is_build_time\":false}")
   PUSH_CODE=$(echo "$PUSH_RESP" | sed -n 's/^HTTP_STATUS://p')
   if [[ "$PUSH_CODE" == "200" || "$PUSH_CODE" == "201" ]]; then
