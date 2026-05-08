@@ -145,8 +145,8 @@ For cleaner routing, use a dedicated subdomain:
 
 ```bash
 # Via Cloudflare API
-curl -X POST "https://api.cloudflare.com/client/v4/zones/b3494f947c71683f94b6afe1331a1ba6/dns_records" \
-  -H "Authorization: Bearer cfut_b76XFPFeFy0Z3RU4fcmzLRRes7xPE0GIRdIZQOlo39365bc5" \
+curl -X POST "https://api.cloudflare.com/client/v4/zones/<REDACTED-CF-ZONE-ID>/dns_records" \
+  -H "Authorization: Bearer <REDACTED-CF-API-TOKEN>" \
   -H "Content-Type: application/json" \
   --data '{"type":"A","name":"ws.coolify.vps1","content":"172.93.160.197","ttl":300,"proxied":false}'
 ```

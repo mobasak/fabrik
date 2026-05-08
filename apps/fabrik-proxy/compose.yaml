@@ -21,9 +21,9 @@ services:
       - DB_NAME=proxy_management
       - APP_ENV=production
       - DB_USER=ozgur
-      - DB_PASSWORD=proxy_secure_2025
-      - WEBSHARE_API_KEY=7nrio45xo36wsgx0m1h86fbin60oc332o0awd85a
-      - APIFY_API_TOKEN=apify_api_TlXYoSIpQqb3W94oaA5Pb7UyyqQOM505nz3I
+      - DB_PASSWORD=${DB_PASSWORD}
+      - WEBSHARE_API_KEY=${WEBSHARE_API_KEY}
+      - APIFY_API_TOKEN=${APIFY_API_TOKEN}
     deploy:
       resources:
         limits:
