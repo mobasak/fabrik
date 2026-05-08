@@ -61,6 +61,36 @@ See `CROSS_CUTTING_REQUIREMENTS.md §9` for the full procedure when adding new s
 
 GlitchTip is reachable internally (no auth) via `http://glitchtip-web:8000` on the `coolify` Docker network — the SDK ingestion uses this alias, not the public URL.
 
+## Fabrik Microservices — GlitchTip DSN Convention
+
+All 7 Fabrik microservices report errors to GlitchTip via Sentry-API-compatible SDK.
+- **Primary env var**: `SENTRY_DSN` (what `fabrik apply` orchestrator injects automatically)
+- **Fallback env var**: `GLITCHTIP_DSN` (read if SENTRY_DSN unset; for manual provisioning)
+- **DSN format**: `http://<key>@glitchtip-web:8000/<project_id>` (internal alias, bypasses Authelia)
+- **Public dashboard**: `https://errors.vps1.ocoron.com` (Authelia 2FA)
+
+| Service | GlitchTip Project ID | firstEvent (2026-05-08) |
+|---|---|---|
+| captcha | 65 | ✅ flowing |
+| image-broker | 66 | ✅ flowing |
+| translator | 67 | ✅ flowing |
+| emailgateway | 68 | ⚠️ idle (no errors yet) |
+| file-api | 69 | ✅ flowing |
+| file-worker | 70 | ⚠️ idle (no errors yet) |
+| site-provisioner | 24 | ✅ flowing (CF errors visible) |
+
+## Cloudflare API Token (site-provisioner)
+
+The token used by site-provisioner to manage DNS lives in:
+- **Coolify env**: `CLOUDFLARE_API_TOKEN` on Application UUID `qokoksogwsk0c04gcs4swwgs`
+- **Local working copy**: `/opt/site-provisioner/.env` (must be kept in sync)
+- **Token name (in Cloudflare)**: `dns-manager-full-access`
+- **Status**: Active as of 2026-05-08 (rotated after the previous token was flagged "Exposed" by Cloudflare's leak detector)
+- **Verify**: `curl -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify`
+- **Zones accessible**: ocoron.com, ozgurbasak.com, tojlo.com
+
+⚠️ **Scope hardening recommended** — current token has `Account.Workers Scripts` + `Account.Account Settings` permissions which is broader than site-provisioner needs. Should be narrowed to `Zone.DNS:Edit` + `Zone.Zone:Read` + specific zones only.
+
 ## DNS Records (Cloudflare — all A → 172.93.160.197)
 
 Active subdomains under `*.vps1.ocoron.com`:

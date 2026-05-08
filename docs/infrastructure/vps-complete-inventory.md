@@ -399,3 +399,46 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 | 1 | Wildcard SSL → Coolify → Proxy → Cloudflare DNS resolver | Low |
 | 2 | Add `/metrics` to 5 existing deployed services | Low (on next touch) |
 | 3 | Monitor swap usage (~1.7GB/2GB) | Watch |
+
+## Known Operational Issues — discovered 2026-05-08
+
+### Issue 1: Coolify drops user-defined network aliases on redeploy
+
+**Symptom:** Friendly Docker network aliases like `meilisearch`, `glitchtip-web`, `gotenberg`, `browserless` disappear after any Coolify redeploy. Services that depend on these aliases (Prometheus scraping, Gatus monitoring, Fabrik microservices) start failing with `no such host` errors until the alias is manually re-added.
+
+**Root cause:** Coolify renders its own docker-compose from the Application config and runs `docker compose up -d` on each redeploy. The new container is created with only the aliases declared in that compose file (default: `<uuid>-<timestamp>`). Any aliases added later via `docker network connect --alias` are container-instance attributes, not part of the spec — they die with the old container.
+
+**Affected services on this VPS:** `meilisearch`, `gotenberg`, `browserless`, `glitchtip-web`. Any redeploy of these breaks downstream consumers.
+
+**Temporary fix (already applied for meilisearch 2026-05-08):**
+```bash
+sudo docker network disconnect coolify <new-container-name>
+sudo docker network connect --alias meilisearch coolify <new-container-name>
+```
+
+**Permanent fix options (none yet applied):**
+1. **Compose-level aliases (recommended)**: in each Coolify Application UI → "Custom Docker Compose Block" → declare `networks: { coolify: { aliases: [meilisearch] } }`. ~5 min per service.
+2. **Watcher script**: systemd timer that polls every 60s and re-applies aliases when missing. ~30 min.
+3. **Migrate off Coolify** for these 4 services to a hand-managed compose (like Prometheus already is).
+
+**Tracking:** flagged for next observability/hardening sprint.
+
+### Issue 2: Authelia config drift between working copy and live volume
+
+**Symptom:** Edits to `/opt/authelia/config/configuration.yml` had no effect on Authelia's behavior even after restart.
+
+**Root cause:** `/opt/authelia/config/` is a working copy / convention. The actual config Authelia reads is in a Docker named volume:
+```
+/var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml
+```
+
+The two had drifted (`/opt/authelia/config/` was the older version). On 2026-05-08 they were re-synced.
+
+**To make a config change correctly:**
+1. Edit BOTH files (working copy + volume), OR
+2. Edit the volume only and `cp` it to the working copy after
+3. `docker restart authelia-...` (NEVER SIGHUP — Authelia exits on SIGHUP)
+4. Verify: `docker logs --since 30s authelia-... | grep "Listening"` shows expected addresses
+
+**Permanent fix (not yet applied):** establish a one-way sync hook from working copy → volume on file change, OR convert the volume to a bind mount of `/opt/authelia/config/`.
+

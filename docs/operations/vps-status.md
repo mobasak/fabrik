@@ -145,7 +145,19 @@
 | `netdata` | `netdata:19999` `/api/v1/allmetrics` | 15s |
 | `alertmanager` | `alertmanager:9093` | 15s |
 | `gatus` | `gatus:8080` | 15s |
+| `grafana` | `grafana:3000` (anonymous) | 15s |
+| `authelia` | `authelia:9959` (telemetry port — requires `telemetry.metrics.enabled` in config) | 15s |
+| `meilisearch` | `meilisearch:7700` Bearer auth (master key) — requires `MEILI_EXPERIMENTAL_ENABLE_METRICS=true` | 15s |
 | `fabrik-services` | (targets commented — wire as services add `/metrics`) | 30s |
+
+**All 10 Prometheus targets are UP as of 2026-05-08.** Sample app-level series confirmed flowing:
+- `authelia_request{}` — auth attempts, latency by code/method
+- `grafana_http_request_duration_seconds_*` — dashboard render rates
+- `meilisearch_http_requests_total` — search QPS, index ops
+
+**GlitchTip is intentionally NOT scraped** — `django-prometheus` not bundled by default. cAdvisor (container-level) + Gatus (uptime) cover it.
+
+See `docs/infrastructure/prometheus-app-metrics-setup.md` for setup runbook + sample queries.
 
 ### Retention Limits
 | Service | Limit | Config |
@@ -164,6 +176,8 @@
 ### Error Reporting (GlitchTip) — Live since 2026-05-08
 - **Public URL:** `https://errors.vps1.ocoron.com` (Authelia-protected)
 - **Internal alias:** `glitchtip-web:8000` on `coolify` Docker network — used by SDK ingestion (bypasses Authelia/TLS)
+- **Fabrik microservices wired (7):** captcha, image-broker, translator, emailgateway, file-api, file-worker, site-provisioner — each has scaffold-emitted `glitchtip_init` module + `SENTRY_DSN` env. Init reads `SENTRY_DSN` first, falls back to `GLITCHTIP_DSN`. Future `fabrik apply` deploys auto-inject SENTRY_DSN via the orchestrator's glitchtip registrar (hard-fatal if injection fails)
+- **Validated 2026-05-08:** 5 of 7 services have real events flowing (firstEvent populated). emailgateway + file-worker idle, init code in place — events will flow on first error
 - **Containers:** `glitchtip-web-z00kkck8c8cwo800kk440csk` (web, 512m), `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` (worker, 512m)
 - **Storage:** `glitchtip` DB on `postgres-main`; events retained 90 days (`GLITCHTIP_RETENTION_DAYS` default)
 - **SDK integration:** `fabrik scaffold` auto-emits `glitchtip_init.py` (python-api) and `glitchtip_init.js` (node-api). Zero-overhead no-op when `GLITCHTIP_DSN` env unset.

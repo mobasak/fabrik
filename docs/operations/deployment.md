@@ -440,3 +440,54 @@ Errors here are logged but never fail the command.
 - `src/fabrik/orchestrator/verifier.py` — Phase 5
 - `src/fabrik/orchestrator/rollback.py` — auto-rollback
 - `src/fabrik/cli.py:_post_deploy_sync()` — Phase 6
+
+---
+
+## Known Operational Gotchas
+
+These are environmental quirks discovered through real deploys. They affect every future deploy unless explicitly worked around.
+
+### Gotcha 1: Coolify drops Docker network aliases on every redeploy
+
+If your service or any service it talks to lives in Coolify and uses a friendly Docker DNS alias (`meilisearch`, `glitchtip-web`, `gotenberg`, `browserless`, etc.), expect every Coolify redeploy to delete that alias.
+
+**What you'll see:** `dial tcp: lookup <alias> on 127.0.0.11:53: no such host` from any container that previously resolved it.
+
+**Why:** Coolify's compose template only declares the timestamped UUID alias (`<uuid>-<timestamp>`). Friendly aliases were added externally via `docker network connect --alias` and don't survive container recreation.
+
+**Fix until permanent solution lands:** after every redeploy of an affected service:
+```bash
+sudo docker network disconnect coolify <new-container-name>
+sudo docker network connect --alias <friendly-name> coolify <new-container-name>
+```
+
+**Permanent fix:** add `networks: { coolify: { aliases: [<friendly-name>] } }` in the Coolify Application's custom compose block. See `docs/infrastructure/vps-complete-inventory.md` Issue #1.
+
+### Gotcha 2: Authelia config has two locations — only one is loaded
+
+The file at `/opt/authelia/config/configuration.yml` is a working copy. The file Authelia actually loads at startup lives in a Docker volume:
+```
+/var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml
+```
+
+If you edit only `/opt/authelia/config/`, Authelia ignores your changes. Always edit the volume file (or both, then `docker restart authelia-...`). Never `SIGHUP` — Authelia exits.
+
+### Gotcha 3: Adding a Node dep to package.json breaks `npm ci --include=dev`
+
+If you add a new dependency by editing `package.json` only, the next deploy fails at `RUN npm ci --include=dev` because `npm ci` requires `package-lock.json` to be in sync. Always run `npm install --package-lock-only` after editing deps and commit both files together.
+
+### Gotcha 4: Cloudflare auto-revokes leaked API tokens
+
+If a Cloudflare API token gets pushed to a public GitHub commit (even if you immediately rewrite history), Cloudflare's leak detector finds it within minutes and auto-revokes it. Token status in the dashboard shows **"Exposed"**. The token is dead — rolling it via "Roll" generates a new value with the same scopes (1-click). For best practice: also narrow scope (the leaked token usually had broader perms than the service needed).
+
+### Gotcha 5: Coolify API distinguishes Applications vs Services
+
+The endpoints are NOT interchangeable:
+- `/api/v1/applications/<uuid>/envs` — for git-built Apps (everything Fabrik scaffolds)
+- `/api/v1/services/<uuid>/envs` — for Coolify-managed Services (one-shot DBs, marketplace items)
+
+Calling the wrong one returns `HTTP 404 "Service not found"` even though the UUID is valid. Fabrik microservices, GlitchTip, Meilisearch, and most things deployed via fabrik are Applications — use the `/applications/` endpoint.
+
+### Gotcha 6: Coolify env-var POST rejects `is_build_time` field
+
+The Coolify v4 env-var POST API rejects `is_build_time` with `HTTP 422 "This field is not allowed."` Use only `key`, `value`, `is_preview`, `is_literal`. This was a breaking change between Coolify v4 versions; older docs/scripts using `is_build_time` need updating.
