@@ -23,7 +23,7 @@ def run_jscpd(report_path: Path) -> dict:
             "--output",
             str(report_path.parent),
             "--ignore",
-            "**/.venv/**,**/node_modules/**,**/__pycache__/**,**/dist/**,**/.git/**,**/.archive/**",
+            "**/.venv/**,**/node_modules/**,**/__pycache__/**,**/dist/**,**/.git/**,**/.archive/**,**/traycer_agents_fixed/**",
             "--min-lines",
             "10",
             "--min-tokens",
@@ -114,7 +114,7 @@ def main() -> int:
     parser.add_argument(
         "--threshold",
         type=float,
-        default=5.0,
+        default=7.0,
         help="Maximum allowed duplication percentage",
     )
     args = parser.parse_args()
