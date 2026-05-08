@@ -41,3 +41,51 @@ scrape_configs:
   - job_name: gatus
     static_configs:
       - targets: ['gatus:8080']
+
+  # Fabrik application services — expose /metrics via prometheus-client
+  # Add services here as they implement business metrics
+  # Scrape interval 30s (lower frequency than infra — business metrics are less time-sensitive)
+  - job_name: fabrik-services
+    scrape_interval: 30s
+    metrics_path: /metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: false
+    static_configs:
+      - targets:
+        # Add service domains as they implement /metrics:
+        # - proxy.vps1.ocoron.com
+        # - captcha.vps1.ocoron.com
+        # - translator.vps1.ocoron.com
+        # (uncomment when /metrics is deployed to each service)
+    # NOTE: X-Internal-Token is NOT required for /metrics — it is Authelia-bypassed
+    # via the *.vps1.ocoron.com -> /metrics resource bypass rule in Authelia config
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Infrastructure services — application-level metrics (added 2026-05-08)
+  # ─────────────────────────────────────────────────────────────────────────
+
+  # Grafana — anonymous /metrics endpoint
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+
+  # Authelia — telemetry on dedicated port 9959 (requires telemetry.metrics
+  # enabled in /opt/authelia/config/configuration.yml)
+  - job_name: authelia
+    static_configs:
+      - targets: ["authelia:9959"]
+
+  # Meilisearch — /metrics requires Bearer auth + MEILI_EXPERIMENTAL_ENABLE_METRICS=true
+  - job_name: meilisearch
+    authorization:
+      type: Bearer
+      credentials: n7mjRrSipeqy8nWzadLZYarxiUqO35tW
+    static_configs:
+      - targets: ["meilisearch:7700"]
+
+  # NOTE: GlitchTip is intentionally NOT scraped here.
+  # GlitchTip ships without django-prometheus enabled — /metrics returns 404.
+  # Container-level metrics come from cAdvisor; uptime from Gatus.
+  # To add app-level scraping, install django-prometheus into the GlitchTip
+  # container and expose /metrics via Django URL routing.
