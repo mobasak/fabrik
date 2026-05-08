@@ -507,3 +507,49 @@ for row in /api/v1/applications/<uuid>/envs:
 ```
 
 This was hit on 2026-05-08 rotating `WEBSHARE_API_KEY` on fabrik-proxy — the prod row updated cleanly, the preview row was discovered only by listing all envs first.
+
+
+### Gotcha 8: `/opt/monitoring/compose.yaml` is NOT what Coolify deploys
+
+The 198-line file at `/opt/monitoring/compose.yaml` aggregates all observability services for human reference, but **none of it is the source of truth for production**. Coolify stores its own `docker_compose_raw` per Service in its `services` table. Each "service" block in the disk file is deployed as a **separate Coolify Service** with its own UUID and ~30-50 line compose.
+
+**What this means in practice:**
+- `sed`-editing the disk file changes nothing.
+- `docker compose -f /opt/monitoring/compose.yaml up -d <svc>` from the host **creates competing standalone containers** (since `container_name:` is set in the file) without touching the Coolify-managed ones. It also creates dangling volumes (project name `monitoring`, e.g. `monitoring_grafana-data`) which never get used.
+- To extend an observability service's compose (e.g. add a bind mount), edit the Coolify Service's `docker_compose_raw` via API or UI and redeploy the Service.
+
+**Diagnostic snippet — find what's REALLY deployed for a container:**
+```bash
+# 1. Get running container's actual mounts:
+sudo docker inspect <name> --format '{{ range .Mounts }}{{ .Type }}: {{ .Source }} -> {{ .Destination }}{{ println }}{{ end }}'
+
+# 2. Get Coolify's stored compose for the matching Service UUID:
+sudo docker exec coolify-db psql -U coolify coolify -At \
+  -c "SELECT docker_compose_raw FROM services WHERE uuid = '<UUID>';"
+```
+
+**Cheaper workaround when you only need to add files under an existing bind mount:**
+- Drop the new files on the host inside the bind-mounted parent dir.
+- They appear inside the container without any compose change.
+- Example: Gap #4 Grafana dashboards used this — `/opt/monitoring/configs/grafana/provisioning` is already bind-mounted as `/etc/grafana/provisioning:ro`, so we placed `provisioning/json-dashboards/*.json` inside it. Only one Grafana restart was needed because Grafana loads provisioning **provider** yamls only at startup (the dashboard JSONs themselves auto-reload every `updateIntervalSeconds`).
+
+This was hit on 2026-05-08 during Gap #4 dashboard deployment — produced 1 orphan `loki` container + 3 dangling `monitoring_*` volumes that had to be cleaned up post-hoc.
+
+
+## Governance file propagation
+
+**Last verified: 2026-05-08 — 41 projects, 0 failures.**
+
+Committing to `/opt/fabrik` triggers the pre-commit hook `scripts/sync_enforcement_to_projects.py --force`, which copies the canonical governance files from `/opt/fabrik/.windsurfrules/`, `/opt/fabrik/AGENTS.md`, etc. into every project under `/opt/`.
+
+**Targeted projects:** all directories under `/opt/` that are not:
+- `_*` (underscore-prefixed, used for archives/internal — `_archive`, `_backups`, `_traycer`, etc.)
+- `.*` (hidden)
+- explicitly excluded (`.factory`, `.ssh`, `web_scraper`, `containerd`, `google`, `logs`)
+- the fabrik repo itself
+
+**41 projects synced as of 2026-05-08.** Previous sessions reported 34 because 7 projects (`gmailaccountcreator`, `image-generation`, `llm_batch_processor`, `namecheap`, `supplement-tracker-advisor`, `transcriber`, `ugc`) had not been `git init`'d and the operator had assumed git-tracking was a prerequisite. The script doesn't actually check for `.git`, so they were already being synced — but they had no commit history to detect drift against. They're now git-init'd to capture initial state.
+
+**Expanding the exclude list:** edit `scripts/sync_enforcement_to_projects.py`, the `exclude_folders` set near `def main()`. Recently added: `containerd` (Docker runtime artifact dir, no write perm), `google` (Chrome install location), `logs` (generic logs dir, not a Fabrik project).
+
+**Scaffold fixture relocation:** test/fixture scaffolds should live under `/opt/_archive/` (or anywhere starting with `_`) to be skipped by the propagator. The 5-month-old `/opt/_final-verify` was moved to `/opt/_archive/_final-verify` on 2026-05-08.

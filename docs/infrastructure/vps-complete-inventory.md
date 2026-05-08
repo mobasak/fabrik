@@ -440,7 +440,7 @@ The two had drifted (`/opt/authelia/config/` was the older version). On 2026-05-
 3. `docker restart authelia-...` (NEVER SIGHUP — Authelia exits on SIGHUP)
 4. Verify: `docker logs --since 30s authelia-... | grep "Listening"` shows expected addresses
 
-**Permanent fix APPLIED 2026-05-08**: `authelia-config-sync.service` (systemd, event-driven via `inotifywait`) at `/opt/authelia-config-sync/`. Watches `/opt/authelia/config/configuration.yml`; on save, copies to volume and restarts Authelia container. Reaction time ~2s. See `ops/authelia-config-sync/README.md` for details. Drift no longer possible.
+**Status: RESOLVED 2026-05-08** — `authelia-config-sync.service` (systemd, event-driven via `inotifywait`) at `/opt/authelia-config-sync/`. Watches `/opt/authelia/config/configuration.yml`; on save, copies to volume and restarts Authelia container. Reaction time ~2s. See `ops/authelia-config-sync/README.md` for details. Drift no longer possible.
 ### Issue 3: Coolify maintains duplicate prod/preview env rows for every key
 
 **Symptom:** When rotating an env value via the Coolify UI or API, the production deploy picks up the new value but the preview environment still uses the old value (or vice-versa).
@@ -463,3 +463,29 @@ Single-call updates miss the duplicate. Bulk-update endpoint behaves the same.
 
 **Tracking:** captured in `deployment.md` Gotcha 7. Future Fabrik orchestrator env-injection should iterate over all rows by default.
 
+### Issue 4: `/opt/monitoring/compose.yaml` is a wishful aggregated reference, NOT what Coolify deploys
+
+**Discovered:** 2026-05-08 during Grafana dashboard deployment.
+
+**Reality:** Coolify deploys each "service" in `/opt/monitoring/compose.yaml` (grafana, loki, prometheus, promtail, alertmanager, gatus, cadvisor, netdata, node-exporter, postgres-exporter, redis-exporter, meilisearch, gotenberg, browserless, glitchtip-web, glitchtip-worker) as a **separate Coolify Service**, each with its own UUID and its own DB-stored compose. Examples:
+
+| Container | Coolify Service UUID | Coolify project name |
+|---|---|---|
+| `grafana-loc484owg8gsw04owo0go8kc` | `loc484owg8gsw04owo0go8kc` | (per-service) |
+| `loki-r48swckog008wosgwcs4g0g0` | `r48swckog008wosgwcs4g0g0` | (per-service) |
+| `prometheus` | (project=prometheus, separate Coolify Service) | — |
+| `promtail-w0000ckgsgg048w0848okk08` | `w0000ckgsgg048w0848okk08` | (per-service) |
+
+The disk file at `/opt/monitoring/compose.yaml` is ~198 lines covering all services. Each Coolify Service's actual compose (in `services` table column `docker_compose_raw`) is ~30–50 lines containing only that one service. **Editing the disk file changes nothing in production.**
+
+**Operational implication:**
+- Volume bind mounts in the disk file don't apply to running containers — the running container's mounts come from Coolify-stored compose. Use `docker inspect <name> --format '{{ range .Mounts }}{{ .Source }} -> {{ .Destination }}{{ println }}{{ end }}'` to see the actual mounts.
+- Running `docker compose -f /opt/monitoring/compose.yaml up -d <svc>` from the host will create **competing standalone containers and volumes** (since `container_name:` is set) without affecting the Coolify-deployed ones. This was hit during this session and produced 1 orphan `loki` container + 3 dangling `monitoring_*` volumes. Cleaned up.
+- The right path for editing observability service compose is via the Coolify UI or API on the specific Service.
+
+**Workaround for "extending an existing service" (e.g. adding a dashboard mount to Grafana):**
+- Look first at the existing bind mounts of the running container.
+- If a parent dir is already bind-mounted, drop new files inside it on the host — they appear inside the container without any compose change. (This is how Gap #4 dashboards were deployed: dropped under the existing `/opt/monitoring/configs/grafana/provisioning` bind mount.)
+- Otherwise, edit the Coolify Service's compose via API/UI and trigger a Service redeploy.
+
+**Tracking:** captured in `deployment.md` Gotcha 8.

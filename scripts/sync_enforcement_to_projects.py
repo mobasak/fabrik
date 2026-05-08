@@ -344,7 +344,13 @@ def main() -> int:
     exclude_folders = {
         ".factory",
         ".ssh",
-        "web_scraper",  # Deprecated, use web-scraper
+        "web_scraper",   # Deprecated, use web-scraper
+        # System / non-project directories under /opt that the propagator
+        # historically mistakenly targeted (no write permission or no Fabrik
+        # project semantics):
+        "containerd",    # Docker runtime artifact dir
+        "google",        # Google Chrome install location
+        "logs",          # Generic logs dir; not a Fabrik project
     }
 
     # Discover projects

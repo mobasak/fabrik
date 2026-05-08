@@ -65,7 +65,7 @@
 
 ---
 
-## Container Status (40 running)
+## Container Status (42 running)
 
 <!-- AUTO:container_status -->
 | Container | Status | Memory limit |
@@ -303,7 +303,44 @@ Pre-placed in 35 projects under `/opt`
 
 ---
 
+## Recent Maintenance (2026-05-08)
+
+### Disk cleanup — 8 GB freed
+A full Docker hygiene pass on 2026-05-08 reclaimed **8 GB** on the root filesystem (47 GB → 39 GB used).
+
+| Phase | Outcome |
+|---|---|
+| `/tmp` staging files | 12 cleanup scripts + 2 tar bundles removed |
+| `/opt/*.bak.*` >14 days old | 2 stale config backups removed |
+| Dangling volumes (`monitoring_*`) | 3 removed (debris from a botched `docker compose -f /opt/monitoring/compose.yaml up -d` — see Gotcha 8 in deployment.md) |
+| Empty Docker networks | 10 pruned |
+| Unused Docker images | **6.996 GB** reclaimed via `docker image prune -a -f` |
+| Build cache | 1.116 GB reclaimed via `docker builder prune -f` |
+| systemd journal | 0 (all entries within 7-day retention; no vacuum needed) |
+
+After cleanup: **40 images, 14.32 GB** — 100 % active (each image referenced by ≥1 running container).
+
+### Permanent fixes deployed
+| Fix | Status |
+|---|---|
+| `coolify-alias-watcher.service` (Issue #1: Coolify drops aliases on redeploy) | RESOLVED |
+| `authelia-config-sync.service` (Issue #2: working-copy/volume drift) | RESOLVED |
+| Coolify env-row duplication awareness (Issue #3) | DOCUMENTED — see Gotcha 7 |
+| `/opt/monitoring/compose.yaml` is NOT what's deployed | DOCUMENTED — see Gotcha 8 |
+
+### Governance propagation: 41 → 0 failures
+The pre-commit propagator `scripts/sync_enforcement_to_projects.py` now covers **41 projects** with **0 failures**. This was previously 34 projects with 7 non-git holdouts that escaped propagation.
+
+Changes: 7 projects (`gmailaccountcreator`, `image-generation`, `llm_batch_processor`, `namecheap`, `supplement-tracker-advisor`, `transcriber`, `ugc`) were `git init`'d. The propagator script's `exclude_folders` set was extended with `containerd`/`google`/`logs` (system dirs without write permission or non-project semantics). `/opt/_final-verify` (a 5-month-old scaffold test fixture) was relocated to `/opt/_archive/_final-verify` to free the project namespace.
+
+### Grafana — 5 dashboards provisioned
+The Fabrik observability stack now ships with 5 dashboards in the `Fabrik` folder, auto-loaded from `/opt/monitoring/configs/grafana/provisioning/json-dashboards/` via the existing `provisioning` bind mount. **No compose changes were needed** — the cleanest deploy path. See dashboard catalog earlier in this doc.
+
 ## Known Issues
+
+> Issues #1, #2 RESOLVED 2026-05-08 by systemd watcher services. Issue #3 documented as a permanent operational gotcha. See `docs/infrastructure/vps-complete-inventory.md` for full Issue #1/#2/#3/#4 history with root causes and solutions; see `docs/operations/deployment.md` for the 8 deployment gotchas.
+
+
 
 | # | Issue | Status |
 |---|---|---|
