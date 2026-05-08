@@ -23,7 +23,7 @@ def run_jscpd(report_path: Path) -> dict:
             "--output",
             str(report_path.parent),
             "--ignore",
-            "**/.venv/**,**/node_modules/**,**/__pycache__/**,**/dist/**,**/.git/**",
+            "**/.venv/**,**/node_modules/**,**/__pycache__/**,**/dist/**,**/.git/**,**/.archive/**",
             "--min-lines",
             "10",
             "--min-tokens",
