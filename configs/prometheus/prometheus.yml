@@ -89,3 +89,12 @@ scrape_configs:
   # Container-level metrics come from cAdvisor; uptime from Gatus.
   # To add app-level scraping, install django-prometheus into the GlitchTip
   # container and expose /metrics via Django URL routing.
+
+  # Database exporters (added 2026-05-08 — Gap #3)
+  - job_name: postgres
+    static_configs:
+      - targets: [postgres-exporter:9187]
+
+  - job_name: redis
+    static_configs:
+      - targets: [redis-exporter:9121]

@@ -148,6 +148,8 @@
 | `grafana` | `grafana:3000` (anonymous) | 15s |
 | `authelia` | `authelia:9959` (telemetry port — requires `telemetry.metrics.enabled` in config) | 15s |
 | `meilisearch` | `meilisearch:7700` Bearer auth (master key) — requires `MEILI_EXPERIMENTAL_ENABLE_METRICS=true` | 15s |
+| `postgres` | `postgres-exporter:9187` (sidecar, postgres_exporter v0.15.0) | 15s |
+| `redis` | `redis-exporter:9121` (sidecar, redis_exporter v1.66.0) | 15s |
 | `fabrik-services` | (targets commented — wire as services add `/metrics`) | 30s |
 
 **All 10 Prometheus targets are UP as of 2026-05-08.** Sample app-level series confirmed flowing:
