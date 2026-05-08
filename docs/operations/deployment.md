@@ -208,3 +208,235 @@ Single-image Application lost its alias on Coolify redeploy. Run `bash /opt/fabr
 | 2026-05-08 | 5 leaked secrets redacted from HEAD (`apps/fabrik-proxy/compose.yaml`, archive doc) |
 | 2026-05-07 | Grafana datasource file-provisioning live; Promtail noise filter deployed |
 | 2026-05-06 | Gatus stable DNS alias architecture (single-image fix) codified across 4 governance docs |
+
+---
+
+## What Fabrik Provides — Installed Services Inventory
+
+Fabrik is a PaaS layer over Coolify on a single Ubuntu VPS (`vps1.ocoron.com`). Below is what's actually deployed and running, grouped by function. Container count: **44 running** as of 2026-05-08.
+
+### Platform Layer (lifecycle + routing)
+
+| Service | Image | Function |
+|---|---|---|
+| `coolify` | ghcr.io/coollabsio/coolify | Web UI + API for application lifecycle (create, deploy, destroy). Fabrik's `apply` driver calls this API. |
+| `coolify-db` | postgres:15-alpine | Coolify's own state DB (apps, deployments, users) — internal to Coolify only |
+| `coolify-redis` | redis:7-alpine | Coolify's own queue/cache — internal to Coolify only |
+| `coolify-realtime` | coolify-realtime | WebSocket layer for the Coolify UI |
+| `coolify-sentinel` | sentinel | Coolify's per-VPS health agent |
+| `coolify-proxy` | traefik:v3.6 | **Active reverse proxy** — terminates TLS, routes by hostname, applies middlewares. All HTTPS traffic enters here. |
+| `traefik` | traefik:v2.11 | Legacy proxy (older deploy) — kept for reference, not in active routing |
+
+### Auth Boundary
+
+| Service | Image | Function |
+|---|---|---|
+| `authelia` | authelia/authelia:latest | Forward-auth: protects admin dashboards (Grafana, GlitchTip, Coolify, etc.). Sessions stored in `redis-main:6379` DB index 3. **Never SIGHUP — always `docker restart`** to reload config. |
+
+### Shared Application Databases
+
+| Service | Image | Function |
+|---|---|---|
+| `postgres-main` | postgres:16-alpine | Primary application DB shared by all microservices. Each service gets its own DB (e.g. `glitchtip`, `proxy_management`). **Always reach via `postgres-main:5432` — never `localhost`.** |
+| `redis-main` | redis:7-alpine | Shared cache + Authelia session store. **Reach via `redis-main:6379`**. |
+
+### Observability Stack
+
+| Service | Image | Function |
+|---|---|---|
+| `prometheus` | prom/prometheus:v3.2.1 | Metrics scraper — pulls `/metrics` endpoints from cadvisor, node-exporter, Fabrik services. Standalone (NOT in Coolify — Coolify strips network attachments on redeploy). 30d / 5GB retention. |
+| `grafana` | grafana/grafana:11.5.1 | Dashboards. Datasources file-provisioned via bind mount `/opt/monitoring/configs/grafana/provisioning`. |
+| `loki` | grafana/loki:3.4.2 | Log aggregation. 7d retention. |
+| `promtail` | grafana/promtail:3.4.2 | Log shipper to Loki. Drops noise from `coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel`, `ocoron-com-backup-1`. |
+| `alertmanager` | prom/alertmanager:v0.28.1 | Routes Prometheus alerts. `group_by: [alertname, container]`, repeat `4h` default / `30m` critical. |
+| `apprise` | caronc/apprise | Alertmanager → Telegram bridge. |
+| `node-exporter` | prom/node-exporter:v1.9.1 | Host-level CPU/memory/disk metrics. |
+| `cadvisor` | gcr.io/cadvisor/cadvisor:v0.52.1 | Per-container metrics. `--housekeeping_interval=30s --docker_only=true`. |
+| `netdata` | netdata/netdata:stable | Real-time per-host UI. 512MB / 7d retention. |
+
+### Error Reporting
+
+| Service | Image | Function |
+|---|---|---|
+| `glitchtip-web` | glitchtip/glitchtip:latest | Sentry-compatible error tracking UI + ingestion. Public via `errors.vps1.ocoron.com` (Authelia). Internal alias `glitchtip-web:8000` for SDK ingestion (bypasses Authelia). |
+| `glitchtip-worker` | glitchtip/glitchtip:latest | Celery worker — processes incoming events. |
+
+### Backup
+
+| Service | Image | Function |
+|---|---|---|
+| `backrest` | ghcr.io/garethgeorge/backrest | Restic-based backup orchestrator. Plans created automatically by Fabrik for services with `shape.has_persistent_data`. |
+
+### Status / Health Monitoring
+
+| Service | Image | Function |
+|---|---|---|
+| `gatus` | twinproduction/gatus:latest | Public status page at `status.vps1.ocoron.com`. Uses stable Docker DNS aliases (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`) — never raw UUID container names. |
+
+### Workflow / Automation
+
+| Service | Image | Function |
+|---|---|---|
+| `n8n` | n8nio/n8n:latest | Visual workflow automation — webhooks, scheduled jobs, integrations. Authelia-protected. |
+
+### Shared Utility Services (used by Fabrik microservices)
+
+| Service | Image | Function |
+|---|---|---|
+| `meilisearch` (UUID name) | getmeili/meilisearch:v1.13 | Search index server. Per-service indexes. Internal alias `meilisearch:7700`. |
+| `gotenberg` (UUID name) | gotenberg/gotenberg:8 | HTML/Markdown → PDF converter. Internal alias `gotenberg:3000`. |
+| `browserless/chromium` (UUID name) | ghcr.io/browserless/chromium | Headless browser API for scraping/screenshots. Internal alias `browserless:3000`. |
+
+### Fabrik Microservices (8 — all M2M-authed via `X-Internal-Token`)
+
+| Service | Function |
+|---|---|
+| `fabrik-proxy` | Proxy management API for Webshare/Apify residential proxies (rotation, health). |
+| `captcha` | CAPTCHA solving service (third-party API wrapper). |
+| `image-broker` | Image processing/optimization broker. |
+| `translator` | Multi-locale translation API (LLM-backed). |
+| `emailgateway` | Email send relay (multiple providers behind one API). |
+| `file-api` | User-facing file upload/download API. Auth via Supabase JWT (not M2M token). |
+| `file-worker` | Background file-processing worker (companion to file-api). |
+| `site-provisioner` | Provisions per-tenant WordPress/static sites. IP-allowlisted (no app auth). |
+
+### Hosted End-User Applications
+
+| Service Group | Containers | Function |
+|---|---|---|
+| `ocoron-com` | wordpress + mariadb + redis + nginx + backup (5 containers) | Marketing site at ocoron.com. WordPress on PHP 8.3-FPM, MariaDB 10.11, Nginx front, dedicated Redis. Backup container runs scheduled exports. |
+
+### Project Type Catalog (`fabrik scaffold --type <T>`)
+
+The scaffold supports **11 project types** (canonical list in `src/fabrik/scaffold.py:SCAFFOLD_TYPES`):
+
+| Type | Stack | Use |
+|---|---|---|
+| `python-api` | FastAPI + structlog + Alembic | Internal/public REST APIs |
+| `node-api` | Node.js + pino | JS/TS REST APIs |
+| `saas-skeleton` | Next.js + TypeScript + Tailwind | Full SaaS apps with UI |
+| `file-api` | FastAPI + Supabase JWT | User-facing file upload/download |
+| `file-worker` | Celery / RQ | Background file processing |
+| `wordpress` | WP + MariaDB | Marketing/content sites (5 sub-presets: saas, company, content, landing, ecommerce) |
+| `docusaurus` | Docusaurus 3 | Documentation sites |
+| `chrome-extension` | MV3 + TypeScript | Browser extensions |
+| `mobile-app` | React Native / Expo | Mobile apps |
+| `desktop-app` | Tauri / Electron | Desktop apps |
+| `static-site` | Vite + plain HTML/JSX | Static sites |
+
+Plus the WordPress presets give 16 effective scaffold variants.
+
+---
+
+## What Happens During Deploy — Phase-by-Phase
+
+This is the actual sequence executed by `fabrik apply <spec>` (and by `fabrik deploy` when called from a project's own `project.yaml`). Source of truth: `src/fabrik/orchestrator/__init__.py:DeploymentOrchestrator.deploy()`.
+
+The orchestrator runs **5 phases** with `DeploymentState` transitions: `VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE`. Failure at any phase triggers `ROLLING_BACK` (auto, unless `--keep-on-failure`).
+
+### Phase 1 — VALIDATING (locally on WSL, no VPS calls)
+**Module:** `src/fabrik/orchestrator/validator.py:SpecValidator`
+
+- Loads the spec YAML (or `project.yaml` for `fabrik deploy`)
+- Validates schema: required fields, `shape.*` flags, port uniqueness against `PORTS.md`, business model duplicate check against `BUSINESS_MODEL.md`
+- Computes `spec_hash` (used for idempotency — re-runs skip if hash unchanged)
+- Returns `(spec, spec_hash, warnings)` — warnings are non-fatal (e.g. missing user guide flag)
+
+**No network calls in this phase.**
+
+### Phase 2 — PROVISIONING (local — secret resolution)
+**Module:** `src/fabrik/orchestrator/secrets.py:SecretsManager`
+
+- Resolves secrets from `--secrets KEY=VALUE` flags AND from `/opt/fabrik/.env`
+- Builds the env dict that will be pushed to Coolify
+- Validates no required secrets are missing
+
+**No network calls in this phase.**
+
+### Phase 3 — DEPLOYING (calls Coolify API on VPS)
+**Module:** `src/fabrik/orchestrator/deployer.py:ServiceDeployer`
+
+This is the only phase that creates the Application container. Sequence:
+
+1. **`find_existing(name)`** — GET `/api/v1/applications?name=<name>` on Coolify. Idempotency check.
+2. **`_resolve_project_server_uuids()`** — looks up the Coolify project + server UUIDs from the spec.
+3. **`_resolve_environment_uuid()`** — resolves the target environment (production by default).
+4. **`_resolve_private_key_uuid()`** — resolves the SSH key for git clone (if git source).
+5. **`_create_deployment()`** — branches:
+   - **Git source** → `_create_git_deployment()`: Coolify clones the GitHub repo on the VPS, builds (Dockerfile from repo root or `dockerfile_path`), and starts the container. The build happens **on the VPS** in Coolify's build environment.
+   - **Inline source** → `_create_inline_deployment()`: pushes a docker-compose snippet directly to Coolify (used for single-image services like Meilisearch, Gotenberg).
+6. **`_wait_for_app_status(uuid, max_wait=600)`** — polls Coolify's status endpoint until container reports running. Timeout = 10 min.
+7. **`_wait_for_container(name, max_wait=90)`** — confirms the actual Docker container exists on VPS. Timeout = 90s.
+
+**At end of Phase 3**: a running container exists on the VPS, attached to the `coolify` Docker network, with Traefik labels applied (Coolify auto-generates these from spec's `domain` and `port`).
+
+### Phase 4 — PROVISIONING (post-deploy registrars on VPS)
+**Module:** `src/fabrik/orchestrator/infrastructure.py:InfrastructureProvisioner`
+
+The orchestrator dispatches to **9 infrastructure registrars**, each gated by a shape flag in the spec. Source order (`_REGISTRAR_ORDER`):
+
+| # | Registrar | Runs when | Action on VPS |
+|---|---|---|---|
+| 1 | **postgres** | `shape.needs_database` | Creates database in `postgres-main` (idempotent CREATE DATABASE IF NOT EXISTS); creates app-specific user with restricted grants; injects `DATABASE_URL` into Coolify env. |
+| 2 | **redis** | `shape.needs_cache` | Reserves a Redis DB index in `redis-main` from a shared registry; injects `REDIS_URL` with the assigned index. |
+| 3 | **gatus** | `shape.is_public` AND `spec.domain` set | Adds an HTTPS endpoint to `/opt/gatus/config.yaml`; restarts gatus container. Public services get cert-expiry alerts. |
+| 4 | **backrest** | `shape.has_persistent_data` | Creates a Restic backup plan named `<name>-data` pointing at the service's volume; configures retention. |
+| 5 | **glitchtip** | always (when DSN provisioning enabled) | Creates a GlitchTip project via API (Sentry-compatible); rewrites DSN host to `glitchtip-web:8000`; pushes `GLITCHTIP_DSN` to Coolify env. |
+| 6 | **grafana** | always (non-fatal by contract) | Creates/updates a per-service dashboard in Grafana from a template. Failure here does NOT fail the deploy. |
+| 7 | **authelia** | `shape.is_admin_dashboard` AND `spec.domain` set | Adds a `two_factor` access rule to `/opt/authelia/configuration.yml`; adds an `^/api/` bypass rule for M2M traffic; **`docker restart authelia-...`** (NEVER SIGHUP — Authelia exits on SIGHUP). |
+| 8 | **meilisearch** | `shape.has_search_feature` | Creates an index with the configured `uid`; sets searchable attributes from spec. |
+| 9 | **prometheus** | always | Adds the service to `prometheus.yml` scrape jobs (target = `<name>:<metrics_port>`); reloads Prometheus via SIGHUP. |
+
+**Override rule** (`infra:` block in spec): only valid value is `<registrar>: false` to **disable** an otherwise-applicable registrar. Any other value (or absence) means "run". Typo `flase` is rejected — no silent skips.
+
+**Each successful registration is recorded in `ctx.created_resources`** so rollback can undo it in reverse order on failure.
+
+### Phase 5 — VERIFYING (HTTP health check from outside VPS)
+**Module:** `src/fabrik/orchestrator/verifier.py:DeploymentVerifier`
+
+- Probes `https://<domain>/health` from WSL (via Cloudflare → Traefik → container)
+- Waits up to a configurable timeout for `200 OK` response
+- Skipped if `--skip-health-check` flag passed
+- Skipped if spec has no `domain` (internal-only services)
+
+If health check fails → `ROLLING_BACK`.
+
+### Phase 6 — POST-DEPLOY HOOK (always runs, non-fatal)
+**Module:** `src/fabrik/cli.py:_post_deploy_sync()`
+
+After every successful (or failed) `apply` / `deploy` / `destroy`:
+
+1. Runs `scripts/sync_projects.py` → updates `data/projects.yaml` registry from filesystem state.
+2. Runs `scripts/update_vps_docs.py` in background → refreshes the `<!-- AUTO:* -->` blocks in `docs/operations/vps-status.md`, `docs/operations/vps-urls.md`, `docs/infrastructure/vps-complete-inventory.md` from live VPS state.
+
+Errors here are logged but never fail the command.
+
+### Rollback (automatic on any phase failure)
+**Module:** `src/fabrik/orchestrator/rollback.py:RollbackManager`
+
+- Iterates `ctx.created_resources` in **reverse order** (most-recent first)
+- Each resource type has a corresponding cleanup driver (e.g. `postgres` → DROP DATABASE; `gatus` → remove endpoint; `glitchtip` → DELETE project)
+- Errors during rollback are logged and accumulated; rollback never re-raises (always tries to clean as much as possible)
+- `--keep-on-failure` flag skips rollback so you can inspect the broken state — manual cleanup required
+
+### What this means in practice
+
+| You ran | What hit the VPS |
+|---|---|
+| `fabrik plan <spec>` | Nothing. Read-only — prints what would happen. |
+| `fabrik apply <spec>` | Phases 1-6 above. Container created, infra wired, health-checked, registry synced. |
+| `fabrik redeploy <name>` | Calls Coolify API to re-pull from GitHub and rebuild. Skips Phases 1, 2, 4 — assumes spec hasn't changed. |
+| `fabrik destroy <name>` | Inverse of apply: rollback all `ctx.created_resources`, then delete the Coolify Application. |
+| `fabrik deploy` (in project dir) | Reads `project.yaml` → builds spec → runs `apply`. The "user-friendly" entry point. |
+| `fabrik fix <name>` | Adds missing scaffold-emitted files (logger.py, internal_auth.py, metrics.py, glitchtip_init.py) without touching deploy state. |
+
+### Source-of-truth files for this section
+
+- `src/fabrik/orchestrator/__init__.py` — main `deploy()` method, phase transitions
+- `src/fabrik/orchestrator/validator.py` — Phase 1
+- `src/fabrik/orchestrator/secrets.py` — Phase 2
+- `src/fabrik/orchestrator/deployer.py` — Phase 3 (Coolify API calls)
+- `src/fabrik/orchestrator/infrastructure.py` — Phase 4 (registrar dispatch)
+- `src/fabrik/orchestrator/verifier.py` — Phase 5
+- `src/fabrik/orchestrator/rollback.py` — auto-rollback
+- `src/fabrik/cli.py:_post_deploy_sync()` — Phase 6
