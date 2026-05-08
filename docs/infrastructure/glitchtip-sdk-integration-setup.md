@@ -12,6 +12,15 @@
 
 Every Fabrik service emitted by `fabrik scaffold` ships with a Sentry-SDK init module pointed at the in-cluster GlitchTip. When `GLITCHTIP_DSN` is set in the service's Coolify env, unhandled exceptions auto-report to GlitchTip with stacktrace, release tag, and environment label. When unset, the SDK is a zero-overhead no-op — services can be deployed without DSN configured and pay nothing for the integration.
 
+## Env var name: SENTRY_DSN (primary) or GLITCHTIP_DSN (fallback)
+
+GlitchTip is Sentry-API-compatible, so the SDK accepts either name. Fabrik's convention:
+
+- **`SENTRY_DSN`** is the primary name (what `fabrik apply`'s glitchtip registrar injects into Coolify automatically — see `src/fabrik/orchestrator/infrastructure.py:_provision_glitchtip`)
+- **`GLITCHTIP_DSN`** is accepted as a fallback for backwards compatibility / manual provisioning
+
+The scaffold-emitted `glitchtip_init` module reads `SENTRY_DSN` first, falls back to `GLITCHTIP_DSN`. Either one works; setting both is redundant but harmless.
+
 This eliminates two failure modes:
 1. **No error visibility** in production until someone reads logs (Loki) line by line.
 2. **Per-service custom Sentry init** drift — wrong sample rates, wrong PII handling, missing release tags.

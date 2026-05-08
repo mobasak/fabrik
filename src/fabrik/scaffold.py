@@ -764,6 +764,7 @@ def _scaffold_shared(
         f"# Error reporting (GlitchTip) — recommended for production deploys\n"
         f"# Get DSN by running: scripts/provision_glitchtip_project.sh {name}\n"
         f"# Push to Coolify env on deploy. If unset, SDK becomes a no-op (zero overhead).\n"
+        f"SENTRY_DSN=\n"  # primary (fabrik orchestrator injects this); GLITCHTIP_DSN below kept as fallback alias
         f"GLITCHTIP_DSN=\n"
         f"ENVIRONMENT=production\n"
         f"\n"
@@ -1127,7 +1128,7 @@ def metrics_app():
     # Wire by importing this module BEFORE creating FastAPI app in main.py.
     (package_dir / "glitchtip_init.py").write_text('''"""GlitchTip / Sentry SDK initialization.
 
-If GLITCHTIP_DSN is set, errors and traces auto-report to GlitchTip.
+If SENTRY_DSN (preferred, fabrik standard) or GLITCHTIP_DSN is set, errors and traces auto-report to GlitchTip.
 If unset, init is a no-op (zero overhead, zero exceptions).
 
 Import this module BEFORE FastAPI app creation in main.py:
@@ -1147,7 +1148,7 @@ def init_glitchtip() -> bool:
     Returns True if init ran (DSN was set), False if no-op.
     Safe to call multiple times — Sentry SDK handles re-init internally.
     """
-    dsn = os.environ.get("GLITCHTIP_DSN", "").strip()
+    dsn = (os.environ.get("SENTRY_DSN") or os.environ.get("GLITCHTIP_DSN") or "").strip()
     if not dsn:
         return False
 
@@ -1655,7 +1656,7 @@ module.exports = logger;
 /**
  * GlitchTip / Sentry SDK initialization.
  *
- * If GLITCHTIP_DSN is set, errors and unhandled rejections auto-report to GlitchTip.
+ * If SENTRY_DSN (preferred, fabrik standard) or GLITCHTIP_DSN is set, errors and unhandled rejections auto-report to GlitchTip.
  * If unset, init is a no-op (zero overhead).
  *
  * Require this module BEFORE any other imports that may throw or create handlers:
@@ -1664,7 +1665,7 @@ module.exports = logger;
  * Provision a project + DSN: scripts/provision_glitchtip_project.sh <service-name> --platform javascript-node
  * Push DSN to Coolify env on deploy.
  */
-const dsn = (process.env.GLITCHTIP_DSN || '').trim();
+const dsn = (process.env.SENTRY_DSN || process.env.GLITCHTIP_DSN || '').trim();
 
 if (dsn) {
   try {
