@@ -1,0 +1,17 @@
+[Unit]
+Description=Coolify network alias watcher (re-applies friendly DNS aliases dropped on redeploy)
+After=docker.service
+Requires=docker.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/opt/coolify-alias-watcher/watcher.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/coolify-alias-watcher.log
+StandardError=append:/var/log/coolify-alias-watcher.log
+
+[Install]
+WantedBy=multi-user.target
