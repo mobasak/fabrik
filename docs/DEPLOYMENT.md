@@ -939,6 +939,17 @@ Every invariant below has a live-incident writeup in `docs/LESSONS_LEARNT.md`. C
 | Grafana datasources stored only in SQLite db are lost on volume wipe | Bind-mount `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning:ro` in Coolify service compose. Provisioning YAML files persist as code. |
 | Gatus UUID container names break silently on Coolify Application redeploy | Three-layer fix: compose alias + `docker network connect --alias` + `vps_apply_limits.sh apply_alias()`. Service stacks are stable; single-image Applications need the alias treatment. See CROSS_CUTTING_REQUIREMENTS.md §9. | `prometheus-client>=0.21.0` in requirements; `fabrik-services` job in prometheus.yml (targets commented) |
 
+## Setup Runbooks (Reproducible Procedures)
+
+These are the canonical reproducible setup procedures for components added to the stack. Each is a standalone, command-by-command rebuild guide.
+
+| Runbook | Purpose | Where it runs |
+|---|---|---|
+| [`infrastructure/promtail-noise-filter-setup.md`](infrastructure/promtail-noise-filter-setup.md) | Promtail `drop` stage to filter Coolify infra log noise | VPS |
+| [`infrastructure/grafana-provisioning-setup.md`](infrastructure/grafana-provisioning-setup.md) | File-based Grafana datasource provisioning (Prometheus + Loki) via host bind mount | VPS |
+| [`infrastructure/grafana-dashboards-setup.md`](infrastructure/grafana-dashboards-setup.md) | API-based dashboard import (Node Exporter Full, Docker monitoring, Prometheus Stats) | VPS |
+| [`workstation/wsl-shell-mcp-setup.md`](workstation/wsl-shell-mcp-setup.md) | Claude Desktop wsl-shell MCP server install + schema patch | Local Windows + WSL |
+
 ## Appendix A: Quick reference — where to look
 
 | I want to... | Look at |

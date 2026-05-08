@@ -8,6 +8,10 @@
 
 ## What's Provisioned
 
+> **Note (2026-05-08):** Datasources are now ALSO file-provisioned via bind mount — see [`grafana-provisioning-setup.md`](grafana-provisioning-setup.md). The API-based datasource creation in `provision_grafana.sh` is now redundant for datasources (idempotent no-op on re-run) but the script remains the canonical mechanism for **dashboard** imports.
+
+
+
 ### Datasources (2)
 
 | Name | Type | Internal URL |
