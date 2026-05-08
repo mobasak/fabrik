@@ -440,7 +440,7 @@ The two had drifted (`/opt/authelia/config/` was the older version). On 2026-05-
 3. `docker restart authelia-...` (NEVER SIGHUP — Authelia exits on SIGHUP)
 4. Verify: `docker logs --since 30s authelia-... | grep "Listening"` shows expected addresses
 
-**Permanent fix (not yet applied):** establish a one-way sync hook from working copy → volume on file change, OR convert the volume to a bind mount of `/opt/authelia/config/`.
+**Permanent fix APPLIED 2026-05-08**: `authelia-config-sync.service` (systemd, event-driven via `inotifywait`) at `/opt/authelia-config-sync/`. Watches `/opt/authelia/config/configuration.yml`; on save, copies to volume and restarts Authelia container. Reaction time ~2s. See `ops/authelia-config-sync/README.md` for details. Drift no longer possible.
 ### Issue 3: Coolify maintains duplicate prod/preview env rows for every key
 
 **Symptom:** When rotating an env value via the Coolify UI or API, the production deploy picks up the new value but the preview environment still uses the old value (or vice-versa).

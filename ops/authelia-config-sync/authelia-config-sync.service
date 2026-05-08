@@ -1,0 +1,17 @@
+[Unit]
+Description=Authelia config sync watcher (mirrors /opt/authelia/config to Docker volume + restarts Authelia)
+After=docker.service
+Requires=docker.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/opt/authelia-config-sync/sync.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/authelia-config-sync.log
+StandardError=append:/var/log/authelia-config-sync.log
+
+[Install]
+WantedBy=multi-user.target
