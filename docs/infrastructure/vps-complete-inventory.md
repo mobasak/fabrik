@@ -506,3 +506,19 @@ Empty serviceId + `com.docker.compose.project=monitoring` → Category B (host-m
 3. Use `--no-deps --force-recreate` to scope changes precisely when targeting Category B services.
 
 **Tracking:** captured in `deployment.md` Gotcha 8.
+
+
+## Service integration audit (2026-05-09)
+
+Cross-service integration map (which container connects to which shared platform component) is captured in `docs/operations/vps-status.md` under "Service Integration Map (audited 2026-05-09)". Phase 4 registrar implementation status is captured in `docs/operations/deployment.md` under "Phase 4 Registrar Coverage Status".
+
+Headline numbers from that audit:
+- Postgres: 4 app DBs across 4 services
+- Redis: 2 logical DBs in use (authelia=db3, glitchtip-web=db4); 14 indexes free
+- Gatus: 28 endpoints across 14 config files
+- Backrest: 1 repo, 4 plans
+- GlitchTip: 7 active projects
+- Grafana: 9 dashboards (5 Fabrik + 4 community)
+- Authelia: 8 access control rules
+- Meilisearch: 0 indexes (no consumers yet)
+- Prometheus: 13 scrape jobs, 12 active targets, SIGHUP reload pattern

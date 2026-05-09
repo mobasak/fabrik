@@ -339,6 +339,87 @@ The Fabrik observability stack now ships with 5 dashboards in the `Fabrik` folde
 ### Healthcheck override — redis-exporter (2026-05-08)
 The `oliver006/redis_exporter:v1.66.0` image is distroless (no `wget`, no shell). Its baked-in healthcheck `[CMD wget -qO- http://localhost:9121/metrics]` cannot execute, producing a permanent `(unhealthy)` status — purely cosmetic since metrics flow normally. Fix in `/opt/monitoring/compose.yaml`: `healthcheck.disable: true`. Liveness signal is now Prometheus's `up{job="redis"}` metric, which is more reliable for an exporter than any internal check. `postgres-exporter` keeps its image healthcheck because the `prometheuscommunity/postgres-exporter` image bundles wget.
 
+## Service Integration Map (audited 2026-05-09)
+
+This snapshot describes which services are **actually wired up** to which shared platform components on the VPS today. It maps onto the 9-registrar Phase 4 design (`postgres`, `redis`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`, `prometheus`).
+
+### Postgres central — `postgres-main:5432`
+4 application databases (postgres-exporter sees the 5th = system `postgres` DB):
+
+| DB | Size | Connected service | User |
+|---|---|---|---|
+| `glitchtip` | 53 MB | `glitchtip-web`, `glitchtip-worker` | `postgres` |
+| `proxy_management` | 8.3 MB | `fabrik-proxy` | `proxy_user` |
+| `translator_service` | 8.0 MB | `translator` (kgws0s4cscsosw8gg848cwgw) | `postgres` |
+| `site_provisioner` | 7.8 MB | `site-provisioner` (qokoksogwsk0c04gcs4swwgs) | `site_provisioner` |
+
+DB users (excluding postgres super): `site_provisioner`, `proxy_user`, `ozgur`. Connection convention: `postgres-main:5432` (Docker DNS alias on coolify network), never `localhost` from inside containers.
+
+### Redis central — `redis-main:6379` (single instance, 16 logical DBs)
+2 logical DBs in active use:
+
+| DB index | Keys | Connected service |
+|---|---|---|
+| `db3` | 40 (TTL'd) | `authelia` (session storage, configured in `session.redis.database_index: 3`) |
+| `db4` | 15 (TTL'd) | `glitchtip-web` (`REDIS_URL=redis://redis-main:6379/4`) |
+
+DB indexes 0–2, 5–15 free. **No central authority maps DB index → service today** — Phase 4 registrar would assign these.
+
+### Gatus monitoring — 28 endpoints across 14 files
+File structure (multi-file config under `/opt/monitoring/configs/gatus/`):
+
+| Subdir | Endpoint count | Purpose |
+|---|---|---|
+| `core/infra.yaml` | 5 | Coolify-self, Traefik, system services |
+| `data/databases.yaml` | 3 | postgres, redis, db connectivity probes |
+| `external/public.yaml` | 5 | External (publicly reachable) URLs |
+| `observability/stack.yaml` | 5 | Loki, Prometheus, Grafana, etc. |
+| `apps/*.yaml` | 10 | Per-app HTTP endpoints (one per file: prometheus, netdata, n8n, loki, grafana, glitchtip, dns-manager, backrest, apprise, alertmanager) |
+
+Drift safety: 2 `*.predrift-fix.20260506` backups exist (`dns-manager.yaml`, `fabrik-microservices.yaml`).
+
+### Backrest — Restic-based backup
+- **1 repo:** `b2-vps1` → `s3://vps1-oco@s3.us-west-004.backblazeb2.com` (Backblaze B2)
+- **4 plans:** `docker-volumes`, `opt-configs`, `postgres-dumps`, `fabrik-e2e-test-data`
+- Container: `backrest-l48000k44wc4gk8os88s8k0c` — Up 5 days
+- Bind mounts: `/opt/backups`, `/var/lib/docker/volumes`, `/opt/backrest/config`, `/opt` (read), Docker socket
+
+### GlitchTip — error tracking
+- **7 active GT projects** (per session memory): `captcha` (id=65, flowing), `image-broker` (66, flowing), `translator` (67, flowing), `emailgateway` (68, idle), `file-api` (69, flowing), `file-worker` (70, idle), `site-provisioner` (24, flowing)
+- DSN convention rewritten by orchestrator to internal alias `glitchtip-web:8000` (not the public URL)
+- API token: `GLITCHTIP_AUTH_TOKEN` not currently in `/opt/fabrik/.env` — manual API exploration requires re-fetching from the GT UI when needed
+- DB: `postgres-main → glitchtip` (53 MB), Redis: `redis-main:6379/4`
+
+### Grafana — 9 dashboards total
+| Folder | Count | UIDs |
+|---|---|---|
+| `Fabrik` | 5 | fabrik-infra-overview, fabrik-databases, fabrik-containers, fabrik-authelia, fabrik-meilisearch |
+| (root) | 4 | `Docker monitoring` (community), `Node Exporter Full` (community), `Prometheus Stats` (community), and `Fabrik` folder marker |
+
+Provisioning: bind-mounted `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning:ro`. Auto-reload every 30s for dashboard JSONs; provider yamls require Grafana restart.
+
+### Authelia — access control rules
+- **default_policy:** `deny`
+- **Bypass list (8 rules):** `ocoron.com`, `www.ocoron.com`, `wp-test.vps1.ocoron.com`, `status.vps1.ocoron.com`, all `*.vps1.ocoron.com` for `^/(health|healthz|metrics|api/health)$`, all 11 microservice subdomains (pdf, browser, search, images, captcha, proxy, translator, files-api, emailgateway, dns, errors), Coolify + Monitor `^/api/` paths
+- **Two-factor:** catch-all `*.vps1.ocoron.com` not bypassed above
+- **Session storage:** Redis DB 3, 1h expiration, 5m inactivity, 1mo remember-me
+- **Storage backend:** SQLite at `/config/db.sqlite3`
+
+### Meilisearch — search backend
+- **0 indexes currently** (audited via `GET /indexes` — returns `bad address` from prometheus container; needs verification via the watcher, but no scaffolded service currently consumes meilisearch)
+- Master key in environment, metrics endpoint serving since `MEILI_EXPERIMENTAL_ENABLE_METRICS=true` was set
+- Network alias `meilisearch` confirmed preserved by `coolify-alias-watcher.service` (last applied 2026-05-09T00:12:06+03:00 after a redeploy)
+
+### Prometheus — 13 scrape jobs, 12 active targets
+| Job | Target count | Source |
+|---|---|---|
+| `prometheus`, `node`, `cadvisor`, `loki`, `netdata`, `alertmanager`, `gatus` | 1 each | infrastructure |
+| `grafana`, `authelia`, `meilisearch` | 1 each | app-level (added 2026-05-08) |
+| `postgres`, `redis` | 1 each | exporter sidecars (added 2026-05-08) |
+| `fabrik-services` | 0 active | service discovery placeholder |
+
+Reload mechanism: `SIGHUP` to prometheus container after editing `/opt/monitoring/configs/prometheus/prometheus.yml` (which IS bind-mounted from the Coolify-managed Service compose, so edits there DO apply — unlike the rest of `/opt/monitoring/compose.yaml`).
+
 ## Known Issues
 
 > Issues #1, #2 RESOLVED 2026-05-08 by systemd watcher services. Issue #3 documented as a permanent operational gotcha. See `docs/infrastructure/vps-complete-inventory.md` for full Issue #1/#2/#3/#4 history with root causes and solutions; see `docs/operations/deployment.md` for the 8 deployment gotchas.
