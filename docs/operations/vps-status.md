@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-09 07:02 UTC
+**Last Updated:** 2026-05-09 07:04 UTC
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
 **SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
@@ -13,9 +13,9 @@
 <!-- AUTO:system_overview -->
 | **Containers running** | 42 |
 | **Disk** | 108G total, 39G used, 70G free (36%) |
-| **Memory** | 11Gi total, 4.7Gi used, 549Mi free |
-| **Uptime** | up 7 weeks, 2 days, 8 hours, 41 minutes |
-| **Last snapshot** | 2026-05-09 07:02 UTC |
+| **Memory** | 11Gi total, 4.6Gi used, 597Mi free |
+| **Uptime** | up 7 weeks, 2 days, 8 hours, 43 minutes |
+| **Last snapshot** | 2026-05-09 07:04 UTC |
 <!-- /AUTO -->
 
 | **OS** | Ubuntu 24.04 LTS |
@@ -82,7 +82,7 @@
 | `coolify-proxy` | ✅ Up 2 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 2 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 2 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 3 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up 5 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 10 hours (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 12 hours (healthy) | — |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-213730156498` | ✅ Up 9 hours (healthy) | — |

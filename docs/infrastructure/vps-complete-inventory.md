@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-09 07:02 UTC
+**Last Updated:** 2026-05-09 07:04 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 40 running
@@ -232,7 +232,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `coolify-proxy` | ✅ Up 2 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 2 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 2 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 3 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up 5 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 10 hours (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 12 hours (healthy) | — |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-213730156498` | ✅ Up 9 hours (healthy) | — |
