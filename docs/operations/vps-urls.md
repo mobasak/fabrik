@@ -1,6 +1,6 @@
 # VPS1 Service URLs
 
-**Last Updated:** 2026-05-08 16:52 UTC
+**Last Updated:** 2026-05-09 07:02 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Los Angeles, CA
 **Pattern:** All services via HTTPS through Traefik. HTTP auto-redirects to HTTPS.
 
@@ -17,8 +17,8 @@
 | `cadvisor` | internal | ⚠️ running:healthy |
 | `fabrik-captcha` | internal | ⚠️ running:healthy |
 | `fabrik-emailgateway` | internal | ⚠️ running:healthy |
-| `fabrik-file-api` | internal | ⚠️ running:unknown |
-| `fabrik-file-worker` | internal | ⚠️ running:unknown |
+| `fabrik-file-api` | internal | ⚠️ running:healthy |
+| `fabrik-file-worker` | internal | ⚠️ running:healthy |
 | `fabrik-image-broker` | internal | ⚠️ running:healthy |
 | `fabrik-proxy` | https://proxy.vps1.ocoron.com | ⚠️ running:healthy |
 | `fabrik-translator` | internal | ⚠️ running:healthy |

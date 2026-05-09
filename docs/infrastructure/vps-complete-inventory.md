@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-08 16:52 UTC
+**Last Updated:** 2026-05-09 07:02 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 40 running
@@ -222,44 +222,46 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 |---|---|---|
 | `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 2 weeks (healthy) | 256m |
 | `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 2 weeks (healthy) | 512m |
-| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 31 hours (healthy) | — |
-| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 4 days | 512m |
-| `bs0wo48k4gwo440gcowscoc8-150802066640` | ✅ Up 2 weeks (healthy) | 512m |
-| `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 32 hours (healthy) | — |
-| `captcha-j8gg4ggskkossc4gkwowk4os-084910621771` | ✅ Up 32 hours (healthy) | — |
+| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 9 hours (healthy) | — |
+| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 5 days | 512m |
+| `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 10 hours (healthy) | 512m |
+| `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 46 hours (healthy) | — |
+| `captcha-j8gg4ggskkossc4gkwowk4os-191229303949` | ✅ Up 12 hours (healthy) | — |
 | `coolify` | ✅ Up 2 weeks (healthy) | — |
 | `coolify-db` | ✅ Up 2 weeks (healthy) | — |
 | `coolify-proxy` | ✅ Up 2 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 2 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 2 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 53 minutes (healthy) | — |
-| `e04k4sco44ow04ccc0o0k00k-151256201601` | ✅ Up 2 weeks (healthy) | 512m |
-| `emailgateway-w4oocckkwko8kowggsw8sogc-083819438364` | ✅ Up 32 hours (healthy) | — |
-| `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-105616821752` | ✅ Up 30 hours (healthy) | — |
-| `file-api-bsswwg4kg480c000gksw004k-140449896537` | ✅ Up 2 weeks | 1g |
-| `file-worker-nwcckwggw0o0g40gwskk8kk8-154849864122` | ✅ Up 4 days | 1g |
+| `coolify-sentinel` | ✅ Up 3 minutes (healthy) | — |
+| `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 10 hours (healthy) | 512m |
+| `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 12 hours (healthy) | — |
+| `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-213730156498` | ✅ Up 9 hours (healthy) | — |
+| `file-api-bsswwg4kg480c000gksw004k-192212486944` | ✅ Up 12 hours (healthy) | — |
+| `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | ✅ Up 12 hours (healthy) | 512m |
 | `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 2 days | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 2 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 2 weeks | 512m |
-| `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 29 hours (healthy) | — |
-| `image-broker-zo4ggs4g880skwkocwwkscgk-084711841807` | ✅ Up 32 hours (healthy) | — |
+| `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 9 hours (healthy) | — |
+| `image-broker-zo4ggs4g880skwkocwwkscgk-191233590054` | ✅ Up 12 hours (healthy) | — |
 | `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 2 weeks (healthy) | 512m |
 | `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 2 weeks (healthy) | 2g |
-| `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 31 hours (healthy) | — |
+| `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 45 hours (healthy) | — |
 | `node-exporter-doc8c8gkcgs88s8ckggw84o4` | ✅ Up 2 weeks | 128m |
 | `ocoron-com-backup-1` | ✅ Up 2 weeks | — |
 | `ocoron-com-db-1` | ✅ Up 2 weeks (healthy) | 1g |
 | `ocoron-com-nginx-1` | ✅ Up 2 weeks | 256m |
 | `ocoron-com-redis-1` | ✅ Up 2 weeks (healthy) | 256m |
 | `ocoron-com-wordpress-1` | ✅ Up 2 weeks | 512m |
+| `postgres-exporter` | ✅ Up 10 hours (healthy) | — |
 | `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | ✅ Up 2 weeks (healthy) | 2g |
-| `prometheus` | ✅ Up 31 hours (healthy) | — |
-| `promtail-w0000ckgsgg048w0848okk08` | ✅ Up 29 hours | 128m |
+| `prometheus` | ✅ Up 45 hours (healthy) | — |
+| `promtail-w0000ckgsgg048w0848okk08` | ✅ Up 43 hours | 128m |
+| `redis-exporter` | ✅ Up 8 hours | — |
 | `redis-main` | ✅ Up 2 weeks (healthy) | 512m |
-| `site-provisioner-qokoksogwsk0c04gcs4swwgs-143727579258` | ✅ Up 2 weeks (healthy) | 512m |
+| `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 11 hours (healthy) | — |
 | `traefik` | ✅ Up 2 weeks | 256m |
-| `translator-kgws0s4cscsosw8gg848cwgw-084335048255` | ✅ Up 32 hours (healthy) | — |
-| `vckgs8c00o40o884k48cgow8-220643454460` | ✅ Up 4 days | 2g |
+| `translator-kgws0s4cscsosw8gg848cwgw-191255149559` | ✅ Up 12 hours (healthy) | — |
+| `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 10 hours | 2g |
 <!-- /AUTO -->
 
 ---
@@ -314,10 +316,9 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 | `alertmanager-zw4swgkwk0s4s8kg048gw80o` | 256m |
 | `apprise-lcocgs4gs8ksg4g08w40ows8` | 512m |
 | `backrest-l48000k44wc4gk8os88s8k0c` | 512m |
-| `bs0wo48k4gwo440gcowscoc8-150802066640` | 512m |
-| `e04k4sco44ow04ccc0o0k00k-151256201601` | 512m |
-| `file-api-bsswwg4kg480c000gksw004k-140449896537` | 1g |
-| `file-worker-nwcckwggw0o0g40gwskk8kk8-154849864122` | 1g |
+| `bs0wo48k4gwo440gcowscoc8-211159651770` | 512m |
+| `e04k4sco44ow04ccc0o0k00k-210433823748` | 512m |
+| `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | 512m |
 | `gatus-v8s4cokcwg0co4w8okkccc0w` | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | 512m |
@@ -331,9 +332,8 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 | `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | 2g |
 | `promtail-w0000ckgsgg048w0848okk08` | 128m |
 | `redis-main` | 512m |
-| `site-provisioner-qokoksogwsk0c04gcs4swwgs-143727579258` | 512m |
 | `traefik` | 256m |
-| `vckgs8c00o40o884k48cgow8-220643454460` | 2g |
+| `vckgs8c00o40o884k48cgow8-210454442421` | 2g |
 <!-- /AUTO -->
 
 ---
@@ -370,8 +370,8 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 | `cadvisor` | internal | ⚠️ running:healthy |
 | `fabrik-captcha` | internal | ⚠️ running:healthy |
 | `fabrik-emailgateway` | internal | ⚠️ running:healthy |
-| `fabrik-file-api` | internal | ⚠️ running:unknown |
-| `fabrik-file-worker` | internal | ⚠️ running:unknown |
+| `fabrik-file-api` | internal | ⚠️ running:healthy |
+| `fabrik-file-worker` | internal | ⚠️ running:healthy |
 | `fabrik-image-broker` | internal | ⚠️ running:healthy |
 | `fabrik-proxy` | https://proxy.vps1.ocoron.com | ⚠️ running:healthy |
 | `fabrik-translator` | internal | ⚠️ running:healthy |
