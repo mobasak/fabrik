@@ -341,7 +341,7 @@ The `oliver006/redis_exporter:v1.66.0` image is distroless (no `wget`, no shell)
 
 ## Service Integration Map (audited 2026-05-09)
 
-This snapshot describes which services are **actually wired up** to which shared platform components on the VPS today. It maps onto the 9-registrar Phase 4 design (`postgres`, `redis`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`, `prometheus`).
+This snapshot describes which services are **actually wired up** to which shared platform components on the VPS today. It maps onto the 9-registrar Phase 4 design (drivers in `src/fabrik/drivers/`, dispatch in `src/fabrik/orchestrator/infrastructure.py`). **The registrar architecture IS implemented.** The gap is that all 8 currently-deployed services were deployed under pre-G1 specs without `shape:` blocks, so their state was wired up manually rather than via `fabrik apply`. See `docs/operations/deployment.md` "Phase 4 Registrar Coverage Status" for the corrected analysis (`postgres`, `redis`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`, `prometheus`).
 
 ### Postgres central — `postgres-main:5432`
 4 application databases (postgres-exporter sees the 5th = system `postgres` DB):

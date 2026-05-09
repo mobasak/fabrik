@@ -508,7 +508,9 @@ Empty serviceId + `com.docker.compose.project=monitoring` → Category B (host-m
 **Tracking:** captured in `deployment.md` Gotcha 8.
 
 
-## Service integration audit (2026-05-09)
+## Service integration audit (2026-05-09 — corrected)
+
+**Correction:** An earlier note claimed registrar drivers were "not implemented." That was wrong. The 9 driver files in `src/fabrik/drivers/` ARE implemented (8 of 9 are 9-20KB; redis.py is a 1KB stub) and ARE dispatched by `DeploymentOrchestrator` during `fabrik apply`. The actual gap is that all 8 services currently running on the VPS were deployed under pre-G1 specs without `shape:` blocks, so the registrar architecture has never executed for them — their cross-service wiring was done manually instead. Detailed analysis: `docs/operations/deployment.md` "Phase 4 Registrar Coverage Status (corrected 2026-05-09)".
 
 Cross-service integration map (which container connects to which shared platform component) is captured in `docs/operations/vps-status.md` under "Service Integration Map (audited 2026-05-09)". Phase 4 registrar implementation status is captured in `docs/operations/deployment.md` under "Phase 4 Registrar Coverage Status".
 
