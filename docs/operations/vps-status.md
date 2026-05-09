@@ -13,8 +13,8 @@
 <!-- AUTO:system_overview -->
 | **Containers running** | 42 |
 | **Disk** | 108G total, 39G used, 70G free (36%) |
-| **Memory** | 11Gi total, 4.6Gi used, 597Mi free |
-| **Uptime** | up 7 weeks, 2 days, 8 hours, 43 minutes |
+| **Memory** | 11Gi total, 4.6Gi used, 585Mi free |
+| **Uptime** | up 7 weeks, 2 days, 8 hours, 44 minutes |
 | **Last snapshot** | 2026-05-09 07:04 UTC |
 <!-- /AUTO -->
 
