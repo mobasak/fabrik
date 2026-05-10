@@ -1,11 +1,12 @@
 # Windsurf Extensions
 
-**Last Updated:** 2026-04-20 00:56
-**Total:** 23 extensions
+**Last Updated:** 2026-05-10 00:53
+**Total:** 25 extensions
 
 ## Quick Install (All Extensions)
 
 ```bash
+windsurf --install-extension aamiramin.claudeforever
 windsurf --install-extension anthropic.claude-code
 windsurf --install-extension bierner.markdown-mermaid
 windsurf --install-extension bpruitt-goddard.mermaid-markdown-syntax-highlighting
@@ -24,10 +25,11 @@ windsurf --install-extension ms-python.debugpy
 windsurf --install-extension ms-python.python
 windsurf --install-extension ms-python.vscode-python-envs
 windsurf --install-extension ms-vscode.makefile-tools
+windsurf --install-extension ms-vscode.powershell
+windsurf --install-extension peterbulyaki.claude-automator
 windsurf --install-extension prettier.prettier-vscode
 windsurf --install-extension redhat.vscode-yaml
 windsurf --install-extension traycer.traycer-vscode
-windsurf --install-extension undefined_publisher.traycer-report-panel
 windsurf --install-extension vstirbu.vscode-mermaid-preview
 ```
 
@@ -64,11 +66,13 @@ windsurf --install-extension vstirbu.vscode-mermaid-preview
 - `prettier.prettier-vscode`
 
 ### Other
+- `aamiramin.claudeforever`
 - `cweijan.vscode-office`
 - `kilocode.kilo-code`
 - `ms-vscode.makefile-tools`
+- `ms-vscode.powershell`
+- `peterbulyaki.claude-automator`
 - `redhat.vscode-yaml`
-- `undefined_publisher.traycer-report-panel`
 
 ---
 
