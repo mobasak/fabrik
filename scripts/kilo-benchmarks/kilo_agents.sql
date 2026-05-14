@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS agents (
     -- Benchmark scores
     arena_elo INTEGER,                      -- from openlm.ai/chatbot-arena
     tbench_accuracy REAL,                   -- from tbench.ai (0-100)
+    swe_bench_pro REAL,                     -- from benchlm.ai (SWE-bench Pro, 0-100)
+    weighted_coding REAL,                   -- from benchlm.ai (weighted coding score, 0-100)
+    livecodebench REAL,                     -- from benchlm.ai (LiveCodeBench, 0-100)
     
     -- Computed/derived
     task_tier INTEGER DEFAULT 2,            -- 1=cheap, 2=balanced, 3=heavy

@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-05-07T11:59:06.643576",
-  "total_models": 350,
+  "timestamp": "2026-05-14T11:59:05.217043",
+  "total_models": 345,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -82,11 +82,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "alpindale/goliath-120b": {
-      "id": "alpindale/goliath-120b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "amazon/nova-2-lite-v1": {
       "id": "amazon/nova-2-lite-v1",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -127,16 +122,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "anthropic/claude-3.7-sonnet": {
-      "id": "anthropic/claude-3.7-sonnet",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "anthropic/claude-3.7-sonnet:thinking": {
-      "id": "anthropic/claude-3.7-sonnet:thinking",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "anthropic/claude-haiku-4.5": {
       "id": "anthropic/claude-haiku-4.5",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -169,6 +154,11 @@
     },
     "anthropic/claude-opus-4.7": {
       "id": "anthropic/claude-opus-4.7",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "anthropic/claude-opus-4.7-fast": {
+      "id": "anthropic/claude-opus-4.7-fast",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -367,6 +357,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "deepseek/deepseek-v4-flash:free": {
+      "id": "deepseek/deepseek-v4-flash:free",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "deepseek/deepseek-v4-pro": {
       "id": "deepseek/deepseek-v4-pro",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -419,6 +414,11 @@
     },
     "google/gemini-3-flash-preview": {
       "id": "google/gemini-3-flash-preview",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "google/gemini-3.1-flash-lite": {
+      "id": "google/gemini-3.1-flash-lite",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -502,13 +502,18 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "inclusionai/ling-2.6-1t:free": {
-      "id": "inclusionai/ling-2.6-1t:free",
+    "inclusionai/ling-2.6-1t": {
+      "id": "inclusionai/ling-2.6-1t",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
     "inclusionai/ling-2.6-flash": {
       "id": "inclusionai/ling-2.6-flash",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "inclusionai/ring-2.6-1t:free": {
+      "id": "inclusionai/ring-2.6-1t:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -777,11 +782,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "mistralai/mixtral-8x7b-instruct": {
-      "id": "mistralai/mixtral-8x7b-instruct",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "mistralai/pixtral-large-2411": {
       "id": "mistralai/pixtral-large-2411",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -854,11 +854,6 @@
     },
     "nousresearch/hermes-4-70b": {
       "id": "nousresearch/hermes-4-70b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "nvidia/llama-3.1-nemotron-70b-instruct": {
-      "id": "nvidia/llama-3.1-nemotron-70b-instruct",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1212,6 +1207,11 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "perceptron/perceptron-mk1": {
+      "id": "perceptron/perceptron-mk1",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "perplexity/sonar": {
       "id": "perplexity/sonar",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1267,11 +1267,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "qwen/qwen-max": {
-      "id": "qwen/qwen-max",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "qwen/qwen-plus": {
       "id": "qwen/qwen-plus",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1284,21 +1279,6 @@
     },
     "qwen/qwen-plus-2025-07-28:thinking": {
       "id": "qwen/qwen-plus-2025-07-28:thinking",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "qwen/qwen-turbo": {
-      "id": "qwen/qwen-turbo",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "qwen/qwen-vl-max": {
-      "id": "qwen/qwen-vl-max",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "qwen/qwen-vl-plus": {
-      "id": "qwen/qwen-vl-plus",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1562,8 +1542,8 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "tencent/hy3-preview:free": {
-      "id": "tencent/hy3-preview:free",
+    "tencent/hy3-preview": {
+      "id": "tencent/hy3-preview",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1584,11 +1564,6 @@
     },
     "thedrummer/unslopnemo-12b": {
       "id": "thedrummer/unslopnemo-12b",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "tngtech/deepseek-r1t2-chimera": {
-      "id": "tngtech/deepseek-r1t2-chimera",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

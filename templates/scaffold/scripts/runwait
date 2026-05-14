@@ -1,0 +1,41 @@
+#!/bin/bash
+# runwait - Wait for a job to finish, with bounded timeout
+# Part of Long Command Monitoring System v1.1.0
+#
+# Usage:  runwait <job> [secs]        # default 30s; exits 0 if done, 1 if still running
+#
+# Use this instead of `sleep N && runc` — polls every 1s and returns immediately
+# when the job finishes, so an agent doesn't waste wall-clock time.
+set -uo pipefail
+
+JOB="${1:-}"
+SECS="${2:-30}"
+[ -z "$JOB" ] && { echo "Usage: runwait <job> [secs]"; exit 2; }
+
+PID_FILE="${JOB}.pid"
+[ -f "$PID_FILE" ] || { echo "No job at $JOB" >&2; exit 2; }
+
+SID=$(cat "${JOB}.sid" 2>/dev/null || echo "")
+PID=$(cat "$PID_FILE")
+
+elapsed=0
+while [ "$elapsed" -lt "$SECS" ]; do
+    if [ -f "${JOB}.rc" ]; then
+        RC=$(cat "${JOB}.rc")
+        if [ "$RC" = "SIGTERM" ]; then
+            { [ -f "${JOB}.timeout" ] && [ -f "${JOB}.timed-out" ]; } && echo "TIMEOUT" || echo "KILLED"
+        else
+            echo "DONE exit=$RC"
+        fi
+        exit 0
+    fi
+    if ! { [ -n "$SID" ] && [ -n "$(ps -s "$SID" -o pid= 2>/dev/null)" ]; } && ! kill -0 "$PID" 2>/dev/null; then
+        echo "DEAD"
+        exit 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+done
+
+echo "RUNNING (waited ${SECS}s)"
+exit 1

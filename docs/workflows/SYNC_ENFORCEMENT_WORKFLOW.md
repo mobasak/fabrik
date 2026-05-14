@@ -1,12 +1,16 @@
-# Sync Enforcement Workflow
+# Sync Enforcement Workflow (Fabrik → Projects)
 
-**Last Updated:** 2026-04-04
+**Last Updated:** 2026-05-13
 **Status:** PRODUCTION
 **Script:** `scripts/sync_enforcement_to_projects.py`
+**Direction:** Fabrik → Projects
 
 ## Overview
 
 Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consistent code quality tooling across the ecosystem. Uses hash comparison and timestamp checks to avoid unnecessary overwrites.
+
+| **Trigger** | Manual (`fabrik enforce` or direct), or automatic via `watch_enforcement_changes.sh` |
+| **Automation** | ✅ Optional: WSL startup hook via `watch_enforcement_changes.sh` (monitors Fabrik governance files) |
 
 ---
 
@@ -18,19 +22,19 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 |----------|----------|
 | `AGENTS.md` | Agent workflow rules |
 | `AGENTS-compact.md` | Compact reference |
-| `AFCL.md` | Agent Function Calling Language |
-| `opencode.json` | Kilo-safe rules |
+| `CLAUDE.md` | Per-project Claude agent configuration |
+| `opencode.json` | Kilo CLI configuration |
 | `.windsurfrules` | Cascade compact agent contract |
-| `.pre-commit-config.yaml` | Pre-commit hooks |
 | `.windsurf/rules/` | Cascade rule files (recursive) |
+
+**Note:** `AFCL.md` is scaffolded as `AFCL_TEMPLATE.md` and customized per project, not synced.
 
 ### Reference Documentation
 
 | File | Purpose |
 |------|----------|
 | `docs/reference/windsurf/cascade-models.md` | Windsurf AI model reference |
-
-**Auto-sync trigger:** Pre-commit hook in `/opt/fabrik/.pre-commit-config.yaml` runs sync when any governance or reference file is committed. No cron needed.
+| `docs/reference/long-command-monitoring.md` | Long command monitoring system documentation |
 
 ### Core Scripts
 
@@ -42,6 +46,24 @@ Synchronizes Fabrik enforcement scripts to all `/opt/*` projects, ensuring consi
 | `docs_updater.py` | Documentation maintenance |
 | `update_agents_toc.py` | AGENTS.md table of contents |
 | `health_checker.py` | HTTP + DB health probes |
+
+### Run Scripts
+
+Long Command Monitoring System v1.1.0 - see `docs/reference/long-command-monitoring.md`
+
+| Script | Purpose |
+|--------|----------|
+| `rund` | Run command with timeout monitoring |
+| `rundsh` | Run shell script with timeout monitoring |
+| `runc` | Read result from last run |
+| `runk` | Kill last run |
+| `runls` | List active runs |
+| `runlast` | Show last run ID |
+| `runwait` | Wait for run completion |
+| `runtail` | Tail run output |
+| `runclean` | Clean up completed runs |
+| `sync_cascade_backup.sh` | Check Cascade memory backup freshness (warn if >7d) |
+| `sync_extensions.sh` | Sync Windsurf extensions documentation |
 
 ### Enforcement Directory
 
@@ -120,7 +142,7 @@ Results: 37 projects synced, 1 failed | Files: 8 copied, 917 skipped, 1 warnings
 |---------|----------|
 | After updating scripts | `python sync_enforcement_to_projects.py` |
 | Before major releases | `python sync_enforcement_to_projects.py --force` |
-| On governance file commit | **Automatic** via pre-commit hook in fabrik |
+| Automatic (optional) | `scripts/watch_enforcement_changes.sh` (WSL startup hook) |
 
 ---
 

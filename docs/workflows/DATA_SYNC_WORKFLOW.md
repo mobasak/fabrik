@@ -1,10 +1,14 @@
 # Data Sync Workflow
 
-**Last Updated:** 2026-04-05
+**Last Updated:** 2026-05-13
 **Status:** PRODUCTION
 **Scripts:** Multiple (see sections below)
 
 > Complete reference for all data synchronization between `/opt/*` project folders and `/opt/fabrik`.
+>
+> **Directions:**
+> - **Projects → Fabrik:** Data flows IN to Fabrik (Section 1)
+> - **Fabrik → Projects:** Data flows OUT to projects (Section 2)
 
 ---
 
@@ -97,6 +101,8 @@ What it checks:
 
 ## 2. Fabrik → Projects (Data Flows OUT)
 
+Scripts that **read from Fabrik** and push to all `/opt/*/` project folders.
+
 Scripts that **write files into project folders** from Fabrik templates/governance.
 
 ### 2.1 Enforcement Sync
@@ -104,16 +110,20 @@ Scripts that **write files into project folders** from Fabrik templates/governan
 | Field | Value |
 |-------|-------|
 | **Script** | `scripts/sync_enforcement_to_projects.py` |
+| **Watcher** | `scripts/watch_enforcement_changes.sh` (inotifywait) |
 | **Reads** | Fabrik governance files, scripts, enforcement checks |
 | **Writes** | Every `/opt/*/` project |
-| **Trigger** | Manual (`fabrik enforce` or direct) |
-| **Automation** | ❌ Not automated — intentionally manual (overwrites governance files) |
+| **Trigger** | Manual (`fabrik enforce` or direct), or automatic via watcher |
+| **Automation** | ✅ Optional: WSL startup hook via watcher (monitors Fabrik governance files) |
 | **Workflow Doc** | `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md` |
 
 What it syncs:
-- **Governance files:** AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules, .windsurf/rules/*, .windsurf/workflows/*
-- **Core scripts (6):** final_gate.py, kilo_code_review.py, kilo_dispatch.py, kilo_docs_enforcer.py, kilo_terminal_runner.py, kilo_cost_tracker.py
-- **Cascade wrappers (5):** Local_Coder, Local_Review, Local_Fixer, Local_Documentator, Kilo_Review
+- **Governance files (5):** AGENTS.md, AGENTS-compact.md, CLAUDE.md, opencode.json, .windsurfrules
+  - **Note:** AFCL.md is scaffolded as AFCL_TEMPLATE.md and customized per project, not synced
+- **Governance directories:** .windsurf/rules/*
+- **Core scripts (6):** final_gate.py, kilo_code_review.py, kilo_docs_enforcer.py, docs_updater.py, update_agents_toc.py, health_checker.py
+- **Run scripts (11):** rund, rundsh, runc, runk, runls, runlast, runwait, runtail, runclean, sync_cascade_backup.sh, sync_extensions.sh
+- **Reference docs (2):** docs/reference/windsurf/cascade-models.md, docs/reference/long-command-monitoring.md
 - **Enforcement checks (30+):** scripts/enforcement/*.py
 
 ### 2.2 Doc Policy Deployment
@@ -155,10 +165,15 @@ Scripts that run within Fabrik only, referenced by the WSL startup hook.
 
 | Script | Purpose |
 |--------|---------|
-| `kilo_agents_db.py all` | Refresh agent list + benchmarks + snapshots + export |
+| `kilo_agents_db.py all` | Refresh agent list + benchmarks + snapshots from Kilo CLI + Ollama |
+| `update_kilo_benchmarks.py --force` | Scrape Arena ELO + Terminal-Bench scores |
+| `scrape_artificial_analysis.py` | Scrape throughput (tokens/sec) + TTFT from artificialanalysis.ai |
+| `role_mapper.py` | Deterministic role assignment (pre_filter → selector → post_filter → DB, ~50ms, $0 cost) |
+| `export_traycer_registry.py` | Refresh `scripts/kilo_47_agents_final.json` from DB |
 | `generate_kilo_agents.py` | Generate Traycer CLI agent scripts |
-| `kilo_model_sync.py --sync` | Sync model metadata |
 | **Workflow Doc** | `docs/workflows/KILO_AGENT_MANAGEMENT.md` |
+
+**Note:** Re-enabled 2026-05-13 after switching from LLM-based to deterministic Pareto algorithm. Opt-out via `FABRIK_DISABLE_KILO_WORKFLOW=1`.
 
 ### 3.2 Windsurf Extensions Sync (Daily)
 
@@ -167,7 +182,7 @@ Scripts that run within Fabrik only, referenced by the WSL startup hook.
 | **Script** | `scripts/sync_extensions.sh` |
 | **Reads** | `windsurf --list-extensions` output |
 | **Writes** | `docs/reference/windsurf/actively-used-windsurf-extensions.md` |
-| **Trigger** | WSL startup hook (daily), pre-commit hook |
+| **Trigger** | WSL startup hook (daily) |
 
 ### 3.3 Cascade Backup Freshness Check
 
@@ -198,17 +213,15 @@ Scripts that run within Fabrik only, referenced by the WSL startup hook.
 | 1 | `sync_projects.py` | Refresh project registry + BUSINESS_MODEL.md + PORTS.md |
 | 2 | `sync_cascade_backup.sh` | Check Cascade memory backup freshness (warn if >7d) |
 | 3 | `health_summary.py` | Scaffold health overview across all projects |
-| 4 | `kilo_agents_db.py all` | Agent sync + benchmarks + snapshots + export |
-| 5 | `update_kilo_benchmarks.py --force` | Scrape latest benchmark scores |
-| 6 | `role_mapper.py` | AI role assignment (~$0.19/run via Gemini 3.1 Pro) |
-| 7 | `generate_kilo_agents.py` | Generate Traycer CLI agent scripts |
-| 8 | `sync_extensions.sh` | Windsurf extensions docs (retries 3x if IDE not ready) |
+| 4 | `kilo_agents_db.py all` | Agent sync + benchmarks + snapshots from Kilo CLI + Ollama |
+| 5 | `update_kilo_benchmarks.py --force` | Scrape Arena ELO + Terminal-Bench scores |
+| 6 | `scrape_artificial_analysis.py` | Scrape throughput (tokens/sec) + TTFT |
+| 7 | `role_mapper.py` | Deterministic role assignment (pre_filter → selector → post_filter → DB, ~50ms, $0 cost) |
+| 8 | `export_traycer_registry.py` | Refresh `scripts/kilo_47_agents_final.json` from DB |
+| 9 | `generate_kilo_agents.py` | Generate Traycer CLI agent scripts |
+| 10 | `sync_extensions.sh` | Windsurf extensions docs (retries 3x if IDE not ready) |
 
-### Separate Startup Script
-
-| Script | Purpose |
-|--------|---------|
-| `kilo_model_sync_startup.sh` | Model metadata sync (own lock file, own daily guard) |
+**Note:** Steps 4-9 are the Kilo agent workflow. Deterministic algorithm (no LLM) re-enabled 2026-05-13. Opt-out via `FABRIK_DISABLE_KILO_WORKFLOW=1`.
 
 ### Hibernate / Wake Behavior
 

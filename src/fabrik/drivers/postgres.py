@@ -150,8 +150,9 @@ def create_database(
         _validate_identifier(db_user, "user")
 
     # Existence check — cheap, idempotent, safe in dry-run.
+    # nosec B608 — db_name validated upstream by _validate_identifier (alnum+underscore only).
     check = _run_sql(
-        f"SELECT 1 FROM pg_database WHERE datname='{db_name}';",
+        f"SELECT 1 FROM pg_database WHERE datname='{db_name}';",  # nosec B608
         container=container,
         dry_run=dry_run,
     )
@@ -179,7 +180,7 @@ def create_database(
     password = _generate_password()
 
     role_and_grant = (
-        f"DO $$ BEGIN\n"
+        f"DO $$ BEGIN\n"  # nosec B608 — db_user validated upstream by _validate_identifier; password is bcrypt-style generated
         f"  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='{db_user}') THEN\n"
         f"    CREATE ROLE \"{db_user}\" LOGIN PASSWORD '{password}';\n"
         f"  END IF;\n"
@@ -237,8 +238,9 @@ def drop_database(
     # Existence check so the caller can tell "really dropped now" from
     # "was already gone". Matches the idempotency contract of
     # ``create_database`` which returns ``status=exists`` vs ``created``.
+    # nosec B608 — db_name pre-validated (alnum+underscore only); single-tenant VPS.
     check = _run_sql(
-        f"SELECT 1 FROM pg_database WHERE datname='{db_name}';",
+        f"SELECT 1 FROM pg_database WHERE datname='{db_name}';",  # nosec B608
         container=container,
         dry_run=dry_run,
     )

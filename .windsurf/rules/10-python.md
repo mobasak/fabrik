@@ -133,6 +133,21 @@ logger = logging.getLogger(__name__)
 logger.exception("Failed to process item")
 ```
 
+### FastAPI exception order (CRITICAL)
+
+Always re-raise `HTTPException` **before** any generic `except Exception` — `HTTPException` is a subclass of `Exception`, so a bare catch silently converts your 403/404 responses into 500s.
+
+```python
+try:
+    result = await service.do_work()
+except HTTPException:
+    raise  # let FastAPI handle the response (preserves status code)
+except Exception:
+    raise HTTPException(status_code=500, detail="internal error")
+```
+
+For logging/GlitchTip capture inside the `except Exception` branch, see `55-observability.md` § Error Reporting — `logger.exception()` here would duplicate GlitchTip's traceback.
+
 ---
 
 ## Testing

@@ -1,0 +1,76 @@
+# T1-02 G-B3 (2026-05-14): production spec for the Fabrik file-worker
+# microservice. Filename matches the `id:` convention used by every other
+# production spec in this directory (proxy.yaml → id: fabrik-proxy;
+# fabrik-citation-verifier.yaml → id: fabrik-citation-verifier).
+#
+# Coolify state (verified 2026-05-14): application id 8, name
+# "fabrik-file-worker", currently no running container (stub) and no
+# environment_variables rows — secrets.required is therefore [] until a
+# live env audit shows otherwise.
+#
+# No `shape:` block: G-B1a (load_spec template-defaults deep-merge) inherits
+# the shape from templates/file-worker/defaults.yaml at load time.
+# Resolved shape (post-merge): kind=worker, is_public=false,
+# has_persistent_data=true → registrars that should run: glitchtip,
+# grafana, backrest.
+
+id: fabrik-file-worker
+kind: worker
+template: file-worker
+domain: ""
+
+# Local source: the project tree lives at /opt/file-worker on the VPS
+# (declared in data/projects.yaml line 266-268). source.type=local is the
+# T1-02 cascade-fix enum value; see src/fabrik/spec_loader.py::SourceType.
+# `path:` is preserved here as documentation even though the current Source
+# model doesn't define the field (pydantic v2 silently ignores extras);
+# future tickets that wire `fabrik apply` for LOCAL sources can promote
+# `path` to a first-class field.
+source:
+  type: local
+  path: /opt/file-worker
+
+coolify:
+  project: fabrik-services
+  server: localhost
+
+# Worker, no HTTP surface.
+expose:
+  http: false
+  internal_only: false
+
+depends: {}
+
+# Standard infrastructure defaults.
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+
+# Runtime env (non-secret). Specific keys to be confirmed once /opt/file-worker
+# is populated; baseline mirrors templates/file-worker/defaults.yaml shape.
+env:
+  LOG_LEVEL: INFO
+
+# Secrets: live Coolify env audit (2026-05-14) returned zero environment_variables
+# rows for app fabrik-file-worker, so `required: []` is the truth at audit time.
+# If future deployment introduces secrets, re-audit before adding here.
+secrets:
+  required: []
+  generate: []
+  from_env: []
+  from_file: {}
+
+# Resources: per FINAL-REVISIONS §T1-02 Step 8 (worker baseline).
+resources:
+  memory: 512M
+  cpu: "0.5"
+
+volumes: []
+
+# Backup enabled because shape.has_persistent_data (inherited from
+# templates/file-worker/defaults.yaml) is true.
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30

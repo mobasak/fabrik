@@ -487,20 +487,29 @@ nano .env
 # populated shape: block that drives which infrastructure registrars run.
 fabrik scaffold my-api --type python-api -d "User authentication API"
 # Creates: INDEX.md, README, tests/, Dockerfile, compose.yaml, pre-commit hooks,
+# CLAUDE.md (Claude Code bootstrap), AGENTS-compact.md (Kilo CLI bootstrap),
 # and specs/services/my-api.yaml with the python-api shape: block.
-# See: docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
+# Ends with a "# Next: cd /opt/<name>; open Traycer ..." hint pointing at the
+# Traycer-managed workflow. See: docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
+
+# Optionally also create a private GitHub repo at the same time:
+fabrik scaffold my-api --type python-api -d "..." --github-create
+# Best-effort: requires `gh` CLI authenticated; non-fatal if missing.
 
 # Note: `fabrik new` existed pre-Phase-4k for spec-only creation; it is deprecated
 # as of 2026-04-19 (hidden from --help, prints a warning) and scheduled for removal.
 # Use `fabrik scaffold` for new work.
 
-# Preview deployment plan
+# Preview deployment plan — now includes a "🔧 Infrastructure Registrars" section
+# showing which of postgres/redis/gatus/backrest/glitchtip/grafana/authelia/
+# meilisearch/prometheus will RUN/skip for this spec, with reason.
 fabrik plan specs/my-api.yaml
 
 # Deploy to production
 fabrik apply specs/my-api.yaml
 
-# Check status
+# Check status — handles both `fabrik-<id>` (Coolify-prefixed) and `<id>` lookups
+# transparently; works for fabrik-proxy, fabrik-file-worker, site-provisioner, etc.
 fabrik status specs/my-api.yaml
 
 # Test endpoint

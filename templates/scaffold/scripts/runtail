@@ -1,0 +1,12 @@
+#!/bin/bash
+# runtail - tail -F a job's log file
+# Part of Long Command Monitoring System v1.1.0
+#
+# Usage:  runtail <job>
+#         runtail $(runlast)
+set -uo pipefail
+
+JOB="${1:-}"
+[ -z "$JOB" ] && { echo "Usage: runtail <job>"; exit 1; }
+[ -f "${JOB}.log" ] || { echo "No log at ${JOB}.log" >&2; exit 1; }
+exec tail -F "${JOB}.log"

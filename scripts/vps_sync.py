@@ -580,8 +580,9 @@ def verify_residue() -> list[str]:
     section("Authelia test rules")
     try:
         from fabrik.drivers.ssh import ssh
+
         raw = ssh(
-            "sudo python3 -c \"import yaml; "
+            'sudo python3 -c "import yaml; '
             "cfg=yaml.safe_load(open('/var/lib/docker/volumes/"
             "$(sudo docker volume ls -q | grep authelia.*config)/_data/configuration.yml').read()); "
             "[print(r.get('domain','')) for r in cfg.get('access_control',{}).get('rules',[])]\""
@@ -613,7 +614,6 @@ def verify_residue() -> list[str]:
     return clean
 
 
-
 def verify_limits() -> list[str]:
     """Check that infra containers have memory limits set.
 
@@ -622,13 +622,27 @@ def verify_limits() -> list[str]:
     """
     findings: list[str] = []
     # Containers that MUST have limits (managed via vps_apply_limits.sh)
-    REQUIRED = {
-        'alertmanager', 'apprise', 'authelia', 'backrest', 'cadvisor',
-        'gatus', 'grafana', 'loki', 'n8n', 'netdata', 'node-exporter',
-        'postgres-main', 'prometheus', 'promtail', 'redis-main', 'traefik',
+    required = {
+        "alertmanager",
+        "apprise",
+        "authelia",
+        "backrest",
+        "cadvisor",
+        "gatus",
+        "grafana",
+        "loki",
+        "n8n",
+        "netdata",
+        "node-exporter",
+        "postgres-main",
+        "prometheus",
+        "promtail",
+        "redis-main",
+        "traefik",
     }
     try:
         from fabrik.drivers.ssh import ssh
+
         raw = ssh(
             "sudo docker inspect $(sudo docker ps -q) "
             "--format '{{.Name}} {{.HostConfig.Memory}}' 2>/dev/null",
@@ -636,17 +650,16 @@ def verify_limits() -> list[str]:
         )
         unlimited = []
         for line in raw.strip().splitlines():
-            line = line.strip().lstrip('/')
+            line = line.strip().lstrip("/")
             if not line:
                 continue
-            parts = line.rsplit(' ', 1)
+            parts = line.rsplit(" ", 1)
             if len(parts) != 2:
                 continue
             name, mem = parts
-            if mem.strip() == '0':
+            if mem.strip() == "0":
                 # Check if it matches a required container prefix
-                short = name.split('-')[0]
-                base = next((r for r in REQUIRED if name.startswith(r)), None)
+                base = next((r for r in required if name.startswith(r)), None)
                 if base:
                     unlimited.append(name)
         if unlimited:

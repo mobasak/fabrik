@@ -1,23 +1,38 @@
 #!/bin/bash
 # rundsh - Run shell command in detached mode (shell mode, pipes/redirects allowed)
-# Part of Long Command Monitoring System v1.0.0
-# WARNING: Only use with trusted input - eval executes arbitrary shell code
+# Part of Long Command Monitoring System v1.1.0
+#
+# Usage: rundsh [--name LABEL] [--timeout SECS] '<shell pipeline>'
+#
+# WARNING: Only use with trusted input — eval executes arbitrary shell code
 # NOTE: -e intentionally omitted; errors handled with || true
 set -uo pipefail
 
-# Use project .tmp/jobs/ instead of /tmp/ per Fabrik rules
+NAME=""
+TIMEOUT=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --name)    NAME="${2:-}"; shift 2 ;;
+        --timeout) TIMEOUT="${2:-}"; shift 2 ;;
+        --)        shift; break ;;
+        --*)       echo "rundsh: unknown flag $1" >&2; exit 2 ;;
+        *)         break ;;
+    esac
+done
+
+line="${1:-}"
+[ -z "$line" ] && { echo "Usage: rundsh [--name LABEL] [--timeout SECS] 'cmd | pipe && etc'"; exit 1; }
+
 JOBS_DIR="${PWD}/.tmp/jobs"
 mkdir -p "$JOBS_DIR"
 ts="$(date +%s%N 2>/dev/null || date +%s)"
 JOB="${JOBS_DIR}/job_${ts}_$$"
 echo "JOB=$JOB"
 
-line="${1:-}"
-[ -z "$line" ] && { echo "Usage: rundsh 'cmd | pipe && etc'"; exit 1; }
-
 printf '%s\n' "$line" > "${JOB}.cmd"
 date -Is > "${JOB}.start"
 : > "${JOB}.log"
+[ -n "$NAME" ] && printf '%s\n' "$NAME" > "${JOB}.name"
 
 nohup setsid bash -lc '
   tmp="'"${JOB}"'.rc.tmp"
@@ -40,4 +55,18 @@ for _ in 1 2 3; do
 done
 [ -n "$sid" ] && echo "$sid" > "${JOB}.sid"
 [ -n "$pgid" ] && echo "$pgid" > "${JOB}.pgid"
-echo "PID=$pid SID=$sid"
+
+if [ -n "$TIMEOUT" ]; then
+    echo "$TIMEOUT" > "${JOB}.timeout"
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    nohup setsid bash -c "
+        sleep $TIMEOUT
+        [ -f '${JOB}.rc' ] && exit 0
+        : > '${JOB}.timed-out'
+        '${SCRIPT_DIR}/runk' '${JOB}' >/dev/null 2>&1 || true
+    " >/dev/null 2>&1 &
+fi
+
+ln -sfn "$(basename "$JOB")" "${JOBS_DIR}/.last"
+
+echo "PID=$pid SID=$sid${NAME:+ NAME=$NAME}${TIMEOUT:+ TIMEOUT=${TIMEOUT}s}"

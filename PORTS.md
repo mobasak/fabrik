@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-05-08 14:46:43 -->
+<!-- Last synced: 2026-05-14 22:40:01 -->
 
 ### ⚠️ Port Conflicts Detected
 
@@ -99,6 +99,7 @@ If you encounter a port conflict:
 | 8000 | **fabrik-test-chrome-extension** | chrome-extension | /opt/fabrik-test-chrome-extension |
 | 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |
 | 8002 | **fabrik-claim-validator** | python-api | /opt/fabrik-claim-validator |
+| 8003 | **t1-02-test** | python-api | /opt/t1-02-test |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
 | 8005 | **candle** | python-api | /opt/candle |
 | 8006 | **exam-coach** | python-api | /opt/exam-coach |
@@ -114,6 +115,7 @@ If you encounter a port conflict:
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **supplement-tracker-advisor** | python-api | /opt/supplement-tracker-advisor |
 | 8018 | **Reference_Creator** | python-api | /opt/Reference_Creator |
+| 8019 | **t1-02-test-2** | python-api | /opt/t1-02-test-2 |
 | 8020 | **fabrik-test-wordpress** | wordpress | /opt/fabrik-test-wordpress |
 | 8022 | **trade-intelligence** | python-api | /opt/trade-intelligence |
 | 8023 | **trading-core** | python-api | /opt/trading-core |

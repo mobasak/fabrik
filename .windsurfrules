@@ -1,8 +1,8 @@
-<!-- MAX 6,000 chars per file (Windsurf Cascade limit). 12,000 total across all rules. Truncation is silent — measure before saving. Current: ~5,340 chars. -->
+<!-- Read by Windsurf Cascade. Cascade silent-truncates at 6,000 chars per file. This file is currently OVER budget (Phase 2 reshape pending) — do not add to it without compressing first. -->
 # Cascade Agent Contract
 
 **Read by:** Windsurf Cascade only. Kilo CLI reads `AGENTS-compact.md` (via `opencode.json`); Traycer reads `AGENTS.md`.
-**Auto-loaded with this:** every `.windsurf/rules/*.md` pack with `activation: always_on` (currently `CROSS_CUTTING_REQUIREMENTS.md`), plus glob-matched packs. Don't duplicate their content here.
+**Auto-loaded with this:** glob-matched and `model_decision` packs in `.windsurf/rules/*.md` (no always_on packs — every pack is scope-relevant). Don't duplicate their content here.
 
 ## ⚠️ FIRST OUTPUT (every response)
 `RULES ACTIVE: CASCADE | <3 rules from this file you applied>`
@@ -42,13 +42,13 @@
 | Health check `/health` behind auth | Authelia bypass rule covers `*.vps1.ocoron.com → /health` automatically — never protect `/health` |
 | Binding container ports to host directly | all services must be on `coolify` Docker network only; let Traefik route — never expose raw container ports |
 | Not wiring `gzip@docker` middleware on router | scaffold emits it automatically; admin UIs: `authelia-forward@docker,gzip@docker`; API services: `gzip@docker`; public: none |
+| Running a foreground command that may take >30s (build, install, deploy, test, sync, `fabrik *`, `docker *`, `pytest`, `npm i`) | use `scripts/rund [--timeout S] -- <cmd>` (argv) or `scripts/rundsh '<pipe>'` (shell), then `scripts/runwait $(scripts/runlast) <secs>` to bound wait, then `scripts/runc $(scripts/runlast)` to read result. Never block on foreground long commands — Cascade has no timeout. Full doc: `docs/reference/long-command-monitoring.md`. |
 | edit files outside ticket Scope | strict Scope only |
 | modify `pyproject.toml` / `requirements.txt` / `package.json` / `uv.lock` / `package-lock.json` | only if ticket explicitly authorises deps change |
 | create files outside project tree | local project paths only |
 | recreate `.venv` or replace existing Docker config | extend, don't replace |
 
-Technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, Authelia, `X-Internal-Token`, kebab-case, `/tmp/` ban, port ranges, etc.) → auto-loaded packs are authoritative.
-| Writing inline `APIKeyHeader`/`require_api_key` for M2M | always copy `internal_auth.py` into service `app/` or `src/` dir; `from internal_auth import require_internal_token` — zero inline auth logic |
+Technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, Authelia, M2M `X-Internal-Token` / `internal_auth.py` canonical pattern, kebab-case, `/tmp/` ban, port ranges, etc.) → auto-loaded packs are authoritative.
 
 ## External Knowledge — Search, Don't Guess
 Training data is stale. For any 3rd-party API/SDK/vendor (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n):
@@ -59,8 +59,8 @@ Training data is stale. For any 3rd-party API/SDK/vendor (Coolify, Paddle, Traef
 Skip for: stdlib, language syntax, internal Fabrik conventions.
 
 ## Pointers (content lives in linked packs)
-- **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `CROSS_CUTTING_REQUIREMENTS.md` § Sensitive Data Protection.
-- **Password policy** (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`, banned: `postgres`/`admin`/`password123`) → `CROSS_CUTTING_REQUIREMENTS.md` § Password Policy.
+- **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `35-security-auth.md` § Sensitive Data Protection.
+- **Password policy** (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`, banned: `postgres`/`admin`/`password123`) → `35-security-auth.md` § Password Policy.
 - **Before new scripts:** `grep_search` `scripts/` and `scripts/enforcement/`. Extend, don't duplicate.
 
 ## Environment

@@ -368,11 +368,11 @@ def get_benchmark_scores(model_name: str) -> tuple[int | None, float | None]:
     """
     import sqlite3
 
-    db_path = SCRIPT_DIR / "kilo_agents.db"
-    if not db_path.exists():
+    database_path = SCRIPT_DIR / "kilo_agents.db"
+    if not database_path.exists():
         return (None, None)
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(database_path)
 
     # Normalize to base model (strip variant suffixes)
     base_model = normalize_model_for_benchmark(model_name)

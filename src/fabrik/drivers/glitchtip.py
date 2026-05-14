@@ -105,7 +105,10 @@ every downstream registrar's constraints."""
 _DSN_RE = re.compile(
     r"^(?P<scheme>https?)://(?P<key>[^@]+)@(?P<host>[^:/]+)(?::(?P<port>\d+))?/(?P<pid>\d+)$"
 )
-_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+# DSN-host comparison set, not a server bind. "0.0.0.0" is included so DSNs
+# pointing at the unspecified address are rejected as unreachable by
+# `_is_loopback_dsn` below — there is no socket bind happening here.
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})  # nosec B104
 
 
 def _is_loopback_dsn(dsn: str) -> bool:

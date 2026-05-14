@@ -127,7 +127,7 @@ def _write_config(data: dict[str, Any]) -> None:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         f.write(body)
         local_tmp = f.name
-    vps_tmp = "/tmp/prometheus.yml.staged"
+    vps_tmp = "/tmp/prometheus.yml.staged"  # nosec B108 — single-tenant VPS staging file for scp+mv into /opt/monitoring/configs/prometheus/
     try:
         scp_to_vps(local_tmp, vps_tmp)
         ssh(

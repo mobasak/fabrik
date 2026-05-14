@@ -109,7 +109,7 @@ def _write_registry(registry: dict[str, int]) -> None:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write(body)
         local_tmp = f.name
-    vps_tmp = "/tmp/redis-assignments.json"
+    vps_tmp = "/tmp/redis-assignments.json"  # nosec B108 — single-tenant VPS staging file for scp+mv into /opt/monitoring/configs/redis/
     try:
         # Ensure parent dir exists; -p is idempotent.
         ssh(

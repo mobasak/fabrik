@@ -101,7 +101,12 @@ def run_locked(resource: str, script: str, timeout: int = 120) -> str:
         >>> run_locked("test-demo", "set -euo pipefail; echo hello")  # doctest: +SKIP
         'hello'
     """
-    lock_file = f"/tmp/fabrik-{resource}.lock"
+    # Hardcoded VPS-side /tmp path is intentional: this is the VPS's lock
+    # file for a `flock -x -w` advisory lock, used to serialize Fabrik
+    # orchestrator operations on the single-tenant VPS. The remote host has
+    # no other user sessions, so /tmp symlink-attack vectors do not apply.
+    # `resource` is validated upstream (spec.id regex).
+    lock_file = f"/tmp/fabrik-{resource}.lock"  # nosec B108
     cmd = f"flock -x -w {timeout} {lock_file} bash -c {shlex.quote(script)}"
     # Give ssh() a slightly larger timeout than flock's so the flock error
     # surfaces as "lock acquisition timed out" rather than "SSH timed out".

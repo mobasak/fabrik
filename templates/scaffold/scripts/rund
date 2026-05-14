@@ -1,8 +1,31 @@
 #!/bin/bash
 # rund - Run command in detached mode (exec mode, argv-safe)
-# Part of Long Command Monitoring System v1.0.0
+# Part of Long Command Monitoring System v1.1.0
+#
+# Usage: rund [--name LABEL] [--timeout SECS] -- <cmd> [args...]
+#        rund <cmd> [args...]                        # bare form
+#
+# Flags:
+#   --name LABEL     Human-readable label written to .name (shown by runls/runc)
+#   --timeout SECS   Auto-kill via runk after SECS seconds (background watchdog)
+#   --              End of flags (next arg is the command)
+#
 # NOTE: -e intentionally omitted; errors handled with || true
 set -uo pipefail
+
+NAME=""
+TIMEOUT=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --name)    NAME="${2:-}"; shift 2 ;;
+        --timeout) TIMEOUT="${2:-}"; shift 2 ;;
+        --)        shift; break ;;
+        --*)       echo "rund: unknown flag $1" >&2; exit 2 ;;
+        *)         break ;;
+    esac
+done
+
+[ $# -lt 1 ] && { echo "Usage: rund [--name LABEL] [--timeout SECS] -- <cmd> [args...]"; exit 1; }
 
 # Use project .tmp/jobs/ instead of /tmp/ per Fabrik rules
 JOBS_DIR="${PWD}/.tmp/jobs"
@@ -14,6 +37,7 @@ echo "JOB=$JOB"
 printf '%q ' "$@" > "${JOB}.cmd"; echo >> "${JOB}.cmd"
 date -Is > "${JOB}.start"
 : > "${JOB}.log"
+[ -n "$NAME" ] && printf '%s\n' "$NAME" > "${JOB}.name"
 
 nohup setsid bash -c '
   tmp="$1.rc.tmp"; rc="$1.rc"; shift
@@ -33,4 +57,20 @@ for _ in 1 2 3; do
 done
 [ -n "$sid" ] && echo "$sid" > "${JOB}.sid"
 [ -n "$pgid" ] && echo "$pgid" > "${JOB}.pgid"
-echo "PID=$pid SID=$sid"
+
+# Optional auto-kill watchdog (detached, survives caller exit)
+if [ -n "$TIMEOUT" ]; then
+    echo "$TIMEOUT" > "${JOB}.timeout"
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    nohup setsid bash -c "
+        sleep $TIMEOUT
+        [ -f '${JOB}.rc' ] && exit 0
+        : > '${JOB}.timed-out'
+        '${SCRIPT_DIR}/runk' '${JOB}' >/dev/null 2>&1 || true
+    " >/dev/null 2>&1 &
+fi
+
+# Track newest job for runlast (survives concurrent runs by symlinking)
+ln -sfn "$(basename "$JOB")" "${JOBS_DIR}/.last"
+
+echo "PID=$pid SID=$sid${NAME:+ NAME=$NAME}${TIMEOUT:+ TIMEOUT=${TIMEOUT}s}"

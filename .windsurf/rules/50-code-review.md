@@ -1,12 +1,11 @@
 ---
-activation: always_on
-description: Code review workflow and quality gate commands for Windsurf Cascade
-trigger: always_on
+activation: model_decision
+description: Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to write, or judging whether a function should be extracted to a shared module.
 ---
 
-# Code Review (Cascade)
+# Code Review
 
-**Scope:** Windsurf Cascade agents working on `/opt/*` projects.
+**Scope:** Any coding agent (Claude Code, Cascade, Kilo CLI) running the self-review gate, closing a milestone, or judging code reusability on `/opt/*` projects.
 
 ---
 
@@ -14,7 +13,7 @@ trigger: always_on
 
 ### Internal Audit
 
-*Perform before reporting completion. Full checklist in `.windsurfrules`.*
+*Perform before reporting completion. Full checklist in the agent's bootstrap file (`CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md`).*
 - [ ] **Secrets:** No hardcoded keys or tokens?
 - [ ] **Infrastructure:** `Dockerfile` is `-slim-bookworm` and has `HEALTHCHECK`?
 - [ ] **Architecture:** `compose.yaml` has `platform: linux/amd64`?
@@ -69,7 +68,7 @@ python scripts/kilo_code_review.py staged --plan "task description" --output jso
 
 Use for rare high-risk or cross-cutting changes. Never rely on it as the default completion gate.
 
-I fix all findings (BLOCKER, MAJOR, MINOR) myself—no separate FIXER role in Cascade.
+Fix all findings (BLOCKER, MAJOR, MINOR) yourself — there is no separate FIXER role in any of the three coding agents.
 
 ### Documentator (Optional)
 
@@ -93,8 +92,8 @@ Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints
 
 - Internal audit + lean gate is **MANDATORY** before reporting completion.
 - **Changelog is MANDATORY for any code/config/infrastructure change. Full gate runs at milestone/batch closure, not for every task.**
-- I fix issues, not Kilo (report-only by default).
-- Traycer commits, not Cascade — I only implement and fix.
+- The coding agent fixes issues. Kilo review (when invoked) is report-only by default.
+- Traycer / the user commits — coding agents only implement and fix; gate auto-stages.
 - Max 5 review iterations before escalating.
 - Non-trivial = any of: new file, >50 lines changed, new dependency, DB change, or any code/config/infrastructure/Docker/compose change.
 
@@ -112,6 +111,19 @@ Changed files: <paths>
 Gate output: <result>
 Next: Proceed / STOP
 ```
+
+---
+
+## Reusability & Modularity
+
+Cross-project-extractable code is a first-class review concern:
+
+- **Business logic separate from framework.** A FastAPI route should call into a plain Python function — not embed the business logic inline.
+- **Shared utilities live in `src/utils/` or `src/lib/`** with ZERO project-specific imports and NO hardcoded project-specific values (paths, URLs, table names, env-var names).
+- Any function that could serve another Fabrik project lives in its own module with a docstring + type hints.
+- **Tag reusable modules in `INDEX.md` with `[reusable]`** so the next project can grep for them.
+
+When reviewing a diff, ask: "Could this helper, decorator, or class serve any other Fabrik service?" If yes, it belongs in a shared module — not in the route file.
 
 ---
 
@@ -133,9 +145,10 @@ These constraints prevent "agent drift" and bikeshedding:
 
 ## Why This File Exists
 
-This file exists because Cascade auto-discovers `.windsurf/rules/`. It provides:
+All three coding agents (Claude Code, Cascade, Kilo CLI) load this pack on demand when a code-review or completion-gate task is in flight. It provides:
 
 1. Quality gate commands organized by tier (lean, full, systemic).
-2. Cascade-specific reminders (output format, self-review, iteration limits).
-3. Solo-Dev Creed for architectural discipline.
+2. Self-review reminders (output format, iteration limits, fixer responsibility).
+3. Reusability discipline (cross-project-extractable code review).
+4. Solo-Dev Creed for architectural discipline.
 

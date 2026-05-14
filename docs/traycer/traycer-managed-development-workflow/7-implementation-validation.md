@@ -82,7 +82,7 @@ Review the implementation for:
 - **Bugs** — logic errors, incorrect behavior, broken flows. Cite line numbers.
 - **Silent failures** — paths where code proceeds without error but produces wrong results. Identify by reading control flow + asking *"if this branch is taken with bad input, does it return success?"*
 - **Edge cases** — unhandled scenarios, missing validations, boundary conditions documented in Core Flows error paths or Tech Plan robustness section. If Core Flows lists 5 error paths and code handles 3, the missing 2 are findings.
-- **Error handling** — failures handled gracefully per `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` § Observability (transient vs permanent classification, structured error logging).
+- **Error handling** — failures handled gracefully per `.windsurf/rules/55-observability.md` (transient vs permanent classification, structured error logging, GlitchTip discipline).
 - **Logic soundness** — code does what it claims. Read the code, do not trust comments or names.
 - **Test coverage on** `[PRIMARY PATH]` — the integration test actually exercises the documented path end-to-end (not a mock that always passes). Confirm assertions are non-trivial.
 

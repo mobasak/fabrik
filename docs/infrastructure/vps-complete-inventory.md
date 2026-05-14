@@ -307,7 +307,7 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 
 **Coolify Service stacks** (`/data/coolify/services/<uuid>/`) use `container_name: <service>-<coolify-service-uuid>`. The UUID here is the **Coolify service ID** — does NOT change on redeploy. These are already stable (authelia, loki, netdata, gatus, etc.).
 
-**For every new single-image Application:** see `CROSS_CUTTING_REQUIREMENTS.md §9`.
+**For every new single-image Application:** see `.windsurf/rules/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`.
 
 ## Resource Limits Reference
 

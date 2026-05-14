@@ -1,28 +1,78 @@
 #!/bin/bash
 # runc - Check status of a detached job
-# Part of Long Command Monitoring System v1.0.0
+# Part of Long Command Monitoring System v1.1.0
+#
+# Usage: runc [--full] [--quiet] <job-path>
+#        runc                                # uses runlast
+#
+# Flags:
+#   --full    Print entire log instead of tail
+#   --quiet   Print only status word (RUNNING|DONE|KILLED|DEAD|TIMEOUT)
+#
 # NOTE: -e intentionally omitted; errors handled with || true
 set -uo pipefail
 
+FULL=0
+QUIET=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --full)   FULL=1; shift ;;
+        --quiet)  QUIET=1; shift ;;
+        --)       shift; break ;;
+        --*)      echo "runc: unknown flag $1" >&2; exit 2 ;;
+        *)        break ;;
+    esac
+done
+
 JOB="${1:-}"
-[ -z "$JOB" ] && { echo "Usage: runc .tmp/jobs/job_xxx"; exit 1; }
+if [ -z "$JOB" ]; then
+    JOBS_DIR="${PWD}/.tmp/jobs"
+    if [ -L "${JOBS_DIR}/.last" ]; then
+        JOB="${JOBS_DIR}/$(readlink "${JOBS_DIR}/.last")"
+    else
+        echo "Usage: runc [--full] [--quiet] <job-path>"
+        exit 1
+    fi
+fi
 
 PID=$(cat "${JOB}.pid" 2>/dev/null || echo "")
 [ -z "$PID" ] && { echo "ERROR: No job at $JOB"; exit 1; }
-[ -f "${JOB}.log" ] || { echo "No log yet"; exit 0; }
 
 SID=$(cat "${JOB}.sid" 2>/dev/null || echo "")
 PGID=$(cat "${JOB}.pgid" 2>/dev/null || echo "")
 CMD=$(cat "${JOB}.cmd" 2>/dev/null || echo "?")
+NAME=$(cat "${JOB}.name" 2>/dev/null || echo "")
+TIMEOUT=$(cat "${JOB}.timeout" 2>/dev/null || echo "")
 
+LABEL="$CMD"
+[ -n "$NAME" ] && LABEL="[$NAME] $CMD"
+
+print_log() {
+    [ "$QUIET" -eq 1 ] && return 0
+    [ -f "${JOB}.log" ] || return 0
+    if [ "$FULL" -eq 1 ]; then
+        cat "${JOB}.log"
+    else
+        tail -20 "${JOB}.log"
+    fi
+}
+
+# Terminal state — .rc exists
 if [ -f "${JOB}.rc" ]; then
     RC=$(cat "${JOB}.rc")
-    if [ "$RC" = "SIGTERM" ]; then
-        echo "KILLED | $CMD"
+    if [ "$RC" = "SIGTERM" ] && [ -f "${JOB}.timeout" ] && [ -f "${JOB}.timed-out" ]; then
+        STATUS="TIMEOUT"
+    elif [ "$RC" = "SIGTERM" ]; then
+        STATUS="KILLED"
     else
-        echo "DONE exit=$RC | $CMD"
+        STATUS="DONE exit=$RC"
     fi
-    tail -20 "${JOB}.log"
+    if [ "$QUIET" -eq 1 ]; then
+        echo "${STATUS%% *}"
+    else
+        echo "$STATUS | $LABEL"
+        print_log
+    fi
     exit 0
 fi
 
@@ -31,7 +81,11 @@ session_alive() {
 }
 
 if session_alive || kill -0 "$PID" 2>/dev/null; then
-    echo "RUNNING | $CMD"
+    if [ "$QUIET" -eq 1 ]; then
+        echo "RUNNING"
+        exit 0
+    fi
+    echo "RUNNING | $LABEL${TIMEOUT:+ (timeout=${TIMEOUT}s)}"
     ps -p "$PID" -o pid=,state=,%cpu=,etime=,cputime= 2>/dev/null || true
 
     if [ -n "$SID" ]; then
@@ -45,17 +99,12 @@ if session_alive || kill -0 "$PID" 2>/dev/null; then
     fi
 
     echo "LOG=$(wc -c < "${JOB}.log" 2>/dev/null || echo 0) bytes"
-    tail -15 "${JOB}.log"
+    print_log
 else
-    if [ -f "${JOB}.rc" ]; then
-        RC=$(cat "${JOB}.rc")
-        if [ "$RC" = "SIGTERM" ]; then
-            echo "KILLED | $CMD"
-        else
-            echo "DONE exit=$RC | $CMD"
-        fi
-    else
-        echo "DEAD (no rc) | $CMD"
+    if [ "$QUIET" -eq 1 ]; then
+        echo "DEAD"
+        exit 0
     fi
-    tail -30 "${JOB}.log"
+    echo "DEAD (no rc) | $LABEL"
+    print_log
 fi

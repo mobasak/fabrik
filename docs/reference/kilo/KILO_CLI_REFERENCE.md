@@ -1,6 +1,6 @@
 # Kilo CLI Complete Reference
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-05-13
 
 This document provides comprehensive reference for Kilo Code CLI features, covering installation, configuration, interactive mode, autonomous mode, HTTP server API, custom agents, plugins, permissions, and session management.
 
@@ -601,7 +601,11 @@ Project-level configuration takes precedence over global settings.
 - `permission` - Tool permission settings
 - `instructions` - Paths to instruction files (e.g., `["CONTRIBUTING.md", ".cursor/rules/*.md"]`)
 - `formatter` - Code formatter configuration
+- `lsp` - Language server configuration
 - `disabled_providers` / `enabled_providers` - Control available providers
+- `experimental` - Experimental features (e.g., `openTelemetry`)
+
+For comprehensive configuration documentation including compaction, file watchers, plugins, and experimental features, see the [OpenCode Config documentation](https://opencode.ai/docs/config).
 
 ### Environment Variables in Config
 
@@ -922,6 +926,7 @@ kilo import <file>
 - `KILO_PROVIDER` - Override active provider ID
 - For kilocode provider: `KILOCODE_<FIELD_NAME>` (e.g., `KILOCODE_MODEL`)
 - For other providers: `KILO_<FIELD_NAME>` (e.g., `KILO_API_KEY`)
+- `KILO_ORG_ID` - Organization ID for non-interactive and CI environments (best for automated usage)
 - `OPENCODE_SERVER_PASSWORD` - Enable HTTP basic auth on `kilo serve` / `kilo web`
 - `OPENCODE_SERVER_USERNAME` - Override basic auth username (default: `opencode`)
 - `OPENCODE_TUI_CONFIG` - Custom path to TUI config file
@@ -936,6 +941,130 @@ kilo run "Fix the bug"
 # Override API key
 export KILO_API_KEY="sk-..."
 kilo
+
+# Set organization for non-interactive usage
+export KILO_ORG_ID="org_12345"
+kilo run "Implement feature" --auto
+```
+
+---
+
+## Remote Connections
+
+Remote mode allows Cloud Agents to connect to your local CLI session for remote control.
+
+### Enabling Remote Mode
+
+**Toggle during a session:**
+```bash
+/remote
+```
+
+Requires connection to Kilo Gateway. The `/remote` command appears only when authenticated.
+
+**Enable by default:**
+Add to `~/.config/kilo/config.json`:
+```json
+{
+  "remote_control": true
+}
+```
+
+### Using Remote Mode
+
+Once enabled, start a CLI session and open Cloud Agents. Your local session appears in the dashboard. See [Cloud Agent Remote Connections](https://kilo.ai/docs/code-with-ai/platforms/cloud-agent) for details.
+
+### Requirements
+
+- Connection to Kilo Gateway
+- Same Kilo account on CLI and Cloud Agent
+- CLI must remain running with internet connection
+
+**Security Note:** Anyone with access to your Kilo account can send messages to your computer when remote mode is enabled.
+
+---
+
+## Windows-Specific Configuration
+
+### TUI Keybindings on Windows
+
+The TUI gives Ctrl+Z to input undo on Windows because native Windows terminals do not support POSIX terminal suspend. On Windows, `input_undo` defaults to `ctrl+z,ctrl+-,super+z` and `terminal_suspend` is disabled. On macOS and Linux, `terminal_suspend` defaults to `ctrl+z`.
+
+### Enabling Shift+Enter in Windows Terminal
+
+Some terminals don't send modifier keys with Enter by default. Windows Terminal requires a one-time configuration to forward Shift+Enter as an escape sequence that Kilo can read.
+
+Open your settings.json at:
+```
+%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json
+```
+
+Add this entry to the root-level `actions` array:
+```json
+"actions": [
+  {
+    "command": {
+      "action": "sendInput",
+      "input": "\u001b[13;2u"
+    },
+    "id": "User.sendInput.ShiftEnterCustom"
+  }
+]
+```
+
+Add this entry to the root-level `keybindings` array:
+```json
+"keybindings": [
+  {
+    "keys": "shift+enter",
+    "id": "User.sendInput.ShiftEnterCustom"
+  }
+]
+```
+
+Save the file and restart Windows Terminal or open a new tab. Shift+Enter will now insert a newline in the Kilo prompt instead of submitting the message.
+
+---
+
+## OpenTelemetry Export
+
+Kilo telemetry is enabled by default and exports traces to OpenTelemetry-compatible backends for observability and monitoring.
+
+### Disable Telemetry
+
+To disable OpenTelemetry export, add to `opencode.json`:
+```json
+{
+  "experimental": {
+    "openTelemetry": false
+  }
+}
+```
+
+### Export to OTLP Endpoint
+
+If `OTEL_EXPORTER_OTLP_ENDPOINT` is set, the CLI exports OpenTelemetry traces and logs to that OTLP HTTP endpoint. Request spans include:
+- `http.method` - HTTP method
+- `http.path` - Request path
+- Route params such as `session.id` and `message.id`
+- Internal params under the `opencode.*` namespace
+
+### Environment Variables
+
+- `OTEL_EXPORTER_OTLP_ENDPOINT` - OTLP HTTP endpoint URL
+- `OTEL_EXPORTER_OTLP_HEADERS` - Comma-separated key=value pairs for headers
+- `OTEL_RESOURCE_ATTRIBUTES` - Comma-separated resource attributes
+
+### Usage
+
+```bash
+# Export to OTLP endpoint
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318/v1/traces"
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer token,X-Custom-Header=value"
+kilo run "Debug the issue"
+
+# Disable telemetry via config
+# Add to opencode.json: {"experimental": {"openTelemetry": false}}
 ```
 
 ---

@@ -273,7 +273,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── 85-payments-billing.md   # Payments & billing patterns
 │   │   ├── 90-automation.md         # YOLO modes, Fabrik skills
 │   │   ├── 95-multi-tenant-saas.md  # Multi-tenant SaaS patterns
-│   │   ├── CROSS_CUTTING_REQUIREMENTS.md  # Cross-cutting requirements
 │   │   └── ocoron-design-system.md  # Ocoron Design System v2
 │   └── workflows/                   # Cascade slash-command workflows (10 files)
 ├── config/                          # Configuration files
@@ -457,7 +456,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `.windsurf/rules/85-payments-billing.md` | Copied from Fabrik | Payments & billing patterns |
 | `.windsurf/rules/90-automation.md` | Copied from Fabrik | YOLO modes, Fabrik skills |
 | `.windsurf/rules/95-multi-tenant-saas.md` | Copied from Fabrik | Multi-tenant SaaS patterns |
-| `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` | Copied from Fabrik | Cross-cutting requirements (docs, observability, reusability) |
 | `.windsurf/rules/ocoron-design-system.md` | Copied from Fabrik | Ocoron Design System v2 (visual + verbal identity) |
 | **Templates** | | |
 | `templates/docs/*.md` | Copied from Fabrik | Documentation templates (5 files) |

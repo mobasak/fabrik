@@ -683,7 +683,9 @@ class CoolifyClient:
             current = self._request("GET", f"/{base}/{uuid}/envs")
             if isinstance(current, list):
                 existing_keys = {
-                    e.get("key") for e in current if isinstance(e, dict) and e.get("key")
+                    k
+                    for e in current
+                    if isinstance(e, dict) and isinstance(k := e.get("key"), str) and k
                 }
         except httpx.HTTPStatusError as e:
             logger.debug(

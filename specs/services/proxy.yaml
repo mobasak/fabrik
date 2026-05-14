@@ -13,7 +13,7 @@ domain: proxy.vps1.ocoron.com
 shape:
   kind: service
   is_public: true                # → Gatus endpoint for /health
-  is_admin_dashboard: false      # API only, no HTML admin UI (no Authelia)
+  is_admin_dashboard: true       # matches live Authelia rule for proxy.vps1.ocoron.com (admin UI)
   has_bearer_api: false          # no bearer auth layer at the app
   has_persistent_data: false     # DB on postgres-main, backed up separately
   needs_database: true           # uses postgres-main::proxy_management

@@ -7,6 +7,16 @@
 
 ---
 
+
+> **2026-05-12 renumbering log** (post-convergence-pass-3 cleanup, prior to T1-03 execution kickoff):
+> A parallel-execution artifact left 5 duplicate lesson numbers in this file. The SECOND occurrence of each was renumbered to extend the sequence (40-44). Old PR/commit references to these lessons should be updated:
+> - `# Lesson 20: Production Cutover Requires Router Name Restoration` → **Lesson 40**
+> - `# Lesson 22: Meilisearch Master Key is Mandatory` → **Lesson 41**
+> - `# Lesson 24: Complete Service Deployment Checklist (Master Template)` → **Lesson 42**
+> - `# Lesson 26: cAdvisor memory-limit = 0 causes `+Inf > threshold` alert spam on unlimited containers` → **Lesson 43**
+> - `# Lesson 27: SHARED_DIRS and SHARED_TEMPLATE_MAP must move together (and the git-archaeology triage protocol)` → **Lesson 44**
+> The FIRST occurrence of each retains its original number (20, 22, 24, 26, 27). Backup at `LESSONS_LEARNT.md.bak.2026-05-12_*`.
+
 # Lesson 1: Coolify API Base64 Encoding Requirement
 
 **Date:** 2026-04-17
@@ -1490,7 +1500,7 @@ docker start authelia-UUID
 
 ---
 
-# Lesson 20: Production Cutover Requires Router Name Restoration
+# Lesson 40: Production Cutover Requires Router Name Restoration
 
 **Date:** 2026-04-17
 **Status:** Permanent Rule
@@ -1712,7 +1722,7 @@ echo "✅ Deployment successful"
 
 ---
 
-# Lesson 22: Meilisearch Master Key is Mandatory
+# Lesson 41: Meilisearch Master Key is Mandatory
 
 **Date:** 2026-04-17
 **Status:** Critical Security Rule
@@ -1873,7 +1883,7 @@ After migrating 12 infrastructure services to Coolify:
 
 ---
 
-# Lesson 24: Complete Service Deployment Checklist (Master Template)
+# Lesson 42: Complete Service Deployment Checklist (Master Template)
 
 **Date:** 2026-04-18
 **Status:** Production-Tested Template
@@ -3075,7 +3085,7 @@ to find the exact offending lines before rephrasing.
 
 ---
 
-# Lesson 26: cAdvisor memory-limit = 0 causes `+Inf > threshold` alert spam on unlimited containers
+# Lesson 43: cAdvisor memory-limit = 0 causes `+Inf > threshold` alert spam on unlimited containers
 
 **Date:** 2026-04-19
 **Status:** Permanent Rule — every PromQL alert that divides by a `*_limit_*` / `*_spec_*` / other bounds metric MUST guard the denominator with `> 0`.
@@ -3202,7 +3212,7 @@ See **Lesson 25 §8.1** ("Alertmanager → Apprise is never valid") for the adja
 
 ---
 
-# Lesson 27: SHARED_DIRS and SHARED_TEMPLATE_MAP must move together (and the git-archaeology triage protocol)
+# Lesson 44: SHARED_DIRS and SHARED_TEMPLATE_MAP must move together (and the git-archaeology triage protocol)
 
 **Discovered:** 2026-04-19 (Phase 4k-pre, scaffold repair).
 **Severity:** Catastrophic — broke 100% of `fabrik scaffold` invocations for ~24h.
@@ -3634,7 +3644,7 @@ The repo's stop rule is "if a single fix vector fails 3× in a row, stop and con
 
 # Lesson 36: Git-sourced Coolify apps — commits must be pushed to GitHub before redeploy
 
-**Date:** 2026-05-06  
+**Date:** 2026-05-06
 **Context:** `/opt/proxy` is a git-sourced Coolify app (deploys from `github.com:mobasak/proxy.git`). Fixes were committed locally to `/opt/proxy` then `fabrik redeploy` was triggered — but the container kept running the old code.
 
 **Root cause:** Coolify git-sourced apps pull from the **remote** (GitHub), not from the local `/opt/<project>` clone. Local commits that aren't pushed are invisible to Coolify. `fabrik redeploy` just triggers a `git pull` + rebuild from the configured remote.
@@ -3647,7 +3657,7 @@ The repo's stop rule is "if a single fix vector fails 3× in a row, stop and con
 
 # Lesson 37: FastAPI `except Exception` swallows `HTTPException` — always re-raise it first
 
-**Date:** 2026-05-06  
+**Date:** 2026-05-06
 **Context:** Added `X-API-Key` auth to `/opt/proxy/api.py`. Auth dependency correctly raised `HTTPException(403)` but callers received `500` instead.
 
 **Root cause:** Route handlers wrapped the entire body in `try/except Exception as e: raise HTTPException(500)`. Since `HTTPException` is a subclass of `Exception`, the generic handler caught the 403 and re-raised it as 500, erasing the auth rejection.
@@ -3668,7 +3678,7 @@ except Exception as e:
 
 # Lesson 38: `self.DB_CONFIG` vs imported `DB_CONFIG` — silent localhost fallback
 
-**Date:** 2026-05-06  
+**Date:** 2026-05-06
 **Context:** `/opt/proxy/db_proxy_manager_api.py` called `psycopg2.connect(**self.DB_CONFIG)` but `DB_CONFIG` was never assigned to `self` — it was only imported at module level.
 
 **Root cause:** Python attribute lookup on `self.DB_CONFIG` raises `AttributeError` when the attribute doesn't exist, but psycopg2's `connect()` accepts `**{}` (empty dict) and falls back to libpq defaults — which means `localhost:5432`. No error at connection-creation time; error only surfaces when the actual TCP connect fails.
@@ -3679,7 +3689,7 @@ except Exception as e:
 
 # Lesson 39: Open services audit — check Traefik middleware on every public route
 
-**Date:** 2026-05-06  
+**Date:** 2026-05-06
 **Context:** Security audit of all VPS services revealed multiple publicly accessible APIs with no auth: `proxy`, `captcha`, `image-broker`, `file-api`, `emailgateway`. Only services explicitly added to Authelia or with their own auth middleware were protected.
 
 **Rule:** After every `fabrik apply`, run:
@@ -3696,3 +3706,122 @@ Any service with `traefik.enable=true` and no middleware entry is open. Every pu
 - `captcha` → ⚠️ open — needs API key (swe-1.6 task)
 - `image-broker` → ⚠️ open — needs API key (swe-1.6 task)
 - `gatus` → ℹ️ read-only status page, acceptable open
+
+---
+
+# Lesson 45: Acceptance criteria carrying literal string anchors are load-bearing — preserve verbatim across rewrites
+
+**Date:** 2026-05-14
+**Context:** During T1-01 execution, the ticket's acceptance criterion `head -n 4 AGENTS.md | grep "Last Updated"` failed even though AGENTS.md had been freshly rewritten to be cleaner. The rewrite had renamed the header field from `**Last Updated:**` to `**Updated:**` AND moved it from line 3 to line 5 — both invisible to the eye but fatal to the grep-based gate. The rewrite was technically a "lossless" reformat in human terms; the rewrite was lossy in machine-verifier terms.
+
+**Root cause:** Acceptance criteria using literal-string grep on positional locations (`head -n N`) treat the string AND its position as a contract. Both must be preserved verbatim. A semantic-equivalence rewrite (renaming a field while keeping its purpose) breaks the contract silently. The verifier was already in place — the rewrite simply didn't know about it.
+
+**Rule:**
+1. Before rewriting any file that has known acceptance criteria pointing at it, grep the test files / tickets / final_gate.py for the file's name and read what literal strings or line positions are expected.
+2. Treat header field labels (`**Last Updated:**`, `**Status:**`, `**Owner:**`) as API surface, not documentation prose. Preserve their literal spelling AND line ordering across rewrites.
+3. If a rewrite has to change a header field, update the acceptance criterion in lockstep (same commit, same diff).
+
+**Auto-detect heuristic:** when about to rewrite a top-level governance file (AGENTS.md / CLAUDE.md / .windsurfrules / AGENTS-compact.md / README.md), first run `grep -rl '<filename>' tests/ docs/development/plans/ scripts/final_gate.py` and read any matches before touching.
+
+---
+
+# Lesson 46: Adding a new shape flag changes registrar-applicability test expectations — update parameterized test dicts in the same commit
+
+**Date:** 2026-05-14
+**Context:** T1-01 W-4 added `exposes_metrics: true` to `templates/python-api/defaults.yaml` and `templates/node-api/defaults.yaml`. The change worked end-to-end: `resolve_applicability()` now correctly produces `prometheus` in the registrar set for those templates. But `tests/orchestrator/test_template_defaults.py::EXPECTED` (a parameterized dict mapping template → expected-runs set) was authored before W-4 and still expected `{"gatus", "glitchtip", "grafana"}` for both — so the test failed with `Extra items in the left set: 'prometheus'`. The Tier 1 lean gate didn't catch this (lean skips pytest); a Tier 2 gate would have.
+
+**Root cause:** A shape flag added to a defaults.yaml is observable in two places: (1) registrar resolver behavior at runtime, (2) test expectations at test time. The two must change in lockstep. The lean gate is fast precisely because it skips this kind of cross-file consistency check — perfect for a same-ticket-iterate loop, but the tradeoff is that *enabling-a-flag* tickets like W-4 need to also touch the relevant test dict OR the next Tier 2 gate will block.
+
+**Rule:**
+1. When changing any field under `shape:` in any `templates/*/defaults.yaml`, also `grep -l "<template-name>" tests/orchestrator/` and update the EXPECTED dict (or equivalent) in the same diff.
+2. Treat the test dict as an out-of-scope but adjacent file under the "Adjacent fixes allowed only within files already in Scope" rule: include the test file in the ticket's Scope-line whenever the ticket's change is shape-related.
+3. Long-term: harden `final_gate.py --lean` to include a fast "registrar applicability self-consistency" check that loads template defaults, runs `resolve_applicability` against them, and compares the result to the test's EXPECTED dict — promoting this from a Tier 2 check to Tier 1.
+
+---
+
+# Lesson 47: "Diff-aware" lean gate fires on out-of-scope files modified in prior sessions, blocking the current ticket
+
+**Date:** 2026-05-14
+**Context:** Running `scripts/final_gate.py --lean --json` for T1-01 returned `status: failure` on three ruff violations (N806 / B007) in files that were NOT in T1-01 scope: `scripts/generate_kilo_agents.py`, `scripts/kilo-benchmarks/post_filter.py`, `scripts/kilo-benchmarks/scrape_artificial_analysis.py`. Two had been modified in earlier sessions and left in the working tree; one was an untracked file from a prior session. The gate's diff-aware check rightly considers them "current state" and runs ruff over them. Result: T1-01's own work was clean, but the gate blocked progress on inherited lint debt.
+
+**Root cause:** The current `final_gate.py` doesn't distinguish "files this ticket touched" from "files modified somewhere in the working tree". For a multi-ticket campaign on a working tree that already has cross-ticket pending changes, this means every ticket's gate inherits the lint debt of every prior session — even when those files have nothing to do with the current ticket's Scope.
+
+**Rule (operator side, today):** Before starting any campaign ticket, run the gate FIRST on the empty diff (or against `HEAD`) to surface inherited lint debt. Decide up front whether to (a) commit the working tree as-is to baseline it, or (b) authorize "adjacent gate-unblock fixes" that the ticket executor can apply when blocked. Document the choice in the ticket's `Lessons Learnt:` field.
+
+**Rule (gate side, future):** Add a `--scope-files <path,path>` argument to `final_gate.py` so a ticket can declare its Scope and the gate only flags violations inside those files. This eliminates the conflict between "Fix until status: success" and "Do not refactor outside Scope".
+
+---
+
+# Lesson 48: Read pre-flight signal before assuming a ticket is fresh — most of T1-01 was already done by prior sessions
+
+**Date:** 2026-05-14
+**Context:** T1-01 was presented as 10 fresh steps to implement. Pre-flight checks revealed that 9 of 10 were already complete in the working tree from prior sessions (proxy.yaml edit, both templates' `exposes_metrics`, .env.example comment block, AGENTS.md registrar parenthetical, next-tailwind/ deletion, CHANGELOG entry dated 2026-05-11). Only one defect remained — the AGENTS.md `**Last Updated:**` header form (see Lesson 40). Without pre-flight, the executor would have duplicated all the edits, possibly inserting them twice or in the wrong positions.
+
+**Root cause:** Ticket files are authored at planning time, then sit in `/tmp/traycer-epics/` for days. The working tree drifts in the meantime. The ticket's "Pre-flight checklist" is the executor's protection against this drift.
+
+**Rule:**
+1. **Always run pre-flight checks first.** Treat them as the authoritative state read, not the ticket's prose.
+2. Ticket prose like "EDIT file X line N: change A to B" should be read as "verify file X currently is in state A; if so, change to B; if already B, log and skip; if in some third state, STOP and surface."
+3. The ticket's "Stop conditions" already encode this idea ("If `grep` for the 7-registrar parenthetical returns 0 → STOP") — honor them, but report what's already done instead of stopping silently.
+
+**Heuristic for any ticket-driven work:** before the first edit, produce a delta table mapping `(step, expected pre-state, actual pre-state, action)`. If `actual == expected` for all rows, the ticket is fresh. If `actual == post-state` for all rows, the ticket is fully done by prior work. Mixed states need item-by-item adjudication with the operator.
+
+---
+
+# Lesson 49: `infra:` vs `infrastructure:` — two different Spec model fields, easy to confuse
+
+**Date:** 2026-05-14
+**Context:** T1-02 Case 4 (G-B1a proxy-pattern infra-override test) failed on first authoring. The test wrote `infrastructure:\n  postgres: false` expecting `resolve_applicability` to skip the postgres registrar. It didn't — postgres still ran. Inspection showed the Spec model has TWO related fields with very similar names: `infrastructure: Infrastructure` (the structured config — `database/storage/auth` enums) AND `infra: dict` (a free-form override block consumed by `resolve_applicability` as `spec.get("infra", {})`). Production proxy.yaml uses `infra:` (correctly); my test wrote `infrastructure:` (the wrong field). Pydantic accepted both (the structured field has empty extras config; the override field is dict), and `resolve_applicability` read `infra` and got `{}`, so the override silently no-op'd.
+
+**Root cause:** The two fields exist because pre-Phase-4k specs had a more freeform "infrastructure" block; the `infra:` escape-hatch was bolted on later (see `spec_loader.py` line 381+ comments). Their names are nearly identical. The Spec model's `extra="ignore"` default means writing the wrong one isn't a validation error.
+
+**Rule:**
+
+1. The free-form override block is **`infra:`** (not `infrastructure:`). It's a dict mapping registrar names to bool, used by `resolve_applicability`. Production specs that need to skip a registrar use this. Reference: `specs/services/proxy.yaml` lines 42-43.
+2. The structured backend config is **`infrastructure:`** (the `Infrastructure` model). It has 3 fields: `database/storage/auth`. Used by drivers for connection-string selection. Do NOT write registrar overrides here.
+3. When writing tests against `resolve_applicability`, always check `spec_dict.get("infra")` is what you intended. A passing test that writes `infrastructure: postgres: false` is a false-passing test — the override doesn't take effect.
+
+**Future hardening:** Spec model should add `extra="forbid"` on the `Infrastructure` model so writing `infrastructure: postgres: false` raises a validation error pointing the operator at the correct `infra:` block. Deferred to a separate ticket.
+
+---
+
+# Lesson 50: Adding an enum value to `SourceType` requires concurrent deployer type_map updates — the "hidden cascade-fix" pattern
+
+**Date:** 2026-05-14
+**Context:** T1-02 G-B1a's "unblocks 5 pre-G1 deployed specs" promise required a hidden enum addition: `SourceType.LOCAL = "local"`. The 13 production specs using `source.type: local` (captcha, file-api, translator, image-broker, emailgateway, plus 8 others) all failed `load_spec` with `Input should be 'template', 'git' or 'docker'` BEFORE the merge ever ran. The ticket framed G-B1a as the single fix; reality required (enum addition) + (deep-merge) to actualize. Pre-flight check #4 caught the discrepancy (the error was `source.type` enum violation, not "missing shape"), prompting the deeper audit that surfaced the hidden requirement.
+
+**Root cause:** A pydantic enum is a closed set. Adding a new value (`LOCAL`) lets the loader accept new specs, but downstream code paths that switch-case on the enum (e.g. `orchestrator/deployer.py:287-289,490-492` has a `type_map` dict `{"docker": SourceType.DOCKER, "git": SourceType.GIT, "template": SourceType.TEMPLATE}` and falls back to `.get(source_type_str, SourceType.TEMPLATE)`) will silently coerce the unknown value. For LOCAL, that means a `local` spec passed through `fabrik apply` would be deployed as a TEMPLATE — wrong template, wrong validation path, silently broken.
+
+**Rule:**
+
+1. Adding an enum value is a **two-edge change**: (a) the validator/parser side accepts the value; (b) every switch-case / type_map / `.get(default=...)` consumer needs to handle it explicitly. Both edges in the same ticket or the second edge becomes a latent bug.
+2. Before adding an enum value, `grep -rn "EnumName\." --include="*.py"` to find every consumer. Either update each, or surface a per-consumer follow-up.
+3. For T1-02 specifically: LOCAL is added to the enum (load_spec/plan/status/audit-registrars work), but `fabrik apply` for LOCAL specs is NOT yet wired through the deployer — a follow-up ticket must update both type_map sites in `orchestrator/deployer.py`. Documented in the `SourceType` docstring and CHANGELOG.
+
+**Heuristic:** when a "single-line" enum addition appears in a ticket scope, search for at least 2-3 downstream switch-cases on that enum before declaring the change safe to ship.
+
+---
+
+# Lesson 51: Tier 2 gate's bandit/mypy/structure checks chain — each fix exposes the next layer
+
+**Date:** 2026-05-14
+**Context:** T1-02 ticket mandated Tier 2 gate (`final_gate.py --json`, not `--lean`). First run showed 4 failures. Fixing all 4 exposed 3 more, which exposed 1 more, which exposed 1 more — total 9 distinct findings before the gate landed at success. All were pre-existing inherited debt (none caused by T1-02's code). Bandit specifically reports issues sequentially and seems to short-circuit (or `final_gate` truncates output) so each fix reveals the next layer rather than presenting a full list up front. Same pattern for mypy (one error reported, next reported only after the first is fixed) and project-structure check (one Markdown-location rule, then the next).
+
+**Root cause:** Tools like bandit, mypy, and the structure check optimize for "tell me about my next problem", which is great for an iterative fix loop on a clean repo but creates an extra-long convergence path on a repo with accumulated debt. The naive interpretation ("the ticket has 4 issues, fix them and we're done") is wrong; the right interpretation is "iterate until the tool stops reporting, no matter how many cycles".
+
+**Rule:**
+
+1. Before declaring a tier-2 gate failure list complete, run each tool standalone with `bandit -r src/ -ll` (medium+ severity, lower threshold) or `mypy .` (full repo) or the structure check directly. This produces the FULL surface, not just the front layer.
+2. When fixing a debt cascade like this, batch all `# nosec` annotations into a single commit so reviewers see the full scope rather than 5 sequential commits each fixing "one more issue".
+3. For future campaigns: an upfront "Tier 2 inherited-debt audit" ticket would clear the entire surface in one pass before the campaign starts. Significantly reduces per-ticket gate friction.
+
+---
+
+# Lesson 52: TDD red-then-green caught a real test authoring bug before it landed as a false-passing test
+
+**Date:** 2026-05-14
+**Context:** T1-02 G-B1a was implemented TDD-style per the ticket's Recovery note: write the 7 edge-case tests first (red), then add `_deep_merge` + the call site in `load_spec` (green). The red phase failed with `ImportError: cannot import name '_deep_merge'` — correct, the function didn't exist yet. The green phase passed 6 of 7 tests on first run; Case 4 (proxy-pattern infra-override) still failed. Inspection revealed I had written `infrastructure: postgres: false` in the test fixture (wrong field; see Lesson 49). If I had written the implementation first and then the test, the test would have been authored against my (also-wrong) mental model of the field name and would have FALSE-PASSED. TDD's red→green discipline forced a check against on-disk reality (production proxy.yaml uses `infra:`, not `infrastructure:`), surfacing the confusion.
+
+**Rule:** for any new feature touching an existing model with subtle field-name ambiguity, TDD (test first) is materially safer than write-then-test. The "red" phase is the safety net — it forces the test to exercise the actual implementation path. Write-then-test bypasses that net entirely.
+
+---

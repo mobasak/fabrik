@@ -1,7 +1,7 @@
 ---
-activation: always_on
+activation: glob
+globs: ["**/*.tsx", "**/*.jsx", "**/components/**", "**/app/**", "**/pages/**", "**/tailwind.config.*"]
 description: SaaS UI patterns — navigation, components, performance, accessibility
-trigger: always_on
 ---
 
 # SaaS UI Rules

@@ -326,12 +326,15 @@ def sync_from_kilo() -> None:
 
 def update_benchmarks() -> None:
     """Update benchmark scores from scrapers."""
+    from scrape_benchlm import build_benchlm_map, fetch_benchlm_coding
     from scrape_benchmarks import scrape_chatbot_arena, scrape_terminal_bench
 
     log("Updating benchmark scores...")
 
     arena = scrape_chatbot_arena()
     tbench = scrape_terminal_bench()
+    benchlm_entries = fetch_benchlm_coding()
+    benchlm_map = build_benchlm_map(benchlm_entries) if benchlm_entries else {}
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -380,6 +383,7 @@ def update_benchmarks() -> None:
 
     elo_updated = 0
     tbench_updated = 0
+    benchlm_updated = 0
 
     for agent in agents:
         agent_id = agent["id"]
@@ -402,7 +406,19 @@ def update_benchmarks() -> None:
                 accuracy = tbench_map[key]
                 break
 
-        if elo is not None or accuracy is not None:
+        # Check BenchLM
+        swe_pro = None
+        weighted = None
+        lcb = None
+        for key in match_keys:
+            if key in benchlm_map:
+                benchlm_data = benchlm_map[key]
+                swe_pro = benchlm_data.get("swe_bench_pro")
+                weighted = benchlm_data.get("weighted_coding")
+                lcb = benchlm_data.get("livecodebench")
+                break
+
+        if elo is not None or accuracy is not None or swe_pro is not None:
             # Get current costs for perf_per_dollar calculation
             cursor.execute(
                 "SELECT input_cost_per_m, output_cost_per_m FROM agents WHERE id = ?",
@@ -428,6 +444,21 @@ def update_benchmarks() -> None:
                 params.append(accuracy)
                 tbench_updated += 1
 
+            if swe_pro is not None:
+                update_parts.append("swe_bench_pro = ?")
+                params.append(swe_pro)
+                benchlm_updated += 1
+
+            if weighted is not None:
+                update_parts.append("weighted_coding = ?")
+                params.append(weighted)
+                benchlm_updated += 1
+
+            if lcb is not None:
+                update_parts.append("livecodebench = ?")
+                params.append(lcb)
+                benchlm_updated += 1
+
             if perf is not None:
                 update_parts.append("perf_per_dollar = ?")
                 params.append(perf)
@@ -442,7 +473,7 @@ def update_benchmarks() -> None:
 
     conn.commit()
     conn.close()
-    log(f"  Updated {elo_updated} Elo, {tbench_updated} TBench scores")
+    log(f"  Updated {elo_updated} Elo, {tbench_updated} TBench, {benchlm_updated} BenchLM scores")
 
 
 def create_snapshot() -> None:

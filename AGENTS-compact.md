@@ -1,98 +1,142 @@
-<!-- KILO CLI INJECTION LIMITS: hard cap 40,000 chars (silent truncation from bottom). Verbatim sweet spot <15,000 chars / <150 lines. Current: ~5,200 chars / ~84 lines. Use Markdown headers + tables + If-Then logic; avoid dense prose. Read by Kilo CLI only (via opencode.json). Cascade reads .windsurfrules; Claude Code reads CLAUDE.md; Traycer reads AGENTS.md. -->
+<!-- Read by Kilo CLI (opencode.json). Self-contained (Kilo doesn't auto-load packs). Hard truncate ~32k; optimal 4–8k (ships in every request → token cost). Rules at top get strongest attention. -->
 # Kilo CLI Agent Rules
 
 ## ⚠️ FIRST OUTPUT (every response)
 `RULES ACTIVE: KILO | <3 rules from this file you applied>`
 
-## COMPLETION CONTRACT (Execute in order, every task)
+## ORIENT (every task)
+1. `project.yaml::type` — one of 11 `scripts/scaffold.py` scaffolds. All projects use `.venv` and deploy via Coolify API. Per-task files-to-read: see the ticket's Pre-flight checklist.
+2. `AFCL.md`: read if exists; append friction findings as you hit them.
+3. Plans: see `fabrik_workflow.md`.
 
-1. **ORIENT** — Before non-trivial work, read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, relevant `src/` files. If `AFCL.md` exists, append friction findings as encountered.
+## BEHAVIOR
+- **Check before create:** file exists = STOP, ask.
+- **Present before execute:** plan → approval → execute. Read-only ops exempt.
+- **Stay on task:** no unsolicited advice or process commentary.
+- **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 
-2. **IMPLEMENT** — Changes scoped to current task only. Before finishing, internal audit:
-   - All task requirements fully met
-   - No hardcoded secrets/localhost (use `os.getenv()`)
-   - No logic gaps or silent failure modes
-   - Write exactly 1 test file covering the core logic path (skip for documentation-only tasks that change no code)
-   - **Adjacent fixes allowed**: fix directly adjacent, low-risk issues in the same touched files/subsystem if it prevents obvious breakage
+## COMPLETION CONTRACT (in order, every task)
+1. **IMPLEMENT** — Stay within ticket Scope; adjacent fixes in same files OK. No hardcoded secrets/localhost (`os.getenv("KEY","default")`), no silent failures. 1 test for highest-risk path (skip docs-only).
+2. **GATE** — Run ticket's `Final Gate Instruction` (`scripts/final_gate.py`); fix to `status:"success"`. Flags: `--lean --json` (std) · `--json` (milestone/schema/auth) · `--systemic --json` (epic).
+3. **CHANGELOG** — One entry under `## [Unreleased]`: `### Added|Changed|Fixed — Title (YYYY-MM-DD)`. Gate-enforced.
+4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
+5. **EXIT** — Gate auto-stages on success. STOP. No commit/push unless user said so this turn; `git add` OK. Traycer or user commits.
 
-3. **QUALITY GATE** — Run and fix findings until `status: "success"`:
-   - **Standard Tasks**: `python scripts/final_gate.py --lean --json`
-   - **Milestone / Batch Closer**: `python scripts/final_gate.py --json`
-
-4. **CHANGELOG** — Add one entry under `## [Unreleased]` (gate-enforced).
-
-5. **LESSONS LEARNT** — Fill ticket `Lessons Learnt:` line with `none` OR structured entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
-
-6. **EXIT** — Gate auto-stages on success. STOP. Do NOT run `git commit` / `git push` unless user said "commit" or "push" this turn. Manual `git add` is allowed. Traycer or the user commits.
-
----
-
-## CROSS-CUTTING (Every task)
-
-1. **Doc Sync Matrix** — Update matched docs in the SAME staged change. Skipping = task failure.
+## DOC SYNC MATRIX (every task)
+Update matched docs in the SAME staged change. Skipping = task failure (gate-enforced).
 
 | Change | Update |
 |---|---|
-| `src/**` file added/removed | `INDEX.md` |
-| API route / CLI command added/removed/changed | `docs/QUICKSTART.md`, `docs/FEATURES.md`, `README.md` Features table |
-| New `os.getenv()` var | `.env.example` (with comment: Why / How to get / Default) |
-| External service credential setup changed | `docs/CONFIGURATION.md` |
-| Code, Docker, deps changed | `CHANGELOG.md` (gate-enforced) |
+| New env var | `.env.example` + comment (Why / How / Default) |
+| Real secret value | `.env` (gitignored) |
+| External cred setup changed | `docs/CONFIGURATION.md` |
+| Code/Docker/deps changed | `CHANGELOG.md` |
+| File added/removed/renamed | `INDEX.md` |
+| Tech stack or setup changed | `README.md` |
+| API/SDK/CLI/integration changed | `docs/QUICKSTART.md` |
 | New port allocated | `PORTS.md` |
-| Bug fix | `CHANGELOG.md ### Fixed`; if non-obvious add to `docs/TROUBLESHOOTING.md` |
-| Feature shipped/deprecated/removed | `docs/FEATURES.md` |
-| Future feature/refactor idea surfaces | `docs/STRATEGIC_BACKLOG.md` |
-| Aha moment — struggled then solved | `docs/LESSONS_LEARNT.md` (full template) |
-| Silicon ceiling — context drift, model limit, repeated mistake | `AFCL.md` |
-| New plan started | `docs/development/plans/YYYY-MM-DD-plan-<name>.md` |
-| Schema migration | Alembic file + `db/schema.sql` |
+| Recurring symptom | `docs/TROUBLESHOOTING.md` (Symptom/Cause/Fix) |
+| Feature shipped/deprecated | `docs/FEATURES.md` |
+| New plan | `docs/development/plans/YYYY-MM-DD-plan-<name>.md` |
+| Schema migration | Alembic + `db/schema.sql` |
+| Future idea | `docs/STRATEGIC_BACKLOG.md` (Now/Later/Context) |
+| Aha moment | `docs/LESSONS_LEARNT.md` |
+| Silicon ceiling | `AFCL.md` |
+| Pricing / GTM | `docs/BUSINESS_MODEL.md` |
 
-Skip: refactor-only / docs-only / test-only → `CHANGELOG.md` only.
+**Skip:** refactor/docs/test-only → `CHANGELOG.md` only.
 
-2. **Structured logging** — No `print()` / `console.log()` in production code; use the project's structured logger.
-2a. **Error reporting** — `glitchtip_init` module is scaffold-emitted; if `GLITCHTIP_DSN` is set, unhandled errors auto-report to GlitchTip. DO NOT also `logger.exception()` full tracebacks (duplicates events). Use `capture_exception()` only for caught-then-rethrown control flow.
-3. **User guide** — If the change is user-facing AND `project.yaml` has `has_user_guide: true`, add/update a page in `docs/user-guide/`.
-4. **Reusable modules** — Utility code in `src/utils/` or `src/lib/` with zero project-specific imports; tag `[reusable]` in `INDEX.md`.
-5. **Naming** — kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `Makefile`, `Dockerfile`, Python packages (snake_case per PEP 8), auto-generated, dotfiles.
-6. **Search, don't guess** — For any 3rd-party API/SDK/vendor (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n), training data is stale. Use `web_search` / `web_fetch` MCPs to verify current docs. Cite source URL in code comment. If 3 calls don't resolve it, output `BLOCKED: <vendor> — <missing>` and stop. Skip for stdlib and language syntax.
+## CROSS-CUTTING
+1. **Structured logging** — JSON + correlation IDs. Use scaffolded logger at `src/{pkg}/logger.py` or `src/logger.js`. Never `print()`/`console.log()`. Never write a custom logger.
+2. **GlitchTip error reporting** — Scaffold-emitted (`glitchtip_init.{py,js}`). With `GLITCHTIP_DSN` set: unhandled errors auto-report. DO NOT also `logger.exception()` with full traceback (Loki dup). `capture_exception()` only for caught-then-rethrown control flow.
+3. **User guide** — If user-facing AND `project.yaml::has_user_guide: true` → add/update page in `docs/user-guide/`.
+4. **Reusability** — Business logic separate from framework. Shared utilities in `src/utils/` or `src/lib/` with zero project-specific imports and no hardcoded project values. Any reusable function lives in its own module with docstring + type hints. Tag `[reusable]` in `INDEX.md`.
+5. **Naming** — kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case per PEP 8), auto-generated, dotfiles.
+6. **Search, don't guess** — For 3rd-party APIs (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n):
+   1. Repo first: `grep docs/` + check `AFCL.md`.
+   2. Else: `web_search` → `web_fetch` MCP on vendor's official docs; cite URL in code.
+   3. After 3 misses: `BLOCKED: <vendor> — <searched> — <missing>`; stop.
+   Skip: stdlib, syntax, Fabrik conventions.
 
----
+## SECURITY & DATA
+1. **Sensitive data** — Before editing `.env`, `*.key`, `*.pem`, files under `secrets/` or `.ssh/`:
+   ```bash
+   cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
+   ```
 
-## HARD STOPS — NEVER do these
+2. **Password policy** (programmatic generation only — not user-input):
+   - 32 chars, charset `[a-zA-Z0-9]` only (no symbols — survives `.env` round-trip + shell quoting)
+   - Generator: Python `secrets.choice(string.ascii_letters + string.digits)`
+   - Banned: `postgres`, `admin`, `password`, `password123`, default vendor creds
 
+3. **M2M service-to-service auth** — Every Fabrik HTTP service uses the canonical pattern:
+
+   | Aspect | Value |
+   |---|---|
+   | Header | `X-Internal-Token` |
+   | Env var | `SERVICE_INTERNAL_SECRET_KEY` (same value as `/opt/fabrik/.env`) |
+   | Module | `internal_auth.py` (copy into `app/` or `src/`) |
+   | Import | `from internal_auth import require_internal_token` |
+   | Validation | `hmac.compare_digest` (constant-time) |
+
+   **Never** inline `APIKeyHeader`/`require_api_key`; never per-service key names (`SERVICE_API_KEY`, `PROXY_API_KEY`). Scaffold `python-api` auto-emits `internal_auth.py`, `metrics.py`, `/metrics`, `SERVICE_INTERNAL_SECRET_KEY` in `.env.example`. Client call:
+   ```python
+   import os, httpx
+   headers = {"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]}
+   resp = httpx.get("https://<service>.vps1.ocoron.com/api/endpoint", headers=headers)
+   ```
+
+4. **Authelia** — No SIGHUP support (exits). After `configuration.yml` edit: `docker restart <authelia-container>`. Authelia bypass `*.vps1.ocoron.com → /health` is automatic — never protect `/health`.
+
+## DOCKER & DEPLOY
+1. **No `localhost` in connection strings** — Inside containers, `localhost` = the container itself, not the host. Use Docker network DNS:
+
+   | Var | ❌ Wrong | ✅ Correct |
+   |---|---|---|
+   | `DB_HOST` | `localhost` | `postgres-main` |
+   | `DATABASE_URL` | `...@localhost:5432/...` | `...@postgres-main:5432/...` |
+   | `REDIS_URL` | `redis://localhost:6379` | `redis://redis-main:6379` |
+
+   Verify before deploy: `grep -E '^(DB_HOST|DATABASE_URL|REDIS_URL)=' .env | grep localhost` must return nothing.
+
+2. **Post-deploy checklist (every new service):**
+   - **Network:** containers on `coolify`; never bind ports to host; Traefik routes via labels.
+   - **Traefik middleware** (scaffold-emitted): admin UI → `authelia-forward@docker,gzip@docker`; API → `gzip@docker`; public → none.
+   - **Coolify env:** `SERVICE_INTERNAL_SECRET_KEY`, `DATABASE_URL` (`postgres-main`), `REDIS_URL` (`redis-main`).
+   - **Health:** `/health` → 200; Coolify interval 60s for stable services.
+
+3. **`fabrik redeploy` on git-sourced app** — sequence: `git commit` → `git push` → `fabrik redeploy`. Coolify pulls from GitHub remote, not local `/opt/` clone.
+
+4. **Gatus stable DNS** — Never use UUID container names in Gatus or inter-service URLs.
+   - **Service stacks** (`/data/coolify/services/<uuid>/`): `container_name` is stable — use directly.
+   - **Single-image Apps** (`/data/coolify/applications/<uuid>/`): container name has a timestamp suffix that changes per redeploy — DNS breaks silently. Install a stable alias on the `coolify` network. Procedure + currently-registered alias pairs (browserless, gotenberg, meilisearch, glitchtip-web): **`docs/reference/coolify-stable-aliases.md`**.
+
+## HARD STOPS — NEVER
 | Rule | Instead |
-| :--- | :--- |
+|:--|:--|
 | `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
-| bare `pip install` | `/opt/<project>/.venv/bin/pip install` |
-| Alpine base image | `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim` |
-| edit files outside task scope | strict task boundaries |
-| modify `pyproject.toml` / `requirements.txt` / `package.json` / lock files | only if task explicitly authorises deps change |
-| create files outside project tree | local project paths only |
-| expose Docker ports via `ports:` | route through Traefik; Docker bypasses UFW |
-| admin dashboard w/o auth boundary | Authelia forward-auth (no native TOTP) OR app-layer TOTP (has one). See `docs/LESSONS_LEARNT.md §8.13` |
-| FastAPI `except Exception` without re-raising `HTTPException` first | always: `except HTTPException: raise` before generic catch — bare catch silently converts 403/404 → 500 |
-| `fabrik redeploy` on git-sourced app without `git push` first | sequence: `git commit` → `git push` → `fabrik redeploy`; Coolify pulls from GitHub remote, not local `/opt/` clone |
-| `DB_HOST=localhost` or `DATABASE_URL=...@localhost:` in any env | always `postgres-main:5432` and `redis-main:6379` — `localhost` inside a container is the container, not the shared DB |
-| Authelia config reload via SIGHUP | Authelia exits on SIGHUP, does NOT hot-reload — always `docker restart <authelia-container>` after config edits |
-| Adding a new Gatus endpoint using hardcoded container name | always use stable Docker DNS name: compose service name for Service stacks, or registered stable alias for single-image Applications. Never use UUID container name — it changes on every redeploy. See `scripts/vps_apply_limits.sh` alias section for registered pairs. |
-| Gatus/internal URL using UUID container name (e.g. `tcp://vckgs8c00o40o884k48cgow8-220643454460:3000`) | Coolify single-image Applications have no stable DNS alias by default. After deploying one: (1) add stable alias to `networks.coolify.aliases` in its compose at `/data/coolify/applications/<uuid>/docker-compose.yaml`, (2) run `docker network disconnect coolify <uuid-name> && docker network connect --alias <stable-name> --alias <uuid-name> coolify <uuid-name>`, (3) update `/opt/monitoring/configs/gatus/` to use the stable name, (4) add the alias pair to `vps_apply_limits.sh` for reboot persistence |
-| API service w/o `X-Internal-Token` | validate `SERVICE_INTERNAL_SECRET_KEY` header |
-| Writing inline `APIKeyHeader`/`require_api_key` for M2M | always copy `internal_auth.py` into service `app/` or `src/` dir; `from internal_auth import require_internal_token` — zero inline auth logic |
+| edit outside ticket Scope | stay strict |
+| modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |
+| files outside project tree | local paths only |
+| bare `pip install` | `/opt/<project>/.venv/bin/pip install` (PEP 668) |
+| Alpine base image | `python:<stable>-slim-bookworm` / `node:<LTS>-bookworm-slim` |
+| Docker `ports:` exposure to host | route through Traefik (DOCKER-USER blocks raw ports) |
+| admin dashboard w/o auth | Authelia forward-auth OR app-layer TOTP |
+| FastAPI `except Exception` swallowing `HTTPException` | always `except HTTPException: raise` before generic catch |
+| foreground command likely >30s (build/deploy/test/sync/`fabrik`/`docker`/`pytest`/`npm i`) | `scripts/rund -- <cmd>`; `runwait $(runlast) <s>`; `runc $(runlast)`. Doc: `docs/reference/long-command-monitoring.md` |
+| new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**/*.md` · `docs/archive/**` |
+| destructive script on prod data w/o dry-run | dry-run first, show diff |
+| credentials change w/o backup + diff approval | `cp <f> <f>.backup.$(date +%Y%m%d-%H%M%S)` first |
 | `/tmp/` | project `.tmp/` |
+| class/module-level config | function-level only |
+| raw SQL DDL | Alembic migrations only; `db/schema.sql` reference only |
+| recreate `.venv` / replace existing Docker config | reuse what exists |
 
----
-
-## ⚠️ FINAL OUTPUT (last 4 lines, every response)
+## ⚠️ FINAL OUTPUT (last 4 lines)
 ```
 GATE: <command run> → success|failure
 DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 ```
-Missing any line = task failure. Run gate; if `failure`, fix and re-run until `success`, then output the 4 lines.
-
-## Post-Deploy Steps (every new service)
-A. Network: `coolify` Docker network (default ✅)
-B. Labels: scaffold emits — verify `gzip@docker` on all routes
-C. Env: push `SERVICE_INTERNAL_SECRET_KEY` from `/opt/fabrik/.env` to Coolify
-D. Health: `/health` is Authelia-bypassed — interval 60s for stable services
+Missing any line = task failure. Re-run gate until `success`, then output 4 lines.

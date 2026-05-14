@@ -1,8 +1,7 @@
 ---
 activation: glob
-globs: ["**/auth/**", "**/security/**", "**/middleware/**"]
-description: Security & auth discipline — JWT rules, CORS policy, secret handling, CSP, session patterns
-trigger: glob
+globs: ["**/auth/**", "**/security/**", "**/middleware/**", "**/.env", "**/.env.*", "**/secrets/**", "**/.ssh/**", "**/internal_auth.py", "**/*.key", "**/*.pem"]
+description: Security & auth discipline — JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth canonical pattern
 ---
 
 # Security & Auth Rules
@@ -64,11 +63,49 @@ Apply via ASGI middleware with **precomputed constants** (no per-request string 
 - `X-Frame-Options: DENY`
 - `Referrer-Policy: strict-origin-when-cross-origin`
 
-## Internal Service Auth
+## Internal Service Auth (M2M)
 
-- Docker-to-Docker communication within the Coolify network must not rely on network isolation alone.
-- Internal services authenticate via an `X-Internal-Token` header validated against `SERVICE_INTERNAL_SECRET_KEY` (high-entropy, injected via env var).
-- A dedicated FastAPI dependency validates this header in constant time and rejects with 403.
+Every Fabrik HTTP service uses the canonical internal-auth pattern. Docker-to-Docker communication within the Coolify network must NOT rely on network isolation alone.
+
+| Aspect | Value |
+|---|---|
+| Header | `X-Internal-Token` |
+| Env var | `SERVICE_INTERNAL_SECRET_KEY` (same value as `/opt/fabrik/.env`) |
+| Module | `internal_auth.py` (copy into `app/` or `src/` of every service) |
+| Import | `from internal_auth import require_internal_token` |
+| Validation | `hmac.compare_digest` (constant-time) |
+| Reject status | 403 |
+
+**Never** write inline `APIKeyHeader` / `require_api_key`. **Never** use per-service key names (`SERVICE_API_KEY`, `PROXY_API_KEY`). Scaffold `python-api` auto-emits `internal_auth.py`, `metrics.py` (REQUEST_COUNT / ERROR_COUNT / ACTIVE_JOBS / PROCESSING_COUNT), `/metrics` endpoint (Authelia-bypassed), and `SERVICE_INTERNAL_SECRET_KEY` in `.env.example`.
+
+**Calling another internal service (client side):**
+
+```python
+import os, httpx
+headers = {"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]}
+resp = httpx.get("https://<service>.vps1.ocoron.com/api/endpoint", headers=headers)
+```
+
+## Sensitive Data Protection
+
+Before editing `.env`, `*.key`, `*.pem`, files under `secrets/`, or `.ssh/`:
+
+```bash
+cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
+```
+
+- Destructive scripts on prod data → dry-run first, show diff.
+- Credentials change → full diff approval before applying.
+
+## Password Policy
+
+For **programmatically generated** passwords (service accounts, DB users, internal tokens — NOT user-input passwords):
+
+- **32 characters**, charset `[a-zA-Z0-9]` only (no symbols — survives `.env` round-trip + shell quoting).
+- Generator: Python `secrets.choice(string.ascii_letters + string.digits)`.
+- Banned literals: `postgres`, `admin`, `password`, `password123`, and any default vendor credential.
+
+Applies to: Authelia bootstrap, `fabrik scaffold` credential generation, ops scripts.
 
 ## Rate Limiting
 

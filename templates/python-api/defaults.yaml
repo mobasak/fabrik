@@ -11,6 +11,7 @@ shape:
   has_persistent_data: false
   needs_database: false
   has_search_feature: false
+  exposes_metrics: true
 
 env:
   LOG_LEVEL: INFO

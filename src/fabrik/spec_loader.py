@@ -12,6 +12,8 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from fabrik.config import FABRIK_ROOT
+
 
 class Kind(str, Enum):
     """Type of deployment.
@@ -31,11 +33,23 @@ class Kind(str, Enum):
 
 
 class SourceType(str, Enum):
-    """How the application source is provided."""
+    """How the application source is provided.
+
+    LOCAL added 2026-05-14 (T1-02 G-B1a cascade-fix): pre-G1 deployed specs
+    (captcha, file-api, translator, image-broker, emailgateway) declare
+    ``source.type: local`` + ``source.path: /opt/<name>``. They are already
+    running on the VPS (deployed pre-Fabrik-orchestrator via Coolify GUI).
+    LOCAL lets ``load_spec`` / ``fabrik plan`` / ``fabrik status`` /
+    ``fabrik audit-registrars`` work on them. ``fabrik apply`` on a LOCAL
+    spec is NOT yet wired through orchestrator/deployer.py — the type_map
+    at deployer.py:287-289,490-492 silently coerces unknown source types
+    to TEMPLATE; full plumbing is deferred to a separate ticket.
+    """
 
     TEMPLATE = "template"
     GIT = "git"
     DOCKER = "docker"
+    LOCAL = "local"
 
 
 class DNSProvider(str, Enum):
@@ -454,7 +468,47 @@ def load_spec(spec_path: str | Path) -> Spec:
     if not isinstance(raw, dict):
         raise ValueError(f"Spec file must be a YAML mapping: {spec_path}")
 
+    # G-B1a (T1-02): merge template defaults into the raw spec before
+    # validation. Pre-G1 specs (captcha, file-api, translator, image-broker,
+    # emailgateway) were written before scaffolds emitted explicit shape:
+    # blocks; without this merge, `shape` stays None and
+    # `resolve_applicability` silently skips all 9 registrars on those
+    # deploys. Spec values win on conflicts (deep-merge, not shallow).
+    # Missing templates/<name>/defaults.yaml is tolerated silently — the
+    # raw spec is returned unchanged (no crash on typos / deleted templates).
+    template_name = raw.get("template")
+    if isinstance(template_name, str) and template_name:
+        defaults_path = FABRIK_ROOT / "templates" / template_name / "defaults.yaml"
+        if defaults_path.exists():
+            with open(defaults_path, encoding="utf-8") as df:
+                defaults = yaml.safe_load(df)
+            if isinstance(defaults, dict):
+                raw = _deep_merge(defaults, raw)
+
     return Spec(**raw)
+
+
+def _deep_merge(base: dict, overlay: dict) -> dict:
+    """Recursively merge two dicts; overlay wins on conflicts.
+
+    Used by ``load_spec`` to inject template defaults (base) under the
+    spec's own values (overlay). Nested dicts merge recursively. A
+    non-dict overlay value at any key replaces the entire base value at
+    that key (no type coercion). An empty overlay dict at a key whose
+    base value is a non-empty dict is treated as "no change" — base wins
+    by recursion.
+
+    Pure function, no side effects. Tests in
+    ``tests/test_spec_loader.py::test_deep_merge_edge_cases``.
+    """
+    result = dict(base)  # shallow copy; we mutate `result`, not `base`
+    for key, overlay_val in overlay.items():
+        base_val = result.get(key)
+        if isinstance(base_val, dict) and isinstance(overlay_val, dict):
+            result[key] = _deep_merge(base_val, overlay_val)
+        else:
+            result[key] = overlay_val
+    return result
 
 
 def save_spec(spec: Spec, spec_path: str | Path) -> None:

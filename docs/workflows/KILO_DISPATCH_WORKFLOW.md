@@ -25,7 +25,7 @@
 
 `kilo_dispatch.py` bridges **Windsurf Cascade** (interactive IDE agent) and **Kilo CLI** (autonomous coding agent). It:
 
-1. Builds a prompt from project context (`AGENTS-compact.md` + selectively loaded rule packs based on project type + cross-cutting requirements from `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md`) + task description
+1. Builds a prompt from project context (`AGENTS-compact.md` bootstrap, which already carries the always-on cross-cutting rules + Doc Sync Matrix, plus selectively loaded topic rule packs based on project type) + task description
 2. Writes the prompt to a temp file (simulating Traycer's `TRAYCER_PROMPT_TMP_FILE` pattern)
 3. Runs the selected Kilo CLI agent script
 4. Reads the structured report from `.droid/traycer-reports/latest.md`

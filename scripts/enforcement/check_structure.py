@@ -17,6 +17,18 @@ ALLOWED_ROOT_MD = {
     "AGENTS-compact.md",
     "PORTS.md",
     "LICENSE.md",
+    # T1-02 (2026-05-14): CLAUDE.md is Claude Code's per-project bootstrap;
+    # AGENTS.md + .windsurfrules + AGENTS-compact.md + CLAUDE.md all live in
+    # the project root by architectural decision (see CLAUDE.md HARD STOPS
+    # allowlist row "new `.md` outside allowlist | root files · scaffold
+    # docs · ..."). AFCL.md is the Agentic Friction & Constraint Log,
+    # appended to as the operator hits silicon ceilings. PROOF.md and
+    # FOLLOWUPS.md are project-state markers retained from prior live-deploy
+    # proof harnesses (2026-04-27). All 4 belong in root.
+    "CLAUDE.md",
+    "AFCL.md",
+    "PROOF.md",
+    "FOLLOWUPS.md",
 }
 
 # Valid docs/ subdirectories
@@ -192,6 +204,14 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
         # Check specs/ (Stage 0 pipeline output - allowed)
         elif parts[0] == "specs":
             pass  # Spec pipeline files allowed
+
+        # T1-02 (2026-05-14): ops/ subdirs hold systemd unit packages
+        # (authelia-config-sync, coolify-alias-watcher); each has its own
+        # README documenting the install/run procedure, which is the
+        # standard pattern for self-contained ops packages and predates
+        # T1-02 by months.
+        elif parts[0] == "ops":
+            pass  # ops/<package>/README.md allowed (operational unit docs)
 
         # Other locations
         else:

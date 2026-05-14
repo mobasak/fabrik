@@ -22,13 +22,13 @@ class TestLLMClient:
 
 class TestUsageTracker:
     def test_init_creates_db(self, tmp_path: Path) -> None:
-        db_path = tmp_path / "test.db"
-        UsageTracker(db_path=str(db_path))
-        assert db_path.exists()
+        database_path = tmp_path / "test.db"
+        UsageTracker(database_path=str(database_path))
+        assert database_path.exists()
 
     def test_record_and_get(self, tmp_path: Path) -> None:
-        db_path = tmp_path / "usage.db"
-        tracker = UsageTracker(db_path=str(db_path))
+        database_path = tmp_path / "usage.db"
+        tracker = UsageTracker(database_path=str(database_path))
         response = LLMResponse(
             content="ok",
             tokens_in=100,

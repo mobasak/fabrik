@@ -1,9 +1,10 @@
-# Sync Projects Workflow
+# Sync Projects Workflow (Projects → Fabrik)
 
-**Last Updated:** 2026-03-25
+**Last Updated:** 2026-05-13
 **Status:** PRODUCTION
 **Script:** `scripts/sync_projects.py`
 **Source Code:** `src/fabrik/cli.py` → `fabrik scan` command
+**Direction:** Projects → Fabrik
 **Outputs:**
 - `data/projects.yaml` (aggregated registry, machine-readable)
 - `docs/BUSINESS_MODEL.md` (AUTO-GENERATED:PROJECTS block, human-readable)
@@ -12,7 +13,7 @@
 
 ---
 
-## Overview
+## Overview (Projects → Fabrik)
 
 Scans all `/opt/*` projects and builds a unified project catalog. The **primary source of truth** is each project's `project.yaml` file (created by `fabrik scaffold`). For projects without `project.yaml`, metadata is auto-detected from the filesystem.
 
@@ -119,7 +120,7 @@ python scripts/sync_projects.py
 
 ---
 
-## Output Format
+## Output Format (Projects → Fabrik)
 
 ### Registry (`data/projects.yaml`)
 
@@ -162,7 +163,7 @@ Updates the `<!-- AUTO-GENERATED:PROJECTS:START -->` block:
 
 ---
 
-## When to Run
+## When to Run (Projects → Fabrik)
 
 | Trigger | How |
 |---------|-----|

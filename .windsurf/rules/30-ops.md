@@ -25,6 +25,25 @@ description: Docker standards, deployment, infrastructure
 
 ---
 
+## Docker DNS — No `localhost` in Connection Strings (CRITICAL)
+
+Inside a container, `localhost` resolves to the container itself, NOT the host or the shared DB. Use Docker network DNS names on the `coolify` network:
+
+| Variable | ❌ Wrong | ✅ Correct |
+|---|---|---|
+| `DB_HOST` | `localhost` | `postgres-main` |
+| `DATABASE_URL` | `...@localhost:5432/...` | `...@postgres-main:5432/...` |
+| `REDIS_URL` | `redis://localhost:6379` | `redis://redis-main:6379` |
+
+**Verify before deploy:**
+
+```bash
+grep -E '^(DB_HOST|DATABASE_URL|REDIS_URL)=' .env | grep localhost
+# Must return nothing.
+```
+
+---
+
 ## Dockerfile Template
 
 ```dockerfile
@@ -103,6 +122,23 @@ Before deploying to Coolify:
 - [ ] Service added to docs/SERVICES.md
 - [ ] Watchdog script created
 - [ ] `.dockerignore` present (excludes `.env`, `.git`, `.venv`, `node_modules`)
+- [ ] Traefik middleware set per service category — admin UI: `authelia-forward@docker,gzip@docker`; API: `gzip@docker`; public: none
+- [ ] Coolify env vars set: `SERVICE_INTERNAL_SECRET_KEY`, `DATABASE_URL` (using `postgres-main`), `REDIS_URL` (using `redis-main`)
+- [ ] `/health` returns 200 against real deps; Coolify health interval 60s for stable services
+
+---
+
+## Redeploying Git-Sourced Apps
+
+`fabrik redeploy <app>` triggers Coolify to pull from the **GitHub remote**, NOT from the local `/opt/<app>` clone. Skipping `git push` redeploys the previous remote commit — Coolify never sees local changes.
+
+**Correct sequence:**
+
+```bash
+git commit -m "..."
+git push
+fabrik redeploy <app>
+```
 
 ---
 
@@ -207,9 +243,11 @@ labels:
 
 1. Add the domain to Authelia's `access_control.rules` bypass list in `/opt/authelia/config/configuration.yml`
 2. Add `X-Internal-Token` validation middleware to the service
-3. Restart Authelia: `docker compose -f /opt/authelia/compose.yaml restart`
+3. Restart Authelia: `docker restart <authelia-container>` (find name: `sudo docker ps --filter name=authelia --format '{{.Names}}'`)
 
-**Health endpoints (`/health`, `/healthz`, `/metrics`) bypass Authelia on all services** — required for Gatus and Prometheus monitoring.
+**Authelia does NOT hot-reload on SIGHUP** — the process exits on signal. Always restart the container after any `configuration.yml` edit. `docker compose ... restart` works too; SIGHUP-only approaches do not.
+
+**Health endpoints (`/health`, `/healthz`, `/metrics`) bypass Authelia on all services** — required for Gatus and Prometheus monitoring. The bypass rule `*.vps1.ocoron.com → /health` is global. Never protect `/health`.
 
 ---
 

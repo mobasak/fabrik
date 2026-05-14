@@ -8,16 +8,16 @@ if TYPE_CHECKING:
 
 
 class UsageTracker:
-    def __init__(self, db_path: str | None = None):
-        if db_path is None:
-            self.db_path = str(Path.home() / ".fabrik" / "ai_usage.db")
+    def __init__(self, database_path: str | None = None):
+        if database_path is None:
+            self.database_path = str(Path.home() / ".fabrik" / "ai_usage.db")
         else:
-            self.db_path = db_path
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+            self.database_path = database_path
+        Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.database_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS ai_usage (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +35,7 @@ class UsageTracker:
             conn.commit()
 
     def record(self, response: "LLMResponse", project: str | None = None):
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.database_path) as conn:
             conn.execute(
                 """
                 INSERT INTO ai_usage (
@@ -65,7 +65,7 @@ class UsageTracker:
             query += " AND project = ?"
             params.append(project)
 
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.database_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(query, params).fetchall()
 

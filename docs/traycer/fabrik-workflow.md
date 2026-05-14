@@ -531,9 +531,11 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
    >   by a ticket. Nothing silently dropped.
 
    > **Cross-cutting enforcement:**
-   > Cross-cutting requirements are enforced via `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` —
-   > coder agents read this automatically. The Verification checklist above hardcodes the checks
-   > so they appear in every ticket regardless of whether the agent reads the rule file.
+   > Cross-cutting always-on rules live in each coding agent's bootstrap file —
+   > `CLAUDE.md` (Claude Code), `.windsurfrules` (Cascade), `AGENTS-compact.md` (Kilo CLI).
+   > Topic-specific deep-dives live in `.windsurf/rules/*.md` packs (loaded on demand by all three).
+   > The Verification checklist above hardcodes the checks so they appear in every ticket regardless
+   > of whether the agent reads its bootstrap.
    > Additionally, for each ticket:
    > - If a ticket creates shared utility functions or modules that could serve other Fabrik projects,
    >   add to that ticket's Acceptance Criteria: "Reusable modules isolated in src/utils/ or src/lib/
@@ -860,7 +862,7 @@ Review the implementation for:
 - **Bugs** — logic errors, incorrect behavior, broken flows. Cite line numbers.
 - **Silent failures** — paths where code proceeds without error but produces wrong results. Identify by reading control flow + asking *"if this branch is taken with bad input, does it return success?"*
 - **Edge cases** — unhandled scenarios, missing validations, boundary conditions documented in Core Flows error paths or Tech Plan robustness section. If Core Flows lists 5 error paths and code handles 3, the missing 2 are findings.
-- **Error handling** — failures handled gracefully per `.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md` § Observability (transient vs permanent classification, structured error logging).
+- **Error handling** — failures handled gracefully per `.windsurf/rules/55-observability.md` (transient vs permanent classification, structured error logging, GlitchTip discipline).
 - **Logic soundness** — code does what it claims. Read the code, do not trust comments or names.
 - **Test coverage on** `[PRIMARY PATH]` — the integration test actually exercises the documented path end-to-end (not a mock that always passes). Confirm assertions are non-trivial.
 

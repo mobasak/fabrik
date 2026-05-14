@@ -54,15 +54,24 @@ fabrik scaffold my-project --type python-api
 <details>
 <summary>Click to expand</summary>
 
-**CLI Command:** `fabrik scaffold <name> [--type TYPE]`
+**CLI Command:** `fabrik scaffold <name> [--type TYPE] [--github-create]`
 
 **Generated Structure:**
 - `src/` — Source code with `__init__.py`
 - `tests/` — Test directory with sample test
 - `docs/` — Documentation with FEATURES.md, INDEX.md
 - `.env.example` — Environment template
-- `AGENTS.md` — file copy of `/opt/fabrik/AGENTS.md`
+- `AGENTS.md` — file copy of `/opt/fabrik/AGENTS.md` (Traycer)
+- `AGENTS-compact.md` — file copy of `/opt/fabrik/AGENTS-compact.md` (Kilo CLI)
+- `CLAUDE.md` — file copy of `/opt/fabrik/CLAUDE.md` (Claude Code) — *added T1-02 G-B5*
+- `.windsurfrules` — file copy of `/opt/fabrik/.windsurfrules` (Windsurf Cascade)
 - `.windsurf/rules/` — file copy of `/opt/fabrik/.windsurf/rules/`
+
+**Optional flags:**
+
+- `--github-create` (T1-02 G-B2): also creates a private GitHub repo at `mobasak/<name>` via `gh repo create … --yes`. Best-effort — missing `gh` binary or unauthenticated state log a warning and continue.
+
+**Output trailer:** Every successful scaffold ends with a `# Next: cd /opt/<name>; open Traycer …` hint pointing at the Traycer-managed workflow (T1-02 G-B4).
 
 **Project Types:** `python-api`, `saas-skeleton`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`
 

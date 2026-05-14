@@ -42,21 +42,38 @@ CORE_SCRIPTS = [
     "health_checker.py",
 ]
 
+# Long Command Monitoring System v1.1.0 — see docs/reference/long-command-monitoring.md
+# Sourced from templates/scaffold/scripts/ to keep templates and live projects in lockstep.
+RUN_SCRIPTS = [
+    "rund",
+    "rundsh",
+    "runc",
+    "runk",
+    "runls",
+    "runlast",
+    "runwait",
+    "runtail",
+    "runclean",
+    "sync_cascade_backup.sh",
+    "sync_extensions.sh",
+]
+
 # Governance files to sync (validated by final_gate.py check_symlinks())
+# Note: AFCL.md is scaffolded as AFCL_TEMPLATE.md and customized per project, not synced
+# Note: .pre-commit-config.yaml is project-specific based on tech stack, not synced
 GOVERNANCE_FILES = [
     "AGENTS.md",
     "AGENTS-compact.md",
-    "AFCL.md",
     "CLAUDE.md",
     "opencode.json",
     ".windsurfrules",
-    ".pre-commit-config.yaml",
 ]
 GOVERNANCE_DIRS = [".windsurf/rules"]
 
 # Reference docs to sync to all projects
 REFERENCE_DOCS = [
     ("docs/reference/windsurf/cascade-models.md", "docs/reference/windsurf/cascade-models.md"),
+    ("docs/reference/long-command-monitoring.md", "docs/reference/long-command-monitoring.md"),
 ]
 
 
@@ -212,6 +229,22 @@ def sync_scripts_to_project(
                 )
                 file_results.append(result)
 
+        # Sync run-system scripts (Long Command Monitoring System)
+        # Source from templates/scaffold/scripts/ so the canonical path matches what
+        # `fabrik scaffold` emits — keeps templates and live projects in lockstep.
+        run_src_dir = FABRIK_ROOT / "templates" / "scaffold" / "scripts"
+        for script_name in RUN_SCRIPTS:
+            source = run_src_dir / script_name
+            if source.exists():
+                destination = scripts_dir / script_name
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
+                # Preserve executable bit (shutil.copy2 copies mode but be defensive)
+                if not dry_run and destination.exists():
+                    destination.chmod(0o755)
+
         # Sync enforcement directory
         fabrik_enforcement = FABRIK_ROOT / "scripts" / "enforcement"
         project_enforcement = scripts_dir / "enforcement"
@@ -344,13 +377,13 @@ def main() -> int:
     exclude_folders = {
         ".factory",
         ".ssh",
-        "web_scraper",   # Deprecated, use web-scraper
+        "web_scraper",  # Deprecated, use web-scraper
         # System / non-project directories under /opt that the propagator
         # historically mistakenly targeted (no write permission or no Fabrik
         # project semantics):
-        "containerd",    # Docker runtime artifact dir
-        "google",        # Google Chrome install location
-        "logs",          # Generic logs dir; not a Fabrik project
+        "containerd",  # Docker runtime artifact dir
+        "google",  # Google Chrome install location
+        "logs",  # Generic logs dir; not a Fabrik project
     }
 
     # Discover projects

@@ -1,7 +1,7 @@
 # Windsurf Extensions
 
-**Last Updated:** 2026-05-10 00:53
-**Total:** 25 extensions
+**Last Updated:** 2026-05-13 00:44
+**Total:** 26 extensions
 
 ## Quick Install (All Extensions)
 
@@ -30,6 +30,7 @@ windsurf --install-extension peterbulyaki.claude-automator
 windsurf --install-extension prettier.prettier-vscode
 windsurf --install-extension redhat.vscode-yaml
 windsurf --install-extension traycer.traycer-vscode
+windsurf --install-extension vishalguptax.claude-manager
 windsurf --install-extension vstirbu.vscode-mermaid-preview
 ```
 
@@ -73,6 +74,7 @@ windsurf --install-extension vstirbu.vscode-mermaid-preview
 - `ms-vscode.powershell`
 - `peterbulyaki.claude-automator`
 - `redhat.vscode-yaml`
+- `vishalguptax.claude-manager`
 
 ---
 

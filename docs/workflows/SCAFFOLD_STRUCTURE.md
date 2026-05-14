@@ -39,7 +39,6 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   │   ├── 85-payments-billing.md
 │   │   ├── 90-automation.md
 │   │   ├── 95-multi-tenant-saas.md
-│   │   ├── CROSS_CUTTING_REQUIREMENTS.md
 │   │   └── ocoron-design-system.md
 │   └── workflows/
 │       ├── bug-fix.md

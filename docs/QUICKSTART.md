@@ -65,8 +65,13 @@ B2_BUCKET_NAME=your-bucket
 ## First Deployment
 
 ```bash
-# Scaffold a new project — spec auto-generated with `shape:` defaults from the template
+# Scaffold a new project — spec auto-generated with `shape:` defaults from the template.
+# Emits per-project CLAUDE.md (Claude Code bootstrap) + AGENTS-compact.md (Kilo CLI)
+# alongside the existing .windsurfrules (Cascade). Ends with a Traycer next-step hint.
 fabrik scaffold hello-api --type python-api
+
+# Optionally also create a private GitHub repo (mobasak/<name>) at the same time:
+fabrik scaffold hello-api --type python-api --github-create
 
 # (Optional) Tune the spec
 nano /opt/fabrik/specs/services/hello-api.yaml   # shape: / domain: / env: / health:
@@ -92,10 +97,16 @@ fabrik deploy --project /opt/hello-api
 ## Verify
 
 ```bash
-# Deployment status (needs a spec path)
+# Deployment status (needs a spec path). Resolves the spec.id against Coolify,
+# trying both the bare id AND the `fabrik-<id>` prefix so it works for
+# Coolify-prefixed apps (fabrik-proxy, fabrik-file-worker, etc.) transparently.
 fabrik status /opt/fabrik/specs/services/hello-api.yaml
 
-# Tail logs (Loki or Coolify)
+# Preview the plan (post-T1-02: now also prints a "🔧 Infrastructure Registrars"
+# section showing which of the 9 registrars will RUN/skip with shape-based reason).
+fabrik plan /opt/fabrik/specs/services/hello-api.yaml
+
+# Tail logs (Loki or Coolify) — same `fabrik-<id>` candidate-list lookup as status.
 fabrik logs /opt/fabrik/specs/services/hello-api.yaml
 fabrik app-logs /opt/fabrik/specs/services/hello-api.yaml -n 50
 

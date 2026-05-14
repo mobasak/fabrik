@@ -1,13 +1,15 @@
 ---
 activation: glob
-globs: ["**/metro.config.*", "**/react-native.config.*"]
-description: React Native mobile discipline — navigation, list performance, accessibility, platform-aware patterns
+globs: ["**/metro.config.*", "**/react-native.config.*", "**/app.json", "**/eas.json"]
+description: React Native mobile discipline — architecture, backend, navigation, performance, monetization, compliance, and i18n for worldwide shipping
 trigger: glob
 ---
 
-# Mobile UI Rules (React Native)
+# Mobile Rules (React Native)
 
 Apply when working on React Native / TypeScript mobile projects. Skip for web frontend, Python, Docker, or infrastructure files. For general TypeScript discipline, see `TS_CORE` pack.
+
+Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets are regional addenda. i18n is built in from day 1, not retrofitted.
 
 ---
 
@@ -33,9 +35,25 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 ## State Management
 
 - Use unidirectional data flow: state flows down, events flow up.
-- **Server/API state:** Use TanStack React Query for caching, deduplication, and optimistic updates against the FastAPI backend.
-- **Global UI state:** Use Zustand. Avoid Redux boilerplate and standalone `React.Context` for high-frequency updates.
-- **Local persistence:** Use `react-native-mmkv` for fast, synchronous key-value storage (30× faster than AsyncStorage via JSI memory-mapped files). Reserve `expo-sqlite` + Drizzle ORM only for complex offline relational queries.
+- **Server/API state:** TanStack React Query for caching, deduplication, and optimistic updates.
+  - **Supabase (primary backend):** use `supabase-js` wrapped in React Query hooks. Run `supabase gen types typescript` after every schema change and commit the generated types. Validate at the React Query boundary with Zod when input/output crosses a trust boundary.
+  - **FastAPI (custom backend on VPS):** mirror Zod schemas with Pydantic to keep types aligned across the network boundary. Reserved for AI workflows, scraping, scheduled jobs, and anything that should not run client-side.
+- **Global UI state:** Zustand. Avoid Redux boilerplate and standalone `React.Context` for high-frequency updates.
+- **Local persistence:** `react-native-mmkv` for fast, synchronous key-value storage (30× faster than AsyncStorage via JSI memory-mapped files). Reserve `expo-sqlite` + Drizzle ORM for complex offline relational queries only.
+- Never call Supabase or FastAPI directly from a screen component — wrap in a typed React Query hook.
+
+---
+
+## Backend Integration
+
+- **Supabase is the primary data layer**: auth, app data, RLS, realtime, storage, edge functions.
+- **Self-hosted Supabase on Coolify/Fabrik VPS for production**. Supabase Cloud is acceptable only for the first 2 weeks of prototyping while schema is unstable.
+- All tables must have RLS enabled before any client query. No exceptions. Tables without RLS are blocked at code review.
+- Auth: Supabase Auth with `expo-auth-session` for OAuth flows and `expo-secure-store` for token storage. Never store JWTs in AsyncStorage or MMKV.
+- **FastAPI on VPS** is reserved for: AI workflows, scraping, third-party integrations requiring secrets, scheduled jobs, anything that should not run client-side.
+- Auth handoff between Supabase and FastAPI: pass Supabase JWT in the `Authorization` header, validate server-side via Supabase JWKS.
+- Default Supabase region: **`eu-central-1` (Frankfurt)** — satisfies GDPR, KVKK alignment, acceptable latency to USA and worldwide.
+- Multi-region only when justified: deploy a second project (e.g., `us-east-1`) and route by user region at signup once any non-home region exceeds 5K MAU. Do not pre-shard.
 
 ---
 
@@ -57,7 +75,7 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 - NativeWind / Tailwind for React Native is not recommended due to significant runtime overhead on mobile (up to 4× slower than raw `StyleSheet`).
 - For complex adaptive theming with design tokens, `react-native-unistyles` (C++/JSI, zero re-render overhead) is the approved alternative.
 
-## Ocoron Design System (Mobile)
+### Ocoron Design System (Mobile)
 
 - Apply Ocoron Design System color tokens (`ocoron-design-system.md`) via `react-native-unistyles` theme configuration. Same hex values as web, mapped to the unistyles theme object.
 - Load **Space Grotesk** and **Inter** as custom fonts via `expo-font` or manual linking. Use **JetBrains Mono** for data/metrics displays only.
@@ -84,30 +102,112 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 
 - Use `Platform.OS === 'ios'` or `Platform.select()` for platform-specific behavior (shadows, keyboard, haptics).
 - Always use `useSafeAreaInsets()` from `react-native-safe-area-context` instead of hardcoded top/bottom padding.
-- Handle keyboard avoidance with `KeyboardAvoidingView` — use `behavior="padding"` on iOS, `behavior="height"` on Android.
+- Handle keyboard avoidance with `KeyboardAvoidingView` — `behavior="padding"` on iOS, `behavior="height"` on Android.
 - Never assume identical shadow rendering, status bar behavior, or keyboard dismiss behavior across platforms.
+
+---
+
+## Localization (i18n)
+
+- Use `expo-localization` to detect device locale and `i18next` + `react-i18next` for translations. Translation JSON in `src/locales/<lang>.json`.
+- All user-facing strings live in translation files. No hardcoded strings in components — caught at code review.
+- Supported languages from day 1: **English (en), Turkish (tr)**. Add Spanish (es), German (de), French (fr), Portuguese-BR (pt-BR), Arabic (ar) as markets prove out.
+- Dates and numbers: `Intl.DateTimeFormat` and `Intl.NumberFormat` with the user's locale. Never hardcode `MM/DD/YYYY` or `1,000.00` formats.
+- Time zones: store all timestamps in **UTC** server-side. Render in user locale on the client via `date-fns-tz` or Temporal.
+- Currency display: `Intl.NumberFormat` with locale + currency code. Pricing source-of-truth is RevenueCat (see Monetization).
+- Phone numbers: `libphonenumber-js` for parsing, formatting, and validation. Never assume a national format.
+- RTL readiness: structure all Flexbox layouts to flip correctly under `I18nManager.isRTL`. Use `start`/`end` instead of `left`/`right` in styles. Even if Arabic ships later, design for it now.
+- Pseudo-localization in dev builds (`zz` locale) to catch hardcoded strings and layout breakage before native-speaker QA.
 
 ---
 
 ## Forms
 
 - Use `react-hook-form` with `zod` resolvers for form validation. Uncontrolled components prevent full-form re-renders on every keystroke.
-- Mirror Zod schemas with backend Pydantic schemas to maintain type alignment across the network boundary.
+- Mirror Zod schemas with backend Pydantic schemas (FastAPI) to maintain type alignment across the network boundary.
 
 ---
 
 ## Testing
 
 - **Unit / component:** `@testing-library/react-native` + Jest.
-- **E2E automation:** Maestro (declarative YAML flows targeting `testID` attributes, stored in `.maestro/` directory). Maestro handles implicit waits for network and animations, reducing flakiness vs Detox/Appium.
+- **E2E automation:** Maestro (declarative YAML flows targeting `testID` attributes, stored in `.maestro/`). Maestro handles implicit waits for network and animations, reducing flakiness vs Detox/Appium.
+
+---
+
+## MCP Servers (Mobile Automation)
+
+- Configure these MCP servers in the AI agent (Claude Code / Cursor) for autonomous verification:
+  - **Expo MCP**: SDK docs, EAS build inspection, simulator screenshots.
+  - **Mobile Next MCP**: native iOS/Android accessibility tree interaction for end-to-end UI verification.
+  - **iOS Simulator MCP** (idb-based): boot, focus, control simulator windows.
+  - **Appium MCP**: cross-platform automation against simulators and physical devices when needed.
+- After every non-trivial feature, prompt the agent to verify against the simulator via MCP. Manual click-testing is a smell — automate the verification loop.
 
 ---
 
 ## Build & Dev Workflow
 
-- Use Metro bundler for development (`npx react-native start`).
+- Use Metro bundler for development (`npx expo start` for managed projects, `npx react-native start` otherwise).
 - Test on physical devices for performance-critical features — simulators hide real-world frame drops and thermal throttling.
-- For backend Docker deployments, use `python:<version>-slim-bookworm`. Never use `alpine` (musl libc compilation failures, missing pre-built wheels).
+- **Builds**: EAS Build for all production iOS and Android binaries. No local Xcode/Android Studio builds for release. Define EAS profiles in `eas.json` (development, preview, production).
+- **Submission**: EAS Submit to TestFlight and Play Console Internal Testing as the default first ring.
+- **OTA updates**: Expo Updates for JS-only patches. Reserve full EAS rebuilds for native module changes. Channel strategy must match EAS profiles.
+- **CI/CD**: trigger EAS builds via GitHub Actions on tag push. No manual builds in production.
+- For backend Docker deployments (FastAPI on VPS), use `python:<version>-slim-bookworm`. Never use `alpine` (musl libc compilation failures, missing pre-built wheels).
+
+---
+
+## Monetization
+
+- Use **RevenueCat** for IAP and subscriptions by default (free up to $2.5K MTR). Migrate to Adapty only if/when paywall A/B testing demonstrably moves revenue.
+- All subscription state flows through the RevenueCat SDK. RevenueCat handles **per-country pricing** and currency conversion automatically — define pricing per region in the RevenueCat dashboard, never hardcode prices. Apple/Google handle local tax. Confirm offerings render correctly in at least 3 locales before submission (e.g., `en-US`, `tr-TR`, `de-DE`).
+- Sync RevenueCat user IDs to Supabase `auth.users.id` on first launch. Server-side entitlement checks must hit the RevenueCat REST API or RevenueCat webhook → Supabase row, never client-trusted state.
+- Paywall components must support remote config via RevenueCat or Adapty dashboards — never hardcode pricing or offering IDs.
+
+---
+
+## Push Notifications
+
+- Use `expo-notifications` for cross-platform push. APNs (iOS) and FCM (Android) credentials managed via EAS.
+- Never request push permission on first app launch. Defer until the user has experienced value (post-onboarding, after first meaningful action).
+- Store device tokens in Supabase keyed to `user_id`. Send via Supabase Edge Function or FastAPI using the Expo Push API.
+- Always include a deep link payload so taps route correctly via React Navigation `linking`.
+
+---
+
+## Compliance (Worldwide — GDPR / KVKK / CCPA / App Store)
+
+The compliance baseline is **GDPR + EU AI Act** because they are the strictest. Apps that satisfy this floor satisfy KVKK, CCPA/CPRA, LGPD, and PIPEDA with regional addenda only.
+
+### Mandatory in every build, every market
+
+- Privacy policy and Terms of Service URLs configured in `app.json` and reachable from in-app Settings.
+- Data export and account deletion endpoints implemented (Supabase Edge Function or FastAPI route), reachable from in-app Settings. Required by GDPR, CCPA, KVKK, and Apple App Store policy.
+- **Apple Privacy Manifest** (`PrivacyInfo.xcprivacy`): declare every reason API and tracking domain. Required for App Store submission.
+- **Play Data Safety form**: filled accurately in Play Console. Inaccuracies trigger removal.
+- **Apple App Tracking Transparency (ATT)**: prompt before any IDFA collection or third-party tracking SDK fires. No exceptions, all markets.
+- **GDPR consent gate**: no analytics, advertising, or non-essential third-party SDKs may fire before user consent. Use a CMP or built-in consent screen. Applies to all EU/EEA/UK users — detect via locale and IP.
+- Encrypt PII at rest. Supabase handles this; for FastAPI VPS, use disk encryption + column-level encryption for sensitive fields.
+- Never include PII in AI agent prompts or in any `chat text` sent to Gemini/Claude/OpenAI APIs from the app. Use `.aiexclude` and server-side redaction.
+- Document the chosen Supabase region(s) in the privacy policy.
+
+### Automated decision features (AI/ML)
+
+If the app makes any AI-driven recommendation, score, match, classification, or auto-decision:
+
+- Display a transparency notice ("This recommendation was generated automatically").
+- Provide a manual override or "ask a human" path.
+- Log override events server-side for regulator inquiries.
+- Required by KVKK (Dec 2025 update), GDPR Art. 22, and EU AI Act. Treat as global default.
+
+### Regional layers
+
+- **EU/EEA/UK (GDPR + AI Act)**: full consent gate, DPA addendum required for any third-party processor, cookie/tracking notice on first launch in EU locales.
+- **Turkey (KVKK)**: process Turkish-user PII on EU or Turkey-resident infrastructure. Manual override on automated decisions covered by global rule above.
+- **California, USA (CCPA/CPRA)**: "Do Not Sell or Share My Personal Information" link/toggle in Settings if any data is shared with third parties. Honor Global Privacy Control (GPC) signal.
+- **Brazil (LGPD)**: equivalent to GDPR — covered by the GDPR baseline.
+- **Children**: if app could be used by under-13s (under-16 in some EU states), comply with COPPA and follow Apple/Google child-directed app rules. Default to no third-party tracking SDKs.
 
 ---
 
@@ -121,9 +221,17 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 | Array index as `key` in dynamic lists | Stable unique ID via `keyExtractor` |
 | Hardcoded top/bottom padding for notches | `useSafeAreaInsets()` from `react-native-safe-area-context` |
 | `AsyncStorage` for performance-critical data | `react-native-mmkv` (synchronous JSI) |
+| JWTs in AsyncStorage or MMKV | `expo-secure-store` |
 | NativeWind / Tailwind CSS on mobile | `StyleSheet.create()` or `react-native-unistyles` |
 | Legacy bridge-dependent native modules | New Architecture (Fabric/JSI) compatible modules |
 | Manual edits to `android/` / `ios/` in Expo projects | Expo Config Plugins in `app.json` |
+| Direct Supabase/FastAPI calls from screen components | Typed React Query hooks |
+| Supabase tables without RLS | RLS enabled before any client query |
+| Hardcoded user-facing strings | `i18next` translation files |
+| Hardcoded prices or offering IDs | RevenueCat dashboard remote config |
+| Push permission requested on first launch | Deferred until post-onboarding value moment |
+| Tracking SDKs firing before ATT / GDPR consent | Gated behind explicit user consent |
+| PII in AI agent prompts or external LLM calls | `.aiexclude` + server-side redaction |
 | `any` type | `unknown` + type guards (per `TS_CORE`) |
 
 ---
@@ -140,3 +248,23 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 - [ ] TypeScript strict mode enabled — no `any` types.
 - [ ] Navigation is type-safe with explicit route/param types.
 - [ ] Ocoron color tokens applied via `react-native-unistyles` theme — no raw hex values in components.
+- [ ] Supabase types regenerated and committed (`supabase gen types`).
+- [ ] All Supabase tables have RLS enabled.
+- [ ] JWTs stored in `expo-secure-store`, not AsyncStorage or MMKV.
+- [ ] EAS profiles defined in `eas.json` (development, preview, production).
+- [ ] At least one MCP server wired and used in the verification loop.
+- [ ] RevenueCat (or Adapty) integrated, paywall remote-configurable.
+- [ ] Push permission requested post-onboarding, not on first launch.
+- [ ] Privacy policy and ToS URLs in `app.json`, reachable from in-app Settings.
+- [ ] Data export and account deletion endpoints implemented and reachable from in-app Settings.
+- [ ] Apple Privacy Manifest (`PrivacyInfo.xcprivacy`) declares every reason API and tracking domain.
+- [ ] Play Data Safety form filled accurately.
+- [ ] ATT prompt fires before any IDFA / tracking SDK initializes (iOS).
+- [ ] GDPR consent gate blocks analytics and non-essential SDKs until user consent (EU/EEA/UK locales).
+- [ ] AI-driven decision features carry transparency notice + manual override path.
+- [ ] All user-facing strings live in translation files — no hardcoded strings.
+- [ ] App tested in `en-US`, `tr-TR`, and at least one RTL or non-Latin locale.
+- [ ] Dates, numbers, currency rendered via `Intl` APIs with user locale.
+- [ ] Pricing configured per country in RevenueCat dashboard.
+- [ ] Single Supabase region documented in privacy policy; multi-region only deployed if user base justifies it.
+- [ ] No PII in AI agent prompts or external LLM calls.

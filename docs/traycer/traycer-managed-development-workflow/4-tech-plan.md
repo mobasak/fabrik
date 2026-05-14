@@ -46,7 +46,7 @@ Epic involves health endpoints, logging, monitoring	.windsurf/rules/55-observabi
 Epic involves embeddings, retrieval, vector search	.windsurf/rules/65-rag-search.md
 Epic involves Paddle, subscriptions, billing	.windsurf/rules/85-payments-billing.md
 Epic involves tenant isolation, RLS, tenant-scoped queries	.windsurf/rules/95-multi-tenant-saas.md
-Always-on cross-cutting	.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md
+Always-on cross-cutting	bootstrap files: CLAUDE.md / .windsurfrules / AGENTS-compact.md (one per coding agent)
 Apply rule packs as strict constraints — do not deviate from established patterns. State explicit deviations with justification.
 
 Step 4: Stack Block Injection

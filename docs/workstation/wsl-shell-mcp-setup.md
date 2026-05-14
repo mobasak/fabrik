@@ -18,7 +18,7 @@ The server's Zod schema at `dist/types/schemas.js` line 84 has this `refine` val
 
 ```javascript
 .refine(
-  (data) => data.execution_mode !== 'adaptive' || 
+  (data) => data.execution_mode !== 'adaptive' ||
             (data.foreground_timeout_seconds ?? 15) <= (data.timeout_seconds ?? 60),
   { message: 'foreground_timeout_seconds must be less than or equal to timeout_seconds in adaptive mode.' }
 )

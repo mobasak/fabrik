@@ -11,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
+
 from scripts.utils.subprocess_helper import safe_run
 
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -49,10 +50,10 @@ def ssh(cmd: str, timeout: int = 30, redact: bool = False) -> str:
         ) from e
 
 
-def ssh_sql_with_secrets(db_path: str, sql: str) -> str:
+def ssh_sql_with_secrets(database_path: str, sql: str) -> str:
     """Execute SQL on VPS via base64 to avoid leaking secrets in error messages."""
     encoded = base64.b64encode(sql.encode()).decode()
-    cmd = f"echo '{encoded}' | base64 -d | sudo sqlite3 {db_path}"
+    cmd = f"echo '{encoded}' | base64 -d | sudo sqlite3 {database_path}"
     return ssh(cmd, redact=True)
 
 

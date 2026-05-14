@@ -266,7 +266,20 @@ SHARED_DIRS = [
 
 _PYTHON_API_DIRS = ["src"]
 
-SCRIPT_FILES = ["runc", "rund", "rundsh", "runk", "sync_cascade_backup.sh", "sync_extensions.sh"]
+SCRIPT_FILES = [
+    # Long Command Monitoring System v1.1.0 — see docs/reference/long-command-monitoring.md
+    "rund",
+    "rundsh",
+    "runc",
+    "runk",
+    "runls",
+    "runlast",
+    "runwait",
+    "runtail",
+    "runclean",
+    "sync_cascade_backup.sh",
+    "sync_extensions.sh",
+]
 
 # Master AGENTS.md location
 FABRIK_AGENTS_MD = FABRIK_ROOT / "AGENTS.md"
@@ -314,6 +327,7 @@ def _copy_windsurf_hooks(project_dir: Path) -> bool:
 #   - docs_updater.py: docs_queue/, docs_log/
 #   - traycer_write_report.py: traycer-reports/*.md
 _DROID_GITIGNORE_BLOCK = (
+    ".factory/consultations/\n"
     ".droid/kilo_usage.jsonl\n"
     ".droid/reviews/\n"
     ".droid/kilo_models_cache.json\n"
@@ -321,6 +335,89 @@ _DROID_GITIGNORE_BLOCK = (
     ".droid/docs_queue/\n"
     ".droid/docs_log/\n"
     ".droid/traycer-reports/*.md\n"
+)
+
+# Common gitignore patterns for all project types
+_COMMON_GITIGNORE_PATTERNS = (
+    "# Secrets (never commit)\n"
+    ".env\n"
+    ".env.backup\n"
+    "*.key\n"
+    "*.pem\n"
+    "*.token\n"
+    "\n"
+    "# Logs\n"
+    "*.log\n"
+    "logs/\n"
+    "Logs/\n"
+    "\n"
+    "# Python\n"
+    "__pycache__/\n"
+    "*.pyc\n"
+    "*.pyo\n"
+    ".pytest_cache/\n"
+    "*.egg-info/\n"
+    "\n"
+    "# IDE\n"
+    ".vscode/\n"
+    ".idea/\n"
+    "*.swp\n"
+    "*.swo\n"
+    "*.code-workspace\n"
+    "\n"
+    "# OS\n"
+    ".DS_Store\n"
+    "Thumbs.db\n"
+    "\n"
+    "# Data directories (large files)\n"
+    "Audio_downloads/\n"
+    "YT_audio_text/\n"
+    "exports/\n"
+    "\n"
+    "# SQLite databases\n"
+    "*.db\n"
+    "\n"
+    "# Database backups\n"
+    "backups/\n"
+    "\n"
+    "# Legacy migration files (not Alembic)\n"
+    "db/migrations/*.sql\n"
+    "\n"
+    "# Temp files\n"
+    "*.tmp\n"
+    "/tmp/\n"
+    "\n"
+    "# Per-agent local context / tooling (not project source)\n"
+    "# CLAUDE.md = Kilo CLI per-project agent context (local notes)\n"
+    "# scripts/run* = Cascade long-command-monitoring helper scripts (local tooling)\n"
+    "# docs/reference/long-command-monitoring.md = its companion doc (local)\n"
+    "# docs/reference/*Search*.md = ad-hoc research dumps (LLM transcripts)\n"
+    "CLAUDE.md\n"
+    ".windsurfrules\n"
+    ".windsurf/\n"
+    "AGENTS.md\n"
+    "AGENTS-compact.md\n"
+    "opencode.json\n"
+    "scripts/runc\n"
+    "scripts/rund\n"
+    "scripts/rundsh\n"
+    "scripts/runclean\n"
+    "scripts/runlast\n"
+    "scripts/runls\n"
+    "scripts/runtail\n"
+    "scripts/runwait\n"
+    "docs/reference/long-command-monitoring.md\n"
+    "docs/reference/*Search*.md\n"
+    "\n"
+    "# State files\n"
+    "state.json\n"
+    "retry_queue.json\n"
+    "\n"
+    "# Cookie files\n"
+    "cookies*.txt\n"
+    "\n"
+    "# Pipeline test outputs\n"
+    "pipeline_output/\n"
 )
 
 # Canonical .droid/.gitignore content — used by scaffold and fix_project()
@@ -670,6 +767,16 @@ def _scaffold_shared(
     if fabrik_compact.exists():
         shutil.copy(fabrik_compact, project_dir / "AGENTS-compact.md")
 
+    # G-B5 (T1-02): Copy CLAUDE.md (no symlinks - workspace isolation).
+    # Claude Code reads CLAUDE.md as its always-on bootstrap; without this
+    # copy, scaffolded projects under /opt/<name>/ would have no per-project
+    # CLAUDE.md and Claude Code would fall back to whatever it finds upward
+    # (or nothing). Symmetric to AGENTS-compact.md (Kilo) and .windsurfrules
+    # (Cascade) which are already copied.
+    fabrik_claude_md = FABRIK_ROOT / "CLAUDE.md"
+    if fabrik_claude_md.exists():
+        shutil.copy(fabrik_claude_md, project_dir / "CLAUDE.md")
+
     # Copy .windsurf/hooks.json (rewriting cwd to point at the new project)
     _copy_windsurf_hooks(project_dir)
 
@@ -718,31 +825,13 @@ def _scaffold_shared(
 
     # Create .gitignore and .env.example
     (project_dir / ".gitignore").write_text(
-        ".env\n"
+        _COMMON_GITIGNORE_PATTERNS + "\n" + _DROID_GITIGNORE_BLOCK + "\n" + "# Python-specific\n"
         "venv/\n"
-        "__pycache__/\n"
-        "logs/\n"
-        "data/\n"
-        ".tmp/\n"
-        ".cache/\n"
-        "output/\n"
-        "*.log\n"
-        ".venv/\n" + _DROID_GITIGNORE_BLOCK + "\n"
-        "# IDE\n"
-        ".vscode/\n"
-        ".idea/\n"
-        "*.swp\n"
-        "*.swo\n"
-        "*~\n"
-        "\n"
-        "# Python\n"
-        "*.pyc\n"
-        "*.pyo\n"
+        ".venv/\n"
         "*.pyd\n"
         ".Python\n"
         "pip-log.txt\n"
         "pip-delete-this-directory.txt\n"
-        ".pytest_cache/\n"
         ".coverage\n"
         "htmlcov/\n"
         "dist/\n"
@@ -1047,17 +1136,17 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         "from fastapi import HTTPException, Security\n"
         "from fastapi.security.api_key import APIKeyHeader\n"
         "\n"
-        "_HEADER = APIKeyHeader(name=\"X-Internal-Token\", auto_error=False)\n"
+        '_HEADER = APIKeyHeader(name="X-Internal-Token", auto_error=False)\n'
         "\n"
         "\n"
         "def require_internal_token(token: str = Security(_HEADER)) -> str:\n"
         '    """FastAPI dependency — validates X-Internal-Token in constant time."""\n'
         '    expected = os.getenv("SERVICE_INTERNAL_SECRET_KEY", "")\n'
-        '    if not token or not expected:\n'
+        "    if not token or not expected:\n"
         '        raise HTTPException(status_code=403, detail="Missing or invalid token")\n'
-        '    if not hmac.compare_digest(token, expected):\n'
+        "    if not hmac.compare_digest(token, expected):\n"
         '        raise HTTPException(status_code=403, detail="Missing or invalid token")\n'
-        '    return token\n'
+        "    return token\n"
     )
     # metrics.py — Prometheus business metrics registry
     # Usage: from {pkg}.metrics import REQUEST_COUNT, ERROR_COUNT, record_request
@@ -1121,7 +1210,8 @@ ACTIVE_JOBS = Histogram(
 def metrics_app():
     """Return ASGI app for /metrics endpoint. Mount in main.py lifespan."""
     return make_asgi_app(registry=REGISTRY)
-''')
+'''
+    )
 
     # glitchtip_init.py — GlitchTip / Sentry SDK initialization (no-op if GLITCHTIP_DSN unset)
     # Errors auto-report to GlitchTip when DSN is set in environment.
@@ -1175,7 +1265,6 @@ def init_glitchtip() -> bool:
     )
     return True
 ''')
-
 
     # logger.py — structlog JSON logger with service name from env
     (package_dir / "logger.py").write_text(
@@ -1582,7 +1671,6 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
         "}\n"
     )
 
-
     # b) Copy and patch Dockerfile.node -> Dockerfile
     dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.node"
     if dockerfile_src.exists():
@@ -1739,23 +1827,9 @@ server.listen(PORT, () => {{
 
     # h) Overwrite .gitignore with Node-appropriate content
     (project_dir / ".gitignore").write_text(
+        _COMMON_GITIGNORE_PATTERNS + "\n" + _DROID_GITIGNORE_BLOCK + "\n" + "# Node.js-specific\n"
         "node_modules/\n"
         "dist/\n"
-        ".env\n"
-        "logs/\n"
-        "data/\n"
-        ".tmp/\n"
-        ".cache/\n"
-        "output/\n"
-        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
-        "# IDE\n"
-        ".vscode/\n"
-        ".idea/\n"
-        "*.swp\n"
-        "*.swo\n"
-        "*~\n"
-        "\n"
-        "# Node.js\n"
         "npm-debug.log*\n"
         "yarn-debug.log*\n"
         "yarn-error.log*\n"
@@ -1875,23 +1949,9 @@ SERVICE_NAME={name}
 
     # g) Overwrite .gitignore with Node-appropriate content
     (project_dir / ".gitignore").write_text(
+        _COMMON_GITIGNORE_PATTERNS + "\n" + _DROID_GITIGNORE_BLOCK + "\n" + "# Node.js-specific\n"
         "node_modules/\n"
         "dist/\n"
-        ".env\n"
-        "logs/\n"
-        "data/\n"
-        ".tmp/\n"
-        ".cache/\n"
-        "output/\n"
-        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
-        "# IDE\n"
-        ".vscode/\n"
-        ".idea/\n"
-        "*.swp\n"
-        "*.swo\n"
-        "*~\n"
-        "\n"
-        "# Node.js\n"
         "npm-debug.log*\n"
         "yarn-debug.log*\n"
         "yarn-error.log*\n"
@@ -2042,27 +2102,10 @@ SERVICE_NAME={name}
 
     # g) Overwrite .gitignore with Python-appropriate content
     (project_dir / ".gitignore").write_text(
-        ".env\n"
+        _COMMON_GITIGNORE_PATTERNS + "\n" + _DROID_GITIGNORE_BLOCK + "\n" + "# Python-specific\n"
         ".env.local\n"
         "venv/\n"
-        "__pycache__/\n"
-        "logs/\n"
-        "data/\n"
-        ".tmp/\n"
-        ".cache/\n"
-        "output/\n"
-        "*.log\n"
-        ".venv/\n" + _DROID_GITIGNORE_BLOCK + "\n"
-        "# IDE\n"
-        ".vscode/\n"
-        ".idea/\n"
-        "*.swp\n"
-        "*.swo\n"
-        "*~\n"
-        "\n"
-        "# Python\n"
-        "*.pyc\n"
-        "*.pyo\n"
+        ".venv/\n"
         "*.pyd\n"
         ".Python\n"
         "pip-log.txt\n"
@@ -2147,22 +2190,9 @@ B2_BUCKET={name_underscored}-wp-backup
 
     # f) Overwrite .gitignore with WordPress-appropriate content
     (project_dir / ".gitignore").write_text(
-        ".env\n"
+        _COMMON_GITIGNORE_PATTERNS + "\n" + _DROID_GITIGNORE_BLOCK + "\n" + "# WordPress-specific\n"
         "wp-content/uploads/\n"
         "wp-content/upgrade/\n"
-        "logs/\n"
-        "data/\n"
-        ".tmp/\n"
-        ".cache/\n"
-        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
-        "# IDE\n"
-        ".vscode/\n"
-        ".idea/\n"
-        "*.swp\n"
-        "*.swo\n"
-        "*~\n"
-        "\n"
-        "# WordPress\n"
         "wp-content/cache/\n"
         "wp-content/backup-db/\n"
         "sitemap.xml\n"
@@ -2173,6 +2203,8 @@ B2_BUCKET={name_underscored}-wp-backup
         "node_modules/\n"
         "npm-debug.log*\n"
         "yarn-debug.log*\n"
+        "yarn-error.log*\n"
+        ".pnpm-debug.log*\n"
         "\n"
         "# Build & Test (theme/plugin development)\n"
         "dist/\n"
@@ -2645,35 +2677,21 @@ SERVICE_NAME={name}
 
     # 6. .gitignore
     (project_dir / ".gitignore").write_text(
-        "# Extension build\n"
+        _COMMON_GITIGNORE_PATTERNS
+        + "\n"
+        + _DROID_GITIGNORE_BLOCK
+        + "\n"
+        + "# Chrome extension-specific\n"
         "extension/dist/\n"
         "extension/node_modules/\n"
         "\n"
-        "# Python\n"
-        "__pycache__/\n"
-        "*.py[cod]\n"
-        ".venv/\n"
-        "venv/\n"
-        "*.egg-info/\n"
-        ".pytest_cache/\n"
-        "\n"
-        "# Environment\n"
-        ".env\n"
+        "# Python-specific\n"
         ".env.local\n"
-        "\n"
-        "# Project\n"
-        "logs/\n"
-        "data/\n"
-        ".tmp/\n"
-        ".cache/\n"
+        "venv/\n"
+        ".venv/\n"
+        "*.egg-info/\n"
         "output/\n"
-        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
-        "# IDE\n"
-        ".vscode/\n"
-        ".idea/\n"
-        "*.swp\n"
-        "*.swo\n"
-        "*~\n"
+        ".cache/\n"
     )
 
     # Database setup for backend (only if --db flag passed)
@@ -2785,10 +2803,11 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
 
     # .gitignore (React Native-appropriate)
     (project_dir / ".gitignore").write_text(
-        "node_modules/\n"
-        ".env\n"
-        "\n"
-        "# React Native\n"
+        _COMMON_GITIGNORE_PATTERNS
+        + "\n"
+        + _DROID_GITIGNORE_BLOCK
+        + "\n"
+        + "# React Native-specific\n"
         "android/app/build/\n"
         "android/.gradle/\n"
         "ios/build/\n"
@@ -2799,20 +2818,7 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
         "build/\n"
         "coverage/\n"
         "\n"
-        "# Project\n"
-        "logs/\n"
-        "data/\n"
-        ".tmp/\n"
-        ".cache/\n"
-        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
-        "# IDE\n"
-        ".vscode/\n"
-        ".idea/\n"
-        "*.swp\n"
-        "*.swo\n"
-        "*~\n"
-        "\n"
-        "# Node.js\n"
+        "# Node.js-specific\n"
         "npm-debug.log*\n"
         "yarn-debug.log*\n"
     )
@@ -2866,25 +2872,12 @@ def _scaffold_desktop_app(project_dir: Path, name: str, description: str, **kwar
 
     # .gitignore (Electron-appropriate)
     (project_dir / ".gitignore").write_text(
+        _COMMON_GITIGNORE_PATTERNS + "\n" + _DROID_GITIGNORE_BLOCK + "\n" + "# Electron-specific\n"
         "node_modules/\n"
         "dist/\n"
-        ".env\n"
-        "\n"
-        "# Project\n"
-        "logs/\n"
-        "data/\n"
-        ".tmp/\n"
-        ".cache/\n"
         "output/\n"
-        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
-        "# IDE\n"
-        ".vscode/\n"
-        ".idea/\n"
-        "*.swp\n"
-        "*.swo\n"
-        "*~\n"
         "\n"
-        "# Node.js\n"
+        "# Node.js-specific\n"
         "npm-debug.log*\n"
         "yarn-debug.log*\n"
         "yarn-error.log*\n"
@@ -3126,25 +3119,16 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
 
     # .gitignore (Docusaurus-appropriate)
     (project_dir / ".gitignore").write_text(
+        _COMMON_GITIGNORE_PATTERNS
+        + "\n"
+        + _DROID_GITIGNORE_BLOCK
+        + "\n"
+        + "# Docusaurus-specific\n"
         "node_modules/\n"
         ".docusaurus/\n"
         "build/\n"
-        ".env\n"
         "\n"
-        "# Project\n"
-        "logs/\n"
-        "data/\n"
-        ".tmp/\n"
-        ".cache/\n"
-        "*.log\n" + _DROID_GITIGNORE_BLOCK + "\n"
-        "# IDE\n"
-        ".vscode/\n"
-        ".idea/\n"
-        "*.swp\n"
-        "*.swo\n"
-        "*~\n"
-        "\n"
-        "# Node.js\n"
+        "# Node.js-specific\n"
         "npm-debug.log*\n"
         "yarn-debug.log*\n"
     )

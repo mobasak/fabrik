@@ -1,14 +1,12 @@
 ---
-activation: always_on
-description: Traycer YOLO automation and Fabrik skills (Windsurf Cascade only)
-trigger: always_on
+activation: model_decision
+description: Traycer YOLO automation triggers and Fabrik scaffold/deploy skill mappings (Cascade-specific). Apply when the user says "new project", "create service", "scaffold", "preflight", "deploy ready", or any keyword in the trigger table below — these are routing rules that map intents to scripts.
 ---
 
 # Automation Rules
 
-**Activation:** Always On
-**Scope:** These rules apply to **Windsurf Cascade** agents working on any project under `/opt/`.
-**Purpose:** Traycer YOLO automation, Fabrik skills
+**Scope:** Windsurf Cascade agents working on any project under `/opt/`.
+**Purpose:** Traycer YOLO automation triggers, Fabrik scaffold/deploy skill mappings.
 
 ---
 

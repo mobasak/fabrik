@@ -240,7 +240,7 @@ Four services have stable aliases registered:
 | `glitchtip-web` | `glitchtip-web-z00kkck8c8cwo800kk440csk` | 8000 |
 
 Aliases persist via: compose file (Coolify redeploy) + `vps_apply_limits.sh` (VPS reboot).
-For new single-image Application: see `CROSS_CUTTING_REQUIREMENTS.md §9`.
+For new single-image Application: see `.windsurf/rules/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`.
 
 ## Resource Limits
 

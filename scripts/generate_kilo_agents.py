@@ -38,6 +38,16 @@ from pathlib import Path
 DB_PATH = Path(__file__).parent / "kilo-benchmarks" / "kilo_agents.db"
 OUTPUT_DIR = Path.home() / ".traycer" / "cli-agents"
 DISABLED_DIR = Path.home() / ".traycer" / "disabled-cli-agents"
+
+# Static helper scripts that are NOT per-role agents but still belong in
+# Traycer's cli-agents directory. Each entry: (source path under
+# /opt/fabrik/scripts/, destination filename). These get copied during the
+# atomic temp-dir phase so the orphan-cleanup swap doesn't wipe them.
+#
+# Add new entries here when introducing additional Traycer-side wrappers.
+STATIC_HELPER_SCRIPTS: list[tuple[str, str]] = [
+    ("coding-auto.sh", "coding-auto.sh"),  # auto-router for coding tickets
+]
 OLLAMA_API = "http://localhost:11434"
 
 # Model name normalization for filenames
@@ -130,7 +140,7 @@ def get_agents_from_db() -> list[dict]:
             a.perf_per_dollar
         FROM agent_roles r
         JOIN agents a ON a.id = r.agent_id
-        WHERE r.role IN ('coding', 'fixing')
+        WHERE r.role IN ('coding_simple', 'coding_complex', 'fixing')
         ORDER BY r.role, r.priority
     """
 
@@ -212,42 +222,53 @@ def get_agents_from_db() -> list[dict]:
 
 def deduplicate_agents(agents: list[dict]) -> list[dict]:
     """
-    Deduplicate agents that appear in both coding and fixing with same variant.
-    Returns list with combined role 'code&fix' for duplicates.
-    Note: Local models are never deduplicated as they have unique purposes.
+    Deduplicate cloud agents that appear in multiple roles with the same
+    variant. The combined `role` field becomes a `&`-joined label of all
+    roles the agent fills, ordered to match `_role_order` for stable output.
+
+    Examples:
+        coding_complex P1 + fixing P2, both variant=max → role="coding_complex&fixing"
+        coding_simple P1 alone → role="coding_simple"
+        coding_simple P3 + coding_complex P5 (same variant) → role="coding_simple&coding_complex"
+
+    Local models are never deduplicated — they have role-specific personas
+    even when the underlying weights are identical.
     """
-    # Separate local models (never deduplicate)
+    # Stable role ordering for the combined label so output is deterministic.
+    _role_order = ("coding_simple", "coding_complex", "fixing")
+    _role_rank = {r: i for i, r in enumerate(_role_order)}
+
     local_agents = [a for a in agents if a.get("model_type") == "local"]
     cloud_agents = [a for a in agents if a.get("model_type") == "cloud"]
 
-    # Group cloud agents by (api_id, variant)
-    seen = {}
-    result = []
-
+    seen: dict[tuple, dict] = {}
     for agent in cloud_agents:
         variant = VARIANT_BY_PRIORITY.get(agent["priority"], "high")
         key = (agent["api_id"], variant)
 
         if key in seen:
-            # Already seen - mark as code&fix if different role
             existing = seen[key]
-            if existing["role"] != agent["role"]:
-                existing["role"] = "code&fix"
-            # Keep the lower priority number (higher ranking)
+            existing["_roles"].add(agent["role"])
+            # Keep the lowest priority number (cheapest slot wins display).
             if agent["priority"] < existing["priority"]:
                 existing["priority"] = agent["priority"]
         else:
             agent_copy = agent.copy()
             agent_copy["variant"] = variant
+            agent_copy["_roles"] = {agent["role"]}
             seen[key] = agent_copy
-            result.append(agent_copy)
 
-    # Sort cloud agents by priority
-    result.sort(key=lambda x: x["priority"])
+    result = []
+    for entry in seen.values():
+        roles_sorted = sorted(entry["_roles"], key=lambda r: _role_rank.get(r, 999))
+        entry["role"] = "&".join(roles_sorted)
+        del entry["_roles"]
+        result.append(entry)
 
-    # Add local agents (already sorted by role and priority from DB)
+    # Sort cloud agents by combined role then priority for stable file ordering.
+    result.sort(key=lambda x: (x["role"], x["priority"]))
+
     result.extend(local_agents)
-
     return result
 
 
@@ -833,6 +854,20 @@ def main(dry_run: bool = False):
                 print(f"❌ {failed_count} scripts failed validation — aborting")
                 shutil.rmtree(tmp_dir, ignore_errors=True)
                 sys.exit(1)
+
+            # Copy static helpers (e.g., coding-auto.sh auto-router wrapper)
+            # into the temp dir BEFORE the atomic swap so they survive the
+            # orphan-cleanup that wipes the previous OUTPUT_DIR contents.
+            fabrik_scripts_dir = Path(__file__).parent
+            for src_name, dst_name in STATIC_HELPER_SCRIPTS:
+                src = fabrik_scripts_dir / src_name
+                if not src.exists():
+                    print(f"   ⚠ static helper missing: {src} (skipping)")
+                    continue
+                dst = tmp_dir / dst_name
+                shutil.copy2(src, dst)
+                dst.chmod(0o755)
+                print(f"   ✓ {dst_name} (static helper from /opt/fabrik/scripts/)")
 
             # Atomic rename
             if OUTPUT_DIR.exists():

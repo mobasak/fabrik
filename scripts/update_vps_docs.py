@@ -24,12 +24,10 @@ Called automatically by:
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 
@@ -43,14 +41,15 @@ DOCS_INFRA = REPO / "docs/infrastructure"
 # Each dynamic block is bounded by:  <!-- AUTO:section_name -->  ... <!-- /AUTO -->
 
 BEGIN = "<!-- AUTO:{} -->"
-END   = "<!-- /AUTO -->"
+END = "<!-- /AUTO -->"
 
 
 def now_ts() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
 # ── Live data collectors ──────────────────────────────────────────────────────
+
 
 def _ssh(cmd: str, timeout: int = 20) -> str:
     """Run cmd on VPS via ssh alias."""
@@ -63,9 +62,9 @@ def collect_containers() -> list[dict]:
     rows = []
     for line in raw.strip().splitlines():
         parts = line.split("\t")
-        name   = parts[0] if len(parts) > 0 else ""
+        name = parts[0] if len(parts) > 0 else ""
         status = parts[1] if len(parts) > 1 else ""
-        ports  = parts[2] if len(parts) > 2 else ""
+        ports = parts[2] if len(parts) > 2 else ""
         rows.append({"name": name, "status": status, "ports": ports})
     return sorted(rows, key=lambda r: r["name"])
 
@@ -91,9 +90,9 @@ def collect_disk() -> dict:
     parts = df.split()
     return {
         "total": parts[1] if len(parts) > 1 else "?",
-        "used":  parts[2] if len(parts) > 2 else "?",
-        "free":  parts[3] if len(parts) > 3 else "?",
-        "pct":   parts[4] if len(parts) > 4 else "?",
+        "used": parts[2] if len(parts) > 2 else "?",
+        "free": parts[3] if len(parts) > 3 else "?",
+        "pct": parts[4] if len(parts) > 4 else "?",
     }
 
 
@@ -102,8 +101,8 @@ def collect_memory() -> dict:
     parts = raw.split()
     return {
         "total": parts[1] if len(parts) > 1 else "?",
-        "used":  parts[2] if len(parts) > 2 else "?",
-        "free":  parts[3] if len(parts) > 3 else "?",
+        "used": parts[2] if len(parts) > 2 else "?",
+        "free": parts[3] if len(parts) > 3 else "?",
     }
 
 
@@ -111,6 +110,7 @@ def collect_coolify_apps() -> list[dict]:
     try:
         sys.path.insert(0, str(REPO / "src"))
         from fabrik.drivers.coolify import CoolifyClient
+
         client = CoolifyClient()
         return client.list_applications()
     except Exception as e:
@@ -133,14 +133,14 @@ def collect_ufw() -> list[dict]:
 
 def collect_traefik_middlewares() -> list[dict]:
     raw = _ssh(
-        "sudo docker exec traefik wget -qO-"
-        " http://localhost:8080/api/http/middlewares 2>/dev/null",
+        "sudo docker exec traefik wget -qO- http://localhost:8080/api/http/middlewares 2>/dev/null",
         timeout=20,
     )
     import json
+
     try:
         items = json.loads(raw)
-        return [{"name": m.get("name",""), "type": m.get("type","")} for m in items]
+        return [{"name": m.get("name", ""), "type": m.get("type", "")} for m in items]
     except Exception:
         return []
 
@@ -150,6 +150,7 @@ def collect_uptime() -> str:
 
 
 # ── Section renderers ─────────────────────────────────────────────────────────
+
 
 def render_system_overview(disk: dict, mem: dict, uptime: str, containers: list) -> str:
     count = len(containers)
@@ -165,17 +166,21 @@ def render_system_overview(disk: dict, mem: dict, uptime: str, containers: list)
 
 def render_container_status(containers: list, limits: dict) -> str:
     def fmt_status(s: str) -> str:
-        if "healthy" in s:   return "✅ " + s
-        if "Restarting" in s: return "⚠️ " + s
-        if "Up" in s:         return "✅ " + s
+        if "healthy" in s:
+            return "✅ " + s
+        if "Restarting" in s:
+            return "⚠️ " + s
+        if "Up" in s:
+            return "✅ " + s
         return "❓ " + s
 
     def fmt_mem(name: str) -> str:
         for k, v in limits.items():
             if name in k:
-                if v == 0: return "—"
-                mb = v // (1024*1024)
-                return f"{mb}m" if mb < 1024 else f"{mb//1024}g"
+                if v == 0:
+                    return "—"
+                mb = v // (1024 * 1024)
+                return f"{mb}m" if mb < 1024 else f"{mb // 1024}g"
         return "—"
 
     rows = [
@@ -209,14 +214,14 @@ def render_coolify_apps(apps: list) -> str:
         "| Name | FQDN | Status |",
         "|---|---|---|",
     ]
-    for a in sorted(apps, key=lambda x: x.get("name","")):
+    for a in sorted(apps, key=lambda x: x.get("name", "")):
         if "error" in a:
             rows.append(f"| ERROR | {a['error']} | — |")
             continue
-        name   = a.get("name","?")
-        fqdn   = a.get("fqdn","") or "internal"
-        status = a.get("status","?")
-        icon   = "✅" if status in ("running","healthy") else "⚠️"
+        name = a.get("name", "?")
+        fqdn = a.get("fqdn", "") or "internal"
+        status = a.get("status", "?")
+        icon = "✅" if status in ("running", "healthy") else "⚠️"
         rows.append(f"| `{name}` | {fqdn} | {icon} {status} |")
     return "\n".join(rows)
 
@@ -226,18 +231,19 @@ def render_limits_summary(limits: dict) -> str:
     for name, mem in sorted(limits.items()):
         if mem == 0:
             continue
-        mb = mem // (1024*1024)
-        human = f"{mb}m" if mb < 1024 else f"{mb//1024}g"
+        mb = mem // (1024 * 1024)
+        human = f"{mb}m" if mb < 1024 else f"{mb // 1024}g"
         rows.append(f"| `{name}` | {human} |")
     return "\n".join(rows)
 
 
 # ── Document update engine ────────────────────────────────────────────────────
 
+
 def update_section(content: str, section: str, new_body: str) -> str:
     """Replace content between AUTO:section_name and /AUTO sentinels."""
     begin_tag = BEGIN.format(section)
-    end_tag   = END
+    end_tag = END
     start = content.find(begin_tag)
     if start == -1:
         return content  # sentinel not present — skip silently
@@ -245,11 +251,12 @@ def update_section(content: str, section: str, new_body: str) -> str:
     if end == -1:
         return content
     new_block = f"{begin_tag}\n{new_body}\n{end_tag}"
-    return content[:start] + new_block + content[end + len(end_tag):]
+    return content[:start] + new_block + content[end + len(end_tag) :]
 
 
 def update_timestamp(content: str) -> str:
     import re
+
     ts = now_ts()
     content = re.sub(r"\*\*Last Updated:\*\*.*", f"**Last Updated:** {ts}", content)
     return content
@@ -261,12 +268,16 @@ def write_if_changed(path: Path, new_content: str, dry_run: bool) -> bool:
         return False
     if dry_run:
         import difflib
-        diff = list(difflib.unified_diff(
-            old.splitlines(keepends=True),
-            new_content.splitlines(keepends=True),
-            fromfile=str(path), tofile=str(path) + " (new)",
-        ))
-        print(f"\n{'='*60}\nDIFF: {path}\n{'='*60}")
+
+        diff = list(
+            difflib.unified_diff(
+                old.splitlines(keepends=True),
+                new_content.splitlines(keepends=True),
+                fromfile=str(path),
+                tofile=str(path) + " (new)",
+            )
+        )
+        print(f"\n{'=' * 60}\nDIFF: {path}\n{'=' * 60}")
         print("".join(diff[:60]))
     else:
         path.write_text(new_content)
@@ -276,6 +287,7 @@ def write_if_changed(path: Path, new_content: str, dry_run: bool) -> bool:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Update VPS documentation from live state")
     parser.add_argument("--dry-run", action="store_true", help="Print diff only, no writes")
@@ -283,13 +295,13 @@ def main() -> int:
 
     print(f"📡 Collecting live VPS state ({now_ts()})...")
 
-    containers  = collect_containers()
-    limits      = collect_limits()
-    disk        = collect_disk()
-    mem         = collect_memory()
-    uptime_str  = collect_uptime()
-    apps        = collect_coolify_apps()
-    ufw         = collect_ufw()
+    containers = collect_containers()
+    limits = collect_limits()
+    disk = collect_disk()
+    mem = collect_memory()
+    uptime_str = collect_uptime()
+    apps = collect_coolify_apps()
+    ufw = collect_ufw()
     middlewares = collect_traefik_middlewares()
 
     print(f"   {len(containers)} containers, {len(apps)} Coolify apps, {len(ufw)} UFW rules")
@@ -299,16 +311,15 @@ def main() -> int:
     # ── vps-status.md ────────────────────────────────────────────────────────
     path = DOCS_OPS / "vps-status.md"
     content = path.read_text()
-    content = update_section(content, "system_overview",
-                             render_system_overview(disk, mem, uptime_str, containers))
-    content = update_section(content, "container_status",
-                             render_container_status(containers, limits))
-    content = update_section(content, "ufw_rules",
-                             render_ufw(ufw))
-    content = update_section(content, "traefik_middlewares",
-                             render_middlewares(middlewares))
-    content = update_section(content, "limits_summary",
-                             render_limits_summary(limits))
+    content = update_section(
+        content, "system_overview", render_system_overview(disk, mem, uptime_str, containers)
+    )
+    content = update_section(
+        content, "container_status", render_container_status(containers, limits)
+    )
+    content = update_section(content, "ufw_rules", render_ufw(ufw))
+    content = update_section(content, "traefik_middlewares", render_middlewares(middlewares))
+    content = update_section(content, "limits_summary", render_limits_summary(limits))
     content = update_timestamp(content)
     if write_if_changed(path, content, args.dry_run):
         changed += 1
@@ -324,8 +335,9 @@ def main() -> int:
     # ── vps-complete-inventory.md ────────────────────────────────────────────
     path = DOCS_INFRA / "vps-complete-inventory.md"
     content = path.read_text()
-    content = update_section(content, "container_inventory",
-                             render_container_status(containers, limits))
+    content = update_section(
+        content, "container_inventory", render_container_status(containers, limits)
+    )
     content = update_section(content, "coolify_apps", render_coolify_apps(apps))
     content = update_section(content, "ufw_rules", render_ufw(ufw))
     content = update_section(content, "limits_summary", render_limits_summary(limits))
@@ -338,16 +350,27 @@ def main() -> int:
     elif not args.dry_run:
         print(f"\n📝 {changed} file(s) updated. Committing...")
         subprocess.run(
-            ["git", "-C", str(REPO), "add",
-             "docs/operations/vps-status.md",
-             "docs/operations/vps-urls.md",
-             "docs/infrastructure/vps-complete-inventory.md"],
-            check=True
+            [
+                "git",
+                "-C",
+                str(REPO),
+                "add",
+                "docs/operations/vps-status.md",
+                "docs/operations/vps-urls.md",
+                "docs/infrastructure/vps-complete-inventory.md",
+            ],
+            check=True,
         )
         subprocess.run(
-            ["git", "-C", str(REPO), "commit", "-m",
-             f"docs(auto): update VPS docs from live state [{now_ts()}]"],
-            check=True
+            [
+                "git",
+                "-C",
+                str(REPO),
+                "commit",
+                "-m",
+                f"docs(auto): update VPS docs from live state [{now_ts()}]",
+            ],
+            check=True,
         )
         print("✅ Committed.")
 

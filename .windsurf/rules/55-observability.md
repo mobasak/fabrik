@@ -178,6 +178,15 @@ Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Durat
 
 - Gatus provides black-box availability checks completely decoupled from the internal logging pipeline. If Loki is down, Gatus still detects application failure.
 
+## Gatus — Stable DNS Names (CRITICAL)
+
+Never use UUID container names in Gatus configs or inter-service URLs.
+
+- **Service stacks** (`/data/coolify/services/<uuid>/`): `container_name` is stable across redeploys — use it directly.
+- **Single-image Applications** (`/data/coolify/applications/<uuid>/`): the container name has a timestamp suffix that changes on every redeploy. DNS breaks silently. You MUST install a stable alias on the `coolify` network.
+
+Install procedure (one-time per single-image App) + currently-registered alias pairs (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`) live in `docs/reference/coolify-stable-aliases.md`. Boot-time reapply: `scripts/vps_apply_limits.sh`.
+
 ## Chrome Extension Telemetry
 
 - MV3 service workers are ephemeral (terminated after ~30s idle). Do not hold logs in memory waiting for a batch window.

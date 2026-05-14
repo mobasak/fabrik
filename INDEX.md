@@ -523,6 +523,7 @@ docs/
 | **src/fabrik/spec_generator.py** | [reusable] Spec generation and project context extraction — SPEC_ENABLED_TYPES, SECRET_PATTERNS, extract_project_context(), generate_spec(), generate_and_save_spec() |
 | [test_spec_generator.py](tests/test_spec_generator.py) | 40 tests for spec_generator (constants, _is_secret, compose/env parsing, context extraction, spec generation, save round-trip) |
 | [test_scaffold_spec_generation.py](tests/test_scaffold_spec_generation.py) | Tests for scaffold spec auto-generation hook and fabrik new --from-project flag | When scaffold.py or cli.py new/scaffold commands change | N/A |
+| [test_spec_loader.py](tests/test_spec_loader.py) | 7 tests for T1-02 G-B1a template-defaults deep-merge (happy-path inheritance, spec-wins-on-conflict, nested-partial-override, proxy-pattern infra.postgres override survives merge, missing-template tolerance, `_deep_merge` unit edge cases, primary-path load_spec→resolve_applicability integration) |
 
 ### Scaffold-Generated Files (Python API + Chrome Extension Backend)
 

@@ -17,6 +17,10 @@ from fabrik.deploy_validator import validate as validate_deploy
 from fabrik.drivers.coolify import CoolifyClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.orchestrator import DeploymentOrchestrator, DeploymentState
+from fabrik.orchestrator.infrastructure import (
+    format_resolved_summary,
+    resolve_applicability,
+)
 from fabrik.scaffold import SCAFFOLD_TYPES
 from fabrik.spec_generator import extract_project_context
 from fabrik.spec_loader import Depends, Kind, SecretsPolicy, create_spec, load_spec, save_spec
@@ -268,6 +272,18 @@ def plan(spec_path: str, secrets: tuple):
             click.echo(f"   apps/{spec.id}/{filename}")
     except Exception as e:
         click.echo(f"   Error: {e}", err=True)
+    click.echo()
+
+    # G-F1 (T1-02): surface resolved infrastructure registrars so the
+    # operator sees exactly which of postgres/redis/gatus/backrest/glitchtip/
+    # grafana/authelia/meilisearch/prometheus will run for this spec, and
+    # why (e.g. "shape.exposes_metrics=true + domain set"). Reads spec.shape
+    # which is now reliably populated post-G-B1a (template-defaults merge)
+    # even for pre-G1 specs that omit the shape: block.
+    click.echo("🔧 Infrastructure Registrars (resolved from shape):")
+    spec_dict = spec.model_dump(mode="python") if hasattr(spec, "model_dump") else dict(spec)
+    for line in format_resolved_summary(resolve_applicability(spec_dict)).splitlines():
+        click.echo(f"   {line}")
     click.echo()
 
     # Actions
@@ -578,10 +594,26 @@ def status(spec_path: str):
     try:
         coolify = CoolifyClient()
         apps = coolify.list_applications()
-        matching = [a for a in apps if a.get("name") == spec.id]
+        # G-G1 (T1-02): Coolify-deployed Fabrik services are registered with a
+        # `fabrik-` prefix on the application name (e.g. spec.id="proxy" → app
+        # name="fabrik-proxy"). The pre-fix single-variant lookup returned
+        # "Found in Coolify: None" for every fabrik-prefixed app. The
+        # startswith guard prevents `fabrik-fabrik-proxy` double-prefix when
+        # the spec.id is already prefixed (e.g. fabrik-citation-verifier).
+        candidates = [spec.id]
+        if not spec.id.startswith("fabrik-"):
+            candidates.append(f"fabrik-{spec.id}")
+        matching = [a for a in apps if a.get("name") in candidates]
         if matching:
             app = matching[0]
-            click.echo(f"   ✅ Found in Coolify: {app.get('fqdn', 'N/A')}")
+            # G-G1 follow-up: `app.get('fqdn', 'N/A')` returned the literal
+            # `None` when fqdn IS present in the dict but set to None/empty
+            # (true for non-public services like site-provisioner whose
+            # domain is delegated to a different controller). Fall back to
+            # the app name so the operator sees a useful identifier instead
+            # of the string "None".
+            fqdn = app.get("fqdn") or app.get("name") or "N/A"
+            click.echo(f"   ✅ Found in Coolify: {fqdn}")
         else:
             click.echo("   ❌ Not found in Coolify")
     except Exception as e:
@@ -613,7 +645,16 @@ def app_logs(spec_path: str, lines: int, follow: bool):
     try:
         coolify = CoolifyClient()
         apps = coolify.list_applications()
-        matching = [a for a in apps if a.get("name") == spec.id]
+        # G-G1 (T1-02): Coolify-deployed Fabrik services are registered with a
+        # `fabrik-` prefix on the application name (e.g. spec.id="proxy" → app
+        # name="fabrik-proxy"). The pre-fix single-variant lookup returned
+        # "Found in Coolify: None" for every fabrik-prefixed app. The
+        # startswith guard prevents `fabrik-fabrik-proxy` double-prefix when
+        # the spec.id is already prefixed (e.g. fabrik-citation-verifier).
+        candidates = [spec.id]
+        if not spec.id.startswith("fabrik-"):
+            candidates.append(f"fabrik-{spec.id}")
+        matching = [a for a in apps if a.get("name") in candidates]
 
         if not matching:
             click.echo(f"❌ Application '{spec.id}' not found in Coolify")
@@ -1029,6 +1070,12 @@ def scan(health: bool, base: str):
     default=False,
     help="Enable PostgreSQL database (creates DB, adds DATABASE_URL to .env.local)",
 )
+@click.option(
+    "--github-create",
+    is_flag=True,
+    default=False,
+    help="Also create a private GitHub repo at mobasak/<name> via `gh repo create` (non-fatal if gh is missing or unauthenticated)",
+)
 def scaffold(
     name: str,
     description: str,
@@ -1037,6 +1084,7 @@ def scaffold(
     no_spec: bool,
     dev_port: str,
     db: bool,
+    github_create: bool,
 ):
     """Create a new project with full structure.
 
@@ -1099,6 +1147,42 @@ def scaffold(
                 click.echo(warning)
         except Exception as exc:
             click.echo(f"⚠️  Deployment validator error: {exc}", err=True)
+
+        # G-B2 (T1-02): optionally create a private GitHub repo via the `gh`
+        # CLI. Best-effort, non-fatal: if `gh` is missing, unauthenticated,
+        # or the repo already exists, we log a warning and continue —
+        # scaffold success doesn't depend on remote creation.
+        # `--yes` is the modern flag (verified on gh v2.45.0+); the older
+        # `--confirm` was deprecated.
+        if github_create:
+            import subprocess
+
+            gh_cmd = ["gh", "repo", "create", f"mobasak/{name}", "--private", "--yes"]
+            try:
+                gh_result = subprocess.run(gh_cmd, capture_output=True, text=True, check=False)
+                if gh_result.returncode == 0:
+                    click.echo(f"✅ GitHub: created private repo mobasak/{name}")
+                else:
+                    click.echo(
+                        f"⚠️  GitHub repo create exited {gh_result.returncode}: "
+                        f"{(gh_result.stderr or gh_result.stdout).strip()[:200]}",
+                        err=True,
+                    )
+            except FileNotFoundError:
+                click.echo(
+                    "⚠️  `gh` CLI not found on PATH — install GitHub CLI or omit --github-create",
+                    err=True,
+                )
+            except Exception as exc:  # noqa: BLE001 — non-fatal, log + continue
+                click.echo(f"⚠️  GitHub repo create failed: {exc}", err=True)
+
+        # G-B4 (T1-02): print a generic next-step hint pointing the operator
+        # at the Traycer-managed workflow. No conditional on workflow_id
+        # constant — AGENTS.md references the directory itself, not a token.
+        click.echo(
+            f"\n# Next: cd /opt/{name}; open Traycer to begin epic-brief or "
+            f"feature-plan workflow per docs/traycer/traycer-managed-development-workflow/"
+        )
 
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)

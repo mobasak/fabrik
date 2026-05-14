@@ -374,7 +374,7 @@ class PageCreator:
 
                     try:
                         # Copy temp file to VPS for remote execution
-                        vps_file = f"/tmp/wp_page_{post_id}.txt"
+                        vps_file = f"/tmp/wp_page_{post_id}.txt"  # nosec B108 — single-tenant VPS staging file for `wp post update` body content; post_id validated upstream
                         subprocess.run(
                             ["scp", content_file, f"vps:{vps_file}"],
                             check=True,

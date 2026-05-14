@@ -185,7 +185,13 @@ def add_endpoint(
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write(yaml_body)
         local_tmp = f.name
-    vps_tmp = f"/tmp/gatus-endpoint-{project_name}.yaml"
+    # Hardcoded VPS-side /tmp path is intentional: this is a transient
+    # staging file on the remote (YAML body scp'd up, then mv'd into
+    # /opt/monitoring/configs/gatus/apps/, then the tmp is removed). The
+    # remote VPS is a single-tenant host (no other user sessions), so /tmp
+    # symlink-attack vectors do not apply. `project_name` is validated
+    # upstream by the spec loader's `id` regex.
+    vps_tmp = f"/tmp/gatus-endpoint-{project_name}.yaml"  # nosec B108
 
     try:
         scp_to_vps(local_tmp, vps_tmp)

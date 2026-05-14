@@ -310,7 +310,7 @@ Pre-deploy invariant checks. Called by `scripts/final_gate.py` as part of the qu
 | `check_print_ban.py` | No `print()` / `console.log()` — use the scaffolded logger. |
 | `check_duplicates.py` | No duplicated files across projects (shared helpers should live in `src/utils/`). |
 | `check_doc_sprawl.py` | No orphaned `.md` files; all docs reachable from `INDEX.md`. |
-| `check_index_md.py`, `check_readme_md.py`, `check_changelog.py`, `check_configuration_md.py`, `check_docs.py`, `check_user_guide.py` | Doc currency — every deploy-affecting change updates the matching doc (see `docs/CROSS_CUTTING_REQUIREMENTS.md`). |
+| `check_index_md.py`, `check_readme_md.py`, `check_changelog.py`, `check_configuration_md.py`, `check_docs.py`, `check_user_guide.py` | Doc currency — every deploy-affecting change updates the matching doc (see the Doc Sync Matrix in `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md`). |
 | `check_plans.py`, `check_plan_quality.py` | Plans in `docs/development/plans/` include Invariants, Failure Modes, Acceptance Criteria. |
 | `check_test_coverage.py`, `check_test_proposal.py` | Every non-trivial change proposes at least one test (One-Test Rule). |
 | `check_reusable_modules.py` | Modules in `src/utils/` / `src/lib/` have zero project-specific imports (for cross-project extraction). |
@@ -937,7 +937,7 @@ Every invariant below has a live-incident writeup in `docs/LESSONS_LEARNT.md`. C
 | Business metrics: scaffold now emits `metrics.py` + `/metrics` endpoint |
 | Promtail unfiltered ships every container log including Coolify infra noise | Add `drop` stage to promtail config with regex on container_name. Currently filtered: coolify-db, coolify-redis, coolify-realtime, coolify-sentinel, ocoron-com-backup-1. |
 | Grafana datasources stored only in SQLite db are lost on volume wipe | Bind-mount `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning:ro` in Coolify service compose. Provisioning YAML files persist as code. |
-| Gatus UUID container names break silently on Coolify Application redeploy | Three-layer fix: compose alias + `docker network connect --alias` + `vps_apply_limits.sh apply_alias()`. Service stacks are stable; single-image Applications need the alias treatment. See CROSS_CUTTING_REQUIREMENTS.md §9. | `prometheus-client>=0.21.0` in requirements; `fabrik-services` job in prometheus.yml (targets commented) |
+| Gatus UUID container names break silently on Coolify Application redeploy | Three-layer fix: compose alias + `docker network connect --alias` + `vps_apply_limits.sh apply_alias()`. Service stacks are stable; single-image Applications need the alias treatment. See `.windsurf/rules/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`. | `prometheus-client>=0.21.0` in requirements; `fabrik-services` job in prometheus.yml (targets commented) |
 
 ## Setup Runbooks (Reproducible Procedures)
 
@@ -972,7 +972,8 @@ These are the canonical reproducible setup procedures for components added to th
 - `docs/infrastructure/vps-complete-inventory.md` — what runs on the VPS right now
 - `docs/reference/glitchtip-api.md` — live-captured GlitchTip API contract
 - `docs/development/plans/2026-04-18-zero-touch-deployment.md` — the Phase 4 plan
-- `docs/CROSS_CUTTING_REQUIREMENTS.md` — doc currency, observability, Docusaurus, reusability rules
 - `AGENTS.md` — Fabrik identity + tech-stack defaults (for Traycer)
-- `AGENTS-compact.md` — same, condensed for coding agents
-- `.windsurf/rules/` — Cascade rules (ports, Python, TS, ops, code review, saas UI)
+- `CLAUDE.md` — bootstrap for Claude Code (always-on rules)
+- `.windsurfrules` — bootstrap for Windsurf Cascade (always-on rules)
+- `AGENTS-compact.md` — bootstrap for Kilo CLI (always-on rules)
+- `.windsurf/rules/` — topic-relevant rule packs (Python, TS, ops, security, observability, code review, saas UI, …) loaded on demand by all three coding agents

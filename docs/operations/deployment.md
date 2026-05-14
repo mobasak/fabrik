@@ -185,7 +185,7 @@ Authelia caught it. Check `/opt/authelia/configuration.yml` access rules; reload
 `/health` endpoint timing out, or container exited. `sudo docker logs --tail 100 <container>`.
 
 **Symptom: Gatus shows alias as `unknown` / 0.0.0.0.**
-Single-image Application lost its alias on Coolify redeploy. Run `bash /opt/fabrik/scripts/vps_apply_limits.sh apply_alias <service>` (see `CROSS_CUTTING_REQUIREMENTS.md §9`).
+Single-image Application lost its alias on Coolify redeploy. Run `bash /opt/fabrik/scripts/vps_apply_limits.sh apply_alias <service>` (see `.windsurf/rules/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`).
 
 ---
 

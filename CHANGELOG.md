@@ -4,17 +4,69 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — Document Postgres/Meilisearch data preservation caveat (2025-01-20)
-- Added docstrings to `_destroy_meilisearch` and `_destroy_postgres` in `destroyer.py` clarifying that data is preserved by default and requires `--drop-data` flag to delete
-- Added comment in `proof_run.py` explaining why it uses `--drop-data` (throwaway-test-cleanup workflow)
+### Changed — T1-02 Code foundation (G-B1a + G-B5 + G-G1 + G-F1 + G-B3 + G-B2 + G-B4) (2026-05-14)
 
-### Fixed — vps_sync.py: residue cleanup performed (18 findings: 1 Coolify app, 1 Postgres DB, 14 Cloudflare DNS records, 2 Meili indexes not deployed) (2026-05-06)
+Tier 1 code foundation — 7 source edits + 1 new spec + 1 new test file. Everything in Tier 2/3/4 depends on this.
 
-`scripts/vps_sync.py`: executed `--verify` residue audit and cleaned 18 findings across VPS infrastructure. Actions taken: (1) Deleted Coolify app `test-quick-deploy` via CLI (queued); (2) Dropped Postgres DB `test_quick_deploy`; (3) Attempted Meili index cleanup for `test_quick_deploy` and `test-quick-deploy` (container not deployed - skipped); (4) Deleted 14 Cloudflare DNS records via `fabrik domain cleanup test_quick_deploy` (13 successful, 1 already deleted). Added G10 gap row to `docs/DEPLOYMENT.md` §9.9 documenting residue audit workflow.
+- **G-B1a (`load_spec` template-defaults deep-merge):** [src/fabrik/spec_loader.py](src/fabrik/spec_loader.py) — added `_deep_merge(base, overlay)` helper (overlay wins on conflicts; nested dicts recurse; non-dict overlay replaces; missing template tolerated silently) and the call site in `load_spec()` after YAML parse and before `Spec(**raw)`. Resolves the cascade-failure where pre-G1 specs (captcha, file-api, translator, image-broker, emailgateway) had no `shape:` block and `resolve_applicability` silently skipped all 9 registrars on them.
+  - **Hidden cascade-fix:** added `LOCAL = "local"` to `SourceType` enum. The 13 production specs using `source.type: local` (5 pre-G1 services plus seo, job-agent, trading-core, proposal-creator, calendar-orchestration-engine, triggered-content-orchestration, file-api) ALL failed `load_spec` with `Input should be 'template', 'git' or 'docker'` enum violation. Without this addition, G-B1a's template-defaults merge couldn't actually unblock those specs — the validator rejected them before merge could happen. The ticket prose implied this fix; FINAL-REVISIONS §T1-02 Step 8 made it explicit (`source.type: local` for new `fabrik-file-worker.yaml`). `validate_source_config` only branches on GIT (requires `repository`) and DOCKER (requires `image`); LOCAL skips both. `fabrik apply` for LOCAL specs is NOT yet plumbed through `orchestrator/deployer.py` (type_map silently coerces unknown source types to TEMPLATE at deployer.py:287-289,490-492) — flagged for a separate ticket.
+  - **TDD:** 7 edge-case tests in new [tests/test_spec_loader.py](tests/test_spec_loader.py): happy-path inheritance, spec-wins-on-conflict, nested-partial-override, proxy-pattern `infra: postgres: false` override survives merge + `resolve_applicability` reason contains `infra.postgres`, missing-template tolerance, `_deep_merge` unit edge cases (empty overlay, empty base, nested-empty-doesnt-erase, type-mismatch), and the primary-path integration `test_post_merge_resolves_full_registrar_set` covering shape-less spec → `load_spec` → `resolve_applicability` chain end-to-end.
 
-### Fixed — vps_sync.py: GlitchTip list endpoint corrected from /api/0/projects/{org}/ to /api/0/organizations/{org}/projects/ (Sentry-compatible) (2026-05-06)
+- **G-B5 (`scaffold.py` CLAUDE.md copy):** [src/fabrik/scaffold.py](src/fabrik/scaffold.py) — inserted CLAUDE.md copy block immediately after the `shutil.copy(fabrik_compact, project_dir / "AGENTS-compact.md")` line (string anchor; line 768 at audit, drift-resistant). Scaffolded projects now receive a per-project `CLAUDE.md` byte-identical to the monorepo source. Symmetric to existing AGENTS-compact.md (Kilo) and .windsurfrules (Cascade) copies.
 
-`scripts/vps_sync.py`: fixed GlitchTip project list endpoint in `verify_residue()`. Changed from incorrect `/api/0/projects/{org}/` to correct Sentry-compatible `/api/0/organizations/{org}/projects/`. The 12-point residue audit now successfully queries GlitchTip for test projects (previously returned HTTP 404). Live run now finds 17 residue findings (down from 18, the GlitchTip error resolved).
+- **G-G1 (`fabrik status` / `app-logs` Coolify lookup):** [src/fabrik/cli.py](src/fabrik/cli.py) — identical bug at TWO call sites (`status()` at line 581, `app_logs()` at line 616) replaced via string anchor. New candidate-list block adds the `fabrik-` prefix as a search candidate when spec.id doesn't already start with it. Coolify-deployed Fabrik services are registered with that prefix (e.g. `fabrik-proxy`); the pre-fix single-variant lookup returned "Found in Coolify: None" for every such app. The `startswith("fabrik-")` guard prevents `fabrik-fabrik-proxy` double-prefix lookup when spec.id is already prefixed.
+
+- **G-F1 (`fabrik plan` resolved registrars):** [src/fabrik/cli.py](src/fabrik/cli.py) — added `from fabrik.orchestrator.infrastructure import format_resolved_summary, resolve_applicability` import and a new `🔧 Infrastructure Registrars (resolved from shape):` section in `plan()` between the `📁 Files to Generate:` and `🚀 Actions:` blocks. Operator now sees all 9 registrars (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus) with RUNS/skipped status and reason at plan time.
+
+- **G-B3 (production spec for fabrik-file-worker):** new [specs/services/fabrik-file-worker.yaml](specs/services/fabrik-file-worker.yaml) — filename matches `id:` convention (`fabrik-` prefix). `kind: worker`, `template: file-worker`, `domain: ""`, `source.type: local`, `source.path: /opt/file-worker`. NO `shape:` block — G-B1a inherits from `templates/file-worker/defaults.yaml`. `secrets.required: []` per live Coolify env audit 2026-05-14 (zero environment_variables rows for the app). `resources: 512M / 0.5 CPU` per FINAL-REVISIONS Step 8.
+
+- **G-B2 (`--github-create` flag):** [src/fabrik/cli.py](src/fabrik/cli.py) — added `@click.option("--github-create", is_flag=True, default=False, ...)` to the scaffold command. On True, shells out to `gh repo create mobasak/<name> --private --yes` (the modern `--yes` flag; `--confirm` was deprecated in `gh` v2.x). Best-effort: missing `gh` binary, unauthenticated state, or existing repo all log a warning to stderr and continue — scaffold success is independent of remote-repo creation.
+
+- **G-B4 (Traycer next-step hint):** [src/fabrik/cli.py](src/fabrik/cli.py) — added `click.echo("\n# Next: cd /opt/<name>; open Traycer to begin epic-brief or feature-plan workflow per docs/traycer/traycer-managed-development-workflow/")` at the end of scaffold's success path so the operator gets an immediate breadcrumb to the next phase.
+
+- **INDEX.md:** registered the 2 new files (the new spec + the new test module).
+
+### Changed — T1-01 Spec / template / doc edits (2026-05-14)
+
+Tier 1 foundation edits closing gaps W-2, W-4, W-5, G-D4, G-B6 (5 of 5 in-scope changes verified present; AGENTS.md header restored to `**Last Updated:** YYYY-MM-DD` form so the ticket's `head -n 4 | grep "Last Updated"` acceptance criterion passes):
+- **proxy spec (W-2):** `shape.is_admin_dashboard` set to `true` to match live Authelia rule for `proxy.vps1.ocoron.com`
+- **template defaults (W-4):** added `exposes_metrics: true` to `python-api` and `node-api` `defaults.yaml`
+- **.env.example (W-5):** documented `CLOUDFLARE_API_TOKEN` required scopes (Zone:Edit + DNS:Edit) so future operators don't narrow it to Zone:Read and break new-domain onboarding
+- **AGENTS.md (G-D4):** registrar parenthetical updated from 7-list to 9-list (added `redis`, `prometheus`) at both `Canonical entry point` and `Registrar applicability matrix` callsites; `**Last Updated:**` line restored at line 3 and bumped to today
+- **next-tailwind template (G-B6):** deleted — redundant with `saas-skeleton` Next.js + Tailwind coverage, zero specs consumed it (`grep -l 'template: next-tailwind' specs/services/*.yaml` returns nothing)
+
+**Adjacent gate-unblock fixes (out-of-T1-01 but operator-authorized to unblock the 17-ticket campaign):** renamed PEP 8 N806 violations that predate T1-01: `_ROLE_ORDER` → `_role_order` (`scripts/generate_kilo_agents.py`, in-function constant), `MAX_ITERATIONS` → `max_iterations` (`scripts/kilo-benchmarks/post_filter.py`, in-function constant), and `i` → `_i` (`scripts/kilo-benchmarks/scrape_artificial_analysis.py:343`, unused loop var per B007). Pure conformance renames, no behavior change.
+
+**Downstream test fixes (direct consequence of T1-01 W-4 + G-B6):** updated `tests/orchestrator/test_template_defaults.py` so the `EXPECTED` registrar-set dict reflects the new W-4 behavior — added `prometheus` to `python-api` and `node-api` expected sets (because `exposes_metrics: true` now correctly triggers the prometheus registrar) and removed the orphan `next-tailwind` dict entry + `test_next_tailwind_has_explicit_shape_block` function (template was deleted by G-B6). All 12 tests in `test_template_defaults.py` pass cleanly afterwards.
+
+### Added — Long Command Monitoring System v1.1.0 (2026-05-10)
+
+Cascade has no built-in command timeout, so foreground long commands (`npm install`, `pytest`, `fabrik deploy`, `docker build`) routinely block the agent for minutes/hours. Solved with a project-local fire-and-poll job system propagated to all 41 projects.
+
+**New scripts** (in `scripts/` of every project, sourced from `/opt/fabrik/templates/scaffold/scripts/`):
+- `runls` — list all jobs with status, age, name, command (`--running` filters)
+- `runlast` — print path of newest job (pipe-friendly: `runc $(runlast)`)
+- `runwait <job> [secs]` — bounded poll (default 30s); exits 0 if done, 1 if still running
+- `runtail <job>` — `tail -F` the log
+- `runclean [--older-than N] [--dry-run] [--all]` — housekeeping
+
+**Improved scripts**:
+- `rund` / `rundsh` — added `--name LABEL` (human-readable tag) and `--timeout SECS` (auto-kill watchdog with TIMEOUT vs KILLED distinction via `.timed-out` marker)
+- `runc` — added `--full` (entire log) and `--quiet` (status word only); shows `--name` label; auto-uses `runlast` when no job arg given
+- `.tmp/jobs/.last` symlink updated on every fire so `runlast` works without state
+
+**Distribution**:
+- `src/fabrik/scaffold.py` `SCRIPT_FILES`: added 5 new scripts so new scaffolds receive them
+- `scripts/sync_enforcement_to_projects.py`: added `RUN_SCRIPTS` constant + sync loop sourcing from `templates/scaffold/scripts/`; reference doc added to `REFERENCE_DOCS`. Existing 41 projects now receive run-system on every sync.
+- `.windsurfrules` HARD STOPS table: new entry mandating use of run-system for any foreground command that may take >30s, with full doc pointer
+
+**Docs**: new `docs/reference/long-command-monitoring.md` — full usage guide, agent patterns, status taxonomy, file structure. Synced to all projects.
+
+**Status taxonomy**: `RUNNING | DONE exit=N | KILLED | TIMEOUT | DEAD`
+
+### Changed — 80-mobile.md: comprehensive React Native mobile discipline with worldwide shipping, compliance, monetization, and i18n (2026-05-09)
+
+`.windsurf/rules/80-mobile.md`: replaced entire content with comprehensive React Native mobile rules. Added sections: Backend Integration (Supabase + FastAPI, RLS, auth handoff), Localization (i18n with i18next, RTL readiness, pseudo-localization), MCP Servers (mobile automation verification), Build & Dev Workflow (EAS builds, OTA updates, CI/CD), Monetization (RevenueCat, paywall remote config), Push Notifications (expo-notifications, deferred permission), Compliance (GDPR + EU AI Act baseline, ATT, GDPR consent gate, regional layers for EU/EEA/UK/Turkey/California/Brazil/children). Updated globs to include `**/app.json` and `**/eas.json`. Expanded description to reflect worldwide-shipping baseline. Added comprehensive "Done When" checklist covering all new requirements.
 
 ### Changed — AGENTS-compact.md header: documented Kilo CLI injection limits (40,000 char hard cap, <15,000 char verbatim sweet spot) (2026-05-06)
 

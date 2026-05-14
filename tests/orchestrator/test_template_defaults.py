@@ -45,10 +45,11 @@ TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "templates"
 # that supplies a domain (the only thing the spec author always sets).
 # Anything not in the set must resolve to False.
 EXPECTED: dict[str, set[str]] = {
-    "python-api":       {"gatus", "glitchtip", "grafana"},
-    "node-api":         {"gatus", "glitchtip", "grafana"},
+    # python-api / node-api gained `prometheus` in T1-01 W-4 (exposes_metrics: true).
+    "python-api":       {"gatus", "glitchtip", "grafana", "prometheus"},
+    "node-api":         {"gatus", "glitchtip", "grafana", "prometheus"},
     "saas-skeleton":    {"postgres", "gatus", "backrest", "glitchtip", "grafana"},
-    "next-tailwind":    {"gatus", "glitchtip", "grafana"},
+    # next-tailwind template removed in T1-01 G-B6 (zero specs consumed it).
     "static-site":      {"gatus", "grafana"},  # kind=static → no glitchtip
     "docusaurus":       {"gatus", "grafana"},  # kind=static → no glitchtip
     "wordpress":        {"postgres", "gatus", "backrest", "glitchtip", "grafana"},
@@ -116,14 +117,8 @@ def test_chrome_desktop_mobile_companion_backends_get_glitchtip() -> None:
         )
 
 
-def test_next_tailwind_has_explicit_shape_block() -> None:
-    """T2 regression: next-tailwind must declare a shape block.
-
-    Without it, pydantic defaults give kind=service+is_public=false, and
-    Gatus silently skips a public Next.js site.
-    """
-    shape = _load_template_shape("next-tailwind")
-    assert shape, "next-tailwind/defaults.yaml must declare a shape block"
-    assert shape.get("is_public") is True, (
-        "next-tailwind shape.is_public must be true so Gatus auto-registers"
-    )
+# `test_next_tailwind_has_explicit_shape_block` was removed in T1-01 G-B6 when the
+# `templates/next-tailwind/` directory was deleted. The Next.js + Tailwind surface
+# is now covered by `templates/saas-skeleton/`, which has its own shape-block test
+# via the parameterized `test_template_defaults_resolve_to_expected_registrars`
+# above.
