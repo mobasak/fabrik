@@ -668,6 +668,309 @@ fabrik destroy specs/services/proxy.yaml --partial authelia --yes
 
 ---
 
+## 20. T2-08 — Edge-auth drift cleanup from 2026-05-15 audit (G-H10 + G-G6 + G-H11)
+
+**Total effort:** ~2 hours (~15 min Part A + ~20 min Part B + ~75 min Part C + 10 min verify)
+**Risk:** Part A touches live Authelia config (low — same surgical-edit pattern as T1-04 follow-up); Part B is a one-line YAML edit; Part C is a Python registrar change with unit-test coverage.
+**Why now:** Surfaced by the 2026-05-15 post-T1-05 wiring audit. Parts A and B are real production drifts (one security-relevant, one false-alarm noise); Part C is the durability fix that prevents Part A from regressing the next time `fabrik redeploy <app> --refresh-infra` runs against an Authelia-gated service. Without Part C, this ticket is groundhog-day.
+
+### Audit evidence
+
+```bash
+# Drift A: errors.vps1.ocoron.com publicly reachable despite docs/operations/vps-urls.md
+# saying it's Authelia-gated.
+curl -sS -o /dev/null -w "%{http_code}\n" https://errors.vps1.ocoron.com/
+# Observed: 200 (no redirect to auth.vps1.ocoron.com)
+# Expected per vps-urls.md line 59: 302 → https://auth.vps1.ocoron.com/?rd=...
+
+# Root cause: configuration.yml line 29 includes errors.vps1.ocoron.com in the
+# multi-domain bulk-bypass block (alongside pdf, browser, search, captcha, proxy,
+# translator, files-api, emailgateway, dns) — that block has policy: bypass and
+# no resources: filter, so ALL paths bypass. Authelia is first-match-wins; the
+# *.vps1.ocoron.com two_factor catchall at line 41 never gets reached.
+
+# Drift B: Gatus check external/monitor-public failing with [STATUS] (401) < 400 = false.
+curl -sS https://status.vps1.ocoron.com/api/v1/endpoints/statuses 2>/dev/null \
+  | python3 -c 'import sys,json; d=json.load(sys.stdin); print([(e["name"], e["results"][-1].get("conditionResults")) for e in d if e["results"] and not e["results"][-1].get("success")])'
+# Observed: external/monitor-public expects STATUS < 400, monitor.vps1 returns 401
+# because Authelia gates / and Grafana returns 401 to unauthenticated requests.
+# This is correct backend behavior; the Gatus check assertion is wrong.
+```
+
+### Part A — G-H10: Resolve `errors.vps1.ocoron.com` gating drift
+
+**Decision required** before any edit. Two valid architectures; pick one and align doc + config.
+
+| Option | Behavior | Rationale |
+| --- | --- | --- |
+| **A1 — Gate with Authelia (RECOMMENDED)** | `errors.vps1.ocoron.com` falls under `*.vps1.ocoron.com two_factor` catchall. User logs in to Authelia first (2FA), then GlitchTip's own auth as second factor inside the gate. | Defense-in-depth: matches `monitor` (Grafana) and `auto` (n8n) admin-UI pattern. Removes any reliance on GlitchTip's own session security. **Aligns with current docs/operations/vps-urls.md line 59.** |
+| **A2 — Public, rely on GlitchTip auth only** | Leave in bulk-bypass list. GlitchTip's own login is the only gate. | Simpler for invited error-report viewers (1-click signup, no Authelia account creation). **Requires updating vps-urls.md to say "GlitchTip native auth only".** |
+
+**Recommended: A1.** Reasoning: the audit found this drift because docs say one thing and live says another. A1 restores the documented design and aligns with how every other admin UI on vps1 is gated. A2 is defensible but introduces inconsistency for a marginal UX gain — and GlitchTip's own auth has had CVEs (e.g. CVE-2024-32869 on its upstream Sentry).
+
+**Implementation (A1 path):**
+
+```bash
+# 1. Backup current Authelia config
+ssh vps 'sudo cp /var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml \
+        /var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml.backup.t2-08-$(date +%Y%m%d-%H%M%S)'
+
+# 2. Remove errors.vps1.ocoron.com from the bulk-bypass list (line ~29).
+#    The block currently reads:
+#      - domain:
+#        - pdf.vps1.ocoron.com
+#        - browser.vps1.ocoron.com
+#        - search.vps1.ocoron.com
+#        - captcha.vps1.ocoron.com
+#        - proxy.vps1.ocoron.com
+#        - translator.vps1.ocoron.com
+#        - files-api.vps1.ocoron.com
+#        - emailgateway.vps1.ocoron.com
+#        - dns.vps1.ocoron.com
+#        - errors.vps1.ocoron.com    ← REMOVE THIS LINE
+#        policy: bypass
+#    After the edit, errors.vps1 falls through to the *.vps1.ocoron.com two_factor
+#    catchall at line 41.
+
+# 3. Restart Authelia (SIGHUP is broken — see CLAUDE.md hard-stops, must docker restart)
+ssh vps 'sudo docker restart authelia-hks48k8sg8o4co4co08co00o'
+
+# 4. Wait for healthy
+ssh vps 'sudo docker ps --filter "name=authelia" --format "{{.Status}}"'  # expect: Up <N> (healthy)
+```
+
+**Acceptance (Part A):**
+
+- `curl -sS -o /dev/null -w "%{http_code}\n" https://errors.vps1.ocoron.com/` → **302** (was 200)
+- Redirect Location header points at `https://auth.vps1.ocoron.com/?rd=https%3A%2F%2Ferrors.vps1.ocoron.com%2F&rm=GET`
+- After Authelia login (manual browser test), errors.vps1 loads the GlitchTip UI
+- Regression: `pdf.vps1.ocoron.com`, `captcha.vps1.ocoron.com`, `translator.vps1.ocoron.com` etc. all still return 200 on `/` (still in bulk-bypass — these are correct API-only services)
+- Regression: `monitor.vps1.ocoron.com` still returns 302 (still in two_factor catchall — unchanged)
+- `docs/operations/vps-urls.md` line 59 already says "Authelia"; no doc update needed
+
+### Part B — G-G6: Fix Gatus `external/monitor-public` check
+
+**File:** `/opt/gatus/config.yaml` on vps1 (or whichever path the Gatus deploy reads — discover via `docker inspect gatus-v8s4cokcwg0co4w8okkccc0w`).
+
+**Current check (assumed shape):**
+
+```yaml
+endpoints:
+  - name: monitor-public
+    group: external
+    url: https://monitor.vps1.ocoron.com/
+    interval: 60s
+    conditions:
+      - "[STATUS] < 400"
+      - "[CERTIFICATE_EXPIRATION] > 168h"
+```
+
+**Two valid fixes — pick (b):**
+
+| Option | New URL / condition | Rationale |
+| --- | --- | --- |
+| (a) Accept the auth redirect | URL unchanged; `conditions:` becomes `[STATUS] == 302` and `[BODY] contains "auth.vps1.ocoron.com"` | Verifies Authelia is gating correctly, which is what we want for an external check. |
+| (b) Point at Grafana's public health endpoint | URL → `https://monitor.vps1.ocoron.com/api/health` (or `/healthz`, whichever exists); `conditions:` stays `[STATUS] < 400` + `[BODY] contains "ok"` | Verifies the backend service is actually healthy, not just that the auth gate fires. **Stronger signal**: Authelia could be broken and (a) would still pass. |
+
+**Recommended: (b).** Verify Grafana's actual health path first:
+
+```bash
+ssh vps "sudo docker exec grafana-loc484owg8gsw04owo0go8kc curl -sS http://localhost:3000/api/health"
+# Expect JSON like {"database":"ok","version":"11.5.1","commit":"..."}
+```
+
+**Implementation:**
+
+```bash
+# 1. Find Gatus config path (compose volume mount)
+ssh vps "sudo docker inspect gatus-v8s4cokcwg0co4w8okkccc0w --format '{{range .Mounts}}{{.Source}}:{{.Destination}} {{end}}'"
+# Expected something like /opt/gatus/config:/config
+
+# 2. Edit the monitor-public endpoint URL + condition
+# 3. Restart Gatus (it autoreloads on file change in recent versions but restart is safer)
+ssh vps "sudo docker restart gatus-v8s4cokcwg0co4w8okkccc0w"
+
+# 4. Wait 90s for the check to run, then re-query the status API
+sleep 90
+curl -fsS https://status.vps1.ocoron.com/api/v1/endpoints/statuses 2>/dev/null \
+  | python3 -c 'import sys,json; [print(e["name"], e["results"][-1]["success"]) for e in json.load(sys.stdin) if e["name"]=="monitor-public"]'
+```
+
+**Acceptance (Part B):**
+
+- `external/monitor-public` reports `success: True` after the next check interval
+- Gatus dashboard at `https://status.vps1.ocoron.com` shows **39/39 healthy** (was 38/39)
+- The check's `[STATUS]` condition matches Grafana's real `/api/health` response (200), not a false alarm from the auth gate
+
+### Part C — G-H11: Make `add_access_rule` precedence-aware (durability fix)
+
+**Why this is part of the same ticket:** Without Part C, Part A regresses the next time the Authelia registrar runs for any new admin-dashboard service. The registrar currently appends rules at end-of-file (after the `*.vps1.ocoron.com two_factor` catchall), which makes them dead code. Part A only stays fixed if the registrar respects precedence on every future write.
+
+**File:** `src/fabrik/drivers/authelia.py`
+
+**Current behavior (the bug Lesson 56 documents):**
+
+`add_access_rule(domain, policy, resources, ...)` appends to the `access_control.rules:` list. The two_factor catchall at the bottom matches first for any `*.vps1.ocoron.com` host, so newly-appended specific-path bypasses are dead code.
+
+**Required behavior:**
+
+When inserting a rule with `policy=bypass` (or any non-default policy) for a specific domain that the catchall would also match, **insert it BEFORE the catchall**, not after.
+
+**Implementation sketch:**
+
+```python
+# src/fabrik/drivers/authelia.py — extend add_access_rule()
+
+def _insert_rule_at_precedence(rules: list[dict], new_rule: dict) -> list[dict]:
+    """Insert new_rule before any rule that would shadow it.
+
+    A rule R shadows new_rule N if R's domain pattern is broader (e.g. wildcard)
+    and R has no resources: filter or a less-specific one. The canonical example:
+    R = {domain: '*.vps1.ocoron.com', policy: two_factor} shadows
+    N = {domain: 'images.vps1.ocoron.com', policy: bypass, resources: [^/api/]}.
+    """
+    def shadows(broad: dict, narrow: dict) -> bool:
+        b_dom = broad.get("domain")
+        n_dom = narrow.get("domain")
+        # Normalize to lists (Authelia accepts both scalar and list for domain)
+        b_doms = b_dom if isinstance(b_dom, list) else [b_dom]
+        n_doms = n_dom if isinstance(n_dom, list) else [n_dom]
+        # Wildcard match: '*.vps1.ocoron.com' shadows 'images.vps1.ocoron.com'
+        for bd in b_doms:
+            if not isinstance(bd, str) or "*" not in bd:
+                continue
+            suffix = bd.replace("*", "")
+            for nd in n_doms:
+                if isinstance(nd, str) and nd.endswith(suffix):
+                    return True
+        return False
+
+    # Find insertion point: first shadowing rule, or end of list
+    for i, existing in enumerate(rules):
+        if shadows(existing, new_rule):
+            return rules[:i] + [new_rule] + rules[i:]
+    return rules + [new_rule]
+
+
+def add_access_rule(domain, policy, resources=None, methods=None):
+    cfg = _load_config()
+    rules = cfg.setdefault("access_control", {}).setdefault("rules", [])
+
+    # Build the rule dict (existing logic)
+    new_rule = {"domain": domain, "policy": policy}
+    if resources:
+        new_rule["resources"] = resources
+    if methods:
+        new_rule["methods"] = methods
+
+    # Idempotency: if an exact-match rule already exists, no-op
+    if any(_rules_equivalent(r, new_rule) for r in rules):
+        return
+
+    # Precedence-aware insert (NEW v3 — addresses Lesson 56 follow-up)
+    cfg["access_control"]["rules"] = _insert_rule_at_precedence(rules, new_rule)
+    _save_config(cfg)
+```
+
+**Test coverage (`tests/drivers/test_authelia_rule_order.py`):**
+
+```python
+def test_specific_bypass_inserted_before_wildcard_catchall():
+    rules = [
+        {"domain": "*.vps1.ocoron.com", "policy": "two_factor"},
+    ]
+    new = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
+           "resources": ["^/api/"]}
+    result = _insert_rule_at_precedence(rules, new)
+    assert result[0]["domain"] == "images.vps1.ocoron.com"
+    assert result[1]["domain"] == "*.vps1.ocoron.com"
+
+def test_unrelated_rule_appended():
+    rules = [{"domain": "*.vps1.ocoron.com", "policy": "two_factor"}]
+    new = {"domain": "ocoron.com", "policy": "bypass"}
+    result = _insert_rule_at_precedence(rules, new)
+    # ocoron.com is not shadowed by *.vps1.ocoron.com
+    assert result[-1]["domain"] == "ocoron.com"
+
+def test_idempotent_no_duplicate():
+    existing_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
+                     "resources": ["^/api/"]}
+    rules = [existing_rule, {"domain": "*.vps1.ocoron.com", "policy": "two_factor"}]
+    add_access_rule("images.vps1.ocoron.com", "bypass", ["^/api/"])
+    # Verify list length unchanged — would need _load_config mock
+```
+
+**Acceptance (Part C):**
+
+- Unit test `test_specific_bypass_inserted_before_wildcard_catchall` passes
+- Manual `fabrik redeploy <admin-dashboard-service> --refresh-infra` against a fresh test spec produces rules in correct order (specific bypass before catchall)
+- Lesson 56 "Long-term follow-up" paragraph marked resolved in `docs/LESSONS_LEARNT.md`
+
+### Final verification (after all three parts)
+
+```bash
+# 1. errors.vps1 now gated (Part A)
+curl -sS -o /dev/null -w "errors: %{http_code} → %{redirect_url}\n" https://errors.vps1.ocoron.com/
+# Expected: 302 → https://auth.vps1.ocoron.com/?rd=...
+
+# 2. monitor-public Gatus check now green (Part B)
+curl -fsS https://status.vps1.ocoron.com/api/v1/endpoints/statuses 2>/dev/null \
+  | python3 -c 'import sys,json; d=json.load(sys.stdin); print("monitor-public:", [e["results"][-1]["success"] for e in d if e["name"]=="monitor-public"])'
+# Expected: monitor-public: [True]
+
+# 3. Add an Authelia rule for a hypothetical admin service, verify ordering (Part C)
+python3 -c "
+import yaml
+from fabrik.drivers.authelia import add_access_rule
+# (manual review of the resulting configuration.yml — specific bypass must precede catchall)
+"
+
+# 4. Regression: T1-04 image-broker paired-pattern still works
+curl -sS -o /dev/null -w "images UI: %{http_code}\n" https://images.vps1.ocoron.com/   # expect 302
+curl -sS -o /dev/null -w "images API: %{http_code}\n" -H "X-Internal-Token: $INT_TOKEN" \
+  https://images.vps1.ocoron.com/api/v1/health   # expect 200
+```
+
+### Rollback procedure
+
+If Part A breaks errors.vps1 access (unlikely — the change only adds an auth gate, doesn't remove access):
+
+```bash
+ssh vps "sudo cp /var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml.backup.t2-08-* \
+        /var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml"
+ssh vps "sudo docker restart authelia-hks48k8sg8o4co4co08co00o"
+```
+
+If Part B breaks the Gatus status board:
+
+```bash
+# Git-revert the gatus config edit; restart container.
+ssh vps "cd /opt/gatus && git checkout config.yaml && sudo docker restart gatus-v8s4cokcwg0co4w8okkccc0w"
+```
+
+If Part C unit tests fail: revert the `add_access_rule` change; the live Authelia config remains correct from Part A's manual edit (no regression until the next refresh-infra call against the wrong service).
+
+### Pre-flight checklist
+
+- [ ] Authelia config backup taken (Part A)
+- [ ] `docs/operations/vps-urls.md` line 59 decision aligned with Part A choice
+- [ ] Gatus config repo cloned or mount path located (Part B)
+- [ ] Grafana `/api/health` confirmed reachable internally (Part B)
+- [ ] Lesson 56 read for context (Part C)
+
+### Final Gate Instruction
+
+```bash
+python scripts/final_gate.py --lean --json
+```
+
+### Lessons Learnt field
+
+If Part A/B execute cleanly: `none`.
+If a surprise surfaces: new lesson covering the spec-vs-live drift class.
+
+---
+
 ## Tier 2 done — convergence test
 
 After all 10 items:
