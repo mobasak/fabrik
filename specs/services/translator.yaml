@@ -3,6 +3,13 @@ kind: service
 template: python-api
 domain: translator.vps1.ocoron.com
 
+# T1-05 (G-H8): explicit opt-in for postgres registrar. Default for python-api is
+# needs_database=false; translator overrides because it stores per-job translation
+# state + quota tracking. Live DB renamed from translator_service → translator on
+# 2026-05-15 to match the registrar's standard `<id_with_underscores>` convention.
+shape:
+  needs_database: true
+
 source:
   type: local
   path: /opt/translator

@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — T1-05 (G-H8): Reusable DB-rename orchestrator + translator DB rename (2026-05-15)
+
+Closed the translator postgres-DB drift gap (live name `translator_service`, registrar convention `translator`) by building `scripts/migrate_db_rename.py` — a parameterized, idempotent, rollback-capable orchestrator usable for any future `<old> → <new>` Postgres rename across the fleet (vps1, vps2, ...).
+
+**Script (`scripts/migrate_db_rename.py`, 658 lines):**
+
+- 6-phase pipeline: preflight → snapshot → plan → execute → verify → document
+- Preflight: resolve Coolify UUID via API, auto-detect `postgres-main-*` container via SSH, verify source DB exists + target doesn't, capture per-table tuple baseline, locate all matching env vars (prod + preview), scan other Coolify apps for cross-references (404s silently skipped — those are non-application resources, not conflicts)
+- Snapshot: `pg_dump -Fc` to `/opt/backups/db-renames/<app>-pre-rename-<ts>.dump` on VPS
+- Execute: `stop_application` → `pg_terminate_backend` → `ALTER DATABASE RENAME` → metrics-match check → PATCH each env var → `deploy`. Every mutation pushes a reverse-action to a rollback stack
+- Verify: 60s health-URL poll (auto-derived from Traefik `Host()` label in `docker_compose` field); on failure, unwind rollback stack and redeploy
+- Document: writes JSON receipt to `logs/migrations/<app>-<ts>.json` with full audit trail
+- Reusable: all hostnames are `--vps` flag, all paths derived; no hardcoded `vps1.ocoron.com`
+- Exit codes: 0 success · 1 preflight abort · 2 snapshot fail · 3 rolled-back · 4 rollback FAILED (manual) · 5 health fail
+- Tested across 7 scenarios (5 edge cases pass-1, happy-path dry-run pass-1, live execute pass-2 after one rollback caught a driver bug)
+
+**Driver bug found during live run (`src/fabrik/drivers/coolify.py::update_env_var`):**
+
+The method PATCHes `/applications/{uuid}/envs/{env_uuid}` — that endpoint does not exist in Coolify v4 (returns 404). Coolify v4 PATCH `/applications/{uuid}/envs` matches by `{key, is_preview}` tuple in the body, no env_uuid in URL. The script's first live run hit this 404 after the DB rename succeeded; the rollback stack unwound cleanly (renamed `translator` back to `translator_service`, restarted app, zero data loss). Script patched to call the correct endpoint shape directly; the driver method itself is now flagged as broken (separate follow-up to fix `update_env_var()` to match the actual API).
+
+**Live execution (vps1, 2026-05-15 15:17–15:21 UTC):**
+
+- Pre-flight Backrest snapshot: `fc2317b0` (parent: `3b60c05e`, tag `t1-05-preflight`) — taken earlier, retained
+- pg_dump snapshot: `/opt/backups/db-renames/fabrik-translator-pre-rename-20260515T151730Z.dump` (20974 bytes)
+- DB rename: `translator_service` → `translator` (size_kb=8220, total_tuples=275, metrics matched post-rename)
+- Env vars patched: 2 rows (prod uuid=`ysko...`, preview uuid=`oogc...`) — both now point at `/translator`
+- Health check: `https://translator.vps1.ocoron.com/health` → **200** in 1.18s
+- Container: `translator-kgws0s4cscsosw8gg848cwgw-152024553111 Up (healthy)`
+- App log: `Database initialized successfully` confirms clean DB connect to renamed DB
+
+**Spec update (`specs/services/translator.yaml`):**
+
+Added `shape.needs_database: true` (override of python-api template default of `false`). Now the postgres registrar correctly resolves `RUNS` for this spec. `fabrik plan specs/services/translator.yaml` confirms: `postgres RUNS (shape.needs_database=true)`. No `infra.postgres` override needed — clean shape-only declaration.
+
+**Acceptance criteria (4/5 met now, 1 forward-dep on Tier 2):**
+
+- ✅ `\l` shows DB `translator` (no `translator_service`) — verified via SSH
+- ✅ `specs/services/translator.yaml` has `shape.needs_database: true`, no `infra.postgres` override
+- ⏭ `fabrik audit-registrars` zero drift — the subcommand does not yet exist; this is a Tier 2 capability (T2-01..04)
+- ✅ Health 200 with translator container `(healthy)`
+- ✅ Both Backrest snapshot + pg_dump retained; 30-day retention via the Backrest schedule already running
+
 ### Fixed — T1-04 follow-up: actual root cause was Authelia rule precedence, not Docker provider race (2026-05-15)
 
 After the partial T1-04 commit, online research pointed at a Traefik Docker-provider race condition as the likely cause. The proper diagnostic (Rung 1 — direct Authelia call simulating Traefik's forward-auth) disproved that hypothesis: Authelia was being called and returning **HTTP 200 (allow)** for `images.vps1.ocoron.com /`, not 302. The Traefik middleware chain was working correctly. The actual root cause was in `/var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml`:

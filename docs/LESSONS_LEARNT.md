@@ -3905,3 +3905,51 @@ If drift, realign the spec FIRST (with operator-approval) before running the reg
 The current state is fragile — any docker daemon restart could race the port allocation either way.
 
 ---
+
+# Lesson 57: Coolify v4 `update_env_var` driver method PATCHes a non-existent endpoint — use bulk-style PATCH instead
+
+**Date:** 2026-05-15
+**Context:** During T1-05 live execution, `migrate_db_rename.py` succeeded through the DB rename (size_kb=8220 matched baseline) and then 404'd on the very next step: `PATCH /applications/{uuid}/envs/{env_uuid}` returned `{"message":"Not found."}` for an env_uuid that GET `/envs` had just returned three steps earlier. The rollback stack unwound cleanly — renamed `translator` back to `translator_service`, restarted the app, zero data loss — so the failure was operationally safe but stopped the migration.
+
+**Root cause:** `CoolifyClient.update_env_var(uuid, env_uuid, **kwargs)` in `src/fabrik/drivers/coolify.py:657` builds URL `/applications/{uuid}/envs/{env_uuid}`. That endpoint does not exist in Coolify v4. The actual single-env update endpoint is `PATCH /applications/{uuid}/envs` (no env_uuid in the path); Coolify matches by the `{key, is_preview}` tuple in the JSON body. Confirmed empirically: a direct `_request("PATCH", f"/applications/{uuid}/envs", json={"key":..., "value":..., "is_preview":..., "is_literal": True})` succeeds and returns the matching env row's full record. The `bulk_update_env_vars` method (`coolify.py:665`) already uses this correct shape internally — only the singular-update method was wrong.
+
+**Why this slipped through:** All non-migration call sites of `update_env_var` are in code paths that have **not been exercised live** since some unknown Coolify upgrade — every operational env-var write today goes through `bulk_update_env_vars` (the `fabrik apply` orchestrator's path). The unit tests for `update_env_var` mock the HTTP response, so they don't catch the wrong endpoint. The bug was latent until a script that called the singular method ran against the live API.
+
+**Rule:**
+
+1. **For PATCHing a single Coolify v4 env var, use this exact shape:**
+   ```python
+   coolify._request("PATCH", f"/applications/{app_uuid}/envs", json={
+       "key": KEY, "value": NEW_VALUE,
+       "is_preview": <bool>,  # disambiguates rows when both prod + preview exist
+       "is_literal": True,
+   })
+   ```
+   The two-row preview/prod model means `is_preview` is REQUIRED to target the correct row — omitting it defaults to `is_preview=False` (prod), silently leaving the preview row stale (the "Webshare gotcha" from `vps-urls.md`).
+2. **Avoid `CoolifyClient.update_env_var(uuid, env_uuid, ...)` until the driver is fixed.** Treat it as broken.
+3. **Validate driver methods against live API on first use of a long-untouched code path.** Mock-only tests do not catch API-shape drift.
+
+**Why-rollback-mattered design note:** the script pushes one `RollbackAction` per mutation onto a stack and unwinds in reverse on any post-snapshot failure. Without this, the rename would have stuck while env vars still pointed at the old name and the next deploy would have failed with `database "translator_service" does not exist`. With the stack, a single bad API call costs ~30s of unwound state and zero data loss.
+
+---
+
+# Lesson 58: API field names matter even when both fields exist on the row — `is_preview` is the row-identity discriminator in Coolify v4
+
+**Date:** 2026-05-15
+**Context:** `fabrik-translator` had TWO `DATABASE_URL` env-var rows in Coolify — one with `is_preview: false` (prod) and one with `is_preview: true` (preview). Both have distinct UUIDs but share the same `key`. The original ticket's Step 7 ("update Coolify env var DATABASE_URL") implied one update, but in v4 you must update both — otherwise the next time someone clicks "Deploy Preview" the preview deploy uses the stale value and silently breaks.
+
+**Empirical confirmation (from a probe step that ran against the live API):**
+
+```python
+# PATCH the preview row with a unique marker
+PATCH /applications/{uuid}/envs  body={"key":"DATABASE_URL", "value":"<marker>", "is_preview":True}
+# Result: only the row with uuid=oogc... (is_preview=True) updated; prod row untouched.
+```
+
+**Rule:**
+
+1. **In any Coolify v4 script that touches env vars, treat `(key, is_preview)` as the composite identity** — never just `key`.
+2. **In any tool that mirrors live env state into a spec/diff,** preserve `is_preview` per row. The two rows are independently editable in the UI even though they share `key`.
+3. **In migration receipts**, log both UUIDs and both before/after values — auditors need to see both rows accounted for.
+
+---
