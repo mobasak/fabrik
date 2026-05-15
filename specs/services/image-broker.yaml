@@ -1,7 +1,30 @@
+# image-broker is consumed by internal Fabrik services (captcha, translator,
+# file-api, etc.) via X-Internal-Token bearer auth on /api/* paths. UI paths
+# require Authelia 2FA. DO NOT remove has_bearer_api: true without first
+# auditing all internal callers and migrating them to OAuth / Authelia headers.
+# See pack v3.2 § Tier 1 Foundation § G-H6 (paired-pattern M2M decision)
+# and AGENTS.md § VPS Security Architecture (the X-Internal-Token pattern).
+
 id: image-broker
 kind: service
 template: python-api
-domain: image-broker.vps1.ocoron.com
+# T1-04 W-1: domain realigned 2026-05-15 from image-broker.vps1.ocoron.com →
+# images.vps1.ocoron.com to match live Traefik label
+# (Host(`images.vps1.ocoron.com`)) in the deployed compose at
+# /data/coolify/applications/zo4ggs4g880skwkocwwkscgk/docker-compose.yaml.
+# Cloudflare has no DNS record for image-broker.vps1.ocoron.com; the
+# image-broker microservice has always been served at images.vps1.ocoron.com.
+domain: images.vps1.ocoron.com
+
+# Override-only shape block (T1-04 W-1, paired-pattern):
+# The other shape fields (kind, is_public, has_persistent_data, needs_database,
+# has_search_feature, exposes_metrics) inherit from templates/python-api/defaults.yaml
+# at load time via spec_loader._deep_merge (T1-02 G-B1a). Adding them here would
+# create drift when the template evolves. Only the two overrides below differ
+# from the python-api default.
+shape:
+  is_admin_dashboard: true   # override python-api default — gates UI behind Authelia 2FA
+  has_bearer_api: true       # override — /api/* bypasses Authelia for X-Internal-Token M2M callers
 
 source:
   type: local

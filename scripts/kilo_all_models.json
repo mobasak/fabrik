@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-14T11:59:05.217043",
+  "timestamp": "2026-05-15T11:59:09.462736",
   "total_models": 345,
   "models": {
     "~anthropic/claude-haiku-latest": {
@@ -242,8 +242,8 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "baidu/qianfan-ocr-fast:free": {
-      "id": "baidu/qianfan-ocr-fast:free",
+    "baidu/qianfan-ocr-fast": {
+      "id": "baidu/qianfan-ocr-fast",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — T1-04 image-broker Authelia + has_bearer_api (W-1, paired-pattern) — PARTIAL (2026-05-15)
+
+Spec edits + Authelia registrar refresh + Coolify compose label patch all landed; live verification curl part (a) still returns 200 (not 302) for unknown Traefik-routing reasons. Captured everything except the final live-gate behavior.
+
+**Spec (`specs/services/image-broker.yaml`):**
+
+- Added top-of-file comment block per pack §9 G-H6 documenting the M2M contract (X-Internal-Token bearer auth on `/api/*` for internal Fabrik services; Authelia 2FA on UI; DO NOT remove `has_bearer_api: true` without auditing internal callers).
+- Appended override-only `shape:` block with exactly 2 fields: `is_admin_dashboard: true` + `has_bearer_api: true`. Other flags (`kind`, `is_public`, etc.) inherit from `templates/python-api/defaults.yaml` via T1-02 G-B1a deep-merge.
+- **Spec/reality domain realignment (caught during pre-verify):** changed `domain:` from `image-broker.vps1.ocoron.com` to `images.vps1.ocoron.com` to match live Traefik label `Host(images.vps1.ocoron.com)` in `/data/coolify/applications/zo4ggs4g880skwkocwwkscgk/docker-compose.yaml`. Cloudflare has no DNS record for `image-broker.vps1.ocoron.com`; the service has always been served at `images.vps1.ocoron.com`. The original spec was authored with an intended-but-never-deployed hostname.
+
+**Live Authelia config (`/var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml`):**
+
+- Registered via two `fabrik redeploy --refresh-infra --spec specs/services/image-broker.yaml` runs (first for old domain pre-realignment, second for `images.vps1.ocoron.com`). 4 paired rules now present in configuration.yml:
+  - `images.vps1.ocoron.com → bypass {^/api/}`
+  - `images.vps1.ocoron.com → two_factor`
+  - `image-broker.vps1.ocoron.com → bypass {^/api/}` (stale post-realignment; dead code at non-routed hostname; flagged for follow-up cleanup)
+  - `image-broker.vps1.ocoron.com → two_factor` (same)
+- Authelia container restarted twice during the work (`docker restart authelia-hks48k8sg8o4co4co08co00o`); healthy after each restart in <10s.
+
+**Coolify compose labels (`/data/coolify/applications/zo4ggs4g880skwkocwwkscgk/docker-compose.yaml`):**
+
+- Backup taken before edit (`docker-compose.yaml.backup.YYYYMMDD-HHMMSS`).
+- Added Fabrik-canonical Traefik label `traefik.http.routers.image-broker.middlewares=authelia-forward@docker,gzip@docker` (the original Coolify deploy had no middleware chain — image-broker was originally classified as API-only and ran without forward-auth gating on the UI).
+- Container recreated via `docker compose up -d --force-recreate --no-build`; healthy in 5s.
+
+**Production-outage incident (operator-visible — surfaced and recovered in-session):**
+
+During recovery investigation, attempted `sudo docker restart traefik` (the standalone Traefik v2.11 container at `/opt/traefik/` that holds host ports 80/443 with `web`/`websecure` entrypoints matching app labels). Port allocation conflict during recreate transition caused both Traefik proxies to lose port binding briefly. All `*.vps1.ocoron.com` routes returned 503 for ~5 minutes. Recovery sequence: `docker stop coolify-proxy` (freeing 80/443) → `cd /opt/traefik && docker compose up -d` (restored standalone Traefik v2.11). Production verified back on status/notify/auth/proxy/images endpoints. Lessons in `docs/LESSONS_LEARNT.md` for the two-Traefik gotcha and the `docker rm` on a stateless-config container being recoverable only because `/opt/traefik/{compose.yaml,traefik.yml,acme.json}` were preserved on disk.
+
+**Gap (live behavior not yet matching config):**
+
+Despite Traefik router state showing `image-broker@docker | middlewares=['authelia-forward@docker'] | status=enabled` IDENTICAL to known-gated `apprise@docker`, `curl https://images.vps1.ocoron.com/` returns 200 (uvicorn body), not 302 (Authelia redirect). Authelia logs confirm forward-auth is NOT being called for images.vps1.ocoron.com requests. The same forward-auth middleware fires correctly for `notify.vps1.ocoron.com` (apprise) — visible in Authelia access logs as `Access to https://notify... not authorized to user <anonymous>, status 302 with location redirect to https://auth...`. No corresponding log entry for images.vps1.ocoron.com requests.
+
+This is a deeper Traefik v2.11 router-discovery / middleware-application quirk that needs follow-up investigation. Hypotheses tried and ruled out: gzip middleware ordering (removed gzip; same behavior), router state cache (Traefik fully recreated; same behavior), wrong hostname (validated via `--resolve` direct-to-VPS; same behavior), Cloudflare cache (same behavior bypassing CF).
+
+**Step 5 (Authelia config has rule pair) → PASS**
+**Step 7a (UI redirects to Authelia) → FAIL** (returns 200 instead of 302)
+**Step 7b (M2M /api/v1/health with token) → PASS** (200 from app, valid M2M)
+**Step 7c (M2M /api/v1/health without token) → 403 from app** (app-layer auth works; Authelia bypass behavior unverifiable since UI isn't gated)
+
+**Net:** the SPEC + Authelia CONFIG capture the intent. The Coolify compose has the canonical middleware chain. The runtime gating behavior does not match — flagged as a follow-up architecture investigation, not a T1-04 spec/config problem. Spec changes are committed; the paired-pattern is half-realized (app-layer M2M works; Authelia UI gate does not, for unknown Traefik-discovery reasons).
+
 ### Changed — T1-03 VPS cleanup (G-J6 archive predrift + G-H2 redis assignments seed) (2026-05-15)
 
 Two SSH-only operations on the live VPS (`vps1.ocoron.com`). No Fabrik repo code change.
