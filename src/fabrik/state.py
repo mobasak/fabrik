@@ -15,28 +15,31 @@ The file is the source of truth for:
 Schema
 ------
 
-Each file is a single JSON object with exactly these 8 fields::
+The ``spec_id`` is the FILENAME (``<spec_id>.json``), NOT a field inside
+the JSON. Each file is a single JSON object with exactly these 8 fields,
+keys-sorted alphabetically for stable diffs::
 
     {
-      "spec_id":             "<id>",
-      "spec_path":           "/opt/fabrik/specs/services/<id>.yaml",
-      "spec_hash":           "<sha256 of canonical spec yaml>",
-      "coolify_uuid":        "<24-char alphanumeric uuid>",
-      "coolify_app_name":    "<id or fabrik-<id>>",
       "applied_at":          "<ISO 8601 UTC>",
-      "git_sha":             "<40-char or empty if not in git>",
+      "coolify_app_name":    "<id or fabrik-<id>>",
+      "coolify_uuid":        "<24-char alphanumeric uuid or null>",
       "domain":              "<FQDN or empty>",
+      "git_sha":             "<40-char or empty if not in git>",
       "registrars_applied":  [
         {"type": "postgres",  "id": "translator",  "status": "applied", "data_bearing": true},
-        {"type": "gatus",     "id": "translator",  "status": "applied", "data_bearing": false},
-        ...
-      ]
+        {"type": "gatus",     "id": "translator",  "status": "applied", "data_bearing": false}
+      ],
+      "spec_hash":           "<16-char prefix of sha256 of yaml.dump(spec, sort_keys=True)>",
+      "spec_path":           "/opt/fabrik/specs/services/<id>.yaml"
     }
 
-Only entries whose ``type`` is in :data:`_REGISTRAR_ORDER` are persisted.
-Deploy-tier ResourceRecord types (``dns``, ``coolify``, ``files``, etc.)
-are filtered out because the state file is the *registrar* manifest, not
-the *resource* manifest.
+The caller (``DeploymentOrchestrator._persist_state``) filters
+``registrars_applied`` to entries whose ``type`` is in
+``fabrik.orchestrator.infrastructure._REGISTRAR_ORDER`` — deploy-tier
+``ResourceRecord`` types (``dns``, ``coolify``, ``files``, etc.) never
+appear because the state file is the *registrar* manifest, not the full
+*resource* manifest. ``state.save()`` itself trusts the input and only
+stamps ``data_bearing`` per type.
 
 Concurrency + atomicity
 ------------------------

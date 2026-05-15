@@ -401,6 +401,17 @@ The orchestrator dispatches to **9 infrastructure registrars**, each gated by a 
 
 If health check fails → `ROLLING_BACK`.
 
+On COMPLETE transition: `DeploymentOrchestrator._persist_state()` writes
+`.fabrik/state/<spec_id>.json` (T2-01 G-F3). Captures the 8-field manifest
+— `applied_at`, `coolify_app_name`, `coolify_uuid`, `domain`, `git_sha`,
+`registrars_applied`, `spec_hash`, `spec_path` — that future
+`fabrik audit-registrars` (T2-02) and `fabrik destroy --use-state` (T4-01)
+read as the source-of-truth for what was actually applied. Failure here
+is non-fatal (logged warning); the state file is best-effort metadata.
+The same write happens on `refresh_infrastructure()` success. On destroy,
+the file is moved to `.fabrik/state/_destroyed/<id>.json.<ts>` rather
+than deleted — preserves audit trail.
+
 ### Phase 6 — POST-DEPLOY HOOK (always runs, non-fatal)
 **Module:** `src/fabrik/cli.py:_post_deploy_sync()`
 

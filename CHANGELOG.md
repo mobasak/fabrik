@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Today's-work audit pass (2026-05-15)
+
+Iterative review of T1-05, T2-08, and T2-01 against acceptance criteria + live state. Two real doc drifts fixed, plus a new awareness anchor added so the next operator knows the state-file artifact exists.
+
+- **state.py module docstring schema example**: showed `spec_id` as a field inside the JSON, but `save()` writes `spec_id` as the FILENAME, not a payload key. The actual schema is exactly 8 fields. Fixed the docstring to clarify "spec_id is the FILENAME" and reordered the example alphabetically to match what `json.dumps(..., sort_keys=True)` actually produces.
+- **state.py docstring spec_hash format**: said "<sha256 of canonical spec yaml>" implying the full 64-char hash. The validator's `compute_spec_hash` truncates to the first 16 chars (`hashlib.sha256(yaml.dump(spec, sort_keys=True)).hexdigest()[:16]`). Docstring now matches reality.
+- **docs/operations/deployment.md Phase 5**: added a paragraph documenting `DeploymentOrchestrator._persist_state()` writing `.fabrik/state/<spec_id>.json` on COMPLETE transition (T2-01 G-F3). Without this, the next developer reading the deploy-flow doc would not know the artifact exists. Failure mode (non-fatal, logged warning) is documented too.
+- **Live verification**: ran a temp-id smoke test of `state.save()` on disk under the real `/opt/fabrik/.fabrik/state/` path — confirmed 8 fields written in alphabetical order, `data_bearing` correctly stamped for postgres/redis/meilisearch (`True`) and gatus/grafana (`False`), `archive_destroyed()` moves to `_destroyed/<id>.json.<ts>`. Then cleaned up the test artifacts.
+- **Live verification of Authelia rule order**: parsed live config from `authelia-hks48k8sg8o4co4co08co00o`, confirmed 9 rules in correct precedence — `errors.vps1.ocoron.com` is no longer in the multi-domain bulk-bypass (rule 5), falls through to `*.vps1.ocoron.com → two_factor` catchall (rule 8). T2-08 Part C's `_compute_insert_index` correctly identifies rule 8 as the shadowing catchall for any future paired-pattern service.
+- **Re-ran today's tests after the gate's auto-fixes** (datetime.UTC, etc.): 100/100 passing across `tests/test_locks_local.py` (7), `tests/test_state.py` (13), `tests/drivers/test_authelia.py` (80 including 16 new precedence-helper tests).
+- **CLAUDE.md compliance audit**: no SIGHUP-restart, no `localhost` in containers, no destructive ops without backups, no new top-level `.md` files, all `git commit`/`push` operations covered by the campaign's standing "commit and push all changes in each run" directive.
+
+No new lessons recorded — Lessons 57 (Coolify v4 update_env_var driver bug), 58 (is_preview row identity), and 59 (lint AND gate the restart) already cover the three load-bearing insights from today's work.
+
 ### Added — T2-01 (G-F2 + G-F3): locks_local + state file persistence (2026-05-15)
 
 Tier-2 foundation work. Two new project-scoped modules + orchestrator wiring so every successful deploy persists a JSON manifest under `.fabrik/state/<id>.json`. Downstream tickets that depend on this: T2-02 (`fabrik audit-registrars`), T4-01 (`fabrik destroy --use-state`), T4-02 (state-aware `reconcile-all`).
