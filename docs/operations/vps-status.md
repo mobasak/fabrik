@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-15 08:59 UTC
+**Last Updated:** 2026-05-15 09:01 UTC
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
 **SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
@@ -13,9 +13,9 @@
 <!-- AUTO:system_overview -->
 | **Containers running** | 42 |
 | **Disk** | 108G total, 40G used, 69G free (37%) |
-| **Memory** | 11Gi total, 4.9Gi used, 387Mi free |
-| **Uptime** | up 8 weeks, 1 day, 10 hours, 39 minutes |
-| **Last snapshot** | 2026-05-15 08:59 UTC |
+| **Memory** | 11Gi total, 4.9Gi used, 491Mi free |
+| **Uptime** | up 8 weeks, 1 day, 10 hours, 41 minutes |
+| **Last snapshot** | 2026-05-15 09:01 UTC |
 <!-- /AUTO -->
 
 | **OS** | Ubuntu 24.04 LTS |
@@ -72,7 +72,7 @@
 |---|---|---|
 | `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 3 weeks (healthy) | 256m |
 | `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 3 weeks (healthy) | 512m |
-| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 6 days (healthy) | — |
+| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 4 seconds (health: starting) | — |
 | `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 11 days | 512m |
 | `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 6 days (healthy) | 512m |
 | `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 8 days (healthy) | — |
@@ -82,7 +82,7 @@
 | `coolify-proxy` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up About a minute (healthy) | — |
+| `coolify-sentinel` | ✅ Up 2 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 6 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 6 days (healthy) | — |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 4 days (healthy) | — |
@@ -92,7 +92,7 @@
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 6 days (healthy) | — |
-| `image-broker-zo4ggs4g880skwkocwwkscgk-191233590054` | ✅ Up 6 days (healthy) | — |
+| `image-broker-zo4ggs4g880skwkocwwkscgk-090204498223` | ✅ Up 36 seconds (healthy) | — |
 | `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 3 weeks (healthy) | 512m |
 | `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 3 weeks (healthy) | 2g |
 | `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 7 days (healthy) | — |
