@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — T1-03 VPS cleanup (G-J6 archive predrift + G-H2 redis assignments seed) (2026-05-15)
+
+Two SSH-only operations on the live VPS (`vps1.ocoron.com`). No Fabrik repo code change.
+
+- **G-J6 (archive predrift-fix snapshots):** moved the 2 pre-drift-fix Gatus config snapshots from `/opt/monitoring/configs/gatus/apps/` to a new archive directory `/opt/_archive/gatus-predrift-fix-20260506/`. Files archived: `dns-manager.yaml.predrift-fix.20260506` and `fabrik-microservices.yaml.predrift-fix.20260506`. Used `find ... -exec mv {} ... \;` (not shell glob, per ticket string anchor — glob would fail on zero matches or space-containing filenames). Pre-flight verified count was 2; post-move verified count in `/opt/monitoring/configs/gatus/apps/` is 0 and the archive directory contains exactly the 2 expected filenames. Operation reversible (no deletes outside `_archive/`).
+- **G-H2 (redis assignments seed):** created `/opt/monitoring/configs/redis/assignments.json` (new directory, freshly seeded). Content: `version: 1`, `last_updated` captured as ISO-8601 with timezone (`2026-05-15T11:52:05+03:00`) via client-side `$(date -Iseconds)` expansion in a `<<EOF` heredoc, `assignments: { authelia: 3, glitchtip-web: 4 }` reflecting the documented baseline (db3 for Authelia, db4 for GlitchTip-web), and `free_indexes: [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]` (14 free indexes; 0–15 minus the 2 currently assigned). Prevents future Redis index allocation collisions when new services request a DB. chmod 644 applied. Validated via `python3 -m json.tool` and `jq`.
+
+Pre-flight passed all 4 checks: SSH OK, exactly 2 predrift-fix files present (matching ticket's 2026-05-09 snapshot), `/opt/monitoring/configs/redis/` did not yet exist, `/opt/_archive/` created. INDEX.md not updated (VPS-side files out of repo scope, per ticket Matrix row).
+
 ### Changed — T1-02 Code foundation (G-B1a + G-B5 + G-G1 + G-F1 + G-B3 + G-B2 + G-B4) (2026-05-14)
 
 Tier 1 code foundation — 7 source edits + 1 new spec + 1 new test file. Everything in Tier 2/3/4 depends on this.
