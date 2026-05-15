@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 # vps_apply_limits.sh — apply Docker memory limits to all VPS containers
 # Run after VPS reboot or after Coolify redeployments of infra services.
-# Fabrik application limits are managed via Coolify API (limits_memory/limits_cpus).
-# Infra services (Coolify-managed stacks) are set here via docker update.
-# Usage: ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
+#
+# Coolify gap (F5, 2026-05-16): Coolify v4.0.0-beta.459 stores `limits_memory`
+# in its application config but does NOT translate that into the compose.yaml
+# `deploy.resources.limits.memory` block it writes to disk. Docker therefore
+# sees no limit (`HostConfig.Memory: 0` = unlimited). The permanent fix is
+# to add an explicit `deploy.resources.limits` block to each service's
+# compose.yaml in its source repo (the scaffold template
+# `templates/python-api/compose.yaml.j2` already emits this for NEW
+# services). Until each of the 7 pre-existing Fabrik microservices is
+# backfilled + redeployed, this script applies the limit live via
+# `docker update --memory` as a stopgap.
+#
+# Run pattern: `ssh vps "bash -s" < /opt/fabrik/scripts/vps_apply_limits.sh`
 
 set -e
 
@@ -59,6 +69,21 @@ apply ocoron-com-wordpress-1  512m
 apply ocoron-com-nginx-1      256m
 apply ocoron-com-redis-1      256m
 apply ocoron-com-backup-1     128m  # T3-01 follow-up 2026-05-15: previously unlimited
+
+# Fabrik microservices — stopgap for the Coolify upstream gap (F5).
+# Each service's spec declares these limits in `resources.limits.memory`
+# (or `resources.memory` for proxy/site-provisioner pre-G1 specs);
+# Coolify doesn't translate them into compose. Until each service's
+# compose.yaml is backfilled with `deploy.resources.limits` + redeployed,
+# apply via `docker update` here. Limits match each spec's declared value.
+apply translator-          512m  # spec: resources.limits.memory=512M
+apply image-broker-        512m  # spec: resources.limits.memory=512M
+apply captcha-             512m  # spec: resources.limits.memory=512M
+apply emailgateway-        512m  # spec: resources.limits.memory=512M
+apply file-api-            512m  # spec: resources.limits.memory=512M
+apply file-worker-         512m  # spec: resources.limits.memory=512M
+apply fabrik-proxy-        512m  # spec: resources.memory=512M
+apply site-provisioner-    512m  # spec: resources.memory=512M
 
 echo "=== Done ==="
 

@@ -367,6 +367,31 @@ The orchestrator runs **5 phases** with `DeploymentState` transitions: `VALIDATI
 
 **No network calls in this phase.**
 
+### Coolify v4 limits_memory gap (F5, 2026-05-16)
+
+**Symptom:** A Fabrik microservice spec declares `resources.limits.memory: 512M` (or the pre-G1 form `resources.memory: 512M`). After `fabrik apply`, the running container has `HostConfig.Memory: 0` (unlimited) — Coolify ignores the spec value at compose-write time.
+
+**Root cause:** Coolify v4.0.0-beta.459 stores `limits_memory` in its application config (`coolify-db.applications` table) but does NOT emit a `deploy.resources.limits` block in the `compose.yaml` it writes to `/data/coolify/applications/<uuid>/`. The compose Coolify generates for a `build_pack: dockercompose` git-source application is sourced from the project's repo `compose.yaml` — Coolify does NOT layer its own `limits_memory` on top.
+
+**Permanent fix (per-service backfill):** add an explicit `deploy.resources.limits` block to each service's compose.yaml in its source repo:
+
+```yaml
+services:
+  <service-name>:
+    # ... existing config ...
+    deploy:
+      resources:
+        limits:
+          memory: 512M   # match spec.resources.limits.memory (or .memory)
+          cpus: '0.5'    # match spec.resources.limits.cpus
+```
+
+Then `git add compose.yaml && git commit -m 'add memory/cpu limits' && git push && cd /opt/fabrik && fabrik redeploy fabrik-<name>`.
+
+The python-api and node-api scaffold templates (`templates/python-api/compose.yaml.j2` and `templates/node-api/compose.yaml.j2`) already emit this block from `{{ resources.memory }}` and `{{ resources.cpu }}` — so NEW services scaffolded post-2026-04-19 carry the limit automatically. The 7 deployed Fabrik microservices (translator, image-broker, fabrik-proxy, site-provisioner, file-api, emailgateway, captcha — plus file-worker) predate that template and need manual backfill.
+
+**Stopgap (2026-05-16):** `scripts/vps_apply_limits.sh` now applies the limits via `docker update --memory` to all 8 Fabrik microservices on every run. `docker update` is ephemeral — Coolify re-deploys drop the limit — so the script must be re-run after each Coolify redeploy until the per-service compose.yaml backfill lands. Manual rerun: `ssh vps "bash -s" < /opt/fabrik/scripts/vps_apply_limits.sh`. The script also auto-fires after VPS reboot via the `coolify-sentinel`/post-deploy pattern documented elsewhere in this file.
+
 ### Phase 3 — DEPLOYING (calls Coolify API on VPS)
 **Module:** `src/fabrik/orchestrator/deployer.py:ServiceDeployer`
 

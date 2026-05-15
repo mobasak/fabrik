@@ -98,6 +98,20 @@ Internet
 | `8000/tcp (v6)              DENY IN     Anywhere (v6)              # Coolify raw port — use coolify.vps1.ocoron.com instead` | |
 <!-- /AUTO -->
 
+### Docker DOCKER-USER chain — second-line defense
+
+**Docker bypasses UFW** by inserting NAT rules in PREROUTING/FORWARD before UFW sees the traffic. UFW alone cannot block external access to a Docker-published port like `0.0.0.0:8080`. The `iptables-docker-user.service` systemd unit fills this gap — runs `/etc/iptables/add-docker-user-rules.sh` on boot (and after `docker.service` restarts) which inserts 9 rules into the kernel `DOCKER-USER` chain:
+
+- `ESTABLISHED,RELATED → RETURN` (don't break existing sessions)
+- `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` source → `RETURN` (container-to-container traffic, 3 rules)
+- dport `80`, dport `443` → `RETURN` (Traefik front door, 2 rules)
+- dport `6001`, dport `6002` → `RETURN` (Coolify Realtime WebSocket, 2 rules)
+- catch-all → `DROP`
+
+**Effect:** even if a container accidentally publishes `0.0.0.0:8080:8080` (or similar), external traffic to that port is dropped. Defense-in-depth for the cases where UFW would silently miss the Docker bypass. Source: `/etc/iptables/add-docker-user-rules.sh` (commented + idempotent — flushes the chain before re-applying). Service: `iptables-docker-user.service` (enabled + active, runs `After=docker.service Requires=docker.service`).
+
+**Verify:** `ssh vps "sudo iptables -L DOCKER-USER -n --line-numbers"` — should show 9 rules in the order above.
+
 ---
 
 ## Authelia Configuration
