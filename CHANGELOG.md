@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — T1-04 follow-up: actual root cause was Authelia rule precedence, not Docker provider race (2026-05-15)
+
+After the partial T1-04 commit, online research pointed at a Traefik Docker-provider race condition as the likely cause. The proper diagnostic (Rung 1 — direct Authelia call simulating Traefik's forward-auth) disproved that hypothesis: Authelia was being called and returning **HTTP 200 (allow)** for `images.vps1.ocoron.com /`, not 302. The Traefik middleware chain was working correctly. The actual root cause was in `/var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml`:
+
+1. **Legacy bulk-bypass rule** (lines 19–31) lists `images.vps1.ocoron.com` alongside 10 other API-service domains with `policy: bypass` and no `resources:` filter — applies to ALL paths. Authelia is first-match-wins; my new images.vps1 rules at the end of the file never got reached for `GET /`.
+2. **Registrar rule-order bug:** `_provision_authelia` appends rules at end-of-file, but the canonical Authelia pattern requires specific-path bypasses (e.g. `images.vps1.ocoron.com → bypass ^/api/`) to come BEFORE general-domain catch-alls (e.g. `*.vps1.ocoron.com → two_factor`). Otherwise the catch-all matches first and the specific bypass is dead code.
+
+Surgical edit applied (backup at `configuration.yml.backup.20260515-161254`):
+
+1. Removed `images.vps1.ocoron.com` from the legacy multi-domain bulk-bypass list — image-broker now has UI surface to gate, no longer an API-only service.
+2. Moved `images.vps1.ocoron.com → bypass ^/api/` rule IMMEDIATELY BEFORE the `*.vps1.ocoron.com → two_factor` catch-all so the `/api/*` M2M bypass takes effect.
+3. Removed redundant duplicate `images.vps1.ocoron.com → bypass ^/api/` and `images.vps1.ocoron.com → two_factor` at end-of-file (catch-all handles UI gate).
+4. Cleaned up 2 stale `image-broker.vps1.ocoron.com` rules (the never-deployed hostname from the first refresh-infra attempt before domain realignment).
+
+Authelia restarted; healthy in 10s.
+
+**Verification — 3-part check now PASS:**
+
+- (a) `GET https://images.vps1.ocoron.com/` → **302** → `https://auth.vps1.ocoron.com/?rd=https%3A%2F%2Fimages.vps1.ocoron.com%2F&rm=GET` ✓ Authelia gates UI.
+- (b) `GET /api/v1/health` with `X-Internal-Token` → **200** ✓ M2M bypass valid.
+- (c) `GET /api/v1/health` without token → **403** from app's internal_auth (NOT 302 from Authelia — bypass works; app-side defense-in-depth rejects).
+- Direct Authelia simulation (Rung 1 re-test) → **302** with correct redirect.
+- Regression: `notify.vps1.ocoron.com /` (apprise) still **302** ✓ no collateral damage.
+- Tier 2 final gate → success (34/34, 0 failed).
+
+**Long-term follow-up (separate ticket):**
+
+The Authelia registrar (`src/fabrik/drivers/authelia.py::add_access_rule`) must insert rules in precedence-aware order: specific-path bypasses BEFORE general-domain catch-alls. Current behavior of appending-at-end produces dead-code rules silently. Without the fix, any future service migrating to paired-pattern via `fabrik redeploy --refresh-infra` will hit the same gap. Until that registrar fix lands, operators applying paired-pattern must verify rule order in the Authelia config volume manually and reorder if needed. Researched-but-rejected fix: switching the middleware to Traefik's file provider (`@file`) — the Docker provider race was a red herring; the actual issue was upstream of Traefik, in Authelia's decision logic.
+
 ### Changed — T1-04 image-broker Authelia + has_bearer_api (W-1, paired-pattern) — PARTIAL (2026-05-15)
 
 Spec edits + Authelia registrar refresh + Coolify compose label patch all landed; live verification curl part (a) still returns 200 (not 302) for unknown Traefik-routing reasons. Captured everything except the final live-gate behavior.
