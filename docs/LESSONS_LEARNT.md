@@ -3825,3 +3825,83 @@ Any service with `traefik.enable=true` and no middleware entry is open. Every pu
 **Rule:** for any new feature touching an existing model with subtle field-name ambiguity, TDD (test first) is materially safer than write-then-test. The "red" phase is the safety net — it forces the test to exercise the actual implementation path. Write-then-test bypasses that net entirely.
 
 ---
+
+# Lesson 53: Run a cheap empirical diagnostic BEFORE implementing any research-suggested fix
+
+**Date:** 2026-05-15
+**Context:** T1-04 had a real gap (image-broker not Authelia-gated). External research (Traefik community forum + maintainers' own posts + Authelia + Coolify docs) produced a leading hypothesis: **Traefik Docker provider race condition with middleware definitions on `@docker` labels.** The fix research suggested: migrate middleware to file provider (`@file`). I almost spent 30 min implementing the file-provider migration (adding `providers.file` to `/opt/traefik/traefik.yml`, creating `/opt/traefik/dynamic/authelia.yml`, switching image-broker's compose label from `authelia-forward@docker` to `authelia-forward@file`). A 30-second sanity test (Rung 1 in my diagnostic ladder — `wget` against Authelia's `/api/authz/forward-auth` with the exact `X-Forwarded-*` headers Traefik would send) disproved the hypothesis: Authelia was being called and returning **HTTP 200 (allow)**, not 302. The middleware chain was working perfectly; the bug was upstream, inside Authelia's rule decision.
+
+**Root cause:** External research surfaces the *most-common* cause for a symptom, but my system is N=1. Confirmation bias on "the answer must be the popular cause" almost cost real work. The 30-second check would have either confirmed (worth implementing) or eliminated (saved the work) the hypothesis.
+
+**Rule:**
+
+1. After research yields a leading hypothesis, write the **cheapest empirical test** that distinguishes "hypothesis correct" from "hypothesis incorrect" — ideally one shell command.
+2. Run that test BEFORE doing any implementation work on the hypothesis.
+3. For forward-auth issues specifically: directly call the auth service's verify endpoint with the exact headers the proxy would send. If it returns the expected verdict, the auth service is right and the bug is in the proxy chain. If it returns the wrong verdict, the bug is in the auth service's policy.
+
+**Heuristic:** any "fix the middleware/proxy layer" hypothesis should be falsifiable by talking directly to the next hop in the chain. Use that as the gate.
+
+---
+
+# Lesson 54: Authelia `access_control.rules` are first-match-wins — registrar must insert specific-path bypasses BEFORE general catch-alls
+
+**Date:** 2026-05-15
+**Context:** T1-04 paired-pattern (image-broker UI gated by Authelia 2FA + `/api/*` bypass for X-Internal-Token M2M) was not working live despite both rules being present in `/var/lib/docker/volumes/.../configuration.yml`. Authelia's rule-matching is **first-match-wins** in YAML-declaration order. The registrar (`src/fabrik/drivers/authelia.py::add_access_rule`) appends new rules at end-of-file. But the file already contained a `*.vps1.ocoron.com → two_factor` catch-all earlier than the appended `images.vps1.ocoron.com → bypass ^/api/`. The catch-all matched first for `/api/v1/health`; the specific bypass at end-of-file was dead code. Compounded by a legacy bulk-bypass list that included `images.vps1.ocoron.com` with `policy: bypass` and NO `resources:` filter (applied to all paths) — that one matched before any specific rule for the same domain.
+
+**Root cause:** Authelia documentation explicitly states `access_control.rules` are evaluated top-to-bottom. The registrar's "append" strategy is correct for adding NEW domains (which the existing catch-all doesn't match), but wrong for adding NEW PATH OVERRIDES on a domain already covered by a catch-all. The override must be physically earlier in the file than the catch-all.
+
+**Rule:**
+
+1. For Authelia config edits adding `domain X + resources [^/api/] + policy: bypass`: scan the existing file for any rule that matches X with no `resources:` filter OR a `*.x-suffix` rule earlier in the file. If found, the new rule must be INSERTED before those (not appended).
+2. For domain migration from API-only (bulk-bypass list) → paired-pattern (UI gate + `/api/*` bypass): explicitly REMOVE the domain from the bulk-bypass list as part of the migration. Otherwise the bulk-bypass overrides everything.
+3. Specific-path bypasses are precedence-sensitive: positioning them after a same-domain catch-all `policy: two_factor` rule makes them dead code. The canonical YAML order is: domain-specific-with-resources → domain-specific-without-resources → general-catch-all.
+
+**Follow-up (separate ticket):** Improve `_provision_authelia` to insert rules in precedence-aware order — specifically, locate the `*.vps1.ocoron.com → two_factor` catch-all line and insert new domain-specific `bypass /api/` rules immediately above it. Until that lands, every operator running `fabrik redeploy --refresh-infra` for paired-pattern services hits this same gap and must hand-fix the rule order.
+
+---
+
+# Lesson 55: Spec.domain can drift from Traefik label + Cloudflare DNS — pre-verify before relying on it
+
+**Date:** 2026-05-15
+**Context:** During T1-04 pre-flight, the spec `specs/services/image-broker.yaml` declared `domain: image-broker.vps1.ocoron.com`. The actual deployed Traefik label on the container said `Host(images.vps1.ocoron.com)`. Cloudflare had no DNS record for `image-broker.vps1.ocoron.com` — only `images.`. Coolify's `applications.fqdn` was empty. The spec was authored with an intended-but-never-deployed hostname, drifted silently for months. My first attempt at `fabrik redeploy --refresh-infra` registered Authelia rules for `image-broker.vps1.ocoron.com` — DEAD CODE at a non-routed hostname. The real traffic hits `images.vps1.ocoron.com`, never matches those rules.
+
+**Root cause:** Spec `domain:` is a planning-time declaration; Traefik labels + DNS are runtime facts. They can drift independently — spec gets edited but not deployed, or hostname gets changed in Coolify UI without updating the spec.
+
+**Rule:**
+
+1. Before any `fabrik refresh-infra` or `fabrik apply` on a pre-G1 service, verify the spec.domain matches: (a) the live Traefik label `Host(...)`, (b) Cloudflare DNS record exists, (c) Coolify `applications.fqdn`.
+2. Add to T1-02 / future spec-loader: validate spec.domain has a Cloudflare DNS record (via DNS query) at load time, warn if absent.
+3. When a registrar runs against a stale spec.domain, it produces an Authelia rule (or Gatus monitor, or postgres allocation) at a hostname that gets zero traffic. Silent failure mode.
+
+**Diagnostic recipe:** before any cross-cutting infra registrar work, run:
+
+```bash
+spec_domain=$(yq '.domain' specs/services/<name>.yaml)
+traefik_host=$(ssh vps "sudo docker inspect <container> --format '{{...}}'" | grep -oP "Host\(\`\K[^\`]+")
+dns=$(dig +short "$spec_domain")
+[ "$spec_domain" = "$traefik_host" ] && [ -n "$dns" ] && echo "OK aligned" || echo "DRIFT: spec=$spec_domain traefik=$traefik_host dns=$dns"
+```
+
+If drift, realign the spec FIRST (with operator-approval) before running the registrar.
+
+---
+
+# Lesson 56: Two-Traefik gotcha — Coolify v4 (coolify-proxy v3.6, http/https entrypoints) running parallel with standalone Traefik v2.11 (web/websecure entrypoints)
+
+**Date:** 2026-05-15
+**Context:** The VPS has TWO Traefik containers running in parallel: (1) `coolify-proxy` — Traefik v3.6, Coolify-managed, entrypoints `http`/`https`, defines a catchall router; (2) `traefik` — standalone Traefik v2.11 at `/opt/traefik/`, entrypoints `web`/`websecure`, network=`coolify`. Both watch the same Docker socket. ALL deployed apps' labels use `entrypoints=websecure` — which only matches Traefik v2.11. Coolify-proxy holds host ports 80/443 (DNAT routes to 10.0.1.8, which IS coolify-proxy). Traefik v2.11 has no exposed host ports. Yet traffic was being routed correctly until I ran `docker restart traefik` (which failed on port allocation since coolify-proxy held 80/443). Post-restart, coolify-proxy's catchall handler returned 503 for all `*.vps1.ocoron.com` traffic because the apps' `websecure`-entrypoint routers don't match coolify-proxy's `http`/`https` entrypoints. ~5-min production outage until recovery via `docker stop coolify-proxy; cd /opt/traefik && docker compose up -d`.
+
+**Root cause:** When two Traefiks share the Docker socket, BOTH discover the same routers/middlewares. Only one can hold the host ports — whichever started first / was alive longest. The "loser" runs idle as a hot-spare (NETWORK ATTACHMENT preserves at IP-level but the host port binding is held by the winner). My `docker restart` on the loser unwound the network state and the winner's catchall took over with the wrong entrypoint names.
+
+**Rule:**
+
+1. **Never `docker restart` a Traefik container without first verifying whether it actually holds the host ports.** Check `sudo ss -tnlp | grep :443` to see which docker-proxy PID is the listener.
+2. **One Traefik should serve a given environment.** The drift here is historical: Coolify added its own proxy in v4 alongside the legacy standalone Traefik. Architecturally the legacy traefik should be retired or coolify-proxy should be configured with `web`/`websecure` entrypoint aliases — but neither has been done.
+3. **Disaster-recovery artifacts must live on disk, not just in container state.** `/opt/traefik/` had `compose.yaml`, `traefik.yml`, and `acme.json` — that's the only reason I could `docker compose up -d` to recover. A `docker rm` on a container with only-in-image config would have been unrecoverable.
+
+**Follow-up:** add a dedicated ticket to reconcile the two-Traefik setup. Either:
+(a) Migrate all app entrypoint labels from `websecure` to `https` and retire standalone traefik v2.11.
+(b) Add `--entrypoints.websecure.address=:443` to coolify-proxy as an alias of `https` and retire standalone traefik v2.11.
+The current state is fragile — any docker daemon restart could race the port allocation either way.
+
+---
