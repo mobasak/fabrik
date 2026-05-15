@@ -11,6 +11,7 @@
 
 | Feature | Status | Audience | Headline |
 |---------|--------|----------|----------|
+| [Preplan Handoff](#preplan-handoff) | ✅ Shipped | Developer | Capture intent before scaffold; every agent reads the same intent |
 | [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | Create production-ready projects in seconds |
 | [Documentation Enforcement](#documentation-enforcement) | ✅ Shipped | Developer | Never ship undocumented code again |
 | [9-Step Workflow](#9-step-workflow) | ✅ Shipped | Developer | Systematic code quality from plan to commit |
@@ -22,6 +23,40 @@
 - ✅ **Shipped** — Production-ready
 - 🚧 **Beta** — Available but may change
 - 📋 **Planned** — On roadmap
+
+---
+
+## Preplan Handoff
+
+**Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.2 (T3-01)
+
+> **Headline:** Capture project intent BEFORE scaffold — every agent reads the same intent without re-deriving it.
+
+### What It Does
+
+The Fabrik lifecycle begins with **intent capture**. Before `fabrik scaffold` creates any files, run `fabrik preplan new <slug>` to author `docs/preplans/<YYYY-MM-DD>-<slug>.md` from a 9-section template (Idea / Project type / Shape preview / External deps / Domain / Success criteria / Out of scope / Open questions / Notes-VPS1-inventory-reminders). Refine the markdown with Opus / Claude / ChatGPT until the intent is hardened. Then `fabrik scaffold <name> --from-preplan <path>` ingests it:
+
+1. Pre-fills `--type` from the preplan's "Project type" section
+2. Pre-fills the spec's `shape:` block from the preplan's "Shape preview" yaml
+3. Adopts the preplan's "Idea" first line as the project description
+4. Copies the preplan to `<project>/docs/preplan.md`
+5. **Appends a `Preplan:` reference line to all 4 AI guardrail files** — `AGENTS.md` (Traycer), `CLAUDE.md` (Claude Code), `AGENTS-compact.md` (Kilo), `.windsurfrules` (Windsurf) — so every downstream agent that opens the project reads the same intent
+
+### How To Use
+
+```bash
+fabrik preplan new citation-verifier
+# Edit docs/preplans/<today>-citation-verifier.md — fill in the 9 sections
+fabrik scaffold citation-verifier --from-preplan docs/preplans/<today>-citation-verifier.md
+```
+
+Traycer's `docs/traycer/fabrik-workflow.md` Step 2.5 is the planning-side companion: when Traycer detects a fresh project (no scaffold yet), it looks for a matching preplan in `docs/preplans/` BEFORE asking the operator to declare anything from scratch.
+
+### Why This Matters
+
+Without intent capture, every downstream agent (Claude Code writing code, Kilo reviewing, Windsurf editing, Traycer planning) has to **re-derive** what the project does from incomplete context. That re-derivation is where "wait, what was this project supposed to do?" drift comes from. The preplan is the single source of truth; the 4-guardrail injection makes sure every agent reads it.
+
+The template's `## 9. Notes` section also embeds the VPS1-inventory reminders (postgres-main:5432, redis-main:6379, X-Internal-Token pattern, `*.vps1/health` Authelia bypass, /metrics scrape target, GlitchTip DSN convention) — so agents reading the preplan stay grounded in the same VPS1 reality the scaffold-emitted guardrails enforce.
 
 ---
 

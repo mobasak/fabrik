@@ -42,9 +42,21 @@ curl -sS https://<service>.vps1.ocoron.com/health
 ## New Service Deploy Workflow
 
 ```bash
+# 0. (Optional, recommended — T3-01) Capture intent in a preplan markdown FIRST.
+# Stage 1 of the lifecycle. The preplan becomes the single source of truth
+# every downstream agent reads — saves re-deriving intent at every stage.
+cd /opt/fabrik
+fabrik preplan new <name>
+# Edit docs/preplans/<today>-<name>.md — fill in 9 sections including VPS1
+# inventory reminders, then hand off to scaffold via --from-preplan.
+
 # 1. Scaffold (creates /opt/<name>/ with full structure)
 cd /opt
 fabrik scaffold <name> --type python-api --description "<what it does>"
+# OR: fabrik scaffold <name> --from-preplan /opt/fabrik/docs/preplans/<today>-<name>.md
+# (with --from-preplan, the preplan is copied into <project>/docs/preplan.md
+#  and a `Preplan:` reference is appended to all 4 AI guardrail files —
+#  AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules)
 # Scaffold auto-emits: logger.py, internal_auth.py, metrics.py,
 # glitchtip_init.py, /metrics endpoint, /health, structlog wiring,
 # Dockerfile, compose.yaml, project.yaml, .env.example, AGENTS.md

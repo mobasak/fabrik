@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — T3-01 (G-A1 through G-A5): Preplan handoff (Stage 1 of the Fabrik lifecycle) (2026-05-15)
+
+Captures project intent BEFORE `fabrik scaffold` runs. Closes the missing piece between "idea" and "scaffold creates project tree" in the workflow vision: `idea → fabrik preplan new <slug> → refine markdown → fabrik scaffold <name> --from-preplan ...`.
+
+**G-A1 — `templates/preplan/preplan.md.j2`** — Jinja2 template with 9 canonical sections (Idea / Project type / Shape preview / External deps / Domain / Success criteria / Out of scope / Open questions / Notes-VPS1-inventory-reminders). The 9th section embeds postgres-main / redis-main / X-Internal-Token / health-bypass / metrics / GlitchTip reminders so the preplan stays grounded in VPS1 reality — agents reading it can't hallucinate `localhost` for databases.
+
+**G-A2 — `docs/preplans/`** — directory with `.gitkeep` + `README.md` documenting the lifecycle (author → refine → hand off → archive), the filename convention `<YYYY-MM-DD>-<slug>.md`, and the 4-stage Fabrik pipeline overview.
+
+**G-A3 — `fabrik preplan new <slug>` CLI command** — `@cli.group() preplan + @preplan.command("new")` pattern (NOT `@cli.command()` which would auto-kebab to `preplan-new`). New `src/fabrik/preplan.py` module with `create_preplan(slug, date)` + `parse_preplan(path) -> Preplan` dataclass. Validates slug (kebab-case 1–48 chars), refuses to overwrite existing preplans, renders the Jinja template with `{slug, date}` substitution. Defaults date to today UTC; accepts `--date YYYY-MM-DD` override.
+
+**G-A4 — `fabrik scaffold --from-preplan <path>` flag** — when set, `parse_preplan()` extracts the type, shape, domain, secrets, and idea. The CLI overrides the description default with the preplan's `## 1. Idea` first line, and overrides `--type python-api` (Click default) with the preplan's `## 2. Project type` if present. New `src/fabrik/scaffold.py::_layer_preplan_into_project(project_dir, preplan)` helper runs BEFORE the initial git commit so the preplan + reference lines are part of the project's first snapshot. It:
+
+1. Copies the preplan markdown to `<project>/docs/preplan.md`
+2. **Appends a `Preplan: docs/preplan.md` reference line to all 4 AI guardrail files** (`AGENTS.md` for Traycer, `CLAUDE.md` for Claude Code, `AGENTS-compact.md` for Kilo, `.windsurfrules` for Windsurf) — vision-aligned extension beyond the ticket's "AGENTS.md only" wording so Claude Code / Kilo / Windsurf all see the intent when they open the project, not just Traycer
+3. Idempotent: re-running on a project that already has the reference is a no-op (checks for `"Preplan:"` + `"docs/preplan.md"` markers before appending)
+
+**G-A5 — `docs/traycer/fabrik-workflow.md` Step 2.5** — new "Preplan Ingestion" section inserted between Step 2 (Scaffold Detection) and Step 3 (Pre-Research Discovery). Documents Traycer's preplan discovery order (explicit pointer in trigger > matching slug > none), the 9 sections to ingest, and the handoff to `fabrik scaffold --from-preplan`. The doc explicitly says "Treat the VPS1 inventory reminders as ground truth" so the same anti-hallucination guarantee the scaffold-emitted guardrails provide is also enforced at the planning stage.
+
+**Tests — `tests/test_preplan.py` (16 tests):** `create_preplan` happy path + slug/date validation + duplicate refusal; `parse_preplan` happy path + missing-file + invalid-type + external-deps-table + bullet-list filtering; `_layer_preplan_into_project` copies + injects-all-4-guardrails + skips-missing-files + idempotency + none-no-op; CLI surface check confirms `fabrik preplan new` works (space) and `fabrik preplan-new` does NOT exist (catches the @cli.command vs @cli.group BLOCKER FIX). All pass.
+
+**Drift findings vs ticket:** none. Pre-flight verified Step 2 at line 35 and Step 3 at line 69 of `fabrik-workflow.md` — both ticket anchors held. `jinja2` v3.1.6 already in deps. `create_project()` at scaffold.py:3206 already accepts `**kwargs` so adding `preplan: object = None` was clean. No drift to fix.
+
 ### Added — T2-04 (G-J3 + G-J1): Alias-watcher write side + projects.yaml deploy fields (2026-05-15)
 
 Two operational-layer integrations + new orchestrator step + tests + post-ticket doc-sync.

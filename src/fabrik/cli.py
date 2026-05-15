@@ -1280,6 +1280,19 @@ def scan(health: bool, base: str):
     default=False,
     help="Also create a private GitHub repo at mobasak/<name> via `gh repo create` (non-fatal if gh is missing or unauthenticated)",
 )
+@click.option(
+    "--from-preplan",
+    "preplan_path",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help=(
+        "Ingest a preplan from docs/preplans/<file>.md to pre-fill --description, "
+        "--type, shape:, secrets:, and domain in the generated spec. Adds a "
+        "'Preplan:' reference to all 4 AI guardrail files (AGENTS.md, CLAUDE.md, "
+        "AGENTS-compact.md, .windsurfrules) and copies the preplan into "
+        "<project>/docs/preplan.md."
+    ),
+)
 def scaffold(
     name: str,
     description: str,
@@ -1289,6 +1302,7 @@ def scaffold(
     dev_port: str,
     db: bool,
     github_create: bool,
+    preplan_path: str | None,
 ):
     """Create a new project with full structure.
 
@@ -1303,6 +1317,34 @@ def scaffold(
             f"⚠️  --preset is ignored for --type {project_type} (only used with --type wordpress)"
         )
 
+    # T3-01 G-A4: ingest preplan if --from-preplan was passed. Preplan
+    # values override defaults but NOT explicit CLI flags. Description
+    # default is "A new project" (Click default), so if user didn't
+    # pass -d we adopt the preplan's Idea section.
+    preplan_obj = None
+    if preplan_path:
+        from fabrik.preplan import parse_preplan
+
+        try:
+            preplan_obj = parse_preplan(preplan_path)
+        except (FileNotFoundError, ValueError) as e:
+            click.echo(f"✗ Preplan parse failed: {e}", err=True)
+            raise SystemExit(1)
+        # Override description if caller didn't pass one
+        if description == "A new project" and preplan_obj.idea:
+            description = preplan_obj.idea.split("\n")[0][:200]
+        # Override project_type if preplan declares one and caller used the Click default
+        # (we can't directly detect "user passed --type"; conservatively only override
+        # when the resulting type would be a no-op default and the preplan has a value)
+        if preplan_obj.project_type and project_type == "python-api":
+            if preplan_obj.project_type != "python-api":
+                click.echo(
+                    f"  ↪ Preplan suggests --type {preplan_obj.project_type} "
+                    f"(was: {project_type}). Adopting preplan."
+                )
+                project_type = preplan_obj.project_type
+        click.echo(f"📝 Ingesting preplan: {preplan_path}")
+
     click.echo(f"📁 Creating project: {name}")
     try:
         project_dir = create_project(
@@ -1313,6 +1355,7 @@ def scaffold(
             generate_spec=not no_spec,
             dev_port=dev_port,
             use_database=db,
+            preplan=preplan_obj,
         )
         click.echo(f"✅ Created: {project_dir}")
 
@@ -1634,6 +1677,53 @@ def _resolve_wp_site_id_for_spec(site_id: str | None, project_path: str | None) 
         return _resolve_wp_site_id(site_id, project_path)
 
     return "unknown-site"
+
+
+@cli.group()
+def preplan():
+    """Pre-planning artifact authoring (Stage 1 of the Fabrik lifecycle).
+
+    Capture project intent in docs/preplans/<date>-<slug>.md BEFORE
+    running fabrik scaffold. The scaffold step ingests the preplan
+    via --from-preplan to pre-fill type / shape / domain / secrets
+    and to layer a Preplan reference into all 4 AI guardrail files.
+
+    Lifecycle:
+      idea → fabrik preplan new <slug> → refine the markdown →
+      fabrik scaffold <name> --from-preplan docs/preplans/<file>
+    """
+    pass
+
+
+@preplan.command("new")
+@click.argument("slug")
+@click.option(
+    "--date",
+    default=None,
+    help="Override the date stamp (defaults to today's UTC date YYYY-MM-DD)",
+)
+def preplan_new(slug: str, date: str | None):
+    """Create docs/preplans/<YYYY-MM-DD>-<slug>.md from the template.
+
+    Example:
+        fabrik preplan new citation-verifier
+    """
+    from fabrik.preplan import create_preplan
+
+    try:
+        path = create_preplan(slug, date=date)
+    except FileExistsError as e:
+        click.echo(f"✗ {e}", err=True)
+        raise SystemExit(1)
+    except (ValueError, FileNotFoundError) as e:
+        click.echo(f"✗ {e}", err=True)
+        raise SystemExit(1)
+
+    click.echo(f"✅ Preplan created: {path}")
+    click.echo()
+    click.echo("Next steps:")
+    click.echo(f"  1. Edit {path} — fill in the 9 sections")
+    click.echo(f"  2. fabrik scaffold {slug} --from-preplan {path.relative_to(FABRIK_ROOT)}")
 
 
 @cli.group()

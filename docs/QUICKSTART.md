@@ -65,7 +65,17 @@ B2_BUCKET_NAME=your-bucket
 ## First Deployment
 
 ```bash
-# Scaffold a new project — spec auto-generated with `shape:` defaults from the template.
+# (Optional but recommended — Stage 1 of the lifecycle, T3-01) Capture intent
+# in a preplan markdown BEFORE scaffolding. Edit the 9 sections, then hand off
+# to scaffold via --from-preplan.
+fabrik preplan new hello-api
+# edit docs/preplans/<today>-hello-api.md — fill in Idea / Shape / Deps / Domain / Success criteria
+# Then scaffold ingests the preplan and layers a `Preplan:` reference into all 4 AI guardrail files
+# (AGENTS.md / CLAUDE.md / AGENTS-compact.md / .windsurfrules) so every downstream agent
+# reads the same intent without re-deriving it.
+fabrik scaffold hello-api --from-preplan docs/preplans/$(date -u +%F)-hello-api.md
+
+# OR scaffold directly without a preplan — spec auto-generated with `shape:` defaults from the template.
 # Emits per-project CLAUDE.md (Claude Code bootstrap) + AGENTS-compact.md (Kilo CLI)
 # alongside the existing .windsurfrules (Cascade). Ends with a Traycer next-step hint.
 fabrik scaffold hello-api --type python-api

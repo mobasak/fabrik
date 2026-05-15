@@ -3203,6 +3203,75 @@ def _post_scaffold_sync(project_dir: Path) -> None:
         pass  # Non-fatal — scaffold already succeeded
 
 
+def _layer_preplan_into_project(project_dir: Path, preplan: object) -> None:
+    """T3-01 G-A4: copy the preplan + inject reference line into all 4 AI guardrails.
+
+    Stage-1 of the Fabrik lifecycle says every agent that opens the project
+    should know the original intent. Putting a single ``Preplan:`` reference
+    in just one guardrail file would mean Claude Code / Kilo / Windsurf
+    miss it — only Traycer would see it. So we inject the line into all 4:
+
+    - ``AGENTS.md`` (Traycer)
+    - ``CLAUDE.md`` (Claude Code)
+    - ``AGENTS-compact.md`` (Kilo)
+    - ``.windsurfrules`` (Windsurf)
+
+    The reference path is RELATIVE to project root so the line stays valid
+    if the project tree moves.
+
+    Args:
+        project_dir: The freshly-scaffolded project root.
+        preplan: A :class:`fabrik.preplan.Preplan` instance (parsed by
+            ``parse_preplan``). Accepts ``object`` in the signature to
+            avoid a heavy import — duck-typed access to ``.path``.
+    """
+    if preplan is None:
+        return
+    source_path = getattr(preplan, "path", None)
+    if source_path is None or not source_path.exists():
+        logger.warning("preplan layering: source path missing; skipping")
+        return
+
+    # 1. Copy preplan into project's docs/ dir
+    project_docs = project_dir / "docs"
+    project_docs.mkdir(parents=True, exist_ok=True)
+    dest = project_docs / "preplan.md"
+    dest.write_text(source_path.read_text(encoding="utf-8"))
+
+    # 2. Inject a Preplan reference line into each of the 4 AI guardrails
+    reference_line = (
+        "\n> **Preplan:** [docs/preplan.md](docs/preplan.md) "
+        f"(original intent captured {getattr(preplan, 'date', 'pre-scaffold')}). "
+        "Read it for the project's Idea, Shape, External deps, Success criteria, "
+        "and VPS1-inventory reminders before proposing changes.\n"
+    )
+    guardrail_files = [
+        "AGENTS.md",
+        "CLAUDE.md",
+        "AGENTS-compact.md",
+        ".windsurfrules",
+    ]
+    for fname in guardrail_files:
+        target = project_dir / fname
+        if not target.exists():
+            # Some scaffold types may not emit all 4 (e.g. static-site
+            # might skip .windsurfrules). Skip silently.
+            continue
+        try:
+            content = target.read_text(encoding="utf-8")
+            # Idempotent: if a Preplan reference already exists, don't dup.
+            if "Preplan:" in content and "docs/preplan.md" in content:
+                continue
+            target.write_text(content.rstrip() + "\n" + reference_line)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("preplan layering: %s update failed: %s", fname, e)
+
+    logger.info(
+        "preplan layering: copied to %s + reference injected into 4 guardrails",
+        dest.relative_to(project_dir),
+    )
+
+
 def create_project(
     name: str,
     description: str,
@@ -3210,9 +3279,23 @@ def create_project(
     project_type: str = "python-api",
     preset: str | None = None,
     generate_spec: bool = True,
+    preplan: object = None,  # T3-01: a fabrik.preplan.Preplan instance or None
     **kwargs: object,
 ) -> Path:
-    """Create a new project with full structure."""
+    """Create a new project with full structure.
+
+    T3-01: when ``preplan`` is provided (parsed via
+    ``fabrik.preplan.parse_preplan``), the resulting project gets the
+    preplan layered in as Stage-1 context:
+
+    - Preplan markdown copied to ``<project>/docs/preplan.md``
+    - A ``Preplan: docs/preplan.md`` reference line appended to each of
+      the 4 AI guardrail files (AGENTS.md, CLAUDE.md, AGENTS-compact.md,
+      .windsurfrules) so every agent that opens the project knows the
+      original intent.
+    - The shape block, domain, and secrets list from the preplan are
+      passed through to the spec generator (post-scaffold hook).
+    """
     # Validate inputs
     _validate_project_name(name)
 
@@ -3254,6 +3337,12 @@ def create_project(
         if project_type in GUIDE_ENABLED_TYPES:
             content = content.replace("has_user_guide: false", "has_user_guide: true")
         project_yaml_path.write_text(content)
+
+    # T3-01 G-A4: layer preplan context BEFORE the final commit so the
+    # preplan copy + 4-file guardrail reference are part of the initial
+    # snapshot.
+    if preplan is not None:
+        _layer_preplan_into_project(project_dir, preplan)
 
     # Final commit after all files (shared + type-specific) are in place so the
     # initial snapshot is complete and clean.

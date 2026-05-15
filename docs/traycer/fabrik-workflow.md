@@ -66,6 +66,32 @@ For new projects created via `fabrik scaffold.py`, `project.yaml.type` is set by
 
 State the detected scaffold and the exact table row + signals used. State assumptions explicitly if anything is ambiguous.
 
+### **Step 2.5: Preplan Ingestion** *(T3-01, added 2026-05-15)*
+
+When Step 2 row 13 fires (no scaffold detected, new project) or the workspace's `project.yaml` is fresh, check for a captured intent in `docs/preplans/` BEFORE asking the user to declare anything from scratch. Stage 1 of the Fabrik lifecycle (`docs/preplans/README.md`) is intent capture; this step is where Traycer reads that intent.
+
+**Discovery order:**
+
+1. **Explicit pointer:** if the user's trigger argument names a preplan file (e.g. *"use docs/preplans/2026-05-15-foo.md as the intent"*), read that file.
+2. **Matching slug:** if the user's request includes a slug that matches a file `docs/preplans/YYYY-MM-DD-<slug>.md`, read the most recent match.
+3. **None:** no preplan available — proceed to Step 3 (Pre-Research Discovery) on the interview-only path.
+
+**When a preplan is found, ingest these 9 sections:**
+
+- `## 1. Idea` — the elevator pitch (one paragraph)
+- `## 2. Project type` — pre-fills `--type` for the scaffold invocation
+- `## 3. Shape preview` — the `shape:` block that will land in `specs/services/<slug>.yaml`
+- `## 4. External deps` — the table that drives the spec's `secrets:` block
+- `## 5. Domain` — public hostname (or blank for workers)
+- `## 6. Success criteria` — testable assertions for verification stage
+- `## 7. Out of scope` — anti-features (do NOT propose these)
+- `## 8. Open questions` — unresolved decisions to surface in the plan
+- `## 9. Notes (VPS1 inventory reminders)` — postgres-main, redis-main, X-Internal-Token, /health-bypass, /metrics, GlitchTip — treat as ground truth
+
+**Handoff to scaffold:** once the preplan is selected and reviewed, the operator invokes `fabrik scaffold <name> --from-preplan docs/preplans/<file>`. That command (T3-01 G-A4) copies the preplan into `<project>/docs/preplan.md` and injects a `Preplan:` reference line into all 4 AI guardrail files (`AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`) so every downstream agent (Claude Code, Kilo, Windsurf, Traycer itself) reads the same intent without re-deriving it.
+
+State which preplan was selected and what the parsed values were (project type, shape block, domain). If no preplan exists, state `none — proceeding to Step 3 on the interview-only path`.
+
 ### **Step 3: Pre-Research Discovery**
 
 The canonical pre-research location is `docs/development/plans/00-research.md` (per `AGENTS.md` § preamble). The owner drops this file after external research with ChatGPT / Claude / Gemini.

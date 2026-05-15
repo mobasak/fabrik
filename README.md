@@ -482,6 +482,17 @@ nano .env
 ### Create Your First Project
 
 ```bash
+# (Optional, recommended) Stage 1 of the lifecycle — capture intent BEFORE scaffolding.
+# Creates docs/preplans/<today>-my-api.md with 9 sections to fill in
+# (Idea/Project type/Shape/Deps/Domain/Success criteria/Out of scope/Open questions/VPS1 reminders).
+fabrik preplan new my-api
+# Edit the markdown, then hand off to scaffold:
+fabrik scaffold my-api --from-preplan docs/preplans/<today>-my-api.md
+# `--from-preplan` ingests the preplan: pre-fills type + shape + description,
+# copies the preplan into <project>/docs/preplan.md, and appends a `Preplan:`
+# reference line to all 4 AI guardrail files so Claude Code / Kilo / Windsurf / Traycer
+# all read the same intent.
+
 # Canonical project-creation entry point.
 # Creates complete project structure + emits a deployment spec with a
 # populated shape: block that drives which infrastructure registrars run.

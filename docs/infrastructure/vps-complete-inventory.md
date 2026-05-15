@@ -421,6 +421,16 @@ Coolify renames single-image Application containers on every redeploy: `<24-char
 
 **`data/projects.yaml` deploy block (T2-04 G-J1):** `scripts/sync_projects.py` now reads `.fabrik/state/<id>.json` (T2-01 G-F3) into a 7-field `deploy:` block per project: `last_apply_status / last_apply_at / last_apply_sha / coolify_uuid / coolify_app_name / spec_path / registrars_applied`. Projects without a state file show `last_apply_status: never` — explicit signal that the project has never been applied (or was applied pre-T2-01). Falls back to `state/fabrik-<id>.json` (Coolify naming convention).
 
+## Pre-Scaffold Intent Capture (T3-01, 2026-05-15)
+
+The Fabrik lifecycle starts BEFORE scaffold runs — Stage 1 is **intent capture** via `fabrik preplan new <slug>`. The new `src/fabrik/preplan.py` module renders `templates/preplan/preplan.md.j2` into `docs/preplans/<YYYY-MM-DD>-<slug>.md`, a 9-section markdown with Idea / Project type / Shape preview / External deps / Domain / Success criteria / Out of scope / Open questions / Notes (VPS1 inventory reminders).
+
+**Why this matters for the VPS:** the 9th section of the template embeds VPS1 reality (`postgres-main:5432`, `redis-main:6379`, `X-Internal-Token` + `SERVICE_INTERNAL_SECRET_KEY`, `*.vps1.ocoron.com → /health` Authelia bypass, `/metrics` scrape target, GlitchTip DSN convention) so the preplan stays grounded. Agents reading the preplan cannot hallucinate `localhost` for databases or invent a custom auth pattern.
+
+**Hand-off via `fabrik scaffold --from-preplan <path>`** then copies the preplan into `<project>/docs/preplan.md` and appends a `Preplan:` reference line to all 4 AI guardrail files (`AGENTS.md` for Traycer, `CLAUDE.md` for Claude Code, `AGENTS-compact.md` for Kilo, `.windsurfrules` for Windsurf). This is the moment intent becomes durable — every downstream agent reads the same source of truth.
+
+**Traycer's Step 2.5** (in `docs/traycer/fabrik-workflow.md`) is the planning-side companion: when Traycer detects a fresh project, it checks `docs/preplans/` for a matching preplan BEFORE asking the user to declare anything from scratch.
+
 ---
 
 ## Security Posture Summary

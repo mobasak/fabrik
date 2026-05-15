@@ -1,0 +1,113 @@
+# Preplan — {{ slug }}
+
+**Date:** {{ date }}
+**Slug:** `{{ slug }}` (becomes `fabrik scaffold {{ slug }} --from-preplan docs/preplans/{{ date }}-{{ slug }}.md`)
+**Status:** Draft — fill in the 9 sections below, then hand off to scaffold.
+
+---
+
+## 1. Idea
+
+One paragraph: what does this project DO and WHO is it for? Concrete enough that an agent reading just this section can write a sensible elevator pitch.
+
+> _e.g. "A FastAPI microservice that verifies academic citations against NCBI / OpenAlex / Crossref. Internal to Fabrik — called by the long-form content pipeline before publishing claims."_
+
+---
+
+## 2. Project type
+
+Pick exactly one from `AGENTS.md § Scaffold Types`:
+
+`python-api` · `node-api` · `file-api` · `file-worker` · `saas-skeleton` · `static-site` · `docusaurus` · `wordpress` · `chrome-extension` · `mobile-app` · `desktop-app`
+
+**Selected:** `<type>`
+
+(`fabrik scaffold --from-preplan` reads this section and pre-fills `--type`. Override on the CLI if needed.)
+
+---
+
+## 3. Shape preview
+
+The `shape:` block that will end up in `specs/services/{{ slug }}.yaml`. Each key is a yes/no decision based on the project's needs. Defaults below match the `python-api` template — change values for your project, or comment a line out to inherit the template default.
+
+```yaml
+shape:
+  kind: service                 # service | worker | static | wordpress
+  is_public: true               # exposes a public HTTPS endpoint?
+  is_admin_dashboard: false     # has a UI behind Authelia 2FA?
+  has_bearer_api: false         # uses X-Internal-Token for M2M calls?
+  has_persistent_data: false    # needs Backrest backups of a volume?
+  needs_database: false         # uses postgres-main (shared)?
+  needs_cache: false            # uses redis-main (logical DB index)?
+  has_search_feature: false     # uses meilisearch?
+  exposes_metrics: true         # /metrics endpoint for Prometheus scrape?
+  has_error_tracking: true      # GlitchTip project + SENTRY_DSN injection?
+```
+
+(`fabrik apply` reads this block via `resolve_applicability` to decide which of the 9 infrastructure registrars run.)
+
+---
+
+## 4. External deps
+
+List every external service / API / SDK / secret the project needs. The scaffolder consumes this to pre-fill the `secrets:` block of the spec.
+
+| Dep | Why | Secret name (env var) | Cost / quota |
+|---|---|---|---|
+| _e.g._ NCBI E-utilities | citation lookups | `NCBI_API_KEY` | free w/ key (10 req/s) |
+| _e.g._ Crossref | metadata | `CROSSREF_MAILTO` | free (polite-pool) |
+|  |  |  |  |
+
+---
+
+## 5. Domain
+
+Public hostname (always under `vps1.ocoron.com` for now):
+
+**Selected:** `{{ slug }}.vps1.ocoron.com`
+
+(Or leave blank for internal-only worker services.)
+
+---
+
+## 6. Success criteria
+
+Bullet list. Each item is a concrete, testable assertion the project must satisfy before it can be considered done.
+
+- [ ] _e.g._ `POST /api/v1/verify` returns ≥ 95 % accuracy on the gold-standard test set
+- [ ] _e.g._ p95 latency < 2 s for single-citation lookups
+- [ ] _e.g._ Prometheus `<service>_requests_total{status="200"}` series visible in Grafana
+
+---
+
+## 7. Out of scope
+
+Bullet list. Anything explicitly NOT going into v1 — agents reading the preplan should NOT propose these.
+
+- _e.g._ retrying transient failures with exponential backoff (v2)
+- _e.g._ multi-tenant rate limiting (no current need)
+
+---
+
+## 8. Open questions
+
+Bullet list of unresolved decisions. Stays in the preplan until resolved during scaffold or Traycer planning.
+
+- _e.g._ which embedding model for similarity search — local sentence-transformer or OpenAI Embeddings v3?
+
+---
+
+## 9. Notes (VPS1 inventory reminders)
+
+**These reminders are pre-loaded so the project's eventual AI guardrails stay grounded. Agents reading this preplan should treat them as ground truth.**
+
+- **Database:** `postgres-main:5432` — shared Postgres on the `coolify` Docker network. DB name = `{{ slug | replace('-', '_') }}` (auto-created by the postgres registrar if `shape.needs_database: true`). Never `localhost`.
+- **Cache:** `redis-main:6379` — shared Redis; one logical DB index per service, allocated via `/opt/monitoring/configs/redis/assignments.json`. Never `localhost`.
+- **M2M auth:** every internal Fabrik microservice validates `X-Internal-Token` against `SERVICE_INTERNAL_SECRET_KEY` (already in `/opt/fabrik/.env`). One key, one header, every service.
+- **Public health:** `*.vps1.ocoron.com → /health` is universally Authelia-bypassed; expose `/health` returning HTTP 200 (real DB ping, not just `OK`).
+- **Metrics:** if `shape.exposes_metrics: true`, Prometheus scrapes `<service>:8000/metrics`. The scaffolded `metrics.py` already emits the standard `<service>_requests_total` + `_request_duration_seconds_*` series.
+- **Error tracking:** if `shape.has_error_tracking: true`, the orchestrator creates a GlitchTip project + injects `SENTRY_DSN` automatically. SDK ingestion goes to `http://glitchtip-web:8000` (internal alias), NOT the public `errors.vps1.ocoron.com`.
+
+---
+
+_Generated by `fabrik preplan new {{ slug }}` on {{ date }}. Edit freely, then run `fabrik scaffold {{ slug }} --from-preplan docs/preplans/{{ date }}-{{ slug }}.md` when ready._

@@ -352,6 +352,13 @@ Traycer injects rule-pack guidance into coding-agent execution prompts based on 
 
 Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the project tree AND emits `specs/services/<name>.yaml` with a populated `shape:` block per `templates/<type>/defaults.yaml`. The `shape:` block drives which infrastructure registrars run during `fabrik apply` (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus). `fabrik new` is deprecated (hidden; scheduled removal 2026-05-31).
 
+**Pre-scaffold intent capture (T3-01, Stage 1 of the lifecycle):**
+
+- `fabrik preplan new <slug>` — create `docs/preplans/<YYYY-MM-DD>-<slug>.md` from `templates/preplan/preplan.md.j2`. 9 sections: Idea / Project type / Shape preview / External deps / Domain / Success criteria / Out of scope / Open questions / Notes (VPS1 inventory reminders).
+- Refine the markdown with Opus / ChatGPT / Claude.
+- `fabrik scaffold <name> --from-preplan docs/preplans/<file>` — ingests the preplan: pre-fills `--type`, copies the preplan into `<project>/docs/preplan.md`, and **layers a `Preplan:` reference line into all 4 AI guardrail files** (`AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`) so every downstream agent reads the same intent.
+- Traycer's Step 2.5 in `docs/traycer/fabrik-workflow.md` is the planning-side companion: when a fresh project is detected, look for a preplan in `docs/preplans/` BEFORE asking the user to declare anything from scratch.
+
 **Post-deploy lifecycle commands (T2-01 + T2-02 + T2-03 + T2-04):**
 
 - Every successful `fabrik apply` / `fabrik redeploy --refresh-infrastructure` writes `.fabrik/state/<spec.id>.json` (8-field G-F3 manifest) — the source of truth for what got registered.
