@@ -352,6 +352,14 @@ Traycer injects rule-pack guidance into coding-agent execution prompts based on 
 
 Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the project tree AND emits `specs/services/<name>.yaml` with a populated `shape:` block per `templates/<type>/defaults.yaml`. The `shape:` block drives which infrastructure registrars run during `fabrik apply` (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus). `fabrik new` is deprecated (hidden; scheduled removal 2026-05-31).
 
+**Post-deploy lifecycle commands (T2-01 + T2-02):**
+
+- Every successful `fabrik apply` / `fabrik redeploy --refresh-infrastructure` writes `.fabrik/state/<spec.id>.json` (8-field G-F3 manifest) — the source of truth for what got registered.
+- `fabrik audit-registrars [--spec <path>] [--json]` — verify each spec's shape-resolved registrars vs live VPS state. Statuses: `present / missing / n/a / unknown`. Exit 2 if any missing.
+- `fabrik reconcile-all [--filter <substr>] [--yes]` — fleet-wide re-run of `refresh_infrastructure` per spec under per-spec file lock.
+- `fabrik verify <domain> --spec registrars` — postcondition gate; fails on any `missing` registrar.
+- `fabrik destroy <spec> --partial <reg>` (repeatable) — surgical un-registration without touching DNS, Coolify app, or local files. Backed by module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py`. Grafana intentionally excluded (annotations are decorative).
+
 | Type | Template | Stack | shape.kind | shape flags (true only) |
 |---|---|---|---|---|
 | python-api | `templates/scaffold/` | FastAPI + Uvicorn + Docker | service | is_public |

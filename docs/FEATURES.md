@@ -216,14 +216,16 @@ fabrik destroy specs/services/translator.yaml --partial gatus --partial backrest
 
 ### Status Glyphs
 
-| Glyph | Status   | Meaning                                            |
-|-------|----------|----------------------------------------------------|
-| `✓`   | present  | Shape says yes, live state agrees                  |
-| `✗`   | missing  | Shape says yes, live state says no (drift)         |
-| `Δ`   | drift    | Shape says yes, live state has a different shape   |
-| `·`   | n/a      | Shape says skip                                    |
-| `◌`   | override | `infra:` block opts out                            |
-| `?`   | unknown  | Probe failed (e.g. missing token)                  |
+| Glyph | Status  | Meaning                                                          |
+|-------|---------|------------------------------------------------------------------|
+| `✓`   | present | Shape says yes, live state agrees                                |
+| `✗`   | missing | Shape says yes, live state says no                               |
+| `·`   | n/a     | Shape says skip (includes `infra:` override case, reason in detail) |
+| `?`   | unknown | Probe failed (e.g. SSH error, missing token, container not found)   |
+
+A `drift` status (live exists but in a different shape than expected) is
+not yet produced by any auditor — they currently check presence only.
+Follow-up auditors will compare config bags.
 
 ### Excluded by design
 

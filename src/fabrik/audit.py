@@ -8,8 +8,11 @@ state-aware destroy (T4-01/T4-02).
 
 Each ``audit_<reg>(spec)`` function returns an :class:`AuditResult` with:
 
-* ``status`` ∈ {``present``, ``missing``, ``drift``, ``n/a``, ``override``,
-  ``unknown``}
+* ``status`` ∈ {``present``, ``missing``, ``n/a``, ``unknown``} — exactly
+  what audit functions produce. ``drift`` (live shape differs from
+  expected) is not yet produced by any auditor; will be added in a
+  follow-up that compares config bags. ``override`` is folded into
+  ``n/a`` with the override reason in ``detail``.
 * ``detail`` — short human-readable explanation
 * ``expected`` — what the spec's shape says SHOULD be there (per
   ``resolve_applicability``)
@@ -42,7 +45,7 @@ from fabrik.orchestrator.infrastructure import _REGISTRAR_ORDER, resolve_applica
 
 logger = logging.getLogger(__name__)
 
-AuditStatus = Literal["present", "missing", "drift", "n/a", "override", "unknown"]
+AuditStatus = Literal["present", "missing", "n/a", "unknown"]
 
 
 @dataclass
@@ -84,20 +87,6 @@ def _resolved_for(spec: Any) -> dict[str, tuple[bool, str]]:
     return resolve_applicability(_spec_to_dict(spec))
 
 
-def _override_or(applicable: tuple[bool, str], detected: AuditResult) -> AuditResult:
-    # If shape resolution says "skip", the audit's job is just to report that
-    # — not to flag missing. Caller can still see the live observation in
-    # ``actual`` if it was collected.
-    if not applicable[0]:
-        return AuditResult(
-            status="n/a",
-            detail=f"shape says skip ({applicable[1]})",
-            expected={"should_run": False, "reason": applicable[1]},
-            actual=detected.actual,
-        )
-    return detected
-
-
 def _ssh_check(cmd: str, *, timeout: int = 30) -> tuple[bool, str]:
     # Best-effort SSH probe. Never raises; returns (ok, stdout|stderr).
     import subprocess
@@ -118,6 +107,28 @@ def _ssh_check(cmd: str, *, timeout: int = 30) -> tuple[bool, str]:
         return False, f"{type(e).__name__}: {e}"
 
 
+_CONTAINER_CACHE: dict[str, str] = {}
+
+
+def _resolve_container(prefix: str) -> str | None:
+    # Resolve a Coolify-managed container name from a stable prefix like
+    # "postgres-main" or "backrest" or "authelia". Coolify renames the
+    # container on every redeploy (suffix is a UUID); hardcoding the
+    # current UUID would make audits silently break after the next
+    # Coolify redeploy.
+    #
+    # Cached per-process so audit_all's 9-call sweep does at most one
+    # docker-ps round-trip per distinct prefix.
+    if prefix in _CONTAINER_CACHE:
+        return _CONTAINER_CACHE[prefix] or None
+    ok, out = _ssh_check(
+        f"sudo docker ps --format '{{{{.Names}}}}' | grep -E '^{prefix}(-|$)' | head -1"
+    )
+    name = out.strip() if ok else ""
+    _CONTAINER_CACHE[prefix] = name
+    return name or None
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Per-registrar audits
 # ─────────────────────────────────────────────────────────────────────────────
@@ -129,14 +140,20 @@ def audit_postgres(spec: Any) -> AuditResult:
     db_name = sid.replace("-", "_")
     if not applicable[0]:
         return AuditResult(status="n/a", detail=applicable[1])
+    container = _resolve_container("postgres-main")
+    if not container:
+        return AuditResult(
+            status="unknown",
+            detail="postgres-main container not found",
+            expected={"db_name": db_name},
+        )
     # Mirror postgres.py:155 — SELECT 1 FROM pg_database WHERE datname=...
     # nosec B608 — db_name is derived from spec.id which is regex-validated
     # at load time; same pattern as postgres.py:155 which carries the same
     # annotation. No external untrusted input flows through this query.
     sql = f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"  # nosec B608
     ok, out = _ssh_check(
-        "sudo docker exec postgres-main-l0k4gk0kggc8okcwk0s4c8s8 "
-        f"psql -U postgres -At -c {shlex.quote(sql)}"
+        f"sudo docker exec {shlex.quote(container)} psql -U postgres -At -c {shlex.quote(sql)}"
     )
     actual = {"db_name": db_name, "found": out == "1"} if ok else {"error": out}
     if not ok:
@@ -229,8 +246,11 @@ def audit_backrest(spec: Any) -> AuditResult:
     if not applicable[0]:
         return AuditResult(status="n/a", detail=applicable[1])
     # Mirror backrest.py: plans live inside container's config.json
+    container = _resolve_container("backrest")
+    if not container:
+        return AuditResult(status="unknown", detail="backrest container not found")
     ok, out = _ssh_check(
-        "sudo docker exec backrest-l48000k44wc4gk8os88s8k0c cat /config/config.json 2>/dev/null"
+        f"sudo docker exec {shlex.quote(container)} cat /config/config.json 2>/dev/null"
     )
     if not ok:
         return AuditResult(status="unknown", detail=f"config.json unreadable: {out[:80]}")
@@ -328,9 +348,11 @@ def audit_authelia(spec: Any) -> AuditResult:
             actual={},
         )
     # Mirror authelia.py: cat /config/configuration.yml inside container
+    container = _resolve_container("authelia")
+    if not container:
+        return AuditResult(status="unknown", detail="authelia container not found")
     ok, out = _ssh_check(
-        "sudo docker exec authelia-hks48k8sg8o4co4co08co00o "
-        "cat /config/configuration.yml 2>/dev/null"
+        f"sudo docker exec {shlex.quote(container)} cat /config/configuration.yml 2>/dev/null"
     )
     if not ok:
         return AuditResult(status="unknown", detail=f"config unreadable: {out[:80]}")

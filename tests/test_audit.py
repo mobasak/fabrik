@@ -382,12 +382,22 @@ class TestAuditReconcileRoundtrip:
                 "exposes_metrics": True,
             }
         )
+        # Clear the container cache so each Phase gets a fresh probe.
+        audit._CONTAINER_CACHE.clear()
 
         # Phase 1 — pre-reconcile audit. Most registrars return "missing".
         def pre_responses(cmd, **_):
+            # _resolve_container probes use `docker ps ... grep -E '^<prefix>(-|$)'`
+            if "docker ps" in cmd and "grep" in cmd:
+                if "postgres-main" in cmd:
+                    return (True, "postgres-main-test")
+                if "authelia" in cmd:
+                    return (True, "authelia-test")
+                if "backrest" in cmd:
+                    return (True, "backrest-test")
             if "pg_database" in cmd:
                 return (True, "")  # db missing
-            if "gatus" in cmd:
+            if "gatus" in cmd and "test -f" in cmd:
                 return (True, "missing")
             if "authelia" in cmd and "cat /config" in cmd:
                 return (True, "access_control:\n  rules: []\n")
@@ -404,10 +414,21 @@ class TestAuditReconcileRoundtrip:
 
         # Phase 2 — simulated reconcile (we just switch the mock outputs).
         # Phase 3 — re-audit. All previously-missing registrars now present.
+        # Clear cache so resolve_container reprobes (which is realistic — the
+        # reconcile may have created the containers in question).
+        audit._CONTAINER_CACHE.clear()
+
         def post_responses(cmd, **_):
+            if "docker ps" in cmd and "grep" in cmd:
+                if "postgres-main" in cmd:
+                    return (True, "postgres-main-test")
+                if "authelia" in cmd:
+                    return (True, "authelia-test")
+                if "backrest" in cmd:
+                    return (True, "backrest-test")
             if "pg_database" in cmd:
                 return (True, "1")
-            if "gatus" in cmd:
+            if "gatus" in cmd and "test -f" in cmd:
                 return (True, "present")
             if "authelia" in cmd and "cat /config" in cmd:
                 return (

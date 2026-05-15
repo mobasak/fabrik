@@ -7,6 +7,7 @@ Commands:
 
 import os
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -1040,9 +1041,7 @@ def audit_registrars(spec_path: str | None, as_json: bool):
         click.echo("No specs found.", err=True)
         raise SystemExit(1)
 
-    from typing import Any as _Any
-
-    all_results: dict[str, dict[str, _Any]] = {}
+    all_results: dict[str, dict[str, Any]] = {}
     for sp in spec_paths:
         try:
             spec = load_spec(str(sp))
@@ -1065,17 +1064,15 @@ def audit_registrars(spec_path: str | None, as_json: bool):
         raise SystemExit(1)
 
     spec_col_w = max(len(s) for s in all_results) + 2
-    reg_col_w = 8
-    header = "Spec".ljust(spec_col_w) + "".join(r[:7].ljust(reg_col_w) for r in _REGISTRAR_ORDER)
+    reg_col_w = 12
+    header = "Spec".ljust(spec_col_w) + "".join(r.ljust(reg_col_w) for r in _REGISTRAR_ORDER)
     click.echo(header)
     click.echo("─" * len(header))
 
     glyph = {
         "present": "  ✓ ",
         "missing": "  ✗ ",
-        "drift": "  Δ ",
         "n/a": "  · ",
-        "override": "  ◌ ",
         "unknown": "  ? ",
     }
     missing_count = 0
@@ -1089,7 +1086,7 @@ def audit_registrars(spec_path: str | None, as_json: bool):
         click.echo(row)
 
     click.echo("─" * len(header))
-    click.echo("Legend: ✓=present  ✗=missing  Δ=drift  ·=n/a  ◌=override  ?=unknown")
+    click.echo("Legend: ✓=present  ✗=missing  ·=n/a  ?=unknown")
     if missing_count:
         click.echo(f"⚠  {missing_count} missing entries — consider 'fabrik reconcile-all'")
         raise SystemExit(2)

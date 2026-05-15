@@ -133,34 +133,29 @@ class TestPartialDestroyCLI:
         )
         return spec_path
 
-    def test_partial_dispatches_only_named_registrars(self, tmp_path):
+    def test_partial_dispatches_only_named_registrars(self, tmp_path, monkeypatch):
+        # monkeypatch.setitem auto-restores at teardown — prevents
+        # cross-test HANDLER_FUNCS pollution that would otherwise leak.
         spec_path = self._make_spec(tmp_path)
         from fabrik.cli import cli
-        from fabrik.orchestrator import destroyer
+        from fabrik.orchestrator.destroyer import ActionResult, HANDLER_FUNCS
 
-        # Mock each destroy handler to record calls + return dry_run result
         calls: list[str] = []
 
         def make_mock(name):
             def fn(*args, **kwargs):
                 calls.append(name)
-                from fabrik.orchestrator.destroyer import ActionResult
                 return ActionResult(name, "dry_run", detail=f"mocked {name}")
             return fn
 
-        with patch.object(destroyer, "_destroy_gatus", make_mock("gatus")), \
-             patch.object(destroyer, "_destroy_backrest", make_mock("backrest")):
-            # Reload HANDLER_FUNCS to pick up patches — alternatively patch
-            # the dict directly
-            from fabrik.orchestrator.destroyer import HANDLER_FUNCS
-            HANDLER_FUNCS["gatus"] = make_mock("gatus")
-            HANDLER_FUNCS["backrest"] = make_mock("backrest")
+        monkeypatch.setitem(HANDLER_FUNCS, "gatus", make_mock("gatus"))
+        monkeypatch.setitem(HANDLER_FUNCS, "backrest", make_mock("backrest"))
 
-            result = self._runner().invoke(
-                cli,
-                ["destroy", str(spec_path), "--partial", "gatus",
-                 "--partial", "backrest", "--dry-run"],
-            )
+        result = self._runner().invoke(
+            cli,
+            ["destroy", str(spec_path), "--partial", "gatus",
+             "--partial", "backrest", "--dry-run"],
+        )
 
         assert result.exit_code == 0, result.output
         assert "gatus" in result.output
@@ -179,16 +174,14 @@ class TestPartialDestroyCLI:
         assert result.exit_code == 1
         assert "unknown registrar" in result.output
 
-    def test_partial_with_valid_plus_unknown_still_exits_1(self, tmp_path):
+    def test_partial_with_valid_plus_unknown_still_exits_1(self, tmp_path, monkeypatch):
         spec_path = self._make_spec(tmp_path)
         from fabrik.cli import cli
-        from fabrik.orchestrator.destroyer import HANDLER_FUNCS
+        from fabrik.orchestrator.destroyer import ActionResult, HANDLER_FUNCS
 
-        def make_mock(name):
-            from fabrik.orchestrator.destroyer import ActionResult
-            return lambda *a, **k: ActionResult(name, "dry_run")
-
-        HANDLER_FUNCS["gatus"] = make_mock("gatus")
+        monkeypatch.setitem(
+            HANDLER_FUNCS, "gatus", lambda *a, **k: ActionResult("gatus", "dry_run")
+        )
 
         result = self._runner().invoke(
             cli,
@@ -200,3 +193,9 @@ class TestPartialDestroyCLI:
         assert result.exit_code == 1
         assert "gatus" in result.output
         assert "unknown registrar" in result.output
+
+    def test_handler_funcs_restored_after_monkeypatch(self):
+        """Sanity: after monkeypatch teardown, HANDLER_FUNCS["gatus"] is
+        the real `_destroy_gatus` again — proves F1 fix works."""
+        from fabrik.orchestrator.destroyer import _destroy_gatus, HANDLER_FUNCS
+        assert HANDLER_FUNCS["gatus"] is _destroy_gatus

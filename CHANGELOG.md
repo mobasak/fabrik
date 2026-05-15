@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — T2-02 convergence review (2026-05-15)
+
+Iterative review of T2-02 against the user's 4-stage workflow vision (scaffolding → agentic → registration → verification). Eight findings, six fixed inline, two deferred.
+
+**F1 — Test isolation (CRITICAL):** `tests/test_partial_destroy.py` was mutating the module-level `HANDLER_FUNCS` dict directly without restoration, polluting any subsequent test that imports the constant. Switched to `monkeypatch.setitem` which auto-restores at teardown. Added `test_handler_funcs_restored_after_monkeypatch` as a regression net.
+
+**F2 — Doc-code drift (status enum):** `AuditStatus` Literal type promised `present | missing | drift | n/a | override | unknown` and the FEATURES.md status-glyph table documented all six — but my audit functions only produce four of those (`present | missing | n/a | unknown`). `drift` and `override` were aspirational. Trimmed the type + docs to match reality; documented the deferred `drift` semantics inline so a follow-up implementer knows where to extend.
+
+**F3 — Hardcoded container UUIDs:** `audit_postgres`, `audit_backrest`, `audit_authelia` hardcoded their Coolify-generated container suffixes (`postgres-main-l0k4gk0kggc8okcwk0s4c8s8`, etc.). These change on every Coolify redeploy. Added `_resolve_container(prefix)` helper (mirrors the migrate_db_rename.py pattern) that runs `docker ps | grep '^<prefix>(-|$)' | head -1` and caches per-process. `audit_all`'s 9-call sweep now does at most one container-resolve round-trip per distinct prefix.
+
+**F4 — Dead code:** removed unused `_override_or` helper from `audit.py`.
+
+**F5 — Pivot table column truncation:** `audit-registrars` truncated registrar names to 7 chars (`prometh`, `meilise`); bumped to 12 to show full names.
+
+**F6 — Inline typing import:** removed `from typing import Any as _Any` from inside `audit_registrars` function body; promoted `Any` to the module-top import block in `cli.py`.
+
+**F9 — AI guardrails awareness:** AGENTS.md (Traycer planning context) now documents the 4 T2-01/T2-02 lifecycle commands so future plans know they exist.
+
+**Deferred (logged as Stage 3 gaps for a follow-up ticket):**
+
+- **F7a — Traefik label audit:** `_provision_coolify_app` emits Traefik labels into the Coolify Application spec; verifying them requires querying Coolify's `GET /applications/{uuid}` and checking the labels field. Not yet implemented. Until then, `audit-registrars` covers Authelia (via the Authelia config file) but not the Traefik routing labels.
+- **F7b — Glitchtip DSN injection audit:** `audit_glitchtip` checks the GlitchTip project exists via `/api/0/projects/{org}/{name}/` but does NOT verify the DSN was actually injected into the service's env vars. The check that catches Stage-3 misconfig where the project exists but the DSN never landed is a follow-up.
+- **F8 — Verify auto-rollback stub:** `fabrik verify <domain> --spec registrars` exits 1 on missing registrars but does not auto-rollback (the rollback machinery in `verify.py:349` is still the pre-existing stub from before T2-02). The user's Stage-4 vision says "automatic rollback/destruct" — that requires a dedicated ticket for rollback semantics (re-provision? destroy? revert spec?).
+
+Re-tested: 39/39 (added 1 regression test for F1). Tier 2 gate: 34/34 success.
+
 ### Added — T2-02 (G-F2 + G-G2 + G-G3 + G-F5): Reconcile + Audit CLI (2026-05-15)
 
 Four operator commands + `audit.py` module + module-level destroy-handler exports. Builds on T2-01's state file foundation; sets up the T4-02 state-aware destroy dependency contract.
