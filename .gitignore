@@ -94,6 +94,11 @@ FOLLOWUPS.md
 PROOF.md
 scripts/kilo-benchmarks/cache/update.log*
 
+# Per-deploy state file persistence (T2-01 G-F3). Each fabrik apply writes
+# .fabrik/state/<id>.json; destroys move them to _destroyed/. Local audit
+# trail only — never committed.
+/.fabrik/state/
+
 # Added by fabrik scaffold update
 *.code-workspace
 *.db

@@ -521,6 +521,18 @@ def destroy_deployment(
                 f" ({action.detail})" if action.detail else "",
             )
 
+    # Archive the state file. Best-effort; failure here is logged but
+    # never aborts destroy. (T2-01 / G-F3.)
+    if not dry_run:
+        try:
+            from fabrik import state as state_module
+
+            archived = state_module.archive_destroyed(spec.id)
+            if archived is not None:
+                logger.info("destroy: state archived → %s", archived)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("destroy: state archive failed (non-fatal): %s", e)
+
     return report
 
 

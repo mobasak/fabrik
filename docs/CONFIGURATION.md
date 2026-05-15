@@ -227,6 +227,22 @@ SECRET_TOKEN=your_secret_token
 - Secrets → Always in `.env`
 - Per-deployment config → `specs/*.yaml`
 
+### `FABRIK_LOCK_DIR` (T2-01)
+
+Directory where `fabrik.locks_local.file_lock()` creates lock files. Used to
+serialize WSL-side Python orchestration — for example, `fabrik reconcile-all`
+walking specs and `state.save()` writing `.fabrik/state/<id>.json` under
+contention.
+
+- **Default:** `/tmp/fabrik-locks`
+- **When to override:** if `/tmp` is on a filesystem without flock support
+  (rare on modern WSL2; possible on some containers/CI), point at a path
+  on the same filesystem as `FABRIK_ROOT`.
+
+Distinct from the registrar-side VPS lock (`fabrik.drivers.locks.run_locked`),
+which operates over SSH on the VPS and lives in `/tmp/fabrik-<resource>.lock`
+on the remote host. The two never interact.
+
 ---
 
 ## Troubleshooting

@@ -111,6 +111,53 @@ docker cp."""
 
 
 # --------------------------------------------------------------------------- #
+# Rule-precedence helper (T2-08 Part C / Lesson 56)                            #
+# --------------------------------------------------------------------------- #
+
+
+def _domain_shadows(rule_domain: Any, new_domain: str) -> bool:
+    # True if ``rule_domain`` (string or list) matches ``new_domain`` either
+    # exactly or via a ``*.X`` wildcard whose suffix new_domain ends with and
+    # whose remainder has no extra dots. The wildcard form is what every
+    # admin-UI gate in Fabrik uses (``*.vps1.ocoron.com``).
+    if isinstance(rule_domain, str):
+        candidates = [rule_domain]
+    elif isinstance(rule_domain, list):
+        candidates = [d for d in rule_domain if isinstance(d, str)]
+    else:
+        return False
+    for rd in candidates:
+        if rd == new_domain:
+            return True
+        if rd.startswith("*."):
+            suffix = rd[1:]
+            if new_domain.endswith(suffix):
+                remainder = new_domain[: -len(suffix)]
+                if remainder and "." not in remainder:
+                    return True
+    return False
+
+
+def _compute_insert_index(
+    rules: list[dict[str, Any]], new_rule: dict[str, Any], mode: str
+) -> int | None:
+    # Return the index BEFORE which new_rule must go for first-match-wins
+    # correctness, or None to append. Mirrors the inline logic embedded in
+    # ``_build_add_script``'s Python heredoc — keep them in sync.
+    if mode != "before_twofactor":
+        return None
+    new_domain = new_rule.get("domain")
+    if not isinstance(new_domain, str):
+        return None
+    for i, r in enumerate(rules):
+        if r.get("policy") != "two_factor":
+            continue
+        if _domain_shadows(r.get("domain"), new_domain):
+            return i
+    return None
+
+
+# --------------------------------------------------------------------------- #
 # Validators                                                                   #
 # --------------------------------------------------------------------------- #
 
@@ -284,11 +331,36 @@ if any(rule_matches(r, new_rule) for r in rules):
     sys.stdout.write("IDEMPOTENT_NOOP\\n")
     sys.exit(0)
 
+
+# Precedence-aware insertion (mirrors _compute_insert_index in the driver
+# module — keep them in sync). A wildcard rule like '*.vps1.ocoron.com'
+# with policy: two_factor shadows any later specific-domain bypass for
+# images.vps1.ocoron.com, because Authelia is first-match-wins. T2-08
+# Part C closes Lesson 56.
+def _domain_shadows(rule_domain, new_domain):
+    if isinstance(rule_domain, str):
+        candidates = [rule_domain]
+    elif isinstance(rule_domain, list):
+        candidates = [d for d in rule_domain if isinstance(d, str)]
+    else:
+        return False
+    for rd in candidates:
+        if rd == new_domain:
+            return True
+        if rd.startswith('*.'):
+            suffix = rd[1:]
+            if new_domain.endswith(suffix):
+                remainder = new_domain[: -len(suffix)]
+                if remainder and '.' not in remainder:
+                    return True
+    return False
+
+
 if insert_mode == 'before_twofactor':
     idx = next(
         (
             i for i, r in enumerate(rules)
-            if r.get('domain') == domain and r.get('policy') == 'two_factor'
+            if r.get('policy') == 'two_factor' and _domain_shadows(r.get('domain'), domain)
         ),
         None,
     )

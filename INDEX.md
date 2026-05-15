@@ -524,6 +524,10 @@ docs/
 | [test_spec_generator.py](tests/test_spec_generator.py) | 40 tests for spec_generator (constants, _is_secret, compose/env parsing, context extraction, spec generation, save round-trip) |
 | [test_scaffold_spec_generation.py](tests/test_scaffold_spec_generation.py) | Tests for scaffold spec auto-generation hook and fabrik new --from-project flag | When scaffold.py or cli.py new/scaffold commands change | N/A |
 | [test_spec_loader.py](tests/test_spec_loader.py) | 7 tests for T1-02 G-B1a template-defaults deep-merge (happy-path inheritance, spec-wins-on-conflict, nested-partial-override, proxy-pattern infra.postgres override survives merge, missing-template tolerance, `_deep_merge` unit edge cases, primary-path load_spec→resolve_applicability integration) |
+| **src/fabrik/locks_local.py** | T2-01 G-F2 — project-scoped fcntl-based `file_lock()` context manager for WSL-side Python orchestration concurrency (NOT [reusable]; project-internal, imports fabrik.config) |
+| **src/fabrik/state.py** | T2-01 G-F3 — per-deploy state file persistence under `.fabrik/state/<id>.json`; `save()`, `load()`, `archive_destroyed()`, `find_by_spec_id()`, `DATA_BEARING_REGISTRARS` constant. Project-scoped. |
+| [test_locks_local.py](tests/test_locks_local.py) | 7 tests for locks_local (basic acquire/release, two-thread serialization, timeout, exception releases lock, name sanitization, different names don't block) |
+| [test_state.py](tests/test_state.py) | 13 tests for state.py (8-field schema, data_bearing auto-stamping, atomic-write no tmp leak, load round-trip, archive_destroyed timestamp move, apply→persist→destroy→archive lifecycle, git_sha fallback) |
 
 ### Scaffold-Generated Files (Python API + Chrome Extension Backend)
 

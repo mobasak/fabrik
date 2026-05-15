@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from fabrik import state as state_module
 from fabrik.drivers.cloudflare import CloudflareClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.orchestrator.context import DeploymentContext
@@ -21,6 +22,7 @@ from fabrik.orchestrator.exceptions import (
     ValidationError,
     VerificationError,
 )
+from fabrik.orchestrator.infrastructure import _REGISTRAR_ORDER
 from fabrik.orchestrator.rollback import RollbackManager
 from fabrik.orchestrator.secrets import SecretsManager
 from fabrik.orchestrator.states import DeploymentState, can_transition
@@ -148,6 +150,7 @@ class DeploymentOrchestrator:
 
             # Success
             self._transition(ctx, DeploymentState.COMPLETE)
+            self._persist_state(ctx, spec)
             # B35: workers have no domain (validator/verifier already
             # short-circuit for them). Fall back to the spec id so this
             # log line doesn't raise ``KeyError: 'domain'`` and trigger the
@@ -349,7 +352,38 @@ class DeploymentOrchestrator:
                 resource_type="infrastructure",
             ) from e
 
+        self._persist_state(ctx, spec)
         return ctx
+
+    def _persist_state(self, ctx: DeploymentContext, spec: dict[str, Any]) -> None:
+        # Write .fabrik/state/<id>.json with the 8-field G-F3 schema. Failure
+        # is logged but never raised — state files are best-effort metadata,
+        # not load-bearing for the orchestrator success path.
+        try:
+            spec_id = spec.get("id") or spec.get("name")
+            if not spec_id:
+                logger.warning("state.save: spec has no id/name; skipping")
+                return
+            registrars_applied = [
+                {
+                    "type": r.resource_type,
+                    "id": r.resource_id,
+                    "status": r.metadata.get("status", "applied"),
+                }
+                for r in ctx.created_resources
+                if r.resource_type in _REGISTRAR_ORDER
+            ]
+            state_module.save(
+                spec_id,
+                spec_path=str(ctx.spec_path),
+                spec_hash=ctx.spec_hash,
+                coolify_uuid=ctx.coolify_uuid,
+                coolify_app_name=spec.get("name") or spec.get("id") or "",
+                registrars_applied=registrars_applied,
+                domain=spec.get("domain") or "",
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("state.save failed (non-fatal): %s", e)
 
     def _provision_dns(self, ctx: DeploymentContext, spec: dict) -> None:
         """Create DNS record for the deployment domain.

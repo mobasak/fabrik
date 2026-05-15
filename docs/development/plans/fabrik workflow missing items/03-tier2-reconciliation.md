@@ -26,7 +26,26 @@ Tier 1 makes the orchestrator capable of acting on the 5 deployed pre-G1 service
 
 ## Order of operations
 
-10-11 are headline features. 12-13 add the persistence layer. 14-16 are pre-commit hardening. 17-18 are operational improvements. 19 is the new partial-destroy.
+10-11 are headline features. 12-13 add the persistence layer. 14-16 are pre-commit hardening. 17-18 are operational improvements. 19 is the new partial-destroy. **20 (T2-08) is run BEFORE Tier 2 starts** — see "Pre-flight hot-fix" below.
+
+## Pre-flight hot-fix — T2-08 Part A (15 min, REQUIRED before T2-01)
+
+Before starting Tier 2's foundation work (T2-01 = §10 locks_local + §13 G-F3 state file), execute **T2-08 Part A** (§20 below) against vps1:
+
+```bash
+# Surgical Authelia config edit — closes the live security drift for errors.vps1.ocoron.com
+ssh vps "sudo cp /var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml \
+  /var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml.backup.t2-08-$(date +%Y%m%d-%H%M%S)"
+ssh vps "sudo sed -i '/^    - errors\\.vps1\\.ocoron\\.com\$/d' \
+  /var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml"
+ssh vps "sudo docker restart authelia-hks48k8sg8o4co4co08co00o"
+# Verify: curl -sS -o /dev/null -w "%{http_code}\n" https://errors.vps1.ocoron.com/  # expect 302
+```
+
+**Why this is the prerequisite for T2-01:**
+
+- T2-01 builds the state file foundation (`/opt/fabrik/.fabrik/state/<id>.json`) that the rest of Tier 2 + 4 depends on. The 15-min hot-fix has no code-level dependency on T2-01, but it leaves the GlitchTip UI publicly reachable while we build foundation. Closing the security drift first is the right operational order.
+- T2-08 Parts B + C (Gatus check repair, precedence-aware `add_access_rule`) do NOT need to run before T2-01. They can land any time after.
 
 ---
 

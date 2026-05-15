@@ -3933,6 +3933,41 @@ The current state is fragile — any docker daemon restart could race the port a
 
 ---
 
+# Lesson 59: Lint AND gate the restart — chained-but-not-gated steps blew up Gatus
+
+**Date:** 2026-05-15
+**Context:** During T2-08 Part B, my "edit Gatus config → lint → restart" script wrote each step as a separate top-level shell command. The lint step DID detect the invalid YAML (`yaml.safe_load` raised + `sys.exit(2)`), but the `docker restart gatus` command in the NEXT shell statement fired regardless because there was no `&&` chain between them. Gatus crashed on the bad YAML; the `status.vps1.ocoron.com` board returned 502/404 for ~30 seconds until I rolled back the file from the timestamped backup. The user-visible impact was small (Gatus only — not Authelia or Traefik), but the same pattern would have been catastrophic if applied to the Authelia config in Part A.
+
+**Root cause:** "lint before restart" is correct **intent** but useless if the steps aren't transactionally linked. A bash block like
+
+```
+ssh vps "edit file"
+ssh vps "cat file | python3 lint-script"   # exits 2 on bad YAML
+ssh vps "docker restart container"          # runs anyway — separate command
+```
+
+executes all three regardless of step 2's exit code unless you explicitly chain them with `&&` or wrap them in `set -e` semantics.
+
+**Rule:**
+
+1. For any "live config edit → restart" sequence, the restart MUST be gated on lint success:
+
+   ```bash
+   ssh vps "edit" \
+     && ssh vps "cat config | python3 -c '...yaml.safe_load...'" \
+     && ssh vps "docker restart container"
+   ```
+
+   Or use a single multi-line script with `set -euo pipefail`.
+
+2. Prefer YAML edit shapes that don't require nested-quote escaping. Gatus's JSONPath syntax (`[BODY].database == ok`) avoids the problem the broken pattern caused (`[BODY] == pat(*\"database\":\"ok\"*)`). Single-quoted YAML strings are second-best — escape with `''` for embedded single quotes.
+
+3. Always keep a timestamped backup BEFORE the first restart, not after a successful restart. Rollback is the safety net, not a post-hoc audit step.
+
+**Recovery time on this incident:** ~30s — fast because the backup was taken before the broken edit, not after.
+
+---
+
 # Lesson 58: API field names matter even when both fields exist on the row — `is_preview` is the row-identity discriminator in Coolify v4
 
 **Date:** 2026-05-15

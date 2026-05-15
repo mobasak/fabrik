@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — T2-01 (G-F2 + G-F3): locks_local + state file persistence (2026-05-15)
+
+Tier-2 foundation work. Two new project-scoped modules + orchestrator wiring so every successful deploy persists a JSON manifest under `.fabrik/state/<id>.json`. Downstream tickets that depend on this: T2-02 (`fabrik audit-registrars`), T4-01 (`fabrik destroy --use-state`), T4-02 (state-aware `reconcile-all`).
+
+**`src/fabrik/locks_local.py`** — fcntl-based `file_lock(name, timeout_seconds, poll_interval)` context manager. Distinct from `src/fabrik/drivers/locks.py::run_locked` (which wraps a single bash script on the VPS via SSH). The local primitive serializes WSL-side Python orchestration where multiple async-style operations need to hold one logical resource — e.g. concurrent `fabrik reconcile-all` invocations, or `state.save()` writing the same file under contention. `LOCK_DIR = $FABRIK_LOCK_DIR` (default `/tmp/fabrik-locks`). Sanitizes path-traversal in `name`. Raises `TimeoutError` on deadline; releases on context exit including on exception. 7 tests in `tests/test_locks_local.py`.
+
+**`src/fabrik/state.py`** — per-deploy state file API. `save()` writes the 8-field G-F3 schema atomically (tmp + `os.replace`); `load()` reads or returns None; `archive_destroyed()` moves to `.fabrik/state/_destroyed/<id>.json.<ts>` (no deletion — audit trail); `find_by_spec_id()` returns path or None. `DATA_BEARING_REGISTRARS = frozenset({"postgres", "redis", "meilisearch"})` is the canonical constant — `save()` auto-stamps `data_bearing` per registrar type, overwriting any caller-supplied value, so this module is the single source of truth. `git_sha` derived via `git rev-parse HEAD` at save-time; falls back to empty string outside a git repo (never raises). 13 tests in `tests/test_state.py` including the full apply→persist→destroy→archive roundtrip (Epic Brief SC-3).
+
+**8-field state file schema** (alphabetical for stable JSON output):
+
+```json
+{
+  "applied_at": "2026-05-15T19:23:47+00:00",
+  "coolify_app_name": "fabrik-translator",
+  "coolify_uuid": "kgws0s4cscsosw8gg848cwgw",
+  "domain": "translator.vps1.ocoron.com",
+  "git_sha": "90bba5b76ea16f7adccd50a86a0cadb492489b02",
+  "registrars_applied": [
+    {"type": "postgres", "id": "translator", "status": "applied", "data_bearing": true},
+    {"type": "gatus", "id": "translator", "status": "applied", "data_bearing": false}
+  ],
+  "spec_hash": "<sha256>",
+  "spec_path": "/opt/fabrik/specs/services/translator.yaml"
+}
+```
+
+**Orchestrator integration** — `src/fabrik/orchestrator/__init__.py`:
+- Added `_persist_state(ctx, spec)` private helper that derives the 8-field call (`coolify_app_name` from `spec.name || spec.id`; `registrars_applied` filtered from `ctx.created_resources` against `_REGISTRAR_ORDER`; `applied_at` + `git_sha` auto-derived by `state.save()`). Wrapped in try/except — failure is logged but never aborts deploy/refresh.
+- `deploy()` calls `_persist_state` after `_transition(ctx, DeploymentState.COMPLETE)`.
+- `refresh_infrastructure()` calls `_persist_state` after successful `provision(ctx)`.
+
+**Destroyer integration** — `src/fabrik/orchestrator/destroyer.py::destroy_deployment`: on success (non-dry-run), calls `state.archive_destroyed(spec.id)` to move the state file rather than delete it. Failure is logged non-fatal.
+
+**Governance** — `.gitignore` adds `/.fabrik/state/`; `.env.example` documents the optional `FABRIK_LOCK_DIR` override; `docs/CONFIGURATION.md` has a new section explaining the local vs VPS lock distinction; `INDEX.md` registers all four new files. 20/20 tests pass between `test_locks_local.py` + `test_state.py`.
+
+### Added — T2-08: Edge-auth drift cleanup (G-H10 + G-G6 + G-H11) (2026-05-15)
+
+Three-part cleanup driven by the 2026-05-15 wiring audit. Parts A and B are live operational fixes; Part C is the durability code change that closes the Lesson 56 follow-up.
+
+**Part A (G-H10) — Authelia gate for errors.vps1.ocoron.com:** removed `errors.vps1.ocoron.com` from the multi-domain bulk-bypass block at line 29 of Authelia's live `configuration.yml`. The `*.vps1.ocoron.com → two_factor` catchall now picks it up. Pre-state: `curl https://errors.vps1.ocoron.com/` returned HTTP 200 (publicly reachable despite `docs/operations/vps-urls.md` documenting Authelia gating). Post-state: HTTP 302 redirect to `https://auth.vps1.ocoron.com/?rd=...`. Backup at `configuration.yml.backup.t2-08-20260515-190815`. Regressions verified: pdf, search, captcha, translator, emailgateway, files-api all still 200; monitor, notify, auto, coolify, backup all still 302; images UI 302 + images `/api/v1/health` without token 403 (T1-04 paired-pattern intact); status.vps1 still 200.
+
+**Part B (G-G6) — Gatus monitor-public check:** repointed the `external/monitor-public` endpoint from `https://monitor.vps1.ocoron.com/` (which returns 401 behind Authelia → Grafana auth) to `https://monitor.vps1.ocoron.com/api/health` (covered by the universal `*.vps1.ocoron.com → /api/health bypass`). Strengthened the check: `[STATUS] == 200` AND `[BODY].database == ok` AND `[CERTIFICATE_EXPIRATION] > 168h`. Stronger signal — would catch Grafana DB failure that the previous `STATUS < 400` against the auth gate could not. Result: Gatus board went from 38/39 to **39/39 healthy**. Backup at `public.yaml.backup.t2-08-20260515-191058`. (First edit had a YAML quoting bug that took Gatus down for ~30s; restored from backup, then re-applied with Gatus's JSONPath syntax which avoids nested-quote escaping entirely. Lesson logged.)
+
+**Part C (G-H11) — precedence-aware `add_access_rule`:** `src/fabrik/drivers/authelia.py` now exposes `_compute_insert_index(rules, new_rule, mode)` and `_domain_shadows(rule_domain, new_domain)` helpers. The Python heredoc embedded in `_build_add_script` mirrors the same logic inline. When `insert_before_twofactor=True`, the matcher now finds the first `two_factor` rule whose domain SHADOWS the new rule — covering both exact-domain match (existing behavior) and wildcard catchall match (new). Wildcard semantics: `*.X` shadows `Y.X` where `Y` has no further dots. This means future paired-pattern services rolling through `_provision_authelia` get their `/api/` bypass inserted BEFORE `*.vps1.ocoron.com → two_factor` automatically, instead of being appended at EOF as dead code (the Lesson 56 bug). 16 new unit tests in `tests/drivers/test_authelia.py` cover exact match, wildcard single-label match, multi-label non-match, list-form domain, edge cases, and a heredoc-mirror sanity check. Driver tests now 80/80 passing.
+
 ### Added — T1-05 (G-H8): Reusable DB-rename orchestrator + translator DB rename (2026-05-15)
 
 Closed the translator postgres-DB drift gap (live name `translator_service`, registrar convention `translator`) by building `scripts/migrate_db_rename.py` — a parameterized, idempotent, rollback-capable orchestrator usable for any future `<old> → <new>` Postgres rename across the fleet (vps1, vps2, ...).

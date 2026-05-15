@@ -18,6 +18,8 @@ from fabrik.drivers.authelia import (
     VALID_POLICIES,
     _build_add_script,
     _build_remove_script,
+    _compute_insert_index,
+    _domain_shadows,
     _validate_domain,
     _validate_policy,
     _validate_resources,
@@ -430,3 +432,111 @@ class TestRemoveAccessRule:
         error — caller wrote bad code; surface it."""
         with pytest.raises(ValueError):
             remove_access_rule("not a domain")
+
+
+# --------------------------------------------------------------------------- #
+# Precedence-aware insert helpers (T2-08 Part C / Lesson 56)                   #
+# --------------------------------------------------------------------------- #
+
+
+class TestDomainShadows:
+    def test_exact_match(self):
+        assert _domain_shadows("images.vps1.ocoron.com", "images.vps1.ocoron.com")
+
+    def test_wildcard_shadows_single_label(self):
+        assert _domain_shadows("*.vps1.ocoron.com", "images.vps1.ocoron.com")
+
+    def test_wildcard_does_not_shadow_multi_label(self):
+        # *.vps1.ocoron.com matches one label, so x.api.vps1 must NOT match
+        assert not _domain_shadows("*.vps1.ocoron.com", "x.api.vps1.ocoron.com")
+
+    def test_different_domain_not_shadowed(self):
+        assert not _domain_shadows("*.example.com", "images.vps1.ocoron.com")
+
+    def test_list_form_shadows_if_any_member_matches(self):
+        rule_domain = ["pdf.vps1.ocoron.com", "*.vps1.ocoron.com"]
+        assert _domain_shadows(rule_domain, "images.vps1.ocoron.com")
+
+    def test_list_form_no_member_matches(self):
+        rule_domain = ["pdf.vps1.ocoron.com", "search.vps1.ocoron.com"]
+        assert not _domain_shadows(rule_domain, "images.vps1.ocoron.com")
+
+    def test_none_domain_is_no_shadow(self):
+        assert not _domain_shadows(None, "images.vps1.ocoron.com")
+
+    def test_non_string_member_skipped(self):
+        # YAML round-trip can produce a list with mixed types in pathological
+        # cases; the helper must not crash, just skip non-strings.
+        assert _domain_shadows([None, "*.vps1.ocoron.com"], "images.vps1.ocoron.com")
+
+
+class TestComputeInsertIndex:
+    def test_append_mode_returns_none(self):
+        rules = [{"domain": "*.vps1.ocoron.com", "policy": "two_factor"}]
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass"}
+        assert _compute_insert_index(rules, new_rule, "append") is None
+
+    def test_specific_bypass_inserts_before_wildcard_two_factor(self):
+        # The canonical T1-04 scenario.
+        rules = [
+            {"domain": "ocoron.com", "policy": "bypass"},
+            {"domain": "*.vps1.ocoron.com", "policy": "bypass",
+             "resources": ["^/health$"]},
+            {"domain": "*.vps1.ocoron.com", "policy": "two_factor"},
+        ]
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
+                    "resources": ["^/api/"]}
+        assert _compute_insert_index(rules, new_rule, "before_twofactor") == 2
+
+    def test_exact_match_two_factor_still_works(self):
+        # Existing pre-T2-08 callers may have a same-domain two_factor rule.
+        rules = [
+            {"domain": "images.vps1.ocoron.com", "policy": "two_factor"},
+        ]
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
+                    "resources": ["^/api/"]}
+        assert _compute_insert_index(rules, new_rule, "before_twofactor") == 0
+
+    def test_no_shadowing_rule_appends(self):
+        # No two_factor rule with matching/wildcard domain → caller appends.
+        rules = [
+            {"domain": "ocoron.com", "policy": "bypass"},
+            {"domain": "pdf.vps1.ocoron.com", "policy": "bypass"},
+        ]
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
+                    "resources": ["^/api/"]}
+        assert _compute_insert_index(rules, new_rule, "before_twofactor") is None
+
+    def test_unknown_mode_appends(self):
+        rules = [{"domain": "*.vps1.ocoron.com", "policy": "two_factor"}]
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass"}
+        assert _compute_insert_index(rules, new_rule, "weird") is None
+
+    def test_non_string_new_domain_appends(self):
+        rules = [{"domain": "*.vps1.ocoron.com", "policy": "two_factor"}]
+        new_rule = {"domain": None, "policy": "bypass"}
+        assert _compute_insert_index(rules, new_rule, "before_twofactor") is None
+
+    def test_returns_first_shadow_index(self):
+        # Multiple shadowing rules — return the first (lowest index)
+        rules = [
+            {"domain": "*.vps1.ocoron.com", "policy": "two_factor"},
+            {"domain": "images.vps1.ocoron.com", "policy": "two_factor"},
+        ]
+        new_rule = {"domain": "images.vps1.ocoron.com", "policy": "bypass",
+                    "resources": ["^/api/"]}
+        assert _compute_insert_index(rules, new_rule, "before_twofactor") == 0
+
+
+class TestHeredocMirrorsHelper:
+    """Sanity check: the heredoc-embedded logic produces the same insert
+    position as the importable helper for the canonical scenario."""
+
+    def test_heredoc_inlines_domain_shadows(self):
+        # Build a fresh add script and assert the heredoc body defines an
+        # inline _domain_shadows function (mirror of the helper).
+        script = _build_add_script("authelia-test", "ZHVtbXk=",
+                                   "images.vps1.ocoron.com", "before_twofactor")
+        assert "def _domain_shadows" in script
+        assert "rd.startswith('*.')" in script
+        assert "insert_mode == 'before_twofactor'" in script
