@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — T2-02 (G-F2 + G-G2 + G-G3 + G-F5): Reconcile + Audit CLI (2026-05-15)
+
+Four operator commands + `audit.py` module + module-level destroy-handler exports. Builds on T2-01's state file foundation; sets up the T4-02 state-aware destroy dependency contract.
+
+**`src/fabrik/audit.py` (NEW)** — Per-registrar drift audit module. One `audit_<name>(spec)` function per registrar (9 total), each mirroring the corresponding driver's transport: SSH+docker-exec for postgres/redis/gatus/backrest/authelia/meilisearch/prometheus, HTTP via `requests` for glitchtip, and `n/a` for grafana (annotations are point-in-time decorative markers, not driftable state). Compares observed live state against `resolve_applicability(spec)` and returns `AuditResult(status ∈ {present, missing, drift, n/a, override, unknown}, detail, expected, actual)`. `audit_all(spec)` aggregator returns all 9; failures in individual auditors collapse to `status="unknown"` — the aggregator never raises.
+
+**`fabrik audit-registrars` (NEW CLI)** — Walks `specs/services/*.yaml` (or `--spec <path>`), runs `audit_all`, prints a pivot table or `--json`. Exit 2 if any registrar is `missing` (operator can pipe into shell `&&` to gate a deploy on clean state). Tested live against `fabrik-proxy` — caught a real drift where Prometheus uses an aggregated `fabrik-services` job vs the spec's per-service-job expectation (recorded as `missing` with `all_jobs` listed in `actual`).
+
+**`fabrik reconcile-all` (NEW CLI)** — Walks every deployed spec, holds a per-spec `file_lock("reconcile-<id>", timeout=30)` (T2-01), calls `DeploymentOrchestrator.refresh_infrastructure(spec_path, dry_run=not yes)`. `--filter <substr>` to scope, `--yes` to apply. Per-spec lock prevents two concurrent invocations from racing.
+
+**`fabrik verify <domain> --spec registrars` (NEW)** — New `registrars_present` check type wired into `PostconditionChecker`. Loads the matching spec from `specs/services/<APP_NAME>.yaml` (with `fabrik-` prefix stripped if needed), runs `audit_all`, fails on any `missing` registrar. New verification YAML at `specs/verification/registrars.yaml`.
+
+**`fabrik destroy --partial <reg>` (extended)** — Surgical un-registration. Bypasses the full destroy pipeline (no DNS removal, no Coolify app delete, no file cleanup). Repeatable: `--partial gatus --partial backrest`. Unknown registrar names print an error naming the registrar + valid options, exit 1, do NOT crash. Dispatches via the new `HANDLER_ARGS` / `HANDLER_FUNCS` maps.
+
+**`HANDLER_ARGS` + `HANDLER_FUNCS` (NEW module-level exports in `destroyer.py`)** — The T4-02 dependency contract. `HANDLER_ARGS` maps `<reg>` → `lambda(spec, drop_data, dry_run) -> tuple` building the heterogeneous arg tuple each `_destroy_<reg>` requires (authelia takes `(domain, dry_run)`; postgres/redis/meilisearch take `(name, drop_data, dry_run)`; the rest take `(name, dry_run)`). `HANDLER_FUNCS` maps `<reg>` → the function itself. Both at module scope so `from fabrik.orchestrator.destroyer import HANDLER_ARGS, HANDLER_FUNCS` works (the T4-02 import contract). `grafana` is intentionally excluded from both maps — annotations aren't destroyable lifecycle state. Both registered in `__all__`. 8 keys; introspection test using `inspect.signature` confirms each lambda's arg-tuple arity matches the corresponding `_destroy_<reg>` required-param count.
+
+**Drift findings against original ticket (logged for the next agent):**
+
+- Ticket claimed `audit_glitchtip` + `audit_meilisearch` use `httpx` — **wrong**. glitchtip uses `requests` (the same lib the driver imports); meilisearch uses SSH + in-container `curl` (`_container_curl` helper pattern). Audit functions corrected to mirror reality.
+- Ticket said `cli.py::destroy` was at line 703 — actually line 728 (~25-line drift). Function shape matched; ticket logic still valid.
+- `fabrik verify --spec registrars` required more than a code branch: needed a new `check_registrars` method on `PostconditionChecker`, a dispatcher branch in `run_all`, AND a new `specs/verification/registrars.yaml` (verify is YAML-driven). All three landed.
+
+**Tests** — `tests/test_audit.py` (28 tests covering all 9 audit functions + aggregator robustness + Epic Brief SC-1/SC-3 audit→reconcile→re-audit roundtrip via mocked SSH switching between pre/post states). `tests/test_partial_destroy.py` (10 tests covering module-level importability, key-set parity between HANDLER_ARGS and HANDLER_FUNCS, lambda-signature/function-signature arity match via `inspect.signature`, authelia's domain-not-id contract, drop_data argument shape, and three CLI integration tests via `click.testing.CliRunner`). **38/38 passing.**
+
+**Docs** — `README.md` adds "Registrar Audit & Reconcile (T2-02)" as Key Features §3. `docs/QUICKSTART.md` Verify section adds one-liner usage for all 4 commands. `docs/FEATURES.md` registers it in the Quick Reference table with anchor `#registrar-audit--reconcile` and a full section body with status-glyph legend.
+
 ### Fixed — Today's-work audit pass (2026-05-15)
 
 Iterative review of T1-05, T2-08, and T2-01 against acceptance criteria + live state. Two real doc drifts fixed, plus a new awareness anchor added so the next operator knows the state-file artifact exists.

@@ -598,8 +598,23 @@ VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE
 - Deployed containers → stopped on rollback
 - Uploaded files → cleaned up on rollback
 - State checkpoints → resumable deployments
+- Per-deploy state file at `.fabrik/state/<id>.json` (T2-01) — feeds the audit + reconcile commands below
 
-### 3. WordPress Automation
+### 3. Registrar Audit & Reconcile (T2-02)
+
+**Drift detection across the fleet** — every spec's shape-resolved registrars compared to live VPS state:
+
+```bash
+fabrik audit-registrars                          # pivot table across all specs
+fabrik audit-registrars --spec <path> --json     # machine-readable
+fabrik reconcile-all --filter <substr> --yes     # re-run registrars
+fabrik verify <domain> --spec registrars         # postcondition gate
+fabrik destroy <spec> --partial gatus --dry-run  # surgical un-registration
+```
+
+Backed by `src/fabrik/audit.py` (one auditor per registrar mirroring its driver's transport) and module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py` for the heterogeneous `_destroy_<reg>` signatures.
+
+### 4. WordPress Automation
 
 Full WordPress site deployment from spec:
 
@@ -636,7 +651,7 @@ services:  # Generates pages automatically
 - Legal pages (Privacy Policy, Terms)
 - Multilingual support
 
-### 4. Content Publishing Pipeline
+### 5. Content Publishing Pipeline
 
 Drain SEO-ready briefs and publish them to WordPress automatically:
 
@@ -667,7 +682,7 @@ domain → resolve site_id → list ready briefs → claim brief
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#content-creation-pipeline) for full configuration reference.
 
-### 5. Cloud Integration
+### 6. Cloud Integration
 
 **Supabase + Cloudflare R2:**
 - Multi-tenant database (PostgreSQL)
@@ -677,7 +692,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#content-creation-pipeline) for
 - Presigned upload URLs (bypass server)
 - Background job queue
 
-### 6. Project Scaffolding
+### 7. Project Scaffolding
 
 Create new projects with best practices built-in:
 

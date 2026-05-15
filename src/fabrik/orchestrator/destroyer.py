@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -393,6 +394,55 @@ def _destroy_files(name: str, base: Path, dry_run: bool) -> ActionResult:
 
 
 # --------------------------------------------------------------------------- #
+# Partial-destroy dispatch (T2-02 G-F5) — module-level for T4-02 import        #
+# --------------------------------------------------------------------------- #
+#
+# WARNING — keep this comment when editing:
+#
+# `_destroy_<reg>` functions in this module have HETEROGENEOUS signatures.
+# Some take (name, drop_data, dry_run); others take (name, dry_run); authelia
+# takes (domain, dry_run). A uniform `handler(spec.id, dry_run)` dispatch
+# loop would crash at call time with a "missing positional argument"
+# TypeError. `HANDLER_ARGS` is the indirection: each lambda receives
+# ``(spec, drop_data, dry_run)`` and returns the exact arg tuple that the
+# corresponding `_destroy_<reg>` function expects.
+#
+# `HANDLER_ARGS` and `HANDLER_FUNCS` MUST stay at module level: T4-02's
+# `destroy_from_state` (state-aware destroy) imports them as
+# ``from fabrik.orchestrator.destroyer import HANDLER_ARGS, HANDLER_FUNCS``.
+# Moving them inside a function would break that import contract.
+#
+# `grafana` is intentionally excluded from both maps. Grafana annotations
+# are point-in-time decorative markers, not destroyable lifecycle state —
+# see destroyer.py's grafana skip-with-bookkeeping comment.
+#
+# Audit awareness covers all 9 registrars (audit_grafana returns n/a);
+# destroy handlers cover 8.
+
+HANDLER_FUNCS: dict[str, Callable[..., ActionResult]] = {
+    "postgres": _destroy_postgres,
+    "redis": _destroy_redis,
+    "gatus": _destroy_gatus,
+    "backrest": _destroy_backrest,
+    "glitchtip": _destroy_glitchtip,
+    "authelia": _destroy_authelia,
+    "meilisearch": _destroy_meilisearch,
+    "prometheus": _destroy_prometheus,
+}
+
+HANDLER_ARGS: dict[str, Callable[[Spec, bool, bool], tuple]] = {
+    "postgres": lambda spec, drop_data, dry_run: (spec.id, drop_data, dry_run),
+    "redis": lambda spec, drop_data, dry_run: (spec.id, drop_data, dry_run),
+    "gatus": lambda spec, drop_data, dry_run: (spec.id, dry_run),
+    "backrest": lambda spec, drop_data, dry_run: (spec.id, dry_run),
+    "glitchtip": lambda spec, drop_data, dry_run: (spec.id, dry_run),
+    "authelia": lambda spec, drop_data, dry_run: (spec.domain, dry_run),
+    "meilisearch": lambda spec, drop_data, dry_run: (spec.id, drop_data, dry_run),
+    "prometheus": lambda spec, drop_data, dry_run: (spec.id, dry_run),
+}
+
+
+# --------------------------------------------------------------------------- #
 # Public entry point
 # --------------------------------------------------------------------------- #
 
@@ -539,5 +589,7 @@ def destroy_deployment(
 __all__ = (
     "ActionResult",
     "DestroyReport",
+    "HANDLER_ARGS",
+    "HANDLER_FUNCS",
     "destroy_deployment",
 )

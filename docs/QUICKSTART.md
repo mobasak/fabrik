@@ -110,6 +110,23 @@ fabrik plan /opt/fabrik/specs/services/hello-api.yaml
 fabrik logs /opt/fabrik/specs/services/hello-api.yaml
 fabrik app-logs /opt/fabrik/specs/services/hello-api.yaml -n 50
 
+# Audit live VPS state against what shape says SHOULD be registered (T2-02).
+# Pivot table of all 9 registrars × all deployed specs.
+fabrik audit-registrars
+fabrik audit-registrars --spec /opt/fabrik/specs/services/hello-api.yaml --json
+
+# Sweep the fleet — re-run InfrastructureProvisioner per spec (T2-02 G-F2).
+fabrik reconcile-all --filter hello-api          # dry-run, scoped
+fabrik reconcile-all --yes                       # apply across fleet
+
+# Postcondition check: every shape-applicable registrar is live.
+fabrik verify hello-api.vps1.ocoron.com --spec registrars
+
+# Surgical un-registration of a single registrar (T2-02 G-F5).
+# No DNS removal, no Coolify app delete, no file cleanup.
+fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --partial gatus --dry-run
+fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --partial gatus --partial backrest -y
+
 # Hit the endpoint
 curl https://hello-api.vps1.ocoron.com/health
 ```

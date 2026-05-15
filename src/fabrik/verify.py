@@ -236,6 +236,47 @@ class PostconditionChecker:
 
         return PostconditionResult(name, CheckResult.FAIL, "Max retries exceeded")
 
+    def check_registrars(self, name: str = "registrars_present") -> PostconditionResult:
+        """Verify every shape-applicable registrar is live on VPS (T2-02 G-G3).
+
+        Loads the spec named in ``self.context["APP_NAME"]`` from
+        ``specs/services/<APP_NAME>.yaml``, runs ``audit.audit_all`` against
+        it, and fails on any ``status == "missing"``. ``unknown`` and
+        ``n/a`` do not trigger failure — they're informational.
+        """
+        config = self._get_check_config(name)
+        app_name = self.context.get("APP_NAME") or config.get("app_name", "")
+        if not app_name:
+            return PostconditionResult(name, CheckResult.FAIL, "APP_NAME not provided in context")
+        # Strip "fabrik-" prefix if present — spec ids don't carry it.
+        spec_id = app_name[len("fabrik-") :] if app_name.startswith("fabrik-") else app_name
+
+        spec_path = FABRIK_ROOT / "specs" / "services" / f"{spec_id}.yaml"
+        if not spec_path.exists():
+            return PostconditionResult(name, CheckResult.FAIL, f"Spec not found: {spec_path}")
+        try:
+            from fabrik.audit import audit_all
+            from fabrik.spec_loader import load_spec
+
+            spec = load_spec(str(spec_path))
+            results = audit_all(spec)
+        except Exception as e:  # noqa: BLE001
+            return PostconditionResult(name, CheckResult.FAIL, f"Audit failed: {e}")
+
+        missing = [reg for reg, r in results.items() if r.status == "missing"]
+        if missing:
+            return PostconditionResult(
+                name,
+                CheckResult.FAIL,
+                f"Missing registrars: {', '.join(sorted(missing))}",
+            )
+        present = [reg for reg, r in results.items() if r.status == "present"]
+        return PostconditionResult(
+            name,
+            CheckResult.PASS,
+            f"{len(present)} registrar(s) present, {len(results) - len(present)} n/a or unknown",
+        )
+
     def run_all(self) -> list[PostconditionResult]:
         """Run all applicable postcondition checks."""
         self.results = []
@@ -250,6 +291,8 @@ class PostconditionChecker:
                 self.results.append(self.check_ssl(name))
             elif check_type == "dns_lookup":
                 self.results.append(self.check_dns(name))
+            elif check_type == "registrars_present":
+                self.results.append(self.check_registrars(name))
             else:
                 # WARN instead of SKIP for unimplemented checks
                 # This makes it visible that checks are missing

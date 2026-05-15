@@ -1,0 +1,22 @@
+# Registrar Coverage Postconditions (T2-02 G-G3)
+# Used by `fabrik verify <domain> --spec registrars` to confirm every
+# shape-applicable registrar is live on the VPS.
+#
+# The single check_type `registrars_present` resolves the spec from
+# specs/services/<APP_NAME>.yaml (with the "fabrik-" prefix stripped),
+# runs audit.audit_all against it, and fails on any status="missing".
+# "unknown" + "n/a" results are informational, not failures.
+
+operation: verify
+description: Confirm every shape-applicable registrar is live on VPS
+
+postconditions:
+  registrars_present:
+    description: Every shape-applicable registrar is live on VPS
+    check: registrars_present
+    # APP_NAME comes from the CLI context (--app-name flag, or derived
+    # from the first dot-segment of the verified domain). The "fabrik-"
+    # prefix is stripped before spec lookup.
+
+rollback:
+  default: manual

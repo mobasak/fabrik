@@ -15,6 +15,7 @@
 | [Documentation Enforcement](#documentation-enforcement) | ✅ Shipped | Developer | Never ship undocumented code again |
 | [9-Step Workflow](#9-step-workflow) | ✅ Shipped | Developer | Systematic code quality from plan to commit |
 | [Kilo AI Review](#kilo-ai-review) | ✅ Shipped | Developer | AI-powered code review with fix suggestions |
+| [Registrar Audit & Reconcile](#registrar-audit--reconcile) | ✅ Shipped | Operator | Spec ↔ live drift detection across the fleet |
 | [WordPress Provisioning](#wordpress-provisioning) | 🚧 Beta | Admin | Declarative WordPress site deployment |
 
 **Status Legend:**
@@ -175,6 +176,58 @@ python scripts/kilo_code_review.py review <files> --plan "Task description" --ou
 | **Email Subject** | "Meet Kilo: Your AI code reviewer that actually reads the spec" |
 | **Social Media** | "🤖 Kilo AI review: $0.03-0.40 per review, catches issues humans miss #AICodeReview" |
 | **Sales One-liner** | "Kilo reviews code against your spec, not just syntax—finding logic errors, not just lint." |
+
+---
+
+## Registrar Audit & Reconcile
+
+**Status:** ✅ Shipped | **Audience:** Operator | **Since:** v0.2 (T2-02)
+
+> **Headline:** Spec ↔ live drift detection across the fleet, surgical destroy, fleet-wide reconcile
+
+### What It Does
+
+Every `fabrik apply` writes a per-spec state file (T2-01) capturing which registrars fired. T2-02 layers four operator commands on top of that foundation:
+
+- **`fabrik audit-registrars`** — Compares each spec's shape-resolved registrars (what SHOULD be live) to the VPS's actual state (postgres `\l`, gatus `apps/<id>.yaml`, authelia config rules, backrest `config.json` plans, glitchtip project API, meilisearch index, prometheus scrape jobs, redis `assignments.json`). Outputs a pivot table or JSON. Exit 2 if any `missing`.
+- **`fabrik reconcile-all`** — Walks every deployed spec, holds a per-spec file lock (T2-01 `locks_local.file_lock`), re-runs `DeploymentOrchestrator.refresh_infrastructure` per spec. Dry-run by default; `--yes` to apply. `--filter <substr>` to scope.
+- **`fabrik verify <domain> --spec registrars`** — Single-domain postcondition check using the YAML-driven `PostconditionChecker`. Fails on any `missing` registrar.
+- **`fabrik destroy --partial <reg>`** — Surgical un-registration without touching DNS, Coolify app, or local files. Repeatable: `--partial gatus --partial backrest`. Backed by module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py` (also consumed by T4-02).
+
+### How To Use
+
+```bash
+# Audit the whole fleet
+fabrik audit-registrars
+
+# JSON for automation (alerts, dashboards)
+fabrik audit-registrars --spec specs/services/translator.yaml --json | jq .
+
+# Re-run registrars across the fleet (dry-run)
+fabrik reconcile-all --filter translator
+
+# Single-domain registrar coverage check
+fabrik verify translator.vps1.ocoron.com --spec registrars
+
+# Surgical removal of one or more registrars
+fabrik destroy specs/services/translator.yaml --partial gatus --dry-run
+fabrik destroy specs/services/translator.yaml --partial gatus --partial backrest -y
+```
+
+### Status Glyphs
+
+| Glyph | Status   | Meaning                                            |
+|-------|----------|----------------------------------------------------|
+| `✓`   | present  | Shape says yes, live state agrees                  |
+| `✗`   | missing  | Shape says yes, live state says no (drift)         |
+| `Δ`   | drift    | Shape says yes, live state has a different shape   |
+| `·`   | n/a      | Shape says skip                                    |
+| `◌`   | override | `infra:` block opts out                            |
+| `?`   | unknown  | Probe failed (e.g. missing token)                  |
+
+### Excluded by design
+
+`grafana` is intentionally excluded from destroy handlers and reports `n/a` for audit. Grafana annotations are point-in-time decorative markers, not driftable lifecycle state.
 
 ---
 

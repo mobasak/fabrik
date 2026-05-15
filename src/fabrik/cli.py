@@ -740,6 +740,16 @@ def logs(service: str, tail: int, since: str):
         "policy. Use for throwaway-test cleanup."
     ),
 )
+@click.option(
+    "--partial",
+    "partial",
+    multiple=True,
+    help=(
+        "Surgical destroy: tear down ONLY the named registrar(s) and skip "
+        "everything else (no Coolify app delete, no DNS removal, no file "
+        "cleanup). Repeatable: --partial gatus --partial backrest. T2-02 G-F5."
+    ),
+)
 @click.option("--dry-run", is_flag=True, default=False, help="Plan only; mutate nothing")
 def destroy(
     spec_path: str,
@@ -747,6 +757,7 @@ def destroy(
     keep_dns: bool,
     keep_files: bool,
     drop_data: bool,
+    partial: tuple,
     dry_run: bool,
 ):
     """Tear down every resource ``fabrik apply`` created for SPEC_PATH.
@@ -771,6 +782,43 @@ def destroy(
     except Exception as e:
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
+
+    # T2-02 G-F5 partial-destroy branch: surgical per-registrar teardown.
+    # Bypasses the full destroy_deployment pipeline; no DNS, no Coolify
+    # app delete, no file cleanup. Useful for removing orphan rules or
+    # backing out a single registrar without rolling back the whole service.
+    if partial:
+        from fabrik.orchestrator.destroyer import HANDLER_ARGS, HANDLER_FUNCS
+
+        click.echo(
+            f"🗑️  Partial destroy: {spec.id} → {', '.join(partial)}{' [DRY RUN]' if dry_run else ''}"
+        )
+        click.echo()
+        any_unknown = False
+        for reg in partial:
+            if reg not in HANDLER_FUNCS:
+                click.echo(
+                    f"  ✗ {reg}: unknown registrar (valid: {', '.join(sorted(HANDLER_FUNCS))})",
+                    err=True,
+                )
+                any_unknown = True
+                continue
+            try:
+                args = HANDLER_ARGS[reg](spec, drop_data, dry_run)
+                result = HANDLER_FUNCS[reg](*args)
+                glyph = {
+                    "removed": "✓",
+                    "dry_run": "·",
+                    "skipped": "↷",
+                    "not_found": "—",
+                    "error": "✗",
+                }.get(result.status, "?")
+                detail = f" ({result.detail})" if result.detail else ""
+                click.echo(f"  {glyph} {reg}: {result.status}{detail}")
+            except Exception as e:  # noqa: BLE001
+                click.echo(f"  ✗ {reg}: error — {e}", err=True)
+                any_unknown = True
+        raise SystemExit(1 if any_unknown else 0)
 
     click.echo(f"🗑️  Destroying: {spec.id}{' [DRY RUN]' if dry_run else ''}")
     click.echo()
@@ -955,6 +1003,165 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
     except Exception as e:
         click.echo(f"✗ Error: {e}", err=True)
         raise SystemExit(1)
+
+
+@cli.command("audit-registrars")
+@click.option(
+    "--spec",
+    "spec_path",
+    type=click.Path(exists=True),
+    help="Audit a single spec (default: walk specs/services/*.yaml)",
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON instead of pivot table")
+def audit_registrars(spec_path: str | None, as_json: bool):
+    """Compare each spec's shape-resolved registrars to live VPS state (T2-02 G-G2).
+
+    Per registrar per spec, prints one of:
+
+    \\b
+      present  — live state matches what shape says should be there
+      missing  — shape says yes, live state says no
+      drift    — shape says yes, live state has a different shape
+      n/a      — shape says skip
+      override — infra: block opts out
+      unknown  — couldn't be verified (probe failed)
+
+    Examples:
+        fabrik audit-registrars
+        fabrik audit-registrars --spec specs/services/proxy.yaml
+        fabrik audit-registrars --json --spec specs/services/translator.yaml | jq .
+    """
+    from fabrik.audit import audit_all
+
+    specs_dir = FABRIK_ROOT / "specs" / "services"
+    spec_paths = [Path(spec_path)] if spec_path else sorted(specs_dir.glob("*.yaml"))
+
+    if not spec_paths:
+        click.echo("No specs found.", err=True)
+        raise SystemExit(1)
+
+    from typing import Any as _Any
+
+    all_results: dict[str, dict[str, _Any]] = {}
+    for sp in spec_paths:
+        try:
+            spec = load_spec(str(sp))
+        except Exception as e:
+            click.echo(f"  ⚠  {sp.name}: load error: {e}", err=True)
+            continue
+        all_results[spec.id] = {reg: result.to_dict() for reg, result in audit_all(spec).items()}
+
+    if as_json:
+        import json
+
+        click.echo(json.dumps(all_results, indent=2, sort_keys=True))
+        return
+
+    # Pivot table: rows=specs, columns=registrars, cell=status
+    from fabrik.orchestrator.infrastructure import _REGISTRAR_ORDER
+
+    if not all_results:
+        click.echo("No audit results.", err=True)
+        raise SystemExit(1)
+
+    spec_col_w = max(len(s) for s in all_results) + 2
+    reg_col_w = 8
+    header = "Spec".ljust(spec_col_w) + "".join(r[:7].ljust(reg_col_w) for r in _REGISTRAR_ORDER)
+    click.echo(header)
+    click.echo("─" * len(header))
+
+    glyph = {
+        "present": "  ✓ ",
+        "missing": "  ✗ ",
+        "drift": "  Δ ",
+        "n/a": "  · ",
+        "override": "  ◌ ",
+        "unknown": "  ? ",
+    }
+    missing_count = 0
+    for sid, regs in sorted(all_results.items()):
+        row = sid.ljust(spec_col_w)
+        for r in _REGISTRAR_ORDER:
+            status = regs.get(r, {}).get("status", "?")
+            if status == "missing":
+                missing_count += 1
+            row += glyph.get(status, f"  {status[0]} ").ljust(reg_col_w)
+        click.echo(row)
+
+    click.echo("─" * len(header))
+    click.echo("Legend: ✓=present  ✗=missing  Δ=drift  ·=n/a  ◌=override  ?=unknown")
+    if missing_count:
+        click.echo(f"⚠  {missing_count} missing entries — consider 'fabrik reconcile-all'")
+        raise SystemExit(2)
+
+
+@cli.command("reconcile-all")
+@click.option("--yes", "-y", is_flag=True, help="Apply changes (default: dry-run only)")
+@click.option("--filter", "filters", multiple=True, help="Only reconcile specs matching pattern(s)")
+def reconcile_all(yes: bool, filters: tuple):
+    """Walk every deployed spec, re-run infrastructure registrars (T2-02 G-F2).
+
+    Uses ``orchestrator.refresh_infrastructure()`` per spec. A per-spec
+    file lock from ``fabrik.locks_local.file_lock`` prevents two
+    concurrent invocations from racing on the same spec.
+
+    Examples:
+        fabrik reconcile-all --filter translator      # dry-run, scoped
+        fabrik reconcile-all --yes                    # apply across fleet
+    """
+    from fabrik.drivers.coolify import CoolifyClient
+    from fabrik.locks_local import file_lock
+    from fabrik.orchestrator import DeploymentOrchestrator
+
+    specs_dir = FABRIK_ROOT / "specs" / "services"
+    spec_paths = sorted(specs_dir.glob("*.yaml"))
+    if not spec_paths:
+        click.echo("No specs found.", err=True)
+        raise SystemExit(1)
+
+    try:
+        coolify = CoolifyClient()
+        deployed = {a.get("name", "") for a in coolify.list_applications()}
+    except Exception as e:
+        click.echo(f"Failed to query Coolify: {e}", err=True)
+        raise SystemExit(1)
+
+    orch = DeploymentOrchestrator()
+    summary: list[tuple[str, str, str]] = []  # (spec_id, status, detail)
+
+    for sp in spec_paths:
+        try:
+            spec = load_spec(str(sp))
+        except Exception as e:
+            summary.append((sp.stem, "spec-error", str(e)))
+            continue
+        if filters and not any(f in spec.id for f in filters):
+            continue
+        # G-G1 candidate-list lookup
+        candidates = [spec.id]
+        if not spec.id.startswith("fabrik-"):
+            candidates.append(f"fabrik-{spec.id}")
+        if not any(c in deployed for c in candidates):
+            summary.append((spec.id, "skipped", "no Coolify app"))
+            continue
+
+        try:
+            with file_lock(f"reconcile-{spec.id}", timeout_seconds=30):
+                orch.refresh_infrastructure(spec_path=sp, dry_run=not yes)
+            summary.append((spec.id, "reconciled" if yes else "dry-run", ""))
+        except TimeoutError as e:
+            summary.append((spec.id, "lock-timeout", str(e)))
+        except Exception as e:  # noqa: BLE001
+            summary.append((spec.id, "error", str(e)[:80]))
+
+    click.echo()
+    click.echo(f"{'Spec':30s} Status")
+    click.echo("─" * 60)
+    for sid, status, detail in summary:
+        line = f"{sid:30s} {status}"
+        if detail:
+            line += f" — {detail}"
+        click.echo(line)
 
 
 @cli.command()

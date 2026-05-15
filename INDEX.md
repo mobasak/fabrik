@@ -526,8 +526,12 @@ docs/
 | [test_spec_loader.py](tests/test_spec_loader.py) | 7 tests for T1-02 G-B1a template-defaults deep-merge (happy-path inheritance, spec-wins-on-conflict, nested-partial-override, proxy-pattern infra.postgres override survives merge, missing-template tolerance, `_deep_merge` unit edge cases, primary-path load_spec→resolve_applicability integration) |
 | **src/fabrik/locks_local.py** | T2-01 G-F2 — project-scoped fcntl-based `file_lock()` context manager for WSL-side Python orchestration concurrency (NOT [reusable]; project-internal, imports fabrik.config) |
 | **src/fabrik/state.py** | T2-01 G-F3 — per-deploy state file persistence under `.fabrik/state/<id>.json`; `save()`, `load()`, `archive_destroyed()`, `find_by_spec_id()`, `DATA_BEARING_REGISTRARS` constant. Project-scoped. |
+| **src/fabrik/audit.py** | T2-02 G-G2 — per-registrar drift audit module; 9 `audit_<name>` functions mirroring each driver's transport (SSH for 7, HTTP/requests for glitchtip, n/a for grafana); `audit_all(spec)` aggregator never raises; `AuditResult` dataclass with `status ∈ {present, missing, drift, n/a, override, unknown}`. Project-scoped. |
+| **specs/verification/registrars.yaml** | T2-02 G-G3 — verification spec enabling `fabrik verify <domain> --spec registrars`; uses the new `registrars_present` check type in `PostconditionChecker`. |
 | [test_locks_local.py](tests/test_locks_local.py) | 7 tests for locks_local (basic acquire/release, two-thread serialization, timeout, exception releases lock, name sanitization, different names don't block) |
 | [test_state.py](tests/test_state.py) | 13 tests for state.py (8-field schema, data_bearing auto-stamping, atomic-write no tmp leak, load round-trip, archive_destroyed timestamp move, apply→persist→destroy→archive lifecycle, git_sha fallback) |
+| [test_audit.py](tests/test_audit.py) | 28 tests for audit.py — all 9 per-registrar audits (status mapping, shape n/a, ssh-failure unknown), audit_all aggregator robustness (never raises), AuditResult serialization, SC-1/SC-3 audit→reconcile→re-audit lifecycle roundtrip |
+| [test_partial_destroy.py](tests/test_partial_destroy.py) | 10 tests for HANDLER_ARGS/HANDLER_FUNCS module-level export contract (T4-02 dependency), key-set parity, lambda-signature arity match via `inspect.signature`, authelia's domain-not-id contract, drop_data shape, CLI integration tests for `fabrik destroy --partial` (single, multiple, unknown registrar) |
 
 ### Scaffold-Generated Files (Python API + Chrome Extension Backend)
 
