@@ -177,6 +177,21 @@ Body:
 
 Coolify returns success **before** the new env vars land in the running container — the container is recreated by the next deploy. Always follow with `POST /deploy?force=true` and a ground-truth verification (Fabrik uses `verify_dsn_injection` which polls `docker inspect` env on the actual container).
 
+### ⚠️ Single-row PATCH: match by `(key, is_preview)`, not by env_uuid (Lesson 57)
+
+Coolify v4 matches the row to update by the `(key, is_preview)` tuple in the body — there is **no per-env-row endpoint**. The driver's `CoolifyClient.update_env_var(uuid, env_uuid, ...)` PATCHes `/applications/{uuid}/envs/{env_uuid}` which returns **HTTP 404** in Coolify v4.0.0-beta.459 — that endpoint does not exist. Always use the bulk endpoint:
+
+```python
+coolify._request("PATCH", f"/applications/{app_uuid}/envs", json={
+    "key": "DATABASE_URL",
+    "value": new_value,
+    "is_preview": False,   # REQUIRED — disambiguates prod from preview row
+    "is_literal": True,
+})
+```
+
+Every key in Coolify v4 has TWO rows (one `is_preview=False` = prod, one `is_preview=True` = preview). Omitting `is_preview` defaults to `False` (prod), leaving the preview row stale — the "Webshare gotcha" from `vps-urls.md`. Update both rows independently to keep preview deploys correct (Lesson 58). The fixed pattern is canonicalized in `scripts/migrate_db_rename.py` — use it as the reference implementation until `CoolifyClient.update_env_var()` is fixed.
+
 ## Delete Application
 
 **Endpoint:** `DELETE /applications/{uuid}`

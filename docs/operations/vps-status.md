@@ -346,12 +346,12 @@ This snapshot describes which services are **actually wired up** to which shared
 
 | DB | Size | Connected service | User |
 |---|---|---|---|
-| `glitchtip` | 53 MB | `glitchtip-web`, `glitchtip-worker` | `postgres` |
+| `glitchtip` | 61 MB | `glitchtip-web`, `glitchtip-worker` | `postgres` |
 | `proxy_management` | 8.3 MB | `fabrik-proxy` | `proxy_user` |
-| `translator_service` | 8.0 MB | `translator` (kgws0s4cscsosw8gg848cwgw) | `postgres` |
-| `site_provisioner` | 7.8 MB | `site-provisioner` (qokoksogwsk0c04gcs4swwgs) | `site_provisioner` |
+| `translator` | 8.0 MB | `translator` (kgws0s4cscsosw8gg848cwgw) | `postgres` |
+| `site_provisioner` | 7.6 MB | `site-provisioner` (qokoksogwsk0c04gcs4swwgs) | `site_provisioner` |
 
-DB users (excluding postgres super): `site_provisioner`, `proxy_user`, `ozgur`. Connection convention: `postgres-main:5432` (Docker DNS alias on coolify network), never `localhost` from inside containers.
+DB users (excluding postgres super): `site_provisioner`, `proxy_user`, `ozgur`. Connection convention: `postgres-main:5432` (Docker DNS alias on coolify network), never `localhost` from inside containers. **`translator` was renamed from `translator_service` on 2026-05-15 (T1-05) — see `scripts/migrate_db_rename.py` for the reusable orchestrator that performed the rename.**
 
 ### Redis central — `redis-main:6379` (single instance, 16 logical DBs)
 2 logical DBs in active use:

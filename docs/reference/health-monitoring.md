@@ -196,8 +196,38 @@ python scripts/health_checker.py --health-url http://localhost:8000/health --che
 
 ---
 
+## Registrar Coverage Audit (T2-02, 2026-05-15)
+
+The HTTP `/health` endpoint covered by this doc verifies a SINGLE service's runtime liveness. T2-02 adds a complementary primitive that verifies the SETUP — every shape-applicable registrar (Postgres DB, Redis slot, Gatus endpoint, Backrest plan, GlitchTip project, Authelia rule, Meilisearch index, Prometheus scrape job) is actually live on the VPS:
+
+```bash
+fabrik audit-registrars                       # pivot table across all specs
+fabrik audit-registrars --spec <path>         # one spec
+fabrik audit-registrars --spec <path> --json  # machine-readable
+```
+
+Plus a postcondition gate that pairs cleanly with the HTTP `/health` check:
+
+```bash
+fabrik verify <domain> --spec deploy          # HTTP /health + SSL + Coolify status
+fabrik verify <domain> --spec registrars      # registrar coverage
+```
+
+Run both in sequence after `fabrik apply` to verify the full Stage 3/Stage 4 chain — service is up AND every auto-registration the orchestrator was supposed to perform actually landed. Exit codes propagate so shell `&&` chaining works:
+
+```bash
+fabrik apply <spec> \
+  && fabrik verify <domain> --spec deploy \
+  && fabrik verify <domain> --spec registrars
+```
+
+Implementation: `src/fabrik/audit.py` mirrors each driver's transport (SSH for 7 of 9 registrars; `requests` for glitchtip; `n/a` for grafana which has no driftable state). State file persisted at `.fabrik/state/<spec.id>.json` (T2-01) feeds future state-aware destroy (T4-01).
+
+---
+
 ## See also
 
 - `src/fabrik/health_app.py` - FastAPI health endpoint implementation
+- `src/fabrik/audit.py` - per-registrar audit module (T2-02)
 - `docs/reference/drivers.md` - Coolify + DNS driver configuration
 - `.env.example` - authoritative environment variable reference

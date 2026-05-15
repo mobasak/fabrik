@@ -108,15 +108,18 @@ Internet
 **TOTP:** `ocoron.com`, 30s period
 **Storage:** SQLite `/config/db.sqlite3`
 
-### Access Control (8 rules — live as of 2026-05-07)
+### Access Control (9 rules — live as of 2026-05-15)
 | Domain | Policy | Path/note |
 |---|---|---|
 | `ocoron.com`, `www.ocoron.com` | bypass | all |
 | `wp-test.vps1.ocoron.com`, `status.vps1.ocoron.com` | bypass | all |
 | `*.vps1.ocoron.com` | bypass | `/health`, `/healthz`, `/metrics`, `/api/health` |
-| 11 API service domains | bypass | all (app-layer auth: X-Internal-Token) |
+| 9 API service domains (pdf, browser, search, captcha, proxy, translator, files-api, emailgateway, dns) | bypass | all (app-layer auth: X-Internal-Token) |
 | `coolify.vps1.ocoron.com`, `monitor.vps1.ocoron.com` | bypass | `^/api/` only |
-| `*.vps1.ocoron.com` | two_factor | all other paths |
+| `images.vps1.ocoron.com` | bypass | `^/api/` only (T1-04 paired-pattern) |
+| `*.vps1.ocoron.com` | two_factor | all other paths (catchall) |
+
+**Rule precedence**: Authelia is first-match-wins. Specific `^/api/` bypasses for admin-dashboard hosts (`images`, `coolify`, `monitor`) MUST come BEFORE the `*.vps1 two_factor` catchall. Lesson 56 + T2-08 Part C (`src/fabrik/drivers/authelia.py::_compute_insert_index`) make this automatic for future paired-pattern services. **`errors.vps1.ocoron.com` was removed from the bulk-bypass block on 2026-05-15 (T2-08 Part A) — it now falls through to the `two_factor` catchall, matching the documented intent.**
 
 **CRITICAL:** Authelia exits on SIGHUP — does NOT hot-reload.
 After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4co08co00o"`
@@ -352,6 +355,36 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 | 10 | Per-service X-API-Key chaos | One key: `SERVICE_INTERNAL_SECRET_KEY`; one header: `X-Internal-Token` |
 | 11 | import path must match uvicorn module path | `uvicorn app.main:app` → `from app.internal_auth import` |
 | 12 | Authelia `^/api/` bypass needed for Coolify API token access | Already in config; verify after any Authelia edit |
+| 13 | Coolify v4 `update_env_var` driver endpoint returns 404 (Lesson 57) | Use direct `PATCH /applications/{uuid}/envs` with `{key, value, is_preview, is_literal}` — see `scripts/migrate_db_rename.py` |
+| 14 | Gatus YAML edit + restart without lint-gating took prod down 30s (Lesson 59) | Chain edit && lint && restart with `&&`, never as separate statements |
+
+---
+
+## Per-Deploy State File (T2-01)
+
+Every successful `fabrik apply` or `fabrik redeploy --refresh-infrastructure` writes `/opt/fabrik/.fabrik/state/<spec.id>.json` — a per-deploy 8-field manifest (G-F3 schema). Source-of-truth for `audit-registrars` (T2-02), `destroy --partial`, future `destroy --use-state` (T4-01). Failure is non-fatal (logged warning).
+
+Schema (alphabetical keys):
+
+- `applied_at` — ISO-8601 UTC
+- `coolify_app_name` — `<id>` or `fabrik-<id>` (whichever Coolify uses)
+- `coolify_uuid` — 24-char Coolify resource UUID (null for registrars-only)
+- `domain` — service FQDN or empty
+- `git_sha` — `git rev-parse HEAD` at apply time (empty outside git)
+- `registrars_applied` — list of `{type, id, status, data_bearing}` (filtered to 9 registrar types; deploy-tier `ResourceRecord` types like `dns`/`coolify`/`files` excluded)
+- `spec_hash` — 16-char prefix of SHA256 of canonical spec yaml
+- `spec_path` — absolute path to source spec
+
+On destroy: file is moved to `.fabrik/state/_destroyed/<id>.json.<ts>` (audit trail; not deleted).
+
+## Operator Commands for Lifecycle Audit (T2-02)
+
+| Command | Purpose |
+|---|---|
+| `fabrik audit-registrars [--spec <path>] [--json]` | Pivot table of each spec's shape-resolved registrars vs live VPS state. Exit 2 if any `missing`. |
+| `fabrik reconcile-all [--filter <substr>] [--yes]` | Walk all deployed specs, re-run `refresh_infrastructure` per spec under per-spec file_lock (T2-01). Dry-run by default. |
+| `fabrik verify <domain> --spec registrars` | Postcondition gate; fails on any `missing` registrar via the new `registrars_present` check type in `PostconditionChecker`. |
+| `fabrik destroy <spec> --partial <reg>` (repeatable) | Surgical un-registration. No DNS/Coolify-app/file teardown. Backed by module-level `HANDLER_ARGS` + `HANDLER_FUNCS` in `orchestrator/destroyer.py`. Grafana intentionally excluded (annotations are decorative). |
 
 ---
 

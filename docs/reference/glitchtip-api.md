@@ -153,14 +153,15 @@ Used to discover `TEAM_SLUG=vps1` for the Fabrik VPS.
 
 ## Security boundary
 
-GlitchTip's `errors.vps1.ocoron.com` is **fully bypassed** in Authelia (same tier as `pdf`, `browser`, `dns` microservices). The security boundary is:
+**Updated 2026-05-15 (T2-08 Part A):** `errors.vps1.ocoron.com` was removed from Authelia's bulk-bypass block. It now falls through to the `*.vps1.ocoron.com → two_factor` catchall — the same defense-in-depth pattern as `monitor.vps1.ocoron.com` (Grafana). The full chain is now:
 
 1. **Iptables DOCKER-USER chain** — only 80/443/6001/6002 allowed publicly
 2. **Traefik HTTPS termination** — routes `errors.vps1.ocoron.com` → `glitchtip-web:8000` on the `coolify` Docker network
-3. **GlitchTip's own django-allauth auth** — TOTP 2FA enforced for admin users
-4. **Bearer-token auth** on all `/api/0/*` paths for machine-to-machine calls
+3. **Authelia forward-auth (TOTP)** — gates `/` and any non-`/api/health` path on `errors.vps1.ocoron.com` per the `*.vps1.ocoron.com two_factor` catchall (post-2026-05-15)
+4. **GlitchTip's own django-allauth auth** — second factor for admin login behind Authelia (defense in depth)
+5. **Bearer-token auth** on all `/api/0/*` paths for machine-to-machine calls
 
-Authelia forward-auth is **intentionally not** in this chain for GlitchTip — see `docs/LESSONS_LEARNT.md §8.13` for the rationale.
+**Important for Sentry SDK ingestion:** Fabrik microservices send Sentry-compatible events to the **internal** `http://glitchtip-web:8000` Docker DNS alias, NOT the public `https://errors.vps1.ocoron.com`. The Authelia gate at the public hostname does not affect SDK ingestion — see `docs/operations/vps-urls.md` "Fabrik Microservices — GlitchTip DSN Convention".
 
 ## Running the probe (contract test)
 

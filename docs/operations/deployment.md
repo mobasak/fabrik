@@ -651,6 +651,25 @@ If the VPS is to be cloned as a base for upcoming systems, fix in this order:
 2. **Replace the redis stub** (`drivers/redis.py`) with full implementation including a central index registry (likely `data/registry/redis-allocations.json`). At scale, ad-hoc index assignment causes collisions.
 3. **Add `_destroy_grafana`** to `destroyer.py` so destroyed services don't leave dashboards behind.
 4. **Add `_rollback_*` handlers** for all 9 registrars in `rollback.py`. Today, a failed deploy mid-registrar leaves orphan side-effects.
-5. **Add per-service Prometheus scrape jobs** — registrar code exists but has never been called for any service. After backfilling shape blocks, dry-run each spec to surface what's missing.
-6. **Add a `fabrik audit-registrars` CLI subcommand** that walks all specs and verifies each side-effect is present (postgres DB exists, gatus endpoint exists, etc.) — turns the manual audit into a one-liner.
+5. **Add per-service Prometheus scrape jobs** — registrar code exists but has never been called for any service. After backfilling shape blocks, dry-run each spec to surface what's missing. **(Status 2026-05-15: T2-02's `audit-registrars` now surfaces this drift — `fabrik-proxy` reports `prometheus: missing` because the live setup uses an aggregated `fabrik-services` job rather than per-service jobs.)**
+6. ✅ **DONE 2026-05-15 (T2-02):** `fabrik audit-registrars`, `fabrik reconcile-all`, `fabrik verify <domain> --spec registrars`, and `fabrik destroy --partial <reg>` are shipped. See `src/fabrik/audit.py` (per-registrar audit module mirroring each driver's transport) and the module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py`.
 7. **Document central registries** (redis indexes, postgres users, GT project IDs, Backrest plan IDs) as single source of truth in `docs/infrastructure/vps-complete-inventory.md`.
+
+### T2-01/T2-02 lifecycle commands (2026-05-15)
+
+After every successful `fabrik apply` or `fabrik redeploy --refresh-infrastructure`, the orchestrator writes `.fabrik/state/<spec.id>.json` — an 8-field manifest of which registrars fired, what UUIDs they returned, when, against which git SHA. Built on this foundation:
+
+| Command | Stage 3/4 of the workflow |
+| --- | --- |
+| `fabrik audit-registrars [--spec X] [--json]` | Verify Stage 3 auto-registration: each spec's shape-resolved registrars vs live VPS state. Exit 2 if missing. |
+| `fabrik reconcile-all [--filter X] [--yes]` | Recover from drift: re-run `refresh_infrastructure` per spec under per-spec `file_lock`. |
+| `fabrik verify <domain> --spec registrars` | Stage 4 postcondition gate: fails on any `missing` registrar. Pairs with the existing `--spec deploy` (HTTP `/health`). |
+| `fabrik destroy <spec> --partial <reg>` (repeat) | Surgical un-registration without DNS/Coolify-app teardown. |
+
+**Recommended full Stage 3→4 chain:**
+
+```bash
+fabrik apply <spec> \
+  && fabrik verify <domain> --spec deploy \
+  && fabrik verify <domain> --spec registrars
+```
