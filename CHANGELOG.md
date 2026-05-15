@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — T2-03 (G-E2 + G-G4): Gate-time spec validation + weekly Authelia drift cron (2026-05-15)
+
+Two pieces shipped (G-E1 pre-commit hook intentionally dropped — the workflow uses AI review on staged files, not pre-commit hooks, so adding another hook would duplicate without value).
+
+**G-E2 — `final_gate.py` pydantic Spec validation.** The yaml-load block at `scripts/final_gate.py:471` now additionally calls `fabrik.spec_loader.load_spec()` on files matching `specs/services/*.yaml`. Catches missing required fields, invalid enum values, wrong types, and any other Spec-model violation before the gate passes. Imports are lazy so the gate stays runnable outside `/opt/fabrik`. On first run it surfaced two pre-existing broken specs in the repo:
+
+- `specs/services/fabrik-citation-verifier.yaml` — `infrastructure.database: 'shared'` and `infrastructure.auth: 'internal_token'` (neither is a valid `DatabaseType` / `AuthType` enum value). Fixed to `database: local` (the canonical "shared postgres-main" backend per `DatabaseType.LOCAL`'s docstring) and `auth: none` (the X-Internal-Token M2M pattern is app-level, not a backend choice). Added a comment explaining the enum semantics so the next operator doesn't re-introduce the same mistake.
+- `templates/docusaurus/defaults.yaml` — `PORT: 3000` (int). The `Spec.env` field is `dict[str, str]`. Quoted to `PORT: "3000"`. This template default was inherited by `test-docusaurus.yaml` and would have broken any future docusaurus deploy on first `fabrik plan` after G-B1a deep-merge landed.
+
+7-test pytest suite in `tests/test_final_gate_pydantic.py` covers: valid spec passes, invalid enum fails, int env fails, missing-required fails, live-gate-stays-clean regression net, non-spec yaml unaffected.
+
+**G-G4 — Weekly Authelia gating audit cron.** Installed WSL cron entry: `0 6 * * 1 PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_authelia_gates.py >> /var/log/fabrik-audit.log 2>&1`. Runs every Monday 06:00 local. `/var/log/fabrik-audit.log` provisioned (`sudo touch + chown ozgur:ozgur`). Manual smoke run on install: exit 0, 6 OK / 1 GAP / 0 MISSING (inventory size 7).
+
+**Real finding from the smoke run, logged as a follow-up not fixed here** (ticket DO-NOT list says `audit_authelia_gates.py` must not be modified): the script's inventory at `scripts/audit_authelia_gates.py` still flags `errors.vps1.ocoron.com` as having an "unexpected" Authelia middleware — that inventory predates today's T2-08 Part A decision to gate errors.vps1 with the `*.vps1 two_factor` catchall. The cron will print a GAP line every Monday until the script's inventory is updated. Tracked separately; not a regression, just stale baseline.
+
+**Scope dropped (G-E1 pre-commit hook):** the original ticket asked for a `fabrik-plan-specs` pre-commit hook in `.pre-commit-config.yaml`. The user clarified that the workflow stages files for AI review (Traycer / reviewer AI), not pre-commit-driven validation. Adding the hook would add friction to a flow that already covers spec validation upstream. G-E2 — same intent, runs at gate time on staged files — is the correct enforcement layer for this workflow.
+
 ### Fixed — T2-02 convergence review (2026-05-15)
 
 Iterative review of T2-02 against the user's 4-stage workflow vision (scaffolding → agentic → registration → verification). Eight findings, six fixed inline, two deferred.

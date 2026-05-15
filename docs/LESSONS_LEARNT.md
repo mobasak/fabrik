@@ -3933,6 +3933,23 @@ The current state is fragile — any docker daemon restart could race the port a
 
 ---
 
+# Lesson 60: Don't add pre-commit hooks for spec validation — this workflow gates at AI-review time, not commit time
+
+**Date:** 2026-05-15
+**Context:** T2-03 G-E1 originally specified adding a `fabrik-plan-specs` hook to `.pre-commit-config.yaml` that would run `fabrik plan` against staged spec files. The operator clarified that the workflow stages files for AI review (Traycer or reviewer AI), and only commits/pushes once the review is clean. Pre-commit hooks DUPLICATE that gate without adding value — they fire AFTER the review has already approved the change, so any failure they catch should have been caught upstream.
+
+**Where pre-commit IS used in this repo:** the `.pre-commit-config.yaml` only carries SAFETY NETS — `detect-private-key`, `governance-sync`, `Block forbidden files (.env, keys, certs)`. Cheap, deterministic, AI-review-orthogonal. These exist; do not extend them with workflow-of-record checks.
+
+**Rule:**
+
+1. **For spec/code validation that should run pre-commit**, the answer is `final_gate.py` (extended via T2-03 G-E2 with pydantic Spec validation). The operator already runs the gate; AI review uses the same gate output.
+2. **Pre-commit hooks** are for safety nets that have nothing to do with the review (private-key detection, forbidden-file blocking, governance file sync). Adding a workflow-of-record hook to that file creates friction and bypasses the AI review's authority.
+3. **When a Tier-2 ticket asks for a pre-commit hook**, check: is this the kind of safety net the existing hooks are? If not, route the check through `final_gate.py` instead and document the redirection in the CHANGELOG.
+
+**Why this matters:** during T2-03 implementation, the pre-flight section of the ticket also referenced `scripts/audit_all_registrars.py` (a script that doesn't exist — T2-02 shipped the same intent as the `fabrik audit-registrars` CLI subcommand). Ticket drift between Pre-flight and Steps sections is a real failure mode; both this lesson and the audit_all_registrars one show how earlier ticket drafts can pre-suppose primitives that the actual implementation absorbed elsewhere. Future tickets in this campaign: always verify Pre-flight assumptions against the live repo before treating them as gospel.
+
+---
+
 # Lesson 59: Lint AND gate the restart — chained-but-not-gated steps blew up Gatus
 
 **Date:** 2026-05-15

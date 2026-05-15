@@ -24,9 +24,13 @@ depends: {}
 infra:
   glitchtip: true                # real service, error tracking worthwhile
 infrastructure:
-  database: shared               # postgres-main on VPS
+  # `local` = postgres-main on VPS (the canonical "shared" backend per
+  # DatabaseType enum in spec_loader.py). The X-Internal-Token M2M pattern
+  # is an APP-level concern enforced in the service's internal_auth
+  # middleware — not a backend choice, so AuthType stays `none` here.
+  database: local
   storage: local
-  auth: internal_token
+  auth: none
 env:
   PORT: ${PORT:-8032}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}

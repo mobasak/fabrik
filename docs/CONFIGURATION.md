@@ -243,6 +243,31 @@ Distinct from the registrar-side VPS lock (`fabrik.drivers.locks.run_locked`),
 which operates over SSH on the VPS and lives in `/tmp/fabrik-<resource>.lock`
 on the remote host. The two never interact.
 
+### Scheduled audits — WSL cron (T2-03)
+
+`scripts/audit_authelia_gates.py` runs every Monday 06:00 local via WSL `cron`, verifying every admin-dashboard's Traefik router still has the `authelia-forward@docker` middleware attached (the policy-vs-enforcement drift class from Lesson 32 / GlitchTip 2026-04-18 incident).
+
+The cron entry was installed on 2026-05-15 by T2-03 G-G4:
+
+```cron
+0 6 * * 1 PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_authelia_gates.py >> /var/log/fabrik-audit.log 2>&1
+```
+
+Log file lives at `/var/log/fabrik-audit.log` (writable by `ozgur:ozgur`; `sudo touch + chown` if it disappears). Each run appends a single block ending in `SUMMARY: N OK, M GAP, K MISSING`.
+
+**Verifying:**
+
+```bash
+crontab -l | grep audit_authelia_gates
+sudo tail -20 /var/log/fabrik-audit.log
+# Manual run on demand:
+PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_authelia_gates.py
+```
+
+**Removing:** `crontab -e` and delete the line. The script itself stays in place for ad-hoc runs.
+
+WSL cron quirk: ensure `systemctl is-active cron` returns `active` after a WSL restart. Some fresh WSL installs don't autostart cron; if cron is `inactive` after reboot, run `sudo service cron start` and consider enabling on boot via `sudo systemctl enable cron`.
+
 ---
 
 ## Troubleshooting

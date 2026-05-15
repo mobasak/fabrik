@@ -532,6 +532,7 @@ docs/
 | [test_state.py](tests/test_state.py) | 13 tests for state.py (8-field schema, data_bearing auto-stamping, atomic-write no tmp leak, load round-trip, archive_destroyed timestamp move, apply→persist→destroy→archive lifecycle, git_sha fallback) |
 | [test_audit.py](tests/test_audit.py) | 28 tests for audit.py — all 9 per-registrar audits (status mapping, shape n/a, ssh-failure unknown), audit_all aggregator robustness (never raises), AuditResult serialization, SC-1/SC-3 audit→reconcile→re-audit lifecycle roundtrip |
 | [test_partial_destroy.py](tests/test_partial_destroy.py) | 10 tests for HANDLER_ARGS/HANDLER_FUNCS module-level export contract (T4-02 dependency), key-set parity, lambda-signature arity match via `inspect.signature`, authelia's domain-not-id contract, drop_data shape, CLI integration tests for `fabrik destroy --partial` (single, multiple, unknown registrar) |
+| [test_final_gate_pydantic.py](tests/test_final_gate_pydantic.py) | 7 tests for T2-03 G-E2 — `scripts/final_gate.py:471` pydantic Spec validation on `specs/services/*.yaml` (valid spec passes, invalid enum fails, int env fails, missing-required fails, live-gate regression net, non-spec yaml unaffected, load_spec helper importable) |
 
 ### Scaffold-Generated Files (Python API + Chrome Extension Backend)
 

@@ -464,6 +464,24 @@ def run_static_checks(
             yaml_errors.append("PyYAML not installed")
         else:
             files = [f for f in yaml_files if "templates/wordpress/schema/v1.yaml" not in f]
+            # T2-03 G-E2: pydantic Spec validation for spec files. Imported
+            # lazily — if fabrik isn't installed (gate running outside
+            # /opt/fabrik), skip spec validation gracefully rather than
+            # failing the whole check.
+            load_spec = None
+            try:
+                import sys as _sys
+
+                _src = str(PROJECT_ROOT / "src")
+                if _src not in _sys.path:
+                    _sys.path.insert(0, _src)
+                from fabrik.spec_loader import (
+                    load_spec as _load_spec,  # type: ignore[import-not-found]
+                )
+
+                load_spec = _load_spec
+            except ImportError:
+                pass  # outside fabrik repo; just do yaml.safe_load
             for f in files:
                 path = PROJECT_ROOT / f
                 if path.exists():
@@ -472,9 +490,22 @@ def run_static_checks(
                     except yaml.YAMLError as e:
                         yaml_ok = False
                         yaml_errors.append(f"{f}: {e}")
+                        continue
                     except UnicodeDecodeError:
                         yaml_ok = False
                         yaml_errors.append(f"{f}: non-UTF8 encoding")
+                        continue
+                    # T2-03 G-E2: if the file is under specs/services/, run
+                    # pydantic validation on top of plain yaml.safe_load.
+                    # Catches missing required fields, shape-domain
+                    # contradictions, and other Spec-model violations
+                    # before they reach `fabrik apply`.
+                    if load_spec is not None and "specs/services/" in f.replace("\\", "/"):
+                        try:
+                            load_spec(str(path))
+                        except Exception as e:  # noqa: BLE001
+                            yaml_ok = False
+                            yaml_errors.append(f"{f}: Spec validation failed: {e}")
         results.append(("check yaml", yaml_ok, "\n".join(yaml_errors)))
     else:
         results.append(("check yaml", True, "(no .yaml/.yml files)"))
