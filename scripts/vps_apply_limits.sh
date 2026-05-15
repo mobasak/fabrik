@@ -3,15 +3,28 @@
 # Run after VPS reboot or after Coolify redeployments of infra services.
 #
 # Coolify gap (F5, 2026-05-16): Coolify v4.0.0-beta.459 stores `limits_memory`
-# in its application config but does NOT translate that into the compose.yaml
+# in its application config but does NOT translate that into the compose
 # `deploy.resources.limits.memory` block it writes to disk. Docker therefore
-# sees no limit (`HostConfig.Memory: 0` = unlimited). The permanent fix is
-# to add an explicit `deploy.resources.limits` block to each service's
-# compose.yaml in its source repo (the scaffold template
-# `templates/python-api/compose.yaml.j2` already emits this for NEW
-# services). Until each of the 7 pre-existing Fabrik microservices is
-# backfilled + redeployed, this script applies the limit live via
-# `docker update --memory` as a stopgap.
+# sees no limit (`HostConfig.Memory: 0` = unlimited).
+#
+# 2026-05-16 STATUS — F5 PERMANENT FIX APPLIED:
+#   - 7 Coolify Applications (build_pack=dockercompose): deploy.resources.limits
+#     committed to each service's git repo (translator, image-broker, captcha,
+#     emailgateway, file-api, proxy, site-provisioner — file-worker already had
+#     it). Coolify pulls the new compose on next redeploy.
+#   - 12 Coolify Services (one-click stacks: apprise, netdata, grafana, loki,
+#     promtail, node-exporter, cadvisor, alertmanager, postgres-main, n8n,
+#     backrest, authelia): docker_compose_raw PATCHed via Coolify API
+#     (scripts/coolify_services_f5.py). Effective on next redeploy.
+#   - Scaffolder canonical compose (_write_canonical_compose) emits the deploy
+#     block by default so NEW deployments are already correct.
+#
+# This script remains as a TRANSITIONAL stopgap: running containers were
+# started from the OLD compose without limits. Until each service is
+# redeployed once after F5, this script enforces the limit live via
+# `docker update --memory`. After every service has been redeployed once,
+# this script's main loop becomes a noop (the deploy block in compose will
+# already enforce the limit). The script is safe to keep running indefinitely.
 #
 # Run pattern: `ssh vps "bash -s" < /opt/fabrik/scripts/vps_apply_limits.sh`
 

@@ -4025,3 +4025,33 @@ PATCH /applications/{uuid}/envs  body={"key":"DATABASE_URL", "value":"<marker>",
 3. **In migration receipts**, log both UUIDs and both before/after values — auditors need to see both rows accounted for.
 
 ---
+
+# Lesson 62: When auditing "all of X via Y", enumerate the deployment surface BEFORE writing fixes — Coolify has 3 deployment types with 2 different fix paths
+
+**Date:** 2026-05-16
+**Context:** F5 root cause was "Coolify v4.0.0-beta.459 doesn't translate `limits_memory` into `deploy.resources.limits` in the compose it writes." Initial audit caught 7–8 affected services (Fabrik microservices: build_pack=dockercompose Coolify Applications). Operator pushback ("we deployed most of our infrastructural services via Coolify too — glitch, netdata, prometheus…") triggered a re-audit. The real impact: **20 services across 2 different fix paths**.
+
+**The hidden surface area:**
+
+| Coolify "thing" | Source of compose | Fix mechanism | Count affected |
+|---|---|---|---|
+| Application (`build_pack=dockercompose`, git-sourced) | external git repo's `compose.yaml` | edit + commit + push; Coolify pulls on redeploy | 7 (file-worker already correct) |
+| Application (`build_pack=dockerimage`, registry image) | `limits_memory` field IS honoured for image builds | none — Coolify handles it | 0 (3 unaffected: browserless, gotenberg, meilisearch) |
+| Service (one-click stack, no source repo) | Coolify DB's `docker_compose_raw` field | API: `PATCH /api/v1/services/<uuid>` with **base64-encoded** new compose | 12 |
+
+**What I almost missed:** the 15 Coolify Services. They look like "Apps" in the dashboard but they have:
+1. no git repo (so Solution 1 can't be "edit the repo")
+2. an on-disk compose at `/data/coolify/services/<uuid>/docker-compose.yaml` that is **regenerated from `docker_compose_raw` on every redeploy** — editing the file directly is silently reverted
+
+**Rule:**
+
+1. **For any "we deploy with Coolify" question, enumerate by deployment type, not by container name.** Three different paths means three different surfaces. Check:
+   - `GET /api/v1/applications` and partition by `build_pack` (`dockercompose` vs `dockerimage` vs `nixpacks` etc.)
+   - `GET /api/v1/services` — separate table entirely from Applications
+   - Multi-container Services that LOOK like microservice stacks but aren't user-managed
+2. **For Coolify Service edits, mutate `docker_compose_raw` via API — never the on-disk file**. The on-disk file is a render artifact. The DB field is the source of truth.
+3. **PATCH `docker_compose_raw` requires the value to be base64-encoded**. The error is HTTP 422 `"The docker_compose_raw should be base64 encoded."` if you send raw YAML. Use `base64.b64encode(yaml.encode()).decode()`.
+4. **For round-trip-style edits**, prefer string-precise injection over PyYAML round-trip. PyYAML strips quoting and reformats lists, producing huge cosmetic diffs that obscure the actual change in code review and in Coolify's UI.
+5. **When the operator pushes back with "is that really all of X?"**, treat it as a signal to re-audit — they often have context (deployment history, dashboard layout) that your code-only audit missed.
+
+---

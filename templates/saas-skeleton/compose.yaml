@@ -17,6 +17,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    # F5: Coolify v4 build_pack=dockercompose does not honour the limits_memory
+    # UI field. Declaring the limit here makes Docker enforce it.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-saas}.rule=Host(`${DOMAIN:-localhost}`)"

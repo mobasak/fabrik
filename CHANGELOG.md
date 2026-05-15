@@ -4,25 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — F5 stopgap + iptables doc + convergence pass (2026-05-16)
+### Fixed — F5 permanent fix (Solution 1 backfill, all 3 batches) + iptables doc + convergence pass (2026-05-16)
 
 **iptables convergence**: live VPS has `iptables-docker-user.service` (enabled + active) running `/etc/iptables/add-docker-user-rules.sh` on boot. 9 rules in the `DOCKER-USER` chain lock down Docker's UFW bypass — only 80/443 (Traefik) + 6001/6002 (Coolify Realtime) + container-to-container traffic + ESTABLISHED. Nothing needed; added a "Docker DOCKER-USER chain — second-line defense" subsection to `docs/infrastructure/vps-complete-inventory.md` so the firewall story is complete in one place (was scattered across AGENTS.md + glitchtip-api.md mentions).
 
-**F5 — Coolify v4 `limits_memory` gap (root cause + stopgap)**:
+**F5 — Coolify v4 `limits_memory` gap — root cause + permanent fix**:
 
-Coolify v4.0.0-beta.459 stores `limits_memory` in its application config but does NOT emit a `deploy.resources.limits.memory` block in the `compose.yaml` it writes to disk. For `build_pack: dockercompose` git-source applications (all 7 Fabrik microservices), Coolify uses the project repo's `compose.yaml` verbatim — and none of those repos had a `deploy.resources` block (they predate the 2026-04-19 scaffold template addition that emits it from `{{ resources.memory }}`). Result: `HostConfig.Memory: 0` (unlimited) for every Fabrik microservice despite specs declaring `resources.limits.memory: 512M`.
+Coolify v4.0.0-beta.459 stores `limits_memory` in its application config but does NOT emit a `deploy.resources.limits.memory` block in the compose it writes to disk. Result: `HostConfig.Memory: 0` (unlimited) for every Coolify-deployed service despite UI showing a limit.
 
-**Permanent fix (per-service backfill, deferred)**: add `deploy.resources.limits` to each of the 7 services' source-repo `compose.yaml`. Each repo currently has ~20 uncommitted dev WIP, so doing this unilaterally would sweep operator changes into my commit. Documented the procedure in `docs/operations/deployment.md` under "Coolify v4 limits_memory gap (F5)" — operator runs the backfill when each repo is clean.
+Initial audit caught only 7–8 Coolify Applications. Operator pushback ("we deployed most of our infrastructural services via Coolify too — glitch, netdata, prometheus…") triggered a second audit that found the wider impact: **20 Coolify-deployed services** were affected, in 2 different deployment types with 2 different fix paths.
 
-**Stopgap shipped**: `scripts/vps_apply_limits.sh` now applies `docker update --memory` to all 8 Fabrik microservices (the 7 Coolify Applications + file-worker). Limits match each spec's declared value (512M for all). Live verification: 38 of 42 containers now have explicit limits, up from 30 after F1-F4 earlier this session. Only the 4 Coolify control-plane containers remain unlimited (intentional — Coolify can't constrain itself).
+**Solution 1 backfill applied in 3 batches:**
 
-Trade-off: `docker update` is ephemeral. Every Coolify redeploy of a microservice drops the limit again. The script must be re-run after each Coolify redeploy until the per-service compose.yaml backfill lands. This is acceptable for now because (a) we don't redeploy microservices often, (b) the script is one SSH heredoc away, and (c) the permanent fix is well-defined.
+- **Batch A — 7 Coolify Applications (build_pack=dockercompose, git-sourced)**: edited `compose.yaml` in each source repo to add `deploy.resources.limits.memory: 512M / cpus: 0.5`, committed (only `compose.yaml` — uncommitted WIP left intact), pushed to GitHub. Services: translator, image-broker, captcha, emailgateway, file-api, proxy, site-provisioner. (file-worker already had the block — no-op.) Helper: `scripts/inject_deploy_resources.py` (idempotent).
+- **Batch B — 12 Coolify Services (one-click stacks)**: these have no source repo — their compose lives in the Coolify DB's `docker_compose_raw` field. Solution: GET each service via Coolify API, inject the deploy block via string-precise editing (no PyYAML round-trip noise), PATCH back with the compose base64-encoded as the API requires. Services: apprise (768M), netdata (768M), grafana (512M), loki (512M), promtail (128M), node-exporter (128M), cadvisor (512M), alertmanager (256M), postgres-main (2G), n8n (2G), backrest (512M), authelia (512M) — all values match what `vps_apply_limits.sh` already enforces live, so behaviour is zero-change at next redeploy, only the cap survives. Helper: `scripts/coolify_services_f5.py` (idempotent, supports `--dry-run`, `--apply`, `--only <name>`).
+- **Batch C — Scaffolder + 3 legacy templates**: `_write_canonical_compose()` in `src/fabrik/scaffold.py` (8 call sites — python-api, node-api, saas-skeleton, file-api, file-worker, chrome-extension, docusaurus, mobile-app) now emits a `deploy.resources.limits` block by default (params: `memory: str = "512M"`, `cpus: str = "0.5"`). Also fixed three previously-orphan/legacy compose templates so they're consistent if revived: `templates/saas-skeleton/compose.yaml`, `templates/scaffold/docker/compose.yaml.template`, `templates/wordpress/base/compose.yaml.j2` (5 services in the WordPress one — wordpress 512M, nginx 256M, db 1G, redis 256M, backup 128M).
+
+**Why the Coolify Service fix had to use the API**: editing `/data/coolify/services/<uuid>/docker-compose.yaml` on disk would be reverted on the next redeploy because Coolify regenerates that file from `docker_compose_raw` in its DB. The API path (`PATCH /api/v1/services/<uuid>` with base64-encoded compose) is the authoritative write.
+
+**Verification**: post-PATCH GET against all 12 services confirms `deploy:` block present with the right memory value. All 40 `tests/test_scaffold_compose_traefik.py` tests still pass after the canonical-compose change.
+
+**`scripts/vps_apply_limits.sh` reclassified as transitional**: its header was updated. The script still applies `docker update --memory` live because already-running containers were started from the OLD compose. After each service has been redeployed once post-F5, the script's main loop becomes a noop for that service. Safe to keep running.
 
 **Convergence findings (stage-by-stage against the lifecycle vision)**:
 
 - Stage 1 (Intent + Scaffolding): ✅ Converged via T3-01.
 - Stage 2 (Agentic Implementation): ⚠️ Scaffold templates emit /metrics + internal_auth correctly for new services, but **0 of 7 deployed Fabrik microservices have a `/metrics` endpoint** (they predate the shape-block era). Backfill via spec re-apply — separate ticket.
-- Stage 3 (Proper Registration): ⚠️ All 4 registrars wired. **F5 spec→Coolify memory wiring gap addressed today via stopgap; permanent fix is the per-service compose.yaml backfill.**
+- Stage 3 (Proper Registration): ✅ All 4 registrars wired. **F5 spec→Coolify memory wiring gap closed today via the 3-batch Solution 1 backfill.**
 - Stage 4 (Verification + auto-rollback): ⚠️ `fabrik verify` ships with `--spec deploy` + `--spec registrars`. **Auto-rollback is still a STUB** at `verify.py:394` ("Rollback logic would go here") — pre-existing limitation, separate ticket.
 
 ### Added — T3-01 (G-A1 through G-A5): Preplan handoff (Stage 1 of the Fabrik lifecycle) (2026-05-15)

@@ -35,6 +35,14 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    # F5: Coolify v4 build_pack=dockercompose does not honour the limits_memory
+    # UI field. Declaring the limit here makes Docker enforce it on every
+    # redeploy. Tune per-project as needed.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
     networks:
       - coolify
     labels:

@@ -4,6 +4,12 @@ services:
     platform: linux/amd64
     container_name: {{ name }}-wordpress
     restart: unless-stopped
+    # F5: Coolify v4 limits_memory gap — declare here so Docker enforces.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
     env_file:
       - .env
     environment:
@@ -30,6 +36,12 @@ services:
     platform: linux/amd64
     container_name: {{ name }}-nginx
     restart: unless-stopped
+    # F5: Coolify v4 limits_memory gap — declare here so Docker enforces.
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
     volumes:
       - wp_content:/var/www/html/wp-content:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
@@ -73,6 +85,12 @@ services:
     platform: linux/amd64
     container_name: {{ name }}-db
     restart: unless-stopped
+    # F5: Coolify v4 limits_memory gap — declare here so Docker enforces.
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
     env_file:
       - .env
     environment:
@@ -95,6 +113,12 @@ services:
     platform: linux/amd64
     container_name: {{ name }}-redis
     restart: unless-stopped
+    # F5: Coolify v4 limits_memory gap — declare here so Docker enforces.
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
     volumes:
       - redis_data:/data
     networks:
@@ -110,6 +134,12 @@ services:
     platform: linux/amd64
     container_name: {{ name }}-backup
     restart: unless-stopped
+    # F5: Coolify v4 limits_memory gap — declare here so Docker enforces.
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
     env_file:
       - .env
     environment:

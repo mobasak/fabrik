@@ -524,6 +524,8 @@ def _write_canonical_compose(
     extra_env_lines: tuple[str, ...] = (),
     healthcheck_kind: str = "http",  # "http" | "tcp" | "process:<pattern>"
     process_pattern: str | None = None,
+    memory: str = "512M",
+    cpus: str = "0.5",
 ) -> None:
     """Write the canonical Coolify-compatible ``compose.yaml`` for a scaffold.
 
@@ -646,6 +648,14 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    # F5: Coolify v4.0.0-beta.459 does not translate its limits_memory UI field
+    # into ``deploy.resources.limits`` for build_pack=dockercompose apps, so
+    # Docker sees no cap. Declaring the limit here makes it survive redeploys.
+    deploy:
+      resources:
+        limits:
+          memory: {memory}
+          cpus: '{cpus}'
     networks:
       - coolify
 {traefik_labels}

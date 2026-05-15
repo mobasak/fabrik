@@ -388,9 +388,17 @@ services:
 
 Then `git add compose.yaml && git commit -m 'add memory/cpu limits' && git push && cd /opt/fabrik && fabrik redeploy fabrik-<name>`.
 
-The python-api and node-api scaffold templates (`templates/python-api/compose.yaml.j2` and `templates/node-api/compose.yaml.j2`) already emit this block from `{{ resources.memory }}` and `{{ resources.cpu }}` — so NEW services scaffolded post-2026-04-19 carry the limit automatically. The 7 deployed Fabrik microservices (translator, image-broker, fabrik-proxy, site-provisioner, file-api, emailgateway, captcha — plus file-worker) predate that template and need manual backfill.
+The python-api and node-api scaffold templates (`templates/python-api/compose.yaml.j2` and `templates/node-api/compose.yaml.j2`) already emit this block from `{{ resources.memory }}` and `{{ resources.cpu }}`. The non-spec-driven canonical compose generator (`_write_canonical_compose()` in `src/fabrik/scaffold.py`) ALSO emits the block by default since 2026-05-16. New services in any project type carry the limit automatically.
 
-**Stopgap (2026-05-16):** `scripts/vps_apply_limits.sh` now applies the limits via `docker update --memory` to all 8 Fabrik microservices on every run. `docker update` is ephemeral — Coolify re-deploys drop the limit — so the script must be re-run after each Coolify redeploy until the per-service compose.yaml backfill lands. Manual rerun: `ssh vps "bash -s" < /opt/fabrik/scripts/vps_apply_limits.sh`. The script also auto-fires after VPS reboot via the `coolify-sentinel`/post-deploy pattern documented elsewhere in this file.
+**For Coolify Services (one-click stacks: grafana, n8n, postgres-main, authelia, etc.)** — these have no source repo. Their compose lives in Coolify's DB at `docker_compose_raw`. Use `scripts/coolify_services_f5.py` to inject the deploy block via the Coolify API (string-precise; preserves formatting). The on-disk file at `/data/coolify/services/<uuid>/docker-compose.yaml` is REGENERATED from the DB field on every redeploy — editing the file directly would be silently reverted. See Lesson 62.
+
+**Status (2026-05-16): F5 permanent fix applied:**
+
+- 7 Coolify Applications (Fabrik microservices) backfilled via per-repo compose.yaml commits. (file-worker already had the block.)
+- 12 Coolify Services backfilled via `scripts/coolify_services_f5.py` (apprise, netdata, grafana, loki, promtail, node-exporter, cadvisor, alertmanager, postgres-main, n8n, backrest, authelia). PATCH `/api/v1/services/{uuid}` with base64-encoded docker_compose_raw.
+- Scaffolder + 3 legacy compose templates updated so NEW deployments carry the deploy block by default.
+
+**`scripts/vps_apply_limits.sh` remains as transitional stopgap**: it applies `docker update --memory` to already-running containers (started from old compose). After each service is redeployed once post-F5, the script's main loop becomes a noop for that service. Safe to keep running. Manual rerun: `ssh vps "bash -s" < /opt/fabrik/scripts/vps_apply_limits.sh`.
 
 ### Phase 3 — DEPLOYING (calls Coolify API on VPS)
 **Module:** `src/fabrik/orchestrator/deployer.py:ServiceDeployer`
