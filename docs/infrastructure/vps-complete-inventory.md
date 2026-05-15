@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-15 19:38 UTC
+**Last Updated:** 2026-05-15 20:03 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 40 running
@@ -225,8 +225,8 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 |---|---|---|
 | `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 3 weeks (healthy) | 256m |
 | `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 3 weeks (healthy) | 512m |
-| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 3 hours (healthy) | — |
-| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 5 hours | 512m |
+| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 4 hours (healthy) | — |
+| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 6 hours | 512m |
 | `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 6 days (healthy) | 512m |
 | `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 8 days (healthy) | — |
 | `captcha-j8gg4ggskkossc4gkwowk4os-191229303949` | ✅ Up 7 days (healthy) | — |
@@ -234,13 +234,13 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `coolify-db` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 40 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up 5 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 6 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 7 days (healthy) | — |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | — |
 | `file-api-bsswwg4kg480c000gksw004k-192212486944` | ✅ Up 7 days (healthy) | — |
 | `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | ✅ Up 2 days (healthy) | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 3 hours | 256m |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 4 hours | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 6 days (healthy) | — |
@@ -262,7 +262,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | — |
 | `traefik` | ✅ Up 10 hours | — |
-| `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 4 hours (healthy) | — |
+| `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 5 hours (healthy) | — |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 6 days | 2g |
 <!-- /AUTO -->
 
