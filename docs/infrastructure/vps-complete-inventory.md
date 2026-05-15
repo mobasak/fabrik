@@ -408,6 +408,19 @@ Runs every Monday 06:00 local. Hits the live Traefik API over SSH and verifies e
 
 **Known follow-up:** the script's expected inventory for `errors.vps1.ocoron.com` predates T2-08 Part A — it still flags the Authelia middleware as "unexpected" on errors.vps1. The cron prints `1 GAP` every Monday until the inventory in `audit_authelia_gates.py` is updated. Cosmetic (exit 0); tracked separately.
 
+## Alias-Watcher + Projects.yaml Deploy Fields (T2-04, 2026-05-15)
+
+Coolify renames single-image Application containers on every redeploy: `<24-char-uuid>-<10-digit-timestamp>`. Friendly Docker DNS names that Gatus monitors and inter-service URLs depend on (`meilisearch:7700`, `gotenberg:3000`, etc.) drop on every redeploy. The `coolify-alias-watcher.service` (event-driven docker-events listener at `/opt/coolify-alias-watcher/watcher.sh`) re-applies the alias within ~1s of container start. T2-04 made it data-driven:
+
+- `/opt/coolify-alias-watcher/aliases.json` (NEW, prefix-only UUID keys → friendly alias). WSL mirror lives at `ops/coolify-alias-watcher/aliases.json` in this repo and is byte-identical to the VPS copy.
+- `watcher.sh` reloads the map via `jq -r '.aliases | to_entries[] | "\(.key)\t\(.value)"'` on every restart (sub-second).
+- Orchestrator helper `src/fabrik/orchestrator/coolify_alias.py::add_alias(coolify_uuid, alias)` writes the map atomically (tee → tmp → chown+chmod+mv) and restarts the watcher. New specs opt in via `coolify.alias: <friendly-name>` in `CoolifyConfig`. The orchestrator's `_maybe_register_coolify_alias()` fires from both `deploy()` (between Step 4 and 4b) and `refresh_infrastructure()` (after `provision()`). Non-fatal: alias-watcher failure logs a warning but never aborts deploy.
+- `Restart=always`, NO `ExecReload` — always restart, never `reload` (always fails).
+
+**Why prefixes only:** the watcher matches `^${prefix}-`. The timestamp suffix changes on every redeploy; only the 24-char UUID prefix is stable. Earlier ticket drafts proposed full-suffix keys; those would silently never match newly-redeployed containers.
+
+**`data/projects.yaml` deploy block (T2-04 G-J1):** `scripts/sync_projects.py` now reads `.fabrik/state/<id>.json` (T2-01 G-F3) into a 7-field `deploy:` block per project: `last_apply_status / last_apply_at / last_apply_sha / coolify_uuid / coolify_app_name / spec_path / registrars_applied`. Projects without a state file show `last_apply_status: never` — explicit signal that the project has never been applied (or was applied pre-T2-01). Falls back to `state/fabrik-<id>.json` (Coolify naming convention).
+
 ---
 
 ## Security Posture Summary

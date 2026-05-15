@@ -352,7 +352,7 @@ Traycer injects rule-pack guidance into coding-agent execution prompts based on 
 
 Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the project tree AND emits `specs/services/<name>.yaml` with a populated `shape:` block per `templates/<type>/defaults.yaml`. The `shape:` block drives which infrastructure registrars run during `fabrik apply` (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus). `fabrik new` is deprecated (hidden; scheduled removal 2026-05-31).
 
-**Post-deploy lifecycle commands (T2-01 + T2-02 + T2-03):**
+**Post-deploy lifecycle commands (T2-01 + T2-02 + T2-03 + T2-04):**
 
 - Every successful `fabrik apply` / `fabrik redeploy --refresh-infrastructure` writes `.fabrik/state/<spec.id>.json` (8-field G-F3 manifest) — the source of truth for what got registered.
 - `fabrik audit-registrars [--spec <path>] [--json]` — verify each spec's shape-resolved registrars vs live VPS state. Statuses: `present / missing / n/a / unknown`. Exit 2 if any missing.
@@ -361,6 +361,8 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 - `fabrik destroy <spec> --partial <reg>` (repeatable) — surgical un-registration without touching DNS, Coolify app, or local files. Backed by module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py`. Grafana intentionally excluded (annotations are decorative).
 - **Gate-time spec validation (T2-03 G-E2):** `scripts/final_gate.py:471` runs `fabrik.spec_loader.load_spec()` on staged `specs/services/*.yaml` files; catches pydantic-model violations before the gate passes. Do NOT add a parallel pre-commit hook for the same purpose (Lesson 60).
 - **Weekly Authelia drift cron (T2-03 G-G4):** `0 6 * * 1` WSL cron entry runs `scripts/audit_authelia_gates.py` against the live Traefik API, verifying every admin-dashboard router has the `authelia-forward@docker` middleware attached. Log at `/var/log/fabrik-audit.log`.
+- **Coolify alias-watcher write side (T2-04 G-J3):** specs that need a stable Docker DNS alias for an Application-style container (Gatus monitors / inter-service URLs reference the alias, not the timestamp-suffixed container name) opt in via `coolify.alias: <name>` in `CoolifyConfig`. The orchestrator's `_maybe_register_coolify_alias()` writes the prefix→alias mapping to `/opt/coolify-alias-watcher/aliases.json` and restarts the watcher. WSL mirror at `ops/coolify-alias-watcher/`. Restart-not-reload — service has no `ExecReload`.
+- **Deploy-aware `data/projects.yaml` (T2-04 G-J1):** `scripts/sync_projects.py` now merges `.fabrik/state/<id>.json` into each project entry under a `deploy:` block (last_apply_status / last_apply_at / last_apply_sha / coolify_uuid / coolify_app_name / spec_path / registrars_applied). Projects with no state file show `last_apply_status: never`.
 
 | Type | Template | Stack | shape.kind | shape flags (true only) |
 |---|---|---|---|---|

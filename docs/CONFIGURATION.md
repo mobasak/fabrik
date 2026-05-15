@@ -268,6 +268,24 @@ PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audi
 
 WSL cron quirk: ensure `systemctl is-active cron` returns `active` after a WSL restart. Some fresh WSL installs don't autostart cron; if cron is `inactive` after reboot, run `sudo service cron start` and consider enabling on boot via `sudo systemctl enable cron`.
 
+### `coolify.alias` spec field (T2-04 G-J3)
+
+Coolify renames single-image Application containers on every redeploy: `<24-char-uuid>-<10-digit-timestamp>`. Any Gatus monitor or inter-service URL that resolves the container by name breaks silently after the next redeploy. The fix is a stable Docker DNS alias re-applied by `/opt/coolify-alias-watcher/` on every container start.
+
+Opt a service in by setting the field in its spec's `coolify:` block:
+
+```yaml
+coolify:
+  project: fabrik-services
+  alias: my-friendly-name
+```
+
+When set, `fabrik apply` (and `fabrik redeploy --refresh-infrastructure`) calls `coolify_alias.add_alias(ctx.coolify_uuid, "my-friendly-name")` after the Coolify create-app step succeeds. The helper writes to `/opt/coolify-alias-watcher/aliases.json` atomically (`tee → /tmp tmp → chown root:root + chmod 644 + mv`) and restarts the `coolify-alias-watcher.service`. Restart cost is sub-second; the unit's `Restart=always` + missing `ExecReload` means reload always fails, so we always restart.
+
+WSL mirror of the watcher lives at `ops/coolify-alias-watcher/` and stays byte-identical to the VPS copy. Hand-edits there (e.g. retiring an old alias) should be `scp`'d to `/opt/coolify-alias-watcher/` on the VPS and the service restarted.
+
+**Skip the field** if your service is a Coolify Service stack (multi-container under `/data/coolify/services/<uuid>/`) — those get stable names from compose automatically, so the alias-watcher is a no-op.
+
 ---
 
 ## Troubleshooting

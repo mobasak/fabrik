@@ -372,6 +372,24 @@ This is the only phase that creates the Application container. Sequence:
 
 **At end of Phase 3**: a running container exists on the VPS, attached to the `coolify` Docker network, with Traefik labels applied (Coolify auto-generates these from spec's `domain` and `port`).
 
+### Phase 3a — COOLIFY ALIAS REGISTRATION (T2-04 G-J3, optional)
+
+**Module:** `src/fabrik/orchestrator/coolify_alias.py::add_alias`
+
+Fires between Phase 3 and Phase 4 ONLY when the spec sets `coolify.alias: <friendly-name>` in its `CoolifyConfig` block. The orchestrator's `_maybe_register_coolify_alias(ctx, spec)` calls `add_alias(ctx.coolify_uuid, spec.coolify.alias)` which:
+
+1. Reads `/opt/coolify-alias-watcher/aliases.json` via SSH+sudo cat.
+2. No-ops if `aliases[coolify_uuid] == alias` already.
+3. Otherwise atomically writes the merged map (`tee → /tmp/aliases.json.tmp` then `chown root:root + chmod 644 + mv`).
+4. `sudo systemctl restart coolify-alias-watcher.service` (sub-second; unit has `Restart=always` and NO `ExecReload`).
+
+The watcher's docker-events listener picks up the new prefix→alias mapping on next start. Non-fatal: alias-watcher failure logs a warning but never aborts deploy. Adds `ResourceRecord("coolify_alias", alias, ...)` to ctx so T4-01/T4-02 destroy can find it.
+
+**Skipped for:**
+
+- Specs without `coolify.alias` set (default `None` — covers all Service stacks and any Application whose container name doesn't need stable DNS aliasing).
+- `refresh_infrastructure()` also calls this so adding `coolify.alias` to an existing spec and re-running picks it up.
+
 ### Phase 4 — PROVISIONING (post-deploy registrars on VPS)
 **Module:** `src/fabrik/orchestrator/infrastructure.py:InfrastructureProvisioner`
 
