@@ -138,3 +138,9 @@ scripts/runls
 scripts/runtail
 scripts/runwait
 state.json
+
+# Sessional safety backups — files created before destructive edits
+# (e.g. `cp AGENTS.md AGENTS.md.backup.YYYYMMDD-HHMMSS`). Kept on disk for
+# the duration of the session, never committed to remote history.
+*.backup.*
+*.bak.*
