@@ -24,7 +24,7 @@ echo "=== VPS resource limits ==="
 
 # Observability
 apply alertmanager-   256m
-apply apprise-        512m
+apply apprise-        768m   # bumped 2026-05-15: live at 80% of 512m, Lesson 6 was prescient
 apply cadvisor-       512m
 apply gatus-          256m
 apply grafana-        512m
@@ -33,6 +33,8 @@ apply netdata-        768m
 apply node-exporter-  128m
 apply promtail-       128m
 apply prometheus      1g
+apply redis-exporter      64m   # T3-01 follow-up 2026-05-15: previously unlimited
+apply postgres-exporter   64m   # T3-01 follow-up 2026-05-15: previously unlimited
 
 # Auth & ops
 apply authelia-       512m
@@ -48,11 +50,15 @@ apply n8n-            2g
 # Network
 apply traefik         256m
 
+# Coolify control plane (host-internal — small footprint)
+apply coolify-sentinel    64m   # T3-01 follow-up 2026-05-15: previously unlimited
+
 # WordPress stack
 apply ocoron-com-db-1         1g
 apply ocoron-com-wordpress-1  512m
 apply ocoron-com-nginx-1      256m
 apply ocoron-com-redis-1      256m
+apply ocoron-com-backup-1     128m  # T3-01 follow-up 2026-05-15: previously unlimited
 
 echo "=== Done ==="
 

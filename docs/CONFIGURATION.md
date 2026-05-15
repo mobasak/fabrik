@@ -268,6 +268,18 @@ PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audi
 
 WSL cron quirk: ensure `systemctl is-active cron` returns `active` after a WSL restart. Some fresh WSL installs don't autostart cron; if cron is `inactive` after reboot, run `sudo service cron start` and consider enabling on boot via `sudo systemctl enable cron`.
 
+### Preplan workflow (T3-01)
+
+Stage 1 of the Fabrik lifecycle captures project intent in `docs/preplans/<YYYY-MM-DD>-<slug>.md` BEFORE `fabrik scaffold` runs. The 9-section template (rendered by `fabrik preplan new <slug>` from `templates/preplan/preplan.md.j2`) covers Idea / Project type / Shape preview / External deps / Domain / Success criteria / Out of scope / Open questions / Notes (VPS1 inventory reminders — embedded so agents reading the preplan stay grounded in `postgres-main:5432`, `redis-main:6379`, `X-Internal-Token`, `/health` bypass, `/metrics`, GlitchTip DSN).
+
+`fabrik scaffold <name> --from-preplan <path>` then:
+
+- Pre-fills `--type` and description from the preplan
+- Copies the markdown into `<project>/docs/preplan.md`
+- Appends a `Preplan:` reference line to ALL 4 AI guardrail files (`AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`) so every downstream agent reads the same intent
+
+No new env vars. The workflow is documented in `docs/preplans/README.md` and Traycer ingests it via Step 2.5 of `docs/traycer/fabrik-workflow.md`.
+
 ### `coolify.alias` spec field (T2-04 G-J3)
 
 Coolify renames single-image Application containers on every redeploy: `<24-char-uuid>-<10-digit-timestamp>`. Any Gatus monitor or inter-service URL that resolves the container by name breaks silently after the next redeploy. The fix is a stable Docker DNS alias re-applied by `/opt/coolify-alias-watcher/` on every container start.

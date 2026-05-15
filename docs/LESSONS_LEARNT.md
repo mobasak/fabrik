@@ -3933,6 +3933,26 @@ The current state is fragile — any docker daemon restart could race the port a
 
 ---
 
+# Lesson 61: Propagate agent-facing context to ALL 4 guardrail files, not just AGENTS.md
+
+**Date:** 2026-05-15
+**Context:** T3-01 ticket said "add a `Preplan:` reference line to `<project>/AGENTS.md`". Implementing literally would inject the reference into Traycer's planning context (AGENTS.md) but leave Claude Code (CLAUDE.md), Kilo (AGENTS-compact.md), and Windsurf (.windsurfrules) blind to the preplan. Three of four downstream agents wouldn't know there's a captured intent document — they'd re-derive it from scratch every time they opened the project.
+
+**Why this slips through:** AGENTS.md is the most prominent guardrail (Traycer reads it first; it's the canonical planning-context anchor). Adding a line there feels like a complete integration. But the user's workflow vision says: *"The script populates agents.md (Traycer), claude.md (Claude Code), agents-compact.md (Kilo), and .windsurfrules (Windsurf). These files are pre-loaded with your VPS1 Inventory so the agents never 'hallucinate'."* — all 4, not 1.
+
+**Rule:**
+
+1. **When a feature delivers context that agents should READ, propagate to all 4 guardrail files.** The cost is 3 extra lines (one per file); the benefit is the same intent reaches every agent that picks up the project.
+2. **When in doubt, list the agents that would care.** If Claude Code (writes code), Kilo (reviews diffs), Windsurf (edits in IDE), or Traycer (plans tickets) would benefit from knowing this fact, add the reference to that agent's file.
+3. **Idempotency is mandatory.** Re-running the integration must not duplicate lines (check for marker substring before append). Otherwise re-applying a preplan via `fabrik scaffold --from-preplan` would balloon the guardrail file with N copies of the reference.
+4. **For ticket reviewers:** when a Traycer ticket says "inject context into AGENTS.md", reflexively ask: should this go into the other 3 too? If yes, adapt the ticket scope before implementing.
+
+**How to apply:** add helper functions that touch all 4 files at once (e.g. T3-01's `scaffold._layer_preplan_into_project()` iterates over `["AGENTS.md", "CLAUDE.md", "AGENTS-compact.md", ".windsurfrules"]`). Skip missing files silently — some scaffold types may not emit all 4. Always check for an idempotency marker (e.g. `"Preplan:" + "docs/preplan.md"`) before appending.
+
+**Watch for the inverse problem too:** if a future ticket adds a NEW agent (say, a Cursor or Gemini integration), expand this list. The `_layer_*` helpers in scaffold.py are the single point of maintenance for the agent-fanout pattern.
+
+---
+
 # Lesson 60: Don't add pre-commit hooks for spec validation — this workflow gates at AI-review time, not commit time
 
 **Date:** 2026-05-15
