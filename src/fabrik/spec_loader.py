@@ -185,6 +185,18 @@ class CoolifyConfig(BaseModel):
     # Required for SSH-URL git repos (``git@...``); ignored otherwise.
     # See ``orchestrator/deployer.py::_resolve_private_key_uuid``.
     private_key_uuid: str | None = None
+    # T2-04 G-J3: stable Docker DNS alias for single-image Applications.
+    # Coolify renames Application containers on every redeploy
+    # (``<uuid>-<timestamp>``); any Gatus monitor or inter-service URL
+    # keyed on that container name breaks silently after a redeploy.
+    # When this field is set, the orchestrator calls
+    # ``coolify_alias.add_alias(ctx.coolify_uuid, alias)`` which writes
+    # to ``/opt/coolify-alias-watcher/aliases.json`` so the watcher
+    # service re-applies the alias on every Coolify Application start.
+    # Service stacks (multi-container, under
+    # ``/data/coolify/services/<uuid>/``) already get stable names from
+    # compose, so this field is a no-op for them; leave it None.
+    alias: str | None = None
 
 
 class Depends(BaseModel):

@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — T2-04 (G-J3 + G-J1): Alias-watcher write side + projects.yaml deploy fields (2026-05-15)
+
+Two operational-layer integrations + new orchestrator step + tests + post-ticket doc-sync.
+
+**G-J3 — Coolify alias-watcher refactored data-driven + add_alias() helper.** The hardcoded `declare -A ALIASES=(...)` block in `ops/coolify-alias-watcher/watcher.sh` is replaced with a jq-based load from `/opt/coolify-alias-watcher/aliases.json`. The 4 baseline aliases (meilisearch, gotenberg, browserless, glitchtip-web) carry over identically. New `src/fabrik/orchestrator/coolify_alias.py::add_alias(coolify_uuid, alias)` writes a new mapping atomically (tee → tmp → chown + chmod + mv) and restarts the watcher service. **Restart not reload** — the systemd unit defines `Restart=always` with NO `ExecReload`, so a reload call always exits non-zero against this unit; restart cost is sub-second. Verified live on VPS: refactor deployed, service `Restart=always` (PID 2069753), startup log confirms "container=bs0wo48k... already has alias=meilisearch" + 3 other reconciliations.
+
+**Ticket drift fixed:** the original Step 4's aliases.json structure used full-suffix UUID keys (`bs0wo48k4gwo440gcowscoc8-150802066640`) — those suffixes are timestamps that change on every Coolify redeploy. The watcher matches by `^${prefix}-` so keys must be prefix-only (24-char UUID without the timestamp). Used the Pre-flight section's correct structure instead.
+
+**New `CoolifyConfig.alias` optional field** in `src/fabrik/spec_loader.py`. When a spec sets `coolify.alias`, the orchestrator's `_maybe_register_coolify_alias()` (new private method on DeploymentOrchestrator) fires after `deployer.deploy()` succeeds. Non-fatal: alias-watcher failure logs a warning but does NOT abort the deploy. Wired into both `deploy()` (between Step 4 and 4b) and `refresh_infrastructure()` (after `provision()`). Adds a `ResourceRecord("coolify_alias", alias, status=...)` to ctx so destroy can find it later.
+
+**G-J1 — `scripts/sync_projects.py` now reads `.fabrik/state/<id>.json` (T2-01 G-F3) into a new `deploy` block on each project entry.** Schema (per project, only when state file exists):
+
+```yaml
+deploy:
+  last_apply_status: applied      # or "never" when no state file
+  last_apply_at: '<iso8601-utc>'
+  last_apply_sha: '<git-sha>'
+  coolify_uuid: '<24-char>'
+  coolify_app_name: '<id-or-fabrik-id>'
+  spec_path: /opt/fabrik/specs/services/<id>.yaml
+  registrars_applied: [postgres, gatus, ...]
+```
+
+Falls back to `state/fabrik-<id>.json` if the bare `<id>.json` doesn't exist (Coolify naming convention). Malformed state returns `last_apply_status: unknown` rather than crashing. After running `sync_projects.py` once: all 42 projects show `deploy.last_apply_status: never` since no `fabrik apply` has run since T2-01 shipped. The next deploy will populate the fields for that project.
+
+**Tests:** 12-test `tests/test_coolify_alias.py` (add_alias atomic-write contract, dry-run, edge cases including malformed JSON + ssh failure) + 8-test `tests/test_sync_projects_state.py` (never/applied/fabrik-prefix-fallback paths + Project dataclass round-trip + SC-2 primary-path end-to-end). 20/20 passing.
+
 ### Added — T2-03 (G-E2 + G-G4): Gate-time spec validation + weekly Authelia drift cron (2026-05-15)
 
 Two pieces shipped (G-E1 pre-commit hook intentionally dropped — the workflow uses AI review on staged files, not pre-commit hooks, so adding another hook would duplicate without value).

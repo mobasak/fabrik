@@ -125,6 +125,14 @@ class DeploymentOrchestrator:
             self._transition(ctx, DeploymentState.DEPLOYING)
             self.deployer.deploy(ctx)
 
+            # Step 4a-1: Coolify alias watcher (T2-04 G-J3). When the spec
+            # opts in via ``coolify.alias``, register the prefix → friendly
+            # DNS alias so the watcher re-applies it on every Coolify
+            # Application redeploy. Non-fatal: a missing alias entry only
+            # affects Gatus monitor / inter-service DNS for THIS service;
+            # the deploy itself still succeeds.
+            self._maybe_register_coolify_alias(ctx, spec)
+
             # Step 4b: Provision infrastructure registrars (post-deploy).
             # Must run AFTER deployer.deploy so ctx.coolify_uuid is set
             # (glitchtip needs it for SENTRY_DSN injection) and the
@@ -352,8 +360,28 @@ class DeploymentOrchestrator:
                 resource_type="infrastructure",
             ) from e
 
+        self._maybe_register_coolify_alias(ctx, spec)
         self._persist_state(ctx, spec)
         return ctx
+
+    def _maybe_register_coolify_alias(self, ctx: DeploymentContext, spec: dict[str, Any]) -> None:
+        # T2-04 G-J3: optional Docker DNS alias registration. Only fires
+        # when the spec sets ``coolify.alias`` AND ctx has a coolify_uuid.
+        # Non-fatal — alias-watcher failure should not abort deploy.
+        coolify = spec.get("coolify") or {}
+        alias = coolify.get("alias") if isinstance(coolify, dict) else None
+        if not alias or not ctx.coolify_uuid:
+            return
+        try:
+            from fabrik.orchestrator import coolify_alias
+
+            result = coolify_alias.add_alias(ctx.coolify_uuid, alias)
+            ctx.add_resource("coolify_alias", alias, status=result.get("status", "added"))
+            logger.info(
+                "coolify_alias: %s → %s (%s)", ctx.coolify_uuid, alias, result.get("status")
+            )
+        except Exception as e:  # noqa: BLE001 — best-effort
+            logger.warning("coolify_alias registration failed (non-fatal): %s", e)
 
     def _persist_state(self, ctx: DeploymentContext, spec: dict[str, Any]) -> None:
         # Write .fabrik/state/<id>.json with the 8-field G-F3 schema. Failure

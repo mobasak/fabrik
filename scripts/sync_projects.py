@@ -52,6 +52,9 @@ class Project:
     dependencies: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     has_user_guide: bool = False
+    # T2-04 G-J1: deploy-aware fields merged from .fabrik/state/<id>.json
+    # if present. last_apply_status="never" when no state file exists.
+    deploy: dict = field(default_factory=dict)
 
     def to_registry_dict(self) -> dict:
         """Serialize for data/projects.yaml."""
@@ -81,6 +84,8 @@ class Project:
         if self.tags:
             d["tags"] = self.tags
         d["has_user_guide"] = self.has_user_guide
+        if self.deploy:
+            d["deploy"] = self.deploy
         return d
 
 
@@ -163,7 +168,48 @@ def _build_project(path: Path) -> Project:
     elif project.status not in ("✅ Production",):
         project.status = "🔨 Development"
 
+    # T2-04 G-J1: merge deploy-aware state from .fabrik/state/<id>.json
+    # if a successful apply has been recorded since T2-01 landed.
+    project.deploy = _load_deploy_state(project.name)
+
     return project
+
+
+def _load_deploy_state(project_name: str) -> dict:
+    # Read /opt/fabrik/.fabrik/state/<name>.json (T2-01 G-F3) and return
+    # the deploy-aware subset for projects.yaml. Returns
+    # ``{"last_apply_status": "never"}`` if no state file exists — that's
+    # the explicit signal to operators that the project has never been
+    # applied (or was applied pre-T2-01 and predates state-file tracking).
+    state_path = FABRIK_ROOT / ".fabrik" / "state" / f"{project_name}.json"
+    # Also try the `fabrik-<name>` prefix (Coolify naming convention for
+    # Fabrik microservices); state files are written under spec.id which
+    # may be either form depending on the spec.
+    if not state_path.exists():
+        state_path = FABRIK_ROOT / ".fabrik" / "state" / f"fabrik-{project_name}.json"
+    if not state_path.exists():
+        return {"last_apply_status": "never"}
+
+    try:
+        import json
+
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"last_apply_status": "unknown", "error": "state file unreadable"}
+
+    return {
+        "last_apply_status": "applied",
+        "last_apply_at": payload.get("applied_at", ""),
+        "last_apply_sha": payload.get("git_sha", ""),
+        "coolify_uuid": payload.get("coolify_uuid"),
+        "coolify_app_name": payload.get("coolify_app_name", ""),
+        "spec_path": payload.get("spec_path", ""),
+        "registrars_applied": [
+            r.get("type")
+            for r in payload.get("registrars_applied", [])
+            if isinstance(r, dict) and r.get("type")
+        ],
+    }
 
 
 def _extract_purpose(path: Path) -> str | None:

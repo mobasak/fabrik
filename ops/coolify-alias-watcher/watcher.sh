@@ -9,13 +9,18 @@
 
 set -euo pipefail
 
-# Map: container-name-prefix → friendly alias
-declare -A ALIASES=(
-    [bs0wo48k4gwo440gcowscoc8]=meilisearch
-    [e04k4sco44ow04ccc0o0k00k]=gotenberg
-    [vckgs8c00o40o884k48cgow8]=browserless
-    [glitchtip-web]=glitchtip-web
-)
+# T2-04 G-J3: data-driven alias map loaded from JSON. The orchestrator's
+# `add_alias()` writes to this file when new admin-dashboard services
+# deploy with `spec.coolify.alias` set. The watcher reloads on
+# `systemctl restart` (sub-second). Keys are container-name PREFIXES
+# (excluding the trailing `-<timestamp>` suffix Coolify appends on
+# every Application redeploy); values are the friendly Docker DNS
+# aliases Gatus / inter-service URLs depend on.
+ALIASES_PATH=/opt/coolify-alias-watcher/aliases.json
+declare -A ALIASES
+while IFS=$'\t' read -r prefix alias; do
+    ALIASES["$prefix"]="$alias"
+done < <(jq -r '.aliases | to_entries[] | "\(.key)\t\(.value)"' "$ALIASES_PATH")
 
 NETWORK=coolify
 LOG_TAG=coolify-alias-watcher
