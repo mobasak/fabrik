@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-15 20:03 UTC
+**Last Updated:** 2026-05-15 20:29 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 40 running
@@ -234,7 +234,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `coolify-db` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 5 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up 31 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 6 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 7 days (healthy) | — |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | — |
@@ -244,7 +244,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 6 days (healthy) | — |
-| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 10 hours (healthy) | — |
+| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 11 hours (healthy) | — |
 | `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 3 weeks (healthy) | 512m |
 | `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 3 weeks (healthy) | 2g |
 | `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 8 days (healthy) | — |
@@ -261,7 +261,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `redis-exporter` | ✅ Up 6 days | — |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | — |
-| `traefik` | ✅ Up 10 hours | — |
+| `traefik` | ✅ Up 11 hours | — |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 5 hours (healthy) | — |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 6 days | 2g |
 <!-- /AUTO -->

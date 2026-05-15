@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-15 20:03 UTC
+**Last Updated:** 2026-05-15 20:29 UTC
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
 **SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
@@ -13,9 +13,9 @@
 <!-- AUTO:system_overview -->
 | **Containers running** | 41 |
 | **Disk** | 108G total, 40G used, 68G free (37%) |
-| **Memory** | 11Gi total, 4.8Gi used, 443Mi free |
-| **Uptime** | up 8 weeks, 1 day, 21 hours, 43 minutes |
-| **Last snapshot** | 2026-05-15 20:03 UTC |
+| **Memory** | 11Gi total, 4.8Gi used, 346Mi free |
+| **Uptime** | up 8 weeks, 1 day, 22 hours, 9 minutes |
+| **Last snapshot** | 2026-05-15 20:29 UTC |
 <!-- /AUTO -->
 
 | **OS** | Ubuntu 24.04 LTS |
@@ -81,7 +81,7 @@
 | `coolify-db` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 5 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up 31 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 6 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 7 days (healthy) | — |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | — |
@@ -91,7 +91,7 @@
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 6 days (healthy) | — |
-| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 10 hours (healthy) | — |
+| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 11 hours (healthy) | — |
 | `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 3 weeks (healthy) | 512m |
 | `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 3 weeks (healthy) | 2g |
 | `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 8 days (healthy) | — |
@@ -108,7 +108,7 @@
 | `redis-exporter` | ✅ Up 6 days | — |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | — |
-| `traefik` | ✅ Up 10 hours | — |
+| `traefik` | ✅ Up 11 hours | — |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 5 hours (healthy) | — |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 6 days | 2g |
 <!-- /AUTO -->
