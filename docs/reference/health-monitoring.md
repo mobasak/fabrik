@@ -223,11 +223,24 @@ fabrik apply <spec> \
 
 Implementation: `src/fabrik/audit.py` mirrors each driver's transport (SSH for 7 of 9 registrars; `requests` for glitchtip; `n/a` for grafana which has no driftable state). State file persisted at `.fabrik/state/<spec.id>.json` (T2-01) feeds future state-aware destroy (T4-01).
 
+## Weekly Authelia Drift Cron (T2-03 G-G4, 2026-05-15)
+
+Companion to the on-demand `audit-registrars` check above — `scripts/audit_authelia_gates.py` runs every Monday 06:00 via WSL cron, hits the live Traefik API over SSH, and verifies every admin-dashboard router still has the `authelia-forward@docker` middleware attached (the policy-vs-enforcement drift class from Lesson 32 / the 2026-04-18 GlitchTip incident).
+
+```cron
+0 6 * * 1 PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_authelia_gates.py >> /var/log/fabrik-audit.log 2>&1
+```
+
+Log lives at `/var/log/fabrik-audit.log` (writable by `ozgur:ozgur`). Each run appends a block ending in `SUMMARY: N OK, M GAP, K MISSING`. Manual smoke: `PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_authelia_gates.py`.
+
+**Known follow-up:** the script's expected inventory predates T2-08 Part A's decision to gate `errors.vps1.ocoron.com`. Every Monday's run prints `1 GAP` against `errors`; cosmetic (exit 0) until the inventory is updated.
+
 ---
 
 ## See also
 
 - `src/fabrik/health_app.py` - FastAPI health endpoint implementation
 - `src/fabrik/audit.py` - per-registrar audit module (T2-02)
+- `scripts/audit_authelia_gates.py` - weekly Authelia-Traefik drift audit (T2-03 G-G4)
 - `docs/reference/drivers.md` - Coolify + DNS driver configuration
 - `.env.example` - authoritative environment variable reference

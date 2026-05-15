@@ -357,6 +357,7 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 | 12 | Authelia `^/api/` bypass needed for Coolify API token access | Already in config; verify after any Authelia edit |
 | 13 | Coolify v4 `update_env_var` driver endpoint returns 404 (Lesson 57) | Use direct `PATCH /applications/{uuid}/envs` with `{key, value, is_preview, is_literal}` — see `scripts/migrate_db_rename.py` |
 | 14 | Gatus YAML edit + restart without lint-gating took prod down 30s (Lesson 59) | Chain edit && lint && restart with `&&`, never as separate statements |
+| 15 | Pre-commit hooks for spec validation duplicate AI review without value (Lesson 60) | This workflow gates at `final_gate.py` time on staged files. T2-03 G-E2 added pydantic Spec validation there; do not add a parallel pre-commit hook. |
 
 ---
 
@@ -385,6 +386,27 @@ On destroy: file is moved to `.fabrik/state/_destroyed/<id>.json.<ts>` (audit tr
 | `fabrik reconcile-all [--filter <substr>] [--yes]` | Walk all deployed specs, re-run `refresh_infrastructure` per spec under per-spec file_lock (T2-01). Dry-run by default. |
 | `fabrik verify <domain> --spec registrars` | Postcondition gate; fails on any `missing` registrar via the new `registrars_present` check type in `PostconditionChecker`. |
 | `fabrik destroy <spec> --partial <reg>` (repeatable) | Surgical un-registration. No DNS/Coolify-app/file teardown. Backed by module-level `HANDLER_ARGS` + `HANDLER_FUNCS` in `orchestrator/destroyer.py`. Grafana intentionally excluded (annotations are decorative). |
+
+## Gate-Time Spec Validation + Scheduled Audit (T2-03)
+
+Two early-detection layers added on 2026-05-15:
+
+**G-E2 — `scripts/final_gate.py` pydantic Spec validation.** The gate's yaml-load block (line 471) now also calls `fabrik.spec_loader.load_spec()` on any file matching `specs/services/*.yaml`. Catches missing required fields, invalid enum values, wrong types BEFORE the gate passes. Importable via the existing `from fabrik.spec_loader import load_spec` path; failure mode is the standard gate "check yaml" row.
+
+Two pre-existing broken specs surfaced + fixed on first run:
+
+- `templates/docusaurus/defaults.yaml`: `PORT: 3000` (int) → `"3000"` (str). `Spec.env` is `dict[str, str]`.
+- `specs/services/fabrik-citation-verifier.yaml`: invalid `infrastructure.database: 'shared'` + `auth: 'internal_token'` → canonical `database: local` + `auth: none`. The X-Internal-Token M2M pattern is app-level (validated in service's `internal_auth` middleware), not a backend choice.
+
+**G-G4 — weekly Authelia gating audit cron.** WSL crontab entry:
+
+```cron
+0 6 * * 1 PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_authelia_gates.py >> /var/log/fabrik-audit.log 2>&1
+```
+
+Runs every Monday 06:00 local. Hits the live Traefik API over SSH and verifies every admin-dashboard router still has the `authelia-forward@docker` middleware attached (the Lesson-32 policy-vs-enforcement drift class from the 2026-04-18 GlitchTip incident). Log at `/var/log/fabrik-audit.log` (writable by `ozgur:ozgur`). Manual run: `PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_authelia_gates.py`.
+
+**Known follow-up:** the script's expected inventory for `errors.vps1.ocoron.com` predates T2-08 Part A — it still flags the Authelia middleware as "unexpected" on errors.vps1. The cron prints `1 GAP` every Monday until the inventory in `audit_authelia_gates.py` is updated. Cosmetic (exit 0); tracked separately.
 
 ---
 

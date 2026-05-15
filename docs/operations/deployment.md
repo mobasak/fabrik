@@ -344,6 +344,8 @@ The orchestrator runs **5 phases** with `DeploymentState` transitions: `VALIDATI
 
 **No network calls in this phase.**
 
+**Upstream gate (T2-03 G-E2):** before `fabrik apply` ever reaches this phase, the staged spec passes through `scripts/final_gate.py` (the operator's pre-stage AI-review gate). The yaml-load block at line 471 now runs `fabrik.spec_loader.load_spec()` on any file under `specs/services/`, catching pydantic-model violations (invalid enum, wrong env type, missing required field) before the file ever lands. The orchestrator's Phase-1 validator does the same checks in-process at apply time, so the two layers are belt-and-braces.
+
 ### Phase 2 — PROVISIONING (local — secret resolution)
 **Module:** `src/fabrik/orchestrator/secrets.py:SecretsManager`
 
@@ -629,7 +631,7 @@ The orchestrator architecture landed at G1 milestone (2026-05-05). All 8 service
 |---|---|---|---|
 | captcha | `specs/services/captcha.yaml` | ❌ | gatus, glitchtip, authelia |
 | image-broker | (similar) | ❌ | gatus, glitchtip, authelia |
-| translator | (similar) | ❌ | postgres (translator_service), gatus, glitchtip, authelia |
+| translator | (similar) | ❌ → ✅ post-T1-05 | postgres (`translator`, renamed from `translator_service` on 2026-05-15), gatus, glitchtip, authelia |
 | emailgateway | (similar) | ❌ | gatus, glitchtip(idle), authelia |
 | file-api | (similar) | ❌ | gatus, glitchtip, authelia, backrest |
 | file-worker | (similar) | ❌ | glitchtip(idle), backrest |

@@ -269,16 +269,19 @@ For new single-image Application: see `.windsurf/rules/55-observability.md` § "
 
 ---
 
-## Authelia Access Control (8 rules)
+## Authelia Access Control (9 rules — live as of 2026-05-15)
 
 | Domain | Policy | Path restriction |
 |---|---|---|
 | `ocoron.com`, `www.ocoron.com` | bypass | all paths |
 | `wp-test.vps1.ocoron.com`, `status.vps1.ocoron.com` | bypass | all paths |
 | `*.vps1.ocoron.com` | bypass | `/health`, `/healthz`, `/metrics`, `/api/health` only |
-| `pdf, browser, search, images, captcha, proxy, translator, files-api, emailgateway, dns, errors` `.vps1.ocoron.com` | bypass | all paths (app-layer auth) |
+| `pdf, browser, search, captcha, proxy, translator, files-api, emailgateway, dns` `.vps1.ocoron.com` (9 hosts) | bypass | all paths (app-layer auth) |
 | `coolify.vps1.ocoron.com`, `monitor.vps1.ocoron.com` | bypass | `^/api/` only |
-| `*.vps1.ocoron.com` | two_factor | everything else |
+| `images.vps1.ocoron.com` | bypass | `^/api/` only (T1-04 paired-pattern) |
+| `*.vps1.ocoron.com` | two_factor | everything else (catchall) |
+
+`errors.vps1.ocoron.com` was removed from the multi-domain bulk-bypass on 2026-05-15 (T2-08 Part A); it now falls through to the `two_factor` catchall — matches `docs/operations/vps-urls.md` "GlitchTip error reporting UI: Authelia" intent.
 
 **After any Authelia config change:** `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4co08co00o"`
 **Never use SIGHUP — Authelia exits on SIGHUP.**
@@ -398,8 +401,8 @@ Provisioning: bind-mounted `/opt/monitoring/configs/grafana/provisioning -> /etc
 
 ### Authelia — access control rules
 - **default_policy:** `deny`
-- **Bypass list (8 rules):** `ocoron.com`, `www.ocoron.com`, `wp-test.vps1.ocoron.com`, `status.vps1.ocoron.com`, all `*.vps1.ocoron.com` for `^/(health|healthz|metrics|api/health)$`, all 11 microservice subdomains (pdf, browser, search, images, captcha, proxy, translator, files-api, emailgateway, dns, errors), Coolify + Monitor `^/api/` paths
-- **Two-factor:** catch-all `*.vps1.ocoron.com` not bypassed above
+- **Bypass list (9 rules total — live as of 2026-05-15):** `ocoron.com`, `www.ocoron.com`, `wp-test.vps1.ocoron.com`, `status.vps1.ocoron.com`, all `*.vps1.ocoron.com` for `^/(health|healthz|metrics|api/health)$`, 9 microservice subdomains (pdf, browser, search, captcha, proxy, translator, files-api, emailgateway, dns — `errors` removed by T2-08 Part A; `images` moved to its own `^/api/` row for T1-04 paired-pattern), Coolify + Monitor `^/api/` paths, `images.vps1.ocoron.com` `^/api/` paths
+- **Two-factor:** catch-all `*.vps1.ocoron.com` not bypassed above (includes `errors.vps1.ocoron.com`)
 - **Session storage:** Redis DB 3, 1h expiration, 5m inactivity, 1mo remember-me
 - **Storage backend:** SQLite at `/config/db.sqlite3`
 
