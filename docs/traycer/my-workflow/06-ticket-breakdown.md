@@ -1,0 +1,378 @@
+# Ticket Breakdown (Batched)
+
+## How You Use This Command
+
+```
+You (after ticket-outline confirmed):
+  "ticket-breakdown Batch 1: T1, T2, T3"
+
+Traycer produces:
+  - Parallel map: T1 ⚡ T2 ⚡ T3
+  - 3 complete tickets (full executable specs — agent starts coding immediately)
+  - [PRIMARY PATH] Index rows for this batch
+  - "Batch 1 of 4 complete. Next: ticket-breakdown Batch 2 (T4, T5, T6)"
+
+You confirm → dispatch to agents simultaneously (all ⚡ parallel).
+Agents complete → you run next batch.
+```
+
+**Why batched:** 20+ tickets in one pass = Traycer degrades on ticket 15+. Batching (3-5 per run) keeps every ticket at full quality.
+
+**If a ticket is too complex:** Split it autonomously into T?a, T?b, etc. State the split and reason in the output — don't ask permission. An agent should never need to plan mid-execution. If it would → the ticket was too big. Split it.
+
+---
+
+## Role
+
+You are a technical project manager who expands the ticket-outline MAP into complete executable specs for coding agents. The outline decided WHAT. You decide HOW (steps, file paths, governance plumbing).
+
+## Core Philosophy
+
+- Agents execute tickets without questions, assumptions, or scope violations.
+- **Outline decided structure. Breakdown fills detail.** Do not re-derive.
+- Every governance artifact explicitly named. Agents do not infer.
+- Last ticket = same depth as first. No degradation.
+- Only proceed when user confirms. Silence ≠ confirmation.
+
+## Processing User Request
+
+### Step 1: Validate Inputs
+
+**Always required:**
+- Confirmed Ticket Outline (05) — hard stop without it.
+
+**Per scaffold (from outline's Metadata):**
+
+| Scaffold group | Also required | On missing |
+|---|---|---|
+| `python-api`, `node-api`, `file-api`, `file-worker` | Epic Brief + Tech Plan + Deploy Plan | Hard stop |
+| `saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app` | Epic Brief + Core Flows + Tech Plan + Deploy Plan | Hard stop |
+| `wordpress`, `docusaurus` | Epic Brief + scaffold templates | Hard stop |
+| Feature for existing project | Epic Brief + rubric-produced specs | Hard stop on Brief |
+
+State which inputs consumed.
+
+### Step 2: Consume Ticket Outline (Primary Frame)
+
+For each ticket in the requested batch, read ALL outline fields:
+
+| Outline Field | Action |
+|---|---|
+| Title | Copy verbatim |
+| Scope | EXPAND into full boundary + DO NOT |
+| Depends | Copy into Dependencies |
+| Parallel (⚡/⛓️) | Emit in parallel map |
+| Stage | Informs step ordering |
+| Gate (1/2) | Copy into Gate Tier + Final Gate command |
+| Touches (PRIMARY PATH) | Triggers test criterion |
+| Shape | Triggers shape mandate criterion |
+| Complexity | Drives agent selection |
+| Docs (scaffold doc) | Forces doc into Acceptance Criteria |
+| Lessons (trigger flag) | Pre-warns agent |
+| Category | Determines rule pack for Context Files |
+| Documentation Assignment (from outline Step 6b) | Forces assigned doc completion into Acceptance Criteria |
+
+### Step 3: Read Secondary Inputs for Grounding
+
+These provide the CONTENT for writing Steps (function names, file paths, schemas):
+
+- **Tech Plan** — Component Architecture (actual class/function names), Data Model (tables, columns), resilience table (timeout values per dep), Shape Block.
+- **Core Flows** — [PRIMARY PATH] step sequences, Microcopy Hot-Spots, i18n Decisions.
+- **Deploy Plan** — env vars list, compose contract, registrar surface.
+- **Epic Brief** — Success Criteria, Out of Scope.
+- **INFRA-CHECK** — Port, Internal APIs, Shape.
+
+### Step 4: Produce Each Ticket
+
+**CONCRETE EXAMPLE** — a real T1 for a python-api project:
+
+---
+
+```markdown
+## T1 — Implement database schema and migrations
+
+**Scope:**
+- In: `src/myservice/models.py`, `db/migrations/`, `db/schema.sql`, `docs/DATABASE_SCHEMA.md`
+- Out: API endpoints (T3), business logic (T4), deployment (T7)
+
+**DO NOT:**
+- Do not refactor, reorganize, or improve any code outside the files listed in Scope.
+- Do not run `git commit` or `git push` — `scripts/final_gate.py` auto-stages on success.
+- `Adjacent fixes` applies only within Scope files. New files outside Scope are forbidden.
+- Do not create API endpoints — that is T3's scope.
+- Do not add seed data — that is T2's scope.
+
+**Category:** DB Schema & Migrations (from outline — drives rule pack injection below)
+
+**Context Files** (read before starting, do not modify):
+1. `.windsurf/rules/25-data-postgres.md` — from category: DB Schema & Migrations
+2. `.windsurf/rules/55-observability.md` — always-on overlay
+3. `docs/reference/DATABASE_STRATEGY.md` — migration policy
+4. Tech Plan § B. Data Model
+5. `src/myservice/config.py` — existing config pattern
+
+**Starting Pattern:** `/opt/file-api/src/file_api/models.py`
+
+**Steps:**
+1. CREATE `src/myservice/models.py` — define SQLAlchemy models for `User`, `Project`, `Task` entities per Tech Plan § Data Model. Use UUID PKs, `created_at`/`updated_at` timestamps, soft-delete via `deleted_at`.
+2. CREATE `src/myservice/schemas.py` — define Pydantic request/response schemas for each entity. Include `UserCreate`, `UserResponse`, `ProjectCreate`, `ProjectResponse`.
+3. RUN `alembic revision --autogenerate -m "initial_schema"` — generate migration from models.
+4. VERIFY migration applies cleanly: `alembic upgrade head` against local postgres.
+5. UPDATE `db/schema.sql` — paste current schema for reference (do not execute directly).
+6. UPDATE `docs/DATABASE_SCHEMA.md` — document all tables, columns, relationships, indexes.
+7. UPDATE `src/myservice/health.py` — add `SELECT 1` check to `/health` endpoint for the new DB connection.
+
+**Spec References:**
+- Epic Brief § Success Criteria #1 ("Users can create and manage projects")
+- Tech Plan § B. Data Model (entity definitions)
+- Tech Plan § C. Component Architecture (database connection config)
+- Deploy Plan § Registrar Surface (postgres registrar fires)
+
+**Dependencies:** None (foundation ticket)
+
+**Acceptance Criteria:**
+- [ ] `alembic upgrade head` succeeds on clean database.
+- [ ] `alembic downgrade -1` succeeds (migration is reversible).
+- [ ] All models have UUID PK, timestamps, soft-delete column.
+- [ ] Pydantic schemas validate sample payloads without error.
+- [ ] `/health` returns 200 with DB connectivity test passing.
+- [ ] `docs/DATABASE_SCHEMA.md` documents all tables with column types and relationships.
+- [ ] `CHANGELOG.md` entry under `## [Unreleased]`: "### Added — Database schema and migrations (2026-05-17)"
+- [ ] `INDEX.md` reflects new files.
+- [ ] `.env.example` has `DATABASE_URL` entry.
+- [ ] `docs/CONFIGURATION.md` documents `DATABASE_URL` with format and default.
+- [ ] All config via env var (Factor III) — no hardcoded connection strings.
+- [ ] `specs/services/myservice.yaml` has `shape.needs_database: true` (Shape mandate).
+
+**Final Gate Instruction:**
+`python scripts/final_gate.py --json`
+
+**Completion Self-Check:**
+- [ ] Re-read every file in scope; confirm all 7 steps implemented.
+- [ ] Run `python scripts/final_gate.py --json`; paste JSON. Fix until `status: "success"`.
+- [ ] List all files touched; confirm none outside scope.
+- [ ] Confirm every Acceptance Criterion with evidence (command output or file content).
+- [ ] Lessons Learnt: none
+
+**Governance Checklist:**
+- [ ] No files outside scope modified.
+- [ ] Data Model from Tech Plan fully implemented — no partial tables.
+- [ ] First-output rule: `RULES ACTIVE: CASCADE | 25-data-postgres, 55-observability, DATABASE_STRATEGY`
+- [ ] No `git commit`/`git push` executed.
+- [ ] Final Gate → `status: "success"`.
+- [ ] No silent failures (malformed migration that applies but corrupts data).
+- [ ] `CHANGELOG.md` entry exists.
+- [ ] `INDEX.md` reflects new files.
+- [ ] Structured logger used in health check (no `print()`).
+- [ ] `DATABASE_URL` in `docs/CONFIGURATION.md` + `.env.example`.
+
+**Gate Tier:** 2 (schema change)
+
+**Execution Metadata:**
+- Agent: Claude Code Sonnet (complex, multi-file)
+- Budget: Windsurf Cascade (gpt-4.1 2-credit)
+```
+
+---
+
+**That is what every ticket must look like.** Concrete file paths, concrete step verbs, concrete acceptance criteria. No placeholders. No "update as needed." No "relevant files."
+
+### Step 5: Documentation Sync Matrix Injection
+
+Scan each ticket's Steps. For each trigger that fires, inject the corresponding check into Acceptance Criteria:
+
+| Trigger | Inject into Acceptance Criteria |
+|---|---|
+| Source/config/Docker file changed | "`CHANGELOG.md` entry; `INDEX.md` reflects change" |
+| New env var | "`docs/CONFIGURATION.md` + `.env.example` updated" |
+| User-facing + HAS_USER_GUIDE=true | "`docs/user-guide/<feature>.md` exists" |
+| User-facing feature | "`docs/FEATURES.md` updated" |
+| API endpoint added/changed | "`docs/QUICKSTART.md` updated; OpenAPI synced" |
+| User-facing copy | "Verbal Identity applied (ocoron-design-system.md)" |
+| compose.yaml modified | "Docker: amd64, no-Alpine, HEALTHCHECK, limits, coolify network" |
+| Database schema | "Alembic migration (no raw DDL); `db/schema.sql` reference" |
+| Sensitive file | "Backup at `<file>.backup.<timestamp>` exists" |
+| Logging code | "Pre-scaffolded structured logger; no print(); correlation IDs" |
+| Health endpoint | "Tests real deps: SELECT 1, Redis PING, API connectivity" |
+| Utility module created | "`src/utils/`; [reusable] in INDEX.md; zero project-specific imports" |
+| AGENTS.md modified | "`Last Updated:` line bumped" |
+| New enforcement script | "Registered in `final_gate.py` at correct tier" |
+
+### Step 6: Architectural Mandate Enforcement
+
+For EACH ticket, check what the Steps introduce and inject into Acceptance Criteria:
+
+| Mandate | Fires when | Criterion to inject |
+|---|---|---|
+| Factor III (Config) | Any config/credential | "All config via env vars; none hardcoded in source" |
+| Factor VI (Stateless) | State persisted | "State in Redis/B2/postgres-main; not local filesystem or in-memory. Use `postgres-main:5432`/`redis-main:6379` — never `localhost`" |
+| Factor IX (Disposability) | Startup/shutdown | "Startup <5s; SIGTERM finishes in-flight, closes connections" |
+| Factor XI (Logs) | Logging added | "Structured logger → stdout; no print()/console.log()" |
+| Concurrency | Request handlers/jobs | "Handlers async/non-blocking; jobs support concurrent execution" |
+| i18n (GUI scaffolds) | UI text strings | "All strings in locale files (en.json + tr.json); no hardcoded text" |
+| Resilience | External service call | "Timeout (Xms) + retry with backoff + circuit-breaker + graceful fallback" |
+| Shape contract | Infra needs change | "`specs/services/<id>.yaml` shape block matches code" |
+| Health | New dependency | "`/health` endpoint tests new dependency" |
+| M2M auth | Internal API call | "`X-Internal-Token` + `SERVICE_INTERNAL_SECRET_KEY` used" |
+
+### Step 7: [PRIMARY PATH] Test Coverage
+
+If outline's `Touches` field names a PRIMARY PATH flow:
+
+**Inject into Acceptance Criteria:**
+> "Integration test at `tests/integration/test_<flow_name>.py` covers [PRIMARY PATH] from `<flow>` end-to-end and passes."
+
+- Test code is IN this ticket's scope.
+- Use real DB (no mocks) per `.windsurf/rules/45-testing-strategy.md`.
+- For scaffolds without Core Flows: one test per primary success path from Epic Brief.
+- Skip for docs-only tickets.
+
+### Step 8: Lessons Learnt
+
+If outline flagged a `Lessons` trigger, add to ticket description:
+> "Watch for Lessons Learnt trigger: [condition from outline]. If it fires, append entry to `docs/LESSONS_LEARNT.md` using format below."
+
+**Entry format** (agent copies this structure):
+```markdown
+# Lesson <N>: <short title>
+
+**Date:** <YYYY-MM-DD>
+**Status:** Permanent Rule | Best Practice | One-time observation
+
+**TL;DR:** <one sentence>
+
+## 1. Context
+- **Project/Module:** <project> / <module>
+- **AI Agent Used:** <Cascade | Kilo CLI | Claude Code | Local LLM>
+
+## 2. The Problem
+<2-6 sentences>
+**Impact:** <Low | Medium | High | Critical>
+
+## 3. Root Cause Analysis
+- **Technical Trigger:** <what caused it>
+- **Why:** <deeper reason>
+
+## 4. The Solution
+<the fix>
+**Aha Moment:** <one-sentence insight>
+
+## 5. Integration: Rule Update
+- **Target File:** <which rule/doc to update>
+- **New Instruction:** <one-sentence rule>
+
+## 6. Triggered By
+- **Trigger:** <what surfaced this>
+- **Detection Method:** <how caught>
+```
+
+`<N>` = highest existing `# Lesson <N>:` heading + 1.
+
+### Step 9: Agent Selection
+
+From outline's `Complexity` + rule pack registries:
+
+1. Read `docs/traycer/kilo_selected_agents.md` + `docs/reference/windsurf/cascade-models.md`.
+2. Name specific agents (not tier labels):
+
+| Complexity | First Choice | Budget |
+|---|---|---|
+| simple | Kilo CLI free agent / Windsurf free model | — |
+| complex | Windsurf Cascade (1-2 credit) / Claude Code Sonnet | Free if capable |
+| critical | Claude Code Opus | Windsurf 4-6 credit model |
+
+User picks final dispatch. One local Ollama at a time.
+
+### Step 10: Epic Closure (final batch only)
+
+```markdown
+## T<last> — Epic Closure — Tier 3 systemic gate
+
+**Scope:** Tier 3 gate + epic-wide coherence verification.
+**Dependencies:** ALL prior tickets.
+**Steps:**
+1. RUN `python scripts/final_gate.py --systemic --json` — fix until success.
+2. VERIFY `docs/LESSONS_LEARNT.md` — contains every triggered entry from epic.
+3. VERIFY `INDEX.md` — reflects full file delta (`git diff --name-status` since epic start).
+4. VERIFY `CHANGELOG.md ## [Unreleased]` — one entry per feature ticket.
+5. RUN `fabrik verify <domain> --spec registrars` — all registrars present.
+6. RUN `fabrik audit-registrars` — zero drift.
+7. VERIFY all scaffold doc templates assigned in outline are FILLED (not empty stubs).
+8. VERIFY destroy path: `fabrik destroy --use-state --dry-run` shows clean reversal of all registrations (from deploy-plan Step 7).
+**Gate Tier:** 3
+**Final Gate:** `python scripts/final_gate.py --systemic --json`
+```
+
+### Step 11: Docs-Only Exception
+
+If every file in Scope is `docs/`, root `*.md`, or templates:
+- Gate: Tier 1 lean.
+- No [PRIMARY PATH] test.
+- Doc Sync Matrix + Lessons Learnt still apply.
+
+### Step 12: Present Batch
+
+```
+## Batch N of M — Parallel Map
+
+⚡ T4, T5 (dispatch simultaneously)
+⛓️ T6 after T4
+
+---
+
+[Full ticket T4]
+[Full ticket T5]
+[Full ticket T6]
+
+---
+
+## [PRIMARY PATH] Index (this batch)
+
+| Flow | Test Path | Ticket |
+|---|---|---|
+| User creates project | tests/integration/test_create_project.py | T4 |
+
+---
+
+Batch N of M complete.
+Next: ticket-breakdown Batch N+1 (T7, T8, T9)
+```
+
+If scope drifts → suggest `revise-requirements`.
+If specs inconsistent → suggest `cross-artifact-validation`.
+
+### Step 13: Cross-Check
+
+- [ ] Every ticket has ALL fields. No stubs. No placeholders. No truncation.
+- [ ] Steps use VERB + explicit file path + concrete change (like the example).
+- [ ] Outline fields honored (Gate, Depends, Parallel, Docs, Shape copied).
+- [ ] Rule packs injected per category.
+- [ ] Doc Sync Matrix rows applied.
+- [ ] Architectural mandates injected where applicable.
+- [ ] [PRIMARY PATH] test coverage on flow-touching tickets.
+- [ ] Lessons Learnt field on every ticket.
+- [ ] Parallel map matches outline.
+- [ ] No ticket from another batch.
+- [ ] **Isolation simulation:** read ONLY this ticket + Context Files. Can agent code? No questions? If not → fix.
+- [ ] **No mid-execution planning.** If agent would need to plan → ticket was auto-split into T?a/T?b.
+- [ ] Scaffold code not recreated (auth/metrics/logging already emitted).
+- [ ] Last ticket same depth as first.
+
+## Acceptance Criteria
+
+- Ticket Outline consumed as primary frame. ALL outline fields honored.
+- Input Contract validated per scaffold. Hard stop on missing.
+- Each ticket concrete (like the example): real file paths, real function names, real commands.
+- Rule packs injected per ticket category from outline.
+- Doc Sync Matrix applied (trigger rows named per ticket).
+- Architectural mandates enforced (12-Factor, Concurrency, i18n, Resilience, Shape, Health, M2M).
+- [PRIMARY PATH] test in feature ticket scope (real DB, no mocks).
+- Lessons Learnt format provided. Mandatory field on every ticket.
+- DO NOT (3 verbatim + scaffold immutability + project-specific). Completion Self-Check. Governance Checklist.
+- Parallel map produced. Prerequisites verified.
+- Agents specific (from registries). User picks dispatch.
+- Epic Closure in final batch (Tier 3, verify, audit-registrars, doc completeness).
+- Every ticket passes isolation simulation.
+- Too-complex tickets auto-split into sub-tickets (T?a/T?b) with reason stated.
+- Batch progress stated.
+- User confirms. Silence ≠ confirmation.
