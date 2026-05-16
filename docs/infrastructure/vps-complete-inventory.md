@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-16 10:47 UTC
+**Last Updated:** 2026-05-16 10:48 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 40 running
@@ -240,7 +240,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 3 weeks (healthy) | 256m |
 | `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 3 weeks (healthy) | 768m |
 | `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 19 hours (healthy) | 512m |
-| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 13 seconds | 512m |
+| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 31 seconds | 512m |
 | `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 7 days (healthy) | 512m |
 | `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 9 days (healthy) | 512m |
 | `captcha-j8gg4ggskkossc4gkwowk4os-191229303949` | ✅ Up 7 days (healthy) | 512m |
@@ -248,13 +248,13 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `coolify-db` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 48 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up 50 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 7 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 7 days (healthy) | 512m |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | 512m |
 | `file-api-bsswwg4kg480c000gksw004k-192212486944` | ✅ Up 7 days (healthy) | 512m |
 | `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | ✅ Up 2 days (healthy) | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 17 seconds | 256m |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 25 seconds | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 7 days (healthy) | 512m |
@@ -272,11 +272,10 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | ✅ Up 3 weeks (healthy) | 2g |
 | `prometheus` | ✅ Up 9 days (healthy) | 1g |
 | `promtail-w0000ckgsgg048w0848okk08` | ✅ Up 8 days | 128m |
-| `pushgateway` | ✅ Up 5 hours (healthy) | — |
+| `pushgateway` | ✅ Up 6 hours (healthy) | — |
 | `redis-exporter` | ✅ Up 7 days | 64m |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
-| `test-saas-skeleton-p888gk0cc4kgo0ww8wkg4s0w-104711956723` | ✅ Up 53 seconds (healthy) | 512m |
 | `traefik` | ✅ Up 25 hours | 256m |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 19 hours (healthy) | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
@@ -364,7 +363,6 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 | `redis-exporter` | 64m |
 | `redis-main` | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | 512m |
-| `test-saas-skeleton-p888gk0cc4kgo0ww8wkg4s0w-104711956723` | 512m |
 | `traefik` | 256m |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | 2g |
@@ -557,7 +555,6 @@ The Fabrik lifecycle starts BEFORE scaffold runs — Stage 1 is **intent capture
 | `postgres-main` | internal | ⚠️ running:healthy |
 | `promtail` | internal | ⚠️ running:unknown |
 | `site-provisioner` | internal | ⚠️ running:healthy |
-| `test-saas-skeleton` | https://test-saas-skeleton.vps1.ocoron.com | ⚠️ exited:unhealthy |
 <!-- /AUTO -->
 
 ---
