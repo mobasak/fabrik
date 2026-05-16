@@ -11,9 +11,9 @@
 ## System Overview
 
 <!-- AUTO:system_overview -->
-| **Containers running** | 44 |
+| **Containers running** | 45 |
 | **Disk** | 108G total, 41G used, 67G free (39%) |
-| **Memory** | 11Gi total, 5.1Gi used, 941Mi free |
+| **Memory** | 11Gi total, 5.5Gi used, 581Mi free |
 | **Uptime** | up 8 weeks, 2 days, 16 hours, 1 minute |
 | **Last snapshot** | 2026-05-16 14:21 UTC |
 <!-- /AUTO -->
@@ -81,13 +81,13 @@
 | `coolify-db` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 22 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up 23 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 7 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 7 days (healthy) | 512m |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | 512m |
 | `file-api-bsswwg4kg480c000gksw004k-192212486944` | ✅ Up 7 days (healthy) | 512m |
 | `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | ✅ Up 2 days (healthy) | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 10 seconds | 256m |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 23 seconds | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 7 days (healthy) | 512m |
@@ -109,7 +109,8 @@
 | `redis-exporter` | ✅ Up 7 days | 64m |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
-| `test-static-site-ggg4skocoskscwco004488cw-142138452319` | ✅ Up 27 seconds (healthy) | 512m |
+| `test-static-site-ggg4skocoskscwco004488cw-142138452319` | ✅ Up 40 seconds (healthy) | 512m |
+| `tgo8wo4coc08go4cw40g8wws` | ✅ Up 1 second | — |
 | `traefik` | ✅ Up 29 hours | 256m |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 23 hours (healthy) | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
