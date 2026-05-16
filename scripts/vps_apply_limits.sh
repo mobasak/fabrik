@@ -52,7 +52,7 @@ apply cadvisor-       512m
 apply gatus-          256m
 apply grafana-        512m
 apply loki-           512m
-apply netdata-        768m
+apply netdata-        1g    # bumped 2026-05-16: live at 751/768m (97%), ContainerHighMemory alert firing
 apply node-exporter-  128m
 apply promtail-       128m
 apply prometheus      1g

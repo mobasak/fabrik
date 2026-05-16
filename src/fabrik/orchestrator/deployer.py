@@ -425,6 +425,23 @@ class ServiceDeployer:
                 coolify_error=str(result),
             )
 
+        # Fix 3 (Coolify .env race, 2026-05-16): Coolify's dockercompose
+        # build-pack adds `env_file: .env` to the rewritten compose but
+        # doesn't create the .env file until env vars are pushed. If the
+        # file is missing, `docker compose config` fails before the build
+        # even starts (silent failure — Coolify issue #9161). Pre-seed an
+        # empty .env so compose validation passes regardless of push timing.
+        try:
+            from fabrik.drivers.ssh import ssh as _ssh
+
+            _ssh(
+                f"sudo mkdir -p /data/coolify/applications/{uuid} && "
+                f"sudo touch /data/coolify/applications/{uuid}/.env"
+            )
+            logger.debug("Pre-seeded .env for Coolify app %s", uuid)
+        except Exception as exc:  # noqa: BLE001 — non-fatal; env push below will create it
+            logger.warning("Failed to pre-seed .env for %s (non-fatal): %s", uuid, exc)
+
         # Push env vars + secrets BEFORE triggering the deploy so the first
         # build has them in scope. Same construction as _update_existing.
         env_vars = dict(spec.get("env", {}))
@@ -577,7 +594,13 @@ class ServiceDeployer:
         # job, not via this terminal-state grace path). Surfaced by
         # proof-run on 2026-04-28 \u2014 docusaurus container reached
         # ``running:healthy`` ~110s after this method gave up at 30s.
-        terminal_grace_period = 180.0
+        # B46 revised 2026-05-16: bumped from 180s to 300s. The 180s value
+        # was set during docusaurus-only proof-runs (max build ~110s). Python-api
+        # pip-install multi-stage builds take ~200s on this VPS, hitting the grace
+        # limit and false-positiving as failed. 300s covers all observed types
+        # with margin while still failing genuinely broken deploys promptly
+        # (Coolify's explicit "failed" state fires within seconds on real errors).
+        terminal_grace_period = 300.0
         terminal_first_seen: float | None = None
         while time.time() - start < max_wait:
             try:
@@ -603,12 +626,19 @@ class ServiceDeployer:
                     )
                 elif time.time() - terminal_first_seen >= terminal_grace_period:
                     logger.warning(
-                        "Coolify app %s sustained terminal-failure state %s for %.0fs",
+                        "Coolify app %s sustained terminal-failure state %s for %.0fs; "
+                        "attempting SSH fallback build+up (Coolify issue #9161 workaround)",
                         uuid,
                         status,
                         terminal_grace_period,
                     )
-                    return False
+                    # Fix 2 (Coolify silent build-trigger, 2026-05-16):
+                    # Coolify's dockercompose build-pack sometimes writes the
+                    # compose + image tag but never actually executes `docker
+                    # compose build && up`. If the grace period expires with
+                    # the app in a terminal state, SSH into the VPS and kick
+                    # the build manually from Coolify's own application dir.
+                    return bool(self._ssh_fallback_build(uuid))
             else:
                 terminal_first_seen = None
             time.sleep(5)
@@ -618,6 +648,94 @@ class ServiceDeployer:
             max_wait,
             last_status or "(none)",
         )
+        return False
+
+    def _ssh_fallback_build(self, uuid: str, timeout: int = 180) -> bool:
+        """Fix 2 workaround: SSH into VPS and manually clone+build+up.
+
+        Coolify v4.0.0-beta.459 has a confirmed silent-build-trigger bug
+        (GitHub issue #9161) where the orchestration step never clones the
+        git repo into the app directory, never builds the image, and never
+        starts the container. The API reports ``exited:unhealthy`` indefinitely.
+
+        Coolify's app dir (``/data/coolify/applications/<uuid>/``) contains
+        only the rewritten ``docker-compose.yaml`` + ``.env`` — no source
+        code. This fallback:
+
+        1. Reads the git repo + branch from the Coolify API (or compose).
+        2. Clones the repo into the app dir (alongside the compose).
+        3. Runs ``docker compose build && docker compose up -d``.
+
+        Returns ``True`` if the container reaches ``running:*`` within 90s.
+        """
+        import time
+
+        from fabrik.drivers.ssh import ssh
+
+        app_dir = f"/data/coolify/applications/{uuid}"
+        logger.info("SSH fallback: cloning + building from %s", app_dir)
+
+        # Get git repo + branch from Coolify API
+        try:
+            app_info = self.client.get_application(uuid)
+            git_repo = (app_info or {}).get("git_repository", "")
+            git_branch = (app_info or {}).get("git_branch", "main")
+            # Coolify stores repo as "owner/repo.git" — prefix with https://github.com/
+            if git_repo and not git_repo.startswith("http"):
+                git_repo = f"https://github.com/{git_repo}"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("SSH fallback: can't read app info: %s", exc)
+            return False
+
+        if not git_repo:
+            logger.warning("SSH fallback: no git_repository in app %s", uuid)
+            return False
+
+        try:
+            # Clone the repo INTO the app dir (git clone into existing dir
+            # with files requires `git init` + `fetch` + `checkout`).
+            ssh(
+                f"cd {app_dir} && "
+                f"git init -q && "
+                f"git remote add origin {git_repo} 2>/dev/null || git remote set-url origin {git_repo} && "
+                f"git fetch --depth 1 origin {git_branch} && "
+                f"git checkout FETCH_HEAD -- . ",
+                timeout=60,
+            )
+            logger.info("SSH fallback: repo cloned into %s (branch=%s)", app_dir, git_branch)
+
+            # Build the image using Coolify's rewritten docker-compose.yaml
+            # (NOT the repo's compose.yaml — Coolify's version has the correct
+            # UUID-based container_name that Coolify monitors for status).
+            ssh(
+                f"cd {app_dir} && sudo docker compose -f docker-compose.yaml build 2>&1 | tail -5",
+                timeout=timeout,
+            )
+            logger.info("SSH fallback: image built")
+
+            # Start the container
+            ssh(
+                f"cd {app_dir} && sudo docker compose -f docker-compose.yaml up -d 2>&1 | tail -5",
+                timeout=30,
+            )
+            logger.info("SSH fallback: docker compose up -d executed")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("SSH fallback build failed: %s", exc)
+            return False
+
+        # Wait for the container to come up healthy (poll Coolify status)
+        start = time.time()
+        while time.time() - start < 90:
+            try:
+                app = self.client.get_application(uuid)
+                status = (app or {}).get("status", "") or ""
+            except Exception:  # noqa: BLE001
+                status = ""
+            if status.startswith("running"):
+                logger.info("SSH fallback succeeded: app %s now %s", uuid, status)
+                return True
+            time.sleep(5)
+        logger.warning("SSH fallback: container still not running after clone+build+up")
         return False
 
     def _wait_for_container(self, name: str, max_wait: int = 90) -> bool:

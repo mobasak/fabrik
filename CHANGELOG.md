@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Coolify v4 deployer workarounds + Telegram alert noise (2026-05-16)
+
+Three confirmed Coolify v4.0.0-beta.459 bugs neutralized inside `deployer.py` so `fabrik apply` succeeds reliably for all scaffold types:
+
+- **Fix 2 — SSH fallback for silent build-trigger (Coolify #9161):** after 300s grace period, deployer SSHs to VPS → clones the git repo into `/data/coolify/applications/<uuid>/` → builds using Coolify's `docker-compose.yaml` → `docker compose up -d`. Container reaches `running:healthy` within ~60s.
+- **Fix 3 — Pre-seed `.env` before deploy trigger:** Coolify injects `env_file: .env` but doesn't create the file → `docker compose config` silently fails. Deployer now `touch`es `.env` via SSH immediately after app creation.
+- **Fix 5 — `get_deployments` API fallback:** per-app endpoint returns 404 for `dockercompose` build-pack. Driver falls back to global `/deployments` + Python-side filter.
+- **Destroy hardening:** `_destroy_coolify` runs SSH `docker compose down` BEFORE API DELETE + `rm -rf` app dir.
+- **`terminal_grace_period` bumped 180s → 300s.**
+
+Telegram alert noise resolved: removed stale `coolify-proxy`; `ContainerDown` excludes `coolify-*`; fixed prometheus config permissions (`chown 65534:65534`); netdata memory bumped 768m → 1g.
+
+Lifecycle proof: `python-api` end-to-end passed with SSH fallback. 10/11 broader lifecycle proof types pass (the 11th — python-api — now also passes with the fix).
+
 ### Epic Convergence — Fabrik Workflow Convergence — Full 47-Gap Closure (T5-01, 2026-05-16)
 
 **Status:** 12-of-12 acceptance gate items green; all 16+ feature tickets shipped (T1-01..T1-05, T2-01..T2-04 + T2-08, T3-01..T3-03, T4-01..T4-04, plus F5 compose-limits convergence and per-ticket follow-up entries). Closes Epic Brief Success Criteria 1–4. The operator can now scaffold→Traycer plan→apply→audit→destroy any spec end-to-end without manual VPS intervention.

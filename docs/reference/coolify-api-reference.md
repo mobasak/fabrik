@@ -265,11 +265,29 @@ This affects any tool mutating Coolify Services compose programmatically; see `s
 
 `/data/coolify/services/<uuid>/docker-compose.yaml` is a render artifact of the DB field, not source of truth. Editing the file directly is silently reverted on the next redeploy. Always mutate via `PATCH /services/{uuid}`. This is the key difference from Coolify Applications, where the compose lives in an external git repo that Coolify clones.
 
+### Silent build-trigger failure for `dockercompose` apps (2026-05-16, Coolify #9161)
+
+Coolify sometimes creates the application, writes the rewritten `docker-compose.yaml` to `/data/coolify/applications/<uuid>/`, sets the `image:` tag in the compose — but **never clones the git repo, never builds the image, never starts the container.** The API reports `exited:unhealthy` indefinitely. No build logs exist (the deployment status is `failed` with an empty log body).
+
+**Root cause:** Coolify's orchestration step between "write compose" and "docker compose build && up" silently fails. Confirmed on v4.0.0-beta.459. Matches GitHub issue #9161.
+
+**Workaround implemented in `deployer.py::_ssh_fallback_build`:** after the `terminal_grace_period` (300s) expires with `exited:unhealthy`, the deployer SSHs into the VPS, clones the git repo into the app dir, builds using Coolify's `docker-compose.yaml` (NOT the repo's `compose.yaml`), and starts the container. The key distinction: Coolify's compose has the UUID-based `container_name` that Coolify monitors — using the repo's compose would create a differently-named container that Coolify can't see.
+
+**Additional precondition (Fix 3):** Coolify injects `env_file: .env` into the compose but doesn't create the file before `docker compose config` runs during the build step. The deployer now pre-seeds `touch /data/coolify/applications/<uuid>/.env` via SSH immediately after app creation, before triggering the deploy.
+
+### `GET /applications/{uuid}/deployments` returns 404 for `dockercompose` apps
+
+Confirmed Coolify v4 bug. The per-app deployments sub-resource endpoint 404s for `build_pack=dockercompose` applications. The driver (`coolify.py::get_deployments`) falls back to the global `GET /deployments` endpoint and filters by UUID in Python.
+
+### Destroy must SSH-stop containers started by the SSH fallback
+
+When `_ssh_fallback_build` starts a container via `docker compose up -d`, Coolify doesn't own the container lifecycle. A subsequent `DELETE /applications/{uuid}` removes the DB record but does NOT stop the running container. `_destroy_coolify` now runs `docker compose -f docker-compose.yaml down` via SSH BEFORE the API delete, then `rm -rf` the app directory.
+
 ## Observability
 
 For real-time deploy debugging:
 - `GET /applications/{uuid}/logs` — container stdout/stderr
-- `GET /applications/{uuid}/deployments` — deployment history with build logs
+- `GET /applications/{uuid}/deployments` — deployment history with build logs (may 404 for dockercompose apps; use global `/deployments` endpoint)
 - SSH `docker logs <container>` on VPS as ground truth
 
 ## Related Files

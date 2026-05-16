@@ -602,8 +602,25 @@ class CoolifyClient:
         return self._request("GET", "/deploy", params=params)
 
     def get_deployments(self, uuid: str) -> list[dict[str, Any]]:
-        """Get deployment history for application."""
-        return self._request("GET", f"/applications/{uuid}/deployments")
+        """Get deployment history for application.
+
+        Fix 5 (2026-05-16): Coolify v4 returns 404 on the per-app
+        ``/applications/{uuid}/deployments`` endpoint for ``dockercompose``
+        build-pack apps (confirmed bug). Fallback: hit the global
+        ``/deployments`` endpoint and filter by UUID in Python.
+        """
+        try:
+            return self._request("GET", f"/applications/{uuid}/deployments")
+        except Exception:  # noqa: BLE001 — 404 is the documented bug case
+            try:
+                all_deps = self._request("GET", "/deployments")
+                return [
+                    d
+                    for d in (all_deps or [])
+                    if d.get("application_uuid") == uuid or d.get("resource_uuid") == uuid
+                ]
+            except Exception:  # noqa: BLE001 — global endpoint may also 404
+                return []
 
     def get_deployment(self, app_uuid: str, deployment_uuid: str) -> dict[str, Any]:
         """Get specific deployment details."""

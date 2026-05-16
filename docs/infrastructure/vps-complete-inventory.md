@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-16 13:31 UTC
+**Last Updated:** 2026-05-16 14:03 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 40 running
@@ -239,7 +239,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 |---|---|---|
 | `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 3 weeks (healthy) | 256m |
 | `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 3 weeks (healthy) | 768m |
-| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 21 hours (healthy) | 512m |
+| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 22 hours (healthy) | 512m |
 | `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 3 hours | 512m |
 | `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 7 days (healthy) | 512m |
 | `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 9 days (healthy) | 512m |
@@ -248,20 +248,20 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `coolify-db` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 33 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up 5 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 7 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 7 days (healthy) | 512m |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | 512m |
 | `file-api-bsswwg4kg480c000gksw004k-192212486944` | ✅ Up 7 days (healthy) | 512m |
 | `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | ✅ Up 2 days (healthy) | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 14 seconds | 256m |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 43 seconds | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 7 days (healthy) | 512m |
 | `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 28 hours (healthy) | 512m |
 | `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 3 weeks (healthy) | 512m |
 | `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 3 weeks (healthy) | 2g |
-| `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 9 days (healthy) | 768m |
+| `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 9 days (healthy) | 1g |
 | `node-exporter-doc8c8gkcgs88s8ckggw84o4` | ✅ Up 3 weeks | 128m |
 | `ocoron-com-backup-1` | ✅ Up 3 weeks | 128m |
 | `ocoron-com-db-1` | ✅ Up 3 weeks (healthy) | 1g |
@@ -270,15 +270,15 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `ocoron-com-wordpress-1` | ✅ Up 3 weeks | 512m |
 | `postgres-exporter` | ✅ Up 7 days (healthy) | 64m |
 | `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | ✅ Up 3 weeks (healthy) | 2g |
-| `prometheus` | ✅ Up 17 minutes (healthy) | 1g |
+| `prometheus` | ✅ Up 49 minutes (healthy) | 1g |
 | `promtail-w0000ckgsgg048w0848okk08` | ✅ Up 9 days | 128m |
-| `pushgateway` | ✅ Up 8 hours (healthy) | — |
+| `pushgateway` | ✅ Up 9 hours (healthy) | — |
 | `redis-exporter` | ✅ Up 7 days | 64m |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
-| `test-python-api-f0wkcowskkccc4ws4wwgwg08-131857107073` | ✅ Up 2 minutes (healthy) | 512m |
+| `test-python-api-lgg84cs8gkso0swk8g4cwo80-135758251890` | ✅ Up 2 minutes (healthy) | 512m |
 | `traefik` | ✅ Up 28 hours | 256m |
-| `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 22 hours (healthy) | 512m |
+| `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 23 hours (healthy) | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
 <!-- /AUTO -->
 
@@ -350,7 +350,7 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 | `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | 512m |
 | `loki-r48swckog008wosgwcs4g0g0` | 512m |
 | `n8n-s8gwccsws0ccssw0wwgwsoks` | 2g |
-| `netdata-kk4kcw4csksc48848go4o0wo` | 768m |
+| `netdata-kk4kcw4csksc48848go4o0wo` | 1g |
 | `node-exporter-doc8c8gkcgs88s8ckggw84o4` | 128m |
 | `ocoron-com-backup-1` | 128m |
 | `ocoron-com-db-1` | 1g |
@@ -364,7 +364,7 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 | `redis-exporter` | 64m |
 | `redis-main` | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | 512m |
-| `test-python-api-f0wkcowskkccc4ws4wwgwg08-131857107073` | 512m |
+| `test-python-api-lgg84cs8gkso0swk8g4cwo80-135758251890` | 512m |
 | `traefik` | 256m |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | 2g |

@@ -329,7 +329,37 @@ def _destroy_coolify(name: str, dry_run: bool) -> ActionResult:
                 "error",
                 error=f"application {name!r} found but has no uuid",
             )
+
+        # Fix 2 companion (2026-05-16): when the SSH fallback started a
+        # container via `docker compose -f docker-compose.yaml up -d`,
+        # Coolify's API DELETE removes the DB record but does NOT stop the
+        # running container (Coolify didn't start it — it doesn't own the
+        # lifecycle). Belt-and-suspenders: SSH-stop any container matching
+        # the Coolify naming pattern BEFORE the API delete so no orphan
+        # container lingers. Idempotent — if the container doesn't exist
+        # or Coolify DID stop it, docker stop/rm returns non-zero which we
+        # ignore.
+        try:
+            from fabrik.drivers.ssh import ssh as _ssh
+
+            _ssh(
+                f"sudo docker compose -f /data/coolify/applications/{uuid}/docker-compose.yaml "
+                f"down 2>/dev/null || true",
+                timeout=30,
+            )
+        except Exception:  # noqa: BLE001 — best-effort; API delete follows regardless
+            pass
+
         client.delete_application(uuid)
+
+        # Clean up the Coolify app directory (source clone + compose)
+        try:
+            from fabrik.drivers.ssh import ssh as _ssh
+
+            _ssh(f"sudo rm -rf /data/coolify/applications/{uuid}", timeout=15)
+        except Exception:  # noqa: BLE001
+            pass
+
         return ActionResult("coolify", "removed", detail=f"app {name} (uuid={uuid})")
     except Exception as e:  # noqa: BLE001
         return ActionResult("coolify", "error", error=repr(e))
