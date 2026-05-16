@@ -254,7 +254,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | 512m |
 | `file-api-bsswwg4kg480c000gksw004k-192212486944` | ✅ Up 7 days (healthy) | 512m |
 | `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | ✅ Up 2 days (healthy) | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 20 seconds | 256m |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 33 seconds | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 7 days (healthy) | 512m |
@@ -276,7 +276,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `redis-exporter` | ✅ Up 7 days | 64m |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
-| `test-docusaurus-i4so8k8o0k8og8sg8cgw8k8s-141757635007` | ✅ Up 37 seconds (healthy) | 512m |
+| `test-docusaurus-i4so8k8o0k8og8sg8cgw8k8s-141757635007` | ✅ Up 50 seconds (healthy) | 512m |
 | `traefik` | ✅ Up 29 hours | 256m |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 23 hours (healthy) | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
