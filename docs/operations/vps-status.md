@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-16 10:59 UTC
+**Last Updated:** 2026-05-16 11:00 UTC
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
 **SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
@@ -11,11 +11,11 @@
 ## System Overview
 
 <!-- AUTO:system_overview -->
-| **Containers running** | 42 |
+| **Containers running** | 43 |
 | **Disk** | 108G total, 40G used, 68G free (37%) |
-| **Memory** | 11Gi total, 5.1Gi used, 1.7Gi free |
-| **Uptime** | up 8 weeks, 2 days, 12 hours, 39 minutes |
-| **Last snapshot** | 2026-05-16 10:59 UTC |
+| **Memory** | 11Gi total, 5.1Gi used, 1.5Gi free |
+| **Uptime** | up 8 weeks, 2 days, 12 hours, 40 minutes |
+| **Last snapshot** | 2026-05-16 11:00 UTC |
 <!-- /AUTO -->
 
 | **OS** | Ubuntu 24.04 LTS |
@@ -81,13 +81,13 @@
 | `coolify-db` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up About a minute (healthy) | — |
+| `coolify-sentinel` | ✅ Up 2 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 7 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 7 days (healthy) | 512m |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | 512m |
 | `file-api-bsswwg4kg480c000gksw004k-192212486944` | ✅ Up 7 days (healthy) | 512m |
 | `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | ✅ Up 2 days (healthy) | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 13 seconds | 256m |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up About a minute | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 7 days (healthy) | 512m |
@@ -109,6 +109,7 @@
 | `redis-exporter` | ✅ Up 7 days | 64m |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
+| `test-chrome-extension-g8sk4k0gc4gwskk4ogso0wok-110222260125` | ✅ Up 9 seconds (healthy) | 512m |
 | `traefik` | ✅ Up 25 hours | 256m |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 20 hours (healthy) | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
@@ -131,6 +132,7 @@
 | `redirect-to-https@docker` | redirectscheme |
 | `redirect-web-to-websecure@internal` | redirectscheme |
 | `site-provisioner-ipallowlist@docker` | ipallowlist |
+| `test-chrome-extension-cors@docker` | headers |
 <!-- /AUTO -->
 
 ---
@@ -279,6 +281,7 @@ For new single-image Application: see `.windsurf/rules/55-observability.md` § "
 | `redis-exporter` | 64m |
 | `redis-main` | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | 512m |
+| `test-chrome-extension-g8sk4k0gc4gwskk4ogso0wok-110222260125` | 512m |
 | `traefik` | 256m |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | 2g |
