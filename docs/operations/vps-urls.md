@@ -35,7 +35,7 @@
 | `postgres-main` | internal | ⚠️ running:healthy |
 | `promtail` | internal | ⚠️ running:unknown |
 | `site-provisioner` | internal | ⚠️ running:healthy |
-| `test-file-api` | https://test-file-api.vps1.ocoron.com | ⚠️ exited:unhealthy |
+| `test-file-api` | https://test-file-api.vps1.ocoron.com | ⚠️ running:healthy |
 <!-- /AUTO -->
 
 ---
