@@ -35,8 +35,7 @@
 | `postgres-main` | internal | ⚠️ running:healthy |
 | `promtail` | internal | ⚠️ running:unknown |
 | `site-provisioner` | internal | ⚠️ running:healthy |
-| `test-file-api` | https://test-file-api.vps1.ocoron.com | ⚠️ running:healthy |
-| `test-file-worker` | http://toskcwwogwgcg84swg40ogkk.172.93.160.197.sslip.io | ⚠️ exited:unhealthy |
+| `test-file-worker` | http://toskcwwogwgcg84swg40ogkk.172.93.160.197.sslip.io | ⚠️ running:healthy |
 <!-- /AUTO -->
 
 ---
