@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-16 14:22 UTC
+**Last Updated:** 2026-05-16 14:23 UTC
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
 **SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
@@ -13,9 +13,9 @@
 <!-- AUTO:system_overview -->
 | **Containers running** | 44 |
 | **Disk** | 108G total, 40G used, 68G free (38%) |
-| **Memory** | 11Gi total, 5.2Gi used, 1.6Gi free |
+| **Memory** | 11Gi total, 5.3Gi used, 1.6Gi free |
 | **Uptime** | up 8 weeks, 2 days, 16 hours, 2 minutes |
-| **Last snapshot** | 2026-05-16 14:22 UTC |
+| **Last snapshot** | 2026-05-16 14:23 UTC |
 <!-- /AUTO -->
 
 | **OS** | Ubuntu 24.04 LTS |
@@ -109,7 +109,7 @@
 | `redis-exporter` | ✅ Up 7 days | 64m |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
-| `test-chrome-extension-lcco440cck88c44owo8c8c80-142422558429` | ✅ Up 11 seconds (healthy) | 512m |
+| `test-chrome-extension-lcco440cck88c44owo8c8c80-142422558429` | ✅ Up 23 seconds (healthy) | 512m |
 | `traefik` | ✅ Up 29 hours | 256m |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 23 hours (healthy) | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
