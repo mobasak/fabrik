@@ -1,6 +1,6 @@
 # VPS1 Service URLs
 
-**Last Updated:** 2026-05-16 10:56 UTC
+**Last Updated:** 2026-05-16 10:58 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Los Angeles, CA
 **Pattern:** All services via HTTPS through Traefik. HTTP auto-redirects to HTTPS.
 
@@ -35,6 +35,7 @@
 | `postgres-main` | internal | ⚠️ running:healthy |
 | `promtail` | internal | ⚠️ running:unknown |
 | `site-provisioner` | internal | ⚠️ running:healthy |
+| `test-static-site` | https://test-static-site.vps1.ocoron.com | ⚠️ exited:unhealthy |
 <!-- /AUTO -->
 
 ---
