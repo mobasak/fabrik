@@ -35,7 +35,6 @@
 | `postgres-main` | internal | ⚠️ running:healthy |
 | `promtail` | internal | ⚠️ running:unknown |
 | `site-provisioner` | internal | ⚠️ running:healthy |
-| `test-static-site` | https://test-static-site.vps1.ocoron.com | ⚠️ running:healthy |
 <!-- /AUTO -->
 
 ---
