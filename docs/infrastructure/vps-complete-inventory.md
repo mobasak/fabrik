@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-16 06:01 UTC
+**Last Updated:** 2026-05-16 08:59 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 40 running
@@ -239,26 +239,26 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 |---|---|---|
 | `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 3 weeks (healthy) | 256m |
 | `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 3 weeks (healthy) | 768m |
-| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 14 hours (healthy) | 512m |
-| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 16 hours | 512m |
+| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 17 hours (healthy) | 512m |
+| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 19 hours | 512m |
 | `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 7 days (healthy) | 512m |
-| `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 8 days (healthy) | 512m |
+| `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 9 days (healthy) | 512m |
 | `captcha-j8gg4ggskkossc4gkwowk4os-191229303949` | ✅ Up 7 days (healthy) | 512m |
 | `coolify` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-db` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 2 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up About a minute (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 7 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 7 days (healthy) | 512m |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | 512m |
 | `file-api-bsswwg4kg480c000gksw004k-192212486944` | ✅ Up 7 days (healthy) | 512m |
 | `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | ✅ Up 2 days (healthy) | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 14 hours | 256m |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 20 seconds | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 3 weeks | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 3 weeks | 512m |
 | `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 7 days (healthy) | 512m |
-| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 20 hours (healthy) | 512m |
+| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 23 hours (healthy) | 512m |
 | `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 3 weeks (healthy) | 512m |
 | `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 3 weeks (healthy) | 2g |
 | `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 8 days (healthy) | 768m |
@@ -272,12 +272,12 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | ✅ Up 3 weeks (healthy) | 2g |
 | `prometheus` | ✅ Up 8 days (healthy) | 1g |
 | `promtail-w0000ckgsgg048w0848okk08` | ✅ Up 8 days | 128m |
-| `pushgateway` | ✅ Up 42 minutes (healthy) | — |
+| `pushgateway` | ✅ Up 4 hours (healthy) | — |
 | `redis-exporter` | ✅ Up 7 days | 64m |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
-| `traefik` | ✅ Up 20 hours | 256m |
-| `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 15 hours (healthy) | 512m |
+| `traefik` | ✅ Up 23 hours | 256m |
+| `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 18 hours (healthy) | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
 <!-- /AUTO -->
 
@@ -451,6 +451,30 @@ Coolify renames single-image Application containers on every redeploy: `<24-char
 **Why prefixes only:** the watcher matches `^${prefix}-`. The timestamp suffix changes on every redeploy; only the 24-char UUID prefix is stable. Earlier ticket drafts proposed full-suffix keys; those would silently never match newly-redeployed containers.
 
 **`data/projects.yaml` deploy block (T2-04 G-J1):** `scripts/sync_projects.py` now reads `.fabrik/state/<id>.json` (T2-01 G-F3) into a 7-field `deploy:` block per project: `last_apply_status / last_apply_at / last_apply_sha / coolify_uuid / coolify_app_name / spec_path / registrars_applied`. Projects without a state file show `last_apply_status: never` — explicit signal that the project has never been applied (or was applied pre-T2-01). Falls back to `state/fabrik-<id>.json` (Coolify naming convention).
+
+## Per-Registrar Drift Alerting (T4-04 G-G5, 2026-05-16)
+
+Hourly WSL crontab runs [`scripts/audit_all_registrars.py`](../../scripts/audit_all_registrars.py) → walks every `specs/services/*.yaml` → calls `fabrik.audit.audit_all` → emits Prom-text `fabrik_audit_drift_total{spec_id, registrar}` to the VPS-local pushgateway. Prometheus scrapes pushgateway; alert rule fires if drift > 0 for 10 minutes; Alertmanager routes by `alert_class: registrar_drift` to the existing `telegram` receiver (no new receiver).
+
+**On-VPS components:**
+
+- **`pushgateway`** (`prom/pushgateway:v1.9.0`) — added to `/opt/monitoring/compose.yaml`. Container name `pushgateway`. Loopback-only bind `127.0.0.1:9091:9091`; reachable from inside the VPS only. Network `coolify` so prometheus scrapes it by hostname. Metrics are in-memory (no `--persistence.file`) — survive container start but not restart; the next hourly audit (≤60 min) repopulates them. `for: 10m` alert window covers the gap.
+- **`/opt/monitoring/configs/prometheus/rules/fabrik-drift.yml`** — alert `FabrikRegistrarDrift`, `expr: fabrik_audit_drift_total > 0`, `for: 10m`, labels `severity=warning` + `alert_class=registrar_drift`.
+- **`/opt/monitoring/configs/prometheus/prometheus.yml`** scrape job `pushgateway` with `honor_labels: true`.
+- **`/opt/monitoring/configs/alertmanager/alertmanager.yml`** route under `route.routes` matching `alert_class: registrar_drift`, `receiver: telegram` (existing).
+
+**On-WSL component:**
+
+- Crontab line: `0 * * * * PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py >> /var/log/fabrik-audit-all.log 2>&1` (pattern mirrors T2-03's G-G4 `audit_authelia_gates.py` — single audit scheduling mechanism across the codebase).
+
+**Smoke-test roundtrip** (2026-05-16, primary-path SC-4): synthetic drift pushed at 05:34:51 UTC → PENDING → FIRING at 05:44:51 UTC (T+10:00) → Alertmanager dispatched to `telegram` at 05:45:21 UTC → resolution push at 05:43:29 UTC → cleared from `/api/v1/alerts` at 05:45:06 UTC. End-to-end ≈ 11 minutes; real-world detection latency ≤ 1h + 11min ≈ 71 minutes.
+
+**Reload procedure** (when editing rules or routes — neither container publishes 9090/9093 on the host):
+
+```bash
+ssh vps "sudo docker exec prometheus wget -qO- --post-data='' http://localhost:9090/-/reload"
+ssh vps "sudo docker exec alertmanager-zw4swgkwk0s4s8kg048gw80o wget -qO- --post-data='' http://localhost:9093/-/reload"
+```
 
 ## Postgres Allocation Registry (T4-01 G-J4, 2026-05-16)
 

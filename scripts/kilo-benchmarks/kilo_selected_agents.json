@@ -3,7 +3,7 @@
   "total_agents": 43,
   "tier_system": "Unified via --auto (Free/Economy/Standard/Pro/Expert/Apex/Specialist)",
   "pricing_complete": true,
-  "benchmark_date": "2026-03-22",
+  "benchmark_date": "2026-05-16",
   "discarded_models": {
     "_note": "DO NOT RE-ADD THESE MODELS. They were benchmarked and found unsuitable.",
     "deepseek-r1": {
@@ -425,7 +425,8 @@
       "specialty": "Complex coding, refactoring",
       "input_per_1m": 3.0,
       "output_per_1m": 15.0,
-      "arena_elo": 1500
+      "arena_elo": 1500,
+      "tbench_accuracy": 53.4
     },
     {
       "agent_id": "pro-9",

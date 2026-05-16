@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-05-15T11:59:09.462736",
-  "total_models": 345,
+  "timestamp": "2026-05-16T11:40:31.970495",
+  "total_models": 337,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -512,8 +512,8 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "inclusionai/ring-2.6-1t:free": {
-      "id": "inclusionai/ring-2.6-1t:free",
+    "inclusionai/ring-2.6-1t": {
+      "id": "inclusionai/ring-2.6-1t",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1582,41 +1582,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "x-ai/grok-3": {
-      "id": "x-ai/grok-3",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "x-ai/grok-3-beta": {
-      "id": "x-ai/grok-3-beta",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "x-ai/grok-3-mini": {
-      "id": "x-ai/grok-3-mini",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "x-ai/grok-3-mini-beta": {
-      "id": "x-ai/grok-3-mini-beta",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "x-ai/grok-4": {
-      "id": "x-ai/grok-4",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "x-ai/grok-4-fast": {
-      "id": "x-ai/grok-4-fast",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "x-ai/grok-4.1-fast": {
-      "id": "x-ai/grok-4.1-fast",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "x-ai/grok-4.20": {
       "id": "x-ai/grok-4.20",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -1629,11 +1594,6 @@
     },
     "x-ai/grok-4.3": {
       "id": "x-ai/grok-4.3",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "x-ai/grok-code-fast-1": {
-      "id": "x-ai/grok-code-fast-1",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

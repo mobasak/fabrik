@@ -235,6 +235,25 @@ Log lives at `/var/log/fabrik-audit.log` (writable by `ozgur:ozgur`). Each run a
 
 **Known follow-up:** the script's expected inventory predates T2-08 Part A's decision to gate `errors.vps1.ocoron.com`. Every Monday's run prints `1 GAP` against `errors`; cosmetic (exit 0) until the inventory is updated.
 
+## Hourly Per-Registrar Drift Alert (T4-04 G-G5, 2026-05-16)
+
+Generalises the Authelia weekly cron to all 9 registrars at hourly cadence. `scripts/audit_all_registrars.py` walks every spec, calls `fabrik.audit.audit_all`, emits Prom-text `fabrik_audit_drift_total{spec_id, registrar}` gauge metrics, pushes via SSH to the VPS-local pushgateway (`prom/pushgateway:v1.9.0` at `127.0.0.1:9091`).
+
+```cron
+0 * * * * PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py >> /var/log/fabrik-audit-all.log 2>&1
+```
+
+**Alert chain:** prometheus scrapes pushgateway (`honor_labels: true`) → rule file `/opt/monitoring/configs/prometheus/rules/fabrik-drift.yml` (alert `FabrikRegistrarDrift`, `expr: fabrik_audit_drift_total > 0`, `for: 10m`, label `alert_class: registrar_drift`) → Alertmanager route under `route.routes:` matches that label → existing `telegram` receiver (no new receiver per pack v3.2 V2-S4).
+
+**Detection latency:** ≤ 1h (cron interval) + 11min (for-window + group_wait) ≈ 71 minutes worst case. Matches Epic SC-4 "within ~1 hour".
+
+**Roundtrip-verified live 2026-05-16:** synthetic drift fired Telegram in 11 minutes; resolution (`fabrik_audit_drift_total=0`) cleared the alert within 90 seconds via Alertmanager `send_resolved: true`.
+
+**Pairs with:**
+
+- `fabrik audit-registrars` (T2-02 G-G2) — operator-invoked on-demand version of the same audit.
+- `audit_authelia_gates.py` (T2-03 G-G4) — registrar-specific deeper check (Authelia policy ↔ Traefik middleware) that fires from the same alert chain via the same `telegram` receiver.
+
 ## Stable Docker DNS Aliases (T2-04 G-J3, 2026-05-15)
 
 Adjacent to the audit/verify primitives above — the alias-watcher keeps friendly Docker DNS names alive for Gatus monitors and inter-service URLs that target Coolify Application containers. Coolify renames Application containers on every redeploy (`<24-char-uuid>-<10-digit-timestamp>`); without the watcher, `gatus:8080 → meilisearch:7700` resolution would break after each redeploy of the meilisearch container.

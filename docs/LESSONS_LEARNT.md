@@ -4056,6 +4056,28 @@ PATCH /applications/{uuid}/envs  body={"key":"DATABASE_URL", "value":"<marker>",
 
 ---
 
+# Lesson 64: Pack docs are aspirational specs frozen at write-time; live-state probes are authoritative
+
+**Date:** 2026-05-16 (Epic Closure T5-01)
+**Context:** Across the 47-gap "Fabrik Workflow Convergence" epic, every Tier-3 / Tier-4 ticket required at least one live-state-vs-pack-doc adaptation before implementation could proceed. By the time the epic closed, the divergence between what the ticket text claimed about the VPS and what the VPS actually showed had become the dominant friction.
+
+**Examples surfaced during this campaign:**
+
+- **T3-02** — ticket said `GOVERNANCE_FILES` had 7 entries → live: 5. Ticket said `AGENTS-compact.md` was 98 lines → live: 143. Final count after T3-02: 6 entries (not the ticket's "8").
+- **F5** — ticket said only 7 Fabrik microservices had the limits gap → operator pushback prompted re-audit; real surface was 7 Applications + 12 Coolify Services + 1 already-correct (file-worker). Pack §28 listed wrong on-disk paths for both Authelia and Backrest configs.
+- **T4-01** — translator/translator_service was framed as ambiguous (pre/post T1-05). Live: T1-05 had shipped — only `translator` exists.
+- **T4-03** — pack §28 said Authelia config lives at `/data/coolify/services/<uuid>/authelia/configuration.yml`. Live: `/var/lib/docker/volumes/<uuid>_authelia-config/_data/configuration.yml` (named Docker volume, not bind mount). Pack also missed that the on-disk Authelia + Backrest configs carry **plaintext secrets** that would have leaked unredacted into the portability bundle without a post-ticket convergence-pass fix.
+- **T4-04** — pack §31 said pushgateway joins network `monitoring`; live: prometheus uses `coolify`. Pack §31 metric name `fabrik_registrar_drift` → FINAL-REVISIONS § corrected to `fabrik_audit_drift_total`. Pack assumed pushgateway already running (it wasn't). Pack/ticket both said `ports: ["9091:9091"]` (would publish publicly); Stop Condition forbade public exposure → adapted to `127.0.0.1:9091:9091`.
+
+**Rule:**
+
+1. **Pre-flight always probes live, even when the ticket cites a "verified live 202X-XX-XX" date.** Verification rots within weeks: containers redeploy and rename, configs migrate between bind mounts and named volumes, registrar names change, networks consolidate.
+2. **When pack and live disagree, live wins and the adaptation is documented in the CHANGELOG entry** under a "Per-environment adaptations vs ticket text" table so the next reader knows which parts of the ticket text are no longer authoritative.
+3. **Test mocks don't substitute for live probes when the unknown is environmental.** T4-03's `test_tarball_contains_no_plaintext_secrets` byte-scanned synthetic secrets and passed cleanly — but missed the live Authelia/Backrest leak entirely because the mocks used synthetic key names that didn't match real secret-key patterns. The live probe (`grep -nE 'secret|password' configuration.yml`) caught it in seconds. **Run the script against the real VPS at least once before claiming the security invariant.**
+4. **Pack/ticket → FINAL-REVISIONS → live** is the canonical disambiguation order. When the pack says X, FINAL-REVISIONS says Y, and live shows Z: live wins. Then FINAL-REVISIONS. The pack is informational at that point.
+
+---
+
 # Lesson 63: Architecture-changing tickets must also evolve the enforcement scripts that gate them — they're rule packs that win over ticket text
 
 **Date:** 2026-05-16

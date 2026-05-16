@@ -17,7 +17,13 @@ import re
 import subprocess
 from pathlib import Path
 
-from .validate_conventions import CheckResult, Severity
+# Works whether invoked as a package import (e.g. by pytest) OR as a
+# standalone script (e.g. final_gate.py `python scripts/enforcement/...`).
+# Mirrors the dual-path pattern in check_vps_docs.py / check_env_vars.py.
+try:
+    from .validate_conventions import CheckResult, Severity
+except ImportError:
+    from validate_conventions import CheckResult, Severity
 
 # Root level - CLOSED allowlist
 ALLOWED_NEW_ROOT_DOCS = frozenset(
