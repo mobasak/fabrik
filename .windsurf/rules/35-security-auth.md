@@ -144,3 +144,7 @@ Applies to: Authelia bootstrap, `fabrik scaffold` credential generation, ops scr
 - [ ] FastAPI responses include HSTS, X-Content-Type-Options, X-Frame-Options headers.
 - [ ] Auth endpoints have rate limiting configured.
 - [ ] Internal service calls use `X-Internal-Token` header validation.
+
+## Spec contract — auth registrars
+
+Public services with admin UI behind 2FA: set `shape.is_admin_dashboard: true` — the Authelia registrar will add a per-domain rule on `fabrik apply`. API services with bearer auth on `/api/*`: set `shape.has_bearer_api: true`. Don't add Traefik `authelia-forward` middlewares manually — the scaffolder + registrars emit them.

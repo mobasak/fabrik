@@ -221,3 +221,7 @@ Install procedure (one-time per single-image App) + currently-registered alias p
 - [ ] Loki labels limited to low-cardinality values (`service`, `environment`, `level`).
 - [ ] Alert rules target RED symptoms only — no infrastructure cause-based paging.
 - [ ] Gatus configured for external synthetic monitoring of all public endpoints.
+
+## Spec contract — observability registrars
+
+Service should expose `/metrics` only when `shape.exposes_metrics: true` (Prometheus registrar will scrape it). Service should expose `/health` always (Gatus registrar depends on it when `shape.is_public: true`). GlitchTip DSN comes from `SENTRY_DSN` env var injected by the orchestrator from the GlitchTip registrar — do NOT hardcode the DSN in the repo.

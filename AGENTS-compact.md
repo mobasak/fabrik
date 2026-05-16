@@ -121,6 +121,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 | bare `pip install` | `/opt/<project>/.venv/bin/pip install` (PEP 668) |
 | Alpine base image | `python:<stable>-slim-bookworm` / `node:<LTS>-bookworm-slim` |
 | Docker `ports:` exposure to host | route through Traefik (DOCKER-USER blocks raw ports) |
+| compose without `deploy.resources.limits.memory` on Coolify-deployed service | Coolify v4 ignores `limits_memory` UI for `build_pack=dockercompose` + Services. Scaffolder auto-emits via `_write_canonical_compose`. For Services, mutate `docker_compose_raw` via `PATCH /api/v1/services/<uuid>` base64-encoded — never edit on-disk. F5 / Lesson 62 |
 | admin dashboard w/o auth | Authelia forward-auth OR app-layer TOTP |
 | FastAPI `except Exception` swallowing `HTTPException` | always `except HTTPException: raise` before generic catch |
 | foreground command likely >30s (build/deploy/test/sync/`fabrik`/`docker`/`pytest`/`npm i`) | `scripts/rund -- <cmd>`; `runwait $(runlast) <s>`; `runc $(runlast)`. Doc: `docs/reference/long-command-monitoring.md` |
@@ -140,3 +141,5 @@ CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 ```
 Missing any line = task failure. Re-run gate until `success`, then output 4 lines.
+
+Spec contract awareness: see KILO_CLI_RULES.md.

@@ -5,6 +5,7 @@ Commands:
     See `fabrik --help` for available commands.
 """
 
+import datetime
 import os
 from pathlib import Path
 from typing import Any
@@ -686,16 +687,61 @@ def app_logs(spec_path: str, lines: int, follow: bool):
 
 
 @cli.command()
-@click.argument("service")
+@click.argument("service", required=False)
 @click.option("--tail", "-n", default=100, help="Number of lines")
 @click.option("--since", default="1h", help="Time range (1h, 24h, 7d)")
-def logs(service: str, tail: int, since: str):
-    """View logs for a service from Loki.
+@click.option(
+    "--local",
+    is_flag=True,
+    help="Tail local compose.dev.yaml stack instead of Loki (T3-03 G-I2)",
+)
+@click.option(
+    "--service",
+    "local_service",
+    default=None,
+    help="When --local: specific service from compose.dev.yaml (default: all)",
+)
+@click.option(
+    "--follow",
+    "-f",
+    is_flag=True,
+    default=False,
+    help="When --local: follow log output (docker compose logs -f)",
+)
+def logs(
+    service: str | None, tail: int, since: str, local: bool, local_service: str | None, follow: bool
+):
+    """View logs for a service.
 
-    Example:
-        fabrik logs grafana
-        fabrik logs loki --tail 200 --since 24h
+    Remote (default): query Loki for ``SERVICE`` matching container names.
+    Local (``--local``): tail ``docker compose -f compose.dev.yaml logs`` in
+    the current directory's dev stack.
+
+    Examples:
+        fabrik logs grafana                      # Loki path
+        fabrik logs loki --tail 200 --since 24h  # Loki path
+        fabrik logs --local -f                   # tail all local services
+        fabrik logs --local --service api -f     # tail one service
     """
+    if local:
+        from fabrik.dev_tools import run_local_logs
+
+        rc = run_local_logs(Path.cwd(), service=local_service, follow=follow)
+        if rc == -1:
+            click.echo(
+                f"✗ No compose.dev.yaml in {Path.cwd()} — run `fabrik dev` from a scaffolded project root.",
+                err=True,
+            )
+            raise SystemExit(1)
+        raise SystemExit(rc)
+
+    if not service:
+        click.echo(
+            "✗ SERVICE argument required for remote (Loki) logs. Use --local to tail compose.dev.yaml.",
+            err=True,
+        )
+        raise SystemExit(2)
+
     import json
 
     import httpx
@@ -751,6 +797,17 @@ def logs(service: str, tail: int, since: str):
         "cleanup). Repeatable: --partial gatus --partial backrest. T2-02 G-F5."
     ),
 )
+@click.option(
+    "--use-state",
+    is_flag=True,
+    default=False,
+    help=(
+        "Reverse resources from .fabrik/state/<id>.json (T2-01) instead of the "
+        "current spec's shape. Safe when the spec has drifted between apply and "
+        "destroy. Refuses without --drop-data if any state entry is data-bearing "
+        "(postgres / redis / meilisearch). T4-02 G-F4."
+    ),
+)
 @click.option("--dry-run", is_flag=True, default=False, help="Plan only; mutate nothing")
 def destroy(
     spec_path: str,
@@ -759,6 +816,7 @@ def destroy(
     keep_files: bool,
     drop_data: bool,
     partial: tuple,
+    use_state: bool,
     dry_run: bool,
 ):
     """Tear down every resource ``fabrik apply`` created for SPEC_PATH.
@@ -783,6 +841,101 @@ def destroy(
     except Exception as e:
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
+
+    # T4-02 G-F4 state-driven destroy branch: replay registrars from the
+    # state file rather than the current shape. Refuses without --drop-data
+    # when any state entry is data-bearing (postgres/redis/meilisearch).
+    # Out-of-scope for composition with --partial — they are exclusive flags.
+    if use_state:
+        from fabrik import state as state_module
+        from fabrik.orchestrator.destroyer import destroy_from_state
+
+        if partial:
+            click.echo(
+                "✗ --use-state and --partial are mutually exclusive flags.",
+                err=True,
+            )
+            raise SystemExit(2)
+
+        state_data = state_module.load(spec.id)
+        if state_data is None:
+            click.echo(
+                f"✗ No state file for spec.id={spec.id!r} at "
+                f"{state_module.STATE_DIR}/{spec.id}.json — cannot --use-state. "
+                "Fall back to `fabrik destroy <spec>` (shape-driven) or "
+                "`--partial <reg>` for surgical teardown.",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        click.echo(
+            f"🗑️  Destroy --use-state: {spec.id}"
+            f"{' [DRY RUN]' if dry_run else ''} "
+            f"(state from {state_data.get('applied_at', '?')})"
+        )
+
+        # Surface the data-bearing list BEFORE prompting confirmation so
+        # the operator sees exactly what would be destroyed.
+        registrars_applied = state_data.get("registrars_applied") or []
+        data_bearing = sorted(
+            {entry.get("type", "?") for entry in registrars_applied if entry.get("data_bearing")}
+        )
+        if data_bearing:
+            if drop_data:
+                click.echo(
+                    f"  ⚠  Data-bearing registrars in state: {', '.join(data_bearing)} "
+                    "— will be DROPPED (--drop-data set)."
+                )
+            else:
+                click.echo(
+                    f"  🛡️  Data-bearing registrars in state: {', '.join(data_bearing)} "
+                    "— protected (no --drop-data). Destroy will refuse."
+                )
+
+        if not yes and not dry_run:
+            click.echo()
+            if not click.confirm("Proceed with state-driven destroy?"):
+                click.echo("Aborted.")
+                raise SystemExit(0)
+
+        report = destroy_from_state(
+            state_data,
+            spec,
+            drop_data=drop_data,
+            keep_dns=keep_dns,
+            keep_files=keep_files,
+            project_base=Path("/opt"),
+            dry_run=dry_run,
+        )
+
+        symbol = {
+            "removed": "✅",
+            "not_found": "ℹ️ ",
+            "skipped": "⏭️ ",
+            "dry_run": "🧪",
+            "error": "❌",
+        }
+        for action in report.actions:
+            sym = symbol.get(action.status, "•")
+            line = f"  {sym} {action.step:<22} {action.status:<10}"
+            if action.detail:
+                line += f"  {action.detail}"
+            if action.error:
+                line += f"  ERROR: {action.error}"
+            click.echo(line)
+        click.echo()
+
+        if report.had_errors:
+            click.echo(
+                f"⚠️  Destroy --use-state completed with {len(report.errors)} error(s).",
+                err=True,
+            )
+            raise SystemExit(2)
+
+        click.echo("=" * 60)
+        click.echo(f"✅ Destroyed (from state): {spec.id}")
+        click.echo("=" * 60)
+        raise SystemExit(0)
 
     # T2-02 G-F5 partial-destroy branch: surgical per-registrar teardown.
     # Bypasses the full destroy_deployment pipeline; no DNS, no Coolify
@@ -1074,21 +1227,30 @@ def audit_registrars(spec_path: str | None, as_json: bool):
         "missing": "  ✗ ",
         "n/a": "  · ",
         "unknown": "  ? ",
+        "drift": "  ⚠ ",
     }
     missing_count = 0
+    drift_count = 0
     for sid, regs in sorted(all_results.items()):
         row = sid.ljust(spec_col_w)
         for r in _REGISTRAR_ORDER:
             status = regs.get(r, {}).get("status", "?")
             if status == "missing":
                 missing_count += 1
+            elif status == "drift":
+                drift_count += 1
             row += glyph.get(status, f"  {status[0]} ").ljust(reg_col_w)
         click.echo(row)
 
     click.echo("─" * len(header))
-    click.echo("Legend: ✓=present  ✗=missing  ·=n/a  ?=unknown")
-    if missing_count:
-        click.echo(f"⚠  {missing_count} missing entries — consider 'fabrik reconcile-all'")
+    click.echo("Legend: ✓=present  ✗=missing  ·=n/a  ?=unknown  ⚠=drift")
+    if missing_count or drift_count:
+        if missing_count:
+            click.echo(f"⚠  {missing_count} missing entries — consider 'fabrik reconcile-all'")
+        if drift_count:
+            click.echo(
+                f"⚠  {drift_count} drift entries — registry vs live state mismatch; inspect detail"
+            )
         raise SystemExit(2)
 
 
@@ -2594,6 +2756,218 @@ def seo_briefs_list(site_id: str, status: str | None):
         raise SystemExit(1)
     finally:
         seo.close()
+
+
+@cli.command()
+@click.option(
+    "--since",
+    default="HEAD",
+    help="Git ref for diff (e.g. HEAD, HEAD~1, origin/main). Default: HEAD (uncommitted changes).",
+)
+@click.option(
+    "--spec",
+    "spec_path",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Path to spec yaml. Auto-detected from cwd/specs/services/*.yaml if omitted.",
+)
+@click.option(
+    "--out",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output file path. Default: .fabrik/review/<YYYY-MM-DD-HHMMSS>.md",
+)
+def review(since: str, spec_path: Path | None, out: Path | None):
+    """Bundle git diff + spec + preplan + resolved registrars into a review pack (T3-03 G-D3).
+
+    Run from a project directory (not from /opt/fabrik). The bundle is intended
+    to be handed to a human reviewer or dispatched to Kilo CLI:
+
+        kilo run --agent reviewer --input .fabrik/review/<ts>.md
+
+    Examples:
+        fabrik review
+        fabrik review --since HEAD~3
+        fabrik review --spec specs/services/api.yaml --out review.md
+    """
+    from fabrik.dev_tools import build_review_bundle, find_spec, save_review_bundle
+
+    project_dir = Path.cwd()
+    if spec_path is None:
+        spec_path = find_spec(project_dir)
+
+    click.echo("📦 Bundling review pack...")
+    content, stats = build_review_bundle(project_dir, since=since, spec_path=spec_path)
+
+    click.echo(f"   - git diff ({since}) ............. {stats.diff_lines} lines")
+    if spec_path:
+        click.echo(f"   - {spec_path.name} ........... {stats.spec_lines} lines")
+        click.echo(
+            f"   - resolved registrars ......... {stats.registrars_run} RUN, "
+            f"{stats.registrars_skipped} skipped"
+        )
+    else:
+        click.echo("   - spec ........................ (not found)")
+    if stats.preplan_lines:
+        click.echo(f"   - docs/preplan.md ............. {stats.preplan_lines} lines")
+
+    target = save_review_bundle(project_dir, content, out=out)
+    click.echo(f"✅ Bundle saved to {target}")
+    click.echo("   Dispatch with:")
+    click.echo(f"     kilo run --agent reviewer --input {target}")
+
+
+@cli.command()
+@click.option("--project", default=".", help="Project directory (default: cwd)")
+@click.option("--detach", "-d", is_flag=True, help="Run in detached mode (docker compose up -d)")
+def dev(project: str, detach: bool):
+    """Run the local dev stack via compose.dev.yaml (T3-03 G-I1).
+
+    Shells out to ``docker compose -f compose.dev.yaml up [-d]`` in the
+    project directory. Fails cleanly if ``compose.dev.yaml`` is missing.
+
+    Example:
+        cd /opt/<project>
+        fabrik dev -d
+        fabrik logs --local -f
+    """
+    from fabrik.dev_tools import run_dev_compose
+
+    project_dir = Path(project).resolve()
+    rc = run_dev_compose(project_dir, detach=detach)
+    if rc == -1:
+        click.echo(f"✗ No compose.dev.yaml in {project_dir}", err=True)
+        raise SystemExit(1)
+    raise SystemExit(rc)
+
+
+@cli.command()
+@click.option(
+    "--output",
+    "--out",
+    "-o",
+    "output",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output tarball path. Default: ./fabrik-export-vps1-<YYYY-MM-DD>.tar.gz",
+)
+@click.option(
+    "--include-data",
+    is_flag=True,
+    default=False,
+    help=(
+        "[Reserved] Also include postgres pg_dump + meilisearch snapshots. "
+        "Currently records intent in manifest only — data extraction deferred."
+    ),
+)
+@click.option(
+    "--skip-remote",
+    is_flag=True,
+    default=False,
+    help="Skip SSH-based pulls (monitoring / authelia / backrest). Used for offline export tests.",
+)
+def export(output: Path | None, include_data: bool, skip_remote: bool):
+    """Export the current VPS state as a portable bundle (T4-03 G-J2).
+
+    Produces a tarball containing specs, .fabrik/state/, redacted secrets
+    key list (NEVER values), Coolify Applications/Services/Projects with
+    UUIDs stripped, monitoring configs (gatus/prometheus/alertmanager/
+    grafana/redis-assignments/postgres-allocations), Authelia configuration,
+    Backrest config, plus a README with restore instructions.
+
+    Example:
+        fabrik export -o /tmp/vps1-base.tar.gz
+        fabrik export --include-data -o /tmp/vps1-full.tar.gz
+    """
+    from fabrik.portability import export_bundle
+
+    if output is None:
+        date = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
+        output = Path(f"./fabrik-export-vps1-{date}.tar.gz")
+
+    click.echo(f"📦 Exporting VPS state to {output}{' (with data)' if include_data else ''}…")
+    try:
+        target = export_bundle(
+            output,
+            include_data=include_data,
+            skip_remote=skip_remote,
+        )
+    except Exception as exc:  # noqa: BLE001 — surface to operator, never swallow
+        click.echo(f"✗ export failed: {exc}", err=True)
+        raise SystemExit(1)
+
+    size_kb = target.stat().st_size // 1024
+    click.echo(f"✅ Bundle saved: {target} ({size_kb} KB)")
+    click.echo("   Inspect: tar -tzf " + str(target) + " | head")
+    click.echo(
+        "   Secrets checklist: tar -xOzf " + str(target) + " secrets-redacted.json | jq 'keys[]'"
+    )
+    click.echo()
+    click.echo(
+        "⚠  Bundle contains NO plaintext secret values. On restore, re-populate "
+        ".env per the secrets-redacted.json key list (pack §28 § Secrets ergonomics)."
+    )
+
+
+@cli.command(name="import")
+@click.argument("bundle", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--apply",
+    "real_run",
+    is_flag=True,
+    default=False,
+    help=(
+        "Execute the restore plan. Default is dry-run (parse + print plan) "
+        "because import is shipped untested in this epic — see CHANGELOG."
+    ),
+)
+def import_(bundle: Path, real_run: bool):
+    """Import a portability bundle on a fresh target VPS (T4-03 G-J2).
+
+    DEFAULT IS DRY-RUN. Pass --apply to execute. Even with --apply, the
+    real-run path is stubbed in this epic — the API-write phase is
+    deferred to the vps2 stand-up.
+
+    Operator MUST re-populate .env secrets manually before --apply:
+    see the bundle's secrets-redacted.json for the key list.
+
+    Example:
+        fabrik import /tmp/vps1-base.tar.gz                # dry-run plan
+        fabrik import /tmp/vps1-base.tar.gz --apply        # stubbed real run
+    """
+    from fabrik.portability import import_bundle
+
+    click.echo(f"📥 Importing bundle: {bundle}{'' if real_run else ' [DRY RUN]'}")
+    try:
+        plan = import_bundle(bundle, dry_run=not real_run)
+    except FileNotFoundError as exc:
+        click.echo(f"✗ {exc}", err=True)
+        raise SystemExit(1)
+    except Exception as exc:  # noqa: BLE001
+        click.echo(f"✗ import failed: {exc}", err=True)
+        raise SystemExit(1)
+
+    if plan.get("manifest"):
+        m = plan["manifest"]
+        click.echo(f"  source_vps: {m.get('source_vps')}")
+        click.echo(f"  created_at: {m.get('created_at')}")
+        click.echo(f"  bundle version: {m.get('version')}")
+    click.echo()
+    click.echo("Sections:")
+    for key, count in sorted(plan["sections"].items()):
+        click.echo(f"  {key:<20} {count}")
+    if plan.get("secrets_to_repopulate"):
+        click.echo()
+        click.echo(
+            f"⚠  Re-populate {len(plan['secrets_to_repopulate'])} secrets in /opt/fabrik/.env on this target:"
+        )
+        for key in plan["secrets_to_repopulate"][:20]:
+            click.echo(f"   - {key}")
+        if len(plan["secrets_to_repopulate"]) > 20:
+            click.echo(f"   ... and {len(plan['secrets_to_repopulate']) - 20} more")
+    click.echo()
+    for action in plan.get("actions", []):
+        click.echo(f"  action: {action}")
 
 
 def main():

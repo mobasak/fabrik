@@ -35,6 +35,7 @@
 |:--|:--|
 | `git commit` / `git push` (unless user said so this turn) | gate auto-stages — task ends there |
 | `fabrik redeploy` without `git push` first (git-sourced apps) | always: `git commit` → `git push` → `fabrik redeploy`; Coolify pulls from GitHub, not local `/opt/` — skipping push redeploys stale code |
+| compose without `deploy.resources.limits.memory` on a Coolify-deployed service | Coolify v4.0.0-beta.459 ignores its `limits_memory` UI field for both `build_pack=dockercompose` Applications and one-click Services. The compose itself must carry `deploy.resources.limits` or Docker sees no cap (HostConfig.Memory=0). Scaffolder auto-emits this in `_write_canonical_compose`. For Coolify Services, mutate via `PATCH /api/v1/services/<uuid>` with **base64-encoded** `docker_compose_raw` — never edit `/data/coolify/services/<uuid>/docker-compose.yaml` directly (regenerated from DB on redeploy). F5 fix 2026-05-16 / Lesson 62. |
 | `DB_HOST=localhost` / `DATABASE_URL=...@localhost:` in `.env` or Coolify env vars | always use Docker service names: `postgres-main:5432`, `redis-main:6379` — `localhost` inside a container is the container itself, not the host |
 | Authelia config reload via SIGHUP | Authelia exits on SIGHUP, does NOT hot-reload — always `docker restart <authelia-container>` after config edits |
 | Adding a new Gatus endpoint using hardcoded container name | always use stable Docker DNS name: compose service name for Service stacks, or registered stable alias for single-image Applications. Never use UUID container name — it changes on every redeploy. See `scripts/vps_apply_limits.sh` alias section for registered pairs. |
@@ -101,3 +102,23 @@ CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 ```
 Missing any line = task failure. Run gate; if `failure`, fix and re-run until `success`, then output the 4 lines.
+
+## Spec contract awareness
+
+Every Fabrik project has `specs/services/<id>.yaml` with a `shape:` block that drives:
+
+- Which Postgres DB / Redis index / Backrest plan / Gatus endpoint / Prometheus job / GlitchTip project / Authelia rule / Meilisearch index get auto-created on `fabrik apply`
+- The shape contract is canonical: code MUST match it, not the other way around
+
+If your code:
+
+- Adds a database call → `shape.needs_database` MUST be `true` in the spec
+- Adds a Redis cache → `shape.needs_cache` MUST be `true`
+- Exposes `/metrics` → `shape.exposes_metrics` MUST be `true`
+- Adds Meilisearch indexes → `shape.has_search_feature` MUST be `true`
+- Adds an admin UI behind auth → `shape.is_admin_dashboard` MUST be `true`
+
+If you change code in a way that affects any of the above, ALSO update `specs/services/<id>.yaml`.
+Don't ship code that contradicts the spec — `fabrik apply` will skip the registrar and you'll have a silently broken deploy.
+
+To preview what the spec will trigger: `fabrik plan specs/services/<id>.yaml`

@@ -137,6 +137,28 @@ fabrik verify hello-api.vps1.ocoron.com --spec registrars
 fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --partial gatus --dry-run
 fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --partial gatus --partial backrest -y
 
+# Local dev loop (T3-03) — code in WSL, watch, bundle for review.
+cd /opt/<project>
+fabrik dev -d                                    # start compose.dev.yaml stack
+fabrik logs --local -f                           # tail dev stack logs
+fabrik logs --local --service api -f             # one service only
+fabrik review                                    # bundle diff+spec+preplan to .fabrik/review/<ts>.md
+fabrik review --since HEAD~3 --out /tmp/r.md     # custom diff range + output
+
+# State-driven destroy (T4-02) — replay what was actually deployed, not what the spec says now.
+# Use when the spec has drifted between apply and destroy (e.g. shape.has_search_feature flipped).
+fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --use-state --dry-run
+fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --use-state -y                # safe path
+fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --use-state --drop-data -y    # required when state has postgres/redis/meilisearch
+# After success: state file moves to /opt/fabrik/.fabrik/state/_destroyed/<id>.json.<UTC-ts>
+
+# Cross-VPS portability bundle (T4-03) — capture this VPS's full apply-state for rebuild on vps2.
+fabrik export --out /tmp/vps1-base.tar.gz                          # default skips remote-config probes
+fabrik export --out /tmp/vps1-full.tar.gz --include-data           # reserved: postgres/meili snapshots
+fabrik import /tmp/vps1-base.tar.gz                                # dry-run plan (default; import is shipped UNTESTED)
+fabrik import /tmp/vps1-base.tar.gz --apply                        # stubbed real run; real roundtrip deferred to vps2
+# Bundle has NO secret values — operator re-populates .env on the target per secrets-redacted.json.
+
 # Hit the endpoint
 curl https://hello-api.vps1.ocoron.com/health
 ```

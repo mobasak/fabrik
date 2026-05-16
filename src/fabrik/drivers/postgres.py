@@ -36,12 +36,17 @@ Design notes
 from __future__ import annotations
 
 import base64
+import datetime as _dt
+import json
 import logging
 import re
 import secrets
+import shlex
 import string
+from typing import Any
 
 from fabrik.drivers.ssh import ssh
+from fabrik.locks_local import file_lock
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +55,15 @@ POSTGRES_CONTAINER = "postgres-main-l0k4gk0kggc8okcwk0s4c8s8"
 
 Overridable per-call via the ``container`` kwarg for tests and future
 container migrations."""
+
+ALLOCATIONS_PATH = "/opt/monitoring/configs/postgres/allocations.json"
+"""Source-of-truth registry mapping db_name → owner/spec_id/user/notes.
+
+Lives on the VPS at the same path as other registry-style configs
+(``/opt/monitoring/configs/redis/assignments.json`` etc.). The
+``audit_postgres`` registrar cross-references this file against the live
+``pg_database`` table to surface drift (registry says X exists but DB
+doesn't, or vice-versa). T4-01 G-J4."""
 
 _IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
 """PostgreSQL identifier validation.
@@ -115,6 +129,9 @@ def create_database(
     db_user: str | None = None,
     container: str = POSTGRES_CONTAINER,
     dry_run: bool = False,
+    spec_id: str | None = None,
+    owner: str = "fabrik",
+    notes: str = "",
 ) -> dict:
     """Create a PostgreSQL database (and optional role) on ``postgres-main``.
 
@@ -172,6 +189,23 @@ def create_database(
     logger.info("Created PostgreSQL database: %s", db_name)
 
     if not db_user or db_user == "postgres":
+        # T4-01: record allocation. Only on status=created (new DB);
+        # pre-existing DBs keep their seed/manual entries untouched.
+        try:
+            register_allocation(
+                db_name,
+                spec_id=spec_id,
+                user="postgres",
+                owner=owner,
+                notes=notes,
+                dry_run=False,
+            )
+        except Exception as exc:  # noqa: BLE001 — registry failure is non-fatal
+            logger.warning(
+                "postgres allocations: register %s failed (%s); DB exists but registry skipped",
+                db_name,
+                exc,
+            )
         return {"status": "created", "database": db_name}
 
     # Dedicated role — generate CSPRNG password, create + grant in one SQL
@@ -189,6 +223,23 @@ def create_database(
     )
     _run_sql(role_and_grant, container=container)
     logger.info("Created PostgreSQL role and granted privileges: %s -> %s", db_user, db_name)
+
+    # T4-01: record allocation with the dedicated role.
+    try:
+        register_allocation(
+            db_name,
+            spec_id=spec_id,
+            user=db_user,
+            owner=owner,
+            notes=notes,
+            dry_run=False,
+        )
+    except Exception as exc:  # noqa: BLE001 — registry failure is non-fatal
+        logger.warning(
+            "postgres allocations: register %s failed (%s); DB+role exist but registry skipped",
+            db_name,
+            exc,
+        )
 
     return {
         "status": "created",
@@ -269,13 +320,163 @@ def drop_database(
     _run_sql(sql, container=container)
     logger.info("Dropped PostgreSQL database: %s", db_name)
 
+    # T4-01: remove allocation entry (idempotent — missing entry is a no-op).
+    try:
+        unregister_allocation(db_name, dry_run=False)
+    except Exception as exc:  # noqa: BLE001 — registry failure is non-fatal
+        logger.warning(
+            "postgres allocations: unregister %s failed (%s); DB dropped but registry stale",
+            db_name,
+            exc,
+        )
+
     return {"status": "dropped", "database": db_name}
+
+
+# ── Allocation registry (T4-01 G-J4) ────────────────────────────────────── #
+
+
+def _load_remote_allocations() -> dict[str, Any]:
+    """Read ``allocations.json`` from VPS via SSH. Returns the empty-shape dict
+    ``{"version": 1, "allocations": {}}`` when the file is missing or empty
+    (first-run on a fresh VPS). Raises ``json.JSONDecodeError`` on a corrupted
+    file — caller decides whether to abort or overwrite.
+    """
+    try:
+        raw = ssh(f"sudo cat {shlex.quote(ALLOCATIONS_PATH)}")
+    except RuntimeError as e:
+        logger.warning(
+            "postgres allocations: cat %s failed (%s) — assuming empty registry",
+            ALLOCATIONS_PATH,
+            e,
+        )
+        return {"version": 1, "allocations": {}}
+    if not raw.strip():
+        return {"version": 1, "allocations": {}}
+    return json.loads(raw)
+
+
+def _write_remote_allocations(payload: dict[str, Any], *, dry_run: bool = False) -> None:
+    """Atomic write of ``allocations.json`` via tee → /tmp → sudo mv.
+
+    Mirrors the pattern in ``fabrik.orchestrator.coolify_alias`` — write
+    to a tmp file, then chown/chmod/mv in a single ssh round. Concurrent
+    writers (cron + manual) cannot leave the file half-written; the worst
+    case is that one writer's payload overwrites the other's. WSL-side
+    serialization is provided by ``file_lock`` in ``register_allocation``
+    / ``unregister_allocation``.
+    """
+    payload = dict(payload)
+    payload["last_updated"] = _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds")
+    new_content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    quoted = shlex.quote(new_content)
+    tmp_path = f"{ALLOCATIONS_PATH}.tmp"
+    ssh(
+        f"sudo mkdir -p {shlex.quote(ALLOCATIONS_PATH.rsplit('/', 1)[0])} && "
+        f"sudo tee {shlex.quote(tmp_path)} > /dev/null <<< {quoted}",
+        dry_run=dry_run,
+    )
+    ssh(
+        f"sudo chown root:root {shlex.quote(tmp_path)} && "
+        f"sudo chmod 644 {shlex.quote(tmp_path)} && "
+        f"sudo mv {shlex.quote(tmp_path)} {shlex.quote(ALLOCATIONS_PATH)}",
+        dry_run=dry_run,
+    )
+
+
+def list_allocations() -> dict[str, Any]:
+    """Public read API. Returns the parsed registry payload.
+
+    Empty-shape ``{"version": 1, "allocations": {}}`` when the file is
+    missing — callers should treat that as "no allocations yet" rather
+    than an error.
+    """
+    return _load_remote_allocations()
+
+
+def register_allocation(
+    db_name: str,
+    *,
+    spec_id: str | None,
+    user: str = "postgres",
+    owner: str = "fabrik",
+    notes: str = "",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Insert / update an entry in the allocation registry.
+
+    Read-modify-write under a local file lock so two concurrent
+    ``fabrik apply`` invocations on the same workstation can't lose
+    each other's writes (cross-host concurrency is out of scope on a
+    solo-dev VPS).
+
+    Args:
+        db_name: The PostgreSQL database name (registry key).
+        spec_id: The owning spec id (or ``None`` for infrastructure
+            services like ``glitchtip`` that aren't Fabrik Applications).
+        user: The DB owner role; defaults to ``postgres`` for shared
+            roles, set to the dedicated role name when ``create_database``
+            provisioned one.
+        owner: ``fabrik`` (created by orchestrator), ``manual`` (created
+            out-of-band; recorded for visibility), or ``infrastructure``
+            (Coolify Service or VPS-bootstrap DB).
+        notes: Free-text. The seed entries use this to record
+            ``infra.postgres: false`` overrides and historical context.
+        dry_run: Skip the actual VPS write. Local merge still happens
+            so the caller's logs reflect the intended payload.
+
+    Returns:
+        The merged registry payload (post-update).
+    """
+    if dry_run:
+        logger.info(
+            "[DRY RUN] Would register postgres allocation: db=%s spec=%s owner=%s",
+            db_name,
+            spec_id,
+            owner,
+        )
+
+    with file_lock("postgres-allocations", timeout_seconds=15.0):
+        payload = _load_remote_allocations()
+        allocations = payload.setdefault("allocations", {})
+        allocations[db_name] = {
+            "owner": owner,
+            "spec_id": spec_id,
+            "user": user,
+            "notes": notes,
+        }
+        if not dry_run:
+            _write_remote_allocations(payload)
+        return payload
+
+
+def unregister_allocation(db_name: str, *, dry_run: bool = False) -> dict[str, Any]:
+    """Remove an entry from the allocation registry (idempotent).
+
+    Returns the merged registry payload (post-update). Missing entries
+    are a no-op; the caller does not need to pre-check existence.
+    """
+    if dry_run:
+        logger.info("[DRY RUN] Would unregister postgres allocation: db=%s", db_name)
+
+    with file_lock("postgres-allocations", timeout_seconds=15.0):
+        payload = _load_remote_allocations()
+        allocations = payload.setdefault("allocations", {})
+        if db_name in allocations:
+            del allocations[db_name]
+            if not dry_run:
+                _write_remote_allocations(payload)
+        return payload
 
 
 __all__ = (
     "POSTGRES_CONTAINER",
     "PASSWORD_ALPHABET",
     "PASSWORD_LENGTH",
+    "ALLOCATIONS_PATH",
     "create_database",
     "drop_database",
+    "list_allocations",
+    "register_allocation",
+    "unregister_allocation",
 )

@@ -6,9 +6,11 @@ The file is the source of truth for:
 
 * ``fabrik audit-registrars`` (T2-02) — compares actual live state vs.
   what the state file says was applied;
-* ``fabrik destroy --use-state`` (T4-01) — replays the destroy from the
-  state file's ``registrars_applied`` list so the destroy doesn't depend
-  on the current spec (which may have drifted);
+* ``fabrik destroy --use-state`` (T4-02 G-F4, shipped 2026-05-16) —
+  replays the destroy from the state file's ``registrars_applied`` list
+  so the destroy doesn't depend on the current spec (which may have
+  drifted). Implementation:
+  :func:`fabrik.orchestrator.destroyer.destroy_from_state`;
 * Cross-machine portability — operator on a different WSL host can
   inspect what's deployed without re-running orchestration.
 

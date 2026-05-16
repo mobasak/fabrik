@@ -17,6 +17,9 @@
 | [9-Step Workflow](#9-step-workflow) | ✅ Shipped | Developer | Systematic code quality from plan to commit |
 | [Kilo AI Review](#kilo-ai-review) | ✅ Shipped | Developer | AI-powered code review with fix suggestions |
 | [Registrar Audit & Reconcile](#registrar-audit--reconcile) | ✅ Shipped | Operator | Spec ↔ live drift detection across the fleet |
+| [Local Dev Loop](#local-dev-loop) | ✅ Shipped | Developer | `fabrik dev` / `fabrik logs --local` / `fabrik review` — code, watch, bundle for review without leaving WSL |
+| [State-Driven Destroy](#state-driven-destroy) | ✅ Shipped | Operator | `fabrik destroy --use-state` reverses what was actually deployed, not what the spec says now |
+| [Cross-VPS Portability](#cross-vps-portability) | ✅ Shipped (import untested) | Operator | `fabrik export` / `fabrik import` — bundle VPS state for rebuild on a fresh target |
 | [WordPress Provisioning](#wordpress-provisioning) | 🚧 Beta | Admin | Declarative WordPress site deployment |
 
 **Status Legend:**
@@ -265,6 +268,184 @@ Follow-up auditors will compare config bags.
 ### Excluded by design
 
 `grafana` is intentionally excluded from destroy handlers and reports `n/a` for audit. Grafana annotations are point-in-time decorative markers, not driftable lifecycle state.
+
+---
+
+## Local Dev Loop
+
+**Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.3 (T3-03)
+
+> **Headline:** Code, watch, and bundle for review without leaving WSL. Three CLI commands close the inner-loop gap between scaffold and `fabrik apply`.
+
+### What It Does
+
+Stage 2 of the Fabrik lifecycle (Agentic Implementation) is where the developer iterates on code against the spec contract. T3-03 ships three commands that keep that loop tight without round-tripping to the VPS:
+
+- **`fabrik dev`** — runs the project's `compose.dev.yaml` stack locally via `docker compose up`. Hot-reload + bind mounts, no Coolify involvement.
+- **`fabrik logs --local`** — tails `docker compose -f compose.dev.yaml logs` (sibling of the Loki-backed `fabrik logs <service>` for remote queries).
+- **`fabrik review`** — bundles `git diff` + `specs/services/<id>.yaml` + `docs/preplan.md` + the resolved-registrar table into `.fabrik/review/<ts>.md`. Hand the bundle to a human reviewer or dispatch to Kilo CLI's reviewer agent.
+
+### How To Use
+
+```bash
+cd /opt/<project>
+
+# 1. Spin up the local dev stack (compose.dev.yaml from the scaffold)
+fabrik dev -d
+
+# 2. Tail logs in another terminal
+fabrik logs --local -f
+fabrik logs --local --service api -f   # one service only
+
+# 3. When the diff looks good, bundle for review
+fabrik review                          # uses HEAD by default
+fabrik review --since HEAD~3           # last 3 commits
+fabrik review --out /tmp/review.md     # custom output path
+
+# 4. Dispatch (out-of-band)
+kilo run --agent reviewer --input .fabrik/review/<ts>.md
+```
+
+### Why This Matters
+
+Pre-T3-03 the only feedback channel was `fabrik apply` → VPS deploy → Loki tail. That's a multi-minute loop for every iteration. `fabrik dev` keeps the loop in-WSL (sub-second), and `fabrik review` puts the spec contract + resolved-registrar surface in front of every reviewer so they catch shape contradictions before the deploy phase (consistent with the agent-rule snippet T3-02 propagated everywhere: "don't ship code that contradicts the spec").
+
+### Technical Details
+
+- **Scope of `--local`**: only `fabrik logs --local` branches to docker. The remote `fabrik logs <service>` path (Loki) is unchanged — `--local` is opt-in.
+- **`.fabrik/review/` is gitignored**: bundles are local artefacts. The PR diff already captures the change set; the bundle is a reviewer prompt, not a tracked file.
+- **Spec auto-detection**: `fabrik review` finds the first `specs/services/*.yaml` under cwd. Override with `--spec <path>`.
+- **No spec required**: works on projects without a spec (the resolved-registrar section is omitted).
+- **Helpers extracted** to [`src/fabrik/dev_tools.py`](../src/fabrik/dev_tools.py) so tests can exercise `build_review_bundle` / `run_dev_compose` / `run_local_logs` without invoking docker.
+
+---
+
+## State-Driven Destroy
+
+**Status:** ✅ Shipped | **Audience:** Operator | **Since:** v0.3 (T4-02)
+
+> **Headline:** `fabrik destroy --use-state` reverses what was actually applied, not what the spec says now. The spec is allowed to drift; the teardown isn't.
+
+### What It Does
+
+The default `fabrik destroy <spec>` walks the spec's current `shape:` block and runs only the destroyers the current shape declares applicable. That breaks when the spec drifted between apply and destroy:
+
+```bash
+# Day 1 — apply with search
+echo "shape: { has_search_feature: true }" >> spec.yaml
+fabrik apply spec.yaml         # meilisearch index created
+
+# Day 7 — search no longer needed
+sed -i 's/has_search_feature: true/has_search_feature: false/' spec.yaml
+
+# Day 30 — destroy
+fabrik destroy spec.yaml       # ❌ shape says no search → meilisearch destroyer SKIPPED → orphan index
+fabrik destroy spec.yaml --use-state --drop-data -y   # ✅ replays Day-1 state, reaps the index
+```
+
+### How To Use
+
+```bash
+# Dry-run to see what state-driven destroy would tear down
+fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --use-state --dry-run
+
+# Safe path (no data-bearing registrars in state, or operator OK with refusal)
+fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --use-state -y
+
+# State has postgres / redis / meilisearch → must explicitly drop data
+fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --use-state --drop-data -y
+```
+
+### Why This Matters
+
+Two invariants the vision insists on (Stage 3 — Proper Registration) are now load-bearing on teardown too:
+
+1. **Zero leaks.** Every registrar that `fabrik apply` ran ends up in the state file; `--use-state` guarantees every one of them runs its destroyer. No orphan auth rules, no orphan meilisearch indexes, no ghost gatus monitors.
+2. **No silent data destruction.** State files mark `postgres / redis / meilisearch` entries with `data_bearing: true` (per [`state.DATA_BEARING_REGISTRARS`](../src/fabrik/state.py#L69)). `--use-state` refuses with an explicit error if any are present and `--drop-data` isn't set:
+
+   ```text
+   ❌ data-bearing-guard refused — state has data-bearing registrars (meilisearch, postgres);
+      re-run with --drop-data to confirm destruction
+   ```
+
+   Operators have to type the data-destruction intent every single time.
+
+### Technical Details
+
+- **Phase 0** — data-bearing guard. Scans state's `registrars_applied` for `data_bearing: true` entries; refuses pre-flight if `--drop-data` not set.
+- **Phase 1** — canonical reverse-order registrar teardown using `reversed(_REGISTRAR_ORDER)`: `prometheus → meilisearch → authelia → grafana → glitchtip → backrest → gatus → redis → postgres`. Order is enforced because postgres-last avoids FK violations against authelia session rows. Grafana is intentionally skipped (annotations are decorative). Dispatch uses T2-02's module-level `HANDLER_FUNCS` + `HANDLER_ARGS` maps.
+- **Phase 2** — Coolify app (always), DNS (gated by `--keep-dns` + spec domain), local files (gated by `--keep-files`).
+- **On success** — `state.archive_destroyed(spec.id)` moves `<id>.json` → `_destroyed/<id>.json.<UTC-ts>`. State file is the deploy-state record; the archive preserves the audit trail without leaving the file in place to confuse future audits.
+- **Mutually exclusive with `--partial`** — both flags exist for distinct surgical purposes (per-registrar vs. per-state-file). The combination errors out (exit 2).
+- **Handler exception → bounded error.** A single failing destroyer doesn't abort the rest of the teardown; the failure goes into the report as an `error` ActionResult and `--use-state` exits 2 so CI can catch it.
+
+### Acceptance Reference
+
+Epic Brief Success Criterion 3. Live verification: `pytest tests/test_destroy_use_state.py -v` (16/16 pass), including the primary-path `TestPrimaryPathSpecDrift::test_a_resources_destroyed_even_after_shape_b`.
+
+---
+
+## Cross-VPS Portability
+
+**Status:** ✅ Shipped (export verified; import path untested in this epic) | **Audience:** Operator | **Since:** v0.3 (T4-03)
+
+> **Headline:** `fabrik export` produces a portable tarball that captures every resource `fabrik apply` registers on this VPS. `fabrik import` provides the rebuild scaffold on a fresh target. Zero secrets, zero UUIDs.
+
+### What It Does
+
+If vps1 dies — or you want to spin up vps2 as a base for a second customer / staging environment — the portability bundle lets you carry the registration story across machines without re-running every `fabrik apply` ticket by hand:
+
+```bash
+# On vps1 — produce the bundle
+fabrik export --out /tmp/vps1-base.tar.gz
+
+# Transfer to the new VPS (operator's choice: scp, rsync, etc.)
+scp /tmp/vps1-base.tar.gz vps2:/tmp/
+
+# On vps2 — see what would be restored (dry-run, default)
+fabrik import /tmp/vps1-base.tar.gz
+
+# Re-populate .env secrets per the bundle's secrets-redacted.json checklist
+# (the ~0.5-day manual cost pack §28 'Secrets ergonomics' calls out)
+nano /opt/fabrik/.env
+
+# Execute the restore (stubbed in this epic; live roundtrip lands in vps2 stand-up)
+fabrik import /tmp/vps1-base.tar.gz --apply
+```
+
+### What's Inside the Bundle
+
+```text
+fabrik-export-vps1-YYYY-MM-DD.tar.gz
+├── manifest.json                  # version + section counts + untested_paths
+├── README.md                      # restore steps + prerequisites
+├── secrets-redacted.json          # .env KEY NAMES (never values)
+├── specs/services/*.yaml          # every service spec
+├── state/*.json                   # T2-01 state files, coolify_uuid stripped
+├── coolify/{applications,services,projects}.json    # UUIDs recursively stripped
+├── monitoring/{prometheus,alertmanager,redis-assignments,postgres-allocations}*
+├── monitoring/grafana-dashboards/  # repo-local mirrors
+├── authelia/configuration.yml      # SSH-pulled (best-effort)
+└── backrest/config.json            # SSH-pulled (best-effort)
+```
+
+### Security Invariants (test-enforced)
+
+1. **No plaintext secret values.** `_redact_env_keys` reads only up to the first `=` of each `.env` line. The test byte-scans the entire gzip stream for known values and asserts zero hits.
+2. **No Coolify UUIDs.** `_strip_uuids` recurses both keys (14 known UUID-named fields including `private_key_uuid`, `server_uuid`, `deployment_uuid`) and bare 24-alphanum string values. The test scans 5 distinct UUID markers across all bundle entries.
+3. **No Coolify private-key UUIDs** (a special case of the above) — guarantees the target can't accidentally inherit the source's git deploy-key references.
+
+### Why Import Is Shipped Untested
+
+The real roundtrip needs a fresh Ubuntu VM with bootstrapped Coolify + postgres-main + redis-main. Pack §28 explicitly defers this to the vps2 stand-up. Until then:
+
+- The `import` pipeline parses the bundle, validates the manifest, and emits a restore plan.
+- The `--apply` flag runs but ends at a documented stub (`phase: real_run / status: stub`).
+- The bundle README enumerates manual follow-ups not automated by import: LetsEncrypt cert transfer, DNS provider re-binding, OAuth provider re-creation, postgres/meilisearch data restore (only if `--include-data` was used at export).
+
+### Acceptance Reference
+
+Pack v3.2 §EPIC SCOPE Tier 4 G-J2 (effort revised v2: +0.5 day for secrets ergonomics). Live verification: `pytest tests/test_portability.py -v` (23/23 pass). Sample run on `/opt/fabrik` produced a 44 KB tarball with 26 Coolify applications, 348 redacted secret keys, and zero UUID leaks.
 
 ---
 

@@ -14,9 +14,12 @@ import sys
 from pathlib import Path
 
 # Expected Kilo-safe instruction list in exact order
-# NOTE: Only AGENTS-compact.md for Kilo agents
+# NOTE: AGENTS-compact.md provides the Kilo bootstrap; KILO_CLI_RULES.md adds
+# the spec-contract / shape / registrar awareness layer (T3-02, 2026-05-16).
+# Both are loaded in order by Kilo CLI on context init.
 EXPECTED_INSTRUCTIONS = [
     "AGENTS-compact.md",
+    "KILO_CLI_RULES.md",
 ]
 
 # Forbidden files that must never appear in opencode.json

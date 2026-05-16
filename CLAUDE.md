@@ -43,6 +43,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 | files outside project tree | local paths only |
 | foreground command likely >30s (build/deploy/test/sync/`fabrik`/`docker`/`pytest`/`npm i`) | Bash `run_in_background=true`, OR `rund -- <cmd>`; `runwait $(runlast) <s>`; `runc $(runlast)`. Doc: `docs/reference/long-command-monitoring.md` |
 | `fabrik redeploy` on git-sourced app without `git push` first | commit → push → redeploy; Coolify pulls from GitHub, not `/opt/` |
+| compose without `deploy.resources.limits.memory` on a Coolify-deployed service | Coolify v4 ignores its `limits_memory` UI field for `build_pack=dockercompose` and Services. Scaffolder auto-emits via `_write_canonical_compose`; manual composes MUST declare. For Services, mutate `docker_compose_raw` via `PATCH /api/v1/services/<uuid>` (base64-encoded) — never edit the on-disk file. See F5 + Lesson 62 |
 | `DB_HOST=localhost` / `DATABASE_URL=...@localhost:` | use `postgres-main:5432`, `redis-main:6379` — `localhost` = the container, not the shared DB |
 | Authelia config reload via SIGHUP | exits, doesn't reload — `docker restart <authelia-container>` after edits |
 | New Gatus endpoint using UUID container name | stable Docker DNS only: compose service name (Service stacks) or registered alias (single-image Apps). UUID drifts per redeploy. Pairs in `vps_apply_limits.sh` |
@@ -72,3 +73,23 @@ CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 ```
 Missing any line = task failure. Re-run gate until `success`, then output 4 lines.
+
+## Spec contract awareness
+
+Every Fabrik project has `specs/services/<id>.yaml` with a `shape:` block that drives:
+
+- Which Postgres DB / Redis index / Backrest plan / Gatus endpoint / Prometheus job / GlitchTip project / Authelia rule / Meilisearch index get auto-created on `fabrik apply`
+- The shape contract is canonical: code MUST match it, not the other way around
+
+If your code:
+
+- Adds a database call → `shape.needs_database` MUST be `true` in the spec
+- Adds a Redis cache → `shape.needs_cache` MUST be `true`
+- Exposes `/metrics` → `shape.exposes_metrics` MUST be `true`
+- Adds Meilisearch indexes → `shape.has_search_feature` MUST be `true`
+- Adds an admin UI behind auth → `shape.is_admin_dashboard` MUST be `true`
+
+If you change code in a way that affects any of the above, ALSO update `specs/services/<id>.yaml`.
+Don't ship code that contradicts the spec — `fabrik apply` will skip the registrar and you'll have a silently broken deploy.
+
+To preview what the spec will trigger: `fabrik plan specs/services/<id>.yaml`

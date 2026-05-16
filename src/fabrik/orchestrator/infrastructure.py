@@ -351,7 +351,11 @@ class InfrastructureProvisioner:
             # PostgreSQL identifiers don't allow hyphens without quoting.
             # Normalize to snake_case — same pattern used throughout Fabrik.
             db_name = name.replace("-", "_")
-            result = create_database(db_name, dry_run=dry_run)
+            # T4-01 G-J4: pass spec_id so the allocation registry records
+            # which spec owns this DB. ``owner='fabrik'`` because the
+            # orchestrator is the creator. The driver writes
+            # /opt/monitoring/configs/postgres/allocations.json atomically.
+            result = create_database(db_name, dry_run=dry_run, spec_id=name, owner="fabrik")
             ctx.add_resource("postgres", db_name, status=result.get("status"))
             logger.info("postgres: %s → %s", db_name, result.get("status"))
         except Exception as e:  # noqa: BLE001 — bounded non-fatal

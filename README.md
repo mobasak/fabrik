@@ -625,7 +625,45 @@ fabrik destroy <spec> --partial gatus --dry-run  # surgical un-registration
 
 Backed by `src/fabrik/audit.py` (one auditor per registrar mirroring its driver's transport) and module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py` for the heterogeneous `_destroy_<reg>` signatures.
 
-### 4. WordPress Automation
+### 4. Cross-VPS Portability (T4-03)
+
+**`fabrik export` / `fabrik import`** — capture the full set of `fabrik apply` registrations into a portable tarball, ready for rebuild on a fresh target VPS:
+
+```bash
+fabrik export --out /tmp/vps1-base.tar.gz                # capture this VPS
+fabrik import /tmp/vps1-base.tar.gz                      # dry-run plan on target (default)
+fabrik import /tmp/vps1-base.tar.gz --apply              # stubbed real run (import path untested in epic)
+```
+
+Bundle contents: `specs/`, `.fabrik/state/` (UUIDs stripped), Coolify Applications + Services + Projects (UUIDs recursively stripped), monitoring configs, Authelia + Backrest configs, redacted `.env` key list, restore README. **Security invariants** (test-enforced): NO plaintext secret values, NO Coolify UUIDs, NO private-key references in the bundle. Import is shipped untested in this epic — real roundtrip lands with vps2 stand-up. Live sample: 44 KB tarball, 26 Coolify apps, 348 redacted keys, zero UUID leaks.
+
+### 5. State-Driven Destroy (T4-02)
+
+**`fabrik destroy --use-state`** — reverses what was actually applied (recorded in `.fabrik/state/<id>.json` per T2-01), not what the current spec says. Closes Epic SC-3:
+
+```bash
+fabrik destroy <spec> --use-state --dry-run             # preview
+fabrik destroy <spec> --use-state -y                    # safe path
+fabrik destroy <spec> --use-state --drop-data -y        # required if state has postgres/redis/meilisearch
+```
+
+Three phases: (0) data-bearing guard refuses without `--drop-data`; (1) canonical reverse-order registrar teardown `prometheus → meilisearch → authelia → glitchtip → backrest → gatus → redis → postgres` (grafana skipped by design); (2) Coolify + DNS + files. On success, state file is archived to `_destroyed/<id>.json.<ts>` for audit. Mutually exclusive with `--partial`.
+
+### 6. Local Dev Loop (T3-03)
+
+**`fabrik dev` / `fabrik logs --local` / `fabrik review`** — close the inner-loop gap between scaffold and `fabrik apply`:
+
+```bash
+cd /opt/<project>
+fabrik dev -d                           # start compose.dev.yaml stack
+fabrik logs --local -f                  # tail dev-stack logs (sibling of Loki path)
+fabrik review                           # bundle diff + spec + preplan + resolved registrars
+fabrik review --since HEAD~3            # last 3 commits
+```
+
+`fabrik review` writes `.fabrik/review/<ts>.md` (gitignored) — hand the bundle to a human reviewer or dispatch to Kilo CLI's reviewer agent. Helpers live in `src/fabrik/dev_tools.py`; the Loki-backed `fabrik logs <service>` remote path is unchanged and `--local` is opt-in.
+
+### 7. WordPress Automation
 
 Full WordPress site deployment from spec:
 
@@ -662,7 +700,7 @@ services:  # Generates pages automatically
 - Legal pages (Privacy Policy, Terms)
 - Multilingual support
 
-### 5. Content Publishing Pipeline
+### 8. Content Publishing Pipeline
 
 Drain SEO-ready briefs and publish them to WordPress automatically:
 
@@ -693,7 +731,7 @@ domain → resolve site_id → list ready briefs → claim brief
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#content-creation-pipeline) for full configuration reference.
 
-### 6. Cloud Integration
+### 9. Cloud Integration
 
 **Supabase + Cloudflare R2:**
 - Multi-tenant database (PostgreSQL)
@@ -703,7 +741,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#content-creation-pipeline) for
 - Presigned upload URLs (bypass server)
 - Background job queue
 
-### 7. Project Scaffolding
+### 10. Project Scaffolding
 
 Create new projects with best practices built-in:
 

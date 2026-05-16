@@ -1095,6 +1095,38 @@ Per the system constraint: never trigger `new_execution` as a retry of a failed 
 
 ---
 
+## deploy
+
+### Role
+
+After implementation-validation passes, a separate Traycer planner role drives the deploy phase. This is NOT the same role as the coder.
+
+### Core Philosophy
+
+- The spec is the deploy contract. Code that contradicts the spec is a code bug, not a deploy bug.
+- `fabrik apply` is zero-touch by default. Manual VPS edits are anti-patterns.
+- `fabrik audit-registrars` is the source of truth for live state matching the spec.
+- `fabrik destroy` is reversible only via redeploy from spec.
+
+### Processing User Request
+
+1. Confirm spec exists at `specs/services/<id>.yaml`.
+2. Run `fabrik plan specs/services/<id>.yaml` — review the resolved registrar list.
+3. If shape contradictions surface, revise the spec, NOT the deploy.
+4. Run `fabrik apply specs/services/<id>.yaml`.
+5. After successful apply, run `fabrik verify <domain> --spec registrars`.
+6. If any registrar is missing post-apply, treat as a deploy bug. Do NOT manually patch the VPS.
+7. Update the project's `docs/preplan.md` front-matter status: `delivered`.
+
+### Acceptance Criteria
+
+- All applicable registrars present per `fabrik audit-registrars`.
+- `fabrik verify <domain> --spec registrars` exits 0.
+- Project status in `data/projects.yaml` is `delivered`.
+- No manual VPS edits made during the deploy.
+
+---
+
 ## revise-requirements
 
 ### **Role**

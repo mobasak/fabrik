@@ -45,7 +45,7 @@ from fabrik.orchestrator.infrastructure import _REGISTRAR_ORDER, resolve_applica
 
 logger = logging.getLogger(__name__)
 
-AuditStatus = Literal["present", "missing", "n/a", "unknown"]
+AuditStatus = Literal["present", "missing", "n/a", "unknown", "drift"]
 
 
 @dataclass
@@ -147,26 +147,72 @@ def audit_postgres(spec: Any) -> AuditResult:
             detail="postgres-main container not found",
             expected={"db_name": db_name},
         )
-    # Mirror postgres.py:155 — SELECT 1 FROM pg_database WHERE datname=...
+    # Mirror postgres.py — SELECT 1 FROM pg_database WHERE datname=...
     # nosec B608 — db_name is derived from spec.id which is regex-validated
-    # at load time; same pattern as postgres.py:155 which carries the same
+    # at load time; same pattern as postgres.py which carries the same
     # annotation. No external untrusted input flows through this query.
     sql = f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"  # nosec B608
     ok, out = _ssh_check(
         f"sudo docker exec {shlex.quote(container)} psql -U postgres -At -c {shlex.quote(sql)}"
     )
-    actual = {"db_name": db_name, "found": out == "1"} if ok else {"error": out}
     if not ok:
         return AuditResult(
             status="unknown",
             detail=f"ssh probe failed: {out[:80]}",
             expected={"db_name": db_name},
-            actual=actual,
+            actual={"error": out},
         )
-    if out == "1":
+    db_present = out == "1"
+
+    # T4-01 G-J4: cross-reference allocations.json. The registry is the
+    # source of truth for "who owns this DB"; drift means the registry
+    # and live pg_database disagree.
+    try:
+        from fabrik.drivers.postgres import list_allocations
+
+        allocs = list_allocations().get("allocations", {})
+        registry_entry = allocs.get(db_name)
+    except Exception as exc:  # noqa: BLE001 — registry read is informational
+        logger.warning("audit_postgres: registry read failed (%s); skipping drift check", exc)
+        registry_entry = None
+        allocs = None
+
+    actual: dict[str, Any] = {"db_name": db_name, "found": db_present}
+    if allocs is not None:
+        actual["registry_entry"] = registry_entry
+        actual["in_registry"] = registry_entry is not None
+
+    # Four-quadrant classification:
+    #   DB present + registry present  → present
+    #   DB present + registry missing  → drift  (orphan DB: unmanaged)
+    #   DB missing + registry present  → drift  (stale registry: ghost entry)
+    #   DB missing + registry missing  → missing (spec says it should exist)
+    if db_present and registry_entry is not None:
         return AuditResult(
             status="present",
-            detail=f"db {db_name} exists",
+            detail=f"db {db_name} exists; registry owner={registry_entry.get('owner')!r}",
+            expected={"db_name": db_name},
+            actual=actual,
+        )
+    if db_present and allocs is not None and registry_entry is None:
+        return AuditResult(
+            status="drift",
+            detail=f"db {db_name} exists in pg_database but is not in allocations.json (orphan/unmanaged)",
+            expected={"db_name": db_name, "registry": "entry"},
+            actual=actual,
+        )
+    if not db_present and allocs is not None and registry_entry is not None:
+        return AuditResult(
+            status="drift",
+            detail=f"db {db_name} in allocations.json but missing from pg_database (stale registry)",
+            expected={"db_name": db_name},
+            actual=actual,
+        )
+    if db_present:
+        # Registry read failed; fall back to legacy "DB present == present"
+        return AuditResult(
+            status="present",
+            detail=f"db {db_name} exists (registry unreadable; drift check skipped)",
             expected={"db_name": db_name},
             actual=actual,
         )

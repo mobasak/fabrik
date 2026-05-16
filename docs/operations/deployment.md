@@ -428,7 +428,7 @@ Fires between Phase 3 and Phase 4 ONLY when the spec sets `coolify.alias: <frien
 3. Otherwise atomically writes the merged map (`tee → /tmp/aliases.json.tmp` then `chown root:root + chmod 644 + mv`).
 4. `sudo systemctl restart coolify-alias-watcher.service` (sub-second; unit has `Restart=always` and NO `ExecReload`).
 
-The watcher's docker-events listener picks up the new prefix→alias mapping on next start. Non-fatal: alias-watcher failure logs a warning but never aborts deploy. Adds `ResourceRecord("coolify_alias", alias, ...)` to ctx so T4-01/T4-02 destroy can find it.
+The watcher's docker-events listener picks up the new prefix→alias mapping on next start. Non-fatal: alias-watcher failure logs a warning but never aborts deploy. Adds `ResourceRecord("coolify_alias", alias, ...)` to ctx so the T4-02 `destroy --use-state` path can find it.
 
 **Skipped for:**
 
@@ -469,8 +469,8 @@ If health check fails → `ROLLING_BACK`.
 On COMPLETE transition: `DeploymentOrchestrator._persist_state()` writes
 `.fabrik/state/<spec_id>.json` (T2-01 G-F3). Captures the 8-field manifest
 — `applied_at`, `coolify_app_name`, `coolify_uuid`, `domain`, `git_sha`,
-`registrars_applied`, `spec_hash`, `spec_path` — that future
-`fabrik audit-registrars` (T2-02) and `fabrik destroy --use-state` (T4-01)
+`registrars_applied`, `spec_hash`, `spec_path` — that
+`fabrik audit-registrars` (T2-02) and `fabrik destroy --use-state` (T4-02)
 read as the source-of-truth for what was actually applied. Failure here
 is non-fatal (logged warning); the state file is best-effort metadata.
 The same write happens on `refresh_infrastructure()` success. On destroy,

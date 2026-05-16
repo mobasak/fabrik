@@ -586,10 +586,170 @@ def destroy_deployment(
     return report
 
 
+# --------------------------------------------------------------------------- #
+# State-driven destroy (T4-02 G-F4)
+# --------------------------------------------------------------------------- #
+
+
+def destroy_from_state(
+    state_data: dict[str, Any],
+    spec: Spec,
+    *,
+    drop_data: bool = False,
+    keep_dns: bool = False,
+    keep_files: bool = False,
+    project_base: Path = Path("/opt"),
+    dry_run: bool = False,
+) -> DestroyReport:
+    """Reverse the registrars recorded in ``state_data["registrars_applied"]``.
+
+    Why this exists (T4-02 G-F4 / Epic SC-3): the default destroy walks the
+    spec's CURRENT shape, but a spec can drift between apply-time and
+    destroy-time (e.g. ``has_search_feature`` flipped ``true → false`` after
+    a meilisearch index was created). The state file captures what was
+    actually applied; ``--use-state`` replays from that ground truth so the
+    teardown reverses *what got deployed*, not *what the spec says now*.
+
+    Three phases:
+
+    **Phase 0 — Data-bearing guard.** Scan ``state_data["registrars_applied"]``
+    for any entry whose ``data_bearing`` flag is ``True`` (postgres, redis,
+    meilisearch per :data:`fabrik.state.DATA_BEARING_REGISTRARS`). If any
+    are present AND ``drop_data`` is ``False``, return an empty-actions
+    report with a single ``error`` action listing the protected entries.
+    The CLI surfaces this as a clean refusal — operator must re-run with
+    ``--drop-data`` to confirm.
+
+    **Phase 1 — Registrar teardown in canonical reverse order.** Uses
+    ``list(reversed(_REGISTRAR_ORDER))`` from
+    :mod:`fabrik.orchestrator.infrastructure` — ``prometheus → meilisearch →
+    authelia → grafana → glitchtip → backrest → gatus → redis → postgres``.
+    Skips ``grafana`` (annotations are decorative; no destroyer exists).
+    Dispatches per-registrar via :data:`HANDLER_FUNCS` and :data:`HANDLER_ARGS`
+    (module-level since T2-02 amendment). Only registrars actually present
+    in ``state_data["registrars_applied"]`` are invoked — drift from the
+    current shape is irrelevant here.
+
+    **Phase 2 — Non-registrar resources.** Coolify app (always),
+    DNS (gated by ``keep_dns`` + domain present), local files (gated by
+    ``keep_files``). The state file's ``registrars_applied`` does NOT
+    contain deploy-tier resources by design (see ``state.save`` docstring) —
+    they're invariant of the registrar set and always run last.
+
+    Args:
+        state_data: Parsed JSON payload from ``state.load(spec_id)``. Must
+            contain ``registrars_applied: list[dict]``.
+        spec: Loaded spec — needed for ``HANDLER_ARGS`` lambdas which
+            reference ``spec.id`` and ``spec.domain``.
+        drop_data: When ``True``, allow destruction of data-bearing
+            registrars. Default ``False`` mirrors ``destroy_deployment``.
+        keep_dns: Skip DNS record deletion.
+        keep_files: Skip ``/opt/<spec.id>`` removal.
+        project_base: Parent directory of scaffolded projects (test hook).
+        dry_run: Log everything but mutate nothing.
+
+    Returns:
+        :class:`DestroyReport` populated step-by-step. ``had_errors`` is
+        True iff Phase 0 refused OR any registrar/non-registrar step
+        errored. Caller (CLI) chooses how to surface and exit.
+    """
+    from fabrik.orchestrator.infrastructure import _REGISTRAR_ORDER
+
+    report = DestroyReport()
+    registrars_applied = state_data.get("registrars_applied") or []
+    applied_types = {entry.get("type") for entry in registrars_applied if entry.get("type")}
+
+    # ── Phase 0: Data-bearing guard ───────────────────────────────────────
+    data_bearing_entries = [
+        entry for entry in registrars_applied if entry.get("data_bearing") is True
+    ]
+    if data_bearing_entries and not drop_data:
+        names = ", ".join(sorted({entry.get("type", "?") for entry in data_bearing_entries}))
+        report.add(
+            "data-bearing-guard",
+            "error",
+            detail=(
+                f"refused — state has data-bearing registrars ({names}); "
+                f"re-run with --drop-data to confirm destruction"
+            ),
+            error=f"data_bearing entries present: {names}",
+        )
+        return report
+
+    # ── Phase 1: Registrars in reversed canonical order ───────────────────
+    # CRITICAL invariant — wrong order = FK violations / orphaned auth rows.
+    # Skip grafana (no destroyer registered; annotations decorative).
+    # Skip any registrar not actually in the state file (apply may have
+    # skipped some per shape contract — don't try to destroy what wasn't
+    # created).
+    for reg in reversed(_REGISTRAR_ORDER):
+        if reg == "grafana":
+            if reg in applied_types:
+                report.add(
+                    "grafana",
+                    "skipped",
+                    detail="annotations are decorative; no destroyer",
+                )
+            continue
+        if reg not in applied_types:
+            continue
+        try:
+            args = HANDLER_ARGS[reg](spec, drop_data, dry_run)
+            result = HANDLER_FUNCS[reg](*args)
+            report.actions.append(result)
+        except Exception as e:  # noqa: BLE001 — bounded; one bad handler doesn't abort teardown
+            report.add(reg, "error", detail=f"handler raised: {e}", error=repr(e))
+
+    # ── Phase 2: Non-registrar resources (Coolify, DNS, files) ────────────
+    # These are invariant of the registrar set; always run regardless of
+    # state file contents. Symmetric with destroy_deployment Steps B/C/D.
+    report.actions.append(_destroy_coolify(spec.id, dry_run))
+
+    if keep_dns:
+        report.add("dns", "skipped", detail="--keep-dns")
+    elif spec.domain:
+        report.actions.append(_destroy_dns(spec.domain, dry_run))
+    else:
+        report.add("dns", "skipped", detail="no domain in spec")
+
+    if keep_files:
+        report.add("files", "skipped", detail="--keep-files")
+    else:
+        report.actions.append(_destroy_files(spec.id, project_base, dry_run))
+
+    # Operator log line per step (grep-friendly diff against apply logs).
+    for action in report.actions:
+        if action.status == "error":
+            logger.warning("destroy --use-state %s: ERROR %s", action.step, action.error)
+        else:
+            logger.info(
+                "destroy --use-state %s: %s%s",
+                action.step,
+                action.status,
+                f" ({action.detail})" if action.detail else "",
+            )
+
+    # Archive on success (any non-error completion). Best-effort; failure
+    # logged non-fatal. Caller may also call archive_destroyed explicitly,
+    # but we do it here for symmetry with destroy_deployment.
+    if not dry_run and not report.had_errors:
+        try:
+            from fabrik import state as state_module
+
+            archived = state_module.archive_destroyed(spec.id)
+            if archived is not None:
+                logger.info("destroy --use-state: state archived → %s", archived)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("destroy --use-state: state archive failed (non-fatal): %s", e)
+
+    return report
+
+
 __all__ = (
     "ActionResult",
     "DestroyReport",
     "HANDLER_ARGS",
     "HANDLER_FUNCS",
     "destroy_deployment",
+    "destroy_from_state",
 )

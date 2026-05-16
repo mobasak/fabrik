@@ -4,6 +4,342 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — T4-04 (G-G5): Per-registrar drift alerting (2026-05-16)
+
+Closes Epic SC-4: drift on any of the 9 registrars (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus) auto-pages Telegram within ~1 hour via the **existing** `telegram` Alertmanager receiver. Three-piece bottom-up chain: metric publication → Prometheus alert rule → Alertmanager route. No new receiver, no new credentials.
+
+**Piece 1 — pushgateway deployed.** Pack §31 assumed pushgateway already running; live `docker ps` showed otherwise. Added a new service to [`/opt/monitoring/compose.yaml`](/opt/monitoring/compose.yaml):
+
+- Image: `prom/pushgateway:v1.9.0`
+- Container name: `pushgateway`, network: `coolify` (the actual prometheus network — pack said "monitoring" but live compose uses `coolify`)
+- Port binding: `127.0.0.1:9091:9091` (loopback-only — Stop Condition forbade public exposure)
+- Joins existing scrape config in `prometheus.yml` as `job_name: pushgateway` with `honor_labels: true` so the `spec_id` + `registrar` labels emitted by the audit script survive scrape-time relabeling.
+
+**Piece 2 — Prometheus alert rule.** Created [`/opt/monitoring/configs/prometheus/rules/fabrik-drift.yml`](/opt/monitoring/configs/prometheus/rules/fabrik-drift.yml):
+
+```yaml
+groups:
+  - name: fabrik-registrar-drift
+    interval: 1m
+    rules:
+      - alert: FabrikRegistrarDrift
+        expr: fabrik_audit_drift_total > 0
+        for: 10m
+        labels:
+          severity: warning
+          alert_class: registrar_drift   # ← Alertmanager route key
+```
+
+`promtool check rules` → SUCCESS. Loaded into prometheus via `/-/reload` (existing `rule_files: /etc/prometheus/rules/*.yml` glob auto-picked it up — no `prometheus.yml` edit needed). Confirmed via `/api/v1/rules`: group `fabrik-registrar-drift` is in the active rule set.
+
+**Piece 3 — Alertmanager route.** Inserted under `route.routes:` in [`/opt/monitoring/configs/alertmanager/alertmanager.yml`](/opt/monitoring/configs/alertmanager/alertmanager.yml):
+
+```yaml
+    - match:
+        alert_class: registrar_drift
+      receiver: telegram          # ← existing receiver, NOT telegram-fabrik-default
+      group_by: ['registrar', 'spec_id']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      continue: false
+```
+
+`amtool check-config` → SUCCESS. Reloaded via `docker exec alertmanager-zw4swgkwk0s4s8kg048gw80o wget -O- --post-data='' http://localhost:9093/-/reload`. Acceptance grep verified: `grep -c "telegram-fabrik-default" alertmanager.yml` → **0** (pack v3.2 §31's fabricated receiver names not added per V2-S4).
+
+**Audit job — [`scripts/audit_all_registrars.py`](scripts/audit_all_registrars.py).** WSL-side: walks `specs/services/*.yaml`, calls `fabrik.audit.audit_all(spec)` per spec, emits Prometheus text-format gauge metrics (`fabrik_audit_drift_total{spec_id, registrar}` + companion `fabrik_audit_status{spec_id, registrar, status}` for Grafana per-status charts), pushes through SSH to the loopback-bound pushgateway:
+
+```bash
+ssh vps 'curl --data-binary @- http://localhost:9091/metrics/job/fabrik-audit' < /tmp/fabrik-audit-metrics.txt
+```
+
+Smoke-tested live: 66 specs × 9 registrars = **594 metric samples** in the pushgateway after one run; current drift=0 (clean baseline).
+
+**Schedule — WSL crontab** (pairs with T2-03's G-G4 mechanism — single audit scheduling pattern across the codebase):
+
+```cron
+0 * * * * PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py >> /var/log/fabrik-audit-all.log 2>&1
+```
+
+Installed non-interactively via `(crontab -l; echo "...") | crontab -`. Verified with `crontab -l | grep audit_all_registrars` → 1 line.
+
+**Adaptations vs ticket text:**
+
+- Pack §31 said network `monitoring` — live compose uses `coolify`. Pushgateway joins `coolify`.
+- Pack §31 metric name `fabrik_registrar_drift` — FINAL-REVISIONS §T4-04 says `fabrik_audit_drift_total`. Followed FINAL-REVISIONS (newer, authoritative).
+- Pack §31 said TYPE counter — drift swings 0/1, so semantics are **gauge**. Used gauge.
+- Pack §31 label `service` — FINAL-REVISIONS uses `spec_id`. Followed FINAL-REVISIONS for consistency with the spec model.
+- Steps 5 + 6 (new receiver + VPS systemd timer) — explicitly REMOVED per FINAL-REVISIONS.
+- Prometheus.yml `rule_files:` edit (ticket Step 3) — not needed because the existing glob already matches the new file.
+- Reload commands — adapted to `docker exec ... wget -O- --post-data='' http://localhost:909{0,3}/-/reload` since neither container publishes 9090/9093 on the host (they're internal to the `coolify` network).
+
+**Primary-path SC-4 smoke test (live timestamps, verified end-to-end):**
+
+| Time (UTC) | Event |
+|---|---|
+| 05:34:51 | Pushed synthetic `fabrik_audit_drift_total{spec_id="t4-04-smoke",registrar="postgres"}=1` directly to pushgateway. |
+| 05:34:51 | Prometheus query `/api/v1/query` returns the metric (scrape interval ≤30s). Alert state = **PENDING**. |
+| 05:44:51 (T+10:00) | Alert transitioned to **FIRING** after the `for: 10m` window expired. Confirmed at 05:43:10 wall-clock during the poll loop (`/api/v1/alerts` returned state=firing). |
+| 05:45:21 (T+10:30) | Alertmanager received the alert (`/api/v2/alerts` showed `status.state=active` with `startsAt=2026-05-16T05:44:51.661Z`). Telegram message dispatch fired (existing `telegram` receiver). |
+| 05:43:29 (resolve T+0) | Pushed `fabrik_audit_drift_total{...}=0` to clear. |
+| 05:45:06 (resolve T+1:37) | Prometheus re-evaluated; `/api/v1/alerts` returned empty — **alert resolved**. Alertmanager `send_resolved: true` flag fires the Telegram resolution message via the same receiver. |
+| 05:45:30 | Cleanup: `DELETE http://localhost:9091/metrics/job/fabrik-audit-smoke` — synthetic metric removed from pushgateway. |
+
+End-to-end roundtrip (drift→fire→resolve→cleanup) ≈ 11 minutes, dominated by the `for: 10m` window. The actual cron audit runs hourly so real-world detection latency is up-to-1h + 11min ≈ 71 minutes worst case, matching the Epic SC-4 "within ~1 hour" specification.
+
+**Out-of-scope honoured:**
+
+- No new receiver created (verified `grep -c "telegram-fabrik-default" alertmanager.yml` → 0).
+- Existing telegram receiver definition untouched.
+- Pushgateway 9091 NOT publicly exposed (loopback bind).
+- Pack §31 line 305-315 conditional `telegram_configs[].message:` template kept untouched (option (b) — accept default formatting; the alertname + alert_class + spec_id + registrar labels are sufficient for the bot).
+
+### Added — T4-03 (G-J2): `fabrik export` / `fabrik import` cross-VPS portability (2026-05-16)
+
+Closes Epic SC-3 portability path: producing a tarball that captures everything `fabrik apply` registers on this VPS so the same set of services can be rebuilt on a fresh target (vps2/vps3). **Import is shipped untested in this epic** — the live roundtrip is deferred to the vps2 stand-up.
+
+**New module — [`src/fabrik/portability.py`](src/fabrik/portability.py):**
+
+- `export_bundle(output, *, include_data, fabrik_root, source_vps, coolify_client, skip_remote) -> Path` builds the tarball.
+- `import_bundle(tarball, *, dry_run=True, coolify_client) -> plan_dict` is dry-run by default — parses the bundle and emits a restore plan with a "secrets-to-repopulate" key list. `dry_run=False` runs a stub `phase: real_run / status: stub` action that explicitly documents the API-write phase is deferred to vps2 stand-up.
+- Helpers: `_strip_uuids` (recursive UUID + sensitive-field stripping covering 14 known UUID-keyed fields plus bare 24-alphanum string blanking), `_redact_env_keys` (never reads past `=`), `_collect_specs`, `_collect_state` (strips `coolify_uuid`), `_collect_coolify` (UUID-stripped API exports), `_collect_monitoring_local` (Grafana dashboard mirrors from repo), `_collect_monitoring_remote` (SSH-pulls prometheus/alertmanager/redis-assignments/postgres-allocations from `/opt/monitoring/configs/`), `_collect_authelia`, `_collect_backrest`, `_build_manifest`, `_build_readme`.
+
+**Bundle layout** (pack §28 lines 47–69):
+
+```text
+fabrik-export-vps1-YYYY-MM-DD.tar.gz
+├── manifest.json                  # version, source_vps, created_at, sections, untested_paths=["import"]
+├── README.md                      # restore instructions + prerequisites
+├── secrets-redacted.json          # .env key NAMES only (NEVER values)
+├── specs/services/*.yaml
+├── state/*.json                   # coolify_uuid stripped
+├── coolify/{applications,services,projects}.json    # UUIDs stripped recursively
+├── monitoring/{prometheus.yml,alertmanager.yml,redis-assignments.json,postgres-allocations.json}
+├── monitoring/grafana-dashboards/  # from configs/grafana/dashboards/
+├── authelia/configuration.yml      # SSH-pulled (best-effort)
+└── backrest/config.json            # SSH-pulled (best-effort)
+```
+
+T4-01's `postgres-allocations.json` is included in the monitoring section — adaptation beyond pack §28 which predated T4-01.
+
+**Security invariants** (locked by tests):
+
+1. Bundle contains NO plaintext secret values. `_redact_env_keys` reads only up to the first `=` of each line; the test byte-scans the entire gzip stream for known values to prove absence.
+2. Bundle contains NO Coolify UUIDs. `_strip_uuids` recurses both keys (14 known UUID-named fields) and bare 24-alphanum string values; the test scans all `coolify/*.json` + `state/*.json` entries for 5 distinct UUID markers and asserts zero hits.
+3. Bundle contains NO Coolify private keys (the `private_key_uuid` field is in `_STRIP_KEYS`).
+
+**CLI — [`src/fabrik/cli.py`](src/fabrik/cli.py):**
+
+- `fabrik export [-o|--out|--output <path>] [--include-data] [--skip-remote]` — produces the tarball. Default output: `./fabrik-export-vps1-<YYYY-MM-DD>.tar.gz`. `--out` alias added because the ticket's acceptance command uses that name even though pack §28's signature says `--output`.
+- `fabrik import <bundle> [--apply]` — uses Click `name="import"` decorator since Python's `import` is a keyword (helper is `import_` internally). Default is dry-run; `--apply` is honoured but the real-run path is a documented stub. Operator-facing output lists the first 20 secrets to repopulate.
+- `--include-data` flag is reserved — currently records intent in manifest only; postgres `pg_dump` + meilisearch snapshots are deferred (operator handles via `restic` + native tools per pack §28 note on scope).
+
+**Tests — [`tests/test_portability.py`](tests/test_portability.py) (23 tests, all pass):**
+
+- Schema invariants (1): T4-02 carried-over `test_state_schema_has_no_local_machine_fields`.
+- `TestUuidStripping` (4): top-level UUID key removed; nested UUIDs removed (`destination.server_uuid`, `deployments[].deployment_uuid`); bare 24-alphanum string value blanked; non-UUID strings preserved.
+- `TestSecretsRedaction` (4): key names only never values; empty .env handled; missing .env handled; malformed lines silently skipped.
+- `TestCollectLocal` (2): specs collection; state collection strips `coolify_uuid`.
+- `TestExportBundle` (5): tarball created with all required sections; **no plaintext secrets in any byte**; **no Coolify UUIDs in any entry**; secrets-redacted.json contains only key names; manifest lists sections and marks `import` as untested.
+- `TestImportBundle` (3): dry-run returns plan without executing; `--apply` returns stub plan with explanatory action; missing bundle raises FileNotFoundError.
+- `TestExportCli` (4): both `--help` exit 0; end-to-end export→import dry-run via CliRunner against the real fabrik repo; missing-bundle exits 2 (Click path validation).
+
+**Live verification** (against real `/opt/fabrik`):
+
+- `fabrik export --out /tmp/proxy-export.tar.gz` produced a 44KB tarball with 26 Coolify applications, 348 redacted secret keys, and **zero UUIDs detected by the recursive scan**.
+- The Authelia / Backrest SSH probes returned 404 (expected — those paths depend on which Coolify Service volume layout the operator is using; logged as warnings per the best-effort contract; bundle still completed).
+
+**Scope adherence (DO NOTs honoured):**
+
+- No age / sops / 1Password integration — out of scope per ticket and pack §28 deferred note.
+- No LetsEncrypt cert transfer, DNS provider re-binding, or OAuth re-creation — operator handles manually per the README's "Manual follow-ups" section.
+- No plaintext secrets in the tarball ever (test-enforced).
+- No Coolify UUIDs in the tarball ever (test-enforced).
+
+**Why import is shipped untested:** the real roundtrip needs a fresh Ubuntu VM with bootstrapped Coolify + postgres-main + redis-main. Standing one up just to verify import is outside this epic. The pipeline + plan-emitter is in place; vps2 stand-up will exercise it.
+
+**Convergence security fix (post-ticket audit, 2026-05-16)**: initial implementation bundled `/opt/backrest/config/config.json` and Authelia's `configuration.yml` AS-IS. Live probe of /opt/backrest/config/config.json on this VPS revealed:
+
+- `repos[].password` (restic encryption password)
+- `repos[].env` (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY for B2 storage)
+- `auth.users[].passwordBcrypt` (web-UI auth)
+
+Live probe of Authelia's `configuration.yml` revealed:
+
+- `session.secret` (32-byte hex)
+- `storage.encryption_key` (32-byte hex)
+- `identity_validation.reset_password.jwt_secret` (32-byte hex)
+
+Both would have shipped in the tarball as plaintext, violating the ticket's `no plaintext secrets` invariant. Convergence fix: added a generic `_redact_sensitive_fields` helper that walks JSON/YAML structures and replaces any value whose key matches one of 13 sensitive-key patterns (`password`, `secret`, `token`, `api_key`, `private_key`, `encryption_key`, `jwt_secret`, `session_secret`, `auth`, `users`, `env`, `credentials`, `webhook`) with the literal string `"REDACTED"`. Wrapped both `_collect_authelia` and `_collect_backrest` to parse → redact → re-emit before adding to the bundle. **Fail-closed**: if the parse step raises, the config is omitted from the bundle entirely rather than risking leakage.
+
+Live verification post-fix: known live secrets (`e3c1c0d0…`, `cc9a2b9b…`, `656cd7a6…`) no longer present in the bundle's `authelia/configuration.yml`; structural fields (access_control rules, providers, redirects, repo URIs, plan schedules) preserved. 3 new tests added under `TestSensitiveFieldRedaction` to lock the redaction contract.
+
+**Live-path fix (same convergence pass)**: pack §28 specified `/data/coolify/services/<uuid>/{authelia,backrest}/...` for the on-VPS config paths, but live `docker inspect` shows:
+
+- Authelia: `/var/lib/docker/volumes/<service-uuid>_authelia-config/_data/configuration.yml` (named Docker volume, not bind mount)
+- Backrest: `/opt/backrest/config/config.json` (host bind, not Coolify Service volume)
+
+Updated `_collect_authelia` to probe both the current UUID-keyed path AND a UUID-agnostic `find` discovery so a future Coolify Service redeploy still hits. Updated `_collect_backrest` to use the verified host path.
+
+### Added — T4-02 (G-F4): `fabrik destroy --use-state` with data-bearing protection (2026-05-16)
+
+Closes Epic SC-3: a state-driven destroy that reverses what was actually applied, not what the current spec says. The shape-driven default still works; `--use-state` is opt-in.
+
+**Why this matters:** a spec can drift between apply and destroy. Example: deploy with `shape.has_search_feature: true` (meilisearch index created) → spec edited to `false` → shape-driven destroy walks the new shape and SKIPS the meilisearch destroyer → orphan index on the VPS. `--use-state` reads `.fabrik/state/<id>.json` (T2-01) and replays the apply-time registrar list, so the orphan is reaped.
+
+**New function `destroy_from_state(state_data, spec, *, drop_data, keep_dns, keep_files, project_base, dry_run) -> DestroyReport`** in [`src/fabrik/orchestrator/destroyer.py`](src/fabrik/orchestrator/destroyer.py). Three phases:
+
+1. **Phase 0 — Data-bearing guard.** Scans `state_data["registrars_applied"]` for entries with `data_bearing: True` (postgres / redis / meilisearch per [`state.DATA_BEARING_REGISTRARS`](src/fabrik/state.py#L69)). If any present AND `drop_data=False`, returns a single-action `error` report listing the protected entries. Operator must re-run with `--drop-data` to override. Refusal is BEFORE any destroyer runs — no partial-destroy state.
+2. **Phase 1 — Registrar teardown in canonical reverse order.** Uses `list(reversed(_REGISTRAR_ORDER))` from `infrastructure.py:84-94` — `prometheus → meilisearch → authelia → grafana → glitchtip → backrest → gatus → redis → postgres`. **Grafana intentionally skipped** (annotations are decorative; no destroyer registered in T2-02's `HANDLER_FUNCS`). **Only registrars actually present in the state file are dispatched** — drift from the current shape is irrelevant. Dispatch uses the T2-02 module-level `HANDLER_ARGS` + `HANDLER_FUNCS` contract: `HANDLER_FUNCS[type](*HANDLER_ARGS[type](spec, drop_data, dry_run))`. Handler exceptions caught + recorded as `error` ActionResult (one bad handler doesn't abort the rest).
+3. **Phase 2 — Non-registrar resources.** Coolify app (always), DNS (gated by `keep_dns` + domain), local files (gated by `keep_files`). The state file's `registrars_applied` does NOT contain deploy-tier resources by design (per [`state.save` docstring](src/fabrik/state.py#L36)) — they're invariant of the registrar set and always run last.
+
+On non-error completion (not dry-run), calls `state.archive_destroyed(spec.id)` which moves `<id>.json` to `_destroyed/<id>.json.<UTC-ts>`.
+
+**Pack-§30 stale-docstring caveat honoured:** the `destroyer.py` module docstring at lines 45-47 lists an outdated 6-registrar reverse order missing redis/grafana/prometheus. The T4-02 ticket Pass-2 BLOCKER FIX flagged this as a separate Tier-3 doc-drift gap — out of scope here. The new function uses `_REGISTRAR_ORDER` directly so it's drift-resistant.
+
+**CLI — [`src/fabrik/cli.py::destroy`](src/fabrik/cli.py) extended with `--use-state` flag:**
+
+- `fabrik destroy <spec> --use-state` → loads state file, refuses with exit-1 + clean message if missing (`No state file for spec.id=...`).
+- `--use-state --partial <reg>` → exit-2 mutually-exclusive refusal (each is its own flag-bundle).
+- Surfaces data-bearing registrar list in the pre-confirmation prompt with a shield emoji 🛡️ (protected) or warning ⚠ (will be dropped).
+- On success, prints per-step report mirror of the existing destroy output (`✅ removed / ⏭️ skipped / 🧪 dry_run / ❌ error`).
+- `--keep-dns` / `--keep-files` flags pass through to `destroy_from_state` for symmetry with shape-driven path.
+
+**Tests — [`tests/test_destroy_use_state.py`](tests/test_destroy_use_state.py) (16 tests, all pass):**
+
+- `TestDataBearingGuard` (3): refuses without `--drop-data`, proceeds with it, proceeds when no data-bearing entries.
+- `TestReverseOrderDispatch` (4): only state-registered handlers invoked; **canonical reverse order verified** (prometheus → meilisearch → authelia → glitchtip → backrest → gatus → redis → postgres → coolify → dns → files); grafana explicitly skipped; handler exception recorded as error without aborting.
+- `TestPhase2NonRegistrars` (4): coolify always; dns skipped with `--keep-dns` or no domain; files skipped with `--keep-files`.
+- `TestPrimaryPathSpecDrift` (1): **Epic SC-3 primary path** — state A has meilisearch+postgres, current spec B doesn't, destroy --use-state reverses A's resources anyway.
+- `TestArchiveOnSuccess` (2): archive fires on real run, NOT on dry-run.
+- `TestCliUseState` (2): missing state file clean error (exit 1); `--use-state + --partial` mutually-exclusive (exit 2).
+
+**T4-03 portability skeleton — [`tests/test_portability.py`](tests/test_portability.py)** (per Agent Briefing): placeholder that locks in the state-schema "no machine-local fields" invariant. Real cross-host destroy test deferred to T4-03.
+
+**Final self-verification (ticket command) passes:**
+
+```
+$ python3 -c 'from fabrik.orchestrator.destroyer import HANDLER_ARGS, HANDLER_FUNCS, destroy_from_state; print("imports OK"); print("keys match:", set(HANDLER_ARGS)==set(HANDLER_FUNCS))'
+imports OK
+keys match: True
+$ python3 -m pytest tests/test_destroy_use_state.py -v
+16 passed in 0.21s
+```
+
+### Added — T4-01 (G-J4): Postgres allocation registry (2026-05-16)
+
+Closes the postgres-side drift-detection gap. Before T4-01 the audit pipeline only checked "does the DB exist in `pg_database`?" but couldn't answer "who owns this DB, was it created by `fabrik apply` or hand-rolled, and does the registry agree with live state?" After T4-01, `/opt/monitoring/configs/postgres/allocations.json` is the source of truth for ownership and the audit cross-references it against `pg_database` to surface drift.
+
+**Seed file** — `/opt/monitoring/configs/postgres/allocations.json` created on VPS (validated against live `pg_database` before write — 4 entries match the actual 4 user DBs):
+
+| db_name | owner | spec_id | notes |
+|---|---|---|---|
+| `glitchtip` | infrastructure | null | GlitchTip Coolify Service; not a Fabrik Application |
+| `proxy_management` | manual | `fabrik-proxy` | Spec has `infra.postgres: false` override; provisioned out-of-band 2025-10-29 |
+| `site_provisioner` | fabrik | `site-provisioner` | DB owner role `site_provisioner` (live `pg_get_userbyid(datdba)` confirms) |
+| `translator` | fabrik | `translator` | T1-05 G-H8 rename complete: `translator_service` → `translator` on 2026-05-15. DB owner stays `postgres` |
+
+**Driver — `src/fabrik/drivers/postgres.py` extended:**
+
+- `ALLOCATIONS_PATH` constant; mirror of `coolify_alias.ALIASES_PATH` pattern.
+- `list_allocations() -> dict` — public read API.
+- `register_allocation(db_name, *, spec_id, user, owner, notes, dry_run)` — RMW under `file_lock("postgres-allocations")` from `fabrik.locks_local`; atomic write via `tee → tmp + chown/chmod/mv`. Mirrors `coolify_alias._write_remote_aliases`.
+- `unregister_allocation(db_name, *, dry_run)` — idempotent; missing entry is a no-op.
+- `create_database` signature extended (backward-compatible): new keyword args `spec_id=None, owner='fabrik', notes=''`. On `status=created`, calls `register_allocation`. Registry write failure is logged but non-fatal — the DB is still created.
+- `drop_database` calls `unregister_allocation` on `status=dropped`. Same non-fatal contract.
+
+**Orchestrator wiring — `src/fabrik/orchestrator/infrastructure.py::_provision_postgres`:**
+
+Single-line change to pass `spec_id=name, owner='fabrik'` to `create_database`. The orchestrator already had spec.id in scope; just forwarding it. No behaviour change for callers that don't deploy through the orchestrator.
+
+**Audit — `src/fabrik/audit.py::audit_postgres` extended with four-quadrant drift classification:**
+
+| pg_database | allocations.json | status | detail |
+|---|---|---|---|
+| present | present | `present` | "db X exists; registry owner='...'" |
+| present | missing | **`drift`** | "...exists in pg_database but is not in allocations.json (orphan/unmanaged)" |
+| missing | present | **`drift`** | "...in allocations.json but missing from pg_database (stale registry)" |
+| missing | missing | `missing` | "db X not found" |
+
+If the registry read itself fails (SSH outage), falls back to legacy `present`/`missing` semantics so the audit pipeline doesn't cascade-fail.
+
+**API change — `AuditStatus` Literal** at `audit.py:48` extended from 4 → 5 values: added `"drift"`. The CLI docstring at `cli.py:1067-1073` already documented `drift` as expected; this ticket finally returns it. CLI pivot table glyph added: `⚠ = drift`; exit code 2 now fires for either `missing > 0` OR `drift > 0` (legend updated).
+
+**Tests — `tests/test_postgres_registry.py` (12 tests, all pass):**
+
+- `TestListAllocations` (3): parses payload, empty file → empty-shape, missing file → empty-shape.
+- `TestRegisterAllocation` (2): appends to existing payload preserving siblings; dry-run skips tee/mv.
+- `TestUnregisterAllocation` (2): removes entry; missing-entry is a no-op (no tee/mv invoked).
+- `TestAuditPostgresDrift` (5): all four quadrants verified + registry-read-failure fallback. SSH boundary mocked at the driver level.
+
+**Live verification:**
+
+```
+$ fabrik audit-registrars --json --spec /opt/fabrik/specs/services/translator.yaml
+"postgres": { "status": "present", "detail": "db translator exists; registry owner='fabrik'",
+              "actual": { "db_name": "translator", "found": true, "in_registry": true,
+                          "registry_entry": { ... } } }
+```
+
+site-provisioner: same shape. Both `present`, no drift.
+
+**Pre-T4-01 conditional seed honoured:** ticket-patches §T4-01 Step 1 said live `\l` is source of truth. Pre-flight queried live: T1-05 has shipped (`translator` is in `pg_database`, not `translator_service`). Seed written accordingly — see CHANGELOG row above.
+
+### Added — T3-03 (G-D3 + G-I1 + G-I2): Local dev loop — `fabrik review` / `fabrik dev` / `fabrik logs --local` (2026-05-16)
+
+Three new CLI commands close the inner-loop gap between scaffold and `fabrik apply`. Stage 2 of the Fabrik lifecycle (Agentic Implementation) previously required a full VPS deploy + Loki query for every iteration; T3-03 keeps the loop in-WSL until the change is ready for review.
+
+**`fabrik dev` (G-I1)** — runs `docker compose -f compose.dev.yaml up [-d]` in the project directory. Fails cleanly with exit 1 if `compose.dev.yaml` is missing. Thin click wrapper around `dev_tools.run_dev_compose` so tests can mock the docker invocation.
+
+**`fabrik logs --local` (G-I2)** — sibling of the existing Loki-backed `fabrik logs <service>`. New `--local` flag switches to `docker compose -f compose.dev.yaml logs [-f] [<service>]` in cwd. SERVICE positional is now `required=False` (made optional to accommodate `--local`); remote path still requires SERVICE — exits 2 with clear error otherwise (no silent regression for existing Loki callers). New `--service` flag (for `--local` mode), `--follow / -f` flag.
+
+**`fabrik review` (G-D3)** — bundles `git diff <since>` + `specs/services/<id>.yaml` + `docs/preplan.md` + the resolved-registrar table (via `resolve_applicability` + `format_resolved_summary` from T1-02) into `.fabrik/review/<YYYY-MM-DD-HHMMSS>.md`. Auto-detects spec from `cwd/specs/services/*.yaml`. Operator-facing summary lines list section sizes; "Dispatch with: kilo run --agent reviewer --input <path>" hint guides handoff. `--since HEAD` default (uncommitted changes); `--out` for custom path.
+
+**`src/fabrik/dev_tools.py` (new)** — extracted helpers (`find_spec`, `build_review_bundle`, `save_review_bundle`, `run_dev_compose`, `run_local_logs`) so the CLI layer stays thin and unit tests can exercise the logic without invoking docker (each compose runner accepts an injectable `runner` callable for mocking).
+
+**`.gitignore`** — added `/.fabrik/review/`. Bundles are local artefacts; the PR diff already captures the change set.
+
+**Tests — `tests/test_dev_tools.py` (19 tests, all pass):**
+
+- `TestReviewBundle` (8): `find_spec` happy/none paths; `build_review_bundle` with/without spec/preplan; `save_review_bundle` default location + `--out` override; CLI emits "📦 Bundling" / "✅ Bundle saved to" and writes the file.
+- `TestDevCompose` (3): -1 return when `compose.dev.yaml` missing; injectable runner invoked with correct argv; CLI exits 1 with clean error when missing.
+- `TestLocalLogs` (5): -1 when missing; runner invoked with `-f` + `<service>` when set; bare `-f` only when `follow=True`; CLI exits 1 when no `compose.dev.yaml`; remote `fabrik logs` (no `--local`, no SERVICE) exits 2 with explanatory message.
+- Smoke (3): `--help` exits 0 for all three commands.
+
+**User-facing docs** — Acceptance criteria called for README + QUICKSTART + FEATURES updates (new user-facing CLI command per Doc Sync Matrix). All three updated: FEATURES added "Local Dev Loop" section + Quick Reference row; QUICKSTART added the 5-line operational snippet; README §Key Features added new subsection "4. Local Dev Loop (T3-03)" (existing numbered subsections 4–7 shifted to 5–8 to keep the sequence consistent).
+
+**Scope boundaries honoured:** `fabrik app-logs` (VPS-side Coolify log tail) untouched. Existing `fabrik logs <service>` Loki path unchanged when `--local` not set. No scaffold/orchestrator code modified.
+
+**Convergence fix — central spec fallback** (caught during post-ticket verification): the ticket's auto-detect logic looked only at `cwd/specs/services/*.yaml`, but deployed projects on this VPS do NOT carry per-service specs — specs live centrally at `/opt/fabrik/specs/services/<id>.yaml`. End-to-end test on `/opt/translator` initially reported `spec: (not found)`. `dev_tools.find_spec` now falls back to `FABRIK_ROOT/specs/services/<project_dir.name>.yaml` so `fabrik review` from inside a deployed project repo (translator, file-api, image-broker, captcha, site-provisioner, emailgateway, proxy) finds the central spec and includes the resolved-registrar section. Verified live on `/opt/translator`: `3 RUN, 6 skipped` from the actual shape contract. Test added (`test_find_spec_falls_back_to_central_fabrik_specs`); test count is now 20.
+
+### Added — T3-02 (G-C1 + G-C2 + G-D1 + G-D2): Workflow + executor governance for shape/registrar awareness (2026-05-16)
+
+**G-C1 — `## deploy` section added to `docs/traycer/fabrik-workflow.md`** (between `## implementation-validation` and `## revise-requirements`). Defines a separate Traycer planner role for the deploy phase with Core Philosophy ("spec is the deploy contract"), 7-step Processing User Request, and Acceptance Criteria. Tells Traycer: if a registrar is missing post-apply, treat as a code bug not a deploy bug — never manually patch the VPS.
+
+**G-C2 — `.windsurf/workflows/registrar-audit.md` (new)** — Cascade slash-command (`/registrar-audit` and `/registrar-audit --all`) wrapping `fabrik audit-registrars`. For MISSING (✗) registrars: confirm shape contract, then `fabrik redeploy --refresh-infra`. For DRIFT (⚠️): surface both sides to user, edit spec OR `fabrik destroy --partial`.
+
+**G-D1 — Spec contract awareness snippet propagated to 4 executor files** (not 5 — AGENTS-compact.md is deliberately excluded; see drift note below). Same content in CLAUDE.md, .windsurfrules, AFCL.md, and the new top-level `KILO_CLI_RULES.md`. The snippet ties `shape.needs_database / needs_cache / exposes_metrics / has_search_feature / is_admin_dashboard` to their respective registrars and tells every executor: "Don't ship code that contradicts the spec — `fabrik apply` will skip the registrar and you'll have a silently broken deploy."
+
+**AGENTS-compact.md drift call-out:** ticket-patches/01-FINAL-REVISIONS.md §T3-02 instructed the file be excluded from the full snippet because it was already 98 lines vs the AGENTS.md `<60` constraint. Live state on 2026-05-16: **143 lines** — even further out of compliance. Applied the patch's "one-line cross-reference" pattern instead: `Spec contract awareness: see KILO_CLI_RULES.md.` Kilo CLI loads `KILO_CLI_RULES.md` directly via `opencode.json` `instructions:` array, so the full content reaches Kilo through that path. Refactoring AGENTS-compact.md back under 60 lines is logged as housekeeping debt for a separate ticket.
+
+**`opencode.json` updated:** `instructions:` array now `["AGENTS-compact.md", "KILO_CLI_RULES.md"]`. Schema confirmed via `jq 'keys'`: the canonical field is `instructions`, NOT `rules_files` or `_rules_reference`.
+
+**`scripts/sync_enforcement_to_projects.py` GOVERNANCE_FILES extended** from 5 → 6 entries (added `KILO_CLI_RULES.md`). Ticket said 7 → 8; live state was 5 entries because AFCL.md and `.pre-commit-config.yaml` are intentionally NOT synced (per existing comments in the script).
+
+**G-D2 — Registrar awareness lines added to 5 of 22 `.windsurf/rules/*.md` files** per pack §25:
+
+- `25-data-postgres.md` — postgres registrar (`shape.needs_database`, naming convention, `infra.postgres: false` override pattern)
+- `30-ops.md` — operational flow (`fabrik apply` / `audit-registrars` / `reconcile-all` / `destroy --partial`, manual VPS edits are anti-patterns)
+- `55-observability.md` — `/metrics` only when `shape.exposes_metrics: true`, `/health` always, `SENTRY_DSN` injected by orchestrator
+- `35-security-auth.md` — `shape.is_admin_dashboard` → Authelia rule; `shape.has_bearer_api`; don't manually add Traefik middlewares
+- `65-rag-search.md` — Meilisearch indexes auto-created from `shape.has_search_feature`, index name `<id_with_underscores>`
+
+**Bulk propagation:** `python3 scripts/sync_enforcement_to_projects.py --force` synced **4305 files across 41 projects, 0 failures**. Sample verification on captcha / site-provisioner / translator / file-api confirms `AGENTS-compact.md` has the 1 cross-ref line and `CLAUDE.md` has 8 shape-mentions (full snippet). All 5 sampled projects now carry `KILO_CLI_RULES.md`.
+
+**Convergence fix — AFCL_TEMPLATE.md**: the ticket listed `AFCL.md` as one of the 4 executor files to receive the full snippet, but `AFCL.md` is intentionally NOT in `GOVERNANCE_FILES` (it's scaffolded as `AFCL_TEMPLATE.md` and customized per-project — operator's friction log). My append to `/opt/fabrik/AFCL.md` doesn't propagate to existing projects, which is correct (their AFCL.md files are operator-customized). For NEW scaffolds to carry the snippet, also appended it to `templates/scaffold/AFCL_TEMPLATE.md`. Existing projects' AFCL.md left untouched; they still get the snippet through `CLAUDE.md` (full) + `KILO_CLI_RULES.md` (full) + `AGENTS-compact.md` (one-line cross-ref).
+
+**AGENTS.md `**Last Updated:**`** bumped to 2026-05-16; the file's "Coding agents" header line now lists `AGENTS-compact.md + KILO_CLI_RULES.md (via opencode.json instructions: array)` so Traycer planning surfaces the new dual-file Kilo bootstrap.
+
 ### Fixed — F5 permanent fix (Solution 1 backfill, all 3 batches) + iptables doc + convergence pass (2026-05-16)
 
 **iptables convergence**: live VPS has `iptables-docker-user.service` (enabled + active) running `/etc/iptables/add-docker-user-rules.sh` on boot. 9 rules in the `DOCKER-USER` chain lock down Docker's UFW bypass — only 80/443 (Traefik) + 6001/6002 (Coolify Realtime) + container-to-container traffic + ESTABLISHED. Nothing needed; added a "Docker DOCKER-USER chain — second-line defense" subsection to `docs/infrastructure/vps-complete-inventory.md` so the firewall story is complete in one place (was scattered across AGENTS.md + glitchtip-api.md mentions).

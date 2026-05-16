@@ -208,7 +208,7 @@ def test_find_by_spec_id():
 
 def test_apply_persist_destroy_archive_roundtrip():
     """The full lifecycle that ``fabrik audit-registrars`` (T2-02) and
-    ``fabrik destroy --use-state`` (T4-01) depend on.
+    ``fabrik destroy --use-state`` (T4-02) depend on.
     SC-3 from the Epic Brief."""
     state = _import()
     # 1. Apply phase persists state.

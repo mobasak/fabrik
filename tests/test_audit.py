@@ -76,15 +76,49 @@ class TestAuditGrafana:
 
 
 class TestAuditPostgres:
+    @staticmethod
+    def _registry_mock(db_name: str | None):
+        """Patch the postgres driver's SSH boundary to return a registry that
+        either contains ``db_name`` (when set) or is empty (when None).
+
+        T4-01: audit_postgres now cross-references allocations.json. To keep
+        the legacy DB-exists-implies-present test green, mock the registry
+        to contain the expected db_name.
+        """
+        import json as _json
+
+        from fabrik.drivers import postgres as _pg
+
+        payload = {
+            "version": 1,
+            "allocations": {
+                db_name: {
+                    "owner": "fabrik",
+                    "spec_id": "test-spec",
+                    "user": "postgres",
+                    "notes": "",
+                }
+            }
+            if db_name
+            else {},
+        }
+        return patch.object(_pg, "ssh", return_value=_json.dumps(payload))
+
     def test_present_when_db_exists(self):
-        with patch.object(audit, "_ssh_check", return_value=(True, "1")):
+        with (
+            patch.object(audit, "_ssh_check", return_value=(True, "1")),
+            self._registry_mock("my_svc"),
+        ):
             r = audit_postgres(_spec_dict(id="my-svc"))
         assert r.status == "present"
         assert r.actual["db_name"] == "my_svc"  # dashes → underscores
         assert r.actual["found"] is True
 
     def test_missing_when_db_absent(self):
-        with patch.object(audit, "_ssh_check", return_value=(True, "")):
+        with (
+            patch.object(audit, "_ssh_check", return_value=(True, "")),
+            self._registry_mock(None),
+        ):
             r = audit_postgres(_spec_dict(id="my-svc"))
         assert r.status == "missing"
 

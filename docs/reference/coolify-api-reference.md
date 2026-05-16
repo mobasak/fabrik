@@ -34,6 +34,9 @@ Bearer token in `Authorization` header. Tokens are created in Coolify UI under `
 | `GET /applications/{uuid}/logs` | ✅ exists | Container logs |
 | `PATCH /applications/{uuid}/envs` | ✅ exists | Update env vars |
 | `POST /services/...` | — | Coolify treats `dockercompose` apps as **services** internally; some operations resolve under `/services/{uuid}` |
+| `GET /services` | ✅ 200 | List one-click stacks (separate table from Applications) |
+| `GET /services/{uuid}` | ✅ 200 | Get service incl. `docker_compose_raw` field |
+| `PATCH /services/{uuid}` | ✅ 200 | Update service. **`docker_compose_raw` must be base64-encoded** (HTTP 422 if you send raw YAML — see Gotcha below) |
 
 The previous version of this doc claimed `POST /applications/private-deploy-key` was removed — that was wrong. All three typed git-create endpoints exist in v4.0.0+.
 
@@ -236,6 +239,31 @@ The legacy unified endpoint was removed in Coolify v4 in favor of the typed fami
 ### `instant_deploy: true` on `/applications/dockercompose` is unreliable
 
 Inline-compose creations sometimes leave the service at `status=exited` even with `instant_deploy: true`. Fabrik always follows the create with an explicit `POST /deploy?force=true`. (See `deployer.py::_create_deployment` post-create hook.)
+
+### `PATCH /services/{uuid}` requires `docker_compose_raw` to be **base64-encoded** (F5, Lesson 62)
+
+Sending raw YAML in the `docker_compose_raw` field of a PATCH to `/api/v1/services/{uuid}` returns:
+
+```text
+HTTP 422
+{"message": "Validation failed.", "errors": {"docker_compose_raw": "The docker_compose_raw should be base64 encoded."}}
+```
+
+The fix is to base64-encode the YAML string before sending:
+
+```python
+import base64
+encoded = base64.b64encode(new_compose_yaml.encode()).decode()
+patch_body = {"docker_compose_raw": encoded}
+```
+
+GET on the same endpoint returns the compose **decoded** (plain YAML) — the encoding requirement is asymmetric (write only).
+
+This affects any tool mutating Coolify Services compose programmatically; see `scripts/coolify_services_f5.py` for a reference implementation that uses this pattern to inject `deploy.resources.limits` into 12 services.
+
+### Coolify Service compose on disk is REGENERATED from `docker_compose_raw` on every redeploy
+
+`/data/coolify/services/<uuid>/docker-compose.yaml` is a render artifact of the DB field, not source of truth. Editing the file directly is silently reverted on the next redeploy. Always mutate via `PATCH /services/{uuid}`. This is the key difference from Coolify Applications, where the compose lives in an external git repo that Coolify clones.
 
 ## Observability
 

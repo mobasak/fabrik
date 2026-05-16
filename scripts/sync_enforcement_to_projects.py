@@ -67,6 +67,7 @@ GOVERNANCE_FILES = [
     "CLAUDE.md",
     "opencode.json",
     ".windsurfrules",
+    "KILO_CLI_RULES.md",
 ]
 GOVERNANCE_DIRS = [".windsurf/rules"]
 

@@ -224,3 +224,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 - [ ] `pool_pre_ping=True` configured on the engine.
 - [ ] No `psycopg2` or `psycopg2-binary` in dependencies — `asyncpg` only.
 - [ ] `DATABASE_URL` uses `postgresql+asyncpg://` scheme everywhere.
+
+## Spec contract — postgres registrar
+
+When adding a database call, ensure `shape.needs_database: true` in `specs/services/<id>.yaml`. The postgres registrar auto-creates `<id_with_underscores>` DB on `fabrik apply`; if you need a different name, use `infra.postgres: false` AND `shape.needs_database: true` (proxy.yaml pattern) and document the override.

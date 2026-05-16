@@ -106,3 +106,7 @@ if len(encoding.encode(prompt)) > BUDGET:
 - [ ] Context budget capped at 85% of model limit before LLM dispatch.
 - [ ] Chunk metadata includes document ID and sequence number for citation tracking.
 - [ ] Retrieval eval tests (Faithfulness + Context Precision) exist against a golden dataset.
+
+## Spec contract — meilisearch registrar
+
+Meilisearch indexes are auto-created when `shape.has_search_feature: true` in `specs/services/<id>.yaml`. Index name = `<id_with_underscores>`. Do NOT manually create indexes via the Meilisearch API — the registrar owns lifecycle (create on `fabrik apply`, destroy on `fabrik destroy --drop-data`).

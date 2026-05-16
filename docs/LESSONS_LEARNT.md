@@ -4055,3 +4055,28 @@ PATCH /applications/{uuid}/envs  body={"key":"DATABASE_URL", "value":"<marker>",
 5. **When the operator pushes back with "is that really all of X?"**, treat it as a signal to re-audit — they often have context (deployment history, dashboard layout) that your code-only audit missed.
 
 ---
+
+# Lesson 63: Architecture-changing tickets must also evolve the enforcement scripts that gate them — they're rule packs that win over ticket text
+
+**Date:** 2026-05-16
+**Context:** T3-02 added `KILO_CLI_RULES.md` at repo root and extended `opencode.json` `instructions:` to `["AGENTS-compact.md", "KILO_CLI_RULES.md"]`. Both are explicit ticket decisions. Final gate failed in Tier 2 with:
+
+1. `check_structure.py`: `KILO_CLI_RULES.md` not in `ALLOWED_ROOT_MD` set (allowlist of root .md files)
+2. `check_opencode_json.py`: `instructions` array doesn't match `EXPECTED_INSTRUCTIONS = ["AGENTS-compact.md"]` (hardcoded allowlist)
+
+Per `CLAUDE.md`: "rule pack > ticket. Surface conflict before proceeding." The conflict here wasn't a real architectural disagreement — the enforcement files were regression-prevention checks that hadn't been updated to know about the ticket's new architectural decision.
+
+**Drift findings while landing the ticket:**
+
+- AGENTS-compact.md was 143 lines (ticket said 98, constraint says <60). Even further out of compliance than the ticket-patches doc captured. Ticket's "skip + one-line cross-ref" pattern still applied, but the underlying housekeeping debt grew.
+- `GOVERNANCE_FILES` had 5 entries (not 7 as the ticket-patches doc said). AFCL.md and `.pre-commit-config.yaml` are intentionally excluded (per existing in-file comments). Final length after T3-02: 6, not 8.
+- Both `check_structure.py::ALLOWED_ROOT_MD` and `check_opencode_json.py::EXPECTED_INSTRUCTIONS` are propagated to all 41 projects by `sync_enforcement_to_projects.py`. So an enforcement update lands the architectural decision everywhere on next force-sync.
+
+**Rule:**
+
+1. **When a ticket adds a NEW file at a NEW location** (root .md, new opencode.json field, new directory layout, etc.), grep `scripts/enforcement/*.py` for the file/field/path BEFORE running the gate. Any allowlist that names a fixed set of files is a candidate for an update.
+2. **When the final gate surfaces an "allowlist" failure on a ticket's new artefact**, the resolution is usually to **extend the allowlist** with a dated comment explaining the architectural decision — not to relocate the artefact. Check the existing entries' comments: if previous architectural additions (CLAUDE.md, AFCL.md, etc.) were documented inline as "T1-02 (date): ...", follow the pattern.
+3. **For propagated enforcement scripts**, run `sync_enforcement_to_projects.py --force` AFTER the enforcement update so all projects pick up the new allowlist on the same git tick. Otherwise project repos fail their gates on next pre-commit.
+4. **Surface the conflict to the operator** before silently editing enforcement — per CLAUDE.md rule-pack-wins. Even when the resolution is obvious ("the ticket created this artefact, the enforcement just hasn't caught up"), the operator should authorize the rule-pack edit.
+
+---

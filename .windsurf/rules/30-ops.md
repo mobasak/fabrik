@@ -261,3 +261,7 @@ Coolify's Traefik uses these entrypoint names:
 | `websecure` | 443 | HTTPS with Let's Encrypt |
 
 **CRITICAL:** When deploying Docker Image apps via Coolify API, the auto-generated labels use `http`/`https` entrypoints which **do not exist**. You MUST patch `custom_labels` to use `web`/`websecure` after creating the app. See Coolify API reference for the PATCH workflow.
+
+## Spec contract — operational flow
+
+All operational concerns flow through the spec's `shape:` block. Manual VPS edits are anti-patterns. Use `fabrik apply` / `fabrik audit-registrars` / `fabrik reconcile-all` / `fabrik destroy --partial`. If a registrar is missing post-apply, treat as a deploy bug, not a manual fix-up.

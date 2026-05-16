@@ -99,6 +99,11 @@ scripts/kilo-benchmarks/cache/update.log*
 # trail only — never committed.
 /.fabrik/state/
 
+# Review bundles (T3-03 G-D3). `fabrik review` writes diff + spec + preplan +
+# resolved registrars into .fabrik/review/<ts>.md. Local artefact; PR diff
+# already captures the change set — never committed.
+/.fabrik/review/
+
 # Added by fabrik scaffold update
 *.code-workspace
 *.db
