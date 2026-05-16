@@ -35,7 +35,6 @@
 | `postgres-main` | internal | ⚠️ running:healthy |
 | `promtail` | internal | ⚠️ running:unknown |
 | `site-provisioner` | internal | ⚠️ running:healthy |
-| `test-file-worker` | http://pwkg4o44ccos84s88oo40sg0.172.93.160.197.sslip.io | ⚠️ running:healthy |
 <!-- /AUTO -->
 
 ---
