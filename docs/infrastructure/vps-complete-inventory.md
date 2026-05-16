@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-16 14:14 UTC
+**Last Updated:** 2026-05-16 14:15 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 40 running
@@ -240,7 +240,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 3 weeks (healthy) | 256m |
 | `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 3 weeks (healthy) | 768m |
 | `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 22 hours (healthy) | 512m |
-| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 7 seconds | 512m |
+| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 19 seconds | 512m |
 | `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 7 days (healthy) | 512m |
 | `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 9 days (healthy) | 512m |
 | `captcha-j8gg4ggskkossc4gkwowk4os-191229303949` | ✅ Up 7 days (healthy) | 512m |
@@ -248,7 +248,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `coolify-db` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-realtime` | ✅ Up 3 weeks (healthy) | — |
 | `coolify-redis` | ✅ Up 3 weeks (healthy) | — |
-| `coolify-sentinel` | ✅ Up 16 minutes (healthy) | — |
+| `coolify-sentinel` | ✅ Up 17 minutes (healthy) | — |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 7 days (healthy) | 512m |
 | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 7 days (healthy) | 512m |
 | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 5 days (healthy) | 512m |
@@ -261,6 +261,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 28 hours (healthy) | 512m |
 | `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 3 weeks (healthy) | 512m |
 | `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 3 weeks (healthy) | 2g |
+| `ncc0o04wcg0csw88owwksgwk` | ✅ Up Less than a second | — |
 | `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 9 days (healthy) | 1g |
 | `node-exporter-doc8c8gkcgs88s8ckggw84o4` | ✅ Up 3 weeks | 128m |
 | `ocoron-com-backup-1` | ✅ Up 3 weeks | 128m |
@@ -276,7 +277,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | `redis-exporter` | ✅ Up 7 days | 64m |
 | `redis-main` | ✅ Up 3 weeks (healthy) | 512m |
 | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
-| `test-file-worker-pwkg4o44ccos84s88oo40sg0-141624685873` | ✅ Up 1 second (health: starting) | 512m |
+| `test-file-worker-pwkg4o44ccos84s88oo40sg0-141624685873` | ✅ Up 2 seconds (health: starting) | 512m |
 | `traefik` | ✅ Up 29 hours | 256m |
 | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 23 hours (healthy) | 512m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
