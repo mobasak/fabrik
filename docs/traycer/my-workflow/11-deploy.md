@@ -3,131 +3,173 @@
 ## How You Use This Command
 
 ```
-You: "deploy"
+You: "deploy" or "deploy <service-name>" or "deploy specs/services/<id>.yaml"
 
 Traycer:
-  1. Reads implementation-validation results (must be clean)
-  2. Reads deploy-plan (04) outputs (shape, compose, registrars, env vars)
-  3. Constructs deploy ticket (pre-flight + fabrik apply + verify + rollback)
-  4. Dispatches to Claude Code (critical — first deploy) or Kilo CLI (routine redeploy)
-  5. Agent executes on VPS: pre-flight → fabrik apply → verify → report
-  6. Traycer receives results, validates registrars present
-  7. Reports: "✅ Deployed. All registrars present. /health 200."
+  1. Identifies WHICH service to deploy (from user arg, or current epic's spec)
+  2. Reads the spec file → knows shape, registrars, port, domain
+  3. Reads deploy-plan (04) if it ran, OR derives from tech-plan + spec
+  4. Constructs a deploy ticket (pre-flight → push → apply → verify → report)
+  5. Dispatches to Claude Code (first-ever deploy) or Kilo CLI (redeploy)
+  6. Agent SSHs to VPS and executes the commands
+  7. Traycer receives result: registrars present? Health 200?
+  8. Reports success or failure with next steps
 
-You: confirm or investigate if issues
+You: confirm or investigate
 ```
 
 ---
 
 ## Role
 
-Deploy orchestrator. Same as `07-execute` but the ticket contains infrastructure commands (`fabrik apply`, `fabrik verify`) instead of code changes. You dispatch, receive, validate.
+Deploy orchestrator. You construct and dispatch a deploy ticket — same mechanism as `07-execute.md`. The ticket contains infrastructure commands (`git push`, `fabrik apply`, `fabrik verify`) that an agent executes on the VPS via SSH.
 
 ## Core Philosophy
 
-- Deploy is just another ticket dispatch. Same mechanism as execute.
-- The deploy ticket contains `fabrik apply` + verification commands.
-- Agent runs it on VPS (requires `FABRIK_EXEC_MODE=local` or SSH access).
-- Validate AFTER: registrars present? Health 200? State file written?
-- Operator presence recommended for first-ever deploys (Coolify v4 quirks).
-- Every deploy follows `docs/reference/fabrik-lifecycle.md` § Stage 3 (Registration) + § Stage 4 (Verification). The lifecycle is the contract — the deploy ticket executes stages 3+4.
+- Deploy is a ticket dispatch. Same pattern as execute.
+- Every deploy follows `docs/reference/fabrik-lifecycle.md` § Stage 3 (Registration) + § Stage 4 (Verification). The lifecycle is the contract.
+- The agent executes on VPS via SSH from WSL (standard Fabrik flow). NOT via `FABRIK_EXEC_MODE=local` (that's for crons/watchdog running ON the VPS already).
+- First-ever deploys: operator-supervised (Coolify v4 quirks).
+- Redeploys: routine, can be fully autonomous.
 
 ## Processing User Request
 
-### Step 1: Consume Upstream
+### Step 1: Identify What to Deploy
 
-- `implementation-validation` results — must be clean (no Blockers)
-- Deploy Plan (04) — shape, compose contract, registrar surface, env vars
-- INFRA-CHECK — Port, Scaffold, Shape
-- Epic Brief — Success Criteria the deploy must satisfy
-- `docs/reference/fabrik-lifecycle.md` § Stage 3 + 4 — the deploy contract (synced to every project via `sync_enforcement_to_projects.py`)
+Determine the spec from user input (try in order):
 
-### Step 2: Construct Deploy Ticket
+1. **Explicit path:** user says `"deploy specs/services/my-api.yaml"` → use it
+2. **Service name:** user says `"deploy my-api"` → resolve to `specs/services/my-api.yaml`
+3. **Current epic context:** if an epic is in flight and has ONE spec in scope → use it
+4. **Ambiguous:** multiple services in epic → ask "Which service?"
 
-Build a full ticket (same structure as ticket-breakdown output):
+Read the spec file. Extract: `id`, `domain`, `shape`, `port`, `kind`.
 
-**Scope:** Execute `fabrik apply` on VPS, verify registrars, confirm health.
+### Step 2: Gather Deploy Context
 
-**Pre-flight steps:**
-- Code pushed to GitHub (`git push origin <default-branch>`)
-- All env vars set in Coolify dashboard (list from deploy-plan env checklist)
-- Shape block matches code
-- Local dev works (`fabrik dev -d && curl localhost:<PORT>/health`)
-- DNS provisioned (if new domain)
+Read these (stop at first available per item):
 
-**Deploy steps:**
-- `fabrik apply specs/services/<id>.yaml`
-- Wait for container healthy (5-7 min first deploy, SSH fallback normal)
-
-**Verification steps:**
-- `fabrik verify <domain> --spec registrars` → all present
-- `fabrik audit-registrars --spec specs/services/<id>.yaml --json` → exit 0
-- `curl -sI https://<domain>/health` → HTTP 200
-- Gatus green at `status.vps1.ocoron.com`
-- `fabrik logs <id> --tail 20` → structured logs
-
-**Rollback (if deploy fails):**
-- `fabrik destroy specs/services/<id>.yaml --use-state --drop-data --keep-dns --dry-run`
-- Review → if correct → drop `--dry-run`
-- Fix issue → re-deploy
-
-### Step 3: Dispatch
-
-Send the deploy ticket to assigned agent:
-
-| Situation | Agent | Why |
+| What | Primary source | Fallback |
 |---|---|---|
-| First-ever deploy of a service | Claude Code (operator-supervised) | High signal for Lessons Learnt, Coolify v4 quirks |
-| Routine redeploy (code change) | Kilo CLI or Claude Code | Lower risk, faster |
+| Shape + registrar surface | Deploy Plan (04) output | Derive from spec `shape:` block directly |
+| Compose contract (resource limits, platform, healthcheck) | Deploy Plan (04) Step 3 | Read `compose.yaml` in project |
+| Env vars checklist | Deploy Plan (04) Step 5 | Read `.env.example` in project |
+| Success Criteria | Epic Brief | Ask user what "success" looks like |
+| Lifecycle contract | `docs/reference/fabrik-lifecycle.md` § Stage 3 + 4 | Always available (synced to every project) |
 
-Agent receives full ticket. Works on VPS (either via SSH or `FABRIK_EXEC_MODE=local`).
+If deploy-plan (04) didn't run for this epic (some routes skip it): derive directly from the spec + compose. Don't block on missing deploy-plan.
 
-### Step 4: Receive + Validate
+### Step 3: Construct Deploy Ticket
 
-When agent returns:
+Build a complete ticket the agent can execute without questions:
 
-| Finding | Action |
+```markdown
+## Deploy: <service-id>
+
+**Spec:** specs/services/<id>.yaml
+**Domain:** <domain>
+**Shape:** <shape fields — determines which registrars fire>
+**Agent context:** Read docs/reference/fabrik-lifecycle.md § Stage 3 + 4 before executing.
+
+### Pre-flight (verify before deploy)
+- [ ] Code pushed: `git log origin/<branch> --oneline -1` matches local HEAD
+- [ ] If not pushed: `git push origin <branch>`
+- [ ] Env vars in Coolify: <list each required var from .env.example>
+- [ ] compose.yaml valid: resource limits, platform: linux/amd64, healthcheck, coolify network
+- [ ] Port <PORT> not conflicting: `grep <PORT> PORTS.md`
+- [ ] DNS ready (if new domain): `fabrik domain ready <domain>`
+
+### Deploy
+```bash
+fabrik apply specs/services/<id>.yaml
+```
+Expected: Coolify creates/updates app → container starts → registrars fire.
+Time: 5-7 min first deploy (SSH fallback at 300s is NORMAL per AGENTS.md).
+Redeploy: 1-2 min (image cached).
+
+### Registrars that will fire (from shape)
+<table: registrar | fires? | what it creates>
+
+### Post-deploy verification
+```bash
+fabrik verify <domain> --spec registrars          # all registrars present
+fabrik audit-registrars --spec specs/services/<id>.yaml --json  # exit 0
+curl -sI https://<domain>/health                  # HTTP 200
+```
+
+### Success criteria
+- SC1: <from brief> → verified by: <command>
+- SC2: <from brief> → verified by: <command>
+
+### Rollback (if deploy fails after 10 min)
+```bash
+fabrik destroy specs/services/<id>.yaml --use-state --drop-data --keep-dns --dry-run
+# Review → if correct:
+fabrik destroy specs/services/<id>.yaml --use-state --drop-data --keep-dns -y
+# Fix issue → re-deploy
+```
+
+### Report back
+On success: paste `fabrik verify` output + `curl /health` status.
+On failure: paste error logs (`fabrik logs <id> --tail 50`).
+```
+
+### Step 4: Dispatch
+
+| Situation | Agent |
 |---|---|
-| All registrars present + health 200 | ✅ Deploy successful |
-| Registrar missing | Fixup: `fabrik reconcile-all --filter <id>` |
-| Health check fails | Read logs (`fabrik logs <id>`), diagnose, fixup or escalate |
-| Container won't start | Check Coolify dashboard, Dockerfile, compose. Rollback if > 10 min. |
-| Coolify v4 SSH fallback fired | Normal (AGENTS.md documents this). Note in Lessons Learnt. |
+| First-ever deploy of this service | Claude Code (operator presence recommended) |
+| Routine redeploy (code pushed, same service) | Kilo CLI or Claude Code |
 
-### Step 5: Report
+Agent receives the full ticket. It SSHs to VPS and executes commands in order. Standard Fabrik deployment flow — the agent doesn't need special VPS access beyond what `ssh vps` provides (already configured in every Fabrik project).
 
+### Step 5: Receive + Validate
+
+When agent returns results:
+
+| Result | Action |
+|---|---|
+| All registrars present + health 200 | ✅ Mark deployed. Report success. |
+| Registrar missing | Dispatch fixup: `fabrik reconcile-all --filter <id>` |
+| Health fails (container crashes) | Read logs. If obvious fix → fixup ticket. If not → escalate. |
+| Container won't start after 10 min | Rollback (from ticket). Escalate to user. |
+| Coolify SSH fallback fired | Normal. Note in report (not a failure). |
+
+### Step 6: Report
+
+On success:
 ```
-✅ Deployed: <id>.<domain>
-   Registrars: all present (list which fired)
-   Health: 200
+✅ Deployed: <id> → https://<domain>
+   Registrars: <list which fired> — all present
+   Health: HTTP 200
    State: .fabrik/state/<id>.json written
-   Monitoring: Gatus green
-   Lessons: <N entries if Coolify quirks fired>
+   Monitoring: Gatus endpoint active
 ```
 
-Or if failed:
+On failure:
 ```
 ❌ Deploy failed: <id>
-   Issue: <what went wrong>
-   Action taken: <rollback / fixup dispatched / escalated>
-   Next: <what the user should do>
+   Issue: <what went wrong — from agent's report>
+   Action: <rolled back / fixup dispatched / escalated to user>
+   Next: <what needs to happen>
 ```
 
 ## Applicability by Scaffold Type
 
-| Scaffold | Deploy path |
+| Scaffold | What `fabrik apply` does |
 |---|---|
-| `python-api`, `node-api`, `file-api`, `file-worker` | `fabrik apply` → full registrar set |
-| `saas-skeleton`, `static-site`, `docusaurus` | `fabrik apply` → lean registrar set |
-| `chrome-extension`, `mobile-app`, `desktop-app` | Two-faced: backend via `fabrik apply`, client distribution manual |
+| `python-api`, `node-api`, `file-api`, `file-worker` | Full registrar set (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus — per shape) |
+| `saas-skeleton`, `static-site`, `docusaurus` | Lean registrar set (typically no postgres/redis) |
+| `chrome-extension`, `mobile-app`, `desktop-app` | Two-faced: backend via `fabrik apply`, client distribution manual (noted in report) |
 
 ## Acceptance Criteria
 
-- Implementation-validation clean before dispatch.
-- Deploy ticket constructed with: pre-flight, commands, verification, rollback.
-- Dispatched to appropriate agent (Claude Code for critical, Kilo for routine).
-- Agent executes `fabrik apply` + verification commands.
+- Service identified unambiguously (spec path resolved).
+- Deploy context gathered (shape, registrars, env vars, compose contract).
+- Deploy ticket constructed with: pre-flight, commands, registrar table, verification, success criteria, rollback.
+- Dispatched to appropriate agent.
+- Agent executes via SSH to VPS (standard Fabrik flow).
 - Results validated: registrars present, health 200, state file written.
 - Failures handled: fixup or rollback or escalate.
-- Deploy report produced (success or failure with next steps).
-- Coolify v4 quirks captured as Lessons Learnt.
+- Report produced (success with registrar list, or failure with next steps).
+- `docs/reference/fabrik-lifecycle.md` referenced as the deploy contract.
