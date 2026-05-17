@@ -152,7 +152,7 @@ Per-site AI agent on VPS. Three cycles:
 | **fabrik** | Orchestrator: scaffold, plan, apply, verify, content | ✅ Production | — |
 | **site-provisioner** | Domain buy → DNS → Cloudflare → GSC → Bing → IndexNow | ✅ Production | 18014 |
 | **image-broker** | Stock photo search + download (Pexels/Pixabay) | ✅ Production | 18016 |
-| **translator** | DeepL + Azure translation (en↔tr) | ✅ Production | 18012 |
+| **translator** | DeepL + Azure translation (en↔tr) — NOT needed for WP (AutoPoly calls DeepL directly). Used by TCO/YouTube/non-WP projects. | ✅ Production | 18012 |
 | **emailgateway** | Transactional email (Resend + SES) | ✅ Production | 18017 |
 | **file-api** | File upload to Cloudflare R2 (media offloading) | ✅ Production | 18015 |
 | **youtube** | Video transcript mining → content research source | ✅ Production | 8029 |
@@ -226,14 +226,14 @@ Each profile has: Essential (always install), High Value (likely need), Situatio
 | Plugin | Role | In golden base? |
 |---|---|---|
 | **Polylang Pro** | Core: separate posts per language, menu translation, string translation, URL routing (/en/, /tr/), hreflang, REST API `lang` parameter | YES |
-| **AutoPoly – AI Translation for Polylang** | Auto-translates posts on publish. Connects to DeepL/Google via your Translator API (port 18012). Zero manual translation. | YES |
+| **AutoPoly Pro – AI Translation for Polylang** | Auto-translates on publish. Built-in clients for: **DeepL** (API key), **Google Translate** (API key), **OpenAI/ChatGPT** (API key). No middleware needed. Zero manual translation. | YES |
 | **SearchWP Polylang Integration** | Search results respect active language | YES |
 | **Polylang for WooCommerce** | Products/cart/checkout/emails per language | Ecommerce profile only |
 
 **How it works with your content pipeline:**
 1. TCO generates English article
 2. Content publisher publishes EN post via REST API
-3. AutoPoly auto-triggers → calls your Translator API (DeepL/Azure) → creates linked TR post
+3. AutoPoly auto-triggers → calls DeepL directly (API key in WP settings) → creates linked TR post
 4. OR: your pipeline calls `pll_save_post_translations(en_id, ['tr' => tr_id])` directly after publishing both
 
 **What Polylang Pro translates automatically (no custom code):**
