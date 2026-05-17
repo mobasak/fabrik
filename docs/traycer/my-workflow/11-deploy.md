@@ -166,7 +166,7 @@ fabrik verify <domain> --spec registrars  # re-verify
    Registrars: all present (postgres, gatus, glitchtip, grafana, prometheus)
    Monitoring: Gatus green, no Telegram alerts
    State: .fabrik/state/<id>.json written
-   
+
    Epic lifecycle complete: Intent → Implementation → Registration → Verification ✓
 
    Planned (not yet built):

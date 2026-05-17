@@ -92,8 +92,8 @@ Current top keywords (from GSC): {top_20_keywords_with_positions}
 Existing briefs in queue: {pending_briefs}
 Site preset: {preset} (focus: {preset_description})
 
-Suggest 5 new long-tail keywords to target. 
-Rules: no cannibalization with existing content, 
+Suggest 5 new long-tail keywords to target.
+Rules: no cannibalization with existing content,
 search volume > 100/month, difficulty < 40.
 Return JSON: [{{"keyword": "...", "intent": "...", "target_page_type": "..."}}]
 """

@@ -1,7 +1,15 @@
+<<<<<<< Updated upstream
 """Plugins stage: idempotent plugin install and activation."""
 
 import json
 import logging
+=======
+"""WordPress plugins installation stage."""
+
+import json
+import logging
+import re
+>>>>>>> Stashed changes
 from pathlib import Path
 
 from fabrik.drivers.wordpress import WordPressClient
@@ -10,18 +18,58 @@ from fabrik.wordpress.stages import StageResult, time_stage
 
 logger = logging.getLogger(__name__)
 
+<<<<<<< Updated upstream
+=======
+
+def _lookup_slug(entry: dict) -> str:
+    """
+    Extract the canonical WP-CLI slug from a manifest entry.
+
+    Handles legacy manifests where ZIP-source entries may still have the ZIP
+    filename or path in ``slug`` instead of the canonical plugin slug.
+
+    Args:
+        entry: Plugin manifest entry dict
+
+    Returns:
+        Canonical plugin slug for WP-CLI lookup
+    """
+    slug = entry["slug"]
+    is_legacy_zip = entry.get("source") == "zip" and (
+        slug.endswith(".zip") or "/" in slug or "\\" in slug
+    )
+    if is_legacy_zip:
+        # Legacy format: slug is still a ZIP filename/path
+        name = slug.replace("\\", "/").rsplit("/", 1)[-1]
+        if name.endswith(".zip"):
+            name = name[:-4]
+        name = re.sub(r"-v?\d+\.\d+(\.\d+)?$", "", name)
+        return name.lower()
+    return slug
+
+>>>>>>> Stashed changes
 
 @time_stage
 def apply(
     spec: dict, wp: WordPressClient | None, api: WordPressAPIClient | None, build_dir: Path
 ) -> StageResult:
+<<<<<<< Updated upstream
     """Apply plugin installs and activations idempotently."""
+=======
+    """
+    Install and activate plugins declared in the plugins manifest.
+
+    Reads build_dir/manifests/plugins.json and idempotently installs/activates
+    each plugin based on its current status in WordPress.
+    """
+>>>>>>> Stashed changes
     result = StageResult(name="plugins", success=True)
 
     try:
         dry_run = spec.get("dry_run", False)
 
         if dry_run:
+<<<<<<< Updated upstream
             manifest_path = build_dir / "manifests" / "plugins.json"
             if manifest_path.exists():
                 manifest_preview: list[dict] = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -31,6 +79,8 @@ def apply(
                 "would_install": [e["slug"] for e in manifest_preview],
                 "total": len(manifest_preview),
             }
+=======
+>>>>>>> Stashed changes
             return result
 
         if wp is None:
@@ -38,6 +88,7 @@ def apply(
             result.errors.append("WordPressClient required for plugins stage")
             return result
 
+<<<<<<< Updated upstream
         # Load manifest (empty list if missing)
         manifest_path = build_dir / "manifests" / "plugins.json"
         if manifest_path.exists():
@@ -82,6 +133,23 @@ def apply(
 
         for entry in manifest:
             slug = entry["slug"]
+=======
+        # Load manifest (empty list if file does not exist)
+        manifest_path = build_dir / "manifests" / "plugins.json"
+        if manifest_path.exists():
+            plugins_manifest: list[dict] = json.loads(manifest_path.read_text(encoding="utf-8"))
+        else:
+            plugins_manifest = []
+
+        # Build installed plugins map: slug -> status
+        plugin_list_result = wp.plugin_list()
+        if isinstance(plugin_list_result, str):
+            plugin_list_result = json.loads(plugin_list_result) if plugin_list_result else []
+        installed: dict[str, str] = {entry["name"]: entry["status"] for entry in plugin_list_result}
+
+        for entry in plugins_manifest:
+            slug = _lookup_slug(entry)
+>>>>>>> Stashed changes
 
             # Fail-fast on missing zip_path for zip-sourced plugins
             if entry["source"] == "zip" and not entry.get("zip_path"):
@@ -90,6 +158,7 @@ def apply(
                 break
 
             install_target = entry["zip_path"] if entry["source"] == "zip" else slug
+<<<<<<< Updated upstream
 
             # Use the installed-plugin slug for the status lookup.  For ZIP
             # plugins this is the normalized directory name WordPress creates
@@ -133,6 +202,21 @@ def apply(
             counts["failed"],
             len(manifest),
         )
+=======
+            status = installed.get(slug)
+
+            if status == "active":
+                # Already active — nothing to do
+                logger.debug("Plugin %s is already active, skipping", slug)
+            elif status == "inactive":
+                # Installed but inactive — activate only
+                logger.info("Activating plugin %s", slug)
+                wp.plugin_activate(slug)
+            else:
+                # Not installed — install and activate
+                logger.info("Installing plugin %s from %s", slug, install_target)
+                wp.plugin_install(install_target, activate=True)
+>>>>>>> Stashed changes
 
     except Exception as e:
         result.success = False

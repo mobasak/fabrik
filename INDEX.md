@@ -209,6 +209,8 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   │   └── worker/
 │   │       └── main.py              # Job processor (uses worker.logger)
 │   ├── wordpress/
+│   │   ├── CLAUDE.md                   # Claude Code tactical bootstrap for WordPress Factory infrastructure work (cross-refs 62-wordpress.md)
+│   │   ├── KILO_CLI_RULES.md           # Kilo CLI tactical bootstrap for WordPress Factory infrastructure work (cross-refs 62-wordpress.md)
 │   │   ├── base/
 │   │   │   ├── site.yaml.j2            # Jinja2 template for WordPress site-layer spec, rendered at scaffold time
 │   │   │   ├── compose.dev.yaml.j2     # Jinja2 template for local dev Docker Compose stack (WSL); uses wp_html shared volume for full WordPress core + nginx access
@@ -554,6 +556,7 @@ docs/
 | **templates/preplan/preplan.md.j2** | T3-01 G-A1 — Jinja2 preplan template with 9 sections, embeds VPS1-inventory cheat-sheet (postgres-main, redis-main, X-Internal-Token, /health bypass, /metrics, GlitchTip DSN) in the Notes section so the preplan stays grounded. |
 | **docs/preplans/** | T3-01 G-A2 — directory for captured project intent. `README.md` documents filename convention (`<YYYY-MM-DD>-<slug>.md`), 4-stage lifecycle (author/refine/hand-off/archive), and the full Fabrik pipeline overview. |
 | [test_preplan.py](tests/test_preplan.py) | 16 tests for T3-01 — `create_preplan` (creates dated file / template substitution / refuses overwrite / slug-validation / date-validation), `parse_preplan` (fresh template / missing file / invalid type / deps table / bullet list filtering), `_layer_preplan_into_project` (copy / 4-guardrail injection / partial guardrails / idempotency / none-no-op), CLI surface check (`fabrik preplan new` works, `fabrik preplan-new` does NOT — catches @cli.command vs @cli.group BLOCKER FIX). |
+| [tests/drivers/test_wordpress_exec_mode.py](tests/drivers/test_wordpress_exec_mode.py) | 10 tests for T1.1 `FABRIK_EXEC_MODE` env-gate in `drivers/wordpress.py` — `TestGetExecMode` (4: default ssh / explicit local / unknown raises ValueError / case-insensitive `LOCAL`), `TestContainerResolverExecMode` (2: SSH path argv starts `["ssh","vps",…]`; local path argv starts `["sudo","docker","ps",…]` with no `"ssh"`), `TestWordPressClientExecMode` (2: SSH path wraps `sudo docker exec` in shell string; local path emits argv list `["sudo","docker","exec","c","wp","core","version","--allow-root"]`), `TestConstructorOverridesEnv` (1: kwarg beats env), `TestWpContainerNameShortCircuit` (1: `WP_CONTAINER_NAME_OCORON_COM` returns env value without calling `subprocess.run`). All `subprocess.run` patched; no live SSH/Docker. |
 
 ### Scaffold-Generated Files (Python API + Chrome Extension Backend)
 

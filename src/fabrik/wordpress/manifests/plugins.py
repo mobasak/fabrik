@@ -41,6 +41,7 @@ def _normalize_plugin_name(plugin: str) -> str:
     return name.lower()
 
 
+<<<<<<< Updated upstream
 def _zip_installed_slug(zip_path: str) -> str:
     """
     Derive the WordPress-installed plugin slug from a ZIP path.
@@ -75,6 +76,32 @@ def _zip_installed_slug(zip_path: str) -> str:
     slug = re.sub(r"^[a-zA-Z0-9]{8,}-", "", slug)
 
     return slug.lower()
+=======
+def _zip_to_canonical_slug(zip_name: str) -> str:
+    """
+    Derive canonical WP-CLI plugin slug from a ZIP filename or path.
+
+    The canonical slug is what ``wp plugin list`` reports as the plugin name.
+    Typically this is the ZIP base name without extension and version suffix.
+
+    Args:
+        zip_name: ZIP filename or path (e.g., ``my-plugin-1.2.3.zip``)
+
+    Returns:
+        Canonical slug (e.g., ``my-plugin``)
+    """
+    # Get base filename without directory components
+    name = zip_name.replace("\\", "/").rsplit("/", 1)[-1]
+
+    # Strip .zip extension
+    if name.endswith(".zip"):
+        name = name[:-4]
+
+    # Strip trailing version suffix (e.g., -1.2.3, -v1.2.3)
+    name = re.sub(r"-v?\d+\.\d+(\.\d+)?$", "", name)
+
+    return name.lower()
+>>>>>>> Stashed changes
 
 
 def generate(resolved_spec: ResolvedSpec, build_dir: Path) -> Path:
@@ -136,6 +163,9 @@ def generate(resolved_spec: ResolvedSpec, build_dir: Path) -> Path:
         source = "zip" if is_zip else "wordpress.org"
         zip_path = slug if is_zip else None
 
+        # For ZIP entries, derive canonical slug matching WP-CLI output
+        canonical_slug = _zip_to_canonical_slug(slug) if is_zip else slug
+
         # Lookup version
         version = None
         if not is_zip and normalized in version_lookup:
@@ -149,7 +179,7 @@ def generate(resolved_spec: ResolvedSpec, build_dir: Path) -> Path:
 
         manifest.append(
             {
-                "slug": slug,
+                "slug": canonical_slug,
                 "version": version,
                 "source": source,
                 "zip_path": zip_path,

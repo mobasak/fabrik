@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — WordPress Factory agent guardrails (CLAUDE.md + KILO_CLI_RULES.md) — 2026-05-18
+
+Adds `templates/wordpress/CLAUDE.md` and `templates/wordpress/KILO_CLI_RULES.md` as sibling tactical bootstraps to `templates/wordpress/AGENTS.md`, scoped to WordPress Factory infrastructure work (Phases 2–5 build, not generated sites) and cross-referencing `.windsurf/rules/62-wordpress.md` as canonical — closes Epic Brief Success Criterion #5 (WordPress Factory Phase 1 Foundation, ticket T1.0).
+
+### Added — FABRIK_EXEC_MODE env-gate in drivers/wordpress.py (T1.1, 2026-05-18)
+
+New module-level `_get_exec_mode()` helper reads `FABRIK_EXEC_MODE` (default `ssh`, case-insensitive) and raises `ValueError` with the malformed value echoed back on any value other than `ssh` / `local` — fail-fast on misconfiguration rather than a silent 30s docker-exec timeout. `ContainerResolver.__init__` and `WordPressClient.__init__` both gain an `exec_mode: str | None = None` parameter mirroring the existing `ssh_host` seam, with all 3 SSH-coupled `subprocess.run` call sites (resolver exact-match, resolver prefix-match, client `_exec`) branching on `self.exec_mode`; `local` mode invokes `sudo docker exec` directly as an argv list (no shell wrapping) for on-VPS surfaces like the T1.5 cron and Phase 5 watchdog. Unset env + unset kwarg preserves the WSL/SSH path byte-identically; the `WP_CONTAINER_NAME_<SLUG>` escape hatch short-circuits both modes equally. Covered by 10 new tests in `tests/drivers/test_wordpress_exec_mode.py` (env default / local / unknown raises / case-insensitive / resolver SSH & local / client SSH & local / constructor-overrides-env / short-circuit preserved); all `subprocess.run` patched, no live SSH/Docker.
+
+### Fixed — deployment-workflow.md: Apache → php8.3-fpm-bookworm (T1.3, 2026-05-18)
+
+Stale Apache references contradicted `.windsurf/rules/62-wordpress.md` and `templates/wordpress/base/compose-coolify.yaml.j2`. Replaced architecture-diagram + compose-example Apache mentions with PHP-FPM + Nginx (the actually-deployed stack). Other stale doc concerns (outdated VPS IP, SCP-based deploy Method 2) deferred to Epic Brief Out-of-Scope #6 follow-up.
+
 ### Fixed — Coolify v4 deployer workarounds + Telegram alert noise (2026-05-16)
 
 Three confirmed Coolify v4.0.0-beta.459 bugs neutralized inside `deployer.py` so `fabrik apply` succeeds reliably for all scaffold types:

@@ -54,6 +54,23 @@ python -m fabrik.config --verify
 4. Copy token (shown once)
 5. Server/Project UUIDs auto-detected on first run
 
+### FABRIK_EXEC_MODE — WordPress driver execution mode (T1.1)
+
+**Why needed:** The `fabrik.drivers.wordpress` module (`ContainerResolver` + `WordPressClient`) historically assumed it was running on a WSL workstation that reaches the VPS over SSH. Phase 1 of the WordPress Factory introduces on-VPS execution surfaces (T1.5 cron, Phase 5 watchdog) where wrapping every `docker exec` in `ssh vps …` is pointless overhead. `FABRIK_EXEC_MODE` flips the dispatch at the driver level so the same code path runs unchanged in both environments.
+
+**Values:**
+
+| Value | When to use | Effect |
+|-------|-------------|--------|
+| `ssh` (default; unset = `ssh`) | WSL development; any remote orchestration | Driver invokes `ssh ${VPS_HOST} 'sudo docker exec …'` — byte-identical to pre-T1.1 behaviour |
+| `local` | `fabrik` CLI running ON the VPS itself (T1.5 systemd cron, Phase 5 self-healing watchdog) | Driver invokes `sudo docker exec …` directly as an argv list — zero outbound SSH |
+
+**Fail-fast:** any other value (e.g. `paramiko`, `remote`, typos) raises `ValueError` at the first driver call with the malformed value echoed back. Bad config surfaces immediately rather than ~30s into the first `docker exec` timeout.
+
+**Back-compat guarantee:** unset env + unset constructor `exec_mode=` kwarg → SSH path. Existing WSL workflows and orchestration code that already pass `ssh_host=` keep working unchanged.
+
+**Override precedence:** constructor `exec_mode=` kwarg > `FABRIK_EXEC_MODE` env var > `ssh` default. The constructor seam exists so unit tests and future orchestrators can pin the mode without mutating process env.
+
 ### DNS Manager Service
 
 **Why this approach:** Fabrik uses a deployed microservice instead of direct API calls.

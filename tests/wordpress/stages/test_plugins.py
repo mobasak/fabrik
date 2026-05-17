@@ -6,15 +6,21 @@ from fabrik.wordpress.stages import plugins
 
 SLUG = "my-plugin"
 
+<<<<<<< Updated upstream
 
 def _write_manifest(tmp_path, entries):
     """Write a plugins.json manifest under tmp_path/manifests/."""
+=======
+def _write_manifest(tmp_path, entries):
+    """Write plugins.json manifest to tmp_path."""
+>>>>>>> Stashed changes
     manifests_dir = tmp_path / "manifests"
     manifests_dir.mkdir(parents=True, exist_ok=True)
     (manifests_dir / "plugins.json").write_text(json.dumps(entries), encoding="utf-8")
 
 
 def test_install_missing_plugin(minimal_spec, mock_wp, mock_api, tmp_path):
+<<<<<<< Updated upstream
     """Plugin not yet installed: plugin_install called with slug and activate=True."""
     mock_wp.plugin_list.return_value = []
     _write_manifest(tmp_path, [{"slug": SLUG, "source": "wordpress.org", "version": "1.0"}])
@@ -24,15 +30,40 @@ def test_install_missing_plugin(minimal_spec, mock_wp, mock_api, tmp_path):
 
     assert result.success
     mock_wp.plugin_install.assert_called_once_with(SLUG, activate=True)
+=======
+    """Plugin not installed -> install with activate=True."""
+    slug = "woocommerce"
+    mock_wp.plugin_list.return_value = []
+    _write_manifest(tmp_path, [{"slug": slug, "version": "8.0.0", "source": "wordpress.org"}])
+
+    spec = dict(minimal_spec)
+    spec["dry_run"] = False
+
+    result = plugins.apply(spec, mock_wp, mock_api, tmp_path)
+
+    assert result.success
+    mock_wp.plugin_install.assert_called_once_with(slug, activate=True)
+>>>>>>> Stashed changes
     mock_wp.plugin_activate.assert_not_called()
 
 
 def test_skip_active_plugin(minimal_spec, mock_wp, mock_api, tmp_path):
+<<<<<<< Updated upstream
     """Plugin already active: neither install nor activate is called."""
     mock_wp.plugin_list.return_value = [{"name": SLUG, "status": "active"}]
     _write_manifest(tmp_path, [{"slug": SLUG, "source": "wordpress.org", "version": "1.0"}])
 
     spec = {**minimal_spec, "dry_run": False}
+=======
+    """Plugin already active -> no install or activate call."""
+    slug = "woocommerce"
+    mock_wp.plugin_list.return_value = [{"name": slug, "status": "active"}]
+    _write_manifest(tmp_path, [{"slug": slug, "version": "8.0.0", "source": "wordpress.org"}])
+
+    spec = dict(minimal_spec)
+    spec["dry_run"] = False
+
+>>>>>>> Stashed changes
     result = plugins.apply(spec, mock_wp, mock_api, tmp_path)
 
     assert result.success
@@ -41,6 +72,7 @@ def test_skip_active_plugin(minimal_spec, mock_wp, mock_api, tmp_path):
 
 
 def test_activate_inactive_plugin(minimal_spec, mock_wp, mock_api, tmp_path):
+<<<<<<< Updated upstream
     """Plugin installed but inactive: plugin_activate called; plugin_install not called."""
     mock_wp.plugin_list.return_value = [{"name": SLUG, "status": "inactive"}]
     _write_manifest(tmp_path, [{"slug": SLUG, "source": "wordpress.org", "version": "1.0"}])
@@ -50,15 +82,43 @@ def test_activate_inactive_plugin(minimal_spec, mock_wp, mock_api, tmp_path):
 
     assert result.success
     mock_wp.plugin_activate.assert_called_once_with(SLUG)
+=======
+    """Plugin installed but inactive -> activate only, no install."""
+    slug = "woocommerce"
+    mock_wp.plugin_list.return_value = [{"name": slug, "status": "inactive"}]
+    _write_manifest(tmp_path, [{"slug": slug, "version": "8.0.0", "source": "wordpress.org"}])
+
+    spec = dict(minimal_spec)
+    spec["dry_run"] = False
+
+    result = plugins.apply(spec, mock_wp, mock_api, tmp_path)
+
+    assert result.success
+    mock_wp.plugin_activate.assert_called_once_with(slug)
+>>>>>>> Stashed changes
     mock_wp.plugin_install.assert_not_called()
 
 
 def test_fail_on_missing_zip_path(minimal_spec, mock_wp, mock_api, tmp_path):
+<<<<<<< Updated upstream
     """source=zip with no zip_path: result fails and plugin_install not called."""
     mock_wp.plugin_list.return_value = []
     _write_manifest(tmp_path, [{"slug": SLUG, "source": "zip", "zip_path": None}])
 
     spec = {**minimal_spec, "dry_run": False}
+=======
+    """source=zip with no zip_path -> failure, no install called."""
+    slug = "my-custom-plugin"
+    mock_wp.plugin_list.return_value = []
+    _write_manifest(
+        tmp_path,
+        [{"slug": slug, "version": "1.0.0", "source": "zip", "zip_path": None}],
+    )
+
+    spec = dict(minimal_spec)
+    spec["dry_run"] = False
+
+>>>>>>> Stashed changes
     result = plugins.apply(spec, mock_wp, mock_api, tmp_path)
 
     assert not result.success
@@ -66,8 +126,54 @@ def test_fail_on_missing_zip_path(minimal_spec, mock_wp, mock_api, tmp_path):
     mock_wp.plugin_install.assert_not_called()
 
 
+<<<<<<< Updated upstream
 def test_dry_run_no_calls(minimal_spec, mock_wp, mock_api, tmp_path):
     """dry_run=True: no WP calls made at all."""
+=======
+def test_skip_active_zip_plugin(minimal_spec, mock_wp, mock_api, tmp_path):
+    """ZIP plugin already active -> skip, no reinstall."""
+    canonical_slug = "my-custom-plugin"
+    zip_path = "my-custom-plugin-1.0.0.zip"
+    mock_wp.plugin_list.return_value = [{"name": canonical_slug, "status": "active"}]
+    _write_manifest(
+        tmp_path,
+        [{"slug": canonical_slug, "version": "1.0.0", "source": "zip", "zip_path": zip_path}],
+    )
+
+    spec = dict(minimal_spec)
+    spec["dry_run"] = False
+
+    result = plugins.apply(spec, mock_wp, mock_api, tmp_path)
+
+    assert result.success
+    mock_wp.plugin_install.assert_not_called()
+    mock_wp.plugin_activate.assert_not_called()
+
+
+def test_skip_active_zip_plugin_legacy_slug(minimal_spec, mock_wp, mock_api, tmp_path):
+    """ZIP plugin with legacy slug (ZIP filename) already active -> skip."""
+    canonical_slug = "my-custom-plugin"
+    zip_path = "my-custom-plugin-1.0.0.zip"
+    # Legacy format: slug is the ZIP filename instead of canonical slug
+    mock_wp.plugin_list.return_value = [{"name": canonical_slug, "status": "active"}]
+    _write_manifest(
+        tmp_path,
+        [{"slug": zip_path, "version": "1.0.0", "source": "zip", "zip_path": zip_path}],
+    )
+
+    spec = dict(minimal_spec)
+    spec["dry_run"] = False
+
+    result = plugins.apply(spec, mock_wp, mock_api, tmp_path)
+
+    assert result.success
+    mock_wp.plugin_install.assert_not_called()
+    mock_wp.plugin_activate.assert_not_called()
+
+
+def test_dry_run_no_calls(minimal_spec, mock_wp, mock_api, tmp_path):
+    """dry_run=True -> return success immediately, no WP calls."""
+>>>>>>> Stashed changes
     # minimal_spec already has dry_run=True; no manifest needed
     result = plugins.apply(minimal_spec, mock_wp, mock_api, tmp_path)
 
@@ -77,12 +183,20 @@ def test_dry_run_no_calls(minimal_spec, mock_wp, mock_api, tmp_path):
 
 
 def test_wp_none_fails(minimal_spec, mock_api, tmp_path):
+<<<<<<< Updated upstream
     """wp=None with dry_run=False: result fails with a descriptive error."""
     spec = {**minimal_spec, "dry_run": False}
+=======
+    """wp=None with dry_run=False -> failure with error message."""
+    spec = dict(minimal_spec)
+    spec["dry_run"] = False
+
+>>>>>>> Stashed changes
     result = plugins.apply(spec, None, mock_api, tmp_path)
 
     assert not result.success
     assert result.errors
+<<<<<<< Updated upstream
 
 
 # ---------------------------------------------------------------------------
@@ -216,3 +330,5 @@ def test_zip_plugin_path_strip(minimal_spec, mock_wp, mock_api, tmp_path):
     assert result.success
     mock_wp.plugin_install.assert_not_called()
     mock_wp.plugin_activate.assert_not_called()
+=======
+>>>>>>> Stashed changes

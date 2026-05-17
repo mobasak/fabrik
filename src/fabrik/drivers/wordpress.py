@@ -180,9 +180,7 @@ class WordPressClient:
                 + ([root_flag] if root_flag else [])
             )
         else:
-            cmd = (
-                f"sudo docker exec {shlex.quote(self.site.container)} wp {wp_command} {root_flag}"
-            )
+            cmd = f"sudo docker exec {shlex.quote(self.site.container)} wp {wp_command} {root_flag}"
             full_cmd = ["ssh", self.ssh_host, cmd]
 
         result = subprocess.run(full_cmd, capture_output=True, text=True)

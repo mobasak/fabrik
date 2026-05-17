@@ -10,6 +10,7 @@ Ensures that:
 
 from __future__ import annotations
 
+import importlib
 import json
 from unittest.mock import Mock, patch
 
@@ -43,13 +44,23 @@ def mock_spec():
 
 @pytest.fixture
 def mock_stage_apply():
-    """Patch all stage apply functions to return success."""
+    """Patch all stage apply functions to return success.
+
+    Only patches stages whose modules are currently importable.
+    STAGE_KEYS may contain forward-looking entries (e.g., ``languages``)
+    whose stage modules are not yet implemented.
+    """
     stage_names = list(STAGE_KEYS.keys())
     patches = {}
     mocks = {}
 
     for stage_name in stage_names:
         module_path = f"fabrik.wordpress.stages.{stage_name}"
+        try:
+            importlib.import_module(module_path)
+        except ImportError:
+            # Stage module not yet implemented, skip patching
+            continue
         patcher = patch(f"{module_path}.apply")
         patches[stage_name] = patcher
         mock = patcher.start()

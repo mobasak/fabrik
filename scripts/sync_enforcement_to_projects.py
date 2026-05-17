@@ -75,7 +75,10 @@ GOVERNANCE_DIRS = [".windsurf/rules", ".windsurf/workflows"]
 REFERENCE_DOCS = [
     ("docs/reference/windsurf/cascade-models.md", "docs/reference/windsurf/cascade-models.md"),
     ("docs/reference/long-command-monitoring.md", "docs/reference/long-command-monitoring.md"),
-    ("docs/reference/technology-stack-decision-guide.md", "docs/reference/technology-stack-decision-guide.md"),
+    (
+        "docs/reference/technology-stack-decision-guide.md",
+        "docs/reference/technology-stack-decision-guide.md",
+    ),
     ("docs/reference/AI_TAXONOMY.md", "docs/reference/AI_TAXONOMY.md"),
     ("docs/reference/fabrik-lifecycle.md", "docs/reference/fabrik-lifecycle.md"),
     ("docs/BUSINESS_MODEL.md", "docs/reference/fabrik-project-catalog.md"),
