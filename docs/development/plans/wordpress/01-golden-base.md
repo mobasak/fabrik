@@ -24,7 +24,7 @@ Everything from `62-wordpress.md` rules + plugin-stack.md BASE tier. These are i
 - Base typography: Inter (heading + body)
 - No brand colors applied (per-site via Customizer API from site.yaml `brand:`)
 
-### BASE Plugins (8 plugins, pre-installed + activated + configured)
+### BASE Plugins (11 plugins, pre-installed + activated + configured)
 
 | Plugin | Pre-configuration in golden base |
 |---|---|
@@ -36,6 +36,9 @@ Everything from `62-wordpress.md` rules + plugin-stack.md BASE tier. These are i
 | Redis Object Cache | Installed, configured: `WP_REDIS_HOST=redis-main`. Per-site isolation via `WP_REDIS_PREFIX` + `WP_REDIS_DATABASE` (injected at deploy time from env) |
 | Complianz Pro | Installed, base GDPR banner configured (geo-targeting, cookie categories). Per-site: domain, policy URLs |
 | Cloudflare Turnstile | Installed, NOT configured (site key + secret are per-site) |
+| Polylang Pro | Installed + activated. EN + TR registered. URL: `/en/`, `/tr/` directories. Hreflang automatic. String translation enabled. |
+| AutoPoly | Installed. Translation provider URL from env `TRANSLATOR_API_URL` (your Translator API, port 18012). Auto-translates on publish. |
+| SearchWP Polylang Integration | Installed. Search results filtered by active language. |
 
 **Note:** Wordfence is NOT in golden base. It's OPTIONAL (high-risk sites only per plugin-stack.md). Security is handled by the 10 layers outside WordPress.
 
@@ -53,16 +56,23 @@ Everything from `62-wordpress.md` rules + plugin-stack.md BASE tier. These are i
 - Nginx FastCGI cache → bypass rules for: logged-in users, WooCommerce cart/checkout/my-account, GDPR consent cookie absence
 - FlyingPress page cache → ON, purge hooks registered
 
-### Multilingual (BLOCKER — decision required)
+### Multilingual — RESOLVED: Polylang Pro + AutoPoly
 
-**Must resolve before building:** WPML or Polylang?
-
-| Option | Pros | Cons |
+| Plugin | In golden base | Pre-configuration |
 |---|---|---|
-| WPML | Already bundled (125 zips include WPML CMS + String Translation). All profiles reference it. Proven multi-site. | License per-site activation needed. Heavier. Rule pack says Polylang. |
-| Polylang | Rule pack mandates it. Lighter. Free core + Pro for premium features. | Not bundled. All profiles reference WPML — would need updating. Less tested in this pipeline. |
+| Polylang Pro | YES | Installed + activated. EN + TR languages registered. URL structure: `/en/`, `/tr/` directories. Hreflang automatic. |
+| AutoPoly | YES | Installed. Connected to your Translator API (DeepL via port 18012) per-site env var `TRANSLATOR_API_URL`. Auto-translates on publish. |
+| SearchWP Polylang | YES | Installed. Activates alongside SearchWP. |
+| Polylang for WooCommerce | NO (ecommerce profile) | Installed at Stage 4 (plugins) for ecommerce sites only |
+| Polylang for AMP | NO (optional) | Only if AMP needed |
 
-**Impact:** Golden base bakes one. Switching later = rebuild image + migrate ALL deployed sites. Decision must be final.
+**Replaces:** ~~WPML CMS~~, ~~WPML String Translation~~, ~~SearchWP WPML~~. Remove these from all profiles.
+
+**Per-site config (from site.yaml `languages:` section):**
+- Which languages active (default: en + tr)
+- Default language (default: en)
+- URL structure (default: directory /en/, /tr/)
+- AutoPoly translation provider URL (default: your Translator API)
 
 ## What STAYS OUT (per-site variables, applied at deploy time)
 
@@ -265,7 +275,7 @@ fabrik wp promote <site>
 | Dependency | Status | Blocker? |
 |---|---|---|
 | `FABRIK_EXEC_MODE=local` | Not implemented | YES — first-boot script runs on VPS |
-| WPML vs Polylang decision | Pending | YES — must bake one into image |
+| Polylang Pro + AutoPoly zips in premium/ | DECIDED — need to add zips | Add 5 Polylang zips to `templates/wordpress/plugins/premium/` |
 | Redis-main running on VPS | ✅ Running | No |
 | Traefik running on VPS | ✅ Running | No |
 | Local Docker registry on VPS | Not set up | Mild — can use local image without registry |

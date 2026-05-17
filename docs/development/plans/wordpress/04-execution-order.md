@@ -22,10 +22,10 @@
 
 ## Phase 0 — Decisions (BLOCKERS, must resolve before any code)
 
-| # | Decision | Options | Impact | Deadline |
-|---|---|---|---|---|
-| 0.1 | **WPML vs Polylang** | WPML (bundled, all profiles use it) vs Polylang (rule pack mandates it, lighter) | Golden base bakes one. Switching later = rebuild image + migrate all sites. | Before Phase 2 |
-| 0.2 | **Plugin tiering** | All plugins active at launch (31-33 per site, heavier) vs Launch/Growth/Scale tiers (15-20 at launch, add as site matures) | Affects golden base plugin list + deployer skip logic + watchdog tier promotion | Before Phase 2 |
+| # | Decision | Status | Resolution |
+|---|---|---|---|
+| 0.1 | **WPML vs Polylang** | ✅ RESOLVED | **Polylang Pro + AutoPoly + SearchWP Polylang + Polylang for WooCommerce + Polylang for AMP.** AutoPoly connects to your Translator API (DeepL/Azure). WPML removed from all profiles. |
+| 0.2 | **Plugin tiering** | PENDING | All plugins active at launch (heavier) vs Launch/Growth/Scale tiers (lighter, add as site matures). Affects golden base + deployer + watchdog. | Before Phase 2 |
 
 ---
 
@@ -34,7 +34,7 @@
 | # | What | Effort | Depends on |
 |---|---|---|---|
 | 1.1 | Implement `FABRIK_EXEC_MODE=local` in `src/fabrik/drivers/wordpress.py` — 1-line gate on `_exec()` and `ContainerResolver.resolve()` | 1h | Nothing |
-| 1.2 | Fix ocoron.com spec: WPML→Polylang (per 0.1 decision), fill remaining DRAFT fields, change status DRAFT→READY | 2h | 0.1 decided |
+| 1.2 | Fix ocoron.com spec: WPML→Polylang Pro, fill remaining DRAFT fields, add Translator API config, change status DRAFT→READY | 2h | 0.1 ✅ resolved |
 | 1.3 | Fix `docs/reference/wordpress/deployment-workflow.md` — Apache→FPM references (outdated, contradicts 62-wordpress.md) | 30min | Nothing |
 | 1.4 | Deploy ocoron.com via pipeline: `fabrik wp plan ocoron-com && fabrik wp apply ocoron-com` | 1h | 1.1 + 1.2 |
 | 1.5 | Set up VPS cron: `0 3 * * * fabrik content publish ocoron.com --limit 2` | 30min | 1.4 |

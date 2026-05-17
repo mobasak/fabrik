@@ -221,11 +221,37 @@ Each profile has: Essential (always install), High Value (likely need), Situatio
 
 **AutomatorWP decision rule:** Install when (1) need automation BEYOND Thrive ecosystem, OR (2) need webhooks to external systems, OR (3) have repeatable workflows across containers. If installed: keep Thrive Automator minimal (one automation owner per site).
 
-### Multilingual
+### Multilingual — DECIDED: Polylang Pro + AutoPoly
 
-WPML CMS + String Translation bundled in ALL profiles. Every site is bilingual (en + tr) by default.
+| Plugin | Role | In golden base? |
+|---|---|---|
+| **Polylang Pro** | Core: separate posts per language, menu translation, string translation, URL routing (/en/, /tr/), hreflang, REST API `lang` parameter | YES |
+| **AutoPoly – AI Translation for Polylang** | Auto-translates posts on publish. Connects to DeepL/Google via your Translator API (port 18012). Zero manual translation. | YES |
+| **SearchWP Polylang Integration** | Search results respect active language | YES |
+| **Polylang for WooCommerce** | Products/cart/checkout/emails per language | Ecommerce profile only |
+| **Polylang for AMP** | AMP pages multilingual | If AMP needed |
 
-**Decision pending (BLOCKER for golden base):** Rule pack `62-wordpress.md` mandates Polylang. All profiles currently bundle WPML. Plugin stack uses WPML. Must resolve before golden base build. Impact: golden base bakes one or the other — switching later means rebuilding the image + migrating all existing sites.
+**How it works with your content pipeline:**
+1. TCO generates English article
+2. Content publisher publishes EN post via REST API
+3. AutoPoly auto-triggers → calls your Translator API (DeepL/Azure) → creates linked TR post
+4. OR: your pipeline calls `pll_save_post_translations(en_id, ['tr' => tr_id])` directly after publishing both
+
+**What Polylang Pro translates automatically (no custom code):**
+- Posts + pages (linked copies per language)
+- Menus (one menu per language, auto-synced structure)
+- Theme/plugin strings (any `__()` call → Polylang string translation UI)
+- Widgets (per-language widget visibility)
+- URL routing (`/en/services/` ↔ `/tr/hizmetler/`)
+- Hreflang meta tags (automatic, SEO-correct)
+- Custom post types + taxonomies
+
+**Replaces (remove from profiles):**
+- ~~WPML CMS~~ → Polylang Pro
+- ~~WPML String Translation~~ → Polylang Pro (built-in)
+- ~~SearchWP WPML~~ → SearchWP Polylang Integration
+
+Every site is bilingual (en + tr) by default. Adding a 3rd language = one click in Polylang admin + add locale to Translator API config.
 
 ## Site Presets (8 profiles mapped to 6 presets)
 
@@ -253,7 +279,7 @@ Each preset defines: page templates with section types, entities that auto-gener
 | Domain provisioning + search engine registration | ✅ Built | — |
 | Analytics injection (GA4/GTM/Schema/OG) | ✅ Built | — |
 | 125 premium plugins bundled + licensed | ✅ Built | — |
-| Bilingual support (WPML currently, locale-aware formatting) | ✅ Built (WPML vs Polylang decision pending — see Phase 0 blocker) | — |
+| Bilingual support (Polylang Pro + AutoPoly + your Translator API) | ✅ DECIDED | — |
 | 8 Makefile ops (update, cache-flush, backup, harden, etc.) | ✅ Built | — |
 | **Golden base Docker image** | 🆕 To build | — |
 | **GUI wizard + operations dashboard** | 🆕 To build | — |

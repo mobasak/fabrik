@@ -50,7 +50,7 @@
 | `settings.py` | ✅ USE | — | Always per-site |
 | `theme.py` | 🔧 MODIFY | 2.8 | Theme pre-installed in golden base. Stage: apply brand customizations ONLY. Skip if no brand changes. |
 | `plugins.py` | 🔧 MODIFY | 2.7 | Golden base has BASE plugins. Stage: install LAUNCH tier ADDITIONS only from local zips. Skip if no additions. |
-| `languages.py` | ✅ USE | — | Per-site locale config (depends on 0.1 WPML/Polylang decision) |
+| `languages.py` | 🔧 MODIFY | 1.2 | Update: WPML references → Polylang Pro. Configure Polylang + AutoPoly per site.yaml `languages:` section. |
 | `pages.py` | ✅ USE | — | Always per-site |
 | `menus.py` | ✅ USE | — | Always per-site |
 | `forms.py` | ✅ USE | — | Always per-site |
@@ -153,7 +153,7 @@
 | `docs/reference/wordpress/deployment-workflow.md` | 🔧 MODIFY | 1.3 | Fix Apache→FPM. Update for golden base. |
 | `docs/reference/wordpress/site-specification.md` | ✅ USE | — | site.yaml format stays |
 | `docs/reference/wordpress/pages-idempotency.md` | ✅ USE | — | |
-| `docs/reference/wordpress/plugin-stack.md` | 🔧 MODIFY | 2.1 | Add tiering columns: BASE / LAUNCH / GROWTH / SCALE per plugin |
+| `docs/reference/wordpress/plugin-stack.md` | 🔧 MODIFY | 2.1 | Add tiering columns: BASE / LAUNCH / GROWTH / SCALE per plugin. Replace WPML with Polylang Pro + AutoPoly in all profiles. |
 | `docs/reference/wordpress/plugin-evaluation.md` | ✅ USE | — | Research still valid |
 | `docs/reference/wordpress/fixes.md` | ✅ USE | — | Known issues reference |
 | `docs/architecture/WORDPRESS-MODULE-INTEGRATION.md` | 🔧 MODIFY | 3 | Add fabrik-api + golden base |
