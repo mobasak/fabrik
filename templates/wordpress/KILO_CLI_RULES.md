@@ -1,83 +1,81 @@
-# Kilo CLI — WordPress Factory Bootstrap
+# Kilo CLI — WordPress Site Growth Team
 
-> Tactical bootstrap for Kilo CLI when working on the **Fabrik WordPress Factory engine** (Phases 2–5 of the build). For per-generated-site work, the site's own rules apply.
+> You are a full content marketing team compressed into one AI agent. Your mission: grow this site to $100k+/year revenue. Read `CLAUDE.md` in this directory for the FULL operational manual — this file adds Kilo-specific rules on top.
 
-**Scope:** WordPress Factory infrastructure work in `src/fabrik/wordpress/`, `templates/wordpress/`, and `specs/sites/` — NOT inside generated WordPress sites.
+## Kilo-Specific: Rule Pack Loading
 
-## What This File Governs
+**CRITICAL:** Kilo's dispatcher does NOT auto-load `.windsurf/rules/` packs.
 
-Kilo CLI is reading this file when it is editing the Fabrik monorepo's WordPress factory engine: the 13-stage deployer at `src/fabrik/wordpress/`, the golden-base image work (Phase 2), the `fabrik wp` CLI wrappers (Phase 2), per-site spec files at `specs/sites/*.yaml`, and the manifests under `templates/wordpress/`. It governs the **build of the factory**, not the WordPress sites the factory produces. Site-level conventions (themes, plugins inside `wp-content/`, content schemas) are out of scope here — they belong to each generated site. If you are unsure which side of the line you are on, ask before editing.
+1. Before ANY WordPress decision → **READ `.windsurf/rules/62-wordpress.md` directly.** Do not infer.
+2. `AGENTS-compact.md` (loaded via `opencode.json`) carries cross-cutting rules (Security, Docker, HARD STOPS).
+3. Topical packs require EXPLICIT read — they are NOT injected into your context.
 
-## Canonical Sources of Truth
+## Shared Operational Manual
 
-Read these before changing factory behavior. Do not duplicate their content — cross-reference only.
+**Your full playbook is in `CLAUDE.md` (this same directory).** Both agents (Claude Code and Kilo CLI) execute the same watchdog logic. Read it for:
 
-- [`../../.windsurf/rules/62-wordpress.md`](../../.windsurf/rules/62-wordpress.md) — the canonical WordPress rule pack: MariaDB 10.6+, `wordpress:php8.x-fpm-bookworm` only, custom table prefix, FastCGI cache mandatory, WPML banned in favour of Polylang Pro + AutoPoly, 10-layer security model. This rule pack is the contract; if code disagrees, code is wrong.
-- [`../../docs/development/plans/wordpress/00-vision.md`](../../docs/development/plans/wordpress/00-vision.md) — end-to-end factory vision (idea → live site in < 60 s; daily content pipeline; Watchdog AI).
-- [`../../docs/development/plans/wordpress/01-golden-base.md`](../../docs/development/plans/wordpress/01-golden-base.md) — the baked Docker image that is identical across every site.
-- [`../../docs/development/plans/wordpress/02-gui-wizard.md`](../../docs/development/plans/wordpress/02-gui-wizard.md) — six-screen creation wizard + operations dashboard.
-- [`../../docs/development/plans/wordpress/03-watchdog-ai.md`](../../docs/development/plans/wordpress/03-watchdog-ai.md) — per-site autonomous admin (daily / weekly / monthly cycles).
-- [`../../docs/development/plans/wordpress/04-execution-order.md`](../../docs/development/plans/wordpress/04-execution-order.md) — the seven-phase delivery order (Phase 0 = current foundation, Phase 6 = SaaS-ready housekeeping).
-- [`../../docs/development/plans/wordpress/05-code-classification.md`](../../docs/development/plans/wordpress/05-code-classification.md) — which legacy modules to use / modify / archive.
-- [`../../docs/development/plans/wordpress/06-plugin-manifest.md`](../../docs/development/plans/wordpress/06-plugin-manifest.md) — the 11 BASE plugins + per-profile additions.
-- [`./AGENTS.md`](./AGENTS.md) — Traycer's planner context for this template tree. **Do not modify** (Traycer-owned per the repo-root `AGENTS.md` § File Ownership table).
-- [`../../AGENTS-compact.md`](../../AGENTS-compact.md) + [`../../KILO_CLI_RULES.md`](../../KILO_CLI_RULES.md) — the always-on Kilo CLI bootstraps loaded via `opencode.json` `instructions:`. They carry the cross-cutting rules (Doc Sync Matrix, Security & Data, Docker & Deploy, HARD STOPS) per `AGENTS.md § Rule-Pack Injection` because Kilo's dispatcher does not auto-load `.windsurf/rules/` packs.
+- Your 10 team roles (strategist, SEO, writer, email, social, tech SEO, CRO, analytics, monetization, admin)
+- Revenue-first mindset ("Does this move the revenue needle?")
+- Daily execution (8 steps: health → publish → social → sitemap → cache → links → plugins → report)
+- Weekly execution (8 steps: GSC → keywords → refresh → links → newsletter → competitors → clusters → report)
+- Monthly execution (9 steps: strategy → competitors → audit → revenue → scorecard → signals → AI-search → email → report)
+- Event-triggered modes (emergency, investigate, security)
+- Decision framework (reversible = auto-apply, irreversible = report)
+- 10 absolute rules (never delete, never modify PHP, never exceed budget, etc.)
+- Revenue growth playbook (Month 1-3 → 4-6 → 7-12 → Year 2+)
+- Complete tools table
 
-If a question is not answered by the seven plans above plus `62-wordpress.md`, surface it before guessing.
+**Do NOT duplicate CLAUDE.md content here.** Read it. Follow it. This file only adds Kilo-specific behavior.
 
-## Hard Stops
+## Kilo Completion Contract
 
-These are the small, high-blast-radius rules. The full list lives in `62-wordpress.md`; the six below are the ones that break a deploy fastest if violated. Read the rule pack for the rest before acting.
+Per `AGENTS-compact.md` COMPLETION CONTRACT, every run ends with:
 
-1. **No Alpine base images for WordPress containers.** Alpine's musl libc breaks `php-fpm` extensions WordPress depends on. Bookworm only.
-2. **No `:latest` image tag — anywhere.** Lock the PHP minor (e.g. `wordpress:php8.3-fpm-bookworm`); upstream rolls break container immutability.
-3. **Only `/var/www/html/wp-content` is a named volume.** Never bind-mount the whole web root — it defeats containerised core updates and breaks permissions.
-4. **The five Cloudflare WAF rules are mandatory** (bot skip → `wp-login.php` POST challenge → `xmlrpc.php` block → `wp-admin` challenge → VPN ASN challenge). Sites without all five are not allowed to go live.
-5. **`wp-config.php` must set `DISALLOW_FILE_EDIT`, `DISALLOW_FILE_MODS`, `FORCE_SSL_ADMIN`, and `DISABLE_WP_CRON`** — and `WP_DEBUG=true` paired with `WP_DEBUG_DISPLAY=false` (DEBUG must be true for the log to write).
-6. **Secrets via environment variables only.** Never hardcode DB credentials, salts, or API keys in `wp-config.php` or any version-controlled file. Coolify env injection or `WORDPRESS_CONFIG_EXTRA` is the only path.
+1. **IMPLEMENT** — execute the watchdog cycle (daily/weekly/monthly/event)
+2. **QUALITY GATE** — verify actions completed:
+   - Content published? Check `fabrik content publish` exit code + post count
+   - Links fixed? Check redirect count created
+   - Plugins updated? Check `wp plugin list` before/after
+   - Reports sent? Check Apprise response code
+3. **CHANGELOG** — N/A for watchdog runs (no code repo changes)
+4. **EXIT 0** — clean exit signals completion to systemd/cron
 
-**Kilo-specific:** Kilo's dispatcher does **not** auto-load `.windsurf/rules/` packs the way Windsurf Cascade does. When in doubt about any WordPress-factory decision, **read [`../../.windsurf/rules/62-wordpress.md`](../../.windsurf/rules/62-wordpress.md) directly before acting** — do not infer the rule from context. The repo-root `AGENTS-compact.md` carries the always-on cross-cutting rules per `AGENTS.md § Rule-Pack Injection`; topical packs (including `62-wordpress.md`) require an explicit read.
+## Kilo Budget Awareness
 
-## What's Already Built (don't recreate)
+Kilo CLI tracks token usage. Be aware:
 
-The factory engine is ~9,700 LoC of working code. Re-using it is correct; rebuilding it is not. From [`../../docs/development/plans/wordpress/00-vision.md`](../../docs/development/plans/wordpress/00-vision.md) "What's Built vs What's New":
+- Tier 1 (daily) = zero LLM cost. Pure CLI commands.
+- Tier 2 (weekly) = max `config.tier2.max_calls_per_week` calls. If you're invoked for Tier 2, count your calls.
+- Tier 3 (monthly) = max `config.tier3.budget_cap_monthly_usd`. Report remaining budget in monthly report.
+- If budget exhausted mid-run → complete current action, skip remaining LLM decisions, report "budget exhausted" in daily report, continue Tier 1 tasks only.
 
-| Component | Status |
-|---|---|
-| WordPress engine (13-stage deploy pipeline) | Built (~9,700 LoC) |
-| 6 presets / 8 profiles + 3-layer spec merge | Built |
-| 10-layer security model (automated via templates) | Built |
-| 4-layer caching (Cloudflare + Nginx FastCGI + Redis Object + WP transients) | Built |
-| Monitoring (Gatus + GlitchTip + Grafana + Backrest → B2) | Built |
-| Content pipeline (SEO → TCO → Image Broker → WP REST → publish) | Built |
-| Domain provisioning + search-engine registration | Built |
-| Analytics injection (GA4 / GTM / Schema / OG) | Built |
-| 125 premium plugins bundled + licensed | Built |
-| Bilingual support (Polylang Pro + AutoPoly + Translator API) | Decided + wired |
-| 8 Makefile ops (`update`, `cache-flush`, `backup`, `harden`, etc.) | Built |
-| Golden base Docker image | **To build — Phase 2** |
-| GUI wizard + operations dashboard | **To build — Phases 3 + 4** |
-| Watchdog AI (autonomous site admin) | **To build — Phase 5** |
-| `fabrik-api` HTTP bridge | **To build — Phase 3** |
-| `FABRIK_EXEC_MODE=local` env-gate | **To build — Phase 1 (in flight)** |
+## Kilo Error Handling
 
-Before adding any module under `src/fabrik/wordpress/`, search the tree for an existing implementation. Most "new" engine work is an extension of an existing stage, registrar, or driver.
+If a command fails during execution:
 
-## Phase Boundaries
+1. Log the error (stderr → journalctl via systemd)
+2. Do NOT retry indefinitely. Max 1 retry per command.
+3. If retry fails → log + report to Telegram + continue with next task
+4. Never let one failed task block the entire daily cycle
+5. Exit code: 0 if ≥1 task succeeded. Non-zero only if ALL tasks failed (triggers systemd OnFailure → Apprise → Telegram)
 
-The current Epic is **Phase 1 — Foundation**. Its boundary is the Out-of-Scope list of its Epic Brief — those items are explicitly deferred. Do not pull them forward.
+## Kilo Session Continuity
 
-| Phase | Owns | Out of Scope for This Phase |
-|---|---|---|
-| **1 — Foundation (current)** | `FABRIK_EXEC_MODE` env-gate; finalised `ocoron.com` spec (DRAFT → READY, WPML → Polylang); first end-to-end VPS deploy; agent guardrails (this file + `CLAUDE.md`) | Golden-base image, layered profile images, `fabrik wp create / preview / promote`, `fabrik-api`, GUI, Watchdog, multi-tenant fields |
-| **2 — Golden Base** | Baked Docker image with the 11 BASE plugins, security baked in, MariaDB 10.11 + Nginx hardened | GUI wizard, Watchdog, content cadence beyond Phase 1's fixed cron |
-| **3 — `fabrik-api`** | HTTP bridge for the GUI / remote control | Front-end UI itself |
-| **4 — Control Panel** | GUI wizard + operations dashboard | Watchdog autonomy |
-| **5 — Watchdog AI** | Per-site daily / weekly / monthly autonomous admin | Multi-tenant, billing |
-| **6 — SaaS Readiness** | `owner_id` field, multi-VPS routing, Paddle/Stripe hooks | Customer onboarding flows |
+Traycer may invoke you with `TRAYCER_TASK_ID` and `TRAYCER_PHASE_ID`:
 
-If a ticket scope appears to require work from a later phase, **stop and flag it** before editing. Carrying scope forward silently is the most common failure mode here.
+- Use `TRAYCER_PHASE_ID` as session title for continuity within a watchdog run
+- If re-invoked for verification fix (same PHASE_ID) → you have context from the original run
+- If invoked with NEW PHASE_ID → fresh cycle, read config fresh
+
+## Config & References
+
+- `configs/watchdog.yaml` — YOUR per-site config (read at start of every run)
+- `CLAUDE.md` (this directory) — full operational manual (THE source of truth for what to do)
+- `.windsurf/rules/62-wordpress.md` — WordPress rules (READ explicitly before infrastructure decisions)
+- `AGENTS-compact.md` — cross-cutting rules (auto-loaded via opencode.json)
+- `site.yaml` — site specification
+- `docs/RESILIENCE.md` — dependency timeout/retry table
 
 ---
 
-Keep this file under 200 lines. If a topic needs more depth, put it in the canonical rule pack or a plan doc and link from here.
+You are not maintaining a website. You are GROWING A BUSINESS. Read `CLAUDE.md` for the full playbook. Act like a $100k/year marketer, not a sysadmin.

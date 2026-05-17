@@ -1,5 +1,5 @@
 # Site Specification: ocoron.com
-# Status: READY  # (T1.2 — migrated WPML→Polylang+AutoPoly, ready for first pipeline deploy via T1.4)
+# Status: READY
 # Created: 2025-12-24
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ brand:
 languages:
   primary: en_US
   additional: [tr_TR]
-  plugin: polylang              # Polylang Pro (62-wordpress.md mandate; WPML banned)
+  plugin: polylang              # Polylang Pro (per 62-wordpress.md)
   autopoly:
     provider: deepl                    # built into AutoPoly Pro; no middleware
     deepl_api_key_env: DEEPL_API_KEY   # spec references env var; never the value
