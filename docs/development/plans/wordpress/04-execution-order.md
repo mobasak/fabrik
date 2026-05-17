@@ -95,7 +95,7 @@
 | # | What | Effort | Depends on |
 |---|---|---|---|
 | 4.1 | `fabrik scaffold fabrik-control-panel --type saas-skeleton` | 30min | Phase 3 |
-| 4.2 | Creation wizard Screen 1: preset picker (5 cards: company/saas/content/landing/ecommerce with descriptions) | 3h | 4.1 |
+| 4.2 | Creation wizard Screen 1: preset picker (6 cards: company/saas/content/landing/ecommerce/appointments with descriptions) | 3h | 4.1 |
 | 4.3 | Creation wizard Screen 2: domain (availability check via fabrik-api, buy/provision flow) | 3h | 4.2 + 3.6 |
 | 4.4 | Creation wizard Screen 3: brand (manual OR AI-generate via brand-identity-creator, live preview) | 4h | 4.3 + 3.5 |
 | 4.5 | Creation wizard Screen 4: content (services/features/products per preset, bilingual en+tr fields) | 3h | 4.4 |
@@ -190,11 +190,12 @@ Built incrementally. Each tier validated before enabling next.
 |---|---|---|---|
 | Phase 0 (Decisions) | 1h (meeting) | 1 hour | 1h |
 | Phase 1 (Foundation) | ~8h | 1 day | 9h |
-| Phase 2 (Golden Base) | ~25h | 3 days | 32h |
-| Phase 3 (API Bridge) | ~22h | 3 days | 54h |
-| Phase 4 (GUI) | ~37h | 5 days | 91h |
-| Phase 5 (Watchdog) | ~56h | 8 days + validation | 147h |
-| Phase 6 (Scaling) | ~32h | 4 days | 179h |
+
+| Phase 2 (Golden Base) | ~25h | 3 days | 34h |
+| Phase 3 (API Bridge) | ~22h | 3 days | 56h |
+| Phase 4 (GUI) | ~37h | 5 days | 93h |
+| Phase 5 (Watchdog) | ~56h | 8 days + validation | 149h |
+| Phase 6 (Scaling) | ~32h | 4 days | 181h |
 | **Total** | **~181 hours** | **~25 focused days** | |
 
 Note: Phases 5-6 can start in parallel with Phase 4 (Tier 1 watchdog doesn't need GUI).

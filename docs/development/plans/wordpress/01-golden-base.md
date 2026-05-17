@@ -71,7 +71,7 @@ Everything from `62-wordpress.md` rules + plugin-stack.md BASE tier. These are i
 - Which languages active (default: en + tr)
 - Default language (default: en)
 - URL structure (default: directory /en/, /tr/)
-- AutoPoly translation provider URL (default: your Translator API)
+- AutoPoly: `DEEPL_API_KEY` env var (calls DeepL directly, no middleware)
 
 ## What STAYS OUT (per-site variables, applied at deploy time)
 
@@ -82,7 +82,7 @@ Everything from `62-wordpress.md` rules + plugin-stack.md BASE tier. These are i
 | blogname, tagline, email, timezone, permalinks | Stage 2 (Settings) | site.yaml `site.*` |
 | Brand colors + fonts | Stage 3 (Theme) | site.yaml `brand.*` via Customizer API |
 | Profile plugins (e.g., FluentCRM, WooCommerce, Bookly) | Stage 4 (Plugins) — ADDITIONS ONLY | Preset profile → local zips |
-| Polylang/WPML locale activation (which languages) | Stage 5 (Languages) | site.yaml `languages.*` |
+| Polylang locale activation (which languages active) | Stage 5 (Languages) | site.yaml `languages.*` |
 | Pages + content | Stage 6 (Pages) | site.yaml `pages` + entities |
 | Navigation menus | Stage 7 (Menus) | site.yaml `navigation` |
 | Contact forms | Stage 8 (Forms) | site.yaml `contact` / `forms` |

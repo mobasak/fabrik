@@ -61,7 +61,7 @@ One baked Docker image. Everything that's IDENTICAL across all sites is pre-inst
 - Upload: PHP execution blocked in /uploads/
 - Outbound: WP_HTTP_BLOCK_EXTERNAL (only api.wordpress.org allowed)
 
-**BASE Plugins (8, pre-installed):** GeneratePress + GP Premium, RankMath Pro, FlyingPress, WP Mail SMTP Pro, WP Staging Pro, Redis Object Cache, Complianz Pro, Cloudflare Turnstile. (Wordfence is OPTIONAL — security handled outside WP. AutomatorWP is per-profile.)
+**BASE Plugins (11, pre-installed in golden image):** GeneratePress + GP Premium, RankMath Pro, FlyingPress, WP Mail SMTP Pro, WP Staging Pro, Object Cache Pro, Complianz Pro, Cloudflare Turnstile, Polylang Pro, AutoPoly Pro, SearchWP Polylang. (Wordfence is OPTIONAL. AutomatorWP is per-profile.)
 
 **Caching (4-layer, pre-configured):** Cloudflare edge + Nginx FastCGI + Redis Object + WP transients. WooCommerce bypass rules. GDPR consent awareness.
 
@@ -273,7 +273,7 @@ Each preset defines: page templates with section types, entities that auto-gener
 | Component | Status | LoC |
 |---|---|---|
 | WordPress engine (13-stage deploy pipeline) | ✅ Built | 9,700 |
-| 5 presets + spec system (3-layer merge) | ✅ Built | — |
+| 6 presets (8 profiles) + spec system (3-layer merge) | ✅ Built | — |
 | 10-layer security (automated via templates) | ✅ Built | — |
 | 4-layer caching (atomic flush) | ✅ Built | — |
 | Monitoring (Gatus + GlitchTip + Grafana + Backrest) | ✅ Built | — |
