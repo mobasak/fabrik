@@ -384,7 +384,12 @@ fabrik wp promote <site>
 | Dependency | Status | Blocker? |
 |---|---|---|
 | `FABRIK_EXEC_MODE=local` | Not implemented | YES — first-boot script runs on VPS |
-| Polylang Pro + AutoPoly zips in premium/ | DECIDED — need to add zips | Add 5 Polylang zips to `templates/wordpress/plugins/premium/` |
+| Polylang Pro + AutoPoly zips in premium/ | ✅ DONE — added to `Polylang/` subfolder | — |
+| `WP_ADMIN_PASSWORD` env var | Must be set per-site | First-boot + REST API stages crash without it |
+| `DEEPL_API_KEY` env var | Must be set | AutoPoly needs it for auto-translation |
+| VPS DNS Manager running | ✅ Production | Domain provisioning requires it |
+| Redis-main running | ✅ Production | Object cache requires it |
+| Cloudflare zone activation (async) | N/A for golden base build | Only matters at deploy time (can take minutes for new domains) |
 | Redis-main running on VPS | ✅ Running | No |
 | Traefik running on VPS | ✅ Running | No |
 | Local Docker registry on VPS | Not set up | Mild — can use local image without registry |
