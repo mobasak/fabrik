@@ -30,6 +30,7 @@ Deploy orchestrator. Same as `07-execute` but the ticket contains infrastructure
 - Agent runs it on VPS (requires `FABRIK_EXEC_MODE=local` or SSH access).
 - Validate AFTER: registrars present? Health 200? State file written?
 - Operator presence recommended for first-ever deploys (Coolify v4 quirks).
+- Every deploy follows `docs/reference/fabrik-lifecycle.md` § Stage 3 (Registration) + § Stage 4 (Verification). The lifecycle is the contract — the deploy ticket executes stages 3+4.
 
 ## Processing User Request
 
@@ -39,6 +40,7 @@ Deploy orchestrator. Same as `07-execute` but the ticket contains infrastructure
 - Deploy Plan (04) — shape, compose contract, registrar surface, env vars
 - INFRA-CHECK — Port, Scaffold, Shape
 - Epic Brief — Success Criteria the deploy must satisfy
+- `docs/reference/fabrik-lifecycle.md` § Stage 3 + 4 — the deploy contract (synced to every project via `sync_enforcement_to_projects.py`)
 
 ### Step 2: Construct Deploy Ticket
 
