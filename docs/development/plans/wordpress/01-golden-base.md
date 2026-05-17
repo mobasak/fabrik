@@ -64,7 +64,6 @@ Everything from `62-wordpress.md` rules + plugin-stack.md BASE tier. These are i
 | AutoPoly | YES | Installed. Connected to your Translator API (DeepL via port 18012) per-site env var `TRANSLATOR_API_URL`. Auto-translates on publish. |
 | SearchWP Polylang | YES | Installed. Activates alongside SearchWP. |
 | Polylang for WooCommerce | NO (ecommerce profile) | Installed at Stage 4 (plugins) for ecommerce sites only |
-| Polylang for AMP | NO (optional) | Only if AMP needed |
 
 **Replaces:** ~~WPML CMS~~, ~~WPML String Translation~~, ~~SearchWP WPML~~. Remove these from all profiles.
 
@@ -179,16 +178,19 @@ COPY templates/wordpress/golden/mu-plugins/ /var/www/html/wp-content/mu-plugins/
 COPY templates/wordpress/golden/themes/generatepress/ /var/www/html/wp-content/themes/generatepress/
 COPY templates/wordpress/golden/themes/flavor/ /var/www/html/wp-content/themes/flavor/
 
-# BASE plugins: extract zips to plugins/ (don't activate — needs DB)
-COPY templates/wordpress/plugins/premium/generatepress-premium-*.zip /tmp/
-COPY templates/wordpress/plugins/premium/seo-by-rank-math-pro-*.zip /tmp/
-COPY templates/wordpress/plugins/premium/flyingpress-*.zip /tmp/
-COPY templates/wordpress/plugins/premium/wp-mail-smtp-pro-*.zip /tmp/
-COPY templates/wordpress/plugins/premium/wp-staging-pro-*.zip /tmp/
-COPY templates/wordpress/plugins/premium/complianz-gdpr-premium-*.zip /tmp/
+# BASE plugins from premium/Base/ subfolder (extract, don't activate — needs DB)
+COPY templates/wordpress/plugins/premium/Base/*.zip /tmp/base/
 RUN cd /var/www/html/wp-content/plugins && \
-    for zip in /tmp/*.zip; do unzip -qo "$zip"; done && \
-    rm /tmp/*.zip
+    for zip in /tmp/base/*.zip; do unzip -qo "$zip"; done && \
+    rm -rf /tmp/base/
+
+# Polylang plugins from premium/Polylang/ subfolder
+COPY templates/wordpress/plugins/premium/Polylang/4v9GYSuEjJbq-polylang-pro_3.8.1.zip /tmp/polylang/
+COPY templates/wordpress/plugins/premium/Polylang/z8bA9Xx4R9Fr-autopoly-ai-translation-for-polylang-pro.zip /tmp/polylang/
+COPY templates/wordpress/plugins/premium/Polylang/S4MAzrToWLOA-searchwp-polylang-1.5.0.zip /tmp/polylang/
+RUN cd /var/www/html/wp-content/plugins && \
+    for zip in /tmp/polylang/*.zip; do unzip -qo "$zip"; done && \
+    rm -rf /tmp/polylang/
 
 # Redis Object Cache drop-in
 COPY templates/wordpress/golden/object-cache.php /var/www/html/wp-content/object-cache.php
@@ -206,6 +208,31 @@ COPY templates/wordpress/base/php-fpm/zz-fabrik-listen.conf /usr/local/etc/php-f
 # Volume: only wp-content (per 62-wordpress.md)
 VOLUME /var/www/html/wp-content
 ```
+
+### Plugin Folder Structure (after reorganization)
+
+```
+templates/wordpress/plugins/premium/
+├── Base/              (7) — golden image: RankMath, GP Premium, FlyingPress, WP Mail SMTP, WP Staging, Complianz, Object Cache Pro
+├── Polylang/          (8) — Polylang Pro, AutoPoly, SearchWP Polylang, Polylang WC, Formidable Polylang, WP Sheet Editor Polylang, AMP (unused)
+├── Fluent/            (2) — Forms Pro, Campaign/CRM Pro
+├── Thrive/            (11) — Architect, Leads, Ovation, Ultimatum, Comments, Quiz Builder, Headline Optimizer, Clever Widgets, Automator, Apprentice, Theme
+├── Bookly/            (32) — PRO + all addons (appointments profile)
+├── SearchWP/          (4) — Core, Metrics, WooCommerce, Polylang integration
+├── AutomatorWP/       (9) — Core + FluentCRM, WhatsApp, OpenAI, ACF, CSV, AffiliateWP, MemberPress, Thrive Apprentice
+├── AffiliateWP/       (9) — Core + Multi-Tier, Portal, Lifetime, Recurring, Custom Slugs, Fraud Prevention, Dashboard Sharing, Product Rates
+├── EDD/               (17) — Pro + PayPal, Content Restriction, Free Downloads, Reviews, Custom Prices, Recommended Products, Fraud Monitor, etc.
+├── WooCommerce/       (8) — Subscriptions, Table Rate Shipping, Advanced Shipping, FedEx, Photo Reviews, Memberships, Abandoned Cart, WhatsApp
+├── MemberPress/       (3) — Core, Corporate
+├── AutomateWoo/       (3) — Core, Referrals, Birthdays
+├── ContentSEO/        (6) — Link Whisper, Content Egg, Essential Grid, Table Builder, Go Pricing, Testimonial Pro
+├── ConversionMarketing/ (9) — PixelYourSite, Chaty, Novashare, ConvertPro, SeedProd, Cart Lift, WhatsApp Rotator
+├── Security/          (2) — Wordfence (optional, high-risk sites only)
+├── WPML/              (2) — ARCHIVED: replaced by Polylang. Keep for reference only.
+└── Misc/              (1) — Fields
+```
+
+Build script reads from specific subfolders, NOT `**/*.zip` recursively. This prevents accidentally baking profile-specific plugins into the golden base.
 
 ### Golden Base Update Cycle
 

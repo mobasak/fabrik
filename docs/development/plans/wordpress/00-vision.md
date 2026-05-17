@@ -229,7 +229,6 @@ Each profile has: Essential (always install), High Value (likely need), Situatio
 | **AutoPoly – AI Translation for Polylang** | Auto-translates posts on publish. Connects to DeepL/Google via your Translator API (port 18012). Zero manual translation. | YES |
 | **SearchWP Polylang Integration** | Search results respect active language | YES |
 | **Polylang for WooCommerce** | Products/cart/checkout/emails per language | Ecommerce profile only |
-| **Polylang for AMP** | AMP pages multilingual | If AMP needed |
 
 **How it works with your content pipeline:**
 1. TCO generates English article

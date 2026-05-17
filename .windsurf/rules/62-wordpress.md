@@ -127,14 +127,29 @@ add_header X-XSS-Protection "1; mode=block" always;
 - Admin password must be **32 characters, CSPRNG** (`secrets.choice()` over `[a-zA-Z0-9]`). The password policy from `.windsurfrules` applies.
 - Limit admin accounts to exactly **one** per site. Additional users get Editor role maximum.
 
-### Security Plugin (MANDATORY)
+### Security Plugin (OPTIONAL — high-risk sites only)
 
-- **Wordfence** is the selected security plugin (included in `defaults.yaml` base stack and available as premium ZIP).
-- Must be installed and activated on every site immediately after deploy: `wp plugin install wordfence --activate --allow-root`.
-- Enable: brute-force protection, login rate limiting, file integrity monitoring, malware scan.
-- Wordfence firewall mode must be set to **Extended Protection** after initial setup.
-- **Brute-force lockout:** lock after **5 failed attempts**; immediately block any login attempt using username `admin`.
-- **2FA:** enable two-factor authentication for all Administrator and Editor roles via Wordfence Login Security. This is mandatory post-deploy (`make harden` prints the reminder).
+Security is handled by 10 layers OUTSIDE WordPress (Cloudflare WAF, Nginx hardening, MU-plugins, rate limiting, REST lockdown, xmlrpc block, footprint removal, admin hardening, upload protection, outbound blocking). Wordfence adds an 11th layer for high-risk sites.
+
+**Install Wordfence ONLY when:**
+- WooCommerce site with customer login (payment data risk)
+- Membership site with many editors/authors
+- High-traffic site (>50k monthly visitors)
+- Site accepts user-generated content (forums, comments enabled)
+
+**When installed:**
+- `wp plugin install wordfence --activate --allow-root`
+- Enable: brute-force protection (lock after **5 failed attempts**), file integrity monitoring, malware scan.
+- Wordfence firewall mode: **Extended Protection**.
+- Immediately block any login attempt using username `admin`.
+- **2FA:** enable for all Administrator and Editor roles via Wordfence Login Security.
+
+**When NOT installed (majority of factory sites):**
+- Cloudflare WAF handles bot protection + login challenge
+- Traefik rate-limits wp-login.php (10/min/IP)
+- MU-plugins block REST enumeration + anon writes
+- Admin hardening (32-char password, no "admin" username) prevents brute-force
+- Cloudflare Turnstile protects forms from spam
 
 ### Post-Deploy Security Checklist
 
@@ -143,9 +158,9 @@ Every new WordPress site must complete these steps **before going live**:
 1. [ ] Admin username is NOT `admin` — use a unique, non-guessable name
 2. [ ] Admin password is 32-char CSPRNG
 3. [ ] `xmlrpc.php` is blocked (verify: `curl -sI https://domain.com/xmlrpc.php` returns 403/404/444)
-4. [ ] Wordfence installed, activated, firewall in Extended Protection mode
-5. [ ] Wordfence 2FA enabled for all admin/editor roles
-6. [ ] Wordfence brute-force: lock after 5 failed attempts, block `admin` username
+4. [ ] Wordfence installed ONLY if high-risk (WooCommerce/membership/high-traffic). If installed: firewall Extended Protection, 2FA for admin/editor, brute-force lock after 5 attempts, block `admin` username.
+5. [ ] Polylang Pro + AutoPoly configured: EN + TR active, directory URLs, AutoPoly connected to Translator API (`TRANSLATOR_API_URL`)
+6. [ ] SearchWP Polylang Integration active (search respects language)
 7. [ ] `DISALLOW_FILE_EDIT` and `DISALLOW_FILE_MODS` are `true` in wp-config
 8. [ ] `wp-login.php` rate-limited via Traefik middleware
 9. [ ] No default/sample content remains (Hello World post, Sample Page)
@@ -172,10 +187,50 @@ Every new WordPress site must complete these steps **before going live**:
 - **MeiliSearch frontend search:** for content-heavy sites (>100 posts), index content to the internal **MeiliSearch** container (see `specs/infrastructure/meilisearch.yaml`) via a publish webhook or plugin. Native WP search executes full-text queries against MariaDB on every request — this does not scale.
 - **Head cleanup / CMS footprint obscurity:** every site must include a `mu-plugin` or child theme `functions.php` that removes: `wp_generator` (WP version in `<head>`), RSD link, Windows Live Writer manifest, shortlinks, emoji JS/CSS, RSS feed links, and `?ver=` version strings from script/style URLs. Leaking the WP version number allows targeted exploitation of known CVEs.
 
-## Multi-Language
+## Multi-Language — Polylang Pro Ecosystem
 
-- Use **Polylang** (native WordPress taxonomy-based translation). Lightweight, scales linearly.
-- **Banned**: WPML (proprietary DB tables, bloat), TranslatePress (CPU-heavy DOM parsing on every load).
+Use the **Polylang Pro** ecosystem (native WordPress taxonomy-based translation). Lightweight, no extra DB tables, scales linearly.
+
+**Required plugins (in golden base):**
+
+| Plugin | Role |
+|---|---|
+| **Polylang Pro** | Core: separate posts per language, menu translation, string translation, URL routing (/en/, /tr/), hreflang, REST API `lang` parameter, ACF field translation, custom post type support |
+| **AutoPoly – AI Translation for Polylang** | Auto-translates on publish. Connects to Fabrik Translator API (DeepL/Azure, port 18012). Zero manual translation. |
+| **SearchWP Polylang Integration** | Search results filtered by active language |
+
+**Per-profile (ecommerce only):**
+
+| Plugin | Role |
+|---|---|
+| **Polylang for WooCommerce** | Product/cart/checkout/email language sync, per-language currency |
+
+**AMP is NOT used.** Google dropped AMP preferential ranking in 2021. FlyingPress + Cloudflare APO + Nginx FastCGI cache delivers <50ms TTFB without AMP complexity. Polylang for AMP zip is owned but never installed.
+
+**Configuration (applied in Stage 5 — Languages):**
+- Default language: `en` (English)
+- Additional: `tr` (Turkish) — always. More languages added via site.yaml.
+- URL structure: directory-based (`/en/services/`, `/tr/hizmetler/`)
+- Hreflang: automatic (Polylang generates `<link rel="alternate" hreflang="...">`)
+- AutoPoly provider: `TRANSLATOR_API_URL` env var pointing to your Translator service
+
+**How automated content gets translated:**
+1. Content pipeline publishes EN post via REST API
+2. AutoPoly triggers → calls Translator API → creates linked TR post automatically
+3. OR: pipeline calls `pll_save_post_translations(en_id, ['tr' => tr_id])` directly
+
+**What Polylang Pro translates (no custom code needed):**
+- Posts + pages (linked copies)
+- Menus (one per language, structure synced)
+- Theme/plugin strings (registered `__()` calls)
+- Widgets (per-language visibility)
+- Custom post types + taxonomies
+- ACF custom fields
+
+**Banned:**
+- WPML (proprietary `icl_*` DB tables, performance degradation at scale, license workaround fragility)
+- TranslatePress (CPU-heavy DOM parsing on every page load, not automation-friendly)
+- Manual translation workflows (all translation via Translator API — zero human involvement)
 
 ## WooCommerce
 
@@ -189,7 +244,7 @@ Every new WordPress site must complete these steps **before going live**:
   - `make cache-flush` — `wp cache flush`
   - `make scaffold` — permalinks, Redis Object Cache, delete sample content, close comments on old posts, **clear default sidebar widgets**, **delete all inactive themes**
   - `make backup` — trigger server-level backup script
-  - `make harden` — install Wordfence, check admin username, verify xmlrpc blocked, print 2FA/brute-force reminders
+  - `make harden` — check admin username, verify xmlrpc blocked, verify Polylang active, optionally install Wordfence (high-risk sites), print security reminders
   - `make security-check` — verify xmlrpc blocked, Wordfence active, admin user not `admin`
   - `make warm-cache` — purge Cloudflare zone cache (via API), then parse sitemap and hit all URLs with 8 parallel curl workers to pre-prime FastCGI cache
   - `make rename-admin NEW_USER=<name>` — rename the admin account
@@ -258,10 +313,10 @@ Every new WordPress site must complete these steps **before going live**:
 | Hardcoded secrets in `wp-config.php` | Environment variables via Coolify |
 | Active `xmlrpc.php` endpoint | Block at Nginx/Traefik level (403/444) |
 | `admin` as WordPress username | Unique, non-guessable admin username |
-| No security plugin installed | Wordfence (mandatory on every site) |
+| No security hardening | 10-layer hardening (WAF + Nginx + MU-plugins + rate limiting). Wordfence optional for high-risk. |
 | Unprotected `wp-login.php` | Rate-limit via Traefik middleware |
 | Heavy page builders (Elementor, Divi, WPBakery) | Gutenberg Block Themes / GeneratePress |
-| WPML or TranslatePress for i18n | Polylang (native taxonomy) |
+| WPML or TranslatePress for i18n | Polylang Pro + AutoPoly + Translator API (see §Multi-Language) |
 | Manual WooCommerce tax tables | WooCommerce Shipping & Tax plugin (API-based) |
 | PHP backup plugins (UpdraftPlus, BackWPup) | Server-level `mysqldump` + `tar` → S3 |
 | `DISALLOW_FILE_EDIT` only | Also set `DISALLOW_FILE_MODS=true` |
@@ -292,9 +347,10 @@ Every new WordPress site must complete these steps **before going live**:
 - [ ] Makefile exists with `update`, `cache-flush`, `scaffold`, `backup`, `harden`, `security-check`, `warm-cache`, `db-clean` targets.
 - [ ] Server-level backup script syncs DB dump + wp-content to S3.
 - [ ] No PHP caching plugins, no heavy page builders, no WPML/TranslatePress installed.
+- [ ] Polylang Pro + AutoPoly installed and configured (EN + TR, directory URLs, AutoPoly connected to Translator API).
 - [ ] Admin username is not `admin` — unique, non-guessable name used.
 - [ ] Admin password is 32-char CSPRNG.
-- [ ] Wordfence installed, activated, firewall in Extended Protection mode, 2FA enabled for admin/editor.
+- [ ] Wordfence installed ONLY if high-risk site (WooCommerce, membership, high-traffic). Otherwise: 10-layer hardening covers security.
 - [ ] `xmlrpc.php` returns 403/404/444 when tested externally.
 - [ ] `/wp-json/wp/v2/users` returns 403.
 - [ ] `wp-login.php` rate-limited via Traefik middleware.
