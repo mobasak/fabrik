@@ -18,14 +18,29 @@ class ContainerNotFoundError(Exception):
     pass
 
 
+def _get_exec_mode() -> str:
+    """Resolve FABRIK_EXEC_MODE env var (default 'ssh'; fail-fast on bad value)."""
+    mode = os.getenv("FABRIK_EXEC_MODE", "ssh").lower()
+    if mode not in ("ssh", "local"):
+        raise ValueError(f"FABRIK_EXEC_MODE must be 'ssh' or 'local', got {mode!r}")
+    return mode
+
+
 class ContainerResolver:
     """Resolves a WordPress container name."""
 
-    def __init__(self, site_name: str, ssh_host: str = "vps", timeout: int = 10):
+    def __init__(
+        self,
+        site_name: str,
+        ssh_host: str = "vps",
+        timeout: int = 10,
+        exec_mode: str | None = None,
+    ):
         """Initialize resolver."""
         self.site_name = site_name
         self.ssh_host = ssh_host
         self.timeout = timeout
+        self.exec_mode = exec_mode or _get_exec_mode()
         self._cached: str | None = None
 
     def _slug(self) -> str:
@@ -40,12 +55,24 @@ class ContainerResolver:
 
         try:
             # Try exact match first (Docker Compose without -1 suffix)
-            result = subprocess.run(
-                [
+            if self.exec_mode == "local":
+                exact_cmd = [
+                    "sudo",
+                    "docker",
+                    "ps",
+                    "--filter",
+                    f"name={self.site_name}-wordpress",
+                    "--format",
+                    "{{.Names}}",
+                ]
+            else:
+                exact_cmd = [
                     "ssh",
                     self.ssh_host,
                     f"sudo docker ps --filter name={self.site_name}-wordpress --format '{{{{.Names}}}}'",
-                ],
+                ]
+            result = subprocess.run(
+                exact_cmd,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
@@ -56,12 +83,24 @@ class ContainerResolver:
                 return lines[0]
 
             # Try Docker Compose naming convention (with -1 suffix)
-            result = subprocess.run(
-                [
+            if self.exec_mode == "local":
+                prefix_cmd = [
+                    "sudo",
+                    "docker",
+                    "ps",
+                    "--filter",
+                    f"name={self.site_name}-wordpress-",
+                    "--format",
+                    "{{.Names}}",
+                ]
+            else:
+                prefix_cmd = [
                     "ssh",
                     self.ssh_host,
                     f"sudo docker ps --filter name={self.site_name}-wordpress- --format '{{{{.Names}}}}'",
-                ],
+                ]
+            result = subprocess.run(
+                prefix_cmd,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
@@ -109,16 +148,18 @@ class WordPressClient:
     Executes commands inside WordPress containers via SSH to VPS.
     """
 
-    def __init__(self, site: WPSite, ssh_host: str = "vps"):
+    def __init__(self, site: WPSite, ssh_host: str = "vps", exec_mode: str | None = None):
         """
         Initialize WordPress client.
 
         Args:
             site: WordPress site configuration
             ssh_host: SSH host alias (default: vps)
+            exec_mode: Execution mode override ('ssh' | 'local'); defaults to FABRIK_EXEC_MODE env
         """
         self.site = site
         self.ssh_host = ssh_host
+        self.exec_mode = exec_mode or _get_exec_mode()
 
     def _exec(self, wp_command: str, allow_root: bool = True) -> tuple[int, str]:
         """
@@ -132,9 +173,17 @@ class WordPressClient:
             Tuple of (exit_code, output)
         """
         root_flag = "--allow-root" if allow_root else ""
-        cmd = f"sudo docker exec {shlex.quote(self.site.container)} wp {wp_command} {root_flag}"
-
-        full_cmd = ["ssh", self.ssh_host, cmd]
+        if self.exec_mode == "local":
+            full_cmd = (
+                ["sudo", "docker", "exec", self.site.container, "wp"]
+                + shlex.split(wp_command)
+                + ([root_flag] if root_flag else [])
+            )
+        else:
+            cmd = (
+                f"sudo docker exec {shlex.quote(self.site.container)} wp {wp_command} {root_flag}"
+            )
+            full_cmd = ["ssh", self.ssh_host, cmd]
 
         result = subprocess.run(full_cmd, capture_output=True, text=True)
 

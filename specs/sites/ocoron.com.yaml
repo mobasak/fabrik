@@ -1,5 +1,5 @@
 # Site Specification: ocoron.com
-# Status: DRAFT - Needs user input
+# Status: READY  # (T1.2 — migrated WPML→Polylang+AutoPoly, ready for first pipeline deploy via T1.4)
 # Created: 2025-12-24
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -50,7 +50,11 @@ brand:
 languages:
   primary: en_US
   additional: [tr_TR]
-  plugin: wpml                  # You have WPML license
+  plugin: polylang              # Polylang Pro (62-wordpress.md mandate; WPML banned)
+  autopoly:
+    provider: deepl                    # built into AutoPoly Pro; no middleware
+    deepl_api_key_env: DEEPL_API_KEY   # spec references env var; never the value
+    auto_translate_on_publish: true
 
 timezone: "Europe/Istanbul"
 date_format: "Y-m-d"
@@ -488,9 +492,10 @@ contact:
 # ─────────────────────────────────────────────────────────────────────────────
 
 plugins:
-  # Preset (company) includes: Rank Math Pro, GP Premium, WPML, Fluent Forms, etc.
+  # Preset (company) includes: Rank Math Pro, GP Premium, Polylang Pro, Fluent Forms, etc.
   add:
-    - wpml-string-translation   # For multilingual
+    - autopoly-ai-translation-polylang   # AutoPoly Pro (DeepL-driven; see languages.autopoly)
+    - searchwp-polylang         # Polylang ↔ SearchWP bridge (golden-base multilingual trio)
     - thrive-architect          # Page building (you have license)
     - thrive-leads              # Lead capture (you have license)
     - essential-grid            # Gallery (you have license)

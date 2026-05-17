@@ -1,6 +1,10 @@
 # WordPress Deployment Workflow
 
-**Last Updated:** 2026-03-07
+**Last Updated:** 2026-05-18
+
+> Updated 2026-05-18: legacy WordPress image references corrected to `wordpress:php8.3-fpm-bookworm` (the actually-deployed PHP-FPM-behind-Nginx stack used by `templates/wordpress/base/compose.yaml.j2`).
+> Canonical reference: `.windsurf/rules/62-wordpress.md` — non-FPM WordPress images are banned.
+> Other stale content (VPS IP, SCP-based Method 2, manual WP-CLI install) is deferred to a follow-up archival pass.
 
 Complete guide to deploying WordPress sites with Fabrik, from spec creation to live site.
 
@@ -42,7 +46,7 @@ Phase 2: WordPress Configuration (Content & Settings)
 │  VPS (45.61.127.38 / vps1.ocoron.com)                        │
 │                                                              │
 │  Docker Containers:                                          │
-│  ├── ocoron-com-wordpress-1  ← WordPress + Apache + WP-CLI  │
+│  ├── ocoron-com-wordpress-1  ← WordPress + PHP-FPM 8.3 + Nginx + WP-CLI  │
 │  ├── ocoron-com-db-1         ← MariaDB                       │
 │  ├── wp-test-wordpress       ← Another site                  │
 │  └── wp-test-db              ← Another DB                    │
@@ -118,7 +122,7 @@ coolify = CoolifyClient()
 compose_yaml = """
 services:
   wordpress:
-    image: wordpress:php8.2-apache
+    image: wordpress:php8.3-fpm-bookworm
     ...
 """
 
@@ -556,7 +560,7 @@ python -c "from fabrik.wordpress import SiteDeployer; SiteDeployer('ocoron.com')
 
 ### 1. Always Use WP-CLI-Enabled Containers
 
-Standard `wordpress:php8.2-apache` does NOT include WP-CLI. Install it manually or use custom image.
+Standard `wordpress:php8.3-fpm-bookworm` does NOT include WP-CLI. Install it manually or use custom image.
 
 ### 2. Keep Specs in Version Control
 
