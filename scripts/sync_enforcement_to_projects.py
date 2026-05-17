@@ -69,7 +69,7 @@ GOVERNANCE_FILES = [
     ".windsurfrules",
     "KILO_CLI_RULES.md",
 ]
-GOVERNANCE_DIRS = [".windsurf/rules"]
+GOVERNANCE_DIRS = [".windsurf/rules", ".windsurf/workflows"]
 
 # Reference docs to sync to all projects
 REFERENCE_DOCS = [
