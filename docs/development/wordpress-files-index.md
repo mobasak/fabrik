@@ -1,6 +1,6 @@
 # Fabrik WordPress Development — Complete File Index
 
-**Generated:** 2026-04-29 (rescan v2 — added `specs/sites/`, `Makefile.wordpress`, `.droid/review-context/`, baseline fixture, live scaffold reference)
+**Generated:** 2026-04-29 (rescan v2) | **Updated:** 2026-05-17 (added content automation pipeline §1.5-1.6, consolidated ocoron specs, archived legacy plans + SOP docs)
 **Working directory:** `/opt/fabrik`
 **Scope:** Every file in this repository that participates in the WordPress site lifecycle (spec → scaffold → deploy → content → verify → ongoing ops).
 
@@ -79,20 +79,58 @@ Static catalogs of "what plugins/menus/pages should exist" — consumed by stage
 | `@/opt/fabrik/src/fabrik/drivers/wordpress.py` | 346 | High-level driver: container exec, WP-CLI wrapper, file mgmt |
 | `@/opt/fabrik/src/fabrik/drivers/wordpress_api.py` | 371 | REST API client (auth via app passwords, retry, pagination) |
 
-### 1.5 Adjacent integration points (WordPress-aware code in non-WP modules)
+### 1.5 Content Automation Pipeline (Post-Deploy)
+
+The continuous content loop that feeds WordPress sites after deployment:
+
+| File | LoC | Role |
+|------|----:|------|
+| `@/opt/fabrik/src/fabrik/orchestrator/content_publisher.py` | ~800 | Orchestrator: SEO brief → TCO generation → Image Broker → WP REST API publish. Two modes: `publish()` (batch drain) + `publish_page()` (single job) |
+| `@/opt/fabrik/src/fabrik/drivers/seo.py` | ~400 | SEO service client: site registration, keyword research jobs, brief lifecycle (claim/release/submit) |
+| `@/opt/fabrik/src/fabrik/drivers/tco.py` | ~130 | TCO (Triggered Content Orchestration) client: sends brief to AI content generation pipeline (port 8025), returns page_package with sections + JSON-LD + metadata |
+| `@/opt/fabrik/src/fabrik/drivers/image_broker.py` | ~180 | Image Broker client (port 18016): stock photo search/download with provider routing (Pexels/Pixabay), scoring, attribution |
+| `@/opt/fabrik/src/fabrik/notifications.py` | ~100 | n8n webhook notifications: fires on deploy success/failure + content publish events → Telegram |
+
+**Pipeline flow:**
+```
+fabrik seo site-register → register site in SEO service
+fabrik seo job-create → keyword research job
+fabrik seo job-run → researches → generates content briefs
+fabrik content publish <domain> →
+  1. Claim ready brief from SEO service
+  2. Send to TCO (AI generates article: sections + SEO meta + JSON-LD)
+  3. Query Image Broker for hero image (keyword-based)
+  4. Publish to WordPress via REST API (page/post + featured image)
+  5. Mark brief as published in SEO service
+  6. Fire n8n webhook → Telegram notification
+```
+
+### 1.6 Domain & Search Engine Registration
+
+| File | Role |
+|------|------|
+| `@/opt/fabrik/src/fabrik/drivers/dns.py` | Site provisioner client: domain purchase (Namecheap), DNS + CDN + WAF (Cloudflare), **Google Search Console registration**, **Bing Webmaster Tools**, **IndexNow** (Bing/Yandex/Seznam/Naver), sitemap submission |
+| `@/opt/fabrik/src/fabrik/wordpress/domain_setup.py` | WordPress-specific domain wiring: DNS records + Cloudflare zone + Traefik labels |
+
+### 1.7 Adjacent integration points (WordPress-aware code in non-WP modules)
 
 Files that import from `src/fabrik/wordpress/` or special-case `type: wordpress`:
 
-- `@/opt/fabrik/src/fabrik/cli.py` — `fabrik wp` command group (`plan`, `apply`, `verify`, `flush` subcommands)
+- `@/opt/fabrik/src/fabrik/cli.py` — `fabrik wp` command group (`plan`, `apply`, `verify`, `flush` subcommands) + `fabrik domain`, `fabrik seo`, `fabrik content` commands
 - `@/opt/fabrik/src/fabrik/scaffold.py` — `wordpress` scaffold type handler, calls `_scaffold_wordpress_templates()`
+- `@/opt/fabrik/src/fabrik/preplan.py` — preplan authoring/ingestion; `fabrik preplan new` creates intent capture docs that scaffold reads for WP projects
 - `@/opt/fabrik/src/fabrik/spec_loader.py` — branches when `type == "wordpress"` to use `wordpress/spec_loader.py`
+- `@/opt/fabrik/src/fabrik/spec_generator.py` — generates `specs/services/<id>.yaml` with shape block at scaffold time (WP gets `kind: wordpress`)
 - `@/opt/fabrik/src/fabrik/deploy_router.py` — routes `type: wordpress` projects to the WordPress engine instead of the standard orchestrator
 - `@/opt/fabrik/src/fabrik/deploy_validator.py` — WP-specific deploy-readiness checks
-- `@/opt/fabrik/src/fabrik/provisioner.py` — provisions PostgreSQL/MariaDB DB + Redis for WP
-- `@/opt/fabrik/src/fabrik/orchestrator/content_publisher.py` — drains SEO briefs into WP via `drivers/wordpress.py`
+- `@/opt/fabrik/src/fabrik/provisioner.py` — provisions MariaDB + Redis for WP
+- `@/opt/fabrik/src/fabrik/orchestrator/content_publisher.py` — drains SEO briefs into WP via `drivers/wordpress_api.py`
 - `@/opt/fabrik/src/fabrik/orchestrator/verifier.py` — WP-specific health checks (homepage 200, admin auth)
+- `@/opt/fabrik/src/fabrik/orchestrator/infrastructure.py` — dispatches registrars for WP services (gatus, glitchtip, backrest, etc.)
+- `@/opt/fabrik/src/fabrik/content/orchestrator.py` — re-export of `orchestrator.content_publisher` under canonical path
 - `@/opt/fabrik/src/fabrik/drivers/glitchtip.py` — injects GlitchTip DSN into `wp-config-extra.php`
 - `@/opt/fabrik/src/fabrik/drivers/image_broker.py` — surfaces stock-photo lookups to `wordpress/media.py`
+- `@/opt/fabrik/src/fabrik/notifications.py` — n8n webhooks for deploy + content events → Telegram
 - `@/opt/fabrik/src/fabrik/__init__.py` — re-exports
 
 ---
@@ -142,9 +180,10 @@ Files that import from `src/fabrik/wordpress/` or special-case `type: wordpress`
 
 ### 2.5 Plugin/theme bundles
 
-- `@/opt/fabrik/templates/wordpress/plugins/.gitkeep` + `templates/wordpress/plugins/premium/.gitkeep`
 - `@/opt/fabrik/templates/wordpress/plugins/premium/*.zip` — **125 premium plugin .zip files** (not enumerated here; see `find templates/wordpress/plugins/premium -name "*.zip"`)
-- `@/opt/fabrik/templates/wordpress/themes/.gitkeep` + `themes/premium/.gitkeep` + `themes/premium/README.md`
+- `@/opt/fabrik/templates/wordpress/plugins/premium/README.md` — plugin licensing notes
+- `@/opt/fabrik/templates/wordpress/plugins/premium/wp_plugins_activation_notes.md` — activation order + dependency notes
+- `@/opt/fabrik/templates/wordpress/themes/premium/README.md` — theme licensing notes
 
 > **Plugin bundle policy** — these zips are pre-licensed assets. `manifests/plugins.py` references them by slug; `stages/plugins.py` extracts + activates.
 
@@ -218,9 +257,9 @@ These exercise WP behaviour via shared modules; touch with care when refactoring
 - `@/opt/fabrik/docs/reference/wordpress/plugin-stack.md` — bundled plugin stack
 - `@/opt/fabrik/docs/reference/wordpress/plugin-evaluation.md` — plugin selection criteria
 - `@/opt/fabrik/docs/reference/wordpress/fixes.md` — known-fix recipes
-- `@/opt/fabrik/docs/reference/wordpress/01 WordPress Production SOP Enhancement.md` — **legacy/SOP**, candidate for kebab-case rename
-- `@/opt/fabrik/docs/reference/wordpress/02 Techinical Implementation Addendum.md` — **legacy** (note typo "Techinical"), rename candidate
-- `@/opt/fabrik/docs/reference/wordpress/A perfect systems architect operating a Zero-Ops pipeline.md` — **legacy prompt-style doc**, rename candidate
+- `@/opt/fabrik/docs/reference/wordpress/archived-01-wordpress-production-sop.md` — archived SOP (reference only, extracted valuable items into blazing-fast plan)
+- `@/opt/fabrik/docs/reference/wordpress/archived-02-technical-implementation-addendum.md` — archived technical addendum
+- `@/opt/fabrik/docs/reference/wordpress/archived-zero-ops-pipeline-narrative.md` — archived Zero-Ops narrative (pipeline design philosophy)
 
 ### 4.2 Workflows + architecture
 
@@ -258,9 +297,10 @@ These exercise WP behaviour via shared modules; touch with care when refactoring
 
 ### 4.4 Active development plans
 
-- `@/opt/fabrik/docs/development/plans/2026-04-13-fabrik-control-plane.md`
-- `@/opt/fabrik/docs/development/plans/2026-04-18-zero-touch-deployment.md`
-- `@/opt/fabrik/docs/development/plans/issues/2026-03-15-deployment-log.md`
+- `@/opt/fabrik/docs/development/plans/2026-05-17-wordpress-blazing-fast.md` — **current plan**: local create → VPS deploy → continuous content automation
+- `@/opt/fabrik/docs/development/plans/issues/2026-03-15-deployment-log.md` — historical deployment log
+
+Archived (2026-05-17): `2026-04-13-fabrik-control-plane.md` (chat UI — superseded by CLI pipeline), `2026-04-18-zero-touch-deployment.md` (complete — `fabrik apply` works).
 
 ### 4.5 Archived / historical (do not edit, reference only)
 
@@ -299,11 +339,9 @@ These exercise WP behaviour via shared modules; touch with care when refactoring
 
 > **Correction 2026-04-29 (rescan):** WordPress site specs ARE tracked in-repo — not under `specs/services/` (which is for Fabrik-core services) but under a dedicated **`specs/sites/`** directory. The original section overlooked this.
 
-### 7.1 `specs/sites/` — Live WordPress site specs (41 files)
+### 7.1 `specs/sites/` — Live WordPress site specs
 
-- `@/opt/fabrik/specs/sites/ocoron.com.yaml` — **canonical site spec** for `ocoron.com` (590 lines, `preset: company`, status `DRAFT - Needs user input`)
-- `@/opt/fabrik/specs/sites/ocoron.com.v2.yaml` — v2 redraft (588 lines)
-- `@/opt/fabrik/specs/sites/ocoron.com.yaml.backup` — backup of v1 (590 lines) — **rename/remove candidate** (`.backup` files violate kebab-case + cleanliness)
+- `@/opt/fabrik/specs/sites/ocoron.com.yaml` — **canonical site spec** for `ocoron.com` (588 lines, `preset: company`, status `DRAFT - Needs user input`). Consolidated 2026-05-17 (v2 became canonical; v1 + backup archived as `archived-ocoron.com.v1.*` in same dir).
 - `@/opt/fabrik/specs/sites/ocoron.com-content-plan.md` — content plan (347 lines, copy/IA/keyword strategy)
 - `@/opt/fabrik/specs/sites/ocoron.com-media/` — 36 media assets (logos, favicons, photos, brand art); referenced by `ocoron.com.yaml` `brand.logo.*` paths. Includes:
   - `Favicon/` (5 files: 16x16, 32x32, 192x192, 512x512, apple-touch + favicon.ico)
@@ -313,7 +351,12 @@ These exercise WP behaviour via shared modules; touch with care when refactoring
   - 1 stale `Zone.Identifier` marker (Windows download artifact, **delete candidate**)
   - `Ocoron Services Draft.md` — inline content draft
 
-### 7.2 Other spec areas — no WordPress refs
+### 7.2 Related service specs
+
+- `@/opt/fabrik/specs/services/seo.yaml` — SEO microservice (port 8016): keyword research, brief generation, feeds content pipeline
+- `@/opt/fabrik/specs/services/youtube.yaml` — YouTube pipeline (port 8029): content research source for SEO briefs
+
+### 7.3 Other spec areas — no WordPress refs
 
 Verified empty: `specs/services/`, `specs/operations/`, `specs/infrastructure/`, `specs/verification/`, `specs/n8n-workflows/`, `specs/ecosystem-compliance/`, `specs/worker-example.yaml`, `specs/example-api.yaml`, `specs/FABRIK_CONDUCTOR_PLAN.md` — none reference WordPress.
 
