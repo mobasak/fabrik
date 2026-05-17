@@ -385,11 +385,22 @@ fabrik wp promote <site>
 |---|---|---|
 | `FABRIK_EXEC_MODE=local` | Not implemented | YES — first-boot script runs on VPS |
 | Polylang Pro + AutoPoly zips in premium/ | ✅ DONE — added to `Polylang/` subfolder | — |
-| `WP_ADMIN_PASSWORD` env var | Must be set per-site | First-boot + REST API stages crash without it |
+| `WP_ADMIN_PASSWORD` env var | Must be set per-site (32-char CSPRNG) | First-boot + REST API stages crash without it |
 | `DEEPL_API_KEY` env var | Must be set | AutoPoly needs it for auto-translation |
 | VPS DNS Manager running | ✅ Production | Domain provisioning requires it |
 | Redis-main running | ✅ Production | Object cache requires it |
 | Cloudflare zone activation (async) | N/A for golden base build | Only matters at deploy time (can take minutes for new domains) |
+
+### AI Agents for Development (NOT in WordPress sites — for building the factory)
+
+The golden base and factory infrastructure is BUILT using AI coding agents:
+
+| Agent | Auth | Rules file | Role |
+|---|---|---|---|
+| **Claude Code** | Owner authenticates via OAuth chain (one-time) | `CLAUDE.md` | Primary coding agent. Complex/critical tickets. |
+| **Kilo CLI** | Owner provides `KILO_API_KEY` | `KILO_CLI_RULES.md` (loaded via `opencode.json` `instructions:` array) | Simple/medium tickets. Free tier preferred. |
+
+No `ANTHROPIC_API_KEY` needed in WordPress sites. Translation is handled by AutoPoly (DeepL). Content generation is handled by the SEO→TCO pipeline (separate services, not embedded in WP). The AI agents work on the FABRIK CODEBASE, not inside WordPress.
 | Redis-main running on VPS | ✅ Running | No |
 | Traefik running on VPS | ✅ Running | No |
 | Local Docker registry on VPS | Not set up | Mild — can use local image without registry |
