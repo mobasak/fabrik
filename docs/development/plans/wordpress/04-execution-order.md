@@ -33,7 +33,8 @@
 
 | # | What | Effort | Depends on |
 |---|---|---|---|
-| 1.1 | Implement `FABRIK_EXEC_MODE=local` in `src/fabrik/drivers/wordpress.py` — 1-line gate on `_exec()` and `ContainerResolver.resolve()` | 1h | Nothing |
+| 1.0 | Create project-specific `CLAUDE.md` + `KILO_CLI_RULES.md` for WordPress Factory development (rules for AI agents building this infrastructure) | 2h | Nothing |
+| 1.1 | Implement `FABRIK_EXEC_MODE=local` in `src/fabrik/drivers/wordpress.py` — 1-line gate on `_exec()` and `ContainerResolver.resolve()` | 1h | 1.0 |
 | 1.2 | Fix ocoron.com spec: WPML→Polylang Pro, fill remaining DRAFT fields, add Translator API config, change status DRAFT→READY | 2h | 0.1 ✅ resolved |
 | 1.3 | Fix `docs/reference/wordpress/deployment-workflow.md` — Apache→FPM references (outdated, contradicts 62-wordpress.md) | 30min | Nothing |
 | 1.4 | Deploy ocoron.com via pipeline: `fabrik wp plan ocoron-com && fabrik wp apply ocoron-com` | 1h | 1.1 + 1.2 |
