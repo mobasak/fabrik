@@ -16,15 +16,17 @@ Pure logic scripts. Already 80% built in existing codebase. Runs via VPS cron.
 
 | Task | Frequency | What it does | Existing code |
 |---|---|---|---|
-| Health check | Every 5 min | Query Gatus API → site up? SSL valid? | Gatus already monitors; this reads the API |
+| Health check | Every 5 min | Query Gatus API → site up? SSL valid? CWV within threshold? | Gatus already monitors; this reads the API |
 | Content publish | Daily 03:00 | Drain ready briefs → publish 2 articles | `src/fabrik/orchestrator/content_publisher.py` ✅ |
+| Social distribution | After each publish | Auto-post to social channels via n8n webhook | `src/fabrik/notifications.py` + n8n workflow |
 | Sitemap resubmit | After each publish | Notify Google/Bing/IndexNow | `src/fabrik/drivers/dns.py` → `update_sitemap()` ✅ |
-| Broken link scan | Daily 04:00 | Crawl all internal links, log 404s | NEW: simple curl loop over sitemap URLs |
+| Broken link scan | Daily 04:00 | Crawl all internal + affiliate links, log 404s | NEW: curl loop over sitemap URLs |
 | 404 → redirect | After scan | Known slug changes → auto-create 301 via RankMath | NEW: WP-CLI `wp redirection add` |
 | DB maintenance | Weekly Sun 02:00 | Prune transients, spam, revisions, optimize | `make db-clean` (Makefile target) ✅ |
-| Plugin update check | Daily 05:00 | `wp plugin list --update=available` → log | `src/fabrik/drivers/wordpress.py` WP-CLI ✅ |
+| Plugin update check | Daily 05:00 | `wp plugin list --update=available` → log + auto-apply minor with snapshot | `src/fabrik/drivers/wordpress.py` WP-CLI ✅ |
 | Cache warm | After publish | Purge CF + hit new URLs | `src/fabrik/wordpress/cache.py` → `flush_all()` ✅ |
-| Daily report | 08:00 | Template: published N, health OK/FAIL, N 404s fixed | `src/fabrik/notifications.py` → Telegram ✅ |
+| Email capture check | Weekly | Verify FluentCRM forms exist on homepage + key pages, alert if missing | NEW: curl + grep for form shortcode |
+| Daily report | 08:00 | Template: published N, health OK/FAIL, N 404s fixed, social posted | `src/fabrik/notifications.py` → Telegram ✅ |
 
 **Cron schedule:**
 ```
@@ -45,11 +47,14 @@ LLM makes specific, scoped decisions. One call per decision. Hard token cap. Use
 
 | Decision | Trigger | Input to LLM | Output | Frequency |
 |---|---|---|---|---|
-| "Which keywords next?" | Brief queue < 3 ready | GSC top 20 keywords + positions + existing briefs | 5 keyword suggestions | Weekly |
-| "Which article to refresh?" | Weekly cycle | GSC data: articles with declining impressions | 1 article slug + what to add | Weekly |
+| "Which keywords next?" | Brief queue < 3 ready | GSC top 20 keywords + positions + existing briefs | 5 keyword suggestions in cluster structure (pillar or supporting) | Weekly |
+| "Which article to refresh?" | Weekly cycle | GSC data: articles with declining impressions | 1 article slug + what to add/update | Weekly |
 | "Safe to update plugin?" | Minor update available | Plugin changelog (scraped from WP.org) | Yes/No + reason | Per update |
-| "Content plan for next week" | Monday | Last week's performance + **upcoming events from calendar-orchestration-engine** | 5 topic suggestions (keyword + timing + event hook) | Weekly |
+| "Content plan for next week" | Monday | Last week's performance + **upcoming events from calendar-orchestration-engine** | 5 topic suggestions (keyword + timing + event hook + cluster position) | Weekly |
 | "Fix this 404 pattern?" | >5 404s to same pattern | URL list + referrer data | Redirect rule suggestion | When triggered |
+| "Internal link opportunities" | Weekly | New articles published this week + existing pillar pages | Link suggestions: "Add link from [article] to [pillar] with anchor [text]" → auto-apply via WP REST API | Weekly |
+| "Newsletter content" | Weekly (if email list exists) | Last 7 days published articles | Summary draft → FluentCRM campaign (auto-send or human-approve per config) | Weekly |
+| "Topical authority gaps" | Bi-weekly | Full content inventory + keyword clusters | Missing supporting articles in each cluster. Creates SEO jobs to fill gaps. | Bi-weekly |
 
 ### Calendar-Driven Content Planning (calendar-orchestration-engine integration)
 
@@ -117,9 +122,13 @@ Full LLM reasoning for complex, infrequent decisions. Uses Claude Sonnet (better
 
 | Task | Trigger | What it does | Model |
 |---|---|---|---|
-| Monthly strategy review | 1st of month | Analyzes full month of GSC data + content performance → produces strategy doc (double down / drop / new topics) | Sonnet |
-| Competitor gap analysis | 1st of month | web-scraper output (competitor URLs + their keywords) → identifies gaps in your content | Sonnet |
-| Content quality audit | Monthly | Reads 5 lowest-performing articles → suggests: refresh / merge / delete / redirect | Sonnet |
+| Monthly strategy review | 1st of month | Analyzes full month GSC data + content performance → strategy doc (double down / drop / new topics) | Sonnet |
+| Competitor gap analysis | 1st of month | web-scraper output (competitor URLs + keywords) → gaps in your content | Sonnet |
+| Content quality audit | Monthly | Reads 5 lowest-performing articles → refresh / merge / delete / redirect | Sonnet |
+| **Site scorecard** | Monthly | KPIs: sessions, top-10 concentration, email list size, content velocity, CWV p75 LCP, new referring domains, RPM (if monetized) | Sonnet |
+| **Decision triggers** | Monthly | Evaluate: >15% MoM growth 3 months = "double down". 12 months flat = "consider selling". Report. | Sonnet |
+| **AI-Search visibility** | Monthly | Sample 10 brand queries in Claude/ChatGPT → is site cited? Track trend. | Sonnet |
+| **Topical authority review** | Monthly | Full cluster map: which pillars are strong, which have gaps, which supporting articles underperform | Sonnet |
 | PHP error diagnosis | GlitchTip spike | Reads error log + stack trace → suggests fix OR escalates | Sonnet |
 | Traffic drop analysis | >20% week-over-week | GSC + Gatus + GlitchTip data combined → root cause hypothesis | Sonnet |
 
@@ -129,6 +138,33 @@ Full LLM reasoning for complex, infrequent decisions. Uses Claude Sonnet (better
 - Plugin major updates: stages in WP Staging, reports result, human approves promotion
 - Strategy changes (new keyword domain, drop a topic) always reported, never auto-applied
 - Monthly budget hard cap: $10/site. If exceeded → Tier 3 pauses until next month.
+
+**Never automate (watchdog REPORTS only, kills the asset if automated):**
+- Final edit pass on flagship/money content pieces
+- Author POV / personal stories (your EEAT moat)
+- Pricing, positioning, sponsorship decisions
+- Selling a site decision
+- Legal/tax/compliance decisions
+- Outreach (AI personalizes, human sends)
+
+### Strategic Layers (built into Tier 2+3 logic)
+
+**Topical authority architecture:**
+- Every content brief is placed within a cluster (pillar + 15-30 supporting articles)
+- Never write isolated articles — always fill gaps in existing clusters
+- Internal links flow: supporting → pillar (watchdog enforces this weekly via Link Whisper data)
+- One site = one tight territory. Don't spread until DR 40+.
+
+**Owned audience > traffic:**
+- Every site ships with FluentCRM lead magnet + 5-email welcome sequence (deployed at Stage 8)
+- Watchdog verifies email capture forms exist on key pages (Tier 1 weekly check)
+- Watchdog assembles weekly newsletter from published content (Tier 2)
+- Push notifications via OneSignal (optional, per-site config) — 10-20% return visits
+
+**AI-Search visibility (the new SEO):**
+- Optimize for citation, not just click. Structured data, definitional intros, original data.
+- Watchdog tracks brand mentions in LLM outputs monthly (sample queries)
+- RankMath schema markup + FAQ blocks improve citation probability
 
 **Build time:** ~16 hours (competitor scraper config — 4h, strategy prompt engineering — 6h, safety/reporting — 6h).
 
