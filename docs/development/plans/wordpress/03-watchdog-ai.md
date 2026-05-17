@@ -261,43 +261,32 @@ Compare: hiring a virtual assistant for 10 sites = $500-1000/month. Watchdog = $
 
 ## Build Order (within Phase 5)
 
-| Ticket | What | Hours | Depends on |
-|---|---|---|---|
-| 5.1 | Create `src/fabrik/watchdog/` package + runner.py skeleton + per-site config format | 2h | — |
-| 5.2 | Tier 1: wire existing code into `fabrik watchdog run --daily` (health, publish, sitemap, report) | 4h | 5.1 |
-| 5.3 | Tier 1: link scanner + auto-redirect for 404s | 3h | 5.2 |
-| 5.4 | Tier 1: plugin update check + minor auto-update (stage → test → apply) | 3h | 5.2 |
-| 5.5 | Set up VPS cron for Tier 1 | 30min | 5.4 |
-| 5.6 | Test: 7 days hands-off Tier 1 on ocoron.com | ongoing | 5.5 |
-| 5.7 | GSC API integration (`gsc_client.py` + data pull + storage) | 8h | 5.6 passes |
-| 5.8 | Tier 2: analyzer.py (trend detection from GSC snapshots) | 4h | 5.7 |
-| 5.9 | Tier 2: decisions.py (LLM wrappers: keywords, refresh, plugin safety) | 4h | 5.8 |
-| 5.10 | Tier 2: weekly cycle (`fabrik watchdog run --weekly`) | 2h | 5.9 |
-| 5.11 | Test: 4 weeks Tier 2 running, verify keyword suggestions make sense | ongoing | 5.10 |
-| 5.12 | Tier 3: strategy.py (monthly review prompt, competitor gap) | 6h | 5.11 |
-| 5.13 | Tier 3: configure web-scraper for competitor domains | 4h | 5.12 |
-| 5.14 | Tier 3: monthly cycle + safety rules + escalation logic | 4h | 5.13 |
-| 5.15 | Tier 3: traffic drop / error spike event triggers | 3h | 5.14 |
-| 5.16 | Reporter: daily/weekly/monthly Telegram templates | 2h | 5.2 (can parallel) |
+**Canonical ticket numbering lives in `04-execution-order.md`.** Summary:
 
-**Total: ~50 hours across 3 tiers, built incrementally with validation between each tier.**
+| Tier | Tickets | What | Hours |
+|---|---|---|---|
+| Tier 1 | 5.1–5.7 | Package skeleton, daily cycle (health/publish/sitemap/report), link scanner, plugin updater, reporter, VPS cron, 7-day validation | ~15h |
+| Tier 2 | 5.8–5.14 | GSC API integration, analyzer, calendar-orchestration-engine integration, LLM decision wrappers, budget enforcement, weekly cycle, 4-week validation | ~21h |
+| Tier 3 | 5.15–5.20 | Strategy module, competitor config, content quality audit, event triggers, safety rules, monthly cycle | ~20h |
+
+**Total: ~56 hours across 3 tiers, built incrementally with validation gates between each.**
 
 ## Acceptance Criteria
 
-### Tier 1 (after 5.6)
+### Tier 1 (after ticket 5.7 — 7-day validation)
 - [ ] `fabrik watchdog run --daily` publishes 2 articles without intervention for 7 consecutive days
 - [ ] Daily Telegram report arrives at 08:00 with: articles published, health status, 404s fixed
 - [ ] Broken links detected and redirected within 24 hours
 - [ ] DB maintenance runs weekly without site disruption
 - [ ] Plugin minor updates applied automatically (verified via `wp plugin list`)
 
-### Tier 2 (after 5.11)
+### Tier 2 (after ticket 5.14 — 4-week validation)
 - [ ] Weekly Telegram report includes GSC data (top keywords, position changes)
 - [ ] LLM keyword suggestions create valid SEO jobs (verified: briefs generated)
 - [ ] Content refresh targets declining articles (verified: GSC position recovers within 2 weeks)
 - [ ] Max 10 LLM calls/week/site enforced (budget log shows cap respected)
 
-### Tier 3 (after 5.15)
+### Tier 3 (after ticket 5.20 — monthly cycle live)
 - [ ] Monthly strategy document generated with actionable recommendations
 - [ ] Competitor gap analysis identifies keywords they rank for that we don't
 - [ ] Traffic drop >20% triggers Telegram escalation within 1 hour

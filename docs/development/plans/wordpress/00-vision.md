@@ -61,7 +61,7 @@ One baked Docker image. Everything that's IDENTICAL across all sites is pre-inst
 - Upload: PHP execution blocked in /uploads/
 - Outbound: WP_HTTP_BLOCK_EXTERNAL (only api.wordpress.org allowed)
 
-**Plugins (25+ pre-installed):** GeneratePress Premium, RankMath Pro, FlyingPress, WP Mail SMTP Pro, WP Staging Pro, Redis Object Cache, Wordfence, Complianz Pro, AutomatorWP + integrations, Cloudflare Turnstile
+**BASE Plugins (8, pre-installed):** GeneratePress + GP Premium, RankMath Pro, FlyingPress, WP Mail SMTP Pro, WP Staging Pro, Redis Object Cache, Complianz Pro, Cloudflare Turnstile. (Wordfence is OPTIONAL — security handled outside WP. AutomatorWP is per-profile.)
 
 **Caching (4-layer, pre-configured):** Cloudflare edge + Nginx FastCGI + Redis Object + WP transients. WooCommerce bypass rules. GDPR consent awareness.
 
@@ -227,7 +227,7 @@ WPML CMS + String Translation bundled in ALL profiles. Every site is bilingual (
 
 **Decision pending (BLOCKER for golden base):** Rule pack `62-wordpress.md` mandates Polylang. All profiles currently bundle WPML. Plugin stack uses WPML. Must resolve before golden base build. Impact: golden base bakes one or the other — switching later means rebuilding the image + migrating all existing sites.
 
-## Site Presets (7 profiles mapped to 5 presets)
+## Site Presets (8 profiles mapped to 6 presets)
 
 | Preset | Profile | Auto-generates | Key entities |
 |---|---|---|---|
@@ -236,6 +236,7 @@ WPML CMS + String Translation bundled in ALL profiles. Every site is bilingual (
 | `content` | Content | Home, Blog, Category/*, Author/*, About, Legal | categories, authors |
 | `landing` | Landing | Home (full-width all sections), Legal | — |
 | `ecommerce` | Ecommerce OR Digital Products OR Membership | Home, Shop/Downloads, Cart, Checkout, Account, About, Legal | products, product_categories |
+| `appointments` | Appointments (Bookly) | Home, Services/*, Book Now, About, Contact, Blog, Legal | services, staff, locations |
 
 Each preset defines: page templates with section types, entities that auto-generate pages, profile plugins, menu structure, SEO defaults, content strategy. The `ecommerce` preset has sub-variants (WooCommerce vs EDD vs MemberPress) selected via `site.yaml` field.
 
@@ -252,7 +253,7 @@ Each preset defines: page templates with section types, entities that auto-gener
 | Domain provisioning + search engine registration | ✅ Built | — |
 | Analytics injection (GA4/GTM/Schema/OG) | ✅ Built | — |
 | 125 premium plugins bundled + licensed | ✅ Built | — |
-| Bilingual support (Polylang, locale-aware formatting) | ✅ Built | — |
+| Bilingual support (WPML currently, locale-aware formatting) | ✅ Built (WPML vs Polylang decision pending — see Phase 0 blocker) | — |
 | 8 Makefile ops (update, cache-flush, backup, harden, etc.) | ✅ Built | — |
 | **Golden base Docker image** | 🆕 To build | — |
 | **GUI wizard + operations dashboard** | 🆕 To build | — |
@@ -340,4 +341,4 @@ These rules ARE the golden base specification:
 | Schema | `templates/wordpress/schema/v1.yaml` |
 | Plugin activation notes + license keys | `templates/wordpress/plugins/premium/wp_plugins_activation_notes.md` |
 | Code classification (use/modify/archive) | `docs/development/plans/wordpress/05-code-classification.md` |
-| Execution order (5 phases) | `docs/development/plans/wordpress/04-execution-order.md` |
+| Execution order (7 phases: 0-6) | `docs/development/plans/wordpress/04-execution-order.md` |

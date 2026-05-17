@@ -33,8 +33,9 @@ Browser → fabrik-control-panel (Next.js, Coolify container, port 3004)
 ## Creation Wizard Flow
 
 ### Screen 1: Choose Preset
-- 5 cards: Company, SaaS, Content, Landing, E-commerce
+- 6 cards: Company, SaaS, Content, Landing, E-commerce, Appointments
 - Each shows: what entities it creates, sample pages, example sites
+- E-commerce has sub-variant selector (WooCommerce / EDD / MemberPress)
 - User clicks one → next screen
 
 ### Screen 2: Domain
@@ -111,6 +112,8 @@ All bilingual: English field + Turkish field side by side.
 | `/api/v1/sites/{id}/verify` | POST | Run verification checks |
 | `/api/v1/brand/generate` | POST | AI brand generation (brand-identity-creator) |
 | `/api/v1/domain/check` | GET | Domain availability |
+| `/api/v1/domain/buy` | POST | Register domain (Namecheap) |
+| `/api/v1/domain/provision` | POST | DNS + Cloudflare + GSC + Bing |
 
 ## Existing Code to Reuse
 
