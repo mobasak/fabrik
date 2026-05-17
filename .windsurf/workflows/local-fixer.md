@@ -50,7 +50,7 @@ echo "Resolve the import error in src/utils/helpers.py" | /opt/fabrik/scripts/Lo
 
 ## When NOT to Use
 
-- For automated fix loop → use `/kilo-review auto-fix` instead
+- For automated fix loop → use `/auto-review auto-fix` instead
 - For new features → use `/local-coder` instead
 - For documentation → use `/local-docs` instead
 - For architectural review → use `/local-review` instead

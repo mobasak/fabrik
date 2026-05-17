@@ -47,4 +47,4 @@ echo "Create a health check endpoint for FastAPI" | /opt/fabrik/scripts/Local_Co
 
 - For simple documentation updates → use `/local-docs` instead
 - For bug fixes → use `/local-fixer` instead
-- For code review → use `/local-review` or `/kilo-review` instead
+- For code review → use `/local-review` or `/auto-review` instead

@@ -46,10 +46,10 @@ echo "Check for SQL injection vulnerabilities in the database layer" | /opt/fabr
 
 ## When NOT to Use
 
-- For automated review loop → use `/kilo-review` instead
+- For automated review loop → use `/auto-review` instead
 - For quick bug fixes → use `/local-fixer` instead
 - For documentation → use `/local-docs` instead
 
 ## Note
 
-This is **interactive review only**. For automated review → fix → re-review workflow, use `/kilo-review`.
+This is **interactive review only**. For automated review → fix → re-review workflow, use `/auto-review`.

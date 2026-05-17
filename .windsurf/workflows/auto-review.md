@@ -1,8 +1,10 @@
 ---
-description: Kilo_Review - Automated code review workflow (review → fix → re-review loop)
+description: Auto-Review — automated review→fix→re-review loop using local LLMs (free, ~hours for big diffs)
 ---
 
-# Kilo_Review — Automated Code Review with Fix Loop
+# Auto-Review — Automated Code Review with Fix Loop
+
+> Renamed from `/kilo-review` (2026-05-17). The underlying script is still `Kilo_Review.sh` (Kilo CLI is the dispatch layer for local Ollama agents — no paid Kilo agents involved).
 
 ## When to Use
 

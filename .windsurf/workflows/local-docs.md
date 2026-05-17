@@ -53,7 +53,7 @@ echo "Write docstrings for the auth module" | /opt/fabrik/scripts/Local_Document
 
 - For code implementation → use `/local-coder` instead
 - For bug fixes → use `/local-fixer` instead
-- For code review → use `/local-review` or `/kilo-review` instead
+- For code review → use `/local-review` or `/auto-review` instead
 
 ## Performance Note
 

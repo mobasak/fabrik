@@ -21,7 +21,7 @@ This document describes all workflows available in Windsurf Cascade via the `/` 
    - [/local-review](#local-review)
    - [/local-fixer](#local-fixer)
    - [/local-docs](#local-docs)
-   - [/kilo-review](#kilo-review)
+   - [/auto-review](#auto-review)
 5. [Workflow Comparison](#workflow-comparison)
 
 ---
@@ -368,7 +368,7 @@ echo "Create a health check endpoint for FastAPI" | /opt/fabrik/scripts/Local_Co
 **When NOT to Use:**
 - Simple documentation updates → use `/local-docs`
 - Bug fixes → use `/local-fixer`
-- Code review → use `/local-review` or `/kilo-review`
+- Code review → use `/local-review` or `/auto-review`
 
 **Cost:** 🆓 **FREE** (local model)
 
@@ -413,11 +413,11 @@ echo "Check for SQL injection vulnerabilities in the database layer" | /opt/fabr
 - ✅ Zero Cost: No API charges
 
 **When NOT to Use:**
-- Automated review loop → use `/kilo-review`
+- Automated review loop → use `/auto-review`
 - Quick bug fixes → use `/local-fixer`
 - Documentation → use `/local-docs`
 
-**Note:** This is **interactive review only**. For automated review → fix → re-review workflow, use `/kilo-review`.
+**Note:** This is **interactive review only**. For automated review → fix → re-review workflow, use `/auto-review`.
 
 **Cost:** 🆓 **FREE** (local model)
 
@@ -466,7 +466,7 @@ echo "Resolve the import error in src/utils/helpers.py" | /opt/fabrik/scripts/Lo
 - ✅ Zero Cost: No API charges
 
 **When NOT to Use:**
-- Automated fix loop → use `/kilo-review auto-fix`
+- Automated fix loop → use `/auto-review auto-fix`
 - New features → use `/local-coder`
 - Documentation → use `/local-docs`
 - Architectural review → use `/local-review`
@@ -521,7 +521,7 @@ echo "Write docstrings for the auth module" | /opt/fabrik/scripts/Local_Document
 **When NOT to Use:**
 - Code implementation → use `/local-coder`
 - Bug fixes → use `/local-fixer`
-- Code review → use `/local-review` or `/kilo-review`
+- Code review → use `/local-review` or `/auto-review`
 
 **Performance Note:** This is the **fastest** local workflow due to:
 1. Small 8B model fits entirely in 8GB VRAM
@@ -532,9 +532,9 @@ echo "Write docstrings for the auth module" | /opt/fabrik/scripts/Local_Document
 
 ---
 
-### `/kilo-review`
+### `/auto-review`
 
-**Description:** Kilo_Review - Automated code review workflow (review → fix → re-review loop)
+**Description:** Auto-Review - Automated code review workflow (review → fix → re-review loop)
 
 **Script:** `/opt/fabrik/scripts/Kilo_Review.sh`
 
@@ -654,7 +654,7 @@ The reviewer enforces these Fabrik conventions:
 | `/local-review` | Local LLM | 🆓 Free | Yes | Deep review locally |
 | `/local-fixer` | Local LLM | 🆓 Free | Yes | Fast bug fixes locally |
 | `/local-docs` | Local LLM | 🆓 Free | Yes | Instant docs locally |
-| `/kilo-review` | Local LLM | 🆓 Free | Partial | Automated review loop |
+| `/auto-review` | Local LLM | 🆓 Free | Partial | Automated review loop |
 
 ### By Use Case
 
@@ -662,7 +662,7 @@ The reviewer enforces these Fabrik conventions:
 |----------|---------------------|-------------|
 | Implement new feature | `/local-coder` or `/kilo` | `/new-feature` (process) |
 | Fix a bug | `/local-fixer` | `/bug-fix` (test-first process) |
-| Code review | `/kilo-review` (automated) | `/local-review` (interactive) |
+| Code review | `/auto-review` (automated) | `/local-review` (interactive) |
 | Update docs | `/local-docs` | Manual editing |
 | Deploy to VPS | `/deploy` | Manual git push |
 | Use specific cloud model | `/kilo` | N/A |
