@@ -33,11 +33,11 @@ Everything from `62-wordpress.md` rules + plugin-stack.md BASE tier. These are i
 | FlyingPress | Page cache ON, CSS/JS optimization ON, Cloudflare APO compatible settings |
 | WP Mail SMTP Pro | Installed, NOT configured (SMTP credentials are per-site env vars) |
 | WP Staging Pro | Installed, ready for staging operations |
-| Redis Object Cache | Installed, configured: `WP_REDIS_HOST=redis-main`. Per-site isolation via `WP_REDIS_PREFIX` + `WP_REDIS_DATABASE` (injected at deploy time from env) |
+| Object Cache Pro | Installed, configured: `WP_REDIS_HOST=redis-main`. Per-site isolation via `WP_REDIS_PREFIX` + `WP_REDIS_DATABASE` (injected at deploy time from env) |
 | Complianz Pro | Installed, base GDPR banner configured (geo-targeting, cookie categories). Per-site: domain, policy URLs |
 | Cloudflare Turnstile | Installed, NOT configured (site key + secret are per-site) |
 | Polylang Pro | Installed + activated. EN + TR registered. URL: `/en/`, `/tr/` directories. Hreflang automatic. String translation enabled. |
-| AutoPoly | Installed. Translation provider URL from env `TRANSLATOR_API_URL` (your Translator API, port 18012). Auto-translates on publish. |
+| AutoPoly Pro | Installed. Calls DeepL directly via `DEEPL_API_KEY` env var. Auto-translates on publish. No middleware. |
 | SearchWP Polylang Integration | Installed. Search results filtered by active language. |
 
 **Note:** Wordfence is NOT in golden base. It's OPTIONAL (high-risk sites only per plugin-stack.md). Security is handled by the 10 layers outside WordPress.
@@ -61,7 +61,7 @@ Everything from `62-wordpress.md` rules + plugin-stack.md BASE tier. These are i
 | Plugin | In golden base | Pre-configuration |
 |---|---|---|
 | Polylang Pro | YES | Installed + activated. EN + TR languages registered. URL structure: `/en/`, `/tr/` directories. Hreflang automatic. |
-| AutoPoly | YES | Installed. Connected to your Translator API (DeepL via port 18012) per-site env var `TRANSLATOR_API_URL`. Auto-translates on publish. |
+| AutoPoly Pro | YES | Installed. Calls DeepL directly (API key via `DEEPL_API_KEY` env var). Auto-translates on publish. No middleware/Translator service needed. |
 | SearchWP Polylang | YES | Installed. Activates alongside SearchWP. |
 | Polylang for WooCommerce | NO (ecommerce profile) | Installed at Stage 4 (plugins) for ecommerce sites only |
 

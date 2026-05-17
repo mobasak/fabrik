@@ -178,7 +178,7 @@ Every site. Lightweight, block-based, full Customizer control, hooks for code in
 
 ### Plugin Architecture: BASE + PROFILE + OPTIONAL
 
-**BASE (golden image, every site):**
+**BASE (golden image, 11 plugins, every site):**
 
 | Plugin | Purpose | Status |
 |---|---|---|
@@ -187,9 +187,12 @@ Every site. Lightweight, block-based, full Customizer control, hooks for code in
 | FlyingPress | Performance: page cache, CSS/JS optimization (works with Cloudflare APO) | ✅ PLACED |
 | WP Mail SMTP Pro | Email delivery via Resend/SES, delivery logging, failure alerts | ✅ PLACED |
 | WP Staging Pro | One-click staging, backup, migration | ✅ PLACED |
-| Redis Object Cache | Object caching (connected to redis-main, per-site prefix) | 🆓 FREE |
+| Object Cache Pro | Redis object caching (connected to redis-main, per-site prefix) | ✅ PLACED |
 | Complianz Pro | GDPR/CCPA, cookie consent, geo-targeted banners | ✅ PLACED |
 | Cloudflare Turnstile | Spam protection on forms (free, 20 widgets/account) | 🆓 FREE |
+| Polylang Pro | Multilingual: posts, menus, strings, URLs, hreflang | ✅ PLACED |
+| AutoPoly Pro | Auto-translate on publish (calls DeepL/Google/OpenAI directly) | ✅ PLACED |
+| SearchWP Polylang | Search respects active language | ✅ PLACED |
 
 Security is OUTSIDE WordPress (10 layers — Cloudflare WAF at edge, Nginx hardening at origin, MU-plugins for REST/footprint). Wordfence is OPTIONAL (high-risk sites only, not in base).
 
@@ -197,10 +200,10 @@ Security is OUTSIDE WordPress (10 layers — Cloudflare WAF at edge, Nginx harde
 
 | Profile | For | Plugin count | Key additions (beyond BASE) |
 |---|---|---|---|
-| **Company** | Service business, agency, consultancy | 23 plugins | Fluent Forms Pro, FluentCRM Pro, Thrive Leads + Architect + Ovation + Headline Optimizer + Clever Widgets, AutomatorWP + FluentCRM integration, Link Whisper Pro, SearchWP + WPML + Metrics, Essential Grid, Novashare, WP Table Builder Pro, PixelYourSite Pro + Social Connect, Chaty Pro |
-| **SaaS** | Product landing, conversion-focused | 24 plugins | Same as Company + Thrive Ultimatum (scarcity/countdown), Go Pricing (pricing tables), Thrive Quiz Builder |
-| **Content** | Blog, magazine, affiliate | 25 plugins | Same core CRM/forms + Thrive Comments (engagement), Content Egg Pro (affiliate content), Thrive Quiz Builder, WP Table Builder Pro (comparison tables) |
-| **Landing** | Single-page conversion | 18 plugins | Thrive Architect + Ultimatum + Quiz Builder, SeedProd (maintenance/coming-soon), PixelYourSite Pro, Chaty Pro — minimal, conversion-focused |
+| **Company** | Service business, agency, consultancy | 22 additions (33 total) | Fluent Forms Pro, FluentCRM Pro, Thrive Leads + Architect + Ovation + Headline Optimizer + Clever Widgets + Automator, AutomatorWP + FluentCRM, Link Whisper Pro, SearchWP + Metrics, Essential Grid, Novashare, WP Table Builder Pro, PixelYourSite Pro + Social Connect, Chaty Pro, Go Pricing, Content Egg, Testimonial Pro |
+| **SaaS** | Product landing, conversion-focused | 24 additions (35 total) | Company + Thrive Ultimatum (scarcity), Thrive Quiz Builder |
+| **Content** | Blog, magazine, affiliate | 24 additions (35 total) | Company base + Thrive Comments (engagement), Thrive Quiz Builder |
+| **Landing** | Single-page conversion | 9 additions (20 total) | Fluent Forms, Thrive Leads + Architect + Ultimatum + Quiz Builder, PixelYourSite + Social Connect, Chaty, SeedProd — minimal |
 | **Ecommerce** | WooCommerce physical products | 24+ plugins | WooCommerce core, AutomateWoo (cart recovery, follow-ups — replaces AutomatorWP for WC), WooCommerce Subscriptions, Table Rate Shipping, SearchWP WooCommerce, GTM4WP, WhatsApp Chat/Notifications, Photo Reviews |
 | **Digital Products** | Easy Digital Downloads (EDD) | 20+ plugins | EDD Pro + PayPal Commerce + Multi-Currency + Content Restriction + Amazon S3 + Variable Pricing Switcher + Reviews + Free Downloads + Recommended Products + Fraud Monitor |
 | **Membership** | MemberPress courses/subscriptions | 20+ plugins | MemberPress Basic + Courses + Downloads + Developer Tools (REST API) + Social Login + Order Bumps + PDF Invoice + Gifting. Course add-ons: Quizzes, Gradebook, Assignments |

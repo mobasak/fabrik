@@ -24,7 +24,7 @@
 
 | # | Decision | Status | Resolution |
 |---|---|---|---|
-| 0.1 | **WPML vs Polylang** | ✅ RESOLVED | **Polylang Pro + AutoPoly + SearchWP Polylang + Polylang for WooCommerce + Polylang for AMP.** AutoPoly connects to your Translator API (DeepL/Azure). WPML removed from all profiles. |
+| 0.1 | **WPML vs Polylang** | ✅ RESOLVED | **Polylang Pro + AutoPoly Pro + SearchWP Polylang + Polylang for WooCommerce.** AutoPoly calls DeepL directly (API key). AMP not used. WPML removed from all profiles. |
 | 0.2 | **Plugin tiering** | PENDING | All plugins active at launch (heavier) vs Launch/Growth/Scale tiers (lighter, add as site matures). Affects golden base + deployer + watchdog. | Before Phase 2 |
 
 ---
@@ -43,7 +43,7 @@
 
 **Result:** ocoron.com live via pipeline, content publishing daily. First real validation of the entire 30-step workflow.
 
-**Effort:** ~6 hours / 1 day
+**Effort:** ~8 hours / 1 day
 
 ---
 
@@ -189,13 +189,13 @@ Built incrementally. Each tier validated before enabling next.
 | Phase | Hours | Calendar | Cumulative |
 |---|---|---|---|
 | Phase 0 (Decisions) | 1h (meeting) | 1 hour | 1h |
-| Phase 1 (Foundation) | ~6h | 1 day | 7h |
+| Phase 1 (Foundation) | ~8h | 1 day | 9h |
 | Phase 2 (Golden Base) | ~25h | 3 days | 32h |
 | Phase 3 (API Bridge) | ~22h | 3 days | 54h |
 | Phase 4 (GUI) | ~37h | 5 days | 91h |
 | Phase 5 (Watchdog) | ~56h | 8 days + validation | 147h |
 | Phase 6 (Scaling) | ~32h | 4 days | 179h |
-| **Total** | **~179 hours** | **~25 focused days** | |
+| **Total** | **~181 hours** | **~25 focused days** | |
 
 Note: Phases 5-6 can start in parallel with Phase 4 (Tier 1 watchdog doesn't need GUI).
 
