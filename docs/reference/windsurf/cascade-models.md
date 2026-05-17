@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-05-07
+**Last Updated:** 2026-05-17
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -25,14 +25,14 @@
 | GPT-5.4 Mini (Low Reasoning) | 1.5 | — | — |  |
 | GPT-5.2-Codex (Low Reasoning Fast) | 2 | — | 66.5% |  |
 | Claude Sonnet 4.5 | 3 | 1464 | 46.5% |  |
-| Claude Sonnet 4.6 | 4 | 1500 | — |  |
+| Claude Sonnet 4.6 | 4 | 1500 | 53.4% |  |
 | Claude Opus 4.6 | 6 | 1535 | 79.8% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
-| Claude Opus 4.7 (Low Thinking) | 20 | 1554 | — |  |
-| Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | — |  |
-| Claude Opus 4.7 (High Thinking) | 60 | 1554 | — |  |
-| Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | — |  |
-| Claude Opus 4.7 (Max Thinking) | 75 | 1554 | — |  |
+| Claude Opus 4.7 (Low Thinking) | 20 | 1554 | 90.2% |  |
+| Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | 90.2% |  |
+| Claude Opus 4.7 (High Thinking) | 60 | 1554 | 90.2% |  |
+| Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | 90.2% |  |
+| Claude Opus 4.7 (Max Thinking) | 75 | 1554 | 90.2% |  |
 
 ---
 
@@ -55,25 +55,25 @@
 | Claude Haiku 4.5 | 1 | 1436 | 35.5% |  |
 | Claude Sonnet 4.5 | 3 | 1464 | 46.5% |  |
 | Claude Sonnet 4 | 3 | 1384 | — |  |
-| Claude Sonnet 4.6 | 4 | 1500 | — |  |
+| Claude Sonnet 4.6 | 4 | 1500 | 53.4% |  |
 | Claude Sonnet 4.5 (Thinking) | 4 | 1464 | 46.5% |  |
 | Claude Sonnet 4 (Thinking) | 4 | 1384 | — |  |
 | Claude Opus 4.6 | 6 | 1535 | 79.8% |  |
-| Claude Sonnet 4.6 (Thinking) | 6 | 1500 | — |  |
+| Claude Sonnet 4.6 (Thinking) | 6 | 1500 | 53.4% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
 | Claude Opus 4.6 (Thinking) | 8 | 1535 | 79.8% |  |
 | Claude Opus 4.5 (Thinking) | 8 | 1496 | 63.1% |  |
 | Claude Opus 4.6 1M | 10 | 1535 | 79.8% |  |
 | Claude Opus 4.6 Thinking 1M | 12 | 1535 | 79.8% |  |
-| Claude Sonnet 4.6 1M | 12 | 1500 | — |  |
-| Claude Sonnet 4.6 Thinking 1M | 16 | 1500 | — |  |
-| Claude Opus 4.7 (Low Thinking) | 20 | 1554 | — |  |
+| Claude Sonnet 4.6 1M | 12 | 1500 | 53.4% |  |
+| Claude Sonnet 4.6 Thinking 1M | 16 | 1500 | 53.4% |  |
+| Claude Opus 4.7 (Low Thinking) | 20 | 1554 | 90.2% |  |
 | Claude Opus 4.6 Fast | 24 | 1535 | 79.8% |  |
 | Claude Opus 4.6 Fast Thinking | 30 | 1535 | 79.8% |  |
-| Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | — |  |
-| Claude Opus 4.7 (High Thinking) | 60 | 1554 | — |  |
-| Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | — |  |
-| Claude Opus 4.7 (Max Thinking) | 75 | 1554 | — |  |
+| Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | 90.2% |  |
+| Claude Opus 4.7 (High Thinking) | 60 | 1554 | 90.2% |  |
+| Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | 90.2% |  |
+| Claude Opus 4.7 (Max Thinking) | 75 | 1554 | 90.2% |  |
 
 ---
 
@@ -82,12 +82,12 @@
 | Model | Credits | Arena ELO | TBench | Notes |
 |-------|---------|-----------|--------|-------|
 | GPT-5.3-Codex-Spark | — | — | — |  |
-| GPT-5.1-Codex Mini Low | 0.2 | — | 43.1% |  |
+| GPT-5.1-Codex Mini Low | 0.2 | — | 61.6% |  |
 | gpt-oss 120B (Medium) | 0.2 | 1398 | 18.7% |  |
 | GPT-5.1 (No Reasoning) | 0.5 | 1450 | 47.6% |  |
 | GPT-5.1 (Low Reasoning) | 0.5 | 1450 | 47.6% |  |
 | GPT-5.1-Codex Low | 0.5 | — | 57.8% |  |
-| GPT-5.1-Codex Mini | 0.5 | — | 43.1% |  |
+| GPT-5.1-Codex Mini | 0.5 | — | 61.6% |  |
 | GPT-5 (Low Reasoning) | 0.5 | — | 49.6% |  |
 | GPT-5-Codex | 0.5 | — | 44.3% |  |
 | GPT-5.2 (No Reasoning) | 1 | 1465 | 64.9% |  |
@@ -139,22 +139,22 @@
 | GPT-5.3-Codex (Extra High Reasoning Fast) | 6 | — | 78.4% |  |
 | GPT-5.2 (High Reasoning Fast) | 6 | 1465 | 64.9% |  |
 | GPT-5.2-Codex (Extra High Reasoning Fast) | 6 | — | 66.5% |  |
-| GPT-5.5 (No Reasoning) | 7 | — | 82.0% |  |
+| GPT-5.5 (No Reasoning) | 7 | — | 84.7% |  |
 | GPT-5.4 (High Reasoning) Fast | 8 | 1468 | 81.8% |  |
-| GPT-5.5 (Low Reasoning) | 8 | — | 82.0% |  |
+| GPT-5.5 (Low Reasoning) | 8 | — | 84.7% |  |
 | GPT-5.2 (Extra High Reasoning) | 8 | 1465 | 64.9% |  |
 | GPT-5.4 (Extra High Reasoning) | 12 | 1468 | 81.8% |  |
 | GPT-5.4 Mini (Extra High Reasoning) | 12 | — | — |  |
-| GPT-5.5 (Medium Reasoning) | 14 | — | 82.0% |  |
+| GPT-5.5 (Medium Reasoning) | 14 | — | 84.7% |  |
 | GPT-5.2 (Extra High Reasoning Fast) | 16 | 1465 | 64.9% |  |
-| GPT-5.5 (No Reasoning) Fast | 17.5 | — | 82.0% |  |
-| GPT-5.5 (Low Reasoning) Fast | 20 | — | 82.0% |  |
+| GPT-5.5 (No Reasoning) Fast | 17.5 | — | 84.7% |  |
+| GPT-5.5 (Low Reasoning) Fast | 20 | — | 84.7% |  |
 | GPT-5.4 (Extra High Reasoning) Fast | 24 | 1468 | 81.8% |  |
-| GPT-5.5 (High Reasoning) | 24 | — | 82.0% |  |
-| GPT-5.5 (Extra High Reasoning) | 32 | — | 82.0% |  |
-| GPT-5.5 (Medium Reasoning) Fast | 35 | — | 82.0% |  |
-| GPT-5.5 (High Reasoning) Fast | 60 | — | 82.0% |  |
-| GPT-5.5 (Extra High Reasoning) Fast | 80 | — | 82.0% |  |
+| GPT-5.5 (High Reasoning) | 24 | — | 84.7% |  |
+| GPT-5.5 (Extra High Reasoning) | 32 | — | 84.7% |  |
+| GPT-5.5 (Medium Reasoning) Fast | 35 | — | 84.7% |  |
+| GPT-5.5 (High Reasoning) Fast | 60 | — | 84.7% |  |
+| GPT-5.5 (Extra High Reasoning) Fast | 80 | — | 84.7% |  |
 
 ---
 

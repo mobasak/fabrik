@@ -7,12 +7,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 id: ocoron-com
-site:
-  domain: ocoron.com
+domain: ocoron.com
 preset: company
 environment: production
-deployment:
-  vps_ip: "172.93.160.197"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BRAND IDENTITY
@@ -560,6 +557,11 @@ content:
 # ─────────────────────────────────────────────────────────────────────────────
 # DEPLOYMENT
 # ─────────────────────────────────────────────────────────────────────────────
+
+deployment:
+  server: vps1
+  ssl: letsencrypt
+  cdn: cloudflare
 
   backup:
     frequency: daily
