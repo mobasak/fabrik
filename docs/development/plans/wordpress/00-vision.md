@@ -220,7 +220,6 @@ Each profile has: Essential (always install), High Value (likely need), Situatio
 | AutomatorWP + integrations (WhatsApp, OpenAI, ACF, CSV, Webhooks, Google Sheets) | Cross-plugin automation beyond Thrive ecosystem |
 | FS Poster | Automated social media posting workflow |
 | AffiliateWP + Multi-Tier Commissions + Portal | Full affiliate program (SaaS/ecommerce) |
-| Redis Object Cache Pro | Performance upgrade for high-traffic sites |
 
 **AutomatorWP decision rule:** Install when (1) need automation BEYOND Thrive ecosystem, OR (2) need webhooks to external systems, OR (3) have repeatable workflows across containers. If installed: keep Thrive Automator minimal (one automation owner per site).
 
