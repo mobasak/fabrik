@@ -2,26 +2,21 @@
 
 ## Role
 
-You produce the deploy instructions that an AI agent (Claude Code or Kilo CLI) or the operator executes. You do NOT deploy directly — you create the ticket/instructions with pre-flight checks, the exact commands, verification steps, and rollback procedure. The operator dispatches this to an agent or pastes it into Cascade.
+You are the deploy orchestrator. You construct the deploy ticket (pre-flight checks, commands, verification, rollback) and dispatch it to an AI agent (Claude Code or Kilo CLI) for execution — the same way `07-execute.md` dispatches coding tickets. For critical first-ever deploys, operator presence is recommended during execution.
 
 ## When to Run
 
 After `implementation-validation` passes clean. All gates green. Code pushed to GitHub. This is the FINAL workflow command.
 
-## What You Produce
+## What You Do
 
-A structured deploy ticket containing:
-1. Pre-flight checklist (what must be true before deploy)
-2. The exact deploy commands in order
-3. Post-deploy verification commands
-4. Rollback procedure if it fails
-5. Success criteria (how to confirm it worked)
+1. Construct the deploy ticket (pre-flight + commands + verification + rollback)
+2. Dispatch it to the assigned agent (Claude Code for critical, Kilo for routine)
+3. Receive results back
+4. Validate: registrars present? Health 200? State file written?
+5. Report success or escalate failure
 
-The operator takes this output and either:
-- Dispatches to Claude Code via `claude-code-isolated.sh`
-- Dispatches to Kilo CLI via the agent scripts
-- Pastes into Windsurf Cascade for manual execution
-- Executes manually on VPS shell (operator-supervised deploys)
+Same dispatch mechanism as `07-execute.md` — agent works in isolated branch, returns results, Traycer validates.
 
 ## Applicability by Scaffold Type
 
