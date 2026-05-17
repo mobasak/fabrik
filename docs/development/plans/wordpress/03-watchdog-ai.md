@@ -168,6 +168,155 @@ Full LLM reasoning for complex, infrequent decisions. Uses Claude Sonnet (better
 
 **Build time:** ~16 hours (competitor scraper config — 4h, strategy prompt engineering — 6h, safety/reporting — 6h).
 
+## Per-Profile Task Matrix
+
+Not every site needs every watchdog task. The `profile` field in watchdog config determines which tasks activate:
+
+| Task | Company | SaaS | Content | Landing | Ecommerce | Digital | Membership | Appointments |
+|---|---|---|---|---|---|---|---|---|
+| **Tier 1** | | | | | | | | |
+| Content publish (daily) | ✅ 2/day | ✅ 2/day | ✅ 3-5/day | ❌ | ✅ 2/day | ✅ 1/day | ✅ 1/day | ✅ 1/day |
+| Social distribution | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Broken link scan | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Affiliate link scan | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Plugin updates | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Email capture check | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Push notifications | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Tier 2** | | | | | | | | |
+| Keyword strategy (GSC) | ✅ | ✅ | ✅ | ❌ | ✅ (product keywords) | ✅ | ❌ (gated) | ✅ (local SEO) |
+| Topical authority gaps | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Internal linking | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Newsletter assembly | ✅ | ❌ | ✅ | ❌ | ✅ (promotions) | ✅ | ✅ (member updates) | ❌ |
+| Calendar-driven content | ✅ | ✅ | ✅ | ❌ | ✅ (seasonal promos) | ❌ | ❌ | ✅ (seasonal services) |
+| Article refresh | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| **Tier 3** | | | | | | | | |
+| Monthly strategy | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Competitor analysis | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ (local) |
+| AI-Search visibility | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| RPM/revenue tracking | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ (MRR) | ✅ (booking rev) |
+| Site scorecard | ✅ | ✅ | ✅ | ✅ (conversion only) | ✅ | ✅ | ✅ | ✅ |
+| Decision triggers | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Profile-specific** | | | | | | | | |
+| Lead form conversion monitoring | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Cart abandonment tracking | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Booking rate / no-show tracking | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Churn / retention monitoring | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Review collection prompts | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ |
+| Service page seasonal refresh | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Trial/signup funnel monitoring | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+
+**Landing profile is minimal:** Only health check, broken links, plugin updates, conversion tracking. No content pipeline, no SEO, no newsletter. It's a single page — the watchdog just ensures it stays up and converts.
+
+**Open for new profiles:** Adding a new site type (e.g., LMS, community, marketplace) requires:
+1. New preset YAML in `templates/wordpress/presets/`
+2. New golden image layer (`Dockerfile.<profile>`)
+3. New column in this task matrix (which tasks apply)
+4. New watchdog config template in `configs/watchdog/templates/`
+
+No changes to the watchdog runner code. It reads `profile` from config → activates matching tasks. New profiles are data, not code.
+
+### Per-Site Config Example
+
+```yaml
+# configs/watchdog/ocoron-com.yaml
+site_id: ocoron-com
+domain: ocoron.com
+profile: company
+owner_id: ozgur
+
+tier1:
+  content_limit_daily: 2
+  social_distribution: true
+  social_channels: [linkedin, twitter]  # n8n routes per channel
+  link_scan: true
+  affiliate_link_scan: false  # not monetized via affiliates
+  push_notifications: false   # not a content site
+  email_capture_check: true
+
+tier2:
+  enabled: true
+  llm_model: claude-haiku-4-5-20251001
+  max_calls_per_week: 10
+  keyword_strategy: true
+  topical_authority: true
+  internal_linking: true
+  newsletter: true
+  newsletter_mode: auto  # auto-send (or "approve" for human review)
+  calendar_content: true
+  calendar_sectors: [quality, manufacturing, trade, consulting]
+  article_refresh: true
+
+tier3:
+  enabled: true
+  llm_model: claude-sonnet-4-6
+  monthly_strategy: true
+  competitor_domains: ["competitor1.com", "competitor2.com"]
+  ai_search_visibility: true
+  ai_search_queries: ["quality consulting turkey", "iso certification istanbul"]
+  rpm_tracking: false  # not ad-monetized
+  budget_cap_monthly_usd: 10.0
+
+profile_specific:
+  lead_form_monitoring: true
+  lead_form_pages: ["/contact", "/services/quality-management"]
+  service_page_refresh: quarterly
+  local_seo: false  # ocoron is national/international, not local
+
+escalation:
+  telegram_chat_id: "your-chat-id"
+```
+
+```yaml
+# configs/watchdog/myshop-com.yaml
+site_id: myshop-com
+domain: myshop.com
+profile: ecommerce
+owner_id: ozgur
+
+tier1:
+  content_limit_daily: 2
+  social_distribution: true
+  social_channels: [instagram, facebook, pinterest]
+  link_scan: true
+  affiliate_link_scan: true  # tracks affiliate product links
+  push_notifications: true   # OneSignal: deals, new arrivals
+  email_capture_check: true
+
+tier2:
+  enabled: true
+  llm_model: claude-haiku-4-5-20251001
+  max_calls_per_week: 10
+  keyword_strategy: true  # product-focused keywords
+  topical_authority: true
+  internal_linking: true
+  newsletter: true
+  newsletter_mode: auto  # weekly promotions
+  calendar_content: true
+  calendar_sectors: [commercial, shopping]  # Black Friday, seasonal
+  article_refresh: true
+
+tier3:
+  enabled: true
+  llm_model: claude-sonnet-4-6
+  monthly_strategy: true
+  competitor_domains: ["competitor-shop.com"]
+  ai_search_visibility: false  # product search, not informational
+  rpm_tracking: true  # track revenue per visit
+  budget_cap_monthly_usd: 10.0
+
+profile_specific:
+  cart_abandonment: true
+  cart_recovery_tool: automatewoo  # AutomateWoo handles this
+  review_collection: true  # prompt buyers for reviews after delivery
+  lead_form_monitoring: false
+  booking_monitoring: false
+
+escalation:
+  telegram_chat_id: "your-chat-id"
+```
+
+---
+
 ## Decision Framework (Deterministic, No "Maybe")
 
 | Situation | Tier | Action | Escalate to human? |
