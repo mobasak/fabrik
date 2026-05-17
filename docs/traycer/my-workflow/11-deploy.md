@@ -72,12 +72,15 @@ Build a complete ticket the agent can execute without questions:
 **Agent context:** Read docs/reference/fabrik-lifecycle.md § Stage 3 + 4 before executing.
 
 ### Pre-flight (verify before deploy)
+- [ ] Final gate passes: `python scripts/final_gate.py --lean --json` → status: success
+- [ ] Local dev works: `fabrik dev -d && curl localhost:<PORT>/health` → 200
 - [ ] Code pushed: `git log origin/<branch> --oneline -1` matches local HEAD
 - [ ] If not pushed: `git push origin <branch>`
-- [ ] Env vars in Coolify: <list each required var from .env.example>
-- [ ] compose.yaml valid: resource limits, platform: linux/amd64, healthcheck, coolify network
+- [ ] Env vars in Coolify: <list each required var from .env.example + SERVICE_INTERNAL_SECRET_KEY>
+- [ ] compose.yaml valid: resource limits, platform: linux/amd64, healthcheck, coolify network, no host port bindings
 - [ ] Port <PORT> not conflicting: `grep <PORT> PORTS.md`
 - [ ] DNS ready (if new domain): `fabrik domain ready <domain>`
+- [ ] Optional: `fabrik review` run to bundle diff + spec for final human review
 
 ### Deploy
 ```bash
