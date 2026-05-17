@@ -79,7 +79,7 @@ One baked Docker image. Everything that's IDENTICAL across all sites is pre-inst
 ### 2. GUI Wizard + Dashboard
 
 **Creation wizard** — 6 screens:
-1. Pick preset (company / saas / content / landing / ecommerce)
+1. Pick preset (company / saas / content / landing / ecommerce / appointments)
 2. Domain (check availability, buy if needed)
 3. Brand (manual or AI-generated via brand-identity-creator)
 4. Content (services/features/products per preset, bilingual en+tr)
@@ -204,10 +204,10 @@ Security is OUTSIDE WordPress (10 layers — Cloudflare WAF at edge, Nginx harde
 | **SaaS** | Product landing, conversion-focused | 24 additions (35 total) | Company + Thrive Ultimatum (scarcity), Thrive Quiz Builder |
 | **Content** | Blog, magazine, affiliate | 24 additions (35 total) | Company base + Thrive Comments (engagement), Thrive Quiz Builder |
 | **Landing** | Single-page conversion | 9 additions (20 total) | Fluent Forms, Thrive Leads + Architect + Ultimatum + Quiz Builder, PixelYourSite + Social Connect, Chaty, SeedProd — minimal |
-| **Ecommerce** | WooCommerce physical products | 24+ plugins | WooCommerce core, AutomateWoo (cart recovery, follow-ups — replaces AutomatorWP for WC), WooCommerce Subscriptions, Table Rate Shipping, SearchWP WooCommerce, GTM4WP, WhatsApp Chat/Notifications, Photo Reviews |
-| **Digital Products** | Easy Digital Downloads (EDD) | 20+ plugins | EDD Pro + PayPal Commerce + Multi-Currency + Content Restriction + Amazon S3 + Variable Pricing Switcher + Reviews + Free Downloads + Recommended Products + Fraud Monitor |
-| **Membership** | MemberPress courses/subscriptions | 20+ plugins | MemberPress Basic + Courses + Downloads + Developer Tools (REST API) + Social Login + Order Bumps + PDF Invoice + Gifting. Course add-ons: Quizzes, Gradebook, Assignments |
-| **Appointments** | Bookly scheduling/service businesses | 20+ plugins | Bookly PRO + Advanced Google Calendar + Stripe + PayPal + Customer Cabinet + Staff Cabinet + Recurring + Deposit Payments + Waiting List + Cart + Custom Fields + Invoices + Locations |
+| **Ecommerce** | WooCommerce physical products | 20 additions (31 total) | WooCommerce core, AutomateWoo (cart recovery, follow-ups — replaces AutomatorWP for WC), WooCommerce Subscriptions, Table Rate Shipping, SearchWP WooCommerce, GTM4WP, WhatsApp Chat/Notifications, Photo Reviews |
+| **Digital Products** | Easy Digital Downloads (EDD) | 10 additions (21 total) | EDD Pro + PayPal Commerce + Multi-Currency + Content Restriction + Amazon S3 + Variable Pricing Switcher + Reviews + Free Downloads + Recommended Products + Fraud Monitor |
+| **Membership** | MemberPress courses/subscriptions | 7 additions (18 total) | MemberPress Basic + Courses + Downloads + Developer Tools (REST API) + Social Login + Order Bumps + PDF Invoice + Gifting. Course add-ons: Quizzes, Gradebook, Assignments |
+| **Appointments** | Bookly scheduling/service businesses | 23 additions (34 total) | Bookly PRO + Advanced Google Calendar + Stripe + PayPal + Customer Cabinet + Staff Cabinet + Recurring + Deposit Payments + Waiting List + Cart + Custom Fields + Invoices + Locations |
 
 Each profile has: Essential (always install), High Value (likely need), Situational (only if needed) tiers. Full breakdown per profile in `plugin-stack.md`.
 
