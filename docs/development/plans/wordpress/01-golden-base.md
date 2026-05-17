@@ -95,59 +95,103 @@ Everything from `62-wordpress.md` rules + plugin-stack.md BASE tier. These are i
 | Custom table prefix | Coolify env / wp-config | Generated at scaffold time |
 | Cloudflare WAF rules (domain-specific) | site-provisioner | `fabrik domain provision` |
 
-## Implementation: Hybrid Approach (Option C)
+## Implementation: Layered Docker Images
 
-Pure Docker image doesn't work: `wp plugin install` needs a running database. Can't RUN in Dockerfile without a DB.
+Pure Docker image doesn't work for activation: `wp plugin activate` needs a running database. Solution: extract plugin FILES into the image (fast), activate via first-boot script after DB is up.
 
-**Approach: Golden image + first-boot provisioning script**
+**Architecture: Base layer + Profile layers (Docker FROM inheritance)**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ LAYER 1: fabrik/wp-golden-base:v1                                   │
+│ (rebuilt monthly or on base plugin security update)                  │
+│                                                                     │
+│ Contains (FILES only, not activated):                               │
+│ • WordPress core                                                    │
+│ • wp-config-extra.php (security constants)                          │
+│ • MU-plugins (REST block, footprint removal, enumeration block)     │
+│ • Nginx config (hardened)                                           │
+│ • PHP-FPM config (tuned)                                            │
+│ • 11 BASE plugins extracted to wp-content/plugins/                  │
+│ • GeneratePress theme in wp-content/themes/                         │
+│ • Redis Object Cache drop-in (object-cache.php)                     │
+│ • First-boot script                                                 │
+│                                                                     │
+│ Does NOT contain: DB, activations, wp_options, license keys         │
+└─────────────────────────────────────────────────────────────────────┘
+                              ↓ FROM
+┌─────────────────────────────────────────────────────────────────────┐
+│ LAYER 2: fabrik/wp-golden-company:v1                                │
+│ (rebuilt when Company profile plugins update)                       │
+│                                                                     │
+│ Inherits ALL from golden-base, ADDS:                                │
+│ • 22 Company profile plugins extracted to wp-content/plugins/       │
+│ • Profile-specific first-boot additions (config for Fluent,         │
+│   Thrive, AutomatorWP, SearchWP, PixelYourSite, Chaty)             │
+│                                                                     │
+│ Total: 33 plugins pre-extracted, ready to activate                  │
+└─────────────────────────────────────────────────────────────────────┘
+
+Similarly:
+  fabrik/wp-golden-saas:v1         → FROM golden-base + 24 SaaS plugins
+  fabrik/wp-golden-content:v1      → FROM golden-base + 24 Content plugins
+  fabrik/wp-golden-landing:v1      → FROM golden-base + 9 Landing plugins
+  fabrik/wp-golden-ecommerce:v1    → FROM golden-base + 20 Ecommerce plugins
+  fabrik/wp-golden-edd:v1          → FROM golden-base + 10 EDD plugins
+  fabrik/wp-golden-membership:v1   → FROM golden-base + 7 MemberPress plugins
+  fabrik/wp-golden-appointments:v1 → FROM golden-base + 23 Bookly plugins
+```
+
+**Why layered:**
+- Base plugin update → rebuild `golden-base` → all profile images auto-rebuild (shared layer)
+- Profile plugin update → rebuild ONLY that profile image
+- Storage: shared base layer cached by Docker (NOT duplicated 8x)
+- Deploy: container starts with ALL plugins extracted → first-boot activates → **< 30 seconds**
+- Build on demand: don't build all 8 profiles on day 1. Build as you need them.
+
+**Start with:**
+1. `fabrik/wp-golden-base:v1` (always)
+2. `fabrik/wp-golden-company:v1` (ocoron.com is Company preset)
+3. Others built when you create that site type for the first time
+
+### First-Boot Script (runs once per fresh site)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ GOLDEN IMAGE (fabrik/wp-golden:v1)                      │
-│                                                         │
-│ Contains:                                               │
-│ • WordPress core files                                  │
-│ • wp-config-extra.php (security constants)              │
-│ • MU-plugins (security hardening)                       │
-│ • Nginx config (hardened)                               │
-│ • PHP-FPM config (tuned)                                │
-│ • Plugin ZIPs extracted to wp-content/plugins/          │
-│   (files present but NOT activated — no DB yet)         │
-│ • Theme files in wp-content/themes/                     │
-│ • Redis Object Cache drop-in (object-cache.php)         │
-│                                                         │
-│ Does NOT contain:                                       │
-│ • Database (separate container per site)                │
-│ • Plugin activations (need DB)                          │
-│ • wp_options settings (need DB)                         │
-│ • License activations (need per-site keys)              │
-└─────────────────────────────────────────────────────────┘
-                         +
-┌─────────────────────────────────────────────────────────┐
-│ FIRST-BOOT SCRIPT (runs once on fresh site)             │
 │ templates/wordpress/golden/first-boot.sh                │
 │                                                         │
 │ 1. wp core install (creates tables, admin user)         │
 │ 2. wp plugin activate --all (activates pre-extracted)   │
-│ 3. wp option update (RankMath, FlyingPress, Complianz)  │
-│ 4. wp rewrite structure '/%postname%/'                  │
-│ 5. Mark first-boot complete (touch .golden-initialized) │
+│ 3. wp option update (RankMath base config)              │
+│ 4. wp option update (FlyingPress base config)           │
+│ 5. wp option update (Complianz base config)             │
+│ 6. wp option update (Polylang: EN + TR, directory URLs) │
+│ 7. wp option update (AutoPoly: DeepL API key from env)  │
+│ 8. wp rewrite structure '/%postname%/'                  │
+│ 9. Mark complete: touch .golden-initialized             │
 │                                                         │
-│ Time: ~15 seconds (all local, no downloads)             │
-└─────────────────────────────────────────────────────────┘
-                         +
-┌─────────────────────────────────────────────────────────┐
-│ PROFILE ADDITIONS (runs after first-boot)               │
-│ Handled by deployer.py Stage 4 (modified)               │
-│                                                         │
-│ • Reads preset profile → identifies ADDITIONS           │
-│ • Installs from local zips (mounted volume, not HTTP)   │
-│ • Activates + configures per-profile plugins            │
-│ • License activation using keys from activation_notes   │
-│                                                         │
-│ Time: ~10-30 seconds depending on profile size          │
+│ Time: ~15 seconds (all plugins already on disk)         │
 └─────────────────────────────────────────────────────────┘
 ```
+
+After first-boot, the 13-stage deployer runs normally (settings, brand, pages, menus, SEO, analytics, monitoring, verify) — but Stage 3 (theme) only applies brand, Stage 4 (plugins) is SKIPPED entirely (all plugins already active from first-boot).
+
+### Per-Site Variables (NOT in any image layer)
+
+Applied at deploy time via env vars + site.yaml:
+
+| Variable | Source | When |
+|---|---|---|
+| Domain + Traefik labels | site.yaml | Stage 1 |
+| Admin user + password | `WP_ADMIN_USER` + `WP_ADMIN_PASSWORD` env | First-boot |
+| DeepL API key | `DEEPL_API_KEY` env → AutoPoly settings | First-boot |
+| SMTP credentials | `SMTP_*` env vars | Per-site config |
+| GA4/GTM IDs | site.yaml | Stage 11 |
+| Brand (colors, fonts, logo) | site.yaml | Stage 3 |
+| Redis DB index | `WP_REDIS_DATABASE` env | First-boot |
+| Table prefix | Generated at scaffold | wp-config |
+| Turnstile keys | `TURNSTILE_*` env | Per-site config |
+| Content (pages, menus, forms) | site.yaml + presets | Stages 6-8 |
 
 ### Build Process
 
@@ -163,10 +207,12 @@ docker push localhost:5000/fabrik/wp-golden:v1
 # image: localhost:5000/fabrik/wp-golden:v1
 ```
 
-### Dockerfile (realistic)
+### Dockerfiles (layered)
+
+**Base image** (`templates/wordpress/golden/Dockerfile.base`):
 
 ```dockerfile
-FROM wordpress:php8.3-fpm-bookworm
+FROM wordpress:php8.3-fpm-bookworm AS golden-base
 
 # Security: wp-config-extra
 COPY templates/wordpress/base/wp-config-extra.php /var/www/html/
@@ -174,23 +220,18 @@ COPY templates/wordpress/base/wp-config-extra.php /var/www/html/
 # Security: MU-plugins
 COPY templates/wordpress/golden/mu-plugins/ /var/www/html/wp-content/mu-plugins/
 
-# Theme: GeneratePress (extract, don't activate — needs DB)
+# Theme
 COPY templates/wordpress/golden/themes/generatepress/ /var/www/html/wp-content/themes/generatepress/
-COPY templates/wordpress/golden/themes/flavor/ /var/www/html/wp-content/themes/flavor/
 
-# BASE plugins from premium/Base/ subfolder (extract, don't activate — needs DB)
-COPY templates/wordpress/plugins/premium/Base/*.zip /tmp/base/
-RUN cd /var/www/html/wp-content/plugins && \
-    for zip in /tmp/base/*.zip; do unzip -qo "$zip"; done && \
-    rm -rf /tmp/base/
-
-# Polylang plugins from premium/Polylang/ subfolder
-COPY templates/wordpress/plugins/premium/Polylang/4v9GYSuEjJbq-polylang-pro_3.8.1.zip /tmp/polylang/
-COPY templates/wordpress/plugins/premium/Polylang/z8bA9Xx4R9Fr-autopoly-ai-translation-for-polylang-pro.zip /tmp/polylang/
-COPY templates/wordpress/plugins/premium/Polylang/S4MAzrToWLOA-searchwp-polylang-1.5.0.zip /tmp/polylang/
-RUN cd /var/www/html/wp-content/plugins && \
-    for zip in /tmp/polylang/*.zip; do unzip -qo "$zip"; done && \
-    rm -rf /tmp/polylang/
+# BASE plugins (11): extract to plugins/ (activate via first-boot after DB up)
+COPY templates/wordpress/plugins/premium/Base/*.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/Polylang/4v9GYSuEjJbq-polylang-pro_3.8.1.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/Polylang/z8bA9Xx4R9Fr-autopoly-ai-translation-for-polylang-pro.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/Polylang/S4MAzrToWLOA-searchwp-polylang-1.5.0.zip /tmp/plugins/
+RUN mkdir -p /var/www/html/wp-content/plugins && \
+    cd /var/www/html/wp-content/plugins && \
+    for zip in /tmp/plugins/*.zip; do unzip -qo "$zip"; done && \
+    rm -rf /tmp/plugins/
 
 # Redis Object Cache drop-in
 COPY templates/wordpress/golden/object-cache.php /var/www/html/wp-content/object-cache.php
@@ -199,14 +240,55 @@ COPY templates/wordpress/golden/object-cache.php /var/www/html/wp-content/object
 COPY templates/wordpress/golden/first-boot.sh /usr/local/bin/first-boot.sh
 RUN chmod +x /usr/local/bin/first-boot.sh
 
-# Nginx config (will be mounted per-site but base is baked)
-COPY templates/wordpress/base/nginx/default.conf.j2 /etc/nginx/templates/
-
 # PHP-FPM tuning
 COPY templates/wordpress/base/php-fpm/zz-fabrik-listen.conf /usr/local/etc/php-fpm.d/
 
-# Volume: only wp-content (per 62-wordpress.md)
 VOLUME /var/www/html/wp-content
+```
+
+**Company profile image** (`templates/wordpress/golden/Dockerfile.company`):
+
+```dockerfile
+FROM fabrik/wp-golden-base:v1
+
+# Company profile additions (22 plugins)
+COPY templates/wordpress/plugins/premium/Fluent/*.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/Thrive/*.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/AutomatorWP/0wiY9KOz3j8Z-automatorwp-5.5.5.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/AutomatorWP/pQseOoXtVNjS-automatorwp-fluentcrm.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/SearchWP/XGZNZhR1A4Xr-searchwp_4.5.1.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/SearchWP/nAGf2VwSuril-searchwp-metrics-1.5.0.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/ContentSEO/*.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/ConversionMarketing/iKtmhUoUDmc1-pixelyoursite-super-pack-6.1.1.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/ConversionMarketing/ZPKuGMyrc8mT-social-connect-pys-2.0.1.1.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/ConversionMarketing/kHLzVCbLEAij-chaty-pro-3.4.7.zip /tmp/plugins/
+COPY templates/wordpress/plugins/premium/ConversionMarketing/fpLjWEJczody-novashare-1.6.3.zip /tmp/plugins/
+RUN cd /var/www/html/wp-content/plugins && \
+    for zip in /tmp/plugins/*.zip; do unzip -qo "$zip"; done && \
+    rm -rf /tmp/plugins/
+```
+
+**Build commands:**
+
+```bash
+# Build base (once, shared by all profiles)
+docker build -f templates/wordpress/golden/Dockerfile.base -t fabrik/wp-golden-base:v1 .
+
+# Build company profile (depends on base)
+docker build -f templates/wordpress/golden/Dockerfile.company -t fabrik/wp-golden-company:v1 .
+
+# Build others on demand
+docker build -f templates/wordpress/golden/Dockerfile.ecommerce -t fabrik/wp-golden-ecommerce:v1 .
+```
+
+**Per-site compose references the profile image:**
+
+```yaml
+# Generated by fabrik scaffold --type wordpress --preset company
+services:
+  wordpress:
+    image: fabrik/wp-golden-company:v1  # <-- profile-specific
+    # ... rest of compose
 ```
 
 ### Plugin Folder Structure (after reorganization)
@@ -257,26 +339,26 @@ Process:
 
 ## What Changes in the Pipeline
 
-| Stage | Current behavior | With golden base |
+| Stage | Current behavior | With layered golden base |
 |---|---|---|
 | 1. DNS | Creates/syncs records | SAME (per-site) |
-| 2. Settings | blogname, admin user, timezone, permalinks | SAME (per-site) + runs first-boot if `.golden-initialized` missing |
-| 3. Theme | Install + activate + brand | **REDUCED:** only apply brand colors/fonts (theme pre-installed) |
-| 4. Plugins | Install ALL from scratch | **REDUCED:** only install PROFILE ADDITIONS from local zips |
+| 2. Settings | blogname, admin user, timezone, permalinks | SAME + runs first-boot if `.golden-initialized` missing |
+| 3. Theme | Install + activate + brand | **BRAND ONLY:** theme pre-installed. Just Customizer API calls. |
+| 4. Plugins | Install ALL from scratch | **SKIPPED ENTIRELY:** all plugins already extracted + activated by first-boot |
 | 5-13 | Per-site content, SEO, analytics, monitoring | SAME (always per-site) |
 
 **Net timing:**
 
-| Phase | Current | With golden base |
+| Phase | Current | With layered golden base |
 |---|---|---|
-| Container start | ~30s | ~10s (image layers cached) |
-| First-boot (activate + configure base) | — | ~15s (one-time) |
-| Stage 3 (theme) | ~60s (download + install) | ~5s (just Customizer API calls) |
-| Stage 4 (plugins) | ~120s (download 20+ plugins) | ~15s (install 10-15 ADDITIONS from local zips) |
+| Container start | ~30s | ~5s (image layers cached locally) |
+| First-boot (activate all pre-extracted plugins + base config) | — | ~15s (one-time per fresh site) |
+| Stage 3 (theme) | ~60s (download + install) | ~3s (Customizer API: colors + fonts) |
+| Stage 4 (plugins) | ~120s (download 20+ plugins) | **0s (SKIPPED — all active from first-boot)** |
 | Stages 5-13 | ~120s | ~120s (unchanged — REST API calls) |
-| **Total** | **~330s (5.5 min)** | **~165s (2.75 min) first site, ~90s subsequent** |
+| **Total** | **~330s (5.5 min)** | **~143s (~2.5 min) first deploy** |
 
-After first site on VPS: image layers cached, first-boot already has pattern — subsequent sites even faster.
+Second+ site with same profile: image already pulled → even faster (~130s).
 
 ## Preview/Promote Integration
 
@@ -328,24 +410,38 @@ fabrik wp promote <site>
 
 ## Acceptance Criteria
 
-- [ ] `docker build` succeeds for golden image
-- [ ] Fresh container + first-boot reaches wp-login.php in < 30 seconds
-- [ ] All 10 security layers verified on fresh golden container:
-  - [ ] DISALLOW_FILE_EDIT active (`wp config get`)
-  - [ ] xmlrpc.php returns 444 (`curl`)
-  - [ ] /uploads/ PHP blocked (`curl test.php` → 403)
-  - [ ] Security headers present (`curl -I`)
-  - [ ] REST /users returns 403 for anon
-  - [ ] wp_generator meta removed (view source)
-  - [ ] Custom table prefix (not `wp_`)
-  - [ ] Rate limiting on wp-login (ab test)
-  - [ ] WP_HTTP_BLOCK_EXTERNAL blocks outbound test
-  - [ ] Admin user has 32-char password
-- [ ] All BASE plugins active: `wp plugin list --status=active` shows 8
-- [ ] RankMath modules verified: sitemap, instant-indexing, rich-snippet, image-seo, redirections ON; analytics OFF
-- [ ] FlyingPress page cache active
-- [ ] Redis connected: `wp redis status` → Connected
-- [ ] Profile additions install in < 30 seconds from local zips
-- [ ] `fabrik wp apply` with golden base: all 13 stages pass in < 90 seconds (excluding DNS wait for new domains)
-- [ ] Preview mode works: temp subdomain accessible, promote switches to real domain
-- [ ] Golden base rebuild: `scripts/build_golden_base.sh` produces new tagged image, old sites unaffected until redeploy
+### Base image (`fabrik/wp-golden-base:v1`)
+- [ ] `docker build -f Dockerfile.base` succeeds
+- [ ] 11 BASE plugin folders exist in `wp-content/plugins/` (verify: `ls` in container)
+- [ ] MU-plugins present (REST block, footprint removal, enumeration block)
+- [ ] wp-config-extra.php present with all security constants
+- [ ] GeneratePress theme in `wp-content/themes/`
+
+### Profile image (e.g., `fabrik/wp-golden-company:v1`)
+- [ ] `docker build -f Dockerfile.company` succeeds (inherits from base)
+- [ ] 33 total plugin folders in `wp-content/plugins/` (11 base + 22 company)
+- [ ] Image size < 1.5GB
+
+### First-boot (fresh site from profile image)
+- [ ] Container start + first-boot reaches wp-login.php in < 30 seconds
+- [ ] `wp plugin list --status=active` shows ALL 33 plugins active (company example)
+- [ ] Polylang: EN + TR languages active, `/en/` + `/tr/` URLs work
+- [ ] AutoPoly: connected to DeepL (verify via settings page or API test)
+- [ ] RankMath modules: sitemap, instant-indexing, rich-snippet, image-seo, redirections ON; analytics OFF
+- [ ] FlyingPress: page cache active
+- [ ] Redis: `wp redis status` → Connected
+
+### Security (every fresh container)
+- [ ] DISALLOW_FILE_EDIT active (`wp config get`)
+- [ ] xmlrpc.php returns 444 (`curl`)
+- [ ] /uploads/ PHP blocked (`curl test.php` → 403)
+- [ ] Security headers present (`curl -I`)
+- [ ] REST /users returns 403 for anon
+- [ ] wp_generator meta removed (view source)
+- [ ] Custom table prefix (not `wp_`)
+- [ ] Admin user has 32-char password
+
+### Full deploy
+- [ ] `fabrik wp apply` with golden base: Stage 4 (plugins) SKIPPED, all 13 stages pass in < 150 seconds
+- [ ] Preview mode: temp subdomain accessible, promote switches to real domain
+- [ ] Rebuild: `scripts/build_golden_base.sh` builds base + profile, old sites unaffected until redeploy
