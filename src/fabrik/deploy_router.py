@@ -111,35 +111,14 @@ def resolve_service_spec_path(project_dir: Path) -> Path:
 
 
 def _deploy_wordpress(project_dir: Path, dry_run: bool) -> int:
-    """Run the WordPress deployment pipeline.
+    """WordPress deployment moved to /opt/wpf/ (standalone project).
 
-    1. ``Planner.plan()`` — generate build artefacts.
-    2. ``SiteDeployer.deploy()`` — push to target.
-
-    Returns:
-        0 on success, 1 on failure.
+    Use the `wpf` CLI: wpf plan <site> && wpf apply <site>
     """
-    from fabrik.wordpress.deployer import SiteDeployer
-    from fabrik.wordpress.planner import Planner
-
-    meta = get_project_metadata(project_dir)
-    project_name = str(meta["name"])
-
-    logger.info("Running WordPress planner for '%s'", project_name)
-    planner = Planner(project_name, project_path=str(project_dir))
-    planner.plan()
-
-    logger.info("Running WordPress deployer for '%s'", project_name)
-    deployer = SiteDeployer(project_name, dry_run=dry_run, project_path=str(project_dir))
-    result = deployer.deploy()
-
-    notify_deploy(
-        project=project_name,
-        domain=result.domain,
-        success=result.success,
-        error=result.errors[0] if result.errors else None,
+    raise NotImplementedError(
+        "WordPress deployment has moved to /opt/wpf/. "
+        "Use the `wpf` CLI instead of `fabrik deploy` for WordPress projects."
     )
-    return 0 if result.success else 1
 
 
 def _deploy_generic(project_dir: Path, dry_run: bool) -> int:

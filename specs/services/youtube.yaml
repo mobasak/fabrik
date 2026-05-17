@@ -12,7 +12,7 @@ env:
   PORT: "8029"
   LOG_LEVEL: INFO
   APP_ENV: production
-  SERVICE_NAME: youtube-pipeline
+  SERVICE_NAME: youtube
   ALLOWED_ORIGINS: https://youtube.vps1.ocoron.com
 
 secrets:
@@ -24,11 +24,13 @@ secrets:
     - DB_NAME
     - DB_USER
     - DB_PASSWORD
+    - REDIS_URL
     - SONIOX_API_KEYS
-    - WEBSHARE_API_KEY
-    - YOUTUBE_API_KEY
-    - RAPIDAPI_KEY
-    - APIFY_API_TOKEN
+    - YOUTUBE_API_KEYS
+    - B2_KEY_ID
+    - B2_APPLICATION_KEY
+    - B2_BUCKET_NAME
+    - IPROYAL_API_TOKEN
 
 shape:
   kind: service
@@ -37,21 +39,24 @@ shape:
   has_bearer_api: false
   has_persistent_data: true
   needs_database: true
+  needs_cache: false
   has_search_feature: false
+  exposes_metrics: true
 
 depends:
-  postgres: youtube
+  postgres: youtube_pipeline
 
 resources:
-  memory: 2G
-  cpu: "2.0"
+  limits:
+    memory: 1G
+    cpus: "1.0"
 
 health:
-  path: /health
+  path: /healthz
   interval: 30s
   timeout: 10s
   retries: 3
-  start_period: 10s
+  start_period: 20s
 
 backup:
   enabled: true
@@ -61,3 +66,10 @@ backup:
 coolify:
   project: default
   server: localhost
+
+notes: |
+  Workers run on systemd youtube-worker.service (out of scope for Epic 1, see Epic 2).
+  Flask dashboard on port 5000 via nohup (out of scope, see Epic 2).
+  coolify.alias: youtube stable-alias registration deferred to Epic 2.
+  Redis logical-DB allocation deferred to Epic 2 — Epic 1 uses shared redis-main db 0
+  via REDIS_URL; see docs/RESILIENCE.md §9 Accepted Gaps.
