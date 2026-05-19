@@ -168,6 +168,18 @@ SAAS_SKELETON_DIR = FABRIK_ROOT / "templates" / "saas-skeleton"
 MOBILE_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "mobile-app"
 DESKTOP_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "desktop-app"
 DOCUSAURUS_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "docusaurus"
+I18N_KIT_DIR = FABRIK_ROOT / "templates" / "i18n-kit"
+
+# Scaffold types that get i18n-kit provisioned automatically.
+# Maps project_type → i18n strategy so the copy helper knows which files to place.
+I18N_ENABLED_TYPES: dict[str, str] = {
+    "saas-skeleton": "react",  # React context provider + Next.js server helpers
+    "static-site": "vanilla",  # DOM-based i18n.js loader
+    "desktop-app": "vanilla",  # Electron uses Chromium renderer → same DOM loader
+    "chrome-extension": "chrome",  # Chrome _locales/ adapter + vanilla source
+    "mobile-app": "rn",  # React Native i18next adapter
+    "docusaurus": "docusaurus",  # Docusaurus code.json adapter
+}
 
 SHARED_TEMPLATE_MAP = {
     "docs/PROJECT_INDEX_TEMPLATE.md": "INDEX.md",
@@ -3178,6 +3190,87 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     )
 
 
+# ---------------------------------------------------------------------------
+# i18n-kit provisioning
+# ---------------------------------------------------------------------------
+
+
+def _provision_i18n(project_dir: Path, project_type: str) -> None:
+    """Copy i18n-kit files appropriate for ``project_type`` into the project.
+
+    Called from ``create_project`` after the type-specific scaffolder has run,
+    so all destination directories already exist.  Only runs for types listed
+    in :data:`I18N_ENABLED_TYPES`.
+    """
+    strategy = I18N_ENABLED_TYPES.get(project_type)
+    if not strategy or not I18N_KIT_DIR.exists():
+        return
+
+    kit = I18N_KIT_DIR
+
+    # --- Always copy: validator + examples + plan doc ---
+    scripts_dir = project_dir / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(kit / "scripts" / "validate_i18n.py", scripts_dir / "validate_i18n.py")
+
+    # Determine the JSON source directory based on strategy
+    if strategy == "react":
+        json_dir = project_dir / "public" / "i18n"
+    elif strategy == "docusaurus":
+        json_dir = project_dir / "i18n-source"
+    else:
+        json_dir = project_dir / "static" / "i18n"
+
+    json_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy en.json starter + example files
+    for f in kit.glob("static/i18n/*.json"):
+        shutil.copy2(f, json_dir / f.name)
+
+    # Copy the multilingual plan doc
+    docs_ref = project_dir / "docs" / "reference"
+    docs_ref.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(kit / "docs" / "multilingual-plan.md", docs_ref / "multilingual-plan.md")
+
+    # --- Strategy-specific files ---
+
+    if strategy == "vanilla":
+        # static-site, desktop-app: DOM-based loader + HTML snippets
+        js_dir = project_dir / "static" / "js"
+        js_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(kit / "static" / "js" / "i18n.js", js_dir / "i18n.js")
+        snippets_dir = project_dir / "docs" / "reference" / "i18n-snippets"
+        snippets_dir.mkdir(parents=True, exist_ok=True)
+        for f in (kit / "snippets").iterdir():
+            if f.is_file():
+                shutil.copy2(f, snippets_dir / f.name)
+
+    elif strategy == "react":
+        # saas-skeleton (Next.js): React provider + server helpers + switcher
+        i18n_lib = project_dir / "lib" / "i18n"
+        i18n_lib.mkdir(parents=True, exist_ok=True)
+        for f in (kit / "react").iterdir():
+            if f.is_file():
+                shutil.copy2(f, i18n_lib / f.name)
+
+    elif strategy == "chrome":
+        # chrome-extension: vanilla loader for popup/options + adapter script
+        js_dir = project_dir / "extension" / "src"
+        js_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(kit / "static" / "js" / "i18n.js", js_dir / "i18n.js")
+        shutil.copy2(kit / "adapters" / "chrome_messages.py", scripts_dir / "chrome_messages.py")
+
+    elif strategy == "rn":
+        # mobile-app (React Native): adapter that syncs to src/locales/
+        shutil.copy2(kit / "adapters" / "sync_rn_locales.py", scripts_dir / "sync_rn_locales.py")
+
+    elif strategy == "docusaurus":
+        # Docusaurus: adapter that syncs custom strings to i18n/<lang>/code.json
+        shutil.copy2(kit / "adapters" / "sync_docusaurus.py", scripts_dir / "sync_docusaurus.py")
+
+    logger.info("i18n-kit provisioned (%s strategy) for %s", strategy, project_dir.name)
+
+
 # Dispatch table mapping project types to their scaffolder functions.
 _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "python-api": _scaffold_python_api,
@@ -3338,6 +3431,9 @@ def create_project(
 
     scaffolder(project_dir, name, description, preset=preset, **kwargs)
 
+    # Provision i18n-kit for GUI-enabled scaffold types
+    _provision_i18n(project_dir, project_type)
+
     # Patch project.yaml with actual type
     # (Port is already set correctly by type-specific scaffolder using same _next_available_port logic)
     project_yaml_path = project_dir / "project.yaml"
@@ -3413,9 +3509,10 @@ def validate_project(
 def _patch_droid_block(content: str, canonical: str) -> str:
     """Replace .droid/ entries in .gitignore with canonical block.
 
-    Handles two cases:
-    1. .droid/ entries exist (scattered or contiguous) → replace with canonical
-    2. No .droid/ entries → append canonical block at end
+    Handles three cases:
+    1. Canonical block already present → no-op
+    2. .droid/ or .factory/ entries exist (scattered or contiguous) → replace with canonical
+    3. No managed entries → append canonical block at end
 
     Args:
         content: Current .gitignore file content
@@ -3424,17 +3521,29 @@ def _patch_droid_block(content: str, canonical: str) -> str:
     Returns:
         Updated .gitignore content
     """
-    lines = content.splitlines(keepends=True)
-    droid_indices = {i for i, line in enumerate(lines) if line.strip().startswith(".droid/")}
+    # Fast path: canonical block already present verbatim
+    if canonical in content:
+        return content
 
-    if not droid_indices:
-        # No .droid/ entries — append canonical block
+    lines = content.splitlines(keepends=True)
+    # Match both .droid/ and .factory/ lines — both are part of the canonical block
+    managed_prefixes = (".droid/", ".factory/")
+    managed_indices = {
+        i for i, line in enumerate(lines) if line.strip().startswith(managed_prefixes)
+    }
+
+    if not managed_indices:
+        # No managed entries — append canonical block
         return content.rstrip("\n") + "\n" + canonical
 
-    # Remove all .droid/ lines and insert canonical block at position of first one
-    first_droid = min(droid_indices)
-    filtered_lines = [line for i, line in enumerate(lines) if i not in droid_indices]
-    return "".join(filtered_lines[:first_droid]) + canonical + "".join(filtered_lines[first_droid:])
+    # Remove all managed lines and insert canonical block at position of first one
+    first_managed = min(managed_indices)
+    filtered_lines = [line for i, line in enumerate(lines) if i not in managed_indices]
+    return (
+        "".join(filtered_lines[:first_managed])
+        + canonical
+        + "".join(filtered_lines[first_managed:])
+    )
 
 
 def fix_project(

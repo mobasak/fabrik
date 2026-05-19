@@ -1,0 +1,20 @@
+{
+  "product_name": "My Product",
+  "product_description": "Brief description of what the product does and who uses it.",
+  "tone": "direct, technical, concise — like a senior engineer, not a marketing brochure",
+  "register": {
+    "tr": "informal (sen, not siz)",
+    "es": "informal (tú, not usted)",
+    "pt-br": "informal (você)",
+    "ja": "polite-neutral (です/ます for labels, plain form for buttons)",
+    "id": "informal (kamu)"
+  },
+  "tech_terms_keep_english": ["API", "JSON", "Email", "Admin", "Status", "URL"],
+  "namespace_context": {
+    "nav": "Navigation menu items — top bar or side nav",
+    "auth": "Login, register, forgot/reset password, email verification pages",
+    "common": "Shared labels used across multiple pages — Save, Cancel, Delete, Loading",
+    "error": "Error pages and inline error messages — 404, 500, validation errors",
+    "settings": "User profile, preferences, notification settings"
+  }
+}

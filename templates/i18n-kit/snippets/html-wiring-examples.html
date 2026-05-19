@@ -1,0 +1,55 @@
+<!-- ============================================================ -->
+<!-- i18n HTML Wiring Examples                                    -->
+<!-- Copy-paste patterns for common UI elements                   -->
+<!-- ============================================================ -->
+
+<!-- 1. TEXT CONTENT — wrap with data-i18n, keep English as fallback -->
+<h1 data-i18n="nav.dashboard">Dashboard</h1>
+<span data-i18n="common.loading">Loading...</span>
+<p data-i18n="error.not_found">Page not found</p>
+
+<!-- 2. BUTTONS — wrap text in <span> so icon stays -->
+<button class="btn btn-primary">
+    <i class="bi bi-check me-2"></i><span data-i18n="common.save">Save</span>
+</button>
+
+<!-- 3. LINKS — data-i18n on the <a> or inner <span> -->
+<a href="/settings" data-i18n="nav.settings">Settings</a>
+<a href="/login"><i class="bi bi-arrow-left me-1"></i><span data-i18n="auth.back_to_login">Back to Login</span></a>
+
+<!-- 4. FORM LABELS -->
+<label class="form-label" data-i18n="auth.email">Email</label>
+
+<!-- 5. PLACEHOLDERS -->
+<input type="email" placeholder="you@example.com" data-i18n-placeholder="auth.email_placeholder">
+
+<!-- 6. TOOLTIPS -->
+<button title="Delete this item" data-i18n-title="common.delete">
+    <i class="bi bi-trash"></i>
+</button>
+
+<!-- 7. TABLE HEADERS -->
+<thead>
+    <tr>
+        <th data-i18n="common.name">Name</th>
+        <th data-i18n="common.status">Status</th>
+        <th data-i18n="common.actions">Actions</th>
+    </tr>
+</thead>
+
+<!-- 8. SELECT OPTIONS -->
+<select>
+    <option value="all" data-i18n="common.all">All</option>
+    <option value="active" data-i18n="common.active">Active</option>
+</select>
+
+<!-- 9. BADGES/STATUS in dynamic JS-rendered HTML -->
+<!-- Use I18N.t() directly, NOT data-i18n (avoids race condition) -->
+<!-- See js-wiring-examples.js -->
+
+<!-- 10. EMPTY STATES -->
+<div class="text-center py-5">
+    <i class="bi bi-inbox display-1 text-muted"></i>
+    <h4 class="mt-3" data-i18n="dashboard.no_items">No items yet</h4>
+    <p class="text-muted" data-i18n="dashboard.add_first">Add your first item to get started</p>
+</div>

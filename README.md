@@ -2,17 +2,13 @@
 
 **Last Updated:** 2026-04-26
 
-**AI-Driven Development Platform with Spec-to-Production Automation**
+**Spec-Driven Deployment Platform + AI Development Workflow**
 
-Fabrik is not just a deployment tool—it's a **complete AI-assisted software development platform** that combines:
-- **Traycer**: IDE-integrated spec-driven planning with Epic mode workflows
-- **9-Step Agile Workflow**: AI planning → coding → enforcement → review → verification → deployment
-- **Kilo Code Review**: Iterative AI code reviewer with fix-and-revalidate loops
-- **Final Gate**: 25 automated enforcement checks (2,230 lines of validation logic)
-- **Deployment Orchestration**: Saga pattern with automatic rollback and state tracking
-- **Full-Stack Templates**: SaaS skeleton, WordPress automation, API scaffolds
+Fabrik is two things:
 
-**13,565 lines of production code** across orchestration, provisioning, WordPress automation, and enforcement.
+1. **A deployment CLI** — takes a YAML spec (`specs/services/<id>.yaml`) with a `shape:` block and runs the full lifecycle: scaffold → plan → apply → verify. 9 registrars (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus) fire automatically based on shape flags. Saga-pattern orchestrator with rollback. 11 scaffold types. 20+ drivers (Coolify, Cloudflare, Backrest, Supabase, R2, etc.).
+
+2. **An AI development workflow** — Traycer (Windsurf IDE extension) drives spec-to-ticket planning. Kilo CLI runs iterative multi-model code reviews with fix-and-revalidate loops. Final Gate runs 25 deterministic enforcement checks before and after review. Every project gets a `.droid/` workspace that stores review sessions, transcripts, cost tracking, and model sync state.
 
 ---
 
@@ -700,7 +696,103 @@ services:  # Generates pages automatically
 - Legal pages (Privacy Policy, Terms)
 - Multilingual support
 
-### 8. Content Publishing Pipeline
+### 8. Development Workspace (`.droid/`)
+
+Every project scaffolded by `fabrik scaffold` gets a `.droid/` directory — it's part of `SHARED_DIRS` in `scaffold.py`, meaning all 11 scaffold types (python-api, saas-skeleton, node-api, wordpress, etc.) receive it. `fabrik fix` also creates/updates it on existing projects. The directory is the runtime workspace for Kilo CLI, Traycer, and the development tracker. Only `review-context/` and `traycer-reports/` are git-tracked; everything else is gitignored runtime state.
+
+**How it connects to the workflow:**
+
+The 9-step development flow (Section "The Complete Development Flow" above) generates artifacts at each stage. `.droid/` is where those artifacts accumulate:
+
+- **Step 4 (Kilo review):** `kilo_code_review.py` reads task context from `review-context/` (passed via `--plan .droid/review-context/task.md`) and writes review session output
+- **Step 4 (iterative loop):** `--session continue` picks up previous review context for re-review after fixes
+- **After each Kilo session:** `kilo_terminal_runner.py` auto-saves the raw terminal transcript to `transcripts/` and logs the event (cost, tokens, model, duration) to `dev_tracker.db` via `dev_tracker.py`
+- **After each review invocation:** the generated Kilo agent shell scripts append token counts and costs to `kilo_usage.jsonl`
+- **Traycer dispatch:** `kilo_dispatch.py` writes analysis reports to `traycer-reports/latest.md` after dispatched review sessions
+- **Multi-model consultations:** `kilo_consult.py` writes architecture/plan consultation results (querying multiple LLMs in parallel) to `consultations/`
+- **Docs enforcement:** `docs_updater.py` tracks which documentation was auto-generated in `docs_log/` and queues pending generation jobs in `docs_queue/`
+- **Model sync (daily cron):** `kilo_model_sync.py --sync` checks which LLM providers are available and logs to `kilo_model_sync.log` — ensures Kilo agent scripts always reference reachable models
+
+| Path | Written by | What it stores |
+|------|-----------|---------------|
+| `review-context/` | Kilo agent scripts | Task/plan `.md` files — the spec context Kilo reviews against (git-tracked) |
+| `traycer-reports/` | `kilo_dispatch.py` | Traycer analysis reports after dispatched sessions (git-tracked) |
+| `transcripts/` | `kilo_terminal_runner.py` | Raw terminal output from each agent session (timestamped, per-model) |
+| `consultations/` | `kilo_consult.py` | Multi-model architecture consultation JSON (Claude, GPT, Gemini queried in parallel) |
+| `responses/` | Ad-hoc gap analysis runs | Cross-model JSON responses from plan reviews and gap analyses |
+| `docs_log/` | `docs_updater.py` | Which docs were auto-generated and when |
+| `docs_queue/` | `docs_updater.py` | Pending doc generation jobs |
+| `dev_tracker.db` | `dev_tracker.py` | SQLite — gate results, review costs, issues, workflow step events |
+| `kilo_usage.jsonl` | Kilo agent `.sh` scripts | Append-only JSONL — token counts + cost per review invocation |
+| `kilo_model_sync.log` | `kilo_model_sync_startup.sh` | Daily model availability sync log (active — written by cron) |
+| `kilo_metrics.jsonl` | `kilo_code_review.py` | Reserved metrics file (schema exists, not yet actively written) |
+
+**Querying the tracker:**
+
+```bash
+# Cost report across all Kilo sessions
+python scripts/kilo_cost_report.py
+
+# Query the dev tracker directly
+python scripts/dev_tracker.py report summary
+python scripts/dev_tracker.py report costs
+python scripts/dev_tracker.py query "SELECT * FROM ai_usage ORDER BY timestamp DESC LIMIT 10"
+```
+
+---
+
+### 9. Deploy State Store (`.fabrik/`)
+
+Every project that goes through `fabrik apply` gets a `.fabrik/state/<id>.json` file — the 8-field manifest recording exactly what was deployed and which registrars fired. This is the backbone of the deploy/destroy/audit pipeline.
+
+**State file schema (written by `state.py` after each `fabrik apply`):**
+
+```json
+{
+  "applied_at": "2026-05-16T14:03:04Z",
+  "coolify_app_name": "my-api",
+  "coolify_uuid": "lgg84cs8gkso0swk8g4cwo80",
+  "domain": "my-api.vps1.ocoron.com",
+  "git_sha": "ce9d1ed...",
+  "registrars_applied": [
+    {"type": "gatus", "id": "my-api", "status": "created", "data_bearing": false},
+    {"type": "prometheus", "id": "my-api", "status": "created", "data_bearing": false}
+  ],
+  "spec_hash": "72f31d75097f4672",
+  "spec_path": "/opt/fabrik/specs/services/my-api.yaml"
+}
+```
+
+**Who reads it and why:**
+
+| Command | Reads/Writes | Purpose |
+|---------|-------------|---------|
+| `fabrik apply` | Writes `state/<id>.json` | Records deploy outcome — registrars fired, UUIDs, git SHA |
+| `fabrik destroy --use-state` | Reads state file | Replays exactly what was deployed (immune to spec drift). Archives to `_destroyed/<id>.json.<ts>` on success |
+| `fabrik audit-registrars` | Reads all state files | Fleet-wide drift detection — compares state to live VPS |
+| `fabrik verify --spec registrars` | Reads state file | Postcondition gate — confirms registrars match state |
+| `fabrik export` | Bundles state files | VPS portability tarball (UUIDs stripped for security) |
+| `fabrik review` | Writes `.fabrik/review/<ts>.md` | Bundles diff + spec + resolved registrars for code review handoff |
+
+**Directory structure:**
+
+```
+.fabrik/
+├── state/
+│   ├── <id>.json                  # Active deploy state (one per applied spec)
+│   └── _destroyed/
+│       └── <id>.json.<UTC-ts>     # Archived state from destroyed services
+└── review/
+    └── <YYYY-MM-DD-HHMMSS>.md     # Review bundles from `fabrik review` (gitignored)
+```
+
+**Data-bearing protection:** Registrars that create persistent data (postgres, redis, meilisearch) are marked `data_bearing: true` in the state file. `fabrik destroy --use-state` refuses to tear these down without an explicit `--drop-data` flag — preventing accidental data loss when spec has drifted.
+
+Also related (outside `.fabrik/`): `data/projects.yaml` holds the project registry (paths, types, spec hashes) and `data/provision-jobs/` holds SiteProvisioner saga state for domain provisioning.
+
+---
+
+### 10. Content Publishing Pipeline
 
 Drain SEO-ready briefs and publish them to WordPress automatically:
 
@@ -731,7 +823,7 @@ domain → resolve site_id → list ready briefs → claim brief
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#content-creation-pipeline) for full configuration reference.
 
-### 9. Cloud Integration
+### 11. Cloud Integration
 
 **Supabase + Cloudflare R2:**
 - Multi-tenant database (PostgreSQL)
@@ -741,7 +833,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#content-creation-pipeline) for
 - Presigned upload URLs (bypass server)
 - Background job queue
 
-### 10. Project Scaffolding
+### 12. Project Scaffolding
 
 Create new projects with best practices built-in:
 
@@ -758,13 +850,16 @@ fabrik scaffold my-service
 # ├── pyproject.toml        # Python deps (uv)
 # ├── src/                  # Source code
 # ├── tests/                # Test suite
-# ├── scripts/              # Automation
+# ├── scripts/              # Automation (+ validate_i18n.py for GUI types)
 # ├── docs/                 # Documentation
 # │   ├── QUICKSTART.md
 # │   ├── CONFIGURATION.md
-# │   └── guides/
-# └── .github/workflows/    # CI/CD
+# │   └── reference/multilingual-plan.md  # i18n bible (GUI types only)
+# ├── .droid/               # Kilo/Traycer runtime workspace
+# └── static/i18n/en.json   # i18n source JSON (GUI types only)
 ```
+
+GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, mobile-app, docusaurus) also receive platform-appropriate i18n loaders — React context provider for Next.js, vanilla DOM loader for Electron/static, or platform adapters for Chrome/RN/Docusaurus. See `docs/FEATURES.md` § i18n Kit.
 
 ---
 
@@ -889,39 +984,6 @@ See [tasks.md](tasks.md) for detailed roadmap.
 
 ---
 
-## Contributing
-
-Fabrik is proprietary but used internally for:
-- Client SaaS product development (with AI-assisted workflow)
-- WordPress site automation at scale
-- Internal microservices deployment
-- Enforcing development standards across teams
-fabrik apply specs/file-worker.yaml  # Background processor
-# → OCR, transcription, thumbnail generation
-```
-
----
-
-## Why Fabrik?
-
-**vs Manual Deployment:**
-- Manual: 2-3 hours per service (DNS, Docker, SSL, monitoring)
-- Fabrik: 5 minutes (`fabrik apply`)
-
-**vs Platform-as-a-Service (Heroku, Vercel, Railway):**
-- PaaS: $20-100/month per service, vendor lock-in
-- Fabrik: $10/month VPS, unlimited services, full control
-
-**vs Kubernetes:**
-- K8s: Complex (100+ YAML files), expensive ($50+ for managed cluster)
-- Fabrik: Simple (1 YAML file), cheap (single VPS), production-ready
-
-**vs Terraform/Ansible:**
-- Terraform: Infrastructure only, no application deployment
-- Fabrik: End-to-end (infra + app + monitoring + backups)
-
----
-
 ## Development
 
 ### Run Fabrik Locally
@@ -938,28 +1000,9 @@ PYTHONPATH=src python -m fabrik.main --help
 pytest tests/ -v
 ```
 
-### Add New Template
-
-```bash
-# 1. Create template directory
-mkdir templates/my-template
-
-# 2. Add Dockerfile, compose.yaml, defaults.yaml
-# 3. Register in templates/
-
-# 4. Test (use scaffold, not the deprecated `new` verb)
-fabrik scaffold test-service --type my-template -d "smoke test for my-template"
-```
-
----
-
 ## Contributing
 
-Fabrik is proprietary but used internally for:
-- Client infrastructure deployment
-- SaaS product hosting
-- WordPress site automation
-- Internal tool deployment
+Fabrik is proprietary. Used internally for microservices deployment, AI-assisted development workflows, and convention enforcement across all projects.
 
 ---
 

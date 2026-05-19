@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — i18n-kit: multi-platform internationalization template (2026-05-19)
+
+New `templates/i18n-kit/` provides drop-in i18n for all GUI scaffold types. One JSON format (`en.json`), one validator (`validate_i18n.py` with 3-level Kilo-powered checks), multiple platform loaders: vanilla DOM (`i18n.js` for static-site + desktop-app), React context provider + Next.js server helpers (`I18nProvider.tsx` + `server.ts` for saas-skeleton), Chrome `_locales/` adapter (`chrome_messages.py`), React Native i18next sync (`sync_rn_locales.py`), Docusaurus `code.json` adapter (`sync_docusaurus.py`). `fabrik scaffold` now auto-provisions the right files for 6 GUI types via `_provision_i18n()`. Rule packs updated: 60-saas-ui (use scaffolded `lib/i18n/`, do not install next-intl), 70-chrome-ext (sync via adapter), 80-mobile (source-of-truth at `static/i18n/`).
+
+### Fixed — `_patch_droid_block` missed `.factory/` lines (2026-05-19)
+
+`_patch_droid_block()` in scaffold.py only matched lines starting with `.droid/`, but `_DROID_GITIGNORE_BLOCK` also contains `.factory/consultations/`. This caused the canonical block to be duplicated on `fabrik fix` runs. Fix: fast-path substring check + match both `.droid/` and `.factory/` prefixes.
+
+### Fixed — `kilo_all_models.json` merge conflict markers (2026-05-19)
+
+Git merge conflict markers in `scripts/kilo_all_models.json` broke `check json` in final_gate. Reset to valid empty structure so `kilo_model_sync.py --sync` can regenerate.
+
 ### Added — WordPress Factory agent guardrails (CLAUDE.md + KILO_CLI_RULES.md) — 2026-05-18
 
 Adds `templates/wordpress/CLAUDE.md` and `templates/wordpress/KILO_CLI_RULES.md` as sibling tactical bootstraps to `templates/wordpress/AGENTS.md`, scoped to WordPress Factory infrastructure work (Phases 2–5 build, not generated sites) and cross-referencing `.windsurf/rules/62-wordpress.md` as canonical — closes Epic Brief Success Criterion #5 (WordPress Factory Phase 1 Foundation, ticket T1.0).

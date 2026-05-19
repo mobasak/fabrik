@@ -1,0 +1,16 @@
+<!-- Language switcher dropdown — add to navbar next to user menu -->
+<!-- Uses Bootstrap 5 dropdown. Adapt classes for Tailwind/other frameworks. -->
+<div class="dropdown">
+    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-globe2 me-1"></i><span id="currentLangLabel">EN</span>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="#" data-lang="en" onclick="I18N.setLanguage('en')">English</a></li>
+        <li><a class="dropdown-item" href="#" data-lang="tr" onclick="I18N.setLanguage('tr')">Türkçe</a></li>
+        <li><a class="dropdown-item" href="#" data-lang="es" onclick="I18N.setLanguage('es')">Español</a></li>
+        <li><a class="dropdown-item" href="#" data-lang="pt-br" onclick="I18N.setLanguage('pt-br')">Português (BR)</a></li>
+        <li><a class="dropdown-item" href="#" data-lang="ja" onclick="I18N.setLanguage('ja')">日本語</a></li>
+        <li><a class="dropdown-item" href="#" data-lang="id" onclick="I18N.setLanguage('id')">Bahasa Indonesia</a></li>
+        <!-- Add more languages here. Name always in native form. -->
+    </ul>
+</div>

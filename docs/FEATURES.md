@@ -1,9 +1,6 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-03-08
-**Version:** 0.1.0
-
-> This document serves as both **product documentation** and **marketing source material**.
+**Last Updated:** 2026-05-19
 
 ---
 
@@ -11,21 +8,98 @@
 
 | Feature | Status | Audience | Headline |
 |---------|--------|----------|----------|
+| [Deployment Orchestration](#deployment-orchestration) | ✅ Shipped | Operator | `fabrik apply` — spec-driven deploy with 9 shape-gated registrars, saga rollback, state tracking |
 | [Preplan Handoff](#preplan-handoff) | ✅ Shipped | Developer | Capture intent before scaffold; every agent reads the same intent |
-| [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | Create production-ready projects in seconds |
+| [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | 11 scaffold types with `.droid/`, AI guardrails, and spec emission |
 | [Documentation Enforcement](#documentation-enforcement) | ✅ Shipped | Developer | Never ship undocumented code again |
 | [9-Step Workflow](#9-step-workflow) | ✅ Shipped | Developer | Systematic code quality from plan to commit |
 | [Kilo AI Review](#kilo-ai-review) | ✅ Shipped | Developer | AI-powered code review with fix suggestions |
+| [Development Workspace](#development-workspace) | ✅ Shipped | Developer | `.droid/` per-project workspace for Kilo sessions, transcripts, cost tracking, model sync |
+| [Deploy State Store](#deploy-state-store) | ✅ Shipped | Operator | `.fabrik/state/` records what was deployed; feeds audit, destroy, export, verify |
 | [Registrar Audit & Reconcile](#registrar-audit--reconcile) | ✅ Shipped | Operator | Spec ↔ live drift detection across the fleet |
-| [Local Dev Loop](#local-dev-loop) | ✅ Shipped | Developer | `fabrik dev` / `fabrik logs --local` / `fabrik review` — code, watch, bundle for review without leaving WSL |
-| [State-Driven Destroy](#state-driven-destroy) | ✅ Shipped | Operator | `fabrik destroy --use-state` reverses what was actually deployed, not what the spec says now |
-| [Cross-VPS Portability](#cross-vps-portability) | ✅ Shipped (import untested) | Operator | `fabrik export` / `fabrik import` — bundle VPS state for rebuild on a fresh target |
-| [WordPress Provisioning](#wordpress-provisioning) | 🚧 Beta | Admin | Declarative WordPress site deployment |
+| [Local Dev Loop](#local-dev-loop) | ✅ Shipped | Developer | `fabrik dev` / `fabrik logs --local` / `fabrik review` |
+| [State-Driven Destroy](#state-driven-destroy) | ✅ Shipped | Operator | `fabrik destroy --use-state` reverses what was actually deployed |
+| [Cross-VPS Portability](#cross-vps-portability) | ✅ Shipped (import untested) | Operator | `fabrik export` / `fabrik import` — bundle VPS state for rebuild |
+| [i18n Kit](#i18n-kit) | ✅ Shipped | Developer | Multi-platform i18n: one JSON format, one validator, 6 platform loaders — auto-provisioned by scaffold |
 
 **Status Legend:**
 - ✅ **Shipped** — Production-ready
 - 🚧 **Beta** — Available but may change
 - 📋 **Planned** — On roadmap
+
+---
+
+## Deployment Orchestration
+
+**Status:** ✅ Shipped | **Audience:** Operator | **Since:** v0.1
+
+> **Headline:** `fabrik apply` takes a YAML spec with a `shape:` block and deploys it end-to-end — Coolify container, DNS, SSL, plus 9 registrars that fire automatically based on shape flags.
+
+### What It Does
+
+The core of Fabrik. A spec at `specs/services/<id>.yaml` declares what a service needs via its `shape:` block (needs_database, is_public, has_persistent_data, etc.). `fabrik apply` runs a state-machine orchestrator that:
+
+1. **Validates** — spec schema, deploy readiness, compose linting
+2. **Provisions secrets** — resolves from `-s` flag > project `.env` > fabrik `.env` > process env
+3. **Deploys** — pushes to Coolify API (with 300s grace + SSH fallback for Coolify v4 quirks)
+4. **Fires registrars** — 9 shape-gated registrars provision infrastructure automatically
+5. **Verifies** — health checks, postcondition validation
+6. **Rolls back** on failure — reverse-order cleanup of everything created
+
+### The 9 Registrars
+
+Each registrar fires only when the spec's `shape:` block activates it. `infra: <registrar>: false` overrides to disable.
+
+| Registrar | Fires when | What it provisions |
+|-----------|-----------|-------------------|
+| **postgres** | `needs_database: true` | Database on postgres-main, credentials in Coolify env |
+| **redis** | `needs_cache: true` | Cache index on redis-main via `assignments.json` |
+| **gatus** | `is_public: true` + domain set | Health monitor endpoint on status.vps1.ocoron.com |
+| **backrest** | `has_persistent_data: true` | Restic backup plan → Backblaze B2 |
+| **glitchtip** | kind = service/worker/wordpress | Error tracking project + DSN |
+| **grafana** | always | Dashboard annotation (decorative, not driftable) |
+| **authelia** | `is_admin_dashboard: true` + domain | Forward-auth middleware rule |
+| **meilisearch** | `has_search_feature: true` | Search index creation |
+| **prometheus** | `exposes_metrics: true` + domain | Scrape target registration |
+
+Order matters: postgres first (other registrars may need DB), prometheus last. Destroy reverses this order.
+
+### How To Use
+
+```bash
+# Preview what will happen (registrar resolution, compose validation)
+fabrik plan specs/services/my-api.yaml
+
+# Deploy — orchestrator runs, registrars fire, state file written
+fabrik apply specs/services/my-api.yaml
+
+# Check post-deploy health
+fabrik verify my-api.vps1.ocoron.com --spec registrars
+
+# Redeploy (same spec, fresh container)
+fabrik redeploy --spec specs/services/my-api.yaml
+
+# Tail logs
+fabrik logs my-api -f
+fabrik app-logs specs/services/my-api.yaml --lines 100
+```
+
+### State Machine
+
+```
+PENDING → VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE
+                ↓             ↓             ↓            ↓
+              FAILED ← ROLLING_BACK ← ROLLING_BACK ← ROLLING_BACK → ROLLED_BACK
+```
+
+Every `fabrik apply` writes `.fabrik/state/<id>.json` — see [Deploy State Store](#deploy-state-store). Every registrar is isolated in try/except — one failure doesn't block others.
+
+### Technical Details
+
+- **Orchestrator:** `src/fabrik/orchestrator/` — `deployer.py` (state machine), `infrastructure.py` (registrar dispatch), `rollback.py` (reverse cleanup), `secrets.py`, `verifier.py`
+- **Drivers:** `src/fabrik/drivers/` — 20+ integrations (coolify, postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.)
+- **Spec loader:** `src/fabrik/spec_loader.py` — YAML parsing, shape validation, template merging
+- **State:** `src/fabrik/state.py` — 8-field manifest written after each successful apply
 
 ---
 
@@ -214,6 +288,120 @@ python scripts/kilo_code_review.py review <files> --plan "Task description" --ou
 | **Email Subject** | "Meet Kilo: Your AI code reviewer that actually reads the spec" |
 | **Social Media** | "🤖 Kilo AI review: $0.03-0.40 per review, catches issues humans miss #AICodeReview" |
 | **Sales One-liner** | "Kilo reviews code against your spec, not just syntax—finding logic errors, not just lint." |
+
+---
+
+## Development Workspace
+
+**Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.1
+
+> **Headline:** Every scaffolded project gets a `.droid/` directory — the runtime workspace for Kilo CLI, Traycer dispatch, multi-model consultations, and development cost tracking.
+
+### What It Does
+
+`.droid/` is created by `fabrik scaffold` (part of `SHARED_DIRS` in `scaffold.py`) for all 11 scaffold types. `fabrik fix` also creates/updates it on existing projects. Only `review-context/` and `traycer-reports/` are git-tracked; everything else is gitignored runtime state.
+
+The 9-step development flow generates artifacts at each stage. `.droid/` is where they accumulate:
+
+| Path | Written by | What it stores |
+|------|-----------|---------------|
+| `review-context/` | Kilo agent scripts | Task/plan `.md` files Kilo reviews against (git-tracked) |
+| `traycer-reports/` | `kilo_dispatch.py` | Traycer analysis reports after dispatched sessions (git-tracked) |
+| `transcripts/` | `kilo_terminal_runner.py` | Raw terminal output from each agent session (timestamped, per-model) |
+| `consultations/` | `kilo_consult.py` | Multi-model architecture consultation JSON (Claude, GPT, Gemini queried in parallel) |
+| `responses/` | Ad-hoc gap analysis runs | Cross-model JSON responses from plan reviews |
+| `docs_log/` | `docs_updater.py` | Which docs were auto-generated and when |
+| `docs_queue/` | `docs_updater.py` | Pending doc generation jobs |
+| `dev_tracker.db` | `dev_tracker.py` | SQLite — gate results, review costs, issues, workflow events |
+| `kilo_usage.jsonl` | Kilo agent `.sh` scripts | Append-only JSONL — token counts + cost per review |
+| `kilo_model_sync.log` | `kilo_model_sync_startup.sh` | Daily cron model availability sync log |
+
+### How To Use
+
+```bash
+# Cost report across all Kilo sessions
+python scripts/kilo_cost_report.py
+
+# Query the dev tracker
+python scripts/dev_tracker.py report summary
+python scripts/dev_tracker.py report costs
+python scripts/dev_tracker.py query "SELECT * FROM ai_usage ORDER BY timestamp DESC LIMIT 10"
+
+# Run a multi-model consultation
+python scripts/kilo_consult.py --question "Should we use saga or orchestrator pattern?"
+```
+
+### How It Connects to the Workflow
+
+- **Step 4 (Kilo review):** reads task context from `review-context/` via `--plan .droid/review-context/task.md`
+- **After each session:** `kilo_terminal_runner.py` saves the transcript and logs cost/tokens to `dev_tracker.db`
+- **After each review:** generated Kilo agent scripts append to `kilo_usage.jsonl`
+- **Traycer dispatch:** `kilo_dispatch.py` writes `traycer-reports/latest.md`
+- **Model sync (daily cron):** `kilo_model_sync.py --sync` checks LLM provider availability, logs to `kilo_model_sync.log`
+
+---
+
+## Deploy State Store
+
+**Status:** ✅ Shipped | **Audience:** Operator | **Since:** v0.2 (T2-01)
+
+> **Headline:** `.fabrik/state/<id>.json` records exactly what `fabrik apply` deployed — which registrars fired, which UUIDs were created, at what git SHA. Every downstream command (destroy, audit, export, verify) reads from this state.
+
+### What It Does
+
+Every successful `fabrik apply` writes an 8-field JSON manifest to `.fabrik/state/<id>.json`. This is the backbone of the deploy/destroy/audit pipeline:
+
+```json
+{
+  "applied_at": "2026-05-16T14:03:04Z",
+  "coolify_app_name": "my-api",
+  "coolify_uuid": "lgg84cs8gkso0swk8g4cwo80",
+  "domain": "my-api.vps1.ocoron.com",
+  "git_sha": "ce9d1ed...",
+  "registrars_applied": [
+    {"type": "gatus", "id": "my-api", "status": "created", "data_bearing": false},
+    {"type": "prometheus", "id": "my-api", "status": "created", "data_bearing": false}
+  ],
+  "spec_hash": "72f31d75097f4672",
+  "spec_path": "/opt/fabrik/specs/services/my-api.yaml"
+}
+```
+
+### Who Reads It
+
+| Command | How it uses state |
+|---------|------------------|
+| `fabrik apply` | Writes state after successful deploy |
+| `fabrik destroy --use-state` | Reads state to replay exact teardown (see [State-Driven Destroy](#state-driven-destroy)) |
+| `fabrik audit-registrars` | Reads all state files for fleet-wide drift detection (see [Registrar Audit](#registrar-audit--reconcile)) |
+| `fabrik verify --spec registrars` | Reads state for postcondition gate |
+| `fabrik export` | Bundles state files into portability tarball (UUIDs stripped) |
+| `fabrik review` | Writes `.fabrik/review/<ts>.md` — diff + spec + registrars bundled for review |
+
+### Directory Structure
+
+```
+.fabrik/
+├── state/
+│   ├── <id>.json                  # Active deploy state (one per applied spec)
+│   └── _destroyed/
+│       └── <id>.json.<UTC-ts>     # Archived state from destroyed services
+└── review/
+    └── <YYYY-MM-DD-HHMMSS>.md     # Review bundles from `fabrik review` (gitignored)
+```
+
+Also related (outside `.fabrik/`): `data/projects.yaml` holds the project registry and `data/provision-jobs/` holds SiteProvisioner saga state.
+
+### Data-Bearing Protection
+
+Registrars that create persistent data (postgres, redis, meilisearch) are marked `data_bearing: true` in the state file. `fabrik destroy --use-state` refuses to tear these down without `--drop-data` — preventing accidental data loss when spec has drifted.
+
+### Technical Details
+
+- **Writer:** `src/fabrik/state.py` — `save()` writes atomically after each `fabrik apply`
+- **Lock:** `src/fabrik/locks_local.py` — file-based lock prevents concurrent applies to the same spec
+- **Archive:** `state.archive_destroyed()` moves to `_destroyed/` on successful destroy
+- **Portability:** `src/fabrik/portability.py` — strips `coolify_uuid` from state files for export
 
 ---
 
@@ -449,46 +637,107 @@ Pack v3.2 §EPIC SCOPE Tier 4 G-J2 (effort revised v2: +0.5 day for secrets ergo
 
 ---
 
-## WordPress Provisioning
+## i18n Kit
 
-**Status:** 🚧 Beta | **Audience:** Admin | **Since:** v0.1
+**Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.4
 
-> **Headline:** Declarative WordPress site deployment
+> **Headline:** One JSON format, one validator, 6 platform loaders — auto-provisioned by `fabrik scaffold` for every GUI project type.
 
 ### What It Does
 
-Define your WordPress site in YAML—pages, menus, plugins, users—and Fabrik provisions it. Reproducible, version-controlled WordPress infrastructure.
+Every GUI scaffold type ships with internationalization out of the box. `fabrik scaffold my-app --type saas-skeleton` places the right i18n loader, starter JSON, validation script, and reference docs into the project. Coding agents find these files on day one and use them — no manual setup, no third-party library installation.
 
-### Marketing Copy
+### Platform Coverage
 
-| Channel | Copy |
-|---------|------|
-| **Landing Page** | "WordPress as code. Define your site in YAML, deploy with one command." |
-| **Email Subject** | "Finally: Version-controlled WordPress deployments" |
-| **Social Media** | "📄 WordPress spec → 🚀 Live site. Fabrik provisions WP declaratively #WordPress #IaC" |
-| **Sales One-liner** | "Fabrik treats WordPress like infrastructure: defined, versioned, reproducible." |
+| Scaffold type | Strategy | What gets placed |
+|---------------|----------|-----------------|
+| **saas-skeleton** | React context | `lib/i18n/I18nProvider.tsx` + `server.ts` + `LanguageSwitcher.tsx`, `public/i18n/en.json` |
+| **static-site** | Vanilla DOM | `static/js/i18n.js`, `static/i18n/en.json`, HTML snippets |
+| **desktop-app** | Vanilla DOM | Same as static-site (Electron is Chromium) |
+| **chrome-extension** | Chrome adapter | `extension/src/i18n.js`, `scripts/chrome_messages.py` (generates `_locales/`) |
+| **mobile-app** | RN adapter | `scripts/sync_rn_locales.py` (syncs to `src/locales/` for i18next) |
+| **docusaurus** | Docusaurus adapter | `scripts/sync_docusaurus.py` (syncs custom strings to `i18n/<lang>/code.json`) |
+
+All types also receive: `scripts/validate_i18n.py` (3-level validator), `en.json` + example translations, `docs/reference/multilingual-plan.md` (1170-line architecture bible).
+
+### Shared JSON Format
+
+```json
+{
+  "_meta": { "language": "en", "nativeName": "English", "completeness": 1.0 },
+  "nav": { "home": "Home", "settings": "Settings" },
+  "common": { "save": "Save", "cancel": "Cancel" },
+  "error": { "not_found": "Page not found" }
+}
+```
+
+Nested dot-path keys (`nav.home`), `{variable}` interpolation, `_meta` block for completeness tracking. Same format consumed by all 6 loaders.
+
+### Translation Workflow
+
+```
+1. Developer writes English UI using t('key') or data-i18n="key"
+2. en.json is the source of truth — all keys present
+3. AI translates en.json → tr.json (Claude/GPT first pass)
+4. python scripts/validate_i18n.py --validate tr
+   ├── Level 1: Structural (keys match, placeholders preserved) — free, instant
+   ├── Level 2: Back-translation via Kilo CLI (semantic drift detection)
+   └── Level 3: Native-speaker critique via Kilo CLI (tone/grammar + auto-fix)
+5. Ship.
+```
+
+### Validation
+
+Per-language model selection optimized by the validator:
+
+| Language | Kilo Model | Rationale |
+|----------|-----------|-----------|
+| Turkish | `kilo/x-ai/grok-4.3` | Best at Turkish register (sen vs siz) |
+| Spanish | `kilo/~google/gemini-pro-latest` | Catches technical term misses |
+| Portuguese (BR) | `kilo/~google/gemini-pro-latest` | Knows BR tech keeps English terms |
+| Japanese | `kilo/anthropic/claude-sonnet-4.6` | Best at cultural nuance |
+| Default | `kilo/x-ai/grok-4.3` | Fallback for any new language |
+
+Override per-run: `KILO_I18N_MODEL="kilo/x-ai/grok-4.3" python scripts/validate_i18n.py --validate tr`
+
+### Rule Pack Integration
+
+- **60-saas-ui.md**: "Use scaffolded `lib/i18n/` — do not install next-intl or react-i18next"
+- **70-chrome-ext.md**: "Sync i18n via `scripts/chrome_messages.py`"
+- **80-mobile.md**: "Source-of-truth at `static/i18n/`, sync via `scripts/sync_rn_locales.py`"
+
+These rules ensure coding agents use the scaffolded i18n system rather than installing their own.
+
+### Technical Details
+
+- **Source:** `templates/i18n-kit/` in the fabrik repo (19 files, ~1600 LoC)
+- **Provisioner:** `_provision_i18n()` in `scaffold.py`, called from `create_project()` after type-specific scaffolder runs
+- **Types map:** `I18N_ENABLED_TYPES` in `scaffold.py` — maps scaffold type → strategy (`react`, `vanilla`, `chrome`, `rn`, `docusaurus`)
+- **Battle-tested:** Originally built for the Tojlo project (738 keys, 6 languages, 24 pages), generalized for all fabrik GUI types
 
 ---
 
-## Appendix: Marketing Asset Extraction
+## WordPress Automation
 
-### All Headlines
+**Status:** Extracted to `/opt/wpf/` | **Audience:** Operator | **Since:** v0.1 (fabrik), standalone since 2026-05
 
-1. **Scaffolding:** "Create production-ready projects in seconds"
-2. **Doc Enforcement:** "Never ship undocumented code again"
-3. **9-Step Workflow:** "Systematic code quality from plan to commit"
-4. **Kilo AI:** "AI-powered code review with actionable fix suggestions"
-5. **WordPress:** "Declarative WordPress site deployment"
+> **Headline:** WordPress site lifecycle was built inside fabrik (Phase 2), then extracted to a standalone project at `/opt/wpf/` — the WordPress Factory.
 
-### Feature Matrix
+### History
 
-| Feature | OSS | Pro |
-|---------|-----|-----|
-| Project Scaffolding | ✅ | ✅ |
-| Documentation Enforcement | ✅ | ✅ |
-| 9-Step Workflow | ✅ | ✅ |
-| Kilo AI Review | ✅ | ✅ |
-| WordPress Provisioning | 🚧 | ✅ |
+The WordPress automation engine (13-stage deployer, planner, preset loader, WP-CLI driver, REST API client, theme/page/SEO/analytics/forms/menu modules — ~9,700 LoC) was originally built inside fabrik as Phase 2. It used fabrik's drivers (Coolify, Backrest, Gatus, Cloudflare via site-provisioner) to deploy WordPress sites from YAML specs.
+
+In May 2026, the engine was extracted to `/opt/wpf/` as a standalone project because:
+
+1. WordPress sites use `kind: wordpress` specs consumed by `wpf wp apply` — they never flow through `fabrik apply` (which only validates `kind: service`)
+2. wpf manages its own registrar dispatch (Backrest, Gatus, Cloudflare WAF) independently of fabrik's 9-registrar pipeline
+3. wpf will become a SaaS product (GUI wizard, Watchdog AI, billing) — concerns that don't belong in the deployment platform
+
+### Current State
+
+- **fabrik:** WordPress scaffold type still exists (creates the project structure), but `deploy_router.py` raises `NotImplementedError` for WordPress deploys — use wpf instead
+- **wpf (`/opt/wpf/`):** Has the full engine, golden-base Docker image system, 133 premium plugin zips, and site specs. Currently in Phase 1+2 (Foundation + Golden Base) — first deploy target is `ocoron.com`
+- **Shared drivers:** wpf calls the same VPS infrastructure fabrik does (Coolify API via `COOLIFY_API_TOKEN`, site-provisioner at `:18014`, redis-main, Backrest) but manages WordPress site lifecycle independently
 
 ---
 
@@ -497,3 +746,5 @@ Define your WordPress site in YAML—pages, menus, plugins, users—and Fabrik p
 - [README.md](../README.md) — Project overview
 - [CHANGELOG.md](../CHANGELOG.md) — Version history
 - [AGENTS.md](../AGENTS.md) — AI agent briefing
+- [DEPLOYMENT.md](DEPLOYMENT.md) — Deploy flows, state machine, secrets
+- [docs/reference/fabrik-lifecycle.md](reference/fabrik-lifecycle.md) — 4-stage lifecycle (Intent → Implementation → Registration → Verification)

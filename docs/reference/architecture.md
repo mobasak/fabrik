@@ -159,40 +159,122 @@ backup: {enabled: true, frequency: daily, retention: 30}
 
 ## Directory Structure
 
+**Last verified:** 2026-05-19
+
+### Source code
+
 ```text
-/opt/fabrik/
-├── src/fabrik/
-│   ├── cli.py                        # 22-command CLI (2048 lines)
-│   ├── spec_loader.py                # Pydantic Spec + Shape models
-│   ├── template_renderer.py          # Jinja2 + ComposeLinter hook
-│   ├── scaffold.py                   # fabrik scaffold logic
-│   ├── deploy_router.py              # project-type dispatch
-│   ├── deploy_validator.py           # scaffold-level readiness
-│   ├── compose_linter.py             # Coolify-compat checks
-│   ├── registry.py                   # project registry
-│   ├── provisioner.py                # brand-new-site saga
-│   ├── verify.py                     # postcondition framework
-│   ├── orchestrator/                 # 11 modules — deployment state machine
-│   └── drivers/                      # 22 modules — external API clients
-├── templates/                        # 12 deploy templates (11 also scaffold-exposed)
-├── specs/
-│   ├── services/                     # per-app specs (~52 services)
-│   ├── infrastructure/               # platform-wide specs
-│   ├── sites/                        # WordPress site specs
-│   └── verification/                 # declarative postconditions
-├── configs/                          # local mirrors of VPS configs
-├── scripts/
-│   ├── enforcement/                  # pre-deploy invariant checks
-│   ├── probes/                       # live API contract tests
-│   └── final_gate.py                 # tier-1/2/3 quality gate
-├── tests/
-│   ├── orchestrator/                 # 144 tests
-│   └── drivers/                      # 331 tests across 12 modules
-└── docs/
-    ├── DEPLOYMENT.md                 # canonical deploy reference (790 lines)
-    ├── LESSONS_LEARNT.md             # every live-incident invariant
-    └── reference/                    # this directory
+src/fabrik/
+├── cli.py                     # Click CLI — 22 commands (plan, apply, destroy, scaffold, verify, audit, etc.)
+├── main.py                    # Entry point (fabrik.cli:main)
+├── health_app.py              # FastAPI health endpoint (checks Coolify + DNS manager)
+├── spec_loader.py             # Pydantic Spec + Shape models
+├── spec_generator.py          # Spec emission from scaffold context
+├── template_renderer.py       # Jinja2 compose/Dockerfile rendering + ComposeLinter hook
+├── scaffold.py                # fabrik scaffold — 11 types, .droid/ creation, AI guardrail emission
+├── deploy.py                  # deploy_to_coolify() core function
+├── deploy_router.py           # project-type dispatch (WordPress raises NotImplementedError — moved to /opt/wpf/)
+├── deploy_validator.py        # scaffold-level readiness checks
+├── compose_linter.py          # Coolify-compat: no public ports, amd64, coolify network
+├── config.py                  # FABRIK_ROOT, ensure_directories
+├── registry.py                # ProjectRegistry → data/projects.yaml
+├── provisioner.py             # SiteProvisioner — 15-state saga for new site bootstrap
+├── state.py                   # .fabrik/state/<id>.json — 8-field deploy manifest
+├── locks_local.py             # File-based lock preventing concurrent applies
+├── verify.py                  # PostconditionChecker framework
+├── audit.py                   # Registrar drift detection (one auditor per registrar)
+├── portability.py             # fabrik export/import — UUID-stripped tarball
+├── monitor.py                 # Health monitoring
+├── notifications.py           # Deploy success/failure notifications
+├── preplan.py                 # fabrik preplan new — 9-section intent capture
+├── dev_tools.py               # fabrik dev / fabrik review / fabrik logs --local
+├── orchestrator/              # 11 modules — deployment state machine
+│   ├── __init__.py            #   DeploymentOrchestrator — top-level runner
+│   ├── deployer.py            #   ServiceDeployer — Coolify create/update/deploy
+│   ├── infrastructure.py      #   InfrastructureProvisioner — 9 shape-gated registrars
+│   ├── rollback.py            #   RollbackManager — LIFO cleanup
+│   ├── secrets.py             #   SecretsManager — CSPRNG + env precedence
+│   ├── verifier.py            #   HTTP 200, DNS, SSL, SENTRY_DSN injection
+│   ├── destroyer.py           #   Reverse-order registrar teardown + state-driven destroy
+│   ├── validator.py           #   Pydantic validation + SSRF check
+│   ├── context.py             #   DeploymentContext — shared state for rollback
+│   ├── states.py              #   State enum + transition guard
+│   ├── coolify_alias.py       #   Stable Docker network alias management
+│   └── exceptions.py          #   Typed exceptions
+├── drivers/                   # 22+ modules — every external call goes through a driver
+│   ├── coolify.py             #   CoolifyClient — API wrapper
+│   ├── postgres.py            #   CREATE DATABASE via SSH
+│   ├── redis.py               #   Cache index assignment via assignments.json
+│   ├── gatus.py               #   Health monitor endpoint YAML emission
+│   ├── backrest.py            #   Restic backup plan registration → B2
+│   ├── glitchtip.py           #   Error tracking project + DSN
+│   ├── grafana.py             #   Dashboard annotation
+│   ├── authelia.py            #   Forward-auth rule management
+│   ├── meilisearch.py         #   Search index creation
+│   ├── prometheus.py          #   Scrape target registration
+│   ├── cloudflare.py          #   DNS + WAF via Cloudflare API
+│   ├── dns.py                 #   DNSClient — site-provisioner wrapper
+│   ├── ssh.py                 #   SSH command execution
+│   ├── locks.py               #   Distributed locking
+│   ├── compose_updater.py     #   Live compose patching
+│   ├── preflight.py           #   Pre-deploy readiness checks
+│   ├── r2.py                  #   Cloudflare R2 storage
+│   ├── supabase.py            #   Supabase integration
+│   ├── image_broker.py        #   Stock image API
+│   ├── seo.py                 #   SEO service client
+│   ├── tco.py                 #   Content orchestration client
+│   └── uptime_kuma.py         #   Legacy (superseded by Gatus)
+├── ai/                        # LLM client + cost tracking
+│   ├── client.py              #   LLMClient (Claude/OpenAI) with pricing
+│   └── tracker.py             #   UsageTracker — SQLite ai_usage.db
+├── api/                       # Empty — reserved for future fabrik HTTP API
+├── models/                    # Empty — reserved
+├── services/                  # Empty — reserved
+└── utils/                     # Empty — reserved
 ```
+
+### Runtime directories (dot-folders)
+
+| Directory | Purpose | Persistent? | Git-tracked? |
+|-----------|---------|-------------|-------------|
+| `.fabrik/state/` | Deploy state store — 8-field JSON manifest per `fabrik apply`. Feeds destroy, audit, export, verify. `_destroyed/` subdir archives teardown state. | Yes | No (gitignored) |
+| `.fabrik/review/` | Review bundles from `fabrik review` — diff + spec + registrars | No (ephemeral) | No |
+| `.droid/review-context/` | Task/plan `.md` files passed to Kilo `--plan` flag | Yes | **Yes** (git-tracked) |
+| `.droid/traycer-reports/` | Traycer analysis reports after dispatched sessions | Yes | **Yes** (git-tracked) |
+| `.droid/transcripts/` | Raw terminal output from each Kilo agent session | Yes | No |
+| `.droid/consultations/` | Multi-model architecture consultation JSON | Yes | No |
+| `.droid/responses/` | Cross-model gap analysis results | Yes | No |
+| `.droid/docs_log/` + `docs_queue/` | Docs enforcer state (generated/pending) | Yes | No |
+| `.droid/dev_tracker.db` | SQLite — gate results, review costs, workflow events | Yes | No |
+| `.droid/kilo_usage.jsonl` | Token counts + cost per Kilo review invocation | Yes | No |
+| `.droid/kilo_model_sync.log` | Daily cron model availability sync (active) | Yes | No |
+| `.kilo/` | Kilo Code VSCode/Windsurf extension runtime — `@kilocode/plugin` + `node_modules` (58MB) + implementation plans in `plans/` | Yes | No (gitignored) |
+| `.vscode/` | VS Code settings — disables `.env` loading in Python terminal (2 settings) | Yes | Yes |
+| `.windsurf/rules/` | 21 Cascade AI behavior rule packs (10-python, 30-ops, 35-security, etc.) — the convention enforcement rules referenced in CLAUDE.md | Yes | Yes |
+| `.windsurf/workflows/` | 11 Cascade workflow definitions (auto-review, bug-fix, deploy, kilo, new-feature, etc.) | Yes | Yes |
+| `.windsurf/hooks.json` | Post-write hooks — runs `validate_conventions` + `check_secrets` after every Cascade code write | Yes | Yes |
+| `.mypy_cache/` | mypy type-check cache (142MB) — regenerated by Final Gate Phase 2 | No (cache) | No |
+| `.pytest_cache/` | pytest cache (188KB) | No (cache) | No |
+| `.ruff_cache/` | ruff linter cache (412KB) | No (cache) | No |
+
+### Other root directories
+
+| Directory | Purpose | Status |
+|-----------|---------|--------|
+| `apps/` | **Legacy deploy convention** — compose files for services deployed before the spec-driven pipeline. `postgres-main/` and `fabrik-proxy/` are active running services; `example-api/` is an obsolete template | Partially active |
+| `configs/` | Local mirrors of VPS configs (monitoring, auth, backup) | Active |
+| `data/` | `projects.yaml` (project registry) + `provision-jobs/` (SiteProvisioner saga state) | Active |
+| `docs/` | Documentation — `DEPLOYMENT.md` (canonical), `FEATURES.md`, `LESSONS_LEARNT.md`, `reference/` (this file), `traycer/` (workflow docs) | Active |
+| `scripts/` | `final_gate.py`, `enforcement/` (19 checks), `kilo_code_review.py`, `kilo_consult.py`, `kilo_model_sync.py`, `dev_tracker.py`, `docs_updater.py`, `build_golden.sh` helpers, Traycer agent scripts | Active |
+| `specs/services/` | Per-app deployment specs (~52 YAML files, mix of real services + scaffold test specs) | Active |
+| `specs/sites/` | WordPress site specs (ocoron.com) — consumed by wpf, not fabrik | Active (wpf) |
+| `templates/` | 12 deploy templates (11 scaffold-exposed + next-tailwind deploy-only). Each has `defaults.yaml` with default shape flags | Active |
+| `templates/i18n-kit/` | Multi-platform i18n template (19 files). Vanilla DOM loader, React/Next.js provider, Chrome/RN/Docusaurus adapters, 3-level Kilo validator, multilingual plan doc. Auto-provisioned by `_provision_i18n()` in scaffold.py for 6 GUI types | Active |
+| `tests/` | Orchestrator tests (144), driver tests (331), scaffold tests, enforcement tests | Active |
+
+### WordPress — extracted to /opt/wpf/
+
+The WordPress automation engine (~9,700 LoC: 13-stage deployer, planner, preset loader, WP-CLI driver, REST API client, theme/page/SEO/analytics/forms modules) was built as fabrik Phase 2 and extracted to `/opt/wpf/` in May 2026. `deploy_router.py` raises `NotImplementedError` for WordPress deploys. WordPress scaffold type still exists for project structure generation. Site specs at `specs/sites/` have `kind: wordpress` and are consumed by `wpf wp apply`, not `fabrik apply`. wpf calls the same VPS drivers (Coolify, Backrest, Gatus, site-provisioner) but manages WordPress site lifecycle independently.
 
 ---
 
