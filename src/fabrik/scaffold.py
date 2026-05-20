@@ -413,7 +413,6 @@ _COMMON_GITIGNORE_PATTERNS = (
     "AGENTS.md\n"
     "AGENTS-compact.md\n"
     "opencode.json\n"
-    "KILO_CLI_RULES.md\n"
     "docs/reference/kilo/\n"
     "docs/reference/fabrik-lifecycle.md\n"
     "docs/reference/fabrik-project-catalog.md\n"

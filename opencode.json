@@ -1,7 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
-    "AGENTS-compact.md",
-    "KILO_CLI_RULES.md"
+    "AGENTS-compact.md"
   ]
 }
