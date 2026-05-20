@@ -1,137 +1,171 @@
-# Kilo Agent Selection Guide - Complete Catalog
+# Kilo Agent Selection Guide
 
-**Generated:** 2026-02-28
-**Total Models:** 319
-**Providers:** 57
+**Last Updated:** 2026-05-20
 
-## Complete Model Catalog
+---
 
-**File:** `/opt/fabrik/scripts/KILO_COMPLETE_AGENT_CATALOG.json`
+## Selection Philosophy
 
-This JSON file contains ALL 319 Kilo models with:
-- Model ID and provider
-- Specialties (coding, reasoning, vision, fast, budget, premium)
-- Recommended use cases
-- Pricing (verified or TBD)
-- Recommended variants (high, max, etc.)
-- Suitability for code vs review agents
+**Cheapest model that clears quality and speed floors.** Not the best model — the cheapest one that's good enough.
 
-## Top Providers by Model Count
+Every role has two hard floors (minimum quality score, minimum output speed). Among all models that pass both floors, the cheapest wins P1 (primary), next-cheapest gets P2 (fallback), and so on. This means:
 
-| Provider | Models | With Pricing | Available |
-|----------|--------|--------------|-----------|
-| openai | 62 | 16 | All GPT-5.x, GPT-4.x, O1, O3 |
-| google | 46 | 2 | Gemini 2.x, 3.x, 4.x |
-| anthropic | 13 | 5 | Claude Opus, Sonnet, Haiku 3.x-4.x |
-| meta-llama | 19 | 0 | Llama 3.x, 4.x |
-| qwen | 17 | 0 | Qwen 2.x, 3.x, QwQ |
-| mistralai | 16 | 0 | Mistral, Codestral, Pixtral |
-| deepseek | 14 | 0 | DeepSeek V2, V3, R1 |
-| z-ai (GLM) | 10 | 1 | GLM-4.x, GLM-5 |
-| x-ai (Grok) | 8 | 0 | Grok 3, 4, 4.1 |
-| moonshotai (Kimi) | 6 | 1 | Kimi K2, K2.5 |
-| minimax | 7 | 1 | MiniMax M1, M2, M2.5 |
-| nvidia | 6 | 0 | Nemotron models |
-| cohere | 6 | 0 | Command series |
-| bytedance-seed | 5 | 0 | Seed 1.x, 2.x |
-| ... and 43 more providers | 84 | 0 | Various |
+- Quality regressions are impossible — the floor blocks bad models
+- Cost is always minimized — you never overpay for a role
+- Provider diversity happens naturally — different providers win different roles
 
-## Models by Capability
+If unsure about a ticket's complexity, **default to complex** — a quality regression costs more than a cost regression.
 
-### Coding Specialists (76 models)
-- OpenAI: gpt-5.x-codex, gpt-4.x-codex
-- Qwen: qwen-coder, qwen3.5-coder
-- DeepSeek: deepseek-coder-v2
-- Mistral: codestral-2508
-- ... and 60+ more
+---
 
-### Reasoning/Thinking (48 models)
-- OpenAI: o1, o3, gpt-5.x with thinking
-- DeepSeek: deepseek-r1, deepseek-reasoner
-- Anthropic: claude-x-thinking variants
-- Kimi: kimi-k2-thinking
-- ... and 40+ more
+## Current Roster
 
-### Vision/Multimodal (32 models)
-- Google: gemini-x.xv (vision variants)
-- Anthropic: claude-x.xv
-- OpenAI: gpt-4v variants
-- ... and 25+ more
+<!-- ROSTER:START (auto-generated — do not edit below this line) -->
 
-### Fast/Flash (45 models)
-- Google: gemini-flash, gemini-turbo
-- Groq: various fast variants
-- ... and 40+ more
+*Auto-generated on 2026-05-20 from `assignments.json` + `kilo_agents.db`.*
 
-### Budget/Mini (68 models)
-- Google: gemini-flash, gemini-nano
-- OpenAI: gpt-4o-mini variants
-- Meta: llama-3.x-8b variants
-- ... and 60+ more
+### coding — General coding — routed here when ticket isn't classified yet
 
-## Pricing Coverage
+| Priority | Model | ELO | TBench | Cost (in/out per M) | Reason |
+|---|---|---|---|---|---|
+| P1 | **Gpt 5.4** | 1468 | 81.8 | ~$2.50/M / ~$15/M | Highest TBench (81.8) by a significant margin, making it the top choice for raw  |
+| P2 | **Gemini 3.1 Pro Preview** | 1531 | 80.2 | ~$2.00/M / ~$12/M | Second highest TBench (74.8) combined with top-tier Elo (1531) provides an excel |
+| P3 | **Claude Opus 4.6** | 1535 | 76.4 | ~$5.00/M / ~$25/M | Highest Elo (1535) and a strong TBench (58.0) ensure high-quality, well-reasoned |
 
-- **Total models:** 319
-- **With verified pricing:** 16 (5%)
-- **Pricing TBD:** 303 (95%)
+### reviewing — Code review — find bugs, security issues, design problems
 
-**Verified pricing models:**
-1. minimax-m2.5 ($0.12/10M)
-2. gemini-3-flash-preview ($0.20/10M)
-3. glm-4.7 ($0.25/10M)
-4. kimi-k2.5 ($0.25/10M)
-5. claude-haiku-4-5 ($0.40/10M)
-6. gpt-5.1, gpt-5.1-codex ($0.50/10M)
-7. gpt-5.2, gpt-5.2-codex, gpt-5.3-codex ($0.70/10M)
-8. gemini-3-pro-preview ($0.80/10M)
-9. claude-sonnet-4-5 ($1.20/10M)
-10. claude-opus-4-5, claude-opus-4-6 ($2.00/10M)
-11. claude-opus-4-6-fast ($12.00/10M)
+**Floor:** arena_elo ≥ 1480, speed ≥ 30.0 tok/s
 
-## Provider Highlights
+| Priority | Model | ELO | TBench | Cost (in/out per M) | Reason |
+|---|---|---|---|---|---|
+| P1 | **Claude Opus 4.6** | 1535 | 76.4 | ~$5.00/M / ~$25/M | Highest Arena Elo (1535) indicates superior reasoning, which is critical for cod |
+| P2 | **Gemini 3.1 Pro Preview** | 1531 | 80.2 | ~$2.00/M / ~$12/M | Second highest Elo (1531) and vision capabilities. An excellent quality-focused  |
+| P3 | **Claude Sonnet 4.6** | 1500 | 53.4 | ~$3.00/M / ~$15/M | Top 4 Elo (1500) and has vision. A strong reasoning agent that provides a cost-e |
 
-### Chinese AI Providers
-- **z-ai (GLM):** 10 models, GLM-4.x to GLM-5
-- **moonshotai (Kimi):** 6 models, long context specialists (200K+)
-- **deepseek:** 14 models, reasoning specialists (R1)
-- **qwen:** 17 models, coding specialists
-- **baidu:** 5 models, ERNIE series
-- **tencent:** 2 models, Hunyuan series
-- **bytedance-seed:** 5 models, Seed 2.0
+### fixing — Bug fixes, error resolution, debugging
 
-### Western AI Providers
-- **openai:** 62 models, GPT/O-series dominance
-- **anthropic:** 13 models, Claude quality
-- **google:** 46 models, Gemini variety
-- **meta-llama:** 19 models, open source
-- **mistralai:** 16 models, European AI
-- **cohere:** 6 models, enterprise focus
-- **x-ai (Grok):** 8 models, real-time capable
+**Floor:** mean_normalized_tbench_elo ≥ 0.70, speed ≥ 40.0 tok/s
 
-### Specialty Providers
-- **nvidia:** 6 models, GPU-optimized (Nemotron)
-- **perplexity:** 4 models, search-enhanced (Sonar)
-- **amazon:** 7 models, AWS-native (Nova)
-- **01-ai:** 3 models, Yi series
-- **swe-agent:** 0 models (NOT in Kilo catalog)
+| Priority | Model | ELO | TBench | Cost (in/out per M) | Reason |
+|---|---|---|---|---|---|
+| P1 | **Gemini 3.1 Pro Preview** | 1531 | 80.2 | ~$2.00/M / ~$12/M | Exceptional balance of top-tier TBench (74.8) and Elo (1531), making it ideal fo |
+| P2 | **Claude Opus 4.6** | 1535 | 76.4 | ~$5.00/M / ~$25/M | Highest Elo (1535) for superior problem analysis and very strong TBench (58.0) f |
+| P3 | **Gpt 5.4** | 1468 | 81.8 | ~$2.50/M / ~$15/M | Top TBench score (81.8) provides unmatched power for complex refactoring and imp |
 
-## How to Use This Catalog
+### documentation — Docs, READMEs, changelogs — writing, not reasoning
 
-1. **Browse by provider:** See `/opt/fabrik/scripts/kilo_all_319_models_analyzed.json`
-2. **Browse by capability:** See categories in same file
-3. **Full agent data:** See `/opt/fabrik/scripts/KILO_COMPLETE_AGENT_CATALOG.json`
-4. **Select agents:** Pick models based on:
-   - Provider preference
-   - Pricing (if available)
-   - Specialty (coding/reasoning/vision/etc.)
-   - Use case (code gen/review/debug/etc.)
+**Floor:** arena_elo ≥ 1430, speed ≥ 50.0 tok/s
 
-## Next Steps
+| Priority | Model | ELO | TBench | Cost (in/out per M) | Reason |
+|---|---|---|---|---|---|
+| P1 | **Qwen3 235B A22B 2507** | 1457 | — | ~$0.071/M / ~$0.100/M | Highest performance-per-dollar (15708) while maintaining a strong Elo (1457) and |
+| P2 | **Gpt Oss 20B** | 1371 | 3.4 | ~$0.030/M / ~$0.14/M | Second highest performance-per-dollar (15233) with an Elo (1371) well above the  |
+| P3 | **Mimo V2 Flash** | 1411 | — | ~$0.100/M / ~$0.30/M | Excellent performance-per-dollar (5879) combined with a solid Elo (1411) and a l |
 
-The catalog is ready. You can now:
-1. Select specific models from the 319 available
-2. Request agents for specific providers (GLM, Kimi, Grok, etc.)
-3. Filter by pricing, capability, or specialty
-4. Create custom agent combinations
+### testing — Test generation, coverage analysis
 
-All data is in the JSON files for programmatic access.
+**Floor:** tbench_accuracy ≥ 75.0, speed ≥ 40.0 tok/s, cost cap $20.0/M
+
+| Priority | Model | ELO | TBench | Cost (in/out per M) | Reason |
+|---|---|---|---|---|---|
+| P1 | **Gemini 3.1 Pro Preview** | 1531 | 80.2 | ~$2.00/M / ~$12/M | Best combination of high TBench (74.8) for code understanding and strong perform |
+| P2 | **Gpt 5.4** | 1468 | 81.8 | ~$2.50/M / ~$15/M | Top TBench score (81.8) makes it the highest quality option for writing complex  |
+| P3 | **Gemini 3 Flash Preview** | 1470 | 64.3 | ~$0.50/M / ~$3.00/M | Outstanding performance-per-dollar (618.95) with a very respectable TBench score |
+
+<!-- ROSTER:END -->
+
+---
+
+## How to Pick When You're Overriding
+
+Sometimes the pipeline picks wrong. Here's how to think about it:
+
+### "The model writes code that passes tests but is ugly/unidiomatic"
+→ The model has high TBench but low ELO. Switch to a higher-ELO model (Opus, Gemini Pro). ELO correlates with code quality, TBench with task completion.
+
+### "The model is too slow for interactive use"
+→ Check speed floor. Current floor is 40 tok/s. For real-time IDE use, you want 80+ tok/s. Try Flash/Turbo variants (Gemini Flash, GPT-oss-20b).
+
+### "The model keeps hallucinating APIs that don't exist"
+→ Reasoning problem. Increase ELO floor or pin to Opus/Gemini Pro. Models below ELO 1480 hallucinate significantly more on unfamiliar codebases.
+
+### "The cost is too high for this ticket"
+→ Traycer should have routed it to `coding_simple`. If it's genuinely complex but budget-constrained, manually dispatch to the P3 agent (cheaper fallback). Or use a local Ollama model for the first draft, then a cloud model for review.
+
+### "I need vision (screenshot of a bug, UI mockup)"
+→ Only some models have `has_vision=1`. Currently: Claude Opus/Sonnet, Gemini Pro/Flash. GPT-5.x does NOT have vision in Kilo Gateway. Pin to Gemini Pro for vision tasks.
+
+---
+
+## Tradeoff Triangle
+
+You can optimize for two of three. The third suffers.
+
+```
+        QUALITY
+       /       \
+      /   pick   \
+     /    two     \
+    /               \
+  SPEED ————————— COST
+```
+
+| Optimize for | Sacrifice | Example |
+|---|---|---|
+| Quality + Speed | Cost | Claude Opus 4.6 Fast ($30/M) — fast AND smart, but expensive |
+| Quality + Cost | Speed | Qwen3 235B ($0.07/M) — smart AND cheap, but 22B active params = slower |
+| Speed + Cost | Quality | Gemini Flash ($0.30/M) — fast AND cheap, but weaker on complex architecture |
+
+---
+
+## Refresh & Override
+
+### Automated pipeline (don't touch — runs daily)
+```bash
+# kilo_model_sync_startup.sh triggers this on WSL boot (once/day)
+python3 scripts/kilo_model_sync.py --sync
+```
+
+### Manual full refresh
+```bash
+cd /opt/fabrik
+PATH=/usr/local/bin:$PATH python3 scripts/kilo-benchmarks/discover_kilo_agents.py  # Gateway models
+python3 scripts/kilo-benchmarks/update_kilo_benchmarks.py   # Scrape leaderboards
+python3 scripts/kilo-benchmarks/compute_assignments.py       # Recompute roles
+python3 scripts/generate_kilo_agents.py                      # Regenerate agent scripts + update this roster
+```
+
+The last step auto-updates the roster above via `generate_selection_guide_roster.py`. You can also run it standalone:
+```bash
+python3 scripts/kilo-benchmarks/generate_selection_guide_roster.py
+```
+
+### Manual override (pin a model to a role)
+Edit `scripts/kilo-benchmarks/assignments.json` directly. The next `compute_assignments.py` run will overwrite it — to make it permanent, also edit `role_configs.yaml` floors to ensure your preferred model qualifies.
+
+### Live data queries
+```bash
+# Current assignments
+sqlite3 scripts/kilo-benchmarks/kilo_agents.db \
+  "SELECT ar.role, a.id, a.input_cost_per_m, a.arena_elo, a.tbench_accuracy FROM agent_roles ar JOIN agents a ON ar.agent_id=a.id ORDER BY ar.role, ar.priority;"
+
+# Best value models right now
+sqlite3 scripts/kilo-benchmarks/kilo_agents.db \
+  "SELECT id, perf_per_dollar, arena_elo, input_cost_per_m FROM agents WHERE status='active' AND perf_per_dollar>0 ORDER BY perf_per_dollar DESC LIMIT 10;"
+
+# Models that would qualify for coding_complex (quality≥85, tbench≥60)
+sqlite3 scripts/kilo-benchmarks/kilo_agents.db \
+  "SELECT id, arena_elo, tbench_accuracy, input_cost_per_m FROM agents WHERE status='active' AND tbench_accuracy>=60 ORDER BY input_cost_per_m;"
+```
+
+---
+
+## Source of Truth
+
+| What | Where | Freshness |
+|---|---|---|
+| All models + pricing + benchmarks | `scripts/kilo-benchmarks/kilo_agents.db` | Auto-updated daily |
+| Role definitions + floors | `scripts/kilo-benchmarks/role_configs.yaml` | Manual (stable) |
+| Current assignments | `scripts/kilo-benchmarks/assignments.json` | On pipeline run |
+| Agent scripts on disk | `~/.traycer/cli-agents/*.sh` | On `generate_kilo_agents.py` |
+| Kilo CLI | `/usr/local/bin/kilo` (v7.3.1) | `npm update -g @kilocode/cli` |

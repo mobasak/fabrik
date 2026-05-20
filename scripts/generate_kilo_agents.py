@@ -948,3 +948,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(dry_run=args.dry_run)
+
+    # Auto-update the selection guide roster from live DB data
+    if not args.dry_run:
+        try:
+            from kilo_benchmarks.generate_selection_guide_roster import update_guide
+            update_guide()
+        except Exception as e:
+            print(f"[warn] Could not update selection guide roster: {e}")
