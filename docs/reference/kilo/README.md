@@ -4,7 +4,7 @@
 
 This directory contains documentation for the Kilo AI agent system used in Fabrik for code generation, review, and automated development workflows.
 
-> **Kilo Code** is built on OpenCode (MIT-licensed). Install via `npm install -g @kilocode/cli`. Available as VS Code extension, JetBrains plugin, and standalone CLI. Access to **500+ models** via Kilo Gateway with pay-as-you-go pricing (zero markup) or BYOK (Bring Your Own Key).
+> **Kilo Code** is built on OpenCode (MIT-licensed). Install via `npm install -g @kilocode/cli`. Available as VS Code extension, JetBrains plugin, and standalone CLI. Access to **500+ models** via Kilo Gateway (403 active in our DB as of May 2026) with pay-as-you-go pricing (zero markup) or BYOK (Bring Your Own Key).
 
 ---
 
@@ -12,12 +12,15 @@ This directory contains documentation for the Kilo AI agent system used in Fabri
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| **KILO_CLI_REFERENCE.md** | Complete CLI reference (commands, config, HTTP Server API, agents, permissions, MCP servers) | Needs update for April 2026 changes |
+| **KILO_CLI_REFERENCE.md** | CLI reference manual — every command, flag, config option, endpoint, programmatic patterns | Active (updated May 2026, includes April changes) |
+| **KILO_USAGE_GUIDE.md** | CLI how-to guide — skills, MCP, workflows, autonomous mode, serve mode, sessions, fabrik patterns | Active |
+| **KILO_REVIEW_GUIDE.md** | Complete code review guide — pipeline architecture, daily workflow, micro-spec format, semantic batching, issue tracking, token-lean defaults, escalation. References `scripts/kilo_code_review.py`. | Active |
+| **KILO_USE_CASES.md** | Kilo as AI infrastructure — 11 non-coding domains (content, translation, ETL, research, vision, audio, legal, marketing, automation) with economics and ROI rankings | Active |
 | **KILO_MODEL_SELECTION.md** | Model selection guide, Auto Model, leaderboard integration | Active |
-| **KILO_PLATFORM_FEATURES.md** | Cloud features (Slack, App Builder, Teams) | Active |
+| ~~KILO_PLATFORM_FEATURES.md~~ | Slack + App Builder (web GUI only, not CLI) | Archived (2026-04-14) |
 | **KILO_AGENT_NAMING.md** | Role-based naming convention for agent scripts | Active |
 | **KILO_AGENT_SELECTION_GUIDE.md** | Provider highlights and model selection | Active |
-| **KILO_MODEL_CAPABILITIES.md** | Detailed model capability matrix (context, vision, tools, reasoning) | Needs refresh for 2026 models |
+| **KILO_MODEL_CAPABILITIES.md** | Detailed model capability matrix (context, vision, tools, reasoning) | Auto-generated from DB |
 | **KILO_UPDATE_SCHEDULE.md** | Update automation schedule | Active |
 | **KILO_USAGE_GUIDE.md** | Usage patterns and workflows | Active |
 | **KILO_PERFORMANCE_TUNING.md** | Token optimization, context management | Active |
@@ -117,6 +120,6 @@ This directory contains documentation for the Kilo AI agent system used in Fabri
 ## See Also
 
 - `docs/traycer/kilo_selected_agents.md` — Current selected agents documentation
-- `scripts/kilo-benchmarks/README.md` — Database schema and benchmark methodology
+- `scripts/kilo-benchmarks/kilo_agents.sql` — Database schema
 - `.windsurf/rules/50-code-review.md` — Code review rules (references Kilo workflow)
 - `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md` — Local Ollama setup for the 4 local agents

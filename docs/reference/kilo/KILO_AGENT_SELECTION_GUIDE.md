@@ -160,6 +160,23 @@ sqlite3 scripts/kilo-benchmarks/kilo_agents.db \
 
 ---
 
+## Blocking Underperforming Models
+
+| Criterion | Threshold | Action |
+|---|---|---|
+| Response time | >60s | Block |
+| Error rate | API errors | Block |
+| Quality | Unusable output | Block |
+| Cost efficiency | Extreme outlier | Review |
+
+```bash
+python scripts/kilo-benchmarks/manage_blocked.py block "agent/id" "reason"
+python scripts/kilo-benchmarks/manage_blocked.py unblock "agent/id"
+python scripts/kilo-benchmarks/manage_blocked.py list
+```
+
+---
+
 ## Source of Truth
 
 | What | Where | Freshness |

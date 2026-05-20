@@ -1,146 +1,179 @@
 # Kilo Troubleshooting Guide
 
-**Last Updated:** 2026-03-01
+**Last Updated:** 2026-05-20
 
-Quick solutions for common Kilo CLI and Traycer agent issues.
+Quick solutions for common Kilo CLI issues.
 
 ---
 
-## Common Issues
+## CLI Issues
 
-### 1. Agent Script Not Executable
+### Kilo CLI not found
 
-**Symptom:** `Permission denied` when running agent script
+**Symptom:** `kilo: command not found`
 
-**Fix:**
+**Root cause:** WSL may find the Windows-side kilo (`/mnt/c/.../npm/kilo`) first, which errors on Linux. The real binary is at `/usr/local/bin/kilo`.
+
+```bash
+# Check what's found
+which kilo
+
+# If it points to /mnt/c/..., use the full path
+/usr/local/bin/kilo --version   # Should show 7.3.1
+
+# Or fix PATH priority (add to ~/.bashrc)
+export PATH="/usr/local/bin:$PATH"
+```
+
+If not installed at all:
+```bash
+sudo npm install -g @kilocode/cli
+```
+
+### Agent script not executable
+
 ```bash
 chmod +x ~/.traycer/cli-agents/*.sh
 ```
 
-### 2. Kilo CLI Not Found
+### Model not available
 
-**Symptom:** `kilo: command not found`
-
-**Fix:**
-```bash
-# Check if kilo is installed
-which kilo
-
-# If not found, install via npm
-npm install -g @kilocode/cli
-```
-
-### 3. Model Not Available
-
-**Symptom:** `Model not found` or `Model unavailable` error
-
-**Fix:**
 ```bash
 # Refresh model cache
 kilo models --refresh
 
-# Check model availability
-python scripts/kilo_code_review.py stats --by-model
+# Test specific provider connectivity
+kilo roll-call openai
+kilo roll-call anthropic
 ```
 
-### 4. Timeout During Review
+---
 
-**Symptom:** Review hangs or times out
+## Review Script Issues (`kilo_code_review.py`)
 
-**Cause:** Large file, slow API, or cache corruption
+### Timeout during review
 
-**Fix:**
+**Symptom:** Review hangs or times out.
+
+The script uses **liveness-based monitoring**, not blind timeouts. It kills only if truly idle (no stdout/stderr output).
+
 ```bash
-# For agent scripts (default 600s)
-export KILO_TIMEOUT=300
+# Increase idle timeout (default 120s — no output for this long = hung)
+export KILO_IDLE_TIMEOUT=300
 
-# For kilo_code_review.py (default 300s)
-export KILO_REVIEW_TIMEOUT=300
-
-# For mypy specifically
-make mypy-safe
+# Increase hard timeout (default 1200s — absolute max)
+export KILO_HARD_TIMEOUT=2400
 ```
 
-### 5. Infinite Loop in Pre-commit
+### Empty or truncated response
 
-**Symptom:** `ruff --fix` keeps modifying same files
+**Symptom:** Claude responds with "Shift note saved" or partial text.
 
-**Fix:** The `kilo_code_review.py` has built-in infinite loop detection. If stuck:
+**Root cause:** `--output-format text` drops content when the agent interleaves tool calls with text. Use `--output-format json` and parse the `result` field.
+
+This is already fixed in `bot.py` (VPS sysadmin) and `kilo_code_review.py`. If you're calling kilo directly:
+
 ```bash
-# Skip pre-commit
+# Bad — loses content
+kilo run --output-format text "status"
+
+# Good — full response in result field
+kilo run --output-format json "status" | python3 -c "import json,sys; print(json.load(sys.stdin)['result'])"
+```
+
+### `docker events` hanging forever
+
+**Symptom:** Kilo spawns `docker events` subprocess that never exits, causing 5-minute timeouts.
+
+**Root cause:** `docker events` without `--until now` is a streaming command that blocks forever.
+
+**Fix:** Always use `--until now`:
+```bash
+# Bad — streams forever
+sudo docker events --since 5m --filter event=oom
+
+# Good — returns immediately
+sudo docker events --since 5m --until now --filter event=oom
+```
+
+### Infinite loop in pre-commit
+
+**Symptom:** `ruff --fix` keeps modifying same files.
+
+```bash
 python scripts/kilo_code_review.py review <files> --skip-precommit
 ```
 
-### 6. Session Continuity Lost
+### Session continuity lost
 
-**Symptom:** `--session continue` not finding previous session
+**Symptom:** `--session continue` not finding previous session.
 
-**Fix:**
 ```bash
-# List existing sessions
+# List existing review sessions
 ls .droid/reviews/
 
-# Start new session explicitly
-# Omit --session flag to start fresh
+# Start fresh (omit --session)
 python scripts/kilo_code_review.py review <files>
+
+# Session requires tracked-review-id
+python scripts/kilo_code_review.py review <files> \
+  --session continue --tracked-review-id "feat-xyz"
 ```
+
+### "Kilo incomplete/garbled response" retry
+
+**What it means:** Upstream Kilo returned incomplete JSONL (no `step_finish` event).
+
+**What happens automatically:**
+1. Script detects incomplete response
+2. Waits `2^attempt` seconds (exponential backoff)
+3. Retries with same prompt (max 3 attempts)
+
+**If persistent:** Check network stability, try different model, reduce batch size.
 
 ---
 
 ## Debug Mode
 
-Enable debug output for all agents:
-
 ```bash
 export KILO_DEBUG=1
 export KILO_TRACK_COST=1
 
-# Run your task - will show detailed output
+# Shows: agent name, model, prompt length, task ID, timeout, exit codes, duration
 ```
-
-Debug shows:
-- Agent name and model
-- Prompt length
-- Task ID
-- Timeout settings
-- Exit codes
-- Duration
 
 ---
 
 ## Cost Tracking
 
-### View Usage Statistics
-
 ```bash
-# Last 30 days summary
+# Summary
 python scripts/kilo_code_review.py stats
 
-# By model
+# By model (find expensive patterns)
 python scripts/kilo_code_review.py stats --by-model
 
 # By file type
-python scripts/kilo_code_review.py stats --by-filetype
+python scripts/kilo_code_review.py stats --by-filetype --days 7
 
-# Custom time range
-python scripts/kilo_code_review.py stats --days 7
+# Kilo built-in stats
+kilo stats
 ```
 
-### Usage Log Location
-
+**Log locations:**
 - Session logs: `.droid/kilo_usage.jsonl`
 - Review sessions: `.droid/review_sessions.jsonl`
 - Metrics: `.droid/kilo_metrics.jsonl`
 
 ---
 
-## Agent Health Check
+## Agent Health
 
 ```bash
-# Check all agents for issues
+# Check all agent scripts (executable, shebang, syntax)
 bash scripts/kilo_agent_health.sh
 
-# Regenerate if needed
+# Regenerate from DB
 python scripts/generate_kilo_agents.py
 
 # Dry-run first
@@ -149,56 +182,40 @@ python scripts/generate_kilo_agents.py --dry-run
 
 ---
 
-## Model Selection Issues
+## Model Routing Issues
 
-### Routing Decisions
+Model selection is automated via the pipeline. See [KILO_AGENT_SELECTION_GUIDE.md](KILO_AGENT_SELECTION_GUIDE.md) for current roster, quality floors, and how to override.
 
-Review model selection is based on diff file paths:
-- **High-risk paths** (src/, scripts/, auth/) → Opus 4.6
-- **Normal paths** → Gemini 3 Flash (cheaper)
-
-Override with:
+Manual override:
 ```bash
 export KILO_REVIEW_MODEL=kilo/anthropic/claude-sonnet-4.6
 ```
 
-### Available Tiers
-
-| Tier | Models | Cost |
-|------|--------|------|
-| Auto | kilo/auto | Variable |
-| Prime | Opus 4.6, GPT-5.2 Pro | $5-25/M |
-| Strong | Sonnet 4.6, GPT-5.3 | $1-15/M |
-| Balanced | GPT-5.2, Grok | $0.02-14/M |
-| Economy | Gemini Flash, Devstral | ~$0.02/M |
-| Free | MiniMax M2.1, GLM 4.7-free, Kimi K2.5 | $0 |
-| Ultra | Codestral | ~$0.25/M |
-
 ---
 
-## Error Codes
+## Exit Codes
 
-| Exit Code | Meaning | Action |
-|-----------|---------|--------|
-| 0 | Success | - |
-| 1 | Review failed (issues remain) | Fix issues |
-| 2 | Error (invalid input, Kilo unavailable) | Check config |
-| 124 | Timeout | Increase KILO_TIMEOUT |
-| 503 | Service unavailable | Retry later |
+| Code | Meaning | Action |
+|---|---|---|
+| 0 | Success | — |
+| 1 | Review failed (issues remain) or error | Fix issues or check config |
+| 124 | Timeout | Increase `KILO_IDLE_TIMEOUT` / `KILO_HARD_TIMEOUT` |
 
 ---
 
 ## Getting Help
 
-1. Check agent logs: `~/.traycer/cli-agents/`
-2. Review session: `.droid/reviews/<session_id>/`
-3. Enable debug: `KILO_DEBUG=1`
-4. Run health check: `scripts/kilo_agent_health.sh`
+1. Enable debug: `KILO_DEBUG=1`
+2. Check agent health: `bash scripts/kilo_agent_health.sh`
+3. Check review sessions: `.droid/reviews/`
+4. Test model connectivity: `kilo roll-call <provider>`
+5. Check kilo version: `/usr/local/bin/kilo --version`
 
 ---
 
 ## See Also
 
-- [KILO_CLI_REFERENCE.md](KILO_CLI_REFERENCE.md) - Complete CLI reference
-- [KILO_PERFORMANCE_TUNING.md](KILO_PERFORMANCE_TUNING.md) - Optimization guide
-- [KILO_MODEL_SELECTION.md](KILO_MODEL_SELECTION.md) - Model selection details
+- [KILO_CLI_REFERENCE.md](KILO_CLI_REFERENCE.md) — Command reference + programmatic patterns
+- [KILO_PERFORMANCE_TUNING.md](KILO_PERFORMANCE_TUNING.md) — Token and speed optimization
+- [KILO_REVIEW_GUIDE.md](KILO_REVIEW_GUIDE.md) — Review pipeline details
+- [KILO_AGENT_SELECTION_GUIDE.md](KILO_AGENT_SELECTION_GUIDE.md) — Model routing and blocking

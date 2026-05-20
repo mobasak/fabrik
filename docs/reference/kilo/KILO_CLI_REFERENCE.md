@@ -1,10 +1,11 @@
 # Kilo CLI Complete Reference
 
-**Last Updated:** 2026-05-13
+**Last Updated:** 2026-05-20
 
 This document provides comprehensive reference for Kilo Code CLI features, covering installation, configuration, interactive mode, autonomous mode, HTTP server API, custom agents, plugins, permissions, and session management.
 
-> **Kilo CLI version:** 7.0.33+ (fork of OpenCode)
+> **Kilo CLI version:** 7.3.1 (built on OpenCode, MIT-licensed). Installed at `/usr/local/bin/kilo` on WSL.
+> **500+ models** via Kilo Gateway. Pay-as-you-go (zero markup) or BYOK.
 
 ---
 
@@ -24,6 +25,47 @@ This document provides comprehensive reference for Kilo Code CLI features, cover
 12. [Session Management](#session-management)
 13. [CLI Commands](#cli-commands)
 14. [Environment Variables](#environment-variables)
+
+---
+
+## Kilo as AI Infrastructure
+
+Kilo CLI is not a coding tool — it's a **programmable AI platform** with 500+ models, tool execution, session memory, and a full HTTP API. The built-in coding agents are one use case. The platform supports any task an LLM can do.
+
+**See:** [KILO_USE_CASES.md](KILO_USE_CASES.md) — comprehensive use case analysis across 11 domains (content generation, translation, data extraction, research, vision/OCR, audio pipelines, business automation, marketing, legal, multi-modal pipelines) with economics, architecture patterns, and ROI rankings.
+
+**Verified on 2026-05-20:** `kilo serve` → OpenAPI 3.1 REST API (`/global/health` healthy, `/session` 100+ sessions, `/agent` 10 agents). `kilo run --auto` → autonomous agent with exit codes. Custom agents, MCP integration, 500+ models, SSE streaming, remote control all confirmed working.
+
+---
+
+## April 2026 Changes (v7.2+)
+
+Major features added since v7.0:
+
+| Feature | Description |
+|---------|-------------|
+| **Snapshots** | Git-based working directory snapshots before/after agent edits. Revert any message's changes from the chat. Replaces old checkpoint system. |
+| **Agent Manager** | Run multiple agents simultaneously within the interface (VS Code / Cloud). |
+| **Subagents** | Agents with full tool access can now delegate to subagents automatically. Replaces Orchestrator mode for most use cases. |
+| **Granular Permissions** | Per-tool Allow/Ask/Deny system replaces old auto-confirm UI. Supports bash, read, edit, glob, grep individually. |
+| **Context Progress Graph** | Visual timeline at top of chat showing session activity and token usage. |
+| **Diff Viewer** | Click diff badges in chat to review file changes. |
+| **Local Code Reviews** | `/local-review` and `/local-review-uncommitted` for AI-powered branch/uncommitted analysis. |
+| **Model Cost Display** | Pricing info (input/output per million tokens) visible in model picker. |
+| **Model Favoriting** | Star preferred models in the selector. |
+| **`kilo roll-call`** | Batch connectivity and latency testing for models. |
+| **`kilo github`** | Install and run GitHub agent for PR workflows. |
+| **`kilo db`** | Database management tools. |
+
+**Deprecated in v7.2+:**
+
+| Deprecated | Replacement |
+|---|---|
+| Orchestrator Mode | Automatic subagent delegation (agents delegate on their own) |
+| Profiles | Model favoriting (starring) |
+| Code Indexing | Temporarily unavailable, under active development |
+| Checkpoints | Renamed to Snapshots (git-based) |
+| Auto-confirm UI | Granular per-tool permission system |
 
 ---
 
@@ -251,7 +293,7 @@ kilo run --auto "Implement feature X"
    - `/ask` - Switch to Ask mode
    - `/architect` - Switch to Architect mode
    - `/debug` - Switch to Debug mode
-   - `/orchestrator` - Switch to Orchestrator mode
+   - `/orchestrator` - Switch to Orchestrator mode **(deprecated — use subagents)**
    - `/review` - Switch to Review mode
 3. **Keyboard shortcut** - Toggle through modes:
    - **macOS:** `⌘ + .`
@@ -347,7 +389,9 @@ This uses a separate context window and doesn't pollute the main task.
 
 ---
 
-#### Orchestrator Mode
+#### Orchestrator Mode (DEPRECATED — v7.2+)
+
+> **Deprecated:** Orchestrator mode is replaced by automatic subagent delegation in v7.2+. Agents with full tool access now delegate to subagents on their own without a dedicated orchestrator. The section below is retained for reference only.
 
 **Formerly known as:** Boomerang Tasks
 
@@ -547,7 +591,6 @@ Planning → Architect mode (safe, markdown-only edits)
 Learning → Ask mode (read-only, no accidental changes)
 Debugging → Debug mode (full access, focused troubleshooting)
 Implementation → Code mode (full access, general development)
-Coordination → Orchestrator mode (delegates to specialists)
 Quality → Review mode (feedback-focused, limited edits)
 ```
 
@@ -559,14 +602,13 @@ Quality → Review mode (feedback-focused, limited edits)
 | Architect | Low-Medium | Budget models for planning, premium for complex design |
 | Code | High | Start budget, escalate to premium for complex tasks |
 | Debug | High | Premium models for complex issues, budget for simple bugs |
-| Orchestrator | Medium | Budget for coordination, premium for complex delegation |
 | Review | Medium-High | Premium for critical code review, budget for standards checks |
 
 ---
 
 ## Configuration
 
-Kilo CLI is a fork of OpenCode and supports the same configuration options.
+Kilo CLI is built on OpenCode (MIT-licensed) and supports the same configuration options.
 
 ### Config File Location
 
@@ -884,6 +926,7 @@ kilo import <file>
 | `kilo plugin <module>` | Load a plugin module |
 | `kilo db` | Database tools |
 | `kilo debug` | Debugging and troubleshooting tools |
+| `kilo roll-call <filter>` | Batch test model connectivity and latency |
 | `kilo completion` | Generate shell completion script |
 
 ### Global Options
@@ -1065,6 +1108,108 @@ kilo run "Debug the issue"
 
 # Disable telemetry via config
 # Add to opencode.json: {"experimental": {"openTelemetry": false}}
+```
+
+---
+
+## Built-in Agents
+
+| Agent | Type | Description | Key Permissions |
+|-------|------|-------------|-----------------|
+| **code** | primary | Full coding agent — default for implementation | read, write, edit, bash, all tools |
+| **ask** | primary | Read-only Q&A, analysis, explanations | read, grep, glob, list, codesearch |
+| **debug** | primary | Debugging and troubleshooting | read, grep, bash, diagnostics |
+| **plan** | primary | Planning and task breakdown | read, question, plan_exit |
+| **summary** | primary | Summarization tasks | read only |
+| **title** | primary | Generate titles for sessions | read only |
+| **compaction** | primary | Context compaction | limited |
+| **general** | subagent | General-purpose subagent (auto-delegated) | all except question, plan |
+
+### Agent Permissions Reference
+
+```
+read               - Read files
+edit               - Modify files
+bash               - Execute shell commands
+grep               - Search file contents
+glob               - Find files by pattern
+list               - List directory contents
+codesearch         - Semantic code search
+websearch          - Web search
+webfetch           - Fetch URL content
+task               - Create subtasks
+question           - Ask user questions
+todoread           - Read todo list
+todowrite          - Modify todo list
+external_directory - Access directories outside project
+```
+
+### Agent Selection by Use Case
+
+| Use Case | Recommended Agent | Why |
+|----------|-------------------|-----|
+| Code implementation | `code` | Full edit + bash permissions |
+| Code review | `ask` or `code` | `ask` for read-only analysis, `code` if suggesting edits |
+| Bug fixing | `code` or `debug` | Need file edit + diagnostics |
+| Refactoring | `code` | Full edit capabilities |
+| Documentation | `ask` | Analysis and generation without file edits |
+| Planning | `plan` | Specialized for task breakdown |
+| Complex multi-step | automatic subagent | Agents delegate to `general` subagent as needed |
+
+---
+
+## Variants (Reasoning Effort)
+
+Variants control how much "thinking" the model does before responding.
+
+| Variant | Reasoning Effort | Use Case | Token Impact |
+|---------|------------------|----------|--------------|
+| **minimal** | Lowest | Quick, simple tasks | Lowest cost |
+| **low** | Below average | Routine operations | Low cost |
+| **high** | Above average | Complex analysis, quality matters | Higher cost |
+| **max** | Maximum | Most difficult problems | Highest cost |
+
+### Provider-Specific Behavior
+
+**OpenAI (o1, o3, o4 series):** Supports additional `medium` variant mapping to `reasoningEffort: medium`.
+
+**Google/Anthropic:** Variants affect internal prompt construction and sampling parameters. Higher variants may trigger chain-of-thought reasoning.
+
+### Using Variants
+
+```bash
+kilo run --variant high "Complex analysis task"
+kilo run -m kilo/anthropic/claude-sonnet-4-5 --variant max "Refactor this module"
+```
+
+---
+
+## Model Discovery & Debugging
+
+```bash
+# List all models
+kilo models
+
+# List models for specific provider (with costs)
+kilo models --verbose openai
+
+# Refresh model cache
+kilo models --refresh
+
+# Test model connectivity and latency
+kilo roll-call openai
+
+# Debug: show configuration
+kilo debug config
+
+# Debug: show agent details
+kilo debug agent ask
+
+# Debug: show paths
+kilo debug paths
+
+# Debug: list available skills
+kilo debug skill
 ```
 
 ---
@@ -1430,9 +1575,133 @@ The process is the same for Team or Enterprise organizations.
 
 ---
 
+## Programmatic Integration (Python)
+
+Fabrik calls Kilo from Python in `scripts/kilo_code_review.py` (5600+ lines). Key patterns — use these, don't reinvent:
+
+### Calling Kilo from Python
+
+```python
+# Basic call (from kilo_code_review.py::run_kilo)
+result = await run_kilo(
+    prompt="Review this code for security issues",
+    config=KiloReviewConfig(
+        model="kilo/google/gemini-3-flash-preview",
+        variant="high",
+        session_id=None,  # new session
+    ),
+    agent="ask",
+    file_paths=[Path("src/auth.py")],
+    timeout=300,
+)
+
+# Result structure
+{
+    "result": "The review text...",
+    "session_id": "ses_2fa04657affervfKa7bqDLCufy",
+    "input_tokens": 7409,
+    "output_tokens": 1393,
+    "cost": 0.0157,
+}
+```
+
+### Liveness-Based Process Monitoring (not blind timeouts)
+
+**Never use `subprocess.run(timeout=N)`.** Kilo sessions can be long but active. The liveness monitor kills only if truly hung:
+
+```python
+# _monitor_process() pattern:
+# - Reader threads on stdout + stderr (non-blocking)
+# - Tracks "last_output_time" — ANY output resets the idle clock
+# - Idle timeout: kill if no output for N seconds (default 120s)
+# - Hard timeout: absolute max regardless of output (default 1200s)
+# - Both stdout AND stderr count as progress (Kilo logs to stderr during tool calls)
+stdout, stderr, returncode = _monitor_process(
+    proc, idle_timeout=120, hard_timeout=1200, poll_interval=2, stream_output=True
+)
+```
+
+### JSONL Stream Parsing (step_finish detection)
+
+Kilo `--format json` outputs concatenated JSON objects. Parse them correctly:
+
+```python
+# parse_kilo_jsonl() pattern:
+# - Uses json.JSONDecoder.raw_decode() for concatenated JSON (not newline-delimited)
+# - Accumulates text events into result string
+# - Accumulates tokens/cost across MULTIPLE step_finish events (multi-step agent runs)
+# - Rejects incomplete runs: raises RuntimeError if no step_finish event received
+# - OOM protection: rejects output > 5MB
+# - Attack protection: aborts after 10 consecutive parse errors
+```
+
+### Retry with Exponential Backoff
+
+```python
+# run_kilo() retries on:
+# 1. Transient exit codes (network errors, rate limits)
+# 2. Retryable parse failures (incomplete JSONL, garbled output)
+# 3. Timeouts (idle or hard)
+#
+# Backoff: 2^attempt seconds (1s, 2s, 4s)
+# Max retries: 3 (configurable via MAX_RETRIES)
+# Failed models tracked in a set — same model never retried in same escalation chain
+```
+
+### Command Injection Prevention
+
+```python
+# build_kilo_command() validates ALL inputs:
+# - Model: regex whitelist [a-zA-Z0-9/_.\-:]+ with kilo/ prefix
+# - Variant: must be in VALID_VARIANTS set
+# - Agent: must be in VALID_AGENTS set
+# - Session ID: regex [a-zA-Z0-9_-]{1,64}, only passed if starts with "ses_"
+# - File paths: resolved, validated within project root, symlink targets checked, max size enforced
+```
+
+### Risk-Based Model Routing
+
+```python
+# select_model_for_diff() / should_escalate_to_opus():
+# - Default: cheap model (Gemini Flash)
+# - Escalate to premium (Opus) ONLY if diff touches high-risk paths
+# - High-risk: src/, auth/, migrations/, compose.yaml, .env, manifest.json
+# - Customizable via KILO_HIGH_RISK_PATHS env var
+# - Docs-only changes always use cheapest model
+```
+
+### Tiered Escalation
+
+```python
+# get_escalation_model():
+# economy → balanced → premium → apex
+# Each tier has a cost estimate. If cost cap is set, expensive tiers are skipped.
+# Failed models tracked — same model never retried in same escalation chain.
+```
+
+### Issue Fingerprinting (deduplication across iterations)
+
+```python
+# get_issue_fingerprint() hashes (file, line, category, severity)
+# filter_repeated_issues() removes issues already reported in prior iterations
+# Prevents review loops from reporting the same bug on every pass
+```
+
+### Secret Redaction
+
+```python
+# _redact_secrets() strips API keys, tokens, passwords from error messages
+# Applied to all error output before logging or reporting to user
+# Pattern: regex on common secret formats (sk-..., token=..., password=...)
+```
+
+---
+
 ## See Also
 
 - **[KILO_AGENT_NAMING.md](KILO_AGENT_NAMING.md)** - Tier-based agent naming convention
 - **[KILO_AGENT_SELECTION_GUIDE.md](KILO_AGENT_SELECTION_GUIDE.md)** - Model selection guide
 - **[README.md](README.md)** - Kilo system overview
-- **[OpenCode Config Documentation](https://github.com/Kilo-Org/kilocode)** - Comprehensive config reference
+- **[Kilo CLI Docs](https://kilo.ai/docs/code-with-ai/platforms/cli)** - Official CLI documentation
+- **[Kilo GitHub](https://github.com/Kilo-Org/kilocode)** - Source code and releases
+- **[What's New](https://kilo.ai/docs/code-with-ai/platforms/vscode/whats-new)** - Latest feature announcements

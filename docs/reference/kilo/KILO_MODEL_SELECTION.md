@@ -1,8 +1,12 @@
 # Kilo Model Selection Guide
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-05-20
 
 This guide covers practical model selection strategies for Kilo Code, focusing on real-time data and performance leaderboards rather than static recommendations.
+
+> **Two selection systems exist:**
+> - **Automated (coding/reviewing/fixing/testing/docs):** Fabrik's DB-driven pipeline selects models by role — see [KILO_AGENT_SELECTION_GUIDE.md](KILO_AGENT_SELECTION_GUIDE.md). You don't pick models for these tasks; the pipeline does.
+> - **Manual (everything else):** For non-coding tasks (data extraction, content generation, research, consultation), use this guide to pick the right model yourself. The automated system doesn't cover these use cases yet.
 
 ---
 
@@ -64,10 +68,10 @@ Auto Model routes to different models based on the Kilo mode you're using:
 ### Requirements
 
 ⚠️ **Version Requirements:**
-- VS Code/JetBrains extension v5.2.3+
-- CLI v1.0.15+
+- VS Code/JetBrains extension v7.2+
+- CLI v7.0+ (current: v7.3.1 at `/usr/local/bin/kilo`)
 
-On older versions, `kilo/auto` defaults to Claude Sonnet for all requests.
+> **Note:** The mode-to-model mapping above reflects `kilo/auto` defaults as of May 2026. Kilo may change the routing behind `kilo/auto` at any time — these are current best-known mappings, not guarantees.
 
 ### Getting Started
 
@@ -202,9 +206,8 @@ When you need more capability than free models provide:
 2. Switch to budget models if free models struggle
 3. Escalate to premium models only for complex tasks
 
-**Use API Configuration Profiles:**
-- Set up multiple profiles for different cost tiers
-- Quick switching between free, budget, and premium models
+**Use model favoriting (star preferred models):**
+- Star models in different cost tiers for quick switching
 - Match model capability to task complexity
 
 #### Mode-Based Cost Optimization
@@ -327,7 +330,7 @@ Daily workflow:
 - Minimize unnecessary context
 
 **Optimize conversation length:**
-- Use Checkpoints to reset context
+- Use Snapshots to reset context
 - Start fresh conversations for unrelated tasks
 - Archive completed work
 
@@ -554,6 +557,8 @@ DEFAULT_REVIEW_MODEL = "kilo/anthropic/claude-opus-4.6"
 
 ## Model Selection by Task Type
 
+> **Beyond coding?** For non-coding use cases (data extraction, translation, content generation, legal analysis, vision/OCR, audio pipelines, business automation), see [KILO_USE_CASES.md](KILO_USE_CASES.md) — includes cost tiers and recommended model classes per domain. For full model capabilities (tool use, vision, reasoning, pricing), see [KILO_MODEL_CAPABILITIES.md](KILO_MODEL_CAPABILITIES.md) (auto-generated from DB).
+
 ### Code Generation
 - **Fast iterations:** Grok-4.1-Fast, Gemini-3-Flash
 - **Production quality:** GPT-5.3-Codex, Claude Sonnet 4.6
@@ -615,8 +620,9 @@ The AI model space moves fast. Here's how to stay informed:
 
 ### Automated Updates (Fabrik)
 ```bash
-# Daily automated updates via cron
-0 2 * * * ozgur python /opt/fabrik/scripts/kilo_agent_updater.py --sync
+# Daily on WSL startup (once per day)
+# Triggered by scripts/kilo_model_sync_startup.sh
+python3 scripts/kilo_model_sync.py --sync
 ```
 
 See [KILO_UPDATE_SCHEDULE.md](KILO_UPDATE_SCHEDULE.md) for automation details.
@@ -633,7 +639,7 @@ Re-evaluate model choices when:
 
 ## See Also
 
-- **[KILO_AGENT_SELECTION_GUIDE.md](KILO_AGENT_SELECTION_GUIDE.md)** - Complete 319 model catalog
+- **[KILO_AGENT_SELECTION_GUIDE.md](KILO_AGENT_SELECTION_GUIDE.md)** - DB-driven agent selection (auto-updating roster)
 - **[KILO_CLI_REFERENCE.md](KILO_CLI_REFERENCE.md)** - CLI commands and model selection
 - **[KILO_UPDATE_SCHEDULE.md](KILO_UPDATE_SCHEDULE.md)** - Automated update schedule
 - **[Kilo Live Models](https://kilo.ai/models)** - Real-time usage data

@@ -1,182 +1,130 @@
-# Kilo Agent Update Schedule & Automation
+# Kilo Agent Update Pipeline
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-05-20
 
-## Automated Update Schedule
+How the model catalog, benchmarks, role assignments, and agent scripts stay current.
 
-### Daily Updates (Cron)
+---
+
+## Automated (daily — WSL startup)
+
 ```bash
-# /etc/cron.d/kilo-agent-updater
-0 2 * * * ozgur python /opt/fabrik/scripts/kilo_agent_updater.py --sync >> /var/log/kilo-updates.log 2>&1
+# Triggered by scripts/kilo_model_sync_startup.sh (runs once per day on WSL boot)
+# Added to ~/.bashrc or systemd user service
+
+python3 scripts/kilo_model_sync.py --sync
 ```
 
-**What gets updated:**
-- Model pricing from Kilo cache
-- Provider base URLs
-- Context window sizes
-- Max output token limits
-- Model availability status
+**What it does:**
+- Syncs model catalog from Kilo Gateway
+- Updates pricing, context windows, capabilities
+- Runs once per day (skips if already ran today via `.kilo_sync_last_run` check)
+- Lock file prevents concurrent runs
+- Logs to `.droid/kilo_model_sync.log`
 
-### Weekly Validation
+---
+
+## Manual Full Refresh
+
+When you need to rebuild everything (new models, benchmark changes, role rebalancing):
+
 ```bash
-# Every Monday at 3 AM
-0 3 * * 1 ozgur python /opt/fabrik/scripts/kilo_agent_updater.py --validate >> /var/log/kilo-validation.log 2>&1
+cd /opt/fabrik
+
+# 1. Discover models from Kilo Gateway (requires /usr/local/bin/kilo)
+PATH=/usr/local/bin:$PATH python3 scripts/kilo-benchmarks/discover_kilo_agents.py
+
+# 2. Scrape benchmark leaderboards (Arena ELO + TBench accuracy)
+python3 scripts/kilo-benchmarks/update_kilo_benchmarks.py
+
+# 3. Recompute role assignments (cheapest model above quality floors)
+python3 scripts/kilo-benchmarks/compute_assignments.py
+
+# 4. Regenerate agent scripts + auto-update docs
+python3 scripts/generate_kilo_agents.py
+#   → writes ~/.traycer/cli-agents/*.sh
+#   → updates KILO_AGENT_SELECTION_GUIDE.md roster
+#   → regenerates KILO_MODEL_CAPABILITIES.md
 ```
 
-**Checks:**
-- All agents still valid in Kilo catalog
-- No deprecated models
-- Provider endpoint changes
+---
 
-## Arena & TBench Integration
+## What Each Step Updates
 
-### Current Status: **Manual**
+| Step | Script | Updates | Frequency |
+|---|---|---|---|
+| Model sync | `kilo_model_sync.py` | Pricing, context windows, capabilities in DB | Daily (auto) |
+| Gateway discovery | `discover_kilo_agents.py` | Full model list from Kilo Gateway → `kilo_all_agents.json` | On demand |
+| Benchmark scrape | `update_kilo_benchmarks.py` | Arena ELO, TBench accuracy in DB | On demand |
+| Role assignment | `compute_assignments.py` | `agent_roles` table, `assignments.json` | On demand |
+| Script generation | `generate_kilo_agents.py` | `~/.traycer/cli-agents/*.sh`, selection guide roster, model capabilities doc | On demand |
+| Registry export | `export_traycer_registry.py` | `kilo_47_agents_final.json` (live Traycer registry) | After role_mapper.py |
 
-The Chatbot Arena and Terminal-Bench leaderboards are currently **manually reviewed** and integrated into agent selection.
+---
 
-### Planned Automation (Phase 2)
+## When to Run What
 
-**Script:** `/opt/fabrik/scripts/kilo_leaderboard_sync.py` (to be created)
+| Trigger | Run |
+|---|---|
+| WSL boot (daily) | Automatic — `kilo_model_sync_startup.sh` handles it |
+| New major model release (GPT-6, Claude 5, etc.) | Full refresh (steps 1-4) |
+| Benchmark leaderboard shift (>5% ELO change) | Steps 2-4 |
+| Model blocked for poor performance | `manage_blocked.py block "agent/id" "reason"` → step 3-4 |
+| Price change by provider | Step 1 (if in Gateway) or manual DB update |
+| Agent scripts look wrong | Step 4 only (`generate_kilo_agents.py`) |
+| Docs out of date | Step 4 (auto-updates selection guide + capabilities) |
 
-**Features:**
-- Scrape Arena rankings weekly
-- Scrape TBench scores weekly
-- Auto-generate recommendations for agent updates
-- Notify if top-ranked models are missing from stack
-- Track ranking changes over time
+---
 
-**Cron schedule:**
-```bash
-# Every Sunday at 4 AM
-0 4 * * 0 ozgur python /opt/fabrik/scripts/kilo_leaderboard_sync.py --check-rankings
-```
+## Benchmark Sources
 
-**Output:**
-- `/opt/fabrik/scripts/.arena_rankings.json` - Latest Arena data
-- `/opt/fabrik/scripts/.tbench_scores.json` - Latest TBench data
-- Notification if stack needs updating
+| Source | What it provides | Scraper |
+|---|---|---|
+| [Chatbot Arena](https://openlm.ai/chatbot-arena/) | Arena ELO (user preference ranking) | `scrape_artificial_analysis.py` |
+| [Terminal-Bench](https://www.tbench.ai/leaderboard/terminal-bench/2.0) | TBench accuracy (CLI coding performance) | `scrape_benchlm.py` |
+| [Kilo Gateway](https://kilo.ai/models) | Model catalog, pricing, capabilities | `discover_kilo_agents.py` |
+| [Windsurf models](https://docs.windsurf.com) | Windsurf-specific model data | `scrape_windsurf_models.py` |
 
-### Implementation Roadmap
-
-**Phase 1 (Current):**
-- ✅ Manual agent selection from leaderboards
-- ✅ Automated config updates (pricing, endpoints)
-- ✅ Daily sync via cron
-
-**Phase 2 (Planned - Q2 2026):**
-- ⏳ Auto-scrape Kilo leaderboard (usage data)
-- ⏳ Auto-scrape Arena rankings (preferences)
-- ⏳ Auto-scrape TBench scores (terminal performance)
-- ⏳ Recommendation engine for stack updates
-- ⏳ Slack/email notifications for ranking changes
-
-**Phase 3 (Future):**
-- ⏳ Auto-create agents for new top-ranked models
-- ⏳ A/B testing framework for agent performance
-- ⏳ Cost/performance optimization engine
-
-## Manual Review Triggers
-
-**When to manually review agents:**
-1. New model announced by major provider (OpenAI, Anthropic, Google)
-2. Arena rankings show new model in top 10
-3. TBench leaderboard changes significantly (>5% accuracy shift)
-4. Kilo adds new provider with competitive pricing
-5. Security vulnerability in existing model
-
-## Pricing Collection for Priority Models
-
-**Priority Model List (17 models):**
-- GPT-5.3, GPT-5.2 (all variants)
-- Gemini-3.1, Gemini-3-Flash
-- Claude Sonnet 4.5/4.6, Opus 4.5/4.6
-- Minimax M2.5, Grok-4.20
-- GLM-4.7, GLM-5, Seed2.0 Pro
-
-**Pricing Status:**
-- ✅ 7 models: Have cached pricing from Kilo
-- ⏳ 10 models: Need manual collection from provider websites
-
-### Manual Pricing Collection (10 models)
-
-**Why Manual?** Kilo's aggressive prompt caching makes API-based extraction unreliable for separate input/output pricing. Cached tokens from previous calls create negative input values that break regression models.
-
-**Guide:** `/opt/fabrik/scripts/MANUAL_PRICING_GUIDE.md`
-
-**Provider Pricing URLs:**
-- Anthropic: https://www.anthropic.com/pricing (4 models)
-- Google: https://ai.google.dev/pricing (2 models)
-- OpenAI: https://openai.com/api/pricing/ (2 models)
-- Z-AI/GLM: https://bigmodel.cn/pricing (2 models)
-
-**Models Needing Pricing:**
-```
-Anthropic: claude-opus-4.5, claude-opus-4.6, claude-sonnet-4.5, claude-sonnet-4.6
-Google: gemini-3.1-pro-preview, gemini-3.1-pro-preview-customtools
-OpenAI: gpt-5.2-chat, gpt-5.2-pro
-Z-AI: glm-4.7-flash, glm-5
-```
-
-**Collection Process:**
-1. Visit provider pricing page
-2. Find model (may have date suffix like `-20250929`)
-3. Record input/output prices per 1M tokens in USD
-4. Update cache: `python /opt/fabrik/scripts/update_pricing_cache.py --manual`
-
-**Update Frequency:**
-- Review quarterly or when providers announce pricing changes
-- Check for new models monthly
-
-## Update Procedure
-
-**Automated (runs daily):**
-```bash
-python /opt/fabrik/scripts/kilo_agent_updater.py --sync
-```
-
-**Manual (after leaderboard review):**
-```bash
-# 1. Review latest rankings
-open https://openlm.ai/chatbot-arena/
-open https://www.tbench.ai/leaderboard/terminal-bench/2.0
-
-# 2. Update agent stack JSON
-vim /opt/fabrik/scripts/kilo_final_validated_stack.json
-
-# 3. Validate changes
-python /opt/fabrik/scripts/kilo_agent_updater.py --validate
-
-# 4. Apply updates
-python /opt/fabrik/scripts/kilo_agent_updater.py --sync
-
-# 5. Test new agents
-kilo run --model <new-model> --variant high "test prompt"
-```
+---
 
 ## Monitoring
 
-**Logs:**
-- `/var/log/kilo-updates.log` - Daily sync log
-- `/var/log/kilo-validation.log` - Weekly validation log
-
-**Alerts:**
-- Validation failures trigger email to `admin@example.com`
-- New top-10 Arena models trigger Slack notification
-
-## Cost Tracking
-
-**Built-in tracking:**
 ```bash
-kilo stats  # Show token usage and costs
+# Check when DB was last updated
+stat -c '%y' scripts/kilo-benchmarks/kilo_agents.db
+
+# Check when sync last ran
+cat .droid/.kilo_sync_last_run
+
+# Check sync log
+tail -20 .droid/kilo_model_sync.log
+
+# Check benchmark scrape log
+tail -20 scripts/kilo-benchmarks/cache/update.log
+
+# Verify agent health
+bash scripts/kilo_agent_health.sh
 ```
 
-**Monthly reports:**
-```bash
-python /opt/fabrik/scripts/kilo_cost_report.py --month $(date +%Y-%m)
-```
+**Staleness check:** If `kilo_agents.db` modification date is >48 hours old, the daily sync isn't running. Check `kilo_model_sync_startup.sh` in `~/.bashrc`.
 
-## Security Updates
+---
 
-**CVE monitoring:** Manual (check provider security bulletins)
-**Model deprecations:** Auto-detected by validator
-**API key rotation:** Quarterly (manual)
+## Data Files
+
+| File | Purpose | Freshness |
+|---|---|---|
+| `scripts/kilo-benchmarks/kilo_agents.db` | **Authoritative** — all models, pricing, benchmarks, roles | Daily (auto-sync) |
+| `scripts/kilo-benchmarks/kilo_all_agents.json` | JSON export from Gateway | On `discover_kilo_agents.py` run |
+| `scripts/kilo-benchmarks/assignments.json` | Current role → model mapping | On `compute_assignments.py` run |
+| `scripts/kilo-benchmarks/role_configs.yaml` | Role definitions, quality floors, cost caps | Manual (rarely changes) |
+| `scripts/kilo_47_agents_final.json` | Traycer registry (consumed by Windsurf) | On `export_traycer_registry.py` run |
+| `~/.traycer/cli-agents/*.sh` | Agent scripts (consumed by Traycer) | On `generate_kilo_agents.py` run |
+
+---
+
+## See Also
+
+- [KILO_AGENT_SELECTION_GUIDE.md](KILO_AGENT_SELECTION_GUIDE.md) — Selection philosophy, current roster, blocking
+- [KILO_AGENT_NAMING.md](KILO_AGENT_NAMING.md) — Script naming convention
+- [KILO_MODEL_CAPABILITIES.md](KILO_MODEL_CAPABILITIES.md) — Full model catalog (auto-generated)

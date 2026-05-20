@@ -1,379 +1,461 @@
-# Kilo Usage Guide
+# Kilo CLI Usage Guide
 
-**Last Updated:** 2026-03-01
+**Last Updated:** 2026-05-20
 
-How to use Kilo CLI agents and the review script - both automatically and manually.
+How to use Kilo CLI as an agentic platform — skills, MCP, workflows, autonomous mode, serve mode, sessions. CLI-focused, not GUI.
 
----
-
-## Cost-Aware Review Pipeline
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ STEP 1: RISK ASSESSMENT                                                      │
-│                                                                              │
-│ Input: Files to review                                                       │
-│ Checks:                                                                      │
-│   1. Path keywords: auth/, security/, payment/, secret/, crypt/              │
-│   2. File content: password=, token=, api_key=, secret= patterns             │
-│   3. Diff size: > 400 lines = HIGH risk                                      │
-│   4. High-risk filenames: compose.yaml, Dockerfile, .env                     │
-│                                                                              │
-│ Output: risk_level ∈ {low, medium, high, critical}                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ STEP 2: TIER SELECTION                                                       │
-│                                                                              │
-│ Risk Level → Strategy → Starting Tier                                        │
-│   LOW      → free     → Free ($0)        [deepseek, minimax, qwen]          │
-│   MEDIUM   → economy  → Economy ($0.02)  [gemini-flash, devstral]           │
-│   HIGH     → standard → Balanced ($0.50) [gpt-5.2-codex, glm-5]             │
-│   CRITICAL → premium  → Strong ($3.00)   [claude-sonnet-4.6, gpt-5.3-codex] │
-│                                                                              │
-│ User overrides: --strategy, --model, --max-cost                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ STEP 3: REVIEW WITH RETRY LOOP                                               │
-│                                                                              │
-│ session_id = generate_or_continue()  ← PRESERVED ACROSS ALL CALLS           │
-│                                                                              │
-│ for attempt in range(3):                                                     │
-│     try:                                                                     │
-│         result = kilo.review(files, model, session_id)                       │
-│         break  # Success                                                     │
-│     except ModelError:                                                       │
-│         failed_models.add(model)                                             │
-│         model = get_next_model(tier, failed_models)                          │
-│         if no_more_models: escalate_tier()                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ STEP 4: FALSE NEGATIVE MITIGATION                                            │
-│                                                                              │
-│ IF verdict == PASS AND risk in {HIGH, CRITICAL}:                             │
-│     IF tier < Strong (for HIGH) OR tier < Prime (for CRITICAL):              │
-│         verify_model = Strong/Prime                                          │
-│         verify_result = kilo.review(files, verify_model, session_id)         │
-│                                               ↑ SAME SESSION ID              │
-│         IF verify_result finds issues:                                       │
-│             log_false_negative() → .droid/kilo_metrics.jsonl                 │
-│             RETURN verify_result  # Cheap model missed issues!               │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ STEP 5: QUALITY MONITORING                                                   │
-│                                                                              │
-│ IF verdict == PASS:                                                          │
-│     IF random() < 0.05:  # 5% sample                                         │
-│         log_audit() → .droid/review_audits.jsonl                             │
-│                                                                              │
-│ RETURN result                                                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+> For code review specifically, see [KILO_REVIEW_GUIDE.md](KILO_REVIEW_GUIDE.md).
+> For model selection, see [KILO_MODEL_SELECTION.md](KILO_MODEL_SELECTION.md).
+> For all use cases beyond coding, see [KILO_USE_CASES.md](KILO_USE_CASES.md).
 
 ---
 
 ## Quick Start
 
-### Automatic Usage (Traycer Integration)
-
-When using Traycer, agents are invoked automatically:
-1. Select an agent from the Traycer UI (sorted A-Z by tier)
-2. Traycer passes your prompt to the agent script
-3. Agent runs Kilo CLI with configured model/variant
-4. Results return to Traycer
-
-### Manual Usage (CLI)
-
 ```bash
-# Basic review (auto-selects model based on risk)
-python scripts/kilo_code_review.py review src/myfile.py
+# Interactive TUI
+cd /opt/myproject && kilo
 
-# Use free tier (development, iteration)
-python scripts/kilo_code_review.py review src/ --strategy free
+# One-shot autonomous (no human interaction)
+kilo run --auto "Extract all email addresses from data/*.csv and write to output.json"
 
-# Budget-constrained review
-python scripts/kilo_code_review.py review src/ --max-cost 0.50
+# With specific model and agent
+kilo run -m kilo/google/gemini-3-flash-preview --agent ask --variant high "Summarize this file" --file report.pdf
 
-# Stats on usage
-python scripts/kilo_code_review.py stats --by-model --by-filetype
+# Continue last session
+kilo --continue
+
+# Start headless API server
+kilo serve --port 4096
 ```
 
 ---
 
-## Cost-Aware Strategies
+## Skills
 
-### Available Strategies
+Skills are domain-specific instruction packages that teach Kilo how to do specific tasks. They're the primary way to extend Kilo beyond generic coding.
 
-| Strategy | Starting Tier | Escalation Path | Max Cost |
-|----------|---------------|-----------------|----------|
-| `free` | Free ($0) | Free → Economy → Balanced → Strong | ~$3/review |
-| `economy` | Economy (~$0.02/M) | Economy → Balanced → Strong → Prime | ~$5/review |
-| `standard` | Balanced (~$0.5/M) | Balanced → Strong → Prime | ~$25/review |
-| `premium` | Strong (~$3/M) | Strong → Prime | ~$50/review |
-| `critical` | Prime (~$5/M) | Prime only | ~$50/review |
+### What a skill is
 
-### Automatic Strategy Selection
+A folder with a `SKILL.md` file containing YAML frontmatter + markdown instructions:
 
-Without `--strategy`, the script selects based on file risk:
+```
+~/.kilo/skills/api-design/
+└── SKILL.md
+```
 
-| Risk Level | Files | Auto Strategy |
-|------------|-------|---------------|
-| **LOW** | `.md`, `.rst`, config | `free` |
-| **MEDIUM** | Normal code | `economy` |
-| **HIGH** | `src/`, `scripts/`, `.sh` | `standard` |
-| **CRITICAL** | `auth/`, `security/`, payments | `premium` |
+```markdown
+---
+name: api-design
+description: REST API design — URL structure, HTTP methods, response codes, pagination
+---
 
-### Examples
+# API Design Guidelines
+
+## URL Structure
+- Use plural nouns: /users, /orders
+- Use kebab-case: /order-items
+- Nest related resources: /users/{id}/orders
+...
+```
+
+### Skill locations
+
+| Location | Scope | Priority |
+|---|---|---|
+| `.kilo/skills/` (in project) | Project only | Highest (overrides global) |
+| `~/.kilo/skills/` | All projects | Default |
+| `.claude/skills/` | Claude Code compat | Loaded alongside |
+| `.agents/skills/` | Open agent standard | Loaded alongside |
+| Custom paths in `kilo.jsonc` | Configurable | As configured |
+| Remote URLs | Fetched on demand | As configured |
+
+### Custom paths and remote skills
+
+```jsonc
+// kilo.jsonc
+{
+  "skills": {
+    "paths": ["/opt/fabrik/shared-skills", "~/my-skills"],
+    "urls": ["https://example.com/skills/data-extraction/SKILL.md"]
+  }
+}
+```
+
+### How skills work
+
+1. **Discovery** — Skills are scanned at session start. Only metadata (name, description) is loaded.
+2. **Matching** — When the agent sees a task matching a skill description, it loads the full SKILL.md.
+3. **Execution** — The agent follows the skill's instructions using its available tools.
+
+Skills can bundle scripts, templates, and reference docs alongside SKILL.md:
+
+```
+my-skill/
+├── SKILL.md          # Required
+├── scripts/          # Executable code the agent can run
+├── references/       # Docs the agent can read
+└── assets/           # Templates, configs
+```
+
+### Frontmatter fields
+
+| Field | Required | Max | Description |
+|---|---|---|---|
+| `name` | Yes | 64 chars | Must match directory name. Lowercase, numbers, hyphens. |
+| `description` | Yes | 1024 chars | What the skill does. This is what the agent reads to decide whether to use it. |
+| `license` | No | — | License name or file reference |
+| `metadata` | No | — | Key-value pairs (author, version, etc.) |
+
+### Verifying a skill loaded
+
+```
+You: "What skills do you have available?"
+You: "Do you have access to the api-design skill?"
+```
+
+Look for `skill` tool invocations in the conversation to confirm usage.
+
+### Key gotcha
+
+**Description wording matters.** The agent matches tasks to skills by reading descriptions. A vague description = the skill never triggers. Be specific about when the skill should be used.
+
+---
+
+## MCP (Model Context Protocol)
+
+MCP connects Kilo to external tools — databases, APIs, browsers, file systems, custom services. It's how Kilo becomes more than a text generator.
+
+### Configuration
+
+```jsonc
+// ~/.config/kilo/kilo.json (global) or ./kilo.json (project)
+{
+  "mcp": {
+    "postgres": {
+      "type": "local",
+      "command": ["npx", "-y", "@pgedge/mcp-server-postgres"],
+      "environment": {
+        "DATABASE_URL": "{env:DATABASE_URL}"
+      }
+    },
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:CONTEXT7_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+### Transport types
+
+| Type | Config | Use case |
+|---|---|---|
+| **Local (stdio)** | `"type": "local", "command": [...]` | Tools running on your machine — Postgres, filesystem, Playwright |
+| **Remote (HTTP)** | `"type": "remote", "url": "..."` | Cloud services — Context7, Figma, custom APIs |
+
+### Managing MCP servers
 
 ```bash
-# Development: start free, escalate if needed
-python scripts/kilo_code_review.py review docs/ --strategy free
+# List configured servers
+kilo mcp list
 
-# Production: standard review
-python scripts/kilo_code_review.py review src/api/ --strategy standard
+# Add a server interactively
+kilo mcp add
 
-# Security audit: premium tier
-python scripts/kilo_code_review.py review src/auth/ --strategy premium
+# Set up authentication
+kilo mcp auth
 
-# Budget cap: stop escalation at $1
-python scripts/kilo_code_review.py review src/ --max-cost 1.00
+# Toggle in interactive session
+/mcps
+```
 
-# No escalation: stay at initial tier
-python scripts/kilo_code_review.py review src/ --strategy economy --no-escalate
+### MCP tool permissions
+
+MCP tools follow the same Allow/Ask/Deny model as built-in tools:
+
+```jsonc
+{
+  "permission": {
+    "postgres_query": "ask",       // Prompt before SQL execution
+    "postgres_*": "allow",         // Auto-approve all postgres tools
+    "playwright_navigate": "deny"  // Block navigation
+  }
+}
+```
+
+Permission keys use the format `{servername}_{toolname}`.
+
+### Useful MCP servers
+
+| Server | What it gives Kilo | Use case |
+|---|---|---|
+| **pgEdge Postgres** | Read/write SQL against PostgreSQL | ETL, data cleaning, natural-language queries |
+| **Playwright** | Control headless browser, navigate DOMs | Web scraping, form automation, UI testing |
+| **Context7** | Documentation search across libraries | Research, API lookups |
+| **Sequential Thinking** | Forced reflective reasoning loops | Deep research, reducing hallucinations |
+| **Memory** | Persistent knowledge graph | Long-term context, entity extraction |
+| **Filesystem** | Sandboxed file access | Safe file operations outside project |
+| **Figma Desktop** | Read Figma design files | Design review, accessibility audits |
+
+### Warning
+
+> MCP servers add tokens to every request. Enable only what you need. Too many servers = context overflow.
+
+---
+
+## Workflows (Custom Commands)
+
+Workflows are reusable prompt templates triggered by `/command-name` in chat.
+
+### Creating a workflow
+
+```
+# Global (all projects)
+~/.config/kilo/commands/submit-pr.md
+
+# Project-specific
+.kilo/commands/deploy-check.md
+```
+
+### Format
+
+```markdown
+---
+description: Submit a pull request with full checks
+agent: code
+model: kilo/anthropic/claude-sonnet-4.6
+subtask: true
+---
+
+# Submit PR Workflow
+
+1. Use `grep` to check for TODOs and console.log statements
+2. Run `bash` with `npm test`
+3. Stage and commit with descriptive messages
+4. Push and create PR via `bash` with `gh pr create`
+```
+
+### Frontmatter options
+
+| Field | Description |
+|---|---|
+| `description` | Shown in command picker |
+| `agent` | Which agent executes (code, ask, debug, etc.) |
+| `model` | Model override for this workflow |
+| `subtask` | `true` = runs as isolated sub-agent session |
+
+### Invoking
+
+```
+/submit-pr
+/deploy-check
+```
+
+Type `/` in chat to see all available commands.
+
+---
+
+## Autonomous Mode
+
+Run Kilo without human interaction — for CI/CD, cron jobs, batch processing.
+
+```bash
+# Basic autonomous run
+kilo run --auto "Refactor all Python files to use type hints"
+
+# With JSON output for parsing
+kilo run --auto --format json "Extract data from reports/*.pdf"
+
+# With file attachment
+kilo run --auto --file data.csv "Normalize this CSV and output as JSON"
+
+# With specific model and timeout
+kilo run --auto -m kilo/google/gemini-3-flash-preview "Generate test cases for src/auth.py"
+```
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Task completed successfully |
+| `124` | Timeout |
+| `1` | Error |
+
+### Permission config for autonomous mode
+
+```jsonc
+// opencode.json — auto-approve tools for headless execution
+{
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "rm *": "deny",
+      "sudo *": "deny"
+    },
+    "edit": "allow",
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow"
+  }
+}
+```
+
+### CI/CD integration
+
+```yaml
+# GitHub Actions
+- name: AI Code Review
+  run: |
+    kilo run --auto --format json "Review the changes in this PR for security issues" \
+      --file <(git diff origin/main)
+    echo "Exit code: $?"
 ```
 
 ---
 
-## Agent Tiers
+## Serve Mode (Headless API)
 
-### 40 Agents by Tier (A-Z sorted in Traycer UI)
-
-| Tier | Count | Cost | Best For |
-|------|-------|------|----------|
-| **Auto** | 2 | Variable | Unknown tasks (kilo/auto routing) |
-| **Balanced** | 6 | $0.02-14/M | Most production work |
-| **Economy** | 8 | $0.02-0.36/M | Simple tasks, docs |
-| **Free** | 9 | $0 | Development, iteration |
-| **Prime** | 3 | $5-168/M | Critical, final reviews |
-| **Strong** | 6 | $0.02-15/M | Complex logic, security |
-| **Ultra** | 6 | ~$0.25/M | Codestral specialized |
-
-### Direct Agent Usage
+Run Kilo as a persistent HTTP server. Any application can call it.
 
 ```bash
-# Debug mode for any agent
-KILO_DEBUG=1 ~/.traycer/cli-agents/Free01-minimax21-code-medium-i000-o000.sh
+# Start server
+kilo serve --port 4096
 
-# Track costs
-KILO_TRACK_COST=1 ~/.traycer/cli-agents/Economy01-flash3-code-minimal-i000-o002.sh
+# With authentication
+OPENCODE_SERVER_PASSWORD=secret kilo serve --port 4096
 
-# Custom timeout
-KILO_TIMEOUT=120 ~/.traycer/cli-agents/Strong04-sonnet46-review-max-i300-o1500.sh
+# With mDNS discovery
+kilo serve --mdns --mdns-domain my-kilo.local
+
+# Open web interface
+kilo web
+```
+
+### Key endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/global/health` | Health check |
+| POST | `/session` | Create session |
+| POST | `/session/:id/message` | Send message |
+| GET | `/session/:id/event` | SSE stream |
+| POST | `/session/:id/abort` | Abort generation |
+| GET | `/doc` | OpenAPI 3.1 spec |
+
+### Connecting from another terminal
+
+```bash
+kilo attach http://localhost:4096
+kilo run --attach http://localhost:4096 "Fix the bug"
+```
+
+### Python client
+
+```python
+import httpx
+
+BASE = "http://localhost:4096"
+session = httpx.post(f"{BASE}/session").json()
+sid = session["id"]
+
+resp = httpx.post(f"{BASE}/session/{sid}/message", json={
+    "model": "kilo/google/gemini-3-flash-preview",
+    "agent": "ask",
+    "parts": [{"type": "text", "text": "Analyze this data..."}]
+})
 ```
 
 ---
 
-## Review Script Commands
+## Sessions
 
-### `review` - Read-only review
-
-```bash
-python scripts/kilo_code_review.py review <files> [options]
-
-# Examples
-python scripts/kilo_code_review.py review src/main.py
-python scripts/kilo_code_review.py review src/ tests/ --strategy free
-python scripts/kilo_code_review.py review . --plan "Add user authentication"
-```
-
-### `auto-fix` - Review and fix loop
+Sessions give Kilo memory across messages.
 
 ```bash
-python scripts/kilo_code_review.py auto-fix <files> --max-iterations 3
+# Resume last session
+kilo --continue
+kilo -c
 
-# With severity filter
-python scripts/kilo_code_review.py auto-fix src/ --min-severity MAJOR
+# Fork a session (branch from a point)
+kilo run --session ses_abc123 --fork "Try a different approach"
+
+# Export / import
+kilo export ses_abc123 > session.json
+kilo import session.json
 ```
 
-### `staged` - Review git staged files
+### In-session commands
 
-```bash
-python scripts/kilo_code_review.py staged
-python scripts/kilo_code_review.py staged --no-fix  # Just report
-```
-
-### `changed` - Review git changed files
-
-```bash
-python scripts/kilo_code_review.py changed
-```
-
-### `stats` - Usage statistics
-
-```bash
-# Summary
-python scripts/kilo_code_review.py stats
-
-# By model (identify expensive patterns)
-python scripts/kilo_code_review.py stats --by-model
-
-# By file type
-python scripts/kilo_code_review.py stats --by-filetype
-
-# Last 7 days
-python scripts/kilo_code_review.py stats --days 7
-```
-
-### `verify` - Verify manual fixes
-
-```bash
-python scripts/kilo_code_review.py verify src/fixed.py --fixes "Added null check"
-```
+| Command | What it does |
+|---|---|
+| `/sessions` | Switch between sessions |
+| `/new` | Start fresh |
+| `/timeline` | Jump to specific message |
+| `/fork` | Branch from current point |
+| `/compact` | Summarize and compress context |
+| `/share` / `/unshare` | Control visibility |
+| `/export` | Save transcript |
 
 ---
 
-## Environment Variables
+## Local Code Reviews
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KILO_REVIEW_MODEL` | `kilo/auto` | Force specific model |
-| `KILO_REVIEW_TIMEOUT` | `300` | Timeout for review script (seconds) |
-| `KILO_TIMEOUT` | `600` | Timeout for agent scripts (seconds) |
-| `KILO_DEBUG` | `0` | Enable debug output (`1` to enable) |
-| `KILO_TRACK_COST` | `0` | Enable cost tracking (`1` to enable) |
-| `KILO_USAGE_LOG` | `.droid/kilo_usage.jsonl` | Usage log file |
-| `KILO_DEFAULT_STRATEGY` | (auto) | Default cost strategy (free/economy/standard/premium/critical) |
-| `KILO_MAX_COST` | None | Default max cost per review ($/M tokens) |
-| `KILO_VERIFY_HIGH_RISK` | `true` | Verify PASS on high-risk code with stronger model |
-| `KILO_AUDIT_SAMPLE_RATE` | `0.05` | PASS verdict sampling rate for quality monitoring |
-| `KILO_AUDIT_LOG` | `.droid/review_audits.jsonl` | Audit sample log file |
+Built-in review commands — no scripts needed:
+
+```bash
+# Review current branch vs base
+/local-review
+
+# Review uncommitted changes (staged + unstaged)
+/local-review-uncommitted
+```
+
+For the full cost-aware review pipeline with escalation, see [KILO_REVIEW_GUIDE.md](KILO_REVIEW_GUIDE.md).
 
 ---
 
-## Recommended Workflows
+## Remote Connections
 
-### Development (Fast, Free)
-
-```bash
-# Use free models during development
-python scripts/kilo_code_review.py review src/ --strategy free
-
-# Quick iteration
-python scripts/kilo_code_review.py review src/myfile.py --strategy free --no-escalate
-```
-
-### Pre-Commit (Balanced)
+Let Cloud Agents web UI control your local CLI session:
 
 ```bash
-# Standard review with escalation
-python scripts/kilo_code_review.py staged --strategy economy
+# Toggle remote mode in session
+/remote
 
-# Or use the auto strategy (default)
-python scripts/kilo_code_review.py staged
+# Enable by default
+# Add to ~/.config/kilo/kilo.json:
+# { "remote_control": true }
 ```
 
-### Security Review (Premium)
-
-```bash
-# Force premium tier
-python scripts/kilo_code_review.py review src/auth/ --strategy premium
-
-# Or critical for final audit
-python scripts/kilo_code_review.py review src/ --strategy critical
-```
-
-### Budget-Conscious
-
-```bash
-# Cap at $1 per review
-python scripts/kilo_code_review.py review src/ --max-cost 1.00
-
-# Check costs regularly
-python scripts/kilo_code_review.py stats --by-model --days 7
-```
+Requires Kilo Gateway connection. Same account on CLI and Cloud Agent.
 
 ---
 
-## Escalation Behavior
+## Fabrik Integration Patterns
 
-### When Does Escalation Happen?
+How fabrik uses Kilo CLI programmatically:
 
-1. **Model error** - Timeout, API failure, rate limit → retry with next model in tier, then escalate
-2. **Zero findings on high-risk code** - False negative mitigation triggers verification with stronger model
-3. **Budget allows** - Escalation respects `--max-cost` and `--no-escalate` flags
-
-### Model Error Retry (NEW)
-
-When a model fails, Kilo automatically:
-1. Tracks the failed model in `failed_models` set
-2. Tries next model in same tier
-3. If tier exhausted, escalates to next tier (respecting budget)
-4. Max 3 retry attempts per review
-
-### False Negative Mitigation (NEW)
-
-"Zero issues on critical code is a red flag" - all consulted AIs agreed.
-
-| Risk Level | Trigger | Verification Model |
-|------------|---------|-------------------|
-| HIGH | PASS with zero findings, tier < Strong | Strong (claude-sonnet-4.6) |
-| CRITICAL | PASS with zero findings, tier < Prime | Prime (claude-opus-4.6) |
-
-```bash
-# Disable verification (saves tokens but less safe)
-python scripts/kilo_code_review.py review src/ --verify-high-risk=false
-```
-
-### Content-Based Risk Detection (NEW)
-
-Files are scanned for secret patterns (password=, token=, api_key=) and elevated to CRITICAL risk:
-
-```
-# These files get CRITICAL risk even if in docs/
-password = "hunter2"
-TOKEN=sk-abc123
-```
-
-### Preventing Escalation
-
-```bash
-# Stay at initial tier
-python scripts/kilo_code_review.py review src/ --no-escalate
-
-# Cap by cost
-python scripts/kilo_code_review.py review src/ --max-cost 0.50
-```
-
----
-
-## Quality Monitoring
-
-### 5% Audit Sampling
-
-Random PASS verdicts are sampled and logged for quality monitoring:
-- Log file: `.droid/review_audits.jsonl`
-- Sample rate: 5% (configurable via `KILO_AUDIT_SAMPLE_RATE`)
-
-### False Negative Tracking
-
-When verification catches issues cheap models missed:
-- Log file: `.droid/kilo_metrics.jsonl`
-- Tracks: initial model, verification model, findings missed
-
-### Session Preservation
-
-Same session ID is preserved across escalation for cache hits:
-- ~30-50% token savings on subsequent calls
-- Model remembers previous file context
+| Pattern | Script | What it does |
+|---|---|---|
+| **Auto-route by ticket** | `kilo_auto_route.py` | Classify ticket → pick model → `kilo run --auto` |
+| **Dispatch to specific agent** | `kilo_dispatch.py` | Build prompt with AGENTS-compact.md + rules → execute |
+| **Code review pipeline** | `kilo_code_review.py` | Risk-based routing, liveness monitoring, JSONL parsing |
+| **Q&A with session** | `kilo_consult.py` | File-scoped questions with session continuity |
+| **Doc enforcement** | `kilo_docs_enforcer.py` | Detect doc gaps from git diff → auto-generate |
+| **Kilo as MCP tool** | `mcp_kilo_server.py` | Expose Kilo agents as MCP tools for Traycer |
+| **Cost reporting** | `kilo_cost_report.py` | Usage analysis by model and file type |
 
 ---
 
 ## See Also
 
-- [KILO_TROUBLESHOOTING.md](KILO_TROUBLESHOOTING.md) - Problem solutions
-- [KILO_PERFORMANCE_TUNING.md](KILO_PERFORMANCE_TUNING.md) - Optimization guide
-- [KILO_MODEL_SELECTION.md](KILO_MODEL_SELECTION.md) - Model details
-- [KILO_CLI_REFERENCE.md](KILO_CLI_REFERENCE.md) - Complete CLI reference
+- [KILO_CLI_REFERENCE.md](KILO_CLI_REFERENCE.md) — Complete command reference + programmatic integration patterns
+- [KILO_REVIEW_GUIDE.md](KILO_REVIEW_GUIDE.md) — Cost-aware code review pipeline
+- [KILO_MODEL_SELECTION.md](KILO_MODEL_SELECTION.md) — Model selection strategies
+- [KILO_USE_CASES.md](KILO_USE_CASES.md) — 11 non-coding use case domains with economics
+- [KILO_MODEL_CAPABILITIES.md](KILO_MODEL_CAPABILITIES.md) — Full model catalog (auto-generated)
+- [KILO_AGENT_SELECTION_GUIDE.md](KILO_AGENT_SELECTION_GUIDE.md) — DB-driven agent selection
