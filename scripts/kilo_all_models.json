@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-05-20T11:59:04.976376",
-  "total_models": 338,
+  "timestamp": "2026-05-21T00:01:54.595742",
+  "total_models": 339,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -1599,6 +1599,11 @@
     },
     "x-ai/grok-4.3": {
       "id": "x-ai/grok-4.3",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "x-ai/grok-build-0.1": {
+      "id": "x-ai/grok-build-0.1",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

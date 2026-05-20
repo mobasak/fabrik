@@ -84,7 +84,7 @@ $(echo "$OTHER_EXT" | sed 's/^/- `/' | sed 's/$/`/' || echo "None")
 
 ## How This File Is Updated
 
-This file is automatically updated by the \`sync-extensions\` pre-commit hook.
+This file is automatically updated daily by \`scripts/sync_extensions.sh\` via the WSL startup hook.
 
 To manually update:
 \`\`\`bash

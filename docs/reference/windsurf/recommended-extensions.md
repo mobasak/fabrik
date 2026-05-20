@@ -1,164 +1,123 @@
 # Windsurf Recommended Extensions
 
-**Last Updated:** 2026-02-27
+**Last Updated:** 2026-05-21
 
-Curated list of extensions for Fabrik development workflow.
+Curated extensions for Fabrik's workflow: Python + TypeScript + Docker + PostgreSQL. No hype, no bloat.
+
+> **Live list:** [actively-used-windsurf-extensions.md](actively-used-windsurf-extensions.md) is auto-generated daily from `windsurf --list-extensions`. This file explains WHY each extension is there.
 
 ---
 
-## Currently Installed
+## Essential (do not remove)
 
-### Core Development
+### Python Development
 
-| Extension | Publisher | Purpose |
-|-----------|-----------|---------|
-| `ms-python.python` | Microsoft | Core Python support: IntelliSense, linting, debugging |
-| `ms-python.debugpy` | Microsoft | Python debugging with breakpoints |
-| `ms-python.vscode-python-envs` | Microsoft | Virtual environment management |
-| `codeium.windsurfpyright` | Codeium | Fast Pylance-like type checking |
+| Extension | ID | Why |
+|---|---|---|
+| **Python** | `ms-python.python` | Core Python: IntelliSense, linting, debugging, venv |
+| **Debugpy** | `ms-python.debugpy` | Python debugger with breakpoints |
+| **Python Envs** | `ms-python.vscode-python-envs` | Virtual environment management (.venv) |
+| **Windsurf Pyright** | `codeium.windsurfpyright` | Fast type checking (Pylance equivalent, Windsurf-native) |
+| **Ruff** | `charliermarsh.ruff` | Python linter + formatter — replaces black, isort, flake8 in one tool |
 
 ### Docker & Containers
 
-| Extension | Publisher | Purpose |
-|-----------|-----------|---------|
-| `ms-azuretools.vscode-docker` | Microsoft | Docker file editing, image management |
-| `ms-azuretools.vscode-containers` | Microsoft | Dev containers support |
+| Extension | ID | Why |
+|---|---|---|
+| **Docker** | `ms-azuretools.vscode-docker` | Dockerfile editing, image management, compose support |
+| **Dev Containers** | `ms-azuretools.vscode-containers` | Open projects inside Docker containers |
 
 ### Git & GitHub
 
-| Extension | Publisher | Purpose |
-|-----------|-----------|---------|
-| `github.vscode-github-actions` | GitHub | GitHub Actions workflow editing |
-| `eamodio.gitlens` | GitKraken | Git blame, history, authorship visualization |
-| `github.vscode-pull-request-github` | GitHub | PR review directly in IDE |
+| Extension | ID | Why |
+|---|---|---|
+| **GitLens** | `eamodio.gitlens` | Git blame, file history, authorship — improves Cascade context |
+| **GitHub Actions** | `github.vscode-github-actions` | Edit/debug CI workflows |
+| **GitHub PRs** | `github.vscode-pull-request-github` | Review PRs directly in IDE |
 
 ### Code Quality
 
-| Extension | Publisher | Purpose |
-|-----------|-----------|----------|
-| `davidanson.vscode-markdownlint` | David Anson | Markdown linting |
-| `charliermarsh.ruff` | Charlie Marsh | Python linter and formatter |
-| `prettier.prettier-vscode` | Prettier | JavaScript/TypeScript formatter |
+| Extension | ID | Why |
+|---|---|---|
+| **Markdown Lint** | `davidanson.vscode-markdownlint` | Catches broken markdown in docs |
+| **Prettier** | `prettier.prettier-vscode` | JS/TS/JSON/CSS/HTML formatter |
+| **YAML** | `redhat.vscode-yaml` | YAML IntelliSense — critical for compose.yaml, specs/*.yaml |
 
-### Diagrams & Documentation
+### AI Agents (our 3 executors)
 
-| Extension | Publisher | Purpose |
-|-----------|-----------|----------|
-| `bierner.markdown-mermaid` | Matt Bierner | Mermaid diagram preview in markdown |
-| `bpruitt-goddard.mermaid-markdown-syntax-highlighting` | Brian Pruitt-Goddard | Mermaid syntax highlighting |
-| `vstirbu.vscode-mermaid-preview` | Vlad Stirbu | Live Mermaid diagram preview |
-
-### Web Development
-
-| Extension | Publisher | Purpose |
-|-----------|-----------|---------|
-| `bradlc.vscode-tailwindcss` | Brad Cornes | Tailwind CSS IntelliSense |
-| `redhat.vscode-yaml` | Red Hat | YAML language support |
-
-### AI & Automation
-
-| Extension | Publisher | Purpose |
-|-----------|-----------|---------|
-| `factory.factory-vscode-extension` | Factory | Factory.ai integration |
-| `traycer.traycer-vscode` | Traycer | Traycer AI assistant |
-| `anthropic.claude-code` | Anthropic | Claude AI integration |
-
-### Build Tools
-
-| Extension | Publisher | Purpose |
-|-----------|-----------|---------|
-| `ms-vscode.makefile-tools` | Microsoft | Makefile support |
+| Extension | ID | Why |
+|---|---|---|
+| **Claude Code** | `anthropic.claude-code` | Claude Code integration (this tool) |
+| **Traycer** | `traycer.traycer-vscode` | Spec-to-ticket planning, outer-loop verification |
+| **Kilo Code** | `kilocode.kilo-code` | 500+ model gateway, code review, agent orchestration |
 
 ---
 
-## Windsurf Official Recommendations
+## Useful (keep installed)
 
-From [Windsurf Docs - Recommended Extensions](https://docs.windsurf.com):
-
-### General
-
-| Extension | Purpose | Fabrik Status |
-|-----------|---------|---------------|
-| GitLens | Code authorship visualization | ✅ Installed |
-| GitHub Pull Requests | PR management in IDE | ✅ Installed |
-| GitLab Workflow | GitLab integration | ⬜ Not needed |
-| Mermaid Markdown Preview | Diagram rendering | ✅ Installed (3 extensions) |
-| Visual Studio Keybindings | VS keyboard shortcuts | ⬜ Personal pref |
-| Eclipse Keymap | Eclipse shortcuts | ⬜ Personal pref |
-
-### Python
-
-| Extension | Purpose | Fabrik Status |
-|-----------|---------|---------------|
-| ms-python.python | Core Python | ✅ Installed |
-| Windsurf Pyright | Type checking | ✅ Installed |
-| Ruff | Linter/formatter | ✅ Installed |
-| Python Debugger | Debugging | ✅ Installed |
-
-### Java / Visual Basic / C#
-
-Not applicable to Fabrik stack.
+| Extension | ID | Why |
+|---|---|---|
+| **Tailwind CSS** | `bradlc.vscode-tailwindcss` | IntelliSense for Tailwind classes (SaaS UI projects) |
+| **Mermaid Preview** | `bierner.markdown-mermaid` | Render Mermaid diagrams in markdown preview |
+| **Mermaid Syntax** | `bpruitt-goddard.mermaid-markdown-syntax-highlighting` | Syntax highlighting for Mermaid code blocks |
+| **Makefile Tools** | `ms-vscode.makefile-tools` | Makefile support (used by some projects) |
+| **Office Viewer** | `cweijan.vscode-office` | View Excel/PDF/images in IDE (occasional use) |
 
 ---
 
-## Installation Commands
+## Review needed (installed but questionable)
 
-Install all recommended extensions via command palette (`Ctrl+Shift+P`):
+These are installed but may not add value. Review periodically:
 
-```
-Extensions: Install Extension
-```
-
-Or search by extension ID:
-
-```
-eamodio.gitlens
-github.vscode-pull-request-github
-charliermarsh.ruff
-prettier.prettier-vscode
-bradlc.vscode-tailwindcss
-redhat.vscode-yaml
-bierner.markdown-mermaid
-bpruitt-goddard.mermaid-markdown-syntax-highlighting
-vstirbu.vscode-mermaid-preview
-```
+| Extension | ID | Concern |
+|---|---|---|
+| **Claude Forever** | `aamiramin.claudeforever` | Third-party Claude wrapper — may conflict with official `anthropic.claude-code` |
+| **Claude Automator** | `peterbulyaki.claude-automator` | Third-party automation — unclear benefit alongside Traycer |
+| **Claude Manager** | `vishalguptax.claude-manager` | Third-party session manager — unclear benefit |
+| **Mermaid Preview (vstirbu)** | `vstirbu.vscode-mermaid-preview` | Third mermaid extension — `bierner.markdown-mermaid` already handles preview |
+| **PowerShell** | `ms-vscode.powershell` | We use bash on WSL, not PowerShell |
 
 ---
 
-## Cascade Benefits
+## Not installed (intentionally)
 
-Extensions that improve Cascade AI context:
-
-| Extension | How It Helps Cascade |
-|-----------|---------------------|
-| **GitLens** | Cascade sees git blame, understands code history |
-| **GitHub PRs** | Cascade can help review PRs with full context |
-| **Ruff** | Shows lint errors Cascade can auto-fix |
-| **YAML** | Better parsing of compose.yaml, config files |
-| **Prettier** | Cleaner code = better context for Cascade |
+| Extension | Why NOT |
+|---|---|
+| REST Client / Thunder Client | We test APIs via pytest + scripts, not IDE GUI |
+| GitHub Copilot | We use Claude Code + Kilo + Traycer instead |
+| Factory | Deprecated — replaced by Kilo Code |
+| Remote SSH (Microsoft) | Conflicts with Windsurf's built-in SSH |
+| ESLint | Ruff handles Python; Prettier handles JS/TS |
+| Any Java/C#/.NET | Not our stack |
 
 ---
 
-## Settings Recommendations
+## How Cascade Benefits from Extensions
 
-Add to Windsurf settings.json for optimal experience:
+| Extension | What it gives Cascade |
+|---|---|
+| **GitLens** | Git blame context — Cascade understands who wrote what and when |
+| **Ruff** | Shows lint errors Cascade can auto-fix (free, no credits) |
+| **YAML** | Better parsing of compose.yaml, specs/*.yaml — fewer config errors |
+| **Prettier** | Clean formatting = better context comprehension |
+| **GitHub PRs** | Cascade can review PRs with full diff context |
+| **Pyright** | Type errors visible to Cascade before you ask |
+
+---
+
+## Settings
 
 ```json
 {
-  // Format on save
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-
-  // Python-specific formatter
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
   },
-
-  // GitLens settings
+  "[typescript][typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "gitlens.codeLens.enabled": true,
   "gitlens.currentLine.enabled": true,
-
-  // Tailwind
   "tailwindCSS.includeLanguages": {
     "typescript": "javascript",
     "typescriptreact": "javascript"
@@ -170,5 +129,6 @@ Add to Windsurf settings.json for optimal experience:
 
 ## See Also
 
-- [Windsurf Documentation](https://docs.windsurf.com)
-- [Open VSX Registry](https://open-vsx.org)
+- [actively-used-windsurf-extensions.md](actively-used-windsurf-extensions.md) — auto-generated current list
+- [windsurf_features.md](windsurf_features.md) — IDE feature guide
+- [cascade-guide.md](cascade-guide.md) — Cascade configuration

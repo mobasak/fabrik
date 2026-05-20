@@ -1,6 +1,6 @@
 # Windsurf Extensions
 
-**Last Updated:** 2026-05-20 00:42
+**Last Updated:** 2026-05-21 00:02
 **Total:** 26 extensions
 
 ## Quick Install (All Extensions)
@@ -80,7 +80,7 @@ windsurf --install-extension vstirbu.vscode-mermaid-preview
 
 ## How This File Is Updated
 
-This file is automatically updated by the `sync-extensions` pre-commit hook.
+This file is automatically updated daily by `scripts/sync_extensions.sh` via the WSL startup hook (`scripts/wsl_startup_hook.sh`).
 
 To manually update:
 ```bash

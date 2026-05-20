@@ -1,39 +1,51 @@
-# Windsurf Optimization for Fabrik
+# Windsurf Reference
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-05-21
 
-This folder contains documentation for optimizing Windsurf IDE and Cascade AI for the Fabrik workflow.
+Documentation for Windsurf IDE + Cascade AI as used in the Fabrik workflow.
 
 ---
 
 ## Contents
 
-| Document | Description |
-|----------|-------------|
-| [Recommended Extensions](recommended-extensions.md) | Curated extensions list |
-| [Cascade Models](cascade-models.md) | Model tiers and credit costs |
+| Document | Description | Auto-updated? |
+|---|---|---|
+| [cascade-guide.md](cascade-guide.md) | Cascade features — modes, memories, rules, MCP, workflows, tools, flows | Manual |
+| [cascade-models.md](cascade-models.md) | Model tiers, credit multipliers, benchmarks | Yes (scraper) |
+| [windsurf_features.md](windsurf_features.md) | All Windsurf IDE features — Tab, Command, Devin, Previews, deploys, etc. | Manual |
+| [actively-used-windsurf-extensions.md](actively-used-windsurf-extensions.md) | Currently installed extensions (26) | Yes (daily WSL hook) |
 
 ---
 
-## Quick Start
+## How Fabrik Uses Windsurf
 
-1. **Install recommended extensions** - See [recommended-extensions.md](recommended-extensions.md)
-2. **Configure settings** - Import from `~/.windsurf/settings.json`
-3. **Enable Cascade features** - Configure Traycer YOLO mode for autonomous work
+Windsurf is the primary IDE. Three executors read different instruction files:
 
----
+| Executor | Reads | Instruction file |
+|---|---|---|
+| **Cascade** (Windsurf AI) | `.windsurfrules` + `.windsurf/rules/*.md` + `AGENTS.md` | Glob-triggered rule packs |
+| **Kilo CLI** (terminal agent) | `AGENTS-compact.md` via `opencode.json` | Compact instructions |
+| **Claude Code** (this tool) | `CLAUDE.md` | Full dev contract |
 
-## Why This Matters
-
-Windsurf + Cascade is our primary development environment. Optimizing it:
-- Improves code quality through better linting/formatting
-- Enables Cascade to see richer context (GitLens, YAML, etc.)
-- Speeds up PR reviews with GitHub integration
-- Provides consistent experience across machines
+All three get the same spec contract awareness rules (inline in their respective files).
 
 ---
 
-## Related
+## Configuration
 
-- [Final Gate Workflow](../../workflows/FINAL_GATE_WORKFLOW.md)
-- [AGENTS.md](../../../AGENTS.md)
+| What | Where |
+|---|---|
+| Rule packs | `.windsurf/rules/` (24 numbered packs + 2 design systems) |
+| Workflows | `.windsurf/workflows/` (11 workflows) |
+| MCP servers | `~/.codeium/windsurf/mcp_config.json` |
+| Memories | `~/.codeium/windsurf/memories/` (auto-generated, local) |
+| Global rules | `~/.codeium/windsurf/memories/global_rules.md` |
+| Turbo mode | Enabled — commands auto-execute without prompts |
+
+---
+
+## See Also
+
+- `.windsurf/rules/` — the actual rule packs loaded by Cascade
+- `.windsurf/workflows/` — reusable workflow recipes
+- `AGENTS.md` — always-on instructions for all executors
