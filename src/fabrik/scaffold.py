@@ -260,6 +260,7 @@ SHARED_DIRS = [
     "docs/guides",
     "docs/reference",
     "docs/reference/kilo",  # Kilo AI agent system docs (synced from fabrik)
+    "docs/reference/MD",    # Markdown + AI prompt reference (synced from fabrik)
     "docs/operations",
     "docs/development",
     "docs/development/plans",
@@ -414,6 +415,8 @@ _COMMON_GITIGNORE_PATTERNS = (
     "AGENTS-compact.md\n"
     "opencode.json\n"
     "docs/reference/kilo/\n"
+    "docs/reference/ai_agent_prompt_directives.md\n"
+    "docs/reference/MD/\n"
     "docs/reference/fabrik-lifecycle.md\n"
     "docs/reference/fabrik-project-catalog.md\n"
     "docs/reference/AI_TAXONOMY.md\n"
