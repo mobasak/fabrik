@@ -104,14 +104,17 @@ class CoolifyClient:
         self.ssh_host = ssh_host
 
         # COOLIFY_INTERNAL_URL bypasses Traefik IP allowlist by calling
-        # directly through SSH to the container port (e.g. http://localhost:8002).
-        # Set this when running from WSL where the public URL is blocked by iptables.
+        # directly through SSH to the container port (e.g. http://localhost:8000).
+        # When set explicitly, all requests use SSH proxy.
+        # When unset, the driver auto-detects on first 404/connection-error
+        # and switches to SSH proxy for the rest of the session.
         self._internal_url: str | None = os.getenv("COOLIFY_INTERNAL_URL")
         if self._internal_url:
             self._internal_url = self._internal_url.rstrip("/")
             logger.debug(
                 "Coolify client: using SSH proxy via %s → %s", ssh_host, self._internal_url
             )
+        self._auto_ssh_fallback_url = "http://localhost:8000/api/v1"
 
         headers = {
             "Authorization": f"Bearer {self.token}",
@@ -158,6 +161,11 @@ class CoolifyClient:
 
         When COOLIFY_INTERNAL_URL is set, proxies the call through SSH
         to bypass Traefik IP allowlist restrictions (WSL → VPS pipeline use case).
+
+        Auto-fallback: if the public URL returns 404 (Authelia intercept) or
+        connection error, automatically retries via SSH proxy to localhost:8000.
+        This handles the common case where Coolify's API sits behind Authelia
+        forward-auth and rejects external requests.
         """
         if self._internal_url:
             url = f"{self._internal_url}{endpoint}"
@@ -166,7 +174,30 @@ class CoolifyClient:
             return self._request_via_ssh(method, url, body, params)
 
         url = f"{self.base_url}{endpoint}"
-        response = self._client.request(method, url, **kwargs)
+        try:
+            response = self._client.request(method, url, **kwargs)
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            logger.warning(
+                "Coolify API %s %s connection failed (%s), retrying via SSH proxy",
+                method,
+                endpoint,
+                type(exc).__name__,
+            )
+            return self._ssh_fallback(method, endpoint, **kwargs)
+
+        if response.status_code == 404:
+            body_text = response.text[:200] if response.content else ""
+            # Distinguish real 404 (resource not found) from Authelia intercept.
+            # Authelia returns "404 page not found" as plain text; Coolify returns
+            # JSON like {"message": "No query results..."}.
+            if "page not found" in body_text.lower() or not body_text.startswith("{"):
+                logger.warning(
+                    "Coolify API %s %s returned 404 (likely Authelia intercept), retrying via SSH proxy",
+                    method,
+                    endpoint,
+                )
+                return self._ssh_fallback(method, endpoint, **kwargs)
+
         if response.status_code >= 400:
             body_preview = response.text[:2000] if response.content else ""
             logger.error(
@@ -183,6 +214,13 @@ class CoolifyClient:
             return {"success": True}
 
         return response.json()
+
+    def _ssh_fallback(self, method: str, endpoint: str, **kwargs) -> Any:
+        """Retry a request via SSH proxy to Coolify's internal port."""
+        url = f"{self._auto_ssh_fallback_url}{endpoint}"
+        body = kwargs.get("json")
+        params = kwargs.get("params")
+        return self._request_via_ssh(method, url, body, params)
 
     # =========================================================================
     # Health & Version
@@ -576,11 +614,21 @@ class CoolifyClient:
         return self._request("PATCH", f"/{base}/{uuid}", json=kwargs)
 
     def delete_application(self, uuid: str, delete_volumes: bool = False) -> dict[str, Any]:
-        """Delete application or service (auto-routes by UUID)."""
-        params = {"delete_volumes": str(delete_volumes).lower()}
+        """Delete application or service (auto-routes by UUID).
+
+        Uses Coolify v4 query params for thorough cleanup:
+        - delete_configurations: remove app config (always true)
+        - delete_volumes: remove Docker volumes (caller-controlled)
+        - docker_cleanup: run Docker prune for the app (always true)
+        - delete_connected_networks: remove per-app Docker network (always true)
+        """
+        params = {
+            "delete_configurations": "true",
+            "delete_volumes": str(delete_volumes).lower(),
+            "docker_cleanup": "true",
+            "delete_connected_networks": "true",
+        }
         base = self._resolve_resource_base(uuid)
-        if base == "services":
-            params["delete_connected_networks"] = "true"
         return self._request("DELETE", f"/{base}/{uuid}", params=params)
 
     # =========================================================================

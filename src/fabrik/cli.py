@@ -96,6 +96,50 @@ def _post_deploy_sync() -> None:
         except Exception:
             pass  # never block deploy
 
+    # Update VPS container inventory doc — non-fatal, background
+    inventory_script = FABRIK_ROOT / "scripts" / "generate_vps_inventory.py"
+    if inventory_script.exists():
+        try:
+            subprocess.Popen(
+                ["python3", str(inventory_script), "--update"],
+                cwd=str(FABRIK_ROOT),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass  # never block deploy/destroy
+
+
+def _run_residue_verify() -> None:
+    """Run ``vps_sync.py --verify`` after destroy to catch residue.
+
+    Non-fatal: prints findings but never blocks the destroy exit code.
+    Per VPS residue policy (``docs/infrastructure/vps-residue-policy.md``).
+    """
+    import subprocess
+
+    verify_script = FABRIK_ROOT / "scripts" / "vps_sync.py"
+    if not verify_script.exists():
+        return
+    try:
+        click.echo()
+        click.echo("🔍 Running residue verification (vps-sync --verify)...")
+        result = subprocess.run(
+            ["python3", str(verify_script), "--verify"],
+            cwd=str(FABRIK_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode == 0:
+            click.echo("✅ VPS residue check: clean")
+        else:
+            click.echo("⚠️  VPS residue check found issues:", err=True)
+            for line in result.stdout.strip().split("\n")[-10:]:
+                click.echo(f"    {line}", err=True)
+    except Exception as e:
+        click.echo(f"⚠️  Residue verify error: {e}", err=True)
+
 
 @cli.command(hidden=True)
 @click.argument("name")
@@ -776,7 +820,6 @@ def logs(
 @click.argument("spec_path", type=click.Path(exists=True))
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
 @click.option("--keep-dns", is_flag=True, help="Keep DNS records")
-@click.option("--keep-files", is_flag=True, help="Keep generated files")
 @click.option(
     "--drop-data",
     is_flag=True,
@@ -813,7 +856,6 @@ def destroy(
     spec_path: str,
     yes: bool,
     keep_dns: bool,
-    keep_files: bool,
     drop_data: bool,
     partial: tuple,
     use_state: bool,
@@ -903,7 +945,7 @@ def destroy(
             spec,
             drop_data=drop_data,
             keep_dns=keep_dns,
-            keep_files=keep_files,
+            keep_files=True,  # Never delete local /opt/<project> or git repos
             project_base=Path("/opt"),
             dry_run=dry_run,
         )
@@ -935,6 +977,9 @@ def destroy(
         click.echo("=" * 60)
         click.echo(f"✅ Destroyed (from state): {spec.id}")
         click.echo("=" * 60)
+        _post_deploy_sync()
+        if not dry_run:
+            _run_residue_verify()
         raise SystemExit(0)
 
     # T2-02 G-F5 partial-destroy branch: surgical per-registrar teardown.
@@ -988,8 +1033,9 @@ def destroy(
         click.echo("  - Coolify application")
         if not keep_dns and spec.domain:
             click.echo(f"  - DNS A record for {spec.domain}")
-        if not keep_files:
-            click.echo(f"  - Project tree at /opt/{spec.id}/")
+        # Local project files are NEVER deleted by destroy — source code
+        # and git repos in WSL /opt/ are preserved. Only VPS-side resources
+        # (Coolify app, DNS, registrars) are torn down.
         if not drop_data:
             click.echo()
             click.echo(
@@ -1005,7 +1051,7 @@ def destroy(
         spec,
         drop_data=drop_data,
         keep_dns=keep_dns,
-        keep_files=keep_files,
+        keep_files=True,  # Never delete local /opt/<project> or git repos
         project_base=Path("/opt"),
         dry_run=dry_run,
     )
@@ -1041,6 +1087,8 @@ def destroy(
     click.echo(f"✅ Destroyed: {spec.id}")
     click.echo("=" * 60)
     _post_deploy_sync()
+    if not dry_run:
+        _run_residue_verify()
 
 
 @cli.command("vps-sync")
@@ -2360,6 +2408,7 @@ def deploy_cmd(project_path: str | None, dry_run: bool):
 def content():
     """Content publishing commands."""
     pass
+
 
 @cli.group()
 def seo():

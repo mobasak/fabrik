@@ -1,0 +1,697 @@
+# VPS AI System Administrator — Reference
+
+**Status:** Live since 2026-05-20
+**Service:** `vps-sysadmin-bot.service` (systemd, `Restart=always`)
+**Bot:** Telegram (`@ocoron_bot`), same bot as Alertmanager notifications
+**Brain:** Claude Code v2.1.144 at `/usr/local/bin/claude` (Max subscription, authenticated via `claude auth login`)
+
+---
+
+## What It Is
+
+An on-demand AI system administrator. Not a monitoring tool — a thinking sysadmin that runs locally on the VPS, queries all infrastructure APIs directly, diagnoses root causes, acts autonomously on safe operations, and reports what it did.
+
+**On-demand, not persistent.** Dormant 99% of the time. Zero tokens unless triggered. Session starts when you message or when a proactive check detects an anomaly. Session ends on "done" or 10 minutes of silence.
+
+## Architecture
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  VPS (all local, no SSH, no external LLM API)               │
+│                                                             │
+│  PATH 1: You message Telegram                               │
+│  ┌──────────┐  message  ┌───────────────────────────────┐  │
+│  │ Telegram  │─────────▶│  sysadmin-bot.py (systemd)    │  │
+│  │ (phone)   │◀─────────│  spawns claude -p on demand   │  │
+│  └──────────┘  response │  kills after "done" / timeout │  │
+│                          └──────────────┬────────────────┘  │
+│                                         │                    │
+│  PATH 2: Alert fires                    │                    │
+│  ┌──────────────┐  already   ┌─────────▼─────────┐         │
+│  │ Alertmanager │──works────▶│ Apprise→Telegram   │         │
+│  └──────────────┘            └───────────────────┘         │
+│  You reply to investigate → Path 1                          │
+│                                                             │
+│  PATH 3: Proactive cron (every 15 min)                      │
+│  ┌───────────────────────────────────────────┐              │
+│  │  proactive-check.sh                       │              │
+│  │  Stage 1: bash curls Prometheus (free)    │              │
+│  │  Stage 2: claude -p (only if anomaly)     │              │
+│  │  → acts autonomously + reports to Telegram│              │
+│  └───────────────────────────────────────────┘              │
+│                                                             │
+│  Claude Code runs LOCALLY when triggered:                   │
+│  - queries Prometheus, Loki, Gatus, GlitchTip, Netdata    │
+│  - runs sudo docker stats/logs/restart/inspect              │
+│  - runs sudo bash scripts/audit/*.sh                        │
+│  - reads docs/infrastructure/*.md, specs/services/*.yaml   │
+│  - Max subscription (zero additional cost)                  │
+└────────────────────────────────────────────────────────────┘
+```
+
+## Infrastructure APIs (queried locally)
+
+Claude Code reaches these from inside the Docker `coolify` network via `sudo docker exec` or `sudo docker run --rm --network coolify curlimages/curl:latest`.
+
+| Service | URL | What the sysadmin gets |
+|---|---|---|
+| Prometheus | `prometheus:9090` | Container + host metrics, 13 alert rules, scrape target health |
+| Loki | `loki:3100` | All container logs — errors, stack traces, crash messages |
+| Grafana | `grafana:3000` | Dashboard + datasource health (8 dashboards, 2 datasources) |
+| Alertmanager | `alertmanager:9093` | Active firing alerts, silences |
+| Gatus | `gatus:8080` | Uptime status for 30+ endpoints |
+| GlitchTip | `glitchtip-web:8000` | Application errors, unhandled exceptions |
+| Apprise | `apprise:8000` | Send notifications to Telegram |
+| Netdata | `netdata:19999` | Real-time per-second system metrics |
+| Pushgateway | `pushgateway:9091` | Drift audit metrics from hourly fabrik cron |
+| Meilisearch | `meilisearch:7700` | Search index health |
+| Docker | local CLI | Container lifecycle — ps, stats, logs, restart, update, inspect |
+| Node exporter | via Prometheus | Host CPU, RAM, disk, network |
+| cAdvisor | via Prometheus | Per-container resource metrics |
+| Postgres exporter | via Prometheus | Database connections, query rates, sizes |
+| Redis exporter | via Prometheus | Cache memory, hit rate, clients |
+
+## Alert Coverage (what triggers detection)
+
+**Layer 1: Prometheus alert rules (13) → Alertmanager → Telegram**
+
+| Rule | Catches | Source |
+|---|---|---|
+| ContainerDown | Container disappeared | cAdvisor |
+| ContainerHighCPU | CPU >80% sustained | cAdvisor |
+| ContainerHighMemory | Memory >80% of limit | cAdvisor |
+| ContainerMemoryHighOfHost | Container using too much host RAM | cAdvisor + node-exporter |
+| ContainerOOMKilled | OOM kill event | cAdvisor |
+| ContainerRestarting | >3 restarts in 15min | cAdvisor |
+| HostHighCPU | Host CPU >80% | node-exporter |
+| HostHighMemory | Host RAM >90% | node-exporter |
+| HostDiskFull | Disk >85% | node-exporter |
+| ServiceUnhealthy | Prometheus target down | Prometheus |
+| PromtailNotShipping | Log pipeline broken | Promtail |
+| PromtailDroppingEntries | Loki rejecting logs | Promtail |
+| FabrikRegistrarDrift | Infrastructure drift | Pushgateway |
+
+**Layer 2: Proactive cron (11 checks, every 15 min) → Claude acts if anomaly**
+
+| Check | Threshold | Catches BEFORE alerts fire |
+|---|---|---|
+| Memory rising | >5MB/min growth | Memory leak before 80% |
+| Container restarted | Any restart in 15min | Single restart (alert needs >3) |
+| CPU sustained | >70% for 15min | Creeping load before 80% |
+| Disk | >75% | Before 85% alert |
+| Host RAM | >80% | Before 90% alert |
+| Load average | >2x CPU count (dynamic) | CPU saturation |
+| OOM kill | Any in 15min | Immediate backup check |
+| Disk prediction | Full within 7 days | Trend-based, not threshold |
+| Prometheus target down | Any target `up == 0` | Matches alert, backup detection |
+| Log pipeline dead | Loki ingestion rate = 0 | Matches alert, backup detection |
+| TLS cert expiry | <14 days on 5 domains | Auto-renewal may have failed |
+
+## Container Classification
+
+| Category | Containers | Claude's permissions |
+|---|---|---|
+| **critical-infra** | coolify, traefik, postgres-main, redis-main, coolify-db/redis/realtime/sentinel | READ ONLY. Never restart/stop/scale. |
+| **monitoring** | prometheus, grafana, loki, promtail, alertmanager, cadvisor, node-exporter, netdata, gatus, pushgateway, exporters | READ ONLY. Touching these blinds Claude. |
+| **platform** | authelia, apprise, backrest, n8n, glitchtip-web/worker, meilisearch, gotenberg, browserless | Restart autonomously. Report after. |
+| **application** | image-broker, site-provisioner, ocoron-com-*, any future service | Full autonomous management. |
+
+## Operating Mode
+
+Default: **autonomous**. Acts first, reports after.
+
+| Action | Autonomous | Ask first | NEVER |
+|---|---|---|---|
+| Restart application/platform | ✅ act + report | | |
+| Scale memory UP (cap 4GB) | ✅ act + report | | |
+| Scale memory DOWN | | ✅ | |
+| Stop a container | | ✅ | |
+| Delete container/volume/data | | | ❌ |
+| Modify env vars | | | ❌ |
+| Touch networking/firewall/boot | | | ❌ |
+| Touch Docker daemon/fstab | | | ❌ |
+
+## Token Economics
+
+| Scenario | Claude wakes? | Cost |
+|---|---|---|
+| Quiet day, proactive all-clear | No | $0 |
+| Proactive detects anomaly | Yes, fire-and-forget | ~$0.01-0.05 |
+| You message "status" | Yes, session until "done" | ~$0.02-0.10 |
+| Full audit on demand | Yes, long session | ~$0.20-0.50 |
+| **Monthly typical** | | **$5-15** (included in Max) |
+
+## Components
+
+### Bot + System Prompt (always running)
+
+| File | Location (VPS) | Purpose |
+|---|---|---|
+| `bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | Telegram bot (332 lines) — spawns Claude Opus per message, JSON output parsing, session management, action logging, health endpoint `:8017` |
+| `system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | Sysadmin brain (232 lines) — role, APIs, classification, playbooks, shift notes, criticality tiers, communication protocol, safety rules |
+| `.env.sysadmin` | `/opt/fabrik/.env.sysadmin` | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_OWNER_ID` |
+| Service unit | `/etc/systemd/system/vps-sysadmin-bot.service` | systemd service (`Restart=always`, `After=network.target docker.service`) |
+
+### Scheduled Routines (cron — `/etc/cron.d/vps-sysadmin`)
+
+| Script | Schedule | Uses Claude? | Purpose |
+|---|---|---|---|
+| `proactive-check.sh` | Every 15 min | Only on anomaly | 11 checks (10 PromQL + Prometheus connectivity) + cert expiry. Bash prefilter (zero tokens when healthy). Claude wakes, diagnoses, acts, reports only when something is wrong. |
+| `morning-report.sh` | Daily 08:00 | Always | Collects system state + trends + shift notes + yesterday's actions. Claude formats a concise morning briefing for Telegram. |
+| `weekly-security.sh` | Monday 08:30 | Always | Runs `scripts/audit/03-security.sh`, Claude analyzes against `audit-prompts/03-security-hardening.md` checklist. Reports GREEN/YELLOW/RED. |
+| `weekly-maintenance.sh` | Sunday 03:00 | Never | Pure bash — checks dangling images/volumes, journal size, backup freshness, restart counts, stale containers, cert expiry. Reports what it found. |
+| `monthly-backup-verify.sh` | 1st of month 04:00 | Always | Runs `scripts/audit/06-backup.sh`, Claude analyzes against `audit-prompts/06-backup-disaster-recovery.md` checklist. Reports coverage gaps + recovery confidence. |
+
+### Operational Records (persistent across sessions)
+
+| File | Purpose |
+|---|---|
+| `logs/sysadmin-actions.jsonl` | Every Telegram conversation logged — timestamp, session ID, message, response preview. Survives between sessions. |
+| `logs/sysadmin-shift-notes.md` | Carry-forward notes Claude writes at end of each significant session. Read at start of next session. Gives memory between conversations. |
+
+## Survives Reboot?
+
+**Yes.** The service is `enabled` in systemd:
+
+```
+systemctl is-enabled vps-sysadmin-bot  → enabled
+```
+
+On VPS boot: `systemd` → `network.target` + `docker.service` start → `vps-sysadmin-bot.service` starts (After=network.target docker.service).
+
+## Restart Policy
+
+```
+Restart=always
+RestartSec=30
+StartLimitIntervalSec=300
+StartLimitBurst=5
+```
+
+- Crashes → restarts after 30 seconds
+- Max 5 restarts in 5 minutes → then systemd stops trying
+- To reset after hitting the limit: `sudo systemctl reset-failed vps-sysadmin-bot && sudo systemctl start vps-sysadmin-bot`
+
+## Monitoring
+
+### Automated (three layers)
+
+1. **Systemd `Restart=always`** — crashes auto-recover in 30 seconds. Max 5 restarts in 5 minutes before giving up.
+2. **Daily heartbeat** — bot sends a "💚 Sysadmin Bot — Daily Heartbeat" to Telegram at 08:00 local time with uptime, model, call stats. If you don't see it, the bot is dead.
+3. **Health endpoint** — `:8017/health` returns JSON with status, uptime, model, call counts. Available for local checks (`curl localhost:8017/health`). Not reachable from Docker containers (DOCKER-USER chain blocks host ports from forwarded traffic — by design, the bot is NOT a public service).
+4. **Proactive cron is independent** — `proactive-check.sh` runs as root cron, NOT through the bot. If the bot dies, proactive checks still detect issues and alert via Apprise.
+
+### Manual check
+
+```bash
+# Service status
+sudo systemctl status vps-sysadmin-bot
+
+# Recent logs
+sudo tail -50 /var/log/vps-sysadmin-bot.log
+
+# Is Claude Code working?
+claude --version
+
+# Proactive check logs
+sudo tail -20 /var/log/sysadmin-proactive.log
+```
+
+## Firewall Architecture
+
+The VPS has a two-layer firewall. The sysadmin must understand both but **NEVER modify either**.
+
+**Layer 1: UFW** — host-level, controls SSH + direct ports:
+```
+22/tcp ALLOW (SSH), 80/tcp ALLOW (HTTP), 443/tcp ALLOW (HTTPS+OpenVPN)
+1194/tcp ALLOW (VPN), 6001-6002/tcp ALLOW (Coolify WebSocket)
+8000/tcp DENY (Coolify raw — must use coolify.vps1.ocoron.com)
+```
+
+**Layer 2: DOCKER-USER iptables chain** — Docker bypasses UFW. This is the REAL perimeter for container traffic:
+```
+Rule 1: RETURN ESTABLISHED,RELATED (don't break existing sessions)
+Rule 2: RETURN 10.0.0.0/8 (container→container traffic)
+Rule 3: RETURN 172.16.0.0/12 (Docker internal)
+Rule 4: RETURN 192.168.0.0/16 (private ranges)
+Rule 5: RETURN tcp dport 80 (Traefik HTTP)
+Rule 6: RETURN tcp dport 443 (Traefik HTTPS)
+Rule 7: RETURN tcp dport 6001 (Coolify realtime)
+Rule 8: RETURN tcp dport 6002 (Coolify realtime)
+Rule 9: DROP all (catch-all — blocks everything else from external)
+```
+
+**Script:** `/etc/iptables/add-docker-user-rules.sh` (re-applied on boot by `iptables-docker-user.service`)
+
+**Why the health endpoint (:8017) can't be reached from Docker:** The bot runs on the host. Docker containers trying to reach host port 8017 go through the FORWARD chain → DOCKER-USER → rule 9 DROP. This is correct — the bot is NOT a network service, it's a local process. Health checks use `curl localhost:8017/health` from the host only.
+
+## Common Operations
+
+### Restart the bot
+
+```bash
+sudo systemctl restart vps-sysadmin-bot
+```
+
+### Stop the bot (maintenance)
+
+```bash
+sudo systemctl stop vps-sysadmin-bot
+# Start again:
+sudo systemctl start vps-sysadmin-bot
+```
+
+### Update the system prompt
+
+Edit `/opt/fabrik/scripts/sysadmin/system-prompt.txt` on VPS, then restart the bot: `sudo systemctl restart vps-sysadmin-bot`. The bot loads the system prompt once at startup (module-level), NOT per-session. Cron scripts (proactive, morning, weekly, monthly) load it fresh each run — no restart needed for those.
+
+### Update the bot code
+
+```bash
+# From WSL:
+scp scripts/sysadmin/bot.py vps:/opt/fabrik/scripts/sysadmin/
+ssh vps 'sudo systemctl restart vps-sysadmin-bot'
+```
+
+### View active Claude sessions
+
+```bash
+# Check if Claude is currently running (spawned by bot)
+ps aux | grep "claude -p" | grep -v grep
+```
+
+### Disable all scheduled routines
+
+```bash
+sudo rm /etc/cron.d/vps-sysadmin
+```
+
+### Re-enable all scheduled routines
+
+Reinstall from Step 6 of the Replication section below, or run:
+```bash
+bash scripts/sync-vps-sysadmin.sh  # from WSL — syncs scripts
+# Then SSH to VPS and reinstall the cron file (see Step 6)
+```
+
+### Disable only proactive checks (keep morning report, weekly, monthly)
+
+```bash
+ssh vps 'sudo sed -i "/proactive-check/d" /etc/cron.d/vps-sysadmin'
+```
+
+## Troubleshooting
+
+### Bot doesn't respond to Telegram messages
+
+1. Check service is running: `sudo systemctl status vps-sysadmin-bot`
+2. Check logs: `sudo tail -30 /var/log/vps-sysadmin-bot.log`
+3. Check Claude Code auth: `claude --version` (should not say "auth required")
+4. Check env file: `cat /opt/fabrik/.env.sysadmin` (token + owner ID set?)
+5. Restart: `sudo systemctl restart vps-sysadmin-bot`
+
+### Bot responds with "Claude error" or "timed out"
+
+- Claude Code may have lost auth: `claude auth login` (re-authenticate)
+- Claude Code may be rate-limited: wait 5 minutes, try again
+- Subprocess timeout (5min): try a simpler question like "status"
+
+### Proactive checks flooding Telegram
+
+- Rate limit is 5 Claude wakes per hour — if exceeded, check `/var/log/sysadmin-proactive.log`
+- If a threshold is too sensitive, edit the PromQL in `proactive-check.sh`
+- Temporarily disable: `sudo rm /etc/cron.d/vps-proactive-check`
+
+### Service hits StartLimitBurst (won't restart)
+
+```bash
+sudo systemctl reset-failed vps-sysadmin-bot
+sudo systemctl start vps-sysadmin-bot
+# Check what's causing crashes:
+sudo tail -100 /var/log/vps-sysadmin-bot.log
+```
+
+### Alertmanager + bot conflict?
+
+They don't conflict. Alertmanager sends via HTTP POST to `api.telegram.org` (native `telegram_configs`). The bot uses long-polling. Different mechanisms, same Telegram chat. Both work independently.
+
+## Security
+
+- **Owner-only:** Bot silently ignores all messages not from `TELEGRAM_OWNER_ID`
+- **No secrets in chat:** Claude never sends API keys, passwords, or env values over Telegram (enforced in system prompt)
+- **Docker socket:** Not mounted. Claude uses `sudo docker` CLI commands, not the socket
+- **Claude Code auth:** Max subscription via `claude auth login` — no API key stored on VPS
+- **Env file:** `/opt/fabrik/.env.sysadmin` contains only Telegram token + owner ID (not app secrets)
+
+## Log Rotation
+
+Bot log: `/var/log/vps-sysadmin-bot.log` — grows over time. Add logrotate:
+
+```bash
+sudo tee /etc/logrotate.d/vps-sysadmin-bot << 'EOF'
+/var/log/vps-sysadmin-bot.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+```
+
+Proactive log: `/var/log/sysadmin-proactive.log` — same treatment:
+
+```bash
+sudo tee /etc/logrotate.d/vps-sysadmin-proactive << 'EOF'
+/var/log/sysadmin-proactive.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+```
+
+## Session Model
+
+Each Telegram conversation is a Claude Code session with continuity:
+
+```
+Message 1: "status"
+  → bot spawns: claude -p "status" --session-id {new_uuid} --system-prompt {role}
+  → response → Telegram
+  → session_id saved, last_activity = now
+
+Message 2: "restart image-broker" (within 10 min)
+  → bot runs: claude -p "restart image-broker" --resume {same_uuid}
+  → Claude has context from message 1
+  → response → Telegram
+
+Message 3: "done" (or 10 min silence)
+  → session_id cleared → "Session ended. ✅"
+
+Message 4: "check disk" (new conversation)
+  → bot spawns: new UUID, fresh session, no history
+```
+
+- `claude -p` (print mode) — each message is a subprocess. No PTY, no stdin pipe.
+- `--output-format json` — bot parses the JSON `result` field to extract Claude's text response. Using `text` format loses content when Claude interleaves tool calls with text responses.
+- `--resume` — follow-ups resume same session. Claude remembers context.
+- `--system-prompt` — injects sysadmin role. NOT from CLAUDE.md (that's for WSL development).
+- `--permission-mode bypassPermissions` — Claude runs docker commands without tool-permission prompts.
+- Subprocess timeout: 300s (5 min) per call. If exceeded → kill + "timed out" notification.
+
+### Key design decisions (learned from live testing)
+
+1. **`--output-format json`, not `text`** — Claude interleaves text with tool calls during investigation. The `text` format only captures the final text fragment. JSON wraps the complete response in a `result` field that bot.py extracts via `json.loads()`.
+2. **`docker events` always needs `--until now`** — without it, `docker events` streams indefinitely. Claude spawns it as a subprocess that never exits, causing 5-minute timeouts and zombie processes. The system prompt explicitly warns about this.
+3. **Communication protocol at top of system prompt** — Claude's default behavior is to write findings to shift notes and return minimal text. The system prompt's first paragraph now states: "Your text response is the ONLY output the owner ever sees." This ensures the Telegram user gets the full investigation report, not just "shift note saved."
+
+## Knowledge Sync (WSL → VPS)
+
+The sysadmin's knowledge files live in the fabrik repo on WSL. They're synced to VPS via:
+
+```bash
+bash scripts/sync-vps-sysadmin.sh
+```
+
+**When to run:** after any `fabrik apply`, `fabrik destroy`, doc edit, spec change, audit prompt update, or system prompt change.
+
+**What gets synced:**
+
+| Source (WSL) | Destination (VPS) | Purpose |
+|---|---|---|
+| `docs/infrastructure/*.md` | same path | Inventory, runbooks, audit prompts |
+| `docs/reference/fabrik-lifecycle.md` | same path | Deployment lifecycle rules |
+| `docs/reference/architecture.md` | same path | System architecture reference |
+| `scripts/audit/*.sh` | same path | Diagnostic scripts |
+| `scripts/sysadmin/*` | same path | Bot, proactive check, system prompt |
+| `specs/services/*.yaml` | same path | Deployment specs (shape, domains, limits) |
+| `scripts/vps_apply_limits.sh` | same path | Memory limits + alias script |
+| `scripts/generate_vps_inventory.py` | same path | Inventory auto-generator |
+
+**What is NOT synced (intentionally):**
+- Root `CLAUDE.md` — that's for WSL Claude Code (development), not VPS sysadmin
+- `.env` files — secrets stay per-environment
+- `src/` — fabrik source code is for WSL dev, not VPS operations
+- `node_modules/`, `.venv/`, build artifacts
+
+**Does the VPS sysadmin know about new deployments automatically?**
+- **Containers:** Yes — `docker ps` always shows current state (live query)
+- **Specs:** Yes, after sync — `specs/services/*.yaml` tells Claude each service's purpose and shape
+- **Docs:** Yes, after sync — `vps-complete-inventory.md` is regenerated on every `fabrik apply/destroy`
+- **Config changes done on VPS directly:** Claude discovers them when it runs diagnostics (proactive cron or your message)
+
+## Notification Templates
+
+Claude formats Telegram messages using these templates (enforced in system-prompt.txt):
+
+**Action taken:**
+```
+**Target:** glitchtip-web
+**Issue:** Memory at 89% of 512MB limit (4 weeks since last restart)
+**Action:** sudo docker restart glitchtip-web-z00kkck8c8cwo800kk440csk
+**Result:** ✅ Memory 456MB → 89MB. Container healthy.
+```
+
+**Proactive finding:**
+```
+🔍 Proactive Check
+
+📈 Disk trending: 29% → predicted 45% in 7 days
+📦 Top consumers: overlay2 28GB, Netdata cache 2.3GB
+💡 Netdata cache exceeds DBENGINE_DISK_SPACE_MB=512 setting
+🔕 No action taken — informational only.
+```
+
+**Needs owner approval:**
+```
+⚠️ Need approval
+
+**Target:** n8n
+**Issue:** Memory at 412MB, no limit set, growing 3MB/min
+**Proposed:** sudo docker update --memory 512m n8n-...
+**Why ask:** Scale down not in autonomous permissions
+
+Reply "do it" to approve.
+```
+
+## System Prompt
+
+The sysadmin's identity, rules, APIs, and communication format live in:
+
+```
+/opt/fabrik/scripts/sysadmin/system-prompt.txt
+```
+
+This is injected via `--system-prompt` flag on every `claude -p` call. It is NOT in CLAUDE.md (which is the WSL development ruleset — different purpose, different audience).
+
+To update the prompt: edit the file on WSL → run `bash scripts/sync-vps-sysadmin.sh` → restart the bot: `ssh vps 'sudo systemctl restart vps-sysadmin-bot'`. The bot loads the system prompt once at startup. Cron scripts (proactive, morning, weekly, monthly) load it fresh each run — no restart needed for those.
+
+The system prompt defines:
+- Role and context (local VPS admin, user `ozgur`, Ubuntu 24.04)
+- Initialization (what to read silently before responding)
+- All infrastructure API URLs and how to reach them
+- Container classification (critical-infra / monitoring / platform / application)
+- Knowledge sources (docs, specs, audit scripts)
+- Permission boundaries (autonomous / ask first / never)
+- Communication protocol (templates, emoji, conciseness)
+- Error handling (retry once, then stop and report)
+
+---
+
+## Replication — Set Up on a New VPS from Scratch
+
+Complete recipe. Assumes fresh Ubuntu 24.04 with Docker, Coolify, and the monitoring stack already deployed.
+
+### Step 1: Install Node.js + Claude Code
+
+```bash
+# Node.js (required by Claude Code)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Claude Code
+sudo npm install -g @anthropic-ai/claude-code
+claude --version  # should print version
+
+# Authenticate (interactive — must be done manually)
+claude auth login
+# Opens URL → authorize in browser → paste code → done
+# Uses Max subscription — no API key needed
+```
+
+### Step 2: Install Python dependency
+
+```bash
+sudo pip3 install --break-system-packages python-telegram-bot
+```
+
+### Step 3: Deploy bot files
+
+From WSL (where fabrik repo lives):
+
+```bash
+# Create directory on VPS
+ssh vps 'mkdir -p /opt/fabrik/scripts/sysadmin'
+
+# Copy files
+scp scripts/sysadmin/bot.py vps:/opt/fabrik/scripts/sysadmin/
+scp scripts/sysadmin/proactive-check.sh vps:/opt/fabrik/scripts/sysadmin/
+scp scripts/sysadmin/system-prompt.txt vps:/opt/fabrik/scripts/sysadmin/
+scp ops/vps-sysadmin-bot.service vps:/tmp/
+
+# Make executable
+ssh vps 'chmod +x /opt/fabrik/scripts/sysadmin/bot.py /opt/fabrik/scripts/sysadmin/proactive-check.sh'
+```
+
+### Step 4: Configure Telegram credentials
+
+```bash
+ssh vps 'cat > /opt/fabrik/.env.sysadmin << EOF
+TELEGRAM_BOT_TOKEN=<your-bot-token-from-botfather>
+TELEGRAM_OWNER_ID=<your-numeric-telegram-user-id>
+EOF'
+```
+
+To get your Telegram user ID: message `@userinfobot` on Telegram.
+
+To create a bot: message `@BotFather` → `/newbot` → copy the token.
+
+If reusing an existing bot (e.g. the one Alertmanager uses), get the token from Alertmanager config:
+```bash
+ssh vps 'grep bot_token /opt/monitoring/configs/alertmanager/alertmanager.yml'
+ssh vps 'grep chat_id /opt/monitoring/configs/alertmanager/alertmanager.yml'
+```
+
+### Step 5: Install systemd service
+
+```bash
+ssh vps 'sudo cp /tmp/vps-sysadmin-bot.service /etc/systemd/system/ && \
+         sudo systemctl daemon-reload && \
+         sudo systemctl enable --now vps-sysadmin-bot'
+```
+
+### Step 6: Install all scheduled routines (single cron file)
+
+```bash
+ssh vps 'sudo tee /etc/cron.d/vps-sysadmin > /dev/null << "EOF"
+# VPS AI Sysadmin — scheduled routines
+
+# Proactive health check — every 15 min
+*/15 * * * * root /opt/fabrik/scripts/sysadmin/proactive-check.sh >> /var/log/sysadmin-proactive.log 2>&1
+
+# Morning report — daily 08:00
+0 8 * * * root /opt/fabrik/scripts/sysadmin/morning-report.sh >> /var/log/sysadmin-proactive.log 2>&1
+
+# Weekly security patrol — Monday 08:30
+30 8 * * 1 root /opt/fabrik/scripts/sysadmin/weekly-security.sh >> /var/log/sysadmin-proactive.log 2>&1
+
+# Weekly maintenance — Sunday 03:00
+0 3 * * 0 root /opt/fabrik/scripts/sysadmin/weekly-maintenance.sh >> /var/log/sysadmin-proactive.log 2>&1
+
+# Monthly backup verification — 1st of month 04:00
+0 4 1 * * root /opt/fabrik/scripts/sysadmin/monthly-backup-verify.sh >> /var/log/sysadmin-proactive.log 2>&1
+EOF'
+```
+
+### Step 7: Install log rotation
+
+```bash
+ssh vps 'sudo tee /etc/logrotate.d/vps-sysadmin-bot > /dev/null << "EOF"
+/var/log/vps-sysadmin-bot.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+
+sudo tee /etc/logrotate.d/vps-sysadmin-proactive > /dev/null << "EOF"
+/var/log/sysadmin-proactive.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF'
+```
+
+### Step 8: Test
+
+1. Send "status" on Telegram → should get VPS status within 30s
+2. Send "how many containers are running?" → should get count
+3. Wait 15 min → proactive check should run silently (check `/var/log/sysadmin-proactive.log`)
+4. Send "done" → should confirm session ended
+
+### Step 9: Verify after reboot
+
+```bash
+ssh vps 'sudo reboot'
+# Wait 2 minutes
+ssh vps 'systemctl is-active vps-sysadmin-bot'  # should be "active"
+```
+
+Send "status" on Telegram to confirm it survived.
+
+## Files Manifest (for backup/replication)
+
+Everything needed to rebuild the sysadmin bot from scratch:
+
+| File | Repo location (WSL) | VPS location | Purpose |
+|---|---|---|---|
+| `scripts/sysadmin/bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | same | Telegram bot + session management |
+| `scripts/sysadmin/proactive-check.sh` | `/opt/fabrik/scripts/sysadmin/proactive-check.sh` | same | Two-stage cron script |
+| `scripts/sysadmin/system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | same | Claude Code role + rules |
+| `ops/vps-sysadmin-bot.service` | `/opt/fabrik/ops/vps-sysadmin-bot.service` | `/etc/systemd/system/` | Systemd service unit |
+| `.env.sysadmin` | — (VPS only, not in git) | `/opt/fabrik/.env.sysadmin` | Telegram token + owner ID |
+| Cron | — (VPS only) | `/etc/cron.d/vps-sysadmin` | All 5 scheduled routines (proactive, morning, security, maintenance, backup) |
+| Logrotate | — (VPS only) | `/etc/logrotate.d/vps-sysadmin-*` | Log rotation |
+
+## Capabilities & Limitations
+
+**Assessed via live testing on 2026-05-20.** Tested: status checks, OOM investigation, restart-loop triage, disk pressure, multi-issue P0-P4 triage, multi-turn session with autonomous action (bumped Apprise memory live), morning report, weekly security, monthly backup verify.
+
+### What it does (proven in testing)
+
+| Capability | Evidence |
+|---|---|
+| Triages by P0-P4 severity tiers | Multi-issue test: sorted cert (P0) → redis-exporter (P3) → apprise (P4) |
+| Correlates metrics with logs before acting | OOM test: checked docker events, docker stats, Prometheus failcnt, dmesg, container logs — all before concluding "no OOM" |
+| Tracks patterns across sessions | Detected 4th consecutive false-positive OOM report via shift notes, flagged "upstream prompt source needs investigation" |
+| Backs up before modifying | Apprise memory bump: saved compose backup before editing |
+| Warns about downstream risks | After editing compose: "Coolify UI may revert this on redeploy" |
+| Knows when NOT to act | Restart-loop playbook: "Do NOT restart a container that's already restart-looping" |
+| Reports with evidence tables | OOM report included 8-row evidence table with specific values |
+| Finds real issues proactively | Monthly backup verify found: postgres-dumps hook broken (exit 127), stale e2e plan, recovery confidence LOW |
+
+### What it doesn't do (known gaps)
+
+| Gap | What a production fleet would have | What we have | Priority to add |
+|---|---|---|---|
+| Trending/history | "Memory grew 20% this week" — day-over-day comparison | Single-point-in-time checks only | High — morning report could compare to yesterday |
+| Cross-service correlation | "Postgres slow → GlitchTip queue → worker memory rising" | Investigates containers in isolation | Medium |
+| Capacity planning | "At this growth rate, upgrade VPS in 3 months" | Only `predict_linear` for disk | Medium |
+| Post-incident review | Structured RCA, tracks recurrence, verifies fix stuck | Shift notes — no structured follow-up | Low |
+| Runbook evolution | "Last time X happened, Y didn't work, so now we do Z" | Playbooks are static in system prompt | Low |
+| Proactive maintenance | "Schedule Netdata cache cleanup for Sunday 3am" | Only reacts, doesn't propose scheduled work | Low |
+| Multi-VPS awareness | "This pattern happened on VPS2 last month" | Single VPS only | Future (when VPS2 exists) |
+
+### Honest rating
+
+**15-year solo sysadmin, not a fleet of 20-year veterans.** For a solo dev running one VPS with ~36 containers, this covers 90%+ of what's actually needed. The gaps above matter at scale (50+ servers). The sysadmin catches issues before alerts fire, acts autonomously when safe, reports concisely for phone reading, and costs $0 on quiet days.
+
+## Architecture Reference
+
+- **Archived plan:** `docs/archive/2026-05-20-vps-ai-sysadmin-plan-executed.md` — original design rationale + comparison with old ARO Brain plan
+- **Audit prompts:** `docs/infrastructure/audit-prompts/*.md` — the analysis checklists Claude uses when you ask for audits
+- **Audit scripts:** `scripts/audit/*.sh` — the diagnostic scripts Claude runs locally
+- **VPS inventory:** `docs/infrastructure/vps-complete-inventory.md` — what Claude reads to understand the current stack
+- **Hardening checklist:** `docs/infrastructure/audit-prompts/08-hardening-remediation.md` — post-audit remediation guide

@@ -233,7 +233,35 @@ def remove_endpoint(project_name: str, dry_run: bool = False) -> bool:
         return True
 
     try:
+        # Remove per-service YAML file (primary)
         ssh(f"sudo rm -f {shlex.quote(config_file)}")
+
+        # Also remove endpoint from shared YAML files (e.g. fabrik-microservices.yaml).
+        # Scans all YAML files in apps/ for a `- name: <project_name>` block and removes
+        # the entire endpoint entry. Uses Python for safe YAML manipulation over SSH.
+        _remove_from_shared = f"""
+import yaml, glob, sys
+removed = False
+for path in glob.glob('{GATUS_CONFIG_DIR}/*.yaml'):
+    try:
+        with open(path) as f:
+            data = yaml.safe_load(f)
+        if not data or 'endpoints' not in data:
+            continue
+        original_count = len(data['endpoints'])
+        data['endpoints'] = [ep for ep in data['endpoints'] if ep.get('name') != '{project_name}']
+        if len(data['endpoints']) < original_count:
+            with open(path, 'w') as f:
+                yaml.dump(data, f, default_flow_style=False)
+            print(f'removed from {{path}}')
+            removed = True
+    except Exception:
+        pass
+if not removed:
+    print('not in shared files')
+"""
+        ssh(f"sudo python3 -c {shlex.quote(_remove_from_shared)}")
+
         ssh(
             "GATUS_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep '^gatus-') "
             '&& sudo docker restart "$GATUS_CONTAINER"'

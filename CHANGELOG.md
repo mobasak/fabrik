@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — VPS AI System Administrator (2026-05-20)
+
+On-demand AI sysadmin powered by Claude Code Opus running locally on VPS. 1136 lines across 7 files. Talk via Telegram (`@ocoron_bot`). Queries 15 infrastructure APIs (Prometheus, Loki, Grafana, Gatus, GlitchTip, Netdata, Docker, etc.) directly. Acts autonomously on safe operations (restart, scale up), asks before anything destructive. 5 scheduled routines: proactive health check (every 15min with bash prefilter for zero-cost quiet days), daily morning report with trends, weekly security patrol vs hardening checklist, weekly preventive maintenance, monthly backup verification vs DR checklist. 6 incident playbooks (OOM, restart loop, disk, memory, target down, cert expiry). P0-P4 service criticality tiers. Persistent action log (`logs/sysadmin-actions.jsonl`) + shift notes (`logs/sysadmin-shift-notes.md`) for memory between sessions. Systemd service with `Restart=always`. Health endpoint at `:8017`. Reference: `docs/infrastructure/vps-ai-sysadmin.md`.
+
+### Fixed — Coolify API SSH auto-fallback + destroy cleanup (2026-05-19)
+
+`drivers/coolify.py`: Public Coolify URL behind Authelia returns 404 — driver now auto-detects and retries via SSH proxy to localhost:8000. Eliminates the manual `COOLIFY_INTERNAL_URL` env var requirement. `delete_application` now passes Coolify v4 cleanup params (`docker_cleanup`, `delete_connected_networks`). `orchestrator/destroyer.py`: after Coolify app deletion, prunes Docker images tagged with the app's UUID prefix and removes the per-app Docker network. `drivers/gatus.py`: `remove_endpoint` now also scans shared YAML files for matching endpoint names (e.g. `fabrik-microservices.yaml`). `drivers/backrest.py`: new plans get `DEFAULT_RETENTION` (`keepDaily:7, keepWeekly:4, keepMonthly:6`). `vps_apply_limits.sh`: removed destroyed services, alias section uses dynamic UUID prefix lookup.
+
+### Added — VPS audit prompts + runner scripts (2026-05-19)
+
+7 audit prompt files (`docs/infrastructure/audit-prompts/`) + 7 runner scripts (`scripts/audit/`) for systematic VPS health auditing: full system, container health, security, performance, observability, backup/DR, pre-production checklist, post-audit hardening. Scripts run via SSH with sudo, output structured data for AI analysis. First run identified: Promtail log pipeline broken (daemon.json tag missing — fixed), duplicate monitoring containers (cleaned), backup retention empty, 28 containers without memory limits.
+
 ### Added — i18n-kit: multi-platform internationalization template (2026-05-19)
 
 New `templates/i18n-kit/` provides drop-in i18n for all GUI scaffold types. One JSON format (`en.json`), one validator (`validate_i18n.py` with 3-level Kilo-powered checks), multiple platform loaders: vanilla DOM (`i18n.js` for static-site + desktop-app), React context provider + Next.js server helpers (`I18nProvider.tsx` + `server.ts` for saas-skeleton), Chrome `_locales/` adapter (`chrome_messages.py`), React Native i18next sync (`sync_rn_locales.py`), Docusaurus `code.json` adapter (`sync_docusaurus.py`). `fabrik scaffold` now auto-provisions the right files for 6 GUI types via `_provision_i18n()`. Rule packs updated: 60-saas-ui (use scaffolded `lib/i18n/`, do not install next-intl), 70-chrome-ext (sync via adapter), 80-mobile (source-of-truth at `static/i18n/`).

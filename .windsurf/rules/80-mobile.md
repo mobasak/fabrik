@@ -110,6 +110,7 @@ Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets
 ## Localization (i18n)
 
 - Use `expo-localization` to detect device locale and `i18next` + `react-i18next` for translations. Translation JSON in `src/locales/<lang>.json`.
+- **Source-of-truth JSON lives at `static/i18n/en.json`** (same format across all fabrik GUI projects). Sync to `src/locales/` via `python scripts/sync_rn_locales.py`. First-time setup: `python scripts/sync_rn_locales.py --init` generates `src/locales/i18n.ts` with expo-localization + i18next config.
 - All user-facing strings live in translation files. No hardcoded strings in components — caught at code review.
 - Supported languages from day 1: **English (en), Turkish (tr)**. Add Spanish (es), German (de), French (fr), Portuguese-BR (pt-BR), Arabic (ar) as markets prove out.
 - Dates and numbers: `Intl.DateTimeFormat` and `Intl.NumberFormat` with the user's locale. Never hardcode `MM/DD/YYYY` or `1,000.00` formats.

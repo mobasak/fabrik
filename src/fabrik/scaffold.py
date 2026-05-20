@@ -270,6 +270,7 @@ SHARED_DIRS = [
     "logs",
     "data",
     "db",  # Database schema directory
+    "backups",  # Credential/config backups (gitignored)
     ".tmp",
     ".cache",
     "output",

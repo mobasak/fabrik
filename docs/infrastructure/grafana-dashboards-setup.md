@@ -21,7 +21,9 @@
 
 Both are created with `access: proxy`. Prometheus is the default datasource.
 
-### Dashboards (3)
+### Dashboards (8 total)
+
+**3 community dashboards** (imported from grafana.com via `provision_grafana.sh`, tagged `gcom-<id>` for idempotent re-import):
 
 | grafana.com ID | Title | Purpose |
 |---|---|---|
@@ -29,7 +31,15 @@ Both are created with `access: proxy`. Prometheus is the default datasource.
 | [193](https://grafana.com/grafana/dashboards/193) | **Docker monitoring** | Per-container CPU/RAM/net from `cAdvisor` |
 | [2](https://grafana.com/grafana/dashboards/2) | **Prometheus Stats** | Prometheus self-monitoring |
 
-Each dashboard is tagged `gcom-<id>` on import so the script can detect idempotently and skip re-imports.
+**5 custom Fabrik dashboards** (file-provisioned from `configs/grafana/dashboards/`, tagged `fabrik` — see [`grafana-provisioning-setup.md`](grafana-provisioning-setup.md)):
+
+| File | Title | Purpose |
+|---|---|---|
+| `00-infrastructure-overview.json` | **Fabrik Infrastructure Overview** | VPS-wide CPU, memory, disk, network, container count |
+| `10-databases.json` | **Fabrik Databases** | Postgres + Redis health, connections, query rates |
+| `20-containers.json` | **Fabrik Container View** | Per-container CPU/RAM/net with name filter |
+| `30-authelia.json` | **Fabrik Authelia** | Auth requests, session counts, failed logins |
+| `40-meilisearch.json` | **Fabrik Meilisearch** | Index sizes, search latency, document counts |
 
 ---
 
@@ -140,6 +150,6 @@ Re-run with `bash`, not `sh`. The script uses bash-only features (`local`, `<<'P
 
 ## Notes
 
-- **Dashboards as code:** JSON definitions live on grafana.com. If we want full version control, export the imported JSON into `configs/grafana/dashboards/*.json` and switch to Grafana file provisioning (mount `configs/grafana/` into container).
+- **Dashboards as code:** The 5 custom Fabrik dashboards are already version-controlled in `configs/grafana/dashboards/*.json` and file-provisioned via bind mount (see `grafana-provisioning-setup.md`). The 3 community dashboards (gcom-1860, 193, 2) are still API-imported from grafana.com by the provisioner script — these could be exported to local JSON if full offline reproducibility is needed.
 - **Authelia bypass for Grafana API:** Currently we do NOT bypass Authelia for `/api/` paths from outside. Internal-network access is the canonical path.
 - **Service account:** `GRAFANA_SERVICE_ACCOUNT_TOKEN` is an Admin-role token in the Main Org. Rotate via Grafana UI → Administration → Service accounts if compromised; update `.env`.

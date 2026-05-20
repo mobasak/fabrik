@@ -81,3 +81,4 @@ Apply when working on Chrome extension code. Skip for Python, Docker, and infras
 - [ ] All interactive controls are keyboard accessible and show visible focus.
 - [ ] Bundle sizes are checked against popup and side-panel budgets.
 - [ ] `_locales/en/messages.json` exists for all user-visible strings.
+- [ ] i18n source JSON at `static/i18n/en.json` is in sync with `_locales/` — run `python scripts/chrome_messages.py` after every translation update. The adapter converts nested dot-path keys (e.g. `nav.home`) to Chrome's flat underscore format (`nav_home`). In extension code use `chrome.i18n.getMessage('nav_home')`. For popup/options HTML, the scaffolded `i18n.js` in `extension/src/` also works with `data-i18n` attributes.

@@ -1,6 +1,6 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-05-19
+**Last Updated:** 2026-05-20
 
 ---
 
@@ -21,6 +21,8 @@
 | [State-Driven Destroy](#state-driven-destroy) | ✅ Shipped | Operator | `fabrik destroy --use-state` reverses what was actually deployed |
 | [Cross-VPS Portability](#cross-vps-portability) | ✅ Shipped (import untested) | Operator | `fabrik export` / `fabrik import` — bundle VPS state for rebuild |
 | [i18n Kit](#i18n-kit) | ✅ Shipped | Developer | Multi-platform i18n: one JSON format, one validator, 6 platform loaders — auto-provisioned by scaffold |
+| [VPS AI Sysadmin](#vps-ai-sysadmin) | ✅ Shipped | Operator | On-demand AI system administrator — Claude Code on VPS, triggered via Telegram, autonomous diagnostics and remediation |
+| [VPS Audit System](#vps-audit-system) | ✅ Shipped | Operator | 7 audit prompts + 7 runner scripts for systematic VPS health checks: security, performance, containers, observability, backup |
 
 **Status Legend:**
 - ✅ **Shipped** — Production-ready
@@ -714,6 +716,140 @@ These rules ensure coding agents use the scaffolded i18n system rather than inst
 - **Provisioner:** `_provision_i18n()` in `scaffold.py`, called from `create_project()` after type-specific scaffolder runs
 - **Types map:** `I18N_ENABLED_TYPES` in `scaffold.py` — maps scaffold type → strategy (`react`, `vanilla`, `chrome`, `rn`, `docusaurus`)
 - **Battle-tested:** Originally built for the Tojlo project (738 keys, 6 languages, 24 pages), generalized for all fabrik GUI types
+
+---
+
+## VPS AI Sysadmin
+
+**Status:** ✅ Shipped | **Audience:** Operator | **Since:** v0.5 (2026-05-20)
+
+> **Headline:** On-demand AI system administrator — Claude Code Opus running locally on VPS. Talks via Telegram. Queries 15 infrastructure APIs directly. Acts autonomously on safe operations. Proactive health checks every 15 min. Morning briefings. Weekly security patrols. Monthly backup verification. Shift notes for memory between sessions. Incident playbooks. Service criticality tiers. 1136 lines of code, zero cost when idle.
+
+### Three Trigger Paths
+
+1. **You message Telegram** → bot spawns Claude Opus → Claude runs commands locally (docker, curl, audit scripts) → responds → session lives until "done" or 10min silence → shift notes written
+2. **Alert fires** → Alertmanager → Apprise → Telegram (existing flow) → you reply to investigate → Claude wakes with full context
+3. **Proactive cron** (every 15min) → bash checks 11 Prometheus thresholds + TLS cert expiry + disk prediction (zero tokens) → only if anomaly detected → Claude wakes, diagnoses, acts autonomously, reports to Telegram
+
+### Five Scheduled Routines
+
+| Routine | Schedule | Uses Claude? | What it does |
+|---|---|---|---|
+| Proactive check | Every 15 min | Only on anomaly | 10+ PromQL thresholds + cert expiry + disk prediction. Bash prefilter = zero cost when healthy. Claude acts + reports when something is wrong. |
+| Morning report | Daily 08:00 | Always | Collects: containers, disk, RAM, certs, alerts, shift notes, yesterday's actions. Claude formats concise Telegram briefing with trends. |
+| Security patrol | Monday 08:30 | Always | Runs `03-security.sh`, Claude analyzes against `03-security-hardening.md` checklist. Reports GREEN/YELLOW/RED with findings. |
+| Maintenance | Sunday 03:00 | Never | Pure bash: checks dangling images/volumes, journal size, backup freshness, restart counts, stale containers, cert expiry. |
+| Backup verification | 1st of month 04:00 | Always | Runs `06-backup.sh`, Claude analyzes against `06-backup-disaster-recovery.md` checklist. Reports coverage gaps + recovery confidence. |
+
+### Infrastructure APIs (15 services, queried locally)
+
+| Service | What the sysadmin gets |
+|---|---|
+| Prometheus (`:9090`) | Container + host metrics, 13 alert rules, scrape target health |
+| Loki (`:3100`) | All container logs — errors, stack traces, crash messages |
+| Grafana (`:3000`) | Dashboard + datasource health (8 dashboards, 2 datasources) |
+| Alertmanager (`:9093`) | Active firing alerts, silences |
+| Gatus (`:8080`) | Uptime status for 30+ endpoints |
+| GlitchTip (`:8000`) | Application errors, unhandled exceptions |
+| Netdata (`:19999`) | Real-time per-second system metrics |
+| Apprise (`:8000`) | Send notifications to Telegram |
+| Pushgateway (`:9091`) | Drift audit metrics |
+| Meilisearch (`:7700`) | Search index health |
+| Docker CLI | Container lifecycle — ps, stats, logs, restart, update, inspect |
+| Node exporter (via Prometheus) | Host CPU, RAM, disk, network |
+| cAdvisor (via Prometheus) | Per-container resource metrics |
+| Postgres exporter (via Prometheus) | Database connections, query rates |
+| Redis exporter (via Prometheus) | Cache memory, hit rate |
+
+### Safety Model
+
+- **Autonomous:** restart application/platform containers, scale memory up (check host capacity first), all read operations, write shift notes
+- **Ask first:** scale down, stop containers, anything destructive-adjacent, anything unsure about
+- **Never:** delete anything, touch networking/firewall/boot config, modify critical-infra or monitoring, modify env vars
+
+### Veteran Sysadmin Features
+
+| Feature | How |
+|---|---|
+| **Incident playbooks** | 6 documented procedures in system prompt: OOM, restart loop, disk full, host memory, target down, cert expiry |
+| **Service criticality tiers** | P0 (revenue: ocoron.com) → P1 (platform: traefik, postgres) → P2 (operations) → P3 (monitoring) → P4 (utility). Triage by tier when multiple issues. |
+| **Shift notes** | `logs/sysadmin-shift-notes.md` — Claude reads at session start, writes at session end. Remembers context between conversations. |
+| **Action log** | `logs/sysadmin-actions.jsonl` — every conversation logged with timestamp, session ID, message, response. Persistent audit trail. |
+| **Audit prompt integration** | Weekly security + monthly backup routines reference the matching audit-prompt checklist. Claude doesn't improvise — it checks against documented criteria. |
+
+### Components (1136 lines total)
+
+| File | Lines | Purpose |
+|---|---|---|
+| `scripts/sysadmin/bot.py` | 332 | Telegram bot — spawns Claude Opus per message, JSON output parsing, session management, action logging, health endpoint `:8017`, daily heartbeat |
+| `scripts/sysadmin/system-prompt.txt` | 232 | Sysadmin brain — role, 15 APIs, container classification, 6 incident playbooks, P0-P4 criticality, shift notes protocol, communication protocol, safety rules |
+| `scripts/sysadmin/proactive-check.sh` | 202 | Two-stage cron — 11 checks (10 PromQL + Prometheus connectivity) + cert expiry. Bash prefilter (zero tokens). Claude acts on anomaly. Rate-limited 5/hr. |
+| `scripts/sysadmin/morning-report.sh` | 124 | Daily briefing — containers, disk, RAM, certs, alerts, shift notes, yesterday's actions. Claude formats Telegram-friendly summary. |
+| `scripts/sysadmin/weekly-maintenance.sh` | 115 | Sunday cleanup report — dangling resources, journal, backup freshness, restart counts, stale containers, cert expiry. Pure bash, no Claude. |
+| `scripts/sysadmin/monthly-backup-verify.sh` | 70 | Backup audit vs DR checklist — coverage, freshness, retention, recovery confidence. |
+| `scripts/sysadmin/weekly-security.sh` | 61 | Security audit vs hardening checklist — GREEN/YELLOW/RED with findings. |
+| `ops/vps-sysadmin-bot.service` | 20 | Systemd unit — auto-start, `Restart=always`, `After=network.target docker.service` |
+
+### Technical Details
+
+- **Model:** Claude Opus (`--model opus`) — best reasoning for infrastructure diagnosis
+- **Bot:** systemd service on VPS, `Restart=always`, health endpoint at `:8017/health`
+- **Session:** `claude -p` per message, `--resume` for follow-ups, cleared on "done" / 10min timeout
+- **System prompt:** injected via `--system-prompt` (NOT CLAUDE.md — that's for WSL development)
+- **Auth:** Max subscription via `claude auth login` — no API key stored on VPS
+- **Token economics:** $0 on quiet days (bash prefilter handles 95%), $5-15/month typical (included in Max)
+- **Knowledge sync:** `scripts/sync-vps-sysadmin.sh` pushes docs, audit scripts, specs from WSL to VPS after any change
+
+### Full Reference
+
+- `docs/infrastructure/vps-ai-sysadmin.md` — 697-line canonical reference: architecture, firewall docs, session model, knowledge sync, notification templates, all scheduled routines, troubleshooting, 9-step replication recipe, files manifest
+
+---
+
+## VPS Audit System
+
+**Status:** ✅ Shipped | **Audience:** Operator | **Since:** v0.5 (2026-05-20)
+
+> **Headline:** 7 structured audit prompts + 7 runner scripts for systematic VPS health evaluation. Designed for parallel AI agent dispatch — each audit runs independently, returns a domain-specific report.
+
+### What It Does
+
+Each audit covers one domain of VPS health. The prompt defines what to check, the script collects the diagnostic data, and Claude Code (or any AI) analyzes it.
+
+| Audit | Script | Prompt | Scope |
+|---|---|---|---|
+| Full system | `01-full-system.sh` | `01-full-system-audit.md` | CPU, memory, disk, network, services, security, Docker — all 8 domains |
+| Container health | `02-container-health.sh` | `02-container-health.md` | Fleet stability, resource pressure, crash loops, Coolify issues |
+| Security | `03-security.sh` | `03-security-hardening.md` | Firewall, TLS, SSH, Authelia, container isolation, secrets |
+| Performance | `04-performance.sh` | `04-performance-bottleneck.md` | CPU/memory/disk/network bottleneck identification |
+| Observability | `05-observability.sh` | `05-observability-pipeline.md` | Prometheus, Loki, Grafana, GlitchTip, Gatus pipeline health |
+| Backup/DR | `06-backup.sh` | `06-backup-disaster-recovery.md` | Backrest plans, B2 connectivity, coverage, recovery readiness |
+| Hardening verify | `08-hardening-verify.sh` | `08-hardening-remediation.md` | Post-audit remediation verification with pass/fail score |
+| Pre-production | — | `07-pre-production-checklist.md` | Go-live readiness across all layers |
+
+### How To Run
+
+```bash
+# Single audit (run from WSL):
+ssh vps 'sudo bash -s' < scripts/audit/01-full-system.sh | claude -p "analyze this"
+
+# All audits in parallel (6 agents):
+for i in 01 02 03 04 05 06; do
+  ssh vps 'sudo bash -s' < scripts/audit/${i}-*.sh > /tmp/audit-${i}.txt &
+done; wait
+
+# Via the sysadmin bot (from Telegram):
+"run a full security audit"
+"check backup health"
+"run performance analysis"
+```
+
+### Technical Details
+
+- Scripts run with `sudo` (root access for Docker, iptables, journalctl)
+- Each script takes 10-30 seconds, outputs structured text
+- Prompts include analysis checklists, thresholds, and output format requirements
+- First run (2026-05-19) identified: broken Promtail log pipeline, duplicate monitoring containers, empty backup retention, 28 containers without memory limits — all fixed
 
 ---
 

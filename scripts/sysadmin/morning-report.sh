@@ -1,0 +1,124 @@
+#!/bin/bash
+# Daily morning report — runs at 08:00 via cron.
+# Collects compact system state + trends, Claude formats a Telegram briefing.
+#
+# Cron: 0 8 * * * root /opt/fabrik/scripts/sysadmin/morning-report.sh
+
+set -uo pipefail
+
+PROJECT_DIR="/opt/fabrik"
+SYSTEM_PROMPT_FILE="$PROJECT_DIR/scripts/sysadmin/system-prompt.txt"
+SHIFT_NOTES="$PROJECT_DIR/logs/sysadmin-shift-notes.md"
+ACTION_LOG="$PROJECT_DIR/logs/sysadmin-actions.jsonl"
+CONTEXT_FILE="/tmp/morning-report-context.txt"
+
+# ── Collect state into a file ─────────────────────────────────────────────
+
+{
+  echo "=== MORNING REPORT DATA ==="
+  echo ""
+  echo "--- Containers ---"
+  sudo docker ps --format '{{.Names}} {{.Status}}' | sort
+  echo "Total: $(sudo docker ps -q | wc -l) running"
+
+  echo ""
+  echo "--- Host ---"
+  free -h | head -2
+  echo "Swap: $(swapon --show --noheadings 2>/dev/null | awk '{print $4}' || echo "none")"
+  echo "Disk: $(df -h / | tail -1 | awk '{print $5, "used", $4, "free"}')"
+  echo "Load: $(cat /proc/loadavg | awk '{print $1, $2, $3}')"
+  echo "Uptime: $(uptime -p)"
+
+  echo ""
+  echo "--- Unhealthy/Restarting ---"
+  sudo docker ps --format '{{.Names}} {{.Status}}' | grep -iE 'unhealthy|restarting|Exited' || echo 'none'
+
+  echo ""
+  echo "--- Firing alerts ---"
+  sudo docker exec prometheus wget -qO- 'http://localhost:9090/api/v1/alerts' 2>/dev/null | python3 -c "
+import json,sys
+try:
+    d=json.load(sys.stdin)
+    alerts=[a for a in d['data']['alerts'] if a['state']=='firing']
+    if alerts:
+        for a in alerts: print(f'  FIRING: {a[\"labels\"].get(\"alertname\",\"?\")}')
+    else: print('  none')
+except: print('  cannot query')
+" 2>/dev/null || echo '  cannot query'
+
+  echo ""
+  echo "--- TLS cert expiry ---"
+  for domain in ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com errors.vps1.ocoron.com coolify.vps1.ocoron.com; do
+    expiry=$(echo | timeout 5 openssl s_client -servername "$domain" -connect "$domain":443 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+    if [ -n "$expiry" ]; then
+      expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null)
+      now_epoch=$(date +%s)
+      days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
+      echo "  $domain: ${days_left}d remaining"
+    fi
+  done
+
+  echo ""
+  echo "--- Dangling resources ---"
+  echo "Volumes: $(sudo docker volume ls -f dangling=true --format '{{.Name}}' | wc -l)"
+  echo "Images: $(sudo docker images -f dangling=true --format '{{.ID}}' | wc -l)"
+
+  echo ""
+  echo "--- Disk consumers ---"
+  echo "Docker: $(sudo du -sh /var/lib/docker/ 2>/dev/null | cut -f1)"
+  echo "Logs: $(sudo du -sh /var/log/ 2>/dev/null | cut -f1)"
+  echo "Journal: $(sudo journalctl --disk-usage 2>/dev/null | grep -oP '\d+\.\d+[MGK]' || echo 'unknown')"
+
+  echo ""
+  echo "--- Yesterday's actions ---"
+  if [ -f "$ACTION_LOG" ]; then
+    grep "$(date -d yesterday +%Y-%m-%d)" "$ACTION_LOG" 2>/dev/null | tail -10 || echo 'none'
+  else
+    echo 'no action log yet'
+  fi
+
+  echo ""
+  echo "--- Shift notes ---"
+  if [ -f "$SHIFT_NOTES" ]; then
+    tail -20 "$SHIFT_NOTES" 2>/dev/null
+  else
+    echo 'no shift notes'
+  fi
+} > "$CONTEXT_FILE" 2>&1
+
+# ── Ask Claude to format the morning briefing ─────────────────────────────
+
+SYS_PROMPT=""
+[ -f "$SYSTEM_PROMPT_FILE" ] && SYS_PROMPT=$(cat "$SYSTEM_PROMPT_FILE")
+
+RESULT=$(claude -p --model opus \
+  "Generate a concise daily morning report for Telegram. Format:
+
+💚 or ⚠️ or 🔥 — one-line overall status
+
+Key numbers: containers, disk, RAM, load (one line)
+Cert status: days to earliest expiry (one line)
+Issues: anything that needs attention (numbered, or 'none')
+Trends: anything trending in a concerning direction
+Yesterday: actions taken or 'quiet day'
+Shift notes: anything to carry forward
+
+Keep it under 20 lines. Phone screen friendly. If everything is fine, say so briefly." \
+  --system-prompt "$SYS_PROMPT" \
+  --permission-mode bypassPermissions \
+  --no-session-persistence \
+  < "$CONTEXT_FILE" 2>/dev/null)
+
+if [ -z "$RESULT" ]; then
+  RESULT="⚠️ Morning report: Claude failed to generate. Check /var/log/sysadmin-proactive.log"
+fi
+
+ESCAPED=$(echo "$RESULT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
+
+sudo docker run --rm --network coolify curlimages/curl:latest -sf -X POST "http://apprise:8000/notify/alerts" \
+  -H "Content-Type: application/json" \
+  -d "{\"title\":\"☀️ Morning Report\",\"body\":${ESCAPED}}" \
+  >/dev/null 2>&1
+
+rm -f "$CONTEXT_FILE"
+echo "$(date -Iseconds) Morning report sent"

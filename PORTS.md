@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-05-18 00:13:44 -->
+<!-- Last synced: 2026-05-20 00:41:36 -->
 
 ### ⚠️ Port Conflicts Detected
 
@@ -99,6 +99,7 @@ If you encounter a port conflict:
 | 8000 | **fabrik-test-chrome-extension** | chrome-extension | /opt/fabrik-test-chrome-extension |
 | 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |
 | 8002 | **fabrik-claim-validator** | python-api | /opt/fabrik-claim-validator |
+| 8003 | **obsidian-agents** | desktop-app | /opt/obsidian-agents |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
 | 8005 | **candle** | python-api | /opt/candle |
 | 8006 | **exam-coach** | python-api | /opt/exam-coach |
@@ -132,9 +133,7 @@ If you encounter a port conflict:
 | 18013 | **proxy** | python-api | /opt/proxy |
 | 18014 ⚠️ | **dns-manager** | python-api | /opt/dns-manager |
 | 18014 ⚠️ | **site-provisioner** | python-api | /opt/site-provisioner |
-| 18015 | **file-api** | node-api | /opt/file-api |
 | 18016 | **image-broker** | python-api | /opt/image-broker |
-| 18017 | **emailgateway** | node-api | /opt/emailgateway |
 | 18018 | **email-reader** | python-api | /opt/email-reader |
 
 <!-- AUTO-GENERATED:PORTS:END -->

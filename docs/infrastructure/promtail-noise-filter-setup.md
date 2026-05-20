@@ -14,9 +14,25 @@ A `drop` stage in the Promtail pipeline filters these by container name before s
 
 ## Prerequisites
 
+- **Docker daemon must emit container name in log attrs.** Requires `"tag": "{{.Name}}"` in `/etc/docker/daemon.json` under `log-opts`. Without this, Docker's default JSON log driver does NOT include `attrs.tag`, the `container_name` label is never extracted, and the drop filter silently does nothing. Applied 2026-05-19 — see daemon.json setup below.
 - Promtail running as a Coolify service (already deployed in monitoring stack)
 - Config volume bind-mounted from host to container at `/etc/promtail/config.yml`
 - Loki running and reachable at `http://loki:3100` from the `coolify` network
+
+### Docker daemon.json (required)
+
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3",
+    "tag": "{{.Name}}"
+  }
+}
+```
+
+After changing `daemon.json`: `systemctl restart docker`. **Existing containers must be recreated** (restart alone keeps the old log format) — `docker compose up -d --force-recreate` for each compose project. New containers automatically get the tag.
 
 ## Reproducible Setup
 

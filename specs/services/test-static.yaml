@@ -10,6 +10,8 @@ shape:
   has_persistent_data: false
   needs_database: false
   has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false
 expose:
   http: true
   internal_only: false
@@ -26,7 +28,7 @@ infrastructure:
   auth: none
 env:
   PORT: '3000'
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_LEVEL: INFO
 secrets:
   required: []
   generate: []

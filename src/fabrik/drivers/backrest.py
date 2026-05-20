@@ -61,6 +61,14 @@ DEFAULT_CRON = "0 3 * * *"
 aligns with the existing Backrest baseline audit (2026-04-17)."""
 
 DEFAULT_EXCLUDES: tuple[str, ...] = ("**/cache", "**/*.log", "**/tmp")
+
+# Default retention policy — prevents unbounded snapshot accumulation.
+# Backrest uses a protobuf oneof: policyKeepLastN | policyTimeBucketed | policyKeepAll.
+# We use policyTimeBucketed with daily/weekly/monthly counts.
+# Source: github.com/garethgeorge/backrest/proto/v1/config.proto → RetentionPolicy
+DEFAULT_RETENTION: dict = {
+    "policyTimeBucketed": {"daily": 7, "weekly": 4, "monthly": 6}
+}
 """Skipped paths for every plan. Kept conservative to avoid backing up
 ephemeral junk. Caller can pass ``excludes`` to override entirely."""
 
@@ -71,6 +79,7 @@ def _plan_json(
     repo: str,
     schedule_cron: str,
     excludes: tuple[str, ...],
+    retention: dict | None = None,
 ) -> str:
     """Render the Backrest plan as a JSON string ready for jq --argjson."""
     plan = {
@@ -78,6 +87,7 @@ def _plan_json(
         "repo": repo,
         "paths": list(paths),
         "excludes": list(excludes),
+        "retention": retention or DEFAULT_RETENTION,
         "schedule": {"cron": schedule_cron},
         "hooks": [
             {
@@ -268,6 +278,7 @@ __all__ = (
     "DEFAULT_REPO",
     "DEFAULT_CRON",
     "DEFAULT_EXCLUDES",
+    "DEFAULT_RETENTION",
     "add_backup_plan",
     "remove_backup_plan",
 )

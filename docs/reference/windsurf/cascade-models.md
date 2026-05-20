@@ -1,6 +1,6 @@
 # Cascade Models and Credits
 
-**Last Updated:** 2026-05-18
+**Last Updated:** 2026-05-20
 
 > 📋 **Source:** Automatically extracted from https://docs.windsurf.com/plugins/cascade/models
 >
@@ -26,7 +26,7 @@
 | GPT-5.2-Codex (Low Reasoning Fast) | 2 | — | 66.5% |  |
 | Claude Sonnet 4.5 | 3 | 1464 | 46.5% |  |
 | Claude Sonnet 4.6 | 4 | 1500 | 53.4% |  |
-| Claude Opus 4.6 | 6 | 1535 | 79.8% |  |
+| Claude Opus 4.6 | 6 | 1535 | 76.4% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
 | Claude Opus 4.7 (Low Thinking) | 20 | 1554 | 90.2% |  |
 | Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | 90.2% |  |
@@ -58,18 +58,18 @@
 | Claude Sonnet 4.6 | 4 | 1500 | 53.4% |  |
 | Claude Sonnet 4.5 (Thinking) | 4 | 1464 | 46.5% |  |
 | Claude Sonnet 4 (Thinking) | 4 | 1384 | — |  |
-| Claude Opus 4.6 | 6 | 1535 | 79.8% |  |
+| Claude Opus 4.6 | 6 | 1535 | 76.4% |  |
 | Claude Sonnet 4.6 (Thinking) | 6 | 1500 | 53.4% |  |
 | Claude Opus 4.5 | 6 | 1496 | 63.1% |  |
-| Claude Opus 4.6 (Thinking) | 8 | 1535 | 79.8% |  |
+| Claude Opus 4.6 (Thinking) | 8 | 1535 | 76.4% |  |
 | Claude Opus 4.5 (Thinking) | 8 | 1496 | 63.1% |  |
-| Claude Opus 4.6 1M | 10 | 1535 | 79.8% |  |
-| Claude Opus 4.6 Thinking 1M | 12 | 1535 | 79.8% |  |
+| Claude Opus 4.6 1M | 10 | 1535 | 76.4% |  |
+| Claude Opus 4.6 Thinking 1M | 12 | 1535 | 76.4% |  |
 | Claude Sonnet 4.6 1M | 12 | 1500 | 53.4% |  |
 | Claude Sonnet 4.6 Thinking 1M | 16 | 1500 | 53.4% |  |
 | Claude Opus 4.7 (Low Thinking) | 20 | 1554 | 90.2% |  |
-| Claude Opus 4.6 Fast | 24 | 1535 | 79.8% |  |
-| Claude Opus 4.6 Fast Thinking | 30 | 1535 | 79.8% |  |
+| Claude Opus 4.6 Fast | 24 | 1535 | 76.4% |  |
+| Claude Opus 4.6 Fast Thinking | 30 | 1535 | 76.4% |  |
 | Claude Opus 4.7 (Medium Thinking) | 40 | 1554 | 90.2% |  |
 | Claude Opus 4.7 (High Thinking) | 60 | 1554 | 90.2% |  |
 | Claude Opus 4.7 (XHigh Thinking) | 65 | 1554 | 90.2% |  |

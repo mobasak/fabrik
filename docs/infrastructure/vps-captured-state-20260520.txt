@@ -1,0 +1,737 @@
+========== 1. SYSCTL CUSTOM ==========
+fs.file-max = 9223372036854775807
+fs.inotify.max_user_watches = 92647
+net.core.somaxconn = 4096
+net.ipv4.ip_forward = 1
+net.ipv4.ip_forward_update_priority = 1
+net.ipv4.ip_forward_use_pmtu = 0
+net.ipv4.tcp_tw_reuse = 2
+vm.swappiness = 10
+
+========== 2. SYSCTL PERSIST FILES ==========
+/etc/sysctl.d/10-bufferbloat.conf
+/etc/sysctl.d/10-console-messages.conf
+/etc/sysctl.d/10-ipv6-privacy.conf
+/etc/sysctl.d/10-kernel-hardening.conf
+/etc/sysctl.d/10-magic-sysrq.conf
+/etc/sysctl.d/10-map-count.conf
+/etc/sysctl.d/10-network-security.conf
+/etc/sysctl.d/10-ptrace.conf
+/etc/sysctl.d/10-zeropage.conf
+/etc/sysctl.d/99-cloudimg-ipv6.conf
+/etc/sysctl.d/99-openvpn.conf
+/etc/sysctl.d/99-sysctl.conf
+/etc/sysctl.d/99-tuning.conf
+--- /etc/sysctl.d/10-bufferbloat.conf ---
+# The Fair Queue CoDel packet scheduler is an across the board improvement to
+# the default pfifo_fast qdisc. It reduces bottleneck delays, provides accurate
+# RTT estimates to elephant TCP flows, and still allows shorter (sparser) flows
+# like DNS, ARP, SYN, routing, etc packets priority access. For technical
+# details, refer to https://www.bufferbloat.net/projects/codel/wiki/
+#
+# To fight bufferbloat, set it as the default qdisc in Ubuntu.
+-net.core.default_qdisc = fq_codel
+--- /etc/sysctl.d/10-console-messages.conf ---
+
+# the following stops low-level messages on console
+kernel.printk = 4 4 1 7
+--- /etc/sysctl.d/10-ipv6-privacy.conf ---
+# IPv6 Privacy Extensions (RFC 4941)
+# ---
+# IPv6 typically uses a device's MAC address when choosing an IPv6 address
+# to use in autoconfiguration. Privacy extensions allow using a randomly
+# generated IPv6 address, which increases privacy.
+#
+# Acceptable values:
+#    0 - don’t use privacy extensions.
+#    1 - generate privacy addresses
+#    2 - prefer privacy addresses and use them over the normal addresses.
+net.ipv6.conf.all.use_tempaddr = 2
+net.ipv6.conf.default.use_tempaddr = 2
+--- /etc/sysctl.d/10-kernel-hardening.conf ---
+# These settings are specific to hardening the kernel itself from attack
+# from userspace, rather than protecting userspace from other malicious
+# userspace things.
+#
+#
+# When an attacker is trying to exploit the local kernel, it is often
+# helpful to be able to examine where in memory the kernel, modules,
+# and data structures live. As such, kernel addresses should be treated
+# as sensitive information.
+#
+# Many files and interfaces contain these addresses (e.g. /proc/kallsyms,
+# /proc/modules, etc), and this setting can censor the addresses. A value
+# of "0" allows all users to see the kernel addresses. A value of "1"
+# limits visibility to the root user, and "2" blocks even the root user.
+kernel.kptr_restrict = 1
+
+# Access to the kernel log buffer can be especially useful for an attacker
+# attempting to exploit the local kernel, as kernel addresses and detailed
+# call traces are frequently found in kernel oops messages. Setting
+# dmesg_restrict to "0" allows all users to view the kernel log buffer,
+# and setting it to "1" restricts access to those with CAP_SYSLOG.
+#
+# dmesg_restrict defaults to 1 via CONFIG_SECURITY_DMESG_RESTRICT, only
+# uncomment the following line to disable.
+# kernel.dmesg_restrict = 0
+--- /etc/sysctl.d/10-magic-sysrq.conf ---
+# The magic SysRq key enables certain keyboard combinations to be
+# interpreted by the kernel to help with debugging. The kernel will respond
+# to these keys regardless of the current running applications.
+#
+# In general, the magic SysRq key is not needed for the average Ubuntu
+# system, and having it enabled by default can lead to security issues on
+# the console such as being able to dump memory or to kill arbitrary
+# processes including the running screen lock.
+#
+# Here is the list of possible values:
+#   0 - disable sysrq completely
+#   1 - enable all functions of sysrq
+#  >1 - enable certain functions by adding up the following values:
+#          2 - enable control of console logging level
+#          4 - enable control of keyboard (SAK, unraw)
+#          8 - enable debugging dumps of processes etc.
+#         16 - enable sync command
+#         32 - enable remount read-only
+#         64 - enable signalling of processes (term, kill, oom-kill)
+#        128 - allow reboot/poweroff
+#        256 - allow nicing of all RT tasks
+#
+#   For example, to enable both control of console logging level and
+#   debugging dumps of processes: kernel.sysrq = 10
+#
+kernel.sysrq = 176
+--- /etc/sysctl.d/10-map-count.conf ---
+# Increase the number of virtual memory areas that one process may request
+# https://bugs.launchpad.net/ubuntu/+source/procps/+bug/2057792
+vm.max_map_count=1048576
+--- /etc/sysctl.d/10-network-security.conf ---
+
+# Turn on Source Address Verification in all interfaces to
+# prevent some spoofing attacks.
+net.ipv4.conf.default.rp_filter=2
+net.ipv4.conf.all.rp_filter=2
+
+--- /etc/sysctl.d/10-ptrace.conf ---
+# The PTRACE system is used for debugging.  With it, a single user process
+# can attach to any other dumpable process owned by the same user.  In the
+# case of malicious software, it is possible to use PTRACE to access
+# credentials that exist in memory (re-using existing SSH connections,
+# extracting GPG agent information, etc).
+#
+# A PTRACE scope of "0" is the more permissive mode.  A scope of "1" limits
+# PTRACE only to direct child processes (e.g. "gdb name-of-program" and
+# "strace -f name-of-program" work, but gdb's "attach" and "strace -fp $PID"
+# do not).  The PTRACE scope is ignored when a user has CAP_SYS_PTRACE, so
+# "sudo strace -fp $PID" will work as before.  For more details see:
+# https://wiki.ubuntu.com/SecurityTeam/Roadmap/KernelHardening#ptrace
+#
+# For applications launching crash handlers that need PTRACE, exceptions can
+# be registered by the debugee by declaring in the segfault handler
+# specifically which process will be using PTRACE on the debugee:
+#   prctl(PR_SET_PTRACER, debugger_pid, 0, 0, 0);
+#
+# In general, PTRACE is not needed for the average running Ubuntu system.
+# To that end, the default is to set the PTRACE scope to "1".  This value
+# may not be appropriate for developers or servers with only admin accounts.
+kernel.yama.ptrace_scope = 1
+--- /etc/sysctl.d/10-zeropage.conf ---
+# Protect the zero page of memory from userspace mmap to prevent kernel
+# NULL-dereference attacks against potential future kernel security
+# vulnerabilities.  (Added in kernel 2.6.23.)
+#
+# While this default is built into the Ubuntu kernel, there is no way to
+# restore the kernel default if the value is changed during runtime; for
+# example via package removal (e.g. wine, dosemu).  Therefore, this value
+# is reset to the secure default each time the sysctl values are loaded.
+vm.mmap_min_addr = 65536
+--- /etc/sysctl.d/99-cloudimg-ipv6.conf ---
+# Written by the Cloud Image build process
+# See https://bugs.launchpad.net/ubuntu/+source/procps/+bug/1068756
+net.ipv6.conf.all.use_tempaddr = 0
+net.ipv6.conf.default.use_tempaddr = 0
+--- /etc/sysctl.d/99-openvpn.conf ---
+net.ipv4.ip_forward=1
+--- /etc/sysctl.d/99-sysctl.conf ---
+#
+# /etc/sysctl.conf - Configuration file for setting system variables
+# See /etc/sysctl.d/ for additional system variables.
+# See sysctl.conf (5) for information.
+#
+
+#kernel.domainname = example.com
+
+# Uncomment the following to stop low-level messages on console
+#kernel.printk = 3 4 1 3
+
+###################################################################
+# Functions previously found in netbase
+#
+
+# Uncomment the next two lines to enable Spoof protection (reverse-path filter)
+# Turn on Source Address Verification in all interfaces to
+# prevent some spoofing attacks
+#net.ipv4.conf.default.rp_filter=1
+#net.ipv4.conf.all.rp_filter=1
+
+# Uncomment the next line to enable TCP/IP SYN cookies
+# See http://lwn.net/Articles/277146/
+# Note: This may impact IPv6 TCP sessions too
+#net.ipv4.tcp_syncookies=1
+
+# Uncomment the next line to enable packet forwarding for IPv4
+#net.ipv4.ip_forward=1
+
+# Uncomment the next line to enable packet forwarding for IPv6
+#  Enabling this option disables Stateless Address Autoconfiguration
+#  based on Router Advertisements for this host
+#net.ipv6.conf.all.forwarding=1
+
+
+###################################################################
+# Additional settings - these settings can improve the network
+# security of the host and prevent against some network attacks
+# including spoofing attacks and man in the middle attacks through
+# redirection. Some network environments, however, require that these
+# settings are disabled so review and enable them as needed.
+#
+# Do not accept ICMP redirects (prevent MITM attacks)
+#net.ipv4.conf.all.accept_redirects = 0
+#net.ipv4.conf.default.accept_redirects = 0
+# _or_
+# Accept ICMP redirects only for gateways listed in our default
+# gateway list (enabled by default)
+# net.ipv4.conf.all.secure_redirects = 1
+#
+# Do not send ICMP redirects (we are not a router)
+#net.ipv4.conf.all.send_redirects = 0
+#
+# Log Martian Packets
+#net.ipv4.conf.all.log_martians = 1
+#
+
+###################################################################
+# Magic system request Key
+# 0=disable, 1=enable all, >1 bitmask of sysrq functions
+# See https://www.kernel.org/doc/html/latest/admin-guide/sysrq.html
+# for what other values do
+#kernel.sysrq=438
+
+--- /etc/sysctl.d/99-tuning.conf ---
+vm.swappiness=10
+
+========== 3. DOCKER DAEMON ==========
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3",
+    "tag": "{{.Name}}"
+  },
+  "default-address-pools": [
+    {
+      "base": "10.0.0.0/8",
+      "size": 24
+    }
+  ],
+  "dns": [
+    "1.1.1.1",
+    "8.8.8.8"
+  ]
+}
+
+========== 4. UFW RULES ==========
+Status: active
+
+     To                         Action      From
+     --                         ------      ----
+[ 1] 22/tcp                     ALLOW IN    Anywhere                   # SSH
+[ 2] 80/tcp                     ALLOW IN    Anywhere                   # HTTP
+[ 3] 443/tcp                    ALLOW IN    Anywhere                   # HTTPS+OpenVPN
+[ 4] 1194/tcp                   ALLOW IN    Anywhere                  
+[ 5] 6001/tcp                   ALLOW IN    Anywhere                  
+[ 6] 6002/tcp                   ALLOW IN    Anywhere                  
+[ 7] 8000/tcp                   DENY IN     Anywhere                   # Coolify raw port — use coolify.vps1.ocoron.com instead
+[ 8] 22/tcp (v6)                ALLOW IN    Anywhere (v6)              # SSH
+[ 9] 80/tcp (v6)                ALLOW IN    Anywhere (v6)              # HTTP
+[10] 443/tcp (v6)               ALLOW IN    Anywhere (v6)              # HTTPS+OpenVPN
+[11] 1194/tcp (v6)              ALLOW IN    Anywhere (v6)             
+[12] 6001/tcp (v6)              ALLOW IN    Anywhere (v6)             
+[13] 6002/tcp (v6)              ALLOW IN    Anywhere (v6)             
+[14] 8000/tcp (v6)              DENY IN     Anywhere (v6)              # Coolify raw port — use coolify.vps1.ocoron.com instead
+
+
+========== 5. IPTABLES DOCKER-USER ==========
+Chain DOCKER-USER (1 references)
+num   pkts bytes target     prot opt in     out     source               destination         
+1    77118   93M RETURN     0    --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate RELATED,ESTABLISHED
+2     9566  691K RETURN     0    --  *      *       10.0.0.0/8           0.0.0.0/0           
+3        0     0 RETURN     0    --  *      *       172.16.0.0/12        0.0.0.0/0           
+4        0     0 RETURN     0    --  *      *       192.168.0.0/16       0.0.0.0/0           
+5       89  4888 RETURN     6    --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+6      532 31552 RETURN     6    --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+7       11   440 RETURN     6    --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:6001
+8       44  1808 RETURN     6    --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:6002
+9        4   176 DROP       0    --  *      *       0.0.0.0/0            0.0.0.0/0           
+--- script ---
+#!/bin/bash
+# Docker-User Firewall Rules
+# Blocks external access to Docker-published ports that should only be
+# reachable via Traefik reverse proxy or internal Docker networks.
+#
+# Docker bypasses UFW by inserting NAT rules in PREROUTING/FORWARD chains.
+# The DOCKER-USER chain is the only place where we can filter forwarded
+# traffic before it reaches containers.
+#
+# Managed by: /etc/systemd/system/iptables-docker-user.service
+# Created: 2026-04-14
+
+set -e
+
+# Flush existing DOCKER-USER rules (Docker recreates the chain on restart)
+iptables -F DOCKER-USER 2>/dev/null || true
+
+# 1. Allow established/related connections (don't break existing sessions)
+iptables -A DOCKER-USER -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+
+# 2. Allow Docker internal networks (container-to-container)
+iptables -A DOCKER-USER -s 10.0.0.0/8 -j RETURN
+iptables -A DOCKER-USER -s 172.16.0.0/12 -j RETURN
+iptables -A DOCKER-USER -s 192.168.0.0/16 -j RETURN
+
+# 3. Allow Traefik ports from anywhere (the front door)
+iptables -A DOCKER-USER -p tcp --dport 80 -j RETURN
+iptables -A DOCKER-USER -p tcp --dport 443 -j RETURN
+
+# 4. Allow Coolify realtime WebSocket from anywhere (browser needs direct access)
+
+========== 6. CUSTOM SYSTEMD SERVICES ==========
+/etc/systemd/system/authelia-config-sync.service
+/etc/systemd/system/coolify-alias-watcher.service
+/etc/systemd/system/coolify-ssh-permissions.service
+/etc/systemd/system/dbus-org.freedesktop.resolve1.service
+/etc/systemd/system/dbus-org.freedesktop.timesync1.service
+/etc/systemd/system/iptables-docker-user.service
+/etc/systemd/system/iptables-openvpn.service
+/etc/systemd/system/iscsi.service
+/etc/systemd/system/openvpn-server@.service
+/etc/systemd/system/proxy_sync_scheduled.service
+/etc/systemd/system/snap.cups.cups-browsed.service
+/etc/systemd/system/snap.cups.cupsd.service
+/etc/systemd/system/snap.mesa-2404.component-monitor.service
+/etc/systemd/system/sshd.service
+/etc/systemd/system/syslog.service
+/etc/systemd/system/vmtoolsd.service
+/etc/systemd/system/vps-backup.service
+--- authelia-config-sync.service ---
+enabled
+[Unit]
+Description=Authelia config sync watcher (mirrors /opt/authelia/config to Docker volume + restarts Authelia)
+After=docker.service
+Requires=docker.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/opt/authelia-config-sync/sync.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/authelia-config-sync.log
+StandardError=append:/var/log/authelia-config-sync.log
+
+--- coolify-alias-watcher.service ---
+enabled
+[Unit]
+Description=Coolify network alias watcher (re-applies friendly DNS aliases dropped on redeploy)
+After=docker.service
+Requires=docker.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/opt/coolify-alias-watcher/watcher.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/coolify-alias-watcher.log
+StandardError=append:/var/log/coolify-alias-watcher.log
+
+--- coolify-ssh-permissions.service ---
+disabled
+--- dbus-org.freedesktop.resolve1.service ---
+alias
+#  SPDX-License-Identifier: LGPL-2.1-or-later
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU Lesser General Public License as published by
+#  the Free Software Foundation; either version 2.1 of the License, or
+#  (at your option) any later version.
+
+[Unit]
+Description=Network Name Resolution
+Documentation=man:systemd-resolved.service(8)
+Documentation=man:org.freedesktop.resolve1(5)
+Documentation=https://www.freedesktop.org/wiki/Software/systemd/writing-network-configuration-managers
+Documentation=https://www.freedesktop.org/wiki/Software/systemd/writing-resolver-clients
+--- dbus-org.freedesktop.timesync1.service ---
+alias
+#  SPDX-License-Identifier: LGPL-2.1-or-later
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU Lesser General Public License as published by
+#  the Free Software Foundation; either version 2.1 of the License, or
+#  (at your option) any later version.
+
+[Unit]
+Description=Network Time Synchronization
+Documentation=man:systemd-timesyncd.service(8)
+ConditionCapability=CAP_SYS_TIME
+ConditionVirtualization=!container
+DefaultDependencies=no
+--- iptables-docker-user.service ---
+enabled
+[Unit]
+Description=Docker-User iptables rules (block external access to internal ports)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/etc/iptables/add-docker-user-rules.sh
+ExecStop=/etc/iptables/rm-docker-user-rules.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+--- iptables-openvpn.service ---
+enabled
+[Unit]
+Description=iptables rules for OpenVPN
+After=firewalld.service
+Before=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/etc/iptables/add-openvpn-rules.sh
+ExecStop=/etc/iptables/rm-openvpn-rules.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+--- iscsi.service ---
+alias
+[Unit]
+Description=Login to default iSCSI targets
+Documentation=man:iscsiadm(8) man:iscsid(8)
+Wants=network-online.target remote-fs-pre.target
+After=network-online.target iscsid.service
+Before=remote-fs-pre.target
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target
+# Must have some pre-defined targets to login to
+ConditionDirectoryNotEmpty=|/etc/iscsi/nodes
+# or have a session to use via iscsid
+ConditionDirectoryNotEmpty=|/sys/class/iscsi_session
+
+[Service]
+--- openvpn-server@.service ---
+indirect
+[Unit]
+Description=OpenVPN service for %I
+After=network-online.target
+Wants=network-online.target
+Documentation=man:openvpn(8)
+Documentation=https://openvpn.net/community-resources/reference-manual-for-openvpn-2-6/
+Documentation=https://community.openvpn.net/openvpn/wiki/HOWTO
+
+[Service]
+Type=notify
+PrivateTmp=true
+WorkingDirectory=/etc/openvpn/server
+ExecStart=/usr/sbin/openvpn --status %t/openvpn-server/status-%i.log --status-version 2 --suppress-timestamps --config %i.conf
+CapabilityBoundingSet=CAP_IPC_LOCK CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETGID CAP_SETUID CAP_SETPCAP CAP_SYS_CHROOT CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
+#LimitNPROC=10
+--- proxy_sync_scheduled.service ---
+static
+[Unit]
+Description=Webshare Proxy Sync (Scheduled)
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=your_user
+Group=your_user
+WorkingDirectory=/home/your_user/proxy_manager
+
+ExecStart=/usr/bin/python3 /home/your_user/proxy_manager/sync_webshare_production.py \
+    --api-key YOUR_WEBSHARE_API_KEY \
+    --log-file /var/log/proxy_sync.log \
+    --health-check-url https://hc-ping.com/YOUR-UUID
+
+--- snap.cups.cups-browsed.service ---
+disabled
+--- snap.cups.cupsd.service ---
+disabled
+--- snap.mesa-2404.component-monitor.service ---
+disabled
+--- sshd.service ---
+alias
+[Unit]
+Description=OpenBSD Secure Shell server
+Documentation=man:sshd(8) man:sshd_config(5)
+After=network.target auditd.service
+ConditionPathExists=!/etc/ssh/sshd_not_to_be_run
+
+[Service]
+EnvironmentFile=-/etc/default/ssh
+ExecStartPre=/usr/sbin/sshd -t
+ExecStart=/usr/sbin/sshd -D $SSHD_OPTS
+ExecReload=/usr/sbin/sshd -t
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartPreventExitStatus=255
+--- syslog.service ---
+alias
+[Unit]
+Description=System Logging Service
+Requires=syslog.socket
+Documentation=man:rsyslogd(8)
+Documentation=man:rsyslog.conf(5)
+Documentation=https://www.rsyslog.com/doc/
+
+[Service]
+Type=notify
+ExecStartPre=/usr/lib/rsyslog/reload-apparmor-profile
+ExecStart=/usr/sbin/rsyslogd -n -iNONE
+StandardOutput=null
+StandardError=journal
+Restart=on-failure
+
+--- vmtoolsd.service ---
+alias
+[Unit]
+Description=Service for virtual machines hosted on VMware
+Documentation=http://open-vm-tools.sourceforge.net/about.php
+ConditionVirtualization=vmware
+DefaultDependencies=no
+Before=cloud-init-local.service
+After=vgauth.service
+After=apparmor.service
+RequiresMountsFor=/tmp
+After=systemd-remount-fs.service systemd-tmpfiles-setup.service systemd-modules-load.service
+
+[Service]
+ExecStart=/usr/bin/vmtoolsd
+TimeoutStopSec=5
+
+--- vps-backup.service ---
+disabled
+
+========== 7. SSH CONFIG ==========
+port 22
+listenaddress 0.0.0.0:22
+listenaddress 172.17.0.1:22
+maxauthtries 6
+permitrootlogin no
+pubkeyauthentication yes
+passwordauthentication yes
+gatewayports no
+
+========== 8. CRONTABS ==========
+--- root ---
+45 7 * * * /opt/backups/pre-backup.sh >> /opt/backups/pre-backup.log 2>&1
+--- deploy user ---
+none
+
+========== 9. CUSTOM SCRIPTS IN /opt ==========
+/opt/apps/
+/opt/_archive/
+/opt/authelia/
+/opt/authelia-config-sync/
+/opt/backrest/
+/opt/backups/
+/opt/containerd/
+/opt/coolify-alias-watcher/
+/opt/duplicati/
+/opt/email-reader/
+/opt/infrastructure/
+/opt/monitoring/
+/opt/namecheap/
+/opt/ocoron-com/
+/opt/prometheus/
+/opt/redis/
+/opt/scripts/
+/opt/traefik/
+/opt/uptime-kuma/
+
+========== 10. COMPOSE FILES (non-Coolify) ==========
+/opt/monitoring/compose.yaml EXISTS
+/opt/monitoring/docker-compose.yml EXISTS
+/opt/ocoron-com/compose.yaml EXISTS
+/opt/ocoron-com/docker-compose.yml EXISTS
+/opt/redis/compose.yaml EXISTS
+/opt/redis/docker-compose.yml EXISTS
+/opt/traefik/compose.yaml EXISTS
+/opt/traefik/docker-compose.yml EXISTS
+/opt/prometheus/compose.yaml EXISTS
+/opt/prometheus/docker-compose.yml EXISTS
+
+========== 11. AUTHELIA CONFIG HIGHLIGHTS ==========
+  default_policy: deny
+  - domain: ocoron.com
+    policy: bypass
+  - domain: www.ocoron.com
+    policy: bypass
+  - domain: wp-test.vps1.ocoron.com
+    policy: bypass
+  - domain: status.vps1.ocoron.com
+    policy: bypass
+  - domain: '*.vps1.ocoron.com'
+    policy: bypass
+  - domain:
+    policy: bypass
+  - domain:
+    policy: bypass
+  - domain: '*.vps1.ocoron.com'
+    policy: two_factor
+    domain: vps1.ocoron.com
+
+========== 12. MONITORING CONFIGS ==========
+/opt/monitoring/configs/alertmanager/alertmanager.yml
+/opt/monitoring/configs/alertmanager/alertmanager.yml.bak.20260418-191612
+/opt/monitoring/configs/alertmanager/alertmanager.yml.bak.20260418-192221
+/opt/monitoring/configs/alertmanager/alertmanager.yml.bak.20260516-082249
+/opt/monitoring/configs/gatus/apps/alertmanager.yaml
+/opt/monitoring/configs/gatus/apps/apprise.yaml
+/opt/monitoring/configs/gatus/apps/backrest.yaml
+/opt/monitoring/configs/gatus/apps/dns-manager.yaml
+/opt/monitoring/configs/gatus/apps/fabrik-microservices.yaml
+/opt/monitoring/configs/gatus/apps/glitchtip.yaml
+/opt/monitoring/configs/gatus/apps/grafana.yaml
+/opt/monitoring/configs/gatus/apps/loki.yaml
+/opt/monitoring/configs/gatus/apps/n8n.yaml
+/opt/monitoring/configs/gatus/apps/netdata.yaml
+/opt/monitoring/configs/gatus/apps/observability-agents.yaml
+/opt/monitoring/configs/gatus/apps/prometheus.yaml
+/opt/monitoring/configs/gatus/apps/services.yaml
+/opt/monitoring/configs/gatus/apps/site-provisioner.yaml
+/opt/monitoring/configs/gatus/_base.yaml
+/opt/monitoring/configs/gatus/core/infra.yaml
+/opt/monitoring/configs/gatus/data/databases.yaml
+/opt/monitoring/configs/gatus/external/public.yaml
+/opt/monitoring/configs/gatus/external/public.yaml.backup.t2-08-20260515-191058
+/opt/monitoring/configs/gatus/observability/stack.yaml
+/opt/monitoring/configs/grafana/dashboards/00-infrastructure-overview.json
+/opt/monitoring/configs/grafana/dashboards/10-databases.json
+/opt/monitoring/configs/grafana/dashboards/20-containers.json
+/opt/monitoring/configs/grafana/dashboards/30-authelia.json
+/opt/monitoring/configs/grafana/dashboards/40-meilisearch.json
+/opt/monitoring/configs/grafana/provisioning/dashboards/fabrik.yaml
+/opt/monitoring/configs/grafana/provisioning/datasources/fabrik.yaml
+/opt/monitoring/configs/grafana/provisioning/json-dashboards/00-infrastructure-overview.json
+/opt/monitoring/configs/grafana/provisioning/json-dashboards/10-databases.json
+/opt/monitoring/configs/grafana/provisioning/json-dashboards/20-containers.json
+/opt/monitoring/configs/grafana/provisioning/json-dashboards/30-authelia.json
+/opt/monitoring/configs/grafana/provisioning/json-dashboards/40-meilisearch.json
+/opt/monitoring/configs/loki/loki-config.yaml
+/opt/monitoring/configs/postgres/allocations.json
+/opt/monitoring/configs/prometheus/prometheus.yml
+/opt/monitoring/configs/prometheus/prometheus.yml.bak.20260418-191612
+/opt/monitoring/configs/prometheus/prometheus.yml.bak.20260508-231331
+/opt/monitoring/configs/prometheus/prometheus.yml.bak.20260516-082039
+/opt/monitoring/configs/prometheus/rules/alerts.yml
+/opt/monitoring/configs/prometheus/rules/alerts.yml.bak.20260419-150632
+/opt/monitoring/configs/prometheus/rules/fabrik-drift.yml
+/opt/monitoring/configs/promtail/promtail-config.yaml
+/opt/monitoring/configs/redis/assignments.json
+
+========== 13. ALIAS WATCHER ==========
+aliases.json
+watcher.sh
+watcher.sh.backup.t2-04-20260515-225100
+{
+  "version": 1,
+  "aliases": {
+    "bs0wo48k4gwo440gcowscoc8": "meilisearch",
+    "e04k4sco44ow04ccc0o0k00k": "gotenberg",
+    "vckgs8c00o40o884k48cgow8": "browserless",
+    "glitchtip-web": "glitchtip-web"
+  }
+}
+
+========== 14. FAIL2BAN ==========
+Status
+|- Number of jail:	1
+`- Jail list:	sshd
+
+========== 15. APPARMOR ==========
+apparmor module is loaded.
+133 profiles are loaded.
+38 profiles are in enforce mode.
+   /snap/snapd/25577/usr/lib/snapd/snap-confine
+   /snap/snapd/25577/usr/lib/snapd/snap-confine//mount-namespace-capture-helper
+   /snap/snapd/25935/usr/lib/snapd/snap-confine
+   /snap/snapd/25935/usr/lib/snapd/snap-confine//mount-namespace-capture-helper
+   /snap/snapd/26382/usr/lib/snapd/snap-confine
+   /snap/snapd/26382/usr/lib/snapd/snap-confine//mount-namespace-capture-helper
+   /snap/snapd/26865/usr/lib/snapd/snap-confine
+
+========== 16. DNS CONFIG ==========
+# This is /run/systemd/resolve/stub-resolv.conf managed by man:systemd-resolved(8).
+# Do not edit.
+#
+# This file might be symlinked as /etc/resolv.conf. If you're looking at
+# /etc/resolv.conf and seeing this text, you have followed the symlink.
+#
+# This is a dynamic resolv.conf file for connecting local clients to the
+# internal DNS stub resolver of systemd-resolved. This file lists all
+# configured search domains.
+#
+# Run "resolvectl status" to see details about the uplink DNS servers
+# currently in use.
+#
+# Third party programs should typically not access this file directly, but only
+# through the symlink at /etc/resolv.conf. To manage man:resolv.conf(5) in a
+# different way, replace this symlink by a static file or a different symlink.
+#
+# See man:systemd-resolved.service(8) for details about the supported modes of
+# operation for /etc/resolv.conf.
+
+nameserver 127.0.0.53
+options edns0 trust-ad
+search .
+
+========== 17. USERS & GROUPS ==========
+root:x:0:0:root:/root:/bin/bash
+sync:x:4:65534:sync:/bin:/bin/sync
+postgres:x:110:114:PostgreSQL administrator,,,:/var/lib/postgresql:/bin/bash
+ozgur:x:1000:1000:Ozgur Basak,,,:/home/ozgur:/bin/bash
+ozgur : ozgur sudo users
+
+========== 18. INSTALLED PACKAGES (non-default) ==========
+curl/noble-updates,noble-security,now 8.5.0-2ubuntu10.9 amd64 [installed]
+docker-ce-cli/noble,now 5:29.0.2-1~ubuntu.24.04~noble amd64 [installed,upgradable to: 5:29.4.3-1~ubuntu.24.04~noble]
+docker-ce-rootless-extras/noble,now 5:29.0.2-1~ubuntu.24.04~noble amd64 [installed,upgradable to: 5:29.4.3-1~ubuntu.24.04~noble]
+docker-ce/noble,now 5:29.0.2-1~ubuntu.24.04~noble amd64 [installed,upgradable to: 5:29.4.3-1~ubuntu.24.04~noble]
+fail2ban/noble-updates,now 1.0.2-3ubuntu0.1 all [installed]
+htop/noble,now 3.3.0-4build1 amd64 [installed,automatic]
+jq/noble-updates,noble-security,now 1.7.1-3ubuntu0.24.04.2 amd64 [installed,automatic]
+libcurl3t64-gnutls/noble-updates,noble-security,now 8.5.0-2ubuntu10.9 amd64 [installed,automatic]
+libcurl4t64/noble-updates,noble-security,now 8.5.0-2ubuntu10.9 amd64 [installed,automatic]
+libjq1/noble-updates,noble-security,now 1.7.1-3ubuntu0.24.04.2 amd64 [installed,automatic]
+libjs-jquery/noble,now 3.6.1+dfsg+~3.5.14-1 all [installed,automatic]
+python3-pip-whl/noble-updates,noble-security,now 24.0+dfsg-1ubuntu1.3 all [installed,automatic]
+python3-pip/noble-updates,noble-security,now 24.0+dfsg-1ubuntu1.3 all [installed]
+sysstat/noble,now 12.6.1-2 amd64 [installed,automatic]
+ufw/noble,now 0.36.2-6 all [installed,automatic]
+wget/noble-updates,noble-security,now 1.21.4-1ubuntu4.1 amd64 [installed,automatic]
+
+========== END ==========

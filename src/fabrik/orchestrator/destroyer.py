@@ -360,6 +360,29 @@ def _destroy_coolify(name: str, dry_run: bool) -> ActionResult:
         except Exception:  # noqa: BLE001
             pass
 
+        # Prune Docker images and networks left by the destroyed service.
+        # Images: Coolify builds images tagged <uuid>_<name>:<sha>. Remove
+        # any image whose repository starts with the app UUID prefix.
+        # Networks: Coolify creates a per-app bridge network named <uuid>.
+        # Both are best-effort — failure is non-fatal.
+        try:
+            from fabrik.drivers.ssh import ssh as _ssh
+
+            # Remove images tagged with this app's UUID prefix
+            _ssh(
+                f"sudo docker images --format '{{{{.Repository}}}}:{{{{.Tag}}}}' "
+                f"| grep '^{uuid}' "
+                f"| xargs -r sudo docker rmi 2>/dev/null || true",
+                timeout=30,
+            )
+            # Remove the per-app Docker network
+            _ssh(
+                f"sudo docker network rm {uuid} 2>/dev/null || true",
+                timeout=15,
+            )
+        except Exception:  # noqa: BLE001 — best-effort cleanup
+            pass
+
         return ActionResult("coolify", "removed", detail=f"app {name} (uuid={uuid})")
     except Exception as e:  # noqa: BLE001
         return ActionResult("coolify", "error", error=repr(e))

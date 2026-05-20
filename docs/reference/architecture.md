@@ -262,14 +262,21 @@ src/fabrik/
 | Directory | Purpose | Status |
 |-----------|---------|--------|
 | `apps/` | **Legacy deploy convention** — compose files for services deployed before the spec-driven pipeline. `postgres-main/` and `fabrik-proxy/` are active running services; `example-api/` is an obsolete template | Partially active |
-| `configs/` | Local mirrors of VPS configs (monitoring, auth, backup) | Active |
+| `backups/` | Credential/config backups (gitignored). Target for CLAUDE.md backup rule: `cp <f> backups/<f>.backup.$(date)`. Created by scaffold for all project types | Active |
+| `build/` | **Moved to `/opt/wpf/build/`** (May 2026). Was WordPress deployer output (`build/sites/<site>/plan.json`, manifests, reports) | Moved |
+| `config/` | `platform.yaml.example` — config schema reference for VPS/Coolify/DNS/backup settings. Referenced by `src/fabrik/config.py` as `CONFIG_DIR` | Active (example only) |
+| `configs/` | **Repo-local source of VPS monitoring configs.** Prometheus scrape config + 9 alert rules, Alertmanager routing, 5 Grafana dashboards + provisioning, Loki + Promtail configs, monitoring-compose.yaml, n8n workflows (backup notification, uptime alert). Bundled by `portability.py` in `fabrik export`. Deployed to `/opt/monitoring/configs/` on VPS | Active |
 | `data/` | `projects.yaml` (project registry) + `provision-jobs/` (SiteProvisioner saga state) | Active |
-| `docs/` | Documentation — `DEPLOYMENT.md` (canonical), `FEATURES.md`, `LESSONS_LEARNT.md`, `reference/` (this file), `traycer/` (workflow docs) | Active |
-| `scripts/` | `final_gate.py`, `enforcement/` (19 checks), `kilo_code_review.py`, `kilo_consult.py`, `kilo_model_sync.py`, `dev_tracker.py`, `docs_updater.py`, `build_golden.sh` helpers, Traycer agent scripts | Active |
+| `docs/` | `DEPLOYMENT.md` (canonical deploy reference), `FEATURES.md`, `LESSONS_LEARNT.md`, `reference/` (this file + excel-file-generation.md, multilingual-plan.md), `traycer/` (workflow docs + agent test reports), `development/plans/` (archived + active plans), `guides/` (empty — scaffold creates for projects) | Active |
+| `scripts/` | `final_gate.py`, `enforcement/` (19 checks), `kilo_code_review.py`, `kilo_consult.py`, `kilo_model_sync.py`, `dev_tracker.py`, `docs_updater.py`, Traycer agent scripts, `kilo-benchmarks/` (model evaluation) | Active |
 | `specs/services/` | Per-app deployment specs (~52 YAML files, mix of real services + scaffold test specs) | Active |
 | `specs/sites/` | WordPress site specs (ocoron.com) — consumed by wpf, not fabrik | Active (wpf) |
 | `templates/` | 12 deploy templates (11 scaffold-exposed + next-tailwind deploy-only). Each has `defaults.yaml` with default shape flags | Active |
-| `templates/i18n-kit/` | Multi-platform i18n template (19 files). Vanilla DOM loader, React/Next.js provider, Chrome/RN/Docusaurus adapters, 3-level Kilo validator, multilingual plan doc. Auto-provisioned by `_provision_i18n()` in scaffold.py for 6 GUI types | Active |
+| `templates/i18n-kit/` | Multi-platform i18n template (20 files). Vanilla DOM loader, React/Next.js provider, Chrome/RN/Docusaurus adapters, 3-level Kilo validator with step_finish + _context.json, multilingual plan doc. Auto-provisioned by `_provision_i18n()` in scaffold.py for 6 GUI types | Active |
+| `examples/` | **Removed** (May 2026). Had one Traycer agent review example script — pattern already documented in `docs/traycer/` and the actual script at `scripts/traycer_agent_review.py` | Removed |
+| `scripts/sysadmin/` | VPS AI sysadmin (1136 lines, 7 files): `bot.py` (Telegram→Claude Opus, session management, action log, health endpoint), `proactive-check.sh` (15-min cron, 11 checks + cert expiry), `morning-report.sh` (daily briefing), `weekly-security.sh` (Monday patrol vs audit checklist), `weekly-maintenance.sh` (Sunday cleanup report), `monthly-backup-verify.sh` (backup audit), `system-prompt.txt` (232-line brain: APIs, playbooks, criticality tiers, communication protocol, shift notes). Systemd service on VPS. Cron: `/etc/cron.d/vps-sysadmin`. Reference: `docs/infrastructure/vps-ai-sysadmin.md` | Active (VPS) |
+| `scripts/audit/` | 7 VPS diagnostic scripts for systematic health audits: full-system, container-health, security, performance, observability, backup, hardening-verify. Run with sudo on VPS. Paired with `docs/infrastructure/audit-prompts/` (9 analysis checklists). Used by sysadmin bot and manual audits. | Active (VPS + WSL) |
+| `ops/` | VPS operational files: `vps-sysadmin-bot.service` (systemd unit for the Telegram bot). Deployed to `/etc/systemd/system/` on VPS. | Active |
 | `tests/` | Orchestrator tests (144), driver tests (331), scaffold tests, enforcement tests | Active |
 
 ### WordPress — extracted to /opt/wpf/

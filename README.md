@@ -1,14 +1,16 @@
 # Fabrik
 
-**Last Updated:** 2026-04-26
+**Last Updated:** 2026-05-20
 
 **Spec-Driven Deployment Platform + AI Development Workflow**
 
-Fabrik is two things:
+Fabrik is three things:
 
 1. **A deployment CLI** — takes a YAML spec (`specs/services/<id>.yaml`) with a `shape:` block and runs the full lifecycle: scaffold → plan → apply → verify. 9 registrars (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus) fire automatically based on shape flags. Saga-pattern orchestrator with rollback. 11 scaffold types. 20+ drivers (Coolify, Cloudflare, Backrest, Supabase, R2, etc.).
 
 2. **An AI development workflow** — Traycer (Windsurf IDE extension) drives spec-to-ticket planning. Kilo CLI runs iterative multi-model code reviews with fix-and-revalidate loops. Final Gate runs 25 deterministic enforcement checks before and after review. Every project gets a `.droid/` workspace that stores review sessions, transcripts, cost tracking, and model sync state.
+
+3. **An AI VPS system administrator** — Claude Code Opus runs locally on each VPS, triggered via Telegram or scheduled cron. Queries 15 infrastructure APIs (Prometheus, Loki, Gatus, GlitchTip, Docker, etc.) directly. Acts autonomously on safe operations. Proactive health checks every 15 min. Daily morning briefings. Weekly security patrols. Monthly backup verification. Incident playbooks. Shift notes for memory between sessions. Zero cost when idle.
 
 ---
 

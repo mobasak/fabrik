@@ -52,12 +52,12 @@ Skip: stdlib, syntax, Fabrik conventions.
 | Container ports bound to host directly | all on `coolify` net; Traefik routes. Middleware (scaffold-emitted): admin `authelia-forward@docker,gzip@docker`; API `gzip@docker`; public none |
 | new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**/*.md` · `docs/archive/**` |
 | destructive script on prod data w/o dry-run | dry-run first, show diff |
-| credentials change w/o backup + diff approval | `cp <f> <f>.backup.$(date +%Y%m%d-%H%M%S)` first |
+| credentials change w/o backup + diff approval | `cp <f> backups/<f>.backup.$(date +%Y%m%d-%H%M%S)` first |
 
 In packs: Alpine, raw `pip`, `/tmp/`, FastAPI `except Exception` swallow `HTTPException`, dup `logger.exception()` w/ GlitchTip, inline M2M auth, module-level config, raw SQL DDL, `.venv` recreate, scaffold reorganize.
 
 ## Pointers (detail in packs)
-- **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `35-security-auth.md`.
+- **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → target: `backups/` dir (gitignored). See `35-security-auth.md`.
 - **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`, banned: `postgres`/`admin`/`password123`).
 - **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.
 - **Ports:** Python 8000–8099, frontend 3000–3099. Register in `PORTS.md` before use.

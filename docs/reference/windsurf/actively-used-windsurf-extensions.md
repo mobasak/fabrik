@@ -1,12 +1,7 @@
 # Windsurf Extensions
 
-<<<<<<< Updated upstream:docs/reference/windsurf/actively-used-windsurf-extensions.md
-**Last Updated:** 2026-05-18 00:14
+**Last Updated:** 2026-05-20 00:42
 **Total:** 26 extensions
-=======
-**Last Updated:** 2026-03-14 19:00
-**Total:** 23 extensions
->>>>>>> Stashed changes:docs/reference/EXTENSIONS.md
 
 ## Quick Install (All Extensions)
 

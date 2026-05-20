@@ -1,9 +1,9 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-19 18:59 UTC
+**Last Updated:** 2026-05-19 19:41 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
-**Total containers:** 42 running
+**Total containers:** 36 running
 
 ---
 
@@ -15,52 +15,52 @@
 python3 scripts/generate_vps_inventory.py --update
 ```
 
-This reads live container state via SSH, resolves friendly names from Coolify labels + hardcoded map, and replaces the `<!-- AUTO:container_inventory -->
-| Container | Status | Memory limit |
+This reads live container state via SSH, resolves friendly names from Coolify labels + hardcoded map, and replaces the container inventory table in this file. Run after any deploy/destroy/redeploy.
+
+**Manual verification commands:**
+
+```bash
+ssh vps "sudo docker ps --format '{{.Names}}\t{{.Status}}' | sort"
+ssh vps "sudo docker inspect \$(sudo docker ps -q) --format '{{.Name}} {{.HostConfig.Memory}}' | sed 's|/||' | sort"
+ssh vps "sudo ufw status numbered"
+cd /opt/fabrik && python3 scripts/vps_sync.py --verify
+```
+
+---
+
+## Network Architecture
+
+```
+Internet
+    │
+    ├─ 443/tcp ──► Traefik (coolify-proxy)
+    │                  ├─► authelia-forward@docker + gzip@docker (admin UIs)
+    │                  ├─► gzip@docker only (API services — app-layer X-Internal-Token)
+    │                  ├─► coolify.vps1.ocoron.com    Coolify UI
+    │                  ├─► monitor / netdata / auto / errors / backup / notify / auth
+    │                  ├─► images/site-provisioner     X-Internal-Token
+    │                  ├─► files-api                  Supabase Bearer JWT
+    │                  └─► ocoron.com / www            WordPress
+    ├─ 80/tcp ───► Traefik → HTTPS redirect
+    ├─ 22/tcp ───► SSH (Ed25519 key, root disabled)
+    ├─ 1194/tcp ─► OpenVPN (kernel service)
+    ├─ 6001-6002 ► Coolify Realtime / Soketi (Coolify UI live logs)
+    └─ 8000/tcp ─► UFW DENY
+```
+
+### Docker Networks
+| Network | Subnet | Purpose |
 |---|---|---|
-| `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 33 minutes (healthy) | — |
-| `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 33 minutes (healthy) | — |
-| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 33 minutes (healthy) | — |
-| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 33 minutes | 384m |
-| `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 31 minutes (healthy) | 512m |
-| `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 33 minutes (healthy) | — |
-| `captcha-j8gg4ggskkossc4gkwowk4os-191229303949` | ✅ Up 31 minutes (healthy) | — |
-| `coolify` | ✅ Up 27 minutes (healthy) | — |
-| `coolify-db` | ✅ Up 27 minutes (healthy) | — |
-| `coolify-realtime` | ✅ Up 27 minutes (healthy) | — |
-| `coolify-redis` | ✅ Up 27 minutes (healthy) | — |
-| `coolify-sentinel` | ✅ Up About a minute (healthy) | — |
-| `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 31 minutes (healthy) | 512m |
-| `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | ✅ Up 30 minutes (healthy) | — |
-| `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | ✅ Up 30 minutes (healthy) | — |
-| `file-api-bsswwg4kg480c000gksw004k-192212486944` | ✅ Up 31 minutes (healthy) | — |
-| `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | ✅ Up 25 minutes (healthy) | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 33 minutes | 512m |
-| `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 33 minutes | 512m |
-| `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 33 minutes | 512m |
-| `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 33 minutes (healthy) | — |
-| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 30 minutes (healthy) | — |
-| `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 33 minutes (healthy) | — |
-| `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 33 minutes (healthy) | — |
-| `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 33 minutes (healthy) | — |
-| `node-exporter-doc8c8gkcgs88s8ckggw84o4` | ✅ Up 33 minutes | — |
-| `ocoron-com-backup-1` | ✅ Up 27 minutes | — |
-| `ocoron-com-db-1` | ✅ Up 27 minutes (healthy) | — |
-| `ocoron-com-nginx-1` | ✅ Up 27 minutes | — |
-| `ocoron-com-redis-1` | ✅ Up 27 minutes (healthy) | — |
-| `ocoron-com-wordpress-1` | ✅ Up 27 minutes | — |
-| `postgres-exporter` | ✅ Up 29 minutes (healthy) | — |
-| `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | ✅ Up 33 minutes (healthy) | — |
-| `prometheus` | ✅ Up 28 minutes (healthy) | — |
-| `promtail-w0000ckgsgg048w0848okk08` | ✅ Up 33 minutes | — |
-| `pushgateway` | ✅ Up 29 minutes (healthy) | — |
-| `redis-exporter` | ✅ Up 29 minutes | — |
-| `redis-main` | ✅ Up 26 minutes (healthy) | — |
-| `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 30 minutes (healthy) | — |
-| `traefik` | ✅ Up 26 minutes | — |
-| `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | ✅ Up 31 minutes (healthy) | — |
-| `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 30 minutes | 2g |
-<!-- /AUTO -->
+| `coolify` | 10.0.1.0/24 | All Coolify-managed containers |
+| Host | 172.93.160.197 | Traefik on 80/443 only |
+
+---
+
+## Traefik Configuration
+
+**Version:** v2.11 | **Config:** `/data/coolify/proxy/` | **Dynamic:** `/data/coolify/proxy/dynamic/`
+**Gzip:** `/data/coolify/proxy/dynamic/gzip.yaml` (hot-reload)
+**SSL:** Let's Encrypt HTTP challenge | `acme.json`: `/data/coolify/proxy/acme.json`
 
 ### Traefik Label Patterns (by service type)
 | Service type | Middlewares | Source |
@@ -237,17 +237,12 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | **backrest** | `backrest-l48000k44wc4gk8os88s8k0c` | Coolify Service | `backrest:latest` | 384m | — | Restic backup manager → Backblaze B2 |
 | **meilisearch** | `bs0wo48k4gwo440gcowscoc8-211159651770` | Coolify App | `meilisearch:v1.13` | 512m | healthy | Full-text search engine |
 | **cadvisor** | `cadvisor-r08sog4gwws88og048ows448` | Coolify Service | `cadvisor:v0.52.1` | — | healthy | Container metrics for Prometheus |
-| **fabrik-captcha** | `captcha-j8gg4ggskkossc4gkwowk4os-191229303949` | Coolify App | `j8gg4ggskkossc4gkwowk4os_captcha:546b09ba900576ac7fdbf40a3bde62607045f11f` | — | healthy | Captcha solving service |
 | **coolify** | `coolify` | Coolify Core | `coolify:latest` | — | healthy | Coolify control plane |
 | **coolify-db** | `coolify-db` | Coolify Core | `postgres:15-alpine` | — | healthy | Coolify internal Postgres |
 | **coolify-realtime** | `coolify-realtime` | Coolify Core | `coolify-realtime:1.0.13` | — | healthy | Coolify WebSocket (live logs) |
 | **coolify-redis** | `coolify-redis` | Coolify Core | `redis:7-alpine` | — | healthy | Coolify internal Redis |
 | **coolify-sentinel** | `coolify-sentinel` | Coolify Core | `sentinel:0.0.21` | — | healthy | Coolify Redis Sentinel (HA) |
 | **gotenberg** | `e04k4sco44ow04ccc0o0k00k-210433823748` | Coolify App | `gotenberg:8` | 512m | healthy | PDF generation API |
-| **fabrik-emailgateway** | `emailgateway-w4oocckkwko8kowggsw8sogc-192134804476` | Coolify App | `w4oocckkwko8kowggsw8sogc_emailgateway:d4fbd6b8084f29195e31094fc2b7e5d41972a75f` | — | healthy | Provider-agnostic email gateway |
-| **fabrik-proxy** | `fabrik-proxy-zsccsksoc8sssc8k00sgcc08-190757006943` | Coolify App | `zsccsksoc8sssc8k00sgcc08_fabrik-proxy:569ca88a74675d6e9da3e942d1c64df00e251930` | — | healthy | Proxy management API |
-| **fabrik-file-api** | `file-api-bsswwg4kg480c000gksw004k-192212486944` | Coolify App | `bsswwg4kg480c000gksw004k_file-api:759662e4165b8af8a729a5ec9789435f3c210657` | — | healthy | Presigned URL service for R2 |
-| **fabrik-file-worker** | `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | Coolify App | `nwcckwggw0o0g40gwskk8kk8_file-worker:d3a455eacbda420b325e77db03239b37bc339583` | 512m | healthy | Background file processing |
 | **gatus** | `gatus-v8s4cokcwg0co4w8okkccc0w` | Coolify Service | `gatus:latest` | 512m | — | Uptime monitoring → status.vps1.ocoron.com |
 | **glitchtip-web** | `glitchtip-web-z00kkck8c8cwo800kk440csk` | Coolify Service | `glitchtip:latest` | 512m | — | Error tracking UI + API |
 | **glitchtip-worker-v10** | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | Coolify Service | `glitchtip:latest` | 512m | — | GlitchTip async event processor |
@@ -271,7 +266,6 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 | **redis-main** | `redis-main` | /opt/redis | `redis:7-alpine` | — | healthy | Shared Redis (auth sessions, cache) |
 | **site-provisioner** | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | Coolify App | `qokoksogwsk0c04gcs4swwgs_site-provisioner:00ac21da6a727913e5d50f685361f8fd09c9ade0` | — | healthy | DNS + Cloudflare + domain provisioning |
 | **traefik** | `traefik` | /opt/traefik | `traefik:v2.11` | — | — | Reverse proxy + HTTPS termination |
-| **fabrik-translator** | `translator-kgws0s4cscsosw8gg848cwgw-152024553111` | Coolify App | `kgws0s4cscsosw8gg848cwgw_translator:95fa600848dd2f73e3023396a557190c3dd350ff` | — | healthy | DeepL + Azure translation service |
 | **browserless** | `vckgs8c00o40o884k48cgow8-210454442421` | Coolify App | `chromium:latest` | 2g | — | Headless Chrome for scraping/PDF |
 <!-- /AUTO -->
 
@@ -498,6 +492,23 @@ The Fabrik lifecycle starts BEFORE scaffold runs — Stage 1 is **intent capture
 | ERROR | Client error '404 Not Found' for url 'https://coolify.vps1.ocoron.com/api/v1/applications'
 For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404 | — |
 <!-- /AUTO -->
+
+---
+
+## VPS AI Sysadmin (host-level, not a container)
+
+The AI sysadmin runs as a **host process** (systemd service), not a Docker container. It does not appear in `docker ps`.
+
+| Component | Type | Status |
+|---|---|---|
+| `vps-sysadmin-bot.service` | systemd, `Restart=always` | Active — Telegram bot, spawns Claude Opus on demand |
+| `/etc/cron.d/vps-sysadmin` | cron | Active — 5 scheduled routines (proactive/morning/security/maintenance/backup) |
+| Health endpoint | HTTP `:8017/health` | Active — local only (blocked from Docker by DOCKER-USER) |
+
+Logs: `/var/log/vps-sysadmin-bot.log`, `/var/log/sysadmin-proactive.log`
+Action log: `/opt/fabrik/logs/sysadmin-actions.jsonl`
+Shift notes: `/opt/fabrik/logs/sysadmin-shift-notes.md`
+Reference: `docs/infrastructure/vps-ai-sysadmin.md`
 
 ---
 

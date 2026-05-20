@@ -148,25 +148,20 @@ Provisioned datasources should be read-only in the UI. If a user edits a provisi
 
 The script remains useful for **dashboard provisioning** (dashboards still go via API in that script).
 
-If you ever fully migrate dashboards to file-based provisioning, place dashboard JSON files under `/opt/monitoring/configs/grafana/provisioning/dashboards/` and add a YAML provider:
+Dashboard file-based provisioning is already live. The provider config at `/opt/monitoring/configs/grafana/provisioning/dashboards/fabrik.yaml` reads JSON dashboards from the sibling `json-dashboards/` directory (5 custom Fabrik dashboards). To add a new dashboard:
 
-```yaml
-# /opt/monitoring/configs/grafana/provisioning/dashboards/dashboards.yaml
-apiVersion: 1
-providers:
-  - name: 'Fabrik Dashboards'
-    folder: 'Fabrik'
-    type: file
-    options:
-      path: /etc/grafana/provisioning/dashboards
-```
+1. Export or create the JSON dashboard file
+2. Place it in `/opt/monitoring/configs/grafana/provisioning/json-dashboards/` on the VPS (and mirror in `configs/grafana/dashboards/` in the repo)
+3. Grafana auto-reads within 30s (configured `updateIntervalSeconds` in the provider), or restart: `ssh vps "sudo docker restart grafana-loc484owg8gsw04owo0go8kc"`
+
+The 3 community dashboards (grafana.com IDs 1860, 193, 2) are still API-imported via `provision_grafana.sh` — they could be exported to JSON and moved here for full offline reproducibility.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | Datasource doesn't appear in UI after restart | Bind mount not effective | `docker inspect <grafana> --format '{{range .Mounts}}{{.Source}} {{.Destination}}{{println}}{{end}}'` — must show the provisioning path |
-| Grafana logs `error="open /etc/grafana/provisioning/datasources: permission denied"` | File ownership wrong | `sudo chown -R 472:472 /opt/monitoring/configs/grafana/provisioning` (472 = grafana uid) |
+| Grafana logs `error="open /etc/grafana/provisioning/datasources: permission denied"` | File not readable by Grafana (uid 472) | Ensure files are world-readable: `sudo chmod -R a+r /opt/monitoring/configs/grafana/provisioning`. If that fails, set ownership: `sudo chown -R 472:472 /opt/monitoring/configs/grafana/provisioning` |
 | Datasource appears but URL is wrong | Network DNS not resolving | Both Grafana and target service must be on `coolify` network. Verify: `docker inspect <grafana> --format '{{json .NetworkSettings.Networks}}'` |
 | Coolify redeployed Grafana and the bind mount disappeared | Coolify regenerated the compose | Re-run step 3 (`yaml`-edit script) and step 4 (`docker compose up -d`) |
 | Provisioning file ignored entirely | Wrong filename or extension | Must end in `.yaml` or `.yml` and be under `/etc/grafana/provisioning/datasources/` |
@@ -176,7 +171,8 @@ providers:
 | Path | Purpose |
 |---|---|
 | `/opt/monitoring/configs/grafana/provisioning/datasources/fabrik.yaml` | Datasource definitions (Prometheus, Loki) |
-| `/opt/monitoring/configs/grafana/provisioning/dashboards/` | (Reserved for future dashboard provisioning) |
+| `/opt/monitoring/configs/grafana/provisioning/dashboards/fabrik.yaml` | Dashboard provider config — reads JSON from `json-dashboards/`, auto-refreshes every 30s |
+| `/opt/monitoring/configs/grafana/provisioning/json-dashboards/*.json` | 5 custom Fabrik dashboards (infra overview, databases, containers, authelia, meilisearch) |
 | `/data/coolify/services/loc484owg8gsw04owo0go8kc/docker-compose.yml` | Coolify-managed Grafana service compose; contains the bind mount |
 | `/var/lib/docker/volumes/loc484owg8gsw04owo0go8kc_grafana-data/_data/grafana.db` | SQLite — dashboards, users, API keys (NOT datasources anymore) |
 

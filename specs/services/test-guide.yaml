@@ -10,6 +10,8 @@ shape:
   has_persistent_data: false
   needs_database: false
   has_search_feature: false
+  needs_cache: false
+  exposes_metrics: true
 expose:
   http: true
   internal_only: false
@@ -30,7 +32,8 @@ env:
 secrets:
   required: []
   generate: []
-  from_env: []
+  from_env:
+  - SERVICE_INTERNAL_SECRET_KEY
   from_file: {}
 resources:
   memory: 512M

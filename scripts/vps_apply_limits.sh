@@ -47,7 +47,7 @@ echo "=== VPS resource limits ==="
 
 # Observability
 apply alertmanager-   256m
-apply apprise-        768m   # bumped 2026-05-15: live at 80% of 512m, Lesson 6 was prescient
+apply apprise-        1g     # bumped 2026-05-20: 615MB steady-state plateau, 768m was too tight (80%)
 apply cadvisor-       512m
 apply gatus-          256m
 apply grafana-        512m
@@ -83,19 +83,10 @@ apply ocoron-com-nginx-1      256m
 apply ocoron-com-redis-1      256m
 apply ocoron-com-backup-1     128m  # T3-01 follow-up 2026-05-15: previously unlimited
 
-# Fabrik microservices — stopgap for the Coolify upstream gap (F5).
-# Each service's spec declares these limits in `resources.limits.memory`
-# (or `resources.memory` for proxy/site-provisioner pre-G1 specs);
-# Coolify doesn't translate them into compose. Until each service's
-# compose.yaml is backfilled with `deploy.resources.limits` + redeployed,
-# apply via `docker update` here. Limits match each spec's declared value.
-apply translator-          512m  # spec: resources.limits.memory=512M
+# Fabrik microservices — active services only.
+# Destroyed services (captcha, emailgateway, file-api, file-worker,
+# fabrik-proxy, translator) removed 2026-05-19.
 apply image-broker-        512m  # spec: resources.limits.memory=512M
-apply captcha-             512m  # spec: resources.limits.memory=512M
-apply emailgateway-        512m  # spec: resources.limits.memory=512M
-apply file-api-            512m  # spec: resources.limits.memory=512M
-apply file-worker-         512m  # spec: resources.limits.memory=512M
-apply fabrik-proxy-        512m  # spec: resources.memory=512M
 apply site-provisioner-    512m  # spec: resources.memory=512M
 
 echo "=== Done ==="
@@ -126,7 +117,19 @@ apply_alias() {
     || echo "  ⚠️  $alias: connect failed (may already be connected)"
 }
 
-apply_alias vckgs8c00o40o884k48cgow8-220643454460 browserless
-apply_alias e04k4sco44ow04ccc0o0k00k-151256201601  gotenberg
-apply_alias bs0wo48k4gwo440gcowscoc8-150802066640  meilisearch
-apply_alias glitchtip-web-z00kkck8c8cwo800kk440csk glitchtip-web
+# Container names include timestamps that change on recreate.
+# Use dynamic lookup by UUID prefix so this survives redeploys.
+for pair in \
+  "vckgs8c00o40o884k48cgow8:browserless" \
+  "e04k4sco44ow04ccc0o0k00k:gotenberg" \
+  "bs0wo48k4gwo440gcowscoc8:meilisearch" \
+  "glitchtip-web-:glitchtip-web"; do
+  prefix="${pair%%:*}"
+  alias="${pair##*:}"
+  container=$(sudo docker ps --format '{{.Names}}' | grep "^${prefix}" | head -1)
+  if [ -n "$container" ]; then
+    apply_alias "$container" "$alias"
+  else
+    echo "  SKIP $alias: no container matching ^${prefix}"
+  fi
+done
