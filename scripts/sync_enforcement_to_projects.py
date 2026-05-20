@@ -7,7 +7,7 @@ Syncs to all /opt projects:
 - Enforcement directory (scripts/enforcement/*)
 - Governance files (5): AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules,
   .pre-commit-config.yaml
-- Governance directories: .windsurf/rules/
+- Governance directories: .windsurf/rules/, .windsurf/workflows/, docs/reference/kilo/
 - Reference docs: docs/reference/windsurf/cascade-models.md
 
 Supports:
@@ -69,7 +69,7 @@ GOVERNANCE_FILES = [
     ".windsurfrules",
     "KILO_CLI_RULES.md",
 ]
-GOVERNANCE_DIRS = [".windsurf/rules", ".windsurf/workflows"]
+GOVERNANCE_DIRS = [".windsurf/rules", ".windsurf/workflows", "docs/reference/kilo"]
 
 # Reference docs to sync to all projects
 REFERENCE_DOCS = [

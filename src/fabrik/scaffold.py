@@ -259,6 +259,7 @@ TYPE_REQUIRED_FILES: dict[str, list[str]] = {
 SHARED_DIRS = [
     "docs/guides",
     "docs/reference",
+    "docs/reference/kilo",  # Kilo AI agent system docs (synced from fabrik)
     "docs/operations",
     "docs/development",
     "docs/development/plans",
@@ -412,6 +413,13 @@ _COMMON_GITIGNORE_PATTERNS = (
     "AGENTS.md\n"
     "AGENTS-compact.md\n"
     "opencode.json\n"
+    "KILO_CLI_RULES.md\n"
+    "docs/reference/kilo/\n"
+    "docs/reference/fabrik-lifecycle.md\n"
+    "docs/reference/fabrik-project-catalog.md\n"
+    "docs/reference/AI_TAXONOMY.md\n"
+    "docs/reference/technology-stack-decision-guide.md\n"
+    "docs/reference/windsurf/cascade-models.md\n"
     "scripts/runc\n"
     "scripts/rund\n"
     "scripts/rundsh\n"
@@ -781,6 +789,14 @@ def _scaffold_shared(
     if workflows_target.exists():
         shutil.rmtree(workflows_target)
     shutil.copytree(fabrik_windsurf_workflows, workflows_target)
+
+    # Copy docs/reference/kilo/ directory (Kilo AI agent system docs)
+    fabrik_kilo_docs = FABRIK_ROOT / "docs" / "reference" / "kilo"
+    if fabrik_kilo_docs.exists():
+        kilo_target = project_dir / "docs" / "reference" / "kilo"
+        if kilo_target.exists():
+            shutil.rmtree(kilo_target)
+        shutil.copytree(fabrik_kilo_docs, kilo_target)
 
     # Copy AGENTS.md (no symlinks - workspace isolation)
     if FABRIK_AGENTS_MD.exists():
@@ -3651,6 +3667,18 @@ def fix_project(
             shutil.rmtree(windsurf_workflows_path)
         shutil.copytree(windsurf_workflows_target, windsurf_workflows_path)
         added.append(".windsurf/workflows (copied)")
+
+        # Copy docs/reference/kilo/ directory (remove symlink if exists)
+        fabrik_kilo_docs = FABRIK_ROOT / "docs" / "reference" / "kilo"
+        if fabrik_kilo_docs.exists():
+            kilo_path = project_path / "docs" / "reference" / "kilo"
+            if kilo_path.is_symlink():
+                kilo_path.unlink()
+            elif kilo_path.exists():
+                shutil.rmtree(kilo_path)
+            kilo_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(fabrik_kilo_docs, kilo_path)
+            added.append("docs/reference/kilo (copied)")
 
         # Copy AGENTS.md (remove symlink if exists)
         agents_path = project_path / "AGENTS.md"
