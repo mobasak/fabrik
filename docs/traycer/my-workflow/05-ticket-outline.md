@@ -12,7 +12,7 @@ You are a technical project manager who maps the full epic into a **maximum-para
 
 ## Core Philosophy
 
-- **CHEAP and FAST.** Target **8-12 tickets** for a standard epic, **15 max** for large epics. Output ≤100 lines. If you have 20+ tickets, you over-decomposed — merge infrastructure categories.
+- **CHEAP and FAST.** Output ≤100 lines for a 20-ticket epic.
 - **MAXIMIZE parallelism — this is the #1 design goal.** Every ticket that CAN run parallel MUST be marked parallel. Sequential chains are expensive (1 agent waiting = wasted time). The ideal outline has wide batches (4-5 parallel tickets) and short chains (2-3 sequential links). If your outline has more than 3 sequential hops from first to last ticket, justify why or redesign.
 - **Respect the 4-stage lifecycle.** Tickets naturally fall into: foundation (scaffold/schema/config) → implementation (endpoints/logic) → integration (wiring/deploy) → closure (validation/docs). Group accordingly.
 - Get STRUCTURE right. Names, scopes, dependencies, parallel lanes, batches.
@@ -114,19 +114,7 @@ Per `AGENTS.md` § "What every API scaffold emits automatically": `internal_auth
 
 **Usage:** After drafting tickets in Step 3, cross-check: every row marked "mandatory" for this project has ≥1 ticket covering it. Missing category = missing ticket.
 
-**MERGE BY DEFAULT — the table lists WORK, not tickets.** Each row is mandatory work, NOT a mandatory ticket. Merge aggressively:
-
-**Always merge these into one "Infrastructure" foundation ticket:**
-- Observability + Health Endpoint + Deployment & Compose → one ticket (all scaffold plumbing, same dependency chain)
-
-**Always merge these into the feature ticket that needs them:**
-- Resilience → into the ticket that calls the external service
-- Backup → into the deployment ticket
-- Documentation → into the ticket that implements the feature (not a separate "docs ticket")
-
-**Split only when:** categories have DIFFERENT dependency chains (e.g. API Endpoints vs GUI are parallel lanes — don't merge). Or when a single category is too large (10+ API routes → split by resource/domain).
-
-**Ticket count check:** If you have more than 12 tickets, you over-decomposed. Merge infrastructure categories until under 12.
+**Combining categories:** Related categories with the SAME dependency chain can share one ticket. Example: "Observability Configuration" + "Health Endpoint" → one "Observability" ticket (both depend on service skeleton, no external deps between them). Large categories (API endpoints with 10+ routes) should be split into parallel tickets by resource/domain. Never merge categories that have DIFFERENT dependency chains — this kills parallelism. The table says "mandatory" meaning the WORK must be done, not that it must be a separate ticket.
 
 ### Step 3: Draft the Outline
 
@@ -307,8 +295,7 @@ Then instruct: *"Run `ticket-breakdown` for Batch 1 to get full detail. Batch 1 
 - Mermaid diagram uses `subgraph` to show parallel groupings; consistent with Depends/Parallel fields.
 - Batches of 3-5; parallelism maximized within each batch. Time savings stated.
 - Lifecycle stages (foundation → implementation → integration → closure) all covered.
-- **Ticket category coverage check passed:** every mandatory category's WORK is covered (categories merged into tickets, not 1:1).
-- **Ticket count:** 8-12 standard, 15 max. Over 12 = merge infrastructure categories.
+- **Ticket category coverage check passed:** every mandatory category for this scaffold has ≥1 ticket.
 - **Scaffold-provided code not re-ticketed:** tickets extend/configure pre-scaffolded modules (auth, metrics, logging, GlitchTip), not recreate them.
 - Every Success Criterion covered. Every Tech Plan component covered.
 - Documentation Sync Matrix complete: every scaffolded doc assigned to exactly one ticket.
