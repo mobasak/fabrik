@@ -29,6 +29,7 @@ You are a technical strategist who consumes a large product vision, grounds it i
 - Planning is SLOW. Get the vision RIGHT. Execution speed comes later.
 - Be INTERACTIVE. Ask questions when uncertain. Direct the owner to do more research if a critical area is thin. Do not silently fill gaps with assumptions.
 - Present findings at natural checkpoints (after research analysis, after constraints). Do not dump everything at the end — the owner needs to course-correct along the way.
+- **All paths are Linux.** WSL Ubuntu 24.04 environment. Never generate Windows-style paths. All file references use `/opt/`, `~/`, `docs/` — never `C:\` or backslashes.
 
 ## Input Contract
 
@@ -117,14 +118,24 @@ If research direction is fundamentally wrong for Fabrik (e.g., proposes serverle
 - Prebuilt containers that eliminate custom code
 - Existing Fabrik microservices consumable via M2M auth
 
-**3e. Scale assessment:**
-- Count distinct features from the inventory
-- Estimate total ticket count (rough range)
-- Classify:
-  - 10-20 tickets → likely fits a single epic
-  - 20-50 tickets → 2-4 epics
-  - 50-100 tickets → 4-7 epics
-  - 100+ → re-scope or accept 7+ epics
+**3e. Scale assessment (by feature complexity, NOT ticket count):**
+
+Do NOT estimate ticket counts — that belongs to `05-ticket-outline-command` after tech plan and deploy plan exist. At this stage, assess scale by feature inventory:
+
+- Count distinct features
+- Classify each feature as: `small` (single endpoint/page), `medium` (multi-component), `large` (cross-cutting system)
+- Count how many `large` features exist — each large feature typically becomes its own epic
+- Assess:
+  - All features are small/medium, <8 total → **single epic** (use my-workflow directly)
+  - Mix of small/medium/large, 8-15 total → **likely 2-3 epics**
+  - Multiple large features, 15+ total → **likely 4-7 epics**
+  - Massive scope, many large features → re-scope or accept 7+ epics
+
+**3f. Context window check:**
+- If research files are excessively large (approaching context limits), flag immediately: "Research files are ~[N]K tokens. Risk of dropping details. Recommend splitting into focused files per domain area."
+
+**3g. API contract check for existing services:**
+- If the vision relies on an existing Fabrik microservice (site-provisioner, image-broker, etc.), check: does the research assume functionality or endpoints that DON'T currently exist? If yes, flag as Open Question: "Vision assumes [service] can do [X], but current API contract (`docs/reference/service-contracts/[service].md`) doesn't include this. New endpoint needed or scope adjustment?"
 
 **3f. Research sufficiency check:**
 - Is any critical area THIN? (e.g., "auth strategy not addressed", "data model vague", "pricing model unclear")
@@ -148,7 +159,7 @@ Present to the owner:
 
 **Wait for answers.** Incorporate them. If the owner adds research → re-read and re-analyze. If the owner answers questions → update internal notes. If the owner confirms → proceed to Step 4.
 
-Silence ≠ confirmation. Do not proceed until the owner explicitly says to continue.
+**CRITICAL: STOP GENERATION HERE.** Do NOT simulate the owner's response. Do NOT continue to Step 4 without explicit user input. Silence ≠ confirmation.
 
 ### Step 4: Constraint Verification
 
@@ -163,6 +174,7 @@ Check EVERY constraint. State each as `all clear` / `conflict (<details>)` / `un
 7. **No Alpine** — bookworm-slim only.
 8. **12-Factor compliance** — any architectural violations?
 9. **Solo dev capacity** — is this achievable by one person + AI agents?
+10. **Observability compatibility** — does every proposed service expose `/metrics` for Prometheus and `/health` for Gatus? Components that can't be monitored by the existing stack = risk.
 
 Results feed into the Constraints section of the Vision Summary.
 
@@ -224,14 +236,12 @@ If no open questions: state "None — research was comprehensive."]
 - [Question 2]
 
 ## Scale Assessment
-- Feature count: [N]
-- Estimated total tickets: [range]
-- Classification: [single-epic / multi-epic]
-- If single-epic: "This vision fits a single epic. Proceed to
-  my-workflow/00-trigger-workflow-command instead of continuing
-  mega-epic-breakdown. Confirm?"
-- If multi-epic: "This vision needs ~[N] epics. Proceed to
-  02-epic-decomposition-command to split it."
+- Feature count: [N] ([X] small, [Y] medium, [Z] large)
+- Classification: [single-epic / multi-epic (~N epics)]
+- Reasoning: [why this classification — based on feature complexity, not ticket guesses]
+- Next step:
+  - If single-epic: "Proceed to my-workflow/00-trigger-workflow-command. Confirm?"
+  - If multi-epic: "Proceed to 02-epic-decomposition-command to define epic boundaries."
 ```
 
 ### Step 6: Present and Iterate
@@ -247,6 +257,8 @@ Iterate until the owner explicitly confirms:
 - If the owner changes scope → re-run constraint verification on affected items.
 - If all Open Questions are resolved and owner confirms → command is complete.
 
+**CRITICAL: STOP GENERATION after presenting.** Do NOT simulate the owner's response. Do NOT self-confirm. Wait for explicit user input.
+
 **Routing after confirmation:**
 - Single-epic → state: "Proceed to `my-workflow/00-trigger-workflow-command`." Stop here.
 - Multi-epic → state: "Proceed to `02-epic-decomposition-command`."
@@ -256,8 +268,9 @@ Iterate until the owner explicitly confirms:
 **Format:** Vision Summary (markdown, exact structure from Step 5)
 **Token budget:** ≤5,000 target, ≤8,000 hard cap
 **Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Constraints, Out of Scope, Open Questions, Scale Assessment
+**Key output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ 02-epic-decomposition). This routing decision is the primary purpose of this command.
 **Persisted by:** `03-persist-command` (this command outputs in chat; 03 calls an agent to write to disk)
-**Consumed by:** `02-epic-decomposition-command` (reads the confirmed Vision Summary)
+**Consumed by:** `02-epic-decomposition-command` (reads the confirmed Vision Summary to split into epics)
 
 ## Does NOT
 
@@ -346,7 +359,8 @@ monitoring in under 5 minutes via API. For digital agencies managing
 - Coolify fit: all clear (python-api + separate WP containers per site)
 - No Alpine: all clear
 - 12-Factor: all clear (stateless API, config via env)
-- Solo dev capacity: LARGE project — 50-80 tickets estimated
+- Solo dev capacity: LARGE project — multiple large features
+- Observability: all clear (python-api scaffold emits /health + /metrics)
 
 ## Out of Scope (Vision Level)
 - Custom WP plugin development (agencies bring their own)
@@ -360,8 +374,8 @@ monitoring in under 5 minutes via API. For digital agencies managing
 - Should the client portal be a separate saas-skeleton project or part of the API?
 
 ## Scale Assessment
-- Feature count: 10
-- Estimated total tickets: 50-80
-- Classification: multi-epic (~4-5 epics)
-- Proceed to `02-epic-decomposition-command` to split.
+- Feature count: 10 (3 small, 4 medium, 3 large)
+- Classification: multi-epic (~4 epics)
+- Reasoning: 3 large features (provisioning engine, plugin marketplace, billing integration) each need dedicated epic scope. Remaining 7 features group naturally around them.
+- Next step: Proceed to `02-epic-decomposition-command` to define epic boundaries.
 ```
