@@ -259,17 +259,19 @@ Iterate until the owner explicitly confirms:
 
 **CRITICAL: STOP GENERATION after presenting.** Do NOT simulate the owner's response. Do NOT self-confirm. Wait for explicit user input.
 
-### Step 6: Persist to Disk
+### Step 6: Create Vision Summary File
 
-After owner confirms, dispatch a coding agent to write the Vision Summary to disk.
+After owner confirms, create the file:
 
-**Target file:** `docs/development/plans/mega-epic/00-vision-summary.md`
-**Content:** The confirmed Vision Summary — verbatim, no modifications.
-**References for agent:** `docs/reference/MD/markdown-cheatsheet.md`, `docs/reference/MD/ai-prompt-templates.md`
+**File:** `docs/development/plans/mega-epic/00-vision-summary.md`
+**Content:** The confirmed Vision Summary from Step 4 — verbatim.
+**Markdown rules:** Follow `docs/reference/MD/markdown-cheatsheet.md` for AI-friendly formatting.
 
-**Routing after persist:**
-- Single-epic → "Vision saved. Proceed to `my-workflow/00-trigger-workflow-command`." Stop.
-- Multi-epic → "Vision saved. Proceed to `02-epic-decomposition-command`."
+Create the `docs/development/plans/mega-epic/` directory if it doesn't exist.
+
+**Then route:**
+- Single-epic → "Vision summary created. This fits a single epic — proceed to `my-workflow/00-trigger-workflow-command`." Stop.
+- Multi-epic → "Vision summary created. Proceed to `02-epic-decomposition-command` to define epic boundaries."
 
 ## Output Contract
 
@@ -277,7 +279,7 @@ After owner confirms, dispatch a coding agent to write the Vision Summary to dis
 **Token budget:** ≤5,000 target, ≤8,000 hard cap
 **Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Constraints, Out of Scope, Open Questions, Scale Assessment
 **Key output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ 02-epic-decomposition). This routing decision is the primary purpose of this command.
-**Persisted by:** this command (Step 6 dispatches a coding agent to write to disk)
+**Persisted by:** this command (Step 6 creates the file on disk)
 **Consumed by:** `02-epic-decomposition-command` (reads the confirmed Vision Summary to split into epics)
 
 ## Does NOT
@@ -286,7 +288,7 @@ After owner confirms, dispatch a coding agent to write the Vision Summary to dis
 - Does NOT decide scaffold types per epic — that is `02-epic-decomposition-command`.
 - Does NOT decide shape blocks per epic — that is `02-epic-decomposition-command`.
 - Does NOT produce infrastructure decisions per epic — that is `02-epic-decomposition-command`.
-- Does NOT write files to disk UNTIL owner confirms (Step 6 persists after confirmation).
+- Does NOT create files UNTIL owner confirms (Step 6 writes after confirmation).
 - Does NOT blindly accept research — challenges against Fabrik reality, budget, maintainability.
 
 ## Acceptance Criteria
