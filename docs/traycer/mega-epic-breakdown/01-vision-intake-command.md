@@ -259,9 +259,17 @@ Iterate until the owner explicitly confirms:
 
 **CRITICAL: STOP GENERATION after presenting.** Do NOT simulate the owner's response. Do NOT self-confirm. Wait for explicit user input.
 
-**Routing after confirmation:**
-- Single-epic → state: "Proceed to `my-workflow/00-trigger-workflow-command`." Stop here.
-- Multi-epic → state: "Proceed to `02-epic-decomposition-command`."
+### Step 6: Persist to Disk
+
+After owner confirms, dispatch a coding agent to write the Vision Summary to disk.
+
+**Target file:** `docs/development/plans/mega-epic/00-vision-summary.md`
+**Content:** The confirmed Vision Summary — verbatim, no modifications.
+**References for agent:** `docs/reference/MD/markdown-cheatsheet.md`, `docs/reference/MD/ai-prompt-templates.md`
+
+**Routing after persist:**
+- Single-epic → "Vision saved. Proceed to `my-workflow/00-trigger-workflow-command`." Stop.
+- Multi-epic → "Vision saved. Proceed to `02-epic-decomposition-command`."
 
 ## Output Contract
 
@@ -269,7 +277,7 @@ Iterate until the owner explicitly confirms:
 **Token budget:** ≤5,000 target, ≤8,000 hard cap
 **Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Constraints, Out of Scope, Open Questions, Scale Assessment
 **Key output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ 02-epic-decomposition). This routing decision is the primary purpose of this command.
-**Persisted by:** `03-persist-command` (this command outputs in chat; 03 calls an agent to write to disk)
+**Persisted by:** this command (Step 6 dispatches a coding agent to write to disk)
 **Consumed by:** `02-epic-decomposition-command` (reads the confirmed Vision Summary to split into epics)
 
 ## Does NOT
@@ -278,7 +286,7 @@ Iterate until the owner explicitly confirms:
 - Does NOT decide scaffold types per epic — that is `02-epic-decomposition-command`.
 - Does NOT decide shape blocks per epic — that is `02-epic-decomposition-command`.
 - Does NOT produce infrastructure decisions per epic — that is `02-epic-decomposition-command`.
-- Does NOT write files to disk — that is `03-persist-command`.
+- Does NOT write files to disk UNTIL owner confirms (Step 6 persists after confirmation).
 - Does NOT blindly accept research — challenges against Fabrik reality, budget, maintainability.
 
 ## Acceptance Criteria
