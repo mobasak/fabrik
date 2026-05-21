@@ -64,6 +64,12 @@ tenant_context: ContextVar[str] = ContextVar("tenant_id", default="")
 - Store it in the `ContextVar`, then the database dependency reads it and executes `SET LOCAL`.
 - The developer writes standard queries (`SELECT * FROM invoices`). PostgreSQL appends the tenant filter automatically via the RLS policy.
 
+## URL & Domain Strategy
+
+- **Default:** Subdomain per tenant — `<org>.productname.ocoron.com` or `<org>.customdomain.com`. Resolved via middleware that extracts org from subdomain.
+- **Custom domains (premium feature):** Tenants bring their own domain (e.g., `projects.clientcompany.com`). Provisioned via site-provisioner during deployment (`fabrik apply`), not during development. Deferred to a later epic unless it's a core product differentiator.
+- **DNS is a deployment concern.** Site-provisioner handles domain provisioning, Cloudflare DNS, SSL. Development uses localhost with org slug in path or header. Do not engineer DNS during implementation — the deploy pipeline handles it.
+
 ## Tenant Membership Validation
 
 - Before executing `SET LOCAL app.tenant_id`, the resolved tenant ID must be validated against the authenticated user's allowed tenant memberships. Never trust a user-supplied `X-Tenant-ID` header without verifying the user actually belongs to that tenant.

@@ -11,11 +11,21 @@ Apply when working on SaaS payment integration, subscription lifecycle, entitlem
 
 **Scope exclusion:** WooCommerce storefront checkout is governed by `62-wordpress.md`, not this pack. WooCommerce uses region-appropriate payment gateways (e.g. iyzico for Turkey digital, PayTR for Turkey physical D2C, marketplace channels for physical distribution) because it operates as product e-commerce, not SaaS subscription billing.
 
-## Merchant of Record
+## Payment Providers
 
-- **Paddle Billing v2** is the exclusive payment provider (Merchant of Record). Do not suggest, implement, or import Stripe, LemonSqueezy, Braintree, or any other PSP.
-- Paddle handles all global VAT/GST calculation, collection, remittance, and invoicing. Never write custom code for tax validation, VAT number checks, or invoice generation.
-- The Turkish LLC receives a single B2B service export transaction from Paddle, classified as zero-rated VAT under Turkish law.
+Two providers available — Traycer determines which to use (or both) based on the product's target market during planning:
+
+- **Paddle Billing v2 (MoR)** — for international customers. Paddle handles global VAT/GST calculation, collection, remittance, and invoicing. The Turkish LLC receives a single B2B service export transaction, classified as zero-rated VAT under Turkish law.
+- **iyzico** — for Turkish domestic customers. Required when the product serves the Turkish market directly (Turkish Lira pricing, local payment methods, Turkish consumer protection compliance).
+- **Paddle + iyzico together** — when the product serves both international AND Turkish domestic markets. Paddle handles international, iyzico handles Turkey.
+
+Traycer decides which configuration applies during `epic-brief` or `trigger-workflow` based on the product's target customer geography. Do not suggest Stripe, LemonSqueezy, Braintree, or any other PSP.
+
+## Billing Scope
+
+- This rule pack covers **SaaS subscription billing** — charging users for access to the platform.
+- If the SaaS product also lets its users bill THEIR clients (e.g., agency invoices its clients), that is **operational invoicing** — generate + send + record payment manually. The platform does NOT process payments between its users. No Stripe Connect, no escrow, no payout flows.
+- If in-app payment collection between users becomes a product requirement, it is a separate epic with its own compliance and regulatory scope.
 
 ## Checkout Pattern
 
@@ -73,7 +83,7 @@ Apply when working on SaaS payment integration, subscription lifecycle, entitlem
 
 | Pattern | Use Instead |
 |---------|-------------|
-| Stripe / LemonSqueezy / custom PSP | Paddle Billing v2 (MoR) |
+| Stripe / LemonSqueezy / Braintree / custom PSP | Paddle (international) and/or iyzico (Turkish domestic) |
 | Inline Checkout or custom payment forms | Overlay Checkout via `Paddle.Checkout.open()` |
 | Custom billing management UI (cancel, upgrade, invoices) | Paddle Customer Portal session redirect |
 | `request.json()` or Pydantic model before HMAC verification | `await request.body()` raw bytes first |
