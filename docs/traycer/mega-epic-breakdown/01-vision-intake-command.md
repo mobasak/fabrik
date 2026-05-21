@@ -17,10 +17,13 @@ You are a technical strategist who consumes a large product vision, grounds it i
 ## Core Philosophy
 
 - The owner has ALREADY researched this. The research file is the starting point — not an interview from zero.
+- But research CAN BE WRONG. External AI sessions may suggest expensive, complex, or incompatible approaches. Challenge research against Fabrik reality: VPS + Coolify + existing services. The owner's values: **high quality, free or cheap, time saving, easy to maintain, set-and-forget.**
 - Surface what the research MISSED: gaps, conflicts with existing VPS services, impossible constraints, missing personas, undefined revenue model.
 - Decide NOTHING about epic boundaries — that is `02-epic-decomposition-command`'s job. This command structures and validates the vision, not decomposes it.
 - Ground in what EXISTS on the VPS — not theoretical architecture.
 - Planning is SLOW. Get the vision RIGHT. Execution speed comes later.
+- Be INTERACTIVE. Ask questions when uncertain. Direct the owner to do more research if a critical area is thin. Do not silently fill gaps with assumptions.
+- Present findings at natural checkpoints (after research analysis, after constraints). Do not dump everything at the end — the owner needs to course-correct along the way.
 
 ## Input Contract
 
@@ -32,12 +35,23 @@ You are a technical strategist who consumes a large product vision, grounds it i
   4. Scan `docs/development/plans/*.md` for `YYYY-MM-DD-*.md` files.
   5. If none found → interview the owner. But the preference is research-first.
 
+- **Multiple research files?** If more than one file found (e.g., three files from different AI research sessions), read ALL of them. If they conflict, note the conflict in Open Questions and ask the owner which position to take. Do not silently pick one.
+
 **Auto-loaded:**
 - `AGENTS.md` — full project context, infrastructure services, microservices table, planning constraints.
+
+**Project folder state:**
+- This command works whether `fabrik scaffold` has already run or not. If `project.yaml` exists, read it for scaffold type. If it doesn't, scaffold type will be decided in `02-epic-decomposition-command`.
 
 **Hard stop if:** no research file AND owner declines interview. Cannot proceed without intent.
 
 ## Processing User Request
+
+This command has **two interaction checkpoints** before the final summary:
+1. After Step 3 (research analysis) — owner answers questions, fills gaps, or goes back to research.
+2. After Step 5 (draft summary) — owner confirms or iterates.
+
+Do NOT silently proceed past a checkpoint if there are open questions or thin areas.
 
 ### Step 1: Context Orientation
 
@@ -52,8 +66,7 @@ You are a technical strategist who consumes a large product vision, grounds it i
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions that eliminate custom work.
 - `docs/reference/fabrik-project-catalog.md` — existing projects (duplicate check).
 - `PORTS.md` — port allocations (conflict check).
-
-State: "Context orientation complete. Read: [list of files read]."
+- If `project.yaml` exists → read it for scaffold type and existing shape.
 
 ### Step 2: Consume Research
 
@@ -61,63 +74,106 @@ Read ALL research files found in the Input Contract discovery.
 
 Treat the research as EXPERT INPUT. Do not second-guess conclusions that are well-reasoned. Do second-guess conclusions that conflict with Fabrik's actual infrastructure or constraints.
 
-State: "Research consumed: [filename(s)]. Length: ~[N] tokens."
+If multiple files exist and they conflict on a point, flag the conflict — do not silently resolve it.
 
-### Step 3: Research Improvement
+### Step 3: Analyze and Improve Research
 
-Surface what the research MISSED. Present as questions, not assumptions:
+This step produces INTERNAL notes that feed into the Vision Summary. Do not present separately.
 
-**3a. Gaps:**
+**3a. Extract from research:**
+- Product vision (what, for whom, why)
+- All personas mentioned or implied
+- All features described (numbered inventory)
+- All constraints stated
+- All technology choices made or implied
+- Revenue/value model (if stated)
+
+**3b. Identify gaps (become Open Questions in the summary):**
 - Missing personas? ("Research describes the product but not WHO uses it")
 - Missing revenue model? ("No mention of how this generates value")
 - Missing features? ("Research describes X but the Y component isn't mentioned — is it in scope?")
-- Missing constraints? ("Research doesn't address auth — will this be Authelia, Supabase Auth, or custom?")
+- Missing auth decision? ("Research doesn't address auth — Authelia, Supabase Auth, or custom?")
 
-**3b. Conflicts with Fabrik reality:**
-- Port conflicts with existing services? (check `PORTS.md`)
-- Duplicate functionality? (check `docs/reference/fabrik-project-catalog.md` + `AGENTS.md` § Microservices)
-- Alpine images assumed? (only bookworm-slim allowed)
-- External services that already exist on VPS? ("Research proposes building a notification service — Apprise is already deployed")
-- Localhost assumptions? ("Research says PostgreSQL on localhost — use postgres-main:5432")
+**3c. Challenge research against Fabrik reality and owner values:**
 
-**3c. Opportunities:**
-- Existing VPS services that solve part of the vision (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase)
+The owner's principles: **high quality, free or cheap, time saving, easy to maintain, set-and-forget.** Research from external AI sessions may suggest solutions that violate these. Challenge actively:
+
+- **Expensive where free exists?** Research proposes a paid service → check if a VPS service already solves it (Apprise, Gotenberg, MeiliSearch, Backrest, n8n — all deployed, all free). State: "Research suggests [X] but [Y] is already deployed on VPS at zero cost."
+- **Complex where simple exists?** Research proposes Kubernetes, microservice mesh, custom auth — check if Coolify + Authelia + single-container deploys handle it. Fabrik deploys via `fabrik apply`, not Helm charts.
+- **Build where consume exists?** Research proposes building a component → check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), or VPS services that already do it.
+- **High-maintenance where set-and-forget exists?** Research proposes solutions requiring ongoing ops → prefer solutions that auto-heal, auto-backup, auto-monitor via existing Prometheus/Gatus/Backrest stack.
+- **Incompatible with Fabrik infra?** Port conflicts (check `PORTS.md`), Alpine images (bookworm-slim only), localhost assumptions (use postgres-main:5432), x86_64 issues, 12-Factor violations (local file storage, hardcoded config).
+- **Duplicate functionality?** Check `docs/reference/fabrik-project-catalog.md` + `AGENTS.md` § Microservices.
+
+If research direction is fundamentally wrong for Fabrik (e.g., proposes serverless on AWS when everything deploys to VPS via Coolify), say so directly: "Research suggests [approach] but this conflicts with Fabrik's deploy model. Recommend [alternative]. Want to adjust the vision or research this further?"
+
+**3d. Identify opportunities (become Backing Services in the summary):**
+- Existing VPS services that solve part of the vision: postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase
 - Prebuilt containers that eliminate custom code
-- Existing Fabrik microservices that can be consumed via M2M auth
+- Existing Fabrik microservices consumable via M2M auth
 
-**3d. Scale assessment:**
-- Feature count: how many distinct features does the vision describe?
-- Estimated total ticket count: rough range (10-20 = single epic → use my-workflow directly, 20-50 = 2-4 epics, 50-100 = 4-7 epics, 100+ = re-scope)
-- Recommendation: "This vision is [single-epic / multi-epic]. [If single-epic: proceed to my-workflow/00-trigger-workflow-command directly. If multi-epic: proceed to 02-epic-decomposition-command.]"
+**3e. Scale assessment:**
+- Count distinct features from the inventory
+- Estimate total ticket count (rough range)
+- Classify:
+  - 10-20 tickets → likely fits a single epic
+  - 20-50 tickets → 2-4 epics
+  - 50-100 tickets → 4-7 epics
+  - 100+ → re-scope or accept 7+ epics
 
-Present ALL findings. Wait for user to answer questions and confirm.
+**3f. Research sufficiency check:**
+- Is any critical area THIN? (e.g., "auth strategy not addressed", "data model vague", "pricing model unclear")
+- If thin → tell the owner: "I recommend doing more research on [topic] before proceeding. Specifically: [concrete questions to research]. Drop the results in `docs/development/plans/` and re-run this command."
+- Do not proceed with a thin foundation. Better to pause and research than build on assumptions.
+
+### ── CHECKPOINT 1: Present Research Analysis ──
+
+Present to the owner:
+1. **Features extracted:** numbered list (from 3a)
+2. **Gaps found:** questions that need answers (from 3b)
+3. **Conflicts with Fabrik:** issues to resolve (from 3c)
+4. **Opportunities:** existing services that help (from 3d)
+5. **Scale estimate:** feature count + ticket range + single/multi classification (from 3e)
+6. **Research sufficiency:** areas that need more research, if any (from 3f)
+
+**Then ask:**
+- "Do these features capture your full vision? Anything missing or wrong?"
+- "Can you answer the gap questions above?"
+- If research is thin: "I recommend researching [topic] further before we continue. Want to pause and add to your research files?"
+
+**Wait for answers.** Incorporate them. If the owner adds research → re-read and re-analyze. If the owner answers questions → update internal notes. If the owner confirms → proceed to Step 4.
+
+Silence ≠ confirmation. Do not proceed until the owner explicitly says to continue.
 
 ### Step 4: Constraint Verification
 
-State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<question>)`:
+Check EVERY constraint. State each as `all clear` / `conflict (<details>)` / `unknown (<question>)`:
 
-1. **x86_64 VPS** — all containers must be amd64. `all clear` / `conflict`.
+1. **x86_64 VPS** — all containers must be amd64.
 2. **Budget** — prefer free/self-hosted. State any paid service dependencies.
 3. **Existing services** — list VPS services the vision will use.
 4. **Duplicate check** — no overlap with existing projects.
 5. **Port conflicts** — check `PORTS.md` for each service in the vision.
-6. **Coolify fit** — can every component deploy via Coolify? If not, what's the gap?
+6. **Coolify fit** — can every component deploy via Coolify?
 7. **No Alpine** — bookworm-slim only.
-8. **12-Factor compliance** — any architectural violations? (e.g., local file storage, hardcoded config)
-9. **Solo dev capacity** — is this achievable by one person + AI agents? Realistic timeline?
+8. **12-Factor compliance** — any architectural violations?
+9. **Solo dev capacity** — is this achievable by one person + AI agents?
+
+Results feed into the Constraints section of the Vision Summary.
 
 ### Step 5: Draft Vision Summary
 
-Produce the vision summary with these exact sections (target ≤5,000 tokens, hard cap 8,000):
+Assemble the Vision Summary from Steps 1-4. Use these exact sections (target ≤5,000 tokens, hard cap 8,000):
 
 ```markdown
 # Vision Summary: [Product Name]
 
 ## Product Vision
-[3-5 sentences. What is this product? What problem does it solve? For whom?]
+[3-5 sentences. What is this product? What problem does it solve? For whom?
+Derived from research — not invented.]
 
 ## Personas
-[Named user types with one-line descriptions]
+- **[Name]** — [who they are, what they need]
 - **[Name]** — [who they are, what they need]
 
 ## Value Streams
@@ -126,93 +182,181 @@ Produce the vision summary with these exact sections (target ≤5,000 tokens, ha
 - [Stream 2]
 
 ## Full Feature Inventory
-[Every feature the vision describes, numbered. This is the COMPLETE scope.]
+[Every feature the vision describes, numbered. This is the COMPLETE scope.
+Every feature from the research MUST appear here. Nothing silently dropped.]
 1. [Feature name] — [one-line description]
-2. ...
+2. [Feature name] — [one-line description]
+...
 
 ## Backing Services (from VPS)
-[Which existing services this vision will use]
+[Which existing VPS services this vision will use — grounded in AGENTS.md]
 - postgres-main:5432 — [what for]
 - redis-main:6379 — [what for]
-- ...
+- [etc.]
 
 ## External Services
-[Third-party dependencies]
-- [Service] — [what for, cost tier]
+[Third-party dependencies outside the VPS]
+- [Service] — [what for, cost tier (free/paid)]
 
 ## Constraints
-[Hard constraints from research + constraint verification]
-- [Constraint 1]
+[Hard constraints from research + constraint verification (Step 4).
+Each states the constraint and its status: all clear / conflict / unknown.]
+- x86_64: all clear
+- Budget: [status]
+- [etc.]
 
 ## Out of Scope (Vision Level)
-[What is explicitly NOT being built — even if adjacent]
+[What is explicitly NOT being built — even if adjacent.
+"Everything else" is not acceptable. Name specific exclusions.]
 - [Exclusion 1]
+- [Exclusion 2]
 
 ## Open Questions
-[Unresolved items from Step 3 that the owner hasn't answered yet]
+[Unresolved items from Step 3 that need owner input before proceeding.
+Research conflicts between multiple files go here too.
+If no open questions: state "None — research was comprehensive."]
 - [Question 1]
+- [Question 2]
 
 ## Scale Assessment
 - Feature count: [N]
 - Estimated total tickets: [range]
-- Recommendation: [single-epic / multi-epic (N epics)]
-- If single-epic: proceed to `my-workflow/00-trigger-workflow-command`
-- If multi-epic: proceed to `02-epic-decomposition-command`
+- Classification: [single-epic / multi-epic]
+- If single-epic: "This vision fits a single epic. Proceed to
+  my-workflow/00-trigger-workflow-command instead of continuing
+  mega-epic-breakdown. Confirm?"
+- If multi-epic: "This vision needs ~[N] epics. Proceed to
+  02-epic-decomposition-command to split it."
 ```
 
-### Step 6: Self-Validate
+### Step 6: Present and Iterate
 
-Before presenting, verify:
-- [ ] ALL research files consumed — nothing skipped.
-- [ ] Every feature from research appears in Feature Inventory — nothing silently dropped.
-- [ ] Personas identified — not just "users."
-- [ ] Value streams stated — not just "it's useful."
-- [ ] Backing services grounded in actual VPS inventory — not theoretical.
-- [ ] Port conflicts checked against `PORTS.md`.
-- [ ] Duplicate check against `docs/reference/fabrik-project-catalog.md`.
-- [ ] Constraint verification complete — no silent unknowns.
-- [ ] Scale assessment includes recommendation (single-epic vs multi-epic).
-- [ ] Open Questions section captures unresolved items — not silently assumed.
-- [ ] Token budget: ≤5,000 target, ≤8,000 hard cap.
+Present the COMPLETE Vision Summary. This is the only user-facing output of this command.
 
-### Step 7: Present and Iterate
-
-Present the vision summary. Iterate until the owner explicitly confirms.
+Iterate until the owner explicitly confirms:
 
 - Silence ≠ confirmation.
-- If scope changes → note the change and re-validate affected sections.
-- If the owner adds features → add to Feature Inventory and re-assess scale.
-- If the owner removes features → remove and re-assess scale.
-- If single-epic recommendation → state: "This vision fits a single epic. Run `my-workflow/00-trigger-workflow-command` to proceed."
-- If multi-epic recommendation → state: "This vision needs [N] epics. Run `02-epic-decomposition-command` to split it."
+- If the owner answers Open Questions → incorporate answers, remove from Open Questions, re-validate affected sections.
+- If the owner adds features → add to Feature Inventory, re-assess scale.
+- If the owner removes features → remove from inventory, re-assess scale.
+- If the owner changes scope → re-run constraint verification on affected items.
+- If all Open Questions are resolved and owner confirms → command is complete.
+
+**Routing after confirmation:**
+- Single-epic → state: "Proceed to `my-workflow/00-trigger-workflow-command`." Stop here.
+- Multi-epic → state: "Proceed to `02-epic-decomposition-command`."
 
 ## Output Contract
 
-**Format:** Vision Summary (markdown, structure defined in Step 5)
+**Format:** Vision Summary (markdown, exact structure from Step 5)
 **Token budget:** ≤5,000 target, ≤8,000 hard cap
 **Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Constraints, Out of Scope, Open Questions, Scale Assessment
-**Persisted by:** `03-persist-command` (this command outputs in chat; 03 writes to disk)
+**Persisted by:** `03-persist-command` (this command outputs in chat; 03 calls an agent to write to disk)
+**Consumed by:** `02-epic-decomposition-command` (reads the confirmed Vision Summary)
 
 ## Does NOT
 
 - Does NOT split the vision into epics — that is `02-epic-decomposition-command`.
 - Does NOT decide scaffold types per epic — that is `02-epic-decomposition-command`.
 - Does NOT decide shape blocks per epic — that is `02-epic-decomposition-command`.
-- Does NOT produce infrastructure decisions — that is `02-epic-decomposition-command`.
+- Does NOT produce infrastructure decisions per epic — that is `02-epic-decomposition-command`.
 - Does NOT write files to disk — that is `03-persist-command`.
-- Does NOT detect scaffold type from filesystem signals — this runs BEFORE scaffold exists (the vision may span multiple scaffolds).
+- Does NOT blindly accept research — challenges against Fabrik reality, budget, maintainability.
 
 ## Acceptance Criteria
 
 - Research file(s) consumed as starting point — not interviewed from zero.
-- Research improved: gaps, conflicts, opportunities surfaced as questions.
+- Multiple research files handled: conflicts flagged in Open Questions, not silently resolved.
+- Research improved: gaps, conflicts, opportunities identified and reflected in the summary.
 - ALL features from research present in Feature Inventory — no silent drops.
-- Personas and value streams explicitly identified.
+- Personas explicitly identified — not just "users."
+- Value streams stated — not just "it's useful."
 - Backing services grounded in actual VPS inventory (`AGENTS.md` § Infrastructure Services).
-- External services identified with cost tier.
-- Port conflicts checked. Duplicate check done.
-- All constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
-- Scale assessment present with clear recommendation (single-epic → my-workflow, multi-epic → 02).
+- External services identified with cost tier (free/paid).
+- All 9 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
+- Scale assessment present with classification and clear next-step routing.
+- Single-epic visions routed to my-workflow, not forced through mega-epic-breakdown.
 - Vision summary ≤5,000 tokens (≤8,000 hard cap).
-- Open Questions section captures unresolved items.
+- Open Questions section captures ALL unresolved items — nothing silently assumed.
+- Two checkpoints used: after research analysis (owner answers gaps), after draft summary (owner confirms).
+- Research challenged against Fabrik reality — incompatible/expensive approaches flagged and alternatives proposed.
+- Owner directed to do more research when critical areas are thin — not silently assumed.
 - User explicitly confirms. Silence ≠ confirmation.
+- Zero open questions remain at confirmation (all answered or explicitly deferred).
+
+## Concrete Example
+
+**Owner drops a research file for "WordPress Factory" (wpf):**
+
+```markdown
+# Vision Summary: WordPress Factory (WPF)
+
+## Product Vision
+A platform that automates WordPress site creation, management, and scaling.
+Provisions new WP sites with pre-configured themes, plugins, SSL, and
+monitoring in under 5 minutes via API. For digital agencies managing
+50-200 client WordPress sites.
+
+## Personas
+- **Agency Admin** — manages all client sites, creates new sites, monitors health
+- **Client** — views their site status, requests changes via portal
+- **Developer** — customizes themes/plugins, deploys via git push
+
+## Value Streams
+- SaaS subscription per managed site ($15-50/month per site)
+- Premium theme marketplace (20% commission)
+- Managed hosting margin (VPS cost vs client billing)
+
+## Full Feature Inventory
+1. Site provisioning engine — create WP site with domain, SSL, DB in <5min
+2. Theme management — install, customize, version themes per site
+3. Plugin marketplace — curated plugins with one-click install
+4. Client portal — per-client dashboard showing site health, analytics
+5. Bulk operations — update WP core/plugins across all sites simultaneously
+6. Backup management — per-site backup schedules via Backrest
+7. Monitoring dashboard — uptime, performance, error rates per site
+8. Billing integration — Paddle subscriptions tied to site count
+9. API — programmatic site management for agency automation
+10. Multi-user auth — agency teams with role-based access
+
+## Backing Services (from VPS)
+- postgres-main:5432 — WPF application database (NOT individual WP site DBs)
+- redis-main:6379 — session cache, job queue
+- MeiliSearch — site/theme/plugin search
+- Apprise — notifications (site down, backup failed, billing events)
+- Backrest → B2 — WPF application backups
+- Gotenberg — PDF invoice generation
+
+## External Services
+- Cloudflare — DNS automation per site (via site-provisioner, already deployed)
+- Paddle — subscription billing (paid, ~3% transaction fee)
+- Backblaze B2 — per-site media storage (paid, ~$5/TB/month)
+
+## Constraints
+- x86_64: all clear
+- Budget: Paddle + B2 are paid dependencies (~$20/month base + per-site)
+- Existing services: site-provisioner handles DNS/domain — consume, don't rebuild
+- Duplicate check: all clear (no WP factory exists)
+- Port conflicts: all clear (will need port 8020 — available)
+- Coolify fit: all clear (python-api + separate WP containers per site)
+- No Alpine: all clear
+- 12-Factor: all clear (stateless API, config via env)
+- Solo dev capacity: LARGE project — 50-80 tickets estimated
+
+## Out of Scope (Vision Level)
+- Custom WP plugin development (agencies bring their own)
+- Email hosting (use external: Google Workspace, etc.)
+- Site migration from other hosts (manual process)
+- White-label branding of the portal
+
+## Open Questions
+- Will individual WP sites run as separate Docker containers or shared hosting?
+- What's the target for simultaneous site count on VPS1? (resource planning)
+- Should the client portal be a separate saas-skeleton project or part of the API?
+
+## Scale Assessment
+- Feature count: 10
+- Estimated total tickets: 50-80
+- Classification: multi-epic (~4-5 epics)
+- Proceed to `02-epic-decomposition-command` to split.
+```
