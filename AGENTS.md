@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-05-16
 **Read by:** Traycer only — for ticket planning. Traycer must know the entire Fabrik infrastructure to plan correctly.
-**Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules`; Kilo CLI reads `AGENTS-compact.md` + `KILO_CLI_RULES.md` (via `opencode.json` `instructions:` array).
+**Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules`; Kilo CLI reads `AGENTS-compact.md` (via `opencode.json` `instructions:` array).
 **Lifecycle reference:** [`docs/reference/fabrik-lifecycle.md`](docs/reference/fabrik-lifecycle.md) — the canonical 4-stage vision (Intent & Scaffolding → Agentic Implementation → Proper Registration → Verification & Testing). Supersedes any narrative pasted into individual tickets.
 
 ---
@@ -457,7 +457,15 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | Cascade Models | `docs/reference/windsurf/cascade-models.md` | Selecting Windsurf Cascade model tier |
 | Deployment Guide | `docs/DEPLOYMENT.md` | `fabrik apply` / `fabrik deploy` / observability internals |
 | Kilo Agent Naming | `docs/reference/kilo/KILO_AGENT_NAMING.md` | Naming new Kilo CLI agents |
+| Kilo Agent Selection | `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` | Model routing, quality floors, current roster |
+| Kilo CLI Reference | `docs/reference/kilo/KILO_CLI_REFERENCE.md` | Kilo as AI infrastructure — serve, MCP, skills, programmatic patterns |
+| Kilo Use Cases | `docs/reference/kilo/KILO_USE_CASES.md` | 11 non-coding domains (data extraction, translation, content, legal, etc.) |
 | Kilo Agent Registry | `scripts/kilo_47_agents_final.json` | Authoritative agent selection list |
+| AI Prompt Templates | `docs/reference/MD/ai-prompt-templates.md` | Designing system prompts, skills, AGENTS.md, review templates |
+| RAG Chunking Rules | `docs/reference/MD/rag-chunking-rules.md` | Planning search/RAG features — heading-based splitting, chunk envelopes |
+| Markdown AI Rules | `docs/reference/MD/markdown-cheatsheet.md` | AI-friendly markdown writing conventions |
+| AI Agent Directives | `docs/reference/ai_agent_prompt_directives.md` | Copy-paste phrases for steering agent quality |
+| GPU Workers Guide | `.windsurf/rules/76-gpu-workers.md` | GPU cloud decisions — when to self-host vs managed API, provider selection |
 | Lessons Learnt | `docs/LESSONS_LEARNT.md` | Past incidents, decisions, anti-patterns |
 | Coolify Stable Aliases | `docs/reference/coolify-stable-aliases.md` | Registering new single-image App aliases |
 | Traycer Workflow | `docs/traycer/traycer-managed-development-workflow/` | Trigger / brief / plan / breakdown / execute commands |
