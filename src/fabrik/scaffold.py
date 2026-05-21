@@ -416,6 +416,8 @@ _COMMON_GITIGNORE_PATTERNS = (
     "opencode.json\n"
     "docs/reference/kilo/\n"
     "docs/reference/ai_agent_prompt_directives.md\n"
+    "docs/reference/fabrik-project-catalog.md\n"
+    "PORTS.md\n"
     "docs/reference/MD/\n"
     "docs/reference/fabrik-lifecycle.md\n"
     "docs/reference/fabrik-project-catalog.md\n"
@@ -818,6 +820,18 @@ def _scaffold_shared(
     fabrik_claude_md = FABRIK_ROOT / "CLAUDE.md"
     if fabrik_claude_md.exists():
         shutil.copy(fabrik_claude_md, project_dir / "CLAUDE.md")
+
+    # Copy fabrik-project-catalog.md (so Traycer can check for duplicate projects)
+    fabrik_catalog = FABRIK_ROOT / "docs" / "BUSINESS_MODEL.md"
+    if fabrik_catalog.exists():
+        catalog_target = project_dir / "docs" / "reference" / "fabrik-project-catalog.md"
+        catalog_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(fabrik_catalog, catalog_target)
+
+    # Copy PORTS.md (so Traycer can check port conflicts)
+    fabrik_ports = FABRIK_ROOT / "PORTS.md"
+    if fabrik_ports.exists():
+        shutil.copy(fabrik_ports, project_dir / "PORTS.md")
 
     # Copy .windsurf/hooks.json (rewriting cwd to point at the new project)
     _copy_windsurf_hooks(project_dir)

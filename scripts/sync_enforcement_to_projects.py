@@ -79,6 +79,7 @@ REFERENCE_DOCS = [
         "docs/reference/technology-stack-decision-guide.md",
     ),
     ("docs/reference/AI_TAXONOMY.md", "docs/reference/AI_TAXONOMY.md"),
+    ("PORTS.md", "PORTS.md"),
     ("docs/reference/ai_agent_prompt_directives.md", "docs/reference/ai_agent_prompt_directives.md"),
     ("docs/reference/fabrik-lifecycle.md", "docs/reference/fabrik-lifecycle.md"),
     ("docs/BUSINESS_MODEL.md", "docs/reference/fabrik-project-catalog.md"),
