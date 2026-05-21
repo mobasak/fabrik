@@ -278,16 +278,16 @@ If outline flagged a `Lessons` trigger, add to ticket description:
 
 ### Step 9: Agent Selection
 
-From outline's `Complexity` + rule pack registries:
+From outline's `Complexity` + current agent roster:
 
-1. Read `docs/traycer/kilo_selected_agents.md` + `docs/reference/windsurf/cascade-models.md`.
-2. Name specific agents (not tier labels):
+1. Read `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` (auto-updating roster with current models, ELO, pricing) + `docs/reference/windsurf/cascade-models.md`.
+2. Name specific agents (not tier labels). Current roster changes every pipeline cycle — always check the guide.
 
 | Complexity | First Choice | Budget |
 |---|---|---|
-| simple | Kilo CLI free agent / Windsurf free model | — |
-| complex | Windsurf Cascade (1-2 credit) / Claude Code Sonnet | Free if capable |
-| critical | Claude Code Opus | Windsurf 4-6 credit model |
+| simple | Kilo CLI coding_simple agents (Qwen, Kimi, GLM) / Windsurf free model | $0 |
+| complex | Windsurf Cascade (Gemini Pro, Sonnet) / Claude Code Sonnet | 1-2 credits |
+| critical | Claude Code Opus / Windsurf Cascade (GPT-5.4, Opus) | 4-6 credits |
 
 User picks final dispatch. One local Ollama at a time.
 
@@ -354,7 +354,7 @@ If specs inconsistent → suggest `cross-artifact-validation`.
 - [ ] Every ticket has ALL fields. No stubs. No placeholders. No truncation.
 - [ ] Steps use VERB + explicit file path + concrete change (like the example).
 - [ ] Outline fields honored (Gate, Depends, Parallel, Docs, Shape copied).
-- [ ] Rule packs injected per category.
+- [ ] Rule packs AND reference docs injected per category (both columns from 05's table).
 - [ ] Doc Sync Matrix rows applied.
 - [ ] Architectural mandates injected where applicable.
 - [ ] [PRIMARY PATH] test coverage on flow-touching tickets.
@@ -371,7 +371,7 @@ If specs inconsistent → suggest `cross-artifact-validation`.
 - Ticket Outline consumed as primary frame. ALL outline fields honored.
 - Input Contract validated per scaffold. Hard stop on missing.
 - Each ticket concrete (like the example): real file paths, real function names, real commands.
-- Rule packs injected per ticket category from outline.
+- Rule packs AND reference docs injected per ticket category from outline (both columns from 05's category table).
 - Doc Sync Matrix applied (trigger rows named per ticket).
 - Architectural mandates enforced (12-Factor, Concurrency, i18n, Resilience, Shape, Health, M2M).
 - [PRIMARY PATH] test in feature ticket scope (real DB, no mocks).
