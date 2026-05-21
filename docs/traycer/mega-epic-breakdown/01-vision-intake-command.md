@@ -55,7 +55,7 @@ You are a technical strategist who consumes a large product vision, grounds it i
 
 This command has **two interaction points:**
 1. **Checkpoint 1** (after Step 3) — present research analysis + constraints + gaps. Owner answers questions, fills gaps, or goes back to do more research. STOP and wait.
-2. **Step 5** (after Step 4) — present draft Vision Summary. Owner confirms or iterates.
+2. **Step 5** (after Step 4) — present Vision Summary. Owner confirms or iterates. Then route to next command.
 
 Do NOT silently proceed past Checkpoint 1 if there are open questions or thin areas.
 
@@ -259,28 +259,19 @@ Iterate until the owner explicitly confirms:
 
 **CRITICAL: STOP GENERATION after presenting.** Do NOT simulate the owner's response. Do NOT self-confirm. Wait for explicit user input.
 
-### Step 6: Create Vision Summary File
-
-After owner confirms, create the file:
-
-**File:** `docs/development/plans/mega-epic/00-vision-summary.md`
-**Content:** The confirmed Vision Summary from Step 4 — verbatim.
-**Markdown rules:** Follow `docs/reference/MD/markdown-cheatsheet.md` for AI-friendly formatting.
-
-Create the `docs/development/plans/mega-epic/` directory if it doesn't exist.
-
-**Then route:**
-- Single-epic → "Vision summary created. This fits a single epic — proceed to `my-workflow/00-trigger-workflow-command`." Stop.
-- Multi-epic → "Vision summary created. Proceed to `02-epic-decomposition-command` to define epic boundaries."
+**Routing after confirmation:**
+- Single-epic → "This fits a single epic. Proceed to `my-workflow/00-trigger-workflow-command`." Stop.
+- Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
 
 ## Output Contract
 
-**Format:** Vision Summary (markdown, exact structure from Step 5)
+**Format:** Vision Summary (markdown, exact structure from Step 4) — presented in Traycer conversation.
 **Token budget:** ≤5,000 target, ≤8,000 hard cap
 **Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Constraints, Out of Scope, Open Questions, Scale Assessment
 **Key output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ 02-epic-decomposition). This routing decision is the primary purpose of this command.
-**Persisted by:** this command (Step 6 creates the file on disk)
-**Consumed by:** `02-epic-decomposition-command` (reads the confirmed Vision Summary to split into epics)
+**Lives in:** Traycer conversation context. NOT written to disk — this is an orientation command like `00-trigger-workflow`.
+**Consumed by:** `02-epic-decomposition-command` reads the Vision Summary from conversation context.
+**Persisted to disk by:** `02-epic-decomposition-command` writes all files (vision summary + epic files + infra decisions) after decomposition is confirmed.
 
 ## Does NOT
 
@@ -288,7 +279,7 @@ Create the `docs/development/plans/mega-epic/` directory if it doesn't exist.
 - Does NOT decide scaffold types per epic — that is `02-epic-decomposition-command`.
 - Does NOT decide shape blocks per epic — that is `02-epic-decomposition-command`.
 - Does NOT produce infrastructure decisions per epic — that is `02-epic-decomposition-command`.
-- Does NOT create files UNTIL owner confirms (Step 6 writes after confirmation).
+- Does NOT create files — this is an orientation command. File creation happens in `02-epic-decomposition-command`.
 - Does NOT blindly accept research — challenges against Fabrik reality, budget, maintainability.
 
 ## Acceptance Criteria
