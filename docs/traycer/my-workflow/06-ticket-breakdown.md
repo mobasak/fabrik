@@ -75,7 +75,7 @@ For each ticket in the requested batch, read ALL outline fields:
 | Complexity | Drives agent selection |
 | Docs (scaffold doc) | Forces doc into Acceptance Criteria |
 | Lessons (trigger flag) | Pre-warns agent |
-| Category | Determines rule pack for Context Files |
+| Category | Determines rule pack + reference docs for Context Files (use BOTH columns from 05's category table) |
 | Documentation Assignment (from outline Step 6b) | Forces assigned doc completion into Acceptance Criteria |
 
 ### Step 3: Read Secondary Inputs for Grounding
@@ -111,11 +111,13 @@ These provide the CONTENT for writing Steps (function names, file paths, schemas
 **Category:** DB Schema & Migrations (from outline — drives rule pack injection below)
 
 **Context Files** (read before starting, do not modify):
-1. `.windsurf/rules/25-data-postgres.md` — from category: DB Schema & Migrations
+1. `.windsurf/rules/25-data-postgres.md` — from category: DB Schema & Migrations (rule pack)
 2. `.windsurf/rules/55-observability.md` — always-on overlay
 3. `docs/reference/DATABASE_STRATEGY.md` — migration policy
 4. Tech Plan § B. Data Model
 5. `src/myservice/config.py` — existing config pattern
+
+> **Rule:** When the ticket-outline category table lists `rule pack + docs/reference/...`, inject BOTH into Context Files. Example: category "Search" → inject `.windsurf/rules/65-rag-search.md` AND `docs/reference/MD/rag-chunking-rules.md`. The rule pack has concise rules; the reference doc has the detailed spec.
 
 **Starting Pattern:** `/opt/file-api/src/file_api/models.py`
 
