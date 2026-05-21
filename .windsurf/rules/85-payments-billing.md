@@ -19,7 +19,7 @@ Two providers available — Traycer determines which to use (or both) based on t
 - **iyzico** — for Turkish domestic customers. Required when the product serves the Turkish market directly (Turkish Lira pricing, local payment methods, Turkish consumer protection compliance).
 - **Paddle + iyzico together** — when the product serves both international AND Turkish domestic markets. Paddle handles international, iyzico handles Turkey.
 
-Traycer decides which configuration applies during `epic-brief` or `trigger-workflow` based on the product's target customer geography. Do not suggest Stripe, LemonSqueezy, Braintree, or any other PSP.
+Traycer decides which configuration applies during `epic-brief` or `trigger-workflow` based on the product's target customer geography. Stripe is available for Turkish companies but not preferred — Paddle's MoR model eliminates tax compliance overhead, and iyzico has better Turkish local payment method coverage.
 
 ## Billing Scope
 
@@ -83,7 +83,7 @@ Traycer decides which configuration applies during `epic-brief` or `trigger-work
 
 | Pattern | Use Instead |
 |---------|-------------|
-| Stripe / LemonSqueezy / Braintree / custom PSP | Paddle (international) and/or iyzico (Turkish domestic) |
+| LemonSqueezy / Braintree / custom PSP | Paddle (international) and/or iyzico (Turkish domestic). Stripe available but not preferred. |
 | Inline Checkout or custom payment forms | Overlay Checkout via `Paddle.Checkout.open()` |
 | Custom billing management UI (cancel, upgrade, invoices) | Paddle Customer Portal session redirect |
 | `request.json()` or Pydantic model before HMAC verification | `await request.body()` raw bytes first |
