@@ -141,9 +141,9 @@ Do NOT silently proceed past Checkpoint 1 if there are open questions or thin ar
 
 Synthesize answers into the same internal structure (vision, personas, features, constraints, tech choices) that research would produce. Then continue to Step 3 identically — the analysis steps work the same regardless of input path.
 
-### Step 3: Analyze and Improve Research
+### Step 3: Analyze and Improve Input
 
-**3a. Extract from research:**
+**3a. Extract from input (research files or interview synthesis):**
 - Product vision (what, for whom, why)
 - All personas mentioned or implied
 - All features described (numbered inventory)
@@ -218,7 +218,7 @@ Check EVERY constraint. State each as `all clear` / `conflict (<details>)` / `un
 - A single vision can span MULTIPLE scaffold types (e.g., `python-api` backend + `saas-skeleton` portal + `wordpress` sites). If the vision implies more than one scaffold type, list each and which features map to which scaffold. This is a strong signal for multi-epic decomposition.
 - **Separate projects vs epics:** If the scaffolds share no data, no auth, and no deploy coupling (each could exist independently), flag as candidate for **separate `fabrik scaffold` projects with their own lifecycles** — not epics within one project. Ask the owner: "These components seem independent. Should they be separate projects or epics within one project?"
 
-### ── CHECKPOINT 1: Present Research Analysis ──
+### ── CHECKPOINT 1: Present Analysis ──
 
 Present to the owner:
 1. **Features extracted:** numbered list with complexity classification (from 3a + 3e)
@@ -344,7 +344,7 @@ Iterate until the owner explicitly confirms:
 
 ## Acceptance Criteria
 
-- Research file(s) consumed as starting point — not interviewed from zero.
+- Input consumed per path — research files (Path A) or structured interview (Path B). Never interviewed from zero when research files exist.
 - Multiple research files handled: conflicts flagged in Open Questions, not silently resolved.
 - Research improved: gaps, conflicts, opportunities identified and reflected in the summary.
 - ALL features from research present in Feature Inventory — no silent drops.
