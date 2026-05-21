@@ -89,13 +89,13 @@ Before drafting, check which categories apply to this project. Every applicable 
 | **Resilience & Self-Healing** | Any service with external calls | Timeout + retry + circuit-breaker per dep, graceful degradation, `docs/RESILIENCE.md` filled. **Workers additionally:** pause-state (sliding TTL), queue-bloat prevention (5 mechanisms), orphan sweep, vendor balance checks. | `58-resilience` |
 | **Deployment & Compose** | ALL Coolify-deployed scaffolds | Dockerfile (slim-bookworm), compose.yaml (Traefik labels, healthcheck, resource limits, coolify network, platform: linux/amd64), `.env.example`. **Scaffold emits compose skeleton; ticket fills in service-specific labels/env/limits.** | `30-ops` |
 | **Backup & Data Safety** | `shape.has_persistent_data: true` | Backrest plan → B2, retention policy, restore test procedure | `30-ops` |
-| **Search** | `shape.has_search_feature: true` | MeiliSearch index creation, indexing pipeline, search endpoint, reindex strategy | `65-rag-search` |
+| **Search** | `shape.has_search_feature: true` | MeiliSearch index creation, indexing pipeline, search endpoint, reindex strategy | `65-rag-search` + `docs/reference/MD/rag-chunking-rules.md` |
 | **Notifications & Alerts** | Any service sending alerts/emails/push | Apprise integration, email/push templates, notification preferences, delivery failure handling | (project-specific) |
 | **Payments & Billing** | Commercial products with paid features | Paddle/Stripe integration, webhook handling, subscription lifecycle, receipt generation | `85-payments-billing` |
 | **Multi-Tenancy** | Commercial SaaS with tenant isolation | tenant_id on all tables, RLS policies, tenant-scoped queries, data export/deletion per tenant | `95-multi-tenant-saas` |
 | **Automation & Webhooks** | Services receiving/sending webhooks, n8n integration | Webhook endpoint, signature verification, n8n workflow triggers, event replay | `90-automation` |
 | **Testing** | ALL (one integration test per PRIMARY PATH) | Test setup (fixtures, factories), integration test per primary path, regression tests for bugfixes | `45-testing-strategy` |
-| **Documentation** | ALL (per Documentation Sync Matrix) | Fill scaffolded doc templates assigned in Step 6b | `40-documentation` |
+| **Documentation** | ALL (per Documentation Sync Matrix) | Fill scaffolded doc templates assigned in Step 6b | `40-documentation` + `docs/reference/MD/markdown-cheatsheet.md` |
 | **Epic Closure** | ALL (always last ticket) | Tier 3 systemic gate, `fabrik verify`, `fabrik audit-registrars`, full validation | (cross-cutting) |
 
 **What the scaffold already provides (do NOT ticket these from scratch):**
