@@ -325,7 +325,7 @@ Iterate until the owner explicitly confirms:
 **Key output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ 02-epic-decomposition). This routing decision is the primary purpose of this command.
 **Lives in:** Traycer conversation context. NOT written to disk — this is an orientation command like `00-trigger-workflow`.
 **Consumed by:** `02-epic-decomposition-command` reads the Vision Summary from conversation context.
-**Persisted to disk by:** `02-epic-decomposition-command` writes all files (vision summary + epic files + infra decisions) after decomposition is confirmed.
+**Persisted to disk by:** `03-persist-epic-files-command` writes all files (vision summary + epic files + infra decisions) via coding agent after all decomposition is confirmed.
 
 ## Does NOT
 
@@ -333,7 +333,7 @@ Iterate until the owner explicitly confirms:
 - Does NOT decide scaffold types per epic — that is `02-epic-decomposition-command`.
 - Does NOT decide shape blocks per epic — that is `02-epic-decomposition-command`.
 - Does NOT produce infrastructure decisions per epic — that is `02-epic-decomposition-command`.
-- Does NOT create files — this is an orientation command. File creation happens in `02-epic-decomposition-command`.
+- Does NOT create files — this is an orientation command. File creation happens in `03-persist-epic-files-command`.
 - Does NOT blindly accept research — challenges against Fabrik reality, budget, maintainability.
 
 ## Acceptance Criteria

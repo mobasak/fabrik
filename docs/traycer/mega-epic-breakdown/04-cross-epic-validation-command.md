@@ -1,7 +1,7 @@
 <!-- ⚠️ TRAYCER WORKFLOW SOURCE FILE
      Traycer does NOT read this file directly.
      After editing, copy-paste the content into Traycer workflow GUI.
-     Location: Traycer > My Workflows > mega-epic-breakdown > 03-cross-epic-validation
+     Location: Traycer > My Workflows > mega-epic-breakdown > 04-cross-epic-validation
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
@@ -12,13 +12,14 @@
 
 ## Input Contract (already known)
 
-**Required — from 01 and 02 (all persisted on disk):**
-- `docs/development/plans/mega-epic/00-vision-summary.md` (from 01)
-- `docs/development/plans/mega-epic/01-infrastructure-decisions.md` (from 02)
-- `docs/development/plans/mega-epic/epic-*.md` (all epic files from 02)
-- `docs/development/plans/mega-epic/dependency-graph.md` (from 02)
+**Required — all written to disk by 03-persist-epic-files-command:**
 
-Agent MUST read ALL of these files. Reference them explicitly when dispatching.
+- `docs/development/plans/mega-epic/00-vision-summary.md`
+- `docs/development/plans/mega-epic/01-infrastructure-decisions.md`
+- `docs/development/plans/mega-epic/epic-*.md` (all epic files)
+- `docs/development/plans/mega-epic/dependency-graph.md`
+
+Read ALL of these files from disk.
 
 ## Purpose
 

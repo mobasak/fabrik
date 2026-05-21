@@ -8,21 +8,32 @@
      against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md (95 items).
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
-# TODO: Draft this command — infra decisions + epic split + dependency graph + persist epic files
+# TODO: Draft this command — infra decisions + epic split + dependency graph
 
-## Input Contract (already known)
+## Purpose
 
-**Required — from 01-vision-intake:**
-- `docs/development/plans/mega-epic/00-vision-summary.md` (written by 01's persist step)
-- Reference this file explicitly when dispatching — agent MUST read the confirmed vision.
+Takes the confirmed Vision Summary from 01-vision-intake (in conversation context) and decomposes it into independent epics with infrastructure decisions, boundaries, and a dependency graph. Output lives in conversation — `03-persist-epic-files-command` writes it to disk.
 
-**References for agent:** `docs/reference/MD/markdown-cheatsheet.md`, `docs/reference/MD/ai-prompt-templates.md`, `docs/reference/fabrik-lifecycle.md`
+## Input Contract
 
-## Output Contract (already known)
+**From conversation context (produced by 01-vision-intake):**
+- Confirmed Vision Summary (Feature Inventory, Personas, Value Streams, Constraints, Scale Assessment)
 
-This command persists its own output (like 01 does). Files to write:
-- `docs/development/plans/mega-epic/01-infrastructure-decisions.md` (≤5,000 tokens)
-- `docs/development/plans/mega-epic/epic-1-<name>.md` through `epic-N-<name>.md` (≤10,000 tokens each)
-- `docs/development/plans/mega-epic/dependency-graph.md`
+**Additionally read:**
+- `docs/reference/fabrik-lifecycle.md` — each epic must pass all 4 stages
+- `AGENTS.md` § Infrastructure Services — backing services available
+- `AGENTS.md` § Planning Constraints
 
-Each epic file must contain a `## Metadata` section matching what `my-workflow/01-epic-brief-command` expects.
+## Output Contract
+
+**Produced in conversation (NOT written to disk — that's 03's job):**
+- Infrastructure Decisions (shared across all epics, ≤5,000 tokens)
+- Epic files (one per epic, ≤10,000 tokens each, with Metadata section for my-workflow/01)
+- Dependency Graph (mermaid diagram + execution order)
+
+**Consumed by:** `03-persist-epic-files-command` reads from conversation and writes to disk.
+
+## Does NOT
+
+- Does NOT create files — that is `03-persist-epic-files-command`.
+- Does NOT redo vision analysis — consumes 01's confirmed output.
