@@ -21,7 +21,8 @@ By the end of this command, the owner and Traycer agree on:
 - **WHO** it's for (named personas, not "users")
 - **WHY** it matters (value streams — revenue, cost savings, productivity)
 - **HOW BIG** it is (single epic or multiple epics)
-- **WHAT EXISTS** that we can use (VPS services, existing microservices, managed services)
+- **WHICH SERVICES** we'll use (postgres-main vs Supabase, Authelia vs Supabase Auth, MeiliSearch vs pgvector, Paddle vs Stripe — every major technology choice resolved, not deferred)
+- **WHAT EXISTS** that we can leverage (VPS services already deployed, existing microservices, managed services)
 - **WHAT DOESN'T FIT** (constraints, conflicts with Fabrik infrastructure)
 
 This is an orientation command. Output lives in conversation — no files created. The next command (`02-epic-decomposition-command`) reads this output and creates files.
