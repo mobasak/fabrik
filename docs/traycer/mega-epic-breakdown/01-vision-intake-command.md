@@ -53,11 +53,11 @@ You are a technical strategist who consumes a large product vision, grounds it i
 
 ## Processing User Request
 
-This command has **two interaction checkpoints** before the final summary:
-1. After Step 3 (research analysis) — owner answers questions, fills gaps, or goes back to research.
-2. After Step 5 (draft summary) — owner confirms or iterates.
+This command has **two interaction points:**
+1. **Checkpoint 1** (after Step 3) — present research analysis + constraints + gaps. Owner answers questions, fills gaps, or goes back to do more research. STOP and wait.
+2. **Step 5** (after Step 4) — present draft Vision Summary. Owner confirms or iterates.
 
-Do NOT silently proceed past a checkpoint if there are open questions or thin areas.
+Do NOT silently proceed past Checkpoint 1 if there are open questions or thin areas.
 
 ### Step 1: Context Orientation
 
@@ -83,8 +83,6 @@ Treat the research as EXPERT INPUT. Do not second-guess conclusions that are wel
 If multiple files exist and they conflict on a point, flag the conflict — do not silently resolve it.
 
 ### Step 3: Analyze and Improve Research
-
-This step produces INTERNAL notes that feed into the Vision Summary. Do not present separately.
 
 **3a. Extract from research:**
 - Product vision (what, for whom, why)
@@ -142,15 +140,34 @@ Do NOT estimate ticket counts — that belongs to `05-ticket-outline-command` af
 - If thin → tell the owner: "I recommend doing more research on [topic] before proceeding. Specifically: [concrete questions to research]. Drop the results in `docs/development/plans/` and re-run this command."
 - Do not proceed with a thin foundation. Better to pause and research than build on assumptions.
 
+**3i. Constraint verification:**
+
+Check EVERY constraint. State each as `all clear` / `conflict (<details>)` / `unknown (<question>)`:
+
+1. **x86_64 VPS** — all containers must be amd64.
+2. **Budget** — state any paid service dependencies with estimated monthly cost.
+3. **Existing services** — list VPS services the vision will use.
+4. **Duplicate check** — no overlap with existing projects.
+5. **Port conflicts** — check `PORTS.md` for each service in the vision.
+6. **Coolify fit** — can every component deploy via Coolify?
+7. **No Alpine** — bookworm-slim only.
+8. **12-Factor compliance** — any architectural violations?
+9. **Solo dev capacity** — is this achievable by one person + AI agents?
+10. **Observability compatibility** — does every proposed service expose `/metrics` for Prometheus and `/health` for Gatus?
+
+**3j. Multi-scaffold check:**
+- A single vision can span MULTIPLE scaffold types (e.g., `python-api` backend + `saas-skeleton` portal + `wordpress` sites). If the vision implies more than one scaffold type, list each and which features map to which scaffold. This is a strong signal for multi-epic decomposition — each scaffold type typically becomes its own epic.
+
 ### ── CHECKPOINT 1: Present Research Analysis ──
 
 Present to the owner:
-1. **Features extracted:** numbered list (from 3a)
+1. **Features extracted:** numbered list with complexity classification (from 3a + 3e)
 2. **Gaps found:** questions that need answers (from 3b)
 3. **Conflicts with Fabrik:** issues to resolve (from 3c)
 4. **Opportunities:** existing services that help (from 3d)
-5. **Scale estimate:** feature count + ticket range + single/multi classification (from 3e)
-6. **Research sufficiency:** areas that need more research, if any (from 3f)
+5. **Scale estimate:** feature complexity breakdown + single/multi-epic classification (from 3e)
+6. **Constraints:** each as `all clear` / `conflict` / `unknown` (from Step 4 — run constraints BEFORE this checkpoint)
+7. **Research sufficiency:** areas that need more research, if any (from 3h)
 
 **Then ask:**
 - "Do these features capture your full vision? Anything missing or wrong?"
@@ -159,28 +176,11 @@ Present to the owner:
 
 **Wait for answers.** Incorporate them. If the owner adds research → re-read and re-analyze. If the owner answers questions → update internal notes. If the owner confirms → proceed to Step 4.
 
-**CRITICAL: STOP GENERATION HERE.** Do NOT simulate the owner's response. Do NOT continue to Step 4 without explicit user input. Silence ≠ confirmation.
+**CRITICAL: STOP GENERATION HERE.** Do NOT simulate the owner's response. Do NOT continue without explicit user input. Silence ≠ confirmation.
 
-### Step 4: Constraint Verification
+### Step 4: Draft Vision Summary
 
-Check EVERY constraint. State each as `all clear` / `conflict (<details>)` / `unknown (<question>)`:
-
-1. **x86_64 VPS** — all containers must be amd64.
-2. **Budget** — prefer free/self-hosted. State any paid service dependencies.
-3. **Existing services** — list VPS services the vision will use.
-4. **Duplicate check** — no overlap with existing projects.
-5. **Port conflicts** — check `PORTS.md` for each service in the vision.
-6. **Coolify fit** — can every component deploy via Coolify?
-7. **No Alpine** — bookworm-slim only.
-8. **12-Factor compliance** — any architectural violations?
-9. **Solo dev capacity** — is this achievable by one person + AI agents?
-10. **Observability compatibility** — does every proposed service expose `/metrics` for Prometheus and `/health` for Gatus? Components that can't be monitored by the existing stack = risk.
-
-Results feed into the Constraints section of the Vision Summary.
-
-### Step 5: Draft Vision Summary
-
-Assemble the Vision Summary from Steps 1-4. Use these exact sections (target ≤5,000 tokens, hard cap 8,000):
+Assemble the Vision Summary from Steps 1-3 + owner's checkpoint answers. Use these exact sections (target ≤5,000 tokens, hard cap 8,000):
 
 ```markdown
 # Vision Summary: [Product Name]
@@ -244,7 +244,7 @@ If no open questions: state "None — research was comprehensive."]
   - If multi-epic: "Proceed to 02-epic-decomposition-command to define epic boundaries."
 ```
 
-### Step 6: Present and Iterate
+### Step 5: Present and Iterate
 
 Present the COMPLETE Vision Summary. This is the only user-facing output of this command.
 
@@ -296,15 +296,16 @@ Iterate until the owner explicitly confirms:
 - Single-epic visions routed to my-workflow, not forced through mega-epic-breakdown.
 - Vision summary ≤5,000 tokens (≤8,000 hard cap).
 - Open Questions section captures ALL unresolved items — nothing silently assumed.
-- Two checkpoints used: after research analysis (owner answers gaps), after draft summary (owner confirms).
+- One checkpoint after research analysis + constraints (owner answers gaps, resolves conflicts). Then draft summary presented for final confirmation.
+- Multi-scaffold visions identified (e.g., python-api + saas-skeleton + wordpress in one vision).
 - Research challenged against Fabrik reality — incompatible/expensive approaches flagged and alternatives proposed.
 - Owner directed to do more research when critical areas are thin — not silently assumed.
 - User explicitly confirms. Silence ≠ confirmation.
 - Zero open questions remain at confirmation (all answered or explicitly deferred).
 
-## Concrete Example
+## Concrete Example (illustrative — shows FORMAT, not real research)
 
-**Owner drops a research file for "WordPress Factory" (wpf):**
+**Hypothetical vision intake for a "WordPress Factory" product:**
 
 ```markdown
 # Vision Summary: WordPress Factory (WPF)
