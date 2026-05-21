@@ -42,6 +42,7 @@ Apply when working on embedding pipelines, vector search, retrieval-augmented ge
 - Use **Recursive Character Splitting**. Semantic chunking (embedding-similarity-based splitting) is banned — it is expensive, slow, and yields only 3–5% marginal retrieval gain.
 - Default chunk size: **512–1024 tokens** with **10–20% overlap** to preserve context across boundaries.
 - Pre-process and chunk text asynchronously via the background worker queue. Never block the main API thread with ingestion.
+- **For Markdown documents:** chunk by `##` headings first, preserve heading breadcrumbs in every chunk, never split inside tables/code blocks/numbered lists. See `docs/reference/MD/rag-chunking-rules.md` for the full 12-rule chunking spec including chunk envelopes, overlap strategy, and quality checks.
 
 ## Embedding Models
 
