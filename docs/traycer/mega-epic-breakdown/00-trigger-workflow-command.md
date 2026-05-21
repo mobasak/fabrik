@@ -1,7 +1,7 @@
 <!-- ⚠️ TRAYCER WORKFLOW SOURCE FILE
      Traycer does NOT read this file directly.
      After editing, copy-paste the content into Traycer workflow GUI.
-     Location: Traycer > My Workflows > mega-epic-breakdown > 01-vision-intake
+     Location: Traycer > My Workflows > mega-epic-breakdown > trigger-workflow
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated

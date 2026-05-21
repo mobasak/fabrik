@@ -12,14 +12,14 @@
 
 ## Purpose
 
-Takes the confirmed outputs from 01-vision-intake (Vision Summary) and 02-epic-decomposition (infrastructure decisions, epic files, dependency graph) and writes them as structured files to disk via a coding agent.
+Takes the confirmed outputs from 00-trigger-workflow (Vision Summary) and 02-epic-decomposition (infrastructure decisions, epic files, dependency graph) and writes them as structured files to disk via a coding agent.
 
 This is the ONLY command that creates files. 01 and 02 produce output in conversation. This command persists it.
 
 ## Input Contract
 
 **From conversation context (produced by prior commands):**
-- Vision Summary (from 01-vision-intake, confirmed by owner)
+- Vision Summary (from 00-trigger-workflow, confirmed by owner)
 - Infrastructure Decisions (from 02-epic-decomposition, confirmed by owner)
 - Epic files (from 02-epic-decomposition, one per epic, confirmed by owner)
 - Dependency Graph (from 02-epic-decomposition, confirmed by owner)
@@ -30,7 +30,7 @@ This is the ONLY command that creates files. 01 and 02 produce output in convers
 
 ```
 docs/development/plans/mega-epic/
-├── 00-vision-summary.md              ← from 01-vision-intake output
+├── 00-vision-summary.md              ← from 00-trigger-workflow output
 ├── 01-infrastructure-decisions.md    ← from 02-epic-decomposition output
 ├── epic-1-<name>.md                  ← one per epic from 02 output
 ├── epic-2-<name>.md

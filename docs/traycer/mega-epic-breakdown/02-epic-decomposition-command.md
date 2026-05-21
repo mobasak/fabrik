@@ -12,11 +12,11 @@
 
 ## Purpose
 
-Takes the confirmed Vision Summary from 01-vision-intake (in conversation context) and decomposes it into independent epics with infrastructure decisions, boundaries, and a dependency graph. Output lives in conversation — `03-persist-epic-files-command` writes it to disk.
+Takes the confirmed Vision Summary from 00-trigger-workflow (in conversation context) and decomposes it into independent epics with infrastructure decisions, boundaries, and a dependency graph. Output lives in conversation — `03-persist-epic-files-command` writes it to disk.
 
 ## Input Contract
 
-**From conversation context (produced by 01-vision-intake):**
+**From conversation context (produced by 00-trigger-workflow):**
 - Confirmed Vision Summary (Feature Inventory, Personas, Value Streams, Constraints, Scale Assessment)
 
 **Additionally read:**

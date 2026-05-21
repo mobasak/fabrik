@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-05-21 00:01:49 -->
+<!-- Last synced: 2026-05-21 20:56:48 -->
 
 ### ⚠️ Port Conflicts Detected
 
@@ -95,6 +95,7 @@ If you encounter a port conflict:
 
 | Port | Project | Type | Path |
 |------|---------|------|------|
+| 3000 | **test-saas-platform** | saas-skeleton | /opt/test-saas-platform |
 | 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
 | 8000 | **fabrik-test-chrome-extension** | chrome-extension | /opt/fabrik-test-chrome-extension |
 | 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |

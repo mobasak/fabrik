@@ -1,0 +1,52 @@
+id: test-saas-platform
+kind: service
+template: saas-skeleton
+domain: test-saas-platform.vps1.ocoron.com
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: true
+  needs_database: true
+  has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false
+expose:
+  http: true
+  internal_only: false
+source:
+  type: template
+  branch: main
+coolify:
+  project: fabrik-services
+  server: localhost
+depends: {}
+infrastructure:
+  database: local
+  storage: local
+  auth: none
+env:
+  PORT: '3000'
+  LOG_LEVEL: INFO
+secrets:
+  required: []
+  generate: []
+  from_env:
+  - NEXT_PUBLIC_SUPABASE_ANON_KEY
+  - SUPABASE_SERVICE_ROLE_KEY
+  from_file: {}
+resources:
+  memory: 256M
+  cpu: '0.5'
+health:
+  path: /api/health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  disabled: false
+volumes: []
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30
