@@ -55,6 +55,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 26. Does it enforce CHANGELOG + INDEX updates?
 27. Does it reference the applicable `.windsurf/rules/` packs?
 28. Does it know which rule packs apply per scaffold type (from `AGENTS.md` § Project Type → Default Packs)?
+28b. Does it inject BOTH rule packs AND reference docs from 05's category table into ticket Context Files? (e.g., Search category → `65-rag-search` + `docs/reference/MD/rag-chunking-rules.md`)
 29. Does it enforce Lessons Learnt when trigger conditions fire?
 30. Does it enforce the Completion Self-Check + Governance Checklist?
 
@@ -77,8 +78,14 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 ## Agent Dispatch
 
 41. Does it identify agents from ALL THREE suppliers (Claude Code, Windsurf Cascade, Kilo CLI)?
-42. Does it reference `docs/traycer/kilo_selected_agents.md` + `docs/reference/windsurf/cascade-models.md`?
+42. Does it reference `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` (auto-updating roster) + `docs/reference/windsurf/cascade-models.md`?
 43. Does it let the user PICK which agent to dispatch (not force one)?
+
+## Kilo as AI Infrastructure
+
+43b. Does it consider Kilo CLI for NON-CODING tasks? (data extraction, content generation, batch processing, research — see `docs/reference/kilo/KILO_USE_CASES.md`)
+43c. Does it reference `docs/reference/MD/ai-prompt-templates.md` when ticket involves designing new prompts, skills, or agent definitions?
+43d. Does it reference `docs/reference/MD/rag-chunking-rules.md` when ticket involves search/RAG features?
 
 ## Versatility
 
