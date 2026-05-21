@@ -276,6 +276,20 @@ Every feature from the research MUST appear here. Nothing silently dropped.]
 [Third-party dependencies outside the VPS]
 - [Service] — [what for, cost tier (free/paid)]
 
+## Technology Decisions
+[Every major technology choice RESOLVED — not deferred. These are the
+contracts that all epics inherit. 02-epic-decomposition-command reads
+these and does NOT re-decide them.]
+- **Auth:** [Authelia (admin) + Supabase Auth (user-facing) / Authelia only / custom — state which and why]
+- **Database:** [postgres-main / Supabase / both — state which holds what]
+- **Search:** [MeiliSearch / pgvector / none — state what's being searched]
+- **Billing:** [Paddle / Stripe / none — state pricing model]
+- **File storage:** [Backblaze B2 / Supabase Storage / none — state what's stored]
+- **Notifications:** [Apprise (already deployed) / direct API / none]
+- **Consumed microservices:** [site-provisioner for DNS / image-broker for images / none]
+- **Domain structure:** [subdomains needed, e.g., api.X, app.X, admin.X]
+- **Scaffold types:** [list all scaffold types this vision needs — each may become an epic]
+
 ## Constraints
 [Hard constraints from research + constraint verification (§3i).
 Each states the constraint and its status: all clear / conflict / unknown.]
@@ -328,7 +342,7 @@ Iterate until the owner explicitly confirms:
 
 **Format:** Vision Summary (markdown, exact structure from Step 4) — presented in Traycer conversation.
 **Token budget:** ≤5,000 target, ≤8,000 hard cap
-**Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Constraints, Out of Scope, Open Questions, Scale Assessment
+**Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Technology Decisions, Constraints, Out of Scope, Open Questions, Scale Assessment
 **Key output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ 02-epic-decomposition-command). This routing decision is the primary purpose of this command.
 **Lives in:** Traycer conversation context. NOT written to disk — this is an orientation command like `00-trigger-workflow-command`.
 **Consumed by:** `02-epic-decomposition-command` reads the Vision Summary from conversation context.
@@ -353,6 +367,7 @@ Iterate until the owner explicitly confirms:
 - Value streams stated — not just "it's useful."
 - Backing services grounded in actual VPS inventory (`AGENTS.md` § Infrastructure Services).
 - External services identified with cost tier (free/paid).
+- Technology Decisions section complete — every major choice resolved (auth, database, search, billing, storage, notifications, domains, scaffold types). No "TBD" allowed — decide or mark as Open Question for owner to resolve before confirming.
 - All 10 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
 - Scale assessment present with classification and clear next-step routing.
 - Single-epic visions routed to my-workflow, not forced through mega-epic-breakdown.
@@ -412,6 +427,17 @@ monitoring in under 5 minutes via API. For digital agencies managing
 - Cloudflare — DNS automation per site (via site-provisioner, already deployed)
 - Paddle — subscription billing (paid, ~3% transaction fee)
 - Backblaze B2 — per-site media storage (paid, ~$5/TB/month)
+
+## Technology Decisions
+- **Auth:** Supabase Auth for agency users (managed, set-and-forget) + Authelia for admin dashboard (already deployed)
+- **Database:** postgres-main for WPF application data. Individual WP sites get their own DB containers (not postgres-main).
+- **Search:** MeiliSearch (already deployed) for site/theme/plugin search
+- **Billing:** Paddle — subscription per managed site. Paddle handles tax/invoicing.
+- **File storage:** Backblaze B2 for per-site media. WPF app assets in Docker volume.
+- **Notifications:** Apprise (already deployed) for site-down, backup-failed, billing alerts
+- **Consumed microservices:** site-provisioner for DNS/domain automation per client site
+- **Domain structure:** api.wpf.ocoron.com (API), app.wpf.ocoron.com (client portal), admin.wpf.ocoron.com (admin)
+- **Scaffold types:** python-api (backend) + saas-skeleton (client portal) — 2 scaffold types → strong multi-epic signal
 
 ## Constraints
 - x86_64: all clear
