@@ -276,7 +276,7 @@ Before creating any plan, verify:
 
 Traycer injects rule-pack guidance into coding-agent execution prompts based on `project.yaml::type` + ticket scope. Coding agents do NOT self-select packs.
 
-### Pack Registry (21 packs in `.windsurf/rules/`)
+### Pack Registry (24 packs in `.windsurf/rules/`)
 
 | Pack ID | File | Category |
 |---|---|---|
@@ -291,18 +291,21 @@ Traycer injects rule-pack guidance into coding-agent execution prompts based on 
 | `TESTING` | `45-testing-strategy.md` | Backend |
 | `CODE_REVIEW` | `50-code-review.md` | Backend |
 | `OBSERVABILITY` | `55-observability.md` | Backend |
+| `RESILIENCE` | `58-resilience.md` | Backend |
 | `SAAS_UI` | `60-saas-ui.md` | Core |
-| `WORDPRESS` | `62-wordpress.md` | Platform |
 | `RAG_SEARCH` | `65-rag-search.md` | Domain |
 | `CHROME_MV3` | `70-chrome-ext.md` | Core |
 | `WORKERS` | `75-workers-jobs.md` | Backend |
+| `GPU_WORKERS` | `76-gpu-workers.md` | Domain |
 | `MOBILE_UI` | `80-mobile.md` | Core |
 | `PAYMENTS` | `85-payments-billing.md` | Domain |
 | `AUTOMATION` | `90-automation.md` | Backend |
 | `MULTI_TENANT` | `95-multi-tenant-saas.md` | Domain |
 | `DESIGN_SYSTEM` | `ocoron-design-system.md` | Cross-cutting |
+| `TOJLO_DESIGN` | `tojlo-design-system.md` | Cross-cutting |
 
 > The former `CROSS_CUTTING` pack was dissolved 2026-05-14; its rules now live in topic packs (30-ops, 35-security-auth, 50-code-review, 55-observability) and the three coding-agent bootstraps.
+> `62-wordpress.md` removed — WordPress projects use scaffold defaults + `30-ops`.
 
 ### Project Type → Default Packs
 
@@ -329,9 +332,11 @@ Traycer injects rule-pack guidance into coding-agent execution prompts based on 
 | `API_CONTRACTS` | API endpoints, routes, request/response schemas |
 | `DATA_PG` | Database queries, migrations, schema changes |
 | `SECURITY` | Auth, sessions, CORS, secrets, CSP, sensitive files |
+| `RESILIENCE` | External service calls, circuit breakers, retry/backoff, self-healing |
 | `TESTING` | Always — universal overlay, injected for every ticket |
 | `OBSERVABILITY` | Health endpoints, logging, monitoring, Gatus |
 | `RAG_SEARCH` | Embeddings, retrieval, vector search, LLM context |
+| `GPU_WORKERS` | GPU cloud provisioning, inference serving, training, model quantization |
 | `PAYMENTS` | Paddle, subscriptions, billing, entitlements |
 | `MULTI_TENANT` | Tenant isolation, RLS, tenant-scoped queries |
 

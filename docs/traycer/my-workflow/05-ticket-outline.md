@@ -94,6 +94,10 @@ Before drafting, check which categories apply to this project. Every applicable 
 | **Payments & Billing** | Commercial products with paid features | Paddle/Stripe integration, webhook handling, subscription lifecycle, receipt generation | `85-payments-billing` |
 | **Multi-Tenancy** | Commercial SaaS with tenant isolation | tenant_id on all tables, RLS policies, tenant-scoped queries, data export/deletion per tenant | `95-multi-tenant-saas` |
 | **Automation & Webhooks** | Services receiving/sending webhooks, n8n integration | Webhook endpoint, signature verification, n8n workflow triggers, event replay | `90-automation` |
+| **GPU / AI Inference** | Service provisions or consumes GPU compute for inference, training, or fine-tuning | Provider selection (RunPod/Modal/Vast.ai vs managed API), model serving (vLLM/SGLang), quantization, checkpointing, cost control | `76-gpu-workers` |
+| **Docusaurus Site** | docusaurus scaffold | Docusaurus config, sidebars, MDX content, i18n integration, deployment | `42-docusaurus` |
+| **AI Agent / Prompt Design** | Ticket creates new system prompts, Kilo skills, agent definitions, or review templates | Prompt structure, output contracts, validation rules, agent memory patterns | `docs/reference/MD/ai-prompt-templates.md` + `docs/reference/ai_agent_prompt_directives.md` |
+| **Kilo Integration** | Ticket involves calling Kilo CLI programmatically or adding new Kilo use cases | Liveness monitoring, JSONL parsing, retry patterns, model routing, cost tracking | `docs/reference/kilo/KILO_CLI_REFERENCE.md` + `docs/reference/kilo/KILO_USE_CASES.md` |
 | **Testing** | ALL (one integration test per PRIMARY PATH) | Test setup (fixtures, factories), integration test per primary path, regression tests for bugfixes | `45-testing-strategy` |
 | **Documentation** | ALL (per Documentation Sync Matrix) | Fill scaffolded doc templates assigned in Step 6b | `40-documentation` + `docs/reference/MD/markdown-cheatsheet.md` |
 | **Epic Closure** | ALL (always last ticket) | Tier 3 systemic gate, `fabrik verify`, `fabrik audit-registrars`, full validation | (cross-cutting) |
