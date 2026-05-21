@@ -112,9 +112,46 @@ Every command in mega-epic-breakdown (01-04) must be evaluated against this list
 65. No MISLEADING references — if content X lives in file Y, verify it actually does.
 66. LEAN but COMPREHENSIVE — nothing important omitted, nothing unimportant included.
 
+## Command File Structure (every command MUST have)
+
+67. **Role** — one sentence defining who the AI is in this step.
+68. **Core Philosophy** — 3-5 bullet rules for this step (not copy-paste from other commands).
+69. **Processing Steps** — numbered, ordered, each with a clear verb (READ, IDENTIFY, PRODUCE, VALIDATE).
+70. **Input Contract** — what prior command outputs are REQUIRED. Hard stop if missing.
+71. **Output Contract** — exact format of what this command produces. Section headings, required fields, token budget.
+72. **Acceptance Criteria** — checklist that must ALL pass before command output is considered done.
+73. **Does NOT** — explicit list of what this command leaves for the NEXT command (prevents overlap).
+74. **Consumes upstream, never restates** — if prior command decided X, this command references X, doesn't re-derive it.
+
+## Output Format Contracts
+
+75. **Vision Summary** (01 output): ≤5,000 tokens. Sections: Product Vision, Personas, Value Streams, Full Feature Inventory, Constraints, Out of Scope, Open Questions.
+76. **Infrastructure Decisions** (02 output): ≤5,000 tokens. Sections: Scaffold Type(s), Database Strategy, Auth Strategy, Backing Services, External Services, Domain/Routing, Shared Shape Block Decisions.
+77. **Epic Output File** (03 output, one per epic): ≤10,000 tokens. Sections: Epic Name, Scope, Success Criteria, Out of Scope, Dependencies (produces/consumes), Scaffold Type, Shape Block, Estimated Ticket Count, Key Technical Decisions, Metadata for my-workflow/01-epic-brief.
+78. **Dependency Graph** (03 output): Mermaid diagram + execution order table + parallel lanes identified.
+79. **Validation Report** (04 output): Gap analysis, interface inventory, risk register, final approval gate.
+
+## Handoff Format (epic file → my-workflow/01-epic-brief)
+
+80. Each epic output file MUST contain a `## Metadata` section with: scaffold type, shape flags, concurrency model, i18n requirement, port assignment, rule packs list — matching what my-workflow/01-epic-brief expects in its "Metadata" field.
+81. Each epic output file MUST contain a `## Success Criteria` section with numbered, testable criteria — matching what my-workflow/01-epic-brief uses to validate coverage.
+82. Each epic output file MUST contain a `## Dependencies` section stating: what prior epics produced (DB tables, API contracts, env vars) that this epic assumes exist.
+83. Each epic output file MUST be SELF-SUFFICIENT — Traycer running my-workflow/01 reads ONLY this file + infrastructure-decisions.md. No need to load the full vision research.
+
 ## Iterative Convergence
 
-67. Does it wait for EXPLICIT user confirmation? (silence ≠ confirmation)
-68. Does it suggest revisions when scope changes instead of silently absorbing?
-69. Does it iterate with the owner until the decomposition is RIGHT? (planning is SLOW, execution is FAST)
-70. Does it present the dependency graph VISUALLY (mermaid diagram)?
+84. Does it wait for EXPLICIT user confirmation? (silence ≠ confirmation)
+85. Does it suggest revisions when scope changes instead of silently absorbing?
+86. Does it iterate with the owner until the decomposition is RIGHT? (planning is SLOW, execution is FAST)
+87. Does it present the dependency graph VISUALLY (mermaid diagram)?
+
+## Anti-Patterns (if any of these are true, the command file is WRONG)
+
+88. Command says "Consider..." instead of "Check X and state finding." → REWRITE.
+89. Command produces output that requires the NEXT command to ask the user what's missing. → ADD to this command.
+90. Command restates what a prior command already produced. → DELETE and reference.
+91. Two commands produce overlapping output. → MERGE or split boundary clearly.
+92. Command's output doesn't have a clear token budget. → ADD budget.
+93. Command doesn't have Acceptance Criteria. → ADD.
+94. Epic output file requires loading the full vision research alongside it. → CONDENSE epic file to be self-sufficient.
+95. Command uses vague scope ("relevant files", "update as needed", "consider implications"). → REWRITE with concrete paths and actions.

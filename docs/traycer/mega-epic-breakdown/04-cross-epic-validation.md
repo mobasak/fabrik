@@ -4,4 +4,8 @@
      Location: Traycer > My Workflows > mega-epic-breakdown > 04-cross-epic-validation
      -->
 
+<!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
+     against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md (70 items).
+     Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
+
 # TODO: Draft this command — verify completeness, no gaps, interfaces defined between epics
