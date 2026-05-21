@@ -1,3 +1,9 @@
+<!-- ⚠️ TRAYCER WORKFLOW SOURCE FILE
+     Traycer does NOT read this file directly.
+     After editing, copy-paste the content into Traycer workflow GUI.
+     Location: Traycer > My Workflows > (select matching step)
+     -->
+
 # Workflow Command Evaluation Checklist
 
 Every workflow command (00-11) must be evaluated against this list before it's considered complete. Not every item applies to every command — but every item must be CHECKED. "N/A for this command" is valid; forgetting to check is not.

@@ -1,3 +1,9 @@
+<!-- ⚠️ TRAYCER WORKFLOW SOURCE FILE
+     Traycer does NOT read this file directly.
+     After editing, copy-paste the content into Traycer workflow GUI.
+     Location: Traycer > My Workflows > (select matching step)
+     -->
+
 # Tech Plan
 
 ## Role
