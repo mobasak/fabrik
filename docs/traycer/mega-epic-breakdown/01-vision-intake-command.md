@@ -137,7 +137,7 @@ Do NOT estimate ticket counts — that belongs to `05-ticket-outline-command` af
 **3g. API contract check for existing services:**
 - If the vision relies on an existing Fabrik microservice (site-provisioner, image-broker, etc.), check: does the research assume functionality or endpoints that DON'T currently exist? If yes, flag as Open Question: "Vision assumes [service] can do [X], but current API contract (`docs/reference/service-contracts/[service].md`) doesn't include this. New endpoint needed or scope adjustment?"
 
-**3f. Research sufficiency check:**
+**3h. Research sufficiency check:**
 - Is any critical area THIN? (e.g., "auth strategy not addressed", "data model vague", "pricing model unclear")
 - If thin → tell the owner: "I recommend doing more research on [topic] before proceeding. Specifically: [concrete questions to research]. Drop the results in `docs/development/plans/` and re-run this command."
 - Do not proceed with a thin foundation. Better to pause and research than build on assumptions.
@@ -291,7 +291,7 @@ Iterate until the owner explicitly confirms:
 - Value streams stated — not just "it's useful."
 - Backing services grounded in actual VPS inventory (`AGENTS.md` § Infrastructure Services).
 - External services identified with cost tier (free/paid).
-- All 9 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
+- All 10 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
 - Scale assessment present with classification and clear next-step routing.
 - Single-epic visions routed to my-workflow, not forced through mega-epic-breakdown.
 - Vision summary ≤5,000 tokens (≤8,000 hard cap).
