@@ -21,8 +21,8 @@ By the end of this command, the owner and Traycer agree on:
 - **WHO** it's for (named personas, not "users")
 - **WHY** it matters (value streams — revenue, cost savings, productivity)
 - **HOW BIG** it is (single epic or multiple epics)
-- **WHICH SERVICES** we'll use (postgres-main vs Supabase, Authelia vs Supabase Auth, MeiliSearch vs pgvector, Paddle vs Stripe — every major technology choice resolved, not deferred)
-- **WHAT EXISTS** that we can leverage (VPS services already deployed, existing microservices, managed services)
+- **WHICH SERVICES** we'll use — every major technology choice resolved, not deferred. Examples: postgres-main vs Supabase for data, Authelia vs Supabase Auth for login, MeiliSearch vs pgvector for search, Paddle vs Stripe for billing. Choices grounded in `AGENTS.md` § Infrastructure Services (what's deployed) and `docs/reference/technology-stack-decision-guide.md` (decision flowchart).
+- **WHAT EXISTS** that we can leverage — VPS services already deployed (`AGENTS.md` § Infrastructure Services), existing Fabrik microservices (`AGENTS.md` § Fabrik Microservices), managed services (Supabase, Cloudflare, Backblaze B2)
 - **WHAT DOESN'T FIT** (constraints, conflicts with Fabrik infrastructure)
 
 This is an orientation command. Output lives in conversation — no files created. The next command (`02-epic-decomposition-command`) reads this output and creates files.
@@ -51,7 +51,7 @@ Both paths converge to the same output: a confirmed Vision Summary.
 
 1. **Quality first** — production-grade, no shortcuts. Never sacrifice quality to save money.
 2. **Total cost of ownership** — dev time is the most expensive resource. A $10/month managed service that saves 2 weeks of development is a clear win. Don't build for days what you can buy for dollars.
-3. **Speed to ship** — prefer solutions that `fabrik scaffold` + `fabrik apply` handle end-to-end. The fastest path to production wins.
+3. **Speed to ship** — prefer solutions that deploy through the standard pipeline: code in WSL → push to GitHub → Coolify builds and deploys on VPS → 9 registrars auto-configure (see `docs/reference/fabrik-lifecycle.md` § Stage 3). If a solution requires manual SSH steps, custom CI/CD, or infrastructure outside Coolify, it's slower and riskier. The fastest path to production wins.
 4. **Easy to maintain** — when two solutions both work, prefer the one that requires less ongoing attention. Start with what exists on the VPS. Escalate to dedicated tooling when the existing solution hits a proven limit.
 5. **Set and forget** — managed services (Supabase, Paddle, Cloudflare) are inherently set-and-forget — prefer them over self-hosted alternatives that need babysitting.
 
