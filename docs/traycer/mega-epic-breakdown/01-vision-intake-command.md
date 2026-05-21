@@ -24,7 +24,7 @@ By the end of this command, the owner and Traycer agree on:
 - **WHAT EXISTS** that we can use (VPS services, existing microservices, managed services)
 - **WHAT DOESN'T FIT** (constraints, conflicts with Fabrik infrastructure)
 
-This is an orientation command. Output lives in conversation — no files created. The next command (`02-epic-decomposition`) reads this output and creates files.
+This is an orientation command. Output lives in conversation — no files created. The next command (`02-epic-decomposition-command`) reads this output and creates files.
 
 ## Core Philosophy
 
@@ -128,13 +128,18 @@ Do NOT silently proceed past Checkpoint 1 if there are open questions or thin ar
 - `PORTS.md` — port allocations (conflict check).
 - If `project.yaml` exists → read it for scaffold type and existing shape.
 
-### Step 2: Consume Research
+### Step 2: Consume Input
 
-Read ALL research files found in the Input Contract discovery.
+**Path A (research files exist):** Read ALL research files found in the Input Contract discovery. Treat as EXPERT INPUT — do not second-guess well-reasoned conclusions. Do challenge conclusions that conflict with Fabrik's actual infrastructure or constraints. If multiple files conflict, flag the conflict — do not silently resolve.
 
-Treat the research as EXPERT INPUT. Do not second-guess conclusions that are well-reasoned. Do second-guess conclusions that conflict with Fabrik's actual infrastructure or constraints.
+**Path B (just an idea, no files):** Conduct a structured interview to extract the same information research would provide:
+- "What is this product? What problem does it solve?"
+- "Who uses it? Name the user types."
+- "What are the main features? Walk me through what a user does."
+- "How does it make money or save money?"
+- "Are there any constraints you already know about?"
 
-If multiple files exist and they conflict on a point, flag the conflict — do not silently resolve it.
+Synthesize answers into the same internal structure (vision, personas, features, constraints, tech choices) that research would produce. Then continue to Step 3 identically — the analysis steps work the same regardless of input path.
 
 ### Step 3: Analyze and Improve Research
 
@@ -176,8 +181,8 @@ Do NOT estimate ticket counts — that belongs to `05-ticket-outline-command` af
 
 - Count distinct features
 - Classify each feature as: `small` (single endpoint/page), `medium` (multi-component), `large` (cross-cutting system)
-- Count how many `large` features exist — each large feature typically becomes its own epic
-- Assess:
+- Count how many `large` features exist
+- Assess (signal only — do NOT assign features to epics, that is `02-epic-decomposition-command`'s job):
   - All features are small/medium, <8 total → **single epic** (use my-workflow directly)
   - Mix of small/medium/large, 8-15 total → **likely 2-3 epics**
   - Multiple large features, 15+ total → **likely 4-7 epics**
@@ -210,7 +215,8 @@ Check EVERY constraint. State each as `all clear` / `conflict (<details>)` / `un
 10. **Observability compatibility** — does every proposed service expose `/metrics` for Prometheus and `/health` for Gatus?
 
 **3j. Multi-scaffold check:**
-- A single vision can span MULTIPLE scaffold types (e.g., `python-api` backend + `saas-skeleton` portal + `wordpress` sites). If the vision implies more than one scaffold type, list each and which features map to which scaffold. This is a strong signal for multi-epic decomposition — each scaffold type typically becomes its own epic.
+- A single vision can span MULTIPLE scaffold types (e.g., `python-api` backend + `saas-skeleton` portal + `wordpress` sites). If the vision implies more than one scaffold type, list each and which features map to which scaffold. This is a strong signal for multi-epic decomposition.
+- **Separate projects vs epics:** If the scaffolds share no data, no auth, and no deploy coupling (each could exist independently), flag as candidate for **separate `fabrik scaffold` projects with their own lifecycles** — not epics within one project. Ask the owner: "These components seem independent. Should they be separate projects or epics within one project?"
 
 ### ── CHECKPOINT 1: Present Research Analysis ──
 
@@ -220,7 +226,7 @@ Present to the owner:
 3. **Conflicts with Fabrik:** issues to resolve (from 3c)
 4. **Opportunities:** existing services that help (from 3d)
 5. **Scale estimate:** feature complexity breakdown + single/multi-epic classification (from 3e)
-6. **Constraints:** each as `all clear` / `conflict` / `unknown` (from Step 4 — run constraints BEFORE this checkpoint)
+6. **Constraints:** each as `all clear` / `conflict` / `unknown` (from §3i)
 7. **Research sufficiency:** areas that need more research, if any (from 3h)
 
 **Then ask:**
@@ -270,7 +276,7 @@ Every feature from the research MUST appear here. Nothing silently dropped.]
 - [Service] — [what for, cost tier (free/paid)]
 
 ## Constraints
-[Hard constraints from research + constraint verification (Step 4).
+[Hard constraints from research + constraint verification (§3i).
 Each states the constraint and its status: all clear / conflict / unknown.]
 - x86_64: all clear
 - Budget: [status]
@@ -292,7 +298,7 @@ If no open questions: state "None — research was comprehensive."]
 ## Scale Assessment
 - Feature count: [N] ([X] small, [Y] medium, [Z] large)
 - Classification: [single-epic / multi-epic (~N epics)]
-- Reasoning: [why this classification — based on feature complexity, not ticket guesses]
+- Reasoning: [why this classification — based on feature count and complexity, NOT which features become which epics]
 - Next step:
   - If single-epic: "Proceed to my-workflow/00-trigger-workflow-command. Confirm?"
   - If multi-epic: "Proceed to 02-epic-decomposition-command to define epic boundaries."
@@ -322,8 +328,8 @@ Iterate until the owner explicitly confirms:
 **Format:** Vision Summary (markdown, exact structure from Step 4) — presented in Traycer conversation.
 **Token budget:** ≤5,000 target, ≤8,000 hard cap
 **Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Constraints, Out of Scope, Open Questions, Scale Assessment
-**Key output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ 02-epic-decomposition). This routing decision is the primary purpose of this command.
-**Lives in:** Traycer conversation context. NOT written to disk — this is an orientation command like `00-trigger-workflow`.
+**Key output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ 02-epic-decomposition-command). This routing decision is the primary purpose of this command.
+**Lives in:** Traycer conversation context. NOT written to disk — this is an orientation command like `00-trigger-workflow-command`.
 **Consumed by:** `02-epic-decomposition-command` reads the Vision Summary from conversation context.
 **Persisted to disk by:** `03-persist-epic-files-command` writes all files (vision summary + epic files + infra decisions) via coding agent after all decomposition is confirmed.
 
@@ -432,6 +438,6 @@ monitoring in under 5 minutes via API. For digital agencies managing
 ## Scale Assessment
 - Feature count: 10 (3 small, 4 medium, 3 large)
 - Classification: multi-epic (~4 epics)
-- Reasoning: 3 large features (provisioning engine, plugin marketplace, billing integration) each need dedicated epic scope. Remaining 7 features group naturally around them.
+- Reasoning: 3 large features + 4 medium features + multiple scaffold types → too broad for a single my-workflow run.
 - Next step: Proceed to `02-epic-decomposition-command` to define epic boundaries.
 ```
