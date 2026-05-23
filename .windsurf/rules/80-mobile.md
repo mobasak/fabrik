@@ -19,6 +19,63 @@ Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets
 
 ---
 
+## Screen Inventory (minimum viable mobile app)
+
+Every mobile app project must ship these screens. Traycer derives additional project-specific screens during `core-flows` and `ticket-breakdown`.
+
+### Auth & Onboarding
+
+| Screen | Route/Name | Purpose |
+|---|---|---|
+| **Splash** | App launch | Brand splash (800ms max per design system § Motion). Checks auth state → routes to onboarding or home. |
+| **Onboarding wizard** | `Onboarding` | 3-5 swipeable value screens. Skippable. Shows before signup for value-before-signup pattern. |
+| **Login** | `Login` | Supabase Auth (email + social). Sign in with Apple mandatory if any social login. |
+| **Signup** | `Signup` | Registration. Redirects to verify-email screen. |
+| **Verify email** | `VerifyEmail` | "Check your email" — resend button, change email link. Cannot proceed until verified. |
+| **Forgot password** | `ForgotPassword` | Email input → triggers reset flow. |
+| **Permission priming** | `PermissionPriming` | Explains WHY before OS prompt (push, camera, location). Just-in-time, not at launch. |
+
+### Core App (tab navigator)
+
+| Screen | Route/Name | Purpose |
+|---|---|---|
+| **Home / Dashboard** | `Home` | Primary tab. Active status, quick actions, recent items. |
+| **[Core feature screens]** | Project-specific | Defined per epic during `core-flows`. 2-4 tabs typical. |
+| **Profile / Settings** | `Settings` | Account info, locale, notifications, linked accounts, app version. |
+
+### Billing & Subscription
+
+| Screen | Route/Name | Purpose |
+|---|---|---|
+| **Paywall** | `Paywall` | Plan comparison, pricing, trial CTA. "Restore Purchases" button mandatory. Remote-configurable via RevenueCat. |
+| **Subscription management** | `ManageSubscription` | Current plan, usage, links to store subscription settings. |
+
+### Settings (nested under Settings tab)
+
+| Screen | Route/Name | Purpose |
+|---|---|---|
+| **Edit profile** | `EditProfile` | Display name, avatar, email (change triggers verification). |
+| **Notification preferences** | `NotificationPreferences` | Per event-type toggle (push on/off). |
+| **Language** | `LanguageSettings` | Locale picker (en, tr, + future languages). |
+| **Privacy & data** | `PrivacyData` | Privacy policy link, data export, account deletion. |
+| **About** | `About` | App version, licenses, support link. |
+
+### System
+
+| Screen | Route/Name | Purpose |
+|---|---|---|
+| **Offline fallback** | `Offline` | Shown when network unavailable. Cached data display + retry. |
+| **Force update** | `ForceUpdate` | Shown when app version is below minimum. Links to store. |
+
+**Rules:**
+- Auth + onboarding screens ship in the foundation epic — launch-blocking.
+- Paywall ships in the billing epic. "Restore Purchases" is store-mandatory.
+- Core feature screens are project-specific — Traycer defines them during `core-flows`.
+- Every screen follows the design system 5 states (loading, empty, error, success, disabled).
+- Navigation: `NativeStackNavigator` for hierarchical flows, `BottomTabNavigator` for top-level (3-5 tabs).
+
+---
+
 ## Architecture
 
 - React Native with TypeScript is the mobile framework. The New Architecture (Fabric/JSI) is preferred when available — do not generate code relying on the legacy asynchronous JSON bridge.
