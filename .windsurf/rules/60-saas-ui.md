@@ -112,9 +112,13 @@ Every SaaS project must ship these pages. Traycer ensures each maps to a ticket 
 
 ## Authenticated vs Public Homepage
 
-- Never show marketing content to authenticated users. Logged-in homepage = actionable dashboard. Non-logged-in homepage = value proposition + CTA.
-- Logged-in dashboard shows: active work status, recent completions, quick actions, and system health relevant to the user's role. Not a hero banner, not a feature list.
-- If the marketing site and app share the same route (`/`), gate on auth state — do not render the landing page inside the app shell.
+**Separate routes, not auth-gated same route:**
+
+- `/` is always the public landing page (marketing, value proposition, pricing CTA). May be a separate static deploy.
+- `/dashboard` is always the authenticated app entry point. Logged-in users never see `/`.
+- **Login redirects to `/dashboard`.** After successful auth (login, signup + verify, OAuth callback), redirect to `/dashboard`, never to `/`.
+- **Unauthenticated `/dashboard` access redirects to `/login`.** Middleware catches this — UX redirect only, not security gate (see `35-security-auth.md` § Next.js Defense-in-Depth).
+- Never show marketing content to authenticated users. Never render the landing page inside the app shell.
 
 ---
 
