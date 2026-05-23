@@ -37,9 +37,9 @@ class FabrikBaseModel(BaseModel):
 
 Never write manual `snake_case` → `camelCase` mapping functions.
 
-## Error Schema (RFC 7807)
+## Error Schema (RFC 9457 — Problem Details)
 
-All HTTP 4xx/5xx responses must conform to RFC 7807 Problem Details. Override FastAPI's default exception handlers at the application level.
+All HTTP 4xx/5xx responses must conform to RFC 9457 (supersedes RFC 7807, backward-compatible). Override FastAPI's default exception handlers at the application level. Responses must carry `Content-Type: application/problem+json`.
 
 ```python
 class ProblemDetails(BaseModel):
@@ -49,6 +49,8 @@ class ProblemDetails(BaseModel):
     detail: str         # Human-readable explanation of this occurrence
     instance: str | None = None  # URI identifying this specific occurrence
 ```
+
+**Bridge with `10-python.md`:** agents raise `HTTPException(status_code=404, detail="...")` in route handlers per `10-python.md`. A global exception handler converts `HTTPException` into the `ProblemDetails` schema above. Both patterns are correct — `HTTPException` is the trigger, `ProblemDetails` is the wire format.
 
 Raw strings, `{"error": "..."}`, or arbitrary dicts as error responses are banned.
 
@@ -66,8 +68,14 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 ## Pagination
 
 - **Cursor (keyset) pagination is the only permitted mechanism** for collection endpoints. `OFFSET`/`LIMIT` is banned — it causes O(n) scan-and-discard under PostgreSQL MVCC and data drift under concurrent writes.
-- Cursor queries filter with `WHERE sort_col < :cursor ORDER BY sort_col DESC LIMIT :size` instead of offsetting.
-- When sorting on a non-unique column (`created_at`, `price`), always append a unique tiebreaker (`id`) to the `ORDER BY` clause to guarantee deterministic B-Tree traversal.
+- Cursor queries filter with a **composite row comparison** — the tiebreaker must be in the filter, not just the ordering:
+  ```sql
+  WHERE (sort_col, id) < (:last_sort_col, :last_id)
+  ORDER BY sort_col DESC, id DESC
+  LIMIT :size
+  ```
+  In SQLAlchemy: `.where(tuple_(Model.sort_col, Model.id) < (last_sort, last_id))`. Without the composite filter, rows sharing a `sort_col` value at the page boundary get skipped or duplicated.
+- When sorting on a non-unique column (`created_at`, `price`), always append a unique tiebreaker (`id`) to **both** `WHERE` and `ORDER BY`.
 
 ## Versioning
 
@@ -82,11 +90,11 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 - Route handlers validate input (Pydantic), call a service function, and return the result. This enables sharing logic across API versions without duplication.
 - Data validation occurs at the Pydantic boundary only. Service functions trust their typed inputs — no manual `if/else` dict validation inside business logic.
 
-## Async Discipline
+## Async Discipline (API-specific)
 
 - Use `async def` for I/O-bound route handlers (database, network, Redis).
 - Use plain `def` for CPU-bound work — FastAPI offloads these to a thread pool automatically.
-- Never call synchronous blocking libraries (`requests`, sync SQLAlchemy sessions) inside an `async def` handler. Use `httpx`, `asyncpg`, or `AsyncSession`.
+- For the general async rule (no sync IO in async, `httpx.AsyncClient` over `requests`), see `10-python.md` § Banned Patterns.
 
 ---
 
@@ -96,9 +104,9 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 |---------|-------------|
 | Manual `snake_case`→`camelCase` mapping | Pydantic `alias_generator=to_camel` |
 | `OFFSET`/`LIMIT` pagination | Cursor (keyset) pagination |
-| `{"error": "..."}` or raw string errors | RFC 7807 `ProblemDetails` schema |
+| `{"error": "..."}` or raw string errors | RFC 9457 `ProblemDetails` schema with `application/problem+json` |
 | Header-based or query-param versioning | URI path versioning (`/api/v1/`) |
-| `requests` / sync DB in `async def` | `httpx` / `AsyncSession` / `asyncpg` |
+| `requests` / sync DB in `async def` | See `10-python.md` § Banned Patterns |
 | Logic in route handlers | Service layer functions |
 | Manual TS types for API responses | Auto-generated from `openapi.json` |
 | Mutating existing version contract | New version prefix (`/v2/`) |

@@ -193,6 +193,8 @@ except Exception:
 
 For logging/GlitchTip capture inside the `except Exception` branch, see `55-observability.md` § Error Reporting — `logger.exception()` here would duplicate GlitchTip's traceback.
 
+**Note:** `HTTPException` produces FastAPI's default `{"detail": "..."}` JSON. A global exception handler (see `15-api-contracts.md` § Error Schema) converts this into RFC 9457 `ProblemDetails` with `Content-Type: application/problem+json`. Raising `HTTPException` here is correct — the handler reshapes it on the way out.
+
 **Note:** Use `structlog.get_logger()`, not `logging.getLogger(__name__)`. The scaffold emits a pre-configured structlog setup in `logger.py` — import from there, do not create your own.
 
 ---
