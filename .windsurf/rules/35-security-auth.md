@@ -8,12 +8,36 @@ description: Security & auth discipline — JWT rules, CORS policy, secret handl
 
 Apply when working on authentication, authorization, CORS, security headers, or session management. Skip for pure UI layout, database models, or infrastructure files.
 
-## Identity Provider
+---
 
-- FastAPI is the **sole identity provider**. It owns credential hashing (Argon2), user state, token issuance, and validation.
-- Do not use NextAuth.js, Clerk, Auth0, or Firebase Auth. All clients (Next.js, React Native, Chrome Extension) are API consumers only.
+## Identity Provider (project-type dependent)
+
+The auth architecture depends on the project's scaffold type and domain module decisions. Two canonical patterns exist:
+
+### Pattern A — FastAPI as sole IdP (custom auth)
+
+Use when the project does NOT use Supabase Auth (e.g., internal tools, file-workers, API-only services without user-facing signup).
+
+- FastAPI owns credential hashing (Argon2), user state, token issuance, and validation.
+- Do not use NextAuth.js, Clerk, Auth0, or Firebase Auth.
+- All clients (Next.js, React Native, Chrome Extension) are API consumers only.
+
+### Pattern B — Supabase Auth + FastAPI backend (SaaS / Mobile)
+
+Use when the domain module (SaaS or mobile) mandates Supabase Auth. This is the default for user-facing products.
+
+- **Supabase Auth** handles user registration, login, password hashing, OAuth providers (including Sign in with Apple — mandatory on iOS if any social login is offered), email verification, and password reset.
+- **FastAPI** handles custom business logic, M2M auth, and any endpoints that need data beyond what Supabase exposes. FastAPI validates Supabase JWTs via the Supabase JWKS endpoint — it does not issue its own user tokens.
+- **Authelia** protects admin/back-office dashboards via Traefik forward-auth. Not for end-user auth.
+- For multi-tenant SaaS: Supabase RLS enforces tenant isolation at the database level. See `95-multi-tenant-saas.md` for full patterns.
+
+**Which pattern?** Check the project's domain module or `specs/services/<id>.yaml`. If `shape` references Supabase or the scaffold is `saas-skeleton` / `mobile-app`, use Pattern B. Otherwise Pattern A.
+
+---
 
 ## Token Lifecycle
+
+### Pattern A (FastAPI-issued tokens)
 
 - Issue **short-lived JWT access tokens** (15 minutes) signed with HS256.
 - Issue **long-lived opaque refresh tokens** (7 days) stored in PostgreSQL alongside user and device metadata. Refresh tokens are not JWTs — they are cryptographically random strings.
@@ -21,22 +45,36 @@ Apply when working on authentication, authorization, CORS, security headers, or 
 - The JWT signing secret must be at least 256 bits, generated via `openssl rand -hex 32`, and injected via environment variable. Never hardcode it.
 - Use HS256 unless third-party external services must verify tokens without the signing key (only then consider RS256).
 
+### Pattern B (Supabase-issued tokens)
+
+- Supabase issues JWTs automatically on login. Token lifecycle is managed by Supabase — do not override.
+- FastAPI validates Supabase JWTs server-side via the JWKS endpoint or the `supabase-py` client.
+- Refresh is handled by the Supabase client SDK (`supabase-js`, `supabase-py`). Do not build custom refresh logic.
+- For server-side operations that need elevated privileges, use the Supabase `service_role` key (env var, never exposed to clients).
+
+---
+
 ## Token Storage by Client
 
-| Client | Storage | Transmission | Threat Mitigated |
-|--------|---------|-------------|-----------------|
-| **Next.js (Web)** | HttpOnly, Secure, SameSite=Lax cookie | Automatic (Cookie header) | XSS exfiltration |
-| **React Native** | OS secure enclave (`react-native-keychain`) | `Authorization: Bearer` | Device compromise |
-| **Chrome Extension (MV3)** | `chrome.storage.session` | `Authorization: Bearer` | Ephemeral worker state / XSS |
+| Client | Pattern A (FastAPI) | Pattern B (Supabase) |
+|--------|---------------------|----------------------|
+| **Next.js (Web)** | HttpOnly, Secure, SameSite=Lax cookie | `supabase-js` manages via cookie or localStorage (configure SSR cookie strategy) |
+| **React Native** | `expo-secure-store` | `expo-secure-store` via `supabase-js` custom storage adapter |
+| **Chrome Extension (MV3)** | `chrome.storage.session` | `chrome.storage.session` via `supabase-js` custom storage adapter |
 
-- The FastAPI `/auth/login/web` endpoint returns a `Set-Cookie` header with `httponly=True`, `secure=True`, `samesite="lax"`.
-- The FastAPI `/auth/login/mobile` and `/auth/login/extension` endpoints return the token in the JSON response body.
+- **Pattern A:** The FastAPI `/auth/login/web` endpoint returns a `Set-Cookie` header with `httponly=True`, `secure=True`, `samesite="lax"`. Mobile/extension endpoints return the token in the JSON response body.
+- **Pattern B:** The Supabase client SDK handles token storage. On mobile, wrap with `expo-secure-store` (never AsyncStorage or MMKV for tokens). See `80-mobile.md` § Backend Integration.
+- **Both patterns:** Never store JWTs in `localStorage` or `sessionStorage` on web. Never store JWTs in AsyncStorage or MMKV on mobile.
+
+---
 
 ## Next.js Defense-in-Depth
 
 - **Never rely solely on `middleware.ts` for access control.** CVE-2025-29927 allows complete middleware bypass via header manipulation.
 - Use middleware only for UX redirects (e.g. redirect to `/login` if cookie missing).
-- All Server Actions, Route Handlers, and Server Components that access sensitive data or perform mutations must call a `verifySession()` Data Access Layer utility that cryptographically validates the token with the FastAPI backend.
+- All Server Actions, Route Handlers, and Server Components that access sensitive data or perform mutations must call a `verifySession()` Data Access Layer utility that cryptographically validates the token with the backend (FastAPI or Supabase JWKS).
+
+---
 
 ## CORS Policy
 
@@ -49,10 +87,14 @@ Apply when working on authentication, authorization, CORS, security headers, or 
 | **React Native** | N/A (no browser CORS) | Native HTTP client — not subject to CORS |
 | **Chrome Extension** | `chrome-extension://<id>` | Use `allow_origin_regex` in dev; exact ID in production |
 
+---
+
 ## Content Security Policy
 
 - Next.js `middleware.ts` must generate a per-request cryptographic nonce (`crypto.randomUUID()`) and inject it into the `Content-Security-Policy` header.
 - Only `<script>` tags with the matching `nonce` attribute execute. This forces dynamic SSR for protected routes — an acceptable trade-off for XSS protection.
+
+---
 
 ## FastAPI Security Headers
 
@@ -62,6 +104,8 @@ Apply via ASGI middleware with **precomputed constants** (no per-request string 
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
 - `Referrer-Policy: strict-origin-when-cross-origin`
+
+---
 
 ## Internal Service Auth (M2M)
 
@@ -86,6 +130,8 @@ headers = {"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]}
 resp = httpx.get("https://<service>.vps1.ocoron.com/api/endpoint", headers=headers)
 ```
 
+---
+
 ## Sensitive Data Protection
 
 Before editing `.env`, `*.key`, `*.pem`, files under `secrets/`, or `.ssh/`:
@@ -94,8 +140,10 @@ Before editing `.env`, `*.key`, `*.pem`, files under `secrets/`, or `.ssh/`:
 cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)
 ```
 
-- Destructive scripts on prod data → dry-run first, show diff.
-- Credentials change → full diff approval before applying.
+- Destructive scripts on prod data: dry-run first, show diff.
+- Credentials change: full diff approval before applying.
+
+---
 
 ## Password Policy
 
@@ -107,14 +155,20 @@ For **programmatically generated** passwords (service accounts, DB users, intern
 
 Applies to: Authelia bootstrap, `fabrik scaffold` credential generation, ops scripts.
 
+---
+
 ## Rate Limiting
 
 - Hard rate limits on `/auth/login`, `/auth/register`, `/auth/reset` endpoints using Redis or in-memory token buckets.
 - Credential stuffing and brute-force attacks are the primary threats these limits address.
 
+---
+
 ## Transactional Email
 
-- Use **Fabrik Email Gateway** (Resend + SES, already deployed at port 3000) for password resets and verification emails. Do not introduce additional email providers.
+For password resets, verification emails, receipts, and all transactional mail: use **Resend** via the MJML+Jinja2 pipeline defined in `86-email-templates.md`. Send compiled HTML via Resend API directly from FastAPI — no intermediate gateway.
+
+Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on measured deliverability issues. See `86-email-templates.md` § ESP Decision Log for rationale.
 
 ---
 
@@ -122,29 +176,37 @@ Applies to: Authelia bootstrap, `fabrik scaffold` credential generation, ops scr
 
 | Pattern | Use Instead |
 |---------|-------------|
-| `localStorage` / `sessionStorage` for JWTs | HttpOnly cookies (web), secure enclave (mobile), `chrome.storage.session` (ext) |
+| `localStorage` / `sessionStorage` for JWTs | HttpOnly cookies (web), `expo-secure-store` (mobile), `chrome.storage.session` (ext) |
+| `react-native-keychain` for Supabase tokens | `expo-secure-store` (Expo ecosystem standard) |
+| AsyncStorage or MMKV for JWTs | `expo-secure-store` |
 | Middleware-only authorization in Next.js | Verify session in Server Actions / Server Components via DAL |
 | `allow_origins=["*"]` + `allow_credentials=True` | Explicit origin list from env vars |
-| NextAuth.js / Clerk / Firebase Auth | FastAPI as sole IdP |
-| RS256 for single-service signing + verification | HS256 with 256-bit secret |
-| Direct SMTP / additional email providers | Fabrik Email Gateway (port 3000) |
+| NextAuth.js / Clerk / Firebase Auth | FastAPI (Pattern A) or Supabase Auth (Pattern B) |
+| RS256 for single-service signing + verification | HS256 with 256-bit secret (Pattern A only) |
 | Hardcoded JWT secret in source | `os.getenv("JWT_SECRET_KEY")` |
 | Trusting Docker network isolation alone | `X-Internal-Token` + shared secret |
+| Custom refresh logic with Supabase Auth | Supabase client SDK handles refresh |
+| `service_role` key exposed to client | Server-side only, via env var |
 
 ---
 
 ## Done When
 
-- [ ] FastAPI is the sole token issuer — no frontend auth libraries handle identity.
-- [ ] Web login endpoint sets HttpOnly + Secure + SameSite=Lax cookie.
-- [ ] Mobile/extension login endpoints return token in JSON body only.
+- [ ] Auth pattern (A or B) matches the project's domain module and scaffold type.
+- [ ] Pattern A: FastAPI is the sole token issuer — no frontend auth libraries handle identity.
+- [ ] Pattern B: Supabase Auth configured; FastAPI validates Supabase JWTs via JWKS; RLS enabled on tenant-scoped tables.
+- [ ] Web login uses HttpOnly + Secure + SameSite=Lax cookie (Pattern A) or Supabase SSR cookie strategy (Pattern B).
+- [ ] Mobile tokens stored in `expo-secure-store` — never AsyncStorage or MMKV.
 - [ ] All Next.js Server Actions and data-fetching Server Components call `verifySession()`.
 - [ ] CORS origins loaded from environment variables — no wildcards with credentials.
 - [ ] CSP nonce injected per-request in Next.js middleware.
 - [ ] FastAPI responses include HSTS, X-Content-Type-Options, X-Frame-Options headers.
 - [ ] Auth endpoints have rate limiting configured.
 - [ ] Internal service calls use `X-Internal-Token` header validation.
+- [ ] Transactional email via Resend + `86-email-templates.md` pipeline — no phantom gateway.
 
-## Spec contract — auth registrars
+---
+
+## Spec Contract — Auth Registrars
 
 Public services with admin UI behind 2FA: set `shape.is_admin_dashboard: true` — the Authelia registrar will add a per-domain rule on `fabrik apply`. API services with bearer auth on `/api/*`: set `shape.has_bearer_api: true`. Don't add Traefik `authelia-forward` middlewares manually — the scaffolder + registrars emit them.

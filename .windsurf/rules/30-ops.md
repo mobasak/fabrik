@@ -29,7 +29,7 @@ description: Docker standards, deployment, infrastructure
 
 Inside a container, `localhost` resolves to the container itself, NOT the host or the shared DB. Use Docker network DNS names on the `coolify` network:
 
-| Variable | ❌ Wrong | ✅ Correct |
+| Variable | Wrong | Correct |
 |---|---|---|
 | `DB_HOST` | `localhost` | `postgres-main` |
 | `DATABASE_URL` | `...@localhost:5432/...` | `...@postgres-main:5432/...` |
@@ -44,60 +44,78 @@ grep -E '^(DB_HOST|DATABASE_URL|REDIS_URL)=' .env | grep localhost
 
 ---
 
-## Dockerfile Template
+## Dockerfile Template (Python)
+
+Multi-stage build with `uv` (mandated package manager). No `requirements.txt`, no raw `pip`.
 
 ```dockerfile
-FROM python:<current-stable>-slim-bookworm AS builder
+FROM python:3.12-slim-bookworm AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt .
+COPY pyproject.toml uv.lock ./
 RUN pip install --no-cache-dir uv && \
-    uv pip install --system --no-cache -r requirements.txt
+    uv sync --frozen --no-dev --no-editable
 
-FROM python:<current-stable>-slim-bookworm
+FROM python:3.12-slim-bookworm
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 curl && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/lib/python3.x/site-packages /usr/local/lib/python3.x/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 COPY . .
 
-# HEALTHCHECK is REQUIRED
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 ENV PORT=8000
 EXPOSE ${PORT}
-CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
+
+**Notes:**
+- `uv sync --frozen` uses `uv.lock` — deterministic, no resolution at build time.
+- `.venv` is copied as a whole directory — no fragile `site-packages` path matching.
+- CMD is exec form (no `sh -c` wrapper) — SIGTERM reaches uvicorn directly for graceful shutdown.
+- HEALTHCHECK uses `localhost` correctly here — it runs inside the same container as the app.
 
 ---
 
 ## compose.yaml Template
 
+All services deploy via Coolify on the `coolify` network. Traefik routes external traffic — services do NOT bind host ports.
+
 ```yaml
 services:
   api:
     build: .
-    platform: linux/amd64  # MANDATORY for check_docker.py compliance (VPS is x86_64)
-    ports:
-      - "${PORT:-8000}:${PORT:-8000}"
+    platform: linux/amd64
     environment:
       - DB_HOST=postgres-main
       - DB_PORT=5432
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
-    depends_on:
-      postgres-main:
-        condition: service_healthy
+      - REDIS_URL=redis://redis-main:6379/${REDIS_DB:-0}
+      - SERVICE_INTERNAL_SECRET_KEY=${SERVICE_INTERNAL_SECRET_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=Host(`api.${DOMAIN}`)
+      - traefik.http.routers.api.entrypoints=websecure
+      - traefik.http.routers.api.tls.certresolver=letsencrypt
+      - traefik.http.services.api.loadbalancer.server.port=${PORT:-8000}
+      - traefik.http.routers.api.middlewares=gzip@docker
     networks:
       - coolify
 
@@ -106,21 +124,32 @@ networks:
     external: true
 ```
 
+**CRITICAL rules:**
+- **No `ports:` section.** All external traffic routes through Traefik. Never bind host ports. See Docker Port Security below.
+- **`deploy.resources.limits.memory` is mandatory.** Coolify v4 ignores its `limits_memory` UI field for `build_pack=dockercompose`. The compose must carry the declaration explicitly.
+- **`platform: linux/amd64` is mandatory.** VPS is x86_64.
+- **No `depends_on: postgres-main`.** The database is a separate Coolify-managed container on the `coolify` network, not a service in your compose file. Docker DNS resolves `postgres-main` at runtime.
+- **Traefik labels** set routing, TLS, and middleware. Middleware per service category: admin UI = `authelia-forward@docker,gzip@docker`; API = `gzip@docker`; public = none.
+- **Traefik entrypoints** are `web` (80) and `websecure` (443). Coolify's auto-generated labels incorrectly use `http`/`https` — always patch to `web`/`websecure`.
+
 ---
 
 ## Deployment Checklist
 
 Before deploying to Coolify:
 
-- [ ] Dockerfile uses bookworm-slim (not Alpine)
+- [ ] Dockerfile uses `slim-bookworm` (not Alpine)
 - [ ] HEALTHCHECK instruction present
-- [ ] Health endpoint tests actual dependencies
-- [ ] All env vars documented in .env.example
-- [ ] Credentials in project .env
-- [ ] Port registered in PORTS.md
-- [ ] compose.yaml uses coolify network
-- [ ] Service added to docs/SERVICES.md
-- [ ] Watchdog script created
+- [ ] Health endpoint tests actual dependencies (`SELECT 1`, Redis `PING`, etc.)
+- [ ] All env vars documented in `.env.example`
+- [ ] Credentials in project `.env`
+- [ ] Port registered in `PORTS.md`
+- [ ] compose.yaml uses `coolify` network (external)
+- [ ] compose.yaml has `deploy.resources.limits.memory` + `cpus`
+- [ ] compose.yaml has `platform: linux/amd64`
+- [ ] compose.yaml has Traefik labels with `websecure` entrypoint
+- [ ] No `ports:` section in compose.yaml (Traefik routes all traffic)
+- [ ] Service added to `docs/SERVICES.md`
 - [ ] `.dockerignore` present (excludes `.env`, `.git`, `.venv`, `node_modules`)
 - [ ] Traefik middleware set per service category — admin UI: `authelia-forward@docker,gzip@docker`; API: `gzip@docker`; public: none
 - [ ] Coolify env vars set: `SERVICE_INTERNAL_SECRET_KEY`, `DATABASE_URL` (using `postgres-main`), `REDIS_URL` (using `redis-main`)
@@ -138,36 +167,6 @@ Before deploying to Coolify:
 git commit -m "..."
 git push
 fabrik redeploy <app>
-```
-
----
-
-## Watchdog Requirement
-
-Every service MUST have a watchdog script.
-
-**Scope:** Runs on VPS host, not inside container. Uses systemd or cron on host.
-
-```bash
-#!/bin/bash
-# scripts/watchdog.sh
-SERVICE_NAME="myservice"
-HEALTH_URL="http://localhost:8000/health"
-MAX_FAILURES=3
-
-failures=0
-while true; do
-    if ! curl -sf "$HEALTH_URL" > /dev/null; then
-        ((failures++))
-        if [ $failures -ge $MAX_FAILURES ]; then
-            systemctl restart "$SERVICE_NAME"
-            failures=0
-        fi
-    else
-        failures=0
-    fi
-    sleep 30
-done
 ```
 
 ---
@@ -194,7 +193,7 @@ python scripts/container_images.py check-arch <image:tag>  # Fabrik project only
 
 Ensures base images support amd64 (required for VPS deployment).
 
-**Note:** Child projects don't have this script - use Docker Hub/registry docs to verify amd64 support.
+**Note:** Child projects don't have this script — use Docker Hub/registry docs to verify amd64 support.
 
 **If script missing:** Check `prebuilt-app-containers.md` manually or skip and flag.
 
@@ -257,11 +256,13 @@ Coolify's Traefik uses these entrypoint names:
 
 | Entrypoint | Port | Usage |
 |------------|------|-------|
-| `web` | 80 | HTTP → redirect to HTTPS |
+| `web` | 80 | HTTP, redirect to HTTPS |
 | `websecure` | 443 | HTTPS with Let's Encrypt |
 
 **CRITICAL:** When deploying Docker Image apps via Coolify API, the auto-generated labels use `http`/`https` entrypoints which **do not exist**. You MUST patch `custom_labels` to use `web`/`websecure` after creating the app. See Coolify API reference for the PATCH workflow.
 
-## Spec contract — operational flow
+---
+
+## Spec Contract — Operational Flow
 
 All operational concerns flow through the spec's `shape:` block. Manual VPS edits are anti-patterns. Use `fabrik apply` / `fabrik audit-registrars` / `fabrik reconcile-all` / `fabrik destroy --partial`. If a registrar is missing post-apply, treat as a deploy bug, not a manual fix-up.

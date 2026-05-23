@@ -22,11 +22,63 @@ Do not use Docusaurus when:
 
 ## Docker Deployment
 
-- Deploy via Coolify using a **two-stage Dockerfile**:
-  1. **Build stage**: `node:22-bookworm-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
-  2. **Serve stage**: `nginx:mainline-bookworm-slim` — copy `build/` to `/usr/share/nginx/html`.
-- The Nginx config must include `try_files $uri $uri/ /index.html;` to support Docusaurus client-side (React Router) deep links and hard refreshes.
-- Cache static assets aggressively: `Cache-Control: public, max-age=31536000, immutable` for JS/CSS/fonts/images/WASM.
+Deploy via Coolify using a **two-stage Dockerfile**:
+
+1. **Build stage**: `node:22-bookworm-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
+2. **Serve stage**: `nginx:mainline-bookworm-slim` — copy `build/` to `/usr/share/nginx/html`.
+
+```dockerfile
+FROM node:22-bookworm-slim AS builder
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build && npx -y pagefind --site build
+
+FROM nginx:mainline-bookworm-slim
+COPY --from=builder /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:80/ || exit 1
+EXPOSE 80
+```
+
+The Nginx config must include `try_files $uri $uri/ /index.html;` to support Docusaurus client-side (React Router) deep links and hard refreshes. Cache static assets aggressively: `Cache-Control: public, max-age=31536000, immutable` for JS/CSS/fonts/images/WASM.
+
+**compose.yaml:**
+
+```yaml
+services:
+  docs:
+    build: .
+    platform: linux/amd64
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.docs.rule=Host(`docs.${DOMAIN}`)
+      - traefik.http.routers.docs.entrypoints=websecure
+      - traefik.http.routers.docs.tls.certresolver=letsencrypt
+      - traefik.http.services.docs.loadbalancer.server.port=80
+      - traefik.http.routers.docs.middlewares=gzip@docker
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
+```
+
+**Rules:** no `ports:` section (Traefik routes traffic), `deploy.resources.limits.memory` mandatory, `platform: linux/amd64` mandatory. See `30-ops.md` for full compose rules.
 
 ## Search
 
@@ -72,7 +124,7 @@ Do not use Docusaurus when:
   - `--ifm-background-color` → `#0A0A0A` (surface-0)
   - `--ifm-background-surface-color` → `#141414` (surface-1)
   - Map all surface, text, and border tokens from the design system.
-- Load **Space Grotesk** (headings), **Inter** (body), **JetBrains Mono** (code) via Google Fonts or self-hosted in `custom.css`. Override Infima's default font stack:
+- Load **Space Grotesk** (headings), **Inter** (body), **JetBrains Mono** (code) **self-hosted** in `static/fonts/` and declared in `custom.css` (no Google Fonts — external dependency + GDPR concern). Override Infima's default font stack:
   - `--ifm-font-family-base` → `'Inter', sans-serif`
   - `--ifm-heading-font-family` → `'Space Grotesk', sans-serif`
   - `--ifm-font-family-monospace` → `'JetBrains Mono', monospace`
@@ -98,17 +150,23 @@ Do not use Docusaurus when:
 | Crowdin or SaaS translation platforms | Native Git-based `i18n/` folder structure |
 | Relative JSX imports in `.mdx` files | Global registration in `src/theme/MDXComponents.js` |
 | Heavy component swizzling | Infima CSS variable overrides in `custom.css` |
+| Google Fonts CDN | Self-hosted fonts in `static/fonts/` |
+| Missing `deploy.resources.limits.memory` in compose | Always declare — Coolify v4 ignores its UI field |
+| `ports:` in compose.yaml | Traefik routes all traffic — no host port bindings |
 
 ---
 
 ## Done When
 
 - [ ] Dockerfile uses two-stage build: `node:22-bookworm-slim` → `nginx:mainline-bookworm-slim`.
+- [ ] Dockerfile has HEALTHCHECK instruction.
 - [ ] Pagefind runs post-build (`npx -y pagefind --site build`) — no Algolia or JS-bundled search.
 - [ ] Nginx config includes `try_files $uri $uri/ /index.html;` for SPA routing.
+- [ ] compose.yaml has `platform: linux/amd64`, `deploy.resources.limits.memory`, Traefik labels, `coolify` network, no `ports:`.
 - [ ] `docusaurus.config.js` sets `onBrokenLinks: 'throw'` and `onBrokenAnchors: 'throw'`.
 - [ ] All `.md`/`.mdx` files have `title` and `description` frontmatter.
 - [ ] No `versioned_docs/` or `versioned_sidebars/` directories exist.
 - [ ] API docs use Scalar (`@scalar/docusaurus`) — no static OpenAPI generators.
 - [ ] Interactive MDX components registered globally in `src/theme/MDXComponents.js`.
 - [ ] Static assets served with immutable cache headers.
+- [ ] Fonts self-hosted in `static/fonts/` — no Google Fonts CDN.

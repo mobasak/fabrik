@@ -7,7 +7,7 @@ trigger: glob
 
 # TypeScript Core Rules
 
-Apply when working on any TypeScript project (Next.js, Node.js, Chrome Extension, Desktop, Mobile, Static Site). Skip for Python-only or infrastructure files. For React/UI-specific guidance, see `SAAS_UI` pack. For API error schemas, see `API_CONTRACTS` pack.
+Apply when working on any TypeScript project (Next.js, Node.js, Chrome Extension, Desktop, Mobile, Static Site). Skip for Python-only or infrastructure files. For React/UI-specific guidance, see `60-saas-ui.md`. For API error schemas, see `15-api-contracts.md`.
 
 ---
 
@@ -57,13 +57,16 @@ type Result = { data?: any; error?: string };
 Access environment variables at runtime via `process.env`. Never hardcode hosts, ports, API keys, or secrets.
 
 ```typescript
-// CORRECT — runtime access with fallback
-const apiUrl = process.env.API_URL ?? 'http://localhost:8000';
+// CORRECT — runtime access with service-name fallback
+const dbHost = process.env.DB_HOST ?? 'postgres-main';
+const redisHost = process.env.REDIS_HOST ?? 'redis-main';
 const port = parseInt(process.env.PORT ?? '3000', 10);
 
-// WRONG — hardcoded
-const apiUrl = 'http://localhost:8000';
+// WRONG — hardcoded localhost (container sees itself, not the DB)
+const dbHost = 'localhost';
 ```
+
+**CRITICAL:** Default DB host is `postgres-main`, not `localhost`. Default Redis host is `redis-main`. `localhost` inside a container points to the container itself, not the shared database.
 
 For Next.js projects, prefix client-exposed variables with `NEXT_PUBLIC_`. Server-only variables must not use this prefix.
 
@@ -89,7 +92,7 @@ import { formatDate } from '../../../utils/date';
 
 - Never swallow errors silently. At minimum, log with context.
 - Use typed error classes for domain errors. Avoid throwing raw strings.
-- For API error responses, defer to `API_CONTRACTS` pack (RFC 7807 Problem Details). Do not define ad-hoc error shapes like `{ error: "..." }` in TypeScript code.
+- For API error responses, defer to `15-api-contracts.md` (RFC 7807 Problem Details). Do not define ad-hoc error shapes like `{ error: "..." }` in TypeScript code.
 
 ```typescript
 // CORRECT — typed error
@@ -106,6 +109,21 @@ throw 'Item not found';
 
 ---
 
+## Logging
+
+Use `pino` for all structured logging. The scaffold emits a pre-configured logger module (`src/logger.js` or `lib/logger.ts`). Import from there — do not create your own.
+
+```typescript
+import { logger } from '@/lib/logger';
+
+logger.info({ userId, action: 'signup' }, 'User signed up');
+logger.error({ err, orderId }, 'Payment failed');
+```
+
+`console.log()` and `console.error()` are **banned** in production code paths. Route all output through the structured logger. See `55-observability.md` for full logging rules.
+
+---
+
 ## Async Patterns
 
 - Prefer `async`/`await` over raw `.then()` chains.
@@ -114,9 +132,31 @@ throw 'Item not found';
 
 ---
 
+## Running in Production
+
+Node.js / Next.js services run via their respective start commands in the Dockerfile. Base image is always `node:<current-LTS>-bookworm-slim` on `linux/amd64`. Never use Alpine.
+
+```dockerfile
+FROM node:22-bookworm-slim
+# ...
+CMD ["node", "dist/server.js"]
+```
+
+For Next.js:
+
+```dockerfile
+FROM node:22-bookworm-slim
+# ...
+CMD ["npm", "start"]
+```
+
+Never ship `ts-node` or `tsx` in the production image. Compile TypeScript at build time, run JavaScript at runtime.
+
+---
+
 ## Port Range
 
-Frontend / Node.js apps: **3000–3099**. Register in `PORTS.md`.
+Frontend / Node.js apps: **3000-3099**. Register in `PORTS.md`.
 
 ---
 
@@ -138,11 +178,15 @@ npm run build         # Production build
 | CommonJS `require()` in new code | ES module `import` / `export` |
 | Deep relative imports (`../../../`) | Path alias (`@/`) via `tsconfig.json` |
 | Raw string `throw 'error'` | Typed `Error` subclass |
-| `{ error: "..." }` ad-hoc error shape | RFC 7807 via `API_CONTRACTS` pack |
+| `{ error: "..." }` ad-hoc error shape | RFC 7807 via `15-api-contracts.md` |
 | `as` type assertion to bypass checks | Type guard, `satisfies`, or proper narrowing |
 | Implicit `any` from untyped libraries | `.d.ts` declaration file |
 | Numeric `enum` (implicit values) | `as const` object or string literal union |
 | `@ts-ignore` | `@ts-expect-error` with explanation comment |
+| `console.log()` / `console.error()` in production | `pino` logger via `55-observability.md` |
+| `localhost` as default host in env fallbacks | Service name (`postgres-main`, `redis-main`) |
+| `ts-node` / `tsx` in production image | Compile at build, run JS at runtime |
+| Alpine base image | `node:<LTS>-bookworm-slim` |
 
 ---
 
@@ -152,5 +196,8 @@ npm run build         # Production build
 - [ ] No `any` annotations — `unknown` + narrowing used where type is uncertain.
 - [ ] All imports use ES module syntax and path aliases.
 - [ ] Domain errors use typed `Error` subclasses, not raw strings or ad-hoc objects.
-- [ ] No hardcoded hosts, ports, or secrets — all via `process.env` with fallbacks.
+- [ ] No hardcoded hosts, ports, or secrets — all via `process.env` with service-name fallbacks.
+- [ ] Logging via `pino` — no `console.log()` in production code paths.
+- [ ] Production Dockerfile uses `node:<LTS>-bookworm-slim`, not Alpine.
+- [ ] No `ts-node` / `tsx` in production image — TypeScript compiled at build time.
 - [ ] `npm run lint` and `npm run type-check` pass with zero warnings.

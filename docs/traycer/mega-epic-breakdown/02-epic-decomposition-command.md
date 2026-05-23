@@ -5,25 +5,25 @@
      -->
 
 <!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
-     against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md (95 items).
+     against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md.
      Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
 
 # Epic Decomposition
 
 ## Role
 
-You are an architect who takes the confirmed Vision Summary and splits it into independent epics — each with clear boundaries, dependencies, and enough context to run through `my-workflow` (00-11) on its own.
+You are an architect who takes the confirmed Vision Summary and splits it into independent epics — each with clear boundaries, dependencies, and enough context to create a Traycer ticket in `03-expand-epic-files-command`.
 
 ## Goal
 
 By the end of this command, the owner and Traycer agree on:
 - **HOW MANY** epics this vision needs
-- **WHAT** each epic contains (features, scope, out-of-scope)
+- **WHAT** each epic contains (features, scope boundaries — compact format)
 - **WHAT ORDER** they execute in (dependency graph — which are sequential, which are parallel)
 - **WHAT EACH EPIC PRODUCES** that later epics consume (DB tables, API contracts, env vars)
-- **WHAT SHARED INFRASTRUCTURE** all epics inherit (from the Technology Decisions in the Vision Summary)
+- **WHAT SHARED INFRASTRUCTURE** all epics inherit (Infrastructure Decisions document)
 
-This command PRODUCES the epic decomposition in conversation. `03-persist-epic-files-command` writes it to disk.
+This command produces the compact epic proposal + Infrastructure Decisions in conversation. `03-expand-epic-files-command` expands each epic into a Traycer ticket. `04-dispatch-epic-tickets-command` dispatches tickets in dependency order.
 
 ## Core Philosophy
 
@@ -32,7 +32,7 @@ This command PRODUCES the epic decomposition in conversation. `03-persist-epic-f
 - **Maximize parallelism between epics.** If two epics share no mutable state, they can run in parallel. Fewer sequential dependencies = faster delivery.
 - **Draw boundaries by DOMAIN, not by layer.** "User management" is an epic. "Database layer" is not. Each epic delivers a vertical slice — from DB to API to UI (if applicable).
 - **Plan for a solo dev + AI fleet.** One epic runs through my-workflow at a time. Epics execute sequentially (owner can only orchestrate one my-workflow cycle at a time), but WITHIN each epic, tickets are parallel.
-- **Token budget matters.** Each epic file must fit in a 200K context window alongside tech-plan, deploy-plan, and ticket-outline. Keep epic files ≤10,000 tokens. Defer implementation details to my-workflow steps.
+- **Token budget matters.** This command stays lean — compact proposal, not full epic files. Full expansion happens in `03-expand-epic-files-command` in controlled batches.
 
 ## Input Contract
 
@@ -55,9 +55,9 @@ This command PRODUCES the epic decomposition in conversation. `03-persist-epic-f
 
 ## Processing User Request
 
-This command has **one checkpoint** before the final output:
-1. **Step 3** — present proposed epic list + dependency graph. Owner confirms boundaries or adjusts. STOP and wait.
-2. **Step 5** — present complete epic files. Owner confirms. Route to `03-persist-epic-files-command`.
+This command has **one checkpoint** before the final confirmation:
+1. **After Step 3** — present compact epic proposal + Infrastructure Decisions + dependency graph. Owner confirms boundaries, shared decisions, and execution order. STOP and wait.
+2. **Step 4** — iterate if needed, then route to `03-expand-epic-files-command`.
 
 ### Step 1: Consume Vision Summary
 
@@ -87,78 +87,38 @@ State: "Vision Summary consumed. [N] features, [M] scaffold types, scale assessm
 - Does Epic B need a database table that Epic A creates? → B depends on A.
 - Does Epic B call an API endpoint that Epic A implements? → B depends on A.
 - Does Epic B use an auth system that Epic A configures? → B depends on A.
-- Do two epics share NO data, NO APIs, NO auth? → They can run in parallel.
+- Does Epic B consume any shared service or infrastructure component (background processor, job queue, storage client, notification client, shared middleware, or any API module) that another epic scaffolds or creates? → B depends on THAT epic, regardless of where it sits in the draft execution order.
+- Do two epics share NO data, NO APIs, NO services, NO auth, NO infrastructure components? → They can run in parallel.
 
-**2d. Identify shared infrastructure (becomes the Infrastructure Decisions document):**
-- Database schemas shared across epics (e.g., users table used by multiple epics)
-- Auth configuration shared across epics
-- Env vars shared across epics
-- These are decided ONCE here, referenced by each epic — never duplicated.
+**Parallel classification gate — run AFTER dependency detection, before finalizing any "parallel" label:**
+For EVERY epic marked "parallel," produce one explicit verdict line in the proposal:
 
-**2e. Order for value delivery:**
+```text
+[Epic N] parallel gate: PASS — consumes only [list artifacts] from [Epic X], which completes before this epic starts.
+[Epic N] parallel gate: FAIL — consumes [artifact] from [Epic Y], which runs AFTER this epic → reclassified to depends-on: Epic Y.
+```
+
+FAIL = fix `depends-on`, re-run the gate for that epic, confirm PASS before finalizing.
+Do NOT present the proposal until every parallel-labeled epic has a PASS verdict on record.
+
+**2d. Order for value delivery:**
 - Epic 1 should deliver something the owner can SEE and USE — not just foundation.
 - If a foundation epic is unavoidable (e.g., shared DB schema + auth), make it SMALL and FAST so value-delivering epics start quickly.
 - After Epic 1, maximize parallel lanes. If Epic 2 and Epic 3 are independent, say so.
 
-**2f. Port allocation:**
+**2e. Port allocation:**
 - Check `PORTS.md` for each epic's service.
 - Assign ports. State them.
 
-### ── CHECKPOINT: Present Epic Proposal ──
+### Step 3: Draft Infrastructure Decisions
 
-Present to the owner:
-
-**1. Epic list** — for each epic:
-```
-Epic [N]: [Name]
-  Scope: [1-2 sentences]
-  Features: [numbers from Feature Inventory, e.g., #1, #3, #7]
-  Scaffold: [type]
-  Depends on: [Epic X, Epic Y] or [none — root epic]
-  Parallel with: [Epic Z] or [sequential]
-  Port: [assigned]
-  Delivers: [what the owner can see/use after this epic ships]
-```
-
-**2. Dependency graph** (mermaid):
-```mermaid
-graph TD
-  subgraph "Phase 1"
-    E1[Epic 1: Foundation + Core API]
-  end
-  subgraph "Phase 2 (parallel)"
-    E2[Epic 2: Client Portal]
-    E3[Epic 3: Admin Dashboard]
-  end
-  subgraph "Phase 3"
-    E4[Epic 4: Billing + Analytics]
-  end
-  E1 --> E2
-  E1 --> E3
-  E2 --> E4
-  E3 --> E4
-```
-
-**3. Coverage check:**
-- "All [N] features from the Vision Summary are assigned. No orphans."
-- "Features #X, #Y, #Z are shared infrastructure — handled in Epic 1 and inherited by later epics."
-
-**4. Questions for owner:**
-- Any boundary you disagree with?
-- Any epic too big or too small?
-- Execution order acceptable?
-
-**CRITICAL: STOP GENERATION HERE.** Do NOT simulate the owner's response. Wait for explicit confirmation.
-
-### Step 3: Produce Infrastructure Decisions Document
-
-After owner confirms epic boundaries, produce the shared infrastructure document (≤5,000 tokens):
+Produce the shared infrastructure document (≤5,000 tokens). These decisions are made ONCE here, referenced by each epic — never duplicated:
 
 ```markdown
-# Infrastructure Decisions
+# Infrastructure Decisions — Shared Across All Epics
 
-## Shared Across All Epics
-[These decisions are made ONCE. Each epic inherits them. Do NOT re-decide in my-workflow.]
+[These decisions are made ONCE. Each epic inherits them.
+Do NOT re-decide in my-workflow. Do NOT copy into epic files.]
 
 ## Database Strategy
 - [which DB holds what, shared schemas, per-epic schemas]
@@ -173,7 +133,7 @@ After owner confirms epic boundaries, produce the shared infrastructure document
 - [carried from Vision Summary — not re-derived]
 
 ## Domain Structure
-- [which subdomain per epic]
+- [URL routing, subdomains, path-based routing — whichever was decided]
 
 ## Shared Environment Variables
 - [env vars that multiple epics need — defined once, consumed by each]
@@ -182,99 +142,102 @@ After owner confirms epic boundaries, produce the shared infrastructure document
 - [which registrars each epic will activate]
 ```
 
-### Step 4: Produce Epic Files
+### ── CHECKPOINT: Present Epic Proposal + Infrastructure Decisions ──
 
-For EACH epic, produce a structured file (≤10,000 tokens each):
+Present to the owner:
 
-```markdown
-# Epic [N]: [Name]
-
-## Summary
-[3-5 sentences. What this epic delivers. Derived from Vision Summary — not invented.]
-
-## Scope
-- **In:** [features from inventory, by number and name]
-- **Out:** [features that belong to other epics — name them explicitly]
-
-## Success Criteria
-[3-5 measurable outcomes. Must include deploy-level: "`fabrik apply` succeeds, `/health` returns 200."]
-1. [Criterion]
-2. [Criterion]
-
-## Out of Scope (Epic Level)
-[What this epic does NOT do — even if it's in the vision. Name the epic that handles it.]
-- [Exclusion] — handled by Epic [N]
-
-## Dependencies
-- **Consumes from prior epics:** [DB tables, API endpoints, env vars, auth config that must exist before this epic starts]
-- **Produces for later epics:** [what this epic creates that other epics will need]
-- **Depends on:** [Epic X, Epic Y] or [none — root epic]
-
-## Technology Stack (inherited from Infrastructure Decisions)
-- Scaffold: [type]
-- Port: [assigned]
-- Shape: [registrars that fire]
-- Database: [which schemas this epic owns vs inherits]
-
-## Metadata (for my-workflow/01-epic-brief-command)
-- `Scaffold: [type]`
-- `Port: [value]`
-- `HAS_USER_GUIDE: [true/false]`
-- `Shape: [fields]`
-- `Concurrency: [mechanism]`
-- `i18n: [mechanism or N/A]`
-- `Rule Packs: [IDs from AGENTS.md § Project Type → Default Packs]`
-
-## Estimated Scale
-- Feature count: [N] ([X] small, [Y] medium, [Z] large)
-- Estimated tickets: [range based on complexity — rough, not binding]
+**1. Epic list** — for each epic (COMPACT format — full expansion happens in 03):
+```
+Epic [N]: [Name]
+  Scope: [1-2 sentences]
+  Features: [numbers from Feature Inventory, e.g., #1, #3, #7]
+  Scaffold: [type]
+  Depends on: [Epic X, Epic Y] or [none — root epic]
+  Parallel with: [Epic Z] or [sequential]
+  Port: [assigned]
+  Delivers: [what the owner can see/use after this epic ships]
+  Rule Packs: [IDs from .windsurf/rules/]
+  HAS_USER_GUIDE: [true/false]
 ```
 
-### Step 5: Present and Iterate
+**2. Infrastructure Decisions** — the full document from Step 3.
 
-Present ALL epic files + infrastructure decisions + dependency graph.
+**3. Dependency graph** (mermaid):
+```mermaid
+graph TD
+  subgraph "Phase 1"
+    E1[Epic 1: Name]
+  end
+  subgraph "Phase 2 (parallel)"
+    E2[Epic 2: Name]
+    E3[Epic 3: Name]
+  end
+  E1 --> E2
+  E1 --> E3
+```
+
+**4. Coverage check:**
+- "All [N] features from the Vision Summary are assigned. No orphans. No duplicates."
+- Table mapping every feature to its assigned epic.
+
+**5. Execution order:**
+- Numbered list showing recommended order (respecting dependencies).
+- Parallel lanes noted.
+
+**6. Questions for owner:**
+- Any boundary you disagree with?
+- Any epic too big or too small?
+- Execution order acceptable?
+- Infrastructure Decisions complete?
+
+**CRITICAL: STOP GENERATION HERE.** Do NOT simulate the owner's response. Wait for explicit confirmation. Silence ≠ confirmation.
+
+### Step 4: Iterate and Confirm
 
 Iterate until the owner explicitly confirms:
-- Silence ≠ confirmation.
-- If the owner moves features between epics → update both epic files + re-check dependencies.
+- If the owner moves features between epics → update both entries + re-check dependencies + re-validate coverage.
 - If the owner adds/removes an epic → re-validate coverage (all features assigned, no orphans).
 - If the owner changes execution order → update dependency graph.
+- If the owner adjusts Infrastructure Decisions → update the document.
 
-**CRITICAL: STOP GENERATION after presenting.** Wait for explicit confirmation.
-
-**After confirmation:** "All epics confirmed. Proceed to `03-persist-epic-files-command` to write files to disk."
+**After confirmation:** "Epic proposal and Infrastructure Decisions confirmed. Proceed to `03-expand-epic-files-command` to create one Traycer ticket per epic."
 
 ## Output Contract
 
-**Produced in conversation (NOT written to disk — that's `03-persist-epic-files-command`'s job):**
+**Produced as Traycer specs (persisted in Traycer's spec store, readable via `read_spec`):**
 
-1. **Infrastructure Decisions** — shared across all epics. ≤5,000 tokens.
-2. **Epic files** — one per epic. ≤10,000 tokens each. Contains Metadata section matching `my-workflow/01-epic-brief-command` expectations.
+1. **Compact Epic Proposal** — one entry per epic with: scope, features, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE.
+2. **Infrastructure Decisions** — shared across all epics. ≤5,000 tokens.
 3. **Dependency Graph** — mermaid diagram + execution order.
+4. **Coverage Check** — every feature mapped to exactly one epic.
 
-**Consumed by:** `03-persist-epic-files-command` reads all outputs from conversation and writes to disk.
+**NOT produced here (deferred to 03-expand-epic-files-command):**
+
+- Full epic tickets with detailed scope, success criteria, out-of-scope, dependencies listing specific artifacts, metadata blocks.
+
+**Consumed by:** `03-expand-epic-files-command` reads the compact proposal + Infrastructure Decisions via `read_spec` and expands each epic into a Traycer ticket.
 
 ## Does NOT
 
 - Does NOT re-derive the vision, features, or technology decisions — consumes `00-trigger-workflow-command`'s confirmed output.
+- Does NOT produce full epic tickets — that is `03-expand-epic-files-command`. This command produces the compact proposal only.
 - Does NOT produce ticket outlines or ticket breakdowns — that happens in `my-workflow/05-ticket-outline-command` per epic.
 - Does NOT decide implementation details (API routes, DB schema columns, component names) — that is `my-workflow/03-tech-plan-command` per epic.
-- Does NOT write files to disk — that is `03-persist-epic-files-command`.
+- Does NOT create tickets or write files to disk — tickets are created by `03-expand-epic-files-command`.
 
 ## Acceptance Criteria
 
 - Vision Summary consumed from conversation — not re-derived.
 - Technology Decisions inherited — not re-decided.
 - Every feature from Feature Inventory assigned to exactly one epic. No orphans. No duplicates.
-- Each epic has: scope, success criteria, out-of-scope, dependencies, metadata.
+- Each epic entry has: scope summary, feature list, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE.
 - Each epic is independently deployable — produces a testable artifact the owner can see.
 - Epic boundaries drawn by domain, not by layer.
 - Dependencies between epics are explicit. No circular dependencies.
-- Dependency graph presented as mermaid diagram.
+- Dependency graph presented as mermaid diagram with execution order.
 - Parallel lanes identified — epics that can run simultaneously.
 - Epic 1 delivers visible value (not foundation-only unless unavoidable and small).
-- Infrastructure Decisions document produced — shared across all epics.
-- Each epic file contains Metadata section matching `my-workflow/01-epic-brief-command` expectations (Scaffold, Port, Shape, Concurrency, i18n, Rule Packs, HAS_USER_GUIDE).
+- Infrastructure Decisions document produced — shared across all epics, ≤5,000 tokens.
 - Ports assigned per epic from `PORTS.md`.
-- Each epic file ≤10,000 tokens. Infrastructure Decisions ≤5,000 tokens.
+- Compact proposal format — NOT full epic files (those come in 03).
 - Owner explicitly confirms. Silence ≠ confirmation.

@@ -21,11 +21,14 @@ By the end of this command, the owner and Traycer agree on:
 - **WHO** it's for (named personas, not "users")
 - **WHY** it matters (value streams — revenue, cost savings, productivity)
 - **HOW BIG** it is (single epic or multiple epics)
-- **WHICH SERVICES** we'll use — every major technology choice resolved, not deferred. Examples: postgres-main vs Supabase for data, Authelia vs Supabase Auth for login, MeiliSearch vs pgvector for search, Paddle vs Stripe for billing. Choices grounded in `AGENTS.md` § Infrastructure Services (what's deployed) and `docs/reference/technology-stack-decision-guide.md` (decision flowchart).
+- **WHICH SERVICES** we'll use — every major technology choice resolved, not deferred. Examples: postgres-main vs Supabase for data, Authelia vs Supabase Auth for login, MeiliSearch vs pgvector for search, Paddle vs Iyzico for billing. Choices grounded in `AGENTS.md` § Infrastructure Services (what's deployed) and `docs/reference/technology-stack-decision-guide.md` (decision flowchart).
 - **WHAT EXISTS** that we can leverage — VPS services already deployed (`AGENTS.md` § Infrastructure Services), existing Fabrik microservices (`AGENTS.md` § Fabrik Microservices), managed services (Supabase, Cloudflare, Backblaze B2)
 - **WHAT DOESN'T FIT** (constraints, conflicts with Fabrik infrastructure)
+- **WHAT'S MISSING** (what needs to be built)
 
-This command PRODUCES the Vision Summary — a structured document presented in conversation. No files written to disk (that happens in `03-persist-epic-files-command`), but the Vision Summary is a concrete deliverable, not just a conversation. `02-epic-decomposition-command` reads it from conversation context.
+## Output
+
+This command PRODUCES the Vision Summary — a structured document presented in conversation. No files written to disk — `03-expand-epic-files-command` creates Traycer tickets from the confirmed decomposition. The Vision Summary is a concrete deliverable, not just a conversation. `02-epic-decomposition-command` reads it from conversation context.
 
 ## Core Philosophy
 
@@ -344,9 +347,9 @@ Iterate until the owner explicitly confirms:
 **Token budget:** ≤5,000 target, ≤8,000 hard cap
 **Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Technology Decisions, Constraints, Out of Scope, Open Questions, Scale Assessment
 **Key output:** Scale Assessment determines whether this is a single-epic (→ my-workflow) or multi-epic (→ 02-epic-decomposition-command). This routing decision is the primary purpose of this command.
-**Lives in:** Traycer conversation context. NOT written to disk — `03-persist-epic-files-command` writes it later.
+**Lives in:** Traycer conversation context as a spec.
 **Consumed by:** `02-epic-decomposition-command` reads the Vision Summary from conversation context.
-**Persisted to disk by:** `03-persist-epic-files-command` writes all files (vision summary + epic files + infra decisions) via coding agent after all decomposition is confirmed.
+**Persisted by:** Traycer's spec store (automatic). `03-expand-epic-files-command` creates tickets per epic from the confirmed decomposition.
 
 ## Does NOT
 
@@ -354,7 +357,7 @@ Iterate until the owner explicitly confirms:
 - Does NOT decide scaffold types per epic — that is `02-epic-decomposition-command`.
 - Does NOT decide shape blocks per epic — that is `02-epic-decomposition-command`.
 - Does NOT produce infrastructure decisions per epic — that is `02-epic-decomposition-command`.
-- Does NOT create files — this is an orientation command. File creation happens in `03-persist-epic-files-command`.
+- Does NOT create files or tickets — this is an orientation command. Ticket creation happens in `03-expand-epic-files-command`.
 - Does NOT blindly accept research — challenges against Fabrik reality, budget, maintainability.
 
 ## Acceptance Criteria

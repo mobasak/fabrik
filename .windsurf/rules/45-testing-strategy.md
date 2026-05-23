@@ -19,7 +19,7 @@ Apply when writing, reviewing, or generating tests. Covers all scaffold types: F
 
 | Ticket Type | Minimum Test |
 |-------------|-------------|
-| **New Feature (Backend)** | One pytest integration test via `TestClient` against real PostgreSQL. Verify HTTP status + response schema. |
+| **New Feature (Backend)** | One pytest integration test via `httpx.AsyncClient` against real PostgreSQL. Verify HTTP status + response schema. |
 | **New Feature (Frontend)** | One Playwright E2E test verifying the user happy path. Use semantic locators (`getByRole`). |
 | **Bugfix** | One regression test. Write a test that **fails first** reproducing the bug, then implement the fix. |
 | **Refactor** | Zero new tests. Existing integration/E2E tests must pass. Replace brittle unit tests with integration tests if encountered. |
@@ -32,34 +32,72 @@ The One-Test Rule does not apply to these high-risk domains — exhaustive permu
 - **Auth / RBAC boundaries** — test both positive access and negative (401/403) for each role.
 - **Financial transactions / payment webhooks** — test edge cases, race conditions, idempotent retries.
 - **Data deletion / cascades** — verify foreign key constraints and orphan prevention.
+- **Multi-tenant isolation (SaaS/mobile with Supabase RLS)** — query as tenant A, verify tenant B's data is invisible. See Tenant Isolation Testing below.
 
-## FastAPI + PostgreSQL
+## FastAPI + PostgreSQL (async)
 
-- **Framework**: `pytest` + `httpx` (`TestClient`).
+- **Framework**: `pytest` + `pytest-asyncio` + `httpx.AsyncClient`.
+- **Run tests**: `uv run pytest tests/` (never bare `pytest` — Fabrik uses `uv`).
 - **Zero-mock database policy**: never mock SQLAlchemy, SQLModel, or database sessions. All backend tests execute against a real PostgreSQL 16 instance.
 - Override `get_db` via `app.dependency_overrides` to inject a test session.
 - Use **transactional rollbacks** for speed and isolation: open a transaction in the fixture, yield the session, rollback on teardown.
 
 ```python
-@pytest.fixture(scope="function")
-def db_session():
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = TestingSessionLocal(bind=connection)
-    yield session
-    session.close()
-    transaction.rollback()
-    connection.close()
+import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-@pytest.fixture(scope="function")
-def client(db_session):
+TEST_DATABASE_URL = "postgresql+asyncpg://test:test@postgres-main:5432/testdb"
+test_engine = create_async_engine(TEST_DATABASE_URL)
+TestSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
+
+@pytest.fixture
+async def db_session():
+    async with test_engine.connect() as connection:
+        transaction = await connection.begin()
+        session = TestSessionLocal(bind=connection)
+        yield session
+        await session.close()
+        await transaction.rollback()
+
+@pytest.fixture
+async def client(db_session):
     app.dependency_overrides[get_db] = lambda: db_session
-    with TestClient(app) as c:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
     app.dependency_overrides.clear()
+
+# Example test
+@pytest.mark.asyncio
+async def test_create_item(client: AsyncClient):
+    resp = await client.post("/items/", json={"name": "test"})
+    assert resp.status_code == 201
+    assert resp.json()["name"] == "test"
 ```
 
 - Use **programmatic test data factories** — not static JSON fixture files. Factories adapt automatically as schemas evolve.
+- Use `structlog` in test helpers if logging is needed — never `print()`. See `55-observability.md`.
+
+## Tenant Isolation Testing (SaaS / Mobile with RLS)
+
+For multi-tenant projects using Supabase RLS or postgres-main with `tenant_id`:
+
+```python
+@pytest.mark.asyncio
+async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: AsyncClient):
+    # Tenant A creates a resource
+    resp = await client_tenant_a.post("/items/", json={"name": "secret"})
+    item_id = resp.json()["id"]
+
+    # Tenant B cannot see it
+    resp = await client_tenant_b.get(f"/items/{item_id}")
+    assert resp.status_code == 404  # RLS blocks cross-tenant access
+```
+
+- Create separate test fixtures per tenant with different `tenant_id` values set in the session context.
+- Test both positive (own data visible) and negative (other tenant's data invisible) for every tenant-scoped endpoint.
+- Reference `95-multi-tenant-saas.md` for RLS patterns.
 
 ## Next.js (App Router)
 
@@ -70,9 +108,10 @@ def client(db_session):
 
 ## React Native (Mobile)
 
-- **Framework**: Maestro (YAML-driven, black-box).
+- **Framework**: Maestro (YAML-driven, black-box). See `80-mobile.md` § Testing for Maestro setup, `.maestro/` directory structure, and `testID` conventions.
 - **Banned**: Detox (fragile native hooks, heavy Xcode/Android Studio maintenance), Appium.
 - Maestro interacts via the native accessibility layer with built-in smart waits — near-zero maintenance overhead.
+- Every `[PRIMARY PATH]` flow in Core Flows gets a Maestro YAML in `.maestro/`.
 
 ## Chrome Extension (MV3)
 
@@ -83,8 +122,10 @@ def client(db_session):
 
 ## Contract Testing
 
-- The TypeScript compiler is the most robust frontend-backend integration test. Pydantic generates `openapi.json`; TS types are auto-generated from it.
-- If a backend schema change breaks the frontend TS compilation, the contract is violated — this is caught by static analysis with zero test code.
+- The TypeScript compiler is the most robust frontend-backend integration test.
+- FastAPI auto-generates `openapi.json` at `/openapi.json`. TS types are auto-generated from it (via `openapi-typescript` or similar).
+- If a backend schema change breaks the frontend TS compilation, the contract is violated — caught by static analysis with zero test code.
+- Keep the generated types committed and re-generate on schema changes (`uv run python -c "import json; from src.main import app; print(json.dumps(app.openapi()))" > openapi.json`).
 
 ---
 
@@ -92,7 +133,10 @@ def client(db_session):
 
 | Pattern | Use Instead |
 |---------|-------------|
-| Mocking SQLAlchemy / DB sessions | Real PostgreSQL + transactional rollback fixtures |
+| Mocking SQLAlchemy / DB sessions | Real PostgreSQL + async transactional rollback fixtures |
+| Sync `TestClient` with async FastAPI app | `httpx.AsyncClient` with `ASGITransport` |
+| Bare `pytest` command | `uv run pytest` |
+| `print()` in test files | `structlog` logger or remove |
 | Jest / Vitest / RTL for Next.js Server Components | Playwright E2E |
 | Detox for React Native | Maestro YAML |
 | Puppeteer headless for extensions | Playwright `launchPersistentContext` |
@@ -100,6 +144,8 @@ def client(db_session):
 | Static JSON fixture files for test data | Programmatic factory functions |
 | Testing implementation details (internal method calls) | Testing user-visible outcomes |
 | Targeting 100% line coverage | One high-value integration test per feature |
+| Skipping tenant isolation tests in multi-tenant projects | Test both positive and negative per tenant-scoped endpoint |
+| `localhost` in test DB URL | `postgres-main:5432` (test DB on shared instance) |
 
 ---
 
@@ -108,8 +154,12 @@ def client(db_session):
 - [ ] Every new feature has at least one integration or E2E test (One-Test Rule).
 - [ ] Every bugfix has a regression test that fails before the fix.
 - [ ] Backend tests run against real PostgreSQL — no DB mocks in test files.
+- [ ] Backend tests use `httpx.AsyncClient` + `ASGITransport` — not sync `TestClient`.
+- [ ] Tests run via `uv run pytest` — not bare `pytest`.
+- [ ] Multi-tenant projects have tenant isolation tests (query as A, verify B invisible).
 - [ ] Playwright tests use only semantic locators (`getByRole`, `getByLabel`, `getByText`).
 - [ ] No Jest/Vitest/RTL imports in Next.js app directory.
-- [ ] No Detox dependency in React Native projects.
+- [ ] No Detox dependency in React Native projects — Maestro flows in `.maestro/`.
 - [ ] Chrome extension tests use `launchPersistentContext` with extension loading flags.
 - [ ] Test data uses factory functions, not static JSON fixtures.
+- [ ] No `print()` statements in test files.
