@@ -143,7 +143,7 @@ send_email(to=user.email, subject=strings["welcome"]["subject"], html=html, lang
 | Stream | Purpose | ESP | Unsubscribe | Sending domain |
 |---|---|---|---|---|
 | **Transactional** | Signup, reset, receipts, alerts, dunning | Resend (escalate to Postmark) | Not required (operational) | `mail.<domain>` |
-| **Marketing** | Newsletters, product updates, lifecycle (onboarding, nurture, win-back, expansion) | Loops or Resend Broadcasts | **Mandatory** (RFC 8058 one-click) | `news.<domain>` or `mail.<domain>` (separate subdomain recommended) |
+| **Marketing** | Newsletters, product updates, lifecycle (onboarding, nurture, win-back, expansion) | Resend Broadcasts → self-hosted Listmonk + SES at scale | **Mandatory** (RFC 8058 one-click) | `news.<domain>` (dedicated marketing subdomain) |
 
 **Why separate streams:** mixing transactional and marketing on the same sending identity lets marketing complaints (spam reports) degrade transactional deliverability (password resets landing in spam). Separate streams isolate reputation.
 
@@ -232,7 +232,7 @@ Same MJML pipeline as transactional — author in MJML, compile, commit, render 
 
 ### Lifecycle Email Sequences
 
-Define in the marketing ESP (Loops / Resend Broadcasts), not in application code:
+Define in the marketing ESP, not in application code:
 
 | Sequence | Trigger | Emails | Goal |
 |---|---|---|---|
@@ -245,6 +245,49 @@ Define in the marketing ESP (Loops / Resend Broadcasts), not in application code
 - All sequences are **localized** per user locale.
 - All sequences **stop** on unsubscribe or successful conversion.
 - Dunning emails are triggered by Paddle/RevenueCat webhooks — not by the marketing ESP's scheduler.
+
+### Marketing ESP — Phased Strategy
+
+The sender is a commodity. Your edge is the content AI, not the sending tool. Don't buy "AI email marketing" SaaS (you'd pay for a worse content engine than the one you already own), and don't build a campaign engine from scratch.
+
+| Phase | Tool | When | Cost model |
+|---|---|---|---|
+| **Now** | **Resend Broadcasts** | Start here — you already run Resend for transactional | Per-contact / volume pricing |
+| **At scale** | **Self-hosted Listmonk + Amazon SES** | When Resend per-contact fee exceeds ~$5-10/mo container + SES per-email rate | Listmonk: flat (Go + Postgres, deploys on Coolify, zero per-contact fee). SES: ~$0.10 per 1,000 emails |
+| **WordPress** | **FluentCRM** | WordPress/Woo projects only | Self-hosted, no per-contact fee |
+
+**Migration trigger** (Resend → Listmonk) is purely arithmetic: when managed per-contact pricing exceeds the self-hosted alternative. Same "escalate on proven limit" pattern as Resend → Postmark for transactional.
+
+**What you do NOT do:**
+- Build your own campaign engine (Forex rabbit hole — good OSS exists)
+- Use Mautic (PHP, heavy, maintenance sink for solo dev)
+- Send marketing from your own VPS IP (torches domain reputation — delivery always rides SES/Resend)
+
+### AI Content Automation Loop
+
+Your content AI plugs into the marketing pipeline — it generates, you approve:
+
+```
+Content AI → copy + segment + subject → MJML render → API push → ESP sends
+                                                                      ↓
+                                                        opens/clicks/conversions
+                                                                      ↓
+                                                          feedback to AI (tune next campaign)
+```
+
+**The automation flow (worker-based):**
+
+1. **Generate:** content AI produces copy, subject line, preheader, and segment criteria per campaign
+2. **Render:** worker loads MJML template + i18n strings, renders with Jinja2, produces localized HTML per recipient locale
+3. **Review gate:** human approves via a one-click approve/reject interface — AI does the work, you press send. Keep this gate until trust is established.
+4. **Send:** on approval, worker calls Resend Broadcasts API (or Listmonk API at scale) to dispatch
+5. **Feedback loop:** opens, clicks, conversions flow back from ESP API → stored in PostgreSQL → fed to content AI for next campaign tuning
+
+**Rules:**
+- Content generation is a background job (per `75-workers-jobs.md`), not inline in an API handler.
+- The human-approve gate is mandatory for all marketing sends. Never auto-send without approval.
+- The feedback loop (opens/clicks → AI) is the differentiator — invest here, not in the sending tool.
+- All guardrails from this pack apply: dedicated `news.<domain>` subdomain, SPF/DKIM/DMARC, one-click `List-Unsubscribe`, suppression, İYS consent gate for TR recipients.
 
 ### Marketing Consent & Compliance
 
@@ -278,7 +321,7 @@ Define in the marketing ESP (Loops / Resend Broadcasts), not in application code
 ### SaaS (FastAPI + Jinja2)
 
 - Full pipeline as above. Transactional (signup, reset, receipts, alerts) + lifecycle (onboarding, nurture, dunning, win-back, expansion).
-- **ESP:** transactional: **Resend** (3k/mo free, $20/50k, clean API; escalate critical auth mail — reset, receipts — to **Postmark** only on *measured* deliverability issues). Marketing/lifecycle: Loops or Resend Broadcasts (separate stream). SES only if cost-scaling forces it.
+- **ESP:** transactional: **Resend** (3k/mo free, $20/50k, clean API; escalate critical auth mail — reset, receipts — to **Postmark** only on *measured* deliverability issues). Marketing/lifecycle: **Resend Broadcasts** (start) → **self-hosted Listmonk + SES** (at scale). See § Marketing ESP — Phased Strategy.
 - Dunning/entitlement emails are driven by Paddle webhooks (tie to SaaS module dim 5).
 
 ### Mobile (python-api backend + push + in-app)
@@ -346,7 +389,11 @@ Define in the marketing ESP (Loops / Resend Broadcasts), not in application code
 | Hardcoded date/number formats in emails | Locale-aware formatting via `babel` or equivalent |
 | Mixing transactional + marketing on one stream | Separate streams (separate ESP config or subdomain) |
 | Marketing email without `List-Unsubscribe` header | RFC 8058 one-click unsubscribe on every marketing email |
-| Lifecycle sequences defined in application code | Define in marketing ESP (Loops / Resend Broadcasts) |
+| Lifecycle sequences defined in application code | Define in marketing ESP (Resend Broadcasts or Listmonk) |
+| "AI email marketing" SaaS (Mailchimp AI, etc.) | Your own content AI + commodity ESP — you own the engine |
+| Mautic for campaign management | Listmonk (Go + Postgres, deploys on Coolify) |
+| Sending marketing from VPS IP directly | Always via SES or Resend — protect domain reputation |
+| Auto-sending marketing without human approval | One-click approve gate before every blast |
 | Sending marketing email without opt-in | Universal opt-in default; double opt-in for EU |
 | Re-adding suppressed/bounced addresses | Explicit re-opt-in required |
 | Marketing email to a TR recipient without İYS-registered consent | Register + verify consent in İYS before send (own-DB consent is insufficient for TR) |
