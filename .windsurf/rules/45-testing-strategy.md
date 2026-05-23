@@ -47,19 +47,29 @@ The One-Test Rule does not apply to these high-risk domains — exhaustive permu
 - Use **transactional rollbacks** for speed and isolation: open a transaction in the fixture, yield the session, rollback on teardown.
 
 ```python
+import os
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-TEST_DATABASE_URL = "postgresql+asyncpg://test:test@postgres-main:5432/testdb"
-test_engine = create_async_engine(TEST_DATABASE_URL)
+# From env — localhost in WSL dev, postgres-main in CI/container. Never hardcoded.
+test_engine = create_async_engine(os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://postgres@localhost:5432/testdb"  # WSL dev default
+))
 TestSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
 
 @pytest.fixture
 async def db_session():
     async with test_engine.connect() as connection:
         transaction = await connection.begin()
-        session = TestSessionLocal(bind=connection)
+        # join_transaction_mode="create_savepoint" — inner commit() lands on a
+        # savepoint instead of ending the outer transaction. Without this, any
+        # session.commit() in the code under test leaks rows past the rollback.
+        session = TestSessionLocal(
+            bind=connection,
+            join_transaction_mode="create_savepoint",
+        )
         yield session
         await session.close()
         await transaction.rollback()
@@ -127,7 +137,7 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 ## Contract Testing
 
 - The TypeScript compiler is the most robust frontend-backend integration test.
-- FastAPI auto-generates `openapi.json` at `/openapi.json`. TS types are auto-generated from it (via `openapi-typescript` or similar).
+- FastAPI auto-generates `openapi.json` at `/openapi.json`. TS types are auto-generated from it via `@hey-api/openapi-ts` (per `15-api-contracts.md`).
 - If a backend schema change breaks the frontend TS compilation, the contract is violated — caught by static analysis with zero test code.
 - Keep the generated types committed and re-generate on schema changes (`uv run python -c "import json; from src.main import app; print(json.dumps(app.openapi()))" > openapi.json`).
 
@@ -149,7 +159,18 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 | Testing implementation details (internal method calls) | Testing user-visible outcomes |
 | Targeting 100% line coverage | One high-value integration test per feature |
 | Skipping tenant isolation tests in multi-tenant projects | Test both positive and negative per tenant-scoped endpoint |
-| `localhost` in test DB URL | `postgres-main:5432` (test DB on shared instance) |
+| Hardcoded test DB URL | `TEST_DATABASE_URL` from env — `localhost` in WSL dev, `postgres-main` in CI |
+
+---
+
+## Related Rule Packs
+
+- `10-python.md` — async patterns, Pydantic Settings (TEST_DATABASE_URL)
+- `15-api-contracts.md` — `@hey-api/openapi-ts` codegen for contract testing
+- `25-data-postgres.md` — canonical session (get_db override target), asyncpg
+- `55-observability.md` — structlog in tests, no `print()`
+- `80-mobile.md` — Maestro E2E setup, `.maestro/` directory
+- `95-multi-tenant-saas.md` — RLS patterns for tenant isolation tests
 
 ---
 
@@ -158,6 +179,8 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 - [ ] Every new feature has at least one integration or E2E test (One-Test Rule).
 - [ ] Every bugfix has a regression test that fails before the fix.
 - [ ] Backend tests run against real PostgreSQL — no DB mocks in test files.
+- [ ] Test session uses `join_transaction_mode="create_savepoint"` — inner commits don't leak past rollback.
+- [ ] Test DB URL from `TEST_DATABASE_URL` env var — not hardcoded.
 - [ ] Backend tests use `httpx.AsyncClient` + `ASGITransport` — not sync `TestClient`.
 - [ ] Tests run via `uv run pytest` — not bare `pytest`.
 - [ ] Multi-tenant projects have tenant isolation tests (query as A, verify B invisible).
