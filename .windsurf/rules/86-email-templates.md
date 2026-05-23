@@ -78,6 +78,108 @@ One brand partial governs all templates — no per-template colour/font drift.
 
 ---
 
+## Localized Email Rendering
+
+Every email must be sent in the **recipient's preferred language**. The template stays the same (MJML structure); only the variable values change per locale.
+
+### Language Detection (source of truth)
+
+| Project type | Where locale lives | How it's set |
+|---|---|---|
+| SaaS (Supabase) | `users.locale` column in PostgreSQL | Set at signup from `Accept-Language` header; user changes via profile settings |
+| Mobile | `users.locale` synced from device | `expo-localization` device locale, synced to Supabase on first launch |
+| WordPress | WP `get_user_locale()` or ESP subscriber tag | WP user profile or FluentCRM subscriber language field |
+
+### Repo Structure
+
+```
+emails/
+  src/           <name>.mjml           # structure (language-agnostic)
+  partials/      header|footer|brand.mjml
+  dist/          <name>.html           # compiled (language-agnostic)
+  i18n/
+    en.json                            # English strings (source of truth)
+    tr.json                            # Turkish strings
+```
+
+### Rendering Flow
+
+```python
+# 1. Load compiled template
+template = jinja_env.get_template("dist/welcome.html")
+
+# 2. Load locale strings
+locale = user.locale or "en"  # fallback to English
+strings = load_json(f"emails/i18n/{locale}.json")
+
+# 3. Render with locale-specific variables
+html = template.render(
+    user_name=user.name,
+    **strings["welcome"],  # subject, heading, body, cta_label, etc.
+)
+
+# 4. Set Content-Language header
+send_email(to=user.email, subject=strings["welcome"]["subject"], html=html, lang=locale)
+```
+
+### Rules
+
+- **English is the source-of-truth locale.** All other locales derive from `en.json`.
+- **Every user-visible string in the email body comes from the i18n JSON** — never hardcoded in the MJML template. The MJML template uses Jinja2 `{{ variables }}` that resolve to localized strings.
+- **Subject lines are localized** — they live in the i18n JSON, not in application code.
+- **Fallback:** if the user's locale has no translation file, fall back to `en`. Never send an empty or broken template.
+- **Date/time/number formatting:** use `Intl`-style locale-aware formatting in the rendering code (Python `babel` or manual locale dispatch). Never hardcode `MM/DD/YYYY` or `$1,000.00`.
+- **RTL support:** for `ar` and `fa` locales, set `dir="rtl"` on the MJML `<mj-body>`. MJML handles the layout flip. Test RTL rendering before shipping.
+
+---
+
+## Newsletters & Marketing Email
+
+### Two Streams — Never Mix
+
+| Stream | Purpose | ESP | Unsubscribe | Sending domain |
+|---|---|---|---|---|
+| **Transactional** | Signup, reset, receipts, alerts, dunning | Resend (escalate to Postmark) | Not required (operational) | `mail.<domain>` |
+| **Marketing** | Newsletters, product updates, lifecycle (onboarding, nurture, win-back, expansion) | Loops or Resend Broadcasts | **Mandatory** (RFC 8058 one-click) | `news.<domain>` or `mail.<domain>` (separate subdomain recommended) |
+
+**Why separate streams:** mixing transactional and marketing on the same sending identity lets marketing complaints (spam reports) degrade transactional deliverability (password resets landing in spam). Separate streams isolate reputation.
+
+### Newsletter Architecture
+
+- **List management:** users opt-in during signup or via a preference center. Opt-in state stored in PostgreSQL (`email_preferences` table or user profile). Double opt-in recommended for EU (GDPR).
+- **Preference center:** accessible from user settings AND from the email footer. Users can: toggle per-category (product updates, tips, announcements), change frequency (weekly/monthly digest), or unsubscribe entirely.
+- **Unsubscribe:** one-click `List-Unsubscribe` header (RFC 8058) on every marketing email — mandatory under Gmail/Yahoo bulk-sender rules. The unsubscribe link in the footer is a backup, not the primary mechanism.
+- **Frequency control:** respect user's preference. Default: weekly digest. Never send more than the user chose.
+- **Suppression:** honor ESP bounce/complaint webhooks. Auto-suppress bounced and complained addresses. Never re-add a suppressed address without explicit re-opt-in.
+
+### Marketing Email Templates
+
+Same MJML pipeline as transactional — author in MJML, compile, commit, render with Jinja2, localize per user. Additional rules:
+
+- **Preheader is mandatory** — it's the first thing users see in their inbox after the subject.
+- **Single CTA per email** — one primary action button. Secondary links as text only.
+- **Footer must include:** unsubscribe link, preference center link, company name + address (CAN-SPAM), "why you received this" explanation.
+- **No tracking pixels** in operator-facing emails (trust). Tracking pixels acceptable in marketing emails to external subscribers with consent.
+- **Send time:** respect the user's timezone. Default: Tuesday-Thursday, 9-11am user-local.
+
+### Lifecycle Email Sequences
+
+Define in the marketing ESP (Loops / Resend Broadcasts), not in application code:
+
+| Sequence | Trigger | Emails | Goal |
+|---|---|---|---|
+| **Onboarding** | Signup | 3-5 over 7 days | Activation (user completes core action) |
+| **Nurture** | Activated but low usage | 2-3 over 14 days | Feature discovery, depth |
+| **Dunning** | Payment failed (Paddle webhook) | 3 over 7 days | Recover revenue |
+| **Win-back** | Churned (cancelled 30+ days) | 1-2 over 30 days | Re-engagement |
+| **Expansion** | High usage near plan limit | 1-2 triggered | Upgrade |
+
+- All sequences are **localized** per user locale.
+- All sequences **stop** on unsubscribe or successful conversion.
+- Dunning emails are triggered by Paddle/RevenueCat webhooks — not by the marketing ESP's scheduler.
+
+---
+
 ## Stack Adapters (only the deltas)
 
 ### SaaS (FastAPI + Jinja2)
@@ -116,6 +218,13 @@ One brand partial governs all templates — no per-template colour/font drift.
 - [ ] Runtime image contains no Node; keys via env.
 - [ ] (Mobile) push payload localized, deep-linked, PII-free.
 - [ ] (WP) consumed via Woo override / ESP with correct merge tags.
+- [ ] Email i18n: `emails/i18n/en.json` + `tr.json` exist; all user-visible strings come from i18n JSON, not hardcoded in MJML.
+- [ ] Subject lines localized per user locale.
+- [ ] Fallback to `en` when user's locale has no translation file.
+- [ ] Marketing emails on a separate stream from transactional (separate ESP config or subdomain).
+- [ ] `List-Unsubscribe` one-click header on every marketing email.
+- [ ] Preference center accessible from user settings AND email footer.
+- [ ] Lifecycle sequences (onboarding, nurture, dunning, win-back) defined in marketing ESP.
 
 ---
 
@@ -134,6 +243,13 @@ One brand partial governs all templates — no per-template colour/font drift.
 | Per-template brand drift | ONE shared brand partial governs all templates |
 | Uncompiled MJML shipped to runtime | Commit compiled `dist/` HTML; runtime loads compiled output |
 | Resend React Email / JSX layer | Ignored — we use MJML+Jinja2 |
+| Hardcoded strings in email templates | i18n JSON per locale (`emails/i18n/{locale}.json`) |
+| Hardcoded date/number formats in emails | Locale-aware formatting via `babel` or equivalent |
+| Mixing transactional + marketing on one stream | Separate streams (separate ESP config or subdomain) |
+| Marketing email without `List-Unsubscribe` header | RFC 8058 one-click unsubscribe on every marketing email |
+| Lifecycle sequences defined in application code | Define in marketing ESP (Loops / Resend Broadcasts) |
+| Sending marketing email without opt-in | Double opt-in for EU; single opt-in minimum everywhere |
+| Re-adding suppressed/bounced addresses | Explicit re-opt-in required |
 
 ---
 
