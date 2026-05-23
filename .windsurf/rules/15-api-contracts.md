@@ -4,6 +4,10 @@ globs: ["**/routes/**", "**/api/**", "**/route.ts", "**/router.py"]
 description: API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents (all) building API endpoints
+     GOAL: API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning
+     TRAYCER USAGE: Injects as Context File in tickets that add or modify API endpoints.
+     AGENT USAGE: Follow verbatim when writing API routes. Activated by glob on routes/api files. -->
 
 # API Contract Rules
 

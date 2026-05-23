@@ -4,6 +4,10 @@ globs: ["**/db/**", "**/models/**", "**/schema.sql", "**/migrations/**"]
 description: PostgreSQL discipline — migrations, transactions, indexing, nullability, schema evolution
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents (all) working on database code
+     GOAL: PostgreSQL discipline — migrations, transactions, indexing, nullability, schema evolution
+     TRAYCER USAGE: Injects as Context File in tickets touching database schemas or migrations.
+     AGENT USAGE: Follow verbatim when writing migrations or query logic. Activated by glob on db/models files. -->
 
 # PostgreSQL & Data Rules
 

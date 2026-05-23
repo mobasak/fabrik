@@ -1500,7 +1500,7 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
 - Font size floor: 11px.
 - All three fonts loaded but JetBrains Mono only for data displays.
 
-### mobile-app (React Native + NativeWind)
+### mobile-app (React Native + react-native-unistyles)
 
 - Same color system mapped to `react-native-unistyles` theme tokens.
 - Space Grotesk loaded as custom font.
