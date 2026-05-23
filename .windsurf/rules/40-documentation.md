@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["*.md", "docs/**/*", "specs/**/*"]
+globs: ["**/*.md", "docs/**/*"]
 description: Documentation rules — scaffolded doc templates, Documentation Sync Matrix, plan documents, writing style
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (ticket-breakdown Documentation Sync Matrix)
