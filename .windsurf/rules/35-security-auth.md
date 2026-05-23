@@ -2,6 +2,7 @@
 activation: glob
 globs: ["**/auth/**", "**/security/**", "**/middleware/**", "**/.env", "**/.env.*", "**/secrets/**", "**/.ssh/**", "**/internal_auth.py", "**/*.key", "**/*.pem"]
 description: Security & auth discipline — JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth canonical pattern
+trigger: glob
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
      GOAL: Auth architecture (Pattern A: FastAPI / Pattern B: Supabase Auth), CORS, CSP, token storage, M2M auth
@@ -129,10 +130,17 @@ Every Fabrik HTTP service uses the canonical internal-auth pattern. Docker-to-Do
 **Calling another internal service (client side):**
 
 ```python
-import os, httpx
-headers = {"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]}
-resp = httpx.get("https://<service>.vps1.ocoron.com/api/endpoint", headers=headers)
+import httpx
+from src.config import get_settings
+
+async def call_internal_service():
+    headers = {"X-Internal-Token": get_settings().service_internal_secret_key}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get("https://<service>.vps1.ocoron.com/api/endpoint", headers=headers)
+    return resp.json()
 ```
+
+Note: always async (`httpx.AsyncClient`), always with timeout, config via Pydantic Settings. See `58-resilience.md` for full timeout/retry/CB patterns.
 
 ---
 
@@ -187,10 +195,22 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 | `allow_origins=["*"]` + `allow_credentials=True` | Explicit origin list from env vars |
 | NextAuth.js / Clerk / Firebase Auth | FastAPI (Pattern A) or Supabase Auth (Pattern B) |
 | RS256 for single-service signing + verification | HS256 with 256-bit secret (Pattern A only) |
-| Hardcoded JWT secret in source | `os.getenv("JWT_SECRET_KEY")` |
+| Hardcoded JWT secret in source | Pydantic Settings env var (`get_settings().jwt_secret_key`) |
 | Trusting Docker network isolation alone | `X-Internal-Token` + shared secret |
 | Custom refresh logic with Supabase Auth | Supabase client SDK handles refresh |
 | `service_role` key exposed to client | Server-side only, via env var |
+
+---
+
+## Related Rule Packs
+
+- `10-python.md` — Pydantic Settings for secrets (SERVICE_INTERNAL_SECRET_KEY, JWT_SECRET_KEY)
+- `30-ops.md` — Authelia forward-auth Traefik labels, `/health` bypass
+- `55-observability.md` — GlitchTip for auth error tracking
+- `58-resilience.md` — timeout/retry for M2M inter-service calls
+- `80-mobile.md` — `expo-secure-store` for mobile token storage
+- `86-email-templates.md` — Resend pipeline for auth transactional email
+- `95-multi-tenant-saas.md` — RLS for tenant isolation (Pattern B)
 
 ---
 
