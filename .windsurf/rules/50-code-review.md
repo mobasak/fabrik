@@ -41,7 +41,7 @@ Syntax (ruff), json/yaml validation, secrets, env vars, schema sync. Fast, no co
 ## B) Changelog (Every Code/Config/Infra Change)
 
 For any non-trivial code, config, infrastructure, Docker, or compose change in:
-`src/`, `scripts/`, `templates/`, `.factory/`, `.github/`, `Dockerfile`, `compose.yaml`, `.env.example`, `pyproject.toml`, `package.json`, `uv.lock`,
+`src/`, `scripts/`, `templates/`, `.github/`, `Dockerfile`, `compose.yaml`, `.env.example`, `pyproject.toml`, `package.json`, `uv.lock`,
 you MUST ensure `CHANGELOG.md` has a real entry under `## [Unreleased]`:
 
 ```markdown
@@ -149,8 +149,19 @@ These constraints prevent "agent drift" and bikeshedding:
   - **Symptom:** What does the user see (or what does the log show)?
   - **Root Cause:** The technical "why"
   - **Detection:** How do we catch this in `final_gate.py`?
+  (Related: `40-documentation.md` § LESSONS_LEARNT uses Context/Problem/Root Cause/Solution/Integration for post-incident capture — different moment, same analytical structure.)
 - **No stylistic bikeshedding:** Prefer correctness and safety over "clean code" aesthetics.
 - **Minimalist Refactors:** No unsolicited refactors unless part of the approved plan.
+
+---
+
+## Related Rule Packs
+
+- `40-documentation.md` — Documentation Sync Matrix (14 triggers), CHANGELOG, INDEX.md, LESSONS_LEARNT
+- `45-testing-strategy.md` — One-Test Rule, framework per scaffold, test fixtures
+- `30-ops.md` — Dockerfile + compose checklist (aggregated in the internal audit above)
+- `25-data-postgres.md` — Alembic migration discipline (no raw DDL)
+- `55-observability.md` — structlog, `/health`, `/metrics` (referenced in audit)
 
 ---
 
