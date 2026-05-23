@@ -67,6 +67,7 @@ Every SaaS project must ship these pages. Traycer ensures each maps to a ticket 
 | **Pricing** | `/pricing` | All tiers side-by-side, feature matrix, annual/monthly toggle. |
 | **Login** | `/login` | Supabase Auth (Pattern B) or FastAPI login (Pattern A). |
 | **Signup** | `/signup` | Registration. Redirects to onboarding after email verification. |
+| **Verify email** | `/verify-email` | "Check your email" — shown after signup. Displays sent-to address, resend button, change email link. User cannot enter the app until verified. |
 | **Forgot password** | `/forgot-password` | Email input → triggers reset flow. |
 | **Reset password** | `/reset-password` | Token-validated form. Expires in 1h. |
 | **Terms of Service** | `/terms` | Required before accepting payment (see `88-saas-launch-checklist.md`). |
