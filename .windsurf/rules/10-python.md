@@ -158,15 +158,15 @@ temp_dir = tempfile.gettempdir()  # /tmp - shared, deleted
 
 ```python
 from fastapi import HTTPException
-import structlog
+from {package}.logger import get_logger  # scaffolded structlog — see 55-observability.md
 
-logger = structlog.get_logger()
+logger = get_logger(__name__)
 
 # Specific exceptions
 raise HTTPException(status_code=404, detail="Item not found")
 
-# Logging errors (structlog, not stdlib logging)
-logger.exception("Failed to process item", item_id=item_id)
+# Logging handled errors (short event + context, not full traceback)
+logger.error("item_processing_failed", item_id=item_id)
 ```
 
 ### FastAPI exception order (CRITICAL)
@@ -179,15 +179,17 @@ try:
 except HTTPException:
     raise  # let FastAPI handle the response (preserves status code)
 except Exception:
-    logger.exception("Unexpected error in do_work")
+    # Short event + correlation_id only — GlitchTip auto-captures the full traceback.
+    # Do NOT use logger.exception() here — it duplicates the stacktrace in Loki.
+    logger.error("do_work_failed", correlation_id=correlation_id)
     raise HTTPException(status_code=500, detail="internal error")
 ```
 
-For logging/GlitchTip capture inside the `except Exception` branch, see `55-observability.md` § Error Reporting — `logger.exception()` here would duplicate GlitchTip's traceback.
+**GlitchTip discipline:** unhandled exceptions (FastAPI 500s) are auto-captured by GlitchTip with full stacktraces. In the `except Exception` branch, log a **short event name + correlation_id** — never `logger.exception()` (that duplicates the traceback in Loki AND GlitchTip). See `55-observability.md` § Error Reporting for the full rule.
 
 **Note:** `HTTPException` produces FastAPI's default `{"detail": "..."}` JSON. A global exception handler (see `15-api-contracts.md` § Error Schema) converts this into RFC 9457 `ProblemDetails` with `Content-Type: application/problem+json`. Raising `HTTPException` here is correct — the handler reshapes it on the way out.
 
-**Note:** Use `structlog.get_logger()`, not `logging.getLogger(__name__)`. The scaffold emits a pre-configured structlog setup in `logger.py` — import from there, do not create your own.
+**Note:** Use the scaffolded logger: `from {package}.logger import get_logger` (see `55-observability.md` § Pre-Scaffolded Logging). Do not use `structlog.get_logger()` directly or `logging.getLogger(__name__)`.
 
 ---
 

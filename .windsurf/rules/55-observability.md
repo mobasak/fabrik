@@ -199,7 +199,7 @@ For `mobile-app` projects, the backend gets GlitchTip (above). The **client app*
 - **What it captures:** JS exceptions, native crashes, ANR (Application Not Responding), unhandled promise rejections.
 - **Privacy:** no PII in breadcrumbs or tags. Strip user email/name from Sentry context. See `80-mobile.md` § Compliance.
 - **Crash-free rate target:** >= 99.5% (store ranking factor).
-- **Source maps:** upload via `sentry-expo` plugin in EAS build config for readable stack traces.
+- **Source maps:** upload via `@sentry/react-native/expo` plugin + Sentry Metro plugin in EAS build config for readable stack traces. `sentry-expo` is deprecated since Expo SDK 50 — do not use it.
 
 For `desktop-app`: use `@sentry/electron`. Same principles.
 
@@ -228,7 +228,7 @@ No GlitchTip, no Prometheus, no structlog — WordPress is a pre-built runtime, 
 - Use `structlog` for Python and `pino` for Node.js/Next.js. No other logging libraries.
 - `print()` in Python and `console.log()` / `console.error()` in JavaScript are **banned** in production code paths. Route all output through the structured logger.
 - Log event names must be machine-parseable `snake_case` (e.g. `user_authenticated`, `db_connection_failed`). No conversational prose or dynamic string interpolation in event names.
-- Exceptions must be logged with stack traces as a dedicated JSON attribute (`exc_info=True` in Python), never as raw multi-line text.
+- **Caught-and-handled** exceptions: log with stack traces via `exc_info=True` in Python (dedicated JSON attribute, never raw multi-line text). **Unhandled** exceptions (FastAPI 500s, uncaught throws): do NOT log tracebacks — GlitchTip auto-captures them. Log a short event name + `correlation_id` only. See § Error Reporting above.
 
 ## Required Log Fields
 
@@ -339,6 +339,8 @@ Install procedure (one-time per single-image App) + currently-registered alias p
 | Custom metrics module from scratch | Extend scaffolded `metrics.py` / `metrics.js` |
 | Hardcoded GlitchTip DSN in repo | `GLITCHTIP_DSN` env var, injected by registrar |
 | Per-service watchdog bash scripts | Gatus + Coolify `restart: unless-stopped` |
+| `sentry-expo` for source maps | `@sentry/react-native/expo` plugin (sentry-expo deprecated since SDK 50) |
+| `logger.exception()` for unhandled errors | Short event + correlation_id — GlitchTip auto-captures the traceback |
 
 ---
 
@@ -357,6 +359,16 @@ Install procedure (one-time per single-image App) + currently-registered alias p
 - [ ] GlitchTip DSN provisioned and injected via env var (not hardcoded).
 - [ ] (Mobile) Sentry React Native SDK init'd in app entry point; crash-free >= 99.5%.
 - [ ] (WordPress) Gatus monitors site URL; `WP_DEBUG` off in production.
+
+---
+
+## Related Rule Packs
+
+- `10-python.md` — scaffolded logger import (`from {package}.logger import get_logger`), error logging discipline
+- `20-typescript.md` — pino logger, `console.log` ban
+- `30-ops.md` — HEALTHCHECK `start_period: 20s`, `/health` Authelia bypass
+- `58-resilience.md` — `/health` endpoint contract (dep checks, not static 200)
+- `80-mobile.md` — Sentry React Native SDK, crash-free target >= 99.5%
 
 ---
 
