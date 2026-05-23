@@ -28,11 +28,11 @@ Do not use Docusaurus when:
 
 Deploy via Coolify using a **two-stage Dockerfile**:
 
-1. **Build stage**: `node:22-bookworm-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
+1. **Build stage**: `node:24-bookworm-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
 2. **Serve stage**: `nginx:mainline-bookworm-slim` — copy `build/` to `/usr/share/nginx/html`.
 
 ```dockerfile
-FROM node:22-bookworm-slim AS builder
+FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -162,7 +162,7 @@ networks:
 
 ## Done When
 
-- [ ] Dockerfile uses two-stage build: `node:22-bookworm-slim` → `nginx:mainline-bookworm-slim`.
+- [ ] Dockerfile uses two-stage build: `node:24-bookworm-slim` → `nginx:mainline-bookworm-slim`.
 - [ ] Dockerfile has HEALTHCHECK instruction.
 - [ ] Pagefind runs post-build (`npx -y pagefind --site build`) — no Algolia or JS-bundled search.
 - [ ] Nginx config includes `try_files $uri $uri/ /index.html;` for SPA routing.

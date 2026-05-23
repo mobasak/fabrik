@@ -58,16 +58,27 @@ type Result = { data?: any; error?: string };
 
 ## Environment Variables
 
-Access environment variables at runtime via `process.env`. Never hardcode hosts, ports, API keys, or secrets.
+Parse and validate environment variables **once at boot** via a typed Zod schema — the TypeScript analog to Python's Pydantic `BaseSettings`. Never scatter raw `process.env.X` access across the codebase.
 
 ```typescript
-// CORRECT — runtime access with service-name fallback
-const dbHost = process.env.DB_HOST ?? 'postgres-main';
-const redisHost = process.env.REDIS_HOST ?? 'redis-main';
-const port = parseInt(process.env.PORT ?? '3000', 10);
+// src/env.ts — parse & validate once, import the typed object everywhere
+import { z } from 'zod';
 
-// WRONG — hardcoded localhost (container sees itself, not the DB)
-const dbHost = 'localhost';
+const env = z.object({
+  DB_HOST: z.string().default('postgres-main'),
+  REDIS_HOST: z.string().default('redis-main'),
+  PORT: z.coerce.number().default(3000),
+  SERVICE_INTERNAL_SECRET_KEY: z.string().min(1),
+}).parse(process.env);
+
+export default env;
+// env.PORT is typed `number`, validated, not scattered
+```
+
+```typescript
+// Usage — import the validated object, never raw process.env
+import env from '@/env';
+const url = `http://${env.DB_HOST}:5432/mydb`;
 ```
 
 **CRITICAL:** Default DB host is `postgres-main`, not `localhost`. Default Redis host is `redis-main`. `localhost` inside a container points to the container itself, not the shared database.
@@ -141,7 +152,7 @@ logger.error({ err, orderId }, 'Payment failed');
 Node.js / Next.js services run via their respective start commands in the Dockerfile. Base image is always `node:<current-LTS>-bookworm-slim` on `linux/amd64`. Never use Alpine.
 
 ```dockerfile
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 # ...
 CMD ["node", "dist/server.js"]
 ```
@@ -149,7 +160,7 @@ CMD ["node", "dist/server.js"]
 For Next.js:
 
 ```dockerfile
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 # ...
 CMD ["npm", "start"]
 ```
@@ -182,7 +193,8 @@ npm run build         # Production build
 | CommonJS `require()` in new code | ES module `import` / `export` |
 | Deep relative imports (`../../../`) | Path alias (`@/`) via `tsconfig.json` |
 | Raw string `throw 'error'` | Typed `Error` subclass |
-| `{ error: "..." }` ad-hoc error shape | RFC 7807 via `15-api-contracts.md` |
+| `{ error: "..." }` ad-hoc error shape | RFC 9457 via `15-api-contracts.md` |
+| Scattered raw `process.env.X` access | Zod-validated `src/env.ts` module (parse once at boot) |
 | `as` type assertion to bypass checks | Type guard, `satisfies`, or proper narrowing |
 | Implicit `any` from untyped libraries | `.d.ts` declaration file |
 | Numeric `enum` (implicit values) | `as const` object or string literal union |
@@ -194,14 +206,25 @@ npm run build         # Production build
 
 ---
 
+## Related Rule Packs
+
+- `10-python.md` — Python sibling (same env/Docker/port philosophy)
+- `15-api-contracts.md` — API contract discipline, RFC 9457 error schema, idempotency
+- `30-ops.md` — Dockerfile, compose, Traefik, resource limits, Coolify deploy
+- `55-observability.md` — pino setup, `/health` + `/metrics`, GlitchTip
+- `60-saas-ui.md` — SaaS frontend patterns (Next.js/React)
+
+---
+
 ## Done When
 
 - [ ] `tsconfig.json` has `"strict": true` and `"noUncheckedIndexedAccess": true`.
 - [ ] No `any` annotations — `unknown` + narrowing used where type is uncertain.
 - [ ] All imports use ES module syntax and path aliases.
 - [ ] Domain errors use typed `Error` subclasses, not raw strings or ad-hoc objects.
-- [ ] No hardcoded hosts, ports, or secrets — all via `process.env` with service-name fallbacks.
+- [ ] Environment variables parsed via Zod-validated `src/env.ts` — no scattered `process.env` access.
 - [ ] Logging via `pino` — no `console.log()` in production code paths.
 - [ ] Production Dockerfile uses `node:<LTS>-bookworm-slim`, not Alpine.
 - [ ] No `ts-node` / `tsx` in production image — TypeScript compiled at build time.
 - [ ] `npm run lint` and `npm run type-check` pass with zero warnings.
+- [ ] Port registered in `PORTS.md` (3000-3099 range).

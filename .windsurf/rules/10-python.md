@@ -288,4 +288,4 @@ if __name__ == "__main__":
 - [ ] `structlog.get_logger()` from scaffold `logger.py` — no stdlib logging, no `print()`.
 - [ ] `ruff check`, `ruff format`, `mypy` all pass.
 - [ ] Production runs via `uvicorn` CLI in Dockerfile (`slim-bookworm`, `linux/amd64`) — no `uvicorn.run()`, no Alpine.
-- [ ] Python service port within 8000-8099.
+- [ ] Python service port within 8000-8099; registered in `PORTS.md`.
