@@ -30,7 +30,7 @@ Apply when working on background job processing, task queues, workers, scheduled
 
 ## PostgreSQL as Queue
 
-- PostgreSQL 16 on **`postgres-main:5432`** is the default message broker. External brokers (Celery, RabbitMQ, ARQ, Kombu) are banned. Redis (`redis-main:6379`) is permitted **only** when PostgreSQL queue throughput is a proven bottleneck (>50,000 jobs/second) or for ephemeral fire-and-forget messages where data loss is acceptable.
+- PostgreSQL 16 on **`postgres-main:5432`** is the default message broker. External brokers (Celery, RabbitMQ, ARQ, Kombu) are banned. Redis (`redis-main:6379`) is permitted **only** when a proven PostgreSQL queue throughput bottleneck is measured (realistically low-thousands of jobs/sec on a single instance — you are nowhere near this), or for ephemeral fire-and-forget messages where data loss is acceptable.
 - Use `SELECT ... FOR UPDATE SKIP LOCKED` for contention-free job dequeuing. Without `SKIP LOCKED`, concurrent workers block each other into a single-threaded bottleneck.
 - Use libraries like PgQueuer or Procrastinate, or a custom `SKIP LOCKED` implementation.
 - Connection string: `postgres-main:5432`, never `localhost`. See `30-ops.md` § Docker DNS.
@@ -47,7 +47,7 @@ Apply when working on background job processing, task queues, workers, scheduled
 ## Idempotency
 
 - Accept **at-least-once delivery** as the baseline. Exactly-once is a distributed systems myth.
-- Every job handler must be strictly idempotent. Derive the idempotency key **deterministically** from business properties (e.g. `SHA-256(user_id + action + timestamp)`).
+- Every job handler must be strictly idempotent. Derive the idempotency key **deterministically** from the **stable** business properties that define the operation's identity — e.g. `SHA-256(user_id + action + resource_id)`. Do **not** include a wall-clock timestamp unless the time *is* part of the identity (e.g. a slot-specific scheduled event keyed to its scheduled time) — a fine-grained timestamp changes the key for the same logical operation and defeats dedup, the same failure mode as a random UUID.
 - Store the key in a unique constraint column (dedicated `idempotency_keys` table or `processed_at` on the domain entity). On duplicate key, skip execution.
 - **Never** use a runtime-generated random UUID as an idempotency key — it changes on every retry, defeating the check entirely.
 
@@ -101,6 +101,29 @@ Jobs can become orphaned when workers crash, are OOM-killed, or lose connectivit
 
 - Use PostgreSQL `LISTEN/NOTIFY` to instantly wake idle workers on job insertion. Fall back to polling only as a safety net (e.g. 60-second timeout).
 - Naive `while True: sleep(1)` polling is banned — it drains connections and wastes CPU on idle systems.
+- **PgBouncer compatibility:** `LISTEN/NOTIFY` requires a session-pinned or direct connection — it does NOT work through transaction-mode pooling. If workers route through PgBouncer, use a **dedicated direct connection** (`DATABASE_URL_DIRECT` → `postgres-main:5432`, bypassing the pooler port) for the listener only. Job-claiming connections can still use the pool.
+
+```python
+# LISTEN connection: DIRECT to Postgres, bypassing the transaction-mode PgBouncer.
+import psycopg2, select, os
+
+listen_conn = psycopg2.connect(os.environ["DATABASE_URL_DIRECT"])  # :5432, not the :6432 pooler
+listen_conn.autocommit = True
+with listen_conn.cursor() as cur:
+    cur.execute("LISTEN job_inserted;")
+
+while not shutting_down:
+    if select.select([listen_conn], [], [], POLL_FALLBACK_SEC)[0]:
+        listen_conn.poll()
+        while listen_conn.notifies:
+            listen_conn.notifies.pop(0)
+        wake_and_claim()
+    else:
+        wake_and_claim()  # 60s safety-net poll
+```
+
+- **Reconnect on drop.** `LISTEN` connections die on network blips or PG restarts — wrap in a reconnect loop or you go permanently deaf to notifies.
+- **Severity:** because the 60s polling fallback exists, a missed `NOTIFY` costs up to 60s of latency, not a lost job. Wake-up efficiency bug, not correctness.
 
 ---
 
@@ -329,7 +352,7 @@ CMD ["python", "-m", "src.worker"]
 | Pattern | Use Instead |
 |---------|-------------|
 | Celery / RabbitMQ / ARQ / Kombu for queuing | PostgreSQL `FOR UPDATE SKIP LOCKED` |
-| Redis for queuing (default) | PostgreSQL (Redis only above 50k jobs/s or ephemeral) |
+| Redis for queuing (default) | PostgreSQL (Redis only on a *measured* throughput bottleneck or ephemeral fire-and-forget) |
 | `SELECT FOR UPDATE` without `SKIP LOCKED` | Add `SKIP LOCKED` to prevent lock contention |
 | `while True: sleep(1)` polling | `LISTEN/NOTIFY` with polling fallback |
 | Random UUID as idempotency key | Deterministic hash from business properties |

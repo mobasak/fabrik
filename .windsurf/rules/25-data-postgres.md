@@ -210,6 +210,8 @@ engine = create_async_engine(
 )
 ```
 
+**`LISTEN/NOTIFY` does not work through transaction-mode PgBouncer.** Workers using `LISTEN` for wake-up must connect directly to `postgres-main:5432` via a separate `DATABASE_URL_DIRECT` env var, bypassing the pooler. See `75-workers-jobs.md` § Worker Wake-Up.
+
 ## Indexing
 
 - Index primary keys (automatic) and foreign keys. Beyond that, add indexes only when a specific slow query is identified.
