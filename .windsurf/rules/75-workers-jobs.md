@@ -4,6 +4,10 @@ globs: ["**/workers/**", "**/jobs/**", "**/tasks/**", "**/queue/**", "**/beat*",
 description: Workers & jobs discipline — PG queue, retry/backoff, dead-letter, idempotency, pause-state, orphan sweep, beat tasks
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents building background workers/jobs
+     GOAL: PG queue (SKIP LOCKED), adaptive worker pool, retry/backoff, orphan sweep, beat scheduler
+     TRAYCER USAGE: Injects as Context File for worker/job tickets. Shapes tech-plan for async processing.
+     AGENT USAGE: Follow verbatim. Mandatory adaptive worker pool for file-worker/file-api scaffolds. -->
 
 # Workers & Jobs Rules
 

@@ -4,6 +4,10 @@ globs: ["**/billing/**", "**/payments/**", "**/subscriptions/**", "**/terms/**",
 description: SaaS product completeness — launch-blocking checklist, legal compliance, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings
 trigger: glob
 ---
+<!-- CONSUMER: Traycer (primary) + coding agents (verification)
+     GOAL: SaaS launch-blocking gates — legal pages, payment routing, abuse prevention, tax compliance
+     TRAYCER USAGE: PRIMARY CONSUMER. Reads during epic decomposition to ensure every gate maps to a ticket.
+     AGENT USAGE: Verify completeness at epic closure. Check items against Done When list. -->
 
 # SaaS Launch Checklist Rules
 

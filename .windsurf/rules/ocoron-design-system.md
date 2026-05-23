@@ -1,3 +1,8 @@
+<!-- CONSUMER: Coding agents building UI + Traycer (epic-brief for visual decisions)
+     GOAL: Single source of truth for visual identity — colors, typography, motion, components, states, accessibility
+     TRAYCER USAGE: Referenced in all UI tickets. Shapes visual decisions during epic-brief.
+     AGENT USAGE: Use design tokens, follow component patterns, apply motion language. Never invent colors/fonts. -->
+
 # Ocoron Design System v2.0
 
 > Single source of truth for all Ocoron products, scaffolds, and surfaces.

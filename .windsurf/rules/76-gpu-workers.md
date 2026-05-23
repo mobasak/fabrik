@@ -4,6 +4,10 @@ globs: ["**/gpu/**", "**/inference/**", "**/ml/**", "**/training/**", "**/worker
 description: GPU worker discipline — decision framework for API vs self-host, provider/engine/quantization selection, two-faced architecture, lifecycle automation, fault tolerance
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents building GPU inference/training orchestrators + Traycer (tech-plan)
+     GOAL: API vs self-host decision, two-faced architecture, provider selection, cost control
+     TRAYCER USAGE: Decision framework shapes tech-plan. Injects orchestrator requirements into tickets.
+     AGENT USAGE: Build the orchestrator as a standard Fabrik python-api. GPU worker is external. -->
 
 # GPU Workers Rules
 

@@ -4,6 +4,10 @@ globs: ["**/embeddings/**", "**/retrieval/**", "**/rag/**", "**/vector/**", "**/
 description: Search & retrieval discipline — MeiliSearch full-text, pgvector embeddings, hybrid search, chunking, citations, retrieval evals
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents building search/retrieval features
+     GOAL: MeiliSearch vs pgvector decision, index lifecycle, hybrid search, chunking, citations
+     TRAYCER USAGE: Injects as Context File for search-related tickets. Decision guide shapes tech-plan.
+     AGENT USAGE: Follow the decision guide. Use MeiliSearch for keyword search, pgvector for semantic. -->
 
 # Search & Retrieval Rules
 

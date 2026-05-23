@@ -3,6 +3,10 @@ activation: glob
 globs: ["**/Dockerfile", "**/compose.yaml", "**/compose.yml", "**/docker-compose.yaml", "**/docker-compose.yml"]
 description: Docker standards, deployment, infrastructure
 ---
+<!-- CONSUMER: Coding agents (all) + Traycer (deploy-plan step)
+     GOAL: Docker, compose.yaml, Coolify deployment — base images, DNS, Traefik, resource limits, security
+     TRAYCER USAGE: Referenced during deploy-plan and ticket-breakdown for infrastructure tickets. Injects as Context File.
+     AGENT USAGE: Follow verbatim when writing Dockerfiles, compose files, or deployment config. -->
 
 # Operations & Deployment Rules
 

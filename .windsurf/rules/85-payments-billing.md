@@ -4,6 +4,10 @@ globs: ["**/billing/**", "**/payments/**", "**/paddle/**", "**/iyzico/**", "**/w
 description: Payments & billing discipline — Paddle Billing v2 (MoR), iyzico (Turkish domestic), webhook idempotency, entitlement modeling, subscription lifecycle
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents building SaaS billing + Traycer (epic-brief for SaaS)
+     GOAL: Paddle/iyzico integration, webhook security, entitlement model, tax documentation
+     TRAYCER USAGE: Shapes billing epic. Injects provider selection + entitlement model into tickets.
+     AGENT USAGE: Follow verbatim for Paddle/iyzico checkout, webhook, and entitlement implementation. -->
 
 # Payments & Billing Rules
 

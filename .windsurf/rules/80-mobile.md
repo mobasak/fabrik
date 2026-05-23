@@ -4,6 +4,10 @@ globs: ["**/metro.config.*", "**/react-native.config.*", "**/app.json", "**/eas.
 description: React Native mobile discipline — architecture, backend, navigation, performance, monetization, compliance, and i18n for worldwide shipping
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents building React Native mobile apps
+     GOAL: RN/Expo architecture, navigation, state, styling, accessibility, compliance, i18n
+     TRAYCER USAGE: Injects as Context File for mobile client-lane tickets.
+     AGENT USAGE: Follow verbatim for client-side mobile code. Backend rules from 10-python apply. -->
 
 # Mobile Rules (React Native)
 

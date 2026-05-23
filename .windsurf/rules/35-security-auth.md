@@ -3,6 +3,10 @@ activation: glob
 globs: ["**/auth/**", "**/security/**", "**/middleware/**", "**/.env", "**/.env.*", "**/secrets/**", "**/.ssh/**", "**/internal_auth.py", "**/*.key", "**/*.pem"]
 description: Security & auth discipline — JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth canonical pattern
 ---
+<!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
+     GOAL: Auth architecture (Pattern A: FastAPI / Pattern B: Supabase Auth), CORS, CSP, token storage, M2M auth
+     TRAYCER USAGE: Referenced during tech-plan to decide auth pattern. Injects Pattern A or B into ticket ACs.
+     AGENT USAGE: Follow the pattern specified in the ticket. Both patterns documented here. -->
 
 # Security & Auth Rules
 

@@ -4,6 +4,10 @@ globs: ["**/tenants/**", "**/middleware/**", "**/rls/**", "**/organizations/**"]
 description: Multi-tenant SaaS discipline — tenant isolation, PostgreSQL RLS, context propagation, cross-tenant prevention
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents building multi-tenant backends
+     GOAL: PostgreSQL RLS, tenant context propagation, fail-closed default, caching, offboarding
+     TRAYCER USAGE: Injects as Context File for every backend ticket in a multi-tenant SaaS project.
+     AGENT USAGE: Follow verbatim. Every tenant-scoped table gets RLS. Every query is tenant-scoped. -->
 
 # Multi-Tenant SaaS Rules
 

@@ -4,6 +4,10 @@ globs: ["**/docs/RESILIENCE.md", "**/pause_state*", "**/error_classifier*", "**/
 description: Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
+     GOAL: Timeout/retry/circuit-breaker for all services + advanced pause-state pipeline for workers
+     TRAYCER USAGE: Injects resilience requirements per external dependency into ticket ACs. References docs/RESILIENCE.md §2a.
+     AGENT USAGE: Wrap every external call with timeout+retry. Workers: wire pause-state pipeline. -->
 
 # Resilience & Autonomy Rules
 

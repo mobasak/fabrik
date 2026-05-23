@@ -3,6 +3,10 @@ activation: glob
 globs: ["**/*.tsx", "**/*.jsx", "**/components/**", "**/app/**", "**/pages/**", "**/tailwind.config.*"]
 description: SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
 ---
+<!-- CONSUMER: Coding agents building SaaS frontend (Next.js/React)
+     GOAL: SaaS UI patterns — navigation, dashboards, billing UI, tenant UI, performance, i18n
+     TRAYCER USAGE: Injects as Context File for frontend tickets in SaaS projects.
+     AGENT USAGE: Follow verbatim when building SaaS UI components and pages. -->
 
 # SaaS UI Rules
 

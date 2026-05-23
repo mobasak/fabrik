@@ -4,6 +4,10 @@ globs: ["**/revenuecat/**", "**/iap/**", "**/app.json", "**/eas.json"]
 description: Mobile billing discipline — Google Play Billing, RevenueCat entitlements, receipt validation, Turkey GPB-mandatory, Teknokent tax, launch checklist
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents building mobile billing + Traycer (epic-brief for mobile)
+     GOAL: Google Play Billing + Apple IAP via RevenueCat, Turkey constraints, Teknokent tax, launch checklist
+     TRAYCER USAGE: Shapes billing epic. Injects Turkey GPB-mandatory constraint. Launch checklist gates planning.
+     AGENT USAGE: Follow verbatim for billing integration. RevenueCat webhook pattern is the implementation reference. -->
 
 # Mobile Billing Rules
 

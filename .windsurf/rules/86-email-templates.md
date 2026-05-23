@@ -4,6 +4,10 @@ globs: ["**/emails/**", "**/*.mjml", "**/templates/*email*", "**/templates/*noti
 description: Email & template creation — MJML+Jinja2 pipeline, Resend ESP, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents creating email/push/notification templates
+     GOAL: MJML+Jinja2 pipeline, Resend ESP, deliverability, per-scaffold adapters
+     TRAYCER USAGE: Injects as Context File for any ticket creating email/push templates.
+     AGENT USAGE: Follow the 5-step workflow. Author in MJML, compile, commit dist/, render at runtime. -->
 
 # Email & Template Creation Rules (cross-cutting)
 

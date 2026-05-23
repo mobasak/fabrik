@@ -4,6 +4,10 @@ globs: ["**/docusaurus.config.*", "**/sidebars.*"]
 description: Docusaurus discipline — MDX, sidebar org, versioning, search, deployment, content quality
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents building Docusaurus sites
+     GOAL: Docusaurus-specific rules — static generation, Pagefind search, Scalar API docs, deployment
+     TRAYCER USAGE: Injects as Context File for docusaurus scaffold tickets.
+     AGENT USAGE: Follow verbatim when working on Docusaurus projects. -->
 
 # Docusaurus Rules
 

@@ -4,6 +4,10 @@ globs: ["**/*.ts", "**/*.tsx"]
 description: TypeScript language discipline — strict mode, type safety, module patterns, error handling
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
+     GOAL: TypeScript language discipline — strict mode, type safety, module patterns, logging, Docker
+     TRAYCER USAGE: Injects as Context File in tickets touching TypeScript code.
+     AGENT USAGE: Follow verbatim when writing TypeScript. Activated by glob on *.ts/*.tsx files. -->
 
 # TypeScript Core Rules
 

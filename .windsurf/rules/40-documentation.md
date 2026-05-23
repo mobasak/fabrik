@@ -3,6 +3,10 @@ activation: glob
 globs: ["*.md", "docs/**/*", "specs/**/*"]
 description: Documentation rules — scaffolded doc templates, Documentation Sync Matrix, plan documents, writing style
 ---
+<!-- CONSUMER: Coding agents (all) + Traycer (ticket-breakdown Documentation Sync Matrix)
+     GOAL: Scaffolded doc templates, Documentation Sync Matrix, changelog, INDEX.md, writing style
+     TRAYCER USAGE: Ticket-breakdown injects doc sync triggers into ticket ACs from this file's matrix.
+     AGENT USAGE: Check which doc triggers fire for each code change. Update docs accordingly. -->
 
 # Documentation Rules
 

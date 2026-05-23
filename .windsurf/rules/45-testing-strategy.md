@@ -4,6 +4,10 @@ globs: ["**/tests/**", "**/test_*", "**/*_test.*", "**/*.test.*", "**/*.spec.*"]
 description: Testing strategy — what to test per ticket type, smoke vs integration, regression rules
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents (all) + Traycer (ticket-breakdown test criteria)
+     GOAL: What to test per ticket type, framework per scaffold, tenant isolation testing
+     TRAYCER USAGE: Injects test requirements into ticket ACs (one-test rule, regression test for bugfix).
+     AGENT USAGE: Write tests per the minimum test table. Use specified framework per scaffold. -->
 
 # Testing Strategy Rules
 

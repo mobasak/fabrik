@@ -4,6 +4,10 @@ globs: ["**/health*", "**/logging*", "**/logger*", "**/metrics*", "**/middleware
 description: Observability discipline — structured logs, correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
+     GOAL: Structured logging, /health, /metrics, GlitchTip, alerts, per-scaffold observability matrix
+     TRAYCER USAGE: Injects observability requirements per scaffold type into ticket ACs.
+     AGENT USAGE: Follow the per-scaffold matrix. Use structlog (Python) or pino (Node). No print/console.log. -->
 
 # Observability Rules
 

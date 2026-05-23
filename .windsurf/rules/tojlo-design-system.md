@@ -1,3 +1,8 @@
+<!-- CONSUMER: Coding agents building Tojlo-branded UI
+     GOAL: Tojlo-specific overrides on top of Ocoron — brand story, module naming, module-specific components
+     TRAYCER USAGE: Injects as Context File for Tojlo project tickets only.
+     AGENT USAGE: Inherits everything from ocoron-design-system.md. Only accent color + module patterns differ. -->
+
 # Tojlo Design System v1.1
 
 > Single source of truth for the Tojlo brand and all Tojlo product surfaces.

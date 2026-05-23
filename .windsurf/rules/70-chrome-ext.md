@@ -4,6 +4,10 @@ globs: ["**/manifest.json", "**/extension/**", "**/content-script*", "**/backgro
 description: Chrome extension discipline — MV3, two-faced architecture, surfaces, distribution, auth, observability, design system
 trigger: glob
 ---
+<!-- CONSUMER: Coding agents building Chrome extensions
+     GOAL: MV3 constraints, two-faced architecture, distribution, auth, observability, permissions
+     TRAYCER USAGE: Injects as Context File for chrome-extension scaffold tickets.
+     AGENT USAGE: Follow verbatim. Backend rules from 10-python/30-ops apply to the backend lane. -->
 
 # Chrome Extension Rules
 
