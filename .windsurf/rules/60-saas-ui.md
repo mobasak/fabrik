@@ -2,6 +2,7 @@
 activation: glob
 globs: ["**/*.tsx", "**/*.jsx", "**/components/**", "**/app/**", "**/pages/**", "**/tailwind.config.*"]
 description: SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
+trigger: glob
 ---
 <!-- CONSUMER: Coding agents building SaaS frontend (Next.js/React)
      GOAL: SaaS UI patterns — navigation, dashboards, billing UI, tenant UI, performance, i18n
@@ -34,14 +35,16 @@ All SaaS UI projects follow `ocoron-design-system.md` as the single source of tr
 ```typescript
 // app/layout.tsx
 import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google';
+import { detectLanguage } from '@/lib/i18n/server';
 
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-heading', display: 'swap' });
 const inter = Inter({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const lang = await detectLanguage();
   return (
-    <html className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang={lang} className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
       <body>{children}</body>
     </html>
   );
