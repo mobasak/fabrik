@@ -267,7 +267,9 @@ Define in the marketing ESP (Loops / Resend Broadcasts), not in application code
 - Honor unsubscribe + bounce/complaint suppression immediately; never re-add a suppressed address without explicit re-opt-in.
 - Footer: unsubscribe link, preference center, company name + address, "why you received this."
 
-**Turkey operational note:** İYS is a central registry — recording consent only in your own DB does not make you compliant for TR recipients. You must (a) sync each TR opt-in to İYS and (b) check the recipient's İYS status before sending, since they can revoke directly in İYS without telling you. İYS does not apply to transactional mail. <!-- Confirm the current İYS integration path and any ESP-side support with your mali müşavir — this is the requirement, not legal advice. -->
+**Turkey operational note:** İYS is a central registry — recording consent only in your own DB does not make you compliant for TR recipients. You must (a) sync each TR opt-in to İYS and (b) check the recipient's İYS status before sending, since they can revoke directly in İYS without telling you. İYS does not apply to transactional mail.
+
+**İYS access model:** direct İYS API access requires 250,000+ consent records. Below that threshold (all early-stage projects), you MUST use a licensed İYS integrator ([listed at iys.org.tr/entegratorler](https://iys.org.tr/entegratorler)). The integrator provides their own API that wraps İYS — your FastAPI backend calls the integrator's API, not İYS directly. Becoming an integrator yourself requires ISO 9001 + 22301 + 27001 certifications — not viable for a solo dev. <!-- Confirm integrator selection and costs with your mali müşavir before committing. -->
 
 ---
 

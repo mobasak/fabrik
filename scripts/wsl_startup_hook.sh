@@ -90,7 +90,8 @@ if [ ! -f "$LOCK_FILE" ]; then
             # closes (note the closing 'fi' moves below this section).
             cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_DB_SCRIPT all >> $LOG_FILE 2>&1 && \
             cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_PREFILTER_SCRIPT >> $LOG_FILE 2>&1 && \
-            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MAPPER_SCRIPT >> $LOG_FILE 2>&1
+            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MAPPER_SCRIPT >> $LOG_FILE 2>&1 && \
+            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MARKDOWN_SCRIPT >> $LOG_FILE 2>&1
         fi
         cd $FABRIK_ROOT && bash $EXTENSIONS_SCRIPT >> $LOG_FILE 2>&1
         echo '=== Pipeline complete — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
