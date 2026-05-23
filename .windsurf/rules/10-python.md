@@ -98,13 +98,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
-    db_host: str = "postgres-main"
-    db_port: int = 5432
-    db_name: str = "app"
-
-    @property
-    def database_url(self) -> str:
-        return f"postgresql+asyncpg://{self.db_host}:{self.db_port}/{self.db_name}"
+    database_url: str                          # required — fail fast if unset
+    redis_url: str = "redis://redis-main:6379/0"
+    service_internal_secret_key: str = ""
+    # No discrete db_host/db_port/db_name. The env provides the full URL
+    # (localhost in WSL, postgres-main on VPS). See 30-ops.md compose template.
 
 @lru_cache
 def get_settings() -> Settings:
@@ -117,18 +115,17 @@ async def list_items(settings: Settings = Depends(get_settings)):
 ```
 
 ```python
-# ALSO CORRECT - simple function-level loading
-def get_db_url() -> str:
-    host = os.getenv('DB_HOST', 'postgres-main')
-    port = os.getenv('DB_PORT', '5432')
-    return f"postgresql://{host}:{port}/db"
-
 # WRONG - class-level (env not set at import time)
 class Config:
     DB_URL = f"postgresql://{os.getenv('DB_HOST')}:..."  # Fails!
+
+# WRONG - discrete vars assembled in code
+def get_db_url() -> str:
+    host = os.getenv('DB_HOST', 'postgres-main')  # banned — use DATABASE_URL directly
+    ...
 ```
 
-**CRITICAL:** Default DB host is `postgres-main`, not `localhost`. Default Redis host is `redis-main`. `localhost` inside a container points to the container itself, not the shared database.
+**Config convention:** apps read a complete `DATABASE_URL` (`postgresql+asyncpg://user:pass@host:port/db`) and `REDIS_URL` from env. Discrete `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` for the app to assemble are **banned**. The env supplies the complete URL — `localhost` in WSL, `postgres-main` on VPS — so the host concern is an env-layer responsibility, never code logic. See `30-ops.md` compose template for how discrete vars are interpolated into `DATABASE_URL` at the compose level.
 
 ---
 
@@ -248,7 +245,8 @@ if __name__ == "__main__":
 |---------|-------------|
 | `pip` / `poetry` / `pipenv` | `uv` (`uv sync`, `uv add`, `uv run`) |
 | Class-level config (`os.getenv` at import time) | Pydantic `BaseSettings` or function-level loading |
-| `localhost` for DB/Redis host | `postgres-main` / `redis-main` (container-internal) |
+| `localhost` for DB/Redis host | `postgres-main` / `redis-main` via `DATABASE_URL` / `REDIS_URL` |
+| Discrete `DB_HOST`/`DB_PORT`/`DB_NAME` env vars for the app | Single `DATABASE_URL` — env provides the full URL |
 | `tempfile.gettempdir()` / `/tmp` | Project-relative `.tmp` (volume-mounted if persistence needed) |
 | `List[str]` / `Optional[str]` | `list[str]` / `str \| None` |
 | `async def` mixed with sync `.query().all()` | SQLAlchemy async: `select()` + `await session.execute()` |

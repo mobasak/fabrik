@@ -2,6 +2,7 @@
 activation: glob
 globs: ["**/Dockerfile", "**/compose.yaml", "**/compose.yml", "**/docker-compose.yaml", "**/docker-compose.yml"]
 description: Docker standards, deployment, infrastructure
+trigger: glob
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (deploy-plan step)
      GOAL: Docker, compose.yaml, Coolify deployment — base images, DNS, Traefik, resource limits, security
@@ -35,14 +36,13 @@ Inside a container, `localhost` resolves to the container itself, NOT the host o
 
 | Variable | Wrong | Correct |
 |---|---|---|
-| `DB_HOST` | `localhost` | `postgres-main` |
 | `DATABASE_URL` | `...@localhost:5432/...` | `...@postgres-main:5432/...` |
 | `REDIS_URL` | `redis://localhost:6379` | `redis://redis-main:6379` |
 
 **Verify before deploy:**
 
 ```bash
-grep -E '^(DB_HOST|DATABASE_URL|REDIS_URL)=' .env | grep localhost
+grep -E '^(DATABASE_URL|REDIS_URL)=' .env | grep localhost
 # Must return nothing.
 ```
 
@@ -53,35 +53,38 @@ grep -E '^(DB_HOST|DATABASE_URL|REDIS_URL)=' .env | grep localhost
 Multi-stage build with `uv` (mandated package manager). No `requirements.txt`, no raw `pip`.
 
 ```dockerfile
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.13-slim-bookworm AS builder    # track <current-stable>, don't pin stale
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+# gcc ONLY if a dependency without a wheel must compile; asyncpg ships wheels.
+# NO libpq-dev — that's psycopg2, which 25-data-postgres.md bans.
+RUN apt-get update && apt-get install -y --no-install-recommends gcc \
+    && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock ./
-RUN pip install --no-cache-dir uv && \
-    uv sync --frozen --no-dev --no-editable
+RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev --no-editable
 
-FROM python:3.12-slim-bookworm
+FROM python:3.13-slim-bookworm
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 curl && rm -rf /var/lib/apt/lists/*
+# curl for HEALTHCHECK only. NO libpq5 (psycopg2).
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 COPY . .
 
+# Port fixed at build (Traefik routes by label). CMD + HEALTHCHECK use the SAME literal.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
-ENV PORT=8000
-EXPOSE ${PORT}
+EXPOSE 8000
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 **Notes:**
 - `uv sync --frozen` uses `uv.lock` — deterministic, no resolution at build time.
 - `.venv` is copied as a whole directory — no fragile `site-packages` path matching.
-- CMD is exec form (no `sh -c` wrapper) — SIGTERM reaches uvicorn directly for graceful shutdown.
+- CMD is exec form — SIGTERM reaches uvicorn directly. If you need PORT-env flexibility: `CMD ["sh", "-c", "exec uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]` — the `exec` replaces the shell so SIGTERM is still signal-safe.
 - HEALTHCHECK uses `localhost` correctly here — it runs inside the same container as the app.
+- **No libpq-dev / libpq5** — asyncpg speaks the PG wire protocol directly and ships prebuilt wheels. `libpq` is for psycopg2, which `25-data-postgres.md` bans.
 
 ---
 
@@ -95,11 +98,7 @@ services:
     build: .
     platform: linux/amd64
     environment:
-      - DB_HOST=postgres-main
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-main:5432/${DB_NAME}
       - REDIS_URL=redis://redis-main:6379/${REDIS_DB:-0}
       - SERVICE_INTERNAL_SECRET_KEY=${SERVICE_INTERNAL_SECRET_KEY}
     healthcheck:
@@ -264,6 +263,37 @@ Coolify's Traefik uses these entrypoint names:
 | `websecure` | 443 | HTTPS with Let's Encrypt |
 
 **CRITICAL:** When deploying Docker Image apps via Coolify API, the auto-generated labels use `http`/`https` entrypoints which **do not exist**. You MUST patch `custom_labels` to use `web`/`websecure` after creating the app. See Coolify API reference for the PATCH workflow.
+
+---
+
+## Banned Patterns
+
+| Pattern | Use Instead |
+|---------|-------------|
+| Alpine base image | `slim-bookworm` / `bookworm-slim` (glibc, prebuilt wheels) |
+| `libpq-dev` / `libpq5` in Dockerfile | Omit — asyncpg needs no libpq (psycopg2-only; banned per `25-data-postgres.md`) |
+| `ports:` in compose / host-port binding | Traefik routing — only 80/443/6001/6002 bind host |
+| `localhost` in container connection strings | Docker DNS: `postgres-main`, `redis-main` |
+| Discrete `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` for the app | Single `DATABASE_URL` (see `10-python.md` § Config) |
+| `depends_on: postgres-main` | None — DB is an external Coolify-managed container |
+| `http` / `https` Traefik entrypoints | `web` / `websecure` (Coolify auto-labels are wrong) |
+| Protecting `/health` with Authelia | `/health` always bypasses auth (Gatus/Prometheus need it) |
+| Missing `deploy.resources.limits.memory` | Mandatory — Coolify v4 ignores the UI field for compose |
+| Missing `platform: linux/amd64` | Mandatory — VPS is x86_64 |
+| `sh -c` CMD without `exec` (breaks SIGTERM) | Exec-form CMD, or `sh -c "exec ..."` |
+| Manual VPS edits / registrar fix-ups | `fabrik apply` / `reconcile-all` (spec-driven) |
+| `fabrik redeploy` without `git push` | `commit → push → redeploy` (Coolify pulls the remote) |
+| PORT mismatch between CMD and HEALTHCHECK | Both must use the same literal port value |
+
+---
+
+## Related Rule Packs
+
+- `10-python.md` — `DATABASE_URL`/`REDIS_URL` config convention, uvicorn CMD, `/health` endpoint
+- `25-data-postgres.md` — asyncpg driver (why no libpq), canonical DB session
+- `55-observability.md` — `/health`, `/metrics`, structlog, GlitchTip
+- `58-resilience.md` — timeout/retry/circuit-breaker for inter-service calls
+- `35-security-auth.md` — Authelia forward-auth, `X-Internal-Token`
 
 ---
 
