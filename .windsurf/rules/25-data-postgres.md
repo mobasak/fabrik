@@ -229,6 +229,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 - [ ] No `psycopg2` or `psycopg2-binary` in dependencies — `asyncpg` only.
 - [ ] `DATABASE_URL` uses `postgresql+asyncpg://` scheme everywhere.
 
+## Related Rule Packs
+
+- `10-python.md` — async patterns, Pydantic Settings for DATABASE_URL
+- `15-api-contracts.md` — API layer that calls the service/data layer
+- `45-testing-strategy.md` — real PostgreSQL tests, async fixtures, no DB mocks
+- `75-workers-jobs.md` — PG job queue (`SKIP LOCKED`), adaptive worker pool. **Note:** `75-workers-jobs.md` uses `psycopg2` for the parent process monitoring loops — this is an intentional exception to the asyncpg-only rule; the parent runs infrequent sync queries (every 30-60s) where pool contention is the real concern.
+- `95-multi-tenant-saas.md` — RLS policies, tenant_id columns, tenant-scoped queries
+
+---
+
 ## Spec contract — postgres registrar
 
 When adding a database call, ensure `shape.needs_database: true` in `specs/services/<id>.yaml`. The postgres registrar auto-creates `<id_with_underscores>` DB on `fabrik apply`; if you need a different name, use `infra.postgres: false` AND `shape.needs_database: true` (proxy.yaml pattern) and document the override.

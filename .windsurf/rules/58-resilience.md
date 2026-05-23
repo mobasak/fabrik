@@ -167,6 +167,26 @@ class CircuitBreaker:
 
 ---
 
+## VPS Service Client Patterns
+
+The VPS runs several services your code may call. Each is an external dependency — apply basic resilience (timeout + retry + fallback) per the patterns above. Quick reference:
+
+| Service | Address | Client | Timeout | Fallback |
+|---|---|---|---|---|
+| **Backblaze B2** | S3-compatible API | `boto3` with `endpoint_url` from env | 30s connect, 120s read (large files) | Return error; never block request on upload failure |
+| **Gotenberg** (PDF) | `http://gotenberg:3000` on coolify network | `httpx.AsyncClient` POST multipart | 60s (PDF generation is slow) | Return "PDF unavailable, retry later" |
+| **Browserless** | `http://browserless:3000` on coolify network | `httpx.AsyncClient` or Playwright connect | 30s | Return cached/fallback content |
+| **Apprise** (notifications) | `http://apprise:8000` on coolify network | `httpx.AsyncClient` POST | 10s | Log warning, don't block — notifications are fire-and-forget |
+| **MeiliSearch** | `http://meilisearch:7700` on coolify network | `meilisearch` Python SDK or `httpx` | 5s search, 30s indexing | Search: return empty results. Indexing: retry via job queue |
+
+**Rules:**
+- All credentials via env vars (`B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME`, etc.).
+- Every service above must have a row in `docs/RESILIENCE.md` §2a if your project calls it.
+- B2 file uploads: async via job queue (per `75-workers-jobs.md`), never inline in API handlers.
+- Presigned URLs for B2 downloads: generate server-side, return URL to client. Never proxy file bytes through FastAPI.
+
+---
+
 ## The Per-Project Contract (`docs/RESILIENCE.md`)
 
 Every project scaffolded by Fabrik gets `docs/RESILIENCE.md` from `templates/scaffold/docs/RESILIENCE_TEMPLATE.md`. Its 14 sections are the contract. The non-negotiable ones:

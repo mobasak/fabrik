@@ -107,6 +107,16 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 
 ---
 
+## Related Rule Packs
+
+- `10-python.md` — FastAPI patterns, Pydantic Settings, async discipline
+- `20-typescript.md` — TypeScript client consuming these APIs
+- `25-data-postgres.md` — database patterns behind the service layer
+- `58-resilience.md` — timeout/retry for external API calls
+- `95-multi-tenant-saas.md` — tenant-scoped API endpoints
+
+---
+
 ## Done When
 
 - [ ] All error responses conform to RFC 7807 schema (type, title, status, detail).
