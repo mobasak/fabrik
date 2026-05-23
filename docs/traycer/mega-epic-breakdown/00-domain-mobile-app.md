@@ -278,6 +278,8 @@ When mapping core flows for a mobile epic, include these mobile-specific flows i
 
 Each flow must identify the `[PRIMARY PATH]` — the happy path. These become Maestro E2E test targets.
 
+**Screen inventory:** `.windsurf/rules/80-mobile.md` § Screen Inventory lists the 17 mandatory screens every mobile app ships. Core-flows must map to these screens + derive any project-specific screens not in the inventory.
+
 ### 2C. Tech Plan (my-workflow/03)
 
 When creating the tech plan for a mobile epic, enforce:

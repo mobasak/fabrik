@@ -72,11 +72,49 @@ Chrome Web Store review is strict on permissions. Over-requesting = rejection or
 
 ---
 
-## UI Surfaces
+## Surface & Screen Inventory (minimum viable extension)
 
-- Use the **popup** for a single primary action; it closes on focus loss, so never leave the system in a half-finished state.
-- Use the **side panel** for persistent or multi-step work, and only when the `sidePanel` permission is declared.
-- Use the **options page** for full preferences and advanced configuration; always link to it from the popup.
+Every chrome extension ships these surfaces. Traycer derives additional project-specific views during `core-flows`.
+
+### Mandatory Surfaces
+
+| Surface | File | Purpose | Notes |
+|---|---|---|---|
+| **Popup** | `popup.html` | Single primary action. Closes on focus loss. | 400px width constraint. Never leave system in half-finished state. |
+| **Options page** | `options.html` | Full preferences and advanced configuration. | Always link to it from the popup. |
+
+### Optional Surfaces (declare only when needed)
+
+| Surface | File | Purpose | When to use |
+|---|---|---|---|
+| **Side panel** | `sidepanel.html` | Persistent or multi-step work. | Only when `sidePanel` permission is declared. |
+| **Content script overlay** | Injected via content script | UI overlaid on host page. | Use Shadow DOM isolation for style safety. |
+
+### Popup Screens (within the popup)
+
+| Screen | Purpose |
+|---|---|
+| **Main view** | Primary action + status summary. Quick access to the extension's core function. |
+| **Login / Auth** | Auth flow (if extension requires account). `chrome.storage.session` for tokens. |
+| **Results / Output** | Display results of the primary action. |
+| **Settings link** | One-tap to options page — not inline settings in the popup. |
+| **Error state** | Clear error + retry. Never a blank popup. |
+
+### Options Page Screens (within the options page)
+
+| Screen | Purpose |
+|---|---|
+| **General settings** | API keys, backend URL, feature toggles. |
+| **Account** | Logged-in user info, logout, data export, account deletion. |
+| **Notifications** | Per-event notification preferences (if extension sends notifications). |
+| **About** | Extension version, changelog link, support link, privacy policy. |
+
+**Rules:**
+- Popup + options page are launch-blocking — every extension ships both.
+- Side panel only when the product requires persistent workspace (e.g., research tool, writing assistant).
+- Content script overlays only when the extension modifies or augments host pages.
+- Every surface follows the Ocoron Design System compact adaptations (see § Ocoron Design System below).
+- Core feature views are project-specific — Traycer defines them during `core-flows`.
 - Use **Shadow DOM** isolation for content-script overlays to avoid style collisions with the host page.
 
 ---
