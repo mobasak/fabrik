@@ -30,24 +30,37 @@ Apply when working on Chrome extension code (MV3). This is a **two-faced scaffol
 
 ## Distribution Model
 
-### Chrome Web Store (default)
+Pick the channel by audience — CWS for reach, developer-mode for control. Both are legitimate.
 
-Use for public extensions and extensions targeting a broad user base.
+### Chrome Web Store
 
-- **CWS review requirements:** minimal permissions, no remote code execution, accurate privacy disclosures, privacy policy URL, clear single purpose.
-- **Listing assets:** 128px icon, 1280x800 screenshot (min 1, max 5), promotional tile (440x280), short description (132 chars max), detailed description.
-- **Privacy policy:** required — URL in `manifest.json` and on the CWS listing. Must match the permissions declared.
-- **Review timeline:** initial review 1-3 business days; updates 1-2 days. Plan for delays — never depend on same-day approval for a hotfix.
+Public/consumer products: broad reach, zero install friction, automatic updates.
+
+- **Costs:** review (1-3 business days), one-time $5 developer fee, permission scrutiny, single-purpose rule. Permissions CWS rejects (`debugger`, broad host access for scraping, etc.) are unavailable here.
+- **Listing assets:** 128px icon, 1280x800 screenshots (1-5), 440x280 tile, 132-char short description, privacy policy URL matching declared permissions.
 - **Auto-update:** CWS handles updates automatically. Users get the new version within hours of approval.
 
-### Direct Install (internal / private)
+### Developer-mode install (unpacked) — user-installed, off-store
 
-Use for internal tools, private beta, or extensions that can't pass CWS review (e.g., requires `debugger` permission).
+The user enables Developer mode at `chrome://extensions` and clicks **Load unpacked** on the extension folder. Available to any user on any desktop OS. Bypasses CWS entirely: no review, no fee, instant iteration, and **any permission you want** — including the ones CWS would reject.
 
-- **Distribution:** host the `.crx` file on VPS (served via Coolify static or S3/B2) or distribute the unpacked extension folder.
-- **Enterprise policy:** for managed devices, deploy via Chrome Enterprise policy (`ExtensionInstallForcelist`). No user interaction needed.
-- **Self-hosted updates:** serve an `updates.xml` file at a stable URL; set `"update_url"` in `manifest.json`. Chrome checks this URL periodically and auto-updates.
-- **Sideloading (dev/test only):** `chrome://extensions` → Developer mode → Load unpacked. Not for production distribution — Chrome disables sideloaded extensions periodically.
+**Best for:** your own tools, a technical user base, internal/team use, private beta, or scraping/automation extensions needing permissions CWS won't approve.
+
+**Trade-offs (real, but not blockers):**
+
+- **One-time manual setup** — enable dev mode → Load unpacked → pick folder. Ship a short GIF/README; fine for any willing or technical user.
+- **No auto-update** — dev-mode extensions don't update themselves. Ship new versions as a downloadable `.zip` the user re-loads, or build an in-extension "update available" check that pings your backend and links to the new download.
+- **Startup nag** — Chrome shows a "Disable developer-mode extensions" balloon on launch. Dismissible; suppressed entirely under enterprise policy.
+
+**Distribution:** host the unpacked folder as a `.zip` on your VPS (Coolify static / B2) with install instructions.
+
+### Enterprise force-install — managed fleets
+
+For a client's org or your own managed devices: `ExtensionInstallForcelist` Chrome Enterprise policy + hosted `updates.xml` (`update_url` in manifest). Auto-update, no nag, no user action. The packed `.crx` path works here because it's policy-pushed rather than user-clicked.
+
+### What does NOT work
+
+One-click install of a self-hosted **packed `.crx`** by clicking a download link — blocked on consumer Windows/Mac (`CRX_REQUIRED_PROOF_MISSING`). Do not build a "download our `.crx` and click to install" flow. Use developer-mode unpacked or enterprise force-install instead.
 
 ---
 
@@ -68,7 +81,8 @@ Chrome Web Store review is strict on permissions. Over-requesting = rejection or
 - **Prefer `activeTab` over `<all_urls>`.** `activeTab` grants access only when the user invokes the extension — no blanket host permission needed.
 - **Use `optional_permissions`** for features the user may not need. Request at runtime with `chrome.permissions.request()` — just-in-time, with priming (explain why before the prompt).
 - **`host_permissions`:** list only the specific domains the extension needs. Never `"<all_urls>"` unless the extension genuinely operates on every page.
-- **Dangerous permissions** that trigger extra review scrutiny: `debugger`, `proxy`, `vpnProvider`, `webRequest` (blocking), `management`, `nativeMessaging`. Use only when absolutely required; document the justification.
+- **`declarativeNetRequest`** is the MV3 API for request modification (blocking, redirecting, header modification). Use this instead of blocking `webRequest`, which MV3 removed for CWS extensions. Observe-only `webRequest` (no blocking) is still available.
+- **Dangerous permissions** that trigger extra CWS review scrutiny: `debugger`, `proxy`, `vpnProvider`, `management`, `nativeMessaging`. Use only when absolutely required; document the justification. Developer-mode installs bypass CWS scrutiny — all permissions are available.
 
 ---
 
@@ -125,7 +139,7 @@ Every chrome extension ships these surfaces. Traycer derives additional project-
 - Persist all user-relevant state before the popup closes.
 - Add Zustand only for local reactive UI state in React or Preact surfaces.
 - Never store durable state in service-worker globals — the worker terminates.
-- **Auth tokens** go in `chrome.storage.session` (ephemeral, encrypted at rest). Never `chrome.storage.local` for tokens. See `35-security-auth.md`.
+- **Auth tokens** go in `chrome.storage.session` (in-memory, cleared at session end — user must re-auth after browser restart). Never `chrome.storage.local` for tokens. See `35-security-auth.md`.
 
 ---
 
@@ -238,9 +252,10 @@ Chrome extension UI follows `ocoron-design-system.md` with compact adaptations:
 | `<all_urls>` host permission when not needed | `activeTab` or specific domains |
 | `console.log` in production | Buffer + flush to backend (see Observability) |
 | Inline scripts in HTML pages | External `.js` files referenced via `<script src>` |
-| Hardcoded backend URLs | `chrome.storage` config or `manifest.json` externally_connectable |
+| Hardcoded backend URLs | Backend URL from `chrome.storage` config or env-injected at build |
 | Breaking backend API endpoints after extension release | Support N and N-1 extension versions |
-| Sideloading for production distribution | Chrome Web Store or self-hosted `updates.xml` |
+| One-click self-hosted `.crx` download for consumer install | Developer-mode unpacked (`.zip` + instructions), enterprise force-install, or CWS — consumer `.crx` click-install is blocked on Win/Mac |
+| Blocking `webRequest` in CWS extensions (MV3 removed it) | `declarativeNetRequest` for request modification; observe-only `webRequest` is fine |
 
 ---
 
@@ -270,5 +285,5 @@ Chrome extension UI follows `ocoron-design-system.md` with compact adaptations:
 - [ ] `_locales/en/messages.json` exists and synced with `static/i18n/en.json`.
 - [ ] Permissions are minimal; each justified in manifest comments.
 - [ ] Backend deploys via Coolify with full registrar set (`/health`, `/metrics`, GlitchTip).
-- [ ] Distribution path decided: CWS (listing assets ready) or direct install (`updates.xml` hosted).
+- [ ] Distribution path decided: **CWS** (listing assets ready), **developer-mode unpacked** (`.zip` + install instructions hosted), or **enterprise force-install** (`ExtensionInstallForcelist` + `updates.xml`).
 - [ ] Backend supports current and previous extension version simultaneously.
