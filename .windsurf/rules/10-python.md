@@ -37,25 +37,29 @@ Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unl
 # src/main.py
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from sqlalchemy import text
+from src.database import engine, async_session
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: connect DB, load models, etc.
-    await db.connect()
+    # Startup: engine connects lazily — ping once to fail fast on bad config
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
     yield
-    # Shutdown: cleanup
-    await db.disconnect()
+    # Shutdown: dispose the connection pool
+    await engine.dispose()
 
 app = FastAPI(title="ServiceName", lifespan=lifespan)
 
 @app.get("/health")
 async def health():
-    # MUST test actual dependencies
-    await db.execute("SELECT 1")
+    # MUST hit the real DB. Bare string raises in SQLAlchemy 2.0 — use text()
+    async with async_session() as session:
+        await session.execute(text("SELECT 1"))
     return {"status": "ok"}
 ```
 
-**Note:** Use `lifespan` context manager, not deprecated `@app.on_event("startup")`.
+**Note:** Use `lifespan` context manager, not deprecated `@app.on_event("startup")`. Imports resolve against the Async Database Session section below.
 
 ### Router Structure
 ```python
@@ -238,3 +242,48 @@ if __name__ == "__main__":
     PORT = int(os.getenv('PORT', '8000'))
     uvicorn.run("src.main:app", host="0.0.0.0", port=PORT, reload=True)
 ```
+
+---
+
+## Banned Patterns
+
+| Pattern | Use Instead |
+|---------|-------------|
+| `pip` / `poetry` / `pipenv` | `uv` (`uv sync`, `uv add`, `uv run`) |
+| Class-level config (`os.getenv` at import time) | Pydantic `BaseSettings` or function-level loading |
+| `localhost` for DB/Redis host | `postgres-main` / `redis-main` (container-internal) |
+| `tempfile.gettempdir()` / `/tmp` | Project-relative `.tmp` (volume-mounted if persistence needed) |
+| `List[str]` / `Optional[str]` | `list[str]` / `str \| None` |
+| `async def` mixed with sync `.query().all()` | SQLAlchemy async: `select()` + `await session.execute()` |
+| Bare-string `.execute("SELECT 1")` | `text("SELECT 1")` (SQLAlchemy 2.0 requires it) |
+| Sync HTTP/IO in an async route (blocks the event loop) | `httpx.AsyncClient`; `run_in_executor` for unavoidable sync libs |
+| `@app.on_event("startup")` | `lifespan` async context manager |
+| `logging.getLogger(__name__)` / `print()` | `structlog.get_logger()` imported from scaffold `logger.py` |
+| Generic `except Exception` before re-raising `HTTPException` | Re-raise `HTTPException` first, then catch generic |
+| `uvicorn.run()` in production code | `uvicorn` CLI in the Dockerfile |
+| Alpine base image | `python:<version>-slim-bookworm` on `linux/amd64` |
+| Editing `pyproject.toml` / `uv.lock` unprompted | Only when the ticket authorises it |
+
+---
+
+## Related Rule Packs
+
+- `25-data-postgres.md` — PostgreSQL patterns, migrations, async sessions
+- `30-ops.md` — Dockerfile, compose, Traefik, resource limits, Coolify deploy
+- `55-observability.md` — structlog setup, `/health` + `/metrics`, GlitchTip
+- `58-resilience.md` — timeout/retry/circuit-breaker for async external calls
+
+---
+
+## Done When
+
+- [ ] All dependencies via `uv` — no `pip`/`poetry`/`pipenv`; `pyproject.toml` + `uv.lock` only.
+- [ ] Config via Pydantic `BaseSettings` (or function-level) — DB host defaults to `postgres-main`, not `localhost`.
+- [ ] `lifespan` context manager (not `on_event`); `/health` runs `text("SELECT 1")` against the real DB.
+- [ ] SQLAlchemy async used consistently — no sync `.query()` in `async def`; no blocking IO in async routes.
+- [ ] Type hints on all signatures; `list[]` / `str | None`; Pydantic for request/response models.
+- [ ] `HTTPException` re-raised before any generic `except Exception`.
+- [ ] `structlog.get_logger()` from scaffold `logger.py` — no stdlib logging, no `print()`.
+- [ ] `ruff check`, `ruff format`, `mypy` all pass.
+- [ ] Production runs via `uvicorn` CLI in Dockerfile (`slim-bookworm`, `linux/amd64`) — no `uvicorn.run()`, no Alpine.
+- [ ] Python service port within 8000-8099.
