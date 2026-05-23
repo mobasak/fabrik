@@ -42,9 +42,12 @@ emails/
   src/         <name>.mjml                # source of truth (committed)
   partials/    header|footer|brand.mjml   # mj-include; brand tokens live here ONLY
   dist/        <name>.html                # compiled, committed; what runtime loads
+  i18n/
+    en.json                              # English strings (source of truth)
+    tr.json                              # Turkish strings
 ```
 
-One brand partial governs all templates — no per-template colour/font drift.
+One brand partial governs all templates — no per-template colour/font drift. One i18n JSON per locale governs all localized strings.
 
 ---
 
@@ -150,14 +153,16 @@ Every project must ship these transactional templates before go-live. Check the 
 
 #### Auth & Account (all project types)
 
-| Template | Trigger | SaaS | Mobile | WP | Notes |
-|---|---|---|---|---|---|
-| **Verify email** | Signup / email change | Yes | Yes | Yes | Contains verification link with token. Expires in 24h. |
-| **Welcome** | Email verified | Yes | Yes | Yes | Confirms account is active. Links to first action / onboarding. |
-| **Password reset request** | User clicks "forgot password" | Yes | Yes | Yes | Contains reset link with token. Expires in 1h. Never confirm whether email exists. |
-| **Password reset confirmation** | Password successfully changed | Yes | Yes | Yes | Informational — no action needed. Includes "if this wasn't you" warning. |
-| **Email changed** | User updates email in settings | Yes | Yes | — | Sent to OLD email as security alert. |
-| **Account deleted** | User deletes account | Yes | Yes | — | Confirms deletion. Notes data retention period if applicable. |
+**Pattern B (Supabase Auth) note:** Supabase sends verify-email and password-reset emails automatically via its own templates. You can customize Supabase's email templates in the Supabase dashboard (Settings → Auth → Email Templates), but they are NOT part of your MJML pipeline. The templates below marked "Supabase" are Supabase-managed; your MJML pipeline only builds the ones marked "Custom."
+
+| Template | Trigger | SaaS | Mobile | WP | Auth pattern | Notes |
+|---|---|---|---|---|---|---|
+| **Verify email** | Signup / email change | Yes | Yes | Yes | Supabase (B) / Custom (A) | Pattern B: customize in Supabase dashboard. Pattern A: MJML template with token link. Expires in 24h. |
+| **Welcome** | Email verified | Yes | Yes | Yes | Custom (both) | YOUR template — sent after verification succeeds. Links to first action / onboarding. |
+| **Password reset request** | User clicks "forgot password" | Yes | Yes | Yes | Supabase (B) / Custom (A) | Pattern B: Supabase sends this. Pattern A: MJML template with reset link. Expires in 1h. Never confirm whether email exists. |
+| **Password reset confirmation** | Password successfully changed | Yes | Yes | Yes | Custom (both) | YOUR template — informational. Includes "if this wasn't you" warning. |
+| **Email changed** | User updates email in settings | Yes | Yes | — | Custom (both) | Sent to OLD email as security alert. |
+| **Account deleted** | User deletes account | Yes | Yes | — | Custom (both) | Confirms deletion. Notes data retention period if applicable. |
 
 #### Billing & Subscription
 
@@ -166,7 +171,7 @@ Every project must ship these transactional templates before go-live. Check the 
 | **Payment receipt** | Successful payment (Paddle webhook / RevenueCat) | Yes | Yes | Woo | Amount, plan, next billing date, invoice link. |
 | **Trial starting** | User starts free trial | Yes | Yes | — | Trial length, what happens at end, upgrade CTA. |
 | **Trial ending** | 3 days before trial expires | Yes | Yes | — | Convert now or lose access. Single CTA. |
-| **Subscription renewed** | Auto-renewal successful | Yes | — | Woo | Confirmation. Next billing date. |
+| **Subscription renewed** | Auto-renewal successful | Yes | — | Woo | Confirmation. Next billing date. Mobile: stores/RevenueCat handle renewal notifications. |
 | **Payment failed (dunning #1)** | First payment failure (grace period) | Yes | Yes | Woo | "Update your payment method" — urgent but not alarming. |
 | **Payment failed (dunning #2)** | Second failure, 3 days later | Yes | Yes | Woo | More urgent. "Access will be suspended in X days." |
 | **Payment failed (dunning #3)** | Final warning before cancellation | Yes | Yes | Woo | "Last chance — update payment or lose access today." |
