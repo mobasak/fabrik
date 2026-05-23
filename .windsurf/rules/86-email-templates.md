@@ -115,18 +115,31 @@ One brand partial governs all templates — no per-template colour/font drift.
 
 ---
 
-## Anti-Patterns (MUST NOT)
+## Banned Patterns
 
-- Node in the runtime image
-- Hand-coded HTML tables
-- External `<link>` stylesheets
-- Background-image-dependent layout
-- Customer email through Apprise
-- Missing plain-text part
-- Sending from the root domain
-- Secrets/PII in push payloads
-- Per-template brand drift
-- Uncompiled MJML shipped to runtime
+| Pattern | Use Instead |
+|---------|-------------|
+| Node in the runtime image | Compile MJML at build time; runtime is Python-only |
+| Hand-coded HTML tables | MJML auto-emits tables + VML |
+| External `<link>` stylesheets | MJML inlines all CSS at build |
+| Background-image-dependent layout | Solid fills or VML via MJML |
+| Customer email through Apprise | Resend (transactional) or Loops (marketing). Apprise = internal/ops only |
+| Missing plain-text part | `multipart/alternative` with plain-text always |
+| Sending from the root domain | Dedicated subdomain (e.g. `mail.<domain>`) |
+| Secrets/PII in push payloads | Deep link only; PII stays server-side |
+| Per-template brand drift | ONE shared brand partial governs all templates |
+| Uncompiled MJML shipped to runtime | Commit compiled `dist/` HTML; runtime loads compiled output |
+| Resend React Email / JSX layer | Ignored — we use MJML+Jinja2 |
+
+---
+
+## Related Rule Packs
+
+- `35-security-auth.md` — transactional email for auth (reset, verification) references this pipeline
+- `55-observability.md` — structured logging for email send events
+- `58-resilience.md` — timeout/retry for Resend API calls (applied in the sending code, not this pack)
+- `80-mobile.md` — push notification rules (expo-notifications, FCM)
+- `ocoron-design-system.md` — brand tokens used in the shared partial
 
 ---
 

@@ -113,6 +113,29 @@ tenant_context: ContextVar[str] = ContextVar("tenant_id", default="")
 
 ---
 
+## Supabase RLS Note
+
+When using Supabase Auth (Pattern B per `35-security-auth.md`), RLS context works differently:
+
+- Supabase automatically sets `auth.uid()` from the JWT — no manual `SET LOCAL` needed for user-level isolation.
+- For **tenant-level** isolation (org/workspace), you still need `tenant_id` + RLS policies. Set tenant context via a Supabase Edge Function or by embedding `tenant_id` as a custom JWT claim.
+- Supabase's `FORCE ROW LEVEL SECURITY` and `ENABLE ROW LEVEL SECURITY` rules apply identically.
+- The `current_tenant_id()` function pattern above works alongside Supabase's built-in `auth.uid()`. Use `auth.uid()` for user-scoping, `current_tenant_id()` for tenant-scoping.
+
+---
+
+## Related Rule Packs
+
+- `35-security-auth.md` — Pattern B (Supabase Auth) references this pack for RLS
+- `45-testing-strategy.md` — tenant isolation testing (query as A, verify B invisible)
+- `60-saas-ui.md` — tenant UI: org switcher, team management, tenant-scoped nav
+- `75-workers-jobs.md` — background jobs must carry `tenant_id` in payload
+- `85-payments-billing.md` — tenant-scoped subscription data
+- `88-saas-launch-checklist.md` — per-tenant rate limiting in planning
+- `00-domain-saas.md` — SaaS domain module §4 (tenancy architecture decisions)
+
+---
+
 ## Banned Patterns
 
 | Pattern | Use Instead |

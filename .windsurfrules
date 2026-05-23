@@ -94,7 +94,6 @@ All in `.windsurf/rules/`.
 | Background workers / jobs | `75-workers-jobs.md` |
 | React Native / mobile | `80-mobile.md` |
 | Paddle / billing | `85-payments-billing.md` |
-| n8n / automation | `90-automation.md` |
 | Multi-tenant / RLS | `95-multi-tenant-saas.md` |
 | Visual + verbal identity (UI) | `ocoron-design-system.md` |
 
