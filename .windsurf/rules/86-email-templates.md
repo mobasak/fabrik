@@ -153,16 +153,16 @@ Every project must ship these transactional templates before go-live. Check the 
 
 #### Auth & Account (all project types)
 
-**Pattern B (Supabase Auth) note:** Supabase sends verify-email and password-reset emails automatically via its own templates. You can customize Supabase's email templates in the Supabase dashboard (Settings → Auth → Email Templates), but they are NOT part of your MJML pipeline. The templates below marked "Supabase" are Supabase-managed; your MJML pipeline only builds the ones marked "Custom."
+**Pattern B (Supabase Auth) note:** Supabase sends verify-email and password-reset emails by default using its own generic template — wrong brand, wrong fonts, no i18n, no version control. **Disable Supabase's built-in emails** and send all auth emails through your MJML pipeline instead. Configure via Supabase Auth Hooks or custom SMTP pointing to your Resend-authenticated subdomain. This ensures every email the user receives matches your brand, is localized, and is version-controlled in the repo.
 
-| Template | Trigger | SaaS | Mobile | WP | Auth pattern | Notes |
-|---|---|---|---|---|---|---|
-| **Verify email** | Signup / email change | Yes | Yes | Yes | Supabase (B) / Custom (A) | Pattern B: customize in Supabase dashboard. Pattern A: MJML template with token link. Expires in 24h. |
-| **Welcome** | Email verified | Yes | Yes | Yes | Custom (both) | YOUR template — sent after verification succeeds. Links to first action / onboarding. |
-| **Password reset request** | User clicks "forgot password" | Yes | Yes | Yes | Supabase (B) / Custom (A) | Pattern B: Supabase sends this. Pattern A: MJML template with reset link. Expires in 1h. Never confirm whether email exists. |
-| **Password reset confirmation** | Password successfully changed | Yes | Yes | Yes | Custom (both) | YOUR template — informational. Includes "if this wasn't you" warning. |
-| **Email changed** | User updates email in settings | Yes | Yes | — | Custom (both) | Sent to OLD email as security alert. |
-| **Account deleted** | User deletes account | Yes | Yes | — | Custom (both) | Confirms deletion. Notes data retention period if applicable. |
+| Template | Trigger | SaaS | Mobile | WP | Notes |
+|---|---|---|---|---|---|
+| **Verify email** | Signup / email change | Yes | Yes | Yes | MJML template with verification token link. Expires in 24h. Pattern B: disable Supabase's built-in, send via your pipeline. |
+| **Welcome** | Email verified | Yes | Yes | Yes | Confirms account is active. Links to first action / onboarding. |
+| **Password reset request** | User clicks "forgot password" | Yes | Yes | Yes | MJML template with reset token link. Expires in 1h. Never confirm whether email exists. Pattern B: disable Supabase's built-in, send via your pipeline. |
+| **Password reset confirmation** | Password successfully changed | Yes | Yes | Yes | Informational — no action needed. Includes "if this wasn't you" warning. |
+| **Email changed** | User updates email in settings | Yes | Yes | — | Sent to OLD email as security alert. |
+| **Account deleted** | User deletes account | Yes | Yes | — | Confirms deletion. Notes data retention period if applicable. |
 
 #### Billing & Subscription
 
