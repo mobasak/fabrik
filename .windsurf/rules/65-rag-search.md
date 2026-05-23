@@ -86,10 +86,20 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 
 ## Embedding Models
 
-- Defaults (pick based on context):
-  - **API (high accuracy)**: `voyage-3-large` (1024 dimensions) or `text-embedding-3-large`.
-  - **Self-hosted (Ollama)**: `Qwen3-Embedding`. <!-- verify current model at use time; embedding model names change fast -->
-- Target 1024–1536 dimensions — lower dimensionality reduces PostgreSQL memory overhead.
+**Do NOT hardcode model names here.** The embedding roster is auto-generated daily and lives in a single source of truth:
+
+→ **`docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` § Embedding Roster**
+
+That file is auto-updated by `scripts/kilo-benchmarks/embedding_export_markdown.py` from the benchmark database. It lists current winners per role (bulk, mid-tier, frontier, code) with pricing, context window, and quality tier — sorted by cost.
+
+**Rules (durable — these don't change with models):**
+
+- Target **1024-1536 dimensions** — lower dimensionality reduces PostgreSQL memory overhead and HNSW index size.
+- Prefer the **cheapest model that meets the quality floor** for the role. The selection algorithm in the roster already does this (cost-ascending, quality-descending).
+- **Bulk ingestion** (background indexing): use the cheapest embedding model from the roster's bulk role.
+- **Query-time** (user-facing search): use the mid-tier or frontier model for better recall.
+- **Code retrieval** (IDE semantic search): use the code_embedding role from the roster.
+- When the roster updates (new model beats the incumbent on cost or quality), the existing pgvector indexes remain valid — re-embed only if switching to a different dimensionality.
 
 ## Token Budgeting
 
