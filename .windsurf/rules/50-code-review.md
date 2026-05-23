@@ -14,11 +14,13 @@ description: Code review workflow, quality gate commands, and reusability discip
 ### Internal Audit
 
 *Perform before reporting completion. Full checklist in the agent's bootstrap file (`CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md`).*
+
 - [ ] **Secrets:** No hardcoded keys or tokens?
-- [ ] **Infrastructure:** `Dockerfile` is `-slim-bookworm` and has `HEALTHCHECK`?
-- [ ] **Architecture:** `compose.yaml` has `platform: linux/amd64`?
-- [ ] **Networking:** Port registered in `PORTS.md`?
-- [ ] **Database:** Changes added to `db/schema.sql`?
+- [ ] **Infrastructure:** `Dockerfile` is `-slim-bookworm`, has `HEALTHCHECK`, no Alpine?
+- [ ] **Compose:** `platform: linux/amd64`, `deploy.resources.limits.memory`, Traefik labels with `websecure` entrypoint, `coolify` network, no `ports:` section?
+- [ ] **Networking:** Port registered in `PORTS.md`? DB host = `postgres-main`, Redis = `redis-main` (not `localhost`)?
+- [ ] **Database:** Changes added to `db/schema.sql`? Alembic migration (no raw DDL)?
+- [ ] **Docs:** `CHANGELOG.md` entry? `INDEX.md` reflects file changes? See `40-documentation.md` for full Documentation Sync Matrix.
 
 ### Lean Gate (Tier 1)
 
@@ -28,17 +30,21 @@ python scripts/final_gate.py --lean
 
 Syntax (ruff), json/yaml validation, secrets, env vars, schema sync. Fast, no context poisoning.
 
+**Note:** `final_gate.py` runs in the fabrik project context with its own `.venv`. In child projects, use `uv run python scripts/final_gate.py --lean` if the gate script is synced.
+
 ---
 
 ## B) Changelog (Every Code/Config/Infra Change)
 
 For any non-trivial code, config, infrastructure, Docker, or compose change in:
-`src/`, `scripts/`, `templates/`, `.factory/`, `.github/`, `Dockerfile`, `compose.yaml`, `.env.example`, `pyproject.toml`, `package.json`, `requirements.txt`,
+`src/`, `scripts/`, `templates/`, `.factory/`, `.github/`, `Dockerfile`, `compose.yaml`, `.env.example`, `pyproject.toml`, `package.json`, `uv.lock`,
 you MUST ensure `CHANGELOG.md` has a real entry under `## [Unreleased]`:
 
 ```markdown
 ### Added/Changed/Fixed — <Title> (YYYY-MM-DD)
 ```
+
+See `40-documentation.md` for the full Documentation Sync Matrix — changelog is one of 14 trigger-based doc updates.
 
 ---
 
@@ -61,12 +67,13 @@ These tools are available when explicitly requested by the owner or when you jud
 ### Kilo Review (Optional)
 
 ```bash
-git add -A                          # CRITICAL: stage ALL uncommitted files, not just yours
 git diff --staged --name-only       # Verify staged matches intent
 python scripts/kilo_code_review.py staged --plan "task description" --output json
 ```
 
 Use for rare high-risk or cross-cutting changes. Never rely on it as the default completion gate.
+
+**Note:** Stage specific files by name, not `git add -A`. Staging all files risks including unrelated changes, `.env` files, or large binaries.
 
 Fix all findings (BLOCKER, MAJOR, MINOR) yourself — there is no separate FIXER role in any of the three coding agents.
 
@@ -84,7 +91,7 @@ Use for bulk documentation work (CHANGELOG/README/doc refresh), not for every co
 python scripts/final_gate.py --systemic
 ```
 
-Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints, watchdog, env contract. Never part of a normal fix loop.
+Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints, env contract. Never part of a normal fix loop.
 
 ---
 
@@ -93,7 +100,7 @@ Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints
 - Internal audit + lean gate is **MANDATORY** before reporting completion.
 - **Changelog is MANDATORY for any code/config/infrastructure change. Full gate runs at milestone/batch closure, not for every task.**
 - The coding agent fixes issues. Kilo review (when invoked) is report-only by default.
-- Traycer / the user commits — coding agents only implement and fix; gate auto-stages.
+- The user commits and pushes — coding agents only implement and fix; gate auto-stages.
 - Max 5 review iterations before escalating.
 - Non-trivial = any of: new file, >50 lines changed, new dependency, DB change, or any code/config/infrastructure/Docker/compose change.
 
@@ -132,7 +139,7 @@ When reviewing a diff, ask: "Could this helper, decorator, or class serve any ot
 These constraints prevent "agent drift" and bikeshedding:
 
 - **No Speculation:** If information is missing, state assumptions explicitly or stop and ask. Do not guess.
-- **One-Test Rule Enforcement:** Every non-trivial change must have a corresponding test justification in the plan.
+- **One-Test Rule Enforcement:** Every non-trivial change must have a corresponding test justification in the plan. See `45-testing-strategy.md`.
 - **Real-World Breakage Review:** For IO/FS/Exec changes, define:
   - **Trigger:** What action causes the failure?
   - **Symptom:** What does the user see (or what does the log show)?
@@ -151,4 +158,3 @@ All three coding agents (Claude Code, Cascade, Kilo CLI) load this pack on deman
 2. Self-review reminders (output format, iteration limits, fixer responsibility).
 3. Reusability discipline (cross-project-extractable code review).
 4. Solo-Dev Creed for architectural discipline.
-

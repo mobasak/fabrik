@@ -1,13 +1,54 @@
 ---
 activation: glob
-globs: ["**/embeddings/**", "**/retrieval/**", "**/rag/**", "**/vector/**"]
-description: RAG & search discipline — embeddings, chunking, vector storage, citations, context windows, retrieval evals
+globs: ["**/embeddings/**", "**/retrieval/**", "**/rag/**", "**/vector/**", "**/search/**"]
+description: Search & retrieval discipline — MeiliSearch full-text, pgvector embeddings, hybrid search, chunking, citations, retrieval evals
 trigger: glob
 ---
 
-# RAG & Search Rules
+# Search & Retrieval Rules
 
 Apply when working on embedding pipelines, vector search, retrieval-augmented generation, or text search. Skip for pure CRUD, UI, or infrastructure work.
+
+## Choosing: MeiliSearch vs pgvector
+
+| Need | Use |
+|------|-----|
+| Instant keyword search, typo tolerance, autocomplete, faceted filtering (products, docs) | **MeiliSearch** |
+| Semantic similarity, "find similar", recommendations | **pgvector** (see Vector Storage below) |
+| Knowledge-base / Q&A retrieval needing keyword + meaning fused | **pgvector hybrid** (dense + tsvector + RRF) |
+
+Both MeiliSearch and pgvector-hybrid handle keywords. Pick **MeiliSearch** when typo-tolerance, faceting, or instant as-you-type UX matter (catalog/doc search). Pick **pgvector hybrid** when the keyword match feeds an LLM or semantic pipeline.
+
+## Full-text Search (MeiliSearch)
+
+Apply for instant keyword search: product catalogs, documentation, autocomplete, faceted filtering.
+
+### Index Lifecycle (registrar-owned)
+
+- Indexes are auto-created when `shape.has_search_feature: true` in `specs/services/<id>.yaml`. Index name = `<id_with_underscores>`.
+- **Never** create or delete indexes via the Meilisearch API directly — the registrar owns lifecycle (`fabrik apply` creates, `fabrik destroy --drop-data` destroys). Manual index creation drifts from spec.
+
+### Index Configuration
+
+- Declare attributes explicitly per index — Meili indexes everything by default, which bloats the index and slows search:
+  - `searchableAttributes`: ordered by importance (first = highest ranking weight). Only fields users actually search.
+  - `filterableAttributes`: fields used in `filter=` (category, price, status, tags). Required before you can filter on them.
+  - `sortableAttributes`: fields used in `sort=` (price, date). Required before you can sort on them.
+- Set these at index setup, not per-query. Changing them triggers a full reindex.
+
+### Ranking & Relevance
+
+- Keep Meili's default ranking rules (`words, typo, proximity, attribute, sort, exactness`) unless a documented product need requires reordering. Never remove `typo` — typo-tolerance is the main reason to choose Meili over pgvector `tsvector`.
+- Define `synonyms` for domain terms (SKU aliases, abbreviations, TR/EN pairs) at index config time.
+
+### Ingestion & Reindex
+
+- Push documents in batches via the background worker queue — never block the API thread on indexing.
+- Reindex (settings or schema change) runs as an async background job, never inline in a request.
+
+### Resilience
+
+- MeiliSearch and pgvector are external dependencies — wrap all calls with timeout + retry per `58-resilience.md`. A search-backend outage must degrade gracefully, never hang the request.
 
 ## Vector Storage
 
@@ -21,11 +62,6 @@ Apply when working on embedding pipelines, vector search, retrieval-augmented ge
 - Build parameters: `WITH (m = 16, ef_construction = 64)`. Omitting these yields sub-optimal recall.
 - Query-time tuning: set `hnsw.ef_search = 40` for interactive UI latency, `200` for analytical background jobs.
 - **Note**: With PG16 + pgvector 0.7+, HNSW is production-ready. IVFFlat is the old default and significantly slower.
-
-## Vector DB Selection Rationale
-
-- **pgvector**: Use when vectors are a feature of your app alongside relational data
-- **Qdrant/Weaviate**: Use when vectors are the app — millions of embeddings, complex filtering at scale, and you need a dedicated search engine with its own clustering/sharding.
 
 ## Hybrid Search
 
@@ -48,7 +84,7 @@ Apply when working on embedding pipelines, vector search, retrieval-augmented ge
 
 - Defaults (pick based on context):
   - **API (high accuracy)**: `voyage-3-large` (1024 dimensions) or `text-embedding-3-large`.
-  - **Self-hosted (Ollama)**: `Qwen3-Embedding`.
+  - **Self-hosted (Ollama)**: `Qwen3-Embedding`. <!-- verify current model at use time; embedding model names change fast -->
 - Target 1024–1536 dimensions — lower dimensionality reduces PostgreSQL memory overhead.
 
 ## Token Budgeting
@@ -94,6 +130,11 @@ if len(encoding.encode(prompt)) > BUDGET:
 | Heuristic token counting (`len / 4`) | `tiktoken.encoding_for_model()` BPE counting |
 | Filling 100% of LLM context window | 85% token budget cap |
 | Synchronous ingestion on API thread | Async ingestion via background worker queue |
+| Manual Meili index creation via API | `shape.has_search_feature: true` — registrar owns lifecycle |
+| Indexing all attributes (Meili default) | Explicit `searchableAttributes` + `filterableAttributes` + `sortableAttributes` |
+| Synchronous/inline reindex on the API thread | Async reindex via background worker |
+| pgvector for exact keyword/typo search | MeiliSearch full-text |
+| MeiliSearch for semantic similarity | pgvector cosine + hybrid |
 
 ---
 
@@ -107,7 +148,8 @@ if len(encoding.encode(prompt)) > BUDGET:
 - [ ] Context budget capped at 85% of model limit before LLM dispatch.
 - [ ] Chunk metadata includes document ID and sequence number for citation tracking.
 - [ ] Retrieval eval tests (Faithfulness + Context Precision) exist against a golden dataset.
-
-## Spec contract — meilisearch registrar
-
-Meilisearch indexes are auto-created when `shape.has_search_feature: true` in `specs/services/<id>.yaml`. Index name = `<id_with_underscores>`. Do NOT manually create indexes via the Meilisearch API — the registrar owns lifecycle (create on `fabrik apply`, destroy on `fabrik destroy --drop-data`).
+- [ ] Search feature declared via `shape.has_search_feature: true` — no manual index creation.
+- [ ] `searchableAttributes`, `filterableAttributes`, `sortableAttributes` explicitly declared per index.
+- [ ] Synonyms defined for domain terms; `typo` ranking rule retained.
+- [ ] Meili indexing and reindex run via background worker — API thread never blocked.
+- [ ] Meili + pgvector calls wrapped with timeout/retry per `58-resilience.md`.

@@ -7,9 +7,11 @@ trigger: glob
 
 # Mobile Rules (React Native)
 
-Apply when working on React Native / TypeScript mobile projects. Skip for web frontend, Python, Docker, or infrastructure files. For general TypeScript discipline, see `TS_CORE` pack.
+Apply when working on React Native / TypeScript mobile projects. Skip for web frontend, Python, Docker, or infrastructure files. For general TypeScript discipline, see `20-typescript.md`.
 
 Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets are regional addenda. i18n is built in from day 1, not retrofitted.
+
+**Two-faced scaffold:** the client (React Native app) builds via EAS and ships to stores. The backend (python-api + Supabase) deploys to VPS via Coolify with full registrar set. This file covers the **client lane**. Backend rules: `10-python.md`, `30-ops.md`, `55-observability.md`. For planning-level decisions (architecture, monetization, distribution, attribution), see `00-domain-mobile-app.md`.
 
 ---
 
@@ -27,7 +29,8 @@ Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets
 - Use React Navigation (`@react-navigation/native`) for all navigation.
 - Use `NativeStackNavigator` for hierarchical screen flows and `BottomTabNavigator` for top-level sections.
 - Extract route names and param types into a shared type file (e.g., `NavigationTypes.ts`) to keep navigation type-safe.
-- Configure deep linking via React Navigation's `linking` prop. Prefer Universal Links (iOS) and App Links (Android) over custom URL schemes.
+- Configure deep linking via React Navigation's `linking` prop. Use Universal Links (iOS AASA) and App Links (Android assetlinks.json) — wired as Expo config plugins at prebuild. Custom URL schemes are fallback only.
+- Deep-link routing via ChottuLink (or equivalent) for attribution. See `00-domain-mobile-app.md` § Attribution for the full stack (ChottuLink + Tenjin + RevenueCat).
 - Use tabs for three to five top-level destinations; reserve modals for short focused tasks.
 
 ---
@@ -81,7 +84,7 @@ Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets
 - Load **Space Grotesk** and **Inter** as custom fonts via `expo-font` or manual linking. Use **JetBrains Mono** for data/metrics displays only.
 - Dark mode is the default. Light mode uses the Ocoron light surface token set, toggled via unistyles theme switching.
 - Cards → `Pressable` list items with `translateY(1)` + `scale(0.98)` press feedback (`0.15s` duration).
-- Tab bar → bottom navigation using `--color-accent` (`#00D4AA`) for the active tab indicator.
+- Tab bar → bottom navigation using `--color-accent` (`#5B5BF7`) for the active tab indicator.
 - Font size floor: 13px. No text smaller than this on any mobile surface.
 - Spacing follows the Ocoron token scale (`xs: 4, sm: 8, md: 16, lg: 24, xl: 32, 2xl: 48`) mapped to unistyles spacing.
 - Component patterns (cards with 1px borders, tags, pills, buttons) follow canonical design system specs adapted for touch targets.
@@ -161,10 +164,14 @@ Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets
 
 ## Monetization
 
-- Use **RevenueCat** for IAP and subscriptions by default (free up to $2.5K MTR). Migrate to Adapty only if/when paywall A/B testing demonstrably moves revenue.
-- All subscription state flows through the RevenueCat SDK. RevenueCat handles **per-country pricing** and currency conversion automatically — define pricing per region in the RevenueCat dashboard, never hardcode prices. Apple/Google handle local tax. Confirm offerings render correctly in at least 3 locales before submission (e.g., `en-US`, `tr-TR`, `de-DE`).
-- Sync RevenueCat user IDs to Supabase `auth.users.id` on first launch. Server-side entitlement checks must hit the RevenueCat REST API or RevenueCat webhook → Supabase row, never client-trusted state.
-- Paywall components must support remote config via RevenueCat or Adapty dashboards — never hardcode pricing or offering IDs.
+See `81-mobile-billing.md` for the full mobile billing discipline: RevenueCat integration, entitlement architecture, server-side verification, Turkey GPB-mandatory constraint, Teknokent tax treatment, and launch checklist.
+
+Key points for the client-side agent:
+
+- **RevenueCat** is the entitlement server — free up to $2.5K MTR.
+- Paywall components must support **remote config** via RevenueCat dashboard — never hardcode pricing or offering IDs.
+- **"Restore Purchases" button is mandatory** on the paywall — omission = store rejection.
+- Client-side entitlement checks are for UX only. **Server-side is the source of truth** (webhook → PostgreSQL).
 
 ---
 
@@ -233,7 +240,21 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 | Push permission requested on first launch | Deferred until post-onboarding value moment |
 | Tracking SDKs firing before ATT / GDPR consent | Gated behind explicit user consent |
 | PII in AI agent prompts or external LLM calls | `.aiexclude` + server-side redaction |
-| `any` type | `unknown` + type guards (per `TS_CORE`) |
+| `any` type | `unknown` + type guards (per `20-typescript.md`) |
+| `console.log()` in production builds | Sentry breadcrumbs or strip via babel plugin; dev-only in `__DEV__` guard |
+| Firebase Dynamic Links | Dead (Aug 2025) — use ChottuLink or equivalent |
+
+---
+
+## Related Rule Packs
+
+- `20-typescript.md` — TypeScript strict mode, type safety, module patterns
+- `35-security-auth.md` — Pattern B (Supabase Auth), `expo-secure-store`, CORS
+- `45-testing-strategy.md` — Maestro E2E, `@testing-library/react-native` + Jest
+- `55-observability.md` — backend structlog + GlitchTip; client Sentry RN SDK
+- `58-resilience.md` — backend external call resilience (timeout/retry/CB)
+- `ocoron-design-system.md` — visual tokens, motion, accessibility, states
+- `00-domain-mobile-app.md` — planning-level decisions (17 dimensions, attribution stack, distribution)
 
 ---
 

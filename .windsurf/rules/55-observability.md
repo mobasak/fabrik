@@ -1,13 +1,53 @@
 ---
 activation: glob
-globs: ["**/health*", "**/logging*", "**/middleware/**", "**/monitoring/**"]
-description: Observability discipline — structured logs, correlation IDs, health/readiness, alert thresholds
+globs: ["**/health*", "**/logging*", "**/logger*", "**/metrics*", "**/middleware/**", "**/monitoring/**", "**/glitchtip*", "**/sentry*"]
+description: Observability discipline — structured logs, correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
 trigger: glob
 ---
 
 # Observability Rules
 
-Apply when working on logging, health endpoints, monitoring, alerting, or middleware instrumentation. Skip for pure UI layout or business logic without I/O.
+Apply when working on logging, health endpoints, metrics, monitoring, alerting, crash reporting, or middleware instrumentation. Skip for pure UI layout or business logic without I/O.
+
+---
+
+## Per-Scaffold Observability Matrix
+
+Not every scaffold type gets every observability feature. This matrix is the source of truth:
+
+| Scaffold | Structured logging | `/health` | `/metrics` | GlitchTip | Crash reporting | Gatus monitor |
+|---|---|---|---|---|---|---|
+| `python-api` | structlog (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
+| `node-api` | pino (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
+| `file-api` | pino (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
+| `file-worker` | structlog (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
+| `saas-skeleton` | pino (scaffolded) | Yes (scaffolded) | Per ticket | Yes (scaffolded) | Server-side auto | Yes |
+| `chrome-extension` | Backend: structlog; Frontend: `chrome.storage.local` buffer | Backend only | Backend only | Backend only | Frontend: Sentry browser SDK | Backend only |
+| `mobile-app` | Backend: structlog; Client: Sentry RN SDK | Backend only | Backend only | Backend only | Client: Sentry React Native SDK | Backend only |
+| `desktop-app` | Backend: structlog; Client: per ticket | Backend only | Backend only | Backend only | Client: Sentry Electron SDK | Backend only |
+| `wordpress` | WP debug log + Cloudflare analytics | Gatus checks site URL | N/A | N/A | N/A | Yes (site URL) |
+| `docusaurus` | N/A (static site) | Nginx responds on `/` | N/A | N/A | N/A | Yes (site URL) |
+| `static-site` | N/A (static site) | Nginx responds on `/` | N/A | N/A | N/A | Yes (site URL) |
+
+**Two-faced types** (mobile-app, desktop-app, chrome-extension): the backend lane gets full observability (logging + health + metrics + GlitchTip). The client lane gets crash reporting only (Sentry SDK for the platform).
+
+---
+
+## Log Pipeline (how it flows)
+
+Understanding the pipeline prevents agents from breaking it:
+
+```
+App (structlog/pino) → JSON to stdout → Promtail (auto-discovers via docker.sock)
+  → Loki (indexes by service/env/level labels) → Grafana (LogQL queries)
+```
+
+- **Apps emit JSON to stdout.** This is WHY JSON format is mandatory and `print()` is banned — Promtail parses JSON; raw text breaks field extraction.
+- **Promtail auto-discovers ALL containers.** No per-service config needed. The lifecycle doc confirms: "auto-discovers ALL containers via docker.sock. No labels or config changes needed per service."
+- **Loki indexes by low-cardinality labels only.** High-cardinality labels (request_id, user_id) cause OOM. Keep them in the JSON payload.
+- **Grafana queries via LogQL** with JSON field extraction: `{service="myservice"} | json | level="error"`.
+
+---
 
 ## Pre-Scaffolded Logging
 
@@ -28,7 +68,7 @@ logger.info("event_name", key="value")
 **Node projects** (`node-api`, `file-api`):
 
 ```javascript
-const logger = require('./logger');
+import logger from './logger.js';
 logger.info({ event: 'event_name', key: 'value' });
 ```
 
@@ -43,9 +83,47 @@ logger.info({ event: 'event_name', key: 'value' });
 
 - Module: `lib/logger.ts` — pino, JSON output
 
-**No scaffold logging:** `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, `static-site` — set up per ticket using the rules below.
+**No scaffold logging on the client side:** `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, `static-site` — set up per ticket using the rules below. Note: `mobile-app` and `desktop-app` backends (python-api) DO get scaffold logging; only the client binary is unscaffolded.
 
 **Chrome extension frontend:** Use `chrome.storage.local` buffer pattern per the Chrome Extension Telemetry section below. Do not use pino directly in service workers.
+
+---
+
+## `/metrics` Endpoint (Prometheus)
+
+Every `python-api` and `node-api` scaffold emits a pre-configured `/metrics` endpoint. DO NOT create custom metrics modules.
+
+**What the scaffold emits** (Python — `src/{package}/metrics.py`):
+
+```python
+from prometheus_client import Counter, Gauge
+
+REQUEST_COUNT = Counter("request_count", "Total requests", ["method", "endpoint", "status"])
+ERROR_COUNT = Counter("error_count", "Total errors", ["type"])
+ACTIVE_JOBS = Gauge("active_jobs", "Currently running jobs")
+PROCESSING_COUNT = Gauge("processing_count", "Items being processed")
+```
+
+- The `/metrics` endpoint is Authelia-bypassed (global bypass rule: `*.vps1.ocoron.com → /metrics`).
+- Prometheus scrapes it when the spec has `shape.exposes_metrics: true` — the Prometheus registrar adds the scrape target on `fabrik apply`.
+
+**Adding custom business metrics:**
+
+```python
+from {package}.metrics import REQUEST_COUNT  # import scaffolded counters
+from prometheus_client import Histogram
+
+# Add domain-specific metrics alongside scaffolded ones
+PROCESSING_DURATION = Histogram("processing_duration_seconds", "Time to process item", ["item_type"])
+```
+
+- Name metrics with `snake_case` and a unit suffix (`_seconds`, `_bytes`, `_total`).
+- Use Counter for monotonic values, Gauge for current state, Histogram for distributions.
+- Keep cardinality bounded — label values must be from a small, known set.
+
+**Node projects:** Use `prom-client` with the same naming conventions. The scaffold emits the setup in `src/metrics.js`.
+
+---
 
 ## Error Reporting (GlitchTip)
 
@@ -56,12 +134,12 @@ DO NOT create custom Sentry init code or use a different DSN library.
 
 - Module: `src/{package}/glitchtip_init.py` — `init_glitchtip()` with `FastApiIntegration`
 - Wired in `main.py` BEFORE `app = FastAPI(...)` (the SDK must instrument the framework before app construction)
-- Dependency: `sentry-sdk[fastapi]>=2.18.0` (in `requirements.txt`)
+- Dependency: `sentry-sdk[fastapi]>=2.18.0` (in `pyproject.toml`)
 
 **Node projects** (`node-api`, `file-api`):
 
 - Module: `src/glitchtip_init.js` — `Sentry.init()` from `@sentry/node`
-- Wired via `require('./glitchtip_init')` at the top of `src/index.js`, BEFORE other imports
+- Wired via `import './glitchtip_init.js'` at the top of `src/index.js`, BEFORE other imports
 - Dependency: `@sentry/node` (in `package.json`)
 
 **No-op semantics (BOTH platforms):**
@@ -97,7 +175,7 @@ flow through the internal network without Authelia or TLS overhead.
 Environment variables consumed by the init modules (set via Coolify env, not in `.env.example`):
 
 | Variable | Default | Notes |
-| :--- | :--- | :--- |
+|---|---|---|
 | `GLITCHTIP_DSN` | (unset → no-op) | The DSN returned by the provisioner |
 | `ENVIRONMENT` | `production` | Tags events; useful for prod vs staging filtering |
 | `GIT_SHA` | (unset) | Release tag — falls back to `COOLIFY_DEPLOYMENT_UUID` |
@@ -105,6 +183,40 @@ Environment variables consumed by the init modules (set via Coolify env, not in 
 | `GLITCHTIP_PROFILES_SAMPLE_RATE` | `0` | Profiling off by default — adds native deps |
 
 Runbook: `docs/infrastructure/glitchtip-sdk-integration-setup.md`
+
+---
+
+## Mobile Client Crash Reporting
+
+For `mobile-app` projects, the backend gets GlitchTip (above). The **client app** uses the Sentry React Native SDK:
+
+- **SDK:** `@sentry/react-native` — wraps the native crash reporters (iOS + Android) with JS error boundary.
+- **Init:** in app entry point (before `registerRootComponent`). DSN from env/config, not hardcoded.
+- **What it captures:** JS exceptions, native crashes, ANR (Application Not Responding), unhandled promise rejections.
+- **Privacy:** no PII in breadcrumbs or tags. Strip user email/name from Sentry context. See `80-mobile.md` § Compliance.
+- **Crash-free rate target:** >= 99.5% (store ranking factor).
+- **Source maps:** upload via `sentry-expo` plugin in EAS build config for readable stack traces.
+
+For `desktop-app`: use `@sentry/electron`. Same principles.
+
+For `chrome-extension`: use `@sentry/browser` in the popup/content script. Service workers use the `chrome.storage.local` buffer pattern (see Chrome Extension Telemetry below).
+
+---
+
+## WordPress Observability
+
+WordPress projects don't get scaffold logging or `/metrics`. Observability is simpler:
+
+- **Health monitoring:** Gatus checks the site URL (HTTP 200). Configured by the Gatus registrar on `fabrik apply`.
+- **Error logging:** WP debug log (`WP_DEBUG_LOG`) for development only — disable in production (`define('WP_DEBUG', false)`).
+- **Analytics:** Cloudflare analytics (built into CDN, no plugin needed) + GA4 if configured per the domain module.
+- **Uptime alerting:** Gatus → Apprise notification on consecutive failures.
+- **Backups:** Backrest → B2 (DB + uploads). Verification via Backrest's built-in health check.
+- **Security monitoring:** Cloudflare WAF logs + security plugin alerts (from the approved plugin manifest).
+
+No GlitchTip, no Prometheus, no structlog — WordPress is a pre-built runtime, not custom code.
+
+---
 
 ## Structured Logging
 
@@ -148,11 +260,15 @@ Every JSON log entry must include these core fields:
 - Valid labels: `service`, `environment`, `level`. These have bounded cardinality.
 - High-cardinality labels cause index bloat and OOM crashes on constrained VPS.
 
+---
+
 ## Health Endpoint Semantics
 
-- Every service exposes `/health` that actively verifies critical dependencies (e.g. `SELECT 1` against PostgreSQL) before returning 200.
+- Every service exposes `/health` that actively verifies critical dependencies (e.g. `SELECT 1` against PostgreSQL, Redis `PING`) before returning 200.
 - A `/health` that returns 200 without checking dependencies creates "zombie" containers — Traefik routes traffic to broken services.
-- Docker Compose `HEALTHCHECK` must include `start_period` (15–20s) to allow framework boot and DB migrations before Coolify kills the container.
+- Docker Compose `HEALTHCHECK` must include `start_period` (15-20s) to allow framework boot and DB migrations before Coolify kills the container.
+- `/health` is Authelia-bypassed on all services (global rule: `*.vps1.ocoron.com → /health`). Never protect `/health`.
+- Enforcement: `scripts/enforcement/check_health.py` verifies that health endpoints contain real dependency checks (regex for `SELECT 1`, `.ping()`, etc.). Superficial health endpoints fail the gate.
 
 ```yaml
 healthcheck:
@@ -163,6 +279,8 @@ healthcheck:
   start_period: 20s
 ```
 
+---
+
 ## Alert Thresholds (SLO-Lite)
 
 Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Duration). Infrastructure metrics are for dashboards, not pager alerts.
@@ -172,11 +290,15 @@ Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Durat
 | External availability | Gatus | 3 consecutive failures / 60s | Push notification |
 | HTTP 5xx error rate | Grafana Loki (LogQL) | > 5% of requests over 5 min | Push notification |
 | P95 latency | Grafana Loki (LogQL) | > 2.0s sustained over 5 min | Push notification |
-| CPU / RAM spikes | Netdata | N/A — do not page | Dashboard only |
+| Registrar drift | Prometheus (`fabrik_audit_drift_total`) | Any drift for > 10 min | Alertmanager → Telegram |
+| CPU / RAM spikes | Netdata / cAdvisor | N/A — do not page | Dashboard only |
+
+---
 
 ## Synthetic Monitoring
 
 - Gatus provides black-box availability checks completely decoupled from the internal logging pipeline. If Loki is down, Gatus still detects application failure.
+- Container restart is handled by Coolify (`restart: unless-stopped`). Per-service watchdog scripts are **not required** — Gatus + Coolify restart + Prometheus alerting provides three independent layers.
 
 ## Gatus — Stable DNS Names (CRITICAL)
 
@@ -186,6 +308,8 @@ Never use UUID container names in Gatus configs or inter-service URLs.
 - **Single-image Applications** (`/data/coolify/applications/<uuid>/`): the container name has a timestamp suffix that changes on every redeploy. DNS breaks silently. You MUST install a stable alias on the `coolify` network.
 
 Install procedure (one-time per single-image App) + currently-registered alias pairs (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`) live in `docs/reference/coolify-stable-aliases.md`. Boot-time reapply: `scripts/vps_apply_limits.sh`.
+
+---
 
 ## Chrome Extension Telemetry
 
@@ -201,12 +325,16 @@ Install procedure (one-time per single-image App) + currently-registered alias p
 |---------|-------------|
 | `print()` in Python production code | `structlog` logger |
 | `console.log()` / `console.error()` in JS production code | `pino` logger |
+| CommonJS `require()` for logger/glitchtip | ES module `import` |
 | High-cardinality Loki labels (`request_id`, `user_id`, `ip`) | Embed in JSON payload, query via LogQL parsers |
 | Superficial `/health` returning static 200 | Verify DB connection + critical deps before 200 |
 | `HEALTHCHECK` without `start_period` | Add `start_period: 20s` for boot tolerance |
 | Alerting on CPU/RAM spikes | Alert on RED symptoms only (errors, latency) |
 | Logging PII/secrets then relying on downstream redaction | Redact at application edge before emission |
 | Synchronous `console.log` for heavy objects in Node.js | `pino` with worker thread transport |
+| Custom metrics module from scratch | Extend scaffolded `metrics.py` / `metrics.js` |
+| Hardcoded GlitchTip DSN in repo | `GLITCHTIP_DSN` env var, injected by registrar |
+| Per-service watchdog bash scripts | Gatus + Coolify `restart: unless-stopped` |
 
 ---
 
@@ -216,12 +344,27 @@ Install procedure (one-time per single-image App) + currently-registered alias p
 - [ ] No `print()` or `console.log()` in production code paths.
 - [ ] `X-Request-ID` middleware present in FastAPI (using `contextvars`) — correlation ID in every log entry.
 - [ ] PII/secret redaction configured in logger (regex filters for emails, tokens, passwords).
-- [ ] `/health` endpoint verifies actual dependencies (DB, Redis) before returning 200.
+- [ ] `/health` endpoint verifies actual dependencies (DB, Redis, consumed APIs) before returning 200.
+- [ ] `/metrics` endpoint exposes scaffolded counters + any custom business metrics (when `shape.exposes_metrics: true`).
 - [ ] Docker Compose `HEALTHCHECK` includes `start_period`.
 - [ ] Loki labels limited to low-cardinality values (`service`, `environment`, `level`).
 - [ ] Alert rules target RED symptoms only — no infrastructure cause-based paging.
 - [ ] Gatus configured for external synthetic monitoring of all public endpoints.
+- [ ] GlitchTip DSN provisioned and injected via env var (not hardcoded).
+- [ ] (Mobile) Sentry React Native SDK init'd in app entry point; crash-free >= 99.5%.
+- [ ] (WordPress) Gatus monitors site URL; `WP_DEBUG` off in production.
 
-## Spec contract — observability registrars
+---
 
-Service should expose `/metrics` only when `shape.exposes_metrics: true` (Prometheus registrar will scrape it). Service should expose `/health` always (Gatus registrar depends on it when `shape.is_public: true`). GlitchTip DSN comes from `SENTRY_DSN` env var injected by the orchestrator from the GlitchTip registrar — do NOT hardcode the DSN in the repo.
+## Spec Contract — Observability Registrars
+
+- Service should expose `/metrics` only when `shape.exposes_metrics: true` (Prometheus registrar will add the scrape target on `fabrik apply`).
+- Service should expose `/health` always (Gatus registrar depends on it when `shape.is_public: true`).
+- GlitchTip DSN comes from `GLITCHTIP_DSN` env var injected by the orchestrator from the GlitchTip registrar — do NOT hardcode the DSN in the repo.
+- Scaffolder does NOT emit Prometheus/Promtail/cAdvisor labels or configs per service — those are handled by the registrar system or by auto-discovery (Promtail, cAdvisor via docker.sock). compose.yaml is the build/deploy contract; observability config is the registrar's domain.
+
+---
+
+## Legacy Note: Watchdog Scripts
+
+`scripts/enforcement/check_watchdog.py` exists in the systemic gate (Tier 3) and checks for `scripts/watchdog*.sh` in service projects. This check is **legacy** — Gatus + Coolify `restart: unless-stopped` + Prometheus alerting provide three independent monitoring/restart layers, making per-service watchdog scripts redundant. New projects should NOT create watchdog scripts. Existing projects that have them can keep them but they are not required for new services.

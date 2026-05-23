@@ -118,9 +118,9 @@ networks:
 ## Styling & Swizzling
 
 - Override **Infima CSS variables** in `custom.css` with Ocoron Design System tokens:
-  - `--ifm-color-primary` → `#00D4AA` (accent)
-  - `--ifm-color-primary-dark` → `#00BF99`
-  - `--ifm-color-primary-light` → `#00E8BB`
+  - `--ifm-color-primary` → `#5B5BF7` (accent)
+  - `--ifm-color-primary-dark` → `#4D4DE0`
+  - `--ifm-color-primary-light` → `#7676FF`
   - `--ifm-background-color` → `#0A0A0A` (surface-0)
   - `--ifm-background-surface-color` → `#141414` (surface-1)
   - Map all surface, text, and border tokens from the design system.

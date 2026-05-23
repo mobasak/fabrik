@@ -57,9 +57,9 @@ A dimension belongs at intake **only if** wrong = **irreversible** or **kills be
 
 Reference `.windsurf/rules/80-mobile.md` for implementation detail. At intake, force:
 
-- **Framework:** **cross-platform, one codebase** — Expo/React Native + EAS (most set-and-forget: managed build/submit/OTA) or Flutter (perf). **Never dual-native.**
+- **Framework: React Native + Expo + EAS** (decided — do not reopen). One codebase, managed build/submit/OTA, TypeScript synergy with web stack, Ocoron design system mapping via unistyles, MCP verification loop. **Never dual-native. Never Flutter** (evaluated and rejected — RN+Expo is the Fabrik standard; switching would discard the entire 80-mobile ruleset, i18n pipeline, and TS ecosystem).
 - **Backend:** **Supabase** (auth, db, realtime, storage — first-class mobile SDKs) + python-api for custom logic; postgres-main for non-Supabase data.
-- **Auth:** Supabase Auth; **Sign in with Apple is mandatory** if you offer any other social login on iOS; tokens in secure storage (Keychain/Keystore).
+- **Auth: Supabase Auth** (decided — do not reopen). Firebase Auth was evaluated and rejected: Supabase Auth serves the same "managed IdP" role but keeps identity + data + RLS + realtime on one platform, avoids dual-UID systems, and the JWKS verification flow is identical. See `35-security-auth.md` Pattern B. **Sign in with Apple is mandatory** if you offer any other social login on iOS; tokens in `expo-secure-store`.
 - **Offline/sync:** online-first + offline-read cache by default; full offline-write+sync only if the use case demands it (large maintenance lift).
 - **Attribution plumbing (build-time mandate):** MMP SDK (Tenjin — 2k conv/mo free, flat $200 after) + Universal Links (iOS AASA) / App Links (Android assetlinks.json) wired as **Expo config plugins at prebuild, tested via EAS dev build — not Expo Go.** Deep-link routing via ChottuLink (25k MAU free). **Firebase Dynamic Links is dead (Aug 2025) — never reference it.** Retrofit = full binary re-review + permanently lost early-cohort attribution.
 
@@ -67,11 +67,13 @@ Reference `.windsurf/rules/80-mobile.md` for implementation detail. At intake, f
 
 #### 5. Monetization & Store Billing
 
-Reference `.windsurf/rules/80-mobile.md` § Monetization. At intake, force:
+Reference `.windsurf/rules/81-mobile-billing.md` for full billing discipline. At intake, force:
 
 **Force:** IAP product types (consumable / subscription / one-time), tiers, trial, entitlement model.
 
 **Default:** **RevenueCat over StoreKit/Play Billing** — set-and-forget receipts, entitlements, cross-platform. Apple Small Business Program = 15% under $1M. **EU rule:** stay on SBP 15% IAP in the EU — the 2026 Core Technology Commission makes EU external link-out approximately 18% effective, which is *worse*. External web billing only pays off in US/unregulated regions.
+
+**Turkey constraint:** Google Play Billing is mandatory for digital goods — Turkey is excluded from UCB and EOP. Paddle/iyzico/Stripe web-steer = instant rejection. See `81-mobile-billing.md`. Ad revenue is taxed separately from subscription revenue under Teknokent — maintain separate ledgers.
 
 **Why now:** in-app billing is the forced path; entitlement gating must exist before paywalled features.
 

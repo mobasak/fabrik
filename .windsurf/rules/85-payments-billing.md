@@ -11,6 +11,8 @@ Apply when working on SaaS payment integration, subscription lifecycle, entitlem
 
 **Scope exclusion:** WooCommerce storefront checkout is governed by `62-wordpress.md`, not this pack. WooCommerce uses region-appropriate payment gateways (e.g. iyzico for Turkey digital, PayTR for Turkey physical D2C, marketplace channels for physical distribution) because it operates as product e-commerce, not SaaS subscription billing.
 
+**Mobile IAP:** For Google Play Billing, RevenueCat entitlements, and mobile-specific Turkey constraints, see `81-mobile-billing.md`. Mobile IAP is a fundamentally different billing model from SaaS — do not apply this pack's Paddle/iyzico patterns to mobile digital goods.
+
 ## Payment Providers
 
 Two providers available — Traycer determines which to use (or both) based on the product's target market during planning:
