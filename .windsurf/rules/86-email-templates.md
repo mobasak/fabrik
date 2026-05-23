@@ -144,6 +144,69 @@ send_email(to=user.email, subject=strings["welcome"]["subject"], html=html, lang
 
 **Why separate streams:** mixing transactional and marketing on the same sending identity lets marketing complaints (spam reports) degrade transactional deliverability (password resets landing in spam). Separate streams isolate reputation.
 
+### Transactional Email Template Inventory
+
+Every project must ship these transactional templates before go-live. Check the column that matches your project type.
+
+#### Auth & Account (all project types)
+
+| Template | Trigger | SaaS | Mobile | WP | Notes |
+|---|---|---|---|---|---|
+| **Verify email** | Signup / email change | Yes | Yes | Yes | Contains verification link with token. Expires in 24h. |
+| **Welcome** | Email verified | Yes | Yes | Yes | Confirms account is active. Links to first action / onboarding. |
+| **Password reset request** | User clicks "forgot password" | Yes | Yes | Yes | Contains reset link with token. Expires in 1h. Never confirm whether email exists. |
+| **Password reset confirmation** | Password successfully changed | Yes | Yes | Yes | Informational — no action needed. Includes "if this wasn't you" warning. |
+| **Email changed** | User updates email in settings | Yes | Yes | — | Sent to OLD email as security alert. |
+| **Account deleted** | User deletes account | Yes | Yes | — | Confirms deletion. Notes data retention period if applicable. |
+
+#### Billing & Subscription
+
+| Template | Trigger | SaaS | Mobile | WP | Notes |
+|---|---|---|---|---|---|
+| **Payment receipt** | Successful payment (Paddle webhook / RevenueCat) | Yes | Yes | Woo | Amount, plan, next billing date, invoice link. |
+| **Trial starting** | User starts free trial | Yes | Yes | — | Trial length, what happens at end, upgrade CTA. |
+| **Trial ending** | 3 days before trial expires | Yes | Yes | — | Convert now or lose access. Single CTA. |
+| **Subscription renewed** | Auto-renewal successful | Yes | — | Woo | Confirmation. Next billing date. |
+| **Payment failed (dunning #1)** | First payment failure (grace period) | Yes | Yes | Woo | "Update your payment method" — urgent but not alarming. |
+| **Payment failed (dunning #2)** | Second failure, 3 days later | Yes | Yes | Woo | More urgent. "Access will be suspended in X days." |
+| **Payment failed (dunning #3)** | Final warning before cancellation | Yes | Yes | Woo | "Last chance — update payment or lose access today." |
+| **Subscription cancelled** | User cancels or final dunning fails | Yes | Yes | Woo | Confirms cancellation. Access-until date. Win-back CTA. |
+| **Plan upgraded** | User upgrades plan | Yes | — | — | Confirms new plan, new features available, prorated charge. |
+| **Plan downgraded** | User downgrades plan | Yes | — | — | Confirms downgrade. Effective date. Features losing access to. |
+| **Invoice** | Monthly/annual billing cycle | Yes | — | Woo | PDF attached or link. Required for B2B. |
+
+#### Team & Collaboration (SaaS only)
+
+| Template | Trigger | SaaS | Mobile | WP | Notes |
+|---|---|---|---|---|---|
+| **Team invite** | Admin invites team member | Yes | — | — | Invite link + org name. Expires in 7 days. |
+| **Invite accepted** | Invited user joins | Yes | — | — | Sent to admin who invited. |
+| **Role changed** | Admin changes member role | Yes | — | — | Sent to affected member. |
+| **Removed from team** | Admin removes member | Yes | — | — | Sent to removed member. |
+
+#### System & Security
+
+| Template | Trigger | SaaS | Mobile | WP | Notes |
+|---|---|---|---|---|---|
+| **New device login** | Login from unrecognized device/location | Yes | Yes | — | Device, location, time. "If this wasn't you" link. |
+| **Suspicious activity** | Multiple failed logins / unusual pattern | Yes | Yes | — | Security alert. Link to review sessions. |
+
+#### WordPress-Specific (WooCommerce)
+
+| Template | Trigger | SaaS | Mobile | WP | Notes |
+|---|---|---|---|---|---|
+| **Order confirmation** | Customer places order | — | — | Yes | Order details, shipping estimate, order tracking link. |
+| **Order shipped** | Tracking number added | — | — | Yes | Tracking link + estimated delivery. |
+| **Order delivered** | Delivery confirmed | — | — | Yes | Review request CTA. |
+| **Refund processed** | Admin processes refund | — | — | Yes | Amount, reason, timeline for credit. |
+
+**Rules for all transactional templates:**
+- Every template has an MJML source in `emails/src/`, compiled to `emails/dist/`, localized via `emails/i18n/`.
+- Every template has a plain-text alternative.
+- Auth-critical emails (verify, reset) should use the Postmark escalation path if deliverability issues are measured.
+- Dunning emails are triggered by payment provider webhooks (Paddle / RevenueCat), not by application schedulers.
+- "If this wasn't you" links go to a session-review or password-reset page, never to a generic support form.
+
 ### Newsletter Architecture
 
 - **List management:** users opt-in during signup or via a preference center. Opt-in state stored in PostgreSQL (`email_preferences` table or user profile). Double opt-in recommended for EU (GDPR).
@@ -218,6 +281,7 @@ Define in the marketing ESP (Loops / Resend Broadcasts), not in application code
 - [ ] Runtime image contains no Node; keys via env.
 - [ ] (Mobile) push payload localized, deep-linked, PII-free.
 - [ ] (WP) consumed via Woo override / ESP with correct merge tags.
+- [ ] All transactional templates from the inventory exist for the project type (auth, billing, team, system).
 - [ ] Email i18n: `emails/i18n/en.json` + `tr.json` exist; all user-visible strings come from i18n JSON, not hardcoded in MJML.
 - [ ] Subject lines localized per user locale.
 - [ ] Fallback to `en` when user's locale has no translation file.
