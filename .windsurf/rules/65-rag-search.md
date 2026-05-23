@@ -57,7 +57,7 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 ## Vector Storage
 
 - **pgvector** on PostgreSQL 16 is the sole vector store. Dedicated vector databases (Pinecone, Qdrant, Weaviate, Milvus) are **banned** — they add network latency, duplicate data synchronization, and complicate backups.
-- pgvector with HNSW indexes handles 50M+ vectors with sub-millisecond search. This exceeds Fabrik's projected capacity needs.
+- pgvector with HNSW indexes comfortably handles hundreds of thousands to low single-digit millions of vectors in-RAM on the VPS (12GB). This exceeds Fabrik's projected capacity needs. (Upstream benchmarks cite 50M+ vectors, but that requires 200GB+ RAM — not realistic on a single VPS.)
 - Ensure `pgvector` and `pg_trgm` extensions are enabled in the PostgreSQL instance.
 
 ## HNSW Index Parameters
@@ -72,9 +72,9 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 - Pure vector similarity search is **banned** for user-facing queries. Dense vectors fail on exact keyword matches (error codes, UUIDs, SKUs, acronyms).
 - Every search must independently query:
   1. **Dense**: pgvector cosine distance (`<=>`) via HNSW index.
-  2. **Sparse**: PostgreSQL native `tsvector` with `ts_rank_cd` (BM25).
+  2. **Sparse**: PostgreSQL native `tsvector` with `ts_rank_cd` (coverage-density ranking — NOT BM25; native Postgres full-text has no BM25. For true BM25, use ParadeDB `pg_search` or VectorChord-bm25 extension).
 - Results are fused via **Reciprocal Rank Fusion (RRF)**: `score = 1.0 / (60 + rank)`. The constant `k=60` is the default.
-- **Never** add raw vector cosine scores to raw BM25 scores — their distributions are mathematically incompatible. RRF normalizes via rank position.
+- **Never** add raw vector cosine scores to raw keyword ranking scores — their distributions are mathematically incompatible. RRF normalizes via rank position.
 - Do not deploy external cross-encoder re-rankers unless explicitly required — they add massive latency to the critical path.
 
 ## Chunking Strategy
@@ -94,16 +94,29 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 ## Token Budgeting
 
 - **85% rule**: never fill the LLM context window past 85% of its stated maximum. The remaining 15% is the safety buffer for system prompts, generation tokens, and BPE estimation variance.
-- Use `tiktoken` (specifically `o200k_base` or `cl100k_base` for OpenAI models) to count tokens before dispatching to the LLM API. Heuristic character-division (`len(text) / 4`) is **banned** — it fails unpredictably with code blocks and non-English text.
+- Token counting is **model-dependent**. Use the model's own tokenizer or counting endpoint:
+  - **OpenAI models:** `tiktoken` (`o200k_base` or `cl100k_base`)
+  - **Anthropic (Claude):** `client.count_tokens()` endpoint
+  - **Local Ollama models:** model's tokenizer or approximate with tiktoken (the 15% buffer absorbs drift)
+- Heuristic character-division (`len(text) / 4`) is **banned** — it fails unpredictably with code blocks and non-English text.
+- **Context limits vary wildly by model.** Never hardcode a single `MODEL_LIMIT` — look it up per model:
 
 ```python
-import tiktoken
+# Model-specific context limits — DO NOT hardcode a single value
+MODEL_LIMITS = {
+    "claude-sonnet-4-6": 200_000,
+    "gpt-4o": 128_000,
+    "gemini-2.5-pro": 1_000_000,
+    "llama-3.3-70b": 128_000,
+    "qwen3-32b": 32_768,       # local Ollama
+}
 
-encoding = tiktoken.encoding_for_model(model)
-MODEL_LIMIT = 128_000
-BUDGET = int(MODEL_LIMIT * 0.85)
+model_limit = MODEL_LIMITS.get(model, 32_000)  # conservative default
+budget = int(model_limit * 0.85)
 
-if len(encoding.encode(prompt)) > BUDGET:
+# Count tokens with the appropriate tokenizer
+token_count = count_tokens(prompt, model)  # model-specific implementation
+if token_count > budget:
     # Truncate context chunks until within budget
     ...
 ```
@@ -129,9 +142,10 @@ if len(encoding.encode(prompt)) > BUDGET:
 | Dedicated vector DBs (Pinecone, Qdrant, Weaviate) | pgvector on PostgreSQL 16 |
 | IVFFlat indexes | HNSW with `m=16, ef_construction=64` |
 | Pure vector search for user-facing queries | Hybrid search (pgvector + tsvector + RRF) |
-| Adding raw cosine scores to raw BM25 scores | Reciprocal Rank Fusion: `1.0 / (60 + rank)` |
+| Adding raw cosine scores to raw keyword ranking scores | Reciprocal Rank Fusion: `1.0 / (60 + rank)` |
 | Semantic chunking (embedding-similarity splits) | Recursive Character Splitting with 10–20% overlap |
-| Heuristic token counting (`len / 4`) | `tiktoken.encoding_for_model()` BPE counting |
+| Heuristic token counting (`len / 4`) | Model-specific tokenizer or `tiktoken` (with 15% buffer for non-OpenAI) |
+| Hardcoded `MODEL_LIMIT = 128_000` | Per-model context limits from a config dict |
 | Filling 100% of LLM context window | 85% token budget cap |
 | Synchronous ingestion on API thread | Async ingestion via background worker queue |
 | Manual Meili index creation via API | `shape.has_search_feature: true` — registrar owns lifecycle |
@@ -142,14 +156,23 @@ if len(encoding.encode(prompt)) > BUDGET:
 
 ---
 
+## Related Rule Packs
+
+- `25-data-postgres.md` — pgvector lives on `postgres-main`, indexing discipline
+- `58-resilience.md` — timeout/retry for MeiliSearch and pgvector calls
+- `75-workers-jobs.md` — async ingestion/reindex via job queue
+- `docs/reference/MD/rag-chunking-rules.md` — 12-rule Markdown chunking spec
+
+---
+
 ## Done When
 
 - [ ] `pgvector` and `pg_trgm` extensions enabled — no external vector DB dependencies.
 - [ ] HNSW indexes created with `m=16, ef_construction=64` on all embedding columns.
 - [ ] User-facing search uses hybrid (dense + sparse) with RRF fusion — no pure vector search.
 - [ ] Chunks are 512–1024 tokens with 10–20% overlap using recursive splitting.
-- [ ] Token counting uses `tiktoken` — no heuristic division in any LLM API call path.
-- [ ] Context budget capped at 85% of model limit before LLM dispatch.
+- [ ] Token counting uses model-specific tokenizer (or `tiktoken` with 15% buffer) — no heuristic `len/4`.
+- [ ] Context budget capped at 85% of per-model limit before LLM dispatch — no hardcoded `128_000`.
 - [ ] Chunk metadata includes document ID and sequence number for citation tracking.
 - [ ] Retrieval eval tests (Faithfulness + Context Precision) exist against a golden dataset.
 - [ ] Search feature declared via `shape.has_search_feature: true` — no manual index creation.
