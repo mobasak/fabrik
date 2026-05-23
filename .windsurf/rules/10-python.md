@@ -78,17 +78,12 @@ async def list_items(db: AsyncSession = Depends(get_db)):
 **Note:** Use either sync SQLAlchemy or `sqlalchemy.ext.asyncio` — do not mix `async def` with sync `.query().all()`.
 
 ### Async Database Session
+
+The canonical `engine`, `async_session`, and `get_db` are defined in `src/database.py` — owned by `25-data-postgres.md`. Import from there, never redefine:
+
 ```python
-# src/database.py
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from src.config import get_settings
-
-engine = create_async_engine(get_settings().database_url, echo=False)
-async_session = async_sessionmaker(engine, expire_on_commit=False)
-
-async def get_db() -> AsyncSession:
-    async with async_session() as session:
-        yield session
+# src/database.py — see 25-data-postgres.md § Transactions & Sessions for the full definition
+from src.database import engine, async_session, get_db
 ```
 
 ---

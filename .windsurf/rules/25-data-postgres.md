@@ -44,20 +44,19 @@ Or use helper script:
 
 ### Connecting from Code
 
-SQLAlchemy reads `DATABASE_URL` from environment:
+Use Pydantic `BaseSettings` (per `10-python.md` § Config Loading) — never raw `os.getenv`:
 
 ```python
+from src.config import get_settings
 from sqlalchemy.ext.asyncio import create_async_engine
-import os
 
-# Works in both WSL and VPS - just swap env var
-engine = create_async_engine(os.getenv("DATABASE_URL"))
+engine = create_async_engine(get_settings().database_url)
 ```
 
 **WSL:** `DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/my_project_dev`
 **VPS:** `DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/my_project`
 
-No code changes needed between environments.
+No code changes needed between environments — the env var differs, the code doesn't.
 
 ---
 
@@ -88,7 +87,7 @@ class Base(DeclarativeBase):
 ### Driver Consistency
 
 - **Single Driver Policy:** Use `asyncpg` for both runtime and migrations. One driver, one connection string format (`postgresql+asyncpg://`).
-- **Banned:** `psycopg2` or `psycopg2-binary`. They add unnecessary C-extension bloat (`libpq-dev` build dep) and force dual-URL management (`postgresql://` vs `postgresql+asyncpg://`).
+- **Banned:** `psycopg2` or `psycopg2-binary`. They add unnecessary C-extension bloat (`libpq-dev` build dep) and force dual-URL management (`postgresql://` vs `postgresql+asyncpg://`). (Exception: `75-workers-jobs.md` parent monitor loops use sync `psycopg2.connect()` for infrequent 30-60s checks — see Related Rule Packs.)
 - **Alembic Configuration:** Use `alembic init -t async` to generate the async template. The template uses `connection.run_sync()` to bridge Alembic's sync migration runner over the async `asyncpg` connection.
 
 ### Alembic Async `env.py` Pattern
@@ -121,19 +120,19 @@ else:
 - PostgreSQL 16 lacks native `uuidv7()`. Generate at the application layer:
 
 ```python
-import uuid_utils
+import uuid
+from uuid_utils.compat import uuid7   # returns stdlib uuid.UUID (v7) — NOT uuid_utils.UUID
 from sqlalchemy import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-def generate_uuidv7() -> uuid_utils.UUID:
-    return uuid_utils.uuid7()
-
 class User(Base):
     __tablename__ = "users"
-    id: Mapped[uuid_utils.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=generate_uuidv7
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid7
     )
 ```
+
+> **Critical:** import `uuid7` from `uuid_utils.compat`, never `uuid_utils.uuid7()` directly — the latter returns `uuid_utils.UUID`, which asyncpg rejects (not a stdlib `uuid.UUID` subclass). PG18 adds native `uuidv7()`; on PG16 generate app-side as above.
 
 ## Nullability & Constraints
 
@@ -153,33 +152,41 @@ Soft deletes (`deleted_at`, `is_deleted`) are **banned**. They leak into queries
 
 - Use JSONB only for sparse, schema-less, or third-party payload data that is rarely filtered or sorted.
 - If a JSONB field becomes a common `WHERE`, `JOIN`, or `ORDER BY` target, extract it into a typed relational column. JSONB defeats query planner statistics and incurs TOAST reassembly overhead.
+- **Exception:** GIN-indexed JSONB is valid for containment (`@>`) and key-existence (`?`) queries on genuinely schema-less third-party payloads. The rule targets *scalar* fields that belong in typed columns — not legitimately schema-less blobs you query by containment.
 
 ## Transactions & Sessions
+
+This section owns the **canonical** engine, session, and `get_db`. `10-python.md` imports from here — never redefines its own.
 
 - Database `AsyncSession` must be scoped to the route handler via `Depends()`. Never open sessions or transactions in global middleware — this holds connections during serialisation and I/O, exhausting the pool.
 - `async_sessionmaker` must set `expire_on_commit=False` to prevent `MissingGreenletException` on post-commit attribute access.
 - Eagerly load relationships with `selectinload()` or `joinedload()` in the initial query. Lazy loading is impossible in async context and causes N+1 if accidentally triggered.
 
 ```python
+# src/database.py — CANONICAL engine + session. 10-python references this, never redefines it.
+from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from src.config import get_settings   # Pydantic Settings — see 10-python § Config Loading
 
 engine = create_async_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,   # recover from stale VPS connections
+    get_settings().database_url,        # postgresql+asyncpg://...  (never raw os.getenv)
+    pool_pre_ping=True,                 # recover from stale VPS connections
     pool_size=10,
     max_overflow=20,
 )
 
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine, autocommit=False, autoflush=False,
-    expire_on_commit=False, class_=AsyncSession,
+async_session = async_sessionmaker(
+    bind=engine,
+    expire_on_commit=False,             # prevents MissingGreenletException on post-commit access
+    autoflush=False,
+    class_=AsyncSession,
 )
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
+    async with async_session() as session:
         try:
             yield session
-            await session.commit()
+            await session.commit()      # commit-on-success; services may also commit explicitly
         except Exception:
             await session.rollback()
             raise
@@ -189,6 +196,19 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 - Use SQLAlchemy `QueuePool` with `pool_pre_ping=True` for early-stage and single-service deployments.
 - When scaling to multiple workers or background task services, deploy PgBouncer in transaction-pooling mode and switch SQLAlchemy to `NullPool`.
+
+```python
+# Multi-worker / background-service scaling → PgBouncer transaction pooling + NullPool.
+# asyncpg uses NAMED prepared statements that break under transaction pooling
+# ("prepared statement already exists"). You MUST disable statement caching:
+from sqlalchemy.pool import NullPool
+
+engine = create_async_engine(
+    get_settings().database_url,
+    poolclass=NullPool,
+    connect_args={"statement_cache_size": 0},   # required under PgBouncer transaction mode
+)
+```
 
 ## Indexing
 
@@ -203,15 +223,26 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 | Pattern | Use Instead |
 |---------|-------------|
 | `deleted_at` / `is_deleted` columns | Hard delete + journal tables via triggers (exception: `tenants` table for multi-tenant offboarding) |
-| `UUIDv4` / `uuid4()` primary keys | `UUIDv7` via `uuid_utils.uuid7()` |
+| `UUIDv4` / `uuid4()` primary keys | `UUIDv7` via `uuid_utils.compat.uuid7` (returns stdlib `uuid.UUID`) |
+| `uuid_utils.uuid7()` directly | `uuid_utils.compat.uuid7` — direct import returns non-stdlib type that asyncpg rejects |
 | DB sessions in middleware | `Depends(get_db)` scoped to route handler |
 | Raw SQL DDL outside Alembic | `alembic revision --autogenerate` + review |
 | Preemptive indexes on every column | Index FKs + proven slow-query paths only |
 | JSONB for frequently filtered data | Extract to typed relational columns |
 | Implicit `ON DELETE` on foreign keys | Explicit `CASCADE` or `RESTRICT` |
 | `expire_on_commit=True` with async | Set `expire_on_commit=False` on sessionmaker |
-| `psycopg2` / `psycopg2-binary` | `asyncpg` + `connection.run_sync()` in Alembic |
+| `psycopg2` / `psycopg2-binary` | `asyncpg` + `connection.run_sync()` in Alembic — **exception:** `75-workers-jobs.md` parent monitor loops (documented) |
 | `postgresql://` in DATABASE_URL | `postgresql+asyncpg://` for universal compatibility |
+
+---
+
+## Related Rule Packs
+
+- `10-python.md` — async patterns, Pydantic Settings for DATABASE_URL. Imports `engine` + `async_session` from `src/database.py` defined here.
+- `15-api-contracts.md` — API layer that calls the service/data layer
+- `45-testing-strategy.md` — real PostgreSQL tests, async fixtures, no DB mocks
+- `75-workers-jobs.md` — PG job queue (`SKIP LOCKED`), adaptive worker pool. **Note:** `75-workers-jobs.md` uses `psycopg2` for the parent process monitoring loops — this is an intentional exception to the asyncpg-only rule; the parent runs infrequent sync queries (every 30-60s) where pool contention is the real concern.
+- `95-multi-tenant-saas.md` — RLS policies, tenant_id columns, tenant-scoped queries
 
 ---
 
@@ -219,23 +250,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 - [ ] All schema changes have a reviewed Alembic migration (no raw DDL).
 - [ ] `MetaData` uses the naming convention dict for deterministic constraints.
-- [ ] All primary keys use UUIDv7 — no `uuid4()` in models or utilities.
+- [ ] All primary keys use UUIDv7 via `uuid_utils.compat.uuid7` — no `uuid4()`, no direct `uuid_utils.uuid7()`.
 - [ ] All columns are `NOT NULL` unless nullability has explicit business justification.
 - [ ] No `deleted_at` or `is_deleted` columns in any model (exception: `tenants` table for multi-tenant offboarding).
-- [ ] JSONB columns are not used in `WHERE` or `ORDER BY` clauses.
+- [ ] JSONB columns are not used in scalar `WHERE` or `ORDER BY` (GIN containment queries on schema-less data are acceptable).
 - [ ] `AsyncSession` provided via `Depends()`, not middleware.
 - [ ] `expire_on_commit=False` set on `async_sessionmaker`.
 - [ ] `pool_pre_ping=True` configured on the engine.
-- [ ] No `psycopg2` or `psycopg2-binary` in dependencies — `asyncpg` only.
+- [ ] No `psycopg2` or `psycopg2-binary` in dependencies — `asyncpg` only (exception: `75-workers-jobs.md` parent monitor).
 - [ ] `DATABASE_URL` uses `postgresql+asyncpg://` scheme everywhere.
-
-## Related Rule Packs
-
-- `10-python.md` — async patterns, Pydantic Settings for DATABASE_URL
-- `15-api-contracts.md` — API layer that calls the service/data layer
-- `45-testing-strategy.md` — real PostgreSQL tests, async fixtures, no DB mocks
-- `75-workers-jobs.md` — PG job queue (`SKIP LOCKED`), adaptive worker pool. **Note:** `75-workers-jobs.md` uses `psycopg2` for the parent process monitoring loops — this is an intentional exception to the asyncpg-only rule; the parent runs infrequent sync queries (every 30-60s) where pool contention is the real concern.
-- `95-multi-tenant-saas.md` — RLS policies, tenant_id columns, tenant-scoped queries
+- [ ] Config via `get_settings().database_url` (Pydantic Settings) — no raw `os.getenv("DATABASE_URL")`.
 
 ---
 
