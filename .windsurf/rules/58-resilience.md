@@ -49,10 +49,13 @@ import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # 1. Configure the client ONCE with timeouts
+from src.config import get_settings
+
 client = httpx.AsyncClient(
     base_url="https://api.example.com",
     timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0),
-    headers={"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]},
+    # For internal M2M calls, add X-Internal-Token header per 35-security-auth.md.
+    # Do NOT send internal tokens to third-party APIs.
 )
 
 # 2. Wrap calls with retry + backoff
@@ -79,7 +82,7 @@ async def get_item(item_id: str) -> dict | None:
 **Rules:**
 - **`httpx.AsyncClient`** is the only HTTP client for async FastAPI. Never use `requests` (sync, blocks the event loop).
 - **Timeout is mandatory.** No `httpx.get()` without explicit timeout. The default `httpx.Timeout(5.0)` is often too short for read — set per dependency.
-- **Retry with exponential backoff.** Use `tenacity` (Python) — 3 attempts, 1-10s backoff. Only retry transient errors (timeout, connection), never 4xx.
+- **Retry with exponential backoff.** Use `tenacity` (Python) — 3 attempts, 1-10s backoff. Retry transient errors: timeout, connection, and 5xx (502/503/504 are transient gateway errors). Never retry 4xx.
 - **Graceful fallback.** The caller must handle the failure case — return cached data, a default, or a user-facing error message. Never let an external service failure crash your endpoint.
 
 ### Node.js / TypeScript
@@ -182,8 +185,8 @@ The VPS runs several services your code may call. Each is an external dependency
 **Rules:**
 - All credentials via env vars (`B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME`, etc.).
 - Every service above must have a row in `docs/RESILIENCE.md` §2a if your project calls it.
-- B2 file uploads: async via job queue (per `75-workers-jobs.md`), never inline in API handlers.
-- Presigned URLs for B2 downloads: generate server-side, return URL to client. Never proxy file bytes through FastAPI.
+- B2 file uploads: async via job queue (per `75-workers-jobs.md`), never inline in API handlers. **boto3 is sync** — keep its network calls in the worker/sync context or a thread executor (`run_in_executor`), never inline in an `async def` route.
+- Presigned URLs for B2 downloads: generate server-side (presigned URL generation is local — no network I/O, safe in async), return URL to client. Never proxy file bytes through FastAPI.
 
 ---
 
@@ -212,7 +215,7 @@ Every service exposes `/health` that actively verifies critical dependencies bef
 
 | Check | What to verify |
 |---|---|
-| Database | `await db.execute("SELECT 1")` |
+| Database | `await session.execute(text("SELECT 1"))` |
 | Redis | `await redis.ping()` |
 | Consumed internal APIs | `httpx.get(f"{service_url}/health", timeout=5)` |
 | File storage (B2) | Check bucket accessibility (if critical path) |
@@ -228,7 +231,9 @@ Every service exposes `/health` that actively verifies critical dependencies bef
 ```python
 @app.get("/health")
 async def health():
-    await db.execute("SELECT 1")
+    from sqlalchemy import text
+    async with async_session() as session:
+        await session.execute(text("SELECT 1"))
     paused = get_active_pauses()  # list of active pause keys, empty if none
     return {"status": "ok", "paused": paused}
 ```
@@ -248,7 +253,7 @@ A SaaS-grade autonomous system is defined by FOUR properties:
 3. **Queue depth = job count, exactly.** Dispatch-dedup + worker-keeps-flag-on-pause + sweeper-headroom together prevent the pause-then-re-queue-then-re-pause queue-explosion failure mode.
 4. **The database is the source of truth.** Queues lose state on restart; orphan sweeps reconcile from the DB.
 
-Canonical implementation: `/opt/youtube/docs/reference/pipeline-resilience.md` + `pause_state.py`. Read it before rolling your own.
+Canonical implementation: `/opt/youtube/docs/reference/pipeline-resilience.md` + `pause_state.py`. Read it before rolling your own. **Note:** this reference currently lives in the YouTube project. Promoting `pause_state.py` into scaffold templates and the reference doc into `/opt/fabrik/docs/reference/` is a planned extraction — until then, use the YouTube implementation as the reference and copy the patterns.
 
 ### Pause-Key Conventions
 
@@ -311,6 +316,17 @@ TRANSIENT_PATTERNS: list[tuple[re.Pattern, str, int]] = [
 | Adding a billable vendor without a balance check Beat task | Proactive check is mandatory for any dep with a balance |
 | Backup that has never been restored to staging | Run §10 drill within 30 days or it doesn't exist |
 | Custom Supabase token refresh logic | SDK handles refresh automatically (per `35-security-auth.md`) |
+
+---
+
+## Related Rule Packs
+
+- `10-python.md` — Pydantic Settings for secrets/config, async httpx, error handling
+- `30-ops.md` — HEALTHCHECK `start_period: 20s`, `/health` Authelia bypass
+- `35-security-auth.md` — M2M `X-Internal-Token` (internal calls only — never to third-party APIs)
+- `55-observability.md` — `/health` contract, GlitchTip error capture, structlog
+- `75-workers-jobs.md` — adaptive worker pool, orphan sweep, beat scheduler (consumer of pause-state)
+- `76-gpu-workers.md` — provider failover chain, orchestrator resilience
 
 ---
 
