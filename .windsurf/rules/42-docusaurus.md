@@ -29,7 +29,7 @@ Do not use Docusaurus when:
 Deploy via Coolify using a **two-stage Dockerfile**:
 
 1. **Build stage**: `node:24-bookworm-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
-2. **Serve stage**: `nginx:mainline-bookworm-slim` — copy `build/` to `/usr/share/nginx/html`.
+2. **Serve stage**: `nginx:mainline-bookworm` — copy `build/` to `/usr/share/nginx/html`.
 
 ```dockerfile
 FROM node:24-bookworm-slim AS builder
@@ -39,7 +39,9 @@ RUN npm ci
 COPY . .
 RUN npm run build && npx -y pagefind --site build
 
-FROM nginx:mainline-bookworm-slim
+FROM nginx:mainline-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
@@ -160,9 +162,18 @@ networks:
 
 ---
 
+## Related Rule Packs
+
+- `30-ops.md` — compose.yaml, Traefik labels, resource limits, Coolify deploy
+- `40-documentation.md` — AI-friendly markdown, writing style
+- `ocoron-design-system.md` — Infima token overrides, fonts, dark mode default
+
+---
+
 ## Done When
 
-- [ ] Dockerfile uses two-stage build: `node:24-bookworm-slim` → `nginx:mainline-bookworm-slim`.
+- [ ] Dockerfile uses two-stage build: `node:24-bookworm-slim` → `nginx:mainline-bookworm`.
+- [ ] Nginx serve stage has `curl` installed (stock image doesn't include it — HEALTHCHECK fails without it).
 - [ ] Dockerfile has HEALTHCHECK instruction.
 - [ ] Pagefind runs post-build (`npx -y pagefind --site build`) — no Algolia or JS-bundled search.
 - [ ] Nginx config includes `try_files $uri $uri/ /index.html;` for SPA routing.
