@@ -47,7 +47,7 @@ GPU services are **two-faced** like mobile-app and chrome-extension:
 | Fine-tuning / training | **Always GPU cloud** | No managed API for this. Need raw GPU access. |
 | Prototyping / dev | **Local Ollama first** | Free, instant, offline. Only go cloud when local VRAM can't fit the model. See `LOCAL_LLM_INFRASTRUCTURE.md` for machine specs. |
 
-**The concrete break-even:** a self-hosted H100 at ~$2/hr running 24/7 = ~$1,500/month. At typical API rates (~$0.30/M input tokens), you need ~5-8 billion tokens/month to beat API pricing. For context, ChatGPT serves ~500M tokens/day across ALL users. A solo dev's service will almost never reach break-even.
+**The concrete break-even:** a self-hosted H100 at ~$2/hr running 24/7 = ~$1,500/month. At typical API rates (~$0.30/M input tokens), you need ~5-8 billion tokens/month to beat API pricing. A solo dev's service will almost never reach this volume.
 
 **Rule: Start with managed APIs. Move to GPU cloud only when your monthly token bill exceeds $1,500 AND your serving config is stable.**
 
@@ -180,7 +180,7 @@ Three cases: (1) self-hosted inference at scale, (2) fine-tuning, (3) training.
 
 | Engine | Use when | Throughput (H100, 70B) | Cold start |
 |---|---|---|---|
-| **vLLM** | Default for everything. Broadest hardware support, largest community, battle-tested. | Baseline (1x) | ~5-10s |
+| **vLLM** | Default for everything. Broadest hardware support, largest community, battle-tested. | Baseline (1x) | ~5-10s (true cold start — model load into GPU memory) |
 | **SGLang** | Multi-turn chat, structured output (JSON mode), prefix-heavy RAG pipelines. RadixAttention gives real gains on shared prefixes. | 1.29x on 7B, ~1.05x on 70B | ~5-10s |
 | **TensorRT-LLM** | Maximum throughput when you can afford 28-min compilation step. NVIDIA GPUs only. | 1.3-1.5x vs vLLM | 28min compile + 5s |
 | **Ollama** | Local dev only. Not for production serving. | N/A | Instant (already loaded) |
@@ -189,7 +189,7 @@ Three cases: (1) self-hosted inference at scale, (2) fine-tuning, (3) training.
 
 ### Quantization Decision Guide
 
-Quantization is the #1 lever for reducing GPU cost. Smaller model = cheaper GPU.
+Quantization is the #1 lever for reducing GPU cost. Smaller model = cheaper GPU. Quality retention percentages below are approximate and model-dependent — benchmark on your specific model before committing to a quantization level.
 
 | Method | Bits | Quality retention | Speed (GPU) | Best for |
 |---|---|---|---|---|
@@ -336,7 +336,7 @@ GPU instances are inherently unreliable. Spot instances preempt. Marketplace hos
 - **Set `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`** to reduce CUDA memory fragmentation.
 - **Provider calls from orchestrator** have timeout + retry + circuit-breaker per `58-resilience.md`. Every provider must have a row in `docs/RESILIENCE.md` §2a.
 
-### Provider Gotchas
+### Provider Gotchas <!-- verify at provisioning — these details change with provider updates -->
 
 - **Vast.ai budget tier:** VRAM contention — host may oversell. OOM on a "24GB" card = overselling. Switch host.
 - **RunPod Community:** shared host kernel. Custom CUDA drivers may conflict. Use RunPod Templates only.
@@ -382,7 +382,7 @@ GPU is the most expensive line item. Every decision minimizes idle GPU time.
 
 | Provider | Billing | H100 $/hr (approx) | Cold start | Egress | Notes |
 |---|---|---|---|---|---|
-| RunPod Serverless | Per-request | ~$2.49 effective | <200ms (NVMe cache) | $0 | Default for inference; pre-built vLLM worker |
+| RunPod Serverless | Per-request | ~$2.49 effective | <200ms (warm-worker dispatch from NVMe cache — not a true cold start) | $0 | Default for inference; pre-built vLLM worker |
 | Modal | Per-second | ~$3.95 effective (with multipliers) | 1-4s | Included | Python decorator DX; hidden cost: regional 1.25x + non-preemptible 3x multipliers |
 | RunPod Secure Pod | Per-hour | $2.69 | N/A (always on) | $0 | SLA-backed |
 | RunPod Community Pod | Per-hour | $1.89-2.49 | N/A | $0 | Shared host kernel |
