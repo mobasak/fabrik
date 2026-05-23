@@ -24,11 +24,11 @@ import threading
 import time
 import uuid
 from datetime import datetime
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,9 +45,9 @@ SYSTEM_PROMPT_FILE = Path(__file__).parent / "system-prompt.txt"
 HEALTH_PORT = int(os.environ.get("SYSADMIN_HEALTH_PORT", "8017"))
 MODEL = os.environ.get("SYSADMIN_MODEL", "opus")
 
-SESSION_TIMEOUT_SECONDS = 600   # 10 minutes idle → session ends
-CLAUDE_TIMEOUT_SECONDS = 300    # 5 minutes max per call (audits can be long)
-HEARTBEAT_HOUR = 8              # daily heartbeat at 08:00 local time
+SESSION_TIMEOUT_SECONDS = 600  # 10 minutes idle → session ends
+CLAUDE_TIMEOUT_SECONDS = 300  # 5 minutes max per call (audits can be long)
+HEARTBEAT_HOUR = 8  # daily heartbeat at 08:00 local time
 
 END_WORDS = frozenset({"done", "bye", "thanks", "thx", "end", "exit", "quit"})
 
@@ -78,15 +78,17 @@ class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
             uptime = int(time.time() - _boot_time)
-            body = json.dumps({
-                "status": "ok",
-                "uptime_seconds": uptime,
-                "model": MODEL,
-                "session_active": _session_id is not None,
-                "calls_total": _calls_total,
-                "calls_failed": _calls_failed,
-                "last_activity": int(_last_activity) if _last_activity else 0,
-            })
+            body = json.dumps(
+                {
+                    "status": "ok",
+                    "uptime_seconds": uptime,
+                    "model": MODEL,
+                    "session_active": _session_id is not None,
+                    "calls_total": _calls_total,
+                    "calls_failed": _calls_failed,
+                    "last_activity": int(_last_activity) if _last_activity else 0,
+                }
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -120,17 +122,20 @@ def _ensure_logs_dir():
 def _log_action(message: str, response: str, session: str):
     """Append to persistent action log — survives between sessions."""
     _ensure_logs_dir()
-    entry = json.dumps({
-        "ts": datetime.now().isoformat(),
-        "session": session[:8] if session else "none",
-        "message": message[:200],
-        "response_preview": response[:300],
-    })
+    entry = json.dumps(
+        {
+            "ts": datetime.now().isoformat(),
+            "session": session[:8] if session else "none",
+            "message": message[:200],
+            "response_preview": response[:300],
+        }
+    )
     with open(ACTION_LOG, "a") as f:
         f.write(entry + "\n")
 
 
 # ── Session helpers ───────────────────────────────────────────────────────
+
 
 def _session_alive() -> bool:
     return _session_id is not None and (time.time() - _last_activity) < SESSION_TIMEOUT_SECONDS
@@ -143,20 +148,28 @@ def _run_claude(message: str, resume_session: str | None = None) -> tuple[str, s
 
     cmd = [
         "claude",
-        "-p", message,
-        "--model", MODEL,
-        "--output-format", "json",
-        "--permission-mode", "bypassPermissions",
+        "-p",
+        message,
+        "--model",
+        MODEL,
+        "--output-format",
+        "json",
+        "--permission-mode",
+        "bypassPermissions",
     ]
 
     if resume_session:
         cmd.extend(["--resume", resume_session])
     else:
         new_id = str(uuid.uuid4())
-        cmd.extend([
-            "--session-id", new_id,
-            "--system-prompt", SYSTEM_PROMPT,
-        ])
+        cmd.extend(
+            [
+                "--session-id",
+                new_id,
+                "--system-prompt",
+                SYSTEM_PROMPT,
+            ]
+        )
 
     env = os.environ.copy()
     env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
@@ -215,6 +228,7 @@ def _run_claude(message: str, resume_session: str | None = None) -> tuple[str, s
 
 
 # ── Telegram handlers ─────────────────────────────────────────────────────
+
 
 async def _send_long_message(update: Update, text: str) -> None:
     """Send message, splitting if >4096 chars."""
@@ -281,6 +295,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ── Daily heartbeat ───────────────────────────────────────────────────────
 
+
 async def _heartbeat_loop(app: Application) -> None:
     """Send daily heartbeat at HEARTBEAT_HOUR local time."""
     global _last_heartbeat_date
@@ -306,10 +321,14 @@ async def _heartbeat_loop(app: Application) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     logger.info(
         "Starting VPS Sysadmin Bot (owner=%d, model=%s, health=:%d, project=%s)",
-        OWNER_ID, MODEL, HEALTH_PORT, PROJECT_DIR,
+        OWNER_ID,
+        MODEL,
+        HEALTH_PORT,
+        PROJECT_DIR,
     )
 
     _start_health_server()

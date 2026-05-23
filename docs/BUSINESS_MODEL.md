@@ -91,7 +91,7 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-05-21 20:56:48 -->
+<!-- Last synced: 2026-05-23 00:36:46 -->
 <!-- Total projects: 44 -->
 
 ### Production Services (8 projects)
@@ -151,12 +151,5 @@ With ~$50/month infrastructure cost:
 | **transcriber** | Internal audio transcription API provider for project-wide transcription needs. | Python | 🔨 Development | - | ✅ Current |
 | **ugc** | User-generated content data scraping system for social media platforms. | Python | 🔨 Development | - | ✅ Current |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
-
-### Recently Removed (2 projects)
-
-| Project | Note |
-|---------|------|
-| ~~containerd~~ | Folder deleted since last scan |
-| ~~fabrik~~ | Folder deleted since last scan |
 
 <!-- AUTO-GENERATED:PROJECTS:END -->

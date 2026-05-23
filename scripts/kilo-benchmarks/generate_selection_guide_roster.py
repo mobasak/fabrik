@@ -124,7 +124,9 @@ def generate_roster() -> str:
     }
 
     lines = []
-    lines.append(f"*Auto-generated on {date.today()} from `assignments.json` + `kilo_agents.db`.*\n")
+    lines.append(
+        f"*Auto-generated on {date.today()} from `assignments.json` + `kilo_agents.db`.*\n"
+    )
 
     for role, assigns in roles.items():
         desc = role_descriptions.get(role, "")

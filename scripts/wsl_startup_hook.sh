@@ -28,6 +28,9 @@ BENCHMARK_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/update_kilo_benchmarks.py
 AA_SCRAPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/scrape_artificial_analysis.py"
 ROLE_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/role_mapper.py"
 TRAYCER_EXPORT_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/export_traycer_registry.py"
+EMBEDDING_DB_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_models_db.py"
+EMBEDDING_PREFILTER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_pre_filter.py"
+EMBEDDING_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_role_mapper.py"
 AGENT_SCRIPT="$FABRIK_ROOT/scripts/generate_kilo_agents.py"
 EXTENSIONS_SCRIPT="$FABRIK_ROOT/scripts/sync_extensions.sh"
 ENV_WATCHER_SCRIPT="$FABRIK_ROOT/scripts/watch_env_changes.sh"
@@ -80,6 +83,14 @@ if [ ! -f "$LOCK_FILE" ]; then
             cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $ROLE_MAPPER_SCRIPT >> $LOG_FILE 2>&1 && \
             cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $TRAYCER_EXPORT_SCRIPT >> $LOG_FILE 2>&1 && \
             cd $FABRIK_ROOT && $VENV_PYTHON $AGENT_SCRIPT >> $LOG_FILE 2>&1
+            # === EMBEDDING SELECTION WORKFLOW ===
+            # Mirrors the chat pipeline shape: catalog scrape → shortlists → role winners.
+            # Independent failure: a broken embeddings catalog must NOT kill the chat
+            # workflow above, so this runs in its own && chain after the chat block
+            # closes (note the closing 'fi' moves below this section).
+            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_DB_SCRIPT all >> $LOG_FILE 2>&1 && \
+            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_PREFILTER_SCRIPT >> $LOG_FILE 2>&1 && \
+            cd $FABRIK_ROOT/scripts/kilo-benchmarks && $VENV_PYTHON $EMBEDDING_MAPPER_SCRIPT >> $LOG_FILE 2>&1
         fi
         cd $FABRIK_ROOT && bash $EXTENSIONS_SCRIPT >> $LOG_FILE 2>&1
         echo '=== Pipeline complete — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE

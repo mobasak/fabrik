@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Embedding selection pipeline (parity with chat workflow) (2026-05-23)
+
+Embedding-side mirror of the existing chat agent-role pipeline. Same shape: daily catalog scrape → per-role shortlists → cheapest-above-floors selector → DB persistence → JSON exports. All five output locations match the chat pipeline so downstream tools (Traycer, future migration runners) can read embeddings the same way they read chat agents.
+
+- `scripts/kilo-benchmarks/embedding_models_db.py` — scraper hitting `https://openrouter.ai/api/v1/models?output_modalities=embeddings`. Creates `embedding_models`, `embedding_roles`, `embedding_roles_history` tables in the existing `kilo_agents.db` (single source of truth). Auto-derives `is_multilingual` (id substrings: `multilingual`, `bge-m3`, `qwen3-embedding`, `gemini-embedding`, `mistral-embed`, `nemotron-embed`), `is_code_tuned` (`code`, `codestral`), `is_ga` (excludes `:free`, `preview`, `alpha`, `beta`, `experimental`, `-exp-`, `-rc`), and `quality_tier` (cost-proxy: ≥$0.10/M=tier 3, ≥$0.02/M=tier 2, else tier 1). The cost proxy is a stand-in until MIRACL/MTEB scrapers ship.
+- `scripts/kilo-benchmarks/embedding_role_configs.yaml` — 3 roles: `multilingual_primary` (slots=3, ≥32k ctx, multilingual=true), `frontier_reference` (slots=2, tier≥3), `code_embedding` (slots=1, code_tuned=true). All `allow_free=false`, `stability_required=true`.
+- `scripts/kilo-benchmarks/embedding_selector.py` — `select_for_role(role_cfg, *, limit=None)`. Pure function: applies floors, orders by `input_cost_per_m ASC, quality_tier DESC, context_window_k DESC, id ASC`, returns top-N. Raises `NoEligibleEmbeddingError` on empty (skip-don't-pad).
+- `scripts/kilo-benchmarks/embedding_pre_filter.py` — per-role shortlist generator → `embedding_shortlists.json`.
+- `scripts/kilo-benchmarks/embedding_role_mapper.py` — orchestrator. Overwrites today's pins in `embedding_roles` (UNIQUE(role, priority) → exactly slots-per-role), upserts today's snapshot into `embedding_roles_history` via `INSERT OR REPLACE` keyed by UTC `DATE('now')` (writer and reader both use UTC to avoid off-by-one around midnight in TZ+03). Emits two JSON files matching the chat pipeline shape: `embedding_assignments.json` (full payload) and `kilo_embeddings_final.json` (compact role → priority → id mapping for Traycer).
+- `scripts/wsl_startup_hook.sh` — appended embedding block after the chat workflow. Runs `embedding_models_db.py all` → `embedding_pre_filter.py` → `embedding_role_mapper.py`. Independent failure chain: a broken embedding catalog never kills the chat workflow.
+- `tests/kilo_benchmarks/test_embedding_selector.py` — 12 integration tests against the live DB. Covers schema columns / tables, derive-helper purity, per-role floor enforcement, ordering, unsatisfiable-floors raise, orchestrator end-to-end (DB + history + JSON), idempotent re-run, and the acceptance assertion that `qwen/qwen3-embedding-8b` wins `multilingual_primary` P1.
+
+**Today's winners** (live OpenRouter catalog, 25 embedding models):
+- `multilingual_primary` P1=`qwen/qwen3-embedding-8b` ($0.01/M, 32k ctx), P2=`qwen/qwen3-embedding-4b` ($0.02/M)
+- `frontier_reference` P1=`openai/text-embedding-3-large` ($0.13/M), P2=`google/gemini-embedding-001` ($0.15/M)
+- `code_embedding` P1=`mistralai/codestral-embed-2505` ($0.15/M)
+
+Output locations parallel the chat pipeline:
+
+| Layer | Chat (existing) | Embedding (this turn) |
+|---|---|---|
+| Catalog table | `agents` | `embedding_models` |
+| Live pins table | `agent_roles` | `embedding_roles` |
+| History table | `agent_roles_history` | `embedding_roles_history` |
+| Shortlists JSON | `shortlists.json` | `embedding_shortlists.json` |
+| Assignments JSON | `assignments.json` | `embedding_assignments.json` |
+| Traycer export | `kilo_47_agents_final.json` | `kilo_embeddings_final.json` |
+| Daily hook | `wsl_startup_hook.sh` (chat block) | `wsl_startup_hook.sh` (appended embedding block) |
+
+**Deferred to follow-ups:** MIRACL / MTEB benchmark scraper (replaces cost-proxy `quality_tier`); migration runner that re-embeds corpora when the multilingual_primary winner changes; stability / cooldown gates (need golden-set retrieval eval first); per-document embedding cost telemetry.
+
+### Added — `llm_selector` deterministic LLM dispatch (2026-05-23)
+
+New sibling pipeline to the coder-agent role mapper for selecting LLMs by **task profile** instead of model id. Pipelines call `select_llm("long_digest", input_tokens=50_000)` and get the cheapest live model that satisfies the profile's quality + context + modality + stability constraints — pure function of DB state, no LLM in the selection path.
+
+- `scripts/kilo-benchmarks/migrate_selector_columns.py` — idempotent schema migration adding `quality_tier` (1=bulk, 2=mid, 3=frontier; auto-derived from `arena_elo` ≥1500/1430 + `tbench_accuracy` ≥80/65) and `is_ga` (auto-derived from id substrings: `:free`, `preview`, `alpha`, `beta`, `experimental`, `-exp-`, `:thinking`, `-rc`). Reuses existing `has_vision` column. Populated 405 rows: 355 tier-1, 40 tier-2, 10 tier-3.
+- `scripts/kilo-benchmarks/task_profiles.yaml` — 7 profiles: `tokenizer` / `extract` / `classify` / `summarize` / `long_digest` (tier-1, input-axis), `synthesize` (tier-2, output-axis), `reason` (tier-3, output-axis). All `allow_free=false`, `stability_required=true` by default.
+- `scripts/kilo-benchmarks/llm_selector.py` — `select_llm(profile, input_tokens, *, require_vision=False)` returns the cheapest row meeting all floors, with **`CONTEXT_HEADROOM=1.2`** slack on context fit (`context_window_k * 1000 >= input_tokens * 1.2`). Raises `NoEligibleAgentError` (skip-don't-pad) when no row qualifies. Sentinel-priced rows (`< 0`) filtered. Free-tier ids excluded via `:free` / `/free` substring match when `allow_free=false`. Stability-required profiles enforce `is_ga=1`.
+- `tests/kilo_benchmarks/test_llm_selector.py` — 10 integration tests against the live `kilo_agents.db`, no mocks. Covers input-axis pick, output-axis pick, tier floor, context overflow → raise, free exclusion, preview exclusion, determinism, unknown-profile / negative-tokens guards, and tokenizer ↔ extract equivalence. Adapts to daily catalog refresh (re-queries DB rather than hardcoding model ids).
+
+Smoke run: `tokenizer/extract/classify/summarize @ 50k → inclusionai/ling-2.6-flash` ($0.01/M, 262k ctx); `long_digest @ 500k → qwen/qwen3.5-flash-02-23` (1M ctx, $0.065/M); `synthesize @ 50k → deepseek/deepseek-v4-flash` (tier 2); `reason @ 50k → x-ai/grok-4.20` (tier 3).
+
+Pipelines should reference profile names only; `grep` for raw model ids in pipeline code should return zero. Embedding-side mirror (separate scraper + DB + role mapper for `qwen/qwen3-embedding-8b` family) deferred to follow-up tickets — embeddings have different selection axes (dimensions, multilingual recall, codebook compatibility).
+
 ### Added — VPS AI System Administrator (2026-05-20)
 
 On-demand AI sysadmin powered by Claude Code Opus running locally on VPS. 1136 lines across 7 files. Talk via Telegram (`@ocoron_bot`). Queries 15 infrastructure APIs (Prometheus, Loki, Grafana, Gatus, GlitchTip, Netdata, Docker, etc.) directly. Acts autonomously on safe operations (restart, scale up), asks before anything destructive. 5 scheduled routines: proactive health check (every 15min with bash prefilter for zero-cost quiet days), daily morning report with trends, weekly security patrol vs hardening checklist, weekly preventive maintenance, monthly backup verification vs DR checklist. 6 incident playbooks (OOM, restart loop, disk, memory, target down, cert expiry). P0-P4 service criticality tiers. Persistent action log (`logs/sysadmin-actions.jsonl`) + shift notes (`logs/sysadmin-shift-notes.md`) for memory between sessions. Systemd service with `Restart=always`. Health endpoint at `:8017`. Reference: `docs/infrastructure/vps-ai-sysadmin.md`.
@@ -38,7 +82,7 @@ New module-level `_get_exec_mode()` helper reads `FABRIK_EXEC_MODE` (default `ss
 
 ### Changed — ocoron.com site spec finalised: WPML→Polylang Pro + AutoPoly Pro, DRAFT→READY (T1.2, 2026-05-18)
 
-Migration unblocks T1.4 first-ever pipeline deploy of the flagship site. `specs/sites/ocoron.com.yaml` header flipped `# Status: DRAFT - Needs user input` → `# Status: READY` (T1.2 inline marker); `languages.plugin: wpml` → `languages.plugin: polylang` (62-wordpress.md mandate); new `languages.autopoly:` sub-block wires AutoPoly Pro to DeepL via `provider: deepl` + `deepl_api_key_env: DEEPL_API_KEY` (env var NAME only — key value stays in `.env`) + `auto_translate_on_publish: true` (no Translator-microservice middleware). WPML companion plugin `wpml-string-translation` and the WPML preset comment removed from `plugins.add`; `autopoly-ai-translation-polylang` + `searchwp-polylang` added so the golden-base multilingual trio is present at install time. `spec_loader.py` auto-injects `polylang` into `plugins.base` per existing lines 86-91 / 244-245 logic — no loader changes required. Validation: `load_spec_from_path('ocoron-com', ...)` returns with `languages.plugin == 'polylang'` and the autopoly block intact; `plugins.base` includes `polylang`. **Operator follow-up surfaced (NOT auto-resolved per Step 6 rules):** line 340 of `specs/sites/ocoron.com.yaml` — About page `content: ""  # TODO: Company story, mission, vision` — owner-decision-required, left UNCHANGED. No other DRAFT placeholders found (lines 558 `ai_draft` and 581 `# draft | ready | deployed` are enum-legend tokens, not DRAFT-state markers).
+Migration unblocks T1.4 first-ever pipeline deploy of the flagship site. `specs/sites/ocoron.com.yaml` header flipped `# Status: DRAFT - Needs user input` → `# Status: READY` (T1.2 inline marker); `languages.plugin: wpml` → `languages.plugin: polylang` (62-wordpress.md mandate); new `languages.autopoly:` sub-block wires AutoPoly Pro to DeepL via `provider: deepl` + `deepl_api_key_env: DEEPL_API_KEY` (env var NAME only — key value stays in `.env`) + `auto_translate_on_publish: true` (no Translator-microservice middleware). WPML companion plugin `wpml-string-translation` and the WPML preset comment removed from `plugins.add`; `autopoly-ai-translation-polylang` + `searchwp-polylang` added so the golden-base multilingual trio is present at install time. `spec_loader.py` auto-injects `polylang` into `plugins.base` per existing lines 86-91 / 244-245 logic — no loader changes required. Validation: `load_spec_from_path('ocoron-com', ...)` returns with `languages.plugin == 'polylang'` and the autopoly block intact; `plugins.base` includes `polylang`. **Operator follow-up surfaced (NOT auto-resolved per Step 6 rules):** line 340 of `specs/sites/ocoron.com.yaml` — About page `content: ""  # follow-up: Company story, mission, vision` — owner-decision-required, left UNCHANGED. No other DRAFT placeholders found (lines 558 `ai_draft` and 581 `# draft | ready | deployed` are enum-legend tokens, not DRAFT-state markers).
 
 ### Fixed — deployment-workflow.md: Apache → php8.3-fpm-bookworm (T1.3, 2026-05-18)
 

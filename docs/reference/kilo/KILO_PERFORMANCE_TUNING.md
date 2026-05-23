@@ -193,7 +193,7 @@ export KILO_TIMEOUT=600          # 10min default for agent scripts
 
 # For autonomous batch jobs, loop with --auto
 for f in data/*.csv; do
-  kilo run --auto --file "$f" "Extract email addresses and write to output/" 
+  kilo run --auto --file "$f" "Extract email addresses and write to output/"
 done
 ```
 

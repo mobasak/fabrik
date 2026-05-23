@@ -260,7 +260,7 @@ SHARED_DIRS = [
     "docs/guides",
     "docs/reference",
     "docs/reference/kilo",  # Kilo AI agent system docs (synced from fabrik)
-    "docs/reference/MD",    # Markdown + AI prompt reference (synced from fabrik)
+    "docs/reference/MD",  # Markdown + AI prompt reference (synced from fabrik)
     "docs/operations",
     "docs/development",
     "docs/development/plans",

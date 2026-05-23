@@ -173,10 +173,10 @@ When an alert fires or the proactive loop runs, the Context Builder assembles a 
 context = {
     # The alert itself
     "alert": alert_payload,                    # full Alertmanager webhook body
-    
+
     # Container identity
     "service": registry.get(container_name),   # classification, limits, history
-    
+
     # Metrics (Prometheus PromQL)
     "metrics": {
         "memory_usage_1h": query_range("container_memory_usage_bytes{name='X'}", "1h"),
@@ -184,11 +184,11 @@ context = {
         "restart_count_24h": query("increase(container_restart_count{name='X'}[24h])"),
         "network_rx_tx_1h": query_range("container_network_receive_bytes_total{name='X'}", "1h"),
     },
-    
+
     # Logs (Loki LogQL)
     "recent_logs": query_loki('{container="X"}', limit=100, since="15m"),
     "error_logs": query_loki('{container="X"} |= "error" or "ERROR" or "Exception"', limit=50, since="1h"),
-    
+
     # Host-level context
     "host": {
         "disk_usage": query("node_filesystem_avail_bytes{mountpoint='/'}"),
@@ -197,11 +197,11 @@ context = {
         "load_avg": query("node_load5"),
         "running_containers": len(registry.all_services()),
     },
-    
+
     # ARO's own history
     "recent_actions": action_log.get_recent(container_name, n=10),
     "recent_actions_all": action_log.get_recent(all=True, n=20),
-    
+
     # Operating constraints
     "mode": settings.ARO_MODE,                 # safe | auto
     "allowed_actions": get_allowed_actions(settings.ARO_MODE),
@@ -255,7 +255,7 @@ Only runs when the pre-filter detected at least one anomaly. Now we build the fu
 ```python
 proactive_context = {
     "scan_type": "proactive_15min",
-    
+
     # Trend queries
     "trends": {
         "memory_rising": query('deriv(container_memory_usage_bytes{name!=""}[1h])'),
@@ -263,19 +263,19 @@ proactive_context = {
         "cpu_sustained_high": query('rate(container_cpu_usage_seconds_total{name!=""}[15m]) * 100 > 60'),
         "disk_prediction_24h": query('predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h], 24*3600)'),
     },
-    
+
     # Error spikes from logs
     "log_anomalies": {
         "error_counts_by_container": query_loki('sum by (container) (count_over_time({level="error"}[15m]))'),
         "fatal_any": query_loki('{level="fatal"}', limit=10, since="15m"),
     },
-    
+
     # Full service registry snapshot
     "services": registry.snapshot(),
-    
+
     # Host overview
     "host": { ... },  # same as above
-    
+
     "mode": settings.ARO_MODE,
     "allowed_actions": get_allowed_actions(settings.ARO_MODE),
 }
@@ -300,7 +300,7 @@ class KiloServeProvider(LLMProvider):
     """Kilo serve HTTP API — session-based, unified billing."""
     # Uses POST /session/:id/message
     # Requires: KILO_SERVE_URL, kilo serve running as sidecar or host process
-    
+
 class KiloDirectProvider(LLMProvider):
     """Direct Kilo/OpenRouter API — stateless, same billing as Kilo CLI."""
     # Uses POST to Kilo API URL (same as llm_client.py in SEO module)
@@ -333,11 +333,11 @@ Uses the same httpx pattern as your SEO module. No sidecar container needed.
 ```python
 class KiloDirectProvider(LLMProvider):
     """Direct Kilo API call — same as llm_client.py in SEO module."""
-    
+
     def __init__(self):
         self.api_key = os.getenv("KILO_API_KEY", "")
         self.api_url = os.getenv("KILO_API_URL", "https://api.kilo.ai/v1/chat/completions")
-    
+
     async def complete(self, messages: list[dict], model: str, max_tokens: int = 2048) -> dict:
         async with httpx.AsyncClient(timeout=90.0) as client:
             resp = await client.post(
@@ -361,7 +361,7 @@ The system prompt is generated at runtime from actual host specs and configurati
 def build_system_prompt(host_info: dict, mode: str, registry: ServiceRegistry) -> str:
     return f"""You are ARO Brain — an autonomous infrastructure manager for a Docker/Coolify VPS.
 
-You receive monitoring context (metrics, logs, alerts, service registry) and must decide 
+You receive monitoring context (metrics, logs, alerts, service registry) and must decide
 what action to take. You are the sole operator — there is no human watching right now.
 
 ## Host specifications
@@ -419,19 +419,19 @@ ARO doesn't hardcode a single model. Kilo provides 330+ models — ARO picks the
 ```python
 class ModelRouter:
     """Select the optimal LLM model based on task urgency and type."""
-    
+
     TIERS = {
         "premium":  os.getenv("KILO_MODEL_PREMIUM", "anthropic/claude-sonnet-4-20250514"),
         "mid":      os.getenv("KILO_MODEL_MID", "anthropic/claude-haiku-4-5-20251001"),
         "economy":  os.getenv("KILO_MODEL_ECONOMY", "qwen3-coder"),
         "free":     os.getenv("KILO_MODEL_FREE", "minimax"),
     }
-    
+
     def select(self, urgency: str, task_type: str) -> str:
         if task_type == "conversation":
             # Telegram chat needs good natural language understanding
             return self.TIERS["mid"]
-        
+
         if urgency == "critical":
             return self.TIERS["premium"]
         elif urgency == "high":
@@ -462,17 +462,17 @@ The executor validates before executing. No separate validator layer — the saf
 ```python
 class ActionExecutor:
     """Validates and executes actions. Validation is built-in, not a separate layer."""
-    
+
     ALWAYS_FORBIDDEN = {"delete", "modify_env", "modify_network", "modify_volume"}
     SAFE_MODE_BLOCKED = {"scale_memory_down", "scale_cpu_down", "pause", "stop", "silence_alert"}
     PROTECTED_CATEGORIES = {"critical-infra", "monitoring"}
-    
+
     def _validate(self, action: dict, mode: str, registry: ServiceRegistry) -> tuple[bool, str, bool]:
         """Returns (allowed, reason, would_have_done). Built-in, not a separate class."""
         target = action["target"]
         action_type = action["type"]
         service = registry.get(target)
-        
+
         if action_type in self.ALWAYS_FORBIDDEN:
             return False, "Permanently forbidden action", False
         if service and service.category in self.PROTECTED_CATEGORIES:
@@ -488,7 +488,7 @@ class ActionExecutor:
         if action_log.in_cooldown(target, cooldown_seconds=300):
             return False, "Container in 5-min cooldown", False
         return True, "", False
-    
+
     async def execute(self, action: dict, mode: str, registry: ServiceRegistry) -> ActionResult:
         allowed, reason, would_have = self._validate(action, mode, registry)
         if not allowed:
@@ -541,7 +541,7 @@ Execute + confirm back on Telegram
 **Reactive — ARO asks, you decide:**
 ```
 ARO:  🤖 Container seo-module memory at 92%. Confidence 0.4 on root cause.
-      Logs show both heavy traffic AND possible leak. 
+      Logs show both heavy traffic AND possible leak.
       Should I restart, or scale memory to 2G first?
 
 You:  check the request rate first
@@ -572,7 +572,7 @@ You:  switch to auto mode
 
 ARO:  ⚠️ Switching to auto mode. I'll now be able to:
       - Scale memory/CPU down
-      - Pause idle services  
+      - Pause idle services
       - Stop misbehaving containers
       Confirm? (yes/no)
 
@@ -649,7 +649,7 @@ Next scan in 15 min to verify fix.
 ```
 🤖 ARO Brain — Action Blocked (Safe Mode)
 
-📦 Container: image-broker  
+📦 Container: image-broker
 ⚠️ Alert: ContainerHighMemory (72%)
 🔍 Assessment: Container allocated 2GB but only needs ~800MB based on 24h usage pattern
 🚫 Would have done: Scale memory down to 1GB
@@ -713,14 +713,14 @@ A noisy Alertmanager can fire 50+ alerts during a network partition (everything 
 ```python
 class AlertRateLimiter:
     """Token bucket rate limiter for LLM calls."""
-    
+
     MAX_LLM_CALLS_PER_MINUTE = 5        # max 5 LLM reasoning calls per minute
     MAX_ACTIONS_PER_HOUR = 20           # max 20 executed actions per hour
     BURST_DETECTION_THRESHOLD = 10      # 10+ alerts in 1 min = burst mode
-    
+
     def on_burst_detected(self, alerts: list):
         """When burst detected, batch all alerts into single LLM call."""
-        # Don't reason about each alert individually — 
+        # Don't reason about each alert individually —
         # send them all at once: "Here are 15 alerts that fired simultaneously.
         # This is likely a systemic issue, not 15 independent problems."
         pass
@@ -905,7 +905,7 @@ Alertmanager groups alerts and sends them as a batch (multiple alerts in one web
 async def receive_alerts(request: Request):
     payload = await request.json()
     alerts = payload.get("alerts", [])
-    
+
     if len(alerts) == 1:
         # Single alert — standard flow
         context = await context_builder.build_for_alert(alerts[0])
@@ -913,10 +913,10 @@ async def receive_alerts(request: Request):
     else:
         # Batch — could be a cascade. Reason about all together.
         context = await context_builder.build_for_batch(alerts)
-        # LLM sees all alerts at once: "3 containers OOM'd simultaneously — 
+        # LLM sees all alerts at once: "3 containers OOM'd simultaneously —
         # this is probably a host memory issue, not 3 independent leaks"
         decision = await llm_reasoner.reason(context)
-    
+
     results = await executor.execute_decision(decision)
     return {"processed": len(alerts), "results": results}
 ```

@@ -68,7 +68,12 @@ GOVERNANCE_FILES = [
     "opencode.json",
     ".windsurfrules",
 ]
-GOVERNANCE_DIRS = [".windsurf/rules", ".windsurf/workflows", "docs/reference/kilo", "docs/reference/MD"]
+GOVERNANCE_DIRS = [
+    ".windsurf/rules",
+    ".windsurf/workflows",
+    "docs/reference/kilo",
+    "docs/reference/MD",
+]
 
 # Reference docs to sync to all projects
 REFERENCE_DOCS = [
@@ -80,7 +85,10 @@ REFERENCE_DOCS = [
     ),
     ("docs/reference/AI_TAXONOMY.md", "docs/reference/AI_TAXONOMY.md"),
     ("PORTS.md", "PORTS.md"),
-    ("docs/reference/ai_agent_prompt_directives.md", "docs/reference/ai_agent_prompt_directives.md"),
+    (
+        "docs/reference/ai_agent_prompt_directives.md",
+        "docs/reference/ai_agent_prompt_directives.md",
+    ),
     ("docs/reference/fabrik-lifecycle.md", "docs/reference/fabrik-lifecycle.md"),
     ("docs/BUSINESS_MODEL.md", "docs/reference/fabrik-project-catalog.md"),
 ]

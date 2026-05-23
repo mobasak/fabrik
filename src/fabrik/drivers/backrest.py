@@ -66,9 +66,7 @@ DEFAULT_EXCLUDES: tuple[str, ...] = ("**/cache", "**/*.log", "**/tmp")
 # Backrest uses a protobuf oneof: policyKeepLastN | policyTimeBucketed | policyKeepAll.
 # We use policyTimeBucketed with daily/weekly/monthly counts.
 # Source: github.com/garethgeorge/backrest/proto/v1/config.proto → RetentionPolicy
-DEFAULT_RETENTION: dict = {
-    "policyTimeBucketed": {"daily": 7, "weekly": 4, "monthly": 6}
-}
+DEFAULT_RETENTION: dict = {"policyTimeBucketed": {"daily": 7, "weekly": 4, "monthly": 6}}
 """Skipped paths for every plan. Kept conservative to avoid backing up
 ephemeral junk. Caller can pass ``excludes`` to override entirely."""
 

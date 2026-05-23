@@ -952,6 +952,7 @@ if __name__ == "__main__":
     # Auto-update docs from live DB data
     if not args.dry_run:
         import importlib.util
+
         bench_dir = os.path.join(os.path.dirname(__file__), "kilo-benchmarks")
 
         for script, func_name, label in [

@@ -276,7 +276,7 @@ Before creating any plan, verify:
 
 Traycer injects rule-pack guidance into coding-agent execution prompts based on `project.yaml::type` + ticket scope. Coding agents do NOT self-select packs.
 
-### Pack Registry (24 packs in `.windsurf/rules/`)
+### Pack Registry (25 packs in `.windsurf/rules/`)
 
 | Pack ID | File | Category |
 |---|---|---|
@@ -299,6 +299,7 @@ Traycer injects rule-pack guidance into coding-agent execution prompts based on 
 | `GPU_WORKERS` | `76-gpu-workers.md` | Domain |
 | `MOBILE_UI` | `80-mobile.md` | Core |
 | `PAYMENTS` | `85-payments-billing.md` | Domain |
+| `SAAS_LAUNCH` | `88-saas-launch-checklist.md` | Domain |
 | `AUTOMATION` | `90-automation.md` | Backend |
 | `MULTI_TENANT` | `95-multi-tenant-saas.md` | Domain |
 | `DESIGN_SYSTEM` | `ocoron-design-system.md` | Cross-cutting |
@@ -338,9 +339,24 @@ Traycer injects rule-pack guidance into coding-agent execution prompts based on 
 | `RAG_SEARCH` | Embeddings, retrieval, vector search, LLM context |
 | `GPU_WORKERS` | GPU cloud provisioning, inference serving, training, model quantization |
 | `PAYMENTS` | Paddle, subscriptions, billing, entitlements |
+| `SAAS_LAUNCH` | SaaS product planning — legal pages, payment routing, GDPR/KVKK, onboarding, org settings, abuse prevention |
 | `MULTI_TENANT` | Tenant isolation, RLS, tenant-scoped queries |
 
-### Injection Policy
+### Planning Protocol (epic-brief, decomposition, expand)
+
+During **planning** — `my-workflow/01-epic-brief`, `mega-epic-breakdown/02-epic-decomposition`, `mega-epic-breakdown/03-expand-epic-files` — Traycer must **read the full `.windsurf/rules/<file>.md`** for every applicable pack. Rule pack mandates are constraints on the plan. A plan that violates a rule pack mandate is wrong.
+
+**Which packs to read during planning:**
+
+1. **Universal (always):** `OPS`, `SECURITY`, `DOCUMENTATION`, `TESTING`, `OBSERVABILITY` — every project needs these.
+2. **Scaffold-specific:** match `project.yaml::type` to the Default Packs table below.
+3. **Feature-based:** match the project's features (from Vision Summary or epic scope) to the Overlay Packs table below. If the project has billing → read `PAYMENTS` + `SAAS_LAUNCH`. If it has tenant isolation → read `MULTI_TENANT`. Etc.
+
+Read the FULL file — not just the registry entry. The mandates, banned patterns, and done-when checklists inside each pack inform epic boundaries, success criteria, and scope.
+
+### Ticket Injection Policy (coding-agent execution)
+
+During **ticket execution** — when dispatching work to coding agents (Claude Code, Windsurf, Kilo) — inject a condensed version:
 
 1. Read `project.yaml::type` → default packs → add feature overlays based on ticket scope keywords.
 2. Injection format into execution prompt:

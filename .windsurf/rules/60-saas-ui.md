@@ -55,6 +55,52 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
 ---
 
+## Page Inventory (minimum viable SaaS)
+
+Every SaaS project must ship these pages. Traycer ensures each maps to a ticket during epic decomposition.
+
+### Public (unauthenticated)
+
+| Page | Route | Purpose |
+|---|---|---|
+| **Landing / marketing** | `/` | Value proposition + CTA. Never shown to authenticated users. |
+| **Pricing** | `/pricing` | All tiers side-by-side, feature matrix, annual/monthly toggle. |
+| **Login** | `/login` | Supabase Auth (Pattern B) or FastAPI login (Pattern A). |
+| **Signup** | `/signup` | Registration. Redirects to onboarding after email verification. |
+| **Forgot password** | `/forgot-password` | Email input → triggers reset flow. |
+| **Reset password** | `/reset-password` | Token-validated form. Expires in 1h. |
+| **Terms of Service** | `/terms` | Required before accepting payment (see `88-saas-launch-checklist.md`). |
+| **Privacy Policy** | `/privacy` | Required by GDPR/KVKK + payment processors. |
+
+### Authenticated (core app)
+
+| Page | Route | Purpose |
+|---|---|---|
+| **Dashboard** | `/dashboard` | Actionable overview: KPI cards, quick actions, recent activity. See § Dashboard Design below. |
+| **[Core feature pages]** | `/[domain]/*` | Project-specific — the product's primary workflow. Defined per epic. |
+| **Settings — Profile** | `/settings/profile` | Display name, email (change triggers verification), avatar, locale, timezone. |
+| **Settings — Organization** | `/settings/organization` | Org name, slug, logo, default currency, billing email. See § Multi-Tenant UI. |
+| **Settings — Team** | `/settings/team` | Member list, invite, role management. See § Multi-Tenant UI. |
+| **Settings — Billing** | `/settings/billing` | Current plan, usage, payment method, invoices. Redirects to Paddle Customer Portal. See § Billing & Subscription UI. |
+| **Settings — Notifications** | `/settings/notifications` | Per event-type × channel toggle (email, in-app, push). |
+| **Settings — Sessions** | `/settings/sessions` | Active sessions list, revoke individual sessions. |
+| **Onboarding** | `/onboarding` | 3-5 step wizard. First-time only, dismissible, tracks completion. See `88-saas-launch-checklist.md`. |
+
+### Admin (admin role only)
+
+| Page | Route | Purpose |
+|---|---|---|
+| **Admin dashboard** | `/admin` | System health: worker status, queue depth, error rates. Behind Authelia 2FA. |
+| **Admin — Users** | `/admin/users` | User management, impersonation (if needed). |
+
+**Rules:**
+- Every page in the public section must exist before go-live — these are launch-blocking.
+- Settings pages ship in Phase 2 (first 30 days) per `88-saas-launch-checklist.md`.
+- Admin pages are admin-role gated — regular users see nothing (hidden, not disabled).
+- Core feature pages are project-specific — Traycer defines them during epic-brief, not this pack.
+
+---
+
 ## Navigation
 
 - Use a stable side nav for structural destinations; reserve top nav for global utilities (search, help, profile, notifications).

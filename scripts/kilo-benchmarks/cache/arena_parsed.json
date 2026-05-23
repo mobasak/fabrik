@@ -1,7 +1,7 @@
 {
   "source": "openlm.ai",
   "url": "https://openlm.ai/chatbot-arena/",
-  "scraped_at": "2026-05-21T00:02:00.572854",
+  "scraped_at": "2026-05-23T00:36:56.598334",
   "total_entries": 269,
   "entries": [
     {
@@ -203,7 +203,7 @@
       }
     },
     {
-      "rank": 34,
+      "rank": 35,
       "model": "MiMo-V2.5-Pro",
       "score": 1485,
       "provider": "",
@@ -212,7 +212,7 @@
       }
     },
     {
-      "rank": 35,
+      "rank": 36,
       "model": "Claude Sonnet 4.5 (thinking-32k)",
       "score": 1485,
       "provider": "Anthropic",
@@ -221,7 +221,7 @@
       }
     },
     {
-      "rank": 36,
+      "rank": 37,
       "model": "Grok-4.1-Thinking",
       "score": 1483,
       "provider": "xAI",
@@ -230,7 +230,7 @@
       }
     },
     {
-      "rank": 38,
+      "rank": 39,
       "model": "Qwen3.6-Plus",
       "score": 1482,
       "provider": "Alibaba",
@@ -239,7 +239,7 @@
       }
     },
     {
-      "rank": 39,
+      "rank": 40,
       "model": "Kimi-K2.5-Thinking",
       "score": 1480,
       "provider": "",

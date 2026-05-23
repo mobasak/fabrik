@@ -1,0 +1,80 @@
+{
+  "multilingual_primary": [
+    {
+      "id": "qwen/qwen3-embedding-8b",
+      "provider": "qwen",
+      "input_cost_per_m": 0.01,
+      "context_window_k": 32,
+      "quality_tier": 1,
+      "is_multilingual": 1,
+      "is_code_tuned": 0,
+      "dimensions": null,
+      "score_used": 0.01,
+      "score_type": "input_cost_per_m"
+    },
+    {
+      "id": "qwen/qwen3-embedding-4b",
+      "provider": "qwen",
+      "input_cost_per_m": 0.02,
+      "context_window_k": 32,
+      "quality_tier": 2,
+      "is_multilingual": 1,
+      "is_code_tuned": 0,
+      "dimensions": null,
+      "score_used": 0.02,
+      "score_type": "input_cost_per_m"
+    }
+  ],
+  "frontier_reference": [
+    {
+      "id": "openai/text-embedding-3-large",
+      "provider": "openai",
+      "input_cost_per_m": 0.13,
+      "context_window_k": 8,
+      "quality_tier": 3,
+      "is_multilingual": 0,
+      "is_code_tuned": 0,
+      "dimensions": null,
+      "score_used": 0.13,
+      "score_type": "input_cost_per_m"
+    },
+    {
+      "id": "google/gemini-embedding-001",
+      "provider": "google",
+      "input_cost_per_m": 0.15,
+      "context_window_k": 20,
+      "quality_tier": 3,
+      "is_multilingual": 1,
+      "is_code_tuned": 0,
+      "dimensions": null,
+      "score_used": 0.15,
+      "score_type": "input_cost_per_m"
+    },
+    {
+      "id": "mistralai/codestral-embed-2505",
+      "provider": "mistralai",
+      "input_cost_per_m": 0.15,
+      "context_window_k": 8,
+      "quality_tier": 3,
+      "is_multilingual": 0,
+      "is_code_tuned": 1,
+      "dimensions": null,
+      "score_used": 0.15,
+      "score_type": "input_cost_per_m"
+    }
+  ],
+  "code_embedding": [
+    {
+      "id": "mistralai/codestral-embed-2505",
+      "provider": "mistralai",
+      "input_cost_per_m": 0.15,
+      "context_window_k": 8,
+      "quality_tier": 3,
+      "is_multilingual": 0,
+      "is_code_tuned": 1,
+      "dimensions": null,
+      "score_used": 0.15,
+      "score_type": "input_cost_per_m"
+    }
+  ]
+}

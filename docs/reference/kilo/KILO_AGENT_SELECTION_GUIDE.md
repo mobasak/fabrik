@@ -22,7 +22,7 @@ If unsure about a ticket's complexity, **default to complex** — a quality regr
 
 <!-- ROSTER:START (auto-generated — do not edit below this line) -->
 
-*Auto-generated on 2026-05-21 from `assignments.json` + `kilo_agents.db`.*
+*Auto-generated on 2026-05-23 from `assignments.json` + `kilo_agents.db`.*
 
 ### coding — General coding — routed here when ticket isn't classified yet
 

@@ -1,12 +1,12 @@
 <!-- ⚠️ TRAYCER WORKFLOW SOURCE FILE
-     This checklist is used to evaluate mega-epic-breakdown commands (01-04)
+     This checklist is used to evaluate mega-epic-breakdown commands (00, 02-05)
      during creation. Stress-test every command against every applicable item.
      "N/A for this command" is valid; forgetting to check is not.
      -->
 
 # Mega-Epic Command Evaluation Checklist
 
-Every command in mega-epic-breakdown (01-04) must be evaluated against this list before it's considered complete. This checklist is for DECOMPOSITION quality — splitting a large vision into independent epics. For TICKET quality, see `my-workflow/EVALUATION_CHECKLIST.md`.
+Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this list before it's considered complete. This checklist is for DECOMPOSITION quality — splitting a large vision into independent epics. For TICKET quality, see `my-workflow/EVALUATION_CHECKLIST.md`.
 
 ---
 
@@ -125,11 +125,12 @@ Every command in mega-epic-breakdown (01-04) must be evaluated against this list
 
 ## Output Format Contracts
 
-75. **Vision Summary** (01 output): ≤5,000 tokens. Sections: Product Vision, Personas, Value Streams, Full Feature Inventory, Constraints, Out of Scope, Open Questions.
+75. **Vision Summary** (00 output): ≤5,000 tokens. Sections: Product Vision, Personas, Value Streams, Full Feature Inventory, Constraints, Out of Scope, Open Questions.
 76. **Infrastructure Decisions** (02 output): ≤5,000 tokens. Sections: Scaffold Type(s), Database Strategy, Auth Strategy, Backing Services, External Services, Domain/Routing, Shared Shape Block Decisions.
-77. **Epic Output File** (03 output, one per epic): ≤10,000 tokens. Sections: Epic Name, Scope, Success Criteria, Out of Scope, Dependencies (produces/consumes), Scaffold Type, Shape Block, Estimated Ticket Count, Key Technical Decisions, Metadata for my-workflow/01-epic-brief.
-78. **Dependency Graph** (03 output): Mermaid diagram + execution order table + parallel lanes identified.
-79. **Validation Report** (04 output): Gap analysis, interface inventory, risk register, final approval gate.
+77. **Compact Epic Proposal** (02 output): Scope summary, features, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE per epic.
+78. **Full Epic File** (03 output, one per epic): ≤10,000 tokens. Sections: Summary, Scope, Success Criteria, Out of Scope, Dependencies (produces/consumes), Technology Stack, Metadata for my-workflow/01-epic-brief, Estimated Scale.
+79. **Dependency Graph** (02 output): Mermaid diagram + execution order table + parallel lanes identified.
+80. **Validation Report** (05 output): Gap analysis, interface inventory, risk register, final approval gate.
 
 ## Handoff Format (epic file → my-workflow/01-epic-brief)
 
