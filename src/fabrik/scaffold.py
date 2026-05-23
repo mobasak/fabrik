@@ -1361,6 +1361,12 @@ def init_glitchtip() -> bool:
         f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))  # type: ignore[no-any-return]\n'
     )
 
+    # pause_state.py — pause-flag primitives for worker resilience (see 58-resilience.md)
+    # Copied from template; projects customize TRANSIENT_PATTERNS for their dependencies.
+    pause_src = TEMPLATE_DIR / "python" / "pause_state.py"
+    if pause_src.exists():
+        shutil.copy2(pause_src, package_dir / "pause_state.py")
+
     # middleware.py — X-Request-ID correlation middleware
     (package_dir / "middleware.py").write_text(
         f'"""Correlation ID middleware for {name}.\n'
@@ -2073,7 +2079,12 @@ def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:
     if src_main.exists():
         shutil.copy2(src_main, project_dir / "worker" / "main.py")
 
-    # c) Copy and patch Dockerfile.python -> Dockerfile
+    # c2) Copy pause_state.py — pause-flag primitives for worker resilience
+    pause_src = TEMPLATE_DIR / "python" / "pause_state.py"
+    if pause_src.exists():
+        shutil.copy2(pause_src, project_dir / "worker" / "pause_state.py")
+
+    # d) Copy and patch Dockerfile.python -> Dockerfile
     dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.python"
     if dockerfile_src.exists():
         content = dockerfile_src.read_text()

@@ -253,7 +253,7 @@ A SaaS-grade autonomous system is defined by FOUR properties:
 3. **Queue depth = job count, exactly.** Dispatch-dedup + worker-keeps-flag-on-pause + sweeper-headroom together prevent the pause-then-re-queue-then-re-pause queue-explosion failure mode.
 4. **The database is the source of truth.** Queues lose state on restart; orphan sweeps reconcile from the DB.
 
-Canonical implementation: `/opt/youtube/docs/reference/pipeline-resilience.md` + `pause_state.py`. Read it before rolling your own. **Note:** this reference currently lives in the YouTube project. Promoting `pause_state.py` into scaffold templates and the reference doc into `/opt/fabrik/docs/reference/` is a planned extraction — until then, use the YouTube implementation as the reference and copy the patterns.
+Canonical implementation: `fabrik scaffold` emits `pause_state.py` (from `templates/scaffold/python/pause_state.py`) into every `python-api` and `file-worker` project. Customize the `TRANSIENT_PATTERNS` list for your project's dependencies. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md` + `/opt/youtube/pause_state.py`.
 
 ### Pause-Key Conventions
 
