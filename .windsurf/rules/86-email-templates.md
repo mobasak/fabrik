@@ -312,7 +312,15 @@ Content AI → copy + segment + subject → MJML render → API push → ESP sen
 
 **Turkey operational note:** İYS is a central registry — recording consent only in your own DB does not make you compliant for TR recipients. You must (a) sync each TR opt-in to İYS and (b) check the recipient's İYS status before sending, since they can revoke directly in İYS without telling you. İYS does not apply to transactional mail.
 
-**İYS access model:** direct İYS API access requires 250,000+ consent records. Below that threshold (all early-stage projects), you MUST use a licensed İYS integrator ([listed at iys.org.tr/entegratorler](https://iys.org.tr/entegratorler)). The integrator provides their own API that wraps İYS — your FastAPI backend calls the integrator's API, not İYS directly. Becoming an integrator yourself requires ISO 9001 + 22301 + 27001 certifications — not viable for a solo dev. <!-- Confirm integrator selection and costs with your mali müşavir before committing. -->
+**İYS access model:** direct İYS API access requires 250,000+ consent records. Below that threshold (all early-stage projects), for API/programmatic access you must use a licensed İYS integrator ([listed at iys.org.tr/entegratorler](https://iys.org.tr/entegratorler)). A basic manual module exists (permission entry/query via the İYS website) for tiny senders who don't automate — irrelevant to Fabrik since we build automated, API-driven consent flows.
+
+**The İYS integrator is a separate vendor from your ESP.** Resend, SES, and Listmonk are NOT İYS integrators — none of your sending stack touches İYS. The consent gate is a **standalone pre-send call** from your FastAPI backend to the integrator's API, independent of whichever ESP delivers the mail:
+
+```
+FastAPI backend → İYS integrator API (check consent) → if approved → ESP (Resend/SES) sends
+```
+
+**Two cost layers, not one:** (1) İYS's own İLETİ package fee, priced by address count, quoted KDV-exclusive; (2) the integrator's service fee on top. Budget both. <!-- Confirm integrator selection, İLETİ package tier, and both cost layers with your mali müşavir before committing. -->
 
 ---
 
