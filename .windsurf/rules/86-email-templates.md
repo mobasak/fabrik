@@ -246,6 +246,29 @@ Define in the marketing ESP (Loops / Resend Broadcasts), not in application code
 - All sequences **stop** on unsubscribe or successful conversion.
 - Dunning emails are triggered by Paddle/RevenueCat webhooks — not by the marketing ESP's scheduler.
 
+### Marketing Consent & Compliance
+
+**Scope:** applies to marketing / lifecycle email only (newsletters, product updates, onboarding, nurture, win-back, expansion). Transactional email is exempt — operational, not commercial messaging, no marketing consent required. This is another reason the two run on separate streams.
+
+**Principle:** consent obligations follow the **recipient's jurisdiction**, not the sender's location. Operating from Turkey does not exempt mail sent to EU or other recipients.
+
+**Default for all recipients: opt-in.** Require explicit opt-in before any marketing send, regardless of recipient country — the strictest standard, satisfies every regime below with one rule and no jurisdiction branching.
+
+| Recipient jurisdiction | Rule | System of record |
+|---|---|---|
+| **Turkey** | İYS (İleti Yönetim Sistemi): consent for _ticari elektronik ileti_ must be registered in and checked against İYS before every send. Your own opt-in record is not sufficient. | İYS registry |
+| **EU / EEA** | GDPR / ePrivacy: explicit (double) opt-in, documented, withdrawable. | Consent DB (`email_preferences`) |
+| **US** | CAN-SPAM: opt-out minimum (honest headers, physical address, working unsubscribe). Opt-in default already exceeds this. | Consent DB |
+| **Everywhere else** | Opt-out floor (working unsubscribe + suppression). Opt-in default already exceeds this. | Consent DB |
+
+**Universal — all recipients, all jurisdictions:**
+
+- One-click `List-Unsubscribe` (RFC 8058) on every marketing email.
+- Honor unsubscribe + bounce/complaint suppression immediately; never re-add a suppressed address without explicit re-opt-in.
+- Footer: unsubscribe link, preference center, company name + address, "why you received this."
+
+**Turkey operational note:** İYS is a central registry — recording consent only in your own DB does not make you compliant for TR recipients. You must (a) sync each TR opt-in to İYS and (b) check the recipient's İYS status before sending, since they can revoke directly in İYS without telling you. İYS does not apply to transactional mail. <!-- Confirm the current İYS integration path and any ESP-side support with your mali müşavir — this is the requirement, not legal advice. -->
+
 ---
 
 ## Stack Adapters (only the deltas)
@@ -294,6 +317,11 @@ Define in the marketing ESP (Loops / Resend Broadcasts), not in application code
 - [ ] `List-Unsubscribe` one-click header on every marketing email.
 - [ ] Preference center accessible from user settings AND email footer.
 - [ ] Lifecycle sequences (onboarding, nurture, dunning, win-back) defined in marketing ESP.
+- [ ] Marketing send requires opt-in consent for every recipient (universal opt-in default).
+- [ ] TR recipients' consent registered/checked in İYS before send.
+- [ ] EU recipients use double opt-in; consent documented and withdrawable.
+- [ ] One-click `List-Unsubscribe` + suppression honored for all recipients.
+- [ ] Transactional mail excluded from consent gating.
 
 ---
 
@@ -317,8 +345,11 @@ Define in the marketing ESP (Loops / Resend Broadcasts), not in application code
 | Mixing transactional + marketing on one stream | Separate streams (separate ESP config or subdomain) |
 | Marketing email without `List-Unsubscribe` header | RFC 8058 one-click unsubscribe on every marketing email |
 | Lifecycle sequences defined in application code | Define in marketing ESP (Loops / Resend Broadcasts) |
-| Sending marketing email without opt-in | Double opt-in for EU; single opt-in minimum everywhere |
+| Sending marketing email without opt-in | Universal opt-in default; double opt-in for EU |
 | Re-adding suppressed/bounced addresses | Explicit re-opt-in required |
+| Marketing email to a TR recipient without İYS-registered consent | Register + verify consent in İYS before send (own-DB consent is insufficient for TR) |
+| Assuming a Turkey base exempts you from GDPR for EU recipients | Consent follows recipient jurisdiction; universal opt-in covers all |
+| Applying marketing-consent gating to transactional mail | Transactional is exempt — operational, separate stream |
 
 ---
 
