@@ -32,7 +32,7 @@ Use when the project does NOT use Supabase Auth (e.g., internal tools, file-work
 Use when the domain module (SaaS or mobile) mandates Supabase Auth. This is the default for user-facing products.
 
 - **Supabase Auth** handles user registration, login, password hashing, OAuth providers (including Sign in with Apple — mandatory on iOS if any social login is offered), email verification, and password reset.
-- **FastAPI** handles custom business logic, M2M auth, and any endpoints that need data beyond what Supabase exposes. FastAPI validates Supabase JWTs via the Supabase JWKS endpoint — it does not issue its own user tokens.
+- **FastAPI** handles custom business logic, M2M auth, and any endpoints that need data beyond what Supabase exposes. FastAPI validates Supabase JWTs per the Supabase JWT validation section below — it does not issue its own user tokens.
 - **Authelia** protects admin/back-office dashboards via Traefik forward-auth. Not for end-user auth.
 - For multi-tenant SaaS: Supabase RLS enforces tenant isolation at the database level. See `95-multi-tenant-saas.md` for full patterns.
 
@@ -46,16 +46,23 @@ Use when the domain module (SaaS or mobile) mandates Supabase Auth. This is the 
 
 - Issue **short-lived JWT access tokens** (15 minutes) signed with HS256.
 - Issue **long-lived opaque refresh tokens** (7 days) stored in PostgreSQL alongside user and device metadata. Refresh tokens are not JWTs — they are cryptographically random strings.
-- To revoke access instantly, delete the refresh token from the database.
-- The JWT signing secret must be at least 256 bits, generated via `openssl rand -hex 32`, and injected via environment variable. Never hardcode it.
+- Deleting the refresh token ends the session — no new access tokens issue. The outstanding access token stays valid until its 15-min expiry (HS256 is stateless). For true instant revocation, add a short-TTL token denylist in Redis.
+- The JWT signing secret must be at least 256 bits, generated via `openssl rand -hex 32`, and injected via Pydantic Settings. Never hardcode it.
 - Use HS256 unless third-party external services must verify tokens without the signing key (only then consider RS256).
 
 ### Pattern B (Supabase-issued tokens)
 
 - Supabase issues JWTs automatically on login. Token lifecycle is managed by Supabase — do not override.
-- FastAPI validates Supabase JWTs server-side via the JWKS endpoint or the `supabase-py` client.
 - Refresh is handled by the Supabase client SDK (`supabase-js`, `supabase-py`). Do not build custom refresh logic.
 - For server-side operations that need elevated privileges, use the Supabase `service_role` key (env var, never exposed to clients).
+
+### Supabase JWT Validation (Pattern B) — canonical
+
+- Confirm which signing algorithm the project uses BEFORE writing validation code. Supabase's default shifted from symmetric HS256 (legacy/older projects) to asymmetric ES256/RSA (new JWT signing keys). The two are NOT interchangeable.
+- **Preferred:** validate via the Supabase client's `getClaims()` (`supabase-py` / `supabase-js`). It verifies asymmetric tokens LOCALLY against the JWKS public keys and automatically falls back to server-side `getUser()` for legacy HS256 tokens or an unknown `kid`. One call handles both signing models — no branching.
+- **If hand-rolling** (no client lib): fetch JWKS from `https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json`, match the `kid` from the token header, verify the ES256/RSA signature, cache keys (respect the 10-min edge cache; re-fetch on unknown `kid` for rotation). **Warning:** this endpoint is EMPTY on HS256 projects — JWKS validation will silently fail. For HS256 projects, verify with the legacy JWT secret (symmetric) instead.
+- **Signature is not validation.** EVERY path MUST also assert: `aud == "authenticated"`, `iss == https://<project-ref>.supabase.co/auth/v1`, and `exp` not passed. Verifying only the signature accepts tokens minted for other audiences.
+- Do NOT call `getUser()` (a network round-trip) on every protected request when asymmetric keys are available — use local `getClaims()`; reserve the round-trip for the HS256 fallback.
 
 ---
 
@@ -67,7 +74,7 @@ Use when the domain module (SaaS or mobile) mandates Supabase Auth. This is the 
 | **React Native** | `expo-secure-store` | `expo-secure-store` via `supabase-js` custom storage adapter |
 | **Chrome Extension (MV3)** | `chrome.storage.session` | `chrome.storage.session` via `supabase-js` custom storage adapter |
 
-- **Pattern A:** The FastAPI `/auth/login/web` endpoint returns a `Set-Cookie` header with `httponly=True`, `secure=True`, `samesite="lax"`. Mobile/extension endpoints return the token in the JSON response body.
+- **Pattern A:** The FastAPI `/auth/login/web` endpoint returns a `Set-Cookie` header with `httponly=True`, `secure=True`, `samesite="lax"`. Mobile/extension endpoints return the token in the JSON response body. **CSRF:** cookie auth requires explicit CSRF defense — use `SameSite=Strict` on state-changing endpoints, or a double-submit CSRF token. `SameSite=Lax` alone does not cover all CSRF vectors (e.g., top-level GET navigations with side effects).
 - **Pattern B:** The Supabase client SDK handles token storage. On mobile, wrap with `expo-secure-store` (never AsyncStorage or MMKV for tokens). See `80-mobile.md` § Backend Integration.
 - **Both patterns:** Never store JWTs in `localStorage` or `sessionStorage` on web. Never store JWTs in AsyncStorage or MMKV on mobile.
 
@@ -96,7 +103,8 @@ Use when the domain module (SaaS or mobile) mandates Supabase Auth. This is the 
 
 ## Content Security Policy
 
-- Next.js `middleware.ts` must generate a per-request cryptographic nonce (`crypto.randomUUID()`) and inject it into the `Content-Security-Policy` header.
+- Next.js `middleware.ts` must generate a per-request cryptographic nonce (`crypto.randomUUID()`) and build the full directive: `Content-Security-Policy: script-src 'nonce-{n}' 'strict-dynamic'; object-src 'none'; base-uri 'none'`.
+- A bare nonce without `'strict-dynamic'` and locked-down fallbacks (`object-src 'none'`, `base-uri 'none'`) gives weaker protection than implied — always include the full directive.
 - Only `<script>` tags with the matching `nonce` attribute execute. This forces dynamic SSR for protected routes — an acceptable trade-off for XSS protection.
 
 ---
@@ -105,7 +113,7 @@ Use when the domain module (SaaS or mobile) mandates Supabase Auth. This is the 
 
 Apply via ASGI middleware with **precomputed constants** (no per-request string building):
 
-- `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` — add `preload` **only** if deliberately submitting to the HSTS preload list (all-subdomains-HTTPS-forever, hard to reverse; not a safe blanket default)
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
 - `Referrer-Policy: strict-origin-when-cross-origin`
@@ -140,7 +148,9 @@ async def call_internal_service():
     return resp.json()
 ```
 
-Note: always async (`httpx.AsyncClient`), always with timeout, config via Pydantic Settings. See `58-resilience.md` for full timeout/retry/CB patterns.
+Note: use internal Docker DNS (`http://<service>:<port>/api/endpoint`) for coolify-network calls, NOT the public Traefik edge URL. Use `https://<service>.vps1.ocoron.com` only for genuinely cross-network calls. Always async, always with timeout, config via Pydantic Settings. See `58-resilience.md` for full timeout/retry/CB patterns.
+
+**Blast radius warning:** the shared `SERVICE_INTERNAL_SECRET_KEY` is identical across all services — compromise of any one service exposes the M2M credential for all. Document a rotation procedure, and issue a **per-service token** (not the shared key) for any internet-exposed service or one ingesting untrusted input.
 
 ---
 
@@ -171,7 +181,8 @@ Applies to: Authelia bootstrap, `fabrik scaffold` credential generation, ops scr
 
 ## Rate Limiting
 
-- Hard rate limits on `/auth/login`, `/auth/register`, `/auth/reset` endpoints using Redis or in-memory token buckets.
+- Hard rate limits on `/auth/login`, `/auth/register`, `/auth/reset` endpoints using **Redis-backed** token buckets. In-memory buckets are per-process and bypassable behind multiple workers — single-process services only.
+- Apply limits on **both** axes: per-IP (brute force) and per-account (credential stuffing).
 - Credential stuffing and brute-force attacks are the primary threats these limits address.
 
 ---
@@ -204,13 +215,13 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 
 ## Related Rule Packs
 
-- `10-python.md` — Pydantic Settings for secrets (SERVICE_INTERNAL_SECRET_KEY, JWT_SECRET_KEY)
-- `30-ops.md` — Authelia forward-auth Traefik labels, `/health` bypass
+- `10-python.md` — Pydantic Settings for secrets, `AsyncClient` for M2M calls
+- `30-ops.md` — Authelia forward-auth Traefik labels, `/health` bypass, internal service DNS
 - `55-observability.md` — GlitchTip for auth error tracking
-- `58-resilience.md` — timeout/retry for M2M inter-service calls
-- `80-mobile.md` — `expo-secure-store` for mobile token storage
-- `86-email-templates.md` — Resend pipeline for auth transactional email
-- `95-multi-tenant-saas.md` — RLS for tenant isolation (Pattern B)
+- `58-resilience.md` — timeout/retry/CB for M2M inter-service calls
+- `80-mobile.md` — Pattern B token storage (`expo-secure-store`), Sign in with Apple mandate
+- `86-email-templates.md` — Resend pipeline for auth transactional email (ESP Decision Log in § ESP Decision Log)
+- `95-multi-tenant-saas.md` — Supabase RLS for tenant isolation (Pattern B)
 
 ---
 
