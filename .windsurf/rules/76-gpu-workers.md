@@ -341,7 +341,7 @@ GPU instances are inherently unreliable. Spot instances preempt. Marketplace hos
 - **Vast.ai budget tier:** VRAM contention — host may oversell. OOM on a "24GB" card = overselling. Switch host.
 - **RunPod Community:** shared host kernel. Custom CUDA drivers may conflict. Use RunPod Templates only.
 - **TensorDock:** no snapshot API. Reproducibility via Cloud-Init scripts, not disk images.
-- **Salad Cloud:** 15-25% monthly node churn. Design for the node dying at any moment.
+- **Salad Cloud:** 15-25% monthly node churn (confirmed — inherent to consumer-node architecture). $0 egress. Design for the node dying at any moment.
 - **Modal non-preemptible multiplier:** 3x cost. Most people don't realize until the bill arrives.
 
 ---
@@ -363,7 +363,7 @@ GPU is the most expensive line item. Every decision minimizes idle GPU time.
 
 ## Provider Snapshot — verify at provisioning time
 
-<!-- Last verified: 2026-05-23. Prices, models, and provider features change frequently.
+<!-- Last verified: 2026-05-24. Prices, models, and provider features change frequently.
      Verify current rates at the provider's pricing page before provisioning.
      The durable frameworks above (decision table, selection criteria, lifecycle, fault tolerance)
      do NOT depend on these specific numbers. -->
@@ -372,29 +372,32 @@ GPU is the most expensive line item. Every decision minimizes idle GPU time.
 
 | Workload | Provider | Model example | Price (per 1M tokens) |
 |---|---|---|---|
-| Real-time chat, streaming | Groq | 70B-class chat (LPU, <1s TTFT) | ~$0.59 input / $0.79 output |
-| Batch processing, cost-sensitive | Together AI | 70B-class open-source | ~$0.27 input / $0.85 output |
+| Real-time chat, streaming | Groq | Llama 3.3 70B Versatile (LPU, <1s TTFT) | $0.59 input / $0.79 output |
+| Batch processing, cost-sensitive | Together AI | Llama 4 Maverick | $0.27 input / $0.85 output |
+| Batch (flat-rate alternative) | Together AI | Llama 3.3 70B Instruct Turbo | $0.88 flat (input+output) |
 | Niche/custom models | Replicate | Any HuggingFace model | Variable, typically 2-5x Together |
 | Code generation | Groq or Fireworks | 70B-class coder | $0.20 - $0.90 |
 | Vision / multimodal | Together AI or Replicate | Vision models | $0.80 - $3.00 |
 
 ### GPU Cloud Providers (inference)
 
-| Provider | Billing | H100 $/hr (approx) | Cold start | Egress | Notes |
+| Provider | Billing | H100 $/hr | Cold start | Egress | Notes |
 |---|---|---|---|---|---|
-| RunPod Serverless | Per-request | ~$2.49 effective | <200ms (warm-worker dispatch from NVMe cache — not a true cold start) | $0 | Default for inference; pre-built vLLM worker |
-| Modal | Per-second | ~$3.95 effective (with multipliers) | 1-4s | Included | Python decorator DX; hidden cost: regional 1.25x + non-preemptible 3x multipliers |
-| RunPod Secure Pod | Per-hour | $2.69 | N/A (always on) | $0 | SLA-backed |
-| RunPod Community Pod | Per-hour | $1.89-2.49 | N/A | $0 | Shared host kernel |
+| RunPod Serverless (PRO) | Per-request | $4.18 | FlashBoot: ~563ms measured, 95% < 2.3s (warm-worker dispatch from NVMe — not a true cold start) | $0 | Default for inference; pre-built vLLM worker. FlashBoot now standard for Flex workers. |
+| Modal | Per-second | $4.56 (base GPU rate; CPU/RAM multipliers separate: US non-preemptible CPU/mem = 3.75x) | 1-4s | Included | Python decorator DX. GPU rate is flat regardless of region/preemption. |
+| RunPod Secure Pod | Per-hour | $2.99 | N/A (always on) | $0 | SLA-backed, per-second billing |
+| RunPod Community Pod | Per-hour | $1.99-2.69 | N/A | $0 | Shared host kernel |
 
 ### GPU Cloud Providers (training / fine-tuning)
 
-| Provider | Billing | H100 $/hr (approx) | Stability | Notes |
+| Provider | Billing | H100 $/hr | Stability | Notes |
 |---|---|---|---|---|
-| Vast.ai | Marketplace bid | $1.49+ | Low-Medium | Cheapest; host may oversell VRAM |
-| TensorDock | KVM VM | $2.25+ | High (99.99%) | Full root; no snapshot API |
-| RunPod Community | Pod | $1.89-2.49 | Medium | Shared kernel; use templates only |
-| RunPod Secure | Pod | $2.69 | High | SLA-backed for long runs |
+| Thunder Compute | On-demand | $1.38 | Medium | New entrant — cheapest verified H100 on-demand |
+| Vast.ai | Marketplace bid | $1.50-2.50 | Low-Medium | Host may oversell VRAM |
+| Spheron Network | Spot/on-demand | $1.03 (spot SXM5) / $2.01 (on-demand PCIe) | Medium | Neo-cloud aggregator |
+| TensorDock | KVM VM | $2.25-2.36 | High (99.99%) | Full root; no snapshot API |
+| RunPod Community | Pod | $1.99-2.69 | Medium | Shared kernel; use templates only |
+| RunPod Secure | Pod | $2.99 | High | SLA-backed for long runs |
 
 ### GPU Hardware
 
