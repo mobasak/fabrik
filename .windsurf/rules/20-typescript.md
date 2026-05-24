@@ -65,8 +65,8 @@ Parse and validate environment variables **once at boot** via a typed Zod schema
 import { z } from 'zod';
 
 const env = z.object({
-  DB_HOST: z.string().default('postgres-main'),
-  REDIS_HOST: z.string().default('redis-main'),
+  DATABASE_URL: z.string(),                             // required — full URL from compose/env
+  REDIS_URL: z.string().default('redis://redis-main:6379/0'),
   PORT: z.coerce.number().default(3000),
   SERVICE_INTERNAL_SECRET_KEY: z.string().min(1),
 }).parse(process.env);
@@ -78,7 +78,7 @@ export default env;
 ```typescript
 // Usage — import the validated object, never raw process.env
 import env from '@/env';
-const url = `http://${env.DB_HOST}:5432/mydb`;
+// DATABASE_URL is the full connection string (same convention as 10-python / 30-ops)
 ```
 
 **CRITICAL:** Default DB host is `postgres-main`, not `localhost`. Default Redis host is `redis-main`. `localhost` inside a container points to the container itself, not the shared database.
@@ -107,7 +107,7 @@ import { formatDate } from '../../../utils/date';
 
 - Never swallow errors silently. At minimum, log with context.
 - Use typed error classes for domain errors. Avoid throwing raw strings.
-- For API error responses, defer to `15-api-contracts.md` (RFC 7807 Problem Details). Do not define ad-hoc error shapes like `{ error: "..." }` in TypeScript code.
+- For API error responses, defer to `15-api-contracts.md` (RFC 9457 Problem Details). Do not define ad-hoc error shapes like `{ error: "..." }` in TypeScript code.
 
 ```typescript
 // CORRECT — typed error
