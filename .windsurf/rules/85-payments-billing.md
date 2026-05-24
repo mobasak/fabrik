@@ -55,7 +55,7 @@ Traycer decides which configuration applies during `epic-brief` or `trigger-work
 ### Webhook Processing
 
 - Paddle enforces a **5-second timeout**. Return `200 OK` within 3 seconds. Defer all heavy processing (DB writes, email sends, third-party calls) to background tasks or the PostgreSQL job queue (per `75-workers-jobs.md`).
-- Accept **at-least-once delivery** — Paddle retries failed deliveries over a multi-day window (design for at-least-once regardless of the exact count). <!-- Verify retry schedule at developer.paddle.com/webhooks -->
+- Accept **at-least-once delivery** — Paddle retries failed deliveries with exponential backoff: **60 retries over 3 days** on live (20 attempts in the first hour, 47 by end of day 1). Sandbox: 3 retries over 15 minutes. Any non-2xx, connection refusal, or timeout = retry.
 
 ### Webhook Idempotency
 
