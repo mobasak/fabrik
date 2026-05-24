@@ -1,6 +1,6 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer)
 
-**Last Updated:** 2026-05-16
+**Last Updated:** 2026-05-24
 **Read by:** Traycer only — for ticket planning. Traycer must know the entire Fabrik infrastructure to plan correctly.
 **Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules`; Kilo CLI reads `AGENTS-compact.md` (via `opencode.json` `instructions:` array).
 **Lifecycle reference:** [`docs/reference/fabrik-lifecycle.md`](docs/reference/fabrik-lifecycle.md) — the canonical 4-stage vision (Intent & Scaffolding → Agentic Implementation → Proper Registration → Verification & Testing). Supersedes any narrative pasted into individual tickets.
@@ -166,7 +166,7 @@ Source: `configs/prometheus/rules/alerts.yml`.
 |---|---|---|
 | **iptables DOCKER-USER** | All Docker ports | Blocks external access to raw container ports. Only 80/443/6001/6002 allowed. |
 | **Authelia** | Admin dashboards w/o native TOTP | Forward-auth 2FA for n8n, Netdata, Backrest, Apprise; + forward-auth with `^/api/` bypass for Coolify, Grafana. **Note:** GlitchTip is on full-bypass — uses django-allauth app-layer TOTP (canonical Sentry pattern). Decision matrix: `docs/LESSONS_LEARNT.md §8.13`. |
-| **X-Internal-Token** | API services | M2M auth via `internal_auth.py` + shared `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`. Same key pushed to Coolify env for every deployed service. Validation is constant-time (`hmac.compare_digest`). Implementation pack: `.windsurf/rules/35-security-auth.md`. |
+| **X-Internal-Token** | API services | M2M auth via `internal_auth.py` + shared `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`. Same key pushed to Coolify env for every deployed service. Validation is constant-time (`hmac.compare_digest`). Implementation pack: `.windsurf/rules/core/35-security-auth.md`. |
 | **Traefik** | Public sites | Routes traffic without auth for `ocoron.com`, `status.vps1.ocoron.com`. |
 
 ### Key security files on VPS
@@ -177,7 +177,7 @@ Source: `configs/prometheus/rules/alerts.yml`.
 - `/opt/authelia/compose.yaml` — Authelia Docker Compose
 - `/opt/fabrik/.env` — `SERVICE_INTERNAL_SECRET_KEY`, `GRAFANA_ADMIN_PASSWORD`, etc.
 
-**Authelia config changes:** Authelia exits on SIGHUP (no hot-reload). Restart procedure (discover container name, then restart): `.windsurf/rules/30-ops.md` § Authelia SSO. **Never** protect `/health` — Authelia bypass `*.vps1.ocoron.com → /health` is global.
+**Authelia config changes:** Authelia exits on SIGHUP (no hot-reload). Restart procedure (discover container name, then restart): `.windsurf/rules/core/30-ops.md` § Authelia SSO. **Never** protect `/health` — Authelia bypass `*.vps1.ocoron.com → /health` is global.
 
 ### Exceptions to the canonical M2M pattern
 
@@ -222,7 +222,7 @@ Full service contract: `docs/reference/service-contracts/site-provisioner.md`.
 
 ## Coolify Stable DNS Aliases (Single-Image Applications)
 
-Coolify single-image Applications use container names of the form `<app-uuid>-<timestamp>`. The timestamp changes on every redeploy — Gatus / inter-service URLs keyed on the UUID name break silently. The fix: install a stable alias on the `coolify` Docker network, persisted via compose + `scripts/vps_apply_limits.sh`. Install procedure: `.windsurf/rules/30-ops.md` § Authelia SSO + `docs/reference/coolify-stable-aliases.md`.
+Coolify single-image Applications use container names of the form `<app-uuid>-<timestamp>`. The timestamp changes on every redeploy — Gatus / inter-service URLs keyed on the UUID name break silently. The fix: install a stable alias on the `coolify` Docker network, persisted via compose + `scripts/vps_apply_limits.sh`. Install procedure: `.windsurf/rules/core/30-ops.md` § Authelia SSO + `docs/reference/coolify-stable-aliases.md`.
 
 ### Currently registered aliases (single source of truth: `docs/reference/coolify-stable-aliases.md`)
 
@@ -250,7 +250,7 @@ Traycer MUST run these checks before generating any Plan, PRD, or Execution Spec
 2. **BUSINESS_MODEL.md** — Check for duplicate / similar project. State finding.
 3. **Fabrik Microservices table** — Use existing internal APIs before planning new logic. State which apply.
 4. **Hardware Audit** — Confirm all Docker images support `linux/amd64`.
-5. **Design System** — For any project type with a UI surface (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus), read `.windsurf/rules/ocoron-design-system.md` before generating any spec or copy. Apply color tokens, typography, scaffold-specific adaptations, verbal identity (forbidden language, voice, microcopy rules) to all planning output. State: "Design system read."
+5. **Design System** — For any project type with a UI surface (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus), read `.windsurf/rules/core/ocoron-design-system.md` before generating any spec or copy. For mobile-app, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`. Apply color tokens, typography, scaffold-specific adaptations, verbal identity (forbidden language, voice, microcopy rules) to all planning output. State: "Design system read."
 6. **External Knowledge Verification** — When the plan touches a third-party API/SDK/vendor (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n, etc.), verify the current contract against live docs BEFORE writing the ticket spec. Order: (a) search `docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md` for prior coverage; (b) if absent, fetch the vendor's official docs URL and cite it in the ticket's `References:` field; (c) pass cited URLs to executing agents in `Final Gate Instruction` or `Implementation Notes` so they don't re-research what you verified. If you cannot verify within 3 search calls, mark the ticket `BLOCKED: external-research-needed` and stop. Skip for: stdlib, language syntax, internal Fabrik conventions.
 
 ## Planning Constraints
@@ -276,36 +276,60 @@ Before creating any plan, verify:
 
 Traycer injects rule-pack guidance into coding-agent execution prompts based on `project.yaml::type` + ticket scope. Coding agents do NOT self-select packs.
 
-### Pack Registry (25 packs in `.windsurf/rules/`)
+### Pack Registry (29 packs in `.windsurf/rules/**/*.md`)
+
+Organized by folder:
+
+**`core/` — shared across all scaffolds (20 packs)**
 
 | Pack ID | File | Category |
 |---|---|---|
-| `PY_CORE` | `10-python.md` | Core |
-| `API_CONTRACTS` | `15-api-contracts.md` | Backend |
-| `TS_CORE` | `20-typescript.md` | Core |
-| `DATA_PG` | `25-data-postgres.md` | Backend |
-| `OPS` | `30-ops.md` | Backend |
-| `SECURITY` | `35-security-auth.md` | Backend |
-| `DOCUMENTATION` | `40-documentation.md` | Backend |
-| `DOCUSAURUS` | `42-docusaurus.md` | Platform |
-| `TESTING` | `45-testing-strategy.md` | Backend |
-| `CODE_REVIEW` | `50-code-review.md` | Backend |
-| `OBSERVABILITY` | `55-observability.md` | Backend |
-| `RESILIENCE` | `58-resilience.md` | Backend |
-| `SAAS_UI` | `60-saas-ui.md` | Core |
-| `RAG_SEARCH` | `65-rag-search.md` | Domain |
-| `CHROME_MV3` | `70-chrome-ext.md` | Core |
-| `WORKERS` | `75-workers-jobs.md` | Backend |
-| `GPU_WORKERS` | `76-gpu-workers.md` | Domain |
-| `MOBILE_UI` | `80-mobile.md` | Core |
-| `PAYMENTS` | `85-payments-billing.md` | Domain |
-| `SAAS_LAUNCH` | `88-saas-launch-checklist.md` | Domain |
-| `AUTOMATION` | `90-automation.md` | Backend |
-| `MULTI_TENANT` | `95-multi-tenant-saas.md` | Domain |
-| `DESIGN_SYSTEM` | `ocoron-design-system.md` | Cross-cutting |
-| `TOJLO_DESIGN` | `tojlo-design-system.md` | Cross-cutting |
+| `PY_CORE` | `core/10-python.md` | Backend |
+| `API_CONTRACTS` | `core/15-api-contracts.md` | Backend |
+| `TS_CORE` | `core/20-typescript.md` | Frontend |
+| `DATA_PG` | `core/25-data-postgres.md` | Backend |
+| `OPS` | `core/30-ops.md` | Infrastructure |
+| `SECURITY` | `core/35-security-auth.md` | Infrastructure |
+| `DOCUMENTATION` | `core/40-documentation.md` | Process |
+| `DOCUSAURUS` | `core/42-docusaurus.md` | Platform |
+| `TESTING` | `core/45-testing-strategy.md` | Process |
+| `CODE_REVIEW` | `core/50-code-review.md` | Process |
+| `OBSERVABILITY` | `core/55-observability.md` | Infrastructure |
+| `RESILIENCE` | `core/58-resilience.md` | Backend |
+| `RAG_SEARCH` | `core/65-rag-search.md` | Domain |
+| `RAG_CHUNKING` | `core/66-rag-chunking.md` | Domain |
+| `WORKERS` | `core/75-workers-jobs.md` | Backend |
+| `GPU_WORKERS` | `core/76-gpu-workers.md` | Domain |
+| `PAYMENTS` | `core/85-payments-billing.md` | Domain |
+| `EMAIL_TEMPLATES` | `core/86-email-templates.md` | Domain |
+| `DESIGN_SYSTEM` | `core/ocoron-design-system.md` | Cross-cutting |
+| `TOJLO_DESIGN` | `core/tojlo-design-system.md` | Cross-cutting |
 
-> The former `CROSS_CUTTING` pack was dissolved 2026-05-14; its rules now live in topic packs (30-ops, 35-security-auth, 50-code-review, 55-observability) and the three coding-agent bootstraps.
+**`saas/` — SaaS skeleton specific (3 packs)**
+
+| Pack ID | File | Category |
+|---|---|---|
+| `SAAS_UI` | `saas/60-saas-ui.md` | Frontend |
+| `SAAS_LAUNCH` | `saas/88-saas-launch-checklist.md` | Domain |
+| `MULTI_TENANT` | `saas/95-multi-tenant-saas.md` | Domain |
+
+**`mobile-app/` — React Native mobile (5 packs)**
+
+| Pack ID | File | Category |
+|---|---|---|
+| `MOBILE_UI` | `mobile-app/80-mobile.md` | Frontend |
+| `MOBILE_BILLING` | `mobile-app/81-mobile-billing.md` | Domain |
+| `MOBILE_LAUNCH` | `mobile-app/89-mobile-launch-checklist.md` | Domain |
+| `MOBILE_DESIGN` | `mobile-app/ocoron-mobile-design-system.md` | Cross-cutting |
+| `TOJLO_MOBILE_DESIGN` | `mobile-app/tojlo-mobile-design-system.md` | Cross-cutting |
+
+**`chrome-ext/` — Chrome extension (1 pack)**
+
+| Pack ID | File | Category |
+|---|---|---|
+| `CHROME_MV3` | `chrome-ext/70-chrome-ext.md` | Frontend |
+
+> `90-automation.md` removed (2026-05-18) — redundant Cascade routing table.
 > `62-wordpress.md` removed — WordPress projects use scaffold defaults + `30-ops`.
 
 ### Project Type → Default Packs
@@ -314,17 +338,17 @@ Traycer injects rule-pack guidance into coding-agent execution prompts based on 
 |---|---|
 | `python-api` | `PY_CORE` |
 | `node-api` | — |
-| `saas-skeleton` | `TS_CORE`, `SAAS_UI` |
-| `chrome-extension` | `PY_CORE`, `TS_CORE`, `CHROME_MV3` |
-| `mobile-app` | `TS_CORE`, `MOBILE_UI` |
-| `desktop-app` | `TS_CORE` |
+| `saas-skeleton` | `TS_CORE`, `SAAS_UI`, `DESIGN_SYSTEM` |
+| `chrome-extension` | `PY_CORE`, `TS_CORE`, `CHROME_MV3`, `DESIGN_SYSTEM` |
+| `mobile-app` | `TS_CORE`, `MOBILE_UI`, `MOBILE_BILLING`, `MOBILE_DESIGN` |
+| `desktop-app` | `TS_CORE`, `DESIGN_SYSTEM` |
 | `file-api` | — |
 | `file-worker` | `PY_CORE`, `WORKERS` |
-| `wordpress` | `WORDPRESS` |
-| `docusaurus` | `DOCUSAURUS` |
-| `static-site` | `TS_CORE`, `SAAS_UI` |
+| `wordpress` | `TS_CORE`, `DESIGN_SYSTEM` |
+| `docusaurus` | `DOCUSAURUS`, `DESIGN_SYSTEM` |
+| `static-site` | `TS_CORE`, `SAAS_UI`, `DESIGN_SYSTEM` |
 
-> `node-api` and `file-api` scaffolds are currently JavaScript-based — don't inject `TS_CORE` or `PY_CORE` unless a specific project has actually adopted them. `chrome-extension` includes `PY_CORE` because the backend companion service is Python. `docusaurus` is for dev/team-authored content; `wordpress` for client-authored marketing/e-commerce; `static-site` for owner-controlled landing pages. Decision guide: `docs/reference/scaffold-type-decision-guide.md`.
+> `node-api` and `file-api` scaffolds are currently JavaScript-based — don't inject `TS_CORE` or `PY_CORE` unless a specific project has actually adopted them. `chrome-extension` includes `PY_CORE` because the backend companion service is Python. `docusaurus` is for dev/team-authored content; `wordpress` for client-authored marketing/e-commerce; `static-site` for owner-controlled landing pages. Decision guide: `docs/reference/scaffold-type-decision-guide.md`. All UI scaffolds get `DESIGN_SYSTEM` for visual/verbal identity.
 
 ### Feature-Based Overlay Packs
 
@@ -337,14 +361,18 @@ Traycer injects rule-pack guidance into coding-agent execution prompts based on 
 | `TESTING` | Always — universal overlay, injected for every ticket |
 | `OBSERVABILITY` | Health endpoints, logging, monitoring, Gatus |
 | `RAG_SEARCH` | Embeddings, retrieval, vector search, LLM context |
+| `RAG_CHUNKING` | Document ingestion, chunking pipelines, knowledge base indexing |
 | `GPU_WORKERS` | GPU cloud provisioning, inference serving, training, model quantization |
-| `PAYMENTS` | Paddle, subscriptions, billing, entitlements |
+| `PAYMENTS` | Paddle, subscriptions, billing, entitlements (SaaS web) |
+| `MOBILE_BILLING` | RevenueCat, Google Play Billing, App Store IAP, Turkey GPB-mandatory |
+| `MOBILE_LAUNCH` | Mobile app go-to-market — store accounts, legal, tax, review traps, staged rollout |
+| `EMAIL_TEMPLATES` | Email/push/notification templates, MJML, Listmonk, SES, deliverability |
 | `SAAS_LAUNCH` | SaaS product planning — legal pages, payment routing, GDPR/KVKK, onboarding, org settings, abuse prevention |
 | `MULTI_TENANT` | Tenant isolation, RLS, tenant-scoped queries |
 
 ### Planning Protocol (epic-brief, decomposition, expand)
 
-During **planning** — `my-workflow/01-epic-brief`, `mega-epic-breakdown/02-epic-decomposition`, `mega-epic-breakdown/03-expand-epic-files` — Traycer must **read the full `.windsurf/rules/<file>.md`** for every applicable pack. Rule pack mandates are constraints on the plan. A plan that violates a rule pack mandate is wrong.
+During **planning** — `my-workflow/01-epic-brief`, `mega-epic-breakdown/02-epic-decomposition`, `mega-epic-breakdown/03-expand-epic-files` — Traycer must **read the full `.windsurf/rules/**/<file>.md`** for every applicable pack. Rule pack mandates are constraints on the plan. A plan that violates a rule pack mandate is wrong.
 
 **Which packs to read during planning:**
 
@@ -418,7 +446,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 | desktop-app | `templates/desktop-app/` | Electron | static | (none — distributed as installer) |
 | static-site | `templates/saas-skeleton/` | Next.js / static HTML | static | is_public |
 
-> Each scaffold propagates `.windsurfrules`, `.windsurf/rules/`, and `.windsurf/workflows/` to generated projects automatically.
+> Each scaffold propagates `.windsurfrules`, `.windsurf/rules/` (with subdirectory structure: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`), and `.windsurf/workflows/` to generated projects automatically.
 > **Authoritative shape matrix:** `src/fabrik/spec_loader.py::Shape` docstring. Change it there, then run the full scaffold suite — divergence from `templates/<type>/defaults.yaml` is a failing test (`tests/test_spec_generator.py`).
 > **Registrar applicability matrix:** `src/fabrik/orchestrator/infrastructure.py` docstring + `resolve_applicability()`. Source of truth for which of (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus) runs for a given `shape:` block.
 
@@ -451,11 +479,12 @@ If a ticket appears to need these, the existing scaffolded code already covers i
 
 Traycer plans against these rules but does NOT inline them into tickets — the coding agents already load them via their bootstrap + packs:
 
-- **Python / FastAPI / config / temp files** → `.windsurf/rules/10-python.md`
-- **Docker / compose / Coolify network / Authelia restart procedure / Gatus stable-alias install / post-deploy checklist / `fabrik redeploy` sequence** → `.windsurf/rules/30-ops.md`
-- **M2M auth (`X-Internal-Token` / `internal_auth.py`) / sensitive data backup / password policy / JWT / CORS / CSP** → `.windsurf/rules/35-security-auth.md`
-- **Pre-scaffolded logging / GlitchTip discipline / health endpoints / Gatus stable DNS rule** → `.windsurf/rules/55-observability.md`
-- **Documentation rules (CHANGELOG, README features, plans, `.env.example`, new-`.md`-file allowlist, writing style)** → `.windsurf/rules/40-documentation.md`
+- **Python / FastAPI / config / temp files** → `.windsurf/rules/core/10-python.md`
+- **Docker / compose / Coolify network / Authelia restart procedure / Gatus stable-alias install / post-deploy checklist / `fabrik redeploy` sequence** → `.windsurf/rules/core/30-ops.md`
+- **M2M auth (`X-Internal-Token` / `internal_auth.py`) / sensitive data backup / password policy / JWT / CORS / CSP** → `.windsurf/rules/core/35-security-auth.md`
+- **Pre-scaffolded logging / GlitchTip discipline / health endpoints / Gatus stable DNS rule** → `.windsurf/rules/core/55-observability.md`
+- **Documentation rules (CHANGELOG, README features, plans, `.env.example`, new-`.md`-file allowlist, writing style)** → `.windsurf/rules/core/40-documentation.md`
+- **Responsive design testing (Playwright, screenshots, fix patterns, agent directive)** → `docs/reference/mobile-responsive-testing-guide.md`
 - **Coolify stable-alias install procedure + currently-registered pairs** → `docs/reference/coolify-stable-aliases.md`
 
 ## Reference Documents
@@ -474,7 +503,9 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | SaaS UI Patterns | `docs/reference/Modern GUI Approaches for a Lean, Fast, Effective, Low-Confusion SaaS Web App.md` | Planning SaaS frontend |
 | Chrome Extension UI | `docs/reference/Modern GUI Approaches for Chrome Extensions.md` | Planning Chrome extensions |
 | Mobile UI | `docs/reference/Modern Mobile GUI Approaches for Android and iOS.md` | Planning mobile apps |
-| Ocoron Design System | `.windsurf/rules/ocoron-design-system.md` | Visual + verbal identity for UI projects |
+| Ocoron Design System | `.windsurf/rules/core/ocoron-design-system.md` | Visual + verbal identity for UI projects |
+| Ocoron Mobile Design | `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` | Mobile component patterns (list items, sheets, navigation, forms) |
+| Mobile Responsive Testing | `docs/reference/mobile-responsive-testing-guide.md` | Single source of truth for RWD testing (Playwright, screenshots, fix patterns) |
 | Cascade Models | `docs/reference/windsurf/cascade-models.md` | Selecting Windsurf Cascade model tier |
 | Deployment Guide | `docs/DEPLOYMENT.md` | `fabrik apply` / `fabrik deploy` / observability internals |
 | Kilo Agent Naming | `docs/reference/kilo/KILO_AGENT_NAMING.md` | Naming new Kilo CLI agents |
@@ -483,10 +514,10 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | Kilo Use Cases | `docs/reference/kilo/KILO_USE_CASES.md` | 11 non-coding domains (data extraction, translation, content, legal, etc.) |
 | Kilo Agent Registry | `scripts/kilo_47_agents_final.json` | Authoritative agent selection list |
 | AI Prompt Templates | `docs/reference/MD/ai-prompt-templates.md` | Designing system prompts, skills, AGENTS.md, review templates |
-| RAG Chunking Rules | `docs/reference/MD/rag-chunking-rules.md` | Planning search/RAG features — heading-based splitting, chunk envelopes |
+| RAG Chunking Rules | `.windsurf/rules/core/66-rag-chunking.md` | Planning search/RAG features — heading-based splitting, chunk envelopes |
 | Markdown AI Rules | `docs/reference/MD/markdown-cheatsheet.md` | AI-friendly markdown writing conventions |
 | AI Agent Directives | `docs/reference/ai_agent_prompt_directives.md` | Copy-paste phrases for steering agent quality |
-| GPU Workers Guide | `.windsurf/rules/76-gpu-workers.md` | GPU cloud decisions — when to self-host vs managed API, provider selection |
+| GPU Workers Guide | `.windsurf/rules/core/76-gpu-workers.md` | GPU cloud decisions — when to self-host vs managed API, provider selection |
 | Lessons Learnt | `docs/LESSONS_LEARNT.md` | Past incidents, decisions, anti-patterns |
 | Coolify Stable Aliases | `docs/reference/coolify-stable-aliases.md` | Registering new single-image App aliases |
 | Traycer Workflow | `docs/traycer/traycer-managed-development-workflow/` | Trigger / brief / plan / breakdown / execute commands |
