@@ -31,7 +31,7 @@ Apply when working on in-app purchases, subscriptions, entitlements, or billing-
 
 Turkey is **not** in the EU/EEA, so the DMA alternative payment provisions do not apply. Apple's standard IAP rules apply: **all digital goods must use Apple IAP** (StoreKit). External purchase links for digital goods are not permitted for Turkish users.
 
-- In the **EU only**, Apple offers alternative payment entitlements under the DMA, but the effective fee structure is complex and evolving — verify current rates at submission time. Default: stay on standard IAP + SBP 15% unless your EU volume justifies the complexity. <!-- Verify at iOS submission: search "Apple DMA EU fee structure current" -->
+- In the **EU only**, Apple offers alternative payment entitlements under the DMA. The per-install CTF was sunset Jan 2026, replaced by a modular fee system: 5% Core Technology Commission (CTC) on revenue + Store Services fee (Tier 2: 13%, Tier 1: 5%) + 2% Initial Acquisition Fee (first 6 months of new users). **SBP members (<$1M):** Initial Acquisition Fee = 0%, Tier 2 = 10%, so total = **15% (10% + 5% CTC)** — same as standard IAP 15%. No benefit to switching unless you need external payment methods for other reasons. Default: stay on standard IAP + SBP 15%.
 - **Physical goods and services consumed outside the app** are exempt on both stores — they may use any payment processor.
 
 ### Both Stores — Summary
@@ -138,9 +138,9 @@ Both stores enforce SDK version requirements. RevenueCat abstracts both — keep
 
 ### Apple StoreKit
 
-- **StoreKit 2** is the recommended API for all new implementations. StoreKit 1 (original) is still functional but receives no new features — treat it as legacy.
+- **StoreKit 2** is the recommended API for all new implementations. StoreKit 1 (original) is **not formally deprecated** — Apple continues to maintain and patch it, but adds no new features. No migration deadline exists. Treat it as legacy for new code.
 - RevenueCat uses StoreKit 2 internally when available, falling back to StoreKit 1 for older iOS versions.
-<!-- Verify at iOS submission: search "Apple StoreKit version requirements current" -->
+- **Minimum SDK:** as of April 28, 2026, all App Store submissions must be built with the **iOS 26 SDK** (Xcode 26+). Submissions on older SDKs are rejected at upload.
 
 ---
 
@@ -164,7 +164,7 @@ Both stores offer reduced commission (15% vs 30%) for the first $1M USD/year. **
 
 **If you exceed $1M in a calendar year:** standard 30% applies to remaining sales that year. If proceeds fall below $1M the following year, you re-qualify automatically.
 
-**EU note:** Apple's EU alternative terms offer different commission tiers — verify current rates at iOS submission time. <!-- Verify at iOS submission: search "Apple EU SBP alternative terms commission" -->
+**EU note:** For SBP members, EU alternative terms total = 15% (10% Store Services + 5% CTC) — same as standard IAP 15%. No cost advantage to switching for small developers.
 
 ### Both Stores — Failure to Enroll
 
@@ -237,8 +237,8 @@ Process-level gates — complete before first submission on each store.
 - [ ] Short description (132 chars max) + detailed description.
 
 **Apple App Store:**
-- [ ] 1024x1024 app icon (no alpha), iPhone screenshots per current App Store Connect requirements, iPad screenshots if universal.
-- [ ] Subtitle (30 chars max) + description + keywords (100 chars). <!-- Verify screenshot size requirements at submission: App Store Connect may update required display sizes -->
+- [ ] 1024x1024 app icon (no alpha). Screenshots: **6.9" iPhone** (1290×2796 or 1320×2868, mandatory — auto-scales to all smaller iPhones; 5.5" dropped), **13" iPad** (2064×2752 or 2048×2732, mandatory if universal).
+- [ ] Subtitle (30 chars max) + description + keywords (100 chars).
 
 **Both stores:**
 - [ ] Privacy Policy URL in store listing AND accessible from in-app Settings.
