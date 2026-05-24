@@ -106,7 +106,7 @@ tenant_context: ContextVar[str] = ContextVar("tenant_id", default="")
 
 ## Tenant Offboarding
 
-- When a tenant cancels, soft-delete their data (set a `deleted_at` timestamp). A background job purges data after a retention period.
+- When a tenant cancels, set `deleted_at` on the **`tenants` table row only** (this is the sole permitted soft-delete column per `25-data-postgres.md`). A background job hard-deletes all tenant-scoped data from other tables after the retention period — do not add `deleted_at` to every tenant-scoped table.
 - Test deletion logic explicitly to verify it does not cascade to other tenants' data.
 - For data export: with RLS active and tenant context set, a simple `SELECT *` from each table produces a clean, tenant-scoped export.
 
@@ -166,5 +166,5 @@ When using Supabase Auth (Pattern B per `35-security-auth.md`), RLS context work
 - [ ] Redis keys prefixed with `t:{tenant_id}:` — no unprefixed tenant data.
 - [ ] Background jobs carry `tenant_id` in payload and set context before DB access.
 - [ ] Application DB user does not have `BYPASSRLS` — only `fabrik_admin` does.
-- [ ] Tenant offboarding uses soft-delete with tested cascade isolation.
+- [ ] Tenant offboarding: `deleted_at` on `tenants` row only; background job hard-deletes scoped data after retention period.
 - [ ] Tenant context is only set after verifying authenticated user's membership in the requested tenant.

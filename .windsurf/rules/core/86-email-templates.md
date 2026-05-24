@@ -60,6 +60,27 @@ One brand partial governs all templates — no per-template colour/font drift. O
 - No layout that depends on `background-image` (Outlook drops it) — use solid fills or VML via MJML.
 - Keep final HTML **< 102 KB** (Gmail clips beyond it).
 
+### Dark Mode
+
+- `<meta name="color-scheme" content="light dark" />` and `<meta name="supported-color-schemes" content="light dark" />` in the shared brand partial — mandatory.
+- `@media (prefers-color-scheme: dark)` overrides for background, text, and subtext colors — prevents Apple Mail / Outlook from auto-inverting white cards to unreadable dark-on-dark.
+- Never rely on automatic dark mode inversion — always define explicit dark palette in the brand partial.
+- Test dark mode rendering on Apple Mail (iOS) + Outlook (Windows) before shipping any new template.
+
+**Email client compatibility matrix:**
+
+| Client | Rendering Engine | MJML Compatible? | Dark Mode Support |
+|---|---|---|---|
+| Apple Mail (Mac/iOS) | WebKit | Yes (MJML tables) | Yes (`color-scheme` meta) |
+| Gmail (Web/Android/iOS) | Custom (strips `<style>`) | Yes (MJML inlines all CSS) | Partial (ignores `@media prefers-color-scheme` but respects `color-scheme` meta) |
+| Outlook 2016-2026 (Windows) | Word engine | Yes (MJML VML conditionals) | Yes (`color-scheme` meta since 2021) |
+| Outlook.com / New Outlook | Web | Yes | Yes |
+| Windows Mail | Same as Outlook.com | Yes | Yes |
+| Spark Mail | WebKit | Yes | Yes |
+| eM Client | Chromium | Yes | Yes |
+| Thunderbird | Gecko | Yes | Yes (`@media` support) |
+| Samsung Mail | WebKit | Yes | Yes |
+
 ### Deliverability (set-and-forget, pro-grade)
 
 - Sending domain has **SPF + DKIM + DMARC** (configure via Cloudflare DNS).
@@ -280,20 +301,26 @@ Your VPS (Coolify)                        AWS
 │ - List management   │                  └──────────────┘
 │ - Segments          │
 │ - Campaigns         │         DNS (Cloudflare)
-│ - Double opt-in     │         ┌──────────────────┐
-│ - Bounce processing │         │ news.<domain>    │
-│ - Analytics         │         │ SPF → SES        │
-└─────────────────────┘         │ DKIM → SES keys  │
-                                │ DMARC → policy   │
-                                └──────────────────┘
+│ - Double opt-in     │         ┌───────────────────────────┐
+│ - Bounce processing │         │ news.<domain>             │
+│ - Analytics         │         │   DKIM → 3 SES CNAMEs    │
+└─────────────────────┘         │   DMARC → _dmarc TXT     │
+                                │ bounce.news.<domain>      │
+                                │   MX → SES feedback SMTP  │
+                                │   SPF → amazonses.com     │
+                                └───────────────────────────┘
 ```
 
 **Key architectural points:**
 
 - **Listmonk** is the campaign orchestrator — list management, segments, templates, scheduling, analytics. Deploys on Coolify like any other Fabrik service (Go binary + Postgres, `compose.yaml`, `coolify` network).
-- **SES** is the delivery layer only — your VPS IP never touches the recipient's mail server. SES sends from **Amazon's shared IP pool** (pre-warmed, high reputation, free). Dedicated IPs ($24.95/mo per IP) only when sending 100k+/day consistently.
-- **Listmonk connects to SES via SMTP relay** (`email-smtp.<region>.amazonaws.com:587`, TLS). Not the SES API — SMTP relay is simpler and what Listmonk supports natively.
-- **Bounce/complaint handling:** SES sends bounce and complaint notifications via **SNS webhooks** → Listmonk processes them and auto-suppresses affected addresses. This must be wired — without it, you re-send to bounced addresses and SES suspends your account.
+- **SES** is the delivery layer only — your VPS IP never touches the recipient's mail server. SES sends from **Amazon's shared IP pool** (pre-warmed, high reputation, free). Dedicated IPs ($24.95/mo per IP) only when sending consistently above **1,000 emails/day per major ISP** (Gmail, Yahoo, Outlook) — below that, shared IPs outperform because dedicated IPs lack volume to build reputation.
+- **Listmonk connects to SES via SMTP relay** (`email-smtp.<region>.amazonaws.com:587`, TLS). At higher scale, consider **SES API v2** via the [listmonk-messenger](https://github.com/knadh/listmonk/wiki/Messengers) plugin — higher throughput (SES API supports 50/sec vs SMTP 14/sec default) and avoids SMTP connection overhead.
+- **Bounce/complaint handling:** SES bounce and complaint notifications flow via **SNS → Listmonk webhook**. This is a 4-step setup — without it, you re-send to bounced addresses and SES suspends your account:
+  1. Create an SNS topic (e.g. `ses-bounces-complaints`) in the same region as SES.
+  2. In SES → Verified identity → Notifications tab, assign this SNS topic to **Bounces** and **Complaints** notification types.
+  3. Create an HTTPS subscription on the SNS topic pointing to Listmonk's bounce webhook endpoint (`https://listmonk.yourdomain/webhooks/service/ses`).
+  4. Confirm the subscription (SNS sends a confirmation request to the endpoint — Listmonk auto-confirms if reachable).
 
 ### SES Setup & Domain Authentication
 
@@ -301,26 +328,30 @@ Your VPS (Coolify)                        AWS
 
 1. Add `news.<domain>` as a verified identity in SES console.
 2. SES generates 3 CNAME records (DKIM) — add to Cloudflare DNS.
-3. SPF: SES includes itself automatically via the DKIM mechanism (no separate SPF TXT record needed for SES if using DKIM).
-4. DMARC: add manually to DNS — `_dmarc.news.<domain> TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@<domain>"`. Start with `p=none` (monitoring), move to `p=quarantine` after confirming alignment.
+3. **Custom MAIL FROM subdomain** (required for SPF alignment): set `bounce.news.<domain>` as the MAIL FROM domain in SES. Add two DNS records to Cloudflare:
+   - `bounce.news.<domain>` MX → `feedback-smtp.<region>.amazonses.com` (priority 10)
+   - `bounce.news.<domain>` TXT → `"v=spf1 include:amazonses.com ~all"`
+   Without Custom MAIL FROM, the envelope sender is `amazonses.com` — SPF passes for Amazon's domain, not yours, causing DMARC SPF alignment to fail. DKIM alone can carry DMARC, but both-aligned is best practice.
+4. DMARC: add `_dmarc.news.<domain> TXT "v=DMARC1; p=none; rua=mailto:dmarc@<domain>"`. **Start with `p=none`** (monitoring only — receive reports, don't enforce). Move to `p=quarantine` after 2-4 weeks of confirming DKIM+SPF alignment in DMARC reports. Then `p=reject` once confident.
 5. **Same subdomain works across ESPs.** Switching from Resend to SES = update the DKIM/SPF DNS records. Domain reputation transfers — it's tied to the domain, not the ESP.
 
 **SES Sandbox → Production:**
 
-- New SES accounts start in **sandbox** (can only send to verified emails). Request production access via AWS console — provide your use case, expected volume, bounce/complaint handling plan.
-- Production access is required before sending to unverified recipients.
+- New SES accounts start in **sandbox**: limited to **200 emails/day** and **1 email/second**, can only send to verified email addresses. Request production access via AWS console — provide your use case, expected volume, bounce/complaint handling plan.
+- Production access is required before sending to unverified recipients. Approval typically takes 24-48h.
 
 **SES sending limits:**
 
-- After production access: SES starts at a **low daily sending quota** and auto-increases based on your sending patterns and reputation.
+- After production access: SES starts at a **low daily sending quota** (typically 50,000/day) and auto-increases based on your sending patterns and reputation.
 - SES auto-suspends if: complaint rate > **0.1%** or bounce rate > **5%**. Monitor via SES reputation dashboard.
+- **Virtual Deliverability Manager (VDM):** optional SES add-on ($0.07 per 1,000 emails) that provides deliverability insights, ISP-level metrics, and automatic DKIM/DMARC recommendations. Not required at low volume, but consider when sending 50k+/month and needing ISP-level visibility.
 
 ### Listmonk Built-in Features
 
 | Feature | Listmonk support | Notes |
 |---|---|---|
 | Double opt-in | ✅ Native | Configurable per list |
-| `List-Unsubscribe` header (RFC 8058) | ✅ Native | One-click unsubscribe on every campaign |
+| `List-Unsubscribe` header | ⚠️ Two-click only | Listmonk emits `List-Unsubscribe` with a URL, but **not** RFC 8058 one-click `List-Unsubscribe-Post`. Gmail/Yahoo require one-click POST. Workaround: inject `List-Unsubscribe-Post: List-Unsubscribe=One-Click` header via Listmonk's custom headers + implement a POST handler at the unsubscribe URL. Track upstream Listmonk issues for native RFC 8058 support. |
 | Bounce/complaint processing | ⚠️ Requires SNS wiring | SES → SNS topic → Listmonk webhook endpoint |
 | Subscriber segments | ✅ Native | SQL-based, unlimited |
 | Campaign scheduling | ✅ Native | Timezone-aware |
@@ -335,23 +366,25 @@ Execute in this order:
 
 1. **Set up SES:**
    - [ ] Verify sending domain (`news.<domain>`) in SES console
-   - [ ] Add DKIM CNAME records to Cloudflare DNS
-   - [ ] Add DMARC TXT record
+   - [ ] Add 3 DKIM CNAME records to Cloudflare DNS
+   - [ ] Configure Custom MAIL FROM subdomain (`bounce.news.<domain>`) with MX + SPF TXT records
+   - [ ] Add DMARC TXT record (`p=none` to start — monitor before enforcing)
    - [ ] Request production access (provide use case + volume plan)
    - [ ] Create SMTP credentials (IAM user with `ses:SendRawEmail`)
-   - [ ] Set up SNS topic for bounce/complaint notifications
+   - [ ] Set up SNS topic for bounce/complaint notifications (see 4-step SNS wiring above)
 
 2. **Deploy Listmonk:**
    - [ ] Add Listmonk to `compose.yaml` (Go binary, Postgres DB on `postgres-main`, `coolify` network)
    - [ ] Configure SMTP relay pointing to SES (`email-smtp.<region>.amazonaws.com:587`)
    - [ ] Configure bounce webhook endpoint to receive SNS notifications
    - [ ] Set up double opt-in for all lists
-   - [ ] Import subscriber list from Resend (CSV export → Listmonk import)
+   - [ ] **Sanitize subscriber list before import:** scrub bounced, inactive (no open in 90+ days), and role-based addresses (`info@`, `admin@`). Importing a dirty list into a fresh SES account triggers early bounces that can get your account suspended before you build reputation.
+   - [ ] Import cleaned subscriber list from Resend (CSV export → Listmonk import)
    - [ ] Upload MJML-compiled HTML templates
 
 3. **Test before switching:**
    - [ ] Send test campaign to internal addresses
-   - [ ] Verify `List-Unsubscribe` header present
+   - [ ] Verify `List-Unsubscribe` AND `List-Unsubscribe-Post` headers present (RFC 8058 one-click)
    - [ ] Verify bounce processing works (send to a known-bad address)
    - [ ] Verify DKIM/SPF/DMARC pass (check headers in received test email)
    - [ ] Check spam score (mail-tester.com or similar)
@@ -374,6 +407,8 @@ Execute in this order:
 | 5,000 contacts, 2+ domains | **$40/mo** (Pro required) | ~$5/mo container + ~$2/mo SES |
 | 20,000 contacts | **$40+/mo** (Pro + overage) | ~$5/mo container + ~$8/mo SES |
 | 100,000 contacts | **Custom pricing** | ~$10/mo container + ~$40/mo SES |
+
+**SES cost add-ons** (not in the base $0.10/1k rate): VDM +$0.07/1k if enabled, dedicated IP +$24.95/mo/IP if needed. **Turkey billing note:** AWS invoices in TRY with 20% KDV (VAT) on top — budget accordingly.
 
 **Break-even:** Listmonk + SES is cheaper than Resend Pro ($40/mo) at any scale. The migration cost is your time to set it up (~2-4 hours). The trigger is more about capability (domains, contacts, control) than pure cost.
 
@@ -473,6 +508,7 @@ FastAPI backend → İYS integrator API (check consent) → if approved → ESP 
 - [ ] Sending domain has SPF + DKIM + DMARC on a dedicated subdomain.
 - [ ] `List-Unsubscribe` one-click on bulk mail.
 - [ ] Rendered/tested on Apple Mail + Gmail + Outlook-Windows + dark mode.
+- [ ] Dark mode: `color-scheme` meta + `@media (prefers-color-scheme: dark)` overrides in brand partial; tested on Apple Mail + Outlook dark mode.
 - [ ] Runtime image contains no Node; keys via env.
 - [ ] (Mobile) push payload localized, deep-linked, PII-free.
 - [ ] (WP) consumed via Woo override / ESP with correct merge tags.
@@ -500,12 +536,13 @@ FastAPI backend → İYS integrator API (check consent) → if approved → ESP 
 | Hand-coded HTML tables | MJML auto-emits tables + VML |
 | External `<link>` stylesheets | MJML inlines all CSS at build |
 | Background-image-dependent layout | Solid fills or VML via MJML |
-| Customer email through Apprise | Resend (transactional) or Loops (marketing). Apprise = internal/ops only |
+| Customer email through Apprise | Resend (transactional) or Listmonk+SES (marketing). Apprise = internal/ops only |
 | Missing plain-text part | `multipart/alternative` with plain-text always |
 | Sending from the root domain | Dedicated subdomain (e.g. `mail.<domain>`) |
 | Secrets/PII in push payloads | Deep link only; PII stays server-side |
 | Per-template brand drift | ONE shared brand partial governs all templates |
 | Uncompiled MJML shipped to runtime | Commit compiled `dist/` HTML; runtime loads compiled output |
+| Email template without dark mode overrides | `color-scheme` meta + `@media (prefers-color-scheme: dark)` in shared brand partial |
 | Resend React Email / JSX layer | Ignored — we use MJML+Jinja2 |
 | Hardcoded strings in email templates | i18n JSON per locale (`emails/i18n/{locale}.json`) |
 | Hardcoded date/number formats in emails | Locale-aware formatting via `babel` or equivalent |

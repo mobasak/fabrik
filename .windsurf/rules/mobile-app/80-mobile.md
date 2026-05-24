@@ -78,7 +78,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 ## Architecture
 
-- React Native with TypeScript is the mobile framework. The New Architecture (Fabric/JSI) is the default in current React Native (0.76+) and Expo (SDK 53+); the legacy bridge was frozen in June 2025 and removed as an option in RN 0.82. Never generate code relying on the legacy asynchronous JSON bridge.
+- React Native with TypeScript is the mobile framework. The New Architecture (Fabric/JSI) is the default since React Native 0.76 and Expo SDK 53; the legacy bridge was frozen in June 2025 and removed in RN 0.82 (Oct 2025). Expo SDK 55 (current stable, Feb 2026) made it mandatory — `newArchEnabled: false` no longer exists. Never generate code relying on the legacy asynchronous JSON bridge.
 - Web DOM elements (`<div>`, `<span>`, `<p>`, `<img>`, `<a>`) are **strictly forbidden**. Use React Native primitives: `<View>`, `<Text>`, `<Pressable>`, `<Image>`.
 - Minimize direct modifications to `android/` and `ios/` directories. Prefer config plugins or autolinking where possible.
 - If the project uses Expo Managed Workflow, never suggest `npx expo eject` or manual native file edits. All native configuration belongs in `app.json` config plugins.
@@ -143,7 +143,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 - Apply Ocoron Design System color tokens (`ocoron-design-system.md`) via `react-native-unistyles` theme configuration. Same hex values as web, mapped to the unistyles theme object.
 - Load **Space Grotesk** and **Inter** as custom fonts via `expo-font` or manual linking. Use **JetBrains Mono** for data/metrics displays only.
-- Dark mode is the default. Light mode uses the Ocoron light surface token set, toggled via unistyles theme switching.
+- **Both dark and light mode are mandatory.** Dark is default. Detect OS preference via `Appearance.getColorScheme()` + `addEventListener('change')` on mount. Manual override in Settings screen. Persist preference in MMKV. Switch via `react-native-unistyles` theme.
 - Cards → `Pressable` list items with `translateY(1)` + `scale(0.98)` press feedback (`0.15s` duration).
 - Tab bar → bottom navigation using `--color-accent` (`#5B5BF7`) for the active tab indicator.
 - Font size floor: 13px. No text smaller than this on any mobile surface.
@@ -300,7 +300,7 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 | Hardcoded prices or offering IDs | RevenueCat dashboard remote config |
 | Push permission requested on first launch | Deferred until post-onboarding value moment |
 | Tracking SDKs firing before ATT / GDPR consent | Gated behind explicit user consent |
-| PII in AI agent prompts or external LLM calls | `.aiexclude` + server-side redaction |
+| PII in AI agent prompts or external LLM calls | Server-side redaction (durable control); `.aiexclude` is Google/Gemini-only, not cross-vendor |
 | `any` type | `unknown` + type guards (per `20-typescript.md`) |
 | `console.log()` in production builds | Sentry breadcrumbs or strip via babel plugin; dev-only in `__DEV__` guard |
 | Firebase Dynamic Links | Dead (Aug 2025) — use ChottuLink or equivalent |
@@ -351,3 +351,4 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] Pricing configured per country in RevenueCat dashboard.
 - [ ] Single Supabase region documented in privacy policy; multi-region only deployed if user base justifies it.
 - [ ] No PII in AI agent prompts or external LLM calls.
+- [ ] Both dark and light mode implemented. OS preference detected + manual toggle in Settings + preference persists in MMKV.

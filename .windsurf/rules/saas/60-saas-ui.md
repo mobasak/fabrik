@@ -21,7 +21,7 @@ All SaaS UI projects follow `ocoron-design-system.md` as the single source of tr
 
 - **Design tokens:** CSS custom properties (`--color-*`, `--surface-*`, `--text-*`) or Tailwind theme equivalents. Never raw hex values, arbitrary colors, or hardcoded font names.
 - **Typography:** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data). No substitutions.
-- **Dark mode is the default.** Light mode via `[data-theme="light"]`.
+- **Both dark and light mode are mandatory.** Dark is default. Detect OS `prefers-color-scheme` on first load; manual toggle in Settings; persist in `localStorage`. Switch via `[data-theme="light"]` on `<html>`.
 - **No box-shadows in dark mode.** Use `1px solid var(--border)`.
 - **Component patterns** (cards, tags, pills, buttons, tabs, progress bars, KPI cards, data tables, forms) follow the canonical specs. Do not reinvent.
 - **Motion** follows the duration scale (`--motion-fast` through `--motion-deliberate`) and easing tokens. No bounce, no spring physics outside celebrations. See design system § Motion Language.
@@ -218,6 +218,19 @@ For SaaS products with tenant isolation (reference `95-multi-tenant-saas.md`):
 
 ---
 
+## Responsive Design (Mandatory)
+
+**Every SaaS page must be responsive from 375px to 2560px. No exceptions.** For the full breakpoint system, grid, and component behavior rules, see `ocoron-design-system.md` § Responsive Layout (RWD1–RWD10). Key points for SaaS:
+
+- **Mobile-first CSS.** Base styles target smallest viewport; `sm:`, `md:`, `lg:` layer up. Never write `max-width` queries.
+- **Sidebar:** full (240px) at `lg:` (1024px+), icon rail (56px) at `md:` (768px), hidden + hamburger below `md:`.
+- **Data tables:** transform to card list OR horizontal scroll with sticky first column below `md:`. Unmodified desktop tables on phone viewports are banned.
+- **Modals:** become full-screen sheets below `sm:` (640px).
+- **Dashboard grids:** 1 column below `sm:`, 2 columns at `md:`, 3-4 columns at `lg:`.
+- **Test at 375px, 768px, 1440px** before every UI merge. Untested responsive = broken responsive. For the full testing process (Playwright automation, screenshot workflow, fix patterns, common mistakes), see `docs/reference/mobile-responsive-testing-guide.md`.
+
+---
+
 ## Performance Budgets
 
 - Core Web Vitals targets (p75 field): LCP <= 2.5s, INP <= 200ms, CLS <= 0.1.
@@ -287,12 +300,16 @@ All user-facing text follows the Ocoron Verbal Identity (see design system § Vo
 | Infrastructure metrics visible to regular users | Admin-only dashboard section |
 | Reinventing component primitives per page | Shared primitives composed into patterns |
 | `next-intl` / `react-i18next` / third-party i18n | Scaffolded `lib/i18n/` |
+| Desktop-only layouts (no responsive breakpoints) | Mobile-first CSS with `sm:`/`md:`/`lg:` breakpoints (see design system § Responsive Layout) |
+| Unmodified desktop data tables on mobile viewports | Card transformation (Pattern A) or horizontal scroll with sticky column (Pattern B) |
+| Floating modals on viewports < 640px | Full-screen sheet pattern |
+| Persistent full sidebar on viewports < 1024px | Collapsed icon rail (768px+) or hamburger (below 768px) |
 
 ---
 
 ## Related Rule Packs
 
-- `ocoron-design-system.md` — single source of truth for all visual and verbal patterns (tokens, components, motion, density, tables, forms, charts, states, notifications, AI patterns, accessibility, multilingual, formatting, print/export)
+- `ocoron-design-system.md` — single source of truth for all visual and verbal patterns (tokens, components, motion, density, tables, forms, charts, states, notifications, AI patterns, accessibility, **responsive layout RWD1-RWD10**, multilingual, formatting, print/export)
 - `35-security-auth.md` — auth patterns (Pattern A / B), CSP, CORS, token storage
 - `55-observability.md` — no `console.log`, structured logging, health endpoints
 - `86-email-templates.md` — email/notification template patterns (MJML+Jinja2)
@@ -318,6 +335,11 @@ A UI component or page is done when all of the following are true:
 - [ ] All user-visible strings use `t('key')` — no hardcoded English in JSX or templates.
 - [ ] No `console.log()` in production code paths.
 - [ ] Authenticated users never see marketing content on the homepage.
+- [ ] Page tested and functional at 320px, 768px, and 1440px — no horizontal overflow, no broken layouts.
+- [ ] Sidebar collapses to icon rail at `md:` and hides behind hamburger below `md:`.
+- [ ] Data tables use card transformation or sticky-column scroll on mobile viewports.
+- [ ] Modals render as full-screen sheets below `sm:` (640px).
+- [ ] Both dark and light mode functional. OS `prefers-color-scheme` detected; manual toggle in Settings; preference persists in `localStorage`.
 - [ ] Dashboard stat cards each answer a stated question; no card exceeds the 6-8 cap without progressive disclosure.
 - [ ] Infrastructure metrics (queue depth, worker PIDs, proxy stats) are admin-only.
 - [ ] Paywalled features show soft gate (locked + upgrade CTA), not hidden.

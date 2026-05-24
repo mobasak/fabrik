@@ -95,7 +95,8 @@ Tojlo uses Ocoron's design system as its foundation. The following are **inherit
 - **Voice and tone:** "The Engineer Who Ships." Precise, confident, grounded. Identical traits, identical tone spectrum.
 - **Writing rules:** lead with outcome, active voice, short paragraphs, specifics over adjectives, no rhetorical questions, describe AI specifically. Identical.
 - **Forbidden language table:** identical. The same forbidden words apply.
-- **AI-agent visual rules 1–10:** identical.
+- **AI-agent visual rules 1–10 and responsive rules 11–15:** identical.
+- **Responsive layout:** breakpoints (sm/md/lg/xl/2xl), mobile-first approach, layout grid, component responsive behavior, sidebar collapse, data table mobile patterns, RWD1–RWD10 — identical. Every Tojlo web page must be responsive from 375px to 2560px.
 - **Scaffold adaptation matrix** (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus): identical, with only the accent token swapped.
 
 If a rule is not listed in this document, the Ocoron design system rule applies.
@@ -521,7 +522,7 @@ Never check in alternate, modified, or "experimental" wordmark assets to product
 
 ### Surface Hierarchy
 
-**Inherited from Ocoron unchanged.** Both dark mode (default) and light mode (opt-in) use the identical surface tokens. Do not re-tint surfaces with the Tojlo accent — surfaces stay neutral so the accent earns attention when it appears.
+**Inherited from Ocoron unchanged.** Both dark mode (default) and light mode are mandatory — same enforcement (OS detection + manual toggle + persistence). Do not re-tint surfaces with the Tojlo accent — surfaces stay neutral so the accent earns attention when it appears.
 
 ### Module Color Coding (Tojlo-Specific Addition)
 
@@ -1919,6 +1920,20 @@ ACC8. **Touch targets ≥ 44px on touch devices** regardless of density.
   spacing: {
     xs: '4px', sm: '8px', md: '16px', lg: '24px', xl: '32px', '2xl': '48px',
   },
+  transitionDuration: {
+    instant: '0ms',
+    fast: '100ms',
+    default: '150ms',
+    slow: '250ms',
+    deliberate: '400ms',
+    celebration: '600ms',
+  },
+  transitionTimingFunction: {
+    'ease-default': 'cubic-bezier(0.16, 1, 0.3, 1)',
+    'ease-linear': 'linear',
+    'ease-spring': 'cubic-bezier(0.5, 1.5, 0.5, 1)',
+    'ease-emphasis': 'cubic-bezier(0.4, 0, 0.2, 1)',
+  },
 }
 ```
 
@@ -1968,6 +1983,20 @@ ACC8. **Touch targets ≥ 44px on touch devices** regardless of density.
 
   --transition-speed: 0.15s;
   --transition-ease: ease;
+
+  /* Motion tokens — canonical values from § Motion Language */
+  --motion-instant: 0ms;
+  --motion-fast: 100ms;
+  --motion-default: 150ms;
+  --motion-slow: 250ms;
+  --motion-deliberate: 400ms;
+  --motion-celebration: 600ms;
+
+  /* Easing tokens — canonical values from § Motion Language */
+  --ease-default: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-linear: linear;
+  --ease-spring: cubic-bezier(0.5, 1.5, 0.5, 1);
+  --ease-emphasis: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 [data-theme="light"] {
@@ -2143,6 +2172,14 @@ T45. **No third-party analytics** in operator UI without consent. Anonymous tele
 T46. **No silent partial failures.** "Sent 11 of 12" is a failure with one exception, surfaced explicitly.
 T47. **Deprecated tokens emit a console warning** in development builds.
 
+### Tojlo Responsive Rules
+
+T48. **Every Tojlo web page must be responsive from 375px to 2560px.** No desktop-only layouts. No exceptions. Mobile-first CSS: base styles target smallest viewport, breakpoints layer up.
+T49. **Sidebar collapses below 1024px.** Icon rail at 768-1023px, hamburger/bottom tabs below 768px. Persistent full sidebar on mobile is banned.
+T50. **Data tables transform on mobile.** Card transformation (Pattern A) or horizontal scroll with sticky first column (Pattern B). Unmodified desktop tables on phone viewports are banned.
+T51. **Modals become full-screen sheets below 640px.** Floating modals on phone viewports are banned.
+T52. **Test at 375px, 768px, 1440px before every UI merge.** Untested responsive = broken responsive. Full testing process: `docs/reference/mobile-responsive-testing-guide.md`.
+
 ---
 
 ## Versioning
@@ -2153,3 +2190,4 @@ This document is versioned alongside Tojlo platform releases. Breaking changes (
 |---|---|---|
 | v1.0 | 2026-05-18 | Initial release. Endorsed-brand model under Ocoron. Tojlo Indigo accent. Twelve-module canonical list. |
 | v1.1 | 2026-05-18 | Comprehensive expansion. Brand: Manifesto, anti-positioning, audience, customer promise, localized voice (TR/AR/RU/FA), voice across 22 surfaces, naming and capitalization rules. Visual: full logo construction spec, iconography, motion language, density modes. Components: data tables, forms, command palette, charts, six-state taxonomy, notifications, activity/audit, permissions, onboarding. AI: 5 surface patterns (A1–A5), confidence and citation, recovery and override, multimodal. Localization: multilingual and RTL, date/time/currency/number formatting. Output: email templates, print and export. Compliance: WCAG 2.2 AA matrix. Implementation: token governance, stack summary. Agent rules expanded from 13 to 47 (T1–T47). |
+| v1.2 | 2026-05-24 | Added: Responsive layout inherited from Ocoron (RWD1-RWD10). Motion/easing tokens added to CSS and Tailwind references. Responsive rules T48–T52. |

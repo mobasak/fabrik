@@ -267,7 +267,7 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 | `--surface-3` | `#222222` | Hover states on cards, active list items |
 | `--border` | `#2A2A2A` | All borders, dividers — always 1px solid |
 
-### Surface Hierarchy (Light Mode — Optional)
+### Surface Hierarchy (Light Mode — Mandatory)
 
 | Token | Hex | Role |
 |---|---|---|
@@ -1299,7 +1299,7 @@ Three-state confidence indicator for AI-generated content:
 - **ML4:** RTL layout must be tested on every page. Use browser DevTools `dir="rtl"` toggle during development.
 - **ML5:** Translated strings must never be split across multiple HTML elements. One element = one translatable string.
 - **ML6:** Date and number formatting must use `Intl.DateTimeFormat` and `Intl.NumberFormat` — never manual string construction.
-- **ML7:** Language selector must show language names in their native script: "Turkce", "English", "العربية", "Русский", "فارسی".
+- **ML7:** Language selector must show language names in their native script: "Türkçe", "English", "العربية", "Русский", "فارسی".
 - **ML8:** Content entered by users (e.g., invoice descriptions, contact names) is stored in the original language. The UI chrome translates; user data does not.
 
 ---
@@ -1393,13 +1393,15 @@ Three-state confidence indicator for AI-generated content:
 
 Refer to the Color System section (part 1) for the full palette. All text-background combinations must meet WCAG 2.1 AA contrast ratios:
 
-| Combination | Ratio | Meets AA? |
+| Combination | Ratio (dark) | Meets AA? |
 |---|---|---|
-| `--text-primary` on `--surface-0` | 19.3:1 (dark), 15.1:1 (light) | Yes |
-| `--text-body` on `--surface-0` | 14.8:1 (dark), 10.5:1 (light) | Yes |
-| `--text-muted` on `--surface-0` | 6.5:1 (dark), 3.1:1 (light) | Yes (AA), light mode at minimum |
-| `--color-accent` on `--surface-0` | 8.7:1 (dark) | Yes |
-| `--color-accent` text on `--surface-1` | 7.8:1 (dark) | Yes |
+| `--text-primary` (#FFF) on `--surface-0` (#0A0A0A) | 19.83:1 | AAA |
+| `--text-body` (#E0E0E0) on `--surface-0` (#0A0A0A) | 16.04:1 | AAA |
+| `--text-muted` (#888) on `--surface-0` (#0A0A0A) | 5.74:1 | AA |
+| `--color-accent` (#5B5BF7) on `--surface-0` (#0A0A0A) | 5.41:1 | AA |
+| `--color-accent` (#5B5BF7) on `--surface-1` (#141414) | 4.95:1 | AA |
+
+Light mode pairs must be re-validated per project. See § Color Contrast (Verified Pairs) for the full table including forbidden pairs.
 
 ### Keyboard Navigation
 
@@ -1459,6 +1461,152 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
 
 ---
 
+## Responsive Layout
+
+**RWD is mandatory for every web scaffold — no exceptions.** Every page, component, and layout must render correctly from 375px (iPhone SE — smallest current phone) to 2560px (ultrawide). This is not optional; Traycer tickets assume it; coding agents must implement it.
+
+### Breakpoint Tokens
+
+| Token | Width | Target |
+|---|---|---|
+| `--bp-sm` | 640px | Large phones (landscape), small tablets |
+| `--bp-md` | 768px | Tablets (portrait) |
+| `--bp-lg` | 1024px | Tablets (landscape), small laptops |
+| `--bp-xl` | 1280px | Laptops, desktops |
+| `--bp-2xl` | 1536px | Large desktops, ultrawide |
+
+These map directly to Tailwind's default breakpoints (`sm:`, `md:`, `lg:`, `xl:`, `2xl:`). Use them verbatim — never invent custom breakpoints.
+
+### Approach: Mobile-First
+
+All CSS is authored **mobile-first** — base styles target the smallest viewport, `min-width` media queries layer up complexity:
+
+```css
+/* Base: mobile (< 640px) */
+.grid { grid-template-columns: 1fr; }
+
+/* sm: 640px+ */
+@media (min-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* lg: 1024px+ */
+@media (min-width: 1024px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+```
+
+In Tailwind: write base classes first, then add `sm:`, `md:`, `lg:` prefixes. Never write `max-width` queries (desktop-first).
+
+### Layout Grid
+
+| Viewport | Columns | Gutter | Container max-width | Side padding |
+|---|---|---|---|---|
+| < 640px | 4 | 16px | 100% | 16px |
+| 640px – 1023px | 8 | 16px | 100% | 24px |
+| 1024px – 1279px | 12 | 24px | 1024px | 32px |
+| 1280px+ | 12 | 24px | 1280px | auto (centered) |
+
+### Responsive Behavior by Component
+
+| Component | < 640px | 640px – 1023px | 1024px+ |
+|---|---|---|---|
+| **Sidebar nav** | Hidden; hamburger menu or bottom tab bar (< 768px) | Collapsed icon rail (56px) (768px – 1023px) | Full sidebar (240px) |
+| **Data tables** | Card list (one card per row) OR horizontal scroll with sticky first column | Horizontal scroll with sticky first column | Full table |
+| **Dashboard grid** | 1 column, stacked cards | 2 columns | 3-4 columns |
+| **Forms** | Single column, full width | Single column, max-width 560px centered | Two-column for wide viewports (>1024px) with grouped fields |
+| **Modal/dialog** | Full-screen sheet (bottom sheet pattern) | Centered modal, max-width 480px | Centered modal, max-width 560px |
+| **Hero section** | Stack vertically, image below text | Stack vertically | Side-by-side (text left, visual right) |
+| **Top navigation** | Logo + hamburger | Logo + condensed nav | Logo + full nav + actions |
+
+### Sidebar Responsive Pattern (SaaS)
+
+```
+Mobile (< 640px):
+┌──────────────────────┐
+│ [hamburger] Title    │  ← top bar
+├──────────────────────┤
+│                      │
+│  [Full-width content]│
+│                      │
+├──────────────────────┤
+│ [tab] [tab] [tab]   │  ← optional bottom tabs
+└──────────────────────┘
+
+Tablet (768px – 1023px):
+┌──┬───────────────────┐
+│  │                   │
+│56│  Content area     │  ← icon rail (collapsed sidebar)
+│px│                   │
+└──┴───────────────────┘
+
+Desktop (1024px+):
+┌─────┬────────────────┐
+│     │                │
+│240px│  Content area  │  ← full sidebar
+│     │                │
+└─────┴────────────────┘
+```
+
+### Data Tables on Small Viewports
+
+Tables with 4+ columns are unreadable on mobile. Two approved patterns:
+
+**Pattern A — Card transformation:**
+Each table row becomes a card. Column headers become inline labels. Use when: rows represent distinct entities (contacts, invoices, orders).
+
+```
+Desktop:                          Mobile:
+┌────┬──────┬────────┬───────┐   ┌─────────────────────┐
+│Name│Email │Status  │Actions│   │ John Doe             │
+├────┼──────┼────────┼───────┤   │ john@acme.com        │
+│John│j@a.co│Active  │  ⋮   │   │ Status: Active    ⋮  │
+└────┴──────┴────────┴───────┘   └─────────────────────┘
+```
+
+**Pattern B — Horizontal scroll with sticky column:**
+First column (identifier) sticks; remaining columns scroll. Use when: comparing values across columns matters (pricing tables, feature matrices, analytics).
+
+### Per-Scaffold Responsive Strategy
+
+| Scaffold | Responsive strategy |
+|---|---|
+| **saas-skeleton** | Full RWD. Sidebar collapses. Tables transform. Dashboard stacks. Touch targets enforced on mobile viewports. |
+| **static-site** | Full RWD, mobile-first. Every marketing page must pass Google Mobile-Friendly Test. Images use `srcset` + `sizes`. |
+| **docusaurus** | Default theme is responsive. Custom components MUST be responsive — test at 375px before merge. |
+| **chrome-extension** | Fixed 400px width. No breakpoints. Not applicable. |
+| **desktop-app** | Minimum window 800×600. Internal layout uses the grid system from 1024px+ column. No mobile breakpoints. |
+
+### Image Responsiveness
+
+- All content images use `<Image>` with `srcset` and `sizes` attributes (or Next.js `<Image>` component which handles this automatically).
+- Maximum rendered width: never exceed `container max-width` at any breakpoint.
+- Art direction: use `<picture>` with `<source media="...">` when the crop must change between mobile and desktop (hero images, feature illustrations).
+- Lazy-load all images below the fold (`loading="lazy"`). Eager-load the LCP image.
+
+### Responsive Testing
+
+For the full testing process (Playwright automation, screenshot workflow, diagnosis table, fix patterns by framework, interactive state captures, common mistakes), see `docs/reference/mobile-responsive-testing-guide.md`.
+
+**Quick viewport checklist** — every UI PR must pass at these widths before merge:
+
+- [ ] 375px (iPhone SE — design floor)
+- [ ] 768px (iPad portrait)
+- [ ] 1024px (iPad landscape / small laptop)
+- [ ] 1440px (standard desktop)
+- [ ] 1920px+ (verify no stretched/empty layouts on ultrawide)
+
+### Responsive Rules (Enforced)
+
+- **RWD1:** Every web page must be functional and readable at 375px. No horizontal scrollbar on the page body at any viewport. (Exception: data tables using Pattern B.)
+- **RWD2:** Touch targets must be >= 44px on viewports < 1024px, even in web browsers. Mobile users access web apps on phone browsers.
+- **RWD3:** Text must remain readable without horizontal scrolling or zoom at any viewport. No fixed-width containers that overflow.
+- **RWD4:** Navigation must be accessible at every breakpoint. Hidden nav requires a visible toggle (hamburger or bottom tabs).
+- **RWD5:** Images and media must never overflow their container. Use `max-width: 100%; height: auto;` as baseline.
+- **RWD6:** No `display: none` to hide critical content on mobile. Content that exists at desktop must be accessible on mobile — reorganize, don't remove.
+- **RWD7:** Font sizes must be readable on mobile without zoom. Minimum 14px body text on all viewports (matches the Body type scale).
+- **RWD8:** Modals become full-screen sheets on viewports < 640px. Never show a floating modal on a phone — it's unusable.
+- **RWD9:** Sidebar navigation MUST collapse on viewports < 1024px. A persistent 240px sidebar on tablet/mobile is banned.
+- **RWD10:** Test every page at 375px, 768px, 1440px before merge. Untested responsive = broken responsive.
+
+---
+
 ## Interaction Tokens
 
 | Property | Value |
@@ -1480,7 +1628,7 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
 - shadcn/ui components themed with Ocoron tokens via CSS variables in `globals.css`.
 - Side nav uses surface hierarchy (`--surface-0` → `--surface-1`).
 - Tables, forms, dashboards use card pattern.
-- Light mode toggle optional — dark is default.
+- Both dark and light mode mandatory. OS `prefers-color-scheme` detected on load; manual toggle in Settings; preference persists in `localStorage`.
 - Tailwind config extends with all Ocoron tokens.
 
 ### static-site (Landing pages, marketing)
@@ -1503,6 +1651,7 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
 ### mobile-app (React Native + react-native-unistyles)
 
 - Same color system mapped to `react-native-unistyles` theme tokens.
+- Both dark and light mode mandatory. Detect via `Appearance.getColorScheme()`, listen for changes, manual override in Settings, persist in MMKV.
 - Space Grotesk loaded as custom font.
 - Inter loaded as custom font (or system sans-serif fallback where needed).
 - Cards → touchable list items with `translateY(1px)` + `scale(0.98)` press feedback.
@@ -1514,7 +1663,7 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
 
 - Same as saas-skeleton with title bar integration.
 - System tray uses `--color-accent` for notification badges.
-- Respect OS dark/light mode preference — auto-switch surface tokens.
+- Both dark and light mode mandatory. Respect OS preference, manual toggle in title bar, persist per-device.
 - Minimum window size: 800×600.
 
 ### wordpress (Headless WP + Next.js frontend)
@@ -1570,20 +1719,18 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
     '2xl': '48px',
   },
   transitionDuration: {
-    instant: '50ms',
+    instant: '0ms',
     fast: '100ms',
-    normal: '150ms',
-    slow: '300ms',
-    deliberate: '500ms',
-    celebration: '800ms',
+    default: '150ms',
+    slow: '250ms',
+    deliberate: '400ms',
+    celebration: '600ms',
   },
   transitionTimingFunction: {
-    'ease-default': 'cubic-bezier(0.4, 0, 0.2, 1)',
-    'ease-in': 'cubic-bezier(0.4, 0, 1, 1)',
-    'ease-out': 'cubic-bezier(0, 0, 0.2, 1)',
-    'ease-in-out': 'cubic-bezier(0.4, 0, 0.2, 1)',
-    'ease-bounce': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-    'ease-spring': 'cubic-bezier(0.22, 1, 0.36, 1)',
+    'ease-default': 'cubic-bezier(0.16, 1, 0.3, 1)',
+    'ease-linear': 'linear',
+    'ease-spring': 'cubic-bezier(0.5, 1.5, 0.5, 1)',
+    'ease-emphasis': 'cubic-bezier(0.4, 0, 0.2, 1)',
   },
 }
 ```
@@ -1633,21 +1780,19 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
   --transition-speed: 0.15s;
   --transition-ease: ease;
 
-  /* Motion tokens */
-  --motion-instant: 50ms;
+  /* Motion tokens — canonical values from § Motion Language */
+  --motion-instant: 0ms;
   --motion-fast: 100ms;
-  --motion-normal: 150ms;
-  --motion-slow: 300ms;
-  --motion-deliberate: 500ms;
-  --motion-celebration: 800ms;
+  --motion-default: 150ms;
+  --motion-slow: 250ms;
+  --motion-deliberate: 400ms;
+  --motion-celebration: 600ms;
 
-  /* Easing tokens */
-  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --ease-out: cubic-bezier(0, 0, 0.2, 1);
-  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Easing tokens — canonical values from § Motion Language */
+  --ease-default: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-linear: linear;
+  --ease-spring: cubic-bezier(0.5, 1.5, 0.5, 1);
+  --ease-emphasis: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Light mode override */
@@ -1672,7 +1817,7 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
 1. **Never invent colors.** Use only the tokens above. If a new semantic color is needed, propose an addition to this doc first.
 2. **Never use inline styles** in production code. Use Tailwind classes mapped to these tokens.
 3. **Font assignment is strict.** Headings = Space Grotesk. Body = Inter. Code/data = JetBrains Mono. No exceptions.
-4. **Dark mode is default.** Light mode is opt-in and uses the light surface token set.
+4. **Both dark and light mode are mandatory.** Dark is the default. Detect OS `prefers-color-scheme` on first load, provide a manual toggle in Settings, persist preference per-device. No scaffold ships dark-only or light-only.
 5. **No shadows in dark mode.** Use 1px borders for elevation. Shadows are allowed in light mode only, and must be subtle (`0 1px 3px rgba(0,0,0,0.08)`).
 6. **Component patterns are canonical.** Cards, tags, pills, buttons, tabs — use the specs above. Don't reinvent.
 7. **Spacing uses the token scale.** No arbitrary pixel values. Use `xs/sm/md/lg/xl/2xl`.
@@ -1680,12 +1825,20 @@ Refer to the Color System section (part 1) for the full palette. All text-backgr
 9. **Accent color for interactivity only.** Don't use `--color-accent` for decorative elements, backgrounds, or large surfaces.
 10. **Logo is always an asset.** Never render the Ocoron wordmark in a text font.
 
+### Responsive Rules
+
+11. **Every web component must be responsive.** Author mobile-first, layer up with `sm:`, `md:`, `lg:` breakpoints. No fixed-width layouts. No desktop-only components. No exceptions.
+12. **Test at 375px before delivering.** If a component overflows or becomes unusable at 375px viewport width, it is not done. This is a gate, not a guideline.
+13. **Sidebar collapses below 1024px.** Icon rail at 768-1023px (`md:`), hidden (hamburger/bottom tabs) below 768px. A persistent full sidebar on mobile/tablet is banned.
+14. **Tables transform on mobile.** Use card transformation (Pattern A) or horizontal scroll with sticky first column (Pattern B). Unmodified desktop tables on phone viewports are banned.
+15. **Modals become full-screen sheets below 640px.** Floating modals on phone viewports are banned.
+
 ### Verbal Rules
 
-11. **Never use forbidden language.** Check the Forbidden Language table before writing any user-facing copy. No exceptions.
-12. **Brand name is "Ocoron."** Capital O, lowercase rest. No all-caps in text, no all-lowercase in text. Lowercase only in code/URLs.
-13. **Lead with outcomes in all UI copy.** Button labels, tooltips, descriptions — state what happens, not how it works.
-14. **Error messages must be actionable.** State what failed, why, and what the user should do next. Never "Something went wrong."
-15. **No rhetorical questions** in any generated copy — headlines, descriptions, tooltips, onboarding flows. State the answer.
-16. **Describe AI specifically.** When referencing AI capabilities, name the action: "AI reviews," "AI generates," "AI monitors." Never use "AI-powered" as a standalone adjective.
-17. **Sub-brand naming requires approval.** Never generate a new product name or sub-brand. Use "Ocoron" until the human operator assigns a name.
+16. **Never use forbidden language.** Check the Forbidden Language table before writing any user-facing copy. No exceptions.
+17. **Brand name is "Ocoron."** Capital O, lowercase rest. No all-caps in text, no all-lowercase in text. Lowercase only in code/URLs.
+18. **Lead with outcomes in all UI copy.** Button labels, tooltips, descriptions — state what happens, not how it works.
+19. **Error messages must be actionable.** State what failed, why, and what the user should do next. Never "Something went wrong."
+20. **No rhetorical questions** in any generated copy — headlines, descriptions, tooltips, onboarding flows. State the answer.
+21. **Describe AI specifically.** When referencing AI capabilities, name the action: "AI reviews," "AI generates," "AI monitors." Never use "AI-powered" as a standalone adjective.
+22. **Sub-brand naming requires approval.** Never generate a new product name or sub-brand. Use "Ocoron" until the human operator assigns a name.

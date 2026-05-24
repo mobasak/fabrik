@@ -51,6 +51,8 @@ Turkey is **not** in the EU/EEA, so the DMA alternative payment provisions do no
 
 RevenueCat abstracts Google Play Billing and App Store StoreKit into a unified subscription backend. It validates receipts, processes state transitions, handles purchase acknowledgments, and normalizes transaction data. **Do not build a custom receipt validation or RTDN webhook listener for an MVP** — the edge cases (grace periods, billing retries, account holds, pause/resume, upgrade/downgrade, family sharing) require hundreds of engineering hours.
 
+**Pricing:** Free up to **$2,500 MTR** (Monthly Tracked Revenue). Above that threshold, RevenueCat charges **1%** of tracked revenue. No per-user fee, no setup cost.
+
 ### Client-Side Integration
 
 ```typescript
@@ -220,7 +222,7 @@ Process-level gates — complete before first submission on each store.
 ### Account Setup
 
 **Google Play:**
-- [ ] Play Console registered as **Organization** (not Personal) — bypasses the 14-day / 12-20 tester closed testing mandate. Requires D-U-N-S number from Dun & Bradstreet + LLC documentation.
+- [ ] Play Console registered as **Organization** (not Personal) — bypasses the 14-day / 12-tester closed testing mandate (reduced from 20 in Dec 2024). Requires D-U-N-S number from Dun & Bradstreet + LLC documentation.
 - [ ] 15% Small Business fee enrolled (Account Group created, ADAs declared, ToS accepted).
 - [ ] W-8BEN-E filed with Google for US-Turkey treaty benefits.
 
@@ -289,6 +291,7 @@ Process-level gates — complete before first submission on each store.
 - `55-observability.md` — backend structlog + GlitchTip; client Sentry RN SDK
 - `10-python.md` — backend FastAPI patterns for webhook endpoints
 - `00-domain-mobile-app.md` — planning-level decisions (monetization §5, finance §14)
+- `89-mobile-launch-checklist.md` — full mobile go-to-market protocol (store accounts, legal, tax, review traps, staged rollout, post-launch)
 
 ---
 
