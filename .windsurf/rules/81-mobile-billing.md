@@ -25,6 +25,7 @@ Apply when working on in-app purchases, subscriptions, entitlements, or billing-
 
 - **Paddle, iyzico, Stripe, or any web-steer link for digital feature unlocks = instant rejection.** Do not embed external checkout links for digital goods in any app distributed via Google Play in Turkey.
 - **Monitor:** The Turkish Competition Authority (Rekabet Kurumu) opened antitrust investigations against Google (Aug 2025, Apr 2026). A ruling forcing alternative billing in Turkey is possible but has not landed. Until it does, GPB is mandatory. <!-- Verify quarterly: search "Rekabet Kurumu Google Play billing ruling" -->
+- **Horizon (does not change today's rule):** Google's March 2026 "Own Billing" / app-to-web rollout reaches EEA/UK/US by June 30 2026, Australia by Sept 30 2026, Korea/Japan by Dec 31 2026, and rest of world — including Turkey — by **Sept 30 2027**. This may eventually permit app-to-web purchase flows in Turkey, but it is not live for Turkey now; GPB remains mandatory until then. <!-- Re-verify Turkey status after Sept 2027 -->
 
 ### Apple App Store
 
@@ -90,16 +91,24 @@ async def revenuecat_webhook(request: Request, db: AsyncSession = Depends(get_db
     # 3. Update subscription status in PostgreSQL
     if event_type in ("INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION"):
         await update_subscription_status(db, app_user_id, status="active")
-    elif event_type in ("CANCELLATION", "EXPIRATION"):
+    elif event_type == "EXPIRATION":
+        # Only EXPIRATION revokes access — fired when the subscription actually ends
         await update_subscription_status(db, app_user_id, status="expired")
+    elif event_type == "CANCELLATION":
+        # Auto-renew turned off; user KEEPS access until EXPIRATION. Do not revoke here.
+        # Optionally flag for win-back, but leave subscription_status unchanged.
+        await mark_auto_renew_off(db, app_user_id)
     elif event_type == "BILLING_ISSUE":
+        # With grace periods enabled, keep access; EXPIRATION fires if grace period lapses.
         await update_subscription_status(db, app_user_id, status="grace_period")
 
     return {"status": "ok"}
 ```
 
+**CANCELLATION = auto-renew off, access continues until EXPIRATION.** Never revoke on CANCELLATION. With grace periods enabled, BILLING_ISSUE and CANCELLATION (`cancel_reason: BILLING_ERROR`) fire together — keep access; EXPIRATION arrives only if the grace period lapses.
+
 - Gate premium API routes at the database level: `WHERE subscription_status = 'active'`. Near-zero latency, no external API call per request.
-- **Do NOT poll RevenueCat REST API per request** — 480 requests/minute domain rate limit. Use webhooks to sync state to PostgreSQL.
+- **Do NOT poll RevenueCat REST API per request.** v2 rate limits are per-domain and much lower than they look: most endpoints default to ~60 req/min (variable by load); the `/customers` endpoint is the generous outlier at 480/min. Read the `RevenueCat-Rate-Limit-Current-Limit` / `-Current-Usage` response headers; on 429, honor `Retry-After`. Webhook-to-PostgreSQL sync is the pattern — per-request polling will rate-limit you almost immediately at scale.
 - **Do NOT store granular transaction histories in PostgreSQL** — offload compliance, transaction logging, and state resolution to Google Play and RevenueCat.
 
 ### The 72-Hour Acknowledgment Rule
@@ -124,7 +133,7 @@ Both stores enforce SDK version requirements. RevenueCat abstracts both — keep
 
 ### Google Play Billing Library (PBL)
 
-- **PBL 7.0+ required** by August 31, 2026. Apps using older versions are blocked from publishing updates.
+- **PBL 7.0+** was required as of August 31, 2025. **PBL 8.0** released June 30, 2025 and is current; Google runs an annual deprecation cycle with a Play Console extension form to continue distributing on an older version until November 1. **Target PBL 8.0 for new work.** RevenueCat's SDK tracks the latest PBL — keep it updated and it stays compliant.
 <!-- Verify annually: search "Google Play Billing Library version deprecation" -->
 
 ### Apple StoreKit
@@ -240,7 +249,7 @@ Process-level gates — complete before first submission on each store.
 - [ ] RevenueCat SDK integrated; subscription products configured in **both** Play Console and App Store Connect.
 - [ ] **"Restore Purchases" button on paywall** — omitting this = automatic rejection on BOTH stores. Apple is especially strict.
 - [ ] Server-side entitlement verification via RevenueCat webhooks → PostgreSQL.
-- [ ] PBL 7.0+ and StoreKit 2 (RevenueCat SDK handles both if kept updated).
+- [ ] PBL 8.0 and StoreKit 2 (RevenueCat SDK handles both if kept updated).
 - [ ] No external billing links for digital goods (Turkey excluded from UCB/EOP; Apple IAP mandatory globally except EU DMA).
 
 ### Compliance
@@ -296,7 +305,7 @@ Process-level gates — complete before first submission on each store.
 - [ ] **Both stores:** W-8BEN-E filed for US-Turkey treaty benefits.
 - [ ] Ad revenue and subscription revenue on separate Teknokent ledgers.
 - [ ] Gross invoicing for both Apple and Google payouts — commission expensed via KDV2.
-- [ ] PBL 7.0+ and StoreKit 2 (via RevenueCat SDK).
+- [ ] PBL 8.0 and StoreKit 2 (via RevenueCat SDK).
 - [ ] Play Integrity API integrated for high-value operations.
 - [ ] **Google:** Data Safety form accurately declares all SDK telemetry.
 - [ ] **Apple:** Privacy Manifest declares every reason API and tracking domain.
