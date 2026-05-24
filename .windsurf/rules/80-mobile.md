@@ -29,7 +29,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 |---|---|---|
 | **Splash** | App launch | Brand splash (800ms max per design system § Motion). Checks auth state → routes to onboarding or home. |
 | **Onboarding wizard** | `Onboarding` | 3-5 swipeable value screens. Skippable. Shows before signup for value-before-signup pattern. |
-| **Login** | `Login` | Supabase Auth (email + social). Sign in with Apple mandatory if any social login. |
+| **Login** | `Login` | Supabase Auth (email + social). Per Apple Guideline 4.8, if you offer any third-party/social login you must also offer an equivalent privacy-preserving option — Sign in with Apple is the canonical way to satisfy this. |
 | **Signup** | `Signup` | Registration. Redirects to verify-email screen. |
 | **Verify email** | `VerifyEmail` | "Check your email" — resend button, change email link. Cannot proceed until verified. |
 | **Forgot password** | `ForgotPassword` | Email input → triggers reset flow. |
@@ -78,7 +78,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 ## Architecture
 
-- React Native with TypeScript is the mobile framework. The New Architecture (Fabric/JSI) is preferred when available — do not generate code relying on the legacy asynchronous JSON bridge.
+- React Native with TypeScript is the mobile framework. The New Architecture (Fabric/JSI) is the default in current React Native (0.76+) and Expo (SDK 53+); the legacy bridge was frozen in June 2025 and removed as an option in RN 0.82. Never generate code relying on the legacy asynchronous JSON bridge.
 - Web DOM elements (`<div>`, `<span>`, `<p>`, `<img>`, `<a>`) are **strictly forbidden**. Use React Native primitives: `<View>`, `<Text>`, `<Pressable>`, `<Image>`.
 - Minimize direct modifications to `android/` and `ios/` directories. Prefer config plugins or autolinking where possible.
 - If the project uses Expo Managed Workflow, never suggest `npx expo eject` or manual native file edits. All native configuration belongs in `app.json` config plugins.
@@ -115,7 +115,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 - All tables must have RLS enabled before any client query. No exceptions. Tables without RLS are blocked at code review.
 - Auth: Supabase Auth with `expo-auth-session` for OAuth flows and `expo-secure-store` for token storage. Never store JWTs in AsyncStorage or MMKV.
 - **FastAPI on VPS** is reserved for: AI workflows, scraping, third-party integrations requiring secrets, scheduled jobs, anything that should not run client-side.
-- Auth handoff between Supabase and FastAPI: pass Supabase JWT in the `Authorization` header, validate server-side via Supabase JWKS.
+- Auth handoff between Supabase and FastAPI: pass the Supabase JWT in the `Authorization` header, validate server-side per `35-security-auth.md` Pattern B. Confirm the project's JWT signing method first: asymmetric (ES256) projects expose keys at the JWKS endpoint; legacy HS256 projects return an empty JWKS and must validate with the shared secret. Prefer `getClaims()` (auto-selects). Always assert `aud == "authenticated"`, `iss`, and `exp`.
 - Default Supabase region: **`eu-central-1` (Frankfurt)** — satisfies GDPR, KVKK alignment, acceptable latency to USA and worldwide.
 - Multi-region only when justified: deploy a second project (e.g., `us-east-1`) and route by user region at signup once any non-home region exceeds 5K MAU. Do not pre-shard.
 
@@ -136,7 +136,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 - Use React Native `StyleSheet.create()` as the default styling approach.
 - React Native Flexbox defaults to `flexDirection: 'column'` — do not assume web CSS behavior.
 - Never use web CSS properties (`className`, media queries, `hover`) in React Native components.
-- NativeWind / Tailwind for React Native is not recommended due to significant runtime overhead on mobile (up to 4× slower than raw `StyleSheet`).
+- NativeWind / Tailwind for React Native carries measurable runtime overhead vs raw `StyleSheet` (independent v4 benchmarks show up to ~4× slower rendering many styled views; magnitude is version-dependent — v4 moved to build-time compilation, v5 is in preview). Prefer `StyleSheet` or `react-native-unistyles`. Verify against your installed version if you adopt it.
 - For complex adaptive theming with design tokens, `react-native-unistyles` (C++/JSI, zero re-render overhead) is the approved alternative.
 
 ### Ocoron Design System (Mobile)
@@ -178,7 +178,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 - All user-facing strings live in translation files. No hardcoded strings in components — caught at code review.
 - Supported languages from day 1: **English (en), Turkish (tr)**. Add Spanish (es), German (de), French (fr), Portuguese-BR (pt-BR), Arabic (ar) as markets prove out.
 - Dates and numbers: `Intl.DateTimeFormat` and `Intl.NumberFormat` with the user's locale. Never hardcode `MM/DD/YYYY` or `1,000.00` formats.
-- Time zones: store all timestamps in **UTC** server-side. Render in user locale on the client via `date-fns-tz` or Temporal.
+- Time zones: store all timestamps in **UTC** server-side. Render in user locale on the client via `date-fns-tz`. (Temporal is not yet implemented in Hermes — if used, add `@js-temporal/polyfill`; `date-fns-tz` is the zero-dependency default.)
 - Currency display: `Intl.NumberFormat` with locale + currency code. Pricing source-of-truth is RevenueCat (see Monetization).
 - Phone numbers: `libphonenumber-js` for parsing, formatting, and validation. Never assume a national format.
 - RTL readiness: structure all Flexbox layouts to flip correctly under `I18nManager.isRTL`. Use `start`/`end` instead of `left`/`right` in styles. Even if Arabic ships later, design for it now.
@@ -229,7 +229,7 @@ See `81-mobile-billing.md` for the full mobile billing discipline: RevenueCat in
 
 Key points for the client-side agent:
 
-- **RevenueCat** is the entitlement server — free up to $2.5K MTR.
+- **RevenueCat** is the entitlement server — free ≤ $2.5K MTR, then 1% (per `81-mobile-billing.md`).
 - Paywall components must support **remote config** via RevenueCat dashboard — never hardcode pricing or offering IDs.
 - **"Restore Purchases" button is mandatory** on the paywall — omission = store rejection.
 - Client-side entitlement checks are for UX only. **Server-side is the source of truth** (webhook → PostgreSQL).
@@ -258,7 +258,7 @@ The compliance baseline is **GDPR + EU AI Act** because they are the strictest. 
 - **Apple App Tracking Transparency (ATT)**: prompt before any IDFA collection or third-party tracking SDK fires. No exceptions, all markets.
 - **GDPR consent gate**: no analytics, advertising, or non-essential third-party SDKs may fire before user consent. Use a CMP or built-in consent screen. Applies to all EU/EEA/UK users — detect via locale and IP.
 - Encrypt PII at rest. Supabase handles this; for FastAPI VPS, use disk encryption + column-level encryption for sensitive fields.
-- Never include PII in AI agent prompts or in any `chat text` sent to Gemini/Claude/OpenAI APIs from the app. Use `.aiexclude` and server-side redaction.
+- Never include PII in AI agent prompts or in any `chat text` sent to Gemini/Claude/OpenAI APIs from the app. Enforce via server-side redaction (the durable control). `.aiexclude` only applies to Google/Gemini tooling that honors it — it is not a cross-vendor guarantee.
 - Document the chosen Supabase region(s) in the privacy policy.
 
 ### Automated decision features (AI/ML)
@@ -268,12 +268,12 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - Display a transparency notice ("This recommendation was generated automatically").
 - Provide a manual override or "ask a human" path.
 - Log override events server-side for regulator inquiries.
-- Required by KVKK (Dec 2025 update), GDPR Art. 22, and EU AI Act. Treat as global default.
+- Required by GDPR Art. 22 (prohibition on solely-automated decisions) and the EU AI Act; under Turkish law, KVKK Art. 11/1-g gives data subjects a right to object to decisions made solely by automated systems (see KVKK's Nov 2025 Generative AI guidance and its Apr 2025 AI recommendations). Treat the transparency + override path as a global default. <!-- Confirm exact KVKK obligations with legal counsel. -->
 
 ### Regional layers
 
 - **EU/EEA/UK (GDPR + AI Act)**: full consent gate, DPA addendum required for any third-party processor, cookie/tracking notice on first launch in EU locales.
-- **Turkey (KVKK)**: process Turkish-user PII on EU or Turkey-resident infrastructure. Manual override on automated decisions covered by global rule above.
+- **Turkey (KVKK)**: processing Turkish-user PII in EU infrastructure (e.g. `eu-central-1`) is a cross-border transfer under KVKK and requires a lawful transfer basis — it is not automatically compliant by virtue of being in the EU. <!-- Confirm the transfer basis with counsel. --> Manual override on automated decisions covered by the global rule above.
 - **California, USA (CCPA/CPRA)**: "Do Not Sell or Share My Personal Information" link/toggle in Settings if any data is shared with third parties. Honor Global Privacy Control (GPC) signal.
 - **Brazil (LGPD)**: equivalent to GDPR — covered by the GDPR baseline.
 - **Children**: if app could be used by under-13s (under-16 in some EU states), comply with COPPA and follow Apple/Google child-directed app rules. Default to no third-party tracking SDKs.
@@ -336,7 +336,7 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] JWTs stored in `expo-secure-store`, not AsyncStorage or MMKV.
 - [ ] EAS profiles defined in `eas.json` (development, preview, production).
 - [ ] At least one MCP server wired and used in the verification loop.
-- [ ] RevenueCat (or Adapty) integrated, paywall remote-configurable.
+- [ ] RevenueCat integrated (free ≤ $2.5K MTR, then 1% — see `81-mobile-billing.md`), paywall remote-configurable.
 - [ ] Push permission requested post-onboarding, not on first launch.
 - [ ] Privacy policy and ToS URLs in `app.json`, reachable from in-app Settings.
 - [ ] Data export and account deletion endpoints implemented and reachable from in-app Settings.
