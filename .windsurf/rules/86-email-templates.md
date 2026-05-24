@@ -256,12 +256,126 @@ The sender is a commodity. Your edge is the content AI, not the sending tool. Do
 | **At scale** | **Self-hosted Listmonk + Amazon SES** | When Resend per-contact fee exceeds ~$5-10/mo container + SES per-email rate | Listmonk: flat (Go + Postgres, deploys on Coolify, zero per-contact fee). SES: ~$0.10 per 1,000 emails |
 | **WordPress** | **FluentCRM** | WordPress/Woo projects only | Self-hosted, no per-contact fee |
 
-**Migration trigger** (Resend → Listmonk) is purely arithmetic: when managed per-contact pricing exceeds the self-hosted alternative. Same "escalate on proven limit" pattern as Resend → Postmark for transactional.
+**Migration triggers** (Resend → Listmonk):
+- Per-contact/volume cost exceeds ~$5-10/mo container + SES per-email rate
+- Need more than 1 sending domain (Resend free = 1 domain)
+- Need more than 1,000 contacts (Resend free tier limit)
+- Same "escalate on proven limit" pattern as Resend → Postmark for transactional.
 
 **What you do NOT do:**
 - Build your own campaign engine (Forex rabbit hole — good OSS exists)
 - Use Mautic (PHP, heavy, maintenance sink for solo dev)
 - Send marketing from your own VPS IP (torches domain reputation — delivery always rides SES/Resend)
+
+### Listmonk + SES Architecture (at-scale setup)
+
+When you hit a migration trigger, this is the target architecture:
+
+```
+Your VPS (Coolify)                        AWS
+┌─────────────────────┐                  ┌──────────────┐
+│ Listmonk container  │── SMTP relay ──→ │ Amazon SES   │──→ Recipient inbox
+│ (Go + Postgres)     │                  │ (shared IPs) │
+│                     │← SNS webhooks ──│              │
+│ - List management   │                  └──────────────┘
+│ - Segments          │
+│ - Campaigns         │         DNS (Cloudflare)
+│ - Double opt-in     │         ┌──────────────────┐
+│ - Bounce processing │         │ news.<domain>    │
+│ - Analytics         │         │ SPF → SES        │
+└─────────────────────┘         │ DKIM → SES keys  │
+                                │ DMARC → policy   │
+                                └──────────────────┘
+```
+
+**Key architectural points:**
+
+- **Listmonk** is the campaign orchestrator — list management, segments, templates, scheduling, analytics. Deploys on Coolify like any other Fabrik service (Go binary + Postgres, `compose.yaml`, `coolify` network).
+- **SES** is the delivery layer only — your VPS IP never touches the recipient's mail server. SES sends from **Amazon's shared IP pool** (pre-warmed, high reputation, free). Dedicated IPs ($24.95/mo per IP) only when sending 100k+/day consistently.
+- **Listmonk connects to SES via SMTP relay** (`email-smtp.<region>.amazonaws.com:587`, TLS). Not the SES API — SMTP relay is simpler and what Listmonk supports natively.
+- **Bounce/complaint handling:** SES sends bounce and complaint notifications via **SNS webhooks** → Listmonk processes them and auto-suppresses affected addresses. This must be wired — without it, you re-send to bounced addresses and SES suspends your account.
+
+### SES Setup & Domain Authentication
+
+**Domain verification (one-time per sending domain):**
+
+1. Add `news.<domain>` as a verified identity in SES console.
+2. SES generates 3 CNAME records (DKIM) — add to Cloudflare DNS.
+3. SPF: SES includes itself automatically via the DKIM mechanism (no separate SPF TXT record needed for SES if using DKIM).
+4. DMARC: add manually to DNS — `_dmarc.news.<domain> TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@<domain>"`. Start with `p=none` (monitoring), move to `p=quarantine` after confirming alignment.
+5. **Same subdomain works across ESPs.** Switching from Resend to SES = update the DKIM/SPF DNS records. Domain reputation transfers — it's tied to the domain, not the ESP.
+
+**SES Sandbox → Production:**
+
+- New SES accounts start in **sandbox** (can only send to verified emails). Request production access via AWS console — provide your use case, expected volume, bounce/complaint handling plan.
+- Production access is required before sending to unverified recipients.
+
+**SES sending limits:**
+
+- After production access: SES starts at a **low daily sending quota** and auto-increases based on your sending patterns and reputation.
+- SES auto-suspends if: complaint rate > **0.1%** or bounce rate > **5%**. Monitor via SES reputation dashboard.
+
+### Listmonk Built-in Features
+
+| Feature | Listmonk support | Notes |
+|---|---|---|
+| Double opt-in | ✅ Native | Configurable per list |
+| `List-Unsubscribe` header (RFC 8058) | ✅ Native | One-click unsubscribe on every campaign |
+| Bounce/complaint processing | ⚠️ Requires SNS wiring | SES → SNS topic → Listmonk webhook endpoint |
+| Subscriber segments | ✅ Native | SQL-based, unlimited |
+| Campaign scheduling | ✅ Native | Timezone-aware |
+| Template system | ✅ Native | HTML templates — feed MJML-compiled output |
+| Analytics (opens/clicks) | ✅ Native | Per-campaign, per-subscriber |
+| API | ✅ Full REST API | Campaign creation, subscriber management, send triggers |
+| Multiple sending domains | ✅ Unlimited | One SMTP config per domain |
+
+### Migration Checklist (Resend → Listmonk + SES)
+
+Execute in this order:
+
+1. **Set up SES:**
+   - [ ] Verify sending domain (`news.<domain>`) in SES console
+   - [ ] Add DKIM CNAME records to Cloudflare DNS
+   - [ ] Add DMARC TXT record
+   - [ ] Request production access (provide use case + volume plan)
+   - [ ] Create SMTP credentials (IAM user with `ses:SendRawEmail`)
+   - [ ] Set up SNS topic for bounce/complaint notifications
+
+2. **Deploy Listmonk:**
+   - [ ] Add Listmonk to `compose.yaml` (Go binary, Postgres DB on `postgres-main`, `coolify` network)
+   - [ ] Configure SMTP relay pointing to SES (`email-smtp.<region>.amazonaws.com:587`)
+   - [ ] Configure bounce webhook endpoint to receive SNS notifications
+   - [ ] Set up double opt-in for all lists
+   - [ ] Import subscriber list from Resend (CSV export → Listmonk import)
+   - [ ] Upload MJML-compiled HTML templates
+
+3. **Test before switching:**
+   - [ ] Send test campaign to internal addresses
+   - [ ] Verify `List-Unsubscribe` header present
+   - [ ] Verify bounce processing works (send to a known-bad address)
+   - [ ] Verify DKIM/SPF/DMARC pass (check headers in received test email)
+   - [ ] Check spam score (mail-tester.com or similar)
+
+4. **Switch production sending:**
+   - [ ] Ramp volume gradually — don't blast full list on day 1
+   - [ ] Monitor SES reputation dashboard daily for first 2 weeks
+   - [ ] Monitor bounce rate (< 5%) and complaint rate (< 0.1%)
+   - [ ] Keep Resend Broadcasts active as fallback for 30 days
+
+5. **Decommission Resend Broadcasts:**
+   - [ ] After 30 days stable on Listmonk + SES, cancel Resend Broadcasts
+   - [ ] Keep Resend transactional (3k/mo free) — separate stream, unchanged
+
+### Cost Comparison
+
+| Scenario | Resend Broadcasts | Listmonk + SES |
+|---|---|---|
+| 1,000 contacts, 1 domain | **$0** (free tier) | ~$5/mo container + ~$0.40/mo SES |
+| 5,000 contacts, 2+ domains | **$40/mo** (Pro required) | ~$5/mo container + ~$2/mo SES |
+| 20,000 contacts | **$40+/mo** (Pro + overage) | ~$5/mo container + ~$8/mo SES |
+| 100,000 contacts | **Custom pricing** | ~$10/mo container + ~$40/mo SES |
+
+**Break-even:** Listmonk + SES is cheaper than Resend Pro ($40/mo) at any scale. The migration cost is your time to set it up (~2-4 hours). The trigger is more about capability (domains, contacts, control) than pure cost.
 
 ### AI Content Automation Loop
 
