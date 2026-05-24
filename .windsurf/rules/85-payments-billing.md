@@ -29,7 +29,7 @@ Two providers — Traycer determines which to use (or both) based on the product
 
 Traycer decides which configuration applies during `epic-brief` or `trigger-workflow` based on the product's target customer geography.
 
-**Stripe** is available for Turkish companies but not preferred — Paddle's MoR model eliminates tax compliance overhead, and iyzico has better Turkish local payment method coverage. Use Stripe only if Paddle or iyzico cannot handle a specific requirement.
+**Stripe** is NOT available to a Turkey-resident entity — Turkey is not a Stripe-supported country, so the Ocoron LLC cannot open a Stripe account directly. Accessing Stripe would require incorporating in a supported country (e.g. a US LLC) and operating through that foreign entity — out of scope for this pack and not a viable "fallback." For this business, the provider set is **Paddle (international, MoR) + iyzico (Turkish domestic).** There is no Stripe fallback; if neither Paddle nor iyzico can handle a requirement, escalate it as a planning decision, not a code choice.
 
 ---
 
@@ -48,13 +48,14 @@ Traycer decides which configuration applies during `epic-brief` or `trigger-work
 ### Webhook Security
 
 - Verify webhook signatures using the **raw, unparsed byte stream** (`await request.body()`). Never parse the payload into JSON or Pydantic models before HMAC verification — JSON re-serialization alters byte layout and invalidates the signature.
+- The `Paddle-Signature` header has the form `ts=<unix_ts>;h1=<hash>`. Parse out `ts` and `h1`, then compute `HMAC-SHA256(secret, f"{ts}:{raw_body}")` and `compare_digest` against `h1`. **The signed payload is `ts:body`, not body alone** — signing the body by itself is the #1 cause of "signature always invalid." Optionally reject stale `ts` (replay protection).
 - Use `hmac.compare_digest()` for all signature comparisons. Standard `==` string equality is **banned** — it leaks timing information to attackers.
-- Load `PADDLE_WEBHOOK_SECRET` from environment variables (`os.getenv()`). Never hardcode.
+- Load `PADDLE_WEBHOOK_SECRET` from Pydantic Settings (`get_settings().paddle_webhook_secret`). Never hardcode.
 
 ### Webhook Processing
 
 - Paddle enforces a **5-second timeout**. Return `200 OK` within 3 seconds. Defer all heavy processing (DB writes, email sends, third-party calls) to background tasks or the PostgreSQL job queue (per `75-workers-jobs.md`).
-- Accept **at-least-once delivery** — Paddle retries on timeout (up to 60 retries over 3 days).
+- Accept **at-least-once delivery** — Paddle retries failed deliveries over a multi-day window (design for at-least-once regardless of the exact count). <!-- Verify retry schedule at developer.paddle.com/webhooks -->
 
 ### Webhook Idempotency
 
@@ -163,7 +164,7 @@ logger.info("subscription_created",
 
 | Pattern | Use Instead |
 |---------|-------------|
-| LemonSqueezy / Braintree / custom PSP | Paddle (international) and/or iyzico (Turkish domestic). Stripe only if Paddle/iyzico can't handle. |
+| LemonSqueezy / Braintree / Stripe / custom PSP | Paddle (international) and/or iyzico (Turkish domestic). Stripe is not available to a TR entity — do not design around it. |
 | Inline Checkout or custom payment forms | Paddle Overlay Checkout / iyzico Checkout Form |
 | Custom billing management UI (cancel, upgrade, invoices) | Paddle Customer Portal session redirect |
 | `request.json()` or Pydantic model before HMAC verification | `await request.body()` raw bytes first |
