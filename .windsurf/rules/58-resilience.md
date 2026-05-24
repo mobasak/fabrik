@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/docs/RESILIENCE.md", "**/pause_state*", "**/error_classifier*", "**/circuit_breaker*", "**/health*", "**/readyz*", "**/orphan_sweep*", "**/balance_check*", "**/dispatch*", "**/beat.py", "**/celerybeat*", "**/httpx*", "**/client*"]
+globs: ["**/docs/RESILIENCE.md", "**/pause_state*", "**/error_classifier*", "**/circuit_breaker*", "**/health*", "**/orphan_sweep*", "**/balance_check*", "**/dispatch*", "**/beat.py", "**/httpx*", "**/client*"]
 description: Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
 trigger: glob
 ---
