@@ -17,7 +17,7 @@ Apply when working on database models, migrations, schema changes, or query logi
 
 ### WSL PostgreSQL Configuration
 
-- Native PostgreSQL 16 runs at `localhost:5432` on WSL
+- Native PostgreSQL 16+ runs at `localhost:5432` on WSL (PG18 available since Sep 2025 — adds native `uuidv7()`)
 - Each project gets a dedicated development database: `{project_name}_dev`
 - Scaffold auto-creates databases when `--db` flag is used
 - Connection: `postgresql://postgres@localhost:5432/{project_name}_dev`
@@ -132,7 +132,7 @@ class User(Base):
     )
 ```
 
-> **Critical:** import `uuid7` from `uuid_utils.compat`, never `uuid_utils.uuid7()` directly — the latter returns `uuid_utils.UUID`, which asyncpg rejects (not a stdlib `uuid.UUID` subclass). PG18 adds native `uuidv7()`; on PG16 generate app-side as above.
+> **Critical:** import `uuid7` from `uuid_utils.compat`, never `uuid_utils.uuid7()` directly — the latter returns `uuid_utils.UUID`, which asyncpg rejects (not a stdlib `uuid.UUID` subclass). **PostgreSQL 18** (released Sep 2025) added native `uuidv7()` — if your instance is PG18+, you can use `DEFAULT uuidv7()` at the schema level instead of app-side generation. On PG16/17, generate app-side as above.
 
 ## Nullability & Constraints
 
