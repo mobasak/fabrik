@@ -218,7 +218,7 @@ uv run mypy .                    # Type check
 Production services run via `uvicorn` CLI in the Dockerfile, not `uvicorn.run()` in code. Base image is always `python:<version>-slim-bookworm` on `linux/amd64`. Never use Alpine (musl libc breaks wheels).
 
 ```dockerfile
-FROM python:3.12-slim-bookworm
+FROM python:3.13-slim-bookworm    # track <current-stable>
 # ...
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
