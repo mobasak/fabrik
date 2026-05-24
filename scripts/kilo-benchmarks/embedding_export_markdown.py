@@ -39,11 +39,14 @@ CONFIG_PATH = SCRIPT_DIR / "embedding_role_configs.yaml"
 DOCS_DIR = FABRIK_ROOT / "docs" / "reference" / "kilo"
 SELECTION_GUIDE_PATH = DOCS_DIR / "KILO_AGENT_SELECTION_GUIDE.md"
 CAPABILITIES_PATH = DOCS_DIR / "KILO_MODEL_CAPABILITIES.md"
+RAG_SEARCH_PATH = FABRIK_ROOT / ".windsurf" / "rules" / "core" / "65-rag-search.md"
 
 ROSTER_START = "<!-- EMBEDDING_ROSTER:START"
 ROSTER_END = "<!-- EMBEDDING_ROSTER:END -->"
 CATALOG_START = "<!-- EMBEDDING_CATALOG:START"
 CATALOG_END = "<!-- EMBEDDING_CATALOG:END -->"
+WINNERS_START = "<!-- EMBEDDING_WINNERS:START"
+WINNERS_END = "<!-- EMBEDDING_WINNERS:END -->"
 
 
 def _utc_today_iso() -> str:
@@ -265,11 +268,35 @@ def run(db_path: Path | str = DB_PATH) -> dict[str, Path]:
     _replace_between_markers(SELECTION_GUIDE_PATH, ROSTER_START, ROSTER_END, roster_body)
     _replace_between_markers(CAPABILITIES_PATH, CATALOG_START, CATALOG_END, catalog_body)
 
+    # Also inject compact winners table into the RAG search rule pack
+    if RAG_SEARCH_PATH.exists():
+        role_labels = {
+            "multilingual_primary": ("Bulk / multilingual", "Background indexing, TR+EN content"),
+            "frontier_reference": ("Frontier / reference", "A/B evaluation, golden-set, high-recall queries"),
+            "code_embedding": ("Code", "IDE semantic search, code retrieval"),
+        }
+        lines = [
+            "| Role | Use when | Model | Cost | Context |",
+            "|---|---|---|---|---|",
+        ]
+        for role, rows in winners_by_role.items():
+            label, use_when = role_labels.get(role, (role, ""))
+            for i, r in enumerate(rows):
+                role_col = f"**{label}**" if i == 0 else f"**{label} fallback**"
+                lines.append(
+                    f"| {role_col} | {use_when if i == 0 else 'If P1 unavailable'} "
+                    f"| `{r['model_id']}` | ${r['input_cost_per_m']}/M | {r['context_window_k']}k |"
+                )
+        winners_body = "\n".join(lines)
+        _replace_between_markers(RAG_SEARCH_PATH, WINNERS_START, WINNERS_END, winners_body)
+        print(f"[embedding_export_markdown] updated {RAG_SEARCH_PATH}")
+
     print(f"[embedding_export_markdown] updated {SELECTION_GUIDE_PATH}")
     print(f"[embedding_export_markdown] updated {CAPABILITIES_PATH}")
     return {
         "selection_guide": SELECTION_GUIDE_PATH,
         "capabilities": CAPABILITIES_PATH,
+        "rag_search": RAG_SEARCH_PATH,
     }
 
 

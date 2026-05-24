@@ -91,6 +91,10 @@ REFERENCE_DOCS = [
     ),
     ("docs/reference/fabrik-lifecycle.md", "docs/reference/fabrik-lifecycle.md"),
     ("docs/BUSINESS_MODEL.md", "docs/reference/fabrik-project-catalog.md"),
+    (
+        "docs/reference/mobile-responsive-testing-guide.md",
+        "docs/reference/mobile-responsive-testing-guide.md",
+    ),
 ]
 
 
@@ -319,6 +323,29 @@ def sync_scripts_to_project(
                         )
                         file_results.append(result)
 
+        # Delete orphan files in governance directories (files that exist in
+        # project but no longer exist in fabrik source — stale from restructures)
+        for gov_dir in GOVERNANCE_DIRS:
+            source_dir = FABRIK_ROOT / gov_dir
+            dest_dir = project_dir / gov_dir
+            if not source_dir.exists() or not dest_dir.exists():
+                continue
+            source_files = {f.relative_to(source_dir) for f in source_dir.rglob("*") if f.is_file()}
+            for dest_file in list(dest_dir.rglob("*")):
+                if dest_file.is_file():
+                    relative = dest_file.relative_to(dest_dir)
+                    if relative not in source_files:
+                        if not dry_run:
+                            dest_file.unlink()
+                        file_results.append(
+                            SyncResult("DELETE", dest_file, dest_file, "orphan removed")
+                        )
+            # Remove empty directories left after orphan deletion
+            if not dry_run:
+                for dirpath in sorted(dest_dir.rglob("*"), reverse=True):
+                    if dirpath.is_dir() and not any(dirpath.iterdir()):
+                        dirpath.rmdir()
+
         # Sync reference docs (cascade-models.md, etc.)
         for source_rel, dest_rel in REFERENCE_DOCS:
             source = FABRIK_ROOT / source_rel
@@ -335,11 +362,14 @@ def sync_scripts_to_project(
         copy_count = sum(1 for r in file_results if r.action in ("COPY", "BACKUP"))
         skip_count = sum(1 for r in file_results if r.action == "SKIP")
         warn_count = sum(1 for r in file_results if r.action == "WARN")
+        delete_count = sum(1 for r in file_results if r.action == "DELETE")
 
+        parts = [f"{copy_count} copied", f"{skip_count} skipped"]
+        if delete_count > 0:
+            parts.append(f"{delete_count} orphans removed")
         if warn_count > 0:
-            msg = f"OK ({copy_count} copied, {skip_count} skipped, {warn_count} warnings)"
-        else:
-            msg = f"OK ({copy_count} copied, {skip_count} skipped)"
+            parts.append(f"{warn_count} warnings")
+        msg = f"OK ({', '.join(parts)})"
 
         return ProjectSyncResult(project_dir, True, msg, file_results)
 

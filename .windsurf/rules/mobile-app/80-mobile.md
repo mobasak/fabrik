@@ -346,6 +346,7 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] GDPR consent gate blocks analytics and non-essential SDKs until user consent (EU/EEA/UK locales).
 - [ ] AI-driven decision features carry transparency notice + manual override path.
 - [ ] All user-facing strings live in translation files — no hardcoded strings.
+- [ ] `python scripts/validate_i18n.py` passes clean (Level 1: no MISSING_KEY, no PLACEHOLDER_MISMATCH across all locale files). Run after any ticket that adds or changes UI strings.
 - [ ] App tested in `en-US`, `tr-TR`, and at least one RTL or non-Latin locale.
 - [ ] Dates, numbers, currency rendered via `Intl` APIs with user locale.
 - [ ] Pricing configured per country in RevenueCat dashboard.

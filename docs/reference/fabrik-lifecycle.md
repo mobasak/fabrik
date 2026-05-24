@@ -1,6 +1,6 @@
 # The Fabrik Lifecycle — Canonical 4-Stage Reference
 
-**Last verified:** 2026-05-16 | **Canonical source:** this file supersedes any vision narrative pasted into individual tickets.
+**Last verified:** 2026-05-24 | **Canonical source:** this file supersedes any vision narrative pasted into individual tickets.
 **Maintenance:** This file is in the doc-sync memory set. Every session that changes the deployer, registrars, scaffold system, or VPS infrastructure MUST update this file. Enforced by `scripts/final_gate.py` check for significant changes to `src/fabrik/orchestrator/`, `src/fabrik/scaffold.py`, or `src/fabrik/drivers/`.
 
 ---
@@ -13,7 +13,7 @@ This isn't just folder creation; it's a **Context Injection**:
 
 - **Type-appropriate source layout.** Each of the 11 scaffold types (`python-api`, `node-api`, `saas-skeleton`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`) emits the directory structure its runtime demands — `src/<name>/` for Python APIs, `extension/` for Chrome, `electron/` for desktop, `worker/` for background processors, etc.
 - **Standard dirs** every type shares: `docs/`, `scripts/`, `tests/`, `config/`, `data/`, `db/`, `logs/`, `.tmp/`, `.cache/`, `output/`.
-- **The AI guardrails.** The scaffolder populates 6 governance files: `AGENTS.md` (Traycer planner), `CLAUDE.md` (Claude Code), `AGENTS-compact.md` (Kilo CLI), `KILO_CLI_RULES.md` (Kilo spec-contract awareness), `.windsurfrules` (Windsurf Cascade), and `opencode.json` (Kilo bootstrap config). Plus the full `.windsurf/rules/` directory (21 packs covering Python, TypeScript, ops, security, observability, payments, etc.). All pre-loaded with VPS1 inventory + shape/registrar awareness so agents never hallucinate `localhost` databases or invent auth patterns.
+- **The AI guardrails.** The scaffolder populates 5 governance files: `AGENTS.md` (Traycer planner), `CLAUDE.md` (Claude Code), `AGENTS-compact.md` (Kilo CLI), `.windsurfrules` (Windsurf Cascade), and `opencode.json` (Kilo bootstrap config). Plus the full `.windsurf/rules/` directory (29 packs across 4 subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/` — covering Python, TypeScript, ops, security, observability, payments, mobile, design systems, etc.). All pre-loaded with VPS1 inventory + shape/registrar awareness so agents never hallucinate `localhost` databases or invent auth patterns.
 - **Reference docs.** `docs/reference/technology-stack-decision-guide.md`, `docs/reference/AI_TAXONOMY.md`, `docs/reference/fabrik-lifecycle.md` (this file), `docs/reference/windsurf/cascade-models.md`, `docs/reference/long-command-monitoring.md` — all synced to every project via `scripts/sync_enforcement_to_projects.py`.
 - **The spec.** `specs/services/<id>.yaml` is emitted with a `shape:` block derived from `templates/<type>/defaults.yaml`. The shape block is the deploy contract — it declares which registrars `fabrik apply` will activate.
 
@@ -32,7 +32,7 @@ This isn't just folder creation; it's a **Context Injection**:
 
 ## Stage 2 — Agentic Implementation (WSL)
 
-You execute work through **Ticket Design** via the Traycer workflow: `trigger-workflow → epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute → implementation-validation → deploy`. You present structured tickets to your agents (Claude Code, Windsurf Cascade, Kilo CLI). Because they have the guardrail files (propagated via `scripts/sync_enforcement_to_projects.py` to all 43 projects), they write code that is **Infrastructure-Aware:**
+You execute work through **Ticket Design** via the Traycer workflow: `trigger-workflow → epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute → implementation-validation → deploy`. You present structured tickets to your agents (Claude Code, Windsurf Cascade, Kilo CLI). Because they have the guardrail files (propagated via `scripts/sync_enforcement_to_projects.py` to all projects), they write code that is **Infrastructure-Aware:**
 
 - They don't just write a Dockerfile; they write a `specs/services/<id>.yaml` whose `shape:` block declares the specific registrars needed — which Coolify app, which Gatus endpoint, which Prometheus scrape target, which GlitchTip project.
 - If code adds a database call → `shape.needs_database` MUST be `true` in the spec.
@@ -52,7 +52,7 @@ You execute work through **Ticket Design** via the Traycer workflow: `trigger-wo
 
 | Need | Use | Address |
 |---|---|---|
-| Database | PostgreSQL 16 | `postgres-main:5432` |
+| Database | PostgreSQL 18 | `postgres-main:5432` |
 | Cache/Queue | Redis 7 | `redis-main:6379` |
 | Search | MeiliSearch | `search.vps1.ocoron.com` (port 7700 internal) |
 | File storage | Backblaze B2 | S3-compatible API |

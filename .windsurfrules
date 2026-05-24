@@ -20,6 +20,7 @@ PACKS: <pack codes whose globs match this turn's scope, or "none">
 ## Behavior
 - **Check before create:** verify file does not exist before write. Exists = STOP.
 - **Present before execute:** plan → approval → execute. Read-only IDE calls (`read_file`, `grep_search`, `list_dir`, `find_references`) are exempt.
+- **NEVER use `run_terminal_cmd` for `npm i`, `pytest`, `docker *`, `fabrik *`, builds, deploys, or any command >10s.** Terminal commands hang indefinitely — you lose output and block forever. Instead: `run_command('scripts/rund -- <cmd>')` then `run_command('scripts/runwait $(scripts/runlast) 60')` then `run_command('scripts/runc $(scripts/runlast)')`. Three calls, never one terminal.
 - **Stay on task:** no unsolicited advice or process commentary.
 - **Conflict resolution:** rule pack > ticket. Surface conflict before proceeding.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.

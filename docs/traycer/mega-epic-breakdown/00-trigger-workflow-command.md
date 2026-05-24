@@ -80,7 +80,9 @@ If a vision cannot pass through all 4 stages, state this explicitly and justify.
 
 - **12-Factor App** — config via env, stateless processes, structured logs, fast startup, graceful shutdown.
 - **Concurrency** — every service handles simultaneous requests. Never single-threaded blocking.
-- **i18n** — every GUI service supports multi-language (en + tr minimum).
+- **i18n** — every GUI service supports multi-language (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique).
+- **Responsive** — every web GUI responsive from 375px to 2560px (RWD1-RWD10). No desktop-only layouts.
+- **Dark + light mode** — both mandatory for all GUI scaffolds. OS preference detected, manual toggle, preference persists.
 - **Resilience** — every external call has timeout + retry + circuit-breaker + graceful fallback.
 - **Shape contract** — `specs/services/<id>.yaml` declares registrars. Code MUST match shape.
 - **Observability** — every service exposes `/health` for Gatus and `/metrics` for Prometheus.
@@ -217,6 +219,8 @@ Check EVERY constraint. State each as `all clear` / `conflict (<details>)` / `un
 8. **12-Factor compliance** — any architectural violations?
 9. **Solo dev capacity** — is this achievable by one person + AI agents?
 10. **Observability compatibility** — does every proposed service expose `/metrics` for Prometheus and `/health` for Gatus?
+11. **Vector DB ban** — if research suggests Pinecone/Qdrant/Weaviate/Milvus, reject. pgvector on postgres-main or Supabase only.
+12. **Email streams** — if the product sends email, confirm transactional and marketing are on separate streams/subdomains (per `core/86-email-templates.md`).
 
 **3j. Multi-scaffold check:**
 - A single vision can span MULTIPLE scaffold types (e.g., `python-api` backend + `saas-skeleton` portal + `wordpress` sites). If the vision implies more than one scaffold type, list each and which features map to which scaffold. This is a strong signal for multi-epic decomposition.
@@ -286,12 +290,15 @@ these and does NOT re-decide them.]
 - **Auth:** [Authelia (admin) + Supabase Auth (user-facing) / Authelia only / custom — state which and why]
 - **Database:** [postgres-main / Supabase / both — state which holds what]
 - **Search:** [MeiliSearch / pgvector / none — state what's being searched]
-- **Billing:** [Paddle (international MoR) / iyzico (Turkish domestic) / none — state pricing model. Stripe is NOT available to a TR entity.]
+- **Billing:** [Paddle (international MoR) / iyzico (Turkish domestic) / RevenueCat + IAP (mobile digital goods — Paddle does NOT apply in-app) / none — state pricing model. Stripe is NOT available to a TR entity.]
 - **File storage:** [Backblaze B2 / Supabase Storage / none — state what's stored]
-- **Notifications:** [Apprise (already deployed) / direct API / none]
+- **Notifications (internal/ops):** [Apprise (already deployed) / direct API / none]
+- **Email (transactional):** [Resend (default, 3k/mo free) / escalate to Postmark for critical auth mail — state what triggers emails]
+- **Email (marketing):** [Resend Broadcasts (start) / Listmonk + SES (at scale) / none — MUST be separate stream from transactional. See `core/86-email-templates.md`.]
+- **Background processing:** [file-worker needed? State what runs async: transcription, PDF gen, AI inference, batch imports, scheduled jobs / none]
 - **Consumed microservices:** [site-provisioner for DNS / image-broker for images / none]
 - **Domain structure:** [subdomains needed, e.g., api.X, app.X, admin.X]
-- **Scaffold types:** [list all scaffold types this vision needs — each may become an epic]
+- **Scaffold types:** [list all scaffold types this vision needs — each may become an epic. Valid: python-api, node-api, saas-skeleton, file-api, file-worker, wordpress, docusaurus, chrome-extension, mobile-app, desktop-app, static-site]
 
 ## Constraints
 [Hard constraints from research + constraint verification (§3i).

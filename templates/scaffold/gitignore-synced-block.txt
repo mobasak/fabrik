@@ -1,0 +1,53 @@
+# ============================================================
+# Fabrik-synced files — managed by sync_enforcement_to_projects.py
+# DO NOT EDIT this block — it is overwritten on every sync run.
+# These files are copied from /opt/fabrik and should not be
+# committed to individual project repos.
+# ============================================================
+
+# Governance files
+AGENTS.md
+AGENTS-compact.md
+CLAUDE.md
+.windsurfrules
+opencode.json
+
+# Rule packs and workflows (entire directory)
+.windsurf/
+
+# Reference docs (synced from fabrik)
+docs/reference/kilo/
+docs/reference/MD/
+docs/reference/windsurf/cascade-models.md
+docs/reference/long-command-monitoring.md
+docs/reference/technology-stack-decision-guide.md
+docs/reference/AI_TAXONOMY.md
+docs/reference/ai_agent_prompt_directives.md
+docs/reference/fabrik-lifecycle.md
+docs/reference/fabrik-project-catalog.md
+docs/reference/mobile-responsive-testing-guide.md
+PORTS.md
+
+# Synced scripts
+scripts/final_gate.py
+scripts/kilo_code_review.py
+scripts/kilo_docs_enforcer.py
+scripts/docs_updater.py
+scripts/update_agents_toc.py
+scripts/health_checker.py
+scripts/enforcement/
+scripts/rund
+scripts/rundsh
+scripts/runc
+scripts/runk
+scripts/runls
+scripts/runlast
+scripts/runwait
+scripts/runtail
+scripts/runclean
+scripts/sync_cascade_backup.sh
+scripts/sync_extensions.sh
+
+# ============================================================
+# End Fabrik-synced block
+# ============================================================

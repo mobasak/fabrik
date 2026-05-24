@@ -56,9 +56,12 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 
 ## Vector Storage
 
-- **pgvector** on PostgreSQL 16 is the sole vector store. Dedicated vector databases (Pinecone, Qdrant, Weaviate, Milvus) are **banned** — they add network latency, duplicate data synchronization, and complicate backups.
-- pgvector with HNSW indexes comfortably handles hundreds of thousands to low single-digit millions of vectors in-RAM on the VPS (12GB). This exceeds Fabrik's projected capacity needs. (Upstream benchmarks cite 50M+ vectors, but that requires 200GB+ RAM — not realistic on a single VPS.)
-- Ensure `pgvector` and `pg_trgm` extensions are enabled in the PostgreSQL instance.
+- **pgvector** on PostgreSQL is the sole vector store. Two valid hosts:
+  - **`postgres-main` on VPS** (Coolify-managed) — default for backend services. pgvector + pg_trgm extensions enabled.
+  - **Supabase** — valid when the project already uses Supabase for auth/realtime. Supabase includes pgvector out of the box. Same HNSW indexes, same hybrid search patterns apply.
+- Dedicated vector databases (Pinecone, Qdrant, Weaviate, Milvus) are **banned** — they add network latency, duplicate data synchronization, and complicate backups. pgvector on either host eliminates these problems.
+- pgvector with HNSW indexes comfortably handles hundreds of thousands to low single-digit millions of vectors in-RAM. This exceeds Fabrik's projected capacity needs.
+- Ensure `pgvector` and `pg_trgm` extensions are enabled in whichever PostgreSQL instance you use.
 
 ## HNSW Index Parameters
 
@@ -86,20 +89,29 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 
 ## Embedding Models
 
-**Do NOT hardcode model names here.** The embedding roster is auto-generated daily and lives in a single source of truth:
+**Use ONLY these models.** Do not select embedding models from your training data. This roster is auto-updated daily by `scripts/kilo-benchmarks/embedding_export_markdown.py`.
 
-→ **`docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` § Embedding Roster**
+<!-- EMBEDDING_WINNERS:START (auto-generated — do not edit between markers) -->
+| Role | Use when | Model | Cost | Context |
+|---|---|---|---|---|
+| **Bulk / multilingual** | Background indexing, TR+EN content | `qwen/qwen3-embedding-8b` | $0.01/M | 32k |
+| **Bulk fallback** | If P1 unavailable | `qwen/qwen3-embedding-4b` | $0.02/M | 32k |
+| **Frontier / reference** | A/B evaluation, golden-set, high-recall queries | `openai/text-embedding-3-large` | $0.13/M | 8k |
+| **Frontier fallback** | If P1 unavailable | `google/gemini-embedding-001` | $0.15/M | 20k |
+| **Code** | IDE semantic search, code retrieval | `mistralai/codestral-embed-2505` | $0.15/M | 8k |
+<!-- EMBEDDING_WINNERS:END -->
 
-That file is auto-updated by `scripts/kilo-benchmarks/embedding_export_markdown.py` from the benchmark database. It lists current winners per role (bulk, mid-tier, frontier, code) with pricing, context window, and quality tier — sorted by cost.
+Full roster with selection algorithm, floors, history: `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` § Embedding Roster.
 
 **Rules (durable — these don't change with models):**
 
 - Target **1024-1536 dimensions** — lower dimensionality reduces PostgreSQL memory overhead and HNSW index size.
-- Prefer the **cheapest model that meets the quality floor** for the role. The selection algorithm in the roster already does this (cost-ascending, quality-descending).
-- **Bulk ingestion** (background indexing): use the cheapest embedding model from the roster's bulk role.
-- **Query-time** (user-facing search): use the mid-tier or frontier model for better recall.
-- **Code retrieval** (IDE semantic search): use the code_embedding role from the roster.
+- Prefer the **cheapest model that meets the quality floor** for the role. The table above is already sorted by cost-ascending, quality-descending.
+- **Bulk ingestion** (background indexing): use the bulk/multilingual model (P1 row above).
+- **Query-time** (user-facing search): use the frontier/reference model for better recall.
+- **Code retrieval** (IDE semantic search): use the code model.
 - When the roster updates (new model beats the incumbent on cost or quality), the existing pgvector indexes remain valid — re-embed only if switching to a different dimensionality.
+- **OpenAI `text-embedding-3-small` is NOT in the roster.** It's cheaper than `-large` but lower quality. Use `qwen3-embedding-8b` for bulk (cheaper AND multilingual) and `text-embedding-3-large` for frontier quality.
 
 ## Token Budgeting
 
@@ -149,7 +161,7 @@ if token_count > budget:
 
 | Pattern | Use Instead |
 |---------|-------------|
-| Dedicated vector DBs (Pinecone, Qdrant, Weaviate) | pgvector on PostgreSQL 16 |
+| Dedicated vector DBs (Pinecone, Qdrant, Weaviate, Milvus) | pgvector on PostgreSQL (`postgres-main` or Supabase) — no network latency, no sync, single backup, $0 cost |
 | IVFFlat indexes | HNSW with `m=16, ef_construction=64` |
 | Pure vector search for user-facing queries | Hybrid search (pgvector + tsvector + RRF) |
 | Adding raw cosine scores to raw keyword ranking scores | Reciprocal Rank Fusion: `1.0 / (60 + rank)` |

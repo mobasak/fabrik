@@ -1280,9 +1280,15 @@ Three-state confidence indicator for AI-generated content:
 
 1. English is the source language for all strings.
 2. Strings are extracted to JSON locale files (`/locales/{code}.json`).
-3. Translation is done by a professional human translator, not machine translation. Machine translation may be used as a first draft, but must be reviewed.
-4. New features ship in English first. Translations must be added within one release cycle.
-5. Interpolation syntax: `{variable}` placeholders. Never concatenate translated fragments — word order varies by language.
+3. AI-translate as first draft, then validate via `scripts/validate_i18n.py`:
+   - Level 1 (free, instant): structural checks — missing keys, placeholder mismatches, empty values, completeness drift.
+   - Level 2 (Kilo CLI): back-translation — translate back to English, compare semantic overlap. Catches meaning loss.
+   - Level 3 (Kilo CLI): native-speaker critique — tone, register, grammar, technical terms. Auto-applies fixes.
+   - Run: `python scripts/validate_i18n.py --validate <lang>` (all 3 levels).
+4. **Agent workflow:** AI-translate → run `validate_i18n.py --validate <lang>` → apply fixes from output → re-run validation until Level 1 passes clean. Translation is not done until the script passes.
+5. New features ship in English first. Translations must be validated within one release cycle.
+6. Interpolation syntax: `{variable}` placeholders. Never concatenate translated fragments — word order varies by language.
+7. Full i18n kit (validate script, `_context.json` for product/tone/register config, JS loader, HTML snippets): `templates/scaffold/i18n-kit/`. Applies to all GUI scaffolds (SaaS, mobile, chrome, wordpress, docusaurus).
 
 ### Localization Quality Bar
 

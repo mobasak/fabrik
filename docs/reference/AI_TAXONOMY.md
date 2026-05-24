@@ -9,7 +9,7 @@
 3. **Language**: LLMs (ChatGPT, Claude), Translation (DeepL), Embeddings (Cohere)
 4. **Multimodal**: Vision+Language (GPT-4o, Gemini, Claude), Visual QA
 5. **Agentic**: Multi-step reasoning (OpenAI o1, LangChain), Automation
-6. **Code**: GitHub Copilot, Cursor IDE, Amazon CodeWhisperer
+6. **Code**: GitHub Copilot, Cursor IDE, Amazon Q Developer, Windsurf, Claude Code
 7. **Data/Predictive**: DataRobot, H2O.ai, AWS SageMaker, forecasting
 8. **Robotics**: Boston Dynamics, NVIDIA Isaac, manipulation/control
 9. **Synthetic Data**: NVIDIA Omniverse, Unity Perception, training data gen
@@ -19,7 +19,7 @@
 13. **Edge/Embedded**: TensorFlow Lite, on-device inference
 14. **Governance/Trust**: Content moderation, bias detection, LLaMA Guard
 15. **Generative Design**: Autodesk, nTopology, optimization
-16. **Long-Context**: Gemini 2.5 Pro (1M), Claude (200K), codebase analysis
+16. **Long-Context**: Gemini 2.5 Pro (1M), Claude Opus 4.6 (1M), codebase analysis
 
 **4 Selection Rules:**
 - Match task to category first (prevents wrong tool type)
@@ -65,7 +65,7 @@
 
 **Subcategories:**
 - **Large Language Models:** ChatGPT, Claude, Gemini, Grok, Mistral
-- **Embeddings & Search:** Cohere, OpenAI Embeddings, Pinecone
+- **Embeddings & Search:** Cohere, OpenAI Embeddings, pgvector on PostgreSQL or Supabase (Fabrik default — dedicated vector DBs like Pinecone/Qdrant/Weaviate/Milvus are banned: they add network latency, duplicate data sync, complicate backups, and cost money when pgvector is free on your existing PostgreSQL)
 - **Translation:** DeepL, Google Translate, NLLB (Meta)
 - **Summarization/Extraction:** GPT-4, Claude, Cohere Summarize
 
@@ -77,7 +77,7 @@
 
 **Purpose:** Combine text, image, audio, video understanding
 
-**Examples:** GPT-4o, Gemini 1.5 Pro, Claude 3.5 Sonnet, LLaVA, Kosmos-2
+**Examples:** GPT-4o, Gemini 2.5 Pro, Claude Opus 4.6, LLaVA, Kosmos-2
 
 **Use cases:** Image captioning, visual QA, document understanding, video analysis
 
@@ -87,7 +87,7 @@
 
 **Purpose:** Multi-step reasoning or tool use
 
-**Examples:** OpenAI o1, Claude Projects, AutoGPT, LangChain Agents
+**Examples:** OpenAI o3/o4-mini, Claude Projects, AutoGPT, LangChain Agents
 
 **Use cases:** Automation, code execution, planning, research
 
@@ -97,7 +97,7 @@
 
 **Purpose:** Generate or explain code
 
-**Examples:** GitHub Copilot, Amazon CodeWhisperer, Cursor IDE
+**Examples:** GitHub Copilot, Amazon Q Developer, Cursor IDE, Windsurf Cascade, Claude Code
 
 **Use cases:** Code completion, refactoring, debugging assistance
 
@@ -197,7 +197,7 @@
 
 **Purpose:** Process extremely long documents, codebases, or conversations
 
-**Examples:** Gemini 2.5 Pro (1M), Claude 3.x (200K), GPT-5.x (128K-1M)
+**Examples:** Gemini 2.5 Pro (1M), Claude Opus 4.6 (1M), GPT-4o (128K)
 
 **Use cases:** Codebase analysis, book summarization, long document QA, multi-file reasoning
 

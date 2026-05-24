@@ -18,7 +18,7 @@ The generic flowchart below recommends industry-standard defaults. For all `/opt
 | **Frontend** | TypeScript + Next.js + Node.js monorepo | **Next.js 14 + TypeScript + Tailwind** (frontend only, backend is separate Python) | Frontend matches, but backend is Python — not a JS monorepo |
 | **CLI tooling** | Go (single binary) | **Python** (`src/fabrik/cli.py`) | Shares codebase with backend, direct access to Fabrik's Python modules |
 | **Background workers** | Node.js (web-adjacent) | **PostgreSQL jobs table + Python worker** | No Redis dependency by default; Redis only for high-throughput cases |
-| **Database** | (not specified) | **PostgreSQL 16** (VPS, Coolify-managed) or Supabase (managed auth/realtime/pgvector) | Single shared PostgreSQL instance for all services |
+| **Database** | (not specified) | **PostgreSQL 18** (VPS, Coolify-managed) or Supabase (managed auth/realtime/pgvector) | Single shared PostgreSQL instance for all services |
 | **AI/LLM** | Python + managed APIs | **Kilo CLI free tiers → OpenAI/Anthropic APIs → Local Ollama** | Budget-first: free before paid, local before cloud |
 
 ### Fabrik Deployment Constraints (Not in Generic Guide)
@@ -27,13 +27,13 @@ These constraints are **mandatory** for all Fabrik projects. The generic flowcha
 
 | Constraint | Rule | Enforced By |
 |------------|------|-------------|
-| **Base images** | `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`. **Never Alpine.** | `.windsurfrules`, `30-ops.md`, `AGENTS-compact.md` |
-| **amd64** | All Docker images must support `linux/amd64`. VPS is x86_64 (AMD EPYC-Genoa). | `.windsurfrules`, `30-ops.md`, `check_docker.py` |
-| **Deployment** | Docker Compose via **Coolify** on VPS. Not Vercel, Railway, or K8s. | `30-ops.md`, `AGENTS.md` |
-| **Port ranges** | Python services: **8000–8099**. Frontend/Node.js: **3000–3099**. Register in `PORTS.md`. | `.windsurfrules`, `10-python.md`, `20-typescript.md` |
-| **No hardcoded config** | Never hardcode `localhost`, DB strings, API keys. Use `os.getenv()` / `process.env`. | `.windsurfrules`, `10-python.md`, `20-typescript.md` |
-| **Health endpoints** | Must test real dependencies (`SELECT 1`), not just return 200. | `.windsurfrules`, `10-python.md` |
-| **Networking** | Coolify network (`coolify: external: true`). VPS internal: `http://service-name:PORT`. | `30-ops.md` |
+| **Base images** | `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`. **Never Alpine.** | `.windsurfrules`, `core/30-ops.md`, `AGENTS-compact.md` |
+| **amd64** | All Docker images must support `linux/amd64`. VPS is x86_64 (AMD EPYC-Genoa). | `.windsurfrules`, `core/30-ops.md`, `check_docker.py` |
+| **Deployment** | Docker Compose via **Coolify** on VPS. Not Vercel, Railway, or K8s. | `core/30-ops.md`, `AGENTS.md` |
+| **Port ranges** | Python services: **8000–8099**. Frontend/Node.js: **3000–3099**. Register in `PORTS.md`. | `.windsurfrules`, `core/10-python.md`, `core/20-typescript.md` |
+| **No hardcoded config** | Never hardcode `localhost`, DB strings, API keys. Use `os.getenv()` / `process.env`. | `.windsurfrules`, `core/10-python.md`, `core/20-typescript.md` |
+| **Health endpoints** | Must test real dependencies (`SELECT 1`), not just return 200. | `.windsurfrules`, `core/10-python.md` |
+| **Networking** | Coolify network (`coolify: external: true`). VPS internal: `http://service-name:PORT`. | `core/30-ops.md` |
 | **Existing services first** | Before building, check if a Fabrik microservice or prebuilt container already solves the need. | `AGENTS.md` § Mandatory Pre-Flight |
 | **Solo developer scope** | All architecture must be operable by one person (~50 hrs/week). No K8s, no polyglot backends. | `AGENTS.md` § Planning Constraints |
 
@@ -45,7 +45,7 @@ These constraints are **mandatory** for all Fabrik projects. The generic flowcha
 | Redis | Shared cache/queue | Only when PostgreSQL jobs table is insufficient |
 | Gotenberg | PDF generation | `pdf.vps1.ocoron.com` — use instead of WeasyPrint for complex PDFs |
 | MeiliSearch | Full-text search | `search.vps1.ocoron.com` — use instead of PostgreSQL FTS for faceted/typo-tolerant search |
-| MinIO | S3-compatible object storage | `s3.vps1.ocoron.com` — use for file uploads, media |
+| Backblaze B2 | Object storage (S3-compatible API) | Via Backrest — use for file uploads, media, backups |
 | Apprise | Multi-channel notifications | `notify.vps1.ocoron.com` — use instead of direct API calls |
 | Browserless | Headless Chrome | `browser.vps1.ocoron.com` — use for scraping, screenshots |
 | n8n | Workflow automation | `auto.vps1.ocoron.com` — use for no-code integrations |
@@ -508,8 +508,8 @@ Fabrik is a **deployment orchestration platform** with AI-powered agent manageme
 | Backend APIs | **Python + FastAPI + Uvicorn** | Per-project `src/main.py` |
 | Frontend (SaaS UIs) | **Next.js 14 + TypeScript + Tailwind** | Per-project `app/` |
 | Infrastructure | **Docker Compose via Coolify** on x86_64 VPS | `compose.yaml` per project |
-| Database | **PostgreSQL 16** (shared) | Coolify-managed `postgres-main` |
-| AI agent selection | **Kilo CLI + Gemini 3.1 Pro** (~$0.19/day) | `scripts/kilo-benchmarks/role_mapper.py` |
+| Database | **PostgreSQL 18** (shared) | Coolify-managed `postgres-main` |
+| AI agent selection | **Kilo CLI** (model roster auto-updated daily) | `scripts/kilo-benchmarks/role_mapper.py` |
 | Monitoring | **Netdata** (active) + Grafana/Prometheus/Loki (config ready) | VPS services |
 
 This differs from the generic guide's recommendation of "TypeScript monorepo + Go CLI" because Fabrik's backend logic (scaffold, sync, audit, orchestration) is Python-native and shares modules with the CLI.

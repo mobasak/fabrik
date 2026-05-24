@@ -274,7 +274,10 @@ All user-facing text follows the Ocoron Verbal Identity (see design system § Vo
 - Language detection: `await detectLanguage()` reads cookie → Accept-Language header → defaults to `en`.
 - Language switching: `<LanguageSwitcher />` from `@/lib/i18n/LanguageSwitcher` — sets cookie + reloads.
 - Every user-visible string must use `t('key')` or `data-i18n` — no hardcoded English in JSX.
-- Adding a language: copy `public/i18n/en.json` → `public/i18n/<lang>.json`, AI-translate, run `python scripts/validate_i18n.py --validate <lang>`.
+- Adding a language: copy `public/i18n/en.json` → `public/i18n/<lang>.json`, AI-translate, then validate:
+  - `python scripts/validate_i18n.py` — Level 1: structural checks (missing keys, placeholder mismatches, empty values). Free, instant.
+  - `python scripts/validate_i18n.py --validate <lang>` — Level 1 + 2 + 3: structural + back-translation (catches meaning loss) + native-speaker critique (catches tone/grammar). Auto-applies fixes via Kilo CLI.
+  - Full i18n kit (validate script, `_context.json`, snippets, JS loader): `templates/scaffold/i18n-kit/`.
 - Locale-aware formatting: use `formatDate()`, `formatNumber()`, `formatCurrency()` from `useI18n()` — never hardcode date/number formats.
 - For RTL support, multilingual rules, and formatting rules see `ocoron-design-system.md` § Multilingual and RTL + § Date/Time/Currency Formatting.
 - See `docs/reference/multilingual-plan.md` for the full architecture, key naming convention, and anti-patterns.
@@ -333,9 +336,10 @@ A UI component or page is done when all of the following are true:
 - [ ] Fonts loaded via `next/font` — no external CDN links.
 - [ ] Motion follows design system duration/easing tokens — no arbitrary `transition` values.
 - [ ] All user-visible strings use `t('key')` — no hardcoded English in JSX or templates.
+- [ ] `python scripts/validate_i18n.py` passes clean (Level 1: no MISSING_KEY, no PLACEHOLDER_MISMATCH, no EMPTY_VALUE across all locale files). Run after any ticket that adds or changes UI strings.
 - [ ] No `console.log()` in production code paths.
 - [ ] Authenticated users never see marketing content on the homepage.
-- [ ] Page tested and functional at 320px, 768px, and 1440px — no horizontal overflow, no broken layouts.
+- [ ] Page tested and functional at 375px, 768px, and 1440px — no horizontal overflow, no broken layouts.
 - [ ] Sidebar collapses to icon rail at `md:` and hides behind hamburger below `md:`.
 - [ ] Data tables use card transformation or sticky-column scroll on mobile viewports.
 - [ ] Modals render as full-screen sheets below `sm:` (640px).

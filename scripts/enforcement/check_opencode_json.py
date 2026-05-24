@@ -24,8 +24,10 @@ EXPECTED_INSTRUCTIONS = [
 
 # Forbidden files that must never appear in opencode.json
 FORBIDDEN_PATTERNS = [
-    ".windsurf/rules/*.md",  # The glob we replaced
+    ".windsurf/rules/*.md",  # Old flat glob — never in opencode
+    ".windsurf/rules/**/*.md",  # New recursive glob — never in opencode
     ".windsurf/rules/00-critical.md",  # Cascade-only (critical rules too verbose for Kilo)
+    ".windsurf/rules/core/",  # Subdirectory refs — never in opencode
 ]
 
 

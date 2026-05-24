@@ -13,6 +13,18 @@ trigger: glob
 
 Apply when working on database models, migrations, schema changes, or query logic. Skip for pure UI, Docker, or infrastructure files.
 
+## PostgreSQL Host Selection
+
+| Need | Use | Connection |
+|---|---|---|
+| Default backend (CRUD, jobs, queues) | **`postgres-main` on VPS** (Coolify-managed) | `postgresql+asyncpg://...@postgres-main:5432/` |
+| Managed auth + realtime + pgvector + RLS | **Supabase** | Supabase connection string from dashboard |
+| Both (mobile-app pattern: Supabase Auth + VPS FastAPI) | **Supabase for auth/client, postgres-main for backend data** | Two DATABASE_URLs |
+
+**Decision:** Supabase when you need its managed auth, realtime subscriptions, or client-side RLS. VPS postgres-main for everything else. Both is valid for two-faced scaffolds (mobile-app, chrome-extension) where the client talks to Supabase and the backend talks to postgres-main.
+
+---
+
 ## Local Development Setup
 
 ### WSL PostgreSQL Configuration
@@ -262,6 +274,7 @@ engine = create_async_engine(
 - [ ] No `psycopg2` or `psycopg2-binary` in dependencies — `asyncpg` only (exception: `75-workers-jobs.md` parent monitor).
 - [ ] `DATABASE_URL` uses `postgresql+asyncpg://` scheme everywhere.
 - [ ] Config via `get_settings().database_url` (Pydantic Settings) — no raw `os.getenv("DATABASE_URL")`.
+- [ ] Backups managed via Backrest → Backblaze B2 (registered by `fabrik apply` when `shape.needs_database: true`). Verify restore quarterly on a throwaway database.
 
 ---
 

@@ -31,6 +31,7 @@ TRAYCER_EXPORT_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/export_traycer_regis
 EMBEDDING_DB_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_models_db.py"
 EMBEDDING_PREFILTER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_pre_filter.py"
 EMBEDDING_MAPPER_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_role_mapper.py"
+EMBEDDING_MARKDOWN_SCRIPT="$FABRIK_ROOT/scripts/kilo-benchmarks/embedding_export_markdown.py"
 AGENT_SCRIPT="$FABRIK_ROOT/scripts/generate_kilo_agents.py"
 EXTENSIONS_SCRIPT="$FABRIK_ROOT/scripts/sync_extensions.sh"
 ENV_WATCHER_SCRIPT="$FABRIK_ROOT/scripts/watch_env_changes.sh"

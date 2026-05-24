@@ -42,7 +42,7 @@ The One-Test Rule does not apply to these high-risk domains — exhaustive permu
 
 - **Framework**: `pytest` + `pytest-asyncio` + `httpx.AsyncClient`.
 - **Run tests**: `uv run pytest tests/` (never bare `pytest` — Fabrik uses `uv`).
-- **Zero-mock database policy**: never mock SQLAlchemy, SQLModel, or database sessions. All backend tests execute against a real PostgreSQL 16 instance.
+- **Zero-mock database policy**: never mock SQLAlchemy, SQLModel, or database sessions. All backend tests execute against a real PostgreSQL instance.
 - Override `get_db` via `app.dependency_overrides` to inject a test session.
 - Use **transactional rollbacks** for speed and isolation: open a transaction in the fixture, yield the session, rollback on teardown.
 

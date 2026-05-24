@@ -30,7 +30,7 @@ Apply when working on background job processing, task queues, workers, scheduled
 
 ## PostgreSQL as Queue
 
-- PostgreSQL 16 on **`postgres-main:5432`** is the default message broker. External brokers (Celery, RabbitMQ, ARQ, Kombu) are banned. Redis (`redis-main:6379`) is permitted **only** when a proven PostgreSQL queue throughput bottleneck is measured (realistically low-thousands of jobs/sec on a single instance — you are nowhere near this), or for ephemeral fire-and-forget messages where data loss is acceptable.
+- PostgreSQL on **`postgres-main:5432`** is the default message broker. External brokers (Celery, RabbitMQ, ARQ, Kombu) are banned. Redis (`redis-main:6379`) is permitted **only** when a proven PostgreSQL queue throughput bottleneck is measured (realistically low-thousands of jobs/sec on a single instance — you are nowhere near this), or for ephemeral fire-and-forget messages where data loss is acceptable.
 - Use `SELECT ... FOR UPDATE SKIP LOCKED` for contention-free job dequeuing. Without `SKIP LOCKED`, concurrent workers block each other into a single-threaded bottleneck.
 - Use libraries like PgQueuer or Procrastinate, or a custom `SKIP LOCKED` implementation.
 - Connection string: `postgres-main:5432`, never `localhost`. See `30-ops.md` § Docker DNS.

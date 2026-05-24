@@ -52,6 +52,12 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 - `AGENTS.md` § Infrastructure Services — backing services available.
 - `AGENTS.md` § Planning Constraints — constraints still apply per epic.
 - `PORTS.md` — each epic's service needs a port. Check availability.
+- **Domain modules** — for EACH scaffold type identified in the Vision Summary's Technology Decisions, read the matching file from `domain-modules/`:
+  - `saas-skeleton` → read `domain-modules/saas.md`
+  - `mobile-app` → read `domain-modules/mobile-app.md`
+  - `wordpress` → read `domain-modules/wordpress.md`
+  - `chrome-extension` → read `domain-modules/chrome-ext.md`
+  - Multi-scaffold vision (e.g., saas + mobile-app + chrome-extension) → read ALL matching modules. They inform epic patterns (mobile always has a "store submission" epic, SaaS always has "billing + tenant" epic, chrome-ext always has "backend API first, extension second" pattern, etc.).
 
 ## Processing User Request
 
@@ -106,7 +112,12 @@ Do NOT present the proposal until every parallel-labeled epic has a PASS verdict
 - If a foundation epic is unavoidable (e.g., shared DB schema + auth), make it SMALL and FAST so value-delivering epics start quickly.
 - After Epic 1, maximize parallel lanes. If Epic 2 and Epic 3 are independent, say so.
 
-**2e. Port allocation:**
+**2e. Background processing check:**
+- After grouping features, scan: does any feature require async/background processing (transcription, PDF generation, image processing, AI inference, data imports, batch operations, scheduled jobs, webhook-triggered pipelines)?
+- If yes → these become either a dedicated `file-worker` epic OR a background-processing slice within the backend epic. Rule: never run heavy processing (>10s) inline in API handlers — it must go through the PostgreSQL job queue (per `core/75-workers-jobs.md`).
+- If multiple heavy-processing features exist (e.g., transcription + image generation + report building), group them into a single "Worker Pipeline" epic rather than scattering across feature epics.
+
+**2f. Port allocation:**
 - Check `PORTS.md` for each epic's service.
 - Assign ports. State them.
 

@@ -344,7 +344,7 @@ Organized by folder:
 | `desktop-app` | `TS_CORE`, `DESIGN_SYSTEM` |
 | `file-api` | — |
 | `file-worker` | `PY_CORE`, `WORKERS` |
-| `wordpress` | `TS_CORE`, `DESIGN_SYSTEM` |
+| `wordpress` | `TS_CORE`, `DESIGN_SYSTEM`, `WORDPRESS` (planned — pack not yet created) |
 | `docusaurus` | `DOCUSAURUS`, `DESIGN_SYSTEM` |
 | `static-site` | `TS_CORE`, `SAAS_UI`, `DESIGN_SYSTEM` |
 
@@ -496,7 +496,7 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | Local LLM Infrastructure | `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md` | Ollama setup, agent → model assignments |
 | Stack Decision Guide | `docs/reference/technology-stack-decision-guide.md` | Choosing tech stack for new project |
 | Prebuilt Containers | `docs/reference/prebuilt-app-containers.md` | Avoid writing custom code when a container exists |
-| Database Strategy | `docs/reference/DATABASE_STRATEGY.md` | Database / migration / vector storage choices |
+| Database & Vector Strategy | `.windsurf/rules/core/25-data-postgres.md` + `core/65-rag-search.md` | PostgreSQL host selection, migrations, pgvector, hybrid search |
 | Owner Profile | `docs/owner_ozgur_basak.md` | Calibrating tone / framing for planning output |
 | Port Allocations | `PORTS.md` | Assigning ports to new services |
 | Scaffold Decision Guide | `docs/reference/scaffold-type-decision-guide.md` | Choosing WordPress vs Docusaurus vs static-site |

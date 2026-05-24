@@ -58,10 +58,14 @@ Every SaaS must ship these pages before accepting payment:
 
 ### Abuse Prevention
 
-- Store registration IP.
-- Rate limit: max 2 accounts per IP per 24h.
-- Block disposable email domains (mailinator, guerrillamail, etc.).
-- Email verification required before paid features activate.
+Full implementation spec: `saas/87-abuse-detection.md`. Phase 1 items are launch-blocking:
+
+- [ ] Store `registration_ip` (INET) and `registration_fingerprint` (VARCHAR 64) in users table.
+- [ ] IP rate limit: max 2 registrations per IP per 24h. Reject with "Too many accounts from this network."
+- [ ] Disposable email domain blocklist (~5,000 domains from `data/disposable-email-domains.txt`). Reject on registration.
+- [ ] Email verification required before quota/credits activate — never grant on registration alone.
+- [ ] Progressive quota unlock: 30% immediate after email verification, 70% after 24h delay (defeats bot farm automation).
+- [ ] Browser fingerprint hash collected on registration (client-side FingerprintJS open-source, stored server-side).
 
 ### Per-Tenant API Rate Limiting
 
@@ -176,7 +180,7 @@ During epic decomposition or epic-brief, verify these map to features or tickets
 - [ ] Legal pages (ToS, Privacy Policy, Cookie consent) — at least one epic includes them
 - [ ] GDPR/KVKK data rights (access, delete, export) — implemented, not just documented
 - [ ] Data retention policy with TTL enforcement
-- [ ] Registration abuse prevention (IP rate limit, disposable email block, email verification)
+- [ ] Registration abuse prevention (IP rate limit, disposable email block, email verification, fingerprint, progressive unlock) — full spec: `saas/87-abuse-detection.md`
 - [ ] Per-tenant API rate limiting (middleware-level, keyed by tenant_id)
 - [ ] Onboarding flow (not empty dashboard as first experience)
 - [ ] Organization settings page (name, currency, timezone, billing email)
@@ -184,3 +188,4 @@ During epic decomposition or epic-brief, verify these map to features or tickets
 - [ ] Health endpoint exempt from auth
 - [ ] Observability (synthetic probe + Gatus monitoring)
 - [ ] Teknokent invoicing setup (if Turkish LLC)
+- [ ] `docs/FINANCIALS.md` populated with real costs, margins verified profitable at all paid tiers (worst-case check), break-even calculated
