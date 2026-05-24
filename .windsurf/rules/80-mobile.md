@@ -136,7 +136,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 - Use React Native `StyleSheet.create()` as the default styling approach.
 - React Native Flexbox defaults to `flexDirection: 'column'` — do not assume web CSS behavior.
 - Never use web CSS properties (`className`, media queries, `hover`) in React Native components.
-- NativeWind / Tailwind for React Native carries measurable runtime overhead vs raw `StyleSheet` (independent v4 benchmarks show up to ~4× slower rendering many styled views; magnitude is version-dependent — v4 moved to build-time compilation, v5 is in preview). Prefer `StyleSheet` or `react-native-unistyles`. Verify against your installed version if you adopt it.
+- **NativeWind v4** moved to build-time compilation (Metro plugin) — static styles compile to `StyleSheet.create()` objects at build, so static-style performance is equivalent to raw StyleSheet. However, **dynamic styles (theming, responsive, state-driven)** still require React context/bridge; `react-native-unistyles` (C++/JSI, synchronous) is faster for these. **Recommendation:** use `react-native-unistyles` for projects with deep theming (Ocoron Design System dark/light switching) or frequent dynamic style updates. NativeWind v4 is acceptable for static-heavy UIs if the team prefers Tailwind DX. NativeWind v5 (aligns with Tailwind CSS v4 Rust engine) is in preview — not production-ready.
 - For complex adaptive theming with design tokens, `react-native-unistyles` (C++/JSI, zero re-render overhead) is the approved alternative.
 
 ### Ocoron Design System (Mobile)
@@ -291,7 +291,7 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 | Hardcoded top/bottom padding for notches | `useSafeAreaInsets()` from `react-native-safe-area-context` |
 | `AsyncStorage` for performance-critical data | `react-native-mmkv` (synchronous JSI) |
 | JWTs in AsyncStorage or MMKV | `expo-secure-store` |
-| NativeWind / Tailwind CSS on mobile | `StyleSheet.create()` or `react-native-unistyles` |
+| NativeWind v2/v3 (runtime parsing) | NativeWind v4+ (build-time) or `react-native-unistyles` (preferred for dynamic theming) |
 | Legacy bridge-dependent native modules | New Architecture (Fabric/JSI) compatible modules |
 | Manual edits to `android/` / `ios/` in Expo projects | Expo Config Plugins in `app.json` |
 | Direct Supabase/FastAPI calls from screen components | Typed React Query hooks |
