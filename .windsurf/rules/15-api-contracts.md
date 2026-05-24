@@ -127,7 +127,7 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 
 ## Done When
 
-- [ ] All error responses conform to RFC 7807 schema (type, title, status, detail).
+- [ ] All error responses conform to RFC 9457 schema (type, title, status, detail) with `Content-Type: application/problem+json`.
 - [ ] Pydantic base model uses `alias_generator=to_camel` with `populate_by_name=True`.
 - [ ] No `OFFSET` keyword in any SQLAlchemy query or raw SQL for collection endpoints.
 - [ ] All mutative endpoints accept and enforce `X-Idempotency-Key`.
