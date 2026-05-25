@@ -57,7 +57,7 @@ If an atomic unit is too large, treat it as its own chunk with a context header.
 
 Beyond 1,200 tokens retrieval precision drops. Below 120 tokens context is lost.
 
-**Alignment with `65-rag-search.md`:** that pack specifies 512–1024 tokens for pgvector chunks. The ranges overlap — use the higher end (512–800) for vector embedding, the lower end (300–500) for pure keyword retrieval.
+**This file is the authoritative source for chunk sizes.** `65-rag-search.md` defers here. Use 512–800 tokens for vector embedding pipelines, 300–500 for pure keyword retrieval.
 
 ---
 

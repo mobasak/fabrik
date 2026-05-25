@@ -271,9 +271,9 @@ def run(db_path: Path | str = DB_PATH) -> dict[str, Path]:
     # Also inject compact winners table into the RAG search rule pack
     if RAG_SEARCH_PATH.exists():
         role_labels = {
-            "multilingual_primary": ("Bulk / multilingual", "Background indexing, TR+EN content"),
-            "frontier_reference": ("Frontier / reference", "A/B evaluation, golden-set, high-recall queries"),
-            "code_embedding": ("Code", "IDE semantic search, code retrieval"),
+            "multilingual_primary": ("Default (TR+EN)", "Most projects — use ONE model for BOTH ingest and query"),
+            "frontier_reference": ("Premium quality", "Separate pipeline — only when max recall needed AND budget allows full re-embed"),
+            "code_embedding": ("Code-specific", "Separate pipeline — IDE semantic search, codebase retrieval"),
         }
         lines = [
             "| Role | Use when | Model | Cost | Context |",
@@ -284,7 +284,7 @@ def run(db_path: Path | str = DB_PATH) -> dict[str, Path]:
             for i, r in enumerate(rows):
                 role_col = f"**{label}**" if i == 0 else f"**{label} fallback**"
                 lines.append(
-                    f"| {role_col} | {use_when if i == 0 else 'If P1 unavailable'} "
+                    f"| {role_col} | {use_when if i == 0 else 'Fallback if P1 unavailable'} "
                     f"| `{r['model_id']}` | ${r['input_cost_per_m']}/M | {r['context_window_k']}k |"
                 )
         winners_body = "\n".join(lines)

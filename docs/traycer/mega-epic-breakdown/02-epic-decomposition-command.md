@@ -133,9 +133,21 @@ Do NOT re-decide in my-workflow. Do NOT copy into epic files.]
 
 ## Database Strategy
 - [which DB holds what, shared schemas, per-epic schemas]
+- [postgres-main / Supabase / both — carried from Vision Summary]
 
 ## Auth Strategy
 - [carried from Vision Summary Technology Decisions — not re-derived]
+
+## Email Strategy
+- [Transactional: Resend (default). Marketing: Resend Broadcasts → Listmonk+SES at scale.]
+- [MUST be separate streams on separate subdomains (mail.<domain> vs news.<domain>)]
+
+## Background Processing
+- [Which epics need async workers? What operations? file-worker epic or backend slice?]
+- [PG job queue per core/75-workers-jobs.md — never inline >10s processing]
+
+## Embedding Model (if RAG/search features exist)
+- [ONE model for the entire pipeline — both ingest and query. See `core/65-rag-search.md` § Embedding Models for current roster.]
 
 ## Backing Services
 - [carried from Vision Summary — not re-derived]
@@ -148,6 +160,7 @@ Do NOT re-decide in my-workflow. Do NOT copy into epic files.]
 
 ## Shared Environment Variables
 - [env vars that multiple epics need — defined once, consumed by each]
+- [API keys for external services — list which epics need which keys]
 
 ## Shared Shape Decisions
 - [which registrars each epic will activate]

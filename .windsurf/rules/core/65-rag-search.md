@@ -68,7 +68,7 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 - Always use **HNSW** indexes. Do not use IVFFlat — it requires manual rebuilds to maintain recall.
 - Build parameters: `WITH (m = 16, ef_construction = 64)`. Omitting these yields sub-optimal recall.
 - Query-time tuning: set `hnsw.ef_search = 40` for interactive UI latency, `200` for analytical background jobs.
-- **Note**: With PG16 + pgvector 0.7+, HNSW is production-ready. IVFFlat is the old default and significantly slower.
+- **Note**: pgvector 0.7+ HNSW is production-ready. IVFFlat is the old default and significantly slower.
 
 ## Hybrid Search
 
@@ -83,35 +83,77 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 ## Chunking Strategy
 
 - Use **Recursive Character Splitting**. Semantic chunking (embedding-similarity-based splitting) is banned — it is expensive, slow, and yields only 3–5% marginal retrieval gain.
-- Default chunk size: **512–1024 tokens** with **10–20% overlap** to preserve context across boundaries.
+- Default chunk size: **300–800 tokens** (target), **1,200 hard max**, **120 minimum**, **10–20% overlap**. See `66-rag-chunking.md` for the authoritative size targets.
 - Pre-process and chunk text asynchronously via the background worker queue. Never block the main API thread with ingestion.
 - **For Markdown documents:** chunk by `##` headings first, preserve heading breadcrumbs in every chunk, never split inside tables/code blocks/numbered lists. See `66-rag-chunking.md` for the full 12-rule chunking spec including chunk envelopes, overlap strategy, and quality checks.
 
+## RAG Pipeline Components
+
+A RAG system uses multiple stages. Some need AI models, some don't.
+
+| Component | What it does | Gateway | Notes |
+|---|---|---|---|
+| **Embeddings** | Text → vector | **OpenRouter API only** | Kilo CLI has no embedding support |
+| **Classifier** (optional) | Chunk → structured labels (intent, sentiment, entities) | **OpenRouter API** (high volume) or **Kilo CLI** (low volume) | Project-specific ontology — define in project docs, not here |
+| **Answer generator** | Retrieved chunks → human answer | OpenRouter API or Kilo CLI | For RAG Q&A UIs |
+| **Summarizer** (optional) | Multiple chunks → condensed insight | OpenRouter API or Kilo CLI | For reports/dashboards |
+| **Re-ranker** (optional) | Re-score top-K for precision | OpenRouter API | Only if retrieval quality insufficient |
+| **Retriever** | Query → ranked chunks | **No AI model** — pgvector + tsvector + RRF in PostgreSQL | Pure SQL, zero API calls |
+
+### Two Gateways
+
+| Gateway | When to use | Overhead | Cost advantage |
+|---|---|---|---|
+| **OpenRouter API** (`httpx` → `openrouter.ai/api/v1/`) | Application code, automated pipelines, high volume. **Required for embeddings.** | <100ms/call | Pay-per-token |
+| **Kilo CLI** (`kilo run --model kilo/<provider>/<model>`) | Scripts, tooling, low-volume tasks (i18n validation, code review, one-off analysis) | 3-5s/call (subprocess) | Free tiers + 50% bonus credits on Kilo Pass ($19/mo) |
+
+**Banned:** calling vendor APIs directly (Alibaba Cloud, Google Vertex, OpenAI direct). Never import vendor-specific SDKs (`dashscope`, `google-cloud-aiplatform`). Both gateways abstract provider details.
+
+### Model Selection Rules
+
+- **Benchmark 2-3 candidates with real project data before selecting.** Price ≠ quality. Test with multilingual samples (TR+EN minimum) — cheaper models often beat expensive ones on non-English text.
+- **Start cheap, upgrade on measured failure.** Cheapest model that passes a 50-100 sample golden set at >90% accuracy wins. Swap = one line change (model ID string).
+- **Multilingual is the deciding factor.** A model that returns empty entities for Turkish text is disqualified regardless of English quality.
+
 ## Embedding Models
 
-**Use ONLY these models.** Do not select embedding models from your training data. This roster is auto-updated daily by `scripts/kilo-benchmarks/embedding_export_markdown.py`.
+**Use ONLY these models.** Auto-updated daily by `scripts/kilo-benchmarks/embedding_export_markdown.py`. Called via OpenRouter `/v1/embeddings` endpoint — one API key (`OPENROUTER_API_KEY`), all providers unified.
+
+```python
+# Production pattern — OpenRouter embeddings
+async def embed(texts: list[str], model: str = "qwen/qwen3-embedding-8b") -> list[list[float]]:
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://openrouter.ai/api/v1/embeddings",
+            headers={"Authorization": f"Bearer {get_settings().openrouter_api_key}"},
+            json={"model": model, "input": texts},
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        return [item["embedding"] for item in resp.json()["data"]]
+```
 
 <!-- EMBEDDING_WINNERS:START (auto-generated — do not edit between markers) -->
 | Role | Use when | Model | Cost | Context |
 |---|---|---|---|---|
-| **Bulk / multilingual** | Background indexing, TR+EN content | `qwen/qwen3-embedding-8b` | $0.01/M | 32k |
-| **Bulk fallback** | If P1 unavailable | `qwen/qwen3-embedding-4b` | $0.02/M | 32k |
-| **Frontier / reference** | A/B evaluation, golden-set, high-recall queries | `openai/text-embedding-3-large` | $0.13/M | 8k |
-| **Frontier fallback** | If P1 unavailable | `google/gemini-embedding-001` | $0.15/M | 20k |
-| **Code** | IDE semantic search, code retrieval | `mistralai/codestral-embed-2505` | $0.15/M | 8k |
+| **Default (TR+EN)** | Most projects — use ONE model for BOTH ingest and query | `qwen/qwen3-embedding-8b` | $0.01/M | 32k |
+| **Default (TR+EN) fallback** | Fallback if P1 unavailable | `qwen/qwen3-embedding-4b` | $0.02/M | 32k |
+| **Premium quality** | Separate pipeline — only when max recall needed AND budget allows full re-embed | `openai/text-embedding-3-large` | $0.13/M | 8k |
+| **Premium quality fallback** | Fallback if P1 unavailable | `google/gemini-embedding-001` | $0.15/M | 20k |
+| **Code-specific** | Separate pipeline — IDE semantic search, codebase retrieval | `mistralai/codestral-embed-2505` | $0.15/M | 8k |
 <!-- EMBEDDING_WINNERS:END -->
 
-Full roster with selection algorithm, floors, history: `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` § Embedding Roster.
+Full roster: `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` § Embedding Roster.
 
-**Rules (durable — these don't change with models):**
+### Embedding Rules
 
-- Target **1024-1536 dimensions** — lower dimensionality reduces PostgreSQL memory overhead and HNSW index size.
-- Prefer the **cheapest model that meets the quality floor** for the role. The table above is already sorted by cost-ascending, quality-descending.
-- **Bulk ingestion** (background indexing): use the bulk/multilingual model (P1 row above).
-- **Query-time** (user-facing search): use the frontier/reference model for better recall.
-- **Code retrieval** (IDE semantic search): use the code model.
-- When the roster updates (new model beats the incumbent on cost or quality), the existing pgvector indexes remain valid — re-embed only if switching to a different dimensionality.
-- **OpenAI `text-embedding-3-small` is NOT in the roster.** It's cheaper than `-large` but lower quality. Use `qwen3-embedding-8b` for bulk (cheaper AND multilingual) and `text-embedding-3-large` for frontier quality.
+- **ONE model per search pipeline.** Documents and queries MUST use the same model — cosine similarity only works within a single embedding space.
+- **Target 1024 dimensions** (via `dimensions` API parameter). Matryoshka Representation Learning (MRL) means the first N dimensions carry the most information — 4096→1024 loses only ~1-3% accuracy (MTEB benchmarks) while cutting memory/search/index size 4x. At 975K chunks: 1024d = 3.9 GB vs 4096d = 15.6 GB (VPS has 12 GB total). Upgrade to 1536/2048 later by adding a parallel column and re-embedding.
+- **Default:** `qwen/qwen3-embedding-8b` for both ingest and query. $0.01/M, multilingual (TR+EN), 32k context.
+- **Frontier:** `text-embedding-3-large` only when max recall needed AND full corpus re-embed is budgeted. 13x more expensive.
+- **Code:** `codestral-embed-2505` for code-specific pipelines. Separate index from natural-language search.
+- Switching models = full re-embed (unless same dimensionality).
+- **`text-embedding-3-small` is NOT in the roster.** Use `qwen3-embedding-8b` instead (cheaper, multilingual, longer context).
 
 ## Token Budgeting
 
@@ -191,8 +233,12 @@ if token_count > budget:
 
 - [ ] `pgvector` and `pg_trgm` extensions enabled — no external vector DB dependencies.
 - [ ] HNSW indexes created with `m=16, ef_construction=64` on all embedding columns.
+- [ ] Embedding model from the auto-generated roster — not selected from agent training data.
+- [ ] ONE embedding model per pipeline — same model for ingest and query.
+- [ ] Dimensions set to 1024 via API parameter.
+- [ ] All AI calls go through OpenRouter API (embeddings) or OpenRouter/Kilo CLI (LLM tasks) — no vendor SDKs.
 - [ ] User-facing search uses hybrid (dense + sparse) with RRF fusion — no pure vector search.
-- [ ] Chunks are 512–1024 tokens with 10–20% overlap using recursive splitting.
+- [ ] Chunks are 300–800 tokens (target) with 10–20% overlap per `66-rag-chunking.md`.
 - [ ] Token counting uses model-specific tokenizer (or `tiktoken` with 15% buffer) — no heuristic `len/4`.
 - [ ] Context budget capped at 85% of per-model limit before LLM dispatch — no hardcoded `128_000`.
 - [ ] Chunk metadata includes document ID and sequence number for citation tracking.

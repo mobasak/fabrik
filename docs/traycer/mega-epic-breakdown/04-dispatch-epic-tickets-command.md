@@ -18,7 +18,7 @@ You are a dispatcher. You verify that all epic tickets from `03-expand-epic-file
 
 - **Tickets are already persisted.** `03-expand-epic-files-command` created them in Traycer's ticket store. There is nothing to write to disk.
 - **Dispatch is the only action here.** Read the ticket list, confirm they exist, route to execution.
-- **One epic at a time OR all in parallel** — depends on dependency order from the Dependency Graph.
+- **One epic at a time through my-workflow.** Dependency Graph determines which epic goes next. Parallel-labeled epics in the same batch can execute in any order — but the owner runs one my-workflow cycle at a time.
 
 ## Processing User Request
 
