@@ -7,10 +7,9 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 `RULES ACTIVE: CLAUDE-CODE | <3 rules from this file you applied>`
 
 ## Orient (every task)
-1. `project.yaml::type` tells you which of 11 `scripts/scaffold.py` scaffolds this is. All projects use `.venv` and deploy via Coolify API. Per-task files-to-read: see the ticket's Pre-flight checklist.
+1. `project.yaml::type` tells you which of 11 `scripts/scaffold.py` scaffolds this is. All projects use `.venv` and deploy via Coolify API.
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
-3. Open scope-relevant topic packs in `.windsurf/rules/`: `10-python` `15-api` `20-typescript` `25-data-postgres` `30-ops` `35-security-auth` `40-docs` `45-testing` `50-code-review` `55-observability`.
-4. Plans: see `fabrik_workflow.md`.
+3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
 
 ## Behavior
 - **Check before create:** verify file does not exist before write. Exists = STOP, ask.
@@ -54,13 +53,22 @@ Skip: stdlib, syntax, Fabrik conventions.
 | destructive script on prod data w/o dry-run | dry-run first, show diff |
 | credentials change w/o backup + diff approval | `cp <f> backups/<f>.backup.$(date +%Y%m%d-%H%M%S)` first |
 
-In packs: Alpine, raw `pip`, `/tmp/`, FastAPI `except Exception` swallow `HTTPException`, dup `logger.exception()` w/ GlitchTip, inline M2M auth, module-level config, raw SQL DDL, `.venv` recreate, scaffold reorganize.
+## Doc Sync Matrix (update matched docs in same change — gate-enforced)
+| Change | Update |
+|---|---|
+| New env var | `.env.example` + `docs/CONFIGURATION.md` |
+| Code/Docker/deps changed | `CHANGELOG.md` |
+| File added/removed/renamed | `INDEX.md` |
+| API/SDK/CLI changed | `docs/QUICKSTART.md` |
+| New port allocated | `PORTS.md` |
+| Feature shipped | `docs/FEATURES.md` |
+| Schema migration | Alembic + `db/schema.sql` |
+| Recurring symptom | `docs/TROUBLESHOOTING.md` |
 
 ## Pointers (detail in packs)
-- **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → target: `backups/` dir (gitignored). See `35-security-auth.md`.
-- **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`, banned: `postgres`/`admin`/`password123`).
+- **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).
+- **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`).
 - **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.
-- **Ports:** Python 8000–8099, frontend 3000–3099. Register in `PORTS.md` before use.
 - **Same code in 3 envs:** WSL dev (PG localhost, `.env`) · VPS Docker (`postgres-main`, `compose.yaml`) · Supabase (env vars). Must run unmodified.
 - **Health endpoint:** test real deps (`await db.execute("SELECT 1")`).
 - **Before new scripts:** `Grep` `scripts/` + `enforcement/`. Extend, don't duplicate.

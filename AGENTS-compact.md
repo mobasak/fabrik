@@ -5,9 +5,8 @@
 `RULES ACTIVE: KILO | <3 rules from this file you applied>`
 
 ## ORIENT (every task)
-1. `project.yaml::type` — one of 11 `scripts/scaffold.py` scaffolds. All projects use `.venv` and deploy via Coolify API. Per-task files-to-read: see the ticket's Pre-flight checklist.
+1. `project.yaml::type` — one of 11 `scripts/scaffold.py` scaffolds. All projects use `.venv` and deploy via Coolify API.
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
-3. Plans: see `fabrik_workflow.md`.
 
 ## BEHAVIOR
 - **Check before create:** file exists = STOP, ask.
@@ -69,22 +68,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
    - Generator: Python `secrets.choice(string.ascii_letters + string.digits)`
    - Banned: `postgres`, `admin`, `password`, `password123`, default vendor creds
 
-3. **M2M service-to-service auth** — Every Fabrik HTTP service uses the canonical pattern:
-
-   | Aspect | Value |
-   |---|---|
-   | Header | `X-Internal-Token` |
-   | Env var | `SERVICE_INTERNAL_SECRET_KEY` (same value as `/opt/fabrik/.env`) |
-   | Module | `internal_auth.py` (copy into `app/` or `src/`) |
-   | Import | `from internal_auth import require_internal_token` |
-   | Validation | `hmac.compare_digest` (constant-time) |
-
-   **Never** inline `APIKeyHeader`/`require_api_key`; never per-service key names (`SERVICE_API_KEY`, `PROXY_API_KEY`). Scaffold `python-api` auto-emits `internal_auth.py`, `metrics.py`, `/metrics`, `SERVICE_INTERNAL_SECRET_KEY` in `.env.example`. Client call:
-   ```python
-   import os, httpx
-   headers = {"X-Internal-Token": os.environ["SERVICE_INTERNAL_SECRET_KEY"]}
-   resp = httpx.get("https://<service>.vps1.ocoron.com/api/endpoint", headers=headers)
-   ```
+3. **M2M service-to-service auth** — Use scaffolded `internal_auth.py` + header `X-Internal-Token` + env `SERVICE_INTERNAL_SECRET_KEY`. Never inline `APIKeyHeader` or per-service key names. Detail: `core/35-security-auth.md`.
 
 4. **Authelia** — No SIGHUP support (exits). After `configuration.yml` edit: `docker restart <authelia-container>`. Authelia bypass `*.vps1.ocoron.com → /health` is automatic — never protect `/health`.
 
@@ -107,9 +91,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 
 3. **`fabrik redeploy` on git-sourced app** — sequence: `git commit` → `git push` → `fabrik redeploy`. Coolify pulls from GitHub remote, not local `/opt/` clone.
 
-4. **Gatus stable DNS** — Never use UUID container names in Gatus or inter-service URLs.
-   - **Service stacks** (`/data/coolify/services/<uuid>/`): `container_name` is stable — use directly.
-   - **Single-image Apps** (`/data/coolify/applications/<uuid>/`): container name has a timestamp suffix that changes per redeploy — DNS breaks silently. Install a stable alias on the `coolify` network. Procedure + currently-registered alias pairs (browserless, gotenberg, meilisearch, glitchtip-web): **`docs/reference/coolify-stable-aliases.md`**.
+4. **Gatus stable DNS** — Never use UUID container names in Gatus or inter-service URLs (they drift per redeploy). Use compose service names or registered stable aliases. Procedure: `docs/reference/coolify-stable-aliases.md`.
 
 ## HARD STOPS — NEVER
 | Rule | Instead |

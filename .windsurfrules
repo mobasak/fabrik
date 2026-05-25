@@ -14,8 +14,7 @@ PACKS: <pack codes whose globs match this turn's scope, or "none">
 ## Orient (every task)
 1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`/`package.json`.
 2. If `AFCL.md` exists, append friction findings as encountered.
-3. Rule packs in `.windsurf/rules/` self-activate via frontmatter — trust the frontmatter; the table below is for human discovery.
-4. Plans in `docs/development/plans/` need: Key Invariants, Failure Modes, 5–10 testable Acceptance Criteria.
+3. Rule packs in `.windsurf/rules/` self-activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
 
 ## Behavior
 - **Check before create:** verify file does not exist before write. Exists = STOP.
@@ -72,38 +71,6 @@ Skip for: stdlib, language syntax, internal Fabrik conventions.
 ## Environment
 WSL Ubuntu only. Linux paths, never Windows tooling. Code must work in WSL dev (PG localhost, `.env`), VPS Docker (`postgres-main`, `compose.yaml`), Supabase (env vars) without modification.
 
-## Rule Pack Pointers (navigation only — frontmatter governs loading)
-All in `.windsurf/rules/` subdirectories. Frontmatter globs activate packs — paths below are for human discovery.
-
-| Task involves | Path |
-|:--|:--|
-| Python | `core/10-python.md` |
-| API endpoints / schemas | `core/15-api-contracts.md` |
-| TypeScript | `core/20-typescript.md` |
-| PostgreSQL queries / migrations | `core/25-data-postgres.md` |
-| Docker / compose / ops | `core/30-ops.md` |
-| Auth / sessions / secrets | `core/35-security-auth.md` |
-| Doc generation | `core/40-documentation.md` |
-| Docusaurus | `core/42-docusaurus.md` |
-| Testing / One-Test Rule | `core/45-testing-strategy.md` |
-| Code review / gates | `core/50-code-review.md` |
-| Logging / health / monitoring | `core/55-observability.md` |
-| Resilience / external calls | `core/58-resilience.md` |
-| RAG / vector search | `core/65-rag-search.md` |
-| RAG chunking | `core/66-rag-chunking.md` |
-| Background workers / jobs | `core/75-workers-jobs.md` |
-| GPU workers | `core/76-gpu-workers.md` |
-| Paddle / iyzico billing | `core/85-payments-billing.md` |
-| Email templates | `core/86-email-templates.md` |
-| SaaS UI | `saas/60-saas-ui.md` |
-| SaaS launch checklist | `saas/88-saas-launch-checklist.md` |
-| Multi-tenant / RLS | `saas/95-multi-tenant-saas.md` |
-| React Native / mobile | `mobile-app/80-mobile.md` |
-| Mobile billing (RevenueCat) | `mobile-app/81-mobile-billing.md` |
-| Mobile launch checklist | `mobile-app/89-mobile-launch-checklist.md` |
-| Chrome extensions (MV3) | `chrome-ext/70-chrome-ext.md` |
-| Design system (Ocoron) | `core/ocoron-design-system.md` |
-| Design system (Tojlo) | `core/tojlo-design-system.md` |
 
 ## ⚠️ FINAL OUTPUT (last 4 lines, every response)
 ```
