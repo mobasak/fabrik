@@ -52,7 +52,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
 3. **User guide** — If user-facing AND `project.yaml::has_user_guide: true` → add/update page in `docs/user-guide/`.
 4. **Reusability** — Business logic separate from framework. Shared utilities in `src/utils/` or `src/lib/` with zero project-specific imports and no hardcoded project values. Any reusable function lives in its own module with docstring + type hints. Tag `[reusable]` in `INDEX.md`.
 5. **Naming** — kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case per PEP 8), auto-generated, dotfiles.
-6. **Search, don't guess** — For 3rd-party APIs (Coolify, Paddle, Traefik, Authelia, Supabase, Cloudflare, n8n — Stripe NOT available to TR entities):
+6. **Search, don't guess** — When the ticket references a 3rd-party API or SDK:
    1. Repo first: `grep docs/` + check `AFCL.md`.
    2. Else: `web_search` → `web_fetch` MCP on vendor's official docs; cite URL in code.
    3. After 3 misses: `BLOCKED: <vendor> — <searched> — <missing>`; stop.

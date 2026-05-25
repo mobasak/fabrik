@@ -27,7 +27,7 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 5. **EXIT** — Gate auto-stages on success. STOP. No commit/push unless user said so this turn; `git add` OK.
 
 ## External Knowledge — Search, Don't Guess
-For 3rd-party APIs (Coolify, Paddle, Traefik, Authelia, Supabase, Cloudflare, n8n — Stripe NOT available to TR entities):
+When the ticket references a 3rd-party API or SDK:
 1. Repo first: `Grep docs/` + check `AFCL.md`.
 2. Else: `WebSearch` → `WebFetch` official docs; cite URL in code.
 3. After 3 misses: `BLOCKED: <vendor> — <searched> — <missing>`; stop.

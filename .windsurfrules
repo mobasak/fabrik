@@ -57,7 +57,7 @@ PACKS: <pack codes whose globs match this turn's scope, or "none">
 Technical hard stops (Alpine ban, raw `pip install`, Docker port exposure, Authelia, M2M `X-Internal-Token` / `internal_auth.py` canonical pattern, kebab-case, `/tmp/` ban, port ranges, etc.) → auto-loaded packs are authoritative.
 
 ## External Knowledge — Search, Don't Guess
-Training data is stale. For any 3rd-party API/SDK/vendor (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n):
+Training data is stale. When the ticket references any 3rd-party API or SDK:
 1. Search repo first: `grep_search` `docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`.
 2. If absent: try in order — `search_web` → `*web_search_exa` → `*firecrawl_search`. Cite source URL in code comment.
 3. If 3 calls don't resolve it, output `BLOCKED: <vendor> — <searched> — <missing>` and stop.
