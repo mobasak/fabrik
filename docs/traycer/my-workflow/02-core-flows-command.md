@@ -115,7 +115,7 @@ Before documenting, seek explicit alignment with the user on these dimensions. D
 
 **5 UI States — flag selectively, not exhaustively.**
 
-`60-saas-ui.md` § Required States lists five states every interactive component must handle: **Empty / Loading / Error / Success-Saved / Disabled**. In the flow document, flag a state if and only if:
+`saas/60-saas-ui.md` § Required States lists five states every interactive component must handle: **Empty / Loading / Error / Success-Saved / Disabled**. In the flow document, flag a state if and only if:
 
 > *"Would a user behave differently, or would a developer make a wrong assumption, if this state weren't documented here?" If yes → include. If no → omit.*
 
@@ -127,7 +127,7 @@ Examples of when to flag:
 
 Examples of when NOT to flag:
 
-- Generic Loading skeletons on data-fetching pages — covered by `60-saas-ui.md` defaults.
+- Generic Loading skeletons on data-fetching pages — covered by `saas/60-saas-ui.md` defaults.
 - Success confirmation toasts on save — covered by Optimistic UI patterns.
 
 Multiple rounds of clarification are normal — do not proceed to documentation until shared understanding exists on all five UX dimensions.

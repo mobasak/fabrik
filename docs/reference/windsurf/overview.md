@@ -23,7 +23,7 @@ Windsurf is the primary IDE. Three executors read different instruction files:
 
 | Executor | Reads | Instruction file |
 |---|---|---|
-| **Cascade** (Windsurf AI) | `.windsurfrules` + `.windsurf/rules/*.md` + `AGENTS.md` | Glob-triggered rule packs |
+| **Cascade** (Windsurf AI) | `.windsurfrules` + `.windsurf/rules/**/*.md` + `AGENTS.md` | Glob-triggered rule packs |
 | **Kilo CLI** (terminal agent) | `AGENTS-compact.md` via `opencode.json` | Compact instructions |
 | **Claude Code** (this tool) | `CLAUDE.md` | Full dev contract |
 
@@ -35,7 +35,7 @@ All three get the same spec contract awareness rules (inline in their respective
 
 | What | Where |
 |---|---|
-| Rule packs | `.windsurf/rules/` (24 numbered packs + 2 design systems) |
+| Rule packs | `.windsurf/rules/` (30 rule packs across 4 subdirectories (core/, saas/, mobile-app/, chrome-ext/)) |
 | Workflows | `.windsurf/workflows/` (11 workflows) |
 | MCP servers | `~/.codeium/windsurf/mcp_config.json` |
 | Memories | `~/.codeium/windsurf/memories/` (auto-generated, local) |

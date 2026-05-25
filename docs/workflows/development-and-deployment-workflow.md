@@ -271,7 +271,7 @@ Every claim in this document is checkable. The grep / file commands below valida
 | 4 currently-registered Coolify stable aliases | `grep -E '^apply_alias ' /opt/fabrik/scripts/vps_apply_limits.sh \| wc -l` |
 | 6 pre-flight items in AGENTS.md | `awk '/^## 🛑 MANDATORY/,/^## Planning Constraints/' /opt/fabrik/AGENTS.md \| grep -cE '^[0-9]+\. \*\*'` |
 | 12 planning constraints in AGENTS.md | `awk '/^## Planning Constraints/,/^---$/' /opt/fabrik/AGENTS.md \| grep -cE '^[0-9]+\. \*\*'` |
-| 0 packs left with `activation: always_on` | `grep -l 'activation: always_on' /opt/fabrik/.windsurf/rules/*.md \| wc -l` |
+| 0 packs left with `activation: always_on` | `grep -rl 'activation: always_on' /opt/fabrik/.windsurf/rules/**/*.md \| wc -l` |
 | `CROSS_CUTTING_REQUIREMENTS.md` is gone | `test -e /opt/fabrik/.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md && echo PRESENT \|\| echo absent` |
 | Coolify pulls from GitHub, not `/opt/` | Read [.windsurf/rules/core/30-ops.md § Redeploying Git-Sourced Apps](../../.windsurf/rules/core/30-ops.md) |
 | Authelia exits on SIGHUP | Read [.windsurf/rules/core/30-ops.md § Authelia SSO](../../.windsurf/rules/core/30-ops.md) |

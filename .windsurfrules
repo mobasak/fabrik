@@ -9,7 +9,7 @@
 RULES ACTIVE: CASCADE | <3 rules from this file you applied>
 PACKS: <pack codes whose globs match this turn's scope, or "none">
 ```
-`PACKS` line: declare which `.windsurf/rules/*.md` packs are scope-relevant by matching their frontmatter `globs:` against files you will touch this turn. Listing a pack implies you read it. Pure conversation/planning turns with no file scope = `PACKS: none`.
+`PACKS` line: declare which `.windsurf/rules/**/*.md` packs are scope-relevant by matching their frontmatter `globs:` against files you will touch this turn. Listing a pack implies you read it. Pure conversation/planning turns with no file scope = `PACKS: none`.
 
 ## Orient (every task)
 1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`/`package.json`.

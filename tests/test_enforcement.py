@@ -126,7 +126,7 @@ class TestCheckRuleSize:
 
         rules_dir = tmp_path / ".windsurf" / "rules"
         rules_dir.mkdir(parents=True)
-        (rules_dir / "00-critical.md").write_text("# Small file\n")
+        (rules_dir / "10-python.md").write_text("# Small file\n")
 
         monkeypatch.setattr(
             module, "__file__", str(tmp_path / "scripts" / "enforcement" / "check_rule_size.py")

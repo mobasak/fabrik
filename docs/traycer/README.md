@@ -25,7 +25,7 @@ Fabrik uses a **separation of concerns** architecture where each agent type read
 |--------|-----------|---------|
 | `AGENTS.md` | Traycer orchestrator | Full identity, planning constraints, rule-pack registry |
 | `AGENTS-compact.md` | Kilo CLI (via `opencode.json`) | Compact completion contract + workflow rules |
-| `.windsurfrules` + `.windsurf/rules/*.md` | Cascade (auto-discovery) | IDE behavior, language patterns, code review workflow |
+| `.windsurfrules` + `.windsurf/rules/**/*.md` | Cascade (auto-discovery) | IDE behavior, language patterns, code review workflow |
 
 **3-layer model:** Traycer reads `AGENTS.md` for orchestration. Kilo reads `AGENTS-compact.md` for execution. Cascade reads `.windsurfrules` + `.windsurf/rules/`.
 

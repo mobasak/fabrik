@@ -156,10 +156,10 @@ Work each section: think → clarify → document. Trace requests end-to-end. In
 
 - New entities and relationships.
 - Database schema (PostgreSQL on `postgres-main`).
-- Apply `25-data-postgres.md` conventions (PK, indexes, constraints).
+- Apply `core/25-data-postgres.md` conventions (PK, indexes, constraints).
 - **Redis usage**: cache keys, TTL, DB index from `redis-assignments.json`.
 - **Meilisearch indexes** (if `shape.has_search_feature: true`).
-- If Commercial Mindset ON: apply `95-multi-tenant-saas.md` (tenant_id, RLS, deletion).
+- If Commercial Mindset ON: apply `saas/95-multi-tenant-saas.md` (tenant_id, RLS, deletion).
 - N/A allowed for scaffolds with no DB — one-line reason required.
 
 #### C. Component Architecture

@@ -99,6 +99,7 @@ PACK_REGISTRY: dict[str, str] = {
     "MOBILE_BILLING": "mobile-app/81-mobile-billing.md",
     "MOBILE_LAUNCH": "mobile-app/89-mobile-launch-checklist.md",
     "MOBILE_DESIGN": "mobile-app/ocoron-mobile-design-system.md",
+    "TOJLO_MOBILE_DESIGN": "mobile-app/tojlo-mobile-design-system.md",
     "CHROME_MV3": "chrome-ext/70-chrome-ext.md",
 }
 

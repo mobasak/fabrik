@@ -131,7 +131,7 @@ Read the code checking for these conventions:
 - Read each external call site — is there a timeout parameter?
 - Is there retry logic with backoff?
 - What happens when the external service is down — graceful degradation or crash?
-- For workers: is there pause-state, queue-bloat prevention per `58-resilience.md`?
+- For workers: is there pause-state, queue-bloat prevention per `core/58-resilience.md`?
 - Read `docs/RESILIENCE.md` — is it filled with real dependency inventory or still the empty template?
 
 **M2M Auth (services calling Internal APIs):**

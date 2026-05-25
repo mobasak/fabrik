@@ -372,7 +372,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 **Purpose:** Ensures rule files are under 50KB each.
 
 **Validates:**
-- `.windsurf/rules/*.md` files < 50KB
+- `.windsurf/rules/**/*.md` files < 50KB
 - Rules are concise and focused
 - No unnecessary verbosity
 

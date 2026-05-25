@@ -53,7 +53,7 @@ Cascade creates memories automatically when it encounters useful context. You ca
 | Scope | Location | Activation | Limit |
 |---|---|---|---|
 | **Global** | `~/.codeium/windsurf/memories/global_rules.md` | Always active, all workspaces | 6,000 chars |
-| **Workspace** | `.windsurf/rules/*.md` | Per-file trigger (see below) | 12,000 chars/file |
+| **Workspace** | `.windsurf/rules/**/*.md` | Per-file trigger (see below) | 12,000 chars/file |
 | **AGENTS.md** | Any directory | Root = always-on; subdirectory = auto-glob | No limit |
 | **System (Enterprise)** | `/etc/windsurf/rules/*.md` (Linux/WSL) | Always active, IT-managed, read-only | — |
 
@@ -278,7 +278,7 @@ node_modules/
 ### Loaded Context Hierarchy
 
 1. `.windsurfrules` (root) — always loaded
-2. `.windsurf/rules/*.md` — loaded per trigger mode (glob/always_on/model_decision)
+2. `.windsurf/rules/**/*.md` — loaded per trigger mode (glob/always_on/model_decision)
 3. `AGENTS.md` (root) — always loaded by Cascade
 4. `.windsurf/workflows/*.md` — loaded on invocation
 

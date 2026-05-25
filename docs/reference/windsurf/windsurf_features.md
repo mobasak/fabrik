@@ -211,7 +211,7 @@ See [cascade-guide.md](cascade-guide.md#mcp-model-context-protocol) for full con
 ## Memories, Rules & Workflows
 
 - **Memories:** Auto-generated context Cascade remembers across conversations
-- **Rules:** User-defined instructions in `.windsurf/rules/*.md` with trigger modes (always_on, glob, model_decision, manual)
+- **Rules:** User-defined instructions in `.windsurf/rules/**/*.md` with trigger modes (always_on, glob, model_decision, manual)
 - **Workflows:** Reusable agentic recipes in `.windsurf/workflows/*.md`
 
 See [cascade-guide.md](cascade-guide.md#memories--rules) for full details.

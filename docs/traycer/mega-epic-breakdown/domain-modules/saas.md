@@ -4,7 +4,7 @@
      Auto-select when scaffold signal includes saas-skeleton.
      Consumer: Traycer planning LLM (NOT coding agents).
      Coding agents use .windsurf/rules/saas/88-saas-launch-checklist.md,
-     95-multi-tenant-saas.md, 60-saas-ui.md instead. -->
+     saas/95-multi-tenant-saas.md, saas/60-saas-ui.md instead. -->
 
 # SaaS Domain Module (17 dimensions)
 
@@ -300,7 +300,7 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 | Integration endpoint | Webhook signature verification; idempotency key; retry/backoff; marketplace listing prep |
 | Settings / admin | Per-tenant config isolation; soft-delete; audit log entry; export endpoint |
 | Legal / compliance | ToS acceptance gate; KVKK/GDPR consent capture; data deletion endpoint |
-| Email / push / notification template | MJML + Jinja2 pipeline; Ocoron brand partial; Resend ESP; reference `86-email-templates.md` |
+| Email / push / notification template | MJML + Jinja2 pipeline; Ocoron brand partial; Resend ESP; reference `core/86-email-templates.md` |
 
 #### Agent Context Files
 

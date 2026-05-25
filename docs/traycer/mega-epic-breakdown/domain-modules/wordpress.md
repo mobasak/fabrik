@@ -4,7 +4,7 @@
      Auto-select when scaffold signal includes wordpress.
      Consumer: Traycer planning LLM (NOT coding agents).
      No dedicated WordPress rule pack exists — coding agents use
-     general rule packs (30-ops, 35-security-auth, 85-payments-billing)
+     general rule packs (core/30-ops, core/35-security-auth, core/85-payments-billing)
      plus decisions made in this module. -->
 
 # WordPress Domain Module (18 dimensions, any type)
@@ -333,7 +333,7 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 | Backups | Backrest to B2 configured; DB + uploads included; restore tested |
 | Security | Cloudflare WAF rules; security plugin configured; admin hardening (2FA, limited login); XML-RPC disabled; file permissions locked |
 | Multilingual (if applicable) | Polylang configured; hreflang tags present; translated slugs; language switcher placed; DeepL connected (if auto-translate) |
-| Email / newsletter template | MJML as design source; compiled HTML to Woo override or ESP; WP/Woo/ESP merge tags (not Jinja2); FluentCRM for marketing; reference `86-email-templates.md` § WordPress |
+| Email / newsletter template | MJML as design source; compiled HTML to Woo override or ESP; WP/Woo/ESP merge tags (not Jinja2); FluentCRM for marketing; reference `core/86-email-templates.md` § WordPress |
 
 #### Agent Context Files
 

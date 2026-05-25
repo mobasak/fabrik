@@ -84,7 +84,7 @@ What condition caused this to surface? (e.g., Alert storm, Deployment failure, C
 
 When a lesson learnt graduates to a permanent rule:
 
-1. Update the relevant `.windsurf/rules/*.md` file with the new instruction
+1. Update the relevant `.windsurf/rules/**/*.md` file with the new instruction
 
 2. Reference this file in the rule's rationale if needed
 

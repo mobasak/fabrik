@@ -8,7 +8,7 @@
 
 ## What We're Building
 
-YouTube Pipeline is a **multi-tenant transcript + comments + audio SaaS** for the Tojlo brand. Users submit YouTube URLs → the pipeline extracts metadata, fetches captions (or transcribes audio via Soniox), mines comments, stores everything in a per-user content tree, and offers a Flask web dashboard (login, library, watchlists, payments via Stripe, teams, projects, settings).
+YouTube Pipeline is a **multi-tenant transcript + comments + audio SaaS** for the Tojlo brand. Users submit YouTube URLs → the pipeline extracts metadata, fetches captions (or transcribes audio via Soniox), mines comments, stores everything in a per-user content tree, and offers a Flask web dashboard (login, library, watchlists, payments via Paddle, teams, projects, settings).
 
 The product is **live in production** under `youtube.vps1.ocoron.com`. The modernization scope is **not "build the product"** — it's "align the production deployment topology with the Fabrik python-api scaffold conventions so it gets the same observability, resilience, and 12-Factor guarantees as every other Fabrik service."
 
@@ -75,7 +75,7 @@ Whatever serves `youtube.vps1.ocoron.com → :5000` (Flask) today does so via VP
 | 6 | Redis (`redis-main:6379`) | ✅ Broker + result backend; orphan sweep mitigates outages |
 | 7 | Apify (audio downloader) | ✅ Concurrency=12, throttle in `apify_throttle.py` |
 | 8 | Soniox (transcription) | ✅ Balance check Beat, $5 floor |
-| 9 | Stripe (payments) | Partial — webhooks exist; no documented retry policy |
+| 9 | Paddle (payments) | Partial — webhooks exist; no documented retry policy |
 | 10 | YouTube oEmbed / yt-dlp | Documented via pipeline-resilience |
 | 11 | Backblaze B2 (file storage) | Partial — migration script exists, no resilience cards |
 | 12 | DeepL / Azure (translator) | Partial — used by dashboard, no resilience cards |
@@ -120,7 +120,7 @@ Whatever serves `youtube.vps1.ocoron.com → :5000` (Flask) today does so via VP
 └────────────────────────────────────────────────────────────┘
        ↓ talks to ↓
   postgres-main:5432 · redis-main:6379 · YouTube API · Apify
-  · Soniox · IPRoyal · Stripe · Backblaze B2 · GlitchTip
+  · Soniox · IPRoyal · Paddle · Backblaze B2 · GlitchTip
 ```
 
 ### Proposed (Fork B — recommended default)
@@ -159,7 +159,7 @@ Three compose services. systemd unit `youtube-worker.service` decommissioned. `n
 |:--|:--|:--|:--|
 | **0. Security** | Rotate `yt_secure_2025`. Delete `scripts/start_dashboard_workers.sh`. Audit git history for other secrets. Update `.env`, Coolify env, `youtube-worker.service` `EnvironmentFile`. | Credential leak is unbounded blast radius. Must precede everything. | 1 |
 | **1. Fork decision** | Document A/B/C choice in `01-fork-decision.md`. Owner: human (Özgür). | Without this, nothing else is plannable. | 0 (decision doc) |
-| **2. Resilience backfill** | Translate `docs/reference/pipeline-resilience.md` → `docs/RESILIENCE.md` per `.windsurf/rules/core/58-resilience.md` template. Add §2b cards for Stripe, B2, DeepL/Azure (3 missing). | Pure docs work; safe; can run in parallel with anything else; gives RESILIENCE rule pack something to point at. | 1 |
+| **2. Resilience backfill** | Translate `docs/reference/pipeline-resilience.md` → `docs/RESILIENCE.md` per `.windsurf/rules/core/58-resilience.md` template. Add §2b cards for Paddle, B2, DeepL/Azure (3 missing). | Pure docs work; safe; can run in parallel with anything else; gives RESILIENCE rule pack something to point at. | 1 |
 | **3. Spec emission** | Fabrik (`/opt/fabrik`) emits `specs/services/youtube.yaml` with `shape:` block: `kind=service, is_public=true, has_persistent_data=true, needs_database=true, exposes_metrics=true, has_search_feature=false, is_admin_dashboard=false, coolify.alias=youtube`. | Spec is the deploy contract; everything downstream (registrars, monitoring) keys off it. Fabrik-side work, not youtube-side. | 1 |
 | **4. Compose hardening** | Add `deploy.resources.limits.memory + cpus` to `compose.yaml` per F5 fix. Add `MemoryLimit=` to `youtube-worker.service` until it's decommissioned in Phase 6. | Independent of fork; immediate OOM protection. | 1 |
 | **5. 12-Factor cleanup** | Fix `dashboard/app.py:20-21` (relative paths). Fix `dashboard/app.py:37` (require `FLASK_SECRET_KEY` from env, fail if missing in production). Add `--workers N` to FastAPI CMD (if FastAPI survives the fork). | Application-level fixes; safe to do regardless of fork. | 2 |

@@ -10,7 +10,7 @@ from pathlib import Path
 SERVICE_PORT_PATTERN = re.compile(r"(?<![A-Z_])(?:port|PORT)\s*[=:]\s*(\d{4,5})")
 EXPOSE_PATTERN = re.compile(r"EXPOSE\s+(\d{4,5})")
 
-# Port ranges per technology (from 00-critical.md)
+# Port ranges per technology (from core/30-ops.md)
 # Only applied to service ports, not client connections
 PORT_RANGES = {
     ".py": (8000, 8099, "Python services"),

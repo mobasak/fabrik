@@ -82,7 +82,7 @@ PartnerStack, Impact.com, Reditus, Tapfiliate, FirstPromoter, Rewardful, Tolt, L
 
 ## P. Run-Your-Own Affiliate Program Software
 
-Post Affiliate Pro, Tapfiliate, Refersion, LeadDyno, AffiliateWP (WordPress), iDevAffiliate, PartnerStack (managed), Rewardful, FirstPromoter, Tolt (Stripe-native).
+Post Affiliate Pro, Tapfiliate, Refersion, LeadDyno, AffiliateWP (WordPress), iDevAffiliate, PartnerStack (managed), Rewardful, FirstPromoter, Tolt (Stripe-native — N/A for TR entities).
 
 ## Q. Affiliate Program Directories (still operating)
 

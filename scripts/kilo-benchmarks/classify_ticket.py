@@ -277,7 +277,7 @@ if __name__ == "__main__":
         },
         {
             "title": "Wire payment webhook",
-            "description": "Stripe webhook handler",
+            "description": "Paddle webhook handler",
             "estimated_files": 2,
             "estimated_lines": 60,
             "expect": "coding_complex",  # "webhook" is complex

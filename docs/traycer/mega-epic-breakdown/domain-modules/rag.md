@@ -87,8 +87,8 @@ After retrieval, a cross-encoder re-reads each result and re-orders by actual re
 When `02-epic-decomposition-command` encounters a RAG pipeline in the Vision Summary:
 
 ### Phase 1 Epic: "Search Pipeline"
-- Chunking pipeline (per `66-rag-chunking.md`)
-- Embedding pipeline (per `65-rag-search.md` § Embedding Models)
+- Chunking pipeline (per `core/66-rag-chunking.md`)
+- Embedding pipeline (per `core/65-rag-search.md` § Embedding Models)
 - Hybrid retriever (pgvector + tsvector + RRF)
 - Search API endpoint
 - Search UI (if applicable)
@@ -96,8 +96,8 @@ When `02-epic-decomposition-command` encounters a RAG pipeline in the Vision Sum
 - **Delivers:** working semantic search
 
 ### Phase 2 Epic: "Classification Pipeline" (if needed)
-- Classifier model selection (benchmark per `65-rag-search.md` § Model Selection Rules)
-- Classification pipeline (batch processor via `75-workers-jobs.md`)
+- Classifier model selection (benchmark per `core/65-rag-search.md` § Model Selection Rules)
+- Classification pipeline (batch processor via `core/75-workers-jobs.md`)
 - Structured filter API endpoints
 - Filter UI (if applicable)
 - **Depends on:** Phase 1 (needs chunks in database)

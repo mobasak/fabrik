@@ -169,9 +169,9 @@ Now take the owner's input on what to build next:
 - Adding chrome extension → read `domain-modules/chrome-ext.md`
 
 **Force new technology decisions per current ruleset** — but ONLY for new components:
-- New search? → pgvector + hybrid search per `65-rag-search.md`. NOT re-deciding the database.
-- New billing? → Paddle per `85-payments-billing.md`. NOT re-deciding auth.
-- New mobile app? → RevenueCat + IAP per `81-mobile-billing.md`. NOT re-deciding the backend.
+- New search? → pgvector + hybrid search per `core/65-rag-search.md`. NOT re-deciding the database.
+- New billing? → Paddle per `core/85-payments-billing.md`. NOT re-deciding auth.
+- New mobile app? → RevenueCat + IAP per `mobile-app/81-mobile-billing.md`. NOT re-deciding the backend.
 
 **Identify integration points:**
 - Which existing tables does the new feature read/write?

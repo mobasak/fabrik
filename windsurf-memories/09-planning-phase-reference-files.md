@@ -22,7 +22,7 @@
 
 ### Code Standards
 - `templates/scaffold/PYTHON_PRODUCTION_STANDARDS.md` - Python best practices
-- `.windsurf/rules/10-python.md` - FastAPI patterns
-- `.windsurf/rules/20-typescript.md` - Next.js/React patterns
+- `.windsurf/rules/core/10-python.md` - FastAPI patterns
+- `.windsurf/rules/core/20-typescript.md` - Next.js/React patterns
 
 **Full index:** `docs/reference/PLANNING_REFERENCES.md`

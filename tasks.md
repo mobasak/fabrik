@@ -71,4 +71,4 @@ When completing any task:
 2. Update this **dashboard** (phase status table)
 3. Update **CHANGELOG.md** (code changes)
 
-See: [Documentation Rules](.windsurf/rules/40-documentation.md)
+See: [Documentation Rules](.windsurf/rules/core/40-documentation.md)

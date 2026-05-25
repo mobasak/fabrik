@@ -59,7 +59,7 @@ Reference `.windsurf/rules/mobile-app/80-mobile.md` for implementation detail. A
 
 - **Framework: React Native + Expo + EAS** (decided — do not reopen). One codebase, managed build/submit/OTA, TypeScript synergy with web stack, Ocoron design system mapping via unistyles, MCP verification loop. **Never dual-native. Never Flutter** (evaluated and rejected — RN+Expo is the Fabrik standard; switching would discard the entire 80-mobile ruleset, i18n pipeline, and TS ecosystem).
 - **Backend:** **Supabase** (auth, db, realtime, storage — first-class mobile SDKs) + python-api for custom logic; postgres-main for non-Supabase data.
-- **Auth: Supabase Auth** (decided — do not reopen). Firebase Auth was evaluated and rejected: Supabase Auth serves the same "managed IdP" role but keeps identity + data + RLS + realtime on one platform, avoids dual-UID systems, and the JWKS verification flow is identical. See `35-security-auth.md` Pattern B. **Sign in with Apple is mandatory** if you offer any other social login on iOS; tokens in `expo-secure-store`.
+- **Auth: Supabase Auth** (decided — do not reopen). Firebase Auth was evaluated and rejected: Supabase Auth serves the same "managed IdP" role but keeps identity + data + RLS + realtime on one platform, avoids dual-UID systems, and the JWKS verification flow is identical. See `core/35-security-auth.md` Pattern B. **Sign in with Apple is mandatory** if you offer any other social login on iOS; tokens in `expo-secure-store`.
 - **Offline/sync:** online-first + offline-read cache by default; full offline-write+sync only if the use case demands it (large maintenance lift).
 - **Attribution plumbing (build-time mandate):** MMP SDK (Tenjin — 2k conv/mo free, flat $200 after) + Universal Links (iOS AASA) / App Links (Android assetlinks.json) wired as **Expo config plugins at prebuild, tested via EAS dev build — not Expo Go.** Deep-link routing via ChottuLink (25k MAU free). **Firebase Dynamic Links is dead (Aug 2025) — never reference it.** Retrofit = full binary re-review + permanently lost early-cohort attribution.
 
@@ -73,7 +73,7 @@ Reference `.windsurf/rules/mobile-app/81-mobile-billing.md` for full billing dis
 
 **Default:** **RevenueCat over StoreKit/Play Billing** — set-and-forget receipts, entitlements, cross-platform. Apple Small Business Program = 15% under $1M. **EU rule:** stay on SBP 15% IAP in the EU — the 2026 Core Technology Commission makes EU external link-out approximately 18% effective, which is *worse*. External web billing only pays off in US/unregulated regions.
 
-**Turkey constraint:** Google Play Billing is mandatory for digital goods — Turkey is excluded from UCB and EOP. Paddle/iyzico/Stripe web-steer = instant rejection. See `81-mobile-billing.md`. Ad revenue is taxed separately from subscription revenue under Teknokent — maintain separate ledgers.
+**Turkey constraint:** Google Play Billing is mandatory for digital goods — Turkey is excluded from UCB and EOP. Paddle/iyzico/Stripe web-steer = instant rejection. See `mobile-app/81-mobile-billing.md`. Ad revenue is taxed separately from subscription revenue under Teknokent — maintain separate ledgers.
 
 **Why now:** in-app billing is the forced path; entitlement gating must exist before paywalled features.
 
@@ -238,7 +238,7 @@ After foundation:
 - Do NOT create separate iOS and Android epics — one codebase, one lane.
 - Do NOT defer monetization to "later" — entitlement gating shapes the feature tree.
 - Do NOT defer push permission strategy — it's a one-shot ask, design it upfront.
-- Do NOT create a "testing epic" — testing is per-ticket (Maestro flows, reference `80-mobile.md` § Testing).
+- Do NOT create a "testing epic" — testing is per-ticket (Maestro flows, reference `mobile-app/80-mobile.md` § Testing).
 - Do NOT skip compliance in foundation — account deletion + privacy labels = store-blocking.
 
 #### Phase Mapping
@@ -306,7 +306,7 @@ When creating the ticket outline for a mobile epic, verify coverage:
 - If this epic owns distribution: tickets for EAS profiles (dev/preview/prod) + CI/CD (GitHub Actions) + OTA channel config.
 - Analytics instrumentation is NOT a separate ticket — it belongs inside each feature ticket as an AC.
 - Every ticket that touches UI must have `80-mobile.md` in its Rule Packs.
-- E2E test target: every `[PRIMARY PATH]` flow gets a Maestro YAML (reference `80-mobile.md` § Testing).
+- E2E test target: every `[PRIMARY PATH]` flow gets a Maestro YAML (reference `mobile-app/80-mobile.md` § Testing).
 
 ### 2E. Ticket Breakdown (my-workflow/06)
 
@@ -331,7 +331,7 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 | Permissions | Just-in-time with priming; privacy labels declared; minimal permissions |
 | Compliance | Privacy Manifest entry; ATT before tracking; account deletion reachable from Settings; reference `80-mobile.md` § Compliance |
 | Distribution / build | EAS profile used; OTA channel configured; CI/CD trigger defined |
-| Email / push / notification template | MJML + Jinja2 pipeline (backend email); push: FCM localized + deep-linked + PII-free; reference `86-email-templates.md` |
+| Email / push / notification template | MJML + Jinja2 pipeline (backend email); push: FCM localized + deep-linked + PII-free; reference `core/86-email-templates.md` |
 
 #### Agent Context Files
 

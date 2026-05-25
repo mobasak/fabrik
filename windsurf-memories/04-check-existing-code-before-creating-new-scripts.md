@@ -17,4 +17,4 @@ Before writing ANY new script, I MUST:
 - `scripts/docs_updater.py` - Documentation updates
 - `scripts/review_processor.py` - Background reviews
 
-**Rule location:** `.windsurf/rules/00-critical.md`
+**Rule location:** `.windsurf/rules/core/30-ops.md`

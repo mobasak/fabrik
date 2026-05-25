@@ -559,7 +559,7 @@ The goal is the minimal set of well-defined tickets that covers the full epic â€
    > **Cross-cutting enforcement:**
    > Cross-cutting always-on rules live in each coding agent's bootstrap file â€”
    > `CLAUDE.md` (Claude Code), `.windsurfrules` (Cascade), `AGENTS-compact.md` (Kilo CLI).
-   > Topic-specific deep-dives live in `.windsurf/rules/*.md` packs (loaded on demand by all three).
+   > Topic-specific deep-dives live in `.windsurf/rules/**/*.md` packs (loaded on demand by all three).
    > The Verification checklist above hardcodes the checks so they appear in every ticket regardless
    > of whether the agent reads its bootstrap.
    > Additionally, for each ticket:
