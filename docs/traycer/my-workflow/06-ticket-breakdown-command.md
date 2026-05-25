@@ -115,13 +115,12 @@ These provide the CONTENT for writing Steps (function names, file paths, schemas
 **Category:** DB Schema & Migrations (from outline — drives rule pack injection below)
 
 **Context Files** (read before starting, do not modify):
-1. `.windsurf/rules/25-data-postgres.md` — from category: DB Schema & Migrations (rule pack)
-2. `.windsurf/rules/55-observability.md` — always-on overlay
-3. `docs/reference/DATABASE_STRATEGY.md` — migration policy
+1. `.windsurf/rules/core/25-data-postgres.md` — from category: DB Schema & Migrations (rule pack)
+2. `.windsurf/rules/core/55-observability.md` — always-on overlay
 4. Tech Plan § B. Data Model
 5. `src/myservice/config.py` — existing config pattern
 
-> **Rule:** When the ticket-outline category table lists `rule pack + docs/reference/...`, inject BOTH into Context Files. Example: category "Search" → inject `.windsurf/rules/65-rag-search.md` AND `docs/reference/MD/rag-chunking-rules.md`. The rule pack has concise rules; the reference doc has the detailed spec.
+> **Rule:** When the ticket-outline category table lists a rule pack, inject it into Context Files. Example: category "Search" → inject `.windsurf/rules/core/65-rag-search.md` AND `.windsurf/rules/core/66-rag-chunking.md`.
 
 **Starting Pattern:** `/opt/file-api/src/file_api/models.py`
 
@@ -169,7 +168,7 @@ These provide the CONTENT for writing Steps (function names, file paths, schemas
 **Governance Checklist:**
 - [ ] No files outside scope modified.
 - [ ] Data Model from Tech Plan fully implemented — no partial tables.
-- [ ] First-output rule: `RULES ACTIVE: CASCADE | 25-data-postgres, 55-observability, DATABASE_STRATEGY`
+- [ ] First-output rule: `RULES ACTIVE: CASCADE | 25-data-postgres, 55-observability`
 - [ ] No `git commit`/`git push` executed.
 - [ ] Final Gate → `status: "success"`.
 - [ ] No silent failures (malformed migration that applies but corrupts data).
@@ -235,7 +234,7 @@ If outline's `Touches` field names a PRIMARY PATH flow:
 > "Integration test at `tests/integration/test_<flow_name>.py` covers [PRIMARY PATH] from `<flow>` end-to-end and passes."
 
 - Test code is IN this ticket's scope.
-- Use real DB (no mocks) per `.windsurf/rules/45-testing-strategy.md`.
+- Use real DB (no mocks) per `.windsurf/rules/core/45-testing-strategy.md`.
 - For scaffolds without Core Flows: one test per primary success path from Epic Brief.
 - Skip for docs-only tickets.
 

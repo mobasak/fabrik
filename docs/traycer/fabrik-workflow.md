@@ -30,7 +30,7 @@ The goal is alignment, not artifacts. Specs are records of decisions made togeth
 
 Once the user names a sub-target, treat that path as the new effective project root and continue at Step 2. If the user's request is genuinely platform-wide (e.g. "refactor all microservice Dockerfiles"), classify the route as **"Feature for existing project"** and apply the rubric in Step 6 against the platform monorepo.
 
-**UI design-system read (conditional):** Defer this read until Step 2 has classified the scaffold. If the scaffold is one of `saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, then read `.windsurf/rules/ocoron-design-system.md` and internalize color tokens, typography, component patterns, scaffold adaptations, and verbal identity before generating any planning output.
+**UI design-system read (conditional):** Defer this read until Step 2 has classified the scaffold. If the scaffold is one of `saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, then read `.windsurf/rules/core/ocoron-design-system.md` and internalize color tokens, typography, component patterns, scaffold adaptations, and verbal identity before generating any planning output.
 
 ### **Step 2: Scaffold Detection**
 
@@ -146,7 +146,7 @@ The base set is `AGENTS.md` § Planning Constraints (currently 10 items). The wo
 **Workflow overlays:**
 
 11. **Duplicate project** — similar project already in `docs/BUSINESS_MODEL.md`? State explicitly.
-12. **Design System** — for UI scaffolds, confirm `.windsurf/rules/ocoron-design-system.md` was read. State `Design system read.` or `No UI surface.`
+12. **Design System** — for UI scaffolds, confirm `.windsurf/rules/core/ocoron-design-system.md` was read. State `Design system read.` or `No UI surface.`
 13. **Coolify health (operational readiness)** — Read `docs/infrastructure/COOLIFY_STATUS.md` for the last human-recorded status. State `Coolify: healthy / degraded / unknown` in INFRA-CHECK. *Architectural compatibility is constraint #7; do not collapse the two.* Heuristic staleness rule (subject to revision once `run_check_coolify_status()` ships per SN-9 in `docs/development/plans/fabrik-phase-gap-analysis.md`): treat the doc as **stale** if any of: (a) the date stated at the top of the doc is older than 7 days; (b) the doc contains internal contradictions (e.g. a service listed as both migrated and "Phase X — NEXT", or self-contradicting counts); (c) the user reports a deployment incident not yet reflected. When stale, render the field as `unknown — status doc stale, recommend regeneration via Coolify API`.
 14. **Platform debt** — aggregate open items from (a) `PORTS.md` `### ⚠️ Port Conflicts Detected`, (b) `docs/infrastructure/COOLIFY_STATUS.md` `## Summary → What Needs Attention`, and (c) `docs/infrastructure/COOLIFY_STATUS.md` `## Next Steps → Immediate`. **Always informational — never blocks the workflow.** Surface count + one-line summaries below INFRA-CHECK; the user decides whether to address or proceed.
 
@@ -214,7 +214,7 @@ Immediately below the header, list the platform-debt items (one line each) when 
 - **Internal APIs:** Comma-separated list of existing Fabrik microservices the new project plans to **consume** (e.g. `dns-manager, image-broker`). Use `none` if the project consumes no internal services. Purely about **consumption**; exposure is captured by `User Guide`.
 - **User Guide:** `true` if the project ships a user-facing guide (UI scaffolds + external APIs); `false` for internal-only APIs and back-end workers. Set per the routing table / overlay #15. Propagated downstream as `HAS_USER_GUIDE` per the existing `epic-brief` Metadata contract.
 - **Coolify:** Operational-health value from constraint #13. Possible values: `healthy`, `degraded`, `unknown`. When the staleness heuristic triggers, render the value as `unknown — status doc stale, recommend regeneration via Coolify API` (the suffix is part of the value).
-- **Design System:** `read` if `.windsurf/rules/ocoron-design-system.md` was read for a UI scaffold; `N-A` for non-UI scaffolds.
+- **Design System:** `read` if `.windsurf/rules/core/ocoron-design-system.md` was read for a UI scaffold; `N-A` for non-UI scaffolds.
 - **Platform Debt:** Integer count from constraint #14. **Informational only — never blocks.**
 
 **Field propagation policy:**
@@ -525,7 +525,7 @@ The goal is the minimal set of well-defined tickets that covers the full epic �
      - [ ] No silent failures introduced — code cannot proceed without error while producing wrong results (skip if docs-only ticket)
      - [ ] CHANGELOG has an entry for this ticket
      - [ ] INDEX.md reflects all files added, removed, or renamed in this ticket
-     - [ ] All logging uses structured logger (no print statements) with correlation IDs per .windsurf/rules/55-observability.md
+     - [ ] All logging uses structured logger (no print statements) with correlation IDs per .windsurf/rules/core/55-observability.md
      - [ ] If new env vars or config keys were introduced, docs/CONFIGURATION.md is updated
      - [ ] If this ticket touches user-facing functionality and HAS_USER_GUIDE is true, corresponding docs/user-guide/ page exists or is updated
      - [ ] Utility modules created in this ticket have zero project-specific imports and are tagged [reusable] in INDEX.md
@@ -888,7 +888,7 @@ Review the implementation for:
 - **Bugs** — logic errors, incorrect behavior, broken flows. Cite line numbers.
 - **Silent failures** — paths where code proceeds without error but produces wrong results. Identify by reading control flow + asking *"if this branch is taken with bad input, does it return success?"*
 - **Edge cases** — unhandled scenarios, missing validations, boundary conditions documented in Core Flows error paths or Tech Plan robustness section. If Core Flows lists 5 error paths and code handles 3, the missing 2 are findings.
-- **Error handling** — failures handled gracefully per `.windsurf/rules/55-observability.md` (transient vs permanent classification, structured error logging, GlitchTip discipline).
+- **Error handling** — failures handled gracefully per `.windsurf/rules/core/55-observability.md` (transient vs permanent classification, structured error logging, GlitchTip discipline).
 - **Logic soundness** — code does what it claims. Read the code, do not trust comments or names.
 - **Test coverage on** `[PRIMARY PATH]` — the integration test actually exercises the documented path end-to-end (not a mock that always passes). Confirm assertions are non-trivial.
 
@@ -960,7 +960,7 @@ Check 14 — logger imports correct:
 grep -rE "import logger|from .* import.*logger" src/
 grep -rE "logging\.getLogger\(" src/ \
   | grep -v 'src/<package>/logger.py'
-# Per .windsurf/rules/55-observability.md.
+# Per .windsurf/rules/core/55-observability.md.
 
 ```
 
@@ -1545,7 +1545,7 @@ With specs now grounded, compare each ticket against the updated specs. Look for
 - **Missing tickets** — new scope in the specs that no existing ticket covers.
 - Tickets whose dependencies have shifted because the specs changed.
 - Tickets that need splitting (one ticket spans what are now clearly separate concerns) or merging (multiple tickets cover what is now one cohesive piece of work).
-- Tickets missing Documentation Sync Matrix Acceptance Criteria injections that should be present per v_final-v7 ticket-breakdown Step 4 (especially: `INDEX.md`, `CHANGELOG.md`, `docs/CONFIGURATION.md`, `docs/user-guide/` when `HAS_USER_GUIDE: true`, structured logger via `.windsurf/rules/55-observability.md`, reusable module isolation, sensitive-file backup).
+- Tickets missing Documentation Sync Matrix Acceptance Criteria injections that should be present per v_final-v7 ticket-breakdown Step 4 (especially: `INDEX.md`, `CHANGELOG.md`, `docs/CONFIGURATION.md`, `docs/user-guide/` when `HAS_USER_GUIDE: true`, structured logger via `.windsurf/rules/core/55-observability.md`, reusable module isolation, sensitive-file backup).
 - Tickets missing `Final Gate Instruction`, `Lessons Learnt:`, or agent-aware first-output line.
 - Tickets where the `[PRIMARY PATH]` integration test Acceptance Criterion is absent but the ticket's scope touches a `[PRIMARY PATH]` flow.
 - Auto-generated Epic Closure ticket missing or malformed.

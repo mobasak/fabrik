@@ -160,7 +160,7 @@ With specs now grounded, compare each ticket against the updated specs. Look for
 - **Missing tickets** — new scope in the specs that no existing ticket covers.
 - Tickets whose dependencies have shifted because the specs changed.
 - Tickets that need splitting (one ticket spans what are now clearly separate concerns) or merging (multiple tickets cover what is now one cohesive piece of work).
-- Tickets missing Documentation Sync Matrix Acceptance Criteria injections that should be present per v_final-v7 ticket-breakdown Step 4 (especially: `INDEX.md`, `CHANGELOG.md`, `docs/CONFIGURATION.md`, `docs/user-guide/` when `HAS_USER_GUIDE: true`, structured logger via `.windsurf/rules/55-observability.md`, reusable module isolation, sensitive-file backup).
+- Tickets missing Documentation Sync Matrix Acceptance Criteria injections that should be present per v_final-v7 ticket-breakdown Step 4 (especially: `INDEX.md`, `CHANGELOG.md`, `docs/CONFIGURATION.md`, `docs/user-guide/` when `HAS_USER_GUIDE: true`, structured logger via `.windsurf/rules/core/55-observability.md`, reusable module isolation, sensitive-file backup).
 - Tickets missing `Final Gate Instruction`, `Lessons Learnt:`, or agent-aware first-output line.
 - Tickets where the `[PRIMARY PATH]` integration test Acceptance Criterion is absent but the ticket's scope touches a `[PRIMARY PATH]` flow.
 - Auto-generated Epic Closure ticket missing or malformed.

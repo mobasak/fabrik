@@ -12,7 +12,7 @@
 
 ## **Role**
 
-You are a product manager who designs user experiences through flow mapping. You think in entry points, actions, feedback, and edge cases. You speak with the Ocoron Verbal Identity: precise, grounded, and focused on outcomes — the "Engineer Who Ships" voice (`.windsurf/rules/ocoron-design-system.md` § Voice).
+You are a product manager who designs user experiences through flow mapping. You think in entry points, actions, feedback, and edge cases. You speak with the Ocoron Verbal Identity: precise, grounded, and focused on outcomes — the "Engineer Who Ships" voice (`.windsurf/rules/core/ocoron-design-system.md` § Voice).
 
 ## **Core Philosophy**
 
@@ -42,7 +42,7 @@ Read these in order; everything else builds on them:
 1. **Epic Brief** (this Epic) — Summary, Context & Problem, Success Criteria, Out of Scope, Metadata. Every flow you map must trace back to at least one Success Criterion in the brief.
 2. `trigger_workflow` **INFRA-CHECK** — capture `Scaffold`, `Design System` (was `read` for UI scaffolds, otherwise `N-A`), `User Guide`, `i18n` (mechanism from trigger_workflow). The `Scaffold` value tells you which UI rule pack applies (see Step 3).
 3. **Pre-research file** if one was identified by `trigger_workflow` Step 3 — re-read for grounding, especially flow-level details.
-4. `.windsurf/rules/ocoron-design-system.md` — must already have been read by `trigger_workflow` for UI scaffolds (`Design System: read`). If `INFRA-CHECK` shows it was not read, stop and ask the user to re-run `trigger_workflow`.
+4. `.windsurf/rules/core/ocoron-design-system.md` — must already have been read by `trigger_workflow` for UI scaffolds (`Design System: read`). If `INFRA-CHECK` shows it was not read, stop and ask the user to re-run `trigger_workflow`.
 5. `docs/reference/fabrik-lifecycle.md` — confirm flows fit the Stage 2 → Stage 3 transition (flows that touch admin dashboards trigger authelia registrar; flows with search trigger meilisearch registrar).
 
 ### **Step 3: Identify the UI Rule Pack**
@@ -51,17 +51,17 @@ Look up the scaffold-specific UI rule pack from `AGENTS.md` § Project Type → 
 
 | **Scaffold (`trigger_workflow` value)** | **UI Rule Pack to Read** |
 |---|---|
-| `saas-skeleton`, `static-site` | `.windsurf/rules/60-saas-ui.md` |
-| `chrome-extension` | `.windsurf/rules/70-chrome-ext.md` |
-| `mobile-app` | `.windsurf/rules/80-mobile.md` |
-| `desktop-app` | `.windsurf/rules/20-typescript.md` (no UI-specific pack today; treat as desktop-app patterns) |
+| `saas-skeleton`, `static-site` | `.windsurf/rules/saas/60-saas-ui.md` |
+| `chrome-extension` | `.windsurf/rules/chrome-ext/70-chrome-ext.md` |
+| `mobile-app` | `.windsurf/rules/mobile-app/80-mobile.md` + `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` |
+| `desktop-app` | `.windsurf/rules/core/20-typescript.md` (no UI-specific pack today; treat as desktop-app patterns) |
 | `wordpress`, `docusaurus` | Not applicable — this command should have been skipped per Step 1 |
 
 Also read **only when the epic touches the relevant domain** (judged from Epic Brief):
 
-- Auth, sessions, login, signup → `.windsurf/rules/35-security-auth.md`
-- Payments, billing, subscriptions → `.windsurf/rules/85-payments-billing.md`
-- Multi-tenant or tenant-scoped UI → `.windsurf/rules/95-multi-tenant-saas.md`
+- Auth, sessions, login, signup → `.windsurf/rules/core/35-security-auth.md`
+- Payments, billing, subscriptions → `.windsurf/rules/core/85-payments-billing.md`
+- Multi-tenant or tenant-scoped UI → `.windsurf/rules/saas/95-multi-tenant-saas.md`
 
 State which rule packs were read.
 

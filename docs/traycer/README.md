@@ -82,7 +82,7 @@ This ensures **every Fabrik project** has consistent agent rules from day one.
 
 | Problem | Solution |
 |---------|----------|
-| Workflow duplicated in multiple files | Workflow lives in `AGENTS-compact.md` for Kilo; Cascade gets it via `.windsurf/rules/50-code-review.md` |
+| Workflow duplicated in multiple files | Workflow lives in `AGENTS-compact.md` for Kilo; Cascade gets it via `.windsurf/rules/core/50-code-review.md` |
 | Agents reading same content twice | 3-layer separation: Traycer → `AGENTS.md`, Kilo → `AGENTS-compact.md`, Cascade → `.windsurfrules` + rules |
 | Different rules for different agents | Each agent reads only what it needs — no overlap |
 | Templates duplicating rules | Templates contain only workflow steps and report format |

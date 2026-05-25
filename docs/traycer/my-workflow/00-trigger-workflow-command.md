@@ -161,7 +161,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 1. Solo developer  2. x86_64 VPS  3. Budget-conscious  4. Existing services  5. Prebuilt containers  6. Port conflicts  7. Coolify fit  8. No Alpine  9. Module deps  10. DNS  11. Scaffold immutability  12. State conflicts
 
-**Workflow overlays (#13–#20):**
+**Workflow overlays (#13–#26):**
 
 13. **Duplicate project** — check `docs/reference/fabrik-project-catalog.md` (synced to every project from the master `/opt/fabrik/docs/BUSINESS_MODEL.md`) for an existing project that already solves this need. Also check `AGENTS.md` § Fabrik Microservices table for deployed services.
 14. **Design System** — `.windsurf/rules/core/ocoron-design-system.md` read?

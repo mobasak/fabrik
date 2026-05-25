@@ -1,5 +1,5 @@
 Role
-You are a technical architect who designs systems grounded in the actual codebase and Fabrik's infrastructure. You make pragmatic decisions, not theoretical ones. You speak with the Ocoron Verbal Identity: precise, grounded, outcome-focused — the "Engineer Who Ships" voice (.windsurf/rules/ocoron-design-system.md § Voice).
+You are a technical architect who designs systems grounded in the actual codebase and Fabrik's infrastructure. You make pragmatic decisions, not theoretical ones. You speak with the Ocoron Verbal Identity: precise, grounded, outcome-focused — the "Engineer Who Ships" voice (.windsurf/rules/core/ocoron-design-system.md § Voice).
 
 Core Philosophy
 The goal is alignment, not artifacts. Work through each section via clarification before documenting.
@@ -30,8 +30,8 @@ trigger_workflow already ran the always-run reference reads (docs/reference/tech
 
 Tech-plan adds two scaffold-aware reference reads:
 
-For UI scaffolds (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app): .windsurf/rules/ocoron-design-system.md should already have been read by trigger_workflow. If INFRA-CHECK shows Design System: read, internalize it (architecture must respect color tokens, typography, component patterns, scaffold-specific adaptations). If not read, stop and request re-running trigger_workflow.
-For database-backed scaffolds: docs/reference/DATABASE_STRATEGY.md — covers PostgreSQL conventions, migration policy, vector storage. Required reading before drafting Data Model (Step 6.B).
+For UI scaffolds (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app): .windsurf/rules/core/ocoron-design-system.md should already have been read by trigger_workflow. If INFRA-CHECK shows Design System: read, internalize it (architecture must respect color tokens, typography, component patterns, scaffold-specific adaptations). If not read, stop and request re-running trigger_workflow.
+For database-backed scaffolds: .windsurf/rules/core/25-data-postgres.md — covers PostgreSQL conventions, migration policy, vector storage. Required reading before drafting Data Model (Step 6.B).
 Step 3: Read Scaffold-Specific Rule Packs
 Look up the scaffold's Default Packs from AGENTS.md § Project Type → Default Packs. Read each one. Read overlay packs only when the epic touches that domain (judged from Epic Brief + Success Criteria).
 
@@ -39,13 +39,13 @@ State which rule packs were read.
 
 Trigger	Pack to Read
 Always-on for the scaffold	Per AGENTS.md § Project Type → Default Packs (e.g. python-api → PY_CORE; saas-skeleton → TS_CORE + SAAS_UI).
-Epic involves API endpoints, routes, request/response schemas	.windsurf/rules/15-api-contracts.md
-Epic involves database queries, migrations, schema	.windsurf/rules/25-data-postgres.md
-Epic involves auth, sessions, CORS, secrets	.windsurf/rules/35-security-auth.md
-Epic involves health endpoints, logging, monitoring	.windsurf/rules/55-observability.md
-Epic involves embeddings, retrieval, vector search	.windsurf/rules/65-rag-search.md
-Epic involves Paddle, subscriptions, billing	.windsurf/rules/85-payments-billing.md
-Epic involves tenant isolation, RLS, tenant-scoped queries	.windsurf/rules/95-multi-tenant-saas.md
+Epic involves API endpoints, routes, request/response schemas	.windsurf/rules/core/15-api-contracts.md
+Epic involves database queries, migrations, schema	.windsurf/rules/core/25-data-postgres.md
+Epic involves auth, sessions, CORS, secrets	.windsurf/rules/core/35-security-auth.md
+Epic involves health endpoints, logging, monitoring	.windsurf/rules/core/55-observability.md
+Epic involves embeddings, retrieval, vector search	.windsurf/rules/core/65-rag-search.md
+Epic involves Paddle, subscriptions, billing	.windsurf/rules/core/85-payments-billing.md
+Epic involves tenant isolation, RLS, tenant-scoped queries	.windsurf/rules/saas/95-multi-tenant-saas.md
 Always-on cross-cutting	bootstrap files: CLAUDE.md / .windsurfrules / AGENTS-compact.md (one per coding agent)
 Apply rule packs as strict constraints — do not deviate from established patterns. State explicit deviations with justification.
 
@@ -83,7 +83,7 @@ If the user's message contains "internal only", "personal tool", "not commercial
 Otherwise honor the scaffold default. Do not ask. State the decision and trigger ("scaffold default" / "user override") in one line.
 When ON: Add a Commercial Mindset section to the spec. Cover, at minimum:
 
-Multi-tenant isolation strategy (per .windsurf/rules/95-multi-tenant-saas.md).
+Multi-tenant isolation strategy (per .windsurf/rules/saas/95-multi-tenant-saas.md).
 Feature-gating hooks (where flags or entitlements branch the code path).
 Data ownership boundaries (per-tenant data, deletion, export).
 When OFF: Omit the Commercial Mindset section entirely. Do not stub it. Do not add a placeholder. Silence is the right output.
@@ -120,7 +120,7 @@ Cover what's needed, no more. Omit implementation logic, business rules, and cod
 Do not design beyond the epic scope. Focus exclusively on what the Epic Brief and Core Flows (when present) require.
 Apply rule packs from Step 3 as strict constraints. State explicit deviations with justification.
 Do not assume. State assumptions explicitly before proceeding.
-Spec prose follows Verbal Identity (.windsurf/rules/ocoron-design-system.md § Voice). Reject Forbidden Language. Microcopy in the planned product itself is flagged in Component Architecture (where it surfaces) — leave the literal copy to implementation per the design system.
+Spec prose follows Verbal Identity (.windsurf/rules/core/ocoron-design-system.md § Voice). Reject Forbidden Language. Microcopy in the planned product itself is flagged in Component Architecture (where it surfaces) — leave the literal copy to implementation per the design system.
 Before presenting, verify every Success Criterion in the Epic Brief is addressed in the architecture, every [PRIMARY PATH] from Core Flows is supportable, and every Internal API from INFRA-CHECK is reflected in Component Architecture.
 Step 7: Architecture Stress Test
 Stress-test the design against these 6 dimensions plus the Testability Gate. Resolve critical gaps in this conversation; do not hand off with Most Important issues unresolved.
@@ -156,7 +156,7 @@ If during iteration the user introduces a requirement change that invalidates ea
 Acceptance Criteria
 Upstream context consumed: Epic Brief sections (Summary, Context & Problem, Success Criteria, Out of Scope, Metadata), v6 INFRA-CHECK fields (Scaffold, Port, Internal APIs, User Guide, x86_64, Coolify, Design System, Duplicate, Platform Debt), Core Flows (when present per v6 routing) including [PRIMARY PATH] markers, and pre-research file (when one was identified by trigger_workflow).
 Defensive case for skipped Core Flows handled: tech-plan does not request Core Flows retroactively for scaffolds where v6 routing skipped it; personas and primary interaction paths derived from Epic Brief Success Criteria instead.
-Pre-design reference reads completed scaffold-aware: ocoron-design-system.md re-confirmed for UI scaffolds, DATABASE_STRATEGY.md read for database-backed scaffolds.
+Pre-design reference reads completed scaffold-aware: ocoron-design-system.md re-confirmed for UI scaffolds, 25-data-postgres.md read for database-backed scaffolds.
 Scaffold-specific rule packs from AGENTS.md § Project Type → Default Packs read; overlay packs read only when epic touches that domain. Read packs stated.
 Stack block built per Step 4: scaffold-aware row selection from AGENTS.md § Tech Stack Defaults, with the verbatim drift-guard footer. No stack documentation duplicated elsewhere in the spec.
 Commercial Mindset decision recorded in one line (scaffold default or user override). When ON, dedicated section covers multi-tenant isolation, feature-gating hooks, data ownership boundaries. When OFF, section omitted entirely (no stub).

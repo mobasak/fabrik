@@ -3,7 +3,7 @@
      Part 2: paste when starting my-workflow for a mobile epic
      Auto-select when scaffold signal includes mobile-app.
      Consumer: Traycer planning LLM (NOT coding agents).
-     Coding agents use .windsurf/rules/80-mobile.md instead. -->
+     Coding agents use .windsurf/rules/mobile-app/80-mobile.md instead. -->
 
 # Mobile App Domain Module (17 dimensions)
 
@@ -55,7 +55,7 @@ A dimension belongs at intake **only if** wrong = **irreversible** or **kills be
 
 #### 4. Platform, Framework & Architecture (irreversibles)
 
-Reference `.windsurf/rules/80-mobile.md` for implementation detail. At intake, force:
+Reference `.windsurf/rules/mobile-app/80-mobile.md` for implementation detail. At intake, force:
 
 - **Framework: React Native + Expo + EAS** (decided — do not reopen). One codebase, managed build/submit/OTA, TypeScript synergy with web stack, Ocoron design system mapping via unistyles, MCP verification loop. **Never dual-native. Never Flutter** (evaluated and rejected — RN+Expo is the Fabrik standard; switching would discard the entire 80-mobile ruleset, i18n pipeline, and TS ecosystem).
 - **Backend:** **Supabase** (auth, db, realtime, storage — first-class mobile SDKs) + python-api for custom logic; postgres-main for non-Supabase data.
@@ -67,7 +67,7 @@ Reference `.windsurf/rules/80-mobile.md` for implementation detail. At intake, f
 
 #### 5. Monetization & Store Billing
 
-Reference `.windsurf/rules/81-mobile-billing.md` for full billing discipline. At intake, force:
+Reference `.windsurf/rules/mobile-app/81-mobile-billing.md` for full billing discipline. At intake, force:
 
 **Force:** IAP product types (consumable / subscription / one-time), tiers, trial, entitlement model.
 
@@ -79,7 +79,7 @@ Reference `.windsurf/rules/81-mobile-billing.md` for full billing discipline. At
 
 #### 6. Push & Re-engagement
 
-Reference `.windsurf/rules/80-mobile.md` § Push Notifications. At intake, force:
+Reference `.windsurf/rules/mobile-app/80-mobile.md` § Push Notifications. At intake, force:
 
 **Force:** push provider + permission strategy + the re-engagement triggers (mobile's retention engine, replacing email-first).
 
@@ -97,7 +97,7 @@ Reference `.windsurf/rules/80-mobile.md` § Push Notifications. At intake, force
 
 #### 8. Distribution, Updates & API Versioning
 
-Reference `.windsurf/rules/80-mobile.md` § Build & Dev Workflow. At intake, force:
+Reference `.windsurf/rules/mobile-app/80-mobile.md` § Build & Dev Workflow. At intake, force:
 
 **Force:** release cadence, staged rollout, **forced-upgrade gate**, OTA strategy, backend backward-compat.
 
@@ -130,7 +130,7 @@ Reference `.windsurf/rules/80-mobile.md` § Build & Dev Workflow. At intake, for
 
 #### 11. Performance & UX Quality (pro-grade)
 
-Reference `.windsurf/rules/80-mobile.md` § Lists, Styling, Accessibility, Platform-Aware. At intake, force:
+Reference `.windsurf/rules/mobile-app/80-mobile.md` § Lists, Styling, Accessibility, Platform-Aware. At intake, force:
 
 **Force:** cold-start target, app size budget, crash-free-rate target, offline UX, accessibility, native feel.
 
@@ -148,7 +148,7 @@ Reference `.windsurf/rules/80-mobile.md` § Lists, Styling, Accessibility, Platf
 
 #### 13. Legal, Compliance & Store Policy
 
-Reference `.windsurf/rules/80-mobile.md` § Compliance (Worldwide). At intake, force:
+Reference `.windsurf/rules/mobile-app/80-mobile.md` § Compliance (Worldwide). At intake, force:
 
 **Force:** Apple privacy nutrition labels, ATT prompt, Play Data Safety form, **in-app account deletion (Apple-mandated)**, KVKK/GDPR.
 
@@ -278,20 +278,20 @@ When mapping core flows for a mobile epic, include these mobile-specific flows i
 
 Each flow must identify the `[PRIMARY PATH]` — the happy path. These become Maestro E2E test targets.
 
-**Screen inventory:** `.windsurf/rules/80-mobile.md` § Screen Inventory lists the 17 mandatory screens every mobile app ships. Core-flows must map to these screens + derive any project-specific screens not in the inventory.
+**Screen inventory:** `.windsurf/rules/mobile-app/80-mobile.md` § Screen Inventory lists the 17 mandatory screens every mobile app ships. Core-flows must map to these screens + derive any project-specific screens not in the inventory.
 
 ### 2C. Tech Plan (my-workflow/03)
 
 When creating the tech plan for a mobile epic, enforce:
 
 - **Two-lane architecture:** backend (Supabase + python-api on VPS) and client (React Native + EAS) are separate build/deploy units. API contract is the bridge — define versioned endpoints.
-- **Auth architecture:** Supabase Auth with `expo-auth-session` for OAuth, `expo-secure-store` for tokens. Sign in with Apple mandatory if any social login offered on iOS. Reference `.windsurf/rules/80-mobile.md` § Backend Integration.
-- **State management:** React Query for server state, Zustand for UI state, MMKV for local persistence. Reference `.windsurf/rules/80-mobile.md` § State Management.
-- **Monetization architecture:** RevenueCat SDK, server-side entitlement verification via RevenueCat webhook to Supabase, paywall remote-configurable. Reference `.windsurf/rules/80-mobile.md` § Monetization.
-- **Push architecture:** `expo-notifications`, APNs/FCM via EAS credentials, device tokens in Supabase, deep link payloads. Reference `.windsurf/rules/80-mobile.md` § Push Notifications.
+- **Auth architecture:** Supabase Auth with `expo-auth-session` for OAuth, `expo-secure-store` for tokens. Sign in with Apple mandatory if any social login offered on iOS. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Backend Integration.
+- **State management:** React Query for server state, Zustand for UI state, MMKV for local persistence. Reference `.windsurf/rules/mobile-app/80-mobile.md` § State Management.
+- **Monetization architecture:** RevenueCat SDK, server-side entitlement verification via RevenueCat webhook to Supabase, paywall remote-configurable. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Monetization.
+- **Push architecture:** `expo-notifications`, APNs/FCM via EAS credentials, device tokens in Supabase, deep link payloads. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Push Notifications.
 - **Offline architecture:** online-first + MMKV read cache. Full offline-write+sync only if Vision Summary explicitly required it (large maintenance cost).
 - **API versioning:** backend supports N and N-1 API versions simultaneously. Forced upgrade gate in client for breaking changes.
-- **Compliance architecture:** Privacy Manifest, ATT prompt before tracking, GDPR consent gate, account deletion endpoint. Reference `.windsurf/rules/80-mobile.md` § Compliance.
+- **Compliance architecture:** Privacy Manifest, ATT prompt before tracking, GDPR consent gate, account deletion endpoint. Reference `.windsurf/rules/mobile-app/80-mobile.md` § Compliance.
 
 ### 2D. Ticket Outline (my-workflow/05)
 
@@ -338,15 +338,15 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 Every mobile ticket's Context Files section must include (in addition to category-specific rule packs):
 
 ```text
-.windsurf/rules/80-mobile.md — mobile implementation patterns (architecture, styling, nav, monetization, compliance, i18n)
+.windsurf/rules/mobile-app/80-mobile.md — mobile implementation patterns (architecture, styling, nav, monetization, compliance, i18n)
 ```
 
 For backend tickets within a mobile project, also include:
 
 ```text
-.windsurf/rules/15-api-contracts.md — API endpoint patterns
-.windsurf/rules/58-resilience.md   — timeout/retry/circuit-breaker
-.windsurf/rules/86-email-templates.md — email/push/notification templates (if ticket creates or edits templates)
+.windsurf/rules/core/15-api-contracts.md — API endpoint patterns
+.windsurf/rules/core/58-resilience.md   — timeout/retry/circuit-breaker
+.windsurf/rules/core/86-email-templates.md — email/push/notification templates (if ticket creates or edits templates)
 ```
 
 #### Plan Directives for Coding Agents
@@ -359,7 +359,7 @@ When Traycer creates the execution plan (the plan the coding agent follows), emb
 4. **Every paywalled feature checks entitlements.** RevenueCat server-side verification, not client-trusted state.
 5. **Every permission is just-in-time.** No permission requests at app launch. Prime, then prompt.
 6. **Every user-facing string is in locale files.** No hardcoded text. `en.json` + `tr.json` minimum. RTL-ready layouts.
-7. **Every external call has resilience.** Timeout + retry + graceful offline fallback. Reference `.windsurf/rules/58-resilience.md`.
+7. **Every external call has resilience.** Timeout + retry + graceful offline fallback. Reference `.windsurf/rules/core/58-resilience.md`.
 8. **Every screen meets touch targets.** 44pt (iOS) / 48dp (Android) minimum. `accessibilityLabel` on icon-only controls.
 9. **Every PRIMARY PATH has a Maestro flow.** E2E test YAML in `.maestro/` directory.
 10. **Backend supports old clients.** API versioned, N-1 backward-compat. Forced upgrade only for breaking changes.

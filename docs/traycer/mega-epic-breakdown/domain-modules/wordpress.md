@@ -340,10 +340,10 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 Every WordPress ticket's Context Files section must include (in addition to general rule packs):
 
 ```text
-.windsurf/rules/30-ops.md              — Docker, compose, Coolify deploy patterns
-.windsurf/rules/35-security-auth.md    — security hardening, credential management
-.windsurf/rules/85-payments-billing.md — payment gateway patterns (if ecommerce/funnel)
-.windsurf/rules/86-email-templates.md  — email/notification templates (if ticket creates or edits templates)
+.windsurf/rules/core/30-ops.md              — Docker, compose, Coolify deploy patterns
+.windsurf/rules/core/35-security-auth.md    — security hardening, credential management
+.windsurf/rules/core/85-payments-billing.md — payment gateway patterns (if ecommerce/funnel)
+.windsurf/rules/core/86-email-templates.md  — email/notification templates (if ticket creates or edits templates)
 ```
 
 No dedicated WordPress rule pack exists — the domain module decisions (theme choice, plugin manifest, hosting architecture) serve as the coding agent's WordPress-specific constraints. Agents follow the approved plugin manifest and do not add plugins outside it.

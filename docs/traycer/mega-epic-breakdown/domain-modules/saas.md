@@ -3,7 +3,7 @@
      Part 2: paste when starting my-workflow for a SaaS epic
      Auto-select when scaffold signal includes saas-skeleton.
      Consumer: Traycer planning LLM (NOT coding agents).
-     Coding agents use .windsurf/rules/88-saas-launch-checklist.md,
+     Coding agents use .windsurf/rules/saas/88-saas-launch-checklist.md,
      95-multi-tenant-saas.md, 60-saas-ui.md instead. -->
 
 # SaaS Domain Module (17 dimensions)
@@ -50,7 +50,7 @@ A dimension belongs at intake **only if** getting it wrong is **irreversible** o
 
 #### 4. Product & Architecture (6 irreversibles)
 
-Reference `.windsurf/rules/95-multi-tenant-saas.md` for implementation detail. At intake, force:
+Reference `.windsurf/rules/saas/95-multi-tenant-saas.md` for implementation detail. At intake, force:
 
 - **Tenancy:** shared postgres-main + `tenant_id` + Supabase RLS. DB-per-tenant only if contractually required.
 - **Identity/org:** Supabase Auth (users) + org/role/invite model; Authelia for back-office only.
@@ -123,7 +123,7 @@ Reference `.windsurf/rules/95-multi-tenant-saas.md` for implementation detail. A
 
 #### 12. Reliability & Status
 
-Reference `.windsurf/rules/88-saas-launch-checklist.md` § Reliability. At intake, force:
+Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Reliability. At intake, force:
 
 **Force:** SLA commitment? public status page (Gatus)? incident comms? DR target (RPO/RTO).
 
@@ -133,7 +133,7 @@ Reference `.windsurf/rules/88-saas-launch-checklist.md` § Reliability. At intak
 
 #### 13. Legal, Compliance & Trust
 
-Reference `.windsurf/rules/88-saas-launch-checklist.md` § Legal. At intake, force:
+Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Legal. At intake, force:
 
 **Force:** ToS, privacy, KVKK/GDPR, DPA + subprocessor list, data residency, security posture. Affiliate-program terms + payout tax handling + self-referral policy (if a program is planned).
 
@@ -218,7 +218,7 @@ SaaS projects naturally split into these parallel lanes after the foundation epi
 
 #### Phase Mapping
 
-Reference `.windsurf/rules/88-saas-launch-checklist.md` phases:
+Reference `.windsurf/rules/saas/88-saas-launch-checklist.md` phases:
 
 - **Phase 1 (blocks go-live):** must be covered by epics before launch.
 - **Phase 2 (first 30 days):** can be a dedicated post-launch epic.
@@ -252,14 +252,14 @@ When mapping core flows for a SaaS epic, include these SaaS-specific flows if th
 
 Each flow must identify the `[PRIMARY PATH]` — the happy path a new user takes. These become integration test targets.
 
-**Page inventory:** `.windsurf/rules/60-saas-ui.md` § Page Inventory lists the 21 mandatory pages every SaaS ships. Core-flows must map to these pages + derive any project-specific pages not in the inventory.
+**Page inventory:** `.windsurf/rules/saas/60-saas-ui.md` § Page Inventory lists the 21 mandatory pages every SaaS ships. Core-flows must map to these pages + derive any project-specific pages not in the inventory.
 
 ### 2C. Tech Plan (my-workflow/03)
 
 When creating the tech plan for a SaaS epic, enforce:
 
-- **Multi-tenancy architecture:** `tenant_id` on every tenant-scoped table. RLS policies per table. Tenant context propagation (middleware sets `current_tenant_id()`). Reference `.windsurf/rules/95-multi-tenant-saas.md` for full patterns.
-- **Billing integration:** Paddle webhook endpoint, subscription state machine, plan-to-feature gating middleware, metering counters (Redis + postgres reconciliation). BIN-based card routing if dual-processor (reference `.windsurf/rules/88-saas-launch-checklist.md` § Payment Routing).
+- **Multi-tenancy architecture:** `tenant_id` on every tenant-scoped table. RLS policies per table. Tenant context propagation (middleware sets `current_tenant_id()`). Reference `.windsurf/rules/saas/95-multi-tenant-saas.md` for full patterns.
+- **Billing integration:** Paddle webhook endpoint, subscription state machine, plan-to-feature gating middleware, metering counters (Redis + postgres reconciliation). BIN-based card routing if dual-processor (reference `.windsurf/rules/saas/88-saas-launch-checklist.md` § Payment Routing).
 - **Org/role model:** organizations table, memberships table (user + org + role), invite flow, role-based access control middleware.
 - **Audit logging:** every tenant-data mutation writes to audit log (who, what, when, tenant_id). Soft-delete default on tenant-scoped tables.
 - **Analytics instrumentation:** product events to structured log (activation, feature usage, conversion). UTM/source capture at signup. AARRR stage tags on each event.
@@ -307,10 +307,10 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 Every SaaS ticket's Context Files section must include (in addition to category-specific rule packs):
 
 ```text
-.windsurf/rules/95-multi-tenant-saas.md    — tenant isolation patterns
-.windsurf/rules/88-saas-launch-checklist.md — launch-blocking checks
-.windsurf/rules/60-saas-ui.md              — UI patterns (if frontend ticket)
-.windsurf/rules/86-email-templates.md      — email/push/notification templates (if ticket creates or edits templates)
+.windsurf/rules/saas/95-multi-tenant-saas.md    — tenant isolation patterns
+.windsurf/rules/saas/88-saas-launch-checklist.md — launch-blocking checks
+.windsurf/rules/saas/60-saas-ui.md              — UI patterns (if frontend ticket)
+.windsurf/rules/core/86-email-templates.md      — email/push/notification templates (if ticket creates or edits templates)
 ```
 
 #### Plan Directives for Coding Agents
@@ -320,6 +320,6 @@ When Traycer creates the execution plan (the plan the coding agent follows), emb
 1. **Every query is tenant-scoped.** No `SELECT * FROM table` without `WHERE tenant_id = current_tenant()`. RLS is the safety net, not the primary filter.
 2. **Every mutation is audited.** `INSERT`/`UPDATE`/`DELETE` on tenant data writes to the audit log.
 3. **Every feature checks the gating matrix.** Before exposing functionality, check `plan.features[feature_key]`. No ungated features in paid tiers.
-4. **Every external call has resilience.** Timeout + retry + circuit-breaker + graceful fallback. Reference `.windsurf/rules/58-resilience.md`.
+4. **Every external call has resilience.** Timeout + retry + circuit-breaker + graceful fallback. Reference `.windsurf/rules/core/58-resilience.md`.
 5. **Every user-facing string is in locale files.** No hardcoded text. `en.json` + `tr.json` minimum.
 6. **Every signup captures attribution.** UTM params, referral source, activation timestamp.

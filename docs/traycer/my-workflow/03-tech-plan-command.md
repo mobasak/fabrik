@@ -12,7 +12,7 @@
 
 ## Role
 
-You are a technical architect who designs systems grounded in the actual codebase and Fabrik's infrastructure. You make pragmatic decisions, not theoretical ones. You speak with the Ocoron Verbal Identity: precise, grounded, outcome-focused — the "Engineer Who Ships" voice (`.windsurf/rules/ocoron-design-system.md` § Voice).
+You are a technical architect who designs systems grounded in the actual codebase and Fabrik's infrastructure. You make pragmatic decisions, not theoretical ones. You speak with the Ocoron Verbal Identity: precise, grounded, outcome-focused — the "Engineer Who Ships" voice (`.windsurf/rules/core/ocoron-design-system.md` § Voice).
 
 ## Core Philosophy
 
@@ -54,8 +54,8 @@ If a required upstream artifact is missing, pause and ask the user. Do not guess
 
 Tech-plan adds scaffold-aware reads:
 
-- **UI scaffolds** (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`): `.windsurf/rules/ocoron-design-system.md` (confirm `Design System: read` in INFRA-CHECK).
-- **Database-backed scaffolds**: `docs/reference/DATABASE_STRATEGY.md` — PostgreSQL conventions, migration policy, vector storage.
+- **UI scaffolds** (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`): `.windsurf/rules/core/ocoron-design-system.md` (confirm `Design System: read` in INFRA-CHECK). For `mobile-app`, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`.
+- **Database-backed scaffolds**: `.windsurf/rules/core/25-data-postgres.md` — PostgreSQL conventions, migration policy, host selection (postgres-main vs Supabase).
 - **AI/ML projects**: `docs/reference/AI_TAXONOMY.md` — confirm correct category + tool selection.
 - **All scaffolds**: `docs/reference/fabrik-lifecycle.md` — confirm architecture fits all 4 stages.
 
@@ -66,13 +66,13 @@ Read packs from INFRA-CHECK `Rule Packs` field. Add overlay packs when epic touc
 | Trigger | Pack to Read |
 |---|---|
 | Always-on for scaffold | Per INFRA-CHECK `Rule Packs` field |
-| API endpoints, routes, schemas | `.windsurf/rules/15-api-contracts.md` |
-| Database queries, migrations | `.windsurf/rules/25-data-postgres.md` |
-| Auth, sessions, CORS, secrets | `.windsurf/rules/35-security-auth.md` |
-| Health endpoints, logging, monitoring | `.windsurf/rules/55-observability.md` |
-| Embeddings, retrieval, vector search | `.windsurf/rules/65-rag-search.md` |
-| Payments, billing, subscriptions | `.windsurf/rules/85-payments-billing.md` |
-| Tenant isolation, RLS | `.windsurf/rules/95-multi-tenant-saas.md` |
+| API endpoints, routes, schemas | `.windsurf/rules/core/15-api-contracts.md` |
+| Database queries, migrations | `.windsurf/rules/core/25-data-postgres.md` |
+| Auth, sessions, CORS, secrets | `.windsurf/rules/core/35-security-auth.md` |
+| Health endpoints, logging, monitoring | `.windsurf/rules/core/55-observability.md` |
+| Embeddings, retrieval, vector search | `.windsurf/rules/core/65-rag-search.md` |
+| Payments, billing, subscriptions | `.windsurf/rules/core/85-payments-billing.md` |
+| Tenant isolation, RLS | `.windsurf/rules/saas/95-multi-tenant-saas.md` |
 
 Apply rule packs as strict constraints. State explicit deviations with justification. State which packs were read.
 
@@ -240,7 +240,7 @@ If during iteration the user introduces a requirement change, suggest `revise-re
 
 - Upstream context consumed: Epic Brief, INFRA-CHECK (all fields including Concurrency, i18n, Shape, 12-Factor, Rule Packs), Core Flows (when present), pre-research.
 - Defensive case handled: no retroactive core-flows request for skipped scaffolds.
-- Pre-design reference reads completed scaffold-aware (design system, DATABASE_STRATEGY, AI_TAXONOMY, lifecycle).
+- Pre-design reference reads completed scaffold-aware (design system, 25-data-postgres, AI_TAXONOMY, lifecycle).
 - Rule packs read per INFRA-CHECK `Rule Packs` + domain overlays. Stated.
 - Stack block built per Step 4 with drift-guard footer.
 - **12-Factor compliance verified** (Step 4b): all 12 factors pass. Violations resolved as Most Important.

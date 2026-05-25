@@ -28,7 +28,7 @@ The goal is alignment, not artifacts. Specs are records of decisions made togeth
 
 Once the user names a sub-target, treat that path as the new effective project root and continue at Step 2. If the user's request is genuinely platform-wide (e.g. "refactor all microservice Dockerfiles"), classify the route as **"Feature for existing project"** and apply the rubric in Step 6 against the platform monorepo.
 
-**UI design-system read (conditional):** Defer this read until Step 2 has classified the scaffold. If the scaffold is one of `saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, then read `.windsurf/rules/ocoron-design-system.md` and internalize color tokens, typography, component patterns, scaffold adaptations, and verbal identity before generating any planning output.
+**UI design-system read (conditional):** Defer this read until Step 2 has classified the scaffold. If the scaffold is one of `saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, then read `.windsurf/rules/core/ocoron-design-system.md` and internalize color tokens, typography, component patterns, scaffold adaptations, and verbal identity before generating any planning output.
 
 ### **Step 2: Scaffold Detection**
 
@@ -118,7 +118,7 @@ The base set is `AGENTS.md` § Planning Constraints (currently 10 items). The wo
 **Workflow overlays:**
 
 11. **Duplicate project** — similar project already in `docs/BUSINESS_MODEL.md`? State explicitly.
-12. **Design System** — for UI scaffolds, confirm `.windsurf/rules/ocoron-design-system.md` was read. State `Design system read.` or `No UI surface.`
+12. **Design System** — for UI scaffolds, confirm `.windsurf/rules/core/ocoron-design-system.md` was read. State `Design system read.` or `No UI surface.`
 13. **Coolify health (operational readiness)** — Read `docs/infrastructure/COOLIFY_STATUS.md` for the last human-recorded status. State `Coolify: healthy / degraded / unknown` in INFRA-CHECK. *Architectural compatibility is constraint #7; do not collapse the two.* Heuristic staleness rule (subject to revision once `run_check_coolify_status()` ships per SN-9 in `docs/development/plans/fabrik-phase-gap-analysis.md`): treat the doc as **stale** if any of: (a) the date stated at the top of the doc is older than 7 days; (b) the doc contains internal contradictions (e.g. a service listed as both migrated and "Phase X — NEXT", or self-contradicting counts); (c) the user reports a deployment incident not yet reflected. When stale, render the field as `unknown — status doc stale, recommend regeneration via Coolify API`.
 14. **Platform debt** — aggregate open items from (a) `PORTS.md` `### ⚠️ Port Conflicts Detected`, (b) `docs/infrastructure/COOLIFY_STATUS.md` `## Summary → What Needs Attention`, and (c) `docs/infrastructure/COOLIFY_STATUS.md` `## Next Steps → Immediate`. **Always informational — never blocks the workflow.** Surface count + one-line summaries below INFRA-CHECK; the user decides whether to address or proceed.
 
@@ -186,7 +186,7 @@ Immediately below the header, list the platform-debt items (one line each) when 
 - **Internal APIs:** Comma-separated list of existing Fabrik microservices the new project plans to **consume** (e.g. `dns-manager, image-broker`). Use `none` if the project consumes no internal services. Purely about **consumption**; exposure is captured by `User Guide`.
 - **User Guide:** `true` if the project ships a user-facing guide (UI scaffolds + external APIs); `false` for internal-only APIs and back-end workers. Set per the routing table / overlay #15. Propagated downstream as `HAS_USER_GUIDE` per the existing `epic-brief` Metadata contract.
 - **Coolify:** Operational-health value from constraint #13. Possible values: `healthy`, `degraded`, `unknown`. When the staleness heuristic triggers, render the value as `unknown — status doc stale, recommend regeneration via Coolify API` (the suffix is part of the value).
-- **Design System:** `read` if `.windsurf/rules/ocoron-design-system.md` was read for a UI scaffold; `N-A` for non-UI scaffolds.
+- **Design System:** `read` if `.windsurf/rules/core/ocoron-design-system.md` was read for a UI scaffold; `N-A` for non-UI scaffolds.
 - **Platform Debt:** Integer count from constraint #14. **Informational only — never blocks.**
 
 **Field propagation policy:**
