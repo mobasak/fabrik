@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-05-23T11:59:05.619928",
-  "total_models": 339,
+  "timestamp": "2026-05-25T11:59:05.882060",
+  "total_models": 338,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -69,11 +69,6 @@
     },
     "alfredpros/codellama-7b-instruct-solidity": {
       "id": "alfredpros/codellama-7b-instruct-solidity",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "alibaba/tongyi-deepresearch-30b-a3b": {
-      "id": "alibaba/tongyi-deepresearch-30b-a3b",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1527,13 +1522,13 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "stepfun/step-3.5-flash": {
-      "id": "stepfun/step-3.5-flash",
+    "stealth/claude-opus-4.7": {
+      "id": "stealth/claude-opus-4.7",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "stepfun/step-3.5-flash:free": {
-      "id": "stepfun/step-3.5-flash:free",
+    "stepfun/step-3.5-flash": {
+      "id": "stepfun/step-3.5-flash",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

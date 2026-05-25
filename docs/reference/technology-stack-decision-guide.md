@@ -18,7 +18,7 @@ The generic flowchart below recommends industry-standard defaults. For all `/opt
 | **Frontend** | TypeScript + Next.js + Node.js monorepo | **Next.js 14 + TypeScript + Tailwind** (frontend only, backend is separate Python) | Frontend matches, but backend is Python — not a JS monorepo |
 | **CLI tooling** | Go (single binary) | **Python** (`src/fabrik/cli.py`) | Shares codebase with backend, direct access to Fabrik's Python modules |
 | **Background workers** | Node.js (web-adjacent) | **PostgreSQL jobs table + Python worker** | No Redis dependency by default; Redis only for high-throughput cases |
-| **Database** | (not specified) | **PostgreSQL 18** (VPS, Coolify-managed) or Supabase (managed auth/realtime/pgvector) | Single shared PostgreSQL instance for all services |
+| **Database** | (not specified) | **PostgreSQL 16** (VPS, Coolify-managed) or Supabase (managed auth/realtime/pgvector) | Single shared PostgreSQL instance for all services |
 | **AI/LLM** | Python + managed APIs | **Kilo CLI free tiers → OpenAI/Anthropic APIs → Local Ollama** | Budget-first: free before paid, local before cloud |
 
 ### Fabrik Deployment Constraints (Not in Generic Guide)
@@ -508,7 +508,7 @@ Fabrik is a **deployment orchestration platform** with AI-powered agent manageme
 | Backend APIs | **Python + FastAPI + Uvicorn** | Per-project `src/main.py` |
 | Frontend (SaaS UIs) | **Next.js 14 + TypeScript + Tailwind** | Per-project `app/` |
 | Infrastructure | **Docker Compose via Coolify** on x86_64 VPS | `compose.yaml` per project |
-| Database | **PostgreSQL 18** (shared) | Coolify-managed `postgres-main` |
+| Database | **PostgreSQL 16** (shared) | Coolify-managed `postgres-main` |
 | AI agent selection | **Kilo CLI** (model roster auto-updated daily) | `scripts/kilo-benchmarks/role_mapper.py` |
 | Monitoring | **Netdata** (active) + Grafana/Prometheus/Loki (config ready) | VPS services |
 

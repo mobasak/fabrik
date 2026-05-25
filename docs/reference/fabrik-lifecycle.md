@@ -52,7 +52,7 @@ You execute work through **Ticket Design** via the Traycer workflow: `trigger-wo
 
 | Need | Use | Address |
 |---|---|---|
-| Database | PostgreSQL 18 | `postgres-main:5432` |
+| Database | PostgreSQL 16 | `postgres-main:5432` |
 | Cache/Queue | Redis 7 | `redis-main:6379` |
 | Search | MeiliSearch | `search.vps1.ocoron.com` (port 7700 internal) |
 | File storage | Backblaze B2 | S3-compatible API |

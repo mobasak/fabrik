@@ -1,0 +1,79 @@
+#!/bin/bash
+# runclean - Remove finished job files older than N days
+# Part of Long Command Monitoring System v1.1.0
+#
+# Usage:  runclean [--older-than DAYS] [--dry-run] [--all]
+#
+# Default: removes finished jobs (have .rc) older than 7 days.
+# --all keeps the same age cutoff but also removes orphan/dead jobs (no .rc, not running).
+set -uo pipefail
+
+DAYS=7
+DRY=0
+ALL=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --older-than) DAYS="${2:-7}"; shift 2 ;;
+        --dry-run)    DRY=1; shift ;;
+        --all)        ALL=1; shift ;;
+        -h|--help)
+            sed -n '2,9p' "$0"; exit 0 ;;
+        *) echo "runclean: unknown arg $1" >&2; exit 2 ;;
+    esac
+done
+
+JOBS_DIR="${PWD}/.tmp/jobs"
+[ -d "$JOBS_DIR" ] || { echo "No jobs directory at $JOBS_DIR"; exit 0; }
+
+shopt -s nullglob
+removed=0
+kept=0
+
+for pidfile in "$JOBS_DIR"/*.pid; do
+    JOB="${pidfile%.pid}"
+    base="$(basename "$JOB")"
+
+    # Skip if too new (mtime within DAYS)
+    if [ -n "$(find "$pidfile" -mtime -"$DAYS" 2>/dev/null)" ]; then
+        kept=$((kept + 1))
+        continue
+    fi
+
+    # Has .rc → finished, safe to remove
+    if [ -f "${JOB}.rc" ]; then
+        if [ "$DRY" -eq 1 ]; then
+            echo "WOULD REMOVE (finished): $base"
+        else
+            rm -f "${JOB}".*
+            echo "removed (finished): $base"
+        fi
+        removed=$((removed + 1))
+        continue
+    fi
+
+    # No .rc — only remove with --all and only if not actually running
+    if [ "$ALL" -eq 1 ]; then
+        PID=$(cat "$pidfile" 2>/dev/null || echo "")
+        SID=$(cat "${JOB}.sid" 2>/dev/null || echo "")
+        if { [ -n "$SID" ] && [ -n "$(ps -s "$SID" -o pid= 2>/dev/null)" ]; } || kill -0 "$PID" 2>/dev/null; then
+            kept=$((kept + 1))
+            continue
+        fi
+        if [ "$DRY" -eq 1 ]; then
+            echo "WOULD REMOVE (orphan): $base"
+        else
+            rm -f "${JOB}".*
+            echo "removed (orphan): $base"
+        fi
+        removed=$((removed + 1))
+    else
+        kept=$((kept + 1))
+    fi
+done
+
+# Clean stale .last symlink if it points nowhere
+if [ -L "${JOBS_DIR}/.last" ] && [ ! -e "${JOBS_DIR}/.last" ]; then
+    [ "$DRY" -eq 0 ] && rm -f "${JOBS_DIR}/.last"
+fi
+
+echo "Done. removed=$removed kept=$kept (older-than=${DAYS}d, all=$ALL, dry-run=$DRY)"

@@ -1,0 +1,23 @@
+#!/bin/bash
+# runlast - Print path of the most recent job (for piping into runc/runk/runtail)
+# Part of Long Command Monitoring System v1.1.0
+#
+# Usage:  runlast                     # prints job path
+#         runc $(runlast)             # check status of latest
+#         runk $(runlast)             # kill latest
+set -uo pipefail
+
+JOBS_DIR="${PWD}/.tmp/jobs"
+[ -d "$JOBS_DIR" ] || { echo "No jobs directory" >&2; exit 1; }
+
+# Prefer the .last symlink (set by rund/rundsh)
+if [ -L "${JOBS_DIR}/.last" ]; then
+    target="$(readlink "${JOBS_DIR}/.last")"
+    echo "${JOBS_DIR}/${target}"
+    exit 0
+fi
+
+# Fallback: newest .pid by mtime
+last="$(ls -t "$JOBS_DIR"/*.pid 2>/dev/null | head -1)"
+[ -z "$last" ] && { echo "No jobs found" >&2; exit 1; }
+echo "${last%.pid}"

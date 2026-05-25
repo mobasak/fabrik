@@ -1,0 +1,52 @@
+#!/bin/bash
+# runls - List all jobs in .tmp/jobs/ with status
+# Part of Long Command Monitoring System v1.1.0
+#
+# Usage: runls [--running]
+#
+# Output columns: STATUS | AGE | JOB | NAME | CMD
+set -uo pipefail
+
+RUNNING_ONLY=0
+[ "${1:-}" = "--running" ] && RUNNING_ONLY=1
+
+JOBS_DIR="${PWD}/.tmp/jobs"
+[ -d "$JOBS_DIR" ] || { echo "No jobs directory at $JOBS_DIR"; exit 0; }
+
+shopt -s nullglob
+PID_FILES=("$JOBS_DIR"/*.pid)
+[ ${#PID_FILES[@]} -eq 0 ] && { echo "No jobs."; exit 0; }
+
+# Sort newest first by mtime
+mapfile -t SORTED < <(ls -t "$JOBS_DIR"/*.pid 2>/dev/null)
+
+printf '%-10s %-10s %-50s %-20s %s\n' "STATUS" "AGE" "JOB" "NAME" "CMD"
+for pidfile in "${SORTED[@]}"; do
+    JOB="${pidfile%.pid}"
+    PID=$(cat "$pidfile" 2>/dev/null || echo "")
+    SID=$(cat "${JOB}.sid" 2>/dev/null || echo "")
+    NAME=$(cat "${JOB}.name" 2>/dev/null || echo "-")
+    CMD=$(head -c 60 "${JOB}.cmd" 2>/dev/null | tr -d '\n' || echo "?")
+
+    if [ -f "${JOB}.rc" ]; then
+        RC=$(cat "${JOB}.rc")
+        if [ "$RC" = "SIGTERM" ] && [ -f "${JOB}.timeout" ] && [ -f "${JOB}.timed-out" ]; then
+            STATUS="TIMEOUT"
+        elif [ "$RC" = "SIGTERM" ]; then
+            STATUS="KILLED"
+        else
+            STATUS="DONE($RC)"
+        fi
+    elif { [ -n "$SID" ] && [ -n "$(ps -s "$SID" -o pid= 2>/dev/null)" ]; } || kill -0 "$PID" 2>/dev/null; then
+        STATUS="RUNNING"
+    else
+        STATUS="DEAD"
+    fi
+
+    [ "$RUNNING_ONLY" -eq 1 ] && [ "$STATUS" != "RUNNING" ] && continue
+
+    AGE=$(ps -p "$PID" -o etime= 2>/dev/null | tr -d ' ' || echo "-")
+    [ -z "$AGE" ] && AGE="-"
+
+    printf '%-10s %-10s %-50s %-20s %s\n' "$STATUS" "$AGE" "$(basename "$JOB")" "$NAME" "$CMD"
+done

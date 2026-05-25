@@ -57,7 +57,8 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
   - `mobile-app` → read `domain-modules/mobile-app.md`
   - `wordpress` → read `domain-modules/wordpress.md`
   - `chrome-extension` → read `domain-modules/chrome-ext.md`
-  - Multi-scaffold vision (e.g., saas + mobile-app + chrome-extension) → read ALL matching modules. They inform epic patterns (mobile always has a "store submission" epic, SaaS always has "billing + tenant" epic, chrome-ext always has "backend API first, extension second" pattern, etc.).
+  - If Vision Summary Technology Decisions includes **RAG pipeline** (any level) → read `domain-modules/rag.md`
+  - Multi-scaffold vision (e.g., saas + mobile-app + chrome-extension) → read ALL matching modules. They inform epic patterns (mobile always has a "store submission" epic, SaaS always has "billing + tenant" epic, chrome-ext always has "backend API first, extension second" pattern, etc.). RAG module is additive — read it alongside scaffold modules when RAG is in scope.
 
 ## Processing User Request
 
