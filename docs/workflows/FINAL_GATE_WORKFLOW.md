@@ -949,8 +949,7 @@ python -m bandit -r src/
 ## Sources of Truth
 
 - `.windsurfrules` — Cascade agent contract: behavior rules, invariants, and audit directives.
-- `.windsurf/rules/50-code-review.md` — Tiered gate commands and usage for Cascade.
-- `.windsurf/rules/90-automation.md` — Traycer YOLO automation and gate triggering.
+- `.windsurf/rules/core/50-code-review.md` — Tiered gate commands and usage for Cascade.
 - `scripts/final_gate.py` — Executable tiered implementation (runtime truth).
 
 ## See Also

@@ -54,8 +54,8 @@ Before generating any plan, Traycer runs **6 mandatory pre-flight checks** ([AGE
 2. **BUSINESS_MODEL.md** — duplicate / similar project check. State the finding.
 3. **Fabrik Microservices table** — use existing internal APIs before planning new logic.
 4. **Hardware audit** — confirm all Docker images support `linux/amd64`.
-5. **Design System** — for any UI surface, read `.windsurf/rules/ocoron-design-system.md` before generating any spec or copy.
-6. **External Knowledge Verification** — for 3rd-party APIs (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n), verify the current contract against live docs before writing the ticket; cite the URL in the ticket's `References:` field. After 3 search misses → mark ticket `BLOCKED: external-research-needed`.
+5. **Design System** — for any UI surface, read `.windsurf/rules/core/ocoron-design-system.md` before generating any spec or copy.
+6. **External Knowledge Verification** — for 3rd-party APIs (Coolify, Paddle, Traefik, Authelia, Supabase, Cloudflare, n8n — Stripe NOT available to TR entities), verify the current contract against live docs before writing the ticket; cite the URL in the ticket's `References:` field. After 3 search misses → mark ticket `BLOCKED: external-research-needed`.
 
 Then Traycer applies the **12 planning constraints**: solo dev, x86_64 only, budget-conscious, reuse existing microservices, prebuilt containers, port conflicts, Coolify deployment, no Alpine, complete dependent modules first, DNS via site-provisioner, scaffold immutability (no reorganization), surface state conflicts explicitly.
 
@@ -77,10 +77,10 @@ All three carry the same always-on contract: **FIRST OUTPUT line** (`RULES ACTIV
 
 Scope-relevant packs that auto- or hand-load during work:
 
-- [10-python.md](../../.windsurf/rules/10-python.md) — FastAPI lifespan, pydantic-settings, function-level config, FastAPI exception order (HTTPException re-raised before generic Exception).
-- [30-ops.md](../../.windsurf/rules/30-ops.md) — Dockerfile / compose template, Docker DNS no-`localhost`, `fabrik redeploy` sequence, Authelia restart procedure, Gatus stable aliases, post-deploy checklist.
-- [35-security-auth.md](../../.windsurf/rules/35-security-auth.md) — JWT lifecycle, CORS, CSP, canonical M2M `internal_auth.py` pattern, sensitive-file backup procedure, password policy (32-char `[a-zA-Z0-9]` via `secrets.choice()`).
-- [55-observability.md](../../.windsurf/rules/55-observability.md) — structlog/pino patterns, GlitchTip discipline (no duplicate `logger.exception()` traceback), `/health` real-dep test, Gatus stable DNS rule.
+- [10-python.md](../../.windsurf/rules/core/10-python.md) — FastAPI lifespan, pydantic-settings, function-level config, FastAPI exception order (HTTPException re-raised before generic Exception).
+- [30-ops.md](../../.windsurf/rules/core/30-ops.md) — Dockerfile / compose template, Docker DNS no-`localhost`, `fabrik redeploy` sequence, Authelia restart procedure, Gatus stable aliases, post-deploy checklist.
+- [35-security-auth.md](../../.windsurf/rules/core/35-security-auth.md) — JWT lifecycle, CORS, CSP, canonical M2M `internal_auth.py` pattern, sensitive-file backup procedure, password policy (32-char `[a-zA-Z0-9]` via `secrets.choice()`).
+- [55-observability.md](../../.windsurf/rules/core/55-observability.md) — structlog/pino patterns, GlitchTip discipline (no duplicate `logger.exception()` traceback), `/health` real-dep test, Gatus stable DNS rule.
 
 ## 5. Implementation
 
@@ -161,7 +161,7 @@ DNS for `*.vps1.ocoron.com` is managed by **site-provisioner** (`dns.vps1.ocoron
 The 4-layer security model wraps every deployed service:
 
 1. **iptables DOCKER-USER** drops all external Docker traffic except ports 80 / 443 / 6001 / 6002. Enforced via `/etc/systemd/system/iptables-docker-user.service` on the VPS.
-2. **Authelia** forward-auth (2FA) protects admin dashboards (`n8n`, `Netdata`, `Backrest`, `Apprise`); `^/api/` bypass for Coolify and Grafana; GlitchTip is on full-bypass (uses django-allauth app-layer TOTP). **Authelia exits on SIGHUP** — config changes require `docker restart <authelia-container>`. Procedure: [30-ops.md § Authelia SSO](../../.windsurf/rules/30-ops.md).
+2. **Authelia** forward-auth (2FA) protects admin dashboards (`n8n`, `Netdata`, `Backrest`, `Apprise`); `^/api/` bypass for Coolify and Grafana; GlitchTip is on full-bypass (uses django-allauth app-layer TOTP). **Authelia exits on SIGHUP** — config changes require `docker restart <authelia-container>`. Procedure: [30-ops.md § Authelia SSO](../../.windsurf/rules/core/30-ops.md).
 3. **`X-Internal-Token`** (via `internal_auth.py` + shared `SERVICE_INTERNAL_SECRET_KEY` in `/opt/fabrik/.env`, same value pushed to Coolify env for every deployed service) for all API-to-API calls. Validation is constant-time (`hmac.compare_digest`). Exceptions: `file-api` uses Supabase Bearer JWT (user auth, different pattern); `site-provisioner` uses Traefik IP allowlist.
 4. **Traefik** routes public sites (`ocoron.com`, `status.vps1.ocoron.com`) without auth.
 
@@ -273,8 +273,8 @@ Every claim in this document is checkable. The grep / file commands below valida
 | 12 planning constraints in AGENTS.md | `awk '/^## Planning Constraints/,/^---$/' /opt/fabrik/AGENTS.md \| grep -cE '^[0-9]+\. \*\*'` |
 | 0 packs left with `activation: always_on` | `grep -l 'activation: always_on' /opt/fabrik/.windsurf/rules/*.md \| wc -l` |
 | `CROSS_CUTTING_REQUIREMENTS.md` is gone | `test -e /opt/fabrik/.windsurf/rules/CROSS_CUTTING_REQUIREMENTS.md && echo PRESENT \|\| echo absent` |
-| Coolify pulls from GitHub, not `/opt/` | Read [.windsurf/rules/30-ops.md § Redeploying Git-Sourced Apps](../../.windsurf/rules/30-ops.md) |
-| Authelia exits on SIGHUP | Read [.windsurf/rules/30-ops.md § Authelia SSO](../../.windsurf/rules/30-ops.md) |
+| Coolify pulls from GitHub, not `/opt/` | Read [.windsurf/rules/core/30-ops.md § Redeploying Git-Sourced Apps](../../.windsurf/rules/core/30-ops.md) |
+| Authelia exits on SIGHUP | Read [.windsurf/rules/core/30-ops.md § Authelia SSO](../../.windsurf/rules/core/30-ops.md) |
 | Scaffold-emitted modules per API scaffold | Read [AGENTS.md § What every API scaffold emits automatically](../../AGENTS.md) |
 
 If any of these checks return a number that doesn't match what this document claims, update this document.

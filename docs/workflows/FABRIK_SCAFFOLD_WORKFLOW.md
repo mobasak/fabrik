@@ -270,10 +270,10 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── 70-chrome-ext.md         # Chrome extension patterns
 │   │   ├── 75-workers-jobs.md       # Workers & jobs patterns
 │   │   ├── 80-mobile.md             # Mobile app patterns
-│   │   ├── 85-payments-billing.md   # Payments & billing patterns
-│   │   ├── 90-automation.md         # YOLO modes, Fabrik skills
-│   │   ├── 95-multi-tenant-saas.md  # Multi-tenant SaaS patterns
-│   │   └── ocoron-design-system.md  # Ocoron Design System v2
+│   │   ├── core/                    # 20 shared packs (Python, TS, DB, ops, security, etc.)
+│   │   ├── saas/                    # 4 SaaS packs (UI, launch, abuse, multi-tenant)
+│   │   ├── mobile-app/             # 5 mobile packs (mobile, billing, launch, design systems)
+│   │   └── chrome-ext/             # 1 chrome extension pack
 │   └── workflows/                   # Cascade slash-command workflows (10 files)
 ├── config/                          # Configuration files
 ├── data/                            # Data files (gitignored)
@@ -436,27 +436,26 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `scripts/sync_cascade_backup.sh` | `scripts/sync_cascade_backup.sh` | Backup Cascade session |
 | `scripts/sync_extensions.sh` | `scripts/sync_extensions.sh` | Sync Windsurf extensions |
 | **Windsurf Rules (22)** | | |
-| `.windsurf/rules/10-python.md` | Copied from Fabrik | Python/FastAPI patterns |
-| `.windsurf/rules/15-api-contracts.md` | Copied from Fabrik | API contract patterns |
-| `.windsurf/rules/20-typescript.md` | Copied from Fabrik | TypeScript patterns |
-| `.windsurf/rules/25-data-postgres.md` | Copied from Fabrik | PostgreSQL/data patterns |
-| `.windsurf/rules/30-ops.md` | Copied from Fabrik | Docker/Compose patterns |
-| `.windsurf/rules/35-security-auth.md` | Copied from Fabrik | Security & auth patterns |
-| `.windsurf/rules/40-documentation.md` | Copied from Fabrik | Documentation rules |
-| `.windsurf/rules/42-docusaurus.md` | Copied from Fabrik | Docusaurus patterns |
-| `.windsurf/rules/45-testing-strategy.md` | Copied from Fabrik | Testing strategy |
-| `.windsurf/rules/50-code-review.md` | Copied from Fabrik | Workflow pointer |
-| `.windsurf/rules/55-observability.md` | Copied from Fabrik | Observability patterns |
-| `.windsurf/rules/60-saas-ui.md` | Copied from Fabrik | SaaS UI patterns |
-| `.windsurf/rules/62-wordpress.md` | Copied from Fabrik | WordPress patterns |
-| `.windsurf/rules/65-rag-search.md` | Copied from Fabrik | RAG/search patterns |
-| `.windsurf/rules/70-chrome-ext.md` | Copied from Fabrik | Chrome extension patterns |
-| `.windsurf/rules/75-workers-jobs.md` | Copied from Fabrik | Workers & jobs patterns |
-| `.windsurf/rules/80-mobile.md` | Copied from Fabrik | Mobile app patterns |
-| `.windsurf/rules/85-payments-billing.md` | Copied from Fabrik | Payments & billing patterns |
-| `.windsurf/rules/90-automation.md` | Copied from Fabrik | YOLO modes, Fabrik skills |
-| `.windsurf/rules/95-multi-tenant-saas.md` | Copied from Fabrik | Multi-tenant SaaS patterns |
-| `.windsurf/rules/ocoron-design-system.md` | Copied from Fabrik | Ocoron Design System v2 (visual + verbal identity) |
+| `.windsurf/rules/core/10-python.md` | Copied from Fabrik | Python/FastAPI patterns |
+| `.windsurf/rules/core/15-api-contracts.md` | Copied from Fabrik | API contract patterns |
+| `.windsurf/rules/core/20-typescript.md` | Copied from Fabrik | TypeScript patterns |
+| `.windsurf/rules/core/25-data-postgres.md` | Copied from Fabrik | PostgreSQL/data patterns |
+| `.windsurf/rules/core/30-ops.md` | Copied from Fabrik | Docker/Compose patterns |
+| `.windsurf/rules/core/35-security-auth.md` | Copied from Fabrik | Security & auth patterns |
+| `.windsurf/rules/core/40-documentation.md` | Copied from Fabrik | Documentation rules |
+| `.windsurf/rules/core/42-docusaurus.md` | Copied from Fabrik | Docusaurus patterns |
+| `.windsurf/rules/core/45-testing-strategy.md` | Copied from Fabrik | Testing strategy |
+| `.windsurf/rules/core/50-code-review.md` | Copied from Fabrik | Workflow pointer |
+| `.windsurf/rules/core/55-observability.md` | Copied from Fabrik | Observability patterns |
+| `.windsurf/rules/saas/60-saas-ui.md` | Copied from Fabrik | SaaS UI patterns |
+| `.windsurf/rules/core/65-rag-search.md` | Copied from Fabrik | RAG/search patterns |
+| `.windsurf/rules/chrome-ext/70-chrome-ext.md` | Copied from Fabrik | Chrome extension patterns |
+| `.windsurf/rules/core/75-workers-jobs.md` | Copied from Fabrik | Workers & jobs patterns |
+| `.windsurf/rules/mobile-app/80-mobile.md` | Copied from Fabrik | Mobile app patterns |
+| `.windsurf/rules/core/85-payments-billing.md` | Copied from Fabrik | Payments & billing patterns |
+| `.windsurf/rules/saas/87-abuse-detection.md` | Copied from Fabrik | SaaS anti-fraud playbook |
+| `.windsurf/rules/saas/95-multi-tenant-saas.md` | Copied from Fabrik | Multi-tenant SaaS patterns |
+| `.windsurf/rules/core/ocoron-design-system.md` | Copied from Fabrik | Ocoron Design System v2 (visual + verbal identity) |
 | **Templates** | | |
 | `templates/docs/*.md` | Copied from Fabrik | Documentation templates (5 files) |
 | `templates/saas-skeleton/` | Copied from Fabrik | Full Next.js SaaS starter |
