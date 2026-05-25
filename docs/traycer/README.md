@@ -44,7 +44,7 @@ Fabrik uses a **separation of concerns** architecture where each agent type read
 │  30-ops ─────────► Docker patterns                         Rule-pack      │
 │  40-documentation► Doc rules                               registry       │
 │  50-code-review ─► Gate commands                           Stack defaults │
-│  90-automation ──► YOLO/skills                             Env context    │
+│  87-abuse-detect ► SaaS anti-fraud                         Env context    │
 │                                                                           │
 │  CASCADE: .windsurfrules + rules/     KILO: AGENTS-compact TRAYCER:       │
 │  (never reads AGENTS.md)              (never reads full    AGENTS.md      │

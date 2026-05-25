@@ -62,7 +62,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 26. Does it enforce CHANGELOG + INDEX updates?
 27. Does it reference the applicable `.windsurf/rules/` packs?
 28. Does it know which rule packs apply per scaffold type (from `AGENTS.md` § Project Type → Default Packs)?
-28b. Does it inject BOTH rule packs AND reference docs from 05's category table into ticket Context Files? (e.g., Search category → `65-rag-search` + `docs/reference/MD/rag-chunking-rules.md`)
+28b. Does it inject rule packs from 05's category table into ticket Context Files? (e.g., Search category → `core/65-rag-search` + `core/66-rag-chunking`)
 29. Does it enforce Lessons Learnt when trigger conditions fire?
 30. Does it enforce the Completion Self-Check + Governance Checklist?
 

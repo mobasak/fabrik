@@ -276,7 +276,7 @@ Before creating any plan, verify:
 
 Traycer injects rule-pack guidance into coding-agent execution prompts based on `project.yaml::type` + ticket scope. Coding agents do NOT self-select packs.
 
-### Pack Registry (29 packs in `.windsurf/rules/**/*.md`)
+### Pack Registry (30 packs in `.windsurf/rules/**/*.md`)
 
 Organized by folder:
 
@@ -305,11 +305,12 @@ Organized by folder:
 | `DESIGN_SYSTEM` | `core/ocoron-design-system.md` | Cross-cutting |
 | `TOJLO_DESIGN` | `core/tojlo-design-system.md` | Cross-cutting |
 
-**`saas/` — SaaS skeleton specific (3 packs)**
+**`saas/` — SaaS skeleton specific (4 packs)**
 
 | Pack ID | File | Category |
 |---|---|---|
 | `SAAS_UI` | `saas/60-saas-ui.md` | Frontend |
+| `ABUSE_DETECTION` | `saas/87-abuse-detection.md` | Domain |
 | `SAAS_LAUNCH` | `saas/88-saas-launch-checklist.md` | Domain |
 | `MULTI_TENANT` | `saas/95-multi-tenant-saas.md` | Domain |
 
