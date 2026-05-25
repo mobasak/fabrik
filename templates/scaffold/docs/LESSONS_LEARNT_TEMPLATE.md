@@ -48,7 +48,7 @@ Provide the specific code snippet, prompt adjustment, or architectural change th
 
 Which existing rule file needs to be updated to prevent this in the future?
 
-- **Target File:** (e.g., `.windsurf/rules/10-python.md` or `.windsurf/rules/25-data-postgres.md`)
+- **Target File:** (e.g., `.windsurf/rules/core/10-python.md` or `.windsurf/rules/core/25-data-postgres.md`)
 - **New Instruction:** "Always ensure [X] when [Y] to avoid [Z]."
 
 ## 6. Triggered By
@@ -130,7 +130,7 @@ async with httpx.AsyncClient(timeout=120) as client:
 
 ## 5. Integration: Rule Update
 
-- **Target File:** `.windsurf/rules/10-python.md`
+- **Target File:** `.windsurf/rules/core/10-python.md`
 - **New Instruction:** "All HTTP calls in FastAPI endpoints MUST use async clients (httpx.AsyncClient, aiohttp). Never use synchronous clients in async contexts."
 
 ## 6. Triggered By
