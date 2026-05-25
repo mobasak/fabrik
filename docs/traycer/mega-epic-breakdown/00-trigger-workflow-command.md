@@ -169,7 +169,7 @@ Research from external AI sessions may suggest solutions that violate the owner'
 
 - **Expensive where free exists?** Research proposes a paid service → check if a VPS service already solves it (Apprise, Gotenberg, MeiliSearch, Backrest, n8n — all deployed, all free). State: "Research suggests [X] but [Y] is already deployed on VPS at zero cost."
 - **Complex where simple exists?** Research proposes Kubernetes, microservice mesh, custom auth — check if Coolify + Authelia + single-container deploys handle it. Fabrik deploys via `fabrik apply`, not Helm charts.
-- **Build where consume exists?** Research proposes building a component → check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), VPS services that already do it, AND `fabrik-libs` (`/opt/fabrik-libs/fabrik/`) for reusable code modules (LLM client, email, retry, translation, pause-state).
+- **Build where consume exists?** Research proposes building a component → check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), or VPS services that already do it.
 - **High-maintenance where set-and-forget exists?** Research proposes solutions requiring ongoing ops → prefer solutions that auto-heal, auto-backup, auto-monitor via existing Prometheus/Gatus/Backrest stack.
 - **Incompatible with Fabrik infra?** Port conflicts (check `PORTS.md`), Alpine images (bookworm-slim only), localhost assumptions (use postgres-main:5432), x86_64 issues, 12-Factor violations (local file storage, hardcoded config).
 - **Duplicate functionality?** Check `docs/reference/fabrik-project-catalog.md` + `AGENTS.md` § Microservices.

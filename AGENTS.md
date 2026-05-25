@@ -252,7 +252,6 @@ Traycer MUST run these checks before generating any Plan, PRD, or Execution Spec
 4. **Hardware Audit** — Confirm all Docker images support `linux/amd64`.
 5. **Design System** — For any project type with a UI surface (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus), read `.windsurf/rules/core/ocoron-design-system.md` before generating any spec or copy. For mobile-app, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`. Apply color tokens, typography, scaffold-specific adaptations, verbal identity (forbidden language, voice, microcopy rules) to all planning output. State: "Design system read."
 6. **External Knowledge Verification** — When the plan touches a third-party API/SDK/vendor (Coolify, Paddle, Traefik, Authelia, Stripe, Supabase, Cloudflare, n8n, etc.), verify the current contract against live docs BEFORE writing the ticket spec. Order: (a) search `docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md` for prior coverage; (b) if absent, fetch the vendor's official docs URL and cite it in the ticket's `References:` field; (c) pass cited URLs to executing agents in `Final Gate Instruction` or `Implementation Notes` so they don't re-research what you verified. If you cannot verify within 3 search calls, mark the ticket `BLOCKED: external-research-needed` and stop. Skip for: stdlib, language syntax, internal Fabrik conventions.
-7. **fabrik-libs** — Check `/opt/fabrik-libs/fabrik/` for graduated reusable modules. If a module has code (not just a stub), USE it. If the project builds something reusable, note it as a graduation candidate for post-epic extraction. State: which modules apply or "none graduated yet."
 
 ## Planning Constraints
 
@@ -497,7 +496,6 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | Local LLM Infrastructure | `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md` | Ollama setup, agent → model assignments |
 | Stack Decision Guide | `docs/reference/technology-stack-decision-guide.md` | Choosing tech stack for new project |
 | Prebuilt Containers | `docs/reference/prebuilt-app-containers.md` | Avoid writing custom code when a container exists |
-| Shared Code Modules | `/opt/fabrik-libs/` | Reusable Python modules (graduation-based — modules move here when a second project needs them). Check before writing custom implementations. `pip install -e /opt/fabrik-libs` in WSL. |
 | Database & Vector Strategy | `.windsurf/rules/core/25-data-postgres.md` + `core/65-rag-search.md` | PostgreSQL host selection, migrations, pgvector, hybrid search |
 | Owner Profile | `docs/owner_ozgur_basak.md` | Calibrating tone / framing for planning output |
 | Port Allocations | `PORTS.md` | Assigning ports to new services |

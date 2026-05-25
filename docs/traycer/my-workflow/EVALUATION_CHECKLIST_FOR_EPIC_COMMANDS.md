@@ -36,7 +36,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 ## Infrastructure Awareness
 
-12. Does it check/use existing VPS services BEFORE building new (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase)? Does it check `fabrik-libs` (`/opt/fabrik-libs/fabrik/`) for reusable code modules (llm, email, retry, translation, pause-state) before writing custom implementations?
+12. Does it check/use existing VPS services BEFORE building new (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase)?
 13. Does it reference the correct backing service addresses (internal Docker names, not localhost)?
 14. Does it check for duplicate projects in `AGENTS.md` microservices table + `docs/reference/fabrik-project-catalog.md`?
 15. Does it respect the external services decision matrix?

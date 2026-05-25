@@ -94,7 +94,6 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 53. Does it check for PORT conflicts? (`PORTS.md`)
 54. Does it check for DUPLICATE functionality? (don't build what exists)
 55. Does it use existing VPS services BEFORE building new? (postgres-main, redis-main, etc.)
-55b. Does it check `fabrik-libs` (`/opt/fabrik-libs/fabrik/`) for reusable code modules (llm, email, retry, translation, pause-state) before planning custom implementations?
 56. Does it respect the external services decision matrix from `AGENTS.md`?
 
 ## Owner's Research-First Approach

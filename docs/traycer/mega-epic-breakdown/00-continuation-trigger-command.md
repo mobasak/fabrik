@@ -83,7 +83,6 @@ If ANY stage is incomplete, add to Deviation Report as "Lifecycle gap: Stage [N]
 - Check `AGENTS.md` § Fabrik Microservices — can an existing microservice handle part of the new capability?
 - Check `PORTS.md` — any new services need port assignments?
 - Check `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions that eliminate custom work?
-- Check `fabrik-libs` (`/opt/fabrik-libs/fabrik/`) — reusable code modules (llm, email, retry, translation, pause-state). USE before building custom.
 
 State: "Project read. Scaffold type: [X / pre-scaffold]. Port: [Y]. [N] API routes, [M] database tables, [K] background workers. Lifecycle: [all 4 stages / gaps at Stage N]. Pre-flight: [findings]."
 

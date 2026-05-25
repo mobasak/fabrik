@@ -39,7 +39,7 @@ Execution phase (execute onward): zero ambiguity. Agents execute tickets without
 - **Error-free execution.** Tickets must be executable by agents WITHOUT errors, questions, or assumptions. Quality is non-negotiable.
 - **Versatility.** One workflow handles 11 scaffold types. The routing table adapts; the principles don't change.
 - **Solo dev + AI workforce.** One human orchestrating multiple AI agents in parallel. Fewer larger tickets. Maximize what ships per session. No over-engineering.
-- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Supabase, Backblaze B2 are all live. NEVER build what's already deployed. Check `fabrik-libs` (`/opt/fabrik-libs/fabrik/`) for reusable modules (LLM client, email, retry, translation, pause-state) before writing custom implementations.
+- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Supabase, Backblaze B2 are all live. NEVER build what's already deployed.
 - **The owner's workflow:** Research externally → drop file in project → trigger Traycer → Traycer reads + plans thoroughly → tickets dispatched to agents in parallel → `fabrik apply` → live.
 
 ## **The Fabrik Lifecycle (mental model for ALL planning)**
@@ -177,7 +177,6 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 24. **Email streams** — if product sends email: transactional + marketing on separate streams/subdomains. No email: N/A.
 25. **Vector DB ban** — if search/RAG: pgvector only (postgres-main or Supabase). Pinecone/Qdrant/Weaviate = conflict.
 26. **FINANCIALS.md** — SaaS scaffolds: must be populated before launch per `saas/88-saas-launch-checklist.md`. Non-SaaS: N/A.
-27. **fabrik-libs** — check `/opt/fabrik-libs/fabrik/` for existing reusable modules before planning custom implementations. If a submodule exists (llm, email, retry, translation, pause), USE it. List which fabrik-libs modules the project will import.
 
 ### **Step 6: Project Type Classification & Smart Routing**
 
@@ -202,7 +201,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 Emit **verbatim**, all fields populated:
 
-> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` *| 12-Factor:* `compliant/violations` *| Concurrency:* `<mechanism>` *| i18n:* `<mechanism>/N-A` *| Responsive:* `375px/N-A` *| Dark+Light:* `mandatory/N-A` *| Abuse Detection:* `required/N-A` *| Email:* `two-stream/none/N-A` *| Vector DB:* `pgvector/none` *| FINANCIALS:* `required/N-A` *| fabrik-libs:* `[modules used / none]` *| Shape:* `<fields>` *| Rule Packs:* `<IDs>`
+> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` *| 12-Factor:* `compliant/violations` *| Concurrency:* `<mechanism>` *| i18n:* `<mechanism>/N-A` *| Responsive:* `375px/N-A` *| Dark+Light:* `mandatory/N-A` *| Abuse Detection:* `required/N-A` *| Email:* `two-stream/none/N-A` *| Vector DB:* `pgvector/none` *| FINANCIALS:* `required/N-A` *| Shape:* `<fields>` *| Rule Packs:* `<IDs>`
 
 **Propagated downstream:** Port, Scaffold, User Guide, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs.
 **Informational:** x86_64, Duplicate, Internal APIs, Design System, Platform Debt, 12-Factor, Abuse Detection, Email, Vector DB, FINANCIALS.
@@ -211,7 +210,7 @@ Present:
 
 1. Project type + detection signals.
 2. Research status + improvements.
-3. Constraint findings (all 27).
+3. Constraint findings (all 26).
 4. Recommended route + skipped commands.
 5. Suggested next command.
 
