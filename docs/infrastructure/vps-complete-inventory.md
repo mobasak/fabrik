@@ -217,7 +217,7 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 - WSL-aware (auto re-execs on VPS via SSH with creds from `/opt/fabrik/.env`)
 - Optional `--coolify-uuid` flag pushes DSN straight to Coolify service env
 
-**Capture discipline (enforced by `.windsurf/rules/55-observability.md § Error Reporting`):**
+**Capture discipline (enforced by `.windsurf/rules/core/55-observability.md § Error Reporting`):**
 - Unhandled exceptions auto-report to GlitchTip when `GLITCHTIP_DSN` is set — do nothing extra
 - DO NOT call `logger.exception()` with full tracebacks for unhandled errors (duplicates GlitchTip event AND wastes Loki retention)
 - Use `sentry_sdk.capture_exception(e)` (Python) / `Sentry.captureException(e)` (Node) ONLY for caught-then-rethrown control flow
@@ -311,7 +311,7 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 
 **Coolify Service stacks** (`/data/coolify/services/<uuid>/`) use `container_name: <service>-<coolify-service-uuid>`. The UUID here is the **Coolify service ID** — does NOT change on redeploy. These are already stable (authelia, loki, netdata, gatus, etc.).
 
-**For every new single-image Application:** see `.windsurf/rules/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`.
+**For every new single-image Application:** see `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`.
 
 ## Resource Limits Reference
 

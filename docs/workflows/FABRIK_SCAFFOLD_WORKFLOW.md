@@ -265,7 +265,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── 50-code-review.md        # Workflow pointer
 │   │   ├── 55-observability.md      # Observability patterns
 │   │   ├── 60-saas-ui.md            # SaaS UI patterns
-│   │   ├── 62-wordpress.md          # WordPress patterns
 │   │   ├── 65-rag-search.md         # RAG/search patterns
 │   │   ├── 70-chrome-ext.md         # Chrome extension patterns
 │   │   ├── 75-workers-jobs.md       # Workers & jobs patterns

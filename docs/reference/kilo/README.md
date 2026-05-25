@@ -121,5 +121,5 @@ This directory contains documentation for the Kilo AI agent system used in Fabri
 
 - `docs/traycer/kilo_selected_agents.md` — Current selected agents documentation
 - `scripts/kilo-benchmarks/kilo_agents.sql` — Database schema
-- `.windsurf/rules/50-code-review.md` — Code review rules (references Kilo workflow)
+- `.windsurf/rules/core/50-code-review.md` — Code review rules (references Kilo workflow)
 - `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md` — Local Ollama setup for the 4 local agents

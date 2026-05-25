@@ -201,7 +201,7 @@ grep -c "glitchtip_init" /opt/fabrik/src/fabrik/scaffold.py
 | `/opt/fabrik/scripts/provision_glitchtip_project.sh` | CLI provisioner (idempotent, WSL-aware) |
 | `/opt/fabrik/src/fabrik/scaffold.py` | Scaffold logic that emits `glitchtip_init.{py,js}` |
 | `/opt/fabrik/.env` (WSL) | Holds `GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG` |
-| `/opt/fabrik/.windsurf/rules/55-observability.md` | Canonical capture discipline rules |
+| `/opt/fabrik/.windsurf/rules/core/55-observability.md` | Canonical capture discipline rules |
 | `<service>/src/{pkg}/glitchtip_init.py` | Per-service Python init module (scaffold-emitted) |
 | `<service>/src/glitchtip_init.js` | Per-service Node init module (scaffold-emitted) |
 

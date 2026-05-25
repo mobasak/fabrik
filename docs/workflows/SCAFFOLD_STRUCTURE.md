@@ -31,13 +31,13 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   │   ├── 50-code-review.md
 │   │   ├── 55-observability.md
 │   │   ├── 60-saas-ui.md
-│   │   ├── 62-wordpress.md
+│   │   ├── saas/                    # 4 SaaS packs
 │   │   ├── 65-rag-search.md
 │   │   ├── 70-chrome-ext.md
 │   │   ├── 75-workers-jobs.md
 │   │   ├── 80-mobile.md
 │   │   ├── 85-payments-billing.md
-│   │   ├── 90-automation.md
+│   │   ├── core/                    # 20 shared packs
 │   │   ├── 95-multi-tenant-saas.md
 │   │   └── ocoron-design-system.md
 │   └── workflows/

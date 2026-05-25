@@ -26,7 +26,7 @@ For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/St
 Gatus uses these names — never the raw UUID container names:
 `browserless:3000`, `gotenberg:3000`, `meilisearch:7700`, `glitchtip-web:8000`
 
-See `.windsurf/rules/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md` for the full procedure when adding new single-image Applications.
+See `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md` for the full procedure when adding new single-image Applications.
 
 ## Manually-Added Public URLs (not in Coolify Apps)
 

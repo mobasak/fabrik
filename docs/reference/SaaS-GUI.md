@@ -1,7 +1,7 @@
 ## IMPLEMENTED ✅
 
 **Template location:** `templates/saas-skeleton/`
-**Enforcement:** `.windsurf/rules/20-typescript.md` + `scripts/enforcement/`
+**Enforcement:** `.windsurf/rules/core/20-typescript.md` + `scripts/enforcement/`
 
 ---
 

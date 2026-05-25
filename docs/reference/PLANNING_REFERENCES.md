@@ -60,11 +60,11 @@ Path: docs/reference/prebuilt-app-containers.md
 Path: docs/reference/trueforge-images.md
 ```
 
-### `DATABASE_STRATEGY.md`
+### `25-data-postgres rule pack (.windsurf/rules/core/25-data-postgres.md)`
 **Purpose:** Database selection (PostgreSQL, Supabase, pgvector) and migration policy.
 **Consult when:** Any project needing data persistence.
 ```
-Path: docs/reference/DATABASE_STRATEGY.md
+Path: docs/reference/25-data-postgres rule pack (.windsurf/rules/core/25-data-postgres.md)
 ```
 
 ### `plugin-stack.md`
@@ -103,18 +103,18 @@ Path: docs/reference/AI_TAXONOMY.md
 Path: templates/scaffold/PYTHON_PRODUCTION_STANDARDS.md
 ```
 
-### `.windsurf/rules/10-python.md`
+### `.windsurf/rules/core/10-python.md`
 **Purpose:** FastAPI patterns, type hints, async patterns.
 **Consult when:** Python projects (auto-loaded by Windsurf for *.py files).
 ```
-Path: .windsurf/rules/10-python.md
+Path: .windsurf/rules/core/10-python.md
 ```
 
-### `.windsurf/rules/20-typescript.md`
+### `.windsurf/rules/core/20-typescript.md`
 **Purpose:** Next.js, React, TypeScript patterns.
 **Consult when:** TypeScript projects (auto-loaded by Windsurf for *.ts/*.tsx files).
 ```
-Path: .windsurf/rules/20-typescript.md
+Path: .windsurf/rules/core/20-typescript.md
 ```
 
 ---
@@ -127,7 +127,7 @@ Path: .windsurf/rules/20-typescript.md
 
 ### During `scope` Phase
 1. Read `stack.md` to understand deployment constraints
-2. Read `DATABASE_STRATEGY.md` if data persistence needed
+2. Read `25-data-postgres rule pack (.windsurf/rules/core/25-data-postgres.md)` if data persistence needed
 3. Read `prebuilt-app-containers.md` to identify reusable components
 
 ### During `spec` Phase

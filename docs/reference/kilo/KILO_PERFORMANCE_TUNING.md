@@ -202,7 +202,7 @@ done
 If using `kilo serve` as a backend with GPU providers:
 - Enable FlashBoot on RunPod endpoints (+10% cost, -90% cold start)
 - Use NVMe-backed volumes for model weights
-- See [76-gpu-workers.md](../../.windsurf/rules/76-gpu-workers.md) for GPU optimization
+- See [76-gpu-workers.md](../../.windsurf/rules/core/76-gpu-workers.md) for GPU optimization
 
 ### 4. Local models for zero-latency
 

@@ -738,7 +738,6 @@ def generate_docs_structure_tree() -> str:
         "orchestrator.md": "Deployment orchestrator module",
         "file-api-deployment.md": "File API deployment guide",
         "AI_TAXONOMY.md": "AI categories & tool selection",
-        "DATABASE_STRATEGY.md": "Database selection",
         "PLANNING_REFERENCES.md": "INDEX for AI planning phases",
         "prebuilt-app-containers.md": "Prebuilt container catalog",
         "project-registry.md": "Master inventory of all /opt projects",

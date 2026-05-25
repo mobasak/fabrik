@@ -937,7 +937,7 @@ Every invariant below has a live-incident writeup in `docs/LESSONS_LEARNT.md`. C
 | Business metrics: scaffold now emits `metrics.py` + `/metrics` endpoint |
 | Promtail unfiltered ships every container log including Coolify infra noise | Add `drop` stage to promtail config with regex on container_name. Currently filtered: coolify-db, coolify-redis, coolify-realtime, coolify-sentinel, ocoron-com-backup-1. |
 | Grafana datasources stored only in SQLite db are lost on volume wipe | Bind-mount `/opt/monitoring/configs/grafana/provisioning -> /etc/grafana/provisioning:ro` in Coolify service compose. Provisioning YAML files persist as code. |
-| Gatus UUID container names break silently on Coolify Application redeploy | Three-layer fix: compose alias + `docker network connect --alias` + `vps_apply_limits.sh apply_alias()`. Service stacks are stable; single-image Applications need the alias treatment. See `.windsurf/rules/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`. | `prometheus-client>=0.21.0` in requirements; `fabrik-services` job in prometheus.yml (targets commented) |
+| Gatus UUID container names break silently on Coolify Application redeploy | Three-layer fix: compose alias + `docker network connect --alias` + `vps_apply_limits.sh apply_alias()`. Service stacks are stable; single-image Applications need the alias treatment. See `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`. | `prometheus-client>=0.21.0` in requirements; `fabrik-services` job in prometheus.yml (targets commented) |
 
 ## Setup Runbooks (Reproducible Procedures)
 

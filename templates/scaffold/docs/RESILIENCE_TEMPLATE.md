@@ -522,4 +522,4 @@ Where each resilience primitive lives in this project. Fill in on first refactor
 
 ---
 
-_Standard reference: `fabrik/.windsurf/rules/58-resilience.md`. Canonical implementation: `transcriber/docs/reference/pipeline-resilience.md` (YouTube pipeline)._
+_Standard reference: `fabrik/.windsurf/rules/core/58-resilience.md`. Canonical implementation: `transcriber/docs/reference/pipeline-resilience.md` (YouTube pipeline)._

@@ -186,7 +186,7 @@ See `docs/infrastructure/prometheus-app-metrics-setup.md` for setup runbook + sa
 - **Storage:** `glitchtip` DB on `postgres-main`; events retained 90 days (`GLITCHTIP_RETENTION_DAYS` default)
 - **SDK integration:** `fabrik scaffold` auto-emits `glitchtip_init.py` (python-api) and `glitchtip_init.js` (node-api). Zero-overhead no-op when `GLITCHTIP_DSN` env unset.
 - **Provisioner:** `scripts/provision_glitchtip_project.sh <service-name> [--platform javascript-node] [--coolify-uuid <uuid>]` — idempotent, returns DSN with internal alias rewrite
-- **Capture discipline:** when DSN is set, unhandled exceptions auto-report — DO NOT also `logger.exception()` full tracebacks (duplicates events). See `.windsurf/rules/55-observability.md § Error Reporting`.
+- **Capture discipline:** when DSN is set, unhandled exceptions auto-report — DO NOT also `logger.exception()` full tracebacks (duplicates events). See `.windsurf/rules/core/55-observability.md § Error Reporting`.
 - **Runbook:** `docs/infrastructure/glitchtip-sdk-integration-setup.md`
 
 ---
@@ -239,7 +239,7 @@ Four services have stable aliases registered:
 | `glitchtip-web` | `glitchtip-web-z00kkck8c8cwo800kk440csk` | 8000 |
 
 Aliases persist via: compose file (Coolify redeploy) + `vps_apply_limits.sh` (VPS reboot).
-For new single-image Application: see `.windsurf/rules/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`.
+For new single-image Application: see `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`.
 
 ## Resource Limits
 

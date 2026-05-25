@@ -71,7 +71,7 @@ consumer URLs stay stable across redeploys.
 
 ## See also
 
-- `.windsurf/rules/55-observability.md` § "Gatus — Stable DNS Names" — the
+- `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" — the
   "never UUID names" rule that points here
 - `scripts/vps_apply_limits.sh` — the boot-time reapply script (contains
   the canonical alias pair list)

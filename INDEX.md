@@ -209,8 +209,8 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   │   └── worker/
 │   │       └── main.py              # Job processor (uses worker.logger)
 │   ├── wordpress/
-│   │   ├── CLAUDE.md                   # Claude Code tactical bootstrap for WordPress Factory infrastructure work (cross-refs 62-wordpress.md)
-│   │   ├── KILO_CLI_RULES.md           # Kilo CLI tactical bootstrap for WordPress Factory infrastructure work (cross-refs 62-wordpress.md)
+│   │   ├── CLAUDE.md                   # Claude Code tactical bootstrap for WordPress Factory infrastructure work (cross-refs wordpress rules)
+│   │   ├── KILO_CLI_RULES.md           # Kilo CLI tactical bootstrap for WordPress Factory infrastructure work (cross-refs wordpress rules)
 │   │   ├── base/
 │   │   │   ├── site.yaml.j2            # Jinja2 template for WordPress site-layer spec, rendered at scaffold time
 │   │   │   ├── compose.dev.yaml.j2     # Jinja2 template for local dev Docker Compose stack (WSL); uses wp_html shared volume for full WordPress core + nginx access
@@ -293,7 +293,7 @@ docs/
 ├── reference                       # Technical reference and module documentation
 │   ├── AI_TAXONOMY.md              # AI categories & tool selection
 │   ├── CRITICAL_RULES.md           # Non-negotiable execution rules
-│   ├── DATABASE_STRATEGY.md        # Database selection
+│   ├── # (Deleted — see .windsurf/rules/core/25-data-postgres.md)
 │   ├── DOCUMENTATION_STANDARD.md   # Documentation standards and conventions
 │   ├── DOC_REVIEW_2026-04-28.md
 │   ├── LOCAL_LLM_INFRASTRUCTURE.md

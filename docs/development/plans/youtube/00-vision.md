@@ -159,7 +159,7 @@ Three compose services. systemd unit `youtube-worker.service` decommissioned. `n
 |:--|:--|:--|:--|
 | **0. Security** | Rotate `yt_secure_2025`. Delete `scripts/start_dashboard_workers.sh`. Audit git history for other secrets. Update `.env`, Coolify env, `youtube-worker.service` `EnvironmentFile`. | Credential leak is unbounded blast radius. Must precede everything. | 1 |
 | **1. Fork decision** | Document A/B/C choice in `01-fork-decision.md`. Owner: human (Özgür). | Without this, nothing else is plannable. | 0 (decision doc) |
-| **2. Resilience backfill** | Translate `docs/reference/pipeline-resilience.md` → `docs/RESILIENCE.md` per `.windsurf/rules/58-resilience.md` template. Add §2b cards for Stripe, B2, DeepL/Azure (3 missing). | Pure docs work; safe; can run in parallel with anything else; gives RESILIENCE rule pack something to point at. | 1 |
+| **2. Resilience backfill** | Translate `docs/reference/pipeline-resilience.md` → `docs/RESILIENCE.md` per `.windsurf/rules/core/58-resilience.md` template. Add §2b cards for Stripe, B2, DeepL/Azure (3 missing). | Pure docs work; safe; can run in parallel with anything else; gives RESILIENCE rule pack something to point at. | 1 |
 | **3. Spec emission** | Fabrik (`/opt/fabrik`) emits `specs/services/youtube.yaml` with `shape:` block: `kind=service, is_public=true, has_persistent_data=true, needs_database=true, exposes_metrics=true, has_search_feature=false, is_admin_dashboard=false, coolify.alias=youtube`. | Spec is the deploy contract; everything downstream (registrars, monitoring) keys off it. Fabrik-side work, not youtube-side. | 1 |
 | **4. Compose hardening** | Add `deploy.resources.limits.memory + cpus` to `compose.yaml` per F5 fix. Add `MemoryLimit=` to `youtube-worker.service` until it's decommissioned in Phase 6. | Independent of fork; immediate OOM protection. | 1 |
 | **5. 12-Factor cleanup** | Fix `dashboard/app.py:20-21` (relative paths). Fix `dashboard/app.py:37` (require `FLASK_SECRET_KEY` from env, fail if missing in production). Add `--workers N` to FastAPI CMD (if FastAPI survives the fork). | Application-level fixes; safe to do regardless of fork. | 2 |
@@ -212,7 +212,7 @@ Three compose services. systemd unit `youtube-worker.service` decommissioned. `n
 | Resilience source (current) | `/opt/youtube/docs/reference/pipeline-resilience.md` | ✅ Exists, 398 lines |
 | Spec | `/opt/fabrik/specs/services/youtube.yaml` | 🆕 Phase 3 (Fabrik-side) |
 | Fabrik lifecycle | `/opt/fabrik/docs/reference/fabrik-lifecycle.md` | ✅ Reference |
-| Resilience rule pack | `/opt/fabrik/.windsurf/rules/58-resilience.md` | ✅ Reference |
+| Resilience rule pack | `/opt/fabrik/.windsurf/rules/core/58-resilience.md` | ✅ Reference |
 | python-api scaffold | `/opt/fabrik/src/fabrik/scaffold.py` | ✅ Reference (preplan layering added T3-01) |
 
 ---
