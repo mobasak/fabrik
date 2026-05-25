@@ -431,6 +431,7 @@ def main() -> int:
         "containerd",  # Docker runtime artifact dir
         "google",  # Google Chrome install location
         "logs",  # Generic logs dir; not a Fabrik project
+        "fabrik-libs",  # Shared Python library, not a Fabrik project
     }
 
     # Discover projects
