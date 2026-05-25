@@ -19,7 +19,7 @@ Four families of files orchestrate the agents:
 | [CLAUDE.md](../../CLAUDE.md) | **Claude Code** (coder) | Always-on rules + HARD STOPS for Claude Code |
 | [.windsurfrules](../../.windsurfrules) | **Windsurf Cascade** (coder) | Always-on rules + HARD STOPS for Cascade |
 | [AGENTS-compact.md](../../AGENTS-compact.md) | **Kilo CLI** (coder, via `opencode.json`) | Self-contained always-on rules for Kilo |
-| [.windsurf/rules/](../../.windsurf/rules/) (21 packs) | All 3 coders | Scope-relevant topic deep-dives, loaded on demand |
+| [.windsurf/rules/](../../.windsurf/rules/) (30 packs) | All 3 coders | Scope-relevant topic deep-dives, loaded on demand |
 
 ---
 
@@ -261,7 +261,7 @@ Every claim in this document is checkable. The grep / file commands below valida
 
 | Claim | Verify with |
 |---|---|
-| 21 rule packs in `.windsurf/rules/` | `ls /opt/fabrik/.windsurf/rules/ \| wc -l` |
+| 30 rule packs in `.windsurf/rules/` | `ls /opt/fabrik/.windsurf/rules/ \| wc -l` |
 | 11 scaffold types | `grep -E 'shape.kind' /opt/fabrik/templates/*/defaults.yaml \| wc -l` |
 | Pack registry matches actual files | `awk '/^### Pack Registry/,/^### Project Type/' /opt/fabrik/AGENTS.md \| grep -c '^\| \`'` |
 | `kilo_dispatch.py` injection caps (40 / 6) | `grep -E 'MAX_RULE_LINES\|MAX_LINES_PER_PACK' /opt/fabrik/scripts/kilo_dispatch.py` |

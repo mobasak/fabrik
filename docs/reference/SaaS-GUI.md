@@ -18,7 +18,7 @@ A reusable “SaaS GUI skeleton” you can copy for future projects that include
 - **React Hook Form + Zod** for forms/validation
 - **TanStack Query** (or server actions only) for data fetching + caching
 - **Auth**: NextAuth/Auth.js or Clerk (choose one per project)
-- **Billing**: Stripe (stub interfaces in skeleton so you can plug later)
+- **Billing**: Paddle (MoR for international billing — Stripe NOT available to TR entities)
 - **DB**: Postgres + Prisma (or Drizzle). Even if you swap later, keep repository interfaces stable.
 ## Information architecture (copy-paste for most SaaS)
 ### Public (marketing)

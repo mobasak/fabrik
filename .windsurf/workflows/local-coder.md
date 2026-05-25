@@ -34,7 +34,7 @@ When you need to:
 
 ```bash
 # Direct invocation
-/opt/fabrik/scripts/Local_Coder_qwen32b.sh "add Stripe subscription integration"
+/opt/fabrik/scripts/Local_Coder_qwen32b.sh "add Paddle subscription integration"
 
 # With stdin (Cascade context)
 echo "Create a health check endpoint for FastAPI" | /opt/fabrik/scripts/Local_Coder_qwen32b.sh

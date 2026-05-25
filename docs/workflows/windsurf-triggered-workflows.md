@@ -300,7 +300,7 @@ python /opt/fabrik/scripts/kilo_dispatch.py \
 # Best cloud agent for coding
 python /opt/fabrik/scripts/kilo_dispatch.py \
     --agent "code&fix-1-opus46" \
-    --task "Add Stripe subscription integration" \
+    --task "Add Paddle subscription integration" \
     --project /opt/my-saas
 
 # Cheaper agent for simple fix

@@ -98,7 +98,7 @@ kilo run "Add user profile page"
 
 # Traycer (preferred for complex tasks)
 # /yolo smart "Install deps and fix TypeScript errors"
-# /yolo phased "Add Stripe subscription integration"
+# /yolo phased "Add Paddle subscription integration"
 ```
 
 ## Environment Variables

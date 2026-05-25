@@ -111,7 +111,7 @@ Implement the complete workflow end-to-end.
 **Estimated Time**: 2-4 hours
 
 ### Task 4.1: [Integration Name]
-Set up [Stripe/Resend/etc.] integration.
+Set up [Paddle/Resend/etc.] integration.
 
 **Acceptance Criteria**:
 - [ ] API connection works

@@ -38,7 +38,7 @@ kilo run "Add new API endpoint for user profile"
 # Planning (Traycer — preferred):
 # Traycer-managed tasks: planning happens in Traycer Phases
 # /yolo smart "Fix TypeScript errors and run build"
-# /yolo phased "Add Stripe subscription integration"
+# /yolo phased "Add Paddle subscription integration"
 ```
 
 ## Project Structure

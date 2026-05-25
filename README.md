@@ -417,7 +417,7 @@ Create production-ready services instantly:
 | `file-api` | Node.js + Cloudflare R2 | File upload services | Presigned URLs, direct browser uploads |
 | `file-worker` | Python + R2 | Background processing | OCR, transcription, async jobs |
 | `wordpress` | WordPress + MySQL | Content sites, blogs | Automated theme, plugins, content |
-| `saas-skeleton` | Next.js + Supabase + Stripe | Multi-tenant SaaS | Auth, billing, dashboard, job workflow, SSE streaming |
+| `saas-skeleton` | Next.js + Supabase + Paddle | Multi-tenant SaaS | Auth, billing, dashboard, job workflow, SSE streaming |
 | `chrome-extension` | TypeScript + Vite + CRXJS | Browser extensions + Python backend | Extension (popup, background, content scripts) + FastAPI server |
 | `desktop-app` | Electron + React | Desktop applications | Cross-platform native apps |
 | `mobile-app` | React Native | Mobile apps | iOS + Android from one codebase |
@@ -428,7 +428,7 @@ Create production-ready services instantly:
 - App dashboard with job workflow UI
 - SSE streaming for AI chat integration
 - Supabase auth + Row-level security
-- Stripe billing integration
+- Paddle billing integration (Stripe NOT available to TR entities)
 - Admin panel
 - ChatUI component for AI features
 

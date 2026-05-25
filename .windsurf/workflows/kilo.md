@@ -100,7 +100,7 @@ python /opt/fabrik/scripts/kilo_dispatch.py \
 # Coding task with best agent
 python /opt/fabrik/scripts/kilo_dispatch.py \
     --agent "code&fix-1-opus46" \
-    --task "Add Stripe subscription integration to the SaaS skeleton" \
+    --task "Add Paddle subscription integration to the SaaS skeleton" \
     --project /opt/my-saas
 
 # Fix task with cheaper agent
