@@ -46,7 +46,7 @@ Batch 2 (parallel): Epic Z          (depends on Batch 1)
 
 State dispatch instructions:
 
-"To execute an epic: select its ticket → run execute. Agents will use the ticket description as the Epic Brief for `my-workflow/01-epic-brief-command`."
+"To execute an epic: select its ticket → run `my-workflow/01-epic-brief-command` directly (skip `00-trigger` — the epic ticket's Metadata already carries all trigger context). The ticket description IS the Epic Brief input."
 
 "Dispatch order per Dependency Graph:"
 

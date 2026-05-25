@@ -39,14 +39,14 @@ Execution phase (execute onward): zero ambiguity. Agents execute tickets without
 - **Error-free execution.** Tickets must be executable by agents WITHOUT errors, questions, or assumptions. Quality is non-negotiable.
 - **Versatility.** One workflow handles 11 scaffold types. The routing table adapts; the principles don't change.
 - **Solo dev + AI workforce.** One human orchestrating multiple AI agents in parallel. Fewer larger tickets. Maximize what ships per session. No over-engineering.
-- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Supabase, Backblaze B2 are all live. NEVER build what's already deployed.
+- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Supabase, Backblaze B2 are all live. NEVER build what's already deployed. Check `fabrik-libs` (`/opt/fabrik-libs/fabrik/`) for reusable modules (LLM client, email, retry, translation, pause-state) before writing custom implementations.
 - **The owner's workflow:** Research externally → drop file in project → trigger Traycer → Traycer reads + plans thoroughly → tickets dispatched to agents in parallel → `fabrik apply` → live.
 
 ## **The Fabrik Lifecycle (mental model for ALL planning)**
 
 Every project passes through 4 stages. Read `docs/reference/fabrik-lifecycle.md` for the canonical reference.
 
-1. **Intent & Scaffolding (WSL)** — `fabrik preplan` → `fabrik scaffold` → AI guardrails (6 governance files + 21 rule packs + reference docs) + spec `shape:` block injected. The scaffold is a Context Injection.
+1. **Intent & Scaffolding (WSL)** — `fabrik preplan` → `fabrik scaffold` → AI guardrails (5 governance files + 30 rule packs across `core/`, `saas/`, `mobile-app/`, `chrome-ext/` + reference docs) + spec `shape:` block injected. The scaffold is a Context Injection.
 2. **Agentic Implementation (WSL)** — structured tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI). Agents write infra-aware code against the spec contract. `fabrik dev` for local iteration. `fabrik review` for pre-PR bundling.
 3. **Proper Registration (VPS via Coolify API)** — `fabrik apply` fires 9 registrars (postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus) based on the `shape:` block. Observability auto-discovers via docker.sock. Network security via UFW + DOCKER-USER iptables chain.
 4. **Verification & Testing** — `fabrik verify` health check, `fabrik audit-registrars` drift detection, hourly Telegram alerting, `fabrik destroy --use-state` for clean teardown.
@@ -59,9 +59,20 @@ These are enforced at planning time. Violations block the workflow.
 
 - **12-Factor App** — every service satisfies [The Twelve-Factor App](https://12factor.net/). Traycer verifies the planned architecture against all 12 factors in Step 5. Violations are blockers (e.g. "file-based sessions violates Factor VI — use Redis"). Key factors to check: III (config via env only), VI (stateless), IX (fast startup + SIGTERM), XI (structured stdout logs).
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
-- **i18n** — every GUI/user-facing service supports multi-language from day one. Default: English. Second: Turkish. Adding a language = adding a locale file, zero code changes.
-- **Resilience** — every external call has timeout + retry with backoff. Circuit-breaker for repeated failures. `/health` tests ALL real deps. Rule pack: `.windsurf/rules/58-resilience.md`. Each project gets `docs/RESILIENCE.md` template at scaffold time — filled when external deps are added. Traycer references this in `tech-plan` (architecture) and `ticket-breakdown` (per-ticket governance).
+- **i18n** — every GUI/user-facing service supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes.
+- **Responsive** — every web GUI responsive from 375px to 2560px (RWD1-RWD10). No desktop-only layouts. See `docs/reference/mobile-responsive-testing-guide.md`.
+- **Dark + light mode** — both mandatory for all GUI scaffolds. OS preference detected, manual toggle, preference persists.
+- **Resilience** — every external call has timeout + retry with backoff. Circuit-breaker for repeated failures. `/health` tests ALL real deps. Rule pack: `.windsurf/rules/core/58-resilience.md`. Each project gets `docs/RESILIENCE.md` template at scaffold time — filled when external deps are added.
+- **Abuse detection** — every SaaS with a free tier must implement registration gating (IP rate limit, disposable email block, progressive unlock). Rule pack: `.windsurf/rules/saas/87-abuse-detection.md`.
+- **Email two-stream** — transactional and marketing email MUST be on separate streams/subdomains. Rule pack: `.windsurf/rules/core/86-email-templates.md`.
 - **Shape contract** — `specs/services/<id>.yaml` declares which registrars fire. Code MUST match shape.
+- **Observability** — every service exposes `/health` for Gatus and `/metrics` for Prometheus.
+
+## **Entry Points**
+
+This command (`00-trigger`) is for **single-epic and standalone projects only.**
+
+For **multi-epic** projects (dispatched from `mega-epic-breakdown`), skip this command entirely — run `01-epic-brief` directly using the epic ticket as input. The epic ticket's `### Metadata` section contains all the fields this command would produce (scaffold, port, shape, rule packs, concurrency, i18n). See `mega-epic-breakdown/04-dispatch-epic-tickets-command.md`.
 
 ## **Processing User Request**
 
@@ -79,7 +90,7 @@ These are enforced at planning time. Violations block the workflow.
 
 **Platform-repo branch (special case):** If the workspace root has no `project.yaml` AND contains `apps/` + `infrastructure/` + `templates/`, this is the **Fabrik platform monorepo** itself. Pause and ask the user to scope the request.
 
-**UI design-system read (conditional):** If scaffold is a GUI type (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`), read `.windsurf/rules/ocoron-design-system.md` before generating any planning output.
+**UI design-system read (conditional, both modes):** If scaffold is a GUI type (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`), read `.windsurf/rules/core/ocoron-design-system.md` before generating any planning output. For `mobile-app`, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`.
 
 ### **Step 2: Scaffold Detection**
 
@@ -126,7 +137,7 @@ State which source(s) read (or `none — interview-only`).
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
 - `docs/reference/AI_TAXONOMY.md` — if AI/ML project, identify correct category + tool.
 - `docs/reference/fabrik-lifecycle.md` — confirm project fits all 4 stages; identify registrars.
-- `.windsurf/rules/` — identify applicable packs using `AGENTS.md` § Project Type → Default Packs table. The table maps scaffold type → pack IDs. These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
+- `.windsurf/rules/` (subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`) — identify applicable packs using `AGENTS.md` § Project Type → Default Packs table. The table maps scaffold type → pack IDs. These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
 - `docs/traycer/kilo_selected_agents.md` — Kilo CLI agent rankings (Elo + pricing + capabilities).
 - `docs/reference/windsurf/cascade-models.md` — Windsurf Cascade model list.
 - Claude Code is always available (opus/sonnet via this tool). During `ticket-breakdown`, Traycer assigns agents from ALL THREE suppliers per ticket; user picks which to dispatch.
@@ -135,7 +146,7 @@ State which source(s) read (or `none — interview-only`).
 
 Surface gaps, opportunities (existing VPS services!), conflicts (ports, Alpine, deps), stack recommendations. Present as interview questions.
 
-**4c. External Knowledge Verification** (per AGENTS.md pre-flight #6): For third-party vendors (Supabase, Backblaze, Cloudflare, Stripe, Paddle, n8n):
+**4c. External Knowledge Verification** (per AGENTS.md pre-flight #6): For third-party vendors (Supabase, Backblaze, Cloudflare, Paddle, iyzico, RevenueCat, n8n — note: Stripe is NOT available to Turkish entities, do not research Stripe integration):
 
 1. Search local docs first.
 2. If absent → fetch vendor docs, cite URL.
@@ -153,13 +164,20 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 **Workflow overlays (#13–#20):**
 
 13. **Duplicate project** — check `docs/reference/fabrik-project-catalog.md` (synced to every project from the master `/opt/fabrik/docs/BUSINESS_MODEL.md`) for an existing project that already solves this need. Also check `AGENTS.md` § Fabrik Microservices table for deployed services.
-14. **Design System** — `.windsurf/rules/ocoron-design-system.md` read?
+14. **Design System** — `.windsurf/rules/core/ocoron-design-system.md` read?
 15. **Platform debt** — informational; never blocks.
 16. **API audience** (`python-api`/`node-api` only) — external → User Guide true; internal → false.
 17. **12-Factor compliance** — violations block. State per-factor.
 18. **Concurrency model** — mechanism stated. Single-threaded blocking = conflict.
-19. **i18n readiness** — GUI scaffolds: mechanism or conflict. Non-GUI: N/A.
+19. **i18n readiness** — GUI scaffolds: mechanism + `validate_i18n.py` in Done When. Non-GUI: N/A.
 20. **Shape contract** — map needs to shape fields. State expected block.
+21. **Responsive design** — web GUI scaffolds: 375px floor, RWD1-RWD10 enforced. Non-web: N/A.
+22. **Dark + light mode** — GUI scaffolds: both mandatory, OS detection + toggle + persistence. Non-GUI: N/A.
+23. **Abuse detection** — SaaS with free tier: registration gating required per `saas/87-abuse-detection.md`. No free tier: N/A.
+24. **Email streams** — if product sends email: transactional + marketing on separate streams/subdomains. No email: N/A.
+25. **Vector DB ban** — if search/RAG: pgvector only (postgres-main or Supabase). Pinecone/Qdrant/Weaviate = conflict.
+26. **FINANCIALS.md** — SaaS scaffolds: must be populated before launch per `saas/88-saas-launch-checklist.md`. Non-SaaS: N/A.
+27. **fabrik-libs** — check `/opt/fabrik-libs/fabrik/` for existing reusable modules before planning custom implementations. If a submodule exists (llm, email, retry, translation, pause), USE it. List which fabrik-libs modules the project will import.
 
 ### **Step 6: Project Type Classification & Smart Routing**
 
@@ -176,7 +194,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 | `static-site` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
 | `wordpress` | epic-brief → ticket-outline → ticket-breakdown → execute | core-flows, tech-plan, deploy-plan | deferred (site-factory) |
 | `docusaurus` | epic-brief → ticket-outline → ticket-breakdown → deploy-plan → execute | core-flows, tech-plan | false |
-| Feature (existing) | (a) endpoints+tables → tech-plan path (b) UI-only → core-flows path (c) bugfix → ticket-breakdown |
+| Feature (existing) | Use `mega-epic-breakdown/00-continuation-trigger-command` instead | not this workflow | — |
 
 **Cross-cutting** (anytime): `revise-requirements`, `cross-artifact-validation`, `implementation-validation`, `deploy`.
 
@@ -184,16 +202,16 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 Emit **verbatim**, all fields populated:
 
-> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` *| 12-Factor:* `compliant/violations` *| Concurrency:* `<mechanism>` *| i18n:* `<mechanism>/N-A` *| Shape:* `<fields>` *| Rule Packs:* `<IDs>`
+> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open` *| 12-Factor:* `compliant/violations` *| Concurrency:* `<mechanism>` *| i18n:* `<mechanism>/N-A` *| Responsive:* `375px/N-A` *| Dark+Light:* `mandatory/N-A` *| Abuse Detection:* `required/N-A` *| Email:* `two-stream/none/N-A` *| Vector DB:* `pgvector/none` *| FINANCIALS:* `required/N-A` *| fabrik-libs:* `[modules used / none]` *| Shape:* `<fields>` *| Rule Packs:* `<IDs>`
 
-**Propagated downstream:** Port, Scaffold, User Guide, Shape, Concurrency, i18n, Rule Packs.
-**Informational:** x86_64, Duplicate, Internal APIs, Design System, Platform Debt, 12-Factor.
+**Propagated downstream:** Port, Scaffold, User Guide, Shape, Concurrency, i18n, Responsive, Dark+Light, Rule Packs.
+**Informational:** x86_64, Duplicate, Internal APIs, Design System, Platform Debt, 12-Factor, Abuse Detection, Email, Vector DB, FINANCIALS.
 
 Present:
 
 1. Project type + detection signals.
 2. Research status + improvements.
-3. Constraint findings (all 20).
+3. Constraint findings (all 27).
 4. Recommended route + skipped commands.
 5. Suggested next command.
 
@@ -207,10 +225,12 @@ User confirms. Proceed.
 - Preplan read if exists (`docs/preplans/`).
 - All reference reads completed (tech-stack guide, prebuilt containers, AI taxonomy, lifecycle, rule packs, kilo agents).
 - External Knowledge Verification applied for vendor dependencies.
-- All 20 constraints verified. No silent unknowns.
+- All 26 constraints verified. No silent unknowns.
 - 12-Factor: compliant or violations resolved.
 - Concurrency: mechanism stated; blocking rejected.
 - i18n: mechanism confirmed for GUI types.
+- Responsive: 375px floor confirmed for web GUI types.
+- Dark + light mode: mandatory confirmed for GUI types.
 - Shape block stated.
 - Rule packs identified.
 - INFRA-CHECK emitted verbatim, all fields populated.

@@ -26,12 +26,17 @@ Product manager who digs into the "why" behind a project. You produce a deploy-r
 
 ### Step 1: Consume Trigger Context
 
-`trigger_workflow` ran first and produced INFRA-CHECK. Capture ALL propagated fields:
+**Two entry paths — both provide the same fields:**
 
-- **Required:** `Port`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Rule Packs`.
-- **Informational (surface if material):** `Duplicate`, `Internal APIs`, `Design System`, `Platform Debt`, `12-Factor`.
+**Path A (single-epic):** `00-trigger-workflow-command` ran first and produced INFRA-CHECK. Capture propagated fields from INFRA-CHECK.
 
-If required fields are missing → ask the user or suggest re-running `trigger_workflow`. Do not guess.
+**Path B (multi-epic):** An epic ticket from `mega-epic-breakdown/03-expand-epic-files-command` is the input. The ticket's `### Metadata` section IS the trigger context. Also read the Infrastructure Decisions spec from mega-epic-breakdown.
+
+**Required fields (from either path):** `Port`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Rule Packs`.
+**Informational (surface if material):** `Duplicate`, `Internal APIs`, `Design System`, `Platform Debt`, `12-Factor`.
+**Multi-epic only:** `Dependencies` (what prior epics produced that this epic consumes), `Infrastructure Decisions` (shared decisions).
+
+If required fields are missing → ask the user or suggest re-running `00-trigger` (single-epic) or check the epic ticket (multi-epic). Do not guess.
 
 ### Step 2: Re-Read Research
 

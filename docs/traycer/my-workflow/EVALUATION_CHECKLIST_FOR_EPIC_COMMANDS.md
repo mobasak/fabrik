@@ -22,14 +22,21 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 6. **12-Factor** — does it verify/enforce all 12 factors where applicable?
 7. **Concurrency** — does it state/enforce the parallelism mechanism for this service?
-8. **i18n** — does it confirm multi-language support (en + tr) for GUI types?
+8. **i18n** — does it confirm multi-language support (en + tr) for GUI types? Does it enforce `validate_i18n.py` (3-level validation) in Done When for any ticket that adds/changes UI strings?
 9. **Resilience** — does it require timeout + retry + circuit-breaker + graceful fallback for external calls?
 10. **Self-healing** — does it ensure the service recovers without human intervention?
 11. **Shape contract** — does it confirm shape ↔ code alignment?
+11b. **Responsive design** — does it enforce 375px floor (RWD1-RWD10) for web GUI scaffolds? Does it reference `docs/reference/mobile-responsive-testing-guide.md`?
+11c. **Dark + light mode** — does it enforce both mandatory for all GUI scaffolds (OS detection + manual toggle + persistence)?
+11d. **Abuse detection** — does it enforce registration gating for SaaS with free tiers per `saas/87-abuse-detection.md`?
+11e. **Email two-stream** — does it enforce separate transactional/marketing streams on separate subdomains per `core/86-email-templates.md`?
+11f. **Observability** — does it enforce `/health` for Gatus and `/metrics` for Prometheus on every service?
+11g. **Vector DB ban** — if search/RAG: does it enforce pgvector only (postgres-main or Supabase)? Pinecone/Qdrant/Weaviate = rejection.
+11h. **FINANCIALS.md** — does it enforce populated unit economics before launch for SaaS scaffolds per `saas/88-saas-launch-checklist.md`?
 
 ## Infrastructure Awareness
 
-12. Does it check/use existing VPS services BEFORE building new (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase)?
+12. Does it check/use existing VPS services BEFORE building new (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase)? Does it check `fabrik-libs` (`/opt/fabrik-libs/fabrik/`) for reusable code modules (llm, email, retry, translation, pause-state) before writing custom implementations?
 13. Does it reference the correct backing service addresses (internal Docker names, not localhost)?
 14. Does it check for duplicate projects in `AGENTS.md` microservices table + `docs/reference/fabrik-project-catalog.md`?
 15. Does it respect the external services decision matrix?
@@ -85,12 +92,13 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 43b. Does it consider Kilo CLI for NON-CODING tasks? (data extraction, content generation, batch processing, research — see `docs/reference/kilo/KILO_USE_CASES.md`)
 43c. Does it reference `docs/reference/MD/ai-prompt-templates.md` when ticket involves designing new prompts, skills, or agent definitions?
-43d. Does it reference `docs/reference/MD/rag-chunking-rules.md` when ticket involves search/RAG features?
+43d. Does it reference `core/66-rag-chunking.md` when ticket involves search/RAG features?
 
 ## Versatility
 
 44. Does it work for ALL 11 scaffold types (or correctly skip via routing table)?
-45. Does it handle the "Feature for existing project" rubric?
+45. Does it handle multi-epic entry correctly? (`00-trigger` is single-epic only. Multi-epic dispatches to `01-epic-brief` directly with the epic ticket as input. `01-epic-brief` accepts both INFRA-CHECK and epic ticket Metadata as trigger context.)
+45b. Does it handle existing projects via `mega-epic-breakdown/00-continuation-trigger-command`?
 46. Does it handle two-faced types (mobile/desktop/chrome-extension: backend deploys, client doesn't)?
 
 ## Scope Protection
@@ -137,7 +145,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 ## Design & UX (GUI types)
 
-71. Does it reference Ocoron design system (`.windsurf/rules/ocoron-design-system.md`)?
+71. Does it reference Ocoron design system (`.windsurf/rules/core/ocoron-design-system.md`)? For `mobile-app`, also `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`?
 72. Does it enforce Verbal Identity (no forbidden language)?
 73. Does it enforce the 5 UI states (Empty/Loading/Error/Success/Disabled)?
 
