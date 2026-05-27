@@ -32,7 +32,13 @@ This isn't just folder creation; it's a **Context Injection**:
 
 ## Stage 2 — Agentic Implementation (WSL)
 
-You execute work through **Ticket Design** via the Traycer workflow: `trigger-workflow → epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute → implementation-validation → deploy`. You present structured tickets to your agents (Claude Code, Windsurf Cascade, Kilo CLI). Because they have the guardrail files (propagated via `scripts/sync_enforcement_to_projects.py` to all projects), they write code that is **Infrastructure-Aware:**
+You execute work through **Ticket Design** via the Traycer workflow. Two planning paths feed into the same execution chain:
+
+- **Single-epic** (`docs/traycer/my-workflow/`): `00-trigger → 01-epic-brief → 02-core-flows → 03-tech-plan → 04-deploy-plan → 05-ticket-outline → 06-ticket-breakdown → 07-execute → 08-implementation-validation → 09-revise → 10-cross-artifact-validation → 11-deploy`
+- **Multi-epic** (`docs/traycer/mega-epic-breakdown/`): `00-trigger → 02-epic-decomposition → 03-expand-epic-files → 05-cross-epic-validation → 04-dispatch` — each dispatched epic then runs `my-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as its INFRA-CHECK input).
+- **Existing-project continuation**: start with `mega-epic-breakdown/00-continuation-trigger-command` instead of `00-trigger` — produces a Continuation Summary consumed identically by `02-epic-decomposition`.
+
+You present structured tickets to your agents (Claude Code, Windsurf Cascade, Kilo CLI). Because they have the guardrail files (propagated via `scripts/sync_enforcement_to_projects.py` to all projects), they write code that is **Infrastructure-Aware:**
 
 - They don't just write a Dockerfile; they write a `specs/services/<id>.yaml` whose `shape:` block declares the specific registrars needed — which Coolify app, which Gatus endpoint, which Prometheus scrape target, which GlitchTip project.
 - If code adds a database call → `shape.needs_database` MUST be `true` in the spec.
@@ -69,9 +75,14 @@ You execute work through **Ticket Design** via the Traycer workflow: `trigger-wo
 
 ## Stage 3 — Proper Registration (VPS deploy via Coolify API)
 
-When you run `fabrik apply specs/services/<id>.yaml` from WSL, the CLI performs a multi-stage orchestration via the Coolify API:
+Two CLI entry points — both run the same `DeploymentOrchestrator.deploy()` pipeline:
 
-**The Bridge:** It doesn't run code in WSL. It tells VPS1 (via API) to pull the build from the GitHub remote (which is why `git push` MUST precede `fabrik apply` for git-sourced apps).
+- **`fabrik apply specs/services/<id>.yaml`** — direct path to spec. Use when you have the spec path.
+- **`fabrik deploy [--project <dir>]`** — reads `project.yaml` in the current dir, resolves `specs/services/<name>.yaml` from the `name` field, then calls the same orchestrator. Use from the project root. WordPress type raises `NotImplementedError` — WordPress deploys via `wpf` CLI (`wpf plan <site> && wpf apply <site>`).
+
+Both require `git push` first for git-sourced apps (Coolify pulls from GitHub, not local disk).
+
+**The Bridge:** It doesn't run code in WSL. It tells VPS1 (via Coolify API) to pull the build from the GitHub remote.
 
 **Auto-Registration (the 9 registrars, shape-gated):**
 

@@ -39,7 +39,7 @@ Execution phase (execute onward): zero ambiguity. Agents execute tickets without
 - **Error-free execution.** Tickets must be executable by agents WITHOUT errors, questions, or assumptions. Quality is non-negotiable.
 - **Versatility.** One workflow handles 11 scaffold types. The routing table adapts; the principles don't change.
 - **Solo dev + AI workforce.** One human orchestrating multiple AI agents in parallel. Fewer larger tickets. Maximize what ships per session. No over-engineering.
-- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Supabase, Backblaze B2 are all live. NEVER build what's already deployed. `/opt/fabrik-lib/` has 14 vendorable modules (auth, billing, emails, legal, storage, etc.) — check before planning custom implementations.
+- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Supabase, Backblaze B2 are all live. NEVER build what's already deployed. `/opt/fabrik-lib/` has vendorable modules (abuse prevention, API auth, billing, cookies, emails, file cache, GDPR, i18n, legal, MT routing, pause state, storage, webhooks, and more) — check `fabrik-lib/README.md` for the current table before planning custom implementations.
 - **The owner's workflow:** Research externally → drop file in project → trigger Traycer → Traycer reads + plans thoroughly → tickets dispatched to agents in parallel → `fabrik apply` → live.
 
 ## **The Fabrik Lifecycle (mental model for ALL planning)**
