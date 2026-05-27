@@ -67,6 +67,7 @@ Skip for: stdlib, language syntax, internal Fabrik conventions.
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `35-security-auth.md` § Sensitive Data Protection.
 - **Password policy** (32 chars, `[a-zA-Z0-9]`, `secrets.choice()`, banned: `postgres`/`admin`/`password123`) → `35-security-auth.md` § Password Policy.
 - **Before new scripts:** `grep_search` `scripts/` and `scripts/enforcement/`. Extend, don't duplicate.
+- **fabrik-lib** (`/opt/fabrik-lib/`) — reusable modules, vendor (copy) don't import. Check `fabrik-lib/README.md` for the module table before building from scratch. New module = must have `README.md` + `requirements.txt` + row in `fabrik-lib/README.md` table.
 
 ## Environment
 WSL Ubuntu only. Linux paths, never Windows tooling. Code must work in WSL dev (PG localhost, `.env`), VPS Docker (`postgres-main`, `compose.yaml`), Supabase (env vars) without modification.

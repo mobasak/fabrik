@@ -29,10 +29,8 @@ The goal is alignment, not artifacts. Flows must be discussed and agreed upon in
 
 `trigger_workflow` Step 6 already decided whether `core-flows` runs for this scaffold. Do not re-ask the user.
 
-- If routing skipped `core-flows` for this scaffold (`python-api` internal, `node-api` internal, `file-api`, `file-worker`, `wordpress`, `docusaurus`), this command should not have been triggered. Inform the user the route skipped this command, then stop.
-- For "Feature for existing project" route, applicability follows the rubric branch chosen in `trigger_workflow` Step 6:
-  - Branch (b) UI-only change → `core-flows` runs.
-  - Branches (a) and (c) → `core-flows` skipped.
+- If routing skipped `core-flows` for this scaffold (`python-api`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`), this command should not have been triggered. Inform the user the route skipped this command, then stop.
+- For multi-epic dispatches: if the epic ticket's scaffold type is in the skip list above, this command should not run. If the epic touches UI (has user-facing flows), it runs regardless of backend scaffold.
 - **Two-faced types** (`chrome-extension`, `mobile-app`, `desktop-app`): map flows for BOTH client-side UX AND backend-served UX (e.g. extension popup + FastAPI dashboard; mobile screens + API-driven notifications).
 
 ### **Step 2: Consume Upstream Context**
@@ -40,7 +38,7 @@ The goal is alignment, not artifacts. Flows must be discussed and agreed upon in
 Read these in order; everything else builds on them:
 
 1. **Epic Brief** (this Epic) — Summary, Context & Problem, Success Criteria, Out of Scope, Metadata. Every flow you map must trace back to at least one Success Criterion in the brief.
-2. `trigger_workflow` **INFRA-CHECK** — capture `Scaffold`, `Design System` (was `read` for UI scaffolds, otherwise `N-A`), `User Guide`, `i18n` (mechanism from trigger_workflow). The `Scaffold` value tells you which UI rule pack applies (see Step 3).
+2. `trigger_workflow` **INFRA-CHECK** — capture `Scaffold`, `Rule Packs`, `Shape`, `User Guide`, `i18n`, `Responsive`, `Dark+Light`, `Design System`. The `Scaffold` value tells you which UI rule pack applies (see Step 3). `Rule Packs` lists the IDs to read. `Shape` flags backing services (needed for shape implication tracking in Step 4). `Responsive: 375px` means flows must work on mobile. `Dark+Light: mandatory` means flows must account for both themes.
 3. **Pre-research file** if one was identified by `trigger_workflow` Step 3 — re-read for grounding, especially flow-level details.
 4. `.windsurf/rules/core/ocoron-design-system.md` — must already have been read by `trigger_workflow` for UI scaffolds (`Design System: read`). If `INFRA-CHECK` shows it was not read, stop and ask the user to re-run `trigger_workflow`.
 5. `docs/reference/fabrik-lifecycle.md` — confirm flows fit the Stage 2 → Stage 3 transition (flows that touch admin dashboards trigger authelia registrar; flows with search trigger meilisearch registrar).
@@ -113,9 +111,9 @@ Before documenting, seek explicit alignment with the user on these dimensions. D
 4. **Journey Integration** — How does this flow connect to adjacent workflows (Auth, Billing, Search, etc.)?
 5. **Language UX** — Answers from Step 4b (selector, URL, persistence, fallback, locale formatting).
 
-**5 UI States — flag selectively, not exhaustively.**
+**7 Enriched States — flag selectively, not exhaustively.**
 
-`saas/60-saas-ui.md` § Required States lists five states every interactive component must handle: **Empty / Loading / Error / Success-Saved / Disabled**. In the flow document, flag a state if and only if:
+`saas/60-saas-ui.md` requires every interactive component to handle 7 enriched states: **Loading / Empty / Error / Permission Denied / Success / Partial Success / Disabled** (see design system § States). In the flow document, flag a state if and only if:
 
 > *"Would a user behave differently, or would a developer make a wrong assumption, if this state weren't documented here?" If yes → include. If no → omit.*
 
@@ -146,7 +144,7 @@ Document only after the user explicitly confirms alignment. The spec is the **Co
 - **Decision points** — branches with explicit system response.
 - **Edge cases / error paths** — every error scenario from Step 4 has a path here.
 - **Resilience paths** — user-visible behavior when external deps are slow/down (from Step 4 resilience mapping).
-- **5-State flags** (when warranted by the Step 5 rule) — `Empty:`, `Loading:`, `Error:`, `Success-Saved:`, `Disabled:` lines describing user-visible behavior only.
+- **State flags** (when warranted by the Step 5 rule) — `Loading:`, `Empty:`, `Error:`, `Permission Denied:`, `Success:`, `Partial Success:`, `Disabled:` lines describing user-visible behavior only.
 - **Microcopy Hot-Spots** — list points where user-visible copy will appear (button labels, error messages, empty-state CTAs, confirmation toasts). For each, give the **outcome** the copy must communicate, not the literal copy. The implementer writes the literal copy at code time per `ocoron-design-system.md` § Verbal Identity.
 - **i18n Notes** (when `i18n ≠ N/A`) — flag locale-sensitive elements in this flow (date formats, number formats, plurals, RTL concerns). One line per element, not exhaustive — only where the developer would make a wrong default without the flag.
 
@@ -187,7 +185,7 @@ The Core Flows artifact itself is read by humans and downstream agents. Apply `o
 > - *Every persona has a complete journey; every journey has entry point, actions, feedback, exit, decision points, and error paths.*
 > - *Every flow has exactly one `[PRIMARY PATH]` marker.*
 > - *Every Success Criterion in the Epic Brief is covered by at least one flow.*
-> - *5-State flags appear only where the Step 5 practical rule says they matter.*
+> - *State flags appear only where the Step 5 practical rule says they matter.*
 > - *Microcopy Hot-Spots list outcomes, not literal strings.*
 > - *i18n Notes flag locale-sensitive elements only where a developer would make a wrong default.*
 > - *Resilience paths document user-visible fallback for every external-service interaction.*
@@ -202,7 +200,7 @@ Before handoff, walk this checklist. Resolve gaps in this conversation; do not h
 - Every flow has: entry point, actions, feedback, exit, decision points, error paths.
 - Every flow has exactly one `[PRIMARY PATH]` marker on a step sequence (not a single step).
 - Resilience paths documented for every action touching an external service.
-- 5-State flags applied per the Step 5 practical rule (not exhaustively, not skipped where they matter).
+- 7-State flags applied per the Step 5 practical rule (not exhaustively, not skipped where they matter).
 - Microcopy Hot-Spots flagged at every user-visible copy point.
 - i18n Decisions captured (if applicable): selector, URL strategy, persistence, fallback, locale rules.
 - i18n Notes in per-flow where locale-sensitive elements exist.
@@ -222,14 +220,14 @@ If during iteration the user introduces a requirement change that invalidates ea
 
 - Applicability check honored: command runs only when `trigger_workflow` Step 6 routing included `core-flows`.
 - Two-faced types handled: client + backend flows mapped where applicable.
-- Upstream context consumed: Epic Brief sections, INFRA-CHECK fields (`Scaffold`, `Design System`, `User Guide`, `i18n`), pre-research file, `ocoron-design-system.md`, `fabrik-lifecycle.md`.
+- Upstream context consumed: Epic Brief sections, INFRA-CHECK fields (`Scaffold`, `Rule Packs`, `Shape`, `User Guide`, `i18n`, `Responsive`, `Dark+Light`, `Design System`), pre-research file, `ocoron-design-system.md`, `fabrik-lifecycle.md`.
 - Scaffold-specific UI rule pack read per Step 3 table; domain packs read only when epic touches that domain. Read packs stated.
 - All personas identified with complete journeys (entry, actions, feedback, exit, decisions, error paths, edge cases).
 - Every flow traces to at least one Success Criterion; gaps surfaced, not silently dropped.
 - UX dimensions (Information Hierarchy, Placement & Affordances, Feedback & State, Journey Integration, Language UX) aligned with user before documentation.
 - Resilience paths documented: user-visible fallback for every external-service action (slow/down).
 - i18n Decisions captured when applicable: selector placement, URL strategy, persistence, fallback, locale formatting rules.
-- 5 UI States flagged only where practical rule applies; defaults not duplicated.
+- 7 Enriched States flagged only where practical rule applies; defaults not duplicated.
 - Microcopy Hot-Spots listed with outcomes only; no literal copy.
 - i18n Notes in per-flow flag locale-sensitive elements where developer would default wrong.
 - Shape implications flagged for flows introducing new backing service needs.

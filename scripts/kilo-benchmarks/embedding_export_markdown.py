@@ -271,9 +271,18 @@ def run(db_path: Path | str = DB_PATH) -> dict[str, Path]:
     # Also inject compact winners table into the RAG search rule pack
     if RAG_SEARCH_PATH.exists():
         role_labels = {
-            "multilingual_primary": ("Default (TR+EN)", "Most projects — use ONE model for BOTH ingest and query"),
-            "frontier_reference": ("Premium quality", "Separate pipeline — only when max recall needed AND budget allows full re-embed"),
-            "code_embedding": ("Code-specific", "Separate pipeline — IDE semantic search, codebase retrieval"),
+            "multilingual_primary": (
+                "Default (TR+EN)",
+                "Most projects — use ONE model for BOTH ingest and query",
+            ),
+            "frontier_reference": (
+                "Premium quality",
+                "Separate pipeline — only when max recall needed AND budget allows full re-embed",
+            ),
+            "code_embedding": (
+                "Code-specific",
+                "Separate pipeline — IDE semantic search, codebase retrieval",
+            ),
         }
         lines = [
             "| Role | Use when | Model | Cost | Context |",

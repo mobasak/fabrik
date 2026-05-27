@@ -30,11 +30,11 @@ Product manager who digs into the "why" behind a project. You produce a deploy-r
 
 **Path A (single-epic):** `00-trigger-workflow-command` ran first and produced INFRA-CHECK. Capture propagated fields from INFRA-CHECK.
 
-**Path B (multi-epic):** An epic ticket from `mega-epic-breakdown/03-expand-epic-files-command` is the input. The ticket's `### Metadata` section IS the trigger context. Also read the Infrastructure Decisions spec from mega-epic-breakdown.
+**Path B (multi-epic):** `00-trigger` ran in consume mode using an epic ticket from `mega-epic-breakdown/03-expand-epic-files-command`. INFRA-CHECK was emitted from that ticket's metadata. Also read the Infrastructure Decisions from the Vision Summary.
 
-**Required fields (from either path):** `Port`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Rule Packs`.
-**Informational (surface if material):** `Duplicate`, `Internal APIs`, `Design System`, `Platform Debt`, `12-Factor`.
-**Multi-epic only:** `Dependencies` (what prior epics produced that this epic consumes), `Infrastructure Decisions` (shared decisions).
+**Required fields (from either path):** `Port`, `Scaffold`, `User Guide`, `Shape`, `Concurrency`, `i18n`, `Responsive`, `Dark+Light`, `Rule Packs`.
+**Informational (surface if material):** `Duplicate`, `Internal APIs`, `Design System`, `Platform Debt`, `12-Factor`, `Abuse Detection`, `Email`, `Vector DB`, `FINANCIALS`.
+**Multi-epic only:** `Dependencies` (what prior epics produced that this epic consumes), `Infrastructure Decisions` (shared technology decisions from Vision Summary).
 
 If required fields are missing → ask the user or suggest re-running `00-trigger` (single-epic) or check the epic ticket (multi-epic). Do not guess.
 
@@ -83,10 +83,15 @@ Sections in order (target 50 lines total, soft cap 100):
    - `Scaffold: <type>`
    - `Port: <value>`
    - `HAS_USER_GUIDE: true/false`
-   - `Shape: <fields>`
+   - `Shape: needs_database, needs_cache, exposes_metrics, has_search_feature, is_admin_dashboard` (list applicable true fields)
    - `Concurrency: <mechanism>`
    - `i18n: <mechanism or N/A>`
+   - `Responsive: 375px / N-A`
+   - `Dark+Light: mandatory / N-A`
    - `Rule Packs: <IDs>`
+   - `Abuse Detection: required / N-A` (SaaS with free tier)
+   - `Email: two-stream / none / N-A`
+   - `FINANCIALS: required / N-A` (SaaS scaffolds)
 
 > **Drafting rules:**
 > - Complete every section — no stubs. Infrastructure Notes is the only omittable section.
@@ -101,7 +106,7 @@ Sections in order (target 50 lines total, soft cap 100):
 - Success Criteria: measurable, includes deploy-level, parallel-decomposable.
 - Infrastructure Notes: explicit designations or omitted entirely.
 - Out of Scope: 2–5 named exclusions.
-- Metadata: all 7 fields match INFRA-CHECK.
+- Metadata: all fields match INFRA-CHECK (9 required + conditionals).
 - Automation confirmed: `fabrik apply` can handle this.
 - External deps have resilience expectation stated.
 - Length ≤50 (or justified).
@@ -114,7 +119,7 @@ If scope changes during iteration → suggest `revise-requirements` rather than 
 
 ## Acceptance Criteria
 
-- INFRA-CHECK consumed; all 7 propagated fields in Metadata.
+- INFRA-CHECK consumed; all propagated fields in Metadata (9 required + conditional fields).
 - Research re-read (same file as trigger_workflow); gaps/opportunities surfaced.
 - Assumptions surfaced with confidence ratings when input is thin.
 - Infrastructure grounded by consuming trigger findings, not re-running checks.

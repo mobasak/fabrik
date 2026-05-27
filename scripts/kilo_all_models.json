@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-25T11:59:05.882060",
+  "timestamp": "2026-05-27T11:59:03.986712",
   "total_models": 338,
   "models": {
     "~anthropic/claude-haiku-latest": {
@@ -344,11 +344,6 @@
     },
     "deepseek/deepseek-v4-flash": {
       "id": "deepseek/deepseek-v4-flash",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "deepseek/deepseek-v4-flash:free": {
-      "id": "deepseek/deepseek-v4-flash:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1522,8 +1517,18 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "stealth/claude-opus-4.6": {
+      "id": "stealth/claude-opus-4.6",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "stealth/claude-opus-4.7": {
       "id": "stealth/claude-opus-4.7",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "stealth/claude-sonnet-4.6": {
+      "id": "stealth/claude-sonnet-4.6",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -1599,11 +1604,6 @@
     },
     "x-ai/grok-build-0.1": {
       "id": "x-ai/grok-build-0.1",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "x-ai/grok-code-fast-1:optimized:free": {
-      "id": "x-ai/grok-code-fast-1:optimized:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

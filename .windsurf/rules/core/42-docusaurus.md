@@ -91,9 +91,12 @@ networks:
 - Use **Pagefind** (`@getcanary/docusaurus-theme-search-pagefind`) exclusively. Pagefind generates compressed WASM index chunks post-build — zero bundle bloat, zero SaaS dependency, sub-millisecond client-side search.
 - **Banned**: Algolia DocSearch (external SaaS dependency, requires public site), `@easyops-cn/docusaurus-search-local` (bundles entire index into JS payload, degrades TTI at scale).
 
-## API Reference
+## API Reference (Docusaurus sites only)
+
+**Scope:** This section applies ONLY when embedding API docs in a Docusaurus site (developer portal for external consumers). If you're working on a `python-api` or `node-api` without a Docusaurus site, use FastAPI's built-in `/docs` + `/redoc` instead — see `15-api-contracts.md` § API Documentation.
 
 - Use **Scalar** (`@scalar/docusaurus`) for interactive OpenAPI documentation. Scalar renders the spec dynamically on the client side — zero build-time file generation, zero Git pollution.
+- Point Scalar at the API's `/openapi.json` endpoint — never copy the spec into the docs repo.
 - **Banned**: `docusaurus-plugin-openapi-docs`, Redocusaurus — they generate hundreds of physical `.mdx` files at build time, inflating commits and build duration.
 
 ## Versioning

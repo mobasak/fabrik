@@ -431,7 +431,10 @@ def main() -> int:
         "containerd",  # Docker runtime artifact dir
         "google",  # Google Chrome install location
         "logs",  # Generic logs dir; not a Fabrik project
-        "fabrik-libs",  # Shared Python library, not a Fabrik project
+        "archived",  # Archived projects — no longer active
+        "fabrik-lib",  # Reference implementation store (vendor, don't depend)
+        "fabrik-libs",  # Legacy name, kept for safety
+        "mt-router",  # Standalone copy at /opt/mt-router (reference already in fabrik-lib)
     }
 
     # Discover projects

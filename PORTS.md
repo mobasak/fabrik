@@ -83,13 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-05-23 00:36:46 -->
-
-### ⚠️ Port Conflicts Detected
-
-| Port | Conflicting Projects |
-|------|---------------------|
-| **18014** | dns-manager, site-provisioner |
+<!-- Last synced: 2026-05-27 12:53:41 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -97,43 +91,34 @@ If you encounter a port conflict:
 |------|---------|------|------|
 | 3000 | **test-saas-platform** | saas-skeleton | /opt/test-saas-platform |
 | 3001 | **calendar-orchestration-engine** | python-api | /opt/calendar-orchestration-engine |
-| 8000 | **fabrik-test-chrome-extension** | chrome-extension | /opt/fabrik-test-chrome-extension |
 | 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |
 | 8002 | **fabrik-claim-validator** | python-api | /opt/fabrik-claim-validator |
 | 8003 | **obsidian-agents** | desktop-app | /opt/obsidian-agents |
 | 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
 | 8005 | **candle** | python-api | /opt/candle |
 | 8006 | **exam-coach** | python-api | /opt/exam-coach |
-| 8007 | **file-worker** | file-worker | /opt/file-worker |
 | 8008 | **gmailaccountcreator** | python-api | /opt/gmailaccountcreator |
 | 8009 | **image-generation** | python-api | /opt/image-generation |
 | 8010 | **iterative_image_editor** | python-api | /opt/iterative_image_editor |
 | 8011 | **job-agent** | python-api | /opt/job-agent |
 | 8012 | **llm_batch_processor** | python-api | /opt/llm_batch_processor |
 | 8013 | **marketing-argumant-generator** | python-api | /opt/marketing-argumant-generator |
-| 8014 | **namecheap** | python-api | /opt/namecheap |
 | 8015 | **proposal-creator** | python-api | /opt/proposal-creator |
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **supplement-tracker-advisor** | python-api | /opt/supplement-tracker-advisor |
 | 8018 | **Reference_Creator** | python-api | /opt/Reference_Creator |
-| 8020 | **fabrik-test-wordpress** | wordpress | /opt/fabrik-test-wordpress |
 | 8022 | **trade-intelligence** | python-api | /opt/trade-intelligence |
 | 8023 | **trading-core** | python-api | /opt/trading-core |
-| 8024 | **transcriber** | python-api | /opt/transcriber |
 | 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
 | 8026 | **ugc** | python-api | /opt/ugc |
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
-| 8028 | **fabrik-test-desktop-app** | desktop-app | /opt/fabrik-test-desktop-app |
 | 8029 | **youtube** | python-api | /opt/youtube |
-| 8030 | **fabrik-test-mobile-app** | mobile-app | /opt/fabrik-test-mobile-app |
 | 8032 | **fabrik-citation-verifier** | python-api | /opt/fabrik-citation-verifier |
 | 8033 | **ComplianceOps** | python-api | /opt/ComplianceOps |
 | 8302 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 18011 | **captcha** | python-api | /opt/captcha |
-| 18012 | **translator** | python-api | /opt/translator |
 | 18013 | **proxy** | python-api | /opt/proxy |
-| 18014 ⚠️ | **dns-manager** | python-api | /opt/dns-manager |
-| 18014 ⚠️ | **site-provisioner** | python-api | /opt/site-provisioner |
+| 18014 | **site-provisioner** | python-api | /opt/site-provisioner |
 | 18016 | **image-broker** | python-api | /opt/image-broker |
 | 18018 | **email-reader** | python-api | /opt/email-reader |
 

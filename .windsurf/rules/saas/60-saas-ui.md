@@ -318,6 +318,7 @@ All user-facing text follows the Ocoron Verbal Identity (see design system § Vo
 - `86-email-templates.md` — email/notification template patterns (MJML+Jinja2)
 - `88-saas-launch-checklist.md` — launch-blocking SaaS checklist (billing, legal, compliance)
 - `95-multi-tenant-saas.md` — tenant isolation, RLS, tenant context propagation
+- `/opt/fabrik-lib/docs-site/` — vendor this Docusaurus template for the project's documentation site (user guide, API ref, pricing, FAQ, legal pages). Do not build from scratch.
 
 ---
 

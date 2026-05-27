@@ -39,7 +39,7 @@ Execution phase (execute onward): zero ambiguity. Agents execute tickets without
 - **Error-free execution.** Tickets must be executable by agents WITHOUT errors, questions, or assumptions. Quality is non-negotiable.
 - **Versatility.** One workflow handles 11 scaffold types. The routing table adapts; the principles don't change.
 - **Solo dev + AI workforce.** One human orchestrating multiple AI agents in parallel. Fewer larger tickets. Maximize what ships per session. No over-engineering.
-- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Supabase, Backblaze B2 are all live. NEVER build what's already deployed.
+- **Use what exists.** postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Supabase, Backblaze B2 are all live. NEVER build what's already deployed. `/opt/fabrik-lib/` has 14 vendorable modules (auth, billing, emails, legal, storage, etc.) — check before planning custom implementations.
 - **The owner's workflow:** Research externally → drop file in project → trigger Traycer → Traycer reads + plans thoroughly → tickets dispatched to agents in parallel → `fabrik apply` → live.
 
 ## **The Fabrik Lifecycle (mental model for ALL planning)**
@@ -70,9 +70,11 @@ These are enforced at planning time. Violations block the workflow.
 
 ## **Entry Points**
 
-This command (`00-trigger`) is for **single-epic and standalone projects only.**
+This command (`00-trigger`) is the **mandatory entry point** for every my-workflow run — both single-epic and multi-epic.
 
-For **multi-epic** projects (dispatched from `mega-epic-breakdown`), skip this command entirely — run `01-epic-brief` directly using the epic ticket as input. The epic ticket's `### Metadata` section contains all the fields this command would produce (scaffold, port, shape, rule packs, concurrency, i18n). See `mega-epic-breakdown/04-dispatch-epic-tickets-command.md`.
+**Single-epic (standalone projects):** Full processing — scaffold detection, research discovery, all 26 constraints, INFRA-CHECK from scratch.
+
+**Multi-epic (dispatched from `mega-epic-breakdown`):** The epic ticket from `mega-epic-breakdown/03-expand-epic-files-command` provides the starting context. Its `### Metadata` section contains scaffold, port, shape, rule packs, concurrency, i18n, responsive, dark+light. This command still runs but in **consume mode** — verify the metadata, run epic-level constraint checks, confirm no conflicts with the specific epic's scope, and emit INFRA-CHECK. Steps 2 (scaffold detection) and 3 (research discovery) are abbreviated: scaffold comes from the ticket, research was done at vision level.
 
 ## **Processing User Request**
 
@@ -166,7 +168,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 13. **Duplicate project** — check `docs/reference/fabrik-project-catalog.md` (synced to every project from the master `/opt/fabrik/docs/BUSINESS_MODEL.md`) for an existing project that already solves this need. Also check `AGENTS.md` § Fabrik Microservices table for deployed services.
 14. **Design System** — `.windsurf/rules/core/ocoron-design-system.md` read?
 15. **Platform debt** — informational; never blocks.
-16. **API audience** (`python-api`/`node-api` only) — external → User Guide true; internal → false.
+16. **API audience / docs site** — `python-api`/`node-api`: external → User Guide true; internal → false. SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/` per `saas/88-saas-launch-checklist.md`.
 17. **12-Factor compliance** — violations block. State per-factor.
 18. **Concurrency model** — mechanism stated. Single-threaded blocking = conflict.
 19. **i18n readiness** — GUI scaffolds: mechanism + `validate_i18n.py` in Done When. Non-GUI: N/A.

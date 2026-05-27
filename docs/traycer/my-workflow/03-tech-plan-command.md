@@ -40,6 +40,12 @@ Read these in order; everything else builds on them:
    - `Shape` — the INITIAL expectation from trigger_workflow. Tech-plan Step 7 DECLARES the final shape (may add/change fields based on architecture decisions). Deploy-plan then VERIFIES it.
    - `12-Factor` — must be `compliant`. If `violations` listed, resolve them in this command.
    - `Rule Packs` — the packs to read in Step 3.
+   - `Responsive` — if `375px`, confirm UI architecture handles RWD1-RWD10.
+   - `Dark+Light` — if `mandatory`, confirm theme architecture (OS detection + toggle + persistence).
+   - `Abuse Detection` — if `required`, vendor `fabrik-lib/abuse-prevention/` into the project.
+   - `Email` — if `two-stream`, vendor `fabrik-lib/email-templates/` and confirm transactional/marketing separation.
+   - `Vector DB` — if `pgvector`, confirm pgvector on postgres-main or Supabase (no external vector DBs).
+   - `FINANCIALS` — if `required`, note that `docs/FINANCIALS.md` must be populated before launch.
    - `x86_64`, `Coolify`, `Design System`, `Duplicate`, `Platform Debt` — consult; surface only if they materially shape the design.
 3. **Core Flows** (only if scaffold's route included it) — Personas, Flow Index, `[PRIMARY PATH]` markers per flow. The `[PRIMARY PATH]` markers feed the Testability Gate (Step 7).
 4. **Pre-research file** if one was identified by `trigger_workflow` Step 3 — re-read for grounding.
@@ -124,6 +130,7 @@ If INFRA-CHECK `i18n` ≠ `N/A`:
 - Define loading strategy (SSR with locale detection, client-side lazy load, or both).
 - Define fallback chain: requested locale → `en` (always present) → key name.
 - Confirm: adding a new language = adding a locale file, ZERO code changes.
+- Confirm: `validate_i18n.py` (3-level: structural, back-translation, native-speaker critique) in Done When for tickets that add/change UI strings. Vendor from `fabrik-lib/i18n/`.
 
 ### Step 5: Commercial Mindset (Conditional)
 
@@ -183,6 +190,7 @@ Work each section: think → clarify → document. Trace requests end-to-end. In
 - **Observability:** `/metrics` endpoint (if `shape.exposes_metrics: true`), structured logging config.
 - If `HAS_USER_GUIDE: true`: `docs/user-guide/` surface included.
 - Confirm: `fabrik apply` can deploy this end-to-end. If not, state the gap.
+- **fabrik-lib modules:** Before designing a component from scratch, check `fabrik-lib/README.md` for vendorable modules (abuse prevention, email templates, storage, credits, webhooks, etc.). Reference the module by name if applicable.
 - No code snippets except schemas and interfaces. No business logic.
 
 **Downstream doc feeds:** Tech Plan output informs `docs/CONFIGURATION.md` (env vars from Component Architecture), `docs/RESILIENCE.md` (timeout/retry/fallback per dep from resilience table), `docs/DATABASE_SCHEMA.md` (Data Model). Deploy Plan (04) informs `docs/DEPLOYMENT.md` (compose/Docker layout). The Documentation Assignment Matrix in `ticket-outline` assigns which ticket fills these.
@@ -238,7 +246,7 @@ If during iteration the user introduces a requirement change, suggest `revise-re
 
 ## Acceptance Criteria
 
-- Upstream context consumed: Epic Brief, INFRA-CHECK (all fields including Concurrency, i18n, Shape, 12-Factor, Rule Packs), Core Flows (when present), pre-research.
+- Upstream context consumed: Epic Brief, INFRA-CHECK (all fields including Concurrency, i18n, Shape, 12-Factor, Rule Packs, Responsive, Dark+Light, Abuse Detection, Email, Vector DB, FINANCIALS), Core Flows (when present), pre-research.
 - Defensive case handled: no retroactive core-flows request for skipped scaffolds.
 - Pre-design reference reads completed scaffold-aware (design system, 25-data-postgres, AI_TAXONOMY, lifecycle).
 - Rule packs read per INFRA-CHECK `Rule Packs` + domain overlays. Stated.
@@ -249,7 +257,9 @@ If during iteration the user introduces a requirement change, suggest `revise-re
 - Commercial Mindset ON/OFF decided; section present or omitted.
 - Architecture designed across A + C (mandatory) + B (mandatory or N/A).
 - Architectural Approach references Stack, Port, confirms amd64 (no Alpine), integrates concurrency model, 12-Factor, and structured logging.
-- Component Architecture reflects Internal APIs (with M2M auth pattern), resilience per external dep (timeout/retry/circuit-breaker/fallback), deployment contract (Traefik labels, healthcheck start_period 60s, coolify network, no host ports, resource limits), i18n component, observability.
+- Component Architecture reflects Internal APIs (with M2M auth pattern), resilience per external dep (timeout/retry/circuit-breaker/fallback), deployment contract (Traefik labels, healthcheck start_period 60s, coolify network, no host ports, resource limits), i18n component, observability, fabrik-lib modules referenced where applicable.
+- Responsive (375px) + Dark+Light (mandatory) addressed in UI architecture for GUI scaffolds.
+- Abuse Detection vendored from fabrik-lib when required. Email two-stream confirmed when applicable.
 - `fabrik apply` confirmed deployable end-to-end. Gaps stated if any.
 - Downstream doc feeds identified (CONFIGURATION, DEPLOYMENT, RESILIENCE, DATABASE_SCHEMA).
 - Stress-tested against all 8 dimensions + Testability Gate (includes self-healing verification).

@@ -40,6 +40,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 13. Does it reference the correct backing service addresses (internal Docker names, not localhost)?
 14. Does it check for duplicate projects in `AGENTS.md` microservices table + `docs/reference/fabrik-project-catalog.md`?
 15. Does it respect the external services decision matrix?
+15b. Does it check `fabrik-lib/README.md` for vendorable modules BEFORE designing a component from scratch (abuse prevention, email templates, storage, credits, webhooks, etc.)?
 
 ## Quality & Error-Free Execution
 
@@ -97,7 +98,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 ## Versatility
 
 44. Does it work for ALL 11 scaffold types (or correctly skip via routing table)?
-45. Does it handle multi-epic entry correctly? (`00-trigger` is single-epic only. Multi-epic dispatches to `01-epic-brief` directly with the epic ticket as input. `01-epic-brief` accepts both INFRA-CHECK and epic ticket Metadata as trigger context.)
+45. Does it handle multi-epic entry correctly? (`00-trigger` is mandatory for ALL runs — single-epic and multi-epic. Multi-epic runs `00-trigger` in consume mode using the epic ticket metadata from `mega-epic-breakdown/03-expand-epic-files-command`. `01-epic-brief` always receives INFRA-CHECK from `00-trigger` regardless of path.)
 45b. Does it handle existing projects via `mega-epic-breakdown/00-continuation-trigger-command`?
 46. Does it handle two-faced types (mobile/desktop/chrome-extension: backend deploys, client doesn't)?
 
@@ -147,7 +148,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 71. Does it reference Ocoron design system (`.windsurf/rules/core/ocoron-design-system.md`)? For `mobile-app`, also `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`?
 72. Does it enforce Verbal Identity (no forbidden language)?
-73. Does it enforce the 5 UI states (Empty/Loading/Error/Success/Disabled)?
+73. Does it enforce the 7 enriched UI states (Loading/Empty/Error/Permission Denied/Success/Partial Success/Disabled) per design system?
 
 ## The Research Starting Point
 

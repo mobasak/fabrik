@@ -58,7 +58,7 @@ Value system:
   2. Risk Hotspots - areas requiring careful handling, with brief explanation of why
   3. Test Coverage - current state and critical gaps
   4. Change Surface Area - summary of what's affected by this refactoring
-  
+
    Structure the document for readability. Keep it lean and brief. This document grounds the reality before technical approach discussion. DO NOT propose implementation details or solutions in this document - it's purely about understanding the current state.
 4. Interview the user to review the Analysis document. Ask targeted questions to validate findings and surface missing context. For example:
   - If test coverage is thin in a risk area → ask whether to add tests before refactoring or accept the risk

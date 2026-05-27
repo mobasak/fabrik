@@ -72,6 +72,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 - **Same code in 3 envs:** WSL dev (PG localhost, `.env`) · VPS Docker (`postgres-main`, `compose.yaml`) · Supabase (env vars). Must run unmodified.
 - **Health endpoint:** test real deps (`await db.execute("SELECT 1")`).
 - **Before new scripts:** `Grep` `scripts/` + `enforcement/`. Extend, don't duplicate.
+- **fabrik-lib** (`/opt/fabrik-lib/`): reusable modules — vendor (copy), don't import. Check `fabrik-lib/README.md` for the module table before building from scratch. New module = must have `README.md` + `requirements.txt` + row in `fabrik-lib/README.md` table.
 
 ## ⚠️ FINAL OUTPUT (last 4 lines)
 ```

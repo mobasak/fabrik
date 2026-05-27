@@ -195,13 +195,20 @@ At small scale, abuse is cheap to absorb. The real cost is **API quota exhaustio
 
 ---
 
-## Adaptation Checklist (for any new SaaS project)
+## Reusable Module
 
-1. Add `registration_ip` and `registration_fingerprint` columns to users table
-2. Add `data/disposable-email-domains.txt` (from GitHub source)
-3. Add IP rate check + email domain check to registration endpoint
-4. Add progressive quota unlock if the project has a credit/quota system
-5. Add fingerprint collection to the registration form (client-side)
-6. Add "Suspicious accounts" section to admin dashboard (Phase 2)
+**Do not implement from scratch.** Vendor from `/opt/fabrik-lib/abuse-prevention/`:
 
-No external dependencies. No paid services. Works with FastAPI + Supabase, FastAPI + direct PostgreSQL, or any backend pattern. The logic lives in the registration handler.
+```bash
+cp -r /opt/fabrik-lib/abuse-prevention /opt/my-project/libs/abuse-prevention
+```
+
+The module provides: `abuse_detection.py` (IP rate limit, disposable email check, metadata storage), `progressive_unlock.py` (30%/70% split), `data/disposable-email-domains.txt` (~5,400 domains), `schema.sql` (columns + indexes). See its README for integration guide (Flask + FastAPI examples).
+
+## Adaptation Checklist (after vendoring)
+
+1. Run `schema.sql` against your database
+2. Wire `check_disposable_email()` + `check_ip_rate_limit()` into your registration endpoint
+3. Wire `split_quota()` + `schedule_delayed_grant()` if the project has a credit/quota system
+4. Add fingerprint collection to the registration form (client-side FingerprintJS)
+5. Add "Suspicious accounts" section to admin dashboard (Phase 2)

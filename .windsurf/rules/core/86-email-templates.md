@@ -528,6 +528,18 @@ FastAPI backend → İYS integrator API (check consent) → if approved → ESP 
 
 ---
 
+## Reusable Module
+
+**Do not build email templates from scratch.** Vendor from `/opt/fabrik-lib/email-templates/`:
+
+```bash
+cp -r /opt/fabrik-lib/email-templates /opt/my-project/libs/email-templates
+```
+
+Ships 6 generic transactional templates (verification, password reset, welcome, email changed, account deleted, password reset confirmation), MJML+Jinja2 pipeline, brand partial with Ocoron tokens, i18n (English, add locales), `email_renderer.py` (framework-agnostic). See its README for env vars and build instructions.
+
+---
+
 ## Banned Patterns
 
 | Pattern | Use Instead |

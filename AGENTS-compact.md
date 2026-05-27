@@ -56,6 +56,7 @@ Update matched docs in the SAME staged change. Skipping = task failure (gate-enf
    2. Else: `web_search` → `web_fetch` MCP on vendor's official docs; cite URL in code.
    3. After 3 misses: `BLOCKED: <vendor> — <searched> — <missing>`; stop.
    Skip: stdlib, syntax, Fabrik conventions.
+7. **fabrik-lib** (`/opt/fabrik-lib/`) — reusable modules, vendor (copy) don't import. Check `fabrik-lib/README.md` for the module table before building from scratch. New module = must have `README.md` + `requirements.txt` + row in `fabrik-lib/README.md` table.
 
 ## SECURITY & DATA
 1. **Sensitive data** — Before editing `.env`, `*.key`, `*.pem`, files under `secrets/` or `.ssh/`:

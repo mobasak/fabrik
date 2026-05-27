@@ -84,6 +84,13 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 - Never introduce a breaking change to an existing version. If the contract must break, create a new version prefix (`/api/v2/`) and share core logic via the service layer.
 - Deprecated endpoints must emit the `Deprecation` HTTP header and set `deprecated: true` in the OpenAPI spec.
 
+## API Documentation
+
+- **`python-api` / `node-api` scaffolds:** FastAPI's built-in `/docs` (Swagger UI) and `/redoc` are the default API documentation. No separate docs site needed.
+- **Enrich OpenAPI metadata in code:** Add `tags`, `summary`, `description`, and `response_model` to every endpoint. Add `Field(description=...)` to Pydantic models. Add `examples` to request/response schemas. This makes `/docs` and `/redoc` production-quality developer docs.
+- **Separate Docusaurus site:** Only when the API has external third-party consumers who need a developer portal (guides, tutorials, auth quickstart). Use `42-docusaurus.md` + Scalar (`@scalar/docusaurus`) to embed interactive API reference from `openapi.json`.
+- **Never duplicate:** The OpenAPI spec generated from FastAPI code is the single source of truth. Docusaurus (if used) reads from it — never maintain parallel documentation.
+
 ## Service Layer
 
 - Business logic belongs in dedicated service modules (`services/`), not in route handlers.

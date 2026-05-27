@@ -18,6 +18,8 @@ Workflow Doc: docs/workflows/SYNC_PROJECTS_WORKFLOW.md
   ⚠️  Update the workflow doc when modifying this script.
 """
 
+import json
+import logging
 import re
 import sys
 from dataclasses import dataclass, field
@@ -26,8 +28,23 @@ from pathlib import Path
 
 import yaml
 
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+
 FABRIK_ROOT = Path("/opt/fabrik")
-DEFAULT_EXCLUDES = {"_*", ".*", "fabrik", "__pycache__", "venv", "google", "containerd"}
+DEFAULT_EXCLUDES = {
+    "_*",
+    ".*",
+    "fabrik",
+    "fabrik-lib",
+    "fabrik-libs",
+    "mt-router",
+    "archived",
+    "__pycache__",
+    "venv",
+    "google",
+    "containerd",
+}
 
 
 @dataclass
@@ -148,8 +165,8 @@ def _build_project(path: Path) -> Project:
                 ):
                     if key in data and data[key] is not None:
                         setattr(project, key, data[key])
-        except Exception:
-            pass  # Malformed YAML — use auto-detected
+        except (yaml.YAMLError, OSError) as e:
+            log.warning("Malformed project.yaml in %s: %s", path.name, e)
 
     # Auto-categorize if project.yaml didn't explicitly set category
     has_explicit_category = False
@@ -157,16 +174,14 @@ def _build_project(path: Path) -> Project:
         try:
             pdata = yaml.safe_load(project_yaml.read_text(encoding="utf-8")) or {}
             has_explicit_category = "category" in pdata
-        except Exception:
-            pass
+        except (yaml.YAMLError, OSError):
+            pass  # Already warned above
     if not has_explicit_category:
         project.category = _auto_categorize(path, project.status)
 
-    # Status emoji for display
-    if project.status == "production":
-        project.status = "✅ Production"
-    elif project.status not in ("✅ Production",):
-        project.status = "🔨 Development"
+    # Normalize status to clean enum (display formatting in markdown only)
+    if project.status not in ("production", "development", "archived", "paused"):
+        project.status = "development"
 
     # T2-04 G-J1: merge deploy-aware state from .fabrik/state/<id>.json
     # if a successful apply has been recorded since T2-01 landed.
@@ -266,7 +281,7 @@ def _detect_stack(path: Path) -> str:
             stack_parts.insert(0, "Python")
     elif (path / "package.json").exists():
         try:
-            pkg = yaml.safe_load((path / "package.json").read_text()) or {}
+            pkg = json.loads((path / "package.json").read_text(encoding="utf-8")) or {}
             deps = pkg.get("dependencies", {})
             if "express" in deps:
                 stack_parts.insert(0, "Express")
@@ -274,7 +289,8 @@ def _detect_stack(path: Path) -> str:
                 stack_parts.insert(0, "Fastify")
             else:
                 stack_parts.insert(0, "Node.js")
-        except Exception:
+        except (json.JSONDecodeError, OSError) as e:
+            log.warning("Failed to parse %s/package.json: %s", path.name, e)
             stack_parts.insert(0, "Node.js")
     elif (path / "wp-config.php").exists():
         stack_parts.insert(0, "WordPress")
@@ -309,22 +325,32 @@ def _detect_stack(path: Path) -> str:
 
 
 def _check_scaffold(path: Path) -> str:
-    """Check scaffold compliance."""
+    """Check scaffold compliance. Returns clean enum for data storage."""
     windsurfrules = path / ".windsurfrules"
     project_yaml = path / "project.yaml"
 
     if not windsurfrules.exists():
-        return "❌ No scaffold"
+        return "missing"
     if windsurfrules.is_symlink():
-        return "⚠️ Needs update (symlink)"
+        return "stale-symlink"
     if not project_yaml.exists():
-        return "⚠️ No project.yaml"
-    return "✅ Current"
+        return "no-project-yaml"
+    return "current"
+
+
+def _display_scaffold(status: str) -> str:
+    """Format scaffold status for markdown display only."""
+    return {
+        "current": "✅ Current",
+        "missing": "❌ No scaffold",
+        "stale-symlink": "⚠️ Needs update (symlink)",
+        "no-project-yaml": "⚠️ No project.yaml",
+    }.get(status, status)
 
 
 def _auto_categorize(path: Path, status: str) -> str:
     """Auto-categorize project based on filesystem heuristics."""
-    if status in ("production", "✅ Production"):
+    if status == "production":
         return "production"
     has_compose = (path / "compose.yaml").exists()
     # Check for code in standard and non-standard locations
@@ -413,6 +439,16 @@ def detect_deletions(current_projects: list[Project]) -> list[str]:
 # ── BUSINESS_MODEL.md output ─────────────────────────────────────────────────
 
 
+def _display_status(status: str) -> str:
+    """Format status for markdown display only."""
+    return {
+        "production": "✅ Production",
+        "development": "🔨 Development",
+        "archived": "📦 Archived",
+        "paused": "⏸️ Paused",
+    }.get(status, status)
+
+
 def generate_catalog_markdown(projects: list[Project], deleted: list[str]) -> str:
     """Generate markdown for project catalog."""
     production = [p for p in projects if p.category == "production"]
@@ -440,7 +476,7 @@ def generate_catalog_markdown(projects: list[Project], deleted: list[str]) -> st
         for p in sorted(group, key=lambda x: x.name):
             url_display = p.url if p.url else "-"
             desc = p.description[:95] + "..." if len(p.description) > 98 else p.description
-            md += f"| **{p.name}** | {desc} | {p.stack} | {p.status} | {url_display} | {p.scaffold_status} |\n"
+            md += f"| **{p.name}** | {desc} | {p.stack} | {_display_status(p.status)} | {url_display} | {_display_scaffold(p.scaffold_status)} |\n"
         md += "\n"
 
     if deleted:

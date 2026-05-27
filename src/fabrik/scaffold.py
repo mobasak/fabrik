@@ -560,6 +560,76 @@ def _next_available_port(port_range: tuple[int, int] = (8000, 8099)) -> int:
         return port_range[0]
 
 
+def _logger_py_content(name: str, package_name: str) -> str:
+    """Return the content for a scaffolded logger.py module.
+
+    Shared across python-api, file-worker, and chrome-extension server scaffolds.
+    Includes: structlog JSON, UTC timestamps, PII redaction, LOG_LEVEL from env,
+    SERVICE_NAME binding.
+    """
+    return (
+        f'"""Structured logging module for {name}.\n'
+        f"\n"
+        f"Pre-configured structlog logger with JSON output, PII redaction,\n"
+        f"and service name binding.\n"
+        f"Usage: from {package_name}.logger import get_logger\n"
+        f'"""\n'
+        f"\n"
+        f"import os\n"
+        f"from typing import Any, MutableMapping\n"
+        f"\n"
+        f"import structlog\n"
+        f"\n"
+        f"\n"
+        f"_SENSITIVE_KEYS = frozenset({{\n"
+        f'    "api_key", "password", "token", "authorization", "secret",\n'
+        f'    "key", "access_token", "refresh_token", "cookie",\n'
+        f"}})\n"
+        f"\n"
+        f"\n"
+        f"def _redact_sensitive(\n"
+        f"    logger: Any, method_name: str, event_dict: MutableMapping[str, Any],\n"
+        f") -> MutableMapping[str, Any]:\n"
+        f'    """Redact PII/secrets from log entries (GDPR/KVKK safe)."""\n'
+        f"    for k in list(event_dict.keys()):\n"
+        f"        if k.lower() in _SENSITIVE_KEYS:\n"
+        f'            event_dict[k] = "[REDACTED]"\n'
+        f"    return event_dict\n"
+        f"\n"
+        f"\n"
+        f"_LOG_LEVELS = {{\n"
+        f'    "DEBUG": 10, "INFO": 20, "WARNING": 30, "WARN": 30,\n'
+        f'    "ERROR": 40, "CRITICAL": 50,\n'
+        f"}}\n"
+        f"\n"
+        f"\n"
+        f"def _setup_logging() -> None:\n"
+        f'    """Configure structlog with JSON output, PII redaction, and LOG_LEVEL from env."""\n'
+        f'    level = _LOG_LEVELS.get(os.getenv("LOG_LEVEL", "INFO").upper(), 20)\n'
+        f"    structlog.configure(\n"
+        f"        processors=[\n"
+        f"            structlog.contextvars.merge_contextvars,\n"
+        f"            structlog.stdlib.add_log_level,\n"
+        f'            structlog.processors.TimeStamper(fmt="iso", utc=True),\n'
+        f"            _redact_sensitive,\n"
+        f"            structlog.processors.JSONRenderer(),\n"
+        f"        ],\n"
+        f"        wrapper_class=structlog.make_filtering_bound_logger(level),\n"
+        f"        context_class=dict,\n"
+        f"        logger_factory=structlog.PrintLoggerFactory(),\n"
+        f"        cache_logger_on_first_use=True,\n"
+        f"    )\n"
+        f"\n"
+        f"\n"
+        f"_setup_logging()\n"
+        f"\n"
+        f"\n"
+        f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
+        f'    """Return a structlog logger bound with service name."""\n'
+        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))  # type: ignore[no-any-return]\n'
+    )
+
+
 def _write_canonical_compose(
     project_dir: Path,
     name: str,
@@ -1344,44 +1414,8 @@ def init_glitchtip() -> bool:
     return True
 ''')
 
-    # logger.py — structlog JSON logger with service name from env
-    (package_dir / "logger.py").write_text(
-        f'"""Structured logging module for {name}.\n'
-        f"\n"
-        f"Pre-configured structlog logger with JSON output and service name binding.\n"
-        f"Usage: from {package_name}.logger import get_logger\n"
-        f'"""\n'
-        f"\n"
-        f"import os\n"
-        f"\n"
-        f"import structlog\n"
-        f"\n"
-        f"\n"
-        f"def _setup_logging() -> None:\n"
-        f'    """Configure structlog with JSON output."""\n'
-        f"    structlog.configure(\n"
-        f"        processors=[\n"
-        f"            structlog.contextvars.merge_contextvars,\n"
-        f"            structlog.processors.add_log_level,\n"
-        f'            structlog.processors.TimeStamper(fmt="iso"),\n'
-        f"            structlog.processors.StackInfoRenderer(),\n"
-        f"            structlog.processors.format_exc_info,\n"
-        f"            structlog.processors.JSONRenderer(),\n"
-        f"        ],\n"
-        f"        wrapper_class=structlog.stdlib.BoundLogger,\n"
-        f"        context_class=dict,\n"
-        f"        logger_factory=structlog.PrintLoggerFactory(),\n"
-        f"        cache_logger_on_first_use=True,\n"
-        f"    )\n"
-        f"\n"
-        f"\n"
-        f"_setup_logging()\n"
-        f"\n"
-        f"\n"
-        f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
-        f'    """Return a structlog logger bound with service name."""\n'
-        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))  # type: ignore[no-any-return]\n'
-    )
+    # logger.py — structlog JSON logger with PII redaction, UTC timestamps, LOG_LEVEL from env
+    (package_dir / "logger.py").write_text(_logger_py_content(name, package_name))
 
     # pause_state.py — pause-flag primitives for worker resilience (see 58-resilience.md)
     # Copied from template; projects customize TRANSIENT_PATTERNS for their dependencies.
@@ -2060,40 +2094,9 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     # a) Create worker/ directory
     (project_dir / "worker").mkdir(parents=True, exist_ok=True)
 
-    # b) Write worker/logger.py — structured logging module
+    # b) Write worker/logger.py — structured logging with PII redaction
     (project_dir / "worker" / "logger.py").write_text(
-        f'''"""Structured logging for {name} file-worker."""
-
-import os
-
-import structlog
-
-
-def _setup_logging() -> None:
-    """Configure structlog with JSON output for production."""
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.JSONRenderer(),
-        ],
-        wrapper_class=structlog.stdlib.BoundLogger,
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-
-
-_setup_logging()
-
-
-def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:
-    """Return a bound logger with service identity."""
-    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{name}"))  # type: ignore[no-any-return]
-'''
+        _logger_py_content(name, name.replace("-", "_"))
     )
 
     # c) Copy main.py verbatim from file-worker template
@@ -2480,44 +2483,8 @@ export default defineConfig({
     # server/src/<package_name>/__init__.py
     (server_pkg_dir / "__init__.py").write_text("")
 
-    # server/src/<package_name>/logger.py — structlog JSON logger
-    (server_pkg_dir / "logger.py").write_text(
-        f'"""Structured logging module for {name}.\n'
-        f"\n"
-        f"Pre-configured structlog logger with JSON output and service name binding.\n"
-        f"Usage: from {package_name}.logger import get_logger\n"
-        f'"""\n'
-        f"\n"
-        f"import os\n"
-        f"\n"
-        f"import structlog\n"
-        f"\n"
-        f"\n"
-        f"def _setup_logging() -> None:\n"
-        f'    """Configure structlog with JSON output."""\n'
-        f"    structlog.configure(\n"
-        f"        processors=[\n"
-        f"            structlog.contextvars.merge_contextvars,\n"
-        f"            structlog.processors.add_log_level,\n"
-        f'            structlog.processors.TimeStamper(fmt="iso"),\n'
-        f"            structlog.processors.StackInfoRenderer(),\n"
-        f"            structlog.processors.format_exc_info,\n"
-        f"            structlog.processors.JSONRenderer(),\n"
-        f"        ],\n"
-        f"        wrapper_class=structlog.stdlib.BoundLogger,\n"
-        f"        context_class=dict,\n"
-        f"        logger_factory=structlog.PrintLoggerFactory(),\n"
-        f"        cache_logger_on_first_use=True,\n"
-        f"    )\n"
-        f"\n"
-        f"\n"
-        f"_setup_logging()\n"
-        f"\n"
-        f"\n"
-        f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
-        f'    """Return a structlog logger bound with service name."""\n'
-        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))  # type: ignore[no-any-return]\n'
-    )
+    # server/src/<package_name>/logger.py — structlog JSON logger with PII redaction
+    (server_pkg_dir / "logger.py").write_text(_logger_py_content(name, package_name))
 
     # server/src/<package_name>/middleware.py — X-Request-ID correlation middleware
     (server_pkg_dir / "middleware.py").write_text(

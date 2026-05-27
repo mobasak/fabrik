@@ -46,6 +46,12 @@ shape:
 depends:
   postgres: youtube_pipeline
 
+# PostgreSQL extensions required (superuser, run once after DB creation):
+#   CREATE EXTENSION IF NOT EXISTS vector;    -- pgvector (RAG embeddings)
+#   CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- trigram text similarity
+# Install system package first: sudo apt install postgresql-16-pgvector
+# Then run: scripts/init_db.sh (handles extensions + migrations)
+
 resources:
   limits:
     memory: 1G

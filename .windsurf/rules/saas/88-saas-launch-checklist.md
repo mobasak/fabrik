@@ -36,14 +36,23 @@ Traycer must ensure every Phase 1 item maps to a feature or ticket during planni
 
 > Provider selection (Paddle vs iyzico vs both) is decided during vision intake based on target market. See `85-payments-billing.md` for implementation rules.
 
+### Documentation Site
+
+Every SaaS must ship a documentation site. Vendor the template from `/opt/fabrik-lib/docs-site/` — it includes all required sections pre-configured with Ocoron design tokens, Scalar API reference, Pagefind search, and legal page templates compliant with Paddle/iyzico/GDPR/KVKK.
+
+**Do not build a docs site from scratch.** Copy the template, customize `docusaurus.config.js`, add project-specific content.
+
+The template ships with: Getting Started, User Guide, API Reference (Scalar), Pricing, FAQ, Changelog, Terms of Service (Paddle 5-day prorated refund, Turkish governing law), Privacy Policy (GDPR/KVKK), Cookie Policy (EU ePrivacy, CCPA "Do Not Sell").
+
 ### Legal Pages (Payment Processors Check These)
 
-Every SaaS must ship these pages before accepting payment:
+Every SaaS must ship these pages before accepting payment. The `/opt/fabrik-lib/docs-site/` template provides all of them — customize, don't write from scratch:
 
 | Page | Route | Required Content |
 |------|-------|-----------------|
-| Terms of Service | `/terms` | Service description, billing policy, account termination, liability cap (12 months fees), governing law (Republic of Turkey), Paddle 5-day cancellation |
+| Terms of Service | `/terms` | Service description, billing policy, account termination, liability cap (12 months fees), governing law (Republic of Turkey), Paddle 5-day prorated refund (usage > 10% = prorated, credits zeroed) |
 | Privacy Policy | `/privacy` | Data collected, data NOT stored, third-party processors named, GDPR lawful basis, user rights (access/delete/export), contact email |
+| Cookie Policy | `/cookies` | Essential cookies listed, no tracking cookies, EU ePrivacy compliant |
 | Cookie Consent | Banner (all locales) | Opt-in (not assumed), translated, EU ePrivacy + CCPA compliant |
 | CCPA Link | Footer | "Do Not Sell or Share My Personal Information" — required if processing 100K+ California residents/year |
 

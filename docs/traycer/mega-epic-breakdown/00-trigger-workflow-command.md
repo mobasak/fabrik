@@ -86,6 +86,8 @@ If a vision cannot pass through all 4 stages, state this explicitly and justify.
 - **Resilience** — every external call has timeout + retry + circuit-breaker + graceful fallback.
 - **Shape contract** — `specs/services/<id>.yaml` declares registrars. Code MUST match shape.
 - **Observability** — every service exposes `/health` for Gatus and `/metrics` for Prometheus.
+- **Abuse detection** — every SaaS with a free tier must implement registration gating (IP rate limit, disposable email block, progressive unlock). Rule pack: `.windsurf/rules/saas/87-abuse-detection.md`.
+- **Email two-stream** — transactional and marketing email MUST be on separate streams/subdomains. Rule pack: `.windsurf/rules/core/86-email-templates.md`.
 
 ## Input Contract
 
@@ -169,7 +171,7 @@ Research from external AI sessions may suggest solutions that violate the owner'
 
 - **Expensive where free exists?** Research proposes a paid service → check if a VPS service already solves it (Apprise, Gotenberg, MeiliSearch, Backrest, n8n — all deployed, all free). State: "Research suggests [X] but [Y] is already deployed on VPS at zero cost."
 - **Complex where simple exists?** Research proposes Kubernetes, microservice mesh, custom auth — check if Coolify + Authelia + single-container deploys handle it. Fabrik deploys via `fabrik apply`, not Helm charts.
-- **Build where consume exists?** Research proposes building a component → check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), or VPS services that already do it.
+- **Build where consume exists?** Research proposes building a component → check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), VPS services, or `/opt/fabrik-lib/` vendorable modules (14 modules: auth, billing, emails, legal, storage, etc.).
 - **High-maintenance where set-and-forget exists?** Research proposes solutions requiring ongoing ops → prefer solutions that auto-heal, auto-backup, auto-monitor via existing Prometheus/Gatus/Backrest stack.
 - **Incompatible with Fabrik infra?** Port conflicts (check `PORTS.md`), Alpine images (bookworm-slim only), localhost assumptions (use postgres-main:5432), x86_64 issues, 12-Factor violations (local file storage, hardcoded config).
 - **Duplicate functionality?** Check `docs/reference/fabrik-project-catalog.md` + `AGENTS.md` § Microservices.
@@ -300,6 +302,7 @@ these and does NOT re-decide them.]
 - **Consumed microservices:** [site-provisioner for DNS / image-broker for images / none]
 - **Domain structure:** [subdomains needed, e.g., api.X, app.X, admin.X]
 - **Scaffold types:** [list all scaffold types this vision needs — each may become an epic. Valid: python-api, node-api, saas-skeleton, file-api, file-worker, wordpress, docusaurus, chrome-extension, mobile-app, desktop-app, static-site]
+- **Documentation site:** [SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/` (Docusaurus + Scalar + legal pages). Non-SaaS: N/A]
 
 ## Constraints
 [Hard constraints from research + constraint verification (§3i).
@@ -379,7 +382,7 @@ Iterate until the owner explicitly confirms:
 - Backing services grounded in actual VPS inventory (`AGENTS.md` § Infrastructure Services).
 - External services identified with cost tier (free/paid).
 - Technology Decisions section complete — every major choice resolved (auth, database, search, billing, storage, notifications, domains, scaffold types). No "TBD" allowed — decide or mark as Open Question for owner to resolve before confirming.
-- All 10 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
+- All 12 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
 - Scale assessment present with classification and clear next-step routing.
 - Single-epic visions routed to my-workflow, not forced through mega-epic-breakdown.
 - Vision summary ≤5,000 tokens (≤8,000 hard cap).
