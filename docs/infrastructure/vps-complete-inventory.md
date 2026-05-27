@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-19 19:41 UTC
+**Last Updated:** 2026-05-27 13:36 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 36 running
@@ -229,44 +229,44 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 ## Complete Container Inventory
 
 <!-- AUTO:container_inventory -->
-| Service | Container | Managed by | Image | Memory | Health | Purpose |
-|---|---|---|---|---|---|---|
-| **alertmanager** | `alertmanager-zw4swgkwk0s4s8kg048gw80o` | Coolify Service | `alertmanager:v0.28.1` | — | healthy | Alert routing → Telegram |
-| **apprise** | `apprise-lcocgs4gs8ksg4g08w40ows8` | Coolify Service | `apprise:latest` | — | healthy | Notification gateway (multi-channel) |
-| **authelia** | `authelia-hks48k8sg8o4co4co08co00o` | Coolify Service | `authelia:latest` | — | healthy | 2FA forward-auth for admin dashboards |
-| **backrest** | `backrest-l48000k44wc4gk8os88s8k0c` | Coolify Service | `backrest:latest` | 384m | — | Restic backup manager → Backblaze B2 |
-| **meilisearch** | `bs0wo48k4gwo440gcowscoc8-211159651770` | Coolify App | `meilisearch:v1.13` | 512m | healthy | Full-text search engine |
-| **cadvisor** | `cadvisor-r08sog4gwws88og048ows448` | Coolify Service | `cadvisor:v0.52.1` | — | healthy | Container metrics for Prometheus |
-| **coolify** | `coolify` | Coolify Core | `coolify:latest` | — | healthy | Coolify control plane |
-| **coolify-db** | `coolify-db` | Coolify Core | `postgres:15-alpine` | — | healthy | Coolify internal Postgres |
-| **coolify-realtime** | `coolify-realtime` | Coolify Core | `coolify-realtime:1.0.13` | — | healthy | Coolify WebSocket (live logs) |
-| **coolify-redis** | `coolify-redis` | Coolify Core | `redis:7-alpine` | — | healthy | Coolify internal Redis |
-| **coolify-sentinel** | `coolify-sentinel` | Coolify Core | `sentinel:0.0.21` | — | healthy | Coolify Redis Sentinel (HA) |
-| **gotenberg** | `e04k4sco44ow04ccc0o0k00k-210433823748` | Coolify App | `gotenberg:8` | 512m | healthy | PDF generation API |
-| **gatus** | `gatus-v8s4cokcwg0co4w8okkccc0w` | Coolify Service | `gatus:latest` | 512m | — | Uptime monitoring → status.vps1.ocoron.com |
-| **glitchtip-web** | `glitchtip-web-z00kkck8c8cwo800kk440csk` | Coolify Service | `glitchtip:latest` | 512m | — | Error tracking UI + API |
-| **glitchtip-worker-v10** | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | Coolify Service | `glitchtip:latest` | 512m | — | GlitchTip async event processor |
-| **grafana** | `grafana-loc484owg8gsw04owo0go8kc` | Coolify Service | `grafana:11.5.1` | — | healthy | Dashboards → monitor.vps1.ocoron.com |
-| **fabrik-image-broker** | `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | Coolify App | `zo4ggs4g880skwkocwwkscgk_image-broker:2afd21177e26613719076e2245975f660e1d2fe2` | — | healthy | Stock image API (Pexels, Pixabay) |
-| **loki** | `loki-r48swckog008wosgwcs4g0g0` | Coolify Service | `loki:3.4.2` | — | healthy | Log aggregation (receives from Promtail) |
-| **n8n** | `n8n-s8gwccsws0ccssw0wwgwsoks` | Coolify Service | `n8n:latest` | — | healthy | Workflow automation |
-| **netdata** | `netdata-kk4kcw4csksc48848go4o0wo` | Coolify Service | `netdata:stable` | — | healthy | Real-time system monitoring |
-| **node-exporter** | `node-exporter-doc8c8gkcgs88s8ckggw84o4` | Coolify Service | `node-exporter:v1.9.1` | — | — | Host metrics for Prometheus |
-| **ocoron-backup** | `ocoron-com-backup-1` | /opt/ocoron-com | `debian:bookworm-slim` | — | — | WordPress backup cron (ocoron.com) |
-| **ocoron-db** | `ocoron-com-db-1` | /opt/ocoron-com | `mariadb:10.11` | — | healthy | MariaDB for ocoron.com |
-| **ocoron-nginx** | `ocoron-com-nginx-1` | /opt/ocoron-com | `nginx:stable-alpine` | — | — | Nginx reverse proxy for ocoron.com |
-| **ocoron-redis** | `ocoron-com-redis-1` | /opt/ocoron-com | `redis:7-bookworm` | — | healthy | Redis object cache for ocoron.com |
-| **ocoron-wordpress** | `ocoron-com-wordpress-1` | /opt/ocoron-com | `wordpress:php8.3-fpm` | — | — | WordPress PHP-FPM for ocoron.com |
-| **postgres-exporter** | `postgres-exporter` | /opt/monitoring | `postgres-exporter:v0.15.0` | — | healthy | Prometheus exporter for postgres-main |
-| **postgres-main** | `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | Coolify Service | `postgres:16-alpine` | — | healthy | Shared PostgreSQL 16 (all app DBs) |
-| **prometheus** | `prometheus` | /opt/monitoring | `prometheus:v3.2.1` | — | healthy | Metrics collection + alerting rules |
-| **promtail** | `promtail-w0000ckgsgg048w0848okk08` | Coolify Service | `promtail:3.4.2` | — | — | Log shipper → Loki |
-| **pushgateway** | `pushgateway` | /opt/monitoring | `pushgateway:v1.9.0` | — | healthy | Prometheus push target (drift alerts) |
-| **redis-exporter** | `redis-exporter` | /opt/monitoring | `redis_exporter:v1.66.0` | — | — | Prometheus exporter for redis-main |
-| **redis-main** | `redis-main` | /opt/redis | `redis:7-alpine` | — | healthy | Shared Redis (auth sessions, cache) |
-| **site-provisioner** | `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | Coolify App | `qokoksogwsk0c04gcs4swwgs_site-provisioner:00ac21da6a727913e5d50f685361f8fd09c9ade0` | — | healthy | DNS + Cloudflare + domain provisioning |
-| **traefik** | `traefik` | /opt/traefik | `traefik:v2.11` | — | — | Reverse proxy + HTTPS termination |
-| **browserless** | `vckgs8c00o40o884k48cgow8-210454442421` | Coolify App | `chromium:latest` | 2g | — | Headless Chrome for scraping/PDF |
+| Container | Status | Memory limit |
+|---|---|---|
+| `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 7 days (healthy) | 256m |
+| `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 7 days (healthy) | 1g |
+| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 5 minutes (healthy) | 512m |
+| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 6 days | 512m |
+| `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 7 days (healthy) | 512m |
+| `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 7 days (healthy) | 512m |
+| `coolify` | ✅ Up 7 days (healthy) | — |
+| `coolify-db` | ✅ Up 7 days (healthy) | — |
+| `coolify-realtime` | ✅ Up 7 days (healthy) | — |
+| `coolify-redis` | ✅ Up 7 days (healthy) | — |
+| `coolify-sentinel` | ✅ Up 38 minutes (healthy) | — |
+| `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 7 days (healthy) | 512m |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 2 days | 256m |
+| `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 7 days | 512m |
+| `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 7 days | 512m |
+| `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 7 days (healthy) | 512m |
+| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 7 days (healthy) | 512m |
+| `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 7 days (healthy) | 512m |
+| `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 7 days (healthy) | 2g |
+| `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 39 hours (healthy) | 1g |
+| `node-exporter-doc8c8gkcgs88s8ckggw84o4` | ✅ Up 7 days | 128m |
+| `ocoron-com-backup-1` | ✅ Up 7 days | 128m |
+| `ocoron-com-db-1` | ✅ Up 7 days (healthy) | 1g |
+| `ocoron-com-nginx-1` | ✅ Up 7 days | 256m |
+| `ocoron-com-redis-1` | ✅ Up 7 days (healthy) | 256m |
+| `ocoron-com-wordpress-1` | ✅ Up 7 days | 512m |
+| `postgres-exporter` | ✅ Up 7 days (healthy) | 64m |
+| `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | ✅ Up 7 days (healthy) | 2g |
+| `prometheus` | ✅ Up 7 days (healthy) | 1g |
+| `promtail-w0000ckgsgg048w0848okk08` | ✅ Up 7 days | 128m |
+| `pushgateway` | ✅ Up 7 days (healthy) | — |
+| `redis-exporter` | ✅ Up 7 days | 64m |
+| `redis-main` | ✅ Up 7 days (healthy) | 512m |
+| `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
+| `traefik` | ✅ Up 7 days | 256m |
+| `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
 <!-- /AUTO -->
 
 ---
@@ -318,13 +318,35 @@ silently breaking all `tcp://` or `http://` URLs that reference it.
 <!-- AUTO:limits_summary -->
 | Container | Memory |
 |---|---|
-| `backrest-l48000k44wc4gk8os88s8k0c` | 384m |
+| `alertmanager-zw4swgkwk0s4s8kg048gw80o` | 256m |
+| `apprise-lcocgs4gs8ksg4g08w40ows8` | 1g |
+| `authelia-hks48k8sg8o4co4co08co00o` | 512m |
+| `backrest-l48000k44wc4gk8os88s8k0c` | 512m |
 | `bs0wo48k4gwo440gcowscoc8-211159651770` | 512m |
+| `cadvisor-r08sog4gwws88og048ows448` | 512m |
 | `e04k4sco44ow04ccc0o0k00k-210433823748` | 512m |
-| `file-worker-nwcckwggw0o0g40gwskk8kk8-191323299257` | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | 512m |
+| `gatus-v8s4cokcwg0co4w8okkccc0w` | 256m |
 | `glitchtip-web-z00kkck8c8cwo800kk440csk` | 512m |
 | `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | 512m |
+| `grafana-loc484owg8gsw04owo0go8kc` | 512m |
+| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | 512m |
+| `loki-r48swckog008wosgwcs4g0g0` | 512m |
+| `n8n-s8gwccsws0ccssw0wwgwsoks` | 2g |
+| `netdata-kk4kcw4csksc48848go4o0wo` | 1g |
+| `node-exporter-doc8c8gkcgs88s8ckggw84o4` | 128m |
+| `ocoron-com-backup-1` | 128m |
+| `ocoron-com-db-1` | 1g |
+| `ocoron-com-nginx-1` | 256m |
+| `ocoron-com-redis-1` | 256m |
+| `ocoron-com-wordpress-1` | 512m |
+| `postgres-exporter` | 64m |
+| `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | 2g |
+| `prometheus` | 1g |
+| `promtail-w0000ckgsgg048w0848okk08` | 128m |
+| `redis-exporter` | 64m |
+| `redis-main` | 512m |
+| `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | 512m |
+| `traefik` | 256m |
 | `vckgs8c00o40o884k48cgow8-210454442421` | 2g |
 <!-- /AUTO -->
 
@@ -489,8 +511,32 @@ The Fabrik lifecycle starts BEFORE scaffold runs — Stage 1 is **intent capture
 <!-- AUTO:coolify_apps -->
 | Name | FQDN | Status |
 |---|---|---|
-| ERROR | Client error '404 Not Found' for url 'https://coolify.vps1.ocoron.com/api/v1/applications'
-For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404 | — |
+| `alertmanager` | internal | ⚠️ running:healthy |
+| `apprise` | internal | ⚠️ running:healthy |
+| `authelia` | internal | ⚠️ running:healthy |
+| `backrest` | internal | ⚠️ running:unknown |
+| `browserless` | https://browser.vps1.ocoron.com | ⚠️ running:unknown |
+| `cadvisor` | internal | ⚠️ running:healthy |
+| `fabrik-captcha` | internal | ⚠️ exited:unhealthy |
+| `fabrik-emailgateway` | internal | ⚠️ exited:unhealthy |
+| `fabrik-file-api` | internal | ⚠️ exited:unhealthy |
+| `fabrik-file-worker` | internal | ⚠️ exited:unhealthy |
+| `fabrik-image-broker` | internal | ⚠️ running:healthy |
+| `fabrik-proxy` | https://proxy.vps1.ocoron.com | ⚠️ exited:unhealthy |
+| `fabrik-translator` | internal | ⚠️ exited:unhealthy |
+| `gatus` | internal | ⚠️ running:unknown |
+| `glitchtip-web` | internal | ⚠️ running:unknown |
+| `glitchtip-worker-v10` | internal | ⚠️ running:unknown |
+| `gotenberg` | https://pdf.vps1.ocoron.com | ⚠️ running:healthy |
+| `grafana` | internal | ⚠️ running:healthy |
+| `loki` | internal | ⚠️ running:healthy |
+| `meilisearch` | https://search.vps1.ocoron.com | ⚠️ running:healthy |
+| `n8n` | internal | ⚠️ running:healthy |
+| `netdata` | internal | ⚠️ running:healthy |
+| `node-exporter` | internal | ⚠️ running:unknown |
+| `postgres-main` | internal | ⚠️ running:healthy |
+| `promtail` | internal | ⚠️ running:unknown |
+| `site-provisioner` | internal | ⚠️ running:healthy |
 <!-- /AUTO -->
 
 ---

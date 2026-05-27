@@ -1,6 +1,6 @@
 # VPS1 Service URLs
 
-**Last Updated:** 2026-05-19 18:59 UTC
+**Last Updated:** 2026-05-27 13:36 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Los Angeles, CA
 **Pattern:** All services via HTTPS through Traefik. HTTP auto-redirects to HTTPS.
 
@@ -9,8 +9,32 @@
 <!-- AUTO:coolify_apps -->
 | Name | FQDN | Status |
 |---|---|---|
-| ERROR | Client error '404 Not Found' for url 'https://coolify.vps1.ocoron.com/api/v1/applications'
-For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404 | — |
+| `alertmanager` | internal | ⚠️ running:healthy |
+| `apprise` | internal | ⚠️ running:healthy |
+| `authelia` | internal | ⚠️ running:healthy |
+| `backrest` | internal | ⚠️ running:unknown |
+| `browserless` | https://browser.vps1.ocoron.com | ⚠️ running:unknown |
+| `cadvisor` | internal | ⚠️ running:healthy |
+| `fabrik-captcha` | internal | ⚠️ exited:unhealthy |
+| `fabrik-emailgateway` | internal | ⚠️ exited:unhealthy |
+| `fabrik-file-api` | internal | ⚠️ exited:unhealthy |
+| `fabrik-file-worker` | internal | ⚠️ exited:unhealthy |
+| `fabrik-image-broker` | internal | ⚠️ running:healthy |
+| `fabrik-proxy` | https://proxy.vps1.ocoron.com | ⚠️ exited:unhealthy |
+| `fabrik-translator` | internal | ⚠️ exited:unhealthy |
+| `gatus` | internal | ⚠️ running:unknown |
+| `glitchtip-web` | internal | ⚠️ running:unknown |
+| `glitchtip-worker-v10` | internal | ⚠️ running:unknown |
+| `gotenberg` | https://pdf.vps1.ocoron.com | ⚠️ running:healthy |
+| `grafana` | internal | ⚠️ running:healthy |
+| `loki` | internal | ⚠️ running:healthy |
+| `meilisearch` | https://search.vps1.ocoron.com | ⚠️ running:healthy |
+| `n8n` | internal | ⚠️ running:healthy |
+| `netdata` | internal | ⚠️ running:healthy |
+| `node-exporter` | internal | ⚠️ running:unknown |
+| `postgres-main` | internal | ⚠️ running:healthy |
+| `promtail` | internal | ⚠️ running:unknown |
+| `site-provisioner` | internal | ⚠️ running:healthy |
 <!-- /AUTO -->
 
 ---
