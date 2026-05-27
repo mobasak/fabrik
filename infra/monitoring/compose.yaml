@@ -1,0 +1,252 @@
+# Observability Stack — standalone Docker Compose
+# Deploy: cd /opt/monitoring && docker compose up -d
+# Required env vars in /opt/monitoring/.env: GRAFANA_ADMIN_PASSWORD
+
+services:
+  loki:
+    image: grafana/loki:3.4.2
+    platform: linux/amd64
+    container_name: loki
+    restart: unless-stopped
+    volumes:
+      - /opt/monitoring/configs/loki:/etc/loki:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    platform: linux/amd64
+    container_name: promtail
+    restart: unless-stopped
+    volumes:
+      - /opt/monitoring/configs/promtail:/etc/promtail:ro
+      - promtail-positions:/run/promtail
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    networks:
+      - coolify
+    depends_on:
+      loki:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    platform: linux/amd64
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - /opt/monitoring/configs/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    platform: linux/amd64
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - /opt/monitoring/configs/alertmanager:/etc/alertmanager:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://alertmanager:9093'
+    networks:
+      - coolify
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    platform: linux/amd64
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)(320479|/)'
+    networks:
+      - coolify
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    platform: linux/amd64
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    networks:
+      - coolify
+
+  grafana:
+    image: grafana/grafana:11.6.1
+    platform: linux/amd64
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://monitor.vps1.ocoron.com
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - coolify
+    depends_on:
+      loki:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=Host(\`monitor.vps1.ocoron.com\`)
+      - traefik.http.routers.grafana.entrypoints=websecure
+      - traefik.http.routers.grafana.tls.certresolver=letsencrypt
+      - traefik.http.routers.grafana.middlewares=authelia-forward@docker
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    platform: linux/amd64
+    container_name: postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@postgres-main:5432/postgres?sslmode=disable"
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "true"
+      PG_EXPORTER_EXCLUDE_DATABASES: "template0,template1"
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9187/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.66.0
+    platform: linux/amd64
+    container_name: redis-exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://redis-main:6379"
+    networks:
+      - coolify
+    healthcheck:
+      # The oliver006/redis_exporter image is distroless — no wget, no shell.
+      # The image-baked healthcheck (CMD wget ...) cannot run; disable it.
+      # Liveness signal: Prometheus up{job="redis"} metric (more reliable
+      # than any internal check for an exporter).
+      disable: true
+
+  # T4-04 G-G5 (2026-05-16): Push-mode metrics target for WSL-side
+  # `audit_all_registrars.py`. Loopback-only bind so port 9091 is reachable
+  # via `ssh vps "curl localhost:9091/..."` but NOT publicly exposed.
+  # Joins `coolify` so prometheus (also on coolify) can scrape it by name.
+  pushgateway:
+    image: prom/pushgateway:v1.9.0
+    platform: linux/amd64
+    container_name: pushgateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9091:9091"
+    networks:
+      - coolify
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9091/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  netdata:
+    image: netdata/netdata:latest
+    container_name: netdata
+    restart: unless-stopped
+    hostname: vps1
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - netdata-config:/etc/netdata
+      - netdata-lib:/var/lib/netdata
+      - netdata-cache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.netdata.rule=Host(`netdata.vps1.ocoron.com`)"
+      - "traefik.http.routers.netdata.entrypoints=websecure"
+      - "traefik.http.routers.netdata.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.netdata.middlewares=authelia-forward@docker"
+      - "traefik.http.services.netdata.loadbalancer.server.port=19999"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+volumes:
+  loki-data:
+  promtail-positions:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:
+  netdata-config:
+  netdata-lib:
+  netdata-cache:
+
+networks:
+  coolify:
+    external: true

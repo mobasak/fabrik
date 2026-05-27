@@ -1,0 +1,36 @@
+services:
+  apprise:
+    image: caronc/apprise:latest
+    container_name: apprise
+    restart: unless-stopped
+    environment:
+      APPRISE_STATELESS_URLS: "${APPRISE_STATELESS_URLS}"
+    volumes:
+      - apprise-config:/config
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.apprise.rule=Host(`notify.vps1.ocoron.com`)"
+      - "traefik.http.routers.apprise.entrypoints=websecure"
+      - "traefik.http.routers.apprise.tls=true"
+      - "traefik.http.routers.apprise.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.apprise.middlewares=authelia-forward@docker"
+      - "traefik.http.services.apprise.loadbalancer.server.port=8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+volumes:
+  apprise-config:
+    external: true              # Pre-created from lcocgs4gs8ksg4g08w40ows8_apprise_config copy
+
+networks:
+  coolify:
+    external: true

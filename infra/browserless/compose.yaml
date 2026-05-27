@@ -1,0 +1,27 @@
+services:
+  browserless:
+    image: ghcr.io/browserless/chromium:latest
+    container_name: browserless
+    restart: unless-stopped
+    environment:
+      TOKEN: "${BROWSERLESS_TOKEN}"
+      CONCURRENT: "10"
+      TIMEOUT: "60000"
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.browserless.rule=Host(`browser.vps1.ocoron.com`)"
+      - "traefik.http.routers.browserless.entrypoints=websecure"
+      - "traefik.http.routers.browserless.tls=true"
+      - "traefik.http.routers.browserless.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.browserless.middlewares=gzip@docker"
+      - "traefik.http.services.browserless.loadbalancer.server.port=3000"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+networks:
+  coolify:
+    external: true

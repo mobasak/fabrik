@@ -31,7 +31,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 19999 | Netdata | netdata | https://netdata.vps1.ocoron.com |
 | 3000 | browserless | specs/infrastructure/browserless.yaml | https://browser.vps1.ocoron.com |
 | 3003 | gotenberg | specs/infrastructure/gotenberg.yaml | https://pdf.vps1.ocoron.com |
-| 9000/9001 | minio | specs/infrastructure/minio.yaml | https://s3.vps1.ocoron.com |
+| 9000/9001 | minio | specs/infrastructure/minio.yaml | [reserved — not yet deployed] |
 | 8005 | apprise | specs/infrastructure/apprise.yaml | https://notify.vps1.ocoron.com |
 | 7700 | meilisearch | specs/infrastructure/meilisearch.yaml | https://search.vps1.ocoron.com |
 | 3100 | loki | specs/infrastructure/monitoring-stack.yaml | internal only |
@@ -83,7 +83,7 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-05-27 12:53:41 -->
+<!-- Last synced: 2026-05-27 16:35:57 -->
 
 ### Project Port Allocations (from project.yaml)
 
@@ -112,7 +112,8 @@ If you encounter a port conflict:
 | 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
 | 8026 | **ugc** | python-api | /opt/ugc |
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
-| 8029 | **youtube** | python-api | /opt/youtube |
+| 8029 | **youtube** | file-worker | /opt/youtube |
+| 8031 | **youtube** | file-worker | /opt/youtube |
 | 8032 | **fabrik-citation-verifier** | python-api | /opt/fabrik-citation-verifier |
 | 8033 | **ComplianceOps** | python-api | /opt/ComplianceOps |
 | 8302 | **apidoccreator** | python-api | /opt/apidoccreator |

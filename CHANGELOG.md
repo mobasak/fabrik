@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — VPS infrastructure audit: 10 mismatches resolved (2026-05-27)
+
+Full resolution of all issues found in the 2026-05-27 SSH infrastructure audit. Security, monitoring, docs, and resource limits all converged.
+
+- **#1 CRITICAL — Authelia security**: `images.vps1.ocoron.com` removed from blanket bypass; paired-pattern rules added (`bypass ^/api/` + `two_factor`). Admin UI now requires 2FA; M2M paths bypass as designed.
+- **#2 Prometheus**: `fabrik-services` job `targets: null` → `provision.vps1.ocoron.com` (up). `image-broker` excluded (`exposes_metrics: false` added to spec — app has no `/metrics`).
+- **#3 Gatus**: `image-broker` HTTPS endpoint added to `apps/` group. 37 endpoints monitored.
+- **#4 Spec port**: `image-broker.yaml` `PORT/health.port` corrected 18016 → 8000.
+- **#5 State files**: `.fabrik/state/site-provisioner.json` + `image-broker.json` backfilled for pre-state-era services. Enables `fabrik destroy --use-state`.
+- **#6 SENTRY_DSN**: Updated in Coolify for site-provisioner; GlitchTip registrar rewrote localhost → correct public URL during partial apply.
+- **#7 pushgateway**: Memory limit 64 MB added via `docker update` + `deploy.resources.limits` in monitoring compose.
+- **#8 PORTS.md**: Stale MinIO entry marked `[reserved — not yet deployed]`.
+- **D1 AGENTS.md**: Hardcoded `30 endpoints` → `see status.vps1.ocoron.com` (live reference).
+- **D2 CPU limits**: loki 0.5, prometheus 1.0, n8n 1.0, glitchtip-web/worker 0.5. `vps_apply_limits.sh` updated.
+
 ### Added — Embedding selection pipeline (parity with chat workflow) (2026-05-23)
 
 Embedding-side mirror of the existing chat agent-role pipeline. Same shape: daily catalog scrape → per-role shortlists → cheapest-above-floors selector → DB persistence → JSON exports → marker-based partial update of the existing chat-side markdown reports. Output locations: DB tables, JSON intermediates, Traycer export, and embedding sections **merged into the existing `KILO_AGENT_SELECTION_GUIDE.md` + `KILO_MODEL_CAPABILITIES.md`** (no new `.md` files). The per-agent shell-script generator under `~/.traycer/cli-agents/` is intentionally not mirrored — embeddings are called as a library, not dispatched as agents.

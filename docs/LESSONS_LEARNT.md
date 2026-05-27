@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-**Last Updated:** 2026-04-28 (Lesson 32 — Live-deploy proof harness: silent fallbacks are the dominant failure class)
+**Last Updated:** 2026-05-27 (Lesson 33 — `--skip-deploy` is a legacy-path flag; Authelia audit checks presence not policy)
 
 **Purpose:** CAPTURE TECHNICAL HURDLES, AI-SPECIFIC QUIRKS, AND ARCHITECTURAL DECISIONS TO PREVENT REGRESSION AS CODEBASES AND AI AGENTS EVOLVE.
 
@@ -4102,3 +4102,29 @@ Per `CLAUDE.md`: "rule pack > ticket. Surface conflict before proceeding." The c
 4. **Surface the conflict to the operator** before silently editing enforcement — per CLAUDE.md rule-pack-wins. Even when the resolution is obvious ("the ticket created this artefact, the enforcement just hasn't caught up"), the operator should authorize the rule-pack edit.
 
 ---
+
+---
+
+## Lesson 33 — `--skip-deploy` is a legacy-path flag; Authelia audit checks presence not policy
+
+**Date:** 2026-05-27
+**Context:** VPS infrastructure audit remediation — backfilling registrars for pre-state-era services
+
+**What went wrong:**
+
+1. **`fabrik apply --skip-deploy` was silently ignored in the orchestrator path.** The flag only works with `--legacy`. When run without `--legacy`, the orchestrator did a full deploy including Coolify API calls, container restart, and health checks. A container restarted unexpectedly and the health check loop produced 403 errors.
+
+2. **Authelia audit `✓` masked a CRITICAL security gap.** `fabrik audit-registrars` reported `authelia: ✓` for `image-broker` because the domain appeared in Authelia config. It did NOT check whether the policy was correct. The domain was in a blanket `bypass` list with no resource restriction — the entire admin UI was open to the internet. `✓` should only mean "domain present with correct policy".
+
+3. **Manual Authelia edits drift from registrar format.** A manually-added bypass rule with 3 resources (`^/api/`, `^/health$`, `^/metrics$`) doesn't match what the registrar writes (`^/api/` only — health/metrics are covered by the global `*.vps1.ocoron.com` bypass rule). Had we run the registrar after the manual edit, it would have inserted a duplicate rule.
+
+**Rules:**
+
+1. **`--skip-deploy` requires `--legacy` to take effect.** In the default orchestrator path, it is silently ignored. Use `--dry-run` (which DOES work in the orchestrator path) if you want to preview registrar changes without applying. To backfill registrars without triggering a redeploy, the correct approach is: fix the spec → write the state file manually → apply registrar changes individually.
+
+2. **Never back-fill registrars on an already-running service via `fabrik apply` without first ensuring the health check will pass.** The orchestrator always tries to verify the service after registrars run. If the health check fails (e.g., app requires auth headers), the apply may roll back or loop. Use `--skip-health-check` if needed.
+
+3. **`fabrik audit-registrars` authelia `✓` means "domain present" — not "policy correct".** Before trusting it for security decisions, manually verify the Authelia config with `sudo cat /opt/authelia/config/configuration.yml` and check that `is_admin_dashboard` domains have `two_factor` policy, not just bypass. See Gap A in `docs/development/plans/2026-05-27-vps-registrar-mismatches.md`.
+
+4. **When manually editing Authelia, align with registrar format.** The registrar adds `bypass [^/api/]` only. Health and metrics are covered globally by `*.vps1.ocoron.com` bypass with those resources. Adding more resources manually breaks idempotency on next `fabrik apply`.
+

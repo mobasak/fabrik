@@ -11,6 +11,9 @@ PACKS: <pack codes whose globs match this turn's scope, or "none">
 ```
 `PACKS` line: declare which `.windsurf/rules/**/*.md` packs are scope-relevant by matching their frontmatter `globs:` against files you will touch this turn. Listing a pack implies you read it. Pure conversation/planning turns with no file scope = `PACKS: none`.
 
+## If `expertise-pack/` exists — WordPress factory rules
+If this directory is present, read `expertise-pack/wpf-expertise-pack-spec-v3.md` (architecture + 13-stage pipeline) and `.claude/skills/wpf-wordpress/references/wp-cli-recipes.md` (verified commands) before any WP work. Never guess WP-CLI commands, option keys, or plugin slugs. No raw SQL, no hand-edited serialized PHP. Free plugins: `https://downloads.wordpress.org/plugin/{slug}.latest-stable.zip`.
+
 ## Orient (every task)
 1. Read `project.yaml` (`type`, `ports`, `has_user_guide`), `README.md`, `INDEX.md`, `compose.yaml`, `Dockerfile`, `.env.example`, `pyproject.toml`/`package.json`.
 2. If `AFCL.md` exists, append friction findings as encountered.

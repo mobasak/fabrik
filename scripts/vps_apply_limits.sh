@@ -31,15 +31,17 @@
 set -e
 
 apply() {
-  local pattern=$1 mem=$2
+  local pattern=$1 mem=$2 cpu=${3:-}
   local cont
   cont=$(sudo docker ps --format '{{.Names}}' | grep "^${pattern}" | head -1)
   if [ -z "$cont" ]; then
     echo "  NOT FOUND: $pattern"
     return
   fi
-  sudo docker update --memory "$mem" --memory-swap "$mem" "$cont" > /dev/null 2>&1 \
-    && echo "  ✅ $pattern → $mem" \
+  local update_args="--memory $mem --memory-swap $mem"
+  [ -n "$cpu" ] && update_args="$update_args --cpus $cpu"
+  sudo docker update $update_args "$cont" > /dev/null 2>&1 \
+    && echo "  ✅ $pattern → mem=${mem}${cpu:+ cpu=${cpu}}" \
     || echo "  ❌ $pattern → failed"
 }
 
@@ -51,24 +53,27 @@ apply apprise-        1g     # bumped 2026-05-20: 615MB steady-state plateau, 76
 apply cadvisor-       512m
 apply gatus-          256m
 apply grafana-        512m
-apply loki-           512m
+apply loki-           512m  0.5
 apply netdata-        1g    # bumped 2026-05-16: live at 751/768m (97%), ContainerHighMemory alert firing
 apply node-exporter-  128m
 apply promtail-       128m
-apply prometheus      1g
+apply prometheus      1g     1.0
 apply redis-exporter      64m   # T3-01 follow-up 2026-05-15: previously unlimited
 apply postgres-exporter   64m   # T3-01 follow-up 2026-05-15: previously unlimited
+apply pushgateway         64m   # T-infra 2026-05-27: was missing (unlimited)
 
 # Auth & ops
 apply authelia-       512m
 apply backrest-       512m
+apply glitchtip-web-  512m  0.5   # 2026-05-27: CPU cap for Django event-flood protection
+apply glitchtip-work  512m  0.5   # 2026-05-27: Celery worker CPU cap
 
 # Data
 apply postgres-main-  2g
 apply redis-main      512m
 
 # Automation
-apply n8n-            2g
+apply n8n-            2g     1.0
 
 # Network
 apply traefik         256m

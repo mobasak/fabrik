@@ -1,0 +1,28 @@
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8.32.0
+    container_name: gotenberg
+    restart: unless-stopped
+    command:
+      - "gotenberg"
+      - "--api-port=3000"
+      - "--api-basic-auth-username=gotenberg"
+      - "--api-basic-auth-password=${GOTENBERG_API_BASIC_AUTH_PASSWORD}"
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gotenberg.rule=Host(`pdf.vps1.ocoron.com`)"
+      - "traefik.http.routers.gotenberg.entrypoints=websecure"
+      - "traefik.http.routers.gotenberg.tls=true"
+      - "traefik.http.routers.gotenberg.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.gotenberg.middlewares=gzip@docker"
+      - "traefik.http.services.gotenberg.loadbalancer.server.port=3000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+networks:
+  coolify:
+    external: true

@@ -4,6 +4,16 @@
 ## ⚠️ FIRST OUTPUT (every response)
 `RULES ACTIVE: KILO | <3 rules from this file you applied>`
 
+## ⚠️ If `expertise-pack/` exists in this project — WordPress factory rules
+
+If the directory `expertise-pack/` is present, this is a WordPress site-factory project. Before any WordPress, WP-CLI, plugin, theme, golden image, or apply-pipeline work:
+
+1. Read `expertise-pack/wpf-expertise-pack-spec-v3.md` — architecture, ownership map, 13-stage pipeline, plugin curation rules.
+2. Read `.claude/skills/wpf-wordpress/references/wp-cli-recipes.md` — verified command library. Never guess a WP-CLI command, option key, or plugin slug.
+3. Claude Code agents: invoke the `wpf-wordpress` skill FIRST.
+
+Hard rules: no raw SQL, no hand-edited serialized PHP, no invented `wp_options` keys. Free plugins: `https://downloads.wordpress.org/plugin/{slug}.latest-stable.zip`.
+
 ## ORIENT (every task)
 1. `project.yaml::type` — one of 11 `scripts/scaffold.py` scaffolds. All projects use `.venv` and deploy via Coolify API.
 2. `AFCL.md`: read if exists; append friction findings as you hit them.

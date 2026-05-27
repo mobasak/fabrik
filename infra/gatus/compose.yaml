@@ -1,0 +1,34 @@
+services:
+  gatus:
+    image: twinproduction/gatus:latest
+    container_name: gatus
+    restart: unless-stopped
+    volumes:
+      - /opt/monitoring/configs/gatus:/config:ro
+    environment:
+      GATUS_METRICS_ENABLED: "true"
+      GATUS_CONFIG_PATH: /config
+      GATUS_LOG_LEVEL: INFO
+      PORT: "8080"
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gatus.rule=Host(`status.vps1.ocoron.com`)"
+      - "traefik.http.routers.gatus.entrypoints=websecure"
+      - "traefik.http.routers.gatus.tls=true"
+      - "traefik.http.routers.gatus.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gatus.loadbalancer.server.port=8080"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  coolify:
+    external: true

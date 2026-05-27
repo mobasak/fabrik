@@ -6,6 +6,10 @@
 .env.*BACKUP*
 .env.env.backup.*
 
+# VPS env dumps (plaintext secrets — local reference only)
+docs/reference/vps-all-container-envs.txt
+docs/reference/vps-env-*.txt
+
 # Rendered monitoring configs (contain secrets; .example files are tracked)
 configs/alertmanager/alertmanager.yml
 

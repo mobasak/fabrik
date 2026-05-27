@@ -25,13 +25,14 @@ domain: images.vps1.ocoron.com
 shape:
   is_admin_dashboard: true   # override python-api default — gates UI behind Authelia 2FA
   has_bearer_api: true       # override — /api/* bypasses Authelia for X-Internal-Token M2M callers
+  exposes_metrics: false     # override — app does not expose /metrics endpoint (verified 2026-05-27)
 
 source:
   type: local
   path: /opt/image-broker
 
 env:
-  PORT: "18016"
+  PORT: "8000"
   LOG_LEVEL: INFO
 
 secrets:
@@ -46,4 +47,4 @@ resources:
 
 health:
   path: /health
-  port: 18016
+  port: 8000

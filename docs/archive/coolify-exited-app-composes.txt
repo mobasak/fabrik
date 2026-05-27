@@ -1,0 +1,301 @@
+UUID: j8gg4ggskkossc4gkwowk4os
+NAME: fabrik-captcha
+services:
+  captcha:
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        - 'GIT_SHA=${GIT_SHA:-unknown}'
+    container_name: captcha
+    restart: unless-stopped
+    environment:
+      - 'ANTICAPTCHA_API_KEY=${ANTICAPTCHA_API_KEY:?}'
+      - 'API_HOST=${API_HOST:-0.0.0.0}'
+      - 'API_PORT=${API_PORT:-8000}'
+      - 'DEFAULT_TIMEOUT=${DEFAULT_TIMEOUT:-180}'
+      - 'POLL_INTERVAL=${POLL_INTERVAL:-3}'
+      - 'APP_GIT_SHA=${GIT_SHA:-unknown}'
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.captcha.rule=Host(`captcha.vps1.ocoron.com`)
+      - traefik.http.routers.captcha.entrypoints=websecure
+      - traefik.http.routers.captcha.tls=true
+      - traefik.http.routers.captcha.tls.certresolver=letsencrypt
+      - traefik.http.services.captcha.loadbalancer.server.port=8000
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - 'http://localhost:8000/health'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - coolify
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: w4oocckkwko8kowggsw8sogc
+NAME: fabrik-emailgateway
+services:
+  emailgateway:
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        - 'GIT_SHA=${GIT_SHA:-unknown}'
+    container_name: emailgateway
+    restart: unless-stopped
+    environment:
+      - 'NODE_ENV=${NODE_ENV:-production}'
+      - 'PORT=${PORT:-3000}'
+      - 'LOG_LEVEL=${LOG_LEVEL:-info}'
+      - 'API_KEYS=${API_KEYS:?}'
+      - 'DEFAULT_PROVIDER=${DEFAULT_PROVIDER:-resend}'
+      - 'FALLBACK_PROVIDER=${FALLBACK_PROVIDER:-ses}'
+      - 'RESEND_API_KEY=${RESEND_API_KEY:?}'
+      - 'RESEND_DAILY_LIMIT=${RESEND_DAILY_LIMIT:-100}'
+      - 'SES_SMTP_HOST=${SES_SMTP_HOST:-}'
+      - 'SES_SMTP_PORT=${SES_SMTP_PORT:-465}'
+      - 'SES_SMTP_USER=${SES_SMTP_USER:-}'
+      - 'SES_SMTP_PASS=${SES_SMTP_PASS:-}'
+      - 'SES_DAILY_LIMIT=${SES_DAILY_LIMIT:-200}'
+      - 'DATABASE_PATH=${DATABASE_PATH:-./data/emailgateway.db}'
+      - 'APP_GIT_SHA=${GIT_SHA:-unknown}'
+    networks:
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.emailgateway.rule=Host(`emailgateway.vps1.ocoron.com`)
+      - traefik.http.routers.emailgateway.entrypoints=websecure
+      - traefik.http.routers.emailgateway.tls=true
+      - traefik.http.routers.emailgateway.tls.certresolver=letsencrypt
+      - traefik.http.services.emailgateway.loadbalancer.server.port=3000
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - 'http://localhost:3000/health'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: bsswwg4kg480c000gksw004k
+NAME: fabrik-file-api
+services:
+  file-api:
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        - 'GIT_SHA=${GIT_SHA:-unknown}'
+    container_name: file-api
+    restart: unless-stopped
+    environment:
+      - 'NODE_ENV=${NODE_ENV:-production}'
+      - 'PORT=${PORT:-3000}'
+      - 'SUPABASE_URL=${SUPABASE_URL:?}'
+      - 'SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:?}'
+      - 'R2_ENDPOINT=${R2_ENDPOINT:?}'
+      - 'R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:?}'
+      - 'R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:?}'
+      - 'R2_BUCKET=${R2_BUCKET:?}'
+      - 'MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}'
+      - 'ALLOWED_CONTENT_TYPES=${ALLOWED_CONTENT_TYPES:-application/pdf,audio/mpeg}'
+      - 'UPLOAD_URL_EXPIRY_SECONDS=${UPLOAD_URL_EXPIRY_SECONDS:-3600}'
+      - 'DOWNLOAD_URL_EXPIRY_SECONDS=${DOWNLOAD_URL_EXPIRY_SECONDS:-3600}'
+      - 'APP_GIT_SHA=${GIT_SHA:-unknown}'
+    networks:
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.file-api.rule=Host(`files-api.vps1.ocoron.com`)
+      - traefik.http.routers.file-api.entrypoints=websecure
+      - traefik.http.routers.file-api.tls=true
+      - traefik.http.routers.file-api.tls.certresolver=letsencrypt
+      - traefik.http.services.file-api.loadbalancer.server.port=3000
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - 'http://localhost:3000/health'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: nwcckwggw0o0g40gwskk8kk8
+NAME: fabrik-file-worker
+services:
+  file-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: file-worker
+    restart: unless-stopped
+    environment:
+      - 'LOG_LEVEL=${LOG_LEVEL:-info}'
+      - 'TZ=${TZ:-UTC}'
+      - 'WORKER_ID=${WORKER_ID:-worker-1}'
+      - 'JOB_TYPES=${JOB_TYPES:-transcribe,ocr,extract_text}'
+      - 'POLL_INTERVAL=${POLL_INTERVAL:-5}'
+      - 'MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-2}'
+      - 'MAX_PROCESSING_TIME=${MAX_PROCESSING_TIME:-3600}'
+      - 'SUPABASE_URL=${SUPABASE_URL:?}'
+      - 'SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:?}'
+      - 'R2_ACCOUNT_ID=${R2_ACCOUNT_ID:?}'
+      - 'R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:?}'
+      - 'R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:?}'
+      - 'R2_BUCKET=${R2_BUCKET:?}'
+      - 'R2_ENDPOINT=${R2_ENDPOINT:?}'
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    healthcheck:
+      test:
+        - CMD
+        - find
+        - /app/.tmp/worker_heartbeat
+        - '-mmin'
+        - '-2'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - coolify
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: zsccsksoc8sssc8k00sgcc08
+NAME: fabrik-proxy
+services:
+  fabrik-proxy:
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        - 'GIT_SHA=${GIT_SHA:-unknown}'
+    container_name: fabrik-proxy
+    restart: unless-stopped
+    environment:
+      - 'DB_HOST=${DB_HOST:-postgres-main}'
+      - 'DB_PORT=${DB_PORT:-5432}'
+      - 'DB_NAME=${DB_NAME:-proxy_management}'
+      - 'DB_USER=${DB_USER:?}'
+      - 'DB_PASSWORD=${DB_PASSWORD:?}'
+      - 'WEBSHARE_API_KEY=${WEBSHARE_API_KEY:?}'
+      - 'APIFY_API_TOKEN=${APIFY_API_TOKEN:-}'
+      - 'APP_GIT_SHA=${GIT_SHA:-unknown}'
+      - 'SENTRY_DSN=${SENTRY_DSN:-}'
+      - 'APP_ENV=${APP_ENV:-production}'
+      - 'LOG_LEVEL=${LOG_LEVEL:-INFO}'
+    networks:
+      coolify:
+        aliases:
+          - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.fabrik-proxy.rule=Host(`proxy.vps1.ocoron.com`)
+      - traefik.http.routers.fabrik-proxy.entrypoints=websecure
+      - traefik.http.routers.fabrik-proxy.tls=true
+      - traefik.http.routers.fabrik-proxy.tls.certresolver=letsencrypt
+      - traefik.http.services.fabrik-proxy.loadbalancer.server.port=8000
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - 'http://localhost:8000/health'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: kgws0s4cscsosw8gg848cwgw
+NAME: fabrik-translator
+services:
+  translator:
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        - 'GIT_SHA=${GIT_SHA:-unknown}'
+    container_name: translator
+    restart: unless-stopped
+    environment:
+      - 'SERVICE_HOST=${SERVICE_HOST:-0.0.0.0}'
+      - 'SERVICE_PORT=${SERVICE_PORT:-8000}'
+      - 'SERVICE_NAME=${SERVICE_NAME:-translator-service}'
+      - 'DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres-main:5432/translator_service}'
+      - 'DEEPL_API_KEY=${DEEPL_API_KEY:?}'
+      - 'DEEPL_API_URL=${DEEPL_API_URL:-https://api-free.deepl.com/v2}'
+      - 'DEEPL_MONTHLY_CHAR_LIMIT=${DEEPL_MONTHLY_CHAR_LIMIT:-500000}'
+      - 'AZURE_TRANSLATOR_KEY=${AZURE_TRANSLATOR_KEY:-}'
+      - 'AZURE_TRANSLATOR_REGION=${AZURE_TRANSLATOR_REGION:-westeurope}'
+      - 'AZURE_TEXT_ENDPOINT=${AZURE_TEXT_ENDPOINT:-https://api.cognitive.microsofttranslator.com}'
+      - 'AZURE_DOCUMENT_ENDPOINT=${AZURE_DOCUMENT_ENDPOINT:-}'
+      - 'AZURE_HOURLY_CHAR_LIMIT=${AZURE_HOURLY_CHAR_LIMIT:-2000000}'
+      - 'API_KEY=${API_KEY:?}'
+      - 'LOG_LEVEL=${LOG_LEVEL:-INFO}'
+      - 'DEBUG=${DEBUG:-false}'
+      - 'APP_GIT_SHA=${GIT_SHA:-unknown}'
+    networks:
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.translator.rule=Host(`translator.vps1.ocoron.com`)
+      - traefik.http.routers.translator.entrypoints=websecure
+      - traefik.http.routers.translator.tls=true
+      - traefik.http.routers.translator.tls.certresolver=letsencrypt
+      - traefik.http.services.translator.loadbalancer.server.port=8000
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - 'http://localhost:8000/health'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+networks:
+  coolify:
+    external: true
+
+===END===
+

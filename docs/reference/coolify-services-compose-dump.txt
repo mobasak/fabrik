@@ -1,0 +1,584 @@
+UUID: zw4swgkwk0s4s8kg048gw80o
+NAME: alertmanager
+services:
+  alertmanager:
+    image: 'prom/alertmanager:v0.28.1'
+    platform: linux/amd64
+    restart: unless-stopped
+    volumes:
+      - '/opt/monitoring/configs/alertmanager:/etc/alertmanager:ro'
+      - 'alertmanager-data:/alertmanager'
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://alertmanager:9093'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'wget -qO- http://localhost:9093/-/healthy || exit 1'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - traefik.enable=false
+    networks:
+      coolify: null
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+volumes:
+  alertmanager-data:
+    external: true
+    name: monitoring_alertmanager-data
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: lcocgs4gs8ksg4g08w40ows8
+NAME: apprise
+services:
+  apprise:
+    image: 'caronc/apprise:latest'
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      APPRISE_STATELESS_URLS: 'tgram://8751835294:AAHwhKgeCUoG2ovr9Sg-xo9fMl5Gy6kXj1I/6999645768'
+    volumes:
+      - 'apprise_config:/config'
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.apprise.rule=Host(`notify.vps1.ocoron.com`)
+      - traefik.http.routers.apprise.entrypoints=websecure
+      - traefik.http.routers.apprise.tls=true
+      - traefik.http.routers.apprise.tls.certresolver=letsencrypt
+      - traefik.http.routers.apprise.middlewares=authelia-forward@docker
+      - traefik.http.services.apprise.loadbalancer.server.port=8000
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - 'http://localhost:8000/'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      coolify: null
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '0.5'
+volumes:
+  apprise_config:
+    external: true
+    name: apprise_apprise_config
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: hks48k8sg8o4co4co08co00o
+NAME: authelia
+services:
+  authelia:
+    image: 'authelia/authelia:latest'
+    platform: linux/amd64
+    restart: unless-stopped
+    volumes:
+      - 'authelia-config:/config'
+    networks:
+      - coolify
+    environment:
+      - TZ=Europe/Istanbul
+    labels:
+      - coolify.managed=true
+      - traefik.enable=true
+      - traefik.http.routers.authelia.entryPoints=websecure
+      - traefik.http.routers.authelia.rule=Host(`auth.vps1.ocoron.com`)
+      - traefik.http.routers.authelia.tls=true
+      - traefik.http.routers.authelia.tls.certresolver=letsencrypt
+      - traefik.http.services.authelia.loadbalancer.server.port=9091
+      - traefik.http.routers.authelia-http.entryPoints=web
+      - traefik.http.routers.authelia-http.rule=Host(`auth.vps1.ocoron.com`)
+      - traefik.http.routers.authelia-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - 'traefik.http.middlewares.authelia-forward.forwardAuth.address=http://authelia:9091/api/authz/forward-auth'
+      - traefik.http.middlewares.authelia-forward.forwardAuth.trustForwardHeader=true
+      - 'traefik.http.middlewares.authelia-forward.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email'
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - '--no-verbose'
+        - '--tries=1'
+        - '--spider'
+        - 'http://localhost:9091/api/health'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+volumes:
+  authelia-config:
+    driver: local
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: l48000k44wc4gk8os88s8k0c
+NAME: backrest
+services:
+  backrest:
+    image: 'ghcr.io/garethgeorge/backrest:latest'
+    container_name: backrest
+    hostname: vps1
+    restart: unless-stopped
+    mem_limit: 384m
+    environment:
+      - BACKREST_DATA=/data
+      - BACKREST_CONFIG=/config/config.json
+      - XDG_CACHE_HOME=/cache
+      - TMPDIR=/tmp
+      - TZ=Europe/Istanbul
+      - AWS_ACCESS_KEY_ID=0044e7ca36a086b0000000001
+      - AWS_SECRET_ACCESS_KEY=K004hcjQVRBA8hLY0uZzzKEYg4crlq8
+    volumes:
+      - '/opt/backrest/data:/data'
+      - '/opt/backrest/config:/config'
+      - '/opt/backrest/cache:/cache'
+      - '/opt/backrest/tmp:/tmp'
+      - '/opt:/backup-opt:ro'
+      - '/var/lib/docker/volumes:/backup-volumes:ro'
+      - '/opt/backups:/backup-postgres'
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - '/opt/backrest/.restic-password:/restic-password:ro'
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.backrest.rule=Host(`backup.vps1.ocoron.com`)
+      - traefik.http.routers.backrest.entrypoints=websecure
+      - traefik.http.routers.backrest.tls=true
+      - traefik.http.routers.backrest.tls.certresolver=letsencrypt
+      - traefik.http.routers.backrest.middlewares=authelia-forward@docker
+      - traefik.http.services.backrest.loadbalancer.server.port=9898
+    networks:
+      - coolify
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: r08sog4gwws88og048ows448
+NAME: cadvisor
+services:
+  cadvisor:
+    image: 'gcr.io/cadvisor/cadvisor:v0.52.1'
+    platform: linux/amd64
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - '/:/rootfs:ro'
+      - '/var/run:/var/run:ro'
+      - '/sys:/sys:ro'
+      - '/var/lib/docker:/var/lib/docker:ro'
+      - '/dev/disk:/dev/disk:ro'
+    labels:
+      - traefik.enable=false
+    networks:
+      coolify: null
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: v8s4cokcwg0co4w8okkccc0w
+NAME: gatus
+services:
+  gatus:
+    image: 'twinproduction/gatus:latest'
+    container_name: gatus
+    restart: unless-stopped
+    ports:
+      - '9000:8080'
+    volumes:
+      - '/opt/monitoring/configs/gatus:/config'
+    environment:
+      - GATUS_CONFIG_PATH=/config
+      - GATUS_METRICS_ENABLED=true
+    networks:
+      - coolify
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: z00kkck8c8cwo800kk440csk
+NAME: glitchtip-web
+services:
+  glitchtip-web:
+    image: 'glitchtip/glitchtip:latest'
+    container_name: glitchtip-web
+    restart: unless-stopped
+    environment:
+      - 'DATABASE_URL=postgresql://postgres:postgres@postgres-main:5432/glitchtip'
+      - 'REDIS_URL=redis://redis-main:6379/4'
+      - SECRET_KEY=YWH7736oLuTID-NmAVDw90Th0CljrpDqWvp4UsrtIfndvT3KYA
+      - PORT=8000
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.glitchtip-web.rule=Host(`errors.vps1.ocoron.com`)
+      - traefik.http.routers.glitchtip-web.entrypoints=websecure
+      - traefik.http.routers.glitchtip-web.tls=true
+      - traefik.http.routers.glitchtip-web.tls.certresolver=letsencrypt
+      - traefik.http.routers.glitchtip-web.middlewares=authelia-forward@docker
+      - traefik.http.services.glitchtip-web.loadbalancer.server.port=8000
+    networks:
+      coolify: null
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: msgo0sg8gsgo4w4sscckc84g
+NAME: glitchtip-worker-v10
+services:
+  glitchtip-worker:
+    image: 'glitchtip/glitchtip:latest'
+    container_name: glitchtip-worker
+    restart: unless-stopped
+    command:
+      - ./bin/run-celery-with-beat.sh
+    environment:
+      - 'DATABASE_URL=postgresql://postgres:postgres@postgres-main:5432/glitchtip'
+      - 'REDIS_URL=redis://redis-main:6379/4'
+      - SECRET_KEY=YWH7736oLuTID-NmAVDw90Th0CljrpDqWvp4UsrtIfndvT3KYA
+      - PORT=8000
+      - CELERY_WORKER_CONCURRENCY=2
+      - CELERY_WORKER_MAX_TASKS_PER_CHILD=10000
+    networks:
+      - coolify
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: loc484owg8gsw04owo0go8kc
+NAME: grafana
+services:
+  grafana:
+    image: 'grafana/grafana:11.5.1'
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=hwH4f0mVYnUfioIEyw1jaiOTzKNsTFDg
+      - 'GF_SERVER_ROOT_URL=https://monitor.vps1.ocoron.com'
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - 'grafana-data:/var/lib/grafana'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'wget -qO- http://localhost:3000/api/health || exit 1'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=Host(`monitor.vps1.ocoron.com`)
+      - traefik.http.routers.grafana.entrypoints=websecure
+      - traefik.http.routers.grafana.tls.certresolver=letsencrypt
+      - traefik.http.routers.grafana.middlewares=authelia-forward@docker
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+    networks:
+      coolify: null
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+volumes:
+  grafana-data:
+    external: true
+    name: monitoring_grafana-data
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: r48swckog008wosgwcs4g0g0
+NAME: loki
+services:
+  loki:
+    image: 'grafana/loki:3.4.2'
+    platform: linux/amd64
+    restart: unless-stopped
+    volumes:
+      - '/opt/monitoring/configs/loki:/etc/loki:ro'
+      - 'loki-data:/loki'
+    command: '-config.file=/etc/loki/loki-config.yaml'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'wget -qO- http://localhost:3100/ready || exit 1'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - traefik.enable=false
+    networks:
+      coolify: null
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+volumes:
+  loki-data:
+    external: true
+    name: monitoring_loki-data
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: s8gwccsws0ccssw0wwgwsoks
+NAME: n8n
+services:
+  n8n:
+    image: 'n8nio/n8n:latest'
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      N8N_HOST: auto.vps1.ocoron.com
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: 'https://auto.vps1.ocoron.com'
+      GENERIC_TIMEZONE: Europe/Istanbul
+      N8N_ENCRYPTION_KEY: 4MUWbwje4W3D8ZvQos5s9M5aaKH0SR14
+      N8N_DIAGNOSTICS_ENABLED: 'false'
+      N8N_VERSION_NOTIFICATIONS_ENABLED: 'false'
+    volumes:
+      - 'n8n_data:/home/node/.n8n'
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.n8n.rule=Host(`auto.vps1.ocoron.com`)
+      - traefik.http.routers.n8n.entrypoints=websecure
+      - traefik.http.routers.n8n.tls=true
+      - traefik.http.routers.n8n.tls.certresolver=letsencrypt
+      - traefik.http.routers.n8n.middlewares=authelia-forward@docker
+      - traefik.http.services.n8n.loadbalancer.server.port=5678
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - '-qO-'
+        - 'http://localhost:5678/healthz'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      coolify: null
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '0.5'
+volumes:
+  n8n_data:
+    external: true
+    name: n8n_n8n_data
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: kk4kcw4csksc48848go4o0wo
+NAME: netdata
+services:
+  netdata:
+    image: 'netdata/netdata:stable'
+    hostname: vps1.ocoron.com
+    restart: unless-stopped
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - 'apparmor:unconfined'
+    volumes:
+      - '/proc:/host/proc:ro'
+      - '/sys:/host/sys:ro'
+      - '/etc/passwd:/host/etc/passwd:ro'
+      - '/etc/group:/host/etc/group:ro'
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - 'netdata-config:/etc/netdata'
+      - 'netdata-lib:/var/lib/netdata'
+      - 'netdata-cache:/var/cache/netdata'
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.netdata.rule=Host(`netdata.vps1.ocoron.com`)
+      - traefik.http.routers.netdata.entrypoints=websecure
+      - traefik.http.routers.netdata.tls=true
+      - traefik.http.routers.netdata.tls.certresolver=letsencrypt
+      - traefik.http.routers.netdata.middlewares=authelia-forward@docker
+      - traefik.http.services.netdata.loadbalancer.server.port=19999
+      - traefik.http.services.netdata.loadbalancer.passhostheader=true
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '0.5'
+volumes:
+  netdata-config:
+    external: true
+    name: tmp_netdata-test-config
+  netdata-lib:
+    external: true
+    name: tmp_netdata-test-lib
+  netdata-cache:
+    external: true
+    name: tmp_netdata-test-cache
+
+===END===
+
+UUID: doc8c8gkcgs88s8ckggw84o4
+NAME: node-exporter
+services:
+  node-exporter:
+    image: 'prom/node-exporter:v1.9.1'
+    platform: linux/amd64
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - '/proc:/host/proc:ro'
+      - '/sys:/host/sys:ro'
+      - '/:/rootfs:ro'
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    labels:
+      - traefik.enable=false
+    networks:
+      coolify: null
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.5'
+networks:
+  coolify:
+    external: true
+
+===END===
+
+UUID: l0k4gk0kggc8okcwk0s4c8s8
+NAME: postgres-main
+services:
+  postgres-main:
+    image: 'postgres:16-alpine'
+    container_name: postgres-main
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: '${POSTGRES_USER:-postgres}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'
+      POSTGRES_DB: '${POSTGRES_DB:-postgres}'
+    volumes:
+      - 'postgres-data:/var/lib/postgresql/data'
+    networks:
+      coolify:
+        aliases:
+          - postgres-main
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'pg_isready -U postgres'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '0.5'
+networks:
+  coolify:
+    external: true
+volumes:
+  postgres-data: null
+
+===END===
+
+UUID: w0000ckgsgg048w0848okk08
+NAME: promtail
+services:
+  promtail:
+    image: 'grafana/promtail:3.4.2'
+    platform: linux/amd64
+    restart: unless-stopped
+    volumes:
+      - '/opt/monitoring/configs/promtail:/etc/promtail:ro'
+      - 'promtail-positions:/run/promtail'
+      - '/var/log:/var/log:ro'
+      - '/var/lib/docker/containers:/var/lib/docker/containers:ro'
+    command: '-config.file=/etc/promtail/promtail-config.yaml'
+    labels:
+      - traefik.enable=false
+    networks:
+      coolify: null
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.5'
+volumes:
+  promtail-positions:
+    external: true
+    name: monitoring_promtail-positions
+networks:
+  coolify:
+    external: true
+
+===END===
+

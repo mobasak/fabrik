@@ -150,7 +150,7 @@ kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AG
 | PostgreSQL | (internal) | Shared database |
 | Redis | (internal) | Shared cache |
 | Traefik | (internal) | Reverse proxy (managed by Coolify) |
-| Gatus | status.vps1.ocoron.com | Uptime monitoring (memory storage, 30 endpoints) |
+| Gatus | status.vps1.ocoron.com | Uptime monitoring (memory storage — see status.vps1.ocoron.com for live count) |
 | GlitchTip | errors.vps1.ocoron.com | Error tracking (web + worker, Celery concurrency=2) |
 | Netdata | netdata.vps1.ocoron.com | Real-time server metrics |
 | Backrest | backup.vps1.ocoron.com | Restic-based backup UI → Backblaze B2 |
@@ -189,7 +189,7 @@ Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
 > schema — do not point AM at it.
 
 ```
-Gatus (30 endpoints) → Apprise (http://apprise:8000/notify/alerts) → Telegram
+Gatus (35 endpoints, growing — see status.vps1.ocoron.com) → Apprise (http://apprise:8000/notify/alerts) → Telegram
 ```
 
 ```
