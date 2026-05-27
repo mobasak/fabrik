@@ -106,6 +106,8 @@ For each epic ticket, verify it can feed into `my-workflow/01-epic-brief-command
 | Metadata has `Shape` | Present | Missing |
 | Metadata has `Concurrency` | Present | Missing |
 | Metadata has `i18n` | Present or N/A stated | Missing |
+| Metadata has `Responsive` | Present or N/A stated | Missing |
+| Metadata has `Dark+Light` | Present or N/A stated | Missing |
 | Metadata has `Rule Packs` | Present | Missing |
 | Metadata has `HAS_USER_GUIDE` | true or false | Missing |
 | Metadata has `Registrars` | Listed | Missing |

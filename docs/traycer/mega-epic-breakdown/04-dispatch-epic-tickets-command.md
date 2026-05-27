@@ -46,7 +46,7 @@ Batch 2 (parallel): Epic Z          (depends on Batch 1)
 
 State dispatch instructions:
 
-"To execute an epic: select its ticket → run `my-workflow/01-epic-brief-command` directly (skip `00-trigger` — the epic ticket's Metadata already carries all trigger context). The ticket description IS the Epic Brief input."
+"To execute an epic: select its ticket → run `my-workflow/00-trigger-workflow-command` in **consume mode** — it reads the epic ticket's Metadata block as the INFRA-CHECK input instead of deriving it from scratch. Then continue through `01-epic-brief-command` as normal. The ticket description IS the Epic Brief input."
 
 "Dispatch order per Dependency Graph:"
 

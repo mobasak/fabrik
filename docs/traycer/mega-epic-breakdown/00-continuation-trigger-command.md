@@ -4,6 +4,10 @@
      Location: Traycer > My Workflows > mega-epic-breakdown > continuation-trigger
      -->
 
+<!-- ⚠️ QUALITY GATE: Any modification to this command file MUST be evaluated
+     against EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md (95 items).
+     Every applicable item must pass. "N/A" is valid; forgetting to check is not. -->
+
 # Project Continuation (Entrypoint for Existing Projects)
 
 ## Role
@@ -46,7 +50,7 @@ This command produces a **Continuation Summary** — same format as a Vision Sum
 **Auto-loaded:**
 - `AGENTS.md` — Fabrik infrastructure, services, planning constraints (run § MANDATORY ORCHESTRATOR PRE-FLIGHT checks 1-6)
 - `docs/reference/fabrik-lifecycle.md` — each epic must pass all 4 stages
-- `docs/reference/fabrik-project-catalog.md` — duplicate check against existing projects
+- `docs/BUSINESS_MODEL.md` § Project Portfolio — duplicate check against existing projects
 - `PORTS.md` — port conflict check for any new services
 - Project's own `project.yaml`, `specs/services/*.yaml`, `compose.yaml`, `.env.example`
 
@@ -139,6 +143,7 @@ Compare the existing project against current Fabrik rule packs. For each rule ar
 | Structured logging | structlog, no print() | [what exists] | Compliant / Partial |
 | asyncpg | No psycopg2 | [what exists] | Compliant / Deviates |
 | UUIDv7 | uuid_utils.compat.uuid7 | [what exists] | Compliant / Deviates |
+| Vector DB | pgvector / Supabase only — no Pinecone/Qdrant/Weaviate/Milvus | [what exists] | Compliant / Deviates / N/A |
 
 **For each deviation, classify:**
 - **Fix now** (recommended) — critical for the new feature or for launch readiness
@@ -167,6 +172,9 @@ Now take the owner's input on what to build next:
 - Adding mobile app → read `domain-modules/mobile-app.md`
 - Adding billing → read `domain-modules/saas.md` (billing section)
 - Adding chrome extension → read `domain-modules/chrome-ext.md`
+- Adding WordPress site/theme work → read `domain-modules/wordpress.md`
+
+**fabrik-lib check** — before designing any new component from scratch, check `fabrik-lib/README.md` for a vendorable module that already solves it (copy, don't import). State: "fabrik-lib checked — [module used / no match]."
 
 **Force new technology decisions per current ruleset** — but ONLY for new components:
 - New search? → pgvector + hybrid search per `core/65-rag-search.md`. NOT re-deciding the database.

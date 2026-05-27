@@ -1,17 +1,82 @@
 # AGENTS.md — Fabrik Identity & Knowledge (Traycer)
 
-**Last Updated:** 2026-05-24
+**Last Updated:** 2026-05-27
 **Read by:** Traycer only — for ticket planning. Traycer must know the entire Fabrik infrastructure to plan correctly.
 **Coding agents:** Claude Code reads `CLAUDE.md`; Windsurf Cascade reads `.windsurfrules`; Kilo CLI reads `AGENTS-compact.md` (via `opencode.json` `instructions:` array).
 **Lifecycle reference:** [`docs/reference/fabrik-lifecycle.md`](docs/reference/fabrik-lifecycle.md) — the canonical 4-stage vision (Intent & Scaffolding → Agentic Implementation → Proper Registration → Verification & Testing). Supersedes any narrative pasted into individual tickets.
 
 ---
 
+## Platform at a Glance
+
+| #   | Layer                 | Component                                                                                    | Purpose                                                                                                                                                                                                                |
+| --- | --------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **CLI**               | `fabrik` (40+ subcommands)                                                                   | scaffold, apply, deploy, redeploy, destroy, verify, audit, dev, review, logs, domain, seo, ai                                                                                                                          |
+| 2   | **Scaffolding**       | `scaffold.py`                                                                                | Creates projects with governance + infra wiring (11 types)                                                                                                                                                             |
+| 3   | **Planning**          | mega-epic-breakdown (6 commands: 00-trigger, 00-continuation, 02-05)                        | Large vision → epics → tickets → dispatch. 00-continuation for existing projects.                                                                                                                                      |
+| 4   | **Planning**          | my-workflow (00-11)                                                                          | Single-epic planning + execution. Also the execution engine per epic after mega-epic dispatch.                                                                                                                          |
+| 5   | **Governance**        | `AGENTS.md` / `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` / `opencode.json`        | Agent bootstraps (5 files)                                                                                                                                                                                             |
+| 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | 30 domain discipline packs                                                                                                                                                                                             |
+| 7   | **Enforcement**       | `final_gate.py` + 35 checks in `enforcement/`                                               | Task completion + structural validation                                                                                                                                                                                |
+| 8   | **Dispatch**          | `kilo_dispatch.py` + kilo pipeline (15 scripts)                                              | Agent routing, model selection, benchmarks                                                                                                                                                                             |
+| 9   | **Sync**              | `sync_enforcement_to_projects.py`                                                            | Pushes governance to all projects                                                                                                                                                                                      |
+| 9a  | **Sync Scripts**      | `scripts/consolidate_envs.py`                                                                | All `.env` files from `/opt/*` projects → merged into `/opt/fabrik/.env` with project-scoped sections                                                                                                                 |
+| 9b  | **Sync Scripts**      | `scripts/sync_projects.py`                                                                   | `project.yaml` from every `/opt/*` project → merged into `data/projects.yaml` + updates `BUSINESS_MODEL.md`                                                                                                           |
+| 10  | **Specs**             | `specs/services/<id>.yaml`                                                                   | Shape contract → registrars                                                                                                                                                                                            |
+| 11  | **Orchestrator**      | `src/fabrik/orchestrator/` (9 registrars + 22 drivers)                                      | postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus                                                                                                                                        |
+| 12  | **AI Sysadmin**       | `scripts/sysadmin/bot.py`                                                                    | Telegram ↔ Claude Code on VPS. Proactive checks, morning reports, security audits                                                                                                                                      |
+| 13  | **VPS Infra**         | 22 services                                                                                  | Coolify, PG, Redis, Traefik, Gatus, GlitchTip, Grafana, Prometheus, Loki, Alertmanager, n8n, Apprise, Authelia, MeiliSearch, Backrest, Gotenberg, Browserless, Netdata, cAdvisor, node-exporter, Pushgateway, Promtail |
+| 14  | **Microservices**     | 8 custom services (ports 18011–18017 + 8007)                                                 | Captcha, Translator, Proxy, DNS/Site-Provisioner, File API, Image Broker, Email Gateway, File Worker                                                                                                                   |
+| 15  | **Alerting**          | Prometheus → Alertmanager → Telegram + Gatus → Apprise → Telegram                           | Multi-path alerting chain                                                                                                                                                                                              |
+| 16  | **VPS Daemons**       | coolify-alias-watcher, sysadmin bot, iptables persistence                                    | Systemd services                                                                                                                                                                                                       |
+| 17  | **Cron/Scheduled**    | Hourly drift audit, daily morning report, weekly security/maintenance, monthly backup verify | Automated ops                                                                                                                                                                                                          |
+| 18  | **WSL Startup**       | `wsl_startup_hook.sh` (6-step pipeline)                                                     | Env watcher, registry sync, health summary, Kilo agent refresh                                                                                                                                                         |
+| 19  | **Local LLM**         | 4 Ollama agents (coder/reviewer/fixer/docs)                                                  | Offline AI for quick tasks                                                                                                                                                                                             |
+| 20  | **Background Runner** | `rund/runc/runwait/runlast/runls/runtail/runk`                                               | Non-blocking long command execution                                                                                                                                                                                    |
+| 21  | **Shared Code**       | `fabrik-lib/` — 17 vendorable modules (copy, don't import)                                  | Reusable modules graduated from projects; see `fabrik-lib/README.md` for full table + which-module-do-I-need matrix                                                                                                    |
+| 22  | **VPS Audits**        | 7 audit scripts (system/health/security/performance/observability/backup/hardening)          | Deep VPS inspection                                                                                                                                                                                                    |
+
+---
+
 ## Workflow (mandatory)
 
-For every ticket: follow `docs/traycer/traycer-managed-development-workflow/` — `trigger` → `brief` → `plan` → `breakdown` → `execute`. The human-readable reference copy lives at `docs/traycer/fabrik-workflow.md`.
+Two entry paths depending on scope:
+
+**Single-epic:** `docs/traycer/my-workflow/` — `00-trigger` → `01-epic-brief` → `02-core-flows` → `03-tech-plan` → `04-deploy-plan` → `05-ticket-outline` → implementation (`06-07-08`) → validation (`09-11`).
+
+**Multi-epic (large vision):** `docs/traycer/mega-epic-breakdown/` — `00-trigger` (vision intake + scale assessment) → `02-epic-decomposition` → `03-expand-epic-files` → `05-cross-epic-validation` → `04-dispatch`. Each dispatched epic then runs `my-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as its INFRA-CHECK input).
+
+**Existing project continuation:** start with `mega-epic-breakdown/00-continuation-trigger-command` instead of `00-trigger`. Produces the same Continuation Summary format; consumed identically by `02-epic-decomposition`.
+
+**Scale decision:** `00-trigger` (mega-epic) decides single vs multi-epic based on feature count and complexity. Single-epic routes directly to `my-workflow`. Multi-epic routes to `02-epic-decomposition`.
 
 **Pre-research drop point:** `docs/development/plans/00-research.md` (the owner drops external research from ChatGPT/Claude/Gemini here before planning).
+
+## Deploy Pipeline and Automation Boundaries
+
+Full lifecycle from vision to running service — what is automated vs what requires human action:
+
+**Phase 1 — Planning (Traycer, mostly automated):**
+1. Owner drops research file in `docs/development/plans/` or `docs/preplans/`.
+2. Traycer runs `mega-epic-breakdown` or `my-workflow` to produce epic tickets.
+3. Owner confirms decomposition and dispatches epic tickets. **Human gate: epic confirmation.**
+
+**Phase 2 — Implementation (coding agents: Claude Code / Windsurf / Kilo):**
+4. Each epic ticket runs `my-workflow` (00-trigger consume mode → 01-epic-brief → ... → 09-11).
+5. Coding agent implements, passes `scripts/final_gate.py`, stages changes.
+6. Owner reviews gate output and commits + pushes. **Human gate: commit/push decision.**
+
+**Phase 3 — Deploy (WSL → VPS, semi-automated):**
+7. `fabrik apply <spec>` — runs in WSL, provisions infra + deploys via Coolify. Takes ~5–7 min first deploy (Coolify v4 SSH fallback path). Redeploys ~2 min.
+8. `fabrik verify <domain> --spec registrars` — postcondition gate; confirms registrars live. **Manual today; target: auto-triggered post-apply.**
+9. `fabrik audit-registrars --spec <path>` — drift check. Hourly WSL cron pushes metrics to Prometheus. AlertManager → Telegram on drift. **Manual reconcile today; target: AI Sysadmin auto-runs `fabrik reconcile-all` on drift alert.**
+
+**Current automation gaps (open tickets):**
+- **Gap 1 — Deploy supervision:** `fabrik apply` runs unmonitored. Target: AI Sysadmin watches apply log, reports pass/fail to Telegram.
+- **Gap 2 — Auto-verify post-apply:** `fabrik verify` is not triggered automatically after `fabrik apply` succeeds. Wire point: `verify.py:394`.
+- **Gap 3 — Auto-reconcile on drift:** AI Sysadmin receives drift alert but does not yet run `fabrik reconcile-all` automatically.
+
+**When writing ticket success criteria:** if the ticket touches deploy, include: (a) `fabrik apply` passes, (b) `fabrik verify` returns all-green, (c) Gatus shows healthy within 5 min. Do NOT include "AI Sysadmin auto-reconciles" until Gap 3 is closed.
 
 ## File Ownership
 
@@ -252,6 +317,7 @@ Traycer MUST run these checks before generating any Plan, PRD, or Execution Spec
 4. **Hardware Audit** — Confirm all Docker images support `linux/amd64`.
 5. **Design System** — For any project type with a UI surface (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus), read `.windsurf/rules/core/ocoron-design-system.md` before generating any spec or copy. For mobile-app, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`. Apply color tokens, typography, scaffold-specific adaptations, verbal identity (forbidden language, voice, microcopy rules) to all planning output. State: "Design system read."
 6. **External Knowledge Verification** — When the plan touches a third-party API/SDK/vendor (Coolify, Paddle, Traefik, Authelia, Supabase, Cloudflare, n8n, etc. — note: Stripe is NOT available to Turkish entities), verify the current contract against live docs BEFORE writing the ticket spec. Order: (a) search `docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md` for prior coverage; (b) if absent, fetch the vendor's official docs URL and cite it in the ticket's `References:` field; (c) pass cited URLs to executing agents in `Final Gate Instruction` or `Implementation Notes` so they don't re-research what you verified. If you cannot verify within 3 search calls, mark the ticket `BLOCKED: external-research-needed` and stop. Skip for: stdlib, language syntax, internal Fabrik conventions.
+7. **fabrik-lib check** — Before planning any new component from scratch, read `fabrik-lib/README.md` for a vendorable module that already solves it (copy, don't import). State: "fabrik-lib checked — [module used / no match]."
 
 ## Planning Constraints
 
@@ -417,7 +483,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 **Post-deploy lifecycle commands (T2-01 + T2-02 + T2-03 + T2-04):**
 
 - Every successful `fabrik apply` / `fabrik redeploy --refresh-infrastructure` writes `.fabrik/state/<spec.id>.json` (8-field G-F3 manifest) — the source of truth for what got registered.
-- `fabrik audit-registrars [--spec <path>] [--json]` — verify each spec's shape-resolved registrars vs live VPS state. Statuses: `present / missing / n/a / unknown`. Exit 2 if any missing.
+- `fabrik audit-registrars [--spec <path>] [--json]` — verify each spec's shape-resolved registrars vs live VPS state. Statuses: `present / missing / drift / n/a / override / unknown`. Exit 2 if any missing.
 - `fabrik reconcile-all [--filter <substr>] [--yes]` — fleet-wide re-run of `refresh_infrastructure` per spec under per-spec file lock.
 - `fabrik verify <domain> --spec registrars` — postcondition gate; fails on any `missing` registrar.
 - `fabrik destroy <spec> --partial <reg>` (repeatable) — surgical un-registration without touching DNS, Coolify app, or local files. Backed by module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py`. Grafana intentionally excluded (annotations are decorative).
@@ -431,7 +497,6 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 - **Cross-VPS portability bundle (T4-03 G-J2):** `fabrik export [-o|--out|--output <path>] [--include-data] [--skip-remote]` writes a tarball containing every resource the current VPS's `fabrik apply` ever registered — specs, `.fabrik/state/`, Coolify Applications + Services + Projects (UUIDs recursively stripped), monitoring configs (prometheus/alertmanager/grafana dashboards/redis-assignments/postgres-allocations), Authelia + Backrest configs, redacted `.env` key list (key NAMES only — never values), and a restore README. `fabrik import <bundle> [--apply]` parses the bundle and emits a restore plan (default dry-run); `--apply` is honoured but the real-run API-write path is a documented stub — **roundtrip is deferred to vps2 stand-up**. Module: `src/fabrik/portability.py`. Security invariants (test-enforced in `tests/test_portability.py`): NO plaintext secrets, NO Coolify UUIDs, NO private-key references. When planning a portability or DR ticket, surface this command and the manual follow-ups it doesn't automate (LetsEncrypt re-issue, DNS re-bind, OAuth re-create, secrets re-populate).
 - **Per-registrar drift alerting (T4-04 G-G5):** hourly WSL crontab runs `scripts/audit_all_registrars.py` → walks every spec → calls `fabrik.audit.audit_all` → emits Prom-text `fabrik_audit_drift_total{spec_id, registrar}` gauge to the VPS-local pushgateway (`prom/pushgateway:v1.9.0` at `127.0.0.1:9091` — NOT publicly exposed). Prometheus scrapes pushgateway (`honor_labels: true`); rule file `rules/fabrik-drift.yml` (alert `FabrikRegistrarDrift`, `for: 10m`, label `alert_class: registrar_drift`) → Alertmanager route under `route.routes:` matches that label → existing `telegram` receiver (NO new receiver — pack v3.2 V2-S4 rejected the proliferation). When planning tickets that touch any of the 9 registrars (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus) drift detection auto-fires within ~1 hour. Companion `fabrik_audit_status{spec_id, registrar, status}` gauge for Grafana per-status charts.
 - **Coolify v4 workarounds in deployer.py (2026-05-16):** three fixes for confirmed Coolify v4.0.0-beta.459 bugs: (1) **Fix 2** — SSH fallback build: if Coolify's silent-build-trigger bug (#9161) leaves the app at `exited:unhealthy` after 300s, `_ssh_fallback_build` SSHs to VPS, clones the repo into `/data/coolify/applications/<uuid>/`, builds using Coolify's `docker-compose.yaml` (NOT the repo's `compose.yaml`), and starts the container. Coolify then sees `running:healthy` within ~60s. (2) **Fix 3** — pre-seed `.env`: Coolify's compose references `env_file: .env` but doesn't create it before `docker compose config` runs, causing silent parse failure. The deployer now `touch`es the file via SSH immediately after app creation. (3) **Fix 5** — `get_deployments` API: per-app endpoint 404s for dockercompose build-pack; fallback hits global `/deployments` and filters. Plus: `_destroy_coolify` now runs `docker compose down` via SSH before API DELETE to handle containers started by the fallback path. When planning tickets that use `fabrik apply`, expect deploy time of ~5-7 minutes for first deploy (300s Coolify grace + ~60s SSH fallback + build). Redeploys are faster (image cached).
-- **Epic Closure status (T5-01, 2026-05-16):** the "Fabrik Workflow Convergence — Full 47-Gap Closure" campaign is **complete**; 12-of-12 acceptance gate items green; 16 feature tickets shipped (T1-01..T1-05, T2-01..T2-04 + T2-08, T3-01..T3-03, T4-01..T4-04) plus F5 convergence. Vision-stage coverage: Stages 1-3 fully closed; Stage 4 drift-detection half closed (T4-04); **Stage 4 auto-rollback half remains open** at `verify.py:394` — that's the canonical next ticket. `destroy_from_state` (T4-02) is already importable, so the wire from `verify` failure to `destroy_from_state(state.load(spec.id))` is mechanically possible. Known follow-up tickets after Epic Closure: (1) auto-rollback wire, (2) backfill `/metrics` + `gatus` on 7 deployed services that predate the shape-block era (T3-02 doc-noted), (3) archive 2 April-2026 plan docs to clear `--systemic` documentation-drift signal, (4) fix link-checker to respect code blocks. When planning new tickets, reference Lesson 64 — pack docs are aspirational; live-state probes win every time.
 
 | Type | Template | Stack | shape.kind | shape flags (true only) |
 |---|---|---|---|---|
@@ -521,4 +586,5 @@ Traycer plans against these rules but does NOT inline them into tickets — the 
 | GPU Workers Guide | `.windsurf/rules/core/76-gpu-workers.md` | GPU cloud decisions — when to self-host vs managed API, provider selection |
 | Lessons Learnt | `docs/LESSONS_LEARNT.md` | Past incidents, decisions, anti-patterns |
 | Coolify Stable Aliases | `docs/reference/coolify-stable-aliases.md` | Registering new single-image App aliases |
-| Traycer Workflow | `docs/traycer/traycer-managed-development-workflow/` | Trigger / brief / plan / breakdown / execute commands |
+| my-workflow | `docs/traycer/my-workflow/` | Single-epic planning + execution (00-11); also the per-epic execution engine in mega-epic runs |
+| mega-epic-breakdown | `docs/traycer/mega-epic-breakdown/` | Large vision → epics → tickets → dispatch (6 commands); 00-continuation for existing projects |

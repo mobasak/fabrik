@@ -118,7 +118,10 @@ Do NOT present the proposal until every parallel-labeled epic has a PASS verdict
 - If yes → these become either a dedicated `file-worker` epic OR a background-processing slice within the backend epic. Rule: never run heavy processing (>10s) inline in API handlers — it must go through the PostgreSQL job queue (per `core/75-workers-jobs.md`).
 - If multiple heavy-processing features exist (e.g., transcription + image generation + report building), group them into a single "Worker Pipeline" epic rather than scattering across feature epics.
 
-**2f. Port allocation:**
+**2f. fabrik-lib check:**
+- Before planning any new component from scratch, check `fabrik-lib/README.md` for a vendorable module that already solves it (copy, don't import). State: "fabrik-lib checked — [module used / no match]." If a module is used, add it to that epic's scope as a vendor step, not a build step.
+
+**2g. Port allocation:**
 - Check `PORTS.md` for each epic's service.
 - Assign ports. State them.
 

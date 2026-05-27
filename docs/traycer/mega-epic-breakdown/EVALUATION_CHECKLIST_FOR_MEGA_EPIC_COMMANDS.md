@@ -125,34 +125,34 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 
 ## Output Format Contracts
 
-75. **Vision Summary** (00 output): ≤5,000 tokens. Sections: Product Vision, Personas, Value Streams, Full Feature Inventory, Constraints, Out of Scope, Open Questions.
-76. **Infrastructure Decisions** (02 output): ≤5,000 tokens. Sections: Scaffold Type(s), Database Strategy, Auth Strategy, Backing Services, External Services, Domain/Routing, Shared Shape Block Decisions.
+75. **Vision Summary** (00 output): ≤5,000 tokens. Sections: Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Technology Decisions, Constraints, Out of Scope, Open Questions, Scale Assessment.
+76. **Infrastructure Decisions** (02 output): ≤5,000 tokens. Sections: Scaffold Type(s), Database Strategy, Auth Strategy, Email Strategy, Background Processing, Embedding Model (if RAG), Backing Services, External Services, Domain/Routing, Shared Environment Variables, Shared Shape Block Decisions.
 77. **Compact Epic Proposal** (02 output): Scope summary, features, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE per epic.
 78. **Full Epic File** (03 output, one per epic): ≤10,000 tokens. Sections: Summary, Scope, Success Criteria, Out of Scope, Dependencies (produces/consumes), Technology Stack, Metadata for my-workflow/01-epic-brief, Estimated Scale.
 79. **Dependency Graph** (02 output): Mermaid diagram + execution order table + parallel lanes identified.
-80. **Validation Report** (05 output): Gap analysis, interface inventory, risk register, final approval gate.
+80. **Validation Report** (05 output): Feature Coverage, Epic Tickets (per-epic PASS/FAIL), Dependency Graph, Infrastructure Decisions, Handoff Readiness, Overall result, Recommended Execution Order.
 
 ## Handoff Format (epic file → my-workflow/01-epic-brief)
 
-80. Each epic output file MUST contain a `## Metadata` section with: scaffold type, shape flags, concurrency model, i18n requirement, port assignment, rule packs list — matching what my-workflow/01-epic-brief expects in its "Metadata" field.
-81. Each epic output file MUST contain a `## Success Criteria` section with numbered, testable criteria — matching what my-workflow/01-epic-brief uses to validate coverage.
-82. Each epic output file MUST contain a `## Dependencies` section stating: what prior epics produced (DB tables, API contracts, env vars) that this epic assumes exist.
-83. Each epic output file MUST be SELF-SUFFICIENT — Traycer running my-workflow/01 reads ONLY this file + infrastructure-decisions.md. No need to load the full vision research.
+81. Each epic output file MUST contain a `## Metadata` section with: scaffold type, shape flags, concurrency model, i18n requirement, Responsive, Dark+Light, port assignment, rule packs list — matching what my-workflow/01-epic-brief expects in its "Metadata" field.
+82. Each epic output file MUST contain a `## Success Criteria` section with numbered, testable criteria — matching what my-workflow/01-epic-brief uses to validate coverage.
+83. Each epic output file MUST contain a `## Dependencies` section stating: what prior epics produced (DB tables, API contracts, env vars) that this epic assumes exist.
+84. Each epic output file MUST be SELF-SUFFICIENT — Traycer running my-workflow/01 reads ONLY this file + infrastructure-decisions.md. No need to load the full vision research.
 
 ## Iterative Convergence
 
-84. Does it wait for EXPLICIT user confirmation? (silence ≠ confirmation)
-85. Does it suggest revisions when scope changes instead of silently absorbing?
-86. Does it iterate with the owner until the decomposition is RIGHT? (planning is SLOW, execution is FAST)
-87. Does it present the dependency graph VISUALLY (mermaid diagram)?
+85. Does it wait for EXPLICIT user confirmation? (silence ≠ confirmation)
+86. Does it suggest revisions when scope changes instead of silently absorbing?
+87. Does it iterate with the owner until the decomposition is RIGHT? (planning is SLOW, execution is FAST)
+88. Does it present the dependency graph VISUALLY (mermaid diagram)?
 
 ## Anti-Patterns (if any of these are true, the command file is WRONG)
 
-88. Command says "Consider..." instead of "Check X and state finding." → REWRITE.
-89. Command produces output that requires the NEXT command to ask the user what's missing. → ADD to this command.
-90. Command restates what a prior command already produced. → DELETE and reference.
-91. Two commands produce overlapping output. → MERGE or split boundary clearly.
-92. Command's output doesn't have a clear token budget. → ADD budget.
-93. Command doesn't have Acceptance Criteria. → ADD.
-94. Epic output file requires loading the full vision research alongside it. → CONDENSE epic file to be self-sufficient.
-95. Command uses vague scope ("relevant files", "update as needed", "consider implications"). → REWRITE with concrete paths and actions.
+89. Command says "Consider..." instead of "Check X and state finding." → REWRITE.
+90. Command produces output that requires the NEXT command to ask the user what's missing. → ADD to this command.
+91. Command restates what a prior command already produced. → DELETE and reference.
+92. Two commands produce overlapping output. → MERGE or split boundary clearly.
+93. Command's output doesn't have a clear token budget. → ADD budget.
+94. Command doesn't have Acceptance Criteria. → ADD.
+95. Epic output file requires loading the full vision research alongside it. → CONDENSE epic file to be self-sufficient.
+96. Command uses vague scope ("relevant files", "update as needed", "consider implications"). → REWRITE with concrete paths and actions.

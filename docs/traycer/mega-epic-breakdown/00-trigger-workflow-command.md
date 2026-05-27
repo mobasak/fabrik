@@ -132,7 +132,7 @@ Do NOT silently proceed past Checkpoint 1 if there are open questions or thin ar
 - `docs/reference/fabrik-lifecycle.md` — the 4-stage lifecycle.
 - `docs/reference/technology-stack-decision-guide.md` — stack defaults and decision flowchart.
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions that eliminate custom work.
-- `docs/reference/fabrik-project-catalog.md` — existing projects (duplicate check).
+- `docs/BUSINESS_MODEL.md` § Project Portfolio — existing projects (duplicate check).
 - `PORTS.md` — port allocations (conflict check).
 - If `project.yaml` exists → read it for scaffold type and existing shape.
 
@@ -171,10 +171,10 @@ Research from external AI sessions may suggest solutions that violate the owner'
 
 - **Expensive where free exists?** Research proposes a paid service → check if a VPS service already solves it (Apprise, Gotenberg, MeiliSearch, Backrest, n8n — all deployed, all free). State: "Research suggests [X] but [Y] is already deployed on VPS at zero cost."
 - **Complex where simple exists?** Research proposes Kubernetes, microservice mesh, custom auth — check if Coolify + Authelia + single-container deploys handle it. Fabrik deploys via `fabrik apply`, not Helm charts.
-- **Build where consume exists?** Research proposes building a component → check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), VPS services, or `/opt/fabrik-lib/` vendorable modules (14 modules: auth, billing, emails, legal, storage, etc.).
+- **Build where consume exists?** Research proposes building a component → check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), VPS services, or `/opt/fabrik-lib/` vendorable modules (see `fabrik-lib/README.md` for the full table and which-module-do-I-need matrix).
 - **High-maintenance where set-and-forget exists?** Research proposes solutions requiring ongoing ops → prefer solutions that auto-heal, auto-backup, auto-monitor via existing Prometheus/Gatus/Backrest stack.
 - **Incompatible with Fabrik infra?** Port conflicts (check `PORTS.md`), Alpine images (bookworm-slim only), localhost assumptions (use postgres-main:5432), x86_64 issues, 12-Factor violations (local file storage, hardcoded config).
-- **Duplicate functionality?** Check `docs/reference/fabrik-project-catalog.md` + `AGENTS.md` § Microservices.
+- **Duplicate functionality?** Check `docs/BUSINESS_MODEL.md` § Project Portfolio + `AGENTS.md` § Microservices.
 
 If research direction is fundamentally wrong for Fabrik (e.g., proposes serverless on AWS when everything deploys to VPS via Coolify), say so directly: "Research suggests [approach] but this conflicts with Fabrik's deploy model. Recommend [alternative]. Want to adjust the vision or research this further?"
 
