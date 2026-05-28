@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-27T11:59:03.986712",
+  "timestamp": "2026-05-28T11:59:04.328369",
   "total_models": 338,
   "models": {
     "~anthropic/claude-haiku-latest": {
@@ -199,11 +199,6 @@
     },
     "arcee-ai/virtuoso-large": {
       "id": "arcee-ai/virtuoso-large",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "baidu/cobuddy:free": {
-      "id": "baidu/cobuddy:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
@@ -804,6 +799,11 @@
     },
     "moonshotai/kimi-k2.6": {
       "id": "moonshotai/kimi-k2.6",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "moonshotai/kimi-k2.6:free": {
+      "id": "moonshotai/kimi-k2.6:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

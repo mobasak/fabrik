@@ -1,6 +1,6 @@
 # The Fabrik Lifecycle — Canonical 4-Stage Reference
 
-**Last verified:** 2026-05-24 | **Canonical source:** this file supersedes any vision narrative pasted into individual tickets.
+**Last verified:** 2026-05-28 | **Canonical source:** this file supersedes any vision narrative pasted into individual tickets.
 **Maintenance:** This file is in the doc-sync memory set. Every session that changes the deployer, registrars, scaffold system, or VPS infrastructure MUST update this file. Enforced by `scripts/final_gate.py` check for significant changes to `src/fabrik/orchestrator/`, `src/fabrik/scaffold.py`, or `src/fabrik/drivers/`.
 
 ---
@@ -21,12 +21,12 @@ This isn't just folder creation; it's a **Context Injection**:
 
 | Family | Deploy target | Stage 3 path |
 |---|---|---|
-| Backend services (`python-api`, `node-api`, `file-api`, `file-worker`) | VPS via Coolify (compose.yaml + Dockerfile) | Full registrar set |
-| Frontends (`saas-skeleton`, `static-site`, `docusaurus`) | VPS via Coolify (compose or static serve) | Lean registrar set (no postgres/redis typically) |
-| WordPress (`wordpress`) | VPS via Coolify (multi-container: php-fpm + nginx + db + redis + backup) | WordPress-specific registrar flow |
+| Backend services (`python-api`, `node-api`, `file-api`, `file-worker`) | VPS via SSH + Docker Compose | Full registrar set |
+| Frontends (`saas-skeleton`, `static-site`, `docusaurus`) | VPS via SSH + Docker Compose | Lean registrar set (no postgres/redis typically) |
+| WordPress (`wordpress`) | VPS via Docker Compose (multi-container: php-fpm + nginx + db + redis + backup) | WordPress-specific registrar flow |
 | Mobile apps (`mobile-app`) | Two-faced: **backend deploys to VPS/Supabase/Backblaze**, client ships via App Store/Play Store | Backend gets registrars; client is built locally |
 | Desktop apps (`desktop-app`) | Two-faced: **installer distributed FROM the VPS**, app runs on user machine | Download-server deployed; Electron app built locally |
-| Chrome extension (`chrome-extension`) | Two-faced: **FastAPI backend deploys to Coolify**, TS extension uploaded to Chrome Web Store | Backend gets full registrar set; extension is browser-side |
+| Chrome extension (`chrome-extension`) | Two-faced: **FastAPI backend deploys to VPS**, TS extension uploaded to Chrome Web Store | Backend gets full registrar set; extension is browser-side |
 
 ---
 
@@ -40,7 +40,7 @@ You execute work through **Ticket Design** via the Traycer workflow. Two plannin
 
 You present structured tickets to your agents (Claude Code, Windsurf Cascade, Kilo CLI). Because they have the guardrail files (propagated via `scripts/sync_enforcement_to_projects.py` to all projects), they write code that is **Infrastructure-Aware:**
 
-- They don't just write a Dockerfile; they write a `specs/services/<id>.yaml` whose `shape:` block declares the specific registrars needed — which Coolify app, which Gatus endpoint, which Prometheus scrape target, which GlitchTip project.
+- They don't just write a Dockerfile; they write a `specs/services/<id>.yaml` whose `shape:` block declares the specific registrars needed — which Gatus endpoint, which Prometheus scrape target, which GlitchTip project, which backup plan.
 - If code adds a database call → `shape.needs_database` MUST be `true` in the spec.
 - If code exposes `/metrics` → `shape.exposes_metrics` MUST be `true`.
 - The `## Spec contract awareness` snippet (T3-02) lives in every executor file and enforces this at code-writing time — not deploy time.
@@ -73,18 +73,29 @@ You present structured tickets to your agents (Claude Code, Windsurf Cascade, Ki
 
 ---
 
-## Stage 3 — Proper Registration (VPS deploy via Coolify API)
+## Stage 3 — Proper Registration (VPS deploy via SSH + Docker Compose)
 
 Two CLI entry points — both run the same `DeploymentOrchestrator.deploy()` pipeline:
 
 - **`fabrik apply specs/services/<id>.yaml`** — direct path to spec. Use when you have the spec path.
 - **`fabrik deploy [--project <dir>]`** — reads `project.yaml` in the current dir, resolves `specs/services/<name>.yaml` from the `name` field, then calls the same orchestrator. Use from the project root. WordPress type raises `NotImplementedError` — WordPress deploys via `wpf` CLI (`wpf plan <site> && wpf apply <site>`).
 
-Both require `git push` first for git-sourced apps (Coolify pulls from GitHub, not local disk).
+Both require `git push` first for git-sourced apps (the deployer runs `git pull` on VPS from the GitHub remote, not from local disk).
 
-**The Bridge:** It doesn't run code in WSL. It tells VPS1 (via Coolify API) to pull the build from the GitHub remote.
+**The Bridge:** It doesn't run code in WSL. It SSHs to VPS1, writes compose + `.env` files to `/opt/{name}/`, and runs `docker compose up -d`. For git-sourced apps, it clones/pulls the repo on VPS and builds the image there.
 
-**Auto-Registration (the 9 registrars, shape-gated):**
+**Deploy by source type:**
+
+| Source type | What the deployer does | When to use |
+|---|---|---|
+| **template** | Renders compose.yaml via `TemplateRenderer`, writes to `/opt/{name}/`, runs `docker compose up -d` | Most scaffold types (python-api, saas-skeleton, etc.) |
+| **git** | Clones/pulls repo on VPS, builds image, runs `docker compose up -d` | Apps with custom Dockerfiles in a git repo |
+| **docker** | Generates minimal compose from spec (image + env + labels), runs `docker compose up -d` | Pre-built Docker images |
+| **local** | Uses existing compose at `source.path` on VPS, merges `.env`, runs `docker compose up -d` | Infrastructure services already on VPS (9 production specs) |
+
+**Auto-Registration (the 9 registrars, shape-gated via `resolve_applicability()`):**
+
+Registrar applicability is determined by the pure function `resolve_applicability(spec)` in `infrastructure.py`, which maps shape flags to a per-registrar `(should_run, reason)` dict. The orchestrator calls `infrastructure_provisioner.provision(ctx)` as a single unit — individual registrar gating happens inside `resolve_applicability()`, not in the orchestrator's `deploy()`. Registrars execute in the order defined by `_REGISTRAR_ORDER`:
 
 | Registrar | What it does | Mechanism |
 |---|---|---|
@@ -92,7 +103,7 @@ Both require `git push` first for git-sourced apps (Coolify pulls from GitHub, n
 | **redis** | Assigns a logical DB index on `redis-main` | SSH → assignments.json |
 | **gatus** | Pushes a new endpoint monitor → `status.vps1.ocoron.com` | SSH → gatus config dir |
 | **backrest** | Creates a restic backup plan | SSH → backrest config.json |
-| **glitchtip** | Creates a GlitchTip project + injects `SENTRY_DSN` into Coolify env vars | GlitchTip API + Coolify API |
+| **glitchtip** | Creates a GlitchTip project + injects `SENTRY_DSN` into app `.env`. For services with `has_vps_backend: false` (mobile Supabase-only): creates project + outputs DSN to state/stdout; skips container injection and verification | GlitchTip API + SSH `.env` merge |
 | **grafana** | Stamps a deploy annotation | Grafana API |
 | **authelia** | Adds an access-control rule for admin dashboards / paired-pattern | SSH → authelia configuration.yml + container restart |
 | **meilisearch** | Creates a search index | Meilisearch API |
@@ -106,27 +117,23 @@ Both require `git push` first for git-sourced apps (Coolify pulls from GitHub, n
 
 **Network security (auto, defense-in-depth):**
 
-- **UFW:** 14 rules — allows SSH (22), HTTP (80), HTTPS (443), OpenVPN (1194), Coolify Realtime (6001-6002). Denies Coolify raw port (8000).
-- **DOCKER-USER iptables chain:** 9 rules via `iptables-docker-user.service` (systemd, runs after `docker.service`). Docker bypasses UFW by inserting NAT rules — this chain catches what UFW misses. Allows: established connections, container-to-container (10.0/8, 172.16/12, 192.168/16), ports 80/443/6001/6002. **Catch-all DROP** on everything else. Even if a container accidentally publishes `0.0.0.0:8080`, external traffic is dropped. Source: `/etc/iptables/add-docker-user-rules.sh` (idempotent, flushes + re-applies on every boot).
-- **No per-service firewall action needed.** All containers route through Traefik on the `coolify` network; no host port bindings. The iptables chain is a safety net, not a per-deploy concern.
+- **UFW:** 14 rules — allows SSH (22), HTTP (80), HTTPS (443), OpenVPN (1194). Denies all else.
+- **DOCKER-USER iptables chain:** 9 rules via `iptables-docker-user.service` (systemd, runs after `docker.service`). Docker bypasses UFW by inserting NAT rules — this chain catches what UFW misses. Allows: established connections, container-to-container (10.0/8, 172.16/12, 192.168/16), ports 80/443. **Catch-all DROP** on everything else. Even if a container accidentally publishes `0.0.0.0:8080`, external traffic is dropped. Source: `/etc/iptables/add-docker-user-rules.sh` (idempotent, flushes + re-applies on every boot).
+- **No per-service firewall action needed.** All containers route through Traefik on the shared Docker network (`coolify` — legacy name, kept to avoid renaming all compose files); no host port bindings. The iptables chain is a safety net, not a per-deploy concern.
 
-**Resource limits (F5 fix):** Every `compose.yaml` emitted by the scaffolder includes `deploy.resources.limits.memory` + `cpus` (Coolify v4.0.0-beta.459 ignores its `limits_memory` UI field for `build_pack=dockercompose` apps — the compose must carry the declaration explicitly).
+**Resource limits:** Every `compose.yaml` emitted by the scaffolder includes `deploy.resources.limits.memory` + `cpus`. The compose must carry the declaration explicitly — Docker enforces it at container level.
 
-**Coolify v4 workarounds (built into `deployer.py`):**
-
-- **SSH fallback build (Fix 2):** Coolify's silent build-trigger bug (#9161) sometimes writes the compose but never builds the image. After 300s grace, the deployer SSHs to VPS, clones the repo into `/data/coolify/applications/<uuid>/`, builds using Coolify's own compose, and starts the container.
-- **`.env` pre-seed (Fix 3):** Coolify injects `env_file: .env` into compose but doesn't create the file before `docker compose config` runs. The deployer `touch`es it via SSH immediately after app creation.
-- **Destroy hardening:** `_destroy_coolify` runs SSH `docker compose down` before the API DELETE (handles containers started by the SSH fallback).
+**Container naming:** Every compose service uses `container_name: {name}` for stable `docker exec`/`docker inspect` targeting. Names follow `^[a-z0-9][a-z0-9-]{0,62}$` (validated by the deployer as a shell injection prevention gate).
 
 **Postgres allocation registry (T4-01):** Every `create_database` call registers the DB in `/opt/monitoring/configs/postgres/allocations.json`. `audit_postgres` cross-references this against live `pg_database` to detect drift (orphan DBs or stale registry entries).
 
-**Portability (T4-03):** `fabrik export --out <tarball>` captures the full VPS registration state (specs, state files, Coolify apps/services with UUIDs stripped, monitoring configs, Authelia/Backrest configs with secrets redacted, redacted .env key list). `fabrik import <tarball>` provides a rebuild scaffold for a fresh target VPS (import path shipped untested; roundtrip deferred to vps2 stand-up).
+**Portability (T4-03):** `fabrik export --out <tarball>` captures the full VPS registration state (specs, state files, app compose/env files, monitoring configs, Authelia/Backrest configs with secrets redacted, redacted .env key list). `fabrik import <tarball>` provides a rebuild scaffold for a fresh target VPS (import path shipped untested; roundtrip deferred to vps2 stand-up).
 
 ---
 
 ## Stage 4 — Verification & Testing
 
-Once the Coolify build is green, verification runs from WSL against the live VPS1 endpoint:
+Once the deploy completes and containers are running, verification runs from WSL against the live VPS1 endpoint:
 
 **Implemented (T2-02 + T4-04):**
 
@@ -135,7 +142,7 @@ Once the Coolify build is green, verification runs from WSL against the live VPS
 - `fabrik reconcile-all [--filter <substr>] [--yes]` — re-runs `refresh_infrastructure` per spec across the fleet. Converges drift to zero.
 - **Hourly drift detection (T4-04):** WSL cron (`scripts/audit_all_registrars.py`) pushes `fabrik_audit_drift_total` gauge to VPS-local pushgateway → Prometheus alert rule `FabrikRegistrarDrift` (`for: 10m`) → Alertmanager route `alert_class=registrar_drift` → existing `telegram` receiver. Detection latency: ≤71 minutes.
 - `fabrik destroy --use-state` (T4-02) — if teardown is needed, replays from state file (not current shape) so spec-drift doesn't orphan registrars. Data-bearing protection requires explicit `--drop-data`.
-- `scripts/vps_apply_limits.sh` — run after VPS reboot or Coolify redeploys to re-apply Docker memory limits (Coolify drops them on container restart). Also applies stable Docker network aliases for single-image Applications.
+- `scripts/vps_apply_limits.sh` — run after VPS reboot to re-apply Docker memory limits if containers are recreated.
 
 **Open (next ticket):**
 
@@ -143,13 +150,60 @@ Once the Coolify build is green, verification runs from WSL against the live VPS
 
 ---
 
+## Mobile App Deployment — Two-Faced Architecture
+
+Mobile apps (`mobile-app` scaffold type) have a split deployment model:
+
+### Two backend patterns (shape-driven)
+
+Mobile apps support two backend configurations, selected per-project via shape flags:
+
+| Pattern | Backend | `shape.has_vps_backend` | `fabrik apply` behavior |
+|---|---|---|---|
+| **Supabase + FastAPI** | Supabase (auth, data, realtime, storage) + FastAPI on VPS (AI workflows, scraping, scheduled jobs) | `true` | Full deploy: container creation + all shape-gated registrars |
+| **Supabase-only** | Supabase handles everything — no VPS container | `false` | Spec exists but deployer skips container creation. Only GlitchTip registrar runs (creates project, outputs DSN to state/stdout for manual insertion into Expo config). All other 8 registrars skipped — DNS, Gatus, Postgres, Redis, Backrest, Prometheus, Authelia, Meilisearch all require a VPS presence |
+
+Per 80-mobile.md: Supabase is **primary** (auth, app data, RLS, realtime, storage, edge functions), FastAPI on VPS is **secondary** (AI workflows, scraping, scheduled jobs, secrets). Both patterns are first-class.
+
+### Backend (VPS) — automated via `fabrik apply`
+
+When `shape.has_vps_backend: true`, the companion FastAPI backend deploys to VPS like any other service. It gets the full registrar treatment based on its `shape:` flags (postgres, redis, gatus, glitchtip, etc.). The SSH deployer handles compose deployment.
+
+### Client (App Stores) — manual, with future automation
+
+**Current approach (Phase A — Manual):**
+- Developer runs `eas build --platform all` locally from the project directory
+- Developer runs `eas submit --platform all` to upload to App Store / Google Play
+- Store review is manual anyway (Apple especially), so automation has limited ROI at this stage
+
+**Future approach (Phase B — Semi-automated, deferred until first app ships):**
+- A `fabrik publish-mobile <spec>` CLI command that wraps `eas build` + `eas submit` into one step
+- Still manually triggered — no CI/CD pipeline
+- Gated behind store credential configuration in the spec
+
+**Decision rationale:** Store submission has manual review gates. Adding automation before a shipped app exists is premature. Phase B activates after the first mobile app reaches production.
+
+**Not planned (Phase C — Full CI/CD):** GitHub push → EAS Build → auto-submit. Deferred indefinitely — solo dev, manual trigger is fine.
+
+### Store-specific prerequisites (from 89-mobile-launch-checklist.md)
+
+Before first submission:
+- Google Play Console = Organization account (bypasses 14-day tester mandate)
+- Apple Developer Program = Organization ($99/yr)
+- Both stores: 15% Small Business Program enrolled
+- Both stores: W-8BEN-E filed for US-Turkey treaty (0% withholding)
+- App identity locked: `ios.bundleIdentifier` + `android.package` (cannot change post-submission)
+
+---
+
 ## Summary of what the scaffolder emits for Stage 3
 
-The scaffolder's `_write_canonical_compose` function (the authoritative compose generator) emits for every Coolify-deployed type:
+The scaffolder's `_write_canonical_compose` function (the authoritative compose generator) emits for every VPS-deployed type:
 
 1. **Traefik labels** in `compose.yaml` — `Host(...)` routing rule, `websecure` entrypoint, LetsEncrypt cert resolver. These ARE Docker labels because Traefik's service-mesh discovery is label-based.
-2. **`deploy.resources.limits`** in `compose.yaml` — memory + CPU cap that Docker enforces (F5 fix).
-3. **Healthcheck** in `compose.yaml` — HTTP or process probe that Coolify uses to gate deploy success.
+2. **`deploy.resources.limits`** in `compose.yaml` — memory + CPU cap that Docker enforces.
+3. **Healthcheck** in `compose.yaml` — HTTP or process probe that the deployer checks post-deploy.
+4. **`container_name`** in `compose.yaml` — stable name for `docker exec`/`docker inspect` targeting.
 
 The scaffolder does NOT emit Prometheus/Promtail/cAdvisor labels or configs per service — those are handled by the **registrar system** at `fabrik apply` time (prometheus registrar) or by **auto-discovery** (Promtail, cAdvisor via docker.sock). This is a deliberate architecture decision: compose.yaml is the build/deploy contract; observability config is the registrar's domain.
 

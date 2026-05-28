@@ -1,0 +1,25 @@
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:8080:8080"
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/traefik.yml:ro
+      - ./acme.json:/acme.json
+      - ./htpasswd:/htpasswd:ro
+      - ./htpasswd-netdata:/htpasswd-netdata:ro
+    command:
+      - "--configFile=/traefik.yml"
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true

@@ -8,7 +8,7 @@ Production-ready structure for organizing AI prompts at scale. One prompt = one 
 
 ## Structure
 
-```
+```text
 prompts/
 ├─ README.md                    # Purpose + usage
 ├─ _meta/
@@ -34,6 +34,12 @@ prompts/
 │  ├─ qa.md                     # Context-only answering
 │  ├─ citation.md               # Evidence enforcement
 │  └─ refusal.md                # Insufficient-context handling
+│
+├─ knowledge/
+│  ├─ core.md                   # Universal domain principles (always injected)
+│  ├─ {domain-a}.md             # Domain-specific fragment
+│  ├─ {domain-b}.md             # Domain-specific fragment
+│  └─ routing.md                # Task → fragment(s) mapping
 │
 ├─ agents/
 │  ├─ planner.md                # Role + output contract
@@ -64,6 +70,7 @@ prompts/
 - **Everything is Markdown** — version-controlled, diffable, human + AI readable
 - **One prompt = one responsibility** — no monolithic system prompts
 - **Composable** — workflows combine task prompts, not duplicate them
+- **Knowledge-routed** — domain expertise lives in `knowledge/`, injected selectively per task via a static routing map (not monolithically)
 - **Testable** — tests/ catches regressions after prompt edits
 - **Versioned** — never overwrite production prompts, version explicitly
 
@@ -102,6 +109,7 @@ If inputs are insufficient, respond with:
 ## Variable Rules
 
 Defined centrally in `_meta/variables.md`:
+
 - `{{TEXT}}`, `{{CONTEXT}}`, `{{LANGUAGE}}`, `{{FORMAT}}`, `{{SCHEMA}}`
 - No free-form variables — undefined variable = error
 - Variables are replaced programmatically
@@ -111,9 +119,10 @@ Defined centrally in `_meta/variables.md`:
 ## How Fabrik Maps to This (if adopted)
 
 | This structure | Current fabrik equivalent |
-|---|---|
+| --- | --- |
 | `system/` | `AGENTS.md`, `CLAUDE.md`, `.windsurfrules`, `system-prompt.txt` |
 | `tasks/` | Inline in `kilo_code_review.py`, `kilo_dispatch.py` |
+| `knowledge/` | `prompts/bible/` (brand-identity-creator) |
 | `agents/` | `~/.traycer/cli-agents/*.sh`, `.windsurf/workflows/*.md` |
 | `workflows/` | `.windsurf/workflows/*.md` |
 | `tests/` | No prompt testing exists yet |

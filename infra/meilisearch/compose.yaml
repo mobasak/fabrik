@@ -18,6 +18,7 @@ services:
       - "traefik.http.routers.meilisearch.entrypoints=websecure"
       - "traefik.http.routers.meilisearch.tls=true"
       - "traefik.http.routers.meilisearch.tls.certresolver=letsencrypt"
+      - "traefik.http.middlewares.gzip.compress=true"
       - "traefik.http.routers.meilisearch.middlewares=gzip@docker"
       - "traefik.http.services.meilisearch.loadbalancer.server.port=7700"
     deploy:

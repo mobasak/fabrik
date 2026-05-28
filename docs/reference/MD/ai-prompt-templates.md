@@ -148,6 +148,43 @@ Extract the following fields:
 
 **Use when:** long-running agents, persistent context (shift notes, session memory).
 
+### 7. Knowledge-Augmented Generation
+
+````md
+# Role
+You are {{ROLE}}.
+
+## Domain Reference
+{{KNOWLEDGE_FRAGMENT}}
+
+## Inputs
+- {{INPUT_1}}
+- {{INPUT_2}}
+
+## Constraints
+- {{CONSTRAINT_1}}
+- {{CONSTRAINT_2}}
+
+## Output Format
+```{{FORMAT}}
+{{EXPECTED_STRUCTURE}}
+```
+
+## Failure Mode
+If inputs conflict with domain reference, flag the conflict.
+````
+
+**Use when:** generation tasks that need curated domain expertise (not dynamically retrieved). The knowledge fragment is a **static, version-controlled reference** — shorter and more directive than a full knowledge base, injected selectively based on task type.
+
+**Differs from RAG (#3):** RAG retrieves context at query time from a large corpus. Knowledge-augmented generation injects a **pre-curated, task-specific fragment** from a structured knowledge directory. No retrieval infrastructure needed — just a routing map from task type to fragment(s).
+
+**Pattern:**
+
+- Split domain knowledge into focused fragments (~500-1500 tokens each)
+- One core fragment (universal principles) always injected
+- Domain fragments injected selectively via static routing map
+- Templates reference knowledge via a single variable (e.g., `{{KNOWLEDGE_FRAGMENT}}`)
+
 ---
 
 ## Part B: Markdown Linting Rules
