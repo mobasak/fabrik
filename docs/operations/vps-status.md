@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-29 10:52 UTC
+**Last Updated:** 2026-05-29 11:51 UTC
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
 **SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
@@ -12,10 +12,10 @@
 
 <!-- AUTO:system_overview -->
 | **Containers running** | 31 |
-| **Disk** | 108G total, 37G used, 71G free (35%) |
-| **Memory** | 11Gi total, 5.1Gi used, 468Mi free |
-| **Uptime** | up 10 weeks, 1 day, 12 hours, 33 minutes |
-| **Last snapshot** | 2026-05-29 10:52 UTC |
+| **Disk** | 108G total, 37G used, 71G free (34%) |
+| **Memory** | 11Gi total, 5.0Gi used, 584Mi free |
+| **Uptime** | up 10 weeks, 1 day, 13 hours, 32 minutes |
+| **Last snapshot** | 2026-05-29 11:51 UTC |
 <!-- /AUTO -->
 
 | **OS** | Ubuntu 24.04 LTS |
@@ -70,36 +70,36 @@
 <!-- AUTO:container_status -->
 | Container | Status | Memory limit |
 |---|---|---|
-| `alertmanager` | ✅ Up 40 hours (healthy) | — |
-| `apprise` | ✅ Up 40 hours (healthy) | 768m |
-| `authelia` | ✅ Up 40 hours (healthy) | 512m |
-| `backrest` | ✅ Up 40 hours | 512m |
-| `browserless` | ✅ Up 39 hours | 2g |
-| `cadvisor` | ✅ Up 40 hours (healthy) | — |
-| `gatus` | ✅ Up 40 hours | 256m |
-| `glitchtip-web` | ✅ Up 40 hours | 512m |
-| `glitchtip-worker` | ✅ Up 40 hours | 512m |
-| `gotenberg` | ✅ Up 39 hours | 512m |
-| `grafana` | ✅ Up 40 hours (healthy) | — |
-| `image-broker` | ✅ Up 39 hours (healthy) | 512m |
-| `loki` | ✅ Up 40 hours (healthy) | — |
-| `meilisearch` | ✅ Up 39 hours | 512m |
-| `n8n` | ✅ Up 40 hours | 2g |
-| `netdata` | ✅ Up 40 hours (healthy) | 1g |
-| `node-exporter` | ✅ Up 40 hours | — |
+| `alertmanager` | ✅ Up 41 hours (healthy) | — |
+| `apprise` | ✅ Up 41 hours (healthy) | 768m |
+| `authelia` | ✅ Up 41 hours (healthy) | 512m |
+| `backrest` | ✅ Up 41 hours | 512m |
+| `browserless` | ✅ Up 40 hours | 2g |
+| `cadvisor` | ✅ Up 41 hours (healthy) | — |
+| `gatus` | ✅ Up 41 hours | 256m |
+| `glitchtip-web` | ✅ Up 41 hours | 512m |
+| `glitchtip-worker` | ✅ Up 41 hours | 512m |
+| `gotenberg` | ✅ Up 40 hours | 512m |
+| `grafana` | ✅ Up 41 hours (healthy) | — |
+| `image-broker` | ✅ Up 40 hours (healthy) | 512m |
+| `loki` | ✅ Up 41 hours (healthy) | — |
+| `meilisearch` | ✅ Up 40 hours | 512m |
+| `n8n` | ✅ Up 41 hours | 2g |
+| `netdata` | ✅ Up 41 hours (healthy) | 1g |
+| `node-exporter` | ✅ Up 41 hours | — |
 | `ocoron-com-backup-1` | ✅ Up 9 days | 128m |
 | `ocoron-com-db-1` | ✅ Up 9 days (healthy) | 1g |
 | `ocoron-com-nginx-1` | ✅ Up 9 days | 256m |
 | `ocoron-com-redis-1` | ✅ Up 9 days (healthy) | 256m |
 | `ocoron-com-wordpress-1` | ✅ Up 9 days | 512m |
 | `postgres-exporter` | ✅ Up 9 days (healthy) | 64m |
-| `postgres-main` | ✅ Up 40 hours (healthy) | 2g |
+| `postgres-main` | ✅ Up 41 hours (healthy) | 2g |
 | `prometheus` | ✅ Up 9 days (healthy) | 1g |
-| `promtail` | ✅ Up 40 hours | — |
-| `pushgateway` | ✅ Up 40 hours (healthy) | 64m |
+| `promtail` | ✅ Up 41 hours | — |
+| `pushgateway` | ✅ Up 41 hours (healthy) | 64m |
 | `redis-exporter` | ✅ Up 9 days | 64m |
 | `redis-main` | ✅ Up 9 days (healthy) | 512m |
-| `site-provisioner` | ✅ Up 39 hours (healthy) | 512m |
+| `site-provisioner` | ✅ Up 40 hours (healthy) | 512m |
 | `traefik` | ✅ Up 9 days | 256m |
 <!-- /AUTO -->
 

@@ -1,6 +1,6 @@
 # VPS Complete Service Inventory
 
-**Last Updated:** 2026-05-29 10:52 UTC
+**Last Updated:** 2026-05-29 11:51 UTC
 **VPS:** vps1.ocoron.com (172.93.160.197) — Ubuntu 24.04 LTS, 6 vCores (x86_64), 11GB RAM, 108GB disk
 **Coolify:** v4.0.0-beta.459 — fully patched (CVEs fixed in beta.451+)
 **Total containers:** 31 running
@@ -231,36 +231,36 @@ After any config change: `ssh vps "sudo docker restart authelia-hks48k8sg8o4co4c
 <!-- AUTO:container_inventory -->
 | Container | Status | Memory limit |
 |---|---|---|
-| `alertmanager` | ✅ Up 40 hours (healthy) | — |
-| `apprise` | ✅ Up 40 hours (healthy) | 768m |
-| `authelia` | ✅ Up 40 hours (healthy) | 512m |
-| `backrest` | ✅ Up 40 hours | 512m |
-| `browserless` | ✅ Up 39 hours | 2g |
-| `cadvisor` | ✅ Up 40 hours (healthy) | — |
-| `gatus` | ✅ Up 40 hours | 256m |
-| `glitchtip-web` | ✅ Up 40 hours | 512m |
-| `glitchtip-worker` | ✅ Up 40 hours | 512m |
-| `gotenberg` | ✅ Up 39 hours | 512m |
-| `grafana` | ✅ Up 40 hours (healthy) | — |
-| `image-broker` | ✅ Up 39 hours (healthy) | 512m |
-| `loki` | ✅ Up 40 hours (healthy) | — |
-| `meilisearch` | ✅ Up 39 hours | 512m |
-| `n8n` | ✅ Up 40 hours | 2g |
-| `netdata` | ✅ Up 40 hours (healthy) | 1g |
-| `node-exporter` | ✅ Up 40 hours | — |
+| `alertmanager` | ✅ Up 41 hours (healthy) | — |
+| `apprise` | ✅ Up 41 hours (healthy) | 768m |
+| `authelia` | ✅ Up 41 hours (healthy) | 512m |
+| `backrest` | ✅ Up 41 hours | 512m |
+| `browserless` | ✅ Up 40 hours | 2g |
+| `cadvisor` | ✅ Up 41 hours (healthy) | — |
+| `gatus` | ✅ Up 41 hours | 256m |
+| `glitchtip-web` | ✅ Up 41 hours | 512m |
+| `glitchtip-worker` | ✅ Up 41 hours | 512m |
+| `gotenberg` | ✅ Up 40 hours | 512m |
+| `grafana` | ✅ Up 41 hours (healthy) | — |
+| `image-broker` | ✅ Up 40 hours (healthy) | 512m |
+| `loki` | ✅ Up 41 hours (healthy) | — |
+| `meilisearch` | ✅ Up 40 hours | 512m |
+| `n8n` | ✅ Up 41 hours | 2g |
+| `netdata` | ✅ Up 41 hours (healthy) | 1g |
+| `node-exporter` | ✅ Up 41 hours | — |
 | `ocoron-com-backup-1` | ✅ Up 9 days | 128m |
 | `ocoron-com-db-1` | ✅ Up 9 days (healthy) | 1g |
 | `ocoron-com-nginx-1` | ✅ Up 9 days | 256m |
 | `ocoron-com-redis-1` | ✅ Up 9 days (healthy) | 256m |
 | `ocoron-com-wordpress-1` | ✅ Up 9 days | 512m |
 | `postgres-exporter` | ✅ Up 9 days (healthy) | 64m |
-| `postgres-main` | ✅ Up 40 hours (healthy) | 2g |
+| `postgres-main` | ✅ Up 41 hours (healthy) | 2g |
 | `prometheus` | ✅ Up 9 days (healthy) | 1g |
-| `promtail` | ✅ Up 40 hours | — |
-| `pushgateway` | ✅ Up 40 hours (healthy) | 64m |
+| `promtail` | ✅ Up 41 hours | — |
+| `pushgateway` | ✅ Up 41 hours (healthy) | 64m |
 | `redis-exporter` | ✅ Up 9 days | 64m |
 | `redis-main` | ✅ Up 9 days (healthy) | 512m |
-| `site-provisioner` | ✅ Up 39 hours (healthy) | 512m |
+| `site-provisioner` | ✅ Up 40 hours (healthy) | 512m |
 | `traefik` | ✅ Up 9 days | 256m |
 <!-- /AUTO -->
 
