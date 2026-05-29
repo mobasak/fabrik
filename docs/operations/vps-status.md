@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-29 10:50 UTC
+**Last Updated:** 2026-05-29 10:52 UTC
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
 **SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
@@ -13,9 +13,9 @@
 <!-- AUTO:system_overview -->
 | **Containers running** | 31 |
 | **Disk** | 108G total, 37G used, 71G free (35%) |
-| **Memory** | 11Gi total, 5.0Gi used, 643Mi free |
-| **Uptime** | up 10 weeks, 1 day, 12 hours, 30 minutes |
-| **Last snapshot** | 2026-05-29 10:50 UTC |
+| **Memory** | 11Gi total, 5.1Gi used, 468Mi free |
+| **Uptime** | up 10 weeks, 1 day, 12 hours, 33 minutes |
+| **Last snapshot** | 2026-05-29 10:52 UTC |
 <!-- /AUTO -->
 
 | **OS** | Ubuntu 24.04 LTS |
