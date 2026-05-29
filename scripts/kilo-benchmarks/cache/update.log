@@ -6765,3 +6765,303 @@ Attempt 1/3: Windsurf CLI not ready, retrying in 30s...
 Attempt 2/3: Windsurf CLI not ready, retrying in 30s...
 Warning: Could not get extensions list after 3 attempts (windsurf CLI not available)
 === Pipeline complete — 2026-05-28 18:08:55 ===
+
+=== Fabrik Daily Pipeline — 2026-05-29 12:39:59 ===
+📊 Scanning /opt/* projects...
+   Found 34 projects
+   📁 Registry: /opt/fabrik/data/projects.yaml
+   📄 Updated docs/BUSINESS_MODEL.md
+   📄 Updated PORTS.md
+
+✅ Sync complete: 34 projects (33 with project.yaml)
+⚠️  CASCADE BACKUP MISSING
+   Ask Cascade: 'Export memories and global rules to CASCADE_MEMORIES_GLOBAL_RULES_BACKUP.md'
+Project                         | Status       | Missing Files                                       
+--------------------------------+--------------+-----------------------------------------------------
+ComplianceOps                   | ✅ healthy    | -                                                   
+Reference_Creator               | ✅ healthy    | -                                                   
+apidoccreator                   | ✅ healthy    | -                                                   
+brand-identiy-creator           | ✅ healthy    | -                                                   
+calendar-orchestration-engine   | ✅ healthy    | -                                                   
+candle                          | ✅ healthy    | -                                                   
+captcha                         | ✅ healthy    | -                                                   
+email-reader                    | ✅ healthy    | -                                                   
+emailgateway                    | ❌ missing    | .env.example, project.yaml, compose.yaml, Dockerfile
+exam-coach                      | ✅ healthy    | -                                                   
+fabrik-citation-verifier        | ✅ healthy    | -                                                   
+fabrik-claim-validator          | ✅ healthy    | -                                                   
+gmailaccountcreator             | ✅ healthy    | -                                                   
+image-broker                    | ✅ healthy    | -                                                   
+image-generation                | ✅ healthy    | -                                                   
+iterative_image_editor          | ✅ healthy    | -                                                   
+job-agent                       | ✅ healthy    | -                                                   
+llm_batch_processor             | ✅ healthy    | -                                                   
+longephedia-vault               | ✅ healthy    | -                                                   
+marketing-argumant-generator    | ✅ healthy    | -                                                   
+obsidian-agents                 | ⚠️  warnings | compose.yaml, Dockerfile                            
+proposal-creator                | ✅ healthy    | -                                                   
+proxy                           | ✅ healthy    | -                                                   
+seo                             | ✅ healthy    | -                                                   
+site-provisioner                | ✅ healthy    | -                                                   
+supplement-tracker-advisor      | ✅ healthy    | -                                                   
+test-saas-platform              | ✅ healthy    | -                                                   
+trade-intelligence              | ✅ healthy    | -                                                   
+trading-core                    | ✅ healthy    | -                                                   
+triggered-content-orchestration | ✅ healthy    | -                                                   
+ugc                             | ✅ healthy    | -                                                   
+web-scraper                     | ✅ healthy    | -                                                   
+wpf                             | ✅ healthy    | -                                                   
+youtube                         | ✅ healthy    | -                                                   
+34 projects scanned — 32 healthy, 1 warnings, 1 missing
+[kilo-db] Database exists at /opt/fabrik/scripts/kilo-benchmarks/kilo_agents.db
+[kilo-db] Use --force to recreate
+[kilo-db] Syncing agents from Kilo CLI...
+[kilo-db] Fetching models from Kilo CLI...
+[kilo-db]   Found 0 models
+[kilo-db]   No models found
+[kilo-db] Updating benchmark scores...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 269 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 134 Terminal Bench entries
+[benchlm] Fetching BenchLM coding leaderboard...
+[benchlm]   Fetched 50 entries from BenchLM
+[benchlm]   Built map with 85 entries
+[kilo-db]   Updated 113 Elo, 45 TBench, 27 BenchLM scores
+[kilo-db] Fetching models from Ollama API...
+[kilo-db]   Found 8 local models
+[kilo-db]   Inserted 0, updated 8 local models
+[kilo-db] Created snapshot for 2026-05-29 with 411 agents
+[kilo-db] Exported 60 agents to /opt/fabrik/docs/traycer/kilo_selected_agents.md
+[kilo-db] Updated /opt/fabrik/docs/reference/LOCAL_LLM_INFRASTRUCTURE.md with 8 models
+[kilo-bench] ==================================================
+[kilo-bench] Kilo Benchmark Updater - 2026-05-29T12:40:11.491280
+[kilo-bench] ==================================================
+[kilo-bench] Running benchmark scrapers...
+[scrape] Fetching Chatbot Arena...
+[scrape]   Found 269 Chatbot Arena entries
+[scrape] Fetching Terminal Bench 2.0...
+[scrape]   Found 134 Terminal Bench entries
+[windsurf-scrape] Fetching Windsurf models page...
+[windsurf-scrape]   Scraping provider: Recommended
+[windsurf-scrape]     Clicked Recommended tab
+[windsurf-scrape]     Found 12 models: Adaptive, SWE-1.6, Claude Opus 4.8 (Low Thinking)
+[windsurf-scrape]   Scraping provider: Windsurf
+[windsurf-scrape]     Clicked Windsurf tab
+[windsurf-scrape]     Found 5 models: Adaptive, SWE-1.6, SWE-1.6 Fast
+[windsurf-scrape]   Scraping provider: Anthropic
+[windsurf-scrape]     Clicked Anthropic tab
+[windsurf-scrape]     Found 32 models: Claude Opus 4.6, Claude Opus 4.6 (Thinking), Claude Opus 4.6 1M
+[windsurf-scrape]   Scraping provider: OpenAI
+[windsurf-scrape]     Clicked OpenAI tab
+[windsurf-scrape]     Found 74 models: GPT-5.4 (No Reasoning), GPT-5.4 (Low Reasoning), GPT-5.4 (Medium Reasoning)
+[windsurf-scrape]   Scraping provider: Google
+[windsurf-scrape]     Clicked Google tab
+[windsurf-scrape]     Found 7 models: Gemini 3.1 Pro Low, Gemini 3.1 Pro High, Gemini 3 Flash Minimal
+[windsurf-scrape]   Scraping provider: xAI
+[windsurf-scrape]     Clicked xAI tab
+[windsurf-scrape]     Found 1 models: xAI Grok Code Fast
+[windsurf-scrape]   Scraping provider: Open Source
+[windsurf-scrape]     Clicked Open Source tab
+[windsurf-scrape]     Found 4 models: Kimi K2.5, GLM-5, Minimax M2.5
+[windsurf-scrape]   Extracted 135 models from 7 providers
+[kilo-bench]   Arena: 269 entries
+[kilo-bench]   TBench: 134 entries
+[kilo-bench]   Windsurf: 135 models
+[kilo-bench] Updating agents JSON...
+[kilo-bench]   No changes detected
+[kilo-bench] Updating master markdown...
+[kilo-bench]   Master MD updated
+[kilo-bench] Kilo agents updated!
+[windsurf-scrape] Updated /opt/fabrik/docs/reference/windsurf/cascade-models.md
+[kilo-bench] Windsurf models updated!
+[kilo-bench] Update complete!
+[aa-scrape] GET https://artificialanalysis.ai/leaderboards/models
+[aa-scrape]   cached → aa_raw.html (3803323 bytes)
+[aa-scrape]   parsed 133 model rows with throughput data
+[aa-scrape]   unique (provider, model) keys: 88
+[aa-scrape]   active agents in DB: 409
+[aa-scrape]   manual overrides loaded: 14
+[aa-scrape]   matched 68 / 409 agents (16%)
+[aa-scrape]   cached → aa_parsed.json (68 matches)
+[aa-scrape] DB updated: 68 rows, 0 skipped
+[role-mapper] Starting role mapper (2026-05-29T12:40:39.303160)
+[role-mapper] Running pre-filter...
+Wrote shortlists to /opt/fabrik/scripts/kilo-benchmarks/shortlists.json
+[role-mapper] Pre-filter: 53 candidates across 6 roles
+[role-mapper]   coding_simple: 3 candidates
+[role-mapper]   coding_complex: 6 candidates
+[role-mapper]   reviewing: 12 candidates
+[role-mapper]   fixing: 12 candidates
+[role-mapper]   documentation: 10 candidates
+[role-mapper]   testing: 10 candidates
+[role-mapper] Running deterministic Pareto selection...
+[selector] coding_simple qualified (weighted_coding≥75.0, speed≥40.0tps): qwen/qwen3.6-plus(75.80/53tps@$2.27), moonshotai/kimi-k2.5(81.50/46tps@$3.60), z-ai/glm-5(76.50/68tps@$4.20)
+[selector] coding_complex qualified (weighted_coding≥85.0, speed≥40.0tps, tbench_accuracy≥60.0): google/gemini-3.1-pro-preview(93.80/133tps@$14.00), openai/gpt-5.3-codex(87.70/74tps@$15.75), openai/gpt-5.4(87.80/76tps@$17.50), anthropic/claude-opus-4.6(85.90/72tps@$30.00)
+[selector] reviewing qualified (arena_elo≥1480.0, speed≥30.0tps): google/gemini-3.1-pro-preview(1531.00/133tps@$14.00), google/gemini-3-pro-preview(1501.00/130tps@$14.00), anthropic/claude-sonnet-4.6(1500.00/43tps@$18.00), anthropic/claude-opus-4.6(1535.00/72tps@$30.00), anthropic/claude-opus-4.5(1496.00/72tps@$30.00)
+[selector] fixing qualified (mean_normalized_tbench_elo≥0.7, speed≥40.0tps, tbench_accuracy≥60.0): google/gemini-3-flash-preview(0.78/169tps@$3.50), google/gemini-3.1-pro-preview(0.88/133tps@$14.00), google/gemini-3-pro-preview(0.82/130tps@$14.00), openai/gpt-5.2(0.78/74tps@$15.75), openai/gpt-5.4(0.87/76tps@$17.50)
+[selector] documentation qualified (arena_elo≥1430.0, speed≥50.0tps): xiaomi/mimo-v2.5-pro(1485.00/50tps@$1.30), qwen/qwen3.6-plus(1482.00/53tps@$2.27), z-ai/glm-4.7(1460.00/70tps@$2.52), qwen/qwen3.5-397b-a17b(1463.00/52tps@$2.73), google/gemini-3-flash-preview(1470.00/169tps@$3.50)
+[selector] testing qualified (tbench_accuracy≥75.0, speed≥40.0tps): google/gemini-3.1-pro-preview(80.20/133tps@$14.00), openai/gpt-5.3-codex(78.40/74tps@$15.75), openai/gpt-5.4(81.80/76tps@$17.50)
+[role-mapper] Selector returned 25 assignments
+[role-mapper] Role floors: {'coding_simple': 1461, 'coding_complex': 1468, 'reviewing': 1464, 'fixing': 1465, 'documentation': 1460, 'testing': 1468}
+[role-mapper] Skipped slots: [{'role': 'coding_simple', 'priority': 4, 'reason': 'Only 3 of 3 shortlist candidates met quality_floor=75.0 AND speed_floor=40.0tps. Top rejections: no rejections recorded'}, {'role': 'coding_simple', 'priority': 5, 'reason': 'Only 3 of 3 shortlist candidates met quality_floor=75.0 AND speed_floor=40.0tps. Top rejections: no rejections recorded'}, {'role': 'coding_complex', 'priority': 5, 'reason': 'Only 4 of 6 shortlist candidates met quality_floor=85.0 AND speed_floor=40.0tps. Top rejections: qwen/qwen3.7-max (missing tbench_accuracy (secondary floor)); stealth/claude-opus-4.6 (missing output_tokens_per_sec)'}, {'role': 'testing', 'priority': 4, 'reason': 'Only 3 of 10 shortlist candidates met quality_floor=75.0 AND speed_floor=40.0tps. Top rejections: qwen/qwen3.7-max (missing tbench_accuracy); anthropic/claude-opus-4.7 (total_cost $30.00 > cap $20.0); stealth/claude-opus-4.7 (total_cost $24.00 > cap $20.0)'}, {'role': 'testing', 'priority': 5, 'reason': 'Only 3 of 10 shortlist candidates met quality_floor=75.0 AND speed_floor=40.0tps. Top rejections: qwen/qwen3.7-max (missing tbench_accuracy); anthropic/claude-opus-4.7 (total_cost $30.00 > cap $20.0); stealth/claude-opus-4.7 (total_cost $24.00 > cap $20.0)'}]
+[role-mapper] Running post-filter (family diversity)...
+[role-mapper]   WARNING: Iter 1: P5 → openai/gpt-5.4 (openai) [dominance]
+[role-mapper]   WARNING: Constraints satisfied after 1 swap(s)
+[role-mapper]   WARNING: Final: both constraints satisfied
+[role-mapper]   WARNING: Monotonicity re-sort: reviewing P5 → P3 (openai/gpt-5.4 @ $17.50)
+[role-mapper]   WARNING: Monotonicity re-sort: reviewing P3 → P4 (anthropic/claude-sonnet-4.6 @ $18.00)
+[role-mapper]   WARNING: Monotonicity re-sort: reviewing P4 → P5 (anthropic/claude-opus-4.6 @ $30.00)
+[role-mapper] Archived 25 previous assignments to history
+[role-mapper] Applied 25 assignments, skipped 0, archived 25 previous rows
+[role-mapper] Refreshed scripts/kilo_47_agents_final.json from new assignments
+
+================================================================================
+AGENT ROLE ASSIGNMENTS
+================================================================================
+
+[CODING_COMPLEX]
+  #1 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → weighted_coding=93.80, speed=133tps, cost=$14.00/M
+  #2 OpenAI: GPT-5.3-Codex [vision]
+      elo=n/a | tbench=78.4% | $1.75/$14.0 per 1M | perf/$=n/a
+      → weighted_coding=87.70, speed=74tps, cost=$15.75/M
+  #3 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → weighted_coding=87.80, speed=76tps, cost=$17.50/M
+  #4 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=76.4% | $5.0/$25.0 per 1M | perf/$=77
+      → weighted_coding=85.90, speed=72tps, cost=$30.00/M
+
+[CODING_SIMPLE]
+  #1 Qwen: Qwen3.6 Plus [vision]
+      elo=1482 | tbench=n/a | $0.325/$1.95 per 1M | perf/$=960
+      → weighted_coding=75.80, speed=53tps, cost=$2.27/M
+  #2 MoonshotAI: Kimi K2.5 [vision]
+      elo=n/a | tbench=43.2% | $0.6/$3.0 per 1M | perf/$=n/a
+      → weighted_coding=81.50, speed=46tps, cost=$3.60/M
+  #3 Z.ai: GLM 5
+      elo=1461 | tbench=52.4% | $1.0/$3.1999999999999997 per 1M | perf/$=551
+      → weighted_coding=76.50, speed=68tps, cost=$4.20/M
+
+[DOCUMENTATION]
+  #1 Xiaomi: MiMo-V2.5-Pro
+      elo=1485 | tbench=n/a | $0.435/$0.87 per 1M | perf/$=1951
+      → arena_elo=1485.00, speed=50tps, cost=$1.30/M
+  #2 Qwen: Qwen3.6 Plus [vision]
+      elo=1482 | tbench=n/a | $0.325/$1.95 per 1M | perf/$=960
+      → arena_elo=1482.00, speed=53tps, cost=$2.27/M
+  #3 Z.ai: GLM 4.7
+      elo=1460 | tbench=33.4% | $0.54/$1.9800000000000002 per 1M | perf/$=901
+      → arena_elo=1460.00, speed=70tps, cost=$2.52/M
+  #4 Qwen: Qwen3.5 397B A17B [vision]
+      elo=1463 | tbench=n/a | $0.39/$2.34 per 1M | perf/$=790
+      → arena_elo=1463.00, speed=52tps, cost=$2.73/M
+  #5 Google: Gemini 3 Flash Preview [vision]
+      elo=1470 | tbench=64.3% | $0.5/$3.0 per 1M | perf/$=619
+      → arena_elo=1470.00, speed=169tps, cost=$3.50/M
+
+[FIXING]
+  #1 Google: Gemini 3 Flash Preview [vision]
+      elo=1470 | tbench=64.3% | $0.5/$3.0 per 1M | perf/$=619
+      → mean_normalized_tbench_elo=0.78, speed=169tps, cost=$3.50/M
+  #2 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → mean_normalized_tbench_elo=0.88, speed=133tps, cost=$14.00/M
+  #3 Google: Gemini 3 Pro Preview [vision]
+      elo=1501 | tbench=69.4% | $2.0/$12.0 per 1M | perf/$=158
+      → mean_normalized_tbench_elo=0.82, speed=130tps, cost=$14.00/M
+  #4 OpenAI: GPT-5.2 [vision]
+      elo=1465 | tbench=64.9% | $1.75/$14.0 per 1M | perf/$=134
+      → mean_normalized_tbench_elo=0.78, speed=74tps, cost=$15.75/M
+  #5 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → mean_normalized_tbench_elo=0.87, speed=76tps, cost=$17.50/M
+
+[REVIEWING]
+  #1 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → arena_elo=1531.00, speed=133tps, cost=$14.00/M
+  #2 Google: Gemini 3 Pro Preview [vision]
+      elo=1501 | tbench=69.4% | $2.0/$12.0 per 1M | perf/$=158
+      → arena_elo=1501.00, speed=130tps, cost=$14.00/M
+  #3 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → Swapped P5 → openai for dominance (original: arena_elo=1496.00, speed=72tps, cost=$30.00/M)
+  #4 Anthropic: Claude Sonnet 4.6 [vision]
+      elo=1500 | tbench=53.4% | $3.0/$15.0 per 1M | perf/$=125
+      → arena_elo=1500.00, speed=43tps, cost=$18.00/M
+  #5 Anthropic: Claude Opus 4.6 [vision]
+      elo=1535 | tbench=76.4% | $5.0/$25.0 per 1M | perf/$=77
+      → arena_elo=1535.00, speed=72tps, cost=$30.00/M
+
+[TESTING]
+  #1 Google: Gemini 3.1 Pro Preview [vision]
+      elo=1531 | tbench=80.2% | $2.0/$12.0 per 1M | perf/$=161
+      → tbench_accuracy=80.20, speed=133tps, cost=$14.00/M
+  #2 OpenAI: GPT-5.3-Codex [vision]
+      elo=n/a | tbench=78.4% | $1.75/$14.0 per 1M | perf/$=n/a
+      → tbench_accuracy=78.40, speed=74tps, cost=$15.75/M
+  #3 OpenAI: GPT-5.4 [vision]
+      elo=1468 | tbench=81.8% | $2.5/$15.0 per 1M | perf/$=124
+      → tbench_accuracy=81.80, speed=76tps, cost=$17.50/M
+
+================================================================================
+Assigned by: cheapest-above-floors
+[role-mapper] Done (2026-05-29T12:40:39.350218)
+[traycer-export] Wrote 25 assignments across 6 roles
+[traycer-export]   → /opt/fabrik/scripts/kilo_47_agents_final.json
+[traycer-export]     coding_complex: 4
+[traycer-export]     coding_simple: 3
+[traycer-export]     documentation: 5
+[traycer-export]     fixing: 5
+[traycer-export]     reviewing: 5
+[traycer-export]     testing: 3
+🔄 Reading agents from kilo_agents.db...
+   Found 16 coding/fixing role assignments
+   After deduplication: 14 unique agents
+   💾 Backed up to /home/ozgur/.traycer/cli-agents.backup.20260529-124039
+   🗑 Rotated old backup: cli-agents.backup.20260527-115929
+   ✓ coding_complex-2-gpt53codex-max-o1400-ppd---.sh
+   ✓ coding_complex-4-opus46-high-o2500-ppd076.sh
+   ✓ coding_complex&fixing-1-gemini31pro-max-o1200-ppd161.sh
+   ✓ coding_complex&fixing-3-gpt54-high-o1500-ppd123.sh
+   ✓ coding_simple-1-qwen36plus-max-o0195-ppd960.sh
+   ✓ coding_simple-2-kimik25-max-o0300-ppd---.sh
+   ✓ coding_simple-3-glm5-high-o0320-ppd551.sh
+   ✓ fixing-1-gemini3flash-max-o0300-ppd618.sh
+   ✓ fixing-3-gemini3pro-high-o1200-ppd158.sh
+   ✓ fixing-4-gpt52-high-o1400-ppd133.sh
+   ✓ coding-1-fabrik-coder-qwen32b-local-o0000-ppd999.sh
+   ✓ documentation-1-fabrik-docs-llama8b-local-o0000-ppd999.sh
+   ✓ fixing-1-fabrik-fixer-ds16b-local-o0000-ppd999.sh
+   ✓ reviewing-1-fabrik-reviewer-llama70b-local-o0000-ppd999.sh
+   ✓ coding-auto.sh (static helper from /opt/fabrik/scripts/)
+
+✅ Generated 14 agent scripts
+   📁 Output: /home/ozgur/.traycer/cli-agents
+Updated roster in /opt/fabrik/docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md
+Generated /opt/fabrik/docs/reference/kilo/KILO_MODEL_CAPABILITIES.md — 411 models, 66 providers
+[embedding_models_db] fetching https://openrouter.ai/api/v1/models?output_modalities=embeddings
+[embedding_models_db] inserted=0 updated=26 total=26
+[embedding_models_db] raw dump → /opt/fabrik/scripts/kilo-benchmarks/embedding_models_dump.json
+[embedding_pre_filter] multilingual_primary: 2 candidates
+[embedding_pre_filter] frontier_reference: 4 candidates
+[embedding_pre_filter] code_embedding: 1 candidates
+[embedding_pre_filter] wrote → /opt/fabrik/scripts/kilo-benchmarks/embedding_shortlists.json
+[embedding_role_mapper] multilingual_primary: 2 winners → ['qwen/qwen3-embedding-8b', 'qwen/qwen3-embedding-4b']
+[embedding_role_mapper] frontier_reference: 2 winners → ['openai/text-embedding-3-large', 'google/gemini-embedding-001']
+[embedding_role_mapper] code_embedding: 1 winners → ['mistralai/codestral-embed-2505']
+[embedding_role_mapper] wrote /opt/fabrik/scripts/kilo-benchmarks/embedding_assignments.json
+[embedding_role_mapper] wrote /opt/fabrik/scripts/kilo_embeddings_final.json
+Traceback (most recent call last):
+  File "/opt/fabrik/scripts/kilo-benchmarks/embedding_export_markdown.py", line 313, in <module>
+    run()
+  File "/opt/fabrik/scripts/kilo-benchmarks/embedding_export_markdown.py", line 269, in run
+    _replace_between_markers(CAPABILITIES_PATH, CATALOG_START, CATALOG_END, catalog_body)
+  File "/opt/fabrik/scripts/kilo-benchmarks/embedding_export_markdown.py", line 221, in _replace_between_markers
+    raise RuntimeError(f"markers not found in {file_path}: {start_marker!r} / {end_marker!r}")
+RuntimeError: markers not found in /opt/fabrik/docs/reference/kilo/KILO_MODEL_CAPABILITIES.md: '<!-- EMBEDDING_CATALOG:START' / '<!-- EMBEDDING_CATALOG:END -->'
+Updated docs/reference/windsurf/actively-used-windsurf-extensions.md (11 extensions)
+=== Pipeline complete — 2026-05-29 12:39:59 ===
