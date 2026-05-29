@@ -13,7 +13,7 @@
 | `fabrik apply <spec>` (new) | Created | Created | Created by registrar | Written fresh | Created |
 | `fabrik apply <spec>` (existing) | Recreated if config changed | Untouched | Untouched | Read-merged | Updated |
 | `fabrik redeploy --refresh-infra` | Untouched (unless registrar injects env) | Untouched | Untouched | May be updated by registrars | Untouched |
-| `fabrik destroy <spec>` | Removed | **Removed** (`-v`) | **NOT dropped** (manual only) | Removed with directory | **Removed** (`rm -rf`) |
+| `fabrik destroy <spec>` | Removed | **Preserved** (plain `down`; `-v` only with `--drop-data`) | **NOT dropped** (manual only) | Removed with directory | **Removed** (`rm -rf`) |
 | `fabrik destroy --drop-data` | Removed | **Removed** | **Dropped** | Removed | **Removed** |
 | Rollback (automatic) | Removed | **Removed** (`-v`) | **NOT dropped** (logged) | Removed | **Removed** |
 
@@ -26,20 +26,23 @@
 ### Git-sourced apps
 
 ```
-Step 1: ssh: cd /opt/<app> && sudo git pull           ← pulls from GitHub remote
-Step 2: ssh: cd /opt/<app> && sudo docker compose build  ← rebuilds image from new code
-Step 3: ssh: cd /opt/<app> && sudo docker compose up -d  ← restarts container
+Step 0: ssh: cd /opt/<app> && sudo git rev-parse HEAD     ← captures current commit as rollback point
+Step 1: ssh: cd /opt/<app> && sudo git pull               ← pulls from GitHub remote
+Step 2: ssh: cd /opt/<app> && sudo docker compose build   ← rebuilds image from new code
+Step 3: ssh: cd /opt/<app> && sudo docker compose up -d --wait  ← restarts, blocks until healthy
 ```
 
-**With `--force`:** Step 2 adds `--no-cache` (full rebuild, ignoring Docker layer cache). For non-git sources, `--force` adds `--force-recreate` to `docker compose up -d` instead.
+**Health-check rollback (git sources):** if Step 3 fails (`up -d --wait` exits non-zero because the container never becomes healthy), the deployer automatically reverts: `git reset --hard <captured-sha>` → rebuild → `up -d --wait` to restore the last-known-good container, then raises `DeployError`. New code is *not* left live. For non-git sources there is no recoverable image, so the deployer fails loudly without an automatic revert.
 
-### What `docker compose up -d` actually does
+**With `--force`:** Step 2 adds `--no-cache` (full rebuild, ignoring Docker layer cache). For non-git sources, `--force` adds `--force-recreate` to `docker compose up -d --wait` instead.
+
+### What `docker compose up -d --wait` actually does
 
 Docker Compose compares the running container's config against the compose.yaml:
 
 - **Config changed** (new image, env change, label change) → stops old container, removes it, creates new one, starts it. This is a **stop-then-start** sequence, not rolling. There are a few seconds where the container is down.
 - **Config unchanged** → does nothing. Container keeps running.
-- **Volumes are NEVER touched** by `up -d`. Named volumes persist across container recreates.
+- **Volumes are NEVER touched** by `up -d --wait`. Named volumes persist across container recreates.
 - **Network stays** — the container rejoins the `coolify` network automatically.
 
 ### Downtime window
@@ -47,7 +50,7 @@ Docker Compose compares the running container's config against the compose.yaml:
 From the moment Docker stops the old container to when the new one passes its healthcheck and Traefik routes traffic to it:
 
 - **Typical:** 3-15 seconds (depending on image build time and app startup)
-- **Worst case:** up to `start_period` (usually 20s) if the app is slow to boot
+- **Worst case:** up to `start_period` (usually 30-40s, per project type) if the app is slow to boot
 - **During this window:** Traefik returns 502 for requests to this service
 - **In-flight requests:** terminated when the old container stops (TCP RST)
 
@@ -76,7 +79,7 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
    - Layers `ctx.secrets` on top (highest priority)
    - Writes merged result back
    - **Registrar-injected vars (SENTRY_DSN, GLITCHTIP_DSN, REDIS_URL) and spec-sourced vars (DATABASE_URL) are preserved** because they exist in the old .env and aren't overwritten unless the spec explicitly declares them
-3. **`sudo docker compose up -d`** — for git source, `sudo docker compose build` runs first (same as redeploy), then `up -d` recreates only if config changed
+3. **`sudo docker compose up -d --wait`** — for git source, `sudo docker compose build` runs first (same as redeploy), then `up -d --wait` recreates only if config changed and blocks until healthy
 4. **Infrastructure registrars** run again — they are idempotent (CREATE IF NOT EXISTS, add-if-missing patterns)
 5. **Resource tracking** — no new `compose` resource tracked (only new deploys get tracked for rollback)
 
@@ -86,7 +89,7 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
 
 1. Directory created on VPS: for template/docker source, `mkdir -p /opt/<name>/`. For git source, `git clone` creates the directory. For local source, directory must already exist at `source.path`.
 2. Files written to VPS: for template source, compose.yaml + .env (+ Dockerfile if rendered) via SCP. For docker source, a generated compose.yaml + .env via SCP. For git source, `git clone` pulls compose.yaml + Dockerfile from the repo, deployer only writes .env via SCP. For local source, compose.yaml already exists at `source.path`, deployer only writes .env
-3. For git source: `sudo docker compose build` (builds image from Dockerfile in repo), then `sudo docker compose up -d`. For other sources: `sudo docker compose up -d` directly (image already specified in compose.yaml or pre-built)
+3. For git source: `sudo docker compose build` (builds image from Dockerfile in repo), then `sudo docker compose up -d --wait`. For other sources: `sudo docker compose up -d --wait` directly (image already specified in compose.yaml or pre-built)
 4. Resource tracked: `ctx.add_resource("compose", name, name=name)` — enables rollback if later phases fail
 5. Infrastructure registrars run (create DB, Gatus endpoint, GlitchTip project, etc.)
 6. Health check verification
@@ -111,7 +114,7 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
    - Postgres database skipped (preserved; dropped only with `--drop-data`)
    - Redis index slot released (data NOT flushed; flushed with `--drop-data`)
 2. **App container + volumes:**
-   - `sudo docker compose down -v` — stops container, removes it AND its volumes
+   - `sudo docker compose down` — stops container and removes it. Adds `-v` (also removes named volumes) **only with `--drop-data`**; a plain destroy preserves app-local volumes.
    - `sudo rm -rf /opt/<name>` — removes all files (compose.yaml, .env, source code, Dockerfile)
    - `sudo docker image prune -f` — removes dangling images
 3. **DNS record** removed (unless `--keep-dns`)
@@ -122,9 +125,11 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
 - **Redis data** — index slot is released (freed for next service), but data is NOT flushed. Use `--drop-data` to FLUSHDB.
 - **MeiliSearch index** — skipped with message "index preserved (pass --drop-data to delete)". Use `--drop-data` to delete the index.
 
-### The `-v` flag in `docker compose down -v`
+### The `-v` flag in `docker compose down`
 
-This removes **named volumes** defined in the compose.yaml. For most Fabrik services this is safe — app containers are stateless (data lives in postgres-main, redis-main, or Backrest-managed volumes). But if a service has a local volume with important data, that data is gone after `down -v`.
+The destroyer runs `docker compose down -v` **only when `--drop-data` is passed**; a plain `fabrik destroy` runs `docker compose down` (no `-v`), preserving app-local named volumes. This mirrors the postgres/redis/meilisearch contract — nothing data-bearing is removed without `--drop-data`. (Automatic rollback is the exception: `SSHDeployer.delete()` always uses `down -v`, since a half-created app being rolled back has no data worth keeping.)
+
+For most Fabrik services this distinction rarely matters — app containers are stateless (data lives in postgres-main, redis-main, or Backrest-managed volumes). But if a service declares a local volume with important data, `--drop-data` will delete it.
 
 ---
 
@@ -199,6 +204,8 @@ If both the spec and the existing .env define `FOO=bar`, the spec's value wins. 
 
 **What happened:** New code has a bug that crashes at startup. Docker restarts it (`restart: unless-stopped`), it crashes again.
 
+**Note (git sources):** if the container never passes its healthcheck during the redeploy itself, `up -d --wait` fails and the deployer auto-reverts to the previous commit (see "Health-check rollback" above) — so a *fresh* git `fabrik redeploy` won't leave you in this loop; it restores the last-good build and reports the failure. This crash-loop scenario applies when a bug only surfaces *after* a deploy that did pass its healthcheck (e.g. crashes on first real request), or for non-git sources which have no automatic revert.
+
 **Recovery:**
 ```bash
 # Option A: revert the commit (run locally in WSL, not on VPS)
@@ -207,7 +214,7 @@ git revert HEAD && git push
 fabrik redeploy <service>
 
 # Option B: manual rollback on VPS (faster, no git history change)
-ssh vps "cd /opt/<service> && sudo git checkout HEAD~1 && sudo docker compose build && sudo docker compose up -d"
+ssh vps "cd /opt/<service> && sudo git checkout HEAD~1 && sudo docker compose build && sudo docker compose up -d --wait"
 # WARNING: This puts the VPS repo in detached HEAD state. Next `fabrik redeploy`
 # (which runs `git pull`) will fail until you fix it:
 #   ssh vps "cd /opt/<service> && sudo git checkout main"
@@ -268,7 +275,7 @@ The Docker network is still named `coolify` (historical artifact from the Coolif
 | `fabrik apply` (existing) | **Yes** | .env read-merged, container recreated only if changed. DB untouched. |
 | `fabrik apply` (new) | **Yes** | Creates new resources only. Nothing existing is modified. |
 | `fabrik redeploy --refresh-infra` | **Yes** | Registrars are idempotent. May inject new env vars. |
-| `fabrik destroy` | **Partially** | App + volumes removed. DB deliberately preserved unless `--drop-data`. |
+| `fabrik destroy` | **Partially** | App removed; app-local volumes preserved (removed only with `--drop-data`). DB deliberately preserved unless `--drop-data`. |
 | `fabrik destroy --drop-data` | **No** | Drops everything including the database. |
 | VPS reboot | **Yes** | `restart: unless-stopped` auto-recovers all containers. |
 | Failed deploy (auto-rollback) | **Yes** | Cleans up created resources. DB never auto-dropped. |
