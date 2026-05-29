@@ -39,7 +39,7 @@
 │   2. SecretsManager         (os.environ incl -s flags → .env → generate) │
 │   3. DNSClient              (drivers/dns.py → site-provisioner)          │
 │   4. SSHDeployer            (deployer_ssh.py → SCP compose + .env        │
-│                              then ssh: docker compose up -d)             │
+│                              then ssh: docker compose up -d --wait)       │
 │   5. InfrastructureProvisioner (shape-driven, 9 registrars:             │
 │         postgres · redis · gatus · backrest · glitchtip+DSN ·            │
 │         grafana · authelia+bypass · meilisearch · prometheus)            │
@@ -57,7 +57,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Deploy method:** SSH + Docker Compose (direct to VPS — no intermediary platform). The deployer renders compose files locally, copies them to the VPS via SCP (using a scp-to-tmp-then-sudo-mv pattern for root-owned paths), and runs `docker compose up -d` over SSH. All state lives on the VPS filesystem at `/opt/<name>/`.
+**Deploy method:** SSH + Docker Compose (direct to VPS — no intermediary platform). The deployer renders compose files locally, copies them to the VPS via SCP (using a scp-to-tmp-then-sudo-mv pattern for root-owned paths), and runs `docker compose up -d --wait` over SSH. All state lives on the VPS filesystem at `/opt/<name>/`.
 
 ---
 
@@ -71,15 +71,15 @@ Click-based CLI. The commands below are the only public entry points for deploym
 
 | Command | Line | Function | Delegates to |
 |---|---|---|---|
-| `fabrik scaffold <name> --type <t>` | 1523 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
+| `fabrik scaffold <name> --type <t>` | 1561 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
 | `fabrik apply <spec.yaml>` | 382 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep).** Flags: `--dry-run`, `--skip-dns`, `--skip-deploy`, `-s KEY=VALUE`, `--legacy` (opt out, render-only path), `--keep-on-failure` (proof-run only). | `orchestrator/DeploymentOrchestrator.deploy()` (default) or `deploy.py::deploy_to_coolify()` (`--legacy`, dead code) |
-| `fabrik redeploy <app>` | 1145 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
-| `fabrik destroy <spec>` | 859 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
-| `fabrik vps-sync [--dry-run]` | 1100 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
-| `fabrik validate-deploy <project>` | 1677 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
-| `fabrik domain provision <domain>` | 2115 | Register domain + DNS + CDN via site-provisioner. | `drivers/dns.py::DNSClient` |
-| `fabrik domain ready <domain>` | 2202 | Poll DNS + SSL readiness before deploying. | `drivers/dns.py::DNSClient` |
-| `fabrik domain buy <domain>` | 2328 | Register a new domain via Namecheap. | `drivers/dns.py::DNSClient::register_domain()` |
+| `fabrik redeploy <app>` | 1182 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
+| `fabrik destroy <spec>` | 896 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
+| `fabrik vps-sync [--dry-run]` | 1137 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
+| `fabrik validate-deploy <project>` | 1715 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
+| `fabrik domain provision <domain>` | 2153 | Register domain + DNS + CDN via site-provisioner. | `drivers/dns.py::DNSClient` |
+| `fabrik domain ready <domain>` | 2240 | Poll DNS + SSL readiness before deploying. | `drivers/dns.py::DNSClient` |
+| `fabrik domain buy <domain>` | 2366 | Register a new domain via Namecheap. | `drivers/dns.py::DNSClient::register_domain()` |
 | `fabrik wp plan/apply/verify/flush` | — | WordPress sub-pipeline. **Moved to `/opt/wpf/`** standalone project (no longer in fabrik CLI). | `wpf/` (separate repo) |
 
 ### 2.2 Orchestrator — `src/fabrik/orchestrator/`
@@ -91,12 +91,12 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 | `orchestrator/__init__.py` | `DeploymentOrchestrator.deploy(spec_path, dry_run)` | Top-level runner (line 79). Drives the state machine; calls each stage in order; wires in `RollbackManager` on error. Constructor takes optional `deployer: SSHDeployer` (defaults to `SSHDeployer()` at line 72) and `infrastructure_provisioner: InfrastructureProvisioner` (defaults with `deployer=self.deployer` at line 75-77). |
 | `orchestrator/context.py` | `DeploymentContext`, `ResourceRecord` | Shared state across stages (spec, spec_hash, `coolify_uuid` — now stores app name despite the field name, `dns_records`, list of created resources). Every resource that can be rolled back calls `ctx.add_resource(...)`. |
 | `orchestrator/states.py` | `DeploymentState`, `can_transition()` | State machine enum: `PENDING → VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE` / `FAILED → ROLLING_BACK → ROLLED_BACK`. Illegal transitions raise `InvalidStateTransitionError`. |
-| `orchestrator/validator.py` | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` | Pydantic spec validation + SSRF check (no private IPs, no reserved ranges) + idempotency hash. |
+| `orchestrator/validator.py` | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` | Spec validation (required-field + type checks on the parsed dict) + SSRF check (no private IPs, no reserved ranges) + idempotency hash. |
 | `orchestrator/secrets.py` | `SecretsManager`, `generate_secret()`, `load_dotenv()` | Load secrets precedence: `os.environ` (checked first — includes `-s KEY=VALUE` flags injected by CLI) → project `.env` → auto-generate. CSPRNG for generated secrets (`secrets.choice()`, 32 chars). |
-| `orchestrator/deployer_ssh.py` | `SSHDeployer.deploy(ctx)`, `SSHDeployer.find_existing(name)` | SSH+Docker Compose deployer. Dispatches by source type (TEMPLATE, GIT, DOCKER, LOCAL). Writes compose.yaml + .env to VPS via SCP, runs `docker compose up -d`. Returns app name (stored in `ctx.coolify_uuid` for backward compat). Also validates compose against rule-pack constraints before deploy. |
+| `orchestrator/deployer_ssh.py` | `SSHDeployer.deploy(ctx)`, `SSHDeployer.find_existing(name)` | SSH+Docker Compose deployer. Dispatches by source type (TEMPLATE, GIT, DOCKER, LOCAL). Writes compose.yaml + .env to VPS via SCP, runs `docker compose up -d --wait`. Returns app name (stored in `ctx.coolify_uuid` for backward compat). Also validates compose against rule-pack constraints before deploy. |
 | `orchestrator/infrastructure.py` | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` | Shape-driven dispatcher. Invoked between Deploy and Verify. Decides per-registrar applicability (`postgres`, `redis`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`, `prometheus`), then calls each driver's `create_*`/`add_*` entry in contract order. Each registrar failure is logged non-fatal **except glitchtip's `verify_dsn_injection` mismatch**, which rolls back the GlitchTip project and re-raises. |
 | `orchestrator/verifier.py` | `DeploymentVerifier.verify(ctx)` | Post-conditions: HTTP 200 on `/health`; DNS resolves to VPS IP; SSL cert valid; `SENTRY_DSN` in container env (when GlitchTip provisioned) — verified via `docker inspect`, never `docker exec` (Lesson 31). |
-| `orchestrator/rollback.py` | `RollbackManager.rollback(ctx)` | Reverse-order cleanup of every `ctx.resources[*]`. Resource type `compose` → `SSHDeployer.delete()`. Destructive actions (DB drops, MeiliSearch index deletes) are **logged for operator**, not auto-executed. Config mutations and ephemeral resources are auto-cleaned. |
+| `orchestrator/rollback.py` | `RollbackManager.rollback(ctx)` | Reverse-order cleanup of every `ctx.created_resources[*]`. Resource type `compose` → `SSHDeployer.delete()`. Destructive actions (DB drops, MeiliSearch index deletes) are **logged for operator**, not auto-executed. Config mutations and ephemeral resources are auto-cleaned. |
 | `orchestrator/destroyer.py` | `destroy_deployment()`, `destroy_from_state()` | Symmetric inverse of provisioner. Walks registrars in reverse order, calls each driver's remove/delete. Data-bearing registrars (postgres, redis, meilisearch) skipped unless `--drop-data`. |
 | `orchestrator/exceptions.py` | Typed exceptions | `DeploymentError`, `ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`. Orchestrator catches these and routes to rollback. |
 
@@ -134,14 +134,14 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 
 | File | Status | Notes |
 |---|---|---|
-| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). On the active deploy path, only used by rollback legacy path (`_rollback_coolify()`) and destroy fallback (`_destroy_coolify_legacy()`). Also still imported by broken CLI commands (`status`, `logs`, `reconcile-all`, `registry --sync`), `health_app.py`, `deploy.py`, `provisioner.py`, `portability.py`, `compose_updater.py`, and `drivers/__init__.py`. These are Phase 11-2 cleanup targets. |
+| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). On the active deploy path, only used by the rollback legacy path (`_rollback_coolify()`). (The former `_destroy_coolify_legacy()` destroy fallback has been removed.) Also still imported by broken CLI commands (`status`, `logs`, `reconcile-all`, `registry --sync`), `health_app.py`, `deploy.py`, `provisioner.py`, `portability.py`, `compose_updater.py`, and `drivers/__init__.py`. These are Phase 11-2 cleanup targets. |
 
 **Shape-driven registrar drivers (all implemented):**
 
 | File | Entry points | Purpose | Shape gate |
 |---|---|---|---|
 | `drivers/postgres.py` | `create_database()`, `drop_database()` | Creates per-service Postgres DB on `postgres-main` (SQL identifier validation upstream). Destructive drops deferred to operator. Does **not** inject `DATABASE_URL` — that comes from spec `env:` block or `ctx.secrets`. | `shape.needs_database` |
-| `drivers/redis.py` | `allocate_db_index()`, `release_db_index()` | Allocates isolated Redis DB index on `redis-main`; injects `REDIS_URL` via `deployer.inject_env()`. | `shape.needs_cache` |
+| `drivers/redis.py` | `acquire_db_index()`, `release_db_index()` | Allocates isolated Redis DB index on `redis-main`; injects `REDIS_URL` via `deployer.inject_env()`. | `shape.needs_cache` |
 | `drivers/gatus.py` | `add_endpoint()`, `remove_endpoint()` | Writes per-service YAML file at `/opt/monitoring/configs/gatus/apps/<name>.yaml` (git-versioned). One file per project — safer than editing a shared config. | `shape.is_public` + `domain` set |
 | `drivers/backrest.py` | `add_backup_plan()`, `remove_backup_plan()` | Restic-policy mutations via Backrest UI API. Uses `run_locked("backrest-config", ...)` with atomic `.tmp` → `json.tool` validate → `mv` pattern. | `shape.has_persistent_data` |
 | `drivers/glitchtip.py` | `create_project()`, `delete_project()`, `verify_dsn_injection()` | Sentry-compatible API. **`verify_dsn_injection` reads env via `docker inspect`, never `docker exec`** (Lesson 31). Loopback DSNs auto-rewritten to public host via `_canonicalize_dsn()`. | `shape.kind in {service, worker, wordpress}` |
@@ -259,8 +259,8 @@ Source of truth: live `templates/*/defaults.yaml`. Derived by running `resolve_a
 
 | Template | kind | postgres | redis | gatus | backrest | glitchtip | grafana | authelia | meili | prometheus |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **python-api** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ |
-| **node-api** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ |
+| **python-api** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ✅* |
+| **node-api** | service | ⚙ | ⚙ | ✅* | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ✅* |
 | **saas-skeleton** | service | ✅ | ⚙ | ✅* | ✅ | ✅ | ✅ | ⚙ | ⚙ | ⚙ |
 | **static-site** | static | ⚙ | ⚙ | ✅* | ⚙ | ✗ | ✅ | ⚙ | ⚙ | ⚙ |
 | **docusaurus** | static | ⚙ | ⚙ | ✅* | ⚙ | ✗ | ✅ | ⚙ | ⚙ | ⚙ |
@@ -317,7 +317,7 @@ Pre-deploy invariant checks. Called by `scripts/final_gate.py` as part of the qu
 | `check_env_vars.py` | Env vars follow `UPPER_SNAKE_CASE`. |
 | `check_docker.py` | `compose.yaml` uses `platform: linux/amd64`; base images are `-slim-bookworm`; `HEALTHCHECK` present; no public `ports:` mappings. |
 | `check_compose_services.py` | Compose services declare `networks: [coolify]` when behind Traefik. |
-| `check_ports.py` | Ports used fall in allocated ranges (8000–8099 Python, 3000–3099 frontend, 18000+ production); no duplicates. |
+| `check_ports.py` | Ports used fall in allocated ranges (8000–8099 Python, 3000–3099 frontend); no duplicates. |
 | `check_health.py` | Every service has a `/health` endpoint that tests real dependencies. |
 | `check_watchdog.py` | Long-running services have `scripts/watchdog*.sh`. |
 | `check_schema_sync.py` | DB migrations match `db/schema.sql` reference. |
@@ -469,7 +469,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 30s
 
 networks:
   coolify:
@@ -531,19 +531,19 @@ fabrik validate-deploy /opt/my-api
 
 **Orchestrator pipeline (default for `fabrik apply`):**
 
-1. `SpecValidator.validate()` — pydantic + SSRF + `compute_spec_hash()` for idempotency.
+1. `SpecValidator.validate()` — required-field + type checks + SSRF + `compute_spec_hash()` for idempotency.
 2. `SecretsManager.load()` — precedence: `os.environ` (includes `-s` flags) → `.env` → auto-generate.
 3. `DNSClient.add_record(domain, VPS_IP)` — skipped if `--skip-dns`.
 4. `SSHDeployer.deploy(ctx)` — dispatches by source type:
-   - **Template:** `TemplateRenderer.render()` → `_validate_compose()` → SCP compose.yaml + .env to VPS → `docker compose up -d`
-   - **Git:** `git clone` (new) or `git pull` (existing) → write .env → `docker compose build` → `docker compose up -d`
-   - **Docker:** generate minimal compose from `source.image` → validate → SCP → `docker compose up -d`
-   - **Local:** verify compose exists at `source.path` → write .env → `docker compose up -d`
+   - **Template:** `TemplateRenderer.render()` → `_validate_compose()` → SCP compose.yaml + .env to VPS → `docker compose up -d --wait`
+   - **Git:** `git clone` (new) or `git pull` (existing) → write .env → `docker compose build` → `docker compose up -d --wait`
+   - **Docker:** generate minimal compose from `source.image` → validate → SCP → `docker compose up -d --wait`
+   - **Local:** verify compose exists at `source.path` → write .env → `docker compose up -d --wait`
 5. `InfrastructureProvisioner.provision(ctx)` — shape-driven dispatch. Registrar order (`_REGISTRAR_ORDER` in `orchestrator/infrastructure.py:84`): `postgres` → `redis` → `gatus` → `backrest` → `glitchtip` (+DSN injection & verification) → `grafana` (annotation) → `authelia` (+`^/api/` bypass when `has_bearer_api`) → `meilisearch` → `prometheus`. All failures are non-fatal **except** GlitchTip DSN-injection mismatch, which triggers rollback.
 6. `DeploymentVerifier.verify()` — HTTP 200 on `/health`, DNS resolves, SSL valid, `SENTRY_DSN` present (when GlitchTip applicable) via `docker inspect`.
 7. `_post_deploy_sync()` — runs `scripts/sync_projects.py`, `scripts/update_vps_docs.py`, `scripts/generate_vps_inventory.py --update`.
 
-On any exception, orchestrator transitions `ROLLING_BACK` and `RollbackManager` undoes every `ctx.resources[*]` in reverse order (§9.7).
+On any exception, orchestrator transitions `ROLLING_BACK` and `RollbackManager` undoes every `ctx.created_resources[*]` in reverse order (§9.7).
 
 ```bash
 # Default path — runs the orchestrator + all applicable registrars
@@ -575,17 +575,20 @@ fabrik redeploy --refresh-infra --spec specs/services/my-api.yaml
 fabrik redeploy --refresh-infra --spec specs/services/my-api.yaml --dry-run
 ```
 
-Internally (`cli.py::redeploy()` line 1145):
+Internally (`cli.py::redeploy()` line 1182):
 
 - **Mode 1 (no `--refresh-infra`):**
   1. `SSHDeployer.find_existing(name)` — checks `/opt/<name>/compose.yaml` on VPS.
   2. Detects source type by checking for `.git` directory on VPS.
   3. **Git-sourced**:
+     - `ssh: cd /opt/<name> && sudo git rev-parse HEAD` (captures current commit as a rollback point BEFORE mutating, timeout 30s)
      - `ssh: cd /opt/<name> && sudo git pull` (pulls from GitHub remote, timeout 60s)
      - `ssh: cd /opt/<name> && sudo docker compose build` (rebuilds image, timeout 300s; `--no-cache` if `--force`)
-     - `ssh: cd /opt/<name> && sudo docker compose up -d` (restarts with new image, timeout 120s)
+     - `ssh: cd /opt/<name> && sudo docker compose up -d --wait` (restarts with new image, blocks until healthy, timeout 120s)
+     - **On health-check failure** (`up -d --wait` exits non-zero): auto-reverts with `git reset --hard <captured-sha>` → rebuild → `up -d --wait` to restore the last-known-good container, then raises `DeployError`. New code is NOT left live. If the rollback itself fails, raises `DeployError` flagging manual intervention.
   4. **Non-git** (template/docker/local):
-     - `ssh: cd /opt/<name> && sudo docker compose up -d` (`--force-recreate` if `--force`)
+     - `ssh: cd /opt/<name> && sudo docker compose up -d --wait` (`--force-recreate` if `--force`)
+     - **On health-check failure:** fails loudly with `DeployError` — no prior image tag to revert to, so no automatic rollback for non-git sources.
   5. `_post_deploy_sync()`.
 
   Pure rebuild: pulls the latest git commit (for git-sourced apps), rebuilds the image, restarts containers. Does **not** touch DNS, Authelia, GlitchTip, Gatus, Backrest, Meilisearch, Prometheus, or the database. Those were created on first `apply` and are expected to already exist.
@@ -610,7 +613,7 @@ Internally (`cli.py::redeploy()` line 1145):
 7. **gatus** → remove endpoint, restart gatus (if `shape.is_public` + domain)
 8. **postgres** → skipped (database preserved) unless `--drop-data`
 9. **redis** → release index slot (data NOT flushed unless `--drop-data`)
-10. **App** → `sudo docker compose down -v` + `sudo rm -rf /opt/<name>` + `sudo docker image prune -f`
+10. **App** → `sudo docker compose down` (`-v` only with `--drop-data`) + `sudo rm -rf /opt/<name>` + `sudo docker image prune -f`
 11. **DNS** → remove A record (unless `--keep-dns`)
 12. `_post_deploy_sync()`
 
@@ -705,7 +708,7 @@ python scripts/sync_projects.py
 
 ### 9.7 Rollback (automatic)
 
-Orchestrator catches any exception during deploy, transitions to `ROLLING_BACK`, and calls `RollbackManager.rollback(ctx)`. Reverse-order cleanup of every `ctx.resources[*]`:
+Orchestrator catches any exception during deploy, transitions to `ROLLING_BACK`, and calls `RollbackManager.rollback(ctx)`. Reverse-order cleanup of every `ctx.created_resources[*]`:
 
 - `compose` → `SSHDeployer.delete()` (`docker compose down -v` + `rm -rf /opt/<name>`)
 - `coolify` → legacy Coolify app removal (pre-migration deployments only)
@@ -729,7 +732,7 @@ Errors during rollback are logged and accumulated — rollback never aborts, alw
 | Infra service | Per-service registration on deploy? | Mechanism | Shape gate |
 |---|---|---|---|
 | **PostgreSQL** (shared `postgres-main`) | Yes — creates DB + user | `drivers/postgres.py::create_database()` | `shape.needs_database` |
-| **Redis** (shared `redis-main`) | Yes — allocates isolated DB index; injects `REDIS_URL` | `drivers/redis.py::allocate_db_index()` | `shape.needs_cache` |
+| **Redis** (shared `redis-main`) | Yes — allocates isolated DB index; injects `REDIS_URL` | `drivers/redis.py::acquire_db_index()` | `shape.needs_cache` |
 | **Traefik** | Implicit | Docker labels in compose → Traefik picks up automatically. No registrar needed. | auto |
 | **GlitchTip** | Yes — creates Sentry project + DSN; injects + verifies via `docker inspect` | `drivers/glitchtip.py::create_project()` | `shape.kind in {service, worker, wordpress}` |
 | **Grafana** | Yes — writes deployment annotation | `drivers/grafana.py::post_deployment_annotation()` | Always (non-fatal) |
@@ -830,7 +833,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 | 17 | Gatus uses per-service YAML files in `/opt/monitoring/configs/gatus/apps/`, not a single config |
 | 18 | Prometheus reload: hot-reload via `POST /-/reload` lifecycle endpoint (curled from alertmanager container), fallback to `docker restart` if hot-reload fails |
 | 19 | Postgres registrar creates DB only — does NOT inject `DATABASE_URL` |
-| 20 | Redis registrar allocates DB index AND injects `REDIS_URL` via `deployer.inject_env()` |
+| 20 | Redis registrar acquires a DB index (`acquire_db_index()`) AND injects `REDIS_URL` via `deployer.inject_env()` |
 | 21 | Backrest config edits serialized via `run_locked("backrest-config", ...)` |
 
 ### 11.3 VPS / Docker invariants
@@ -840,7 +843,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 | 22 | Docker network `coolify` is the shared backbone — all Traefik-routed services must attach |
 | 23 | `.env` files root-owned at `/opt/<name>/.env` — written via scp-to-tmp-then-sudo-mv pattern |
 | 24 | `docker compose up -d` only recreates containers with changed config — volumes NEVER touched |
-| 25 | `docker compose down -v` removes named volumes — only used during destroy, never redeploy |
+| 25 | `docker compose down -v` removes named volumes — used by rollback's `delete()` (unconditional) and by destroy (gated behind `--drop-data`); never during redeploy |
 | 26 | VPS reboot: containers auto-recover via `restart: unless-stopped` |
 | 27 | In-flight requests dropped during container restart (TCP RST, 3-15s of 502s from Traefik) |
 | 28 | DB migrations must be handled by container entrypoint, not the deployer |
