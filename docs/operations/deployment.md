@@ -3,7 +3,7 @@
 **Last reviewed:** 2026-05-29
 **VPS:** vps1.ocoron.com (172.93.160.197)
 **Deploy method:** SSH + Docker Compose (direct to VPS — no intermediary platform)
-**Deploy mechanism:** `fabrik apply` runs from WSL, connects to VPS via SSH, writes compose files, runs `docker compose up -d`
+**Deploy mechanism:** `fabrik apply` runs from WSL, connects to VPS via SSH, writes compose files, runs `docker compose up -d --wait`
 
 ---
 
@@ -31,7 +31,7 @@ fabrik CLI                               /opt/<name>/
   │     ├── ssh("mkdir -p /opt/<name>")    └── src/            ← from git repo
   │     ├── scp compose.yaml → /tmp/
   │     ├── ssh("sudo mv /tmp/... → /opt/<name>/")
-  │     └── ssh("cd /opt/<name> && sudo docker compose up -d")
+  │     └── ssh("cd /opt/<name> && sudo docker compose up -d --wait")
   │
   ├── InfrastructureProvisioner            Docker Engine
   │     ├── postgres driver (CREATE DB)      └── container: <name>
@@ -91,11 +91,14 @@ curl -sS https://<service>.vps1.ocoron.com/health
 1. `SSHDeployer.find_existing(name)` — checks `/opt/<name>/compose.yaml` exists on VPS
 2. Detects source type by checking for `.git` directory on VPS
 3. **Git-sourced** (services with `.git` directory on VPS):
+   - `ssh: cd /opt/<name> && sudo git rev-parse HEAD` (captures current commit as a rollback point BEFORE mutating, timeout 30s)
    - `ssh: cd /opt/<name> && sudo git pull` (pulls from GitHub remote, timeout 60s)
    - `ssh: cd /opt/<name> && sudo docker compose build` (rebuilds image, timeout 300s)
-   - `ssh: cd /opt/<name> && sudo docker compose up -d` (restarts with new image, timeout 120s)
+   - `ssh: cd /opt/<name> && sudo docker compose up -d --wait` (restarts with new image, blocks until healthy, timeout 120s)
+   - **On health-check failure** (`up -d --wait` exits non-zero): auto-reverts with `git reset --hard <captured-sha>` → rebuild → `up -d --wait` to restore the last-known-good container, then raises `DeployError`. New code is NOT left live. If the rollback itself also fails, raises `DeployError` flagging that manual intervention is required.
 4. **Non-git** (template/docker/local):
-   - `ssh: cd /opt/<name> && sudo docker compose up -d` (recreates only if config changed)
+   - `ssh: cd /opt/<name> && sudo docker compose up -d --wait` (recreates only if config changed; `--force` appends `--force-recreate`)
+   - **On health-check failure:** fails loudly with `DeployError` — there is no prior image tag to revert to, so no automatic rollback is possible for non-git sources.
 
 **Flags:**
 - `--force` / `-f` — adds `--no-cache` to build (git) or `--force-recreate` to up (non-git)
@@ -165,7 +168,7 @@ fabrik destroy specs/services/<name>.yaml --drop-data -y
    - **postgres → skipped** (database preserved) unless `--drop-data`
    - **redis → index slot released, data NOT flushed** unless `--drop-data`
 2. **App teardown:**
-   - `sudo docker compose down -v` (stops containers, removes volumes)
+   - `sudo docker compose down` (stops + removes containers). Adds `-v` (also removes named volumes) **only with `--drop-data`**; a plain destroy preserves app-local volumes.
    - `sudo rm -rf /opt/<name>` (removes all app files)
    - `sudo docker image prune -f` (cleans dangling images)
 3. **DNS teardown** (unless `--keep-dns`):
@@ -212,7 +215,7 @@ The orchestrator runs **5 phases** with state transitions: `VALIDATING → PROVI
 
 **Module:** `src/fabrik/orchestrator/secrets.py:SecretsManager`
 
-- Resolves secrets from: environment variables → project `.env` → auto-generate (CSPRNG, 32-char `[a-zA-Z0-9]`). CLI `-s KEY=VALUE` flags are parsed into a separate dict and layered into `ctx.secrets` by the orchestrator, not injected into `os.environ`.
+- Resolves secrets from: environment variables → project `.env` → auto-generate (CSPRNG, 32-char `[a-zA-Z0-9]`). CLI `-s KEY=VALUE` flags are parsed by the `apply` command and written into `os.environ`, so `SecretsManager` then picks them up via the environment-variable path (highest-priority source).
 - Populates `ctx.secrets` dict — these are layered on top of spec env vars during deploy
 
 ### Phase 3 — DNS PROVISIONING
@@ -238,15 +241,15 @@ This is the phase that creates or updates the container on VPS.
    - Validate against rule-pack constraints (see [Compose Validation](#compose-validation-rules))
    - Build `.env` via read-merge strategy (see [.env Handling](#env-handling))
    - SCP files to VPS using scp-to-tmp-then-sudo-mv pattern
-   - `ssh: cd /opt/<name> && sudo docker compose up -d`
+   - `ssh: cd /opt/<name> && sudo docker compose up -d --wait`
 5. **For git sources:**
    - Clone (new) or pull (existing) from GitHub
    - Build `.env` via read-merge strategy
-   - `ssh: cd /opt/<name> && sudo docker compose build` then `ssh: cd /opt/<name> && sudo docker compose up -d`
+   - `ssh: cd /opt/<name> && sudo docker compose build` then `ssh: cd /opt/<name> && sudo docker compose up -d --wait`
 6. **For local sources:**
    - Verify compose.yaml exists at `source.path`
    - Build `.env` via read-merge strategy
-   - `ssh: cd <path> && sudo docker compose up -d`
+   - `ssh: cd <path> && sudo docker compose up -d --wait`
 7. **Track resource** — `ctx.add_resource("compose", name, name=name)` for rollback (new deploys only)
 
 ### Phase 4b — INFRASTRUCTURE REGISTRARS (post-deploy, SSH to VPS)
@@ -267,7 +270,7 @@ Runs **after** the container is up. Each registrar is gated by the spec's `shape
 | 8 | **meilisearch** | `has_search_feature` | Creates search index with configured UID and searchable attributes |
 | 9 | **prometheus** | `exposes_metrics` + domain set | Adds scrape target for `/metrics` endpoint |
 
-**`inject_env()` flow** (used by redis + glitchtip registrars): reads existing `.env` on VPS, merges new vars, writes back via SCP, runs `docker compose up -d` to restart with new env. This preserves all existing env vars — registrar injections never clobber each other.
+**`inject_env()` flow** (used by redis + glitchtip registrars): reads existing `.env` on VPS, merges new vars, writes back via SCP, runs `docker compose up -d --wait` to restart with new env. This preserves all existing env vars — registrar injections never clobber each other.
 
 **Override:** `infra: { <registrar>: false }` in spec disables a registrar. No `infra.foo: true` opt-in exists — shape flags control applicability.
 
@@ -288,7 +291,7 @@ Runs **after** the container is up. Each registrar is gated by the spec's `shape
 - Each resource type has a cleanup handler:
   - `compose` → `SSHDeployer.delete()` (`docker compose down -v` + `rm -rf /opt/<name>`)
   - `coolify` → legacy Coolify app removal (pre-migration deployments only)
-  - `dns` → `DNSClient.delete_record_by_name()`
+  - `dns` → `CloudflareClient.delete_record_by_name()` (the rollback `dns_client` defaults to `CloudflareClient`; `DNSClient` itself only exposes `delete_record()`)
   - `monitor` → legacy monitor resource cleanup
   - `gatus` → `remove_endpoint()`
   - `glitchtip` → `delete_project()`
