@@ -35,7 +35,10 @@ class DeploymentContext:
     # Resources created (for rollback)
     created_resources: list[ResourceRecord] = field(default_factory=list)
 
-    # Deployment results
+    # Deployment results — stores app name (compose deploy) or Coolify UUID (legacy).
+    # Despite the name, this field now holds the compose app name (== directory
+    # name under /opt/) for SSH-deployed services. Field name preserved for
+    # minimal churn across 20+ files that reference it.
     coolify_uuid: str | None = None
     dns_record_id: str | None = None
     deployed_url: str | None = None

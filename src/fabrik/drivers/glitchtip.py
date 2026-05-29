@@ -32,10 +32,10 @@ Design notes
   masked.
 
 * **DSN injection verification.** :func:`verify_dsn_injection` polls
-  the deployed container via SSH+``printenv`` until ``SENTRY_DSN``
-  matches the value the driver stored — ground truth for "Coolify's
-  PATCH + deploy(force=True) actually propagated the env var to the
-  running container". Without this check, a silent Coolify error
+  the deployed container via SSH+``docker inspect`` until ``SENTRY_DSN``
+  matches the value the driver stored — ground truth for ".env injection
+  + docker compose restart actually propagated the env var to the
+  running container". Without this check, a silent injection error
   would leave the app running with a stale/missing DSN.
 
 * **Never logs the token.** Auth header building is encapsulated in
@@ -385,28 +385,18 @@ def verify_dsn_injection(
     expected_dsn: str,
     max_wait: int = 60,
     poll_interval: float = 2.0,
-    coolify_app_uuid: str | None = None,
 ) -> bool:
     """Poll the running container until ``SENTRY_DSN`` matches ``expected_dsn``.
 
-    Coolify's ``PATCH /services/{uuid}/env`` + ``POST /deploy?force=true``
-    returns before the new env vars land in the running container — the
-    container has to be re-created with the updated env-file mount. This
-    is the ground-truth check for "DSN injection actually happened".
-
-    Resolution strategy — the container is found by **name prefix match**,
-    not by an exact container name (Coolify suffixes every container with
-    a UUID that changes on recreate). Same pattern as
-    :mod:`fabrik.drivers.gatus.restart_endpoint_container`.
+    With stable ``container_name:`` in compose (post-Coolify migration),
+    the container is found by exact name match via ``docker inspect``.
+    This is the ground-truth check for "DSN injection actually happened".
 
     Args:
-        project_name: The Coolify project's short name. The container
-            will be named ``<project_name>-<uuid>``.
+        project_name: The app name (matches ``container_name`` in compose).
         expected_dsn: The DSN value :func:`create_project` returned.
         max_wait: Total seconds to wait before giving up.
-        poll_interval: Seconds between checks. 2s is the sweet spot —
-            fast enough to catch the redeploy mid-bounce, slow enough
-            not to spam the VPS.
+        poll_interval: Seconds between checks.
 
     Returns:
         True if a matching ``SENTRY_DSN`` is observed within ``max_wait``;
@@ -415,34 +405,27 @@ def verify_dsn_injection(
     """
     if not expected_dsn:
         raise ValueError("expected_dsn must be non-empty")
-    # G7 — reject loopback DSNs at the verifier boundary. _fetch_dsn now
-    # canonicalises, so a loopback value at this point means the caller
-    # bypassed _fetch_dsn or constructed the DSN by hand — surface it
-    # rather than spend ``max_wait`` seconds polling for a value that
-    # would be useless to the running container anyway.
     _assert_routable_dsn(expected_dsn, project_name)
 
     start = time.time()
     attempts = 0
     while time.time() - start < max_wait:
         attempts += 1
-        # Match container by either:
-        #   1. Coolify's auto-name ``<name>-<uuid>-<ts>`` (prefix + trailing dash)
-        #   2. An explicit ``container_name: <name>`` set by the compose
-        #      template (exact match, no suffix)
-        #   3. Coolify's app-uuid embedded in the name as ``<svc>-<uuid>-<ts>``
-        #      when the compose service is generic (e.g. ``app:``) — the
-        #      project_name prefix won't match in that case but the Coolify
-        #      app uuid is unique per resource and always present.
-        # A project may be recreated mid-deploy, so the container name may
-        # not exist yet for the first few polls.
-        if coolify_app_uuid:
-            grep_expr = f"^{project_name}(-|$)|-{coolify_app_uuid}-"
-        else:
-            grep_expr = f"^{project_name}(-|$)"
-        container = ssh(
-            f"sudo docker ps --format '{{{{.Names}}}}' | grep -E '{grep_expr}' | head -1"
-        ).strip()
+        # With stable container_name (== project_name), use direct docker inspect.
+        # Falls back to prefix match for any legacy containers.
+        try:
+            container = (
+                ssh(f"sudo docker inspect {project_name} --format '{{{{.Name}}}}' 2>/dev/null")
+                .strip()
+                .lstrip("/")
+            )
+        except RuntimeError:
+            container = ""
+        if not container:
+            # Fallback: prefix match for legacy naming
+            container = ssh(
+                f"sudo docker ps --format '{{{{.Names}}}}' | grep -E '^{project_name}(-|$)' | head -1"
+            ).strip()
         if container:
             # Read the env var from Docker daemon metadata rather than
             # ``docker exec printenv``. The latter requires a shell in the

@@ -116,7 +116,7 @@ class TestRollbackManager:
         errors = manager.rollback(ctx)
 
         assert errors == []
-        mock_dns.delete_record.assert_called_once_with("example.com", "record-123")
+        mock_dns.delete_record_by_name.assert_called_once_with("example.com", "A", "record-123")
 
     def test_rollback_dns_without_zone_skipped(self):
         """Should skip DNS record without zone metadata."""
@@ -408,6 +408,6 @@ class TestPhase4iReverseOrderWalk:
         ]
         # Coolify + DNS cleanup happened (legacy hard-stops, after soft registrars)
         manager._coolify_client.delete_application.assert_called_once_with("uuid-1")
-        manager._dns_client.delete_record.assert_called_once_with(
-            "vps1.ocoron.com", "rec-1"
+        manager._dns_client.delete_record_by_name.assert_called_once_with(
+            "vps1.ocoron.com", "A", "rec-1"
         )

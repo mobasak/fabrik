@@ -20,15 +20,18 @@ class RollbackManager:
         self,
         coolify_client: Any | None = None,
         dns_client: Any | None = None,
+        deployer: Any | None = None,
     ):
         """Initialize rollback manager.
 
         Args:
-            coolify_client: CoolifyClient instance
+            coolify_client: CoolifyClient instance (legacy)
             dns_client: DNSClient instance
+            deployer: SSHDeployer instance for compose rollbacks
         """
         self._coolify_client = coolify_client
         self._dns_client = dns_client
+        self._deployer = deployer
 
     @property
     def coolify_client(self) -> Any:
@@ -135,7 +138,9 @@ class RollbackManager:
         )
 
         rt = resource.resource_type
-        if rt == "coolify":
+        if rt == "compose":
+            self._rollback_compose(resource)
+        elif rt == "coolify":
             self._rollback_coolify(resource)
         elif rt == "dns":
             self._rollback_dns(resource)
@@ -220,6 +225,18 @@ class RollbackManager:
         """
         monitor_id = resource.resource_id
         logger.info("Would delete monitor: %s (legacy stub)", monitor_id)
+
+    def _rollback_compose(self, resource: ResourceRecord) -> None:
+        """Tear down a compose-deployed app via SSHDeployer.delete()."""
+        from fabrik.orchestrator.deployer_ssh import SSHDeployer
+
+        deployer = self._deployer or SSHDeployer()
+        name = resource.resource_id
+        try:
+            deployer.delete(name)
+            logger.info("Rolled back compose app: %s", name)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("compose rollback failed for %s (non-fatal): %s", name, e)
 
     # =========================================================================
     # Phase 4i — Infrastructure registrar rollback handlers

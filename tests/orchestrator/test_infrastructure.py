@@ -351,7 +351,7 @@ def _ok(status="created", **extra):
 class TestProvisionDispatch:
     def test_dispatches_only_applicable_registrars(self):
         """Minimal spec: only gatus + glitchtip + grafana should fire."""
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         ctx = _ctx(_spec())
 
         with patch(
@@ -389,7 +389,7 @@ class TestProvisionDispatch:
 
     def test_dry_run_passes_through_to_every_driver(self):
         """dry_run=True must be propagated as kwarg to every driver."""
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         spec = _spec(
             shape={
                 "needs_database": True,
@@ -433,7 +433,7 @@ class TestProvisionDispatch:
             assert calls.get(name) is True, f"{name} did not receive dry_run=True"
 
     def test_infra_override_disables_registrar(self):
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         spec = _spec(
             shape={"has_persistent_data": True},
             infra={"backrest": False},
@@ -453,7 +453,7 @@ class TestProvisionDispatch:
         backrest.assert_not_called()
 
     def test_resource_tracking_populates_ctx(self):
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         spec = _spec(
             shape={
                 "needs_database": True,
@@ -519,7 +519,7 @@ class TestSoftFailures:
         ],
     )
     def test_each_driver_failure_is_swallowed(self, module_fn):
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         spec = _spec(
             shape={
                 "needs_database": True,
@@ -567,7 +567,8 @@ class TestSoftFailures:
 
 class TestGlitchTipDsnInjection:
     def test_dsn_verified_is_happy_path(self):
-        prov = InfrastructureProvisioner()
+        mock_deployer = MagicMock()
+        prov = InfrastructureProvisioner(deployer=mock_deployer)
         ctx = _ctx(_spec())
         ctx.coolify_uuid = "uuid-1"
 
@@ -577,8 +578,6 @@ class TestGlitchTipDsnInjection:
         ), patch(
             "fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True
         ), patch("fabrik.drivers.glitchtip.delete_project") as del_proj, patch(
-            "fabrik.drivers.coolify.CoolifyClient"
-        ) as coolify_cls, patch(
             "fabrik.drivers.gatus.add_endpoint", return_value=_ok()
         ), patch(
             "fabrik.drivers.grafana.post_deployment_annotation",
@@ -587,17 +586,16 @@ class TestGlitchTipDsnInjection:
             prov.provision(ctx)
 
         del_proj.assert_not_called()
-        coolify_cls.return_value.bulk_update_env_vars.assert_called_once_with(
-            "uuid-1", {"SENTRY_DSN": "http://x@host/1"}
+        mock_deployer.inject_env.assert_called_once_with(
+            ctx, {"SENTRY_DSN": "http://x@host/1", "GLITCHTIP_DSN": "http://x@host/1"}
         )
-        coolify_cls.return_value.deploy.assert_called_once_with("uuid-1", force=True)
 
     def test_dsn_verify_failure_rolls_back_and_raises(self):
         """This is THE safety-critical contract: if the env var didn't
         arrive in the container, the GlitchTip project is deleted and
         the provisioner raises so the outer orchestrator rolls the
         whole deploy back."""
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         ctx = _ctx(_spec())
         ctx.coolify_uuid = "uuid-1"
 
@@ -620,7 +618,8 @@ class TestGlitchTipDsnInjection:
     def test_dsn_inject_skipped_when_coolify_uuid_missing(self):
         """Degraded-but-non-fatal path: we can't inject without the UUID,
         so we log a warning and don't try — no exception, no rollback."""
-        prov = InfrastructureProvisioner()
+        mock_deployer = MagicMock()
+        prov = InfrastructureProvisioner(deployer=mock_deployer)
         ctx = _ctx(_spec())
         ctx.coolify_uuid = None  # explicitly unset
 
@@ -630,8 +629,8 @@ class TestGlitchTipDsnInjection:
         ) as create, patch(
             "fabrik.drivers.glitchtip.verify_dsn_injection"
         ) as verify, patch("fabrik.drivers.glitchtip.delete_project") as del_proj, patch(
-            "fabrik.drivers.coolify.CoolifyClient"
-        ) as coolify_cls, patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()), patch(
+            "fabrik.drivers.gatus.add_endpoint", return_value=_ok()
+        ), patch(
             "fabrik.drivers.grafana.post_deployment_annotation",
             return_value=_ok(annotation_id=None),
         ):
@@ -640,10 +639,10 @@ class TestGlitchTipDsnInjection:
         create.assert_called_once()
         verify.assert_not_called()
         del_proj.assert_not_called()
-        coolify_cls.return_value.bulk_update_env_vars.assert_not_called()
+        mock_deployer.inject_env.assert_not_called()
 
     def test_dry_run_skips_dsn_injection(self):
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         ctx = _ctx(_spec())
         ctx.coolify_uuid = "uuid-1"
         ctx.dry_run = True
@@ -676,7 +675,7 @@ class TestAutheliaOrdering:
         provisioner MUST call add_access_rule for the bypass BEFORE the
         two_factor catch-all, with insert_before_twofactor=True on the
         bypass call."""
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         spec = _spec(
             shape={"is_admin_dashboard": True, "has_bearer_api": True}
         )
@@ -707,7 +706,7 @@ class TestAutheliaOrdering:
         assert calls[1]["policy"] == "two_factor"
 
     def test_no_bearer_api_means_only_two_factor_rule(self):
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         spec = _spec(shape={"is_admin_dashboard": True})  # has_bearer_api defaults False
         ctx = _ctx(spec)
 
@@ -740,7 +739,7 @@ class TestIdentifierNormalization:
     def test_hyphens_become_underscores_for_postgres_and_meilisearch(self):
         """Both postgres DB names and meilisearch uids disallow hyphens in
         most path contexts. The provisioner maps `my-project` → `my_project`."""
-        prov = InfrastructureProvisioner()
+        prov = InfrastructureProvisioner(deployer=MagicMock())
         spec = _spec(
             name="my-cool-project",
             shape={"needs_database": True, "has_search_feature": True},

@@ -12,7 +12,7 @@ from fabrik import state as state_module
 from fabrik.drivers.cloudflare import CloudflareClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.orchestrator.context import DeploymentContext
-from fabrik.orchestrator.deployer import ServiceDeployer
+from fabrik.orchestrator.deployer_ssh import SSHDeployer
 from fabrik.orchestrator.exceptions import (
     DeployError,
     DeploymentError,
@@ -52,7 +52,7 @@ class DeploymentOrchestrator:
         self,
         validator: SpecValidator | None = None,
         secrets_manager: SecretsManager | None = None,
-        deployer: ServiceDeployer | None = None,
+        deployer: SSHDeployer | None = None,
         verifier: DeploymentVerifier | None = None,
         rollback_manager: RollbackManager | None = None,
         infrastructure_provisioner: Any | None = None,
@@ -69,10 +69,12 @@ class DeploymentOrchestrator:
 
         self.validator = validator or SpecValidator()
         self.secrets_manager = secrets_manager or SecretsManager()
-        self.deployer = deployer or ServiceDeployer()
+        self.deployer = deployer or SSHDeployer()
         self.verifier = verifier or DeploymentVerifier()
         self.rollback_manager = rollback_manager or RollbackManager()
-        self.infrastructure_provisioner = infrastructure_provisioner or InfrastructureProvisioner()
+        self.infrastructure_provisioner = infrastructure_provisioner or InfrastructureProvisioner(
+            deployer=self.deployer
+        )
 
     def deploy(
         self,
@@ -88,7 +90,7 @@ class DeploymentOrchestrator:
             dry_run: If True, simulate without making changes
             skip_health_check: If True, skip health check verification (useful for initial deployments)
             keep_on_failure: B27 — when True, do NOT roll back created resources
-                on failure. The Coolify app, DNS records, GlitchTip project,
+                on failure. The deployed app, DNS records, GlitchTip project,
                 etc. all stay in place. Used by the proof-run harness so build
                 logs and container state survive long enough to be inspected.
                 Default ``False`` preserves the production fail-closed behavior.
@@ -124,14 +126,6 @@ class DeploymentOrchestrator:
             # Step 4: Deploy
             self._transition(ctx, DeploymentState.DEPLOYING)
             self.deployer.deploy(ctx)
-
-            # Step 4a-1: Coolify alias watcher (T2-04 G-J3). When the spec
-            # opts in via ``coolify.alias``, register the prefix → friendly
-            # DNS alias so the watcher re-applies it on every Coolify
-            # Application redeploy. Non-fatal: a missing alias entry only
-            # affects Gatus monitor / inter-service DNS for THIS service;
-            # the deploy itself still succeeds.
-            self._maybe_register_coolify_alias(ctx, spec)
 
             # Step 4b: Provision infrastructure registrars (post-deploy).
             # Must run AFTER deployer.deploy so ctx.coolify_uuid is set
@@ -295,12 +289,12 @@ class DeploymentOrchestrator:
         Pipeline:
           1. Validate spec.
           2. Load secrets (same path as :meth:`deploy`).
-          3. Resolve ``ctx.coolify_uuid`` from the live Coolify app list
+          3. Resolve ``ctx.coolify_uuid`` from the live VPS state
              matched on spec name (with the conventional ``fabrik-`` prefix
              tried as a fallback).
           4. Call ``InfrastructureProvisioner.provision(ctx)``.
 
-        Skipped vs :meth:`deploy`: DNS provisioning, ``ServiceDeployer.deploy``,
+        Skipped vs :meth:`deploy`: DNS provisioning, ``SSHDeployer.deploy``,
         post-deploy verification, rollback. The infrastructure provisioner is
         already idempotent per-registrar, so re-running is safe.
 
@@ -315,11 +309,9 @@ class DeploymentOrchestrator:
 
         Raises:
             ValidationError: Spec validation fails.
-            ProvisioningError: Coolify app not found, or any registrar
+            ProvisioningError: App not found on VPS, or any registrar
                 raises (notably the GlitchTip DSN-injection verifier).
         """
-        from fabrik.drivers.coolify import CoolifyClient
-
         ctx = DeploymentContext(spec_path=spec_path, dry_run=dry_run)
 
         spec, spec_hash, warnings = self.validator.load_and_validate(spec_path)
@@ -333,22 +325,20 @@ class DeploymentOrchestrator:
         spec_name = spec.get("name") or spec.get("id")
         if not spec_name:
             raise ProvisioningError(
-                "Spec is missing both 'name' and 'id' — cannot resolve Coolify app.",
+                "Spec is missing both 'name' and 'id' — cannot resolve app.",
                 resource_type="infrastructure",
             )
 
-        coolify = CoolifyClient()
-        apps = coolify.list_applications()
-        candidate_names = {spec_name, f"fabrik-{spec_name}"}
-        match = next((a for a in apps if a.get("name") in candidate_names), None)
-        if not match:
-            available = ", ".join(sorted(a.get("name", "<unnamed>") for a in apps))
+        # Try exact name first, then fabrik- prefix fallback
+        existing = self.deployer.find_existing(spec_name)
+        if not existing:
+            existing = self.deployer.find_existing(f"fabrik-{spec_name}")
+        if not existing:
             raise ProvisioningError(
-                f"No Coolify app found matching spec name {spec_name!r} "
-                f"(also tried 'fabrik-{spec_name}'). Available: {available}",
+                f"No compose app found at /opt/{spec_name}/ or /opt/fabrik-{spec_name}/",
                 resource_type="infrastructure",
             )
-        ctx.coolify_uuid = match.get("uuid")
+        ctx.coolify_uuid = existing["name"]  # stores app name, not UUID
         ctx.deployed_url = f"https://{spec['domain']}" if spec.get("domain") else None
         logger.info("refresh_infrastructure: matched %s -> %s", spec_name, ctx.coolify_uuid)
 
@@ -360,28 +350,8 @@ class DeploymentOrchestrator:
                 resource_type="infrastructure",
             ) from e
 
-        self._maybe_register_coolify_alias(ctx, spec)
         self._persist_state(ctx, spec)
         return ctx
-
-    def _maybe_register_coolify_alias(self, ctx: DeploymentContext, spec: dict[str, Any]) -> None:
-        # T2-04 G-J3: optional Docker DNS alias registration. Only fires
-        # when the spec sets ``coolify.alias`` AND ctx has a coolify_uuid.
-        # Non-fatal — alias-watcher failure should not abort deploy.
-        coolify = spec.get("coolify") or {}
-        alias = coolify.get("alias") if isinstance(coolify, dict) else None
-        if not alias or not ctx.coolify_uuid:
-            return
-        try:
-            from fabrik.orchestrator import coolify_alias
-
-            result = coolify_alias.add_alias(ctx.coolify_uuid, alias)
-            ctx.add_resource("coolify_alias", alias, status=result.get("status", "added"))
-            logger.info(
-                "coolify_alias: %s → %s (%s)", ctx.coolify_uuid, alias, result.get("status")
-            )
-        except Exception as e:  # noqa: BLE001 — best-effort
-            logger.warning("coolify_alias registration failed (non-fatal): %s", e)
 
     def _persist_state(self, ctx: DeploymentContext, spec: dict[str, Any]) -> None:
         # Write .fabrik/state/<id>.json with the 8-field G-F3 schema. Failure

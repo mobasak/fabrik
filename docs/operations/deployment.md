@@ -1,161 +1,405 @@
 # Deployment Procedures
 
-**Last reviewed:** 2026-05-08
+**Last reviewed:** 2026-05-28
 **VPS:** vps1.ocoron.com (172.93.160.197)
-**Coolify:** v4.0.0-beta.459 (web UI: `https://coolify.vps1.ocoron.com`)
-**Deploy method:** Coolify API only — no manual `docker compose up` on VPS
+**Deploy method:** SSH + Docker Compose (direct to VPS — no intermediary platform)
+**Deploy mechanism:** `fabrik apply` runs from WSL, connects to VPS via SSH, writes compose files, runs `docker compose up -d`
 
 ---
 
 ## Golden Rules
 
-1. **`fabrik redeploy` triggers Coolify, which pulls from GitHub.** Always `git commit && git push` BEFORE redeploying — Coolify reads the GitHub remote, not your local `/opt/`.
-2. **Never `docker compose up -d` directly on the VPS.** Coolify owns lifecycle. Manual `up`/`down` strips Traefik labels and breaks routing on next redeploy.
-3. **DB connection strings must use container DNS names**, never `localhost`: `postgres-main:5432`, `redis-main:6379`. Inside a container, `localhost` is the container itself.
-4. **Never SIGHUP Authelia** — it exits. Always `docker restart authelia-hks48k8sg8o4co4co08co00o` after editing `/opt/authelia/configuration.yml`.
-5. **No `ports:` in compose.yaml** — Docker bypasses UFW. Route everything through Traefik labels.
+1. **All services are git-sourced. Always `git push` before `fabrik redeploy`.** Redeploy runs `git pull` on the VPS, which pulls from the GitHub remote configured in `/opt/<name>/.git/config` — not from your local WSL filesystem.
+2. **DB connection strings use Docker DNS names**, never `localhost`: `postgres-main:5432`, `redis-main:6379`. Inside a container, `localhost` is the container itself, not the shared database.
+3. **Never SIGHUP Authelia** — it exits. Always `docker restart authelia` after editing `/opt/authelia/configuration.yml`.
+4. **No `ports:` in compose.yaml** — binding ports bypasses UFW and exposes services directly. All traffic routes through Traefik on the `coolify` Docker network.
+5. **Every service must have `container_name:`** in its compose.yaml — provides stable names for `docker exec`, `docker inspect`, and Gatus monitoring. Without it, Docker generates random suffixed names.
+6. **All `docker` commands on VPS require `sudo`** — root-owned containers and directories.
+7. **The `.env` file on VPS is root-owned** at `/opt/<name>/.env`. Never edit it directly — use `fabrik apply` or `fabrik redeploy --refresh-infra` to update. Direct edits get overwritten on next deploy.
 
 ---
 
-## Standard Deploy Workflow (existing service)
+## How It Works — The Deploy Stack
+
+```text
+WSL (your laptop)                        VPS (vps1.ocoron.com)
+────────────────                         ────────────────────
+fabrik CLI                               /opt/<name>/
+  │                                        ├── compose.yaml    ← written by deployer
+  ├── SSHDeployer                          ├── .env            ← written by deployer
+  │     │                                  ├── Dockerfile      ← from git repo or template
+  │     ├── ssh("mkdir -p /opt/<name>")    └── src/            ← from git repo
+  │     ├── scp compose.yaml → /tmp/
+  │     ├── ssh("sudo mv /tmp/... → /opt/<name>/")
+  │     └── ssh("cd /opt/<name> && sudo docker compose up -d")
+  │
+  ├── InfrastructureProvisioner            Docker Engine
+  │     ├── postgres driver (CREATE DB)      └── container: <name>
+  │     ├── redis driver (allocate index)        ├── network: coolify (external)
+  │     ├── gatus driver (add endpoint)          ├── Traefik labels → HTTPS routing
+  │     ├── glitchtip driver (create project)    └── healthcheck: /health
+  │     ├── authelia driver (access rule)
+  │     ├── backrest driver (backup plan)   Traefik (reverse proxy)
+  │     ├── grafana driver (annotation)      └── routes *.vps1.ocoron.com → containers
+  │     ├── meilisearch driver (index)
+  │     └── prometheus driver (scrape job)
+  │
+  └── DeploymentVerifier
+        └── HTTPS probe: https://<domain>/health → 200 OK
+```
+
+**Key principle:** The deployer writes files to the VPS via SCP (using a scp-to-tmp-then-sudo-mv pattern for root-owned paths) and runs Docker Compose commands via SSH. It never runs Docker commands locally. All state lives on the VPS filesystem at `/opt/<name>/`.
+
+---
+
+## Source Types
+
+Every Fabrik spec declares a `source.type` that controls how code reaches the VPS:
+
+| Source type | How code gets to VPS | Spec example | Used by |
+|---|---|---|---|
+| **git** | `git clone` / `git pull` on VPS from GitHub | `source: { type: git, repository: "https://github.com/...", branch: main }` | All 8 Fabrik microservices (captcha, image-broker, translator, etc.) |
+| **template** | Fabrik renders compose.yaml from `templates/<type>/*.j2`, SCPs to VPS | `source: { type: template }` | New scaffolded services |
+| **docker** | Deployer generates minimal compose.yaml from `source.image`, SCPs to VPS | `source: { type: docker, image: "nginx:latest", image_port: 80 }` | Single-image services |
+| **local** | Compose.yaml already exists on VPS at `source.path`; deployer only writes .env | `source: { type: local, path: "/opt/my-app" }` | 13 services (captcha, file-api, translator, image-broker, etc.) |
+
+**All production services are currently git-sourced or local-sourced.** Template and docker source types are used for initial scaffolding and one-off image deployments.
+
+---
+
+## Standard Workflows
+
+### Redeploy an Existing Service (most common)
 
 ```bash
-# 1. Edit code locally in WSL (/opt/fabrik or /opt/<service>)
-# 2. Commit + push
+# 1. Edit code locally in WSL
 cd /opt/<service>
-git add -A
-git commit -m "feat: <change>"
-git push
+# ... make changes ...
 
-# 3. Trigger Coolify redeploy
+# 2. Commit + push to GitHub
+git add -A && git commit -m "feat: <change>" && git push
+
+# 3. Trigger redeploy (VPS pulls from GitHub, rebuilds, restarts)
 fabrik redeploy <service-name>
 
-# 4. Watch logs (Loki via fabrik logs, or Coolify UI)
-fabrik logs <service-name> --tail 100 --follow
-
-# 5. Verify health
+# 4. Verify
 curl -sS https://<service>.vps1.ocoron.com/health
 ```
 
----
+**What `fabrik redeploy` does under the hood:**
 
-## New Service Deploy Workflow
+1. `SSHDeployer.find_existing(name)` — checks `/opt/<name>/compose.yaml` exists on VPS
+2. Detects source type by checking for `.git` directory on VPS
+3. **Git-sourced** (all current services):
+   - `ssh: cd /opt/<name> && sudo git pull` (pulls from GitHub remote, timeout 60s)
+   - `ssh: cd /opt/<name> && sudo docker compose build` (rebuilds image, timeout 300s)
+   - `ssh: cd /opt/<name> && sudo docker compose up -d` (restarts with new image, timeout 120s)
+4. **Non-git** (template/docker/local):
+   - `ssh: cd /opt/<name> && sudo docker compose up -d` (recreates only if config changed)
+
+**Flags:**
+- `--force` / `-f` — adds `--no-cache` to build (git) or `--force-recreate` to up (non-git)
+- `--refresh-infra --spec PATH` — re-runs all infrastructure registrars without rebuilding the container (use when spec shape flags change)
+- `--dry-run` — shows what would happen without doing it
+
+### Deploy a New Service
 
 ```bash
-# 0. (Optional, recommended — T3-01) Capture intent in a preplan markdown FIRST.
-# Stage 1 of the lifecycle. The preplan becomes the single source of truth
-# every downstream agent reads — saves re-deriving intent at every stage.
-cd /opt/fabrik
-fabrik preplan new <name>
-# Edit docs/preplans/<today>-<name>.md — fill in 9 sections including VPS1
-# inventory reminders, then hand off to scaffold via --from-preplan.
-
-# 1. Scaffold (creates /opt/<name>/ with full structure)
+# 1. Scaffold project structure
 cd /opt
 fabrik scaffold <name> --type python-api --description "<what it does>"
-# OR: fabrik scaffold <name> --from-preplan /opt/fabrik/docs/preplans/<today>-<name>.md
-# (with --from-preplan, the preplan is copied into <project>/docs/preplan.md
-#  and a `Preplan:` reference is appended to all 4 AI guardrail files —
-#  AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules)
-# Scaffold auto-emits: logger.py, internal_auth.py, metrics.py,
-# glitchtip_init.py, /metrics endpoint, /health, structlog wiring,
-# Dockerfile, compose.yaml, project.yaml, .env.example, AGENTS.md
+# Creates: /opt/<name>/ tree, specs/services/<name>.yaml, .env.example
 
-# 2. Implement business logic in src/<package>/
+# 2. Implement business logic
 cd /opt/<name>
-# ... edit files ...
+# ... write code, tests ...
 
 # 3. Validate against Fabrik standards
-fabrik validate <name>
+fabrik validate-deploy /opt/<name>
 
-# 4. Plan (dry-run — shows what Coolify resources will be created)
-fabrik plan <name>
+# 4. Plan (dry-run — shows what will be created)
+fabrik plan specs/services/<name>.yaml
 
-# 5. Provision GlitchTip project + push DSN to Coolify env (optional)
-bash /opt/fabrik/scripts/provision_glitchtip_project.sh <name>
-# For Node services: add --platform javascript-node
+# 5. Commit + push
+git add -A && git commit -m "initial" && git push
 
-# 6. Apply (creates Coolify Application/Service via API)
-fabrik apply <name>
+# 6. Apply (creates everything: DNS, container, DB, monitoring, auth, backups, errors)
+cd /opt/fabrik
+fabrik apply specs/services/<name>.yaml
+# --dry-run to simulate first
+# --skip-health-check for initial deploys where /health may not be ready yet
+# -s KEY=VALUE to pass secrets
 
-# 7. Coolify pulls from GitHub, builds, deploys. Watch:
-fabrik status <name>
+# 7. Verify
+curl -sS https://<name>.vps1.ocoron.com/health
 ```
 
-`fabrik apply` is idempotent — re-running on an existing service updates env vars and redeploys.
+`fabrik apply` is idempotent — re-running on an existing service updates compose.yaml, merges .env, and restarts only if config changed.
+
+### Destroy a Service
+
+```bash
+# Dry-run first (always)
+fabrik destroy specs/services/<name>.yaml --dry-run
+
+# Real destroy (tears down everything fabrik apply created)
+fabrik destroy specs/services/<name>.yaml -y
+
+# Keep DNS records (useful if migrating, not deleting)
+fabrik destroy specs/services/<name>.yaml --keep-dns -y
+
+# Also drop the database (default: preserved for safety)
+fabrik destroy specs/services/<name>.yaml --drop-data -y
+```
+
+**What `fabrik destroy` does:**
+
+1. **Registrar teardown** (reverse order of provisioning):
+   - prometheus → remove scrape job (first down, last up)
+   - meilisearch → skipped (index preserved) unless `--drop-data`
+   - authelia → remove access rule, restart authelia
+   - glitchtip → delete project
+   - grafana → skipped (annotations are informational, auto-expire)
+   - backrest → remove backup plan
+   - gatus → remove endpoint, restart gatus
+   - **postgres → skipped** (database preserved) unless `--drop-data`
+   - **redis → index slot released, data NOT flushed** unless `--drop-data`
+2. **App teardown:**
+   - `sudo docker compose down -v` (stops containers, removes volumes)
+   - `sudo rm -rf /opt/<name>` (removes all app files)
+   - `sudo docker image prune -f` (cleans dangling images)
+3. **DNS teardown** (unless `--keep-dns`):
+   - Removes A record from site-provisioner / Cloudflare
+
+**Partial destroy** (surgical — remove specific registrars only):
+```bash
+fabrik destroy specs/services/<name>.yaml --partial gatus --partial backrest --dry-run
+```
+
+**State-driven destroy** (use state file instead of current spec shape):
+```bash
+fabrik destroy specs/services/<name>.yaml --use-state --drop-data -y
+```
+
+### Refresh Infrastructure Only (no rebuild)
+
+When you change spec shape flags (e.g., add `needs_cache: true`) but the code hasn't changed:
+
+```bash
+fabrik redeploy --refresh-infra --spec specs/services/<name>.yaml
+```
+
+This re-runs all infrastructure registrars (postgres, redis, gatus, etc.) against the existing running container without rebuilding it.
 
 ---
 
-## Updating an Existing Service to Match New Scaffold Standards
+## What `fabrik apply` Does — Phase by Phase
 
-When the scaffold gains new emitted files (e.g. the GlitchTip integration added 2026-05-08), bring older services up to date:
+Source of truth: `src/fabrik/orchestrator/__init__.py:DeploymentOrchestrator.deploy()`
 
-```bash
-fabrik fix <service-name>
-# Adds missing required files. Reference docs (4 files) always overwrite.
-# AFCL.md is preserved if it exists (per-project friction log).
-```
+The orchestrator runs **5 phases** with state transitions: `VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE`. Failure at any phase triggers `ROLLING_BACK` (automatic, unless `--keep-on-failure`).
 
-After `fabrik fix`: review the diff, commit, push, redeploy.
+### Phase 1 — VALIDATING (local, no VPS calls)
+
+**Module:** `src/fabrik/orchestrator/validator.py:SpecValidator`
+
+- Loads spec YAML via `spec_loader.load_spec()`
+- Validates schema: required fields, `shape.*` flags, port uniqueness (PORTS.md), business model check (BUSINESS_MODEL.md)
+- Computes `spec_hash` for idempotency
+- Returns `(spec, spec_hash, warnings)`
+
+### Phase 2 — SECRETS (local, no VPS calls)
+
+**Module:** `src/fabrik/orchestrator/secrets.py:SecretsManager`
+
+- Resolves secrets from: environment variables → project `.env` → `-s KEY=VALUE` flags → auto-generate (CSPRNG, 32-char `[a-zA-Z0-9]`)
+- Populates `ctx.secrets` dict — these are layered on top of spec env vars during deploy
+
+### Phase 3 — DNS PROVISIONING
+
+**Module:** `src/fabrik/orchestrator/__init__.py:_provision_dns()`
+
+- Parses domain into subdomain + base domain
+- Creates A record via site-provisioner API (`DNSClient.add_subdomain()`)
+- Falls back to Cloudflare API if site-provisioner is unavailable
+- Tracks as `ctx.add_resource("dns", domain, zone=base_domain)` for rollback
+
+### Phase 4 — DEPLOY (SSH to VPS)
+
+**Module:** `src/fabrik/orchestrator/deployer_ssh.py:SSHDeployer`
+
+This is the phase that creates or updates the container on VPS.
+
+1. **Name validation** — strict regex `^[a-z0-9][a-z0-9-]{0,62}$` (shell injection prevention gate)
+2. **Check existing** — `ssh: test -f /opt/<name>/compose.yaml` to detect update vs new deploy
+3. **Dispatch by source type** — see [Source Types](#source-types) above
+4. **For template/docker sources:**
+   - Render compose.yaml (from Jinja2 templates or generated)
+   - Validate against rule-pack constraints (see [Compose Validation](#compose-validation-rules))
+   - Build `.env` via read-merge strategy (see [.env Handling](#env-handling))
+   - SCP files to VPS using scp-to-tmp-then-sudo-mv pattern
+   - `ssh: cd /opt/<name> && sudo docker compose up -d`
+5. **For git sources:**
+   - Clone (new) or pull (existing) from GitHub
+   - Build `.env` via read-merge strategy
+   - `ssh: sudo docker compose build && sudo docker compose up -d`
+6. **For local sources:**
+   - Verify compose.yaml exists at `source.path`
+   - Build `.env` via read-merge strategy
+   - `ssh: cd <path> && sudo docker compose up -d`
+7. **Track resource** — `ctx.add_resource("compose", name)` for rollback (new deploys only)
+
+### Phase 4b — INFRASTRUCTURE REGISTRARS (post-deploy, SSH to VPS)
+
+**Module:** `src/fabrik/orchestrator/infrastructure.py:InfrastructureProvisioner`
+
+Runs **after** the container is up. Each registrar is gated by the spec's `shape:` block:
+
+| # | Registrar | Shape gate | What it does |
+|---|---|---|---|
+| 1 | **postgres** | `needs_database` | `CREATE DATABASE` + `CREATE USER` on postgres-main (does NOT inject `DATABASE_URL` — that comes from spec `env:` or `ctx.secrets`) |
+| 2 | **redis** | `needs_cache` | Allocates Redis DB index; injects `REDIS_URL` via `deployer.inject_env()` |
+| 3 | **gatus** | `is_public` + domain set | Adds HTTPS health endpoint as per-service YAML file in `/opt/monitoring/configs/gatus/apps/<name>.yaml`; restarts gatus |
+| 4 | **backrest** | `has_persistent_data` | Creates Restic backup plan for the service's volume |
+| 5 | **glitchtip** | `kind in {service, worker, wordpress}` | Creates GlitchTip project + DSN; injects `SENTRY_DSN` + `GLITCHTIP_DSN` via `deployer.inject_env()`; verifies via `docker inspect` |
+| 6 | **grafana** | always (non-fatal) | Creates deployment annotation |
+| 7 | **authelia** | `is_admin_dashboard` + domain set | Adds two_factor access rule; adds `^/api/` bypass only if `shape.has_bearer_api: true`; `docker restart authelia` |
+| 8 | **meilisearch** | `has_search_feature` | Creates search index with configured UID and searchable attributes |
+| 9 | **prometheus** | `exposes_metrics` | Adds scrape target for `/metrics` endpoint |
+
+**`inject_env()` flow** (used by redis + glitchtip registrars): reads existing `.env` on VPS, merges new vars, writes back via SCP, runs `docker compose up -d` to restart with new env. This preserves all existing env vars — registrar injections never clobber each other.
+
+**Override:** `infra: { <registrar>: false }` in spec disables a registrar. No `infra.foo: true` opt-in exists — shape flags control applicability.
+
+### Phase 5 — VERIFY (HTTPS probe from WSL)
+
+**Module:** `src/fabrik/orchestrator/verifier.py:DeploymentVerifier`
+
+- Probes `https://<domain>/health` from WSL (goes through Cloudflare → Traefik → container)
+- Retries with backoff until 200 OK or timeout
+- Skipped with `--skip-health-check` or when spec has no domain (internal workers)
+- Failure → triggers rollback
+
+### Rollback (automatic on phase failure)
+
+**Module:** `src/fabrik/orchestrator/rollback.py:RollbackManager`
+
+- Iterates `ctx.created_resources` in **reverse order** (LIFO — most-recent first)
+- Each resource type has a cleanup handler:
+  - `compose` → `SSHDeployer.delete()` (`docker compose down -v` + `rm -rf /opt/<name>`)
+  - `dns` → `DNSClient.delete_record_by_name()`
+  - `gatus` → `remove_endpoint()`
+  - `glitchtip` → `delete_project()`
+  - `backrest` → `remove_backup_plan()`
+  - `authelia` / `authelia_bypass` → `remove_access_rule()` (deduplicated per-domain)
+  - `grafana_annotation_id` → `delete_annotation()`
+  - `postgres` → **NOT dropped** (logs manual command only — deliberate policy)
+  - `meilisearch` → **NOT deleted** (logs manual command only — deliberate policy)
+- Errors during rollback are logged and accumulated — rollback never aborts, always tries every resource
+- `--keep-on-failure` flag skips rollback entirely (for debugging failed deploys)
+
+### Post-Deploy Hook (always runs, non-fatal)
+
+**Module:** `src/fabrik/cli.py:_post_deploy_sync()`
+
+1. `scripts/sync_projects.py` → updates `data/projects.yaml` registry
+2. `scripts/update_vps_docs.py` → refreshes VPS status docs
+3. `scripts/generate_vps_inventory.py --update` → refreshes VPS inventory
 
 ---
 
-## Rollback
+## .env Handling
 
-Coolify keeps the last known-good image. To revert:
+The deployer uses a **read-merge strategy** for `.env` files:
 
-```bash
-# Option A — revert the commit, push, redeploy
-cd /opt/<service>
-git revert HEAD
-git push
-fabrik redeploy <service-name>
-
-# Option B — Coolify UI: Application → Deployments → click previous deployment → "Redeploy"
+```
+Layer 1 (lowest): existing .env on VPS (preserves registrar-injected vars)
+Layer 2:          spec env: block from the YAML
+Layer 3 (highest): ctx.secrets (from SecretsManager — env vars, .env file, -s flags, generated)
 ```
 
-`DeploymentRollback` class in `src/fabrik/deploy.py` runs reverse-order handlers automatically when `fabrik apply` fails partway through.
+**Why read-merge matters:** After initial deploy, registrars inject vars like `SENTRY_DSN`, `GLITCHTIP_DSN`, `REDIS_URL`, `DATABASE_URL` into the `.env` via `inject_env()`. A naive overwrite would lose these. The read-merge strategy reads the existing `.env` first, then layers spec env and secrets on top.
+
+**When .env is written:**
+- `fabrik apply` — always (new deploy: fresh; update: read-merge)
+- `inject_env()` — called by redis + glitchtip registrars post-deploy (read-merge)
+- `fabrik redeploy` — **does NOT touch .env** (only pulls code and rebuilds)
 
 ---
 
-## Post-Reboot Recovery
+## Compose Validation Rules
 
-After a VPS reboot, memory limits and Gatus DNS aliases need re-applying:
+The deployer validates every compose.yaml before deploying (module: `deployer_ssh._validate_compose()`). Rules sourced from `.windsurf/rules/core/30-ops.md`:
 
-```bash
-ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
+| Rule | Requirement | Reason |
+|---|---|---|
+| `platform` | `linux/amd64` on every service | VPS is AMD64 |
+| `deploy.resources.limits.memory` | Required on every service | Prevents OOM on shared VPS |
+| `ports` | Forbidden (no `ports:` section) | All traffic through Traefik; direct ports bypass UFW |
+| `restart` | `unless-stopped` on every service | Auto-recovery after crashes |
+| `container_name` | Required on every service | Stable `docker exec`/`docker inspect` targeting |
+| `networks` | `coolify` declared as `external: true` | Shared network for inter-service communication + Traefik routing |
+| `depends_on` | No `postgres-main` or `redis-main` | These are external services, not compose dependencies |
+| Traefik labels | Must use `websecure` entrypoint (not `http`/`https`) | Coolify-era labels used wrong names |
+| Traefik labels | `loadbalancer.server.port` required when `traefik.enable=true` | Traefik needs to know which port to route to |
+| Environment | No `localhost` in `DATABASE_URL` or `REDIS_URL` | Would point at the container, not the shared DB |
+
+Validation is **fatal in both real and dry-run deploys** (raises `DeployError`). There is no advisory mode — invalid compose files always block deployment.
+
+---
+
+## VPS Directory Layout
+
+Every deployed service lives at `/opt/<name>/` on the VPS:
+
 ```
-
-This script:
-- Reapplies Docker memory limits to all infra containers (Coolify strips them on restart)
-- Re-attaches stable DNS aliases on the `coolify` network for single-image Applications (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`)
-- Restarts Authelia if its config drifted
+/opt/
+├── captcha/              ← git-sourced service
+│   ├── .git/
+│   ├── compose.yaml
+│   ├── .env              ← root-owned, written by deployer
+│   ├── Dockerfile
+│   └── src/
+├── image-broker/         ← git-sourced service
+│   └── ...
+├── monitoring/           ← infrastructure stack (prometheus, grafana, etc.)
+│   └── compose.yaml
+├── authelia/             ← auth gateway
+│   └── configuration.yml
+├── gatus/                ← not directly here — config at /opt/monitoring/configs/gatus/
+└── fabrik/               ← this repo (CLI + orchestrator)
+    ├── specs/services/   ← spec YAML files
+    ├── templates/        ← Jinja2 compose templates
+    └── .fabrik/state/    ← deploy state files (JSON)
+```
 
 ---
 
 ## Secrets Management
 
-**Never commit secrets to git.** All secrets live in Coolify env (per service) or `/opt/fabrik/.env` (for CLI scripts).
+Secrets never go in git. They live in `.env` files on the VPS (root-owned) or in `/opt/fabrik/.env` (for CLI scripts).
 
-| Secret | Storage | Rotation |
+| Secret | Where it lives | How to rotate |
 |---|---|---|
-| `SERVICE_INTERNAL_SECRET_KEY` (M2M auth) | `/opt/fabrik/.env` + every service's Coolify env | Manual; rotate quarterly |
-| `COOLIFY_API_TOKEN` | `/opt/fabrik/.env` only | Coolify UI → Profile → API Tokens |
-| `GLITCHTIP_AUTH_TOKEN` | `/opt/fabrik/.env` only | GlitchTip UI → Settings → Auth Tokens |
-| `GLITCHTIP_DSN` | per-service Coolify env (provisioner pushes via API) | Re-run `provision_glitchtip_project.sh` |
-| Service-specific (Webshare, Apify, Cloudflare, etc.) | per-service Coolify env | Vendor dashboards |
+| `SERVICE_INTERNAL_SECRET_KEY` (M2M auth) | `/opt/fabrik/.env` + every service's `/opt/<name>/.env` | Edit `/opt/fabrik/.env`, re-apply all specs |
+| `GLITCHTIP_DSN` | per-service `.env` (injected by glitchtip registrar) | Re-run `fabrik redeploy --refresh-infra --spec <spec>` |
+| `REDIS_URL` | per-service `.env` (injected by redis registrar) | Re-run `fabrik redeploy --refresh-infra --spec <spec>` |
+| `DATABASE_URL` | per-service `.env` (from spec `env:` block or `ctx.secrets`, NOT injected by postgres registrar) | Update spec `env:` block, re-apply |
+| Service-specific keys (API tokens, etc.) | per-service `.env` via spec `secrets:` block | Update `/opt/fabrik/.env` or env var, re-apply |
 
-**Pre-commit hook** (`scripts/sync_enforcement_to_projects.py`) blocks `.env`, `*.key`, `*.pem`, `*.crt` from being committed. GitHub push protection is the second line of defense.
+**Password policy:** 32-char `[a-zA-Z0-9]` via `secrets.choice()` (CSPRNG).
+
+**Governance sync** (`scripts/sync_enforcement_to_projects.py`) copies enforcement scripts and governance files to all `/opt` projects for Fabrik compliance — it does not block secrets. Secret blocking is handled by `.gitignore` patterns and pre-commit hooks in individual projects.
 
 ---
 
-## Health Check Commands
+## Health Checks
 
 ```bash
 # Per-service health
 curl -sS https://<service>.vps1.ocoron.com/health | jq .
 
-# All Gatus monitors at once
+# All Gatus monitors
 curl -sS https://status.vps1.ocoron.com/api/v1/endpoints/statuses | jq '.[] | {name, status: .results[-1].success}'
 
 # Container status from VPS
@@ -165,50 +409,91 @@ ssh vps 'sudo docker ps --format "{{.Names}}\t{{.Status}}"'
 ssh vps 'sudo docker stats --no-stream --format "{{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}"'
 ```
 
+**Health endpoint contract:** `/health` must verify real deps (`SELECT 1` on DB, `PING` on Redis) — not return a static 200. `/health` is globally Authelia-bypassed — never protect it.
+
 ---
 
-## Observability Per Deploy
+## Observability
 
-When a deploy happens, errors flow to two places:
-
-| Where | What | Auth |
-|---|---|---|
-| Loki (via Grafana `https://grafana.vps1.ocoron.com`) | Structured logs with correlation IDs | Authelia |
-| GlitchTip (`https://errors.vps1.ocoron.com`) | Stacktraces, release tags, environment | Authelia |
-| Prometheus (via Grafana) | RED metrics (rate, errors, duration) per service | Authelia |
-| Alertmanager → Telegram | Critical alerts (down, OOM, cert expiry) | n/a |
-
-The release tag in GlitchTip events comes from `GIT_SHA` env var — set this in CI or via Coolify env to enable per-commit error filtering.
+| System | URL | What it shows | Auth |
+|---|---|---|---|
+| Grafana | `https://grafana.vps1.ocoron.com` | Dashboards, Loki logs, Prometheus metrics | Authelia |
+| GlitchTip | `https://errors.vps1.ocoron.com` | Error tracking (Sentry-compatible) | Authelia |
+| Gatus | `https://status.vps1.ocoron.com` | Public status page with health history | Public |
+| Alertmanager → Telegram | (push) | Critical alerts: down, OOM, cert expiry | n/a |
 
 ---
 
 ## Troubleshooting
 
-**Symptom: `fabrik redeploy` returns success but no new code in production.**
-You forgot `git push`. Coolify pulled the OLD GitHub state. Fix: `git push && fabrik redeploy <service>`.
+**Symptom: `fabrik redeploy` returns success but old code is running.**
+Cause: forgot `git push`. VPS pulled the old GitHub state.
+Fix: `git push && fabrik redeploy <service>`.
 
-**Symptom: service can't reach `postgres-main`.**
-Container is on the wrong Docker network, or compose.yaml uses `localhost` instead of `postgres-main`. Check: `sudo docker inspect <container> | grep -A 5 Networks`.
+**Symptom: service can't reach postgres-main or redis-main.**
+Cause: container on wrong Docker network, or `DATABASE_URL` uses `localhost`.
+Fix: check `sudo docker inspect <container> | grep -A 5 Networks` — must be on `coolify` network. Check `.env` — must use `postgres-main:5432`, not `localhost`.
 
 **Symptom: 401 from a service that should be public.**
-Authelia caught it. Check `/opt/authelia/configuration.yml` access rules; reload via `docker restart authelia-...` (NOT SIGHUP).
+Cause: Authelia caught it.
+Fix: check `/opt/authelia/configuration.yml` access rules. After edits: `sudo docker restart authelia`.
 
 **Symptom: Traefik 502 / 504.**
-`/health` endpoint timing out, or container exited. `sudo docker logs --tail 100 <container>`.
+Cause: container crashed or `/health` timing out.
+Fix: `sudo docker logs --tail 100 <container>`. Check `sudo docker ps` for restart loops.
 
-**Symptom: Gatus shows alias as `unknown` / 0.0.0.0.**
-Single-image Application lost its alias on Coolify redeploy. Run `bash /opt/fabrik/scripts/vps_apply_limits.sh apply_alias <service>` (see `.windsurf/rules/core/55-observability.md` § "Gatus — Stable DNS Names" + `docs/reference/coolify-stable-aliases.md`).
+**Symptom: redeploy didn't pick up new env vars.**
+Cause: `fabrik redeploy` does NOT touch `.env` — only `fabrik apply` and `inject_env` do.
+Fix: re-run `fabrik apply specs/services/<name>.yaml` to read-merge the new vars.
+
+**Symptom: registrar not running (no Gatus endpoint, no GlitchTip project, etc.).**
+Cause: spec `shape:` block missing the flag, or `infra: { registrar: false }` override.
+Fix: add shape flag, run `fabrik redeploy --refresh-infra --spec <spec>`.
 
 ---
 
-## Related Runbooks
+## Audit & Reconciliation
 
-- `docs/infrastructure/glitchtip-sdk-integration-setup.md` — error reporting setup
-- `docs/infrastructure/grafana-provisioning-setup.md` — Grafana datasources via file provisioning
-- `docs/infrastructure/promtail-noise-filter-setup.md` — Loki ingestion filtering
-- `docs/operations/coolify-migration.md` — moving services between hosts
-- `docs/operations/disaster-recovery.md` — restore from backup
-- `docs/operations/backup-strategy.md` — Backrest/Restic strategy
+```bash
+# Check which registrars are live vs expected for a spec
+fabrik audit-registrars --spec specs/services/<name>.yaml
+
+# Reconcile all specs against live VPS state
+fabrik reconcile-all --yes
+
+# Verify deploy health + registrar presence
+fabrik verify <domain> --spec deploy
+fabrik verify <domain> --spec registrars
+
+# Surgical un-registration (without destroying the app)
+fabrik destroy specs/services/<name>.yaml --partial gatus --partial backrest
+```
+
+---
+
+## Post-Reboot Recovery
+
+After a VPS reboot, containers auto-restart (`restart: unless-stopped`). Resource limits need re-applying:
+
+```bash
+ssh vps "bash /opt/fabrik/scripts/vps_apply_limits.sh"
+```
+
+---
+
+## Related Files
+
+| File | Purpose |
+|---|---|
+| `docs/DEPLOYMENT_ARCHITECTURE.md` | Code-level architecture reference — every source file on the deploy path |
+| `docs/operations/fabrik-lifecycle.md` | Runtime behavior during deploy/redeploy — data safety, downtime, .env merge |
+| `docs/operations/disaster-recovery.md` | Backup restore procedures |
+| `docs/operations/backup-strategy.md` | Backrest/Restic strategy |
+| `src/fabrik/orchestrator/__init__.py` | Orchestrator main — `deploy()` method |
+| `src/fabrik/orchestrator/deployer_ssh.py` | SSH deployer — file transfer + docker compose |
+| `src/fabrik/orchestrator/infrastructure.py` | Registrar dispatch |
+| `src/fabrik/orchestrator/destroyer.py` | Reverse teardown |
+| `src/fabrik/orchestrator/rollback.py` | Automatic rollback on failure |
 
 ---
 
@@ -216,525 +501,6 @@ Single-image Application lost its alias on Coolify redeploy. Run `bash /opt/fabr
 
 | Date | Change |
 |---|---|
-| 2026-05-08 | GlitchTip SDK integration baked into scaffold; provisioner script added; runbook published |
-| 2026-05-08 | 5 leaked secrets redacted from HEAD (`apps/fabrik-proxy/compose.yaml`, archive doc) |
-| 2026-05-07 | Grafana datasource file-provisioning live; Promtail noise filter deployed |
-| 2026-05-06 | Gatus stable DNS alias architecture (single-image fix) codified across 4 governance docs |
-
----
-
-## What Fabrik Provides — Installed Services Inventory
-
-Fabrik is a PaaS layer over Coolify on a single Ubuntu VPS (`vps1.ocoron.com`). Below is what's actually deployed and running, grouped by function. Container count: **44 running** as of 2026-05-08.
-
-### Platform Layer (lifecycle + routing)
-
-| Service | Image | Function |
-|---|---|---|
-| `coolify` | ghcr.io/coollabsio/coolify | Web UI + API for application lifecycle (create, deploy, destroy). Fabrik's `apply` driver calls this API. |
-| `coolify-db` | postgres:15-alpine | Coolify's own state DB (apps, deployments, users) — internal to Coolify only |
-| `coolify-redis` | redis:7-alpine | Coolify's own queue/cache — internal to Coolify only |
-| `coolify-realtime` | coolify-realtime | WebSocket layer for the Coolify UI |
-| `coolify-sentinel` | sentinel | Coolify's per-VPS health agent |
-| `coolify-proxy` | traefik:v3.6 | **Active reverse proxy** — terminates TLS, routes by hostname, applies middlewares. All HTTPS traffic enters here. |
-| `traefik` | traefik:v2.11 | Legacy proxy (older deploy) — kept for reference, not in active routing |
-
-### Auth Boundary
-
-| Service | Image | Function |
-|---|---|---|
-| `authelia` | authelia/authelia:latest | Forward-auth: protects admin dashboards (Grafana, GlitchTip, Coolify, etc.). Sessions stored in `redis-main:6379` DB index 3. **Never SIGHUP — always `docker restart`** to reload config. |
-
-### Shared Application Databases
-
-| Service | Image | Function |
-|---|---|---|
-| `postgres-main` | postgres:16-alpine | Primary application DB shared by all microservices. Each service gets its own DB (e.g. `glitchtip`, `proxy_management`). **Always reach via `postgres-main:5432` — never `localhost`.** |
-| `redis-main` | redis:7-alpine | Shared cache + Authelia session store. **Reach via `redis-main:6379`**. |
-
-### Observability Stack
-
-| Service | Image | Function |
-|---|---|---|
-| `prometheus` | prom/prometheus:v3.2.1 | Metrics scraper — pulls `/metrics` endpoints from cadvisor, node-exporter, Fabrik services. Standalone (NOT in Coolify — Coolify strips network attachments on redeploy). 30d / 5GB retention. |
-| `grafana` | grafana/grafana:11.5.1 | Dashboards. Datasources file-provisioned via bind mount `/opt/monitoring/configs/grafana/provisioning`. |
-| `loki` | grafana/loki:3.4.2 | Log aggregation. 7d retention. |
-| `promtail` | grafana/promtail:3.4.2 | Log shipper to Loki. Drops noise from `coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel`, `ocoron-com-backup-1`. |
-| `alertmanager` | prom/alertmanager:v0.28.1 | Routes Prometheus alerts. `group_by: [alertname, container]`, repeat `4h` default / `30m` critical. |
-| `apprise` | caronc/apprise | Alertmanager → Telegram bridge. |
-| `node-exporter` | prom/node-exporter:v1.9.1 | Host-level CPU/memory/disk metrics. |
-| `cadvisor` | gcr.io/cadvisor/cadvisor:v0.52.1 | Per-container metrics. `--housekeeping_interval=30s --docker_only=true`. |
-| `netdata` | netdata/netdata:stable | Real-time per-host UI. 512MB / 7d retention. |
-
-### Error Reporting
-
-| Service | Image | Function |
-|---|---|---|
-| `glitchtip-web` | glitchtip/glitchtip:latest | Sentry-compatible error tracking UI + ingestion. Public via `errors.vps1.ocoron.com` (Authelia). Internal alias `glitchtip-web:8000` for SDK ingestion (bypasses Authelia). |
-| `glitchtip-worker` | glitchtip/glitchtip:latest | Celery worker — processes incoming events. |
-
-### Backup
-
-| Service | Image | Function |
-|---|---|---|
-| `backrest` | ghcr.io/garethgeorge/backrest | Restic-based backup orchestrator. Plans created automatically by Fabrik for services with `shape.has_persistent_data`. |
-
-### Status / Health Monitoring
-
-| Service | Image | Function |
-|---|---|---|
-| `gatus` | twinproduction/gatus:latest | Public status page at `status.vps1.ocoron.com`. Uses stable Docker DNS aliases (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`) — never raw UUID container names. |
-
-### Workflow / Automation
-
-| Service | Image | Function |
-|---|---|---|
-| `n8n` | n8nio/n8n:latest | Visual workflow automation — webhooks, scheduled jobs, integrations. Authelia-protected. |
-
-### Shared Utility Services (used by Fabrik microservices)
-
-| Service | Image | Function |
-|---|---|---|
-| `meilisearch` (UUID name) | getmeili/meilisearch:v1.13 | Search index server. Per-service indexes. Internal alias `meilisearch:7700`. |
-| `gotenberg` (UUID name) | gotenberg/gotenberg:8 | HTML/Markdown → PDF converter. Internal alias `gotenberg:3000`. |
-| `browserless/chromium` (UUID name) | ghcr.io/browserless/chromium | Headless browser API for scraping/screenshots. Internal alias `browserless:3000`. |
-
-### Fabrik Microservices (8 — all M2M-authed via `X-Internal-Token`)
-
-| Service | Function |
-|---|---|
-| `fabrik-proxy` | Proxy management API for Webshare/Apify residential proxies (rotation, health). |
-| `captcha` | CAPTCHA solving service (third-party API wrapper). |
-| `image-broker` | Image processing/optimization broker. |
-| `translator` | Multi-locale translation API (LLM-backed). |
-| `emailgateway` | Email send relay (multiple providers behind one API). |
-| `file-api` | User-facing file upload/download API. Auth via Supabase JWT (not M2M token). |
-| `file-worker` | Background file-processing worker (companion to file-api). |
-| `site-provisioner` | Provisions per-tenant WordPress/static sites. IP-allowlisted (no app auth). |
-
-### Hosted End-User Applications
-
-| Service Group | Containers | Function |
-|---|---|---|
-| `ocoron-com` | wordpress + mariadb + redis + nginx + backup (5 containers) | Marketing site at ocoron.com. WordPress on PHP 8.3-FPM, MariaDB 10.11, Nginx front, dedicated Redis. Backup container runs scheduled exports. |
-
-### Project Type Catalog (`fabrik scaffold --type <T>`)
-
-The scaffold supports **11 project types** (canonical list in `src/fabrik/scaffold.py:SCAFFOLD_TYPES`):
-
-| Type | Stack | Use |
-|---|---|---|
-| `python-api` | FastAPI + structlog + Alembic | Internal/public REST APIs |
-| `node-api` | Node.js + pino | JS/TS REST APIs |
-| `saas-skeleton` | Next.js + TypeScript + Tailwind | Full SaaS apps with UI |
-| `file-api` | FastAPI + Supabase JWT | User-facing file upload/download |
-| `file-worker` | Celery / RQ | Background file processing |
-| `wordpress` | WP + MariaDB | Marketing/content sites (5 sub-presets: saas, company, content, landing, ecommerce) |
-| `docusaurus` | Docusaurus 3 | Documentation sites |
-| `chrome-extension` | MV3 + TypeScript | Browser extensions |
-| `mobile-app` | React Native / Expo | Mobile apps |
-| `desktop-app` | Tauri / Electron | Desktop apps |
-| `static-site` | Vite + plain HTML/JSX | Static sites |
-
-Plus the WordPress presets give 16 effective scaffold variants.
-
----
-
-## What Happens During Deploy — Phase-by-Phase
-
-This is the actual sequence executed by `fabrik apply <spec>` (and by `fabrik deploy` when called from a project's own `project.yaml`). Source of truth: `src/fabrik/orchestrator/__init__.py:DeploymentOrchestrator.deploy()`.
-
-The orchestrator runs **5 phases** with `DeploymentState` transitions: `VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE`. Failure at any phase triggers `ROLLING_BACK` (auto, unless `--keep-on-failure`).
-
-### Phase 1 — VALIDATING (locally on WSL, no VPS calls)
-**Module:** `src/fabrik/orchestrator/validator.py:SpecValidator`
-
-- Loads the spec YAML (or `project.yaml` for `fabrik deploy`)
-- Validates schema: required fields, `shape.*` flags, port uniqueness against `PORTS.md`, business model duplicate check against `BUSINESS_MODEL.md`
-- Computes `spec_hash` (used for idempotency — re-runs skip if hash unchanged)
-- Returns `(spec, spec_hash, warnings)` — warnings are non-fatal (e.g. missing user guide flag)
-
-**No network calls in this phase.**
-
-**Upstream gate (T2-03 G-E2):** before `fabrik apply` ever reaches this phase, the staged spec passes through `scripts/final_gate.py` (the operator's pre-stage AI-review gate). The yaml-load block at line 471 now runs `fabrik.spec_loader.load_spec()` on any file under `specs/services/`, catching pydantic-model violations (invalid enum, wrong env type, missing required field) before the file ever lands. The orchestrator's Phase-1 validator does the same checks in-process at apply time, so the two layers are belt-and-braces.
-
-### Phase 2 — PROVISIONING (local — secret resolution)
-**Module:** `src/fabrik/orchestrator/secrets.py:SecretsManager`
-
-- Resolves secrets from `--secrets KEY=VALUE` flags AND from `/opt/fabrik/.env`
-- Builds the env dict that will be pushed to Coolify
-- Validates no required secrets are missing
-
-**No network calls in this phase.**
-
-### Coolify v4 limits_memory gap (F5, 2026-05-16)
-
-**Symptom:** A Fabrik microservice spec declares `resources.limits.memory: 512M` (or the pre-G1 form `resources.memory: 512M`). After `fabrik apply`, the running container has `HostConfig.Memory: 0` (unlimited) — Coolify ignores the spec value at compose-write time.
-
-**Root cause:** Coolify v4.0.0-beta.459 stores `limits_memory` in its application config (`coolify-db.applications` table) but does NOT emit a `deploy.resources.limits` block in the `compose.yaml` it writes to `/data/coolify/applications/<uuid>/`. The compose Coolify generates for a `build_pack: dockercompose` git-source application is sourced from the project's repo `compose.yaml` — Coolify does NOT layer its own `limits_memory` on top.
-
-**Permanent fix (per-service backfill):** add an explicit `deploy.resources.limits` block to each service's compose.yaml in its source repo:
-
-```yaml
-services:
-  <service-name>:
-    # ... existing config ...
-    deploy:
-      resources:
-        limits:
-          memory: 512M   # match spec.resources.limits.memory (or .memory)
-          cpus: '0.5'    # match spec.resources.limits.cpus
-```
-
-Then `git add compose.yaml && git commit -m 'add memory/cpu limits' && git push && cd /opt/fabrik && fabrik redeploy fabrik-<name>`.
-
-The python-api and node-api scaffold templates (`templates/python-api/compose.yaml.j2` and `templates/node-api/compose.yaml.j2`) already emit this block from `{{ resources.memory }}` and `{{ resources.cpu }}`. The non-spec-driven canonical compose generator (`_write_canonical_compose()` in `src/fabrik/scaffold.py`) ALSO emits the block by default since 2026-05-16. New services in any project type carry the limit automatically.
-
-**For Coolify Services (one-click stacks: grafana, n8n, postgres-main, authelia, etc.)** — these have no source repo. Their compose lives in Coolify's DB at `docker_compose_raw`. Use `scripts/coolify_services_f5.py` to inject the deploy block via the Coolify API (string-precise; preserves formatting). The on-disk file at `/data/coolify/services/<uuid>/docker-compose.yaml` is REGENERATED from the DB field on every redeploy — editing the file directly would be silently reverted. See Lesson 62.
-
-**Status (2026-05-16): F5 permanent fix applied:**
-
-- 7 Coolify Applications (Fabrik microservices) backfilled via per-repo compose.yaml commits. (file-worker already had the block.)
-- 12 Coolify Services backfilled via `scripts/coolify_services_f5.py` (apprise, netdata, grafana, loki, promtail, node-exporter, cadvisor, alertmanager, postgres-main, n8n, backrest, authelia). PATCH `/api/v1/services/{uuid}` with base64-encoded docker_compose_raw.
-- Scaffolder + 3 legacy compose templates updated so NEW deployments carry the deploy block by default.
-
-**`scripts/vps_apply_limits.sh` remains as transitional stopgap**: it applies `docker update --memory` to already-running containers (started from old compose). After each service is redeployed once post-F5, the script's main loop becomes a noop for that service. Safe to keep running. Manual rerun: `ssh vps "bash -s" < /opt/fabrik/scripts/vps_apply_limits.sh`.
-
-### Phase 3 — DEPLOYING (calls Coolify API on VPS)
-**Module:** `src/fabrik/orchestrator/deployer.py:ServiceDeployer`
-
-This is the only phase that creates the Application container. Sequence:
-
-1. **`find_existing(name)`** — GET `/api/v1/applications?name=<name>` on Coolify. Idempotency check.
-2. **`_resolve_project_server_uuids()`** — looks up the Coolify project + server UUIDs from the spec.
-3. **`_resolve_environment_uuid()`** — resolves the target environment (production by default).
-4. **`_resolve_private_key_uuid()`** — resolves the SSH key for git clone (if git source).
-5. **`_create_deployment()`** — branches:
-   - **Git source** → `_create_git_deployment()`: Coolify clones the GitHub repo on the VPS, builds (Dockerfile from repo root or `dockerfile_path`), and starts the container. The build happens **on the VPS** in Coolify's build environment.
-   - **Inline source** → `_create_inline_deployment()`: pushes a docker-compose snippet directly to Coolify (used for single-image services like Meilisearch, Gotenberg).
-6. **`_wait_for_app_status(uuid, max_wait=600)`** — polls Coolify's status endpoint until container reports running. Timeout = 10 min.
-7. **`_wait_for_container(name, max_wait=90)`** — confirms the actual Docker container exists on VPS. Timeout = 90s.
-
-**At end of Phase 3**: a running container exists on the VPS, attached to the `coolify` Docker network, with Traefik labels applied (Coolify auto-generates these from spec's `domain` and `port`).
-
-### Phase 3a — COOLIFY ALIAS REGISTRATION (T2-04 G-J3, optional)
-
-**Module:** `src/fabrik/orchestrator/coolify_alias.py::add_alias`
-
-Fires between Phase 3 and Phase 4 ONLY when the spec sets `coolify.alias: <friendly-name>` in its `CoolifyConfig` block. The orchestrator's `_maybe_register_coolify_alias(ctx, spec)` calls `add_alias(ctx.coolify_uuid, spec.coolify.alias)` which:
-
-1. Reads `/opt/coolify-alias-watcher/aliases.json` via SSH+sudo cat.
-2. No-ops if `aliases[coolify_uuid] == alias` already.
-3. Otherwise atomically writes the merged map (`tee → /tmp/aliases.json.tmp` then `chown root:root + chmod 644 + mv`).
-4. `sudo systemctl restart coolify-alias-watcher.service` (sub-second; unit has `Restart=always` and NO `ExecReload`).
-
-The watcher's docker-events listener picks up the new prefix→alias mapping on next start. Non-fatal: alias-watcher failure logs a warning but never aborts deploy. Adds `ResourceRecord("coolify_alias", alias, ...)` to ctx so the T4-02 `destroy --use-state` path can find it.
-
-**Skipped for:**
-
-- Specs without `coolify.alias` set (default `None` — covers all Service stacks and any Application whose container name doesn't need stable DNS aliasing).
-- `refresh_infrastructure()` also calls this so adding `coolify.alias` to an existing spec and re-running picks it up.
-
-### Phase 4 — PROVISIONING (post-deploy registrars on VPS)
-**Module:** `src/fabrik/orchestrator/infrastructure.py:InfrastructureProvisioner`
-
-The orchestrator dispatches to **9 infrastructure registrars**, each gated by a shape flag in the spec. Source order (`_REGISTRAR_ORDER`):
-
-| # | Registrar | Runs when | Action on VPS |
-|---|---|---|---|
-| 1 | **postgres** | `shape.needs_database` | Creates database in `postgres-main` (idempotent CREATE DATABASE IF NOT EXISTS); creates app-specific user with restricted grants; injects `DATABASE_URL` into Coolify env. |
-| 2 | **redis** | `shape.needs_cache` | Reserves a Redis DB index in `redis-main` from a shared registry; injects `REDIS_URL` with the assigned index. |
-| 3 | **gatus** | `shape.is_public` AND `spec.domain` set | Adds an HTTPS endpoint to `/opt/gatus/config.yaml`; restarts gatus container. Public services get cert-expiry alerts. |
-| 4 | **backrest** | `shape.has_persistent_data` | Creates a Restic backup plan named `<name>-data` pointing at the service's volume; configures retention. |
-| 5 | **glitchtip** | always (when DSN provisioning enabled) | Creates a GlitchTip project via API (Sentry-compatible); rewrites DSN host to `glitchtip-web:8000`; pushes `GLITCHTIP_DSN` to Coolify env. |
-| 6 | **grafana** | always (non-fatal by contract) | Creates/updates a per-service dashboard in Grafana from a template. Failure here does NOT fail the deploy. |
-| 7 | **authelia** | `shape.is_admin_dashboard` AND `spec.domain` set | Adds a `two_factor` access rule to `/opt/authelia/configuration.yml`; adds an `^/api/` bypass rule for M2M traffic; **`docker restart authelia-...`** (NEVER SIGHUP — Authelia exits on SIGHUP). |
-| 8 | **meilisearch** | `shape.has_search_feature` | Creates an index with the configured `uid`; sets searchable attributes from spec. |
-| 9 | **prometheus** | always | Adds the service to `prometheus.yml` scrape jobs (target = `<name>:<metrics_port>`); reloads Prometheus via SIGHUP. |
-
-**Override rule** (`infra:` block in spec): only valid value is `<registrar>: false` to **disable** an otherwise-applicable registrar. Any other value (or absence) means "run". Typo `flase` is rejected — no silent skips.
-
-**Each successful registration is recorded in `ctx.created_resources`** so rollback can undo it in reverse order on failure.
-
-### Phase 5 — VERIFYING (HTTP health check from outside VPS)
-**Module:** `src/fabrik/orchestrator/verifier.py:DeploymentVerifier`
-
-- Probes `https://<domain>/health` from WSL (via Cloudflare → Traefik → container)
-- Waits up to a configurable timeout for `200 OK` response
-- Skipped if `--skip-health-check` flag passed
-- Skipped if spec has no `domain` (internal-only services)
-
-If health check fails → `ROLLING_BACK`.
-
-On COMPLETE transition: `DeploymentOrchestrator._persist_state()` writes
-`.fabrik/state/<spec_id>.json` (T2-01 G-F3). Captures the 8-field manifest
-— `applied_at`, `coolify_app_name`, `coolify_uuid`, `domain`, `git_sha`,
-`registrars_applied`, `spec_hash`, `spec_path` — that
-`fabrik audit-registrars` (T2-02) and `fabrik destroy --use-state` (T4-02)
-read as the source-of-truth for what was actually applied. Failure here
-is non-fatal (logged warning); the state file is best-effort metadata.
-The same write happens on `refresh_infrastructure()` success. On destroy,
-the file is moved to `.fabrik/state/_destroyed/<id>.json.<ts>` rather
-than deleted — preserves audit trail.
-
-### Phase 6 — POST-DEPLOY HOOK (always runs, non-fatal)
-**Module:** `src/fabrik/cli.py:_post_deploy_sync()`
-
-After every successful (or failed) `apply` / `deploy` / `destroy`:
-
-1. Runs `scripts/sync_projects.py` → updates `data/projects.yaml` registry from filesystem state.
-2. Runs `scripts/update_vps_docs.py` in background → refreshes the `<!-- AUTO:* -->` blocks in `docs/operations/vps-status.md`, `docs/operations/vps-urls.md`, `docs/infrastructure/vps-complete-inventory.md` from live VPS state.
-
-Errors here are logged but never fail the command.
-
-### Rollback (automatic on any phase failure)
-**Module:** `src/fabrik/orchestrator/rollback.py:RollbackManager`
-
-- Iterates `ctx.created_resources` in **reverse order** (most-recent first)
-- Each resource type has a corresponding cleanup driver (e.g. `postgres` → DROP DATABASE; `gatus` → remove endpoint; `glitchtip` → DELETE project)
-- Errors during rollback are logged and accumulated; rollback never re-raises (always tries to clean as much as possible)
-- `--keep-on-failure` flag skips rollback so you can inspect the broken state — manual cleanup required
-
-### What this means in practice
-
-| You ran | What hit the VPS |
-|---|---|
-| `fabrik plan <spec>` | Nothing. Read-only — prints what would happen. |
-| `fabrik apply <spec>` | Phases 1-6 above. Container created, infra wired, health-checked, registry synced. |
-| `fabrik redeploy <name>` | Calls Coolify API to re-pull from GitHub and rebuild. Skips Phases 1, 2, 4 — assumes spec hasn't changed. |
-| `fabrik destroy <name>` | Inverse of apply: rollback all `ctx.created_resources`, then delete the Coolify Application. |
-| `fabrik deploy` (in project dir) | Reads `project.yaml` → builds spec → runs `apply`. The "user-friendly" entry point. |
-| `fabrik fix <name>` | Adds missing scaffold-emitted files (logger.py, internal_auth.py, metrics.py, glitchtip_init.py) without touching deploy state. |
-
-### Source-of-truth files for this section
-
-- `src/fabrik/orchestrator/__init__.py` — main `deploy()` method, phase transitions
-- `src/fabrik/orchestrator/validator.py` — Phase 1
-- `src/fabrik/orchestrator/secrets.py` — Phase 2
-- `src/fabrik/orchestrator/deployer.py` — Phase 3 (Coolify API calls)
-- `src/fabrik/orchestrator/infrastructure.py` — Phase 4 (registrar dispatch)
-- `src/fabrik/orchestrator/verifier.py` — Phase 5
-- `src/fabrik/orchestrator/rollback.py` — auto-rollback
-- `src/fabrik/cli.py:_post_deploy_sync()` — Phase 6
-
----
-
-## Known Operational Gotchas
-
-These are environmental quirks discovered through real deploys. They affect every future deploy unless explicitly worked around.
-
-### Gotcha 1: Coolify drops Docker network aliases on every redeploy
-
-If your service or any service it talks to lives in Coolify and uses a friendly Docker DNS alias (`meilisearch`, `glitchtip-web`, `gotenberg`, `browserless`, etc.), expect every Coolify redeploy to delete that alias.
-
-**What you'll see:** `dial tcp: lookup <alias> on 127.0.0.11:53: no such host` from any container that previously resolved it.
-
-**Why:** Coolify's compose template only declares the timestamped UUID alias (`<uuid>-<timestamp>`). Friendly aliases were added externally via `docker network connect --alias` and don't survive container recreation.
-
-**Fix until permanent solution lands:** after every redeploy of an affected service:
-```bash
-sudo docker network disconnect coolify <new-container-name>
-sudo docker network connect --alias <friendly-name> coolify <new-container-name>
-```
-
-**Permanent fix:** add `networks: { coolify: { aliases: [<friendly-name>] } }` in the Coolify Application's custom compose block. See `docs/infrastructure/vps-complete-inventory.md` Issue #1.
-
-### Gotcha 2: Authelia config has two locations — only one is loaded
-
-The file at `/opt/authelia/config/configuration.yml` is a working copy. The file Authelia actually loads at startup lives in a Docker volume:
-```
-/var/lib/docker/volumes/hks48k8sg8o4co4co08co00o_authelia-config/_data/configuration.yml
-```
-
-If you edit only `/opt/authelia/config/`, Authelia ignores your changes. Always edit the volume file (or both, then `docker restart authelia-...`). Never `SIGHUP` — Authelia exits.
-
-### Gotcha 3: Adding a Node dep to package.json breaks `npm ci --include=dev`
-
-If you add a new dependency by editing `package.json` only, the next deploy fails at `RUN npm ci --include=dev` because `npm ci` requires `package-lock.json` to be in sync. Always run `npm install --package-lock-only` after editing deps and commit both files together.
-
-### Gotcha 4: Cloudflare auto-revokes leaked API tokens
-
-If a Cloudflare API token gets pushed to a public GitHub commit (even if you immediately rewrite history), Cloudflare's leak detector finds it within minutes and auto-revokes it. Token status in the dashboard shows **"Exposed"**. The token is dead — rolling it via "Roll" generates a new value with the same scopes (1-click). For best practice: also narrow scope (the leaked token usually had broader perms than the service needed).
-
-### Gotcha 5: Coolify API distinguishes Applications vs Services
-
-The endpoints are NOT interchangeable:
-- `/api/v1/applications/<uuid>/envs` — for git-built Apps (everything Fabrik scaffolds)
-- `/api/v1/services/<uuid>/envs` — for Coolify-managed Services (one-shot DBs, marketplace items)
-
-Calling the wrong one returns `HTTP 404 "Service not found"` even though the UUID is valid. Fabrik microservices, GlitchTip, Meilisearch, and most things deployed via fabrik are Applications — use the `/applications/` endpoint.
-
-### Gotcha 6: Coolify env-var POST rejects `is_build_time` field
-
-The Coolify v4 env-var POST API rejects `is_build_time` with `HTTP 422 "This field is not allowed."` Use only `key`, `value`, `is_preview`, `is_literal`. This was a breaking change between Coolify v4 versions; older docs/scripts using `is_build_time` need updating.
-### Gotcha 7: Coolify keeps separate prod + preview env rows for every key
-
-When rotating a secret in a Coolify Application's env, expect to find **two rows** for each key — one with `is_preview=false` (production) and one with `is_preview=true` (preview). A simple `PATCH /api/v1/applications/<uuid>/envs` with `{"key": K, "value": V}` only updates the matching row and silently leaves the other one stale.
-
-**Symptom:** Next preview deploy uses the old value even though the UI showed "updated".
-
-**Fix:** When rotating, iterate over current envs and PATCH every row whose key matches, preserving each row's existing `is_preview` flag:
-
-```bash
-# Pseudocode
-for row in /api/v1/applications/<uuid>/envs:
-    if row.key == TARGET:
-        PATCH with {"key": TARGET, "value": NEW, "is_preview": row.is_preview, "is_literal": true}
-```
-
-This was hit on 2026-05-08 rotating `WEBSHARE_API_KEY` on fabrik-proxy — the prod row updated cleanly, the preview row was discovered only by listing all envs first.
-
-
-### Gotcha 8: `/opt/monitoring/compose.yaml` is HYBRID — partly aggregated reference, partly source of truth
-
-The 198-line file at `/opt/monitoring/compose.yaml` mixes two deployment lifecycles. **You must know which category a service belongs to before editing the file expecting changes to take effect.**
-
-**Category A — Coolify-managed (~14 services):** grafana, loki, prometheus, promtail, alertmanager, gatus, cadvisor, netdata, node-exporter, meilisearch, gotenberg, browserless, glitchtip-web, glitchtip-worker. For these, Coolify stores its own `docker_compose_raw` per Service in its DB. **Editing the disk file changes nothing.** To extend their compose, edit via Coolify UI or API and trigger a Service redeploy.
-
-**Category B — Host-managed sidecars (2 services):** `postgres-exporter`, `redis-exporter`. These were added via plain `docker compose up -d`. **For these, the disk file IS the source of truth** and `docker compose up -d --no-deps --force-recreate <name>` from `/opt/monitoring/` applies edits.
-
-**Distinguishing:**
-```bash
-sudo docker inspect <container> \
-  --format '{{ index .Config.Labels "coolify.serviceId" }} | {{ index .Config.Labels "com.docker.compose.project" }}'
-```
-- Empty serviceId + `project=monitoring` → Category B (host-managed, edit the file).
-- Non-empty serviceId + `project=<UUID>` → Category A (find the Coolify Service compose).
-
-**Diagnostic snippets:**
-```bash
-# Find a container's actual deployed mounts (works for both categories):
-sudo docker inspect <name> \
-  --format '{{ range .Mounts }}{{ .Type }}: {{ .Source }} -> {{ .Destination }}{{ println }}{{ end }}'
-
-# For Category A — get Coolify's stored compose:
-sudo docker exec coolify-db psql -U coolify coolify -At \
-  -c "SELECT docker_compose_raw FROM services WHERE uuid = '<UUID>';"
-```
-
-**Pitfall 1 — running `docker compose up -d <svc>` for Category A:** creates **competing standalone containers** (since `container_name:` is set) without affecting the Coolify-managed ones. It also creates dangling volumes named `monitoring_*` from the file's top-level `volumes:` block via the depends_on chain.
-
-**Pitfall 2 — bind-mount edits in the file for Category A:** silent no-op. The running container's mounts come from Coolify's stored compose, not the disk file.
-
-**Cheaper workaround when you only need to add files under an existing bind mount:**
-- Drop new files on the host inside the bind-mounted parent dir.
-- They appear inside the container without any compose change.
-- Example: Gap #4 Grafana dashboards used this — `/opt/monitoring/configs/grafana/provisioning` is already bind-mounted as `/etc/grafana/provisioning:ro`, so we placed `provisioning/json-dashboards/*.json` inside it. Only one Grafana restart was needed because Grafana loads provisioning **provider** yamls only at startup (the dashboard JSONs themselves auto-reload every `updateIntervalSeconds`).
-
-**Hit during this session (2026-05-08):** A `docker compose up -d grafana` for Category A produced 1 orphan `loki` container + 3 dangling `monitoring_*` volumes that had to be cleaned up post-hoc. Later, a Category B operation (`up -d --no-deps --force-recreate redis-exporter`) worked cleanly because the `--no-deps` flag prevented the depends_on chain from triggering.
-## Governance file propagation
-
-**Last verified: 2026-05-08 — 41 projects, 0 failures.**
-
-Committing to `/opt/fabrik` triggers the pre-commit hook `scripts/sync_enforcement_to_projects.py --force`, which copies the canonical governance files from `/opt/fabrik/.windsurfrules/`, `/opt/fabrik/AGENTS.md`, etc. into every project under `/opt/`.
-
-**Targeted projects:** all directories under `/opt/` that are not:
-- `_*` (underscore-prefixed, used for archives/internal — `_archive`, `_backups`, `_traycer`, etc.)
-- `.*` (hidden)
-- explicitly excluded (`.factory`, `.ssh`, `web_scraper`, `containerd`, `google`, `logs`)
-- the fabrik repo itself
-
-**41 projects synced as of 2026-05-08.** Previous sessions reported 34 because 7 projects (`gmailaccountcreator`, `image-generation`, `llm_batch_processor`, `namecheap`, `supplement-tracker-advisor`, `transcriber`, `ugc`) had not been `git init`'d and the operator had assumed git-tracking was a prerequisite. The script doesn't actually check for `.git`, so they were already being synced — but they had no commit history to detect drift against. They're now git-init'd to capture initial state.
-
-**Expanding the exclude list:** edit `scripts/sync_enforcement_to_projects.py`, the `exclude_folders` set near `def main()`. Recently added: `containerd` (Docker runtime artifact dir, no write perm), `google` (Chrome install location), `logs` (generic logs dir, not a Fabrik project).
-
-**Scaffold fixture relocation:** test/fixture scaffolds should live under `/opt/_archive/` (or anywhere starting with `_`) to be skipped by the propagator. The 5-month-old `/opt/_final-verify` was moved to `/opt/_archive/_final-verify` on 2026-05-08.
-
-
-## Phase 4 Registrar Coverage Status (corrected 2026-05-09 — 2nd audit)
-
-**Correction note:** A 1st-pass audit on 2026-05-09 incorrectly reported "NO driver implemented" for most registrars. That was wrong — the drivers DO exist and ARE dispatched by `DeploymentOrchestrator` during `fabrik apply`. The actual gap is different and captured below.
-
-### Truth table (from `src/fabrik/orchestrator/infrastructure.py` + `destroyer.py` + `drivers/*.py`)
-
-| # | Registrar | Driver size | `provision()` wired | `_destroy_*` | `_rollback_*` | Status |
-|---|---|---|---|---|---|---|
-| 1 | postgres | 11 KB (`drivers/postgres.py`) | ✅ `infrastructure.py:317` | ✅ `_destroy_postgres` | partial | OK |
-| 2 | redis | **1 KB stub** (`drivers/redis.py`) | ✅ `:320` | ✅ `_destroy_redis` | ❌ | **driver incomplete** |
-| 3 | gatus | 9 KB | ✅ `:323` | ✅ `_destroy_gatus` | ❌ | OK |
-| 4 | backrest | 10 KB | ✅ `:326` | ✅ `_destroy_backrest` | ❌ | OK |
-| 5 | glitchtip | 20 KB | ✅ `:329` (raises on DSN-verify failure) | ✅ `_destroy_glitchtip` | ❌ | OK |
-| 6 | grafana | 10 KB | ✅ `:332` (non-fatal by contract) | ❌ **MISSING** | ❌ | **destroyer gap** |
-| 7 | authelia | 19 KB | ✅ `:335` (sync hook propagates) | ✅ `_destroy_authelia` | ❌ | OK |
-| 8 | meilisearch | 10 KB | ✅ `:338` | ✅ `_destroy_meilisearch` | ❌ | OK |
-| 9 | prometheus | 14 KB | ✅ `:341` (SIGHUP) | ✅ `_destroy_prometheus` | ❌ | OK |
-
-### How `fabrik apply` actually works today
-
-Pipeline in `DeploymentOrchestrator.deploy()` (`orchestrator/__init__.py`):
-1. Validate spec
-2. Resolve secrets
-3. Provision DNS (Cloudflare driver)
-4. Deploy via Coolify API (`ServiceDeployer`)
-5. **Provision infrastructure registrars** — `infrastructure_provisioner.provision(ctx)` dispatches all 9 registrars, each gated by shape attributes from the spec
-6. Verify deployment health
-7. Rollback on failure (currently incomplete — only DNS + Coolify rollback paths exist)
-
-Registrar applicability is computed from `spec.shape`:
-
-| Registrar | Runs when |
-|---|---|
-| postgres | `shape.needs_database` |
-| redis | `shape.needs_cache` |
-| gatus | `shape.is_public` AND `spec.domain` set |
-| backrest | `shape.has_persistent_data` |
-| glitchtip | `shape.kind in {service, worker, wordpress}` |
-| grafana | always (non-fatal contract) |
-| authelia | `shape.is_admin_dashboard` AND `spec.domain` set |
-| meilisearch | `shape.has_search_feature` |
-| prometheus | `shape.exposes_metrics` (or always, depending on driver — verify) |
-
-`infra:` is **override-only** — `<registrar>: false` disables an otherwise-applicable registrar; there's no `infra.foo: true` opt-in. This shape-driven design means a service whose spec lacks `shape:` block triggers **zero registrars**.
-
-### THE actual gap — pre-G1 specs lack `shape:`
-
-The orchestrator architecture landed at G1 milestone (2026-05-05). All 8 services currently running on the VPS were deployed under **pre-G1 specs without a `shape:` block**:
-
-| Service | Spec file | Has `shape:`? | Currently-wired registrars (manual) |
-|---|---|---|---|
-| captcha | `specs/services/captcha.yaml` | ❌ | gatus, glitchtip, authelia |
-| image-broker | (similar) | ❌ | gatus, glitchtip, authelia |
-| translator | (similar) | ❌ → ✅ post-T1-05 | postgres (`translator`, renamed from `translator_service` on 2026-05-15), gatus, glitchtip, authelia |
-| emailgateway | (similar) | ❌ | gatus, glitchtip(idle), authelia |
-| file-api | (similar) | ❌ | gatus, glitchtip, authelia, backrest |
-| file-worker | (similar) | ❌ | glitchtip(idle), backrest |
-| site-provisioner | (similar) | ❌ | postgres (site_provisioner), gatus, glitchtip, authelia |
-| fabrik-proxy | (similar) | ❌ | postgres (proxy_management), gatus, authelia |
-
-**No service has a per-service Prometheus scrape job today.** All 13 Prometheus jobs are infrastructure-level (node, cadvisor, redis-exporter, postgres-exporter, grafana, authelia, meilisearch). None scrape `<service>:8000/metrics`.
-
-If any of the 8 services is redeployed via `fabrik apply` today, the orchestrator will:
-- Re-deploy via Coolify API ✅
-- Skip ALL 9 registrars ❌ (because shape-block is missing → applicability resolver returns 0 RUNS)
-- The manual side-effects (postgres DBs, gatus endpoints, glitchtip projects, authelia rules) survive because nothing destroys them, but they drift from the spec over time.
-
-### Backfill plan for the "perfect base image" goal
-
-If the VPS is to be cloned as a base for upcoming systems, fix in this order:
-
-1. **Backfill `shape:` blocks** for the 8 deployed services. Single-file edit per service. Without this, the registrar architecture can't act on them.
-2. **Replace the redis stub** (`drivers/redis.py`) with full implementation including a central index registry (likely `data/registry/redis-allocations.json`). At scale, ad-hoc index assignment causes collisions.
-3. **Add `_destroy_grafana`** to `destroyer.py` so destroyed services don't leave dashboards behind.
-4. **Add `_rollback_*` handlers** for all 9 registrars in `rollback.py`. Today, a failed deploy mid-registrar leaves orphan side-effects.
-5. **Add per-service Prometheus scrape jobs** — registrar code exists but has never been called for any service. After backfilling shape blocks, dry-run each spec to surface what's missing. **(Status 2026-05-15: T2-02's `audit-registrars` now surfaces this drift — `fabrik-proxy` reports `prometheus: missing` because the live setup uses an aggregated `fabrik-services` job rather than per-service jobs.)**
-6. ✅ **DONE 2026-05-15 (T2-02):** `fabrik audit-registrars`, `fabrik reconcile-all`, `fabrik verify <domain> --spec registrars`, and `fabrik destroy --partial <reg>` are shipped. See `src/fabrik/audit.py` (per-registrar audit module mirroring each driver's transport) and the module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py`.
-7. **Document central registries** (redis indexes, postgres users, GT project IDs, Backrest plan IDs) as single source of truth in `docs/infrastructure/vps-complete-inventory.md`.
-
-### T2-01/T2-02 lifecycle commands (2026-05-15)
-
-After every successful `fabrik apply` or `fabrik redeploy --refresh-infrastructure`, the orchestrator writes `.fabrik/state/<spec.id>.json` — an 8-field manifest of which registrars fired, what UUIDs they returned, when, against which git SHA. Built on this foundation:
-
-| Command | Stage 3/4 of the workflow |
-| --- | --- |
-| `fabrik audit-registrars [--spec X] [--json]` | Verify Stage 3 auto-registration: each spec's shape-resolved registrars vs live VPS state. Exit 2 if missing. |
-| `fabrik reconcile-all [--filter X] [--yes]` | Recover from drift: re-run `refresh_infrastructure` per spec under per-spec `file_lock`. |
-| `fabrik verify <domain> --spec registrars` | Stage 4 postcondition gate: fails on any `missing` registrar. Pairs with the existing `--spec deploy` (HTTP `/health`). |
-| `fabrik destroy <spec> --partial <reg>` (repeat) | Surgical un-registration without DNS/Coolify-app teardown. |
-
-**Recommended full Stage 3→4 chain:**
-
-```bash
-fabrik apply <spec> \
-  && fabrik verify <domain> --spec deploy \
-  && fabrik verify <domain> --spec registrars
-```
+| 2026-05-28 | Full rewrite: Coolify API → SSH + Docker Compose deployer. All procedures updated. |
+| 2026-05-08 | GlitchTip SDK integration; leaked secrets redacted; Grafana file-provisioning |
+| 2026-05-07 | Promtail noise filter; Gatus stable DNS alias architecture |

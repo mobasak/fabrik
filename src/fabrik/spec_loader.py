@@ -106,6 +106,7 @@ class Source(BaseModel):
     type: SourceType = SourceType.TEMPLATE
     repository: str | None = Field(default=None, description="Git repo URL")
     branch: str = "main"
+    path: str | None = Field(default=None, description="VPS path for local source deployments")
     image: str | None = Field(default=None, description="Docker image")
     image_port: int | None = Field(default=None, description="Container port for image deployments")
     image_command: str | None = Field(

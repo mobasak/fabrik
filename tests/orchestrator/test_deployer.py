@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from fabrik.orchestrator.context import DeploymentContext
-from fabrik.orchestrator.deployer import ServiceDeployer
+from fabrik.orchestrator.deployer_coolify import ServiceDeployer
 from fabrik.orchestrator.exceptions import DeployError
 
 

@@ -7,7 +7,7 @@ application and left a TODO on DNS deletion. Every shape-gated infrastructure
 resource — Authelia rules, GlitchTip projects, Gatus endpoints, Backrest
 plans, Grafana annotations, MeiliSearch indices, per-service Postgres
 databases — was leaked on every teardown, and the canonical E2E workflow
-in ``docs/DEPLOYMENT.md`` §9.6 had to paper over it with a by-hand
+in ``docs/DEPLOYMENT_ARCHITECTURE.md`` §9.6 had to paper over it with a by-hand
 ``python -c`` block that the operator was expected to remember.
 
 This module is the symmetric counterpart to
@@ -311,7 +311,47 @@ def _destroy_postgres(name: str, drop_data: bool, dry_run: bool) -> ActionResult
         return ActionResult("postgres", "error", error=repr(e))
 
 
-def _destroy_coolify(name: str, dry_run: bool) -> ActionResult:
+def _destroy_compose(name: str, dry_run: bool) -> ActionResult:
+    """Destroy a compose-deployed app via SSH."""
+    import re
+
+    from fabrik.drivers.ssh import ssh as _ssh
+
+    try:
+        if dry_run:
+            return ActionResult("compose", "dry_run", detail=f"app {name}")
+
+        if not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", name):
+            return ActionResult("compose", "error", error=f"invalid app name: {name!r}")
+
+        # Check directory exists
+        try:
+            _ssh(f"test -d /opt/{name}", timeout=10)
+        except RuntimeError:
+            return ActionResult("compose", "not_found", detail=f"app {name}")
+
+        # Stop containers + remove volumes
+        _ssh(f"cd /opt/{name} && sudo docker compose down -v", timeout=60)
+        # Remove app directory
+        _ssh(f"sudo rm -rf /opt/{name}", timeout=30)
+        # Prune dangling images
+        _ssh("sudo docker image prune -f", timeout=30)
+
+        return ActionResult("compose", "removed", detail=f"app {name}")
+    except Exception as e:  # noqa: BLE001
+        return ActionResult("compose", "error", error=repr(e))
+
+
+def _destroy_app(name: str, dry_run: bool) -> ActionResult:
+    """Destroy an app — try compose first, fall back to Coolify legacy."""
+    result = _destroy_compose(name, dry_run)
+    if result.status in ("removed", "dry_run"):
+        return result
+    # Compose not found — try Coolify legacy path for pre-migration apps
+    return _destroy_coolify_legacy(name, dry_run)
+
+
+def _destroy_coolify_legacy(name: str, dry_run: bool) -> ActionResult:
     try:
         from fabrik.drivers.coolify import CoolifyClient
 
@@ -512,7 +552,7 @@ def destroy_deployment(
     """Tear down every resource created by ``fabrik apply`` for ``spec``.
 
     Args:
-        spec: Loaded project spec. ``spec.id`` is the Coolify app name;
+        spec: Loaded project spec. ``spec.id`` is the compose app name;
             ``spec.domain`` (if set) is used for DNS + Authelia +
             Gatus cleanup.
         drop_data: When ``True``, physically drop the Postgres database
@@ -594,8 +634,8 @@ def destroy_deployment(
     else:
         report.add("redis", "skipped", detail="not applicable per shape")
 
-    # ── Step B: Coolify app ──
-    report.actions.append(_destroy_coolify(name, dry_run))
+    # ── Step B: App (compose, Coolify legacy fallback) ──
+    report.actions.append(_destroy_app(name, dry_run))
 
     # ── Step C: DNS record ──
     if keep_dns:
@@ -753,10 +793,10 @@ def destroy_from_state(
         except Exception as e:  # noqa: BLE001 — bounded; one bad handler doesn't abort teardown
             report.add(reg, "error", detail=f"handler raised: {e}", error=repr(e))
 
-    # ── Phase 2: Non-registrar resources (Coolify, DNS, files) ────────────
+    # ── Phase 2: Non-registrar resources (app, DNS, files) ────────────
     # These are invariant of the registrar set; always run regardless of
     # state file contents. Symmetric with destroy_deployment Steps B/C/D.
-    report.actions.append(_destroy_coolify(spec.id, dry_run))
+    report.actions.append(_destroy_app(spec.id, dry_run))
 
     if keep_dns:
         report.add("dns", "skipped", detail="--keep-dns")

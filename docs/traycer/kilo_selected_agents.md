@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-05-27T12:54:13.150464
+**Last Updated:** 2026-05-28T18:09:31.323437
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -33,10 +33,10 @@
 | 24 | **gemma-4-31b-it** | google | 1462 | ~ | $0.12 | $0.37 | 262K | ✓ | ✓ | ✓ | 1 | 4754 | ✅ |
 | 25 | **longcat-flash-chat** | meituan | 1461 | ~ | $0.20 | $0.80 | 131K |  | ✓ |  | 2 | 2248 | ✅ |
 | 26 | **glm-5** | z-ai | 1461 | 52.4 | $1.00 | $3.20 | 202K |  | ✓ | ✓ | 2 | 551 | ✅ |
-| 27 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.40 | $1.75 | 202K |  | ✓ | ✓ | 2 | 1034 | ✅ |
+| 27 | **glm-4.7** | z-ai | 1460 | 33.4 | $0.54 | $1.98 | 202K |  | ✓ | ✓ | 2 | 901 | ✅ |
 | 28 | **gemma-4-26b-a4b-it** | google | 1460 | ~ | $0.06 | $0.33 | 262K | ✓ | ✓ | ✓ | 1 | 5562 | ✅ |
 | 29 | **deepseek-v4-flash** | deepseek | 1460 | ~ | $0.13 | $0.27 | 1048K |  | ✓ | ✓ | 1 | 6226 | ✅ |
-| 30 | **glm-4.6** | z-ai | 1458 | 24.5 | $0.43 | $1.74 | 202K |  | ✓ | ✓ | 2 | 1032 | ✅ |
+| 30 | **glm-4.6** | z-ai | 1458 | 24.5 | $0.55 | $2.20 | 202K |  | ✓ | ✓ | 2 | 816 | ✅ |
 | 31 | **qwen3-235b-a22b-2507** | qwen | 1457 | ~ | $0.07 | $0.10 | 262K |  | ✓ |  | 1 | 15709 | ✅ |
 | 32 | **qwen3-vl-235b-a22b-instruct** | qwen | 1457 | ~ | $0.20 | $0.88 | 262K | ✓ | ✓ |  | 2 | 2052 | ✅ |
 | 33 | **qwen3-next-80b-a3b-instruct** | qwen | 1456 | ~ | $0.09 | $1.10 | 262K |  | ✓ |  | 2 | 1718 | ✅ |
@@ -65,7 +65,7 @@
 | 56 | **gpt-5-mini** | openai | 1419 | 34.8 | $0.25 | $2.00 | 400K | ✓ | ✓ | ✓ | 2 | 908 | ✅ |
 | 57 | **mistral-medium-3.1** | mistralai | 1412 | ~ | $0.40 | $2.00 | 131K | ✓ | ✓ |  | 2 | 882 | ✅ |
 | 58 | **mimo-v2-flash** | xiaomi | 1411 | ~ | $0.10 | $0.30 | 262K |  | ✓ | ✓ | 1 | 5644 | ✅ |
-| 59 | **glm-4.5-air** | z-ai | 1410 | ~ | $0.12 | $0.84 | 131K |  | ✓ | ✓ | 2 | 2132 | ✅ |
+| 59 | **glm-4.5-air** | z-ai | 1410 | ~ | $0.13 | $0.85 | 131K |  | ✓ | ✓ | 2 | 2104 | ✅ |
 | 60 | **claude-opus-4** | anthropic | 1405 | ~ | $15.00 | $75.00 | 200K | ✓ | ✓ | ✓ | 3 | 23 | ✅ |
 
 ---
@@ -80,4 +80,4 @@
 - **Agentic**: Has reasoning/thinking capabilities
 - **Tier**: 1=cheap, 2=balanced, 3=heavy
 - **$/Perf**: Performance per dollar (Elo / blended cost)
-- **2026-05-27:** Auto-updated from benchmarks
+- **2026-05-28:** Auto-updated from benchmarks

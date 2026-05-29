@@ -1,9 +1,7 @@
 """
-Compose Linter for Coolify Deployments
+Compose Linter for Fabrik Deployments
 
-Validates docker-compose YAML to prevent known Coolify deployment issues.
-Rules based on: https://github.com/coollabsio/coolify/issues/2131
-               https://github.com/coollabsio/coolify/issues/2107
+Validates docker-compose YAML for Fabrik deployment constraints.
 """
 
 import re
@@ -23,11 +21,11 @@ class LintResult:
 
 class ComposeLinter:
     """
-    Validates docker-compose YAML for Coolify compatibility.
+    Validates docker-compose YAML for Fabrik deployment.
 
     Rules:
-    - REJECT: container_name (breaks Coolify naming/scaling)
-    - REJECT: ${VAR} without default (Coolify env substitution is unreliable)
+    - WARN: missing container_name (required for stable naming)
+    - REJECT: ${VAR} without default (env substitution is unreliable)
     - REQUIRE: restart policy
     - WARN: healthcheck recommended for databases
     """
@@ -65,11 +63,11 @@ class ComposeLinter:
             if not isinstance(svc_config, dict):
                 continue
 
-            # Rule 2.1: Reject container_name
-            if "container_name" in svc_config:
-                errors.append(
-                    f"Service '{svc_name}': 'container_name' is forbidden "
-                    "(breaks Coolify naming/scaling)"
+            # Rule 2.1: Require container_name for stable Docker naming
+            if "container_name" not in svc_config:
+                warnings.append(
+                    f"Service '{svc_name}': missing 'container_name' "
+                    "(required for stable docker exec/inspect targeting)"
                 )
 
             # Rule: Require restart policy
@@ -93,13 +91,12 @@ class ComposeLinter:
                 )
 
         # Rule 2.2: Check for unresolved ${VAR} patterns in raw YAML
-        # These are unreliable in Coolify docker-compose deployments
+        # These should be resolved before deployment (use .env or rendered values)
         unresolved_vars = self._find_unresolved_vars(compose_yaml)
         if unresolved_vars:
             errors.append(
                 f"Unresolved variables found: {', '.join(unresolved_vars)}. "
-                "Coolify ${VAR} substitution is unreliable. "
-                "Either render values directly or use Coolify env vars with pre-deploy validation."
+                "Render values directly in compose or use .env file with pre-deploy validation."
             )
 
         return LintResult(valid=len(errors) == 0, errors=errors, warnings=warnings)

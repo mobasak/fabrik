@@ -46,7 +46,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from fabrik.orchestrator import DeploymentOrchestrator, DeploymentState
-from fabrik.orchestrator.deployer import ServiceDeployer
+from fabrik.orchestrator.deployer_ssh import SSHDeployer
 from fabrik.orchestrator.rollback import RollbackManager
 from fabrik.orchestrator.validator import SpecValidator
 from fabrik.orchestrator.verifier import DeploymentVerifier
@@ -112,18 +112,18 @@ def _bypass_dns_and_external_clients():
 def _mock_deployer() -> MagicMock:
     """Deployer that registers Coolify like the real one would.
 
-    The real ``ServiceDeployer.deploy`` adds a ``coolify`` resource to
+    The real ``SSHDeployer.deploy`` adds a ``compose`` resource to
     ``ctx.created_resources`` and sets ``ctx.coolify_uuid``. The
     :meth:`InfrastructureProvisioner._provision_glitchtip` step needs
     ``ctx.coolify_uuid`` to be set (otherwise it degrades to a warning
     instead of attempting injection — and we need injection to attempt,
     to reach ``verify_dsn_injection``).
     """
-    deployer = MagicMock(spec=ServiceDeployer)
+    deployer = MagicMock(spec=SSHDeployer)
 
     def deploy(ctx):
-        ctx.add_resource("coolify", "smoke-uuid-0000")
-        ctx.coolify_uuid = "smoke-uuid-0000"
+        ctx.add_resource("compose", "smoke-app")
+        ctx.coolify_uuid = "smoke-app"
         ctx.deployed_url = f"https://{ctx.spec['domain']}"
         return "smoke-uuid-0000"
 
@@ -138,8 +138,8 @@ def _mock_verifier() -> MagicMock:
     return verifier
 
 
-def _rollback_manager_with_mocks() -> tuple[RollbackManager, MagicMock, MagicMock]:
-    """RollbackManager wired to mocked Coolify + DNS clients.
+def _rollback_manager_with_mocks() -> tuple[RollbackManager, MagicMock, MagicMock, MagicMock]:
+    """RollbackManager wired to mocked Coolify + DNS + deployer clients.
 
     The real :class:`RollbackManager` lazy-loads CoolifyClient and
     CloudflareClient from their driver modules on first use; in an
@@ -153,15 +153,19 @@ def _rollback_manager_with_mocks() -> tuple[RollbackManager, MagicMock, MagicMoc
     legacy hard-stop handlers ``_rollback_coolify`` and
     ``_rollback_dns`` then exercise the real code path against fake
     endpoints, and the final state matches the success contract.
+    The deployer mock avoids SSH calls during ``_rollback_compose``.
 
     Returns:
-        (manager, mock_coolify, mock_dns) — callers can assert on
-        the latter two to verify the reverse walk reached them.
+        (manager, mock_coolify, mock_dns, mock_deployer) — callers
+        can assert on these to verify the reverse walk reached them.
     """
     mock_coolify = MagicMock()
     mock_dns = MagicMock()
-    manager = RollbackManager(coolify_client=mock_coolify, dns_client=mock_dns)
-    return manager, mock_coolify, mock_dns
+    mock_deployer = MagicMock(spec=SSHDeployer)
+    manager = RollbackManager(
+        coolify_client=mock_coolify, dns_client=mock_dns, deployer=mock_deployer
+    )
+    return manager, mock_coolify, mock_dns, mock_deployer
 
 
 # ----------------------------------------------------------------------- #
@@ -178,7 +182,7 @@ class TestPhase4jEndToEndRollback:
     ):
         """The end-to-end contract:
 
-        1. DNS + Coolify + postgres + gatus + backrest + glitchtip all
+        1. DNS + compose + postgres + gatus + backrest + glitchtip all
            run and register resources, in that order.
         2. glitchtip's DSN-verify returns False → provisioner calls its
            inline ``delete_project`` cleanup → raises RuntimeError.
@@ -254,7 +258,7 @@ class TestPhase4jEndToEndRollback:
             # ------- Real orchestrator, real provisioner, mocked rollback clients -------
             # RollbackManager itself is real (Phase 4i code under test);
             # only the Coolify + Cloudflare *clients* it uses are mocked.
-            rb_manager, rb_coolify, rb_dns = _rollback_manager_with_mocks()
+            rb_manager, rb_coolify, rb_dns, rb_deployer = _rollback_manager_with_mocks()
             validator = SpecValidator(templates_dir=templates_dir)
             orchestrator = DeploymentOrchestrator(
                 validator=validator,
@@ -294,7 +298,7 @@ class TestPhase4jEndToEndRollback:
         registered = [(r.resource_type, r.resource_id) for r in ctx.created_resources]
         expected_prefix = [
             ("dns", "e2e-rollback-smoke.example.com"),
-            ("coolify", "smoke-uuid-0000"),
+            ("compose", "smoke-app"),
             ("postgres", "e2e_rollback_smoke"),
             ("gatus", "e2e-rollback-smoke"),
             ("backrest", "e2e-rollback-smoke-data"),
@@ -351,12 +355,12 @@ class TestPhase4jEndToEndRollback:
         m_authelia_rm.assert_not_called()
         m_meili_del.assert_not_called()
 
-        # (9) Coolify app was deleted during rollback (legacy hard-stop).
-        rb_coolify.delete_application.assert_called_once_with("smoke-uuid-0000")
+        # (9) Compose app was deleted during rollback.
+        rb_deployer.delete.assert_called_once_with("smoke-app")
 
-        # (10) DNS record was deleted during rollback (legacy hard-stop).
-        rb_dns.delete_record.assert_called_once_with(
-            "example.com", "e2e-rollback-smoke.example.com"
+        # (10) DNS record was deleted during rollback.
+        rb_dns.delete_record_by_name.assert_called_once_with(
+            "example.com", "A", "e2e-rollback-smoke"
         )
 
     def test_destructive_noop_policy_logs_manual_command_during_e2e(
@@ -392,7 +396,7 @@ class TestPhase4jEndToEndRollback:
         ), patch(
             "fabrik.drivers.coolify.CoolifyClient"
         ):
-            rb_manager, _, _ = _rollback_manager_with_mocks()
+            rb_manager, _, _, _ = _rollback_manager_with_mocks()
             validator = SpecValidator(templates_dir=templates_dir)
             orchestrator = DeploymentOrchestrator(
                 validator=validator,

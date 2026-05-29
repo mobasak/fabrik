@@ -1,5 +1,7 @@
 """Typed exceptions for the orchestrator."""
 
+from typing import Any
+
 
 class DeploymentError(Exception):
     """Base exception for deployment failures."""
@@ -26,11 +28,14 @@ class ProvisioningError(DeploymentError):
 
 
 class DeployError(DeploymentError):
-    """Coolify deployment failed."""
+    """Deployment failed."""
 
-    def __init__(self, message: str, coolify_error: str | None = None):
+    def __init__(self, message: str, detail: str | None = None, **kwargs: Any):
         super().__init__(message, step="deploying")
-        self.coolify_error = coolify_error
+        self.detail = detail
+        # Backward compat: accept coolify_error= kwarg from legacy callers
+        if "coolify_error" in kwargs:
+            self.detail = self.detail or kwargs["coolify_error"]
 
 
 class VerificationError(DeploymentError):

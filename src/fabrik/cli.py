@@ -13,10 +13,8 @@ from typing import Any
 import click
 
 from fabrik.config import FABRIK_ROOT
-from fabrik.deploy import deploy_to_coolify
 from fabrik.deploy_validator import format_warnings
 from fabrik.deploy_validator import validate as validate_deploy
-from fabrik.drivers.coolify import CoolifyClient
 from fabrik.drivers.dns import DNSClient
 from fabrik.orchestrator import DeploymentOrchestrator, DeploymentState
 from fabrik.orchestrator.infrastructure import (
@@ -563,7 +561,9 @@ def apply(
                 raise FileNotFoundError(f"No compose file in apps/{spec.id}/")
             compose_content = compose_path.read_text()
 
-            # Deploy
+            # Deploy (legacy Coolify path — broken post-migration, see Phase 11-2)
+            from fabrik.deploy import deploy_to_coolify
+
             result = deploy_to_coolify(spec.id, compose_content)
             if result["status"] == "created":
                 click.echo(f"   ✅ Created app: {spec.id}")
@@ -638,6 +638,8 @@ def status(spec_path: str):
     # Check Coolify
     click.echo("🐳 Coolify status:")
     try:
+        from fabrik.drivers.coolify import CoolifyClient
+
         coolify = CoolifyClient()
         apps = coolify.list_applications()
         # G-G1 (T1-02): Coolify-deployed Fabrik services are registered with a
@@ -689,6 +691,8 @@ def app_logs(spec_path: str, lines: int, follow: bool):
     click.echo()
 
     try:
+        from fabrik.drivers.coolify import CoolifyClient
+
         coolify = CoolifyClient()
         apps = coolify.list_applications()
         # G-G1 (T1-02): Coolify-deployed Fabrik services are registered with a
@@ -1139,15 +1143,13 @@ def vps_sync(dry_run: bool):
     "--dry-run", is_flag=True, help="Simulate without making changes (--refresh-infra only)."
 )
 def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | None, dry_run: bool):
-    """Redeploy a Coolify application by name or UUID.
+    """Redeploy an application by name.
 
     Example:
         fabrik redeploy site-provisioner
-        fabrik redeploy qokoksogwsk0c04gcs4swwgs
+        fabrik redeploy site-provisioner --force
         fabrik redeploy --refresh-infra --spec specs/services/proxy.yaml
     """
-    from fabrik.drivers.coolify import CoolifyClient
-
     if refresh_infra:
         if not spec:
             click.echo("✗ --refresh-infra requires --spec PATH", err=True)
@@ -1155,7 +1157,7 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
         if app:
             click.echo(
                 "ℹ APP argument ignored under --refresh-infra; "
-                "the Coolify app is resolved from the spec name.",
+                "the app is resolved from the spec name.",
                 err=True,
             )
         try:
@@ -1184,24 +1186,37 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
         raise SystemExit(2)
 
     try:
-        coolify = CoolifyClient()
-        click.echo(f"🔄 Redeploying: {app}...")
+        from fabrik.drivers.ssh import ssh as _ssh
+        from fabrik.orchestrator.deployer_ssh import SSHDeployer
 
-        # Check if app is a UUID or name
-        apps = coolify.list_applications()
-        target = next((a for a in apps if a.get("uuid") == app or a.get("name") == app), None)
-
-        if not target:
-            click.echo(f"✗ Application not found: {app}", err=True)
-            click.echo("Available apps:")
-            for a in apps:
-                click.echo(f"  - {a.get('name')} ({a.get('uuid')})")
+        deployer = SSHDeployer()
+        existing = deployer.find_existing(app)
+        if not existing:
+            click.echo(f"✗ App '{app}' not found at /opt/{app}/compose.yaml", err=True)
             raise SystemExit(1)
 
-        result = coolify.deploy(target["uuid"], force=force)
-        click.echo(f"✅ Redeployed: {target['name']} ({target['uuid']})")
-        click.echo(f"   Status: {result}")
+        click.echo(f"🔄 Redeploying: {app}...")
+
+        # Determine source type by checking for .git directory
+        try:
+            _ssh(f"test -d /opt/{app}/.git", timeout=10)
+            is_git = True
+        except RuntimeError:
+            is_git = False
+
+        if is_git:
+            _ssh(f"cd /opt/{app} && sudo git pull", timeout=60)
+            build_flags = " --no-cache" if force else ""
+            _ssh(f"cd /opt/{app} && sudo docker compose build{build_flags}", timeout=300)
+            _ssh(f"cd /opt/{app} && sudo docker compose up -d", timeout=120)
+        else:
+            recreate_flags = " --force-recreate" if force else ""
+            _ssh(f"cd /opt/{app} && sudo docker compose up -d{recreate_flags}", timeout=120)
+
+        click.echo(f"✅ Redeployed: {app}")
         _post_deploy_sync()
+    except SystemExit:
+        raise
     except Exception as e:
         click.echo(f"✗ Error: {e}", err=True)
         raise SystemExit(1)
@@ -1386,6 +1401,8 @@ def projects(status: str | None, sync: bool):
             from dotenv import load_dotenv
 
             load_dotenv()
+            from fabrik.drivers.coolify import CoolifyClient
+
             coolify = CoolifyClient()
             apps = coolify.list_applications()
             for app in apps:

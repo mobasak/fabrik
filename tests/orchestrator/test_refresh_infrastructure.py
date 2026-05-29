@@ -1,7 +1,7 @@
 """G2 regression: DeploymentOrchestrator.refresh_infrastructure().
 
 Closes DEPLOYMENT.md §9.9 G2 — re-run only the InfrastructureProvisioner
-against an existing Coolify app, without DNS provisioning, code rebuild,
+against an existing compose app, without DNS provisioning, code rebuild,
 or post-deploy verification.
 """
 
@@ -29,7 +29,7 @@ def spec_path(tmp_path):
 
 @pytest.fixture
 def orchestrator():
-    """Orchestrator with stubbed validator + provisioner."""
+    """Orchestrator with stubbed validator + provisioner + deployer."""
     orch = DeploymentOrchestrator()
 
     # Stub validator so we don't have to satisfy full spec schema.
@@ -41,6 +41,8 @@ def orchestrator():
     )
     # Stub provisioner so we can assert it's called.
     orch.infrastructure_provisioner = MagicMock()
+    # Stub deployer so find_existing doesn't do real SSH.
+    orch.deployer = MagicMock()
     return orch
 
 
@@ -48,51 +50,47 @@ class TestRefreshInfrastructure:
     """Validate the refresh-only flow."""
 
     def test_resolves_uuid_and_calls_provisioner(self, orchestrator, spec_path):
-        with patch("fabrik.drivers.coolify.CoolifyClient") as coolify_cls:
-            coolify_cls.return_value.list_applications.return_value = [
-                {"name": "other-app", "uuid": "wrong-uuid"},
-                {"name": "refresh-test", "uuid": "right-uuid"},
-            ]
+        orchestrator.deployer.find_existing.side_effect = lambda name: (
+            {"name": "refresh-test", "status": "", "path": "/opt/refresh-test"}
+            if name == "refresh-test"
+            else None
+        )
 
-            ctx = orchestrator.refresh_infrastructure(spec_path=spec_path)
+        ctx = orchestrator.refresh_infrastructure(spec_path=spec_path)
 
-        assert ctx.coolify_uuid == "right-uuid"
+        assert ctx.coolify_uuid == "refresh-test"
         assert ctx.spec_hash == "spec-hash-abc"
         assert ctx.deployed_url == "https://refresh-test.example.com"
         orchestrator.infrastructure_provisioner.provision.assert_called_once_with(ctx)
 
     def test_falls_back_to_fabrik_prefix(self, orchestrator, spec_path):
-        """Coolify apps are typically named ``fabrik-<spec.name>``."""
-        with patch("fabrik.drivers.coolify.CoolifyClient") as coolify_cls:
-            coolify_cls.return_value.list_applications.return_value = [
-                {"name": "fabrik-refresh-test", "uuid": "prefixed-uuid"},
-            ]
+        """Apps may live under /opt/fabrik-<name>/ on the VPS."""
+        orchestrator.deployer.find_existing.side_effect = lambda name: (
+            {"name": "fabrik-refresh-test", "status": "", "path": "/opt/fabrik-refresh-test"}
+            if name == "fabrik-refresh-test"
+            else None
+        )
 
-            ctx = orchestrator.refresh_infrastructure(spec_path=spec_path)
+        ctx = orchestrator.refresh_infrastructure(spec_path=spec_path)
 
-        assert ctx.coolify_uuid == "prefixed-uuid"
+        assert ctx.coolify_uuid == "fabrik-refresh-test"
 
     def test_raises_when_app_not_found(self, orchestrator, spec_path):
-        with patch("fabrik.drivers.coolify.CoolifyClient") as coolify_cls:
-            coolify_cls.return_value.list_applications.return_value = [
-                {"name": "unrelated-app", "uuid": "u1"},
-            ]
+        orchestrator.deployer.find_existing.return_value = None
 
-            with pytest.raises(ProvisioningError, match="No Coolify app found"):
-                orchestrator.refresh_infrastructure(spec_path=spec_path)
+        with pytest.raises(ProvisioningError, match="No compose app found"):
+            orchestrator.refresh_infrastructure(spec_path=spec_path)
 
         orchestrator.infrastructure_provisioner.provision.assert_not_called()
 
     def test_skips_dns_and_deploy(self, orchestrator, spec_path):
-        """Refresh must not touch DNS, the deployer, or the verifier."""
-        orchestrator.deployer = MagicMock()
+        """Refresh must not touch DNS, the deployer.deploy, or the verifier."""
+        orchestrator.deployer.find_existing.return_value = {
+            "name": "refresh-test", "status": "", "path": "/opt/refresh-test"
+        }
         orchestrator.verifier = MagicMock()
 
-        with patch("fabrik.drivers.coolify.CoolifyClient") as coolify_cls, \
-             patch.object(orchestrator, "_provision_dns") as mock_dns:
-            coolify_cls.return_value.list_applications.return_value = [
-                {"name": "refresh-test", "uuid": "u"},
-            ]
+        with patch.object(orchestrator, "_provision_dns") as mock_dns:
             orchestrator.refresh_infrastructure(spec_path=spec_path)
 
         mock_dns.assert_not_called()
@@ -102,12 +100,10 @@ class TestRefreshInfrastructure:
     def test_provisioner_failure_wrapped_as_provisioning_error(
         self, orchestrator, spec_path
     ):
+        orchestrator.deployer.find_existing.return_value = {
+            "name": "refresh-test", "status": "", "path": "/opt/refresh-test"
+        }
         orchestrator.infrastructure_provisioner.provision.side_effect = RuntimeError("boom")
 
-        with patch("fabrik.drivers.coolify.CoolifyClient") as coolify_cls:
-            coolify_cls.return_value.list_applications.return_value = [
-                {"name": "refresh-test", "uuid": "u"},
-            ]
-
-            with pytest.raises(ProvisioningError, match="Infrastructure refresh failed"):
-                orchestrator.refresh_infrastructure(spec_path=spec_path)
+        with pytest.raises(ProvisioningError, match="Infrastructure refresh failed"):
+            orchestrator.refresh_infrastructure(spec_path=spec_path)

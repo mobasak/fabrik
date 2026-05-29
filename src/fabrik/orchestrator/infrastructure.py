@@ -31,8 +31,8 @@ Error philosophy (mostly non-fatal):
   structural failures; ``postgres.py`` raises on identifier
   validation).
 * **The one exception is glitchtip's DSN-injection step** — if
-  ``verify_dsn_injection`` returns False after Coolify's PATCH + force
-  deploy, the method ROLLS BACK the GlitchTip project (to avoid an
+  ``verify_dsn_injection`` returns False after .env injection + docker
+  compose restart, the method ROLLS BACK the GlitchTip project (to avoid an
   orphan) and re-raises. A silent miss here would leave the deployed
   app running with a stale/missing ``SENTRY_DSN`` and no errors would
   ever arrive in GlitchTip — worse than failing loud.
@@ -42,7 +42,7 @@ Rollback integration:
 Every successful provisioning step calls ``ctx.add_resource(<type>, <id>)``
 so :class:`fabrik.orchestrator.rollback.DeploymentRollback` can find
 them via :meth:`DeploymentContext.get_resources_by_type`. Resource types
-registered here (additive to the DNS/Coolify types already in use):
+registered here (additive to the DNS/compose types already in use):
 
 * ``"postgres"`` — value is the DB name.
 * ``"gatus"`` — value is the project name (matches
@@ -235,7 +235,7 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
 
     # prometheus (G5 — DEPLOYMENT.md §9.9)
     # Requires both the metrics flag AND a domain (we scrape over public HTTPS
-    # because Coolify container names carry unstable UUID suffixes — same
+    # because we scrape via public HTTPS for consistency — same
     # rationale as gatus; see drivers/prometheus.py for the long-form notes).
     if shape.get("exposes_metrics", False) and domain:
         out["prometheus"] = (
@@ -292,12 +292,24 @@ class InfrastructureProvisioner:
     Verify steps. Each registrar method is isolated in a try/except —
     a single driver's failure is logged at WARNING and does NOT break
     the deploy. The one exception is glitchtip's DSN-injection
-    verification: if Coolify's redeploy didn't actually propagate
-    ``SENTRY_DSN``, the project is rolled back and the method raises.
+    verification: if the DSN isn't propagated to the running container,
+    the project is rolled back and the method raises.
 
     The provisioner is stateless; it takes a :class:`DeploymentContext`
     and calls ``ctx.add_resource(type, id)`` for every successful step.
     """
+
+    def __init__(self, deployer: Any | None = None) -> None:
+        self._deployer = deployer
+
+    @property
+    def deployer(self) -> Any:
+        """Lazy-load SSHDeployer if not injected."""
+        if self._deployer is None:
+            from fabrik.orchestrator.deployer_ssh import SSHDeployer
+
+            self._deployer = SSHDeployer()
+        return self._deployer
 
     def provision(self, ctx: DeploymentContext) -> None:
         """Dispatch all applicable registrars for ``ctx.spec``."""
@@ -396,12 +408,12 @@ class InfrastructureProvisioner:
             logger.warning("backrest provisioning failed (non-fatal): %s", e)
 
     def _provision_glitchtip(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
-        """Provision GlitchTip project + inject DSN into Coolify + verify.
+        """Provision GlitchTip project + inject DSN into container + verify.
 
         This is the one registrar where a soft failure is unacceptable.
         If the DSN isn't actually in the running container after
-        Coolify's PATCH + force deploy, the project is rolled back and
-        this method raises — the app was deployed, but its error
+        .env injection + docker compose restart, the project is rolled
+        back and this method raises — the app was deployed, but its error
         reporting is broken and silently missing reports is worse than
         a visible deploy failure.
         """
@@ -429,13 +441,8 @@ class InfrastructureProvisioner:
                 logger.warning("glitchtip: %s has no DSN; skipping injection", name)
                 return
 
-            # Inject DSN into the deployed container via Coolify API,
-            # then verify it actually arrived. See LESSONS §8 forward-
-            # chain (Coolify force-deploy is async; printenv is ground
-            # truth).
-            from fabrik.drivers.coolify import CoolifyClient
-
-            coolify = CoolifyClient()
+            # Inject DSN into the deployed container via .env + restart,
+            # then verify it actually arrived via docker inspect (Lesson 31).
             if not ctx.coolify_uuid:
                 logger.warning(
                     "glitchtip: ctx.coolify_uuid unset; "
@@ -443,23 +450,16 @@ class InfrastructureProvisioner:
                 )
                 return
 
-            coolify.bulk_update_env_vars(ctx.coolify_uuid, {"SENTRY_DSN": dsn})
-            coolify.deploy(ctx.coolify_uuid, force=True)
+            self.deployer.inject_env(ctx, {"SENTRY_DSN": dsn, "GLITCHTIP_DSN": dsn})
 
-            # Real application rebuilds (git pull + pip/npm install + image
-            # build + container start) can easily take 90-180s for non-scratch
-            # images. The previous 60s timeout was only safe for scratch-image
-            # smoke tests. Bumped to 240s after observing a real Python app
-            # (site-provisioner, 2026-04-22) rebuild successfully in ~100s but
-            # past the 60s window, causing false-negative rollback.
-            if not verify_dsn_injection(name, dsn, max_wait=240, coolify_app_uuid=ctx.coolify_uuid):
+            if not verify_dsn_injection(name, dsn, max_wait=240):
                 # Ground-truth check failed: roll back the project so we
                 # don't leave an orphan, then raise so the caller can
                 # decide (typically: fail the deploy with full rollback).
                 delete_project(name)
                 raise RuntimeError(
                     f"SENTRY_DSN not injected into {name!r} container "
-                    f"within 240s after Coolify force-deploy. Project "
+                    f"within 240s after .env injection + restart. Project "
                     f"rolled back."
                 )
 
@@ -542,7 +542,7 @@ class InfrastructureProvisioner:
         assignment from the registry file. Always tracks the resource
         record (so a same-deploy rollback can release the slot) and
         always patches the env var when ``coolify_uuid`` is known (so
-        a re-run after a Coolify rebuild repopulates a wiped env).
+        a re-run after a compose redeploy repopulates a wiped env).
         """
         try:
             from fabrik.drivers.redis import acquire_db_index
@@ -556,14 +556,7 @@ class InfrastructureProvisioner:
             if dry_run or not redis_url:
                 return
 
-            # Inject REDIS_URL via Coolify env-var update. Same pattern as
-            # _provision_glitchtip's SENTRY_DSN injection — except we do
-            # NOT force a deploy here (env-var changes survive the next
-            # deploy automatically; forcing one would cost ~90s for a
-            # cosmetic update). Operator triggers redeploy when ready.
-            from fabrik.drivers.coolify import CoolifyClient
-
-            coolify = CoolifyClient()
+            # Inject REDIS_URL via .env merge + docker compose up -d.
             if not ctx.coolify_uuid:
                 logger.warning(
                     "redis: ctx.coolify_uuid unset; cannot inject REDIS_URL. "
@@ -571,8 +564,8 @@ class InfrastructureProvisioner:
                     "deploy."
                 )
                 return
-            coolify.bulk_update_env_vars(ctx.coolify_uuid, {"REDIS_URL": redis_url})
-            logger.info("redis: REDIS_URL patched into Coolify env (no force-deploy)")
+            self.deployer.inject_env(ctx, {"REDIS_URL": redis_url})
+            logger.info("redis: REDIS_URL injected into .env and container restarted")
         except Exception as e:  # noqa: BLE001 — bounded non-fatal
             logger.warning("redis provisioning failed (non-fatal): %s", e)
 

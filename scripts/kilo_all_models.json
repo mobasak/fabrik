@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-05-28T11:59:04.328369",
-  "total_models": 338,
+  "timestamp": "2026-05-28T18:08:59.088653",
+  "total_models": 339,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -227,11 +227,6 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
-    "baidu/qianfan-ocr-fast": {
-      "id": "baidu/qianfan-ocr-fast",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
     "bytedance-seed/seed-1.6": {
       "id": "bytedance-seed/seed-1.6",
       "url": "https://api.kilo.ai/api/openrouter/",
@@ -342,8 +337,18 @@
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },
+    "deepseek/deepseek-v4-flash:discounted": {
+      "id": "deepseek/deepseek-v4-flash:discounted",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
     "deepseek/deepseek-v4-pro": {
       "id": "deepseek/deepseek-v4-pro",
+      "url": "https://api.kilo.ai/api/openrouter/",
+      "npm": "@kilocode/kilo-gateway"
+    },
+    "deepseek/deepseek-v4-pro:discounted": {
+      "id": "deepseek/deepseek-v4-pro:discounted",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

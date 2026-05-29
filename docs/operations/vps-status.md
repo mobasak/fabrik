@@ -1,6 +1,6 @@
 # VPS Status
 
-**Last Updated:** 2026-05-27 13:36 UTC
+**Last Updated:** 2026-05-29 10:50 UTC
 **Host:** vps1.ocoron.com (172.93.160.197)
 **Provider:** Psychz Networks (AS32421) — Los Angeles, CA, USA
 **SSH:** `ssh vps` (ozgur@vps1.ocoron.com, Ed25519 key-only, root disabled)
@@ -11,11 +11,11 @@
 ## System Overview
 
 <!-- AUTO:system_overview -->
-| **Containers running** | 36 |
-| **Disk** | 108G total, 34G used, 75G free (31%) |
-| **Memory** | 11Gi total, 5.0Gi used, 324Mi free |
-| **Uptime** | up 9 weeks, 6 days, 15 hours, 16 minutes |
-| **Last snapshot** | 2026-05-27 13:36 UTC |
+| **Containers running** | 31 |
+| **Disk** | 108G total, 37G used, 71G free (35%) |
+| **Memory** | 11Gi total, 5.0Gi used, 643Mi free |
+| **Uptime** | up 10 weeks, 1 day, 12 hours, 30 minutes |
+| **Last snapshot** | 2026-05-29 10:50 UTC |
 <!-- /AUTO -->
 
 | **OS** | Ubuntu 24.04 LTS |
@@ -70,42 +70,37 @@
 <!-- AUTO:container_status -->
 | Container | Status | Memory limit |
 |---|---|---|
-| `alertmanager-zw4swgkwk0s4s8kg048gw80o` | ✅ Up 7 days (healthy) | 256m |
-| `apprise-lcocgs4gs8ksg4g08w40ows8` | ✅ Up 7 days (healthy) | 1g |
-| `authelia-hks48k8sg8o4co4co08co00o` | ✅ Up 5 minutes (healthy) | 512m |
-| `backrest-l48000k44wc4gk8os88s8k0c` | ✅ Up 6 days | 512m |
-| `bs0wo48k4gwo440gcowscoc8-211159651770` | ✅ Up 7 days (healthy) | 512m |
-| `cadvisor-r08sog4gwws88og048ows448` | ✅ Up 7 days (healthy) | 512m |
-| `coolify` | ✅ Up 7 days (healthy) | — |
-| `coolify-db` | ✅ Up 7 days (healthy) | — |
-| `coolify-realtime` | ✅ Up 7 days (healthy) | — |
-| `coolify-redis` | ✅ Up 7 days (healthy) | — |
-| `coolify-sentinel` | ✅ Up 38 minutes (healthy) | — |
-| `e04k4sco44ow04ccc0o0k00k-210433823748` | ✅ Up 7 days (healthy) | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | ✅ Up 2 days | 256m |
-| `glitchtip-web-z00kkck8c8cwo800kk440csk` | ✅ Up 7 days | 512m |
-| `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | ✅ Up 7 days | 512m |
-| `grafana-loc484owg8gsw04owo0go8kc` | ✅ Up 7 days (healthy) | 512m |
-| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | ✅ Up 7 days (healthy) | 512m |
-| `loki-r48swckog008wosgwcs4g0g0` | ✅ Up 7 days (healthy) | 512m |
-| `n8n-s8gwccsws0ccssw0wwgwsoks` | ✅ Up 7 days (healthy) | 2g |
-| `netdata-kk4kcw4csksc48848go4o0wo` | ✅ Up 39 hours (healthy) | 1g |
-| `node-exporter-doc8c8gkcgs88s8ckggw84o4` | ✅ Up 7 days | 128m |
-| `ocoron-com-backup-1` | ✅ Up 7 days | 128m |
-| `ocoron-com-db-1` | ✅ Up 7 days (healthy) | 1g |
-| `ocoron-com-nginx-1` | ✅ Up 7 days | 256m |
-| `ocoron-com-redis-1` | ✅ Up 7 days (healthy) | 256m |
-| `ocoron-com-wordpress-1` | ✅ Up 7 days | 512m |
-| `postgres-exporter` | ✅ Up 7 days (healthy) | 64m |
-| `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | ✅ Up 7 days (healthy) | 2g |
-| `prometheus` | ✅ Up 7 days (healthy) | 1g |
-| `promtail-w0000ckgsgg048w0848okk08` | ✅ Up 7 days | 128m |
-| `pushgateway` | ✅ Up 7 days (healthy) | — |
-| `redis-exporter` | ✅ Up 7 days | 64m |
-| `redis-main` | ✅ Up 7 days (healthy) | 512m |
-| `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | ✅ Up 7 days (healthy) | 512m |
-| `traefik` | ✅ Up 7 days | 256m |
-| `vckgs8c00o40o884k48cgow8-210454442421` | ✅ Up 7 days | 2g |
+| `alertmanager` | ✅ Up 40 hours (healthy) | — |
+| `apprise` | ✅ Up 40 hours (healthy) | 768m |
+| `authelia` | ✅ Up 40 hours (healthy) | 512m |
+| `backrest` | ✅ Up 40 hours | 512m |
+| `browserless` | ✅ Up 39 hours | 2g |
+| `cadvisor` | ✅ Up 40 hours (healthy) | — |
+| `gatus` | ✅ Up 40 hours | 256m |
+| `glitchtip-web` | ✅ Up 40 hours | 512m |
+| `glitchtip-worker` | ✅ Up 40 hours | 512m |
+| `gotenberg` | ✅ Up 39 hours | 512m |
+| `grafana` | ✅ Up 40 hours (healthy) | — |
+| `image-broker` | ✅ Up 39 hours (healthy) | 512m |
+| `loki` | ✅ Up 40 hours (healthy) | — |
+| `meilisearch` | ✅ Up 39 hours | 512m |
+| `n8n` | ✅ Up 40 hours | 2g |
+| `netdata` | ✅ Up 40 hours (healthy) | 1g |
+| `node-exporter` | ✅ Up 40 hours | — |
+| `ocoron-com-backup-1` | ✅ Up 9 days | 128m |
+| `ocoron-com-db-1` | ✅ Up 9 days (healthy) | 1g |
+| `ocoron-com-nginx-1` | ✅ Up 9 days | 256m |
+| `ocoron-com-redis-1` | ✅ Up 9 days (healthy) | 256m |
+| `ocoron-com-wordpress-1` | ✅ Up 9 days | 512m |
+| `postgres-exporter` | ✅ Up 9 days (healthy) | 64m |
+| `postgres-main` | ✅ Up 40 hours (healthy) | 2g |
+| `prometheus` | ✅ Up 9 days (healthy) | 1g |
+| `promtail` | ✅ Up 40 hours | — |
+| `pushgateway` | ✅ Up 40 hours (healthy) | 64m |
+| `redis-exporter` | ✅ Up 9 days | 64m |
+| `redis-main` | ✅ Up 9 days (healthy) | 512m |
+| `site-provisioner` | ✅ Up 39 hours (healthy) | 512m |
+| `traefik` | ✅ Up 9 days | 256m |
 <!-- /AUTO -->
 
 ---
@@ -240,36 +235,31 @@ For new single-image Application: see `.windsurf/rules/core/55-observability.md`
 <!-- AUTO:limits_summary -->
 | Container | Memory |
 |---|---|
-| `alertmanager-zw4swgkwk0s4s8kg048gw80o` | 256m |
-| `apprise-lcocgs4gs8ksg4g08w40ows8` | 1g |
-| `authelia-hks48k8sg8o4co4co08co00o` | 512m |
-| `backrest-l48000k44wc4gk8os88s8k0c` | 512m |
-| `bs0wo48k4gwo440gcowscoc8-211159651770` | 512m |
-| `cadvisor-r08sog4gwws88og048ows448` | 512m |
-| `e04k4sco44ow04ccc0o0k00k-210433823748` | 512m |
-| `gatus-v8s4cokcwg0co4w8okkccc0w` | 256m |
-| `glitchtip-web-z00kkck8c8cwo800kk440csk` | 512m |
-| `glitchtip-worker-msgo0sg8gsgo4w4sscckc84g` | 512m |
-| `grafana-loc484owg8gsw04owo0go8kc` | 512m |
-| `image-broker-zo4ggs4g880skwkocwwkscgk-091249852459` | 512m |
-| `loki-r48swckog008wosgwcs4g0g0` | 512m |
-| `n8n-s8gwccsws0ccssw0wwgwsoks` | 2g |
-| `netdata-kk4kcw4csksc48848go4o0wo` | 1g |
-| `node-exporter-doc8c8gkcgs88s8ckggw84o4` | 128m |
+| `apprise` | 768m |
+| `authelia` | 512m |
+| `backrest` | 512m |
+| `browserless` | 2g |
+| `gatus` | 256m |
+| `glitchtip-web` | 512m |
+| `glitchtip-worker` | 512m |
+| `gotenberg` | 512m |
+| `image-broker` | 512m |
+| `meilisearch` | 512m |
+| `n8n` | 2g |
+| `netdata` | 1g |
 | `ocoron-com-backup-1` | 128m |
 | `ocoron-com-db-1` | 1g |
 | `ocoron-com-nginx-1` | 256m |
 | `ocoron-com-redis-1` | 256m |
 | `ocoron-com-wordpress-1` | 512m |
 | `postgres-exporter` | 64m |
-| `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` | 2g |
+| `postgres-main` | 2g |
 | `prometheus` | 1g |
-| `promtail-w0000ckgsgg048w0848okk08` | 128m |
+| `pushgateway` | 64m |
 | `redis-exporter` | 64m |
 | `redis-main` | 512m |
-| `site-provisioner-qokoksogwsk0c04gcs4swwgs-200230906082` | 512m |
+| `site-provisioner` | 512m |
 | `traefik` | 256m |
-| `vckgs8c00o40o884k48cgow8-210454442421` | 2g |
 <!-- /AUTO -->
 
 ---

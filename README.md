@@ -952,7 +952,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 ### Guides
 
 - **[Configuration](docs/CONFIGURATION.md)** - Credentials, architecture, troubleshooting
-- **[Deployment](docs/DEPLOYMENT.md)** - Deployment strategies, DNS, SSL
+- **[Deployment](docs/operations/deployment.md)** - Deployment procedures, workflows, troubleshooting
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Debug guides
 - **[AGENTS.md](AGENTS.md)** - Traycer orchestrator contract (Kilo uses `AGENTS-compact.md`, Cascade uses `.windsurfrules`)
 

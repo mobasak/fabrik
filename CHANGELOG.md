@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — SSH deployer replaces Coolify API deployer (2026-05-28)
+
+Phase 11-1 of the Coolify migration. All `fabrik apply/deploy/redeploy/destroy` operations now use SSH+Docker Compose instead of the removed Coolify API. New `SSHDeployer` supports all 4 source types (template, git, docker, local), compose validation against rule-pack constraints, read-merge `.env` strategy preserving registrar-injected vars, and shell-injection-safe name validation. Old deployer archived as `deployer_coolify.py`. Compose linter updated: `container_name` now required (was forbidden under Coolify). CLI lazy-imports Coolify references so unrelated commands keep working.
+
 ### Fixed — VPS infrastructure audit: 10 mismatches resolved (2026-05-27)
 
 Full resolution of all issues found in the 2026-05-27 SSH infrastructure audit. Security, monitoring, docs, and resource limits all converged.

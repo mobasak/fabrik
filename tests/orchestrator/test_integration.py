@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from fabrik.orchestrator import DeploymentOrchestrator, DeploymentState
-from fabrik.orchestrator.deployer import ServiceDeployer
+from fabrik.orchestrator.deployer_ssh import SSHDeployer
 from fabrik.orchestrator.rollback import RollbackManager
 from fabrik.orchestrator.validator import SpecValidator
 from fabrik.orchestrator.verifier import DeploymentVerifier
@@ -26,7 +26,7 @@ class TestDeploymentOrchestrator:
     @pytest.fixture
     def mock_deployer(self):
         """Create a mock deployer that succeeds."""
-        deployer = MagicMock(spec=ServiceDeployer)
+        deployer = MagicMock(spec=SSHDeployer)
         deployer.deploy.return_value = "test-uuid"
         return deployer
 
@@ -96,7 +96,7 @@ class TestDeploymentOrchestrator:
         (tmp_path / "python-api").mkdir()
 
         # Deployer that fails after creating a resource
-        mock_deployer = MagicMock(spec=ServiceDeployer)
+        mock_deployer = MagicMock(spec=SSHDeployer)
 
         def deploy_and_fail(ctx):
             ctx.add_resource("coolify", "test-uuid")
@@ -248,7 +248,7 @@ class TestDeploymentOrchestrator:
         mock_dns_client.add_subdomain.return_value = {"success": True}
 
         # Deployer that fails
-        failing_deployer = MagicMock(spec=ServiceDeployer)
+        failing_deployer = MagicMock(spec=SSHDeployer)
         failing_deployer.deploy.side_effect = Exception("Deploy crashed")
 
         mock_rollback = MagicMock(spec=RollbackManager)

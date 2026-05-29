@@ -91,7 +91,7 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-05-27 16:35:57 -->
+<!-- Last synced: 2026-05-28 18:08:55 -->
 <!-- Total projects: 34 -->
 
 ### Production Services (5 projects)
@@ -129,7 +129,7 @@ With ~$50/month infrastructure cost:
 | **ComplianceOps** | Async compliance service platform for HealthTech startups. | Python | 🔨 Development | https://compliance-ops.vps1.ocoron.com | ✅ Current |
 | **Reference_Creator** | Automated reference document creator from source materials. | Python | 🔨 Development | https://reference-creator.vps1.ocoron.com | ✅ Current |
 | **apidoccreator** | External documentation registry. Scrapes, generates, stores and serves docs for AI agent consum... | FastAPI | 🔨 Development | - | ✅ Current |
-| **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | Python | 🔨 Development | https://brand-identity-creator.vps1.ocoron.com | ✅ Current |
+| **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | FastAPI | 🔨 Development | https://brand-identity-creator.vps1.ocoron.com | ✅ Current |
 | **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | https://email-reader.vps1.ocoron.com | ✅ Current |
 | **emailgateway** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **exam-coach** | AI-powered exam preparation and coaching assistant. | Python | 🔨 Development | https://exam-coach.vps1.ocoron.com | ✅ Current |

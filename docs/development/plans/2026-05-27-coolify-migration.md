@@ -1,7 +1,7 @@
 # Migration Plan: Coolify → Standalone Docker Compose + SSH Deploy
 
-**Created:** 2026-05-27 | **Final revision:** 2026-05-27 (audit: 150+ VPS tool calls)  
-**Status:** PLANNING — do not execute until each phase is signed off  
+**Created:** 2026-05-27 | **Final revision:** 2026-05-27 (audit: 150+ VPS tool calls)
+**Status:** PLANNING — do not execute until each phase is signed off
 **Executor:** Read every line before starting. This is a runbook, not a summary.
 
 ---
@@ -55,7 +55,7 @@ ssh vps "sudo docker exec coolify-db psql -U coolify -d coolify -c \
 
 ### CRITICAL: Monitoring Compose Already Running — Extend, Don't Replace
 
-`/opt/monitoring/compose.yaml` is a live production file. It currently manages:  
+`/opt/monitoring/compose.yaml` is a live production file. It currently manages:
 `prometheus`, `postgres-exporter`, `redis-exporter`, `pushgateway` (all running, all healthy).
 
 It already contains the full service definitions for `loki`, `promtail`, `alertmanager`, `node-exporter`, `cadvisor`, `grafana` — but those services are currently running as separate Coolify Services with UUID names. The file needs only two additions: `netdata` and `gatus` (gatus will get its own compose instead).
@@ -88,7 +88,7 @@ Container `bs0wo48k4gwo440gcowscoc8-211159651770` has **zero mounts**. All searc
 | `ocoron-com_*` (4) | WordPress | already correct | no change |
 | anonymous (2) | apprise plugins/attach | auto-created | ignore |
 
-¹ Postgres standalone compose at `/opt/postgres/` will be project name `postgres`, creating `postgres_postgres-data`. Use `external: true` with the pre-created clean name.  
+¹ Postgres standalone compose at `/opt/postgres/` will be project name `postgres`, creating `postgres_postgres-data`. Use `external: true` with the pre-created clean name.
 ² Apprise standalone compose at `/opt/apprise/` uses `external: true` with the pre-created volume named `apprise-config`. image-broker cache is fresh (auto-created by fabrik apply, no copy needed).
 
 ### Authelia — Three Files in Volume, Only One Synced to Disk
@@ -143,7 +143,7 @@ postgres-exporter connects as: postgres:postgres@postgres-main — password is '
 
 ### Grafana Domain
 
-Grafana is served at `monitor.vps1.ocoron.com` (not `grafana.vps1.ocoron.com`).  
+Grafana is served at `monitor.vps1.ocoron.com` (not `grafana.vps1.ocoron.com`).
 Root URL in config: `https://monitor.vps1.ocoron.com`.
 
 ### Systemd Services (VPS)
@@ -771,7 +771,7 @@ ssh vps "sudo docker exec coolify-db psql -U coolify -d coolify -t -A -c \
     WHERE application_id='qokoksogwsk0c04gcs4swwgs' ORDER BY key;\"" \
   > /opt/fabrik/docs/reference/vps-env-site-provisioner.txt
 
-# image-broker  
+# image-broker
 ssh vps "sudo docker exec coolify-db psql -U coolify -d coolify -t -A -c \
   \"SELECT key || '=' || value FROM environment_variables \
     WHERE application_id='zo4ggs4g880skwkocwwkscgk' ORDER BY key;\"" \

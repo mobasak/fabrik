@@ -435,7 +435,7 @@ docs/
 |----------|--------|
 | [QUICKSTART.md](docs/QUICKSTART.md) | Get Fabrik running in 5 minutes |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | How to deploy services to VPS |
+| [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) | Deploy code architecture reference |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [FAQ.md](docs/FAQ.md) | Frequently asked questions |
 | [.env.example](.env.example) | Environment variable reference (AUTHORITATIVE with inline comments) |
@@ -450,7 +450,7 @@ docs/
 | [drivers.md](docs/reference/drivers.md) | Fabrik driver API (Coolify, DNS, etc.) |
 | [templates.md](docs/reference/templates.md) | Available deployment templates |
 | [SaaS-GUI.md](docs/reference/SaaS-GUI.md) | SaaS skeleton template guide |
-<!-- archived 2026-04-28: SCAFFOLD_TO_DEPLOY_INTEGRATION.md (HISTORICAL gap analysis), DEPLOY_TEMPLATE_AUDIT_2026-04-10.md (HISTORICAL audit), POSTGRESQL_LOCAL_DEV_*.md ×4 (impl shipped, see CHANGELOG line 4041); see docs/archive/2026-04-28-* and docs/DEPLOYMENT.md for current canonical reference -->
+<!-- archived 2026-04-28: SCAFFOLD_TO_DEPLOY_INTEGRATION.md (HISTORICAL gap analysis), DEPLOY_TEMPLATE_AUDIT_2026-04-10.md (HISTORICAL audit), POSTGRESQL_LOCAL_DEV_*.md ×4 (impl shipped, see CHANGELOG line 4041); see docs/archive/2026-04-28-* and docs/DEPLOYMENT_ARCHITECTURE.md for current canonical reference -->
 | [CRITICAL_RULES.md](docs/reference/CRITICAL_RULES.md) | Non-negotiable execution rules |
 | [DOCUMENTATION_STANDARD.md](docs/reference/DOCUMENTATION_STANDARD.md) | Documentation standards and conventions |
 | [global-gates.md](docs/reference/global-gates.md) | Global gate definitions |
@@ -462,7 +462,7 @@ docs/
 | Phase | Status | Document |
 |-------|--------|----------|
 | **Phase 1: Foundation** | Complete | [architecture.md](docs/reference/architecture.md) |
-| **Phase 1b: Cloud Infrastructure** | Complete | [DEPLOYMENT.md](docs/DEPLOYMENT.md) |
+| **Phase 1b: Cloud Infrastructure** | Complete | [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) |
 | **Phase 1c: Cloudflare DNS** | Complete | [SERVICES.md](docs/SERVICES.md) |
 | **Phase 1d: WordPress Automation** | In Progress | [wordpress.md](docs/reference/wordpress.md) |
 

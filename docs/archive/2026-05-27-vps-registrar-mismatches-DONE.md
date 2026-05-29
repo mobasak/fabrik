@@ -1,8 +1,8 @@
 # VPS Infrastructure Audit — 2026-05-27
 
-**Source:** Full VPS SSH audit (82 tool calls) + `fabrik audit-registrars` cross-check  
-**Scope:** All VPS infrastructure — 30 containers, 9 registrars, network security, monitoring stack, backups, crons, LLM agents, AI Sysadmin  
-**Method:** SSH probe of every layer + cross-reference against `fabrik-lifecycle.md`, `infrastructure.py`, `AGENTS.md`, `PORTS.md`, `LOCAL_LLM_INFRASTRUCTURE.md` + best practices  
+**Source:** Full VPS SSH audit (82 tool calls) + `fabrik audit-registrars` cross-check
+**Scope:** All VPS infrastructure — 30 containers, 9 registrars, network security, monitoring stack, backups, crons, LLM agents, AI Sysadmin
+**Method:** SSH probe of every layer + cross-reference against `fabrik-lifecycle.md`, `infrastructure.py`, `AGENTS.md`, `PORTS.md`, `LOCAL_LLM_INFRASTRUCTURE.md` + best practices
 **Iteration:** Two passes — per-service registrar audit first, then full infra sweep. No further gaps found after second pass.
 
 ---
