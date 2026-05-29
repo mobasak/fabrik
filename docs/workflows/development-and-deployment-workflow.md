@@ -146,7 +146,7 @@ The gate's auto-stage hands you a clean diff. Never force-push to main without e
 
 Two CLI entry points, both routing through the same orchestrator pipeline:
 
-- **`fabrik deploy`** — modern, `project.yaml`-driven.
+- **`fabrik apply`** — the single deploy command; `project.yaml`-driven when run with no spec_path.
 - **`fabrik apply`** — legacy, spec-driven. Reads `specs/services/<name>.yaml`; runs the registrars whose flags match the `shape:` block.
 - **`fabrik redeploy <app>`** — re-pulls a git-sourced app. **CRITICAL:** Coolify pulls from the GitHub remote, NOT from your local `/opt/<name>/` clone. Mandatory sequence: `git commit` → `git push` → `fabrik redeploy`. Skipping `git push` silently redeploys the previous remote commit. Full reference: [docs/DEPLOYMENT.md](../DEPLOYMENT.md).
 

@@ -45,13 +45,20 @@ fabrik templates
 
 ## Deployment
 
-### `fabrik apply` — spec-driven deploy
+### `fabrik apply` — the deploy command
 
-Primary deploy entry point. Reads a spec YAML and runs the full pipeline.
+The single deploy entry point for all project types. Runs the full
+orchestrator pipeline (validate → DNS → SSH deploy → registrars → verify →
+rollback-on-failure).
 
 ```bash
-fabrik apply <spec_path> [--dry-run] [--skip-dns] [--skip-deploy] [-s KEY=VALUE] [--use-orchestrator] [--yes] [--keep-on-failure]
+fabrik apply [<spec_path>] [--dry-run] [--skip-dns] [--skip-deploy] [-s KEY=VALUE] [--legacy] [--yes] [--keep-on-failure]
 ```
+
+- With `<spec_path>`: deploy that spec directly.
+- Without `<spec_path>`: resolve the spec from `project.yaml` in the current
+  directory (run from inside the project folder). WordPress projects redirect
+  to the separate `wpf` CLI.
 
 - `--dry-run` — simulate every mutation without executing (always uses orchestrator)
 - `--skip-dns` — don't touch DNS records
@@ -71,20 +78,6 @@ fabrik apply /opt/fabrik/specs/services/my-api.yaml -s API_KEY=override
 2. Project `.env` at `/opt/<project>/.env`
 3. Fabrik `.env` at `/opt/fabrik/.env`
 4. Process environment
-
-### `fabrik deploy` — project-based deploy
-
-Reads `/opt/<name>/project.yaml` and routes to the correct pipeline (WordPress → `Planner + SiteDeployer`; everything else → `DeploymentOrchestrator` via a centralized service spec).
-
-```bash
-fabrik deploy [--project <dir>] [--dry-run]
-```
-
-```bash
-fabrik deploy                              # uses current directory
-fabrik deploy --project /opt/my-site
-fabrik deploy --project /opt/my-site --dry-run
-```
 
 ### `fabrik redeploy` — trigger a Coolify rebuild
 

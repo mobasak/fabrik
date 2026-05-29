@@ -1,6 +1,6 @@
 # Long Command Monitoring System v1.1.0
 
-**Why this exists:** Cascade (and other agents) have no built-in command timeout. When they run `npm install` or `pytest -x` or `fabrik deploy` in foreground, they block waiting on the terminal — sometimes for minutes or hours. This system gives agents (and humans) a fire-and-poll model so the agent stays responsive while long commands run in the background.
+**Why this exists:** Cascade (and other agents) have no built-in command timeout. When they run `npm install` or `pytest -x` or `fabrik apply` in foreground, they block waiting on the terminal — sometimes for minutes or hours. This system gives agents (and humans) a fire-and-poll model so the agent stays responsive while long commands run in the background.
 
 **Lives in:** every project's `scripts/` directory. Job state goes to `.tmp/jobs/` (project-local, gitignored).
 
@@ -66,7 +66,7 @@ Use when you need shell features: pipes, redirects, `&&`, `||`, command substitu
 ```bash
 scripts/rundsh 'pytest -x 2>&1 | tee test-out.log'
 scripts/rundsh --name sync 'rsync -av src/ dst/ && touch .last-sync'
-scripts/rundsh --timeout 1800 'fabrik deploy && fabrik probe'
+scripts/rundsh --timeout 1800 'fabrik apply && fabrik probe'
 ```
 
 ### `runc` — status check

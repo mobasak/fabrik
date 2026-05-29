@@ -82,7 +82,7 @@ fabrik apply --use-orchestrator specs/my-app.yaml
 fabrik apply specs/my-app.yaml
 
 # Project-based deploy (reads /opt/<name>/project.yaml, routes by type)
-fabrik deploy --project /opt/my-app
+cd /opt/my-app && fabrik apply
 ```
 
 `--dry-run` always uses the orchestrator (see `cli.py:284`); otherwise the flag `--use-orchestrator` is required until Phase 4 flips the default.

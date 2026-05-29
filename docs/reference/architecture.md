@@ -17,7 +17,7 @@ Fabrik is a **spec-driven, shape-gated deployment automation CLI**. You write a 
 ```text
 fabrik scaffold <name> --type <t>         →  /opt/<name>/ tree + spec
                                              +
-fabrik apply <spec> | fabrik deploy       →  DeploymentOrchestrator state machine:
+fabrik apply [<spec>]                  →  DeploymentOrchestrator state machine:
 
     PENDING → VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE
                    ↓            ↓            ↓            ↓
@@ -100,7 +100,7 @@ Click-based. 22 top-level commands. See `docs/reference/fabrik-cli-reference.md`
 ## Data Flow Example
 
 ```text
-User: fabrik deploy --project /opt/my-api
+User: cd /opt/my-api && fabrik apply
 
   1. deploy_router reads /opt/my-api/project.yaml → routes to service pipeline
   2. DeploymentOrchestrator.deploy(spec_path)

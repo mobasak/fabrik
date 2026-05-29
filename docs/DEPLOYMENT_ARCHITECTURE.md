@@ -84,7 +84,7 @@ Click-based CLI. The commands below are the only public entry points for deploym
 
 ### 2.2 Orchestrator — `src/fabrik/orchestrator/`
 
-The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` and `fabrik deploy`.
+The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the single deploy command).
 
 | File | Class / function | Role in deploy |
 |---|---|---|
@@ -169,7 +169,7 @@ Implements **Steps 0-1-2** of a brand-new site deployment (domain → DNS → in
 | File | Role |
 |---|---|
 | `src/fabrik/deploy.py` | **Dead code.** `deploy_to_coolify(app_name, compose_content)` — legacy Coolify API deployment. Not wired to any active CLI command. Superseded by SSHDeployer. |
-| `src/fabrik/deploy_router.py` | `route_deploy(project_path)` — dispatches to WordPress pipeline vs. service pipeline based on `project.yaml[type]`. Central switch for `fabrik deploy`. |
+| `src/fabrik/deploy_router.py` | `route_deploy(project_path)` — dispatches to WordPress pipeline vs. service pipeline based on `project.yaml[type]`. Central switch used by `fabrik apply` when resolving a spec from `project.yaml`. |
 | `src/fabrik/deploy_validator.py` | `validate(project_dir)` — scaffold-level readiness (Dockerfile exists, `.env` populated, healthcheck declared, platform directive). Returns `ValidationResult` list; CLI prints them as warnings. |
 | `src/fabrik/verify.py` | `PostconditionChecker`, `verify_postconditions` decorator — general postcondition framework (HTTP 200, file-exists, env-var-set, etc.). Used by both legacy pipeline and orchestrator/verifier. |
 | `src/fabrik/notifications.py` | Thin wrapper over Apprise for in-Fabrik notifications (not infrastructure alerts). |

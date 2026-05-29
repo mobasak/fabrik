@@ -4,7 +4,7 @@
 
 The Site Provisioner orchestrates Steps 0-1-2 for **brand-new WordPress site bootstrap** (domain registration → DNS + CF zone → Coolify app + WP install) using a saga pattern with granular states for safe retries and partial failure recovery.
 
-**Scope:** this module handles **new-site setup only**. Routine WordPress deploys go through `fabrik deploy` → `deploy_router` → WordPress pipeline (`wordpress/stages/*.py`). For generic service deploys, see `src/fabrik/orchestrator/` (`DeploymentOrchestrator`).
+**Scope:** this module handles **new-site setup only**. Routine WordPress deploys now go through the standalone `wpf` CLI (moved to /opt/wpf/). For generic service deploys, see `src/fabrik/orchestrator/` (`DeploymentOrchestrator`).
 
 ## Overview
 

@@ -99,7 +99,7 @@ fabrik apply /opt/fabrik/specs/services/hello-api.yaml --dry-run
 fabrik apply /opt/fabrik/specs/services/hello-api.yaml
 
 # Or: project-based deploy (reads /opt/hello-api/project.yaml)
-fabrik deploy --project /opt/hello-api
+cd /opt/hello-api && fabrik apply   # resolves spec from project.yaml
 ```
 
 **Secret precedence:** `-s KEY=VALUE` flag > `/opt/<project>/.env` > `/opt/fabrik/.env` > process env.

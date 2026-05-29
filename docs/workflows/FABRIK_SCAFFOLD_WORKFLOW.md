@@ -1,7 +1,7 @@
 # Fabrik Scaffold Specification
 
 **Last Updated:** 2026-04-29 (full code-truth rewrite: every CLI command/flag, `SCAFFOLD_TYPES`, `SPEC_ENABLED_TYPES`, template inventory, and file reference links re-verified against `src/fabrik/cli.py`, `src/fabrik/scaffold.py`, `src/fabrik/spec_generator.py`, and `templates/`. Aspirational sections that referenced files that never shipped — "Template Complexity Tiers", "Factory Configuration" — have been removed. `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.)
-**Scope:** This doc is **canonical for the project-creation half** (`fabrik scaffold` and the file tree it produces). For the **deployment half** (`fabrik apply` / `fabrik deploy`, orchestrator state machine, registrars, verifier, rollback), see `@/opt/fabrik/docs/DEPLOYMENT.md`.
+**Scope:** This doc is **canonical for the project-creation half** (`fabrik scaffold` and the file tree it produces). For the **deployment half** (`fabrik apply` — the single deploy command — orchestrator state machine, registrars, verifier, rollback), see `@/opt/fabrik/docs/DEPLOYMENT.md`.
 **Source code:** `src/fabrik/scaffold.py` (scaffolders) + `src/fabrik/cli.py` (CLI) + `src/fabrik/spec_generator.py` (auto-spec)
 
 > ⚠️ **`fabrik new` deprecated 2026-04-22 (Phase 4k):** hidden from `fabrik --help`, prints a deprecation warning to stderr on every invocation, scheduled for removal one release after next. **Use `fabrik scaffold` instead** — it scaffolds the project tree AND emits the deploy spec in one step.
@@ -55,7 +55,7 @@ Fabrik is a **spec-driven deployment automation** system that:
      │     installs pre-commit, registers in /opt/fabrik/data/projects.yaml,
      │     auto-generates specs/services/<name>.yaml (SPEC_ENABLED_TYPES only)
      │
-     └─ fabrik apply / deploy → src/fabrik/orchestrator/ (state machine)
+     └─ fabrik apply → src/fabrik/orchestrator/ (state machine)
          → see @/opt/fabrik/docs/DEPLOYMENT.md (canonical deploy reference)
 
 Drivers used by the orchestrator (src/fabrik/drivers/):
@@ -633,7 +633,7 @@ fabrik apply <spec.yaml> \
   [--keep-on-failure]       # B27: leave Coolify app + DNS + GlitchTip etc. on failure (proof-run / debugging)
 
 # Project-based deploy (reads /opt/<project>/project.yaml; routes WordPress vs. service)
-fabrik deploy [--project /opt/<name>] [--dry-run]
+fabrik apply [<spec_path>] [--dry-run]   # no spec_path = resolve from project.yaml in cwd
 
 # Status
 fabrik status <spec.yaml>
@@ -1204,7 +1204,7 @@ All CLI commands implemented in `@/opt/fabrik/src/fabrik/cli.py`. Counts and sig
 | Command | Description |
 |---------|-------------|
 | `fabrik apply <spec>` | Deploy from a spec (legacy path; `--use-orchestrator` opts into the new pipeline; `--keep-on-failure` for proof-runs) |
-| `fabrik deploy [--project <path>]` | Deploy from `project.yaml` (auto-routes WordPress vs. service pipeline) |
+| `fabrik apply [<spec_path>]` | Deploy. No spec_path = resolve from `project.yaml` in cwd. WordPress redirects to the `wpf` CLI. |
 | `fabrik plan <spec>` | Preview deployment (dry run, legacy path) |
 | `fabrik status <spec>` | Check deployment status (Coolify + DNS + cert) |
 | `fabrik app-logs <spec>` | Coolify container logs for the spec's app (`-n`, `--follow`) |

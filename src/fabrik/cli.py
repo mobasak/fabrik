@@ -345,7 +345,7 @@ def plan(spec_path: str, secrets: tuple):
 
 
 @cli.command()
-@click.argument("spec_path", type=click.Path(exists=True))
+@click.argument("spec_path", type=click.Path(exists=True), required=False)
 @click.option("--secrets", "-s", multiple=True, help="Secret in KEY=VALUE format")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 @click.option("--skip-dns", is_flag=True, help="Skip DNS record creation")
@@ -380,7 +380,7 @@ def plan(spec_path: str, secrets: tuple):
     ),
 )
 def apply(
-    spec_path: str,
+    spec_path: str | None,
     secrets: tuple,
     yes: bool,
     skip_dns: bool,
@@ -405,6 +405,43 @@ def apply(
         fabrik apply specs/my-api.yaml --dry-run  # Simulate deployment
         fabrik apply specs/my-api.yaml --legacy  # OLD path, no registrars
     """
+    # If no spec path was given, resolve it from the current project
+    # directory's project.yaml (the convenience the old `deploy` command
+    # provided). `fabrik apply` is now the single deploy entry point.
+    if spec_path is None:
+        from fabrik.deploy_router import (
+            get_project_type,
+            resolve_project_dir,
+            resolve_service_spec_path,
+        )
+
+        try:
+            project_dir = resolve_project_dir(None)
+            project_type = get_project_type(project_dir)
+        except Exception as exc:
+            click.echo(f"Error: {exc}", err=True)
+            click.echo(
+                "Run `fabrik apply <spec_path>` or run from inside a "
+                "project directory containing project.yaml.",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        if project_type == "wordpress":
+            click.echo(
+                "WordPress deployment has moved to /opt/wpf/. "
+                "Use the `wpf` CLI instead.",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        try:
+            spec_path = str(resolve_service_spec_path(project_dir))
+        except Exception as exc:
+            click.echo(f"Error: {exc}", err=True)
+            raise SystemExit(1)
+        click.echo(f"Resolved spec from project.yaml: {spec_path}")
+
     # Parse secrets
     secrets_dict = {}
     for s in secrets:
@@ -2362,64 +2399,6 @@ def domain_buy(domain_name: str, years: int, yes: bool):
         raise SystemExit(1)
     finally:
         dns.close()
-
-
-@cli.command("deploy")
-@click.option(
-    "--project",
-    "project_path",
-    default=None,
-    type=click.Path(exists=True, file_okay=False),
-    help="Path to project folder (default: current directory)",
-)
-@click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
-def deploy_cmd(project_path: str | None, dry_run: bool):
-    """Deploy a project from its project.yaml metadata.
-
-    Resolves the project type and routes to the correct pipeline:
-    WordPress projects use Planner + SiteDeployer; all other types
-    use the generic DeploymentOrchestrator with a centralised service spec.
-
-    Example:
-        fabrik deploy
-        fabrik deploy --project /opt/my-site
-        fabrik deploy --project /opt/my-site --dry-run
-    """
-    from fabrik.deploy_router import (
-        get_project_type,
-        resolve_project_dir,
-        route_deploy,
-    )
-
-    try:
-        project_dir = resolve_project_dir(project_path)
-    except Exception as exc:
-        click.echo(f"Error: {exc}", err=True)
-        raise SystemExit(1)
-
-    try:
-        project_type = get_project_type(project_dir)
-    except Exception as exc:
-        click.echo(f"Error: {exc}", err=True)
-        raise SystemExit(1)
-
-    click.echo(f"Deploying {project_dir.name} (type={project_type})")
-    if dry_run:
-        click.echo("[dry-run] No changes will be applied")
-
-    try:
-        exit_code = route_deploy(project_dir, project_type, dry_run=dry_run)
-    except Exception as exc:
-        click.echo(f"Error: {exc}", err=True)
-        raise SystemExit(1)
-
-    if exit_code == 0:
-        click.echo(f"Deployment successful: {project_dir.name}")
-        _post_deploy_sync()
-    else:
-        click.echo(f"Deployment failed: {project_dir.name}", err=True)
-
-    raise SystemExit(exit_code)
 
 
 @cli.group()

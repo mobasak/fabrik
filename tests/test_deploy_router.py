@@ -153,50 +153,16 @@ class TestResolveServiceSpecPath:
 class TestRouteDeploy:
     """route_deploy — dispatches to correct pipeline."""
 
-    def test_wordpress_calls_wp_pipeline(self, tmp_path: Path) -> None:
+    def test_wordpress_redirects_to_wpf(self, tmp_path: Path) -> None:
+        """WordPress moved to /opt/wpf/; the router raises
+        NotImplementedError pointing at the wpf CLI rather than running a
+        pipeline here."""
         data = {"name": "my-wp", "type": "wordpress"}
         (tmp_path / "project.yaml").write_text(yaml.dump(data))
 
-        mock_planner = MagicMock()
-        mock_planner_instance = MagicMock()
-        mock_planner.return_value = mock_planner_instance
-
-        mock_deployer = MagicMock()
-        mock_deployer_instance = MagicMock()
-        mock_deployer_instance.deploy.return_value = MagicMock(success=True)
-        mock_deployer.return_value = mock_deployer_instance
-
-        with (
-            patch("fabrik.deploy_router.get_project_metadata", return_value=data),
-            patch("fabrik.wordpress.planner.Planner", mock_planner),
-            patch("fabrik.wordpress.deployer.SiteDeployer", mock_deployer),
-        ):
-            exit_code = route_deploy(tmp_path, "wordpress", dry_run=True)
-
-        assert exit_code == 0
-        mock_planner.assert_called_once_with("my-wp", project_path=str(tmp_path))
-        mock_planner_instance.plan.assert_called_once()
-        mock_deployer.assert_called_once_with("my-wp", dry_run=True, project_path=str(tmp_path))
-        mock_deployer_instance.deploy.assert_called_once()
-
-    def test_wordpress_failure_returns_1(self, tmp_path: Path) -> None:
-        data = {"name": "fail-wp", "type": "wordpress"}
-        (tmp_path / "project.yaml").write_text(yaml.dump(data))
-
-        mock_deployer_instance = MagicMock()
-        mock_deployer_instance.deploy.return_value = MagicMock(success=False)
-
-        with (
-            patch("fabrik.deploy_router.get_project_metadata", return_value=data),
-            patch("fabrik.wordpress.planner.Planner"),
-            patch(
-                "fabrik.wordpress.deployer.SiteDeployer",
-                return_value=mock_deployer_instance,
-            ),
-        ):
-            exit_code = route_deploy(tmp_path, "wordpress")
-
-        assert exit_code == 1
+        with patch("fabrik.deploy_router.get_project_metadata", return_value=data):
+            with pytest.raises(NotImplementedError, match="wpf"):
+                route_deploy(tmp_path, "wordpress", dry_run=True)
 
     def test_generic_calls_orchestrator(self, tmp_path: Path) -> None:
         data = {"name": "my-api", "type": "python-api"}
@@ -231,71 +197,61 @@ class TestRouteDeploy:
 # ---------------------------------------------------------------------------
 
 
-class TestDeployCLI:
-    """CLI integration via CliRunner."""
+class TestApplyNoSpecPath:
+    """`fabrik apply` with no SPEC_PATH resolves it from the current
+    project's project.yaml (the behavior the removed `deploy` command
+    used to provide). `apply` is now the single deploy entry point."""
 
-    def test_missing_project_yaml(self, tmp_path: Path) -> None:
+    def test_missing_project_yaml(self, tmp_path: Path, monkeypatch) -> None:
         from fabrik.cli import cli
 
+        monkeypatch.chdir(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ["deploy", "--project", str(tmp_path)])
+        result = runner.invoke(cli, ["apply", "--dry-run"])
 
         assert result.exit_code != 0
-        assert "No project.yaml found" in result.output
+        assert "project.yaml" in result.output
 
-    def test_unknown_type(self, tmp_path: Path) -> None:
+    def test_unknown_type(self, tmp_path: Path, monkeypatch) -> None:
         from fabrik.cli import cli
 
         data = {"name": "bad", "type": "unknown-type"}
         (tmp_path / "project.yaml").write_text(yaml.dump(data))
+        monkeypatch.chdir(tmp_path)
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["deploy", "--project", str(tmp_path)])
+        result = runner.invoke(cli, ["apply", "--dry-run"])
 
         assert result.exit_code != 0
         assert "Unknown project type" in result.output
 
-    def test_deploy_echoes_type(self, tmp_path: Path) -> None:
+    def test_wordpress_redirects_to_wpf(self, tmp_path: Path, monkeypatch) -> None:
         from fabrik.cli import cli
 
-        data = {"name": "my-api", "type": "python-api"}
+        data = {"name": "my-wp", "type": "wordpress"}
         (tmp_path / "project.yaml").write_text(yaml.dump(data))
-
-        # Patch route_deploy to return 0 without actual deployment
-        runner = CliRunner()
-        with patch("fabrik.deploy_router.route_deploy", return_value=0) as mock_route:
-            result = runner.invoke(cli, ["deploy", "--project", str(tmp_path), "--dry-run"])
-
-        assert "type=python-api" in result.output
-        assert "dry-run" in result.output
-        mock_route.assert_called_once()
-
-    def test_deploy_dry_run_flag(self, tmp_path: Path) -> None:
-        from fabrik.cli import cli
-
-        data = {"name": "my-api", "type": "python-api"}
-        (tmp_path / "project.yaml").write_text(yaml.dump(data))
+        monkeypatch.chdir(tmp_path)
 
         runner = CliRunner()
-        with patch("fabrik.deploy_router.route_deploy", return_value=0) as mock_route:
-            runner.invoke(cli, ["deploy", "--project", str(tmp_path), "--dry-run"])
-
-        # Verify dry_run was passed through
-        call_kwargs = mock_route.call_args
-        assert call_kwargs[1]["dry_run"] is True
-
-    def test_deploy_missing_spec_error(self, tmp_path: Path) -> None:
-        from fabrik.cli import cli
-
-        data = {"name": "orphan", "type": "python-api"}
-        (tmp_path / "project.yaml").write_text(yaml.dump(data))
-
-        runner = CliRunner()
-        with patch(
-            "fabrik.deploy_router.route_deploy",
-            side_effect=RuntimeError("No service spec found for project 'orphan'"),
-        ):
-            result = runner.invoke(cli, ["deploy", "--project", str(tmp_path)])
+        result = runner.invoke(cli, ["apply", "--dry-run"])
 
         assert result.exit_code != 0
-        assert "No service spec found" in result.output
+        assert "wpf" in result.output
+
+    def test_resolves_spec_from_project_yaml(self, tmp_path: Path, monkeypatch) -> None:
+        from fabrik.cli import cli
+
+        data = {"name": "my-api", "type": "python-api"}
+        (tmp_path / "project.yaml").write_text(yaml.dump(data))
+        monkeypatch.chdir(tmp_path)
+
+        runner = CliRunner()
+        # Patch the spec resolver to return a known path, and the orchestrator
+        # so no real deployment runs.
+        with patch(
+            "fabrik.deploy_router.resolve_service_spec_path",
+            return_value=Path("specs/services/my-api.yaml"),
+        ):
+            result = runner.invoke(cli, ["apply", "--dry-run"])
+
+        assert "Resolved spec from project.yaml" in result.output

@@ -117,7 +117,7 @@ def _deploy_wordpress(project_dir: Path, dry_run: bool) -> int:
     """
     raise NotImplementedError(
         "WordPress deployment has moved to /opt/wpf/. "
-        "Use the `wpf` CLI instead of `fabrik deploy` for WordPress projects."
+        "Use the `wpf` CLI for WordPress projects (not `fabrik apply`)."
     )
 
 

@@ -578,7 +578,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost').split(',')
 Fabrik fires fire-and-forget webhooks after deploy and content publish events.
 
 **How it works:**
-1. `deploy_router.py` calls `notify_deploy()` after every `fabrik deploy` / `fabrik apply`
+1. `deploy_router.py` calls `notify_deploy()` after every `fabrik apply`
 2. `content_publisher.py` calls `notify_content()` after every `fabrik content publish`
 3. n8n receives the POST, formats the message, POSTs to Apprise
 4. Apprise fans out to configured channels (Telegram, email, etc.)
