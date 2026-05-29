@@ -36,15 +36,14 @@
 │  fabrik apply specs/services/<name>.yaml  (--dry-run optional)          │
 │                                                                          │
 │   1. SpecValidator          (orchestrator/validator.py)                  │
-│   2. deploy_validator.py    (readiness: Dockerfile, .env, healthcheck)   │
-│   3. SecretsManager         (env → .env → -s flags, CSPRNG generate)     │
-│   4. DNSClient              (drivers/dns.py → site-provisioner)          │
-│   5. SSHDeployer            (deployer_ssh.py → SCP compose + .env        │
+│   2. SecretsManager         (os.environ incl -s flags → .env → generate) │
+│   3. DNSClient              (drivers/dns.py → site-provisioner)          │
+│   4. SSHDeployer            (deployer_ssh.py → SCP compose + .env        │
 │                              then ssh: docker compose up -d)             │
-│   6. InfrastructureProvisioner (shape-driven, 9 registrars:             │
+│   5. InfrastructureProvisioner (shape-driven, 9 registrars:             │
 │         postgres · redis · gatus · backrest · glitchtip+DSN ·            │
 │         grafana · authelia+bypass · meilisearch · prometheus)            │
-│   7. DeploymentVerifier     (orchestrator/verifier.py — HTTP 200,        │
+│   6. DeploymentVerifier     (orchestrator/verifier.py — HTTP 200,        │
 │                              DSN injected, DNS resolves, SSL valid)      │
 │                                                                          │
 │   on failure ⇒ RollbackManager (orchestrator/rollback.py, reverse order) │
@@ -75,13 +74,13 @@ Click-based CLI. The commands below are the only public entry points for deploym
 | `fabrik scaffold <name> --type <t>` | 1523 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
 | `fabrik apply <spec.yaml>` | 382 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep).** Flags: `--dry-run`, `--skip-dns`, `--skip-deploy`, `-s KEY=VALUE`, `--legacy` (opt out, render-only path), `--keep-on-failure` (proof-run only). | `orchestrator/DeploymentOrchestrator.deploy()` (default) or `deploy.py::deploy_to_coolify()` (`--legacy`, dead code) |
 | `fabrik redeploy <app>` | 1145 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
-| `fabrik destroy <spec>` | 859 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS + files. `--keep-dns`, `--keep-files`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
+| `fabrik destroy <spec>` | 859 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
 | `fabrik vps-sync [--dry-run]` | 1100 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
 | `fabrik validate-deploy <project>` | 1677 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
 | `fabrik domain provision <domain>` | 2115 | Register domain + DNS + CDN via site-provisioner. | `drivers/dns.py::DNSClient` |
 | `fabrik domain ready <domain>` | 2202 | Poll DNS + SSL readiness before deploying. | `drivers/dns.py::DNSClient` |
 | `fabrik domain buy <domain>` | 2328 | Register a new domain via Namecheap. | `drivers/dns.py::DNSClient::register_domain()` |
-| `fabrik wp plan/apply/verify/flush` | 1154–1331 | WordPress-specific sub-pipeline. | `wordpress/stages/*.py` |
+| `fabrik wp plan/apply/verify/flush` | — | WordPress sub-pipeline. **Moved to `/opt/wpf/`** standalone project (no longer in fabrik CLI). | `wpf/` (separate repo) |
 
 ### 2.2 Orchestrator — `src/fabrik/orchestrator/`
 
@@ -93,7 +92,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` and `fa
 | `orchestrator/context.py` | `DeploymentContext`, `ResourceRecord` | Shared state across stages (spec, spec_hash, `coolify_uuid` — now stores app name despite the field name, `dns_records`, list of created resources). Every resource that can be rolled back calls `ctx.add_resource(...)`. |
 | `orchestrator/states.py` | `DeploymentState`, `can_transition()` | State machine enum: `PENDING → VALIDATING → PROVISIONING → DEPLOYING → VERIFYING → COMPLETE` / `FAILED → ROLLING_BACK → ROLLED_BACK`. Illegal transitions raise `InvalidStateTransitionError`. |
 | `orchestrator/validator.py` | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` | Pydantic spec validation + SSRF check (no private IPs, no reserved ranges) + idempotency hash. |
-| `orchestrator/secrets.py` | `SecretsManager`, `generate_secret()`, `load_dotenv()` | Load secrets precedence: env vars → project `.env` → `-s KEY=VALUE` (highest wins). CSPRNG for generated secrets (`secrets.choice()`, 32 chars). |
+| `orchestrator/secrets.py` | `SecretsManager`, `generate_secret()`, `load_dotenv()` | Load secrets precedence: `os.environ` (checked first — includes `-s KEY=VALUE` flags injected by CLI) → project `.env` → auto-generate. CSPRNG for generated secrets (`secrets.choice()`, 32 chars). |
 | `orchestrator/deployer_ssh.py` | `SSHDeployer.deploy(ctx)`, `SSHDeployer.find_existing(name)` | SSH+Docker Compose deployer. Dispatches by source type (TEMPLATE, GIT, DOCKER, LOCAL). Writes compose.yaml + .env to VPS via SCP, runs `docker compose up -d`. Returns app name (stored in `ctx.coolify_uuid` for backward compat). Also validates compose against rule-pack constraints before deploy. |
 | `orchestrator/infrastructure.py` | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` | Shape-driven dispatcher. Invoked between Deploy and Verify. Decides per-registrar applicability (`postgres`, `redis`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`, `prometheus`), then calls each driver's `create_*`/`add_*` entry in contract order. Each registrar failure is logged non-fatal **except glitchtip's `verify_dsn_injection` mismatch**, which rolls back the GlitchTip project and re-raises. |
 | `orchestrator/verifier.py` | `DeploymentVerifier.verify(ctx)` | Post-conditions: HTTP 200 on `/health`; DNS resolves to VPS IP; SSL cert valid; `SENTRY_DSN` in container env (when GlitchTip provisioned) — verified via `docker inspect`, never `docker exec` (Lesson 31). |
@@ -107,7 +106,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` and `fa
 
 | File | Role |
 |---|---|
-| `src/fabrik/spec_loader.py` | Parse `.yaml` spec → pydantic `Spec` model. Defines every valid field: `DNS`, `Source` (with `path` field for LOCAL source), `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `CoolifyConfig` (legacy, unused by orchestrator), `Depends`, `Infrastructure`. Enforces `model_config = {"extra": "forbid"}`. Entry points: `load_spec(path)`, `save_spec(spec, path)`, `create_spec(name, kind, ...)`. |
+| `src/fabrik/spec_loader.py` | Parse `.yaml` spec → pydantic `Spec` model. Defines every valid field: `DNS`, `Source` (with `path` field for LOCAL source), `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `CoolifyConfig` (legacy, unused by orchestrator), `Depends`, `Infrastructure`. The `Shape` sub-model enforces `model_config = {"extra": "forbid"}`; the top-level `Spec` model does not. Entry points: `load_spec(path)`, `save_spec(spec, path)`, `create_spec(name, kind, ...)`. |
 | `src/fabrik/template_renderer.py` | `TemplateRenderer(spec).render(output_dir)` → writes `compose.yaml` + `Dockerfile` + auxiliary files from `templates/<type>/*.j2`. `list_templates()` enumerates available templates. |
 | `src/fabrik/scaffold.py` | The entire `fabrik scaffold` command. Generates `/opt/<name>/` tree; emits `project.yaml`, `specs/services/<name>.yaml`, `.env.example`, `README.md`, tests, CI workflow. Reads `templates/<type>/defaults.yaml` for shape flags. |
 | `src/fabrik/compose_linter.py` | `ComposeLinter.lint(compose_yaml)` — validates Fabrik deployment constraints: `container_name` **required** (warning), `restart` policy required, healthcheck recommended for databases, no unresolved `${VAR}` without defaults. |
@@ -121,7 +120,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` and `fa
 |---|---|---|---|
 | `drivers/ssh.py` | `ssh(cmd, timeout, dry_run)`, `scp_to_vps(src, dst)` | SSH to VPS (host alias `vps`, configurable via `FABRIK_VPS_SSH_HOST`) | **Primary deploy driver.** All VPS mutations go through SSH. Non-zero exits raise `RuntimeError` with stderr included. |
 | `drivers/locks.py` | `run_locked(resource, script, timeout)`, `git_commit_config(path)` | VPS `flock -x -w` + git | Multi-step VPS mutations that must be serialized (Authelia config edits, Backrest config edits). `git_commit_config()` whitelist: **only** `/opt/monitoring/configs/gatus` may be committed; secret-bearing configs use `.bak.{ts}`. |
-| `drivers/dns.py` | `DNSClient`, `DNSRecord`, `add_dns_record()` | site-provisioner service (`dns.vps1.ocoron.com`) | Domain registration, A/CNAME/TXT record management, Cloudflare zone provisioning, SSL readiness polling. Auth via `SITE_PROVISIONER_API_KEY` + `X-Internal-Token` header. |
+| `drivers/dns.py` | `DNSClient`, `DNSRecord`, `add_dns_record()` | site-provisioner service (`dns.vps1.ocoron.com`) | Domain registration, A/CNAME/TXT record management, Cloudflare zone provisioning, SSL readiness polling. Auth via `SITE_PROVISIONER_API_KEY` + `X-API-Key` header. |
 | `drivers/cloudflare.py` | `CloudflareClient` | Cloudflare API (direct) | Fallback when site-provisioner unavailable. Needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID`. |
 | `drivers/supabase.py` | `SupabaseClient` | Supabase API | When `spec.infrastructure.database == supabase`: create project, user, run migrations. |
 | `drivers/r2.py` | `R2Client` | Cloudflare R2 (S3-compatible) | Object storage ops when `spec.storage.type == r2`. |
@@ -135,7 +134,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` and `fa
 
 | File | Status | Notes |
 |---|---|---|
-| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). Used only by rollback legacy path (`_rollback_coolify()`) and destroy fallback (`_destroy_coolify_legacy()`). Not imported by the orchestrator, deployer, or CLI. Will be removed after all pre-migration state files are cleaned up. |
+| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). On the active deploy path, only used by rollback legacy path (`_rollback_coolify()`) and destroy fallback (`_destroy_coolify_legacy()`). Also still imported by broken CLI commands (`status`, `logs`, `reconcile-all`, `registry --sync`), `health_app.py`, `deploy.py`, `provisioner.py`, `portability.py`, `compose_updater.py`, and `drivers/__init__.py`. These are Phase 11-2 cleanup targets. |
 
 **Shape-driven registrar drivers (all implemented):**
 
@@ -189,7 +188,7 @@ Deployed once when bootstrapping the VPS; not touched by normal `fabrik apply` o
 
 | File | Deploys | Current state |
 |---|---|---|
-| `specs/infrastructure/monitoring-stack.yaml` | Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor (all in monitoring stack compose) + Prometheus standalone (`/opt/prometheus/compose.yaml`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: `cd /opt/prometheus && sudo docker compose restart`. | ✅ deployed |
+| `specs/infrastructure/monitoring-stack.yaml` | Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor (all in monitoring stack compose) + Prometheus standalone (`/opt/prometheus/compose.yaml`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload`, fallback to `sudo docker compose restart`. | ✅ deployed |
 | `specs/infrastructure/authelia.yaml` | Authelia (SSO/2FA forward-auth) | ✅ deployed |
 | `specs/infrastructure/apprise.yaml` | Apprise (notifications gateway) | ✅ deployed |
 | `specs/infrastructure/browserless.yaml` | Browserless (headless Chrome) | ✅ deployed |
@@ -235,7 +234,7 @@ Scaffold uses these to generate `/opt/<project>/` trees. Every template has a `d
 | `templates/docusaurus/` | Docusaurus doc site | `compose.yaml.j2`, `Dockerfile.j2`, `docusaurus.config.js.j2`, `sidebars.js.j2` |
 | `templates/file-api/` | File-operations microservice | `compose.yaml.j2`, `Dockerfile.j2` |
 | `templates/file-worker/` | Background worker variant of file-api | `compose.yaml.j2` |
-| `templates/chrome-extension/` | Browser extension (backend) | `manifest.json`, build config |
+| `templates/chrome-extension/` | Browser extension (backend) | `manifest.json.j2`, `compose.yaml.j2`, `defaults.yaml` |
 | `templates/desktop-app/` | Electron-style desktop app (backend) | `compose.yaml.j2` |
 | `templates/mobile-app/` | React Native / Expo (backend) | `compose.yaml.j2` |
 
@@ -285,7 +284,7 @@ Local copies of VPS-side config files. **Source of truth is on the VPS** (Docker
 | `configs/alertmanager/alertmanager.yml` | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Volume-mounted from host. Edit locally → `scp` → `docker restart alertmanager`. |
 | `configs/alertmanager/alertmanager.yml.example` | — | Template with `__PLACEHOLDERS__`; render into the real file with secrets from `.env`. |
 | `configs/prometheus/prometheus.yml` | `/opt/monitoring/configs/prometheus/prometheus.yml` | Same pattern as Alertmanager. |
-| `configs/prometheus/rules/alerts.yml` | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Contains alert rules. Edit → `cd /opt/prometheus && sudo docker compose restart` (no curl — no curl binary in image). |
+| `configs/prometheus/rules/alerts.yml` | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Contains alert rules. Edit → hot-reload via `POST /-/reload` (curled from alertmanager container), fallback to `cd /opt/prometheus && sudo docker compose restart`. |
 | `configs/loki/loki-config.yaml` | Loki volume | Rarely edited. |
 | `configs/promtail/promtail-config.yaml` | Promtail volume | Rarely edited. |
 | `configs/n8n/workflows/*.json` | n8n UI imports | Seed workflows after n8n redeploy. |
@@ -393,7 +392,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 |---|---|---|
 | `/opt/monitoring/compose.yaml` | Main monitoring stack (Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor). | `cd /opt/monitoring && sudo docker compose up -d`. |
 | `/opt/prometheus/compose.yaml` | Prometheus standalone. Intentionally separated — scrape targets need the `coolify` network attachment which compose stacks don't always preserve. | `cd /opt/prometheus && sudo docker compose up -d`. |
-| `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config. Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit → `cd /opt/prometheus && sudo docker compose restart` (no curl in image). |
+| `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config. Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit → hot-reload via `POST /-/reload` (curled from alertmanager container), fallback to `cd /opt/prometheus && sudo docker compose restart`. |
 | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Alert rules (ContainerDown, HighCPU, HighMemory, OOMKilled, etc.) | Same pattern. |
 | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Routes, receivers (Telegram), inhibit rules. **Secret-bearing** (Telegram bot token). | Edit → `sudo docker restart alertmanager`. |
 | `/opt/monitoring/configs/gatus/` | Gatus blackbox monitoring. Per-service files in `apps/` subdir (one YAML per project). **Git-versioned** (whitelisted in `drivers/locks.py::git_commit_config()`). `_base.yaml` for global alerting → Apprise. | Edit → Gatus auto-reloads on file change. |
@@ -498,7 +497,7 @@ networks:
 **Every compose service MUST declare `container_name: <name>`** for stable `docker exec`, `docker inspect`, and Gatus monitoring. Without it, Docker generates random suffixed names that change on every recreate.
 
 Enforced by:
-- `deployer_ssh._validate_compose()` — fatal error if missing
+- `deployer_ssh._validate_compose()` — fatal error if missing (runs for **template** and **docker** source types only)
 - `compose_linter.lint()` — warning if missing
 - All compose templates emit `container_name: {{ spec.id }}`
 
@@ -533,17 +532,16 @@ fabrik validate-deploy /opt/my-api
 **Orchestrator pipeline (default for `fabrik apply`):**
 
 1. `SpecValidator.validate()` — pydantic + SSRF + `compute_spec_hash()` for idempotency.
-2. `deploy_validator.validate()` — scaffold readiness (Dockerfile, `.env`, healthcheck).
-3. `SecretsManager.load()` — precedence: env → `.env` → `-s` flags.
-4. `DNSClient.add_record(domain, VPS_IP)` — skipped if `--skip-dns`.
-5. `SSHDeployer.deploy(ctx)` — dispatches by source type:
+2. `SecretsManager.load()` — precedence: `os.environ` (includes `-s` flags) → `.env` → auto-generate.
+3. `DNSClient.add_record(domain, VPS_IP)` — skipped if `--skip-dns`.
+4. `SSHDeployer.deploy(ctx)` — dispatches by source type:
    - **Template:** `TemplateRenderer.render()` → `_validate_compose()` → SCP compose.yaml + .env to VPS → `docker compose up -d`
    - **Git:** `git clone` (new) or `git pull` (existing) → write .env → `docker compose build` → `docker compose up -d`
    - **Docker:** generate minimal compose from `source.image` → validate → SCP → `docker compose up -d`
    - **Local:** verify compose exists at `source.path` → write .env → `docker compose up -d`
-6. `InfrastructureProvisioner.provision(ctx)` — shape-driven dispatch. Registrar order (`_REGISTRAR_ORDER` in `orchestrator/infrastructure.py:84`): `postgres` → `redis` → `gatus` → `backrest` → `glitchtip` (+DSN injection & verification) → `grafana` (annotation) → `authelia` (+`^/api/` bypass when `has_bearer_api`) → `meilisearch` → `prometheus`. All failures are non-fatal **except** GlitchTip DSN-injection mismatch, which triggers rollback.
-7. `DeploymentVerifier.verify()` — HTTP 200 on `/health`, DNS resolves, SSL valid, `SENTRY_DSN` present (when GlitchTip applicable) via `docker inspect`.
-8. `_post_deploy_sync()` — runs `scripts/sync_projects.py`, `scripts/update_vps_docs.py`, `scripts/generate_vps_inventory.py --update`.
+5. `InfrastructureProvisioner.provision(ctx)` — shape-driven dispatch. Registrar order (`_REGISTRAR_ORDER` in `orchestrator/infrastructure.py:84`): `postgres` → `redis` → `gatus` → `backrest` → `glitchtip` (+DSN injection & verification) → `grafana` (annotation) → `authelia` (+`^/api/` bypass when `has_bearer_api`) → `meilisearch` → `prometheus`. All failures are non-fatal **except** GlitchTip DSN-injection mismatch, which triggers rollback.
+6. `DeploymentVerifier.verify()` — HTTP 200 on `/health`, DNS resolves, SSL valid, `SENTRY_DSN` present (when GlitchTip applicable) via `docker inspect`.
+7. `_post_deploy_sync()` — runs `scripts/sync_projects.py`, `scripts/update_vps_docs.py`, `scripts/generate_vps_inventory.py --update`.
 
 On any exception, orchestrator transitions `ROLLING_BACK` and `RollbackManager` undoes every `ctx.resources[*]` in reverse order (§9.7).
 
@@ -582,7 +580,7 @@ Internally (`cli.py::redeploy()` line 1145):
 - **Mode 1 (no `--refresh-infra`):**
   1. `SSHDeployer.find_existing(name)` — checks `/opt/<name>/compose.yaml` on VPS.
   2. Detects source type by checking for `.git` directory on VPS.
-  3. **Git-sourced** (all current production services):
+  3. **Git-sourced**:
      - `ssh: cd /opt/<name> && sudo git pull` (pulls from GitHub remote, timeout 60s)
      - `ssh: cd /opt/<name> && sudo docker compose build` (rebuilds image, timeout 300s; `--no-cache` if `--force`)
      - `ssh: cd /opt/<name> && sudo docker compose up -d` (restarts with new image, timeout 120s)
@@ -606,16 +604,15 @@ Internally (`cli.py::redeploy()` line 1145):
 1. **prometheus** → remove scrape target (first down, last up)
 2. **meilisearch** → skipped (index preserved) unless `--drop-data`
 3. **authelia** → remove access rule, restart authelia (if `shape.is_admin_dashboard`)
-4. **grafana** → skipped (annotations are informational, auto-expire)
-5. **glitchtip** → delete project (if `kind in {service, worker, wordpress}`)
+4. **glitchtip** → delete project (if `kind in {service, worker, wordpress}`)
+5. **grafana** → skipped (annotations are informational, auto-expire)
 6. **backrest** → remove backup plan (if `shape.has_persistent_data`)
 7. **gatus** → remove endpoint, restart gatus (if `shape.is_public` + domain)
-8. **redis** → release index slot (data NOT flushed unless `--drop-data`)
-9. **postgres** → skipped (database preserved) unless `--drop-data`
+8. **postgres** → skipped (database preserved) unless `--drop-data`
+9. **redis** → release index slot (data NOT flushed unless `--drop-data`)
 10. **App** → `sudo docker compose down -v` + `sudo rm -rf /opt/<name>` + `sudo docker image prune -f`
 11. **DNS** → remove A record (unless `--keep-dns`)
-12. **Files** → remove project tree (unless `--keep-files`)
-13. `_post_deploy_sync()`
+12. `_post_deploy_sync()`
 
 ```bash
 # Default: data-preserving teardown (Postgres DB + Meilisearch index + Redis data kept)
@@ -624,8 +621,8 @@ fabrik destroy specs/services/my-api.yaml
 # Throwaway test cleanup — drop DB + Meilisearch index + flush Redis too
 fabrik destroy specs/services/my-api.yaml --drop-data -y
 
-# Keep DNS or files
-fabrik destroy specs/services/my-api.yaml --keep-dns --keep-files
+# Keep DNS records
+fabrik destroy specs/services/my-api.yaml --keep-dns
 
 # Plan only — print every action, mutate nothing
 fabrik destroy specs/services/my-api.yaml --dry-run
@@ -711,7 +708,9 @@ python scripts/sync_projects.py
 Orchestrator catches any exception during deploy, transitions to `ROLLING_BACK`, and calls `RollbackManager.rollback(ctx)`. Reverse-order cleanup of every `ctx.resources[*]`:
 
 - `compose` → `SSHDeployer.delete()` (`docker compose down -v` + `rm -rf /opt/<name>`)
+- `coolify` → legacy Coolify app removal (pre-migration deployments only)
 - `dns` → `CloudflareClient.delete_record_by_name()`
+- `monitor` → legacy monitor resource cleanup
 - `glitchtip` → `delete_project()`
 - `grafana_annotation_id` → `delete_annotation()`
 - `authelia` / `authelia_bypass` → `remove_access_rule()` (deduplicated per-domain)
@@ -752,10 +751,14 @@ Errors during rollback are logged and accumulated — rollback never aborts, alw
 ### 10.1 Precedence
 
 ```text
-1. Command-line -s KEY=VALUE flags (highest)
-2. Project .env file        (/opt/<project>/.env)
-3. Fabrik .env file         (/opt/fabrik/.env)
-4. Process environment      (lowest)
+1. os.environ (checked first by SecretsManager.get())
+   Includes, in order of who sets values:
+   a. -s KEY=VALUE flags     (CLI injects into os.environ before SecretsManager runs — highest)
+   b. Process env vars       (already in os.environ when CLI starts)
+   c. Fabrik .env             (/opt/fabrik/.env loaded into os.environ by config.py at import time
+                               via python-dotenv — does NOT overwrite existing vars)
+2. Project .env file          (/opt/<project>/.env — SecretsManager.dotenv property)
+3. Auto-generate              (CSPRNG 32-char secret if generate_if_missing=True — lowest)
 ```
 
 ### 10.2 Auto-detected from `.env.example`
@@ -804,7 +807,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 | # | Invariant |
 |---|---|
 | 1 | SSH deploy: all `docker` commands on VPS require `sudo` prefix |
-| 2 | Compose files go through `_validate_compose()` before deploy — fatal on constraint violation |
+| 2 | Compose files go through `_validate_compose()` before deploy — fatal on constraint violation. Only runs for **template** and **docker** source types (git and local sources manage their own compose files) |
 | 3 | `container_name: <name>` required in every compose service for stable naming |
 | 4 | `platform: linux/amd64` required in every compose service |
 | 5 | `deploy.resources.limits.memory` required in every compose service |
@@ -825,7 +828,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 | 15 | Authelia: never SIGHUP (exits) — always `docker restart authelia` after config changes |
 | 16 | Authelia `^/api/` bypass is conditional on `shape.has_bearer_api: true`, not always added |
 | 17 | Gatus uses per-service YAML files in `/opt/monitoring/configs/gatus/apps/`, not a single config |
-| 18 | Prometheus reload: `cd /opt/prometheus && sudo docker compose restart` (no curl binary in image) |
+| 18 | Prometheus reload: hot-reload via `POST /-/reload` lifecycle endpoint (curled from alertmanager container), fallback to `docker restart` if hot-reload fails |
 | 19 | Postgres registrar creates DB only — does NOT inject `DATABASE_URL` |
 | 20 | Redis registrar allocates DB index AND injects `REDIS_URL` via `deployer.inject_env()` |
 | 21 | Backrest config edits serialized via `run_locked("backrest-config", ...)` |

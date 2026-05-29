@@ -1,6 +1,6 @@
 # Fabrik Lifecycle — Runtime Behavior & Data Safety
 
-**Last reviewed:** 2026-05-28
+**Last reviewed:** 2026-05-29
 **Purpose:** What happens to running containers, data, volumes, and env vars during each Fabrik operation. Read this before running any command on a system with live data.
 
 ---
@@ -23,7 +23,7 @@
 
 `fabrik redeploy <app>` is the most frequent operation. Here's exactly what happens on the VPS:
 
-### Git-sourced apps (all current production services)
+### Git-sourced apps
 
 ```
 Step 1: ssh: cd /opt/<app> && sudo git pull           ← pulls from GitHub remote
@@ -69,14 +69,14 @@ This is inherent to Docker Compose on a single node. Zero-downtime rolling deplo
 
 When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.yaml` found on VPS):
 
-1. **Compose.yaml** — for template/docker source: regenerated and written to VPS via SCP (**overwritten**). For git source: updated by `git pull` from the repo (deployer does not write compose.yaml)
+1. **Compose.yaml** — for template/docker source: regenerated and written to VPS via SCP (**overwritten**). For git source: updated by `git pull` from the repo (deployer does not write compose.yaml). For local source: untouched (already exists at `source.path`)
 2. **`.env`** is read-merged:
    - Reads existing `/opt/<name>/.env` from VPS
    - Layers spec `env:` block values on top
    - Layers `ctx.secrets` on top (highest priority)
    - Writes merged result back
    - **Registrar-injected vars (SENTRY_DSN, GLITCHTIP_DSN, REDIS_URL) and spec-sourced vars (DATABASE_URL) are preserved** because they exist in the old .env and aren't overwritten unless the spec explicitly declares them
-3. **`docker compose up -d`** — for git source, `docker compose build` runs first (same as redeploy), then `up -d` recreates only if config changed
+3. **`sudo docker compose up -d`** — for git source, `sudo docker compose build` runs first (same as redeploy), then `up -d` recreates only if config changed
 4. **Infrastructure registrars** run again — they are idempotent (CREATE IF NOT EXISTS, add-if-missing patterns)
 5. **Resource tracking** — no new `compose` resource tracked (only new deploys get tracked for rollback)
 
@@ -84,10 +84,10 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
 
 ## Apply (New) — First Deploy
 
-1. `mkdir -p /opt/<name>/` on VPS
-2. Files written to VPS: for template source, compose.yaml + .env (+ Dockerfile if rendered) via SCP. For git source, `git clone` pulls compose.yaml + Dockerfile from the repo, deployer only writes .env via SCP
-3. For git source: `docker compose build` (builds image from Dockerfile in repo), then `docker compose up -d`. For other sources: `docker compose up -d` directly (image already specified in compose.yaml)
-4. Resource tracked: `ctx.add_resource("compose", name)` — enables rollback if later phases fail
+1. Directory created on VPS: for template/docker source, `mkdir -p /opt/<name>/`. For git source, `git clone` creates the directory. For local source, directory must already exist at `source.path`.
+2. Files written to VPS: for template source, compose.yaml + .env (+ Dockerfile if rendered) via SCP. For docker source, a generated compose.yaml + .env via SCP. For git source, `git clone` pulls compose.yaml + Dockerfile from the repo, deployer only writes .env via SCP. For local source, compose.yaml already exists at `source.path`, deployer only writes .env
+3. For git source: `sudo docker compose build` (builds image from Dockerfile in repo), then `sudo docker compose up -d`. For other sources: `sudo docker compose up -d` directly (image already specified in compose.yaml or pre-built)
+4. Resource tracked: `ctx.add_resource("compose", name, name=name)` — enables rollback if later phases fail
 5. Infrastructure registrars run (create DB, Gatus endpoint, GlitchTip project, etc.)
 6. Health check verification
 7. If any phase fails → automatic rollback tears down everything created
@@ -182,7 +182,7 @@ Understanding when `.env` is written helps predict whether your env vars will su
 ### Merge precedence (highest wins)
 
 ```
-ctx.secrets          ← from SecretsManager (env vars, .env, -s flags, generated)
+ctx.secrets          ← from SecretsManager (env vars, .env, generated). CLI -s flags are injected into os.environ, then read as env vars.
 ctx.spec["env"]      ← from spec YAML env: block
 existing .env on VPS ← registrar-injected vars, previous deploy values
 ```
@@ -214,14 +214,14 @@ ssh vps "cd /opt/<service> && sudo git checkout HEAD~1 && sudo docker compose bu
 # Then fix the code locally, commit, push, redeploy properly
 ```
 
-**Note:** The previous Docker image is still cached on the VPS. Docker doesn't delete old layers immediately — `docker image prune` only runs during `fabrik destroy`, not redeploy.
+**Note:** The previous Docker image is still cached on the VPS. Docker doesn't delete old layers immediately — `docker image prune` only runs during `fabrik destroy` and automatic rollback (via `SSHDeployer.delete()`), not redeploy.
 
 ### Apply fails mid-way (automatic rollback)
 
 If `fabrik apply` fails at any phase, the rollback manager automatically unwinds:
 
 - Phase 3 (DNS) fails → DNS record removed
-- Phase 4 (deploy) fails → compose app removed (`docker compose down -v` + `rm -rf`)
+- Phase 4 (deploy) fails → compose app removed (`sudo docker compose down -v` + `sudo rm -rf`)
 - Phase 4b (registrar) fails → each registrar rolled back in reverse order
 - Phase 5 (verify) fails → everything rolled back
 
@@ -232,7 +232,7 @@ If `fabrik apply` fails at any phase, the rollback manager automatically unwinds
 ### SSH connection failure
 
 If SSH to the VPS fails during deploy:
-- `RuntimeError` from `ssh()` driver → wrapped in `DeployError`
+- `RuntimeError` from `ssh()` driver → propagates up to orchestrator's generic `except Exception` handler (not wrapped in `DeployError`)
 - Rollback attempts to clean up (but may also fail if SSH is down)
 - Check VPS health separately: `ping vps1.ocoron.com`, direct SSH
 
@@ -242,7 +242,7 @@ If SSH to the VPS fails during deploy:
 
 ### Authelia restarts
 
-Every Authelia rule change (add/remove access rule) triggers `docker restart authelia`. If you deploy 3 services with `is_admin_dashboard: true` in quick succession, that's 3+ Authelia restarts, causing brief 502s on all Authelia-protected routes.
+Every Authelia rule change (add/remove access rule) triggers `sudo docker restart authelia`. If you deploy 3 services with `is_admin_dashboard: true` in quick succession, that's 3+ Authelia restarts, causing brief 502s on all Authelia-protected routes.
 
 **Mitigation:** The rollback deduplicates Authelia calls per-domain (authelia + authelia_bypass → one `remove_access_rule` call). But successive deploys don't coordinate.
 
@@ -252,7 +252,7 @@ Similar to Authelia — each `add_endpoint` / `remove_endpoint` restarts gatus. 
 
 ### Container name stability
 
-All compose files must declare `container_name: <name>`. Without it, Docker generates names like `<project>-<service>-1` which change unpredictably. The compose linter warns if `container_name` is missing.
+All compose files must declare `container_name: <name>`. Without it, Docker generates names like `<project>-<service>-1` which change unpredictably. The `ComposeLinter` warns if `container_name` is missing; the deployer's `_validate_compose()` treats it as an error (blocks deployment).
 
 ### The `coolify` network name
 

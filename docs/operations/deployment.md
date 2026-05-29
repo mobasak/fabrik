@@ -1,6 +1,6 @@
 # Deployment Procedures
 
-**Last reviewed:** 2026-05-28
+**Last reviewed:** 2026-05-29
 **VPS:** vps1.ocoron.com (172.93.160.197)
 **Deploy method:** SSH + Docker Compose (direct to VPS — no intermediary platform)
 **Deploy mechanism:** `fabrik apply` runs from WSL, connects to VPS via SSH, writes compose files, runs `docker compose up -d`
@@ -9,9 +9,9 @@
 
 ## Golden Rules
 
-1. **All services are git-sourced. Always `git push` before `fabrik redeploy`.** Redeploy runs `git pull` on the VPS, which pulls from the GitHub remote configured in `/opt/<name>/.git/config` — not from your local WSL filesystem.
+1. **Git-sourced services require `git push` before `fabrik redeploy`.** Redeploy runs `git pull` on the VPS, which pulls from the GitHub remote configured in `/opt/<name>/.git/config` — not from your local WSL filesystem. (Local-sourced services skip the git pull step.)
 2. **DB connection strings use Docker DNS names**, never `localhost`: `postgres-main:5432`, `redis-main:6379`. Inside a container, `localhost` is the container itself, not the shared database.
-3. **Never SIGHUP Authelia** — it exits. Always `docker restart authelia` after editing `/opt/authelia/configuration.yml`.
+3. **Never SIGHUP Authelia** — it exits. Always `sudo docker restart authelia` after config changes. (Config lives at `/config/configuration.yml` inside the container — there is no host-path file. The authelia driver uses `docker cp` to write and `docker exec cat` to read.)
 4. **No `ports:` in compose.yaml** — binding ports bypasses UFW and exposes services directly. All traffic routes through Traefik on the `coolify` Docker network.
 5. **Every service must have `container_name:`** in its compose.yaml — provides stable names for `docker exec`, `docker inspect`, and Gatus monitoring. Without it, Docker generates random suffixed names.
 6. **All `docker` commands on VPS require `sudo`** — root-owned containers and directories.
@@ -25,7 +25,7 @@
 WSL (your laptop)                        VPS (vps1.ocoron.com)
 ────────────────                         ────────────────────
 fabrik CLI                               /opt/<name>/
-  │                                        ├── compose.yaml    ← written by deployer
+  │                                        ├── compose.yaml    ← from deployer (template/docker) or git repo (git/local)
   ├── SSHDeployer                          ├── .env            ← written by deployer
   │     │                                  ├── Dockerfile      ← from git repo or template
   │     ├── ssh("mkdir -p /opt/<name>")    └── src/            ← from git repo
@@ -58,12 +58,12 @@ Every Fabrik spec declares a `source.type` that controls how code reaches the VP
 
 | Source type | How code gets to VPS | Spec example | Used by |
 |---|---|---|---|
-| **git** | `git clone` / `git pull` on VPS from GitHub | `source: { type: git, repository: "https://github.com/...", branch: main }` | All 8 Fabrik microservices (captcha, image-broker, translator, etc.) |
-| **template** | Fabrik renders compose.yaml from `templates/<type>/*.j2`, SCPs to VPS | `source: { type: template }` | New scaffolded services |
-| **docker** | Deployer generates minimal compose.yaml from `source.image`, SCPs to VPS | `source: { type: docker, image: "nginx:latest", image_port: 80 }` | Single-image services |
-| **local** | Compose.yaml already exists on VPS at `source.path`; deployer only writes .env | `source: { type: local, path: "/opt/my-app" }` | 13 services (captcha, file-api, translator, image-broker, etc.) |
+| **git** | `git clone` / `git pull` on VPS from GitHub | `source: { type: git, repository: "https://github.com/...", branch: main }` | 11 services (site-provisioner, youtube, fabrik-citation-verifier, fabrik-test-* series, etc.) |
+| **template** | Fabrik renders compose.yaml from `templates/<type>/*.j2`, SCPs to VPS | `source: { type: template }` | Scaffolded services (gate-*, test-*, guide-proj, etc.) |
+| **docker** | Deployer generates minimal compose.yaml from `source.image`, SCPs to VPS | `source: { type: docker, image: "nginx:latest", image_port: 80 }` | Single-image services (fabrik-smoke-test) |
+| **local** | Compose.yaml already exists on VPS at `source.path`; deployer only writes .env | `source: { type: local, path: "/opt/my-app" }` | 9 services (image-broker, translator, job-agent, trading-core, seo, etc.) |
 
-**All production services are currently git-sourced or local-sourced.** Template and docker source types are used for initial scaffolding and one-off image deployments.
+**Production services are git-sourced or local-sourced.** Template and docker source types are used for scaffolding and one-off deployments.
 
 ---
 
@@ -90,7 +90,7 @@ curl -sS https://<service>.vps1.ocoron.com/health
 
 1. `SSHDeployer.find_existing(name)` — checks `/opt/<name>/compose.yaml` exists on VPS
 2. Detects source type by checking for `.git` directory on VPS
-3. **Git-sourced** (all current services):
+3. **Git-sourced** (services with `.git` directory on VPS):
    - `ssh: cd /opt/<name> && sudo git pull` (pulls from GitHub remote, timeout 60s)
    - `ssh: cd /opt/<name> && sudo docker compose build` (rebuilds image, timeout 300s)
    - `ssh: cd /opt/<name> && sudo docker compose up -d` (restarts with new image, timeout 120s)
@@ -100,7 +100,7 @@ curl -sS https://<service>.vps1.ocoron.com/health
 **Flags:**
 - `--force` / `-f` — adds `--no-cache` to build (git) or `--force-recreate` to up (non-git)
 - `--refresh-infra --spec PATH` — re-runs all infrastructure registrars without rebuilding the container (use when spec shape flags change)
-- `--dry-run` — shows what would happen without doing it
+- `--dry-run` — shows what would happen without doing it (**`--refresh-infra` path only** — standard redeploy ignores this flag)
 
 ### Deploy a New Service
 
@@ -154,7 +154,7 @@ fabrik destroy specs/services/<name>.yaml --drop-data -y
 
 **What `fabrik destroy` does:**
 
-1. **Registrar teardown** (reverse order of provisioning):
+1. **Registrar teardown** (approximately reverse order of provisioning):
    - prometheus → remove scrape job (first down, last up)
    - meilisearch → skipped (index preserved) unless `--drop-data`
    - authelia → remove access rule, restart authelia
@@ -203,8 +203,8 @@ The orchestrator runs **5 phases** with state transitions: `VALIDATING → PROVI
 
 **Module:** `src/fabrik/orchestrator/validator.py:SpecValidator`
 
-- Loads spec YAML via `spec_loader.load_spec()`
-- Validates schema: required fields, `shape.*` flags, port uniqueness (PORTS.md), business model check (BUSINESS_MODEL.md)
+- Loads spec YAML via `SpecValidator.load_spec()` (validator's own method, not `spec_loader`)
+- Validates schema: required fields (`name`, `template`), domain format + SSRF prevention, template exists, secrets format
 - Computes `spec_hash` for idempotency
 - Returns `(spec, spec_hash, warnings)`
 
@@ -212,7 +212,7 @@ The orchestrator runs **5 phases** with state transitions: `VALIDATING → PROVI
 
 **Module:** `src/fabrik/orchestrator/secrets.py:SecretsManager`
 
-- Resolves secrets from: environment variables → project `.env` → `-s KEY=VALUE` flags → auto-generate (CSPRNG, 32-char `[a-zA-Z0-9]`)
+- Resolves secrets from: environment variables → project `.env` → auto-generate (CSPRNG, 32-char `[a-zA-Z0-9]`). CLI `-s KEY=VALUE` flags are parsed into a separate dict and layered into `ctx.secrets` by the orchestrator, not injected into `os.environ`.
 - Populates `ctx.secrets` dict — these are layered on top of spec env vars during deploy
 
 ### Phase 3 — DNS PROVISIONING
@@ -242,12 +242,12 @@ This is the phase that creates or updates the container on VPS.
 5. **For git sources:**
    - Clone (new) or pull (existing) from GitHub
    - Build `.env` via read-merge strategy
-   - `ssh: sudo docker compose build && sudo docker compose up -d`
+   - `ssh: cd /opt/<name> && sudo docker compose build` then `ssh: cd /opt/<name> && sudo docker compose up -d`
 6. **For local sources:**
    - Verify compose.yaml exists at `source.path`
    - Build `.env` via read-merge strategy
    - `ssh: cd <path> && sudo docker compose up -d`
-7. **Track resource** — `ctx.add_resource("compose", name)` for rollback (new deploys only)
+7. **Track resource** — `ctx.add_resource("compose", name, name=name)` for rollback (new deploys only)
 
 ### Phase 4b — INFRASTRUCTURE REGISTRARS (post-deploy, SSH to VPS)
 
@@ -265,7 +265,7 @@ Runs **after** the container is up. Each registrar is gated by the spec's `shape
 | 6 | **grafana** | always (non-fatal) | Creates deployment annotation |
 | 7 | **authelia** | `is_admin_dashboard` + domain set | Adds two_factor access rule; adds `^/api/` bypass only if `shape.has_bearer_api: true`; `docker restart authelia` |
 | 8 | **meilisearch** | `has_search_feature` | Creates search index with configured UID and searchable attributes |
-| 9 | **prometheus** | `exposes_metrics` | Adds scrape target for `/metrics` endpoint |
+| 9 | **prometheus** | `exposes_metrics` + domain set | Adds scrape target for `/metrics` endpoint |
 
 **`inject_env()` flow** (used by redis + glitchtip registrars): reads existing `.env` on VPS, merges new vars, writes back via SCP, runs `docker compose up -d` to restart with new env. This preserves all existing env vars — registrar injections never clobber each other.
 
@@ -287,12 +287,16 @@ Runs **after** the container is up. Each registrar is gated by the spec's `shape
 - Iterates `ctx.created_resources` in **reverse order** (LIFO — most-recent first)
 - Each resource type has a cleanup handler:
   - `compose` → `SSHDeployer.delete()` (`docker compose down -v` + `rm -rf /opt/<name>`)
+  - `coolify` → legacy Coolify app removal (pre-migration deployments only)
   - `dns` → `DNSClient.delete_record_by_name()`
+  - `monitor` → legacy monitor resource cleanup
   - `gatus` → `remove_endpoint()`
   - `glitchtip` → `delete_project()`
   - `backrest` → `remove_backup_plan()`
   - `authelia` / `authelia_bypass` → `remove_access_rule()` (deduplicated per-domain)
   - `grafana_annotation_id` → `delete_annotation()`
+  - `redis` → `release_db_index()` (slot released, data NOT flushed — same policy as postgres)
+  - `prometheus` → `remove_scrape_target()`
   - `postgres` → **NOT dropped** (logs manual command only — deliberate policy)
   - `meilisearch` → **NOT deleted** (logs manual command only — deliberate policy)
 - Errors during rollback are logged and accumulated — rollback never aborts, always tries every resource
@@ -318,7 +322,7 @@ Layer 2:          spec env: block from the YAML
 Layer 3 (highest): ctx.secrets (from SecretsManager — env vars, .env file, -s flags, generated)
 ```
 
-**Why read-merge matters:** After initial deploy, registrars inject vars like `SENTRY_DSN`, `GLITCHTIP_DSN`, `REDIS_URL`, `DATABASE_URL` into the `.env` via `inject_env()`. A naive overwrite would lose these. The read-merge strategy reads the existing `.env` first, then layers spec env and secrets on top.
+**Why read-merge matters:** After initial deploy, registrars inject vars like `SENTRY_DSN`, `GLITCHTIP_DSN`, `REDIS_URL` into the `.env` via `inject_env()`. A naive overwrite would lose these. The read-merge strategy reads the existing `.env` first, then layers spec env and secrets on top. (`DATABASE_URL` is NOT registrar-injected — it comes from the spec `env:` block or `ctx.secrets`.)
 
 **When .env is written:**
 - `fabrik apply` — always (new deploy: fresh; update: read-merge)
@@ -329,14 +333,14 @@ Layer 3 (highest): ctx.secrets (from SecretsManager — env vars, .env file, -s 
 
 ## Compose Validation Rules
 
-The deployer validates every compose.yaml before deploying (module: `deployer_ssh._validate_compose()`). Rules sourced from `.windsurf/rules/core/30-ops.md`:
+The deployer validates compose.yaml for **template and docker** source types before deploying (module: `deployer_ssh._validate_compose()`). Git and local sources skip validation — their compose.yaml comes from the repo, not the deployer. Rules sourced from `.windsurf/rules/core/30-ops.md`:
 
 | Rule | Requirement | Reason |
 |---|---|---|
 | `platform` | `linux/amd64` on every service | VPS is AMD64 |
 | `deploy.resources.limits.memory` | Required on every service | Prevents OOM on shared VPS |
 | `ports` | Forbidden (no `ports:` section) | All traffic through Traefik; direct ports bypass UFW |
-| `restart` | `unless-stopped` on every service | Auto-recovery after crashes |
+| `restart` | Required (presence checked, not value) | Auto-recovery after crashes |
 | `container_name` | Required on every service | Stable `docker exec`/`docker inspect` targeting |
 | `networks` | `coolify` declared as `external: true` | Shared network for inter-service communication + Traefik routing |
 | `depends_on` | No `postgres-main` or `redis-main` | These are external services, not compose dependencies |
@@ -344,7 +348,7 @@ The deployer validates every compose.yaml before deploying (module: `deployer_ss
 | Traefik labels | `loadbalancer.server.port` required when `traefik.enable=true` | Traefik needs to know which port to route to |
 | Environment | No `localhost` in `DATABASE_URL` or `REDIS_URL` | Would point at the container, not the shared DB |
 
-Validation is **fatal in both real and dry-run deploys** (raises `DeployError`). There is no advisory mode — invalid compose files always block deployment.
+Validation is **fatal in real deploys** (raises `DeployError`). In dry-run mode, the deployer returns early before rendering or validating compose content.
 
 ---
 
@@ -354,18 +358,18 @@ Every deployed service lives at `/opt/<name>/` on the VPS:
 
 ```
 /opt/
-├── captcha/              ← git-sourced service
+├── site-provisioner/     ← git-sourced service
 │   ├── .git/
 │   ├── compose.yaml
 │   ├── .env              ← root-owned, written by deployer
 │   ├── Dockerfile
 │   └── src/
-├── image-broker/         ← git-sourced service
+├── image-broker/         ← local-sourced service
 │   └── ...
 ├── monitoring/           ← infrastructure stack (prometheus, grafana, etc.)
 │   └── compose.yaml
-├── authelia/             ← auth gateway
-│   └── configuration.yml
+├── authelia/             ← auth gateway (config inside container at /config/configuration.yml)
+│   └── compose.yaml
 ├── gatus/                ← not directly here — config at /opt/monitoring/configs/gatus/
 └── fabrik/               ← this repo (CLI + orchestrator)
     ├── specs/services/   ← spec YAML files
@@ -436,7 +440,7 @@ Fix: check `sudo docker inspect <container> | grep -A 5 Networks` — must be on
 
 **Symptom: 401 from a service that should be public.**
 Cause: Authelia caught it.
-Fix: check `/opt/authelia/configuration.yml` access rules. After edits: `sudo docker restart authelia`.
+Fix: check access rules via `sudo docker exec authelia cat /config/configuration.yml`. Config changes go through the authelia driver (`docker cp` into container). After any change: `sudo docker restart authelia`.
 
 **Symptom: Traefik 502 / 504.**
 Cause: container crashed or `/health` timing out.
@@ -459,7 +463,8 @@ Fix: add shape flag, run `fabrik redeploy --refresh-infra --spec <spec>`.
 fabrik audit-registrars --spec specs/services/<name>.yaml
 
 # Reconcile all specs against live VPS state
-fabrik reconcile-all --yes
+# NOTE: reconcile-all is currently broken (still imports CoolifyClient — Phase 11-2 migration pending)
+# fabrik reconcile-all --yes
 
 # Verify deploy health + registrar presence
 fabrik verify <domain> --spec deploy
