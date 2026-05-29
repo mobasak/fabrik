@@ -54,7 +54,7 @@ Extracted from VPS state capture 2026-05-20:
 - `/opt/monitoring/configs/redis/assignments.json`
 - `/opt/monitoring/configs/postgres/allocations.json`
 
-### Coolify Services (deployed via Coolify API/UI)
+### Coolify Services (deployed via `fabrik apply` (SSH + Docker Compose)/UI)
 - Grafana, Loki, Promtail, Gatus, cAdvisor, node-exporter, Alertmanager
 - Authelia, Apprise, Backrest, n8n, Netdata
 - GlitchTip (web + worker)

@@ -7,7 +7,7 @@
 #
 # What gets synced:
 # - docs/infrastructure/*.md (inventory, runbooks, audit prompts, plans)
-# - docs/reference/fabrik-lifecycle.md + architecture.md
+# - docs/operations/fabrik-lifecycle.md + architecture.md
 # - scripts/audit/*.sh (diagnostic scripts)
 # - scripts/sysadmin/* (bot, proactive check, system prompt)
 # - specs/services/*.yaml (deployment specs — so sysadmin knows what's deployed)
@@ -28,7 +28,7 @@ ssh vps 'mkdir -p /opt/fabrik/docs/infrastructure/audit-prompts /opt/fabrik/docs
 rsync -az docs/infrastructure/ vps:/opt/fabrik/docs/infrastructure/
 
 # Reference docs the sysadmin reads
-rsync -az docs/reference/fabrik-lifecycle.md docs/reference/architecture.md vps:/opt/fabrik/docs/reference/
+rsync -az docs/operations/fabrik-lifecycle.md docs/reference/architecture.md vps:/opt/fabrik/docs/reference/
 
 # Audit scripts
 rsync -az scripts/audit/ vps:/opt/fabrik/scripts/audit/

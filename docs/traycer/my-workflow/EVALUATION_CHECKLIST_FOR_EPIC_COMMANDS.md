@@ -14,8 +14,8 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 1. Does it reference/respect the 4-stage lifecycle (Intent → Agentic → Registration → Verification)?
 2. Does it confirm the project can pass through ALL 4 stages?
-3. Does it reference `docs/reference/fabrik-lifecycle.md`?
-4. Does it acknowledge the deploy target (VPS via Coolify, not Vercel/Railway/K8s)?
+3. Does it reference `docs/operations/fabrik-lifecycle.md`?
+4. Does it acknowledge the deploy target (VPS via `fabrik apply` / SSH + Docker Compose, not Vercel/Railway/K8s)?
 5. Does it acknowledge the 9 registrars and their shape-gating?
 
 ## Architectural Mandates
@@ -38,7 +38,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 12. Does it check/use existing VPS services BEFORE building new (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase)?
 13. Does it reference the correct backing service addresses (internal Docker names, not localhost)?
-14. Does it check for duplicate projects in `AGENTS.md` microservices table + `docs/reference/fabrik-project-catalog.md`?
+14. Does it check for duplicate projects in `AGENTS.md` microservices table + `docs/BUSINESS_MODEL.md`?
 15. Does it respect the external services decision matrix?
 15b. Does it check `fabrik-lib/README.md` for vendorable modules BEFORE designing a component from scratch (abuse prevention, email templates, storage, credits, webhooks, etc.)?
 
@@ -78,7 +78,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 ## Automation & Deploy
 
 36. Does it confirm `fabrik apply` can handle this end-to-end (automation-first)?
-37. Does it account for Coolify workarounds (SSH fallback, .env pre-seed)?
+37. Does it account for deploy edge cases (.env read-merge preserving registrar-injected vars, `--refresh-infra` when shape changes, build-cache invalidation with `--force`)?
 38. Does it reference `fabrik dev` for local validation?
 39. Does it reference `fabrik review` for pre-PR bundling?
 40. Does it reference `fabrik destroy --use-state` for clean teardown?
@@ -167,8 +167,8 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 ## Deploy Lifecycle (Zero Residue)
 
-83. Does it ensure deploy/redeploy/destroy leaves NO residue (no orphan containers, no stale DNS, no leftover files, no ghost Coolify apps)?
-84. Does it enforce clean container naming (no shitty/random names visible in Coolify GUI)?
+83. Does it ensure deploy/redeploy/destroy leaves NO residue (no orphan containers, no stale DNS, no leftover files)?
+84. Does it enforce clean container naming (stable `container_name:` set in compose; never Docker-generated suffixes)?
 85. Does it ensure `fabrik destroy` reverses EVERYTHING `fabrik apply` created?
 86. Does it enforce that the lifecycle works for ALL 11 scaffold types (proven by lifecycle proof test)?
 
@@ -176,7 +176,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 87. Does it align with the vision EVERY TIME (iterate to converge)?
 88. Does it update the memorized doc-sync set (11+ files) after changes?
-89. Does it keep `docs/reference/fabrik-lifecycle.md` current (reflects 100% of what exists)?
+89. Does it keep `docs/operations/fabrik-lifecycle.md` current (reflects 100% of what exists)?
 90. Does it avoid re-doing work already done by prior commands?
 
 ## Agent Orchestration Quality
@@ -199,7 +199,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 100. No orphan GitHub repos from test runs.
 101. No leftover spec files from destroyed projects.
 102. No dangling Docker images consuming disk.
-103. Container names in Coolify GUI must be recognizable (not UUID gibberish).
+103. Container names must be stable and recognizable (set via `container_name:`, not Docker-generated suffixes).
 104. Memory limits enforced on ALL containers (no unlimited memory).
 
 ## The Vision Statement (always reference)

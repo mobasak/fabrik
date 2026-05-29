@@ -41,7 +41,7 @@ Read these in order; everything else builds on them:
 2. `trigger_workflow` **INFRA-CHECK** — capture `Scaffold`, `Rule Packs`, `Shape`, `User Guide`, `i18n`, `Responsive`, `Dark+Light`, `Design System`. The `Scaffold` value tells you which UI rule pack applies (see Step 3). `Rule Packs` lists the IDs to read. `Shape` flags backing services (needed for shape implication tracking in Step 4). `Responsive: 375px` means flows must work on mobile. `Dark+Light: mandatory` means flows must account for both themes.
 3. **Pre-research file** if one was identified by `trigger_workflow` Step 3 — re-read for grounding, especially flow-level details.
 4. `.windsurf/rules/core/ocoron-design-system.md` — must already have been read by `trigger_workflow` for UI scaffolds (`Design System: read`). If `INFRA-CHECK` shows it was not read, stop and ask the user to re-run `trigger_workflow`.
-5. `docs/reference/fabrik-lifecycle.md` — confirm flows fit the Stage 2 → Stage 3 transition (flows that touch admin dashboards trigger authelia registrar; flows with search trigger meilisearch registrar).
+5. `docs/operations/fabrik-lifecycle.md` — confirm flows fit the deploy/runtime contract (flows that touch admin dashboards trigger authelia registrar; flows with search trigger meilisearch registrar).
 
 ### **Step 3: Identify the UI Rule Pack**
 

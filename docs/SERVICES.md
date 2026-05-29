@@ -6,7 +6,7 @@ Services Fabrik needs to function.
 
 ## About Fabrik
 
-**Fabrik is a CLI tool, not a deployed service.** It runs from WSL and orchestrates deployments to VPS via Coolify API. There are no daemons, watchdogs, or health endpoints for Fabrik itself.
+**Fabrik is a CLI tool, not a deployed service.** It runs from WSL and orchestrates deployments to VPS via `fabrik apply` (SSH + Docker Compose). There are no daemons, watchdogs, or health endpoints for Fabrik itself.
 
 ```bash
 # Fabrik runs as a command, not a service

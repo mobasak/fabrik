@@ -426,8 +426,8 @@ _COMMON_GITIGNORE_PATTERNS = (
     "docs/reference/technology-stack-decision-guide.md\n"
     "docs/reference/AI_TAXONOMY.md\n"
     "docs/reference/ai_agent_prompt_directives.md\n"
-    "docs/reference/fabrik-lifecycle.md\n"
-    "docs/reference/fabrik-project-catalog.md\n"
+    "docs/operations/fabrik-lifecycle.md\n"
+    "docs/BUSINESS_MODEL.md\n"
     "docs/reference/mobile-responsive-testing-guide.md\n"
     "PORTS.md\n"
     "\n"
@@ -914,10 +914,10 @@ def _scaffold_shared(
     if fabrik_claude_md.exists():
         shutil.copy(fabrik_claude_md, project_dir / "CLAUDE.md")
 
-    # Copy fabrik-project-catalog.md (so Traycer can check for duplicate projects)
+    # Copy BUSINESS_MODEL.md (so Traycer can check for duplicate projects)
     fabrik_catalog = FABRIK_ROOT / "docs" / "BUSINESS_MODEL.md"
     if fabrik_catalog.exists():
-        catalog_target = project_dir / "docs" / "reference" / "fabrik-project-catalog.md"
+        catalog_target = project_dir / "docs" / "BUSINESS_MODEL.md"
         catalog_target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(fabrik_catalog, catalog_target)
 

@@ -63,7 +63,7 @@ Tech-plan adds scaffold-aware reads:
 - **UI scaffolds** (`saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`): `.windsurf/rules/core/ocoron-design-system.md` (confirm `Design System: read` in INFRA-CHECK). For `mobile-app`, also read `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md`.
 - **Database-backed scaffolds**: `.windsurf/rules/core/25-data-postgres.md` — PostgreSQL conventions, migration policy, host selection (postgres-main vs Supabase).
 - **AI/ML projects**: `docs/reference/AI_TAXONOMY.md` — confirm correct category + tool selection.
-- **All scaffolds**: `docs/reference/fabrik-lifecycle.md` — confirm architecture fits all 4 stages.
+- **All scaffolds**: `docs/operations/fabrik-lifecycle.md` — confirm architecture fits all 4 stages.
 
 ### Step 3: Read Scaffold-Specific Rule Packs
 

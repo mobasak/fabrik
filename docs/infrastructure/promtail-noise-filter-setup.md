@@ -1,7 +1,7 @@
 # Promtail Log Noise Filter — Setup
 
 **Status:** ✅ Live on VPS (2026-05-08)
-**Container:** `promtail-w0000ckgsgg048w0848okk08` (Coolify-managed)
+**Container:** `promtail-w0000ckgsgg048w0848okk08` (VPS-managed)
 **Config:** `/opt/monitoring/configs/promtail/promtail-config.yaml` (host bind mount)
 
 ---

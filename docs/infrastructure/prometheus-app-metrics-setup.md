@@ -54,7 +54,7 @@ Grafana exposes `/metrics` on port 3000 anonymously by default. Just add the scr
 Meilisearch requires `MEILI_EXPERIMENTAL_ENABLE_METRICS=true` env var AND the master key as Bearer token to expose `/metrics`.
 
 ```bash
-# Push env var via Coolify API (Application UUID for meilisearch)
+# Push env var via `fabrik apply` (SSH + Docker Compose) (Application UUID for meilisearch)
 curl -X POST -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"key":"MEILI_EXPERIMENTAL_ENABLE_METRICS","value":"true","is_preview":false,"is_literal":true}' \

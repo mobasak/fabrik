@@ -60,7 +60,7 @@ State dispatch instructions:
 
 - Does NOT write files to disk — tickets are already in Traycer's store.
 - Does NOT re-create tickets — that was `03-expand-epic-files-command`.
-- Does NOT validate cross-epic consistency — that was done by `05-cross-epic-validation-command` before reaching this step.
+- Does NOT validate cross-epic consistency — that was done by `04-cross-epic-validation-command` before reaching this step.
 
 ## Acceptance Criteria
 

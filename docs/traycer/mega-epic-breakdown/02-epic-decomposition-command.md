@@ -23,7 +23,7 @@ By the end of this command, the owner and Traycer agree on:
 - **WHAT EACH EPIC PRODUCES** that later epics consume (DB tables, API contracts, env vars)
 - **WHAT SHARED INFRASTRUCTURE** all epics inherit (Infrastructure Decisions document)
 
-This command produces the compact epic proposal + Infrastructure Decisions in conversation. `03-expand-epic-files-command` expands each epic into a Traycer ticket. `04-dispatch-epic-tickets-command` dispatches tickets in dependency order.
+This command produces the compact epic proposal + Infrastructure Decisions in conversation. `03-expand-epic-files-command` expands each epic into a Traycer ticket. `04-cross-epic-validation-command` validates cross-epic consistency. `05-dispatch-epic-tickets-command` dispatches tickets in dependency order.
 
 ## Core Philosophy
 
@@ -48,7 +48,7 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
 **Hard stop if:** Vision Summary not confirmed by owner, OR Open Questions remain unresolved. Do not proceed with ambiguity.
 
 **Additionally read:**
-- `docs/reference/fabrik-lifecycle.md` — each epic must pass all 4 stages.
+- `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (lifecycle stages 3–4). Each epic must still pass all 4 lifecycle stages: scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`).
 - `AGENTS.md` § Infrastructure Services — backing services available.
 - `AGENTS.md` § Planning Constraints — constraints still apply per epic.
 - `PORTS.md` — each epic's service needs a port. Check availability.

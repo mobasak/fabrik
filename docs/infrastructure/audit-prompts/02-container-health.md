@@ -8,7 +8,7 @@ Analyze the Docker container fleet on this Ubuntu 24.04 VPS managed by Coolify v
 - Traefik v2.11 ingress, `coolify` Docker network (10.0.1.0/24)
 - `coolify-alias-watcher` systemd service re-applies friendly DNS aliases on redeploy
 - Docker daemon: `json-file` driver, `tag: {{.Name}}`, max 10m x 3 log files
-- Memory limits set via Coolify or compose `deploy.resources.limits.memory`
+- Memory limits set via `fabrik apply` (SSH + Docker Compose) or compose `deploy.resources.limits.memory`
 
 ## Data Collection
 

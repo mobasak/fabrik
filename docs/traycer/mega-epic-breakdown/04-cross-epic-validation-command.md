@@ -16,7 +16,7 @@ You are a quality auditor who reads all epic tickets and specs from Traycer's st
 
 ## Goal
 
-Confirm that the mega-epic decomposition is ready for execution — every feature covered, no gaps, no overlaps, no broken dependencies, each epic ticket self-sufficient for `my-workflow`. After this command, the owner can start dispatching epic tickets via `04-dispatch-epic-tickets-command`.
+Confirm that the mega-epic decomposition is ready for execution — every feature covered, no gaps, no overlaps, no broken dependencies, each epic ticket self-sufficient for `my-workflow`. After this command, the owner can start dispatching epic tickets via `05-dispatch-epic-tickets-command`.
 
 ## Core Philosophy
 
@@ -156,7 +156,7 @@ Present the complete report:
 
 ### Step 8: Route Based on Result
 
-**ALL PASS:** "Validation complete. All checks passed. Proceed to `04-dispatch-epic-tickets-command` to dispatch epic tickets in this order: [execution order]."
+**ALL PASS:** "Validation complete. All checks passed. Proceed to `05-dispatch-epic-tickets-command` to dispatch epic tickets in this order: [execution order]."
 
 **ANY FAIL:** "Validation found [N] issues. Fix required before proceeding." List each failure with the specific fix needed. Route:
 
@@ -177,7 +177,7 @@ Present the complete report:
 - Does NOT fix problems — only finds them. Fixes happen in `02-epic-decomposition-command` or `03-expand-epic-files-command`.
 - Does NOT create or modify specs or tickets — only reads from Traycer's store.
 - Does NOT re-derive the vision or epic boundaries — validates what exists.
-- Does NOT dispatch tickets — the owner does that via `04-dispatch-epic-tickets-command` after validation passes.
+- Does NOT dispatch tickets — the owner does that via `05-dispatch-epic-tickets-command` after validation passes.
 
 ## Acceptance Criteria
 
@@ -189,6 +189,6 @@ Present the complete report:
 - Handoff readiness checked: every epic ticket has complete Metadata matching `my-workflow/01-epic-brief-command` expectations.
 - Every check is binary PASS/FAIL with specific evidence — no vague "looks good."
 - Validation report presented with recommended execution order.
-- ALL PASS → route to `04-dispatch-epic-tickets-command` (dispatch) with execution order.
+- ALL PASS → route to `05-dispatch-epic-tickets-command` (dispatch) with execution order.
 - ANY FAIL → route back to `02-epic-decomposition-command` or `03-expand-epic-files-command` with specific fixes.
 - Owner confirms. Silence ≠ confirmation.

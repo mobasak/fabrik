@@ -772,7 +772,7 @@ Members of `SCAFFOLD_TYPES` (`@/opt/fabrik/src/fabrik/scaffold.py:127`):
 | `static-site` | TypeScript | Static websites (Next.js + Tailwind) | ✅ Coolify | ✅ |
 | `docusaurus` | TypeScript | Documentation sites with OpenAPI | ✅ Coolify (static host) | ✅ |
 | `wordpress` | PHP | WordPress sites (preset: saas/company/content/landing/ecommerce) | ✅ Coolify via `fabrik wp` (uses `site.yaml`) | ❌ (separate `fabrik wp` pipeline) |
-| `chrome-extension` | TypeScript | Browser extensions + FastAPI backend | ✅ backend only via Coolify; extension → Chrome Web Store | ❌ (artifact) |
+| `chrome-extension` | TypeScript | Browser extensions + FastAPI backend | ✅ backend only via `fabrik apply` (SSH + Docker Compose); extension → Chrome Web Store | ❌ (artifact) |
 | `mobile-app` | TypeScript | React Native apps | ❌ App stores | ❌ (artifact) |
 | `desktop-app` | TypeScript | Electron apps | ❌ Direct dist | ❌ (artifact) |
 

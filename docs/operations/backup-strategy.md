@@ -148,7 +148,7 @@ When adding a new VPS to Fabrik management, use this procedure to set up automat
 
 ### Prerequisites
 
-1. Duplicati container deployed via Coolify with these volume mounts:
+1. Duplicati container deployed via `fabrik apply` (SSH + Docker Compose) with these volume mounts:
    - `/opt` → `/source/opt`
    - `/var/lib/docker/volumes` → `/source/docker-volumes`
    - `/data/coolify` → `/source/data/coolify`

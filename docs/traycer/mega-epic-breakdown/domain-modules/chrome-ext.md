@@ -7,7 +7,7 @@
 
 ## The 3 Forks (do NOT inherit SaaS or mobile defaults here)
 
-1. **Two-faced scaffold** — the extension (browser-side TS) and its backend (python-api on VPS) are separate build/deploy units. The backend follows the full 4-stage Fabrik lifecycle. The extension deploys via Chrome Web Store or direct CRX distribution — NOT Coolify.
+1. **Two-faced scaffold** — the extension (browser-side TS) and its backend (python-api on VPS) are separate build/deploy units. The backend follows the full 4-stage Fabrik lifecycle. The extension deploys via Chrome Web Store or direct CRX distribution — NOT the VPS deploy pipeline (`fabrik apply` / SSH + Docker Compose).
 2. **Distribution is gated** — Chrome Web Store review (1-3 business days), single-purpose rule, permission scrutiny. Or direct install (no review, no auto-update, limited to developer-mode users).
 3. **400px fixed width** — popup/sidepanel is constrained to 400px. No responsive breakpoints. No RWD. The design system applies with tighter spacing.
 

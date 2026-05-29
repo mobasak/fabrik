@@ -37,9 +37,9 @@ Deploy orchestrator. You construct and dispatch a deploy ticket — same mechani
 ## Core Philosophy
 
 - Deploy is a ticket dispatch. Same pattern as execute.
-- Every deploy follows `docs/reference/fabrik-lifecycle.md` § Stage 3 (Registration) + § Stage 4 (Verification). The lifecycle is the contract.
+- Every deploy follows `docs/operations/fabrik-lifecycle.md` (register via `fabrik apply` + verify via `fabrik verify`). The lifecycle is the contract.
 - The agent executes on VPS via SSH from WSL (standard Fabrik flow). NOT via `FABRIK_EXEC_MODE=local` (that's for crons/watchdog running ON the VPS already).
-- First-ever deploys: operator-supervised (Coolify v4 quirks).
+- First-ever deploys: operator-supervised (compose build + first-boot can surface unexpected issues).
 - Redeploys: routine, can be fully autonomous.
 
 ## Processing User Request
@@ -65,7 +65,7 @@ Read these (stop at first available per item):
 | Compose contract (resource limits, platform, healthcheck) | Deploy Plan (04) Step 3 | Read `compose.yaml` in project |
 | Env vars checklist | Deploy Plan (04) Step 5 | Read `.env.example` in project |
 | Success Criteria | Epic Brief | Ask user what "success" looks like |
-| Lifecycle contract | `docs/reference/fabrik-lifecycle.md` § Stage 3 + 4 | Always available (synced to every project) |
+| Lifecycle contract | `docs/operations/fabrik-lifecycle.md` (apply + verify) | Always available (synced to every project) |
 
 If deploy-plan (04) didn't run for this epic (some routes skip it): derive directly from the spec + compose. Don't block on missing deploy-plan.
 
@@ -79,7 +79,7 @@ Build a complete ticket the agent can execute without questions:
 **Spec:** specs/services/<id>.yaml
 **Domain:** <domain>
 **Shape:** <shape fields — determines which registrars fire>
-**Agent context:** Read docs/reference/fabrik-lifecycle.md § Stage 3 + 4 before executing.
+**Agent context:** Read `docs/operations/fabrik-lifecycle.md` before executing.
 
 ### Pre-flight (verify before deploy)
 - [ ] Final gate passes: `python scripts/final_gate.py --lean --json` → status: success
@@ -185,4 +185,4 @@ On failure:
 - Results validated: registrars present, health 200, state file written.
 - Failures handled: fixup or rollback or escalate.
 - Report produced (success with registrar list, or failure with next steps).
-- `docs/reference/fabrik-lifecycle.md` referenced as the deploy contract.
+- `docs/operations/fabrik-lifecycle.md` referenced as the deploy contract.

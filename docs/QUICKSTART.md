@@ -41,13 +41,10 @@ nano .env
 Required variables:
 
 ```bash
-# VPS
+# VPS (SSH key-based; fabrik SSHes here to deploy)
 VPS_HOST=your-vps-ip
 VPS_USER=deploy
-
-# Coolify
-COOLIFY_API_URL=https://coolify.yourdomain.com
-COOLIFY_API_TOKEN=your-token
+# Configure a `vps` alias in ~/.ssh/config (or set FABRIK_VPS_SSH_HOST)
 
 # DNS Manager
 DNS_MANAGER_URL=https://dns.vps1.ocoron.com
@@ -107,16 +104,15 @@ cd /opt/hello-api && fabrik apply   # resolves spec from project.yaml
 ## Verify
 
 ```bash
-# Deployment status (needs a spec path). Resolves the spec.id against Coolify,
-# trying both the bare id AND the `fabrik-<id>` prefix so it works for
-# Coolify-prefixed apps (fabrik-proxy, fabrik-file-worker, etc.) transparently.
+# Deployment status (needs a spec path). Reads live container state via SSH
+# and the local .fabrik/state/<id>.json file written by `fabrik apply`.
 fabrik status /opt/fabrik/specs/services/hello-api.yaml
 
 # Preview the plan (post-T1-02: now also prints a "🔧 Infrastructure Registrars"
 # section showing which of the 9 registrars will RUN/skip with shape-based reason).
 fabrik plan /opt/fabrik/specs/services/hello-api.yaml
 
-# Tail logs (Loki or Coolify) — same `fabrik-<id>` candidate-list lookup as status.
+# Tail logs (Loki for centralized, or `docker logs` over SSH for live container).
 fabrik logs /opt/fabrik/specs/services/hello-api.yaml
 fabrik app-logs /opt/fabrik/specs/services/hello-api.yaml -n 50
 
@@ -133,7 +129,7 @@ fabrik reconcile-all --yes                       # apply across fleet
 fabrik verify hello-api.vps1.ocoron.com --spec registrars
 
 # Surgical un-registration of a single registrar (T2-02 G-F5).
-# No DNS removal, no Coolify app delete, no file cleanup.
+# No DNS removal, no compose-stack teardown, no file cleanup.
 fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --partial gatus --dry-run
 fabrik destroy /opt/fabrik/specs/services/hello-api.yaml --partial gatus --partial backrest -y
 

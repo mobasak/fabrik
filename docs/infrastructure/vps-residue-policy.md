@@ -46,7 +46,7 @@ The script prints exact remediation commands per finding. Common patterns:
 | Finding | Fix |
 |---|---|
 | Stale Gatus alias | Update `/opt/monitoring/configs/gatus/apps/<svc>.yaml` to use stable Docker DNS name (compose service name or registered alias from `scripts/vps_apply_limits.sh`); restart Gatus |
-| Orphan Coolify app | `fabrik destroy specs/services/<id>.yaml --drop-data -y` if spec exists, else delete via Coolify UI + manual DB drop |
+| Orphan Coolify app | `fabrik destroy specs/services/<id>.yaml --drop-data -y` if spec exists, else delete via `fabrik apply` (SSH + Docker Compose) UI + manual DB drop |
 | Dangling Docker volume | `ssh vps 'sudo docker volume rm <name>'` after confirming no live container references it |
 | Memory limit reset | `ssh vps 'bash /opt/fabrik/scripts/vps_apply_limits.sh'` |
 | `/tmp` lock | `ssh vps 'rm /tmp/fabrik-*-test-*.lock'` after confirming no live process holds it |

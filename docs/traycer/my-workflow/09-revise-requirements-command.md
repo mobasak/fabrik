@@ -37,7 +37,7 @@ Requirements change. The goal is not to resist change but to propagate it **deli
 
 Read the full artifact set:
 
-1. `docs/reference/fabrik-lifecycle.md` — confirm which lifecycle stage the epic is at (affects friction of changes)
+1. `docs/operations/fabrik-lifecycle.md` — confirm which lifecycle stage the epic is at (affects friction of changes)
 2. **Epic Brief** — Success Criteria, Out of Scope, Metadata (Scaffold, Shape, Port, i18n, Concurrency)
 2. **Core Flows** (when present) — [PRIMARY PATH] markers, Flow Index, i18n Decisions
 3. **Tech Plan** (when present) — Architecture, Data Model, Shape Block, resilience table

@@ -27,7 +27,7 @@ Deploy Plan runs AFTER tech-plan, BEFORE ticket-outline. It's a pre-flight that 
 
 1. **Tech Plan** — Shape Block Declaration (Step 7), Component Architecture deployment config, resilience table.
 2. **INFRA-CHECK** — Shape, Concurrency, Port, Scaffold, Internal APIs.
-3. `docs/reference/fabrik-lifecycle.md` — Stage 3 registrar mechanics (confirm understanding of what each registrar creates).
+3. `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (registrar mechanics — confirm understanding of what each registrar creates and removes).
 
 ### Step 2: Confirm Shape Block
 

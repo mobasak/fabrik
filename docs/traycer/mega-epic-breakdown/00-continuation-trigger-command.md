@@ -49,7 +49,7 @@ This command produces a **Continuation Summary** — same format as a Vision Sum
 
 **Auto-loaded:**
 - `AGENTS.md` — Fabrik infrastructure, services, planning constraints (run § MANDATORY ORCHESTRATOR PRE-FLIGHT checks 1-6)
-- `docs/reference/fabrik-lifecycle.md` — each epic must pass all 4 stages
+- `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (covers the register + verify stages; the full 4-stage check is defined inline in Step 1)
 - `docs/BUSINESS_MODEL.md` § Project Portfolio — duplicate check against existing projects
 - `PORTS.md` — port conflict check for any new services
 - Project's own `project.yaml`, `specs/services/*.yaml`, `compose.yaml`, `.env.example`
@@ -74,7 +74,7 @@ Read the project's actual state — not from memory, from files:
 - `docs/` → any existing architecture docs, preplans, FINANCIALS.md
 - `.windsurf/rules/` → rule packs are synced, but check if project follows them
 
-**Lifecycle check (per `docs/reference/fabrik-lifecycle.md`):**
+**Lifecycle check (4 stages enumerated below; deploy/runtime detail for stages 3–4 in `docs/operations/fabrik-lifecycle.md`):**
 - Stage 1 (Scaffolding): does `project.yaml` exist? Are AI guardrails synced (AGENTS.md, CLAUDE.md, .windsurfrules, .windsurf/rules/)?
 - Stage 2 (Implementation): does the project have structured code (src/, tests/, docs/)?
 - Stage 3 (Registration): was `fabrik apply` run? Does `.fabrik/state/*.json` exist? Are registrars active (Gatus endpoint, GlitchTip project, Prometheus scrape)?
@@ -83,7 +83,7 @@ Read the project's actual state — not from memory, from files:
 If ANY stage is incomplete, add to Deviation Report as "Lifecycle gap: Stage [N] incomplete — [what's missing]." Owner decides: fix as part of this continuation or accept.
 
 **Pre-flight checks (from `AGENTS.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT):**
-- Check `docs/reference/fabrik-project-catalog.md` — does the new capability overlap with another project?
+- Check `docs/BUSINESS_MODEL.md` § Project Portfolio — does the new capability overlap with another project?
 - Check `AGENTS.md` § Fabrik Microservices — can an existing microservice handle part of the new capability?
 - Check `PORTS.md` — any new services need port assignments?
 - Check `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions that eliminate custom work?
@@ -101,7 +101,7 @@ Present the snapshot — what EXISTS right now:
 - Scaffold type: [X]
 - Port: [Y]
 - Shape: [registrar flags]
-- Status: [deployed on Coolify / local dev only / partially deployed]
+- Status: [deployed on VPS via fabrik apply / local dev only / partially deployed]
 
 ### Locked Technology Decisions (cannot change)
 - **Auth:** [what's implemented — Pattern A / Pattern B / custom]
@@ -240,7 +240,7 @@ R2. [Retrofit: add responsive design] — [description] (medium)
 - Email (marketing): [Resend Broadcasts → Listmonk+SES / none]
 - Background processing: [file-worker needed? what runs async]
 - Scaffold types: [any NEW scaffold types — e.g., adding mobile-app alongside existing saas-skeleton]
-- Deploy target: VPS via Coolify (confirmed — same as existing services)
+- Deploy target: VPS via fabrik apply / SSH + Docker Compose (confirmed — same as existing services)
 - Domain structure: [any NEW subdomains needed for the new capability]
 
 ## Locked Decisions (extra section — not in Vision Summary)

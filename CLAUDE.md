@@ -7,7 +7,7 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 `RULES ACTIVE: CLAUDE-CODE | <3 rules from this file you applied>`
 
 ## Orient (every task)
-1. `project.yaml::type` tells you which of 11 `scripts/scaffold.py` scaffolds this is. All projects use `.venv` and deploy via Coolify API.
+1. `project.yaml::type` tells you which of 11 `scripts/scaffold.py` scaffolds this is. All projects use `.venv` for local WSL development and deploy as Docker containers via `fabrik apply` (SSH + Docker Compose to VPS).
 2. `AFCL.md`: read if exists; append friction findings as you hit them.
 3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
 
@@ -41,12 +41,11 @@ Skip: stdlib, syntax, Fabrik conventions.
 | modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |
 | files outside project tree | local paths only |
 | foreground command likely >30s (build/deploy/test/sync/`fabrik`/`docker`/`pytest`/`npm i`) | Bash `run_in_background=true`, OR `rund -- <cmd>`; `runwait $(runlast) <s>`; `runc $(runlast)`. Doc: `docs/reference/long-command-monitoring.md` |
-| `fabrik redeploy` on git-sourced app without `git push` first | commit → push → redeploy; Coolify pulls from GitHub, not `/opt/` |
-| compose without `deploy.resources.limits.memory` on a Coolify-deployed service | Coolify v4 ignores its `limits_memory` UI field for `build_pack=dockercompose` and Services. Scaffolder auto-emits via `_write_canonical_compose`; manual composes MUST declare. For Services, mutate `docker_compose_raw` via `PATCH /api/v1/services/<uuid>` (base64-encoded) — never edit the on-disk file. See F5 + Lesson 62 |
+| `fabrik redeploy` on git-sourced app without `git push` first | commit → push → redeploy; the VPS runs `git pull` from the GitHub remote, not from your local `/opt/` |
+| compose without `deploy.resources.limits.memory` | Memory limit required per service to prevent OOM on the shared VPS (Fabrik invariant; enforced by `deployer_ssh._validate_compose()`). Scaffolder auto-emits via `_write_canonical_compose`; manual composes MUST declare |
 | `DB_HOST=localhost` / `DATABASE_URL=...@localhost:` | use `postgres-main:5432`, `redis-main:6379` — `localhost` = the container, not the shared DB |
 | Authelia config reload via SIGHUP | exits, doesn't reload — `docker restart <authelia-container>` after edits |
 | New Gatus endpoint using UUID container name | stable Docker DNS only: compose service name (Service stacks) or registered alias (single-image Apps). UUID drifts per redeploy. Pairs in `vps_apply_limits.sh` |
-| Coolify single-image App needs stable alias install | (1) `networks.coolify.aliases` in app compose (2) `docker network disconnect coolify <uuid>` then `connect --alias <stable> --alias <uuid> coolify <uuid>` (3) update Gatus config (4) persist via `vps_apply_limits.sh` |
 | Health check `/health` behind auth | Authelia bypass `*.vps1.ocoron.com → /health` covers it — never protect |
 | Container ports bound to host directly | all on `coolify` net; Traefik routes. Middleware (scaffold-emitted): admin `authelia-forward@docker,gzip@docker`; API `gzip@docker`; public none |
 | new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/reference/**/*.md` · `docs/archive/**` |

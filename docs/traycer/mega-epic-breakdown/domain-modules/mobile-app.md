@@ -16,7 +16,7 @@
 ## Mobile is not web — the 3 forks (do NOT inherit SaaS defaults here)
 
 1. **Billing is forced IAP** — Apple/Google mandate StoreKit/Play Billing for in-app digital goods (15-30% cut). **Paddle does NOT apply in-app.** Paddle only for physical goods/services consumed *outside* the app.
-2. **The app ships outside Fabrik** — the binary goes through EAS to stores, **not Coolify**. Only the **backend** (python-api + Supabase) follows the 4-stage VPS lifecycle. State this explicitly in the Vision Summary.
+2. **The app ships outside Fabrik** — the binary goes through EAS to stores, **not the VPS deploy pipeline**. Only the **backend** (python-api + Supabase) follows the 4-stage VPS lifecycle. State this explicitly in the Vision Summary.
 3. **Platform dependency is existential** — Apple/Google can reject, delay, or remove you. This is the #1 mobile risk, not a footnote.
 
 ## Completeness Test (apply per dimension)
@@ -194,7 +194,7 @@ Vision Summary may confirm only when **all 17 are resolved or logged as Open Que
 
 - Decisions to `Technology Decisions` + `Value Streams`.
 - Unresolved to `Open Questions` (block confirmation).
-- **Fabrik-fit:** backend = `python-api` + Supabase follows the 4-stage VPS lifecycle. App binary goes through EAS to stores, **outside Coolify** — state this in the summary. App + backend = multi-epic, route to `02-epic-decomposition-command`.
+- **Fabrik-fit:** backend = `python-api` + Supabase follows the 4-stage VPS lifecycle. App binary goes through EAS to stores, **outside the VPS deploy pipeline** — state this in the summary. App + backend = multi-epic, route to `02-epic-decomposition-command`.
 
 ### 1B. Epic Decomposition Directives
 
@@ -218,8 +218,8 @@ Every mobile mega-epic MUST have dedicated coverage for:
 
 Mobile projects naturally split into two parallel lanes after the foundation epic:
 
-- **Backend lane** (python-api + Supabase) — deploys to VPS via Coolify. Follows Fabrik 4-stage lifecycle.
-- **Client lane** (React Native app) — builds via EAS, submits to stores. Does NOT deploy via Coolify.
+- **Backend lane** (python-api + Supabase) — deploys to VPS via `fabrik apply` (SSH + Docker Compose). Follows Fabrik 4-stage lifecycle.
+- **Client lane** (React Native app) — builds via EAS, submits to stores. Does NOT deploy to the VPS.
 
 These lanes are naturally parallel. Each lane can have multiple agents working simultaneously. The integration point is the API contract — define it in the foundation epic, both lanes implement against it.
 

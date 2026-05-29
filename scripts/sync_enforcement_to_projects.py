@@ -89,8 +89,8 @@ REFERENCE_DOCS = [
         "docs/reference/ai_agent_prompt_directives.md",
         "docs/reference/ai_agent_prompt_directives.md",
     ),
-    ("docs/reference/fabrik-lifecycle.md", "docs/reference/fabrik-lifecycle.md"),
-    ("docs/BUSINESS_MODEL.md", "docs/reference/fabrik-project-catalog.md"),
+    ("docs/operations/fabrik-lifecycle.md", "docs/operations/fabrik-lifecycle.md"),
+    ("docs/BUSINESS_MODEL.md", "docs/BUSINESS_MODEL.md"),
     (
         "docs/reference/mobile-responsive-testing-guide.md",
         "docs/reference/mobile-responsive-testing-guide.md",
@@ -357,6 +357,20 @@ def sync_scripts_to_project(
                     source, destination, dry_run=dry_run, backup=backup, force=force
                 )
                 file_results.append(result)
+
+        # Remove orphans from prior renames (docs that moved/consolidated).
+        # Safe to delete: these were synced artifacts, never authored in projects.
+        for stale_rel in (
+            "docs/reference/fabrik-lifecycle.md",      # moved to docs/operations/
+            "docs/reference/fabrik-project-catalog.md",  # consolidated into docs/BUSINESS_MODEL.md
+        ):
+            stale_path = project_dir / stale_rel
+            if stale_path.exists():
+                if not dry_run:
+                    stale_path.unlink()
+                file_results.append(
+                    SyncResult("DELETE", stale_path, stale_path, "stale rename orphan")
+                )
 
         # Summarize
         copy_count = sum(1 for r in file_results if r.action in ("COPY", "BACKUP"))

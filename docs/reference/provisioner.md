@@ -105,7 +105,7 @@ print(status["state"])
 | Method | Description |
 |--------|-------------|
 | `_step2_create_coolify_app` | Create Coolify project and docker-compose service |
-| `_step2_set_env_vars` | Set runtime environment variables via Coolify API |
+| `_step2_set_env_vars` | Set runtime environment variables via `fabrik apply` (SSH + Docker Compose) |
 | `_step2_trigger_deploy` | Explicitly trigger deployment |
 | `_step2_wait_healthy` | Wait for deployment health and verify HTTP access |
 | `_step2_poll_deployment` | Poll Coolify service status until running/healthy |

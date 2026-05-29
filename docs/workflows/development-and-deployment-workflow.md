@@ -9,7 +9,7 @@
 
 ## 0. Mental model
 
-You are a solo developer in WSL Ubuntu on Windows. Every project deploys to one x86_64 VPS at `172.93.160.197`, orchestrated by Coolify (Docker Compose), routed by Traefik with Let's Encrypt, fronted by Authelia for admin UIs, protected by `X-Internal-Token` for API-to-API calls, and observed by Gatus + Prometheus + Grafana + Loki + GlitchTip + Netdata. The same code must run in three environments without modification: WSL dev (Postgres on localhost via `.env`), VPS Docker (`postgres-main` on the `coolify` network), and Supabase (env vars). Philosophy: **fast but pro** — ship, iterate, automate; no over-engineering.
+You are a solo developer in WSL Ubuntu on Windows. Every project deploys to one x86_64 VPS at `172.93.160.197`, orchestrated by SSH + Docker Compose, routed by Traefik with Let's Encrypt, fronted by Authelia for admin UIs, protected by `X-Internal-Token` for API-to-API calls, and observed by Gatus + Prometheus + Grafana + Loki + GlitchTip + Netdata. The same code must run in three environments without modification: WSL dev (Postgres on localhost via `.env`), VPS Docker (`postgres-main` on the `coolify` network), and Supabase (env vars). Philosophy: **fast but pro** — ship, iterate, automate; no over-engineering.
 
 Four families of files orchestrate the agents:
 
@@ -142,7 +142,7 @@ git push
 
 The gate's auto-stage hands you a clean diff. Never force-push to main without explicit reason; never `--no-verify`.
 
-## 10. Deploy via Coolify
+## 10. Deploy via `fabrik apply` (SSH + Docker Compose)
 
 Two CLI entry points, both routing through the same orchestrator pipeline:
 

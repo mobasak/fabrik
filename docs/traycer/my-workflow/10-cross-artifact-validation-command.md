@@ -50,7 +50,7 @@ Read in order:
 5. **Ticket Outline** (when present) — batches, parallel groupings, categories, Doc Sync Matrix
 6. **Ticket Breakdown** (when present) — full tickets, [PRIMARY PATH] Index, Acceptance Criteria
 7. **INFRA-CHECK** — Scaffold, Port, Internal APIs, User Guide, Shape, Concurrency, i18n, Rule Packs
-8. `docs/reference/fabrik-lifecycle.md` — which stage the epic is at
+8. `docs/operations/fabrik-lifecycle.md` — which stage the epic is at
 9. `docs/LESSONS_LEARNT.md` — accumulated entries from prior execution
 
 For scaffolds without Core Flows or Tech Plan (per routing): derive from Success Criteria. Don't flag intentional absence.

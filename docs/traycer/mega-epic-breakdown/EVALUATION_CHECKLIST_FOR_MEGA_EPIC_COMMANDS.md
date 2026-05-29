@@ -44,7 +44,7 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 21. Are ALL shared infrastructure decisions made ONCE, not deferred to each epic?
 22. Database: which databases, which schemas are shared vs epic-owned?
 23. Auth: which auth mechanism (Authelia forward-auth, Supabase Auth, custom)?
-24. Deploy target: VPS via Coolify confirmed? (not Vercel/Railway/K8s)
+24. Deploy target: VPS via `fabrik apply` (SSH + Docker Compose) confirmed? (not Vercel/Railway/K8s)
 25. Backing services: which existing VPS services will be used (postgres-main, redis-main, MeiliSearch, etc.)?
 26. External services: which third-party APIs/services (Supabase, Backblaze, Paddle, etc.)?
 27. Domain/routing: which subdomains, which Traefik routing rules?
@@ -76,7 +76,7 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 
 ## The 4-Stage Lifecycle
 
-44. Does it reference `docs/reference/fabrik-lifecycle.md`?
+44. Does it reference `docs/operations/fabrik-lifecycle.md`?
 45. Does each epic cover all 4 stages? (Intent → Implementation → Registration → Verification)
 46. Or is it explicitly stated that some epics only cover certain stages? (e.g., "Epic 1 is foundation-only — no user-facing features, no Stage 4 health checks")
 47. Are the 9 registrars considered per epic? (which registrars fire for each epic's `fabrik apply`)
@@ -90,7 +90,7 @@ Every command in mega-epic-breakdown (00, 02-05) must be evaluated against this 
 
 ## Fabrik Infrastructure Awareness
 
-52. Does it check for EXISTING projects on VPS that overlap? (`AGENTS.md` microservices table + `docs/reference/fabrik-project-catalog.md`)
+52. Does it check for EXISTING projects on VPS that overlap? (`AGENTS.md` microservices table + `docs/BUSINESS_MODEL.md`)
 53. Does it check for PORT conflicts? (`PORTS.md`)
 54. Does it check for DUPLICATE functionality? (don't build what exists)
 55. Does it use existing VPS services BEFORE building new? (postgres-main, redis-main, etc.)

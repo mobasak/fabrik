@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-05-29T11:59:04.360068",
-  "total_models": 342,
+  "timestamp": "2026-05-29T16:51:45.293120",
+  "total_models": 341,
   "models": {
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -809,11 +809,6 @@
     },
     "moonshotai/kimi-k2.6": {
       "id": "moonshotai/kimi-k2.6",
-      "url": "https://api.kilo.ai/api/openrouter/",
-      "npm": "@kilocode/kilo-gateway"
-    },
-    "moonshotai/kimi-k2.6:free": {
-      "id": "moonshotai/kimi-k2.6:free",
       "url": "https://api.kilo.ai/api/openrouter/",
       "npm": "@kilocode/kilo-gateway"
     },

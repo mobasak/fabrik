@@ -136,7 +136,7 @@ fabrik logs <spec_path> [--lines N] [--follow]
 
 ### `fabrik app-logs` — Coolify-API logs
 
-Spec-based log fetch via Coolify's `/api/v1/applications/{uuid}/logs` endpoint.
+Spec-based log fetch via `fabrik apply` (SSH + Docker Compose)'s `/api/v1/applications/{uuid}/logs` endpoint.
 
 ```bash
 fabrik app-logs <spec_path> [-n LINES] [-f]

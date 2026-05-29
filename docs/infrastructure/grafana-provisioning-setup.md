@@ -1,7 +1,7 @@
 # Grafana Datasource Provisioning — Setup
 
 **Status:** ✅ Live on VPS (2026-05-08)
-**Container:** `grafana-loc484owg8gsw04owo0go8kc` (Coolify-managed)
+**Container:** `grafana-loc484owg8gsw04owo0go8kc` (VPS-managed)
 **Provisioning files:** `/opt/monitoring/configs/grafana/provisioning/` (host bind mount)
 
 ---
@@ -173,7 +173,7 @@ The 3 community dashboards (grafana.com IDs 1860, 193, 2) are still API-imported
 | `/opt/monitoring/configs/grafana/provisioning/datasources/fabrik.yaml` | Datasource definitions (Prometheus, Loki) |
 | `/opt/monitoring/configs/grafana/provisioning/dashboards/fabrik.yaml` | Dashboard provider config — reads JSON from `json-dashboards/`, auto-refreshes every 30s |
 | `/opt/monitoring/configs/grafana/provisioning/json-dashboards/*.json` | 5 custom Fabrik dashboards (infra overview, databases, containers, authelia, meilisearch) |
-| `/data/coolify/services/loc484owg8gsw04owo0go8kc/docker-compose.yml` | Coolify-managed Grafana service compose; contains the bind mount |
+| `/data/coolify/services/loc484owg8gsw04owo0go8kc/docker-compose.yml` | VPS-managed Grafana service compose; contains the bind mount |
 | `/var/lib/docker/volumes/loc484owg8gsw04owo0go8kc_grafana-data/_data/grafana.db` | SQLite — dashboards, users, API keys (NOT datasources anymore) |
 
 ## References

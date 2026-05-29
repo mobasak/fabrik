@@ -27,7 +27,7 @@ python -m fabrik.config --verify
 
 ### VPS Access
 
-**Why needed:** Deploy applications to your VPS via Coolify.
+**Why needed:** Deploy applications to your VPS via `fabrik apply` (SSH + Docker Compose).
 
 **How to get:**
 1. Provision VPS (DigitalOcean, Linode, etc.)

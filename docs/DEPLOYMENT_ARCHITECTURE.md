@@ -2,7 +2,7 @@
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.
 
-**Last Updated:** 2026-05-28 (full rewrite: Coolify API → SSH + Docker Compose deployer)
+**Last Updated:** 2026-05-29 (verified end-to-end against source; 2026-05-28 was the full rewrite: Coolify API → SSH + Docker Compose deployer)
 **Previous version:** `docs/archive/2026-04-28-DEPLOYMENT.md.backup.20260419-144040`
 
 ## Table of Contents
@@ -106,7 +106,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 
 | File | Role |
 |---|---|
-| `src/fabrik/spec_loader.py` | Parse `.yaml` spec → pydantic `Spec` model. Defines every valid field: `DNS`, `Source` (with `path` field for LOCAL source), `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `CoolifyConfig` (legacy, unused by orchestrator), `Depends`, `Infrastructure`. The `Shape` sub-model enforces `model_config = {"extra": "forbid"}`; the top-level `Spec` model does not. Entry points: `load_spec(path)`, `save_spec(spec, path)`, `create_spec(name, kind, ...)`. |
+| `src/fabrik/spec_loader.py` | Parse `.yaml` spec → pydantic `Spec` model. Defines every valid field: `DNSConfig` (+ `DNSRecord`), `Source` (with `path` field for LOCAL source), `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `CoolifyConfig` (legacy, unused by orchestrator), `Depends`, `Infrastructure`. The `Shape` sub-model enforces `model_config = {"extra": "forbid"}`; the top-level `Spec` model does not. Entry points: `load_spec(path)`, `save_spec(spec, path)`, `create_spec(name, kind, ...)`. |
 | `src/fabrik/template_renderer.py` | `TemplateRenderer(spec).render(output_dir)` → writes `compose.yaml` + `Dockerfile` + auxiliary files from `templates/<type>/*.j2`. `list_templates()` enumerates available templates. |
 | `src/fabrik/scaffold.py` | The entire `fabrik scaffold` command. Generates `/opt/<name>/` tree; emits `project.yaml`, `specs/services/<name>.yaml`, `.env.example`, `README.md`, tests, CI workflow. Reads `templates/<type>/defaults.yaml` for shape flags. |
 | `src/fabrik/compose_linter.py` | `ComposeLinter.lint(compose_yaml)` — validates Fabrik deployment constraints: `container_name` **required** (warning), `restart` policy required, healthcheck recommended for databases, no unresolved `${VAR}` without defaults. |
@@ -160,8 +160,8 @@ Implements **Steps 0-1-2** of a brand-new site deployment (domain → DNS → in
 | `ContactInfo` | WHOIS contact for domain registration. |
 | `SiteProvisionRequest` | Input contract from web GUI / CLI. |
 | `ProvisionJob` | Persistent state on disk (resumable across CLI invocations). |
-| `SiteProvisioner.run(job)` | Saga runner. Each step is idempotent; on failure, replays from last successful state. |
-| `provision_site(request)` | Entry point; returns job ID. |
+| `SiteProvisioner.start(request)` | Saga runner. Each step is idempotent; `resume()` replays from the last successful state on failure. |
+| `provision_site(request)` | Entry point; returns a `ProvisionJob`. |
 | `get_provision_status(job_id)` | Polling endpoint for web GUI. |
 
 ### 2.6 Supporting modules
@@ -169,7 +169,7 @@ Implements **Steps 0-1-2** of a brand-new site deployment (domain → DNS → in
 | File | Role |
 |---|---|
 | `src/fabrik/deploy.py` | **Dead code.** `deploy_to_coolify(app_name, compose_content)` — legacy Coolify API deployment. Not wired to any active CLI command. Superseded by SSHDeployer. |
-| `src/fabrik/deploy_router.py` | `route_deploy(project_path)` — dispatches to WordPress pipeline vs. service pipeline based on `project.yaml[type]`. Central switch used by `fabrik apply` when resolving a spec from `project.yaml`. |
+| `src/fabrik/deploy_router.py` | `route_deploy(project_dir, project_type, dry_run=False)` — dispatches to WordPress pipeline vs. service pipeline based on `project_type`. Central switch used by `fabrik apply` when resolving a spec from `project.yaml`. |
 | `src/fabrik/deploy_validator.py` | `validate(project_dir)` — scaffold-level readiness (Dockerfile exists, `.env` populated, healthcheck declared, platform directive). Returns `ValidationResult` list; CLI prints them as warnings. |
 | `src/fabrik/verify.py` | `PostconditionChecker`, `verify_postconditions` decorator — general postcondition framework (HTTP 200, file-exists, env-var-set, etc.). Used by both legacy pipeline and orchestrator/verifier. |
 | `src/fabrik/notifications.py` | Thin wrapper over Apprise for in-Fabrik notifications (not infrastructure alerts). |
@@ -229,7 +229,7 @@ Scaffold uses these to generate `/opt/<project>/` trees. Every template has a `d
 |---|---|---|
 | `templates/python-api/` | FastAPI service | `compose.yaml.j2`, `defaults.yaml` |
 | `templates/node-api/` | Node.js API | `compose.yaml.j2`, `Dockerfile.j2`, `AGENTS.md.j2`, `defaults.yaml` |
-| `templates/saas-skeleton/` | Next.js 14 + TypeScript + Tailwind + Shadcn | `compose.yaml.j2`, `Dockerfile`, 39 files incl. full skeleton |
+| `templates/saas-skeleton/` | Next.js 14 + TypeScript + Tailwind + Shadcn | `compose.yaml.j2`, `Dockerfile`, plus the full Next.js skeleton (largest template) |
 | `templates/static-site/` | Static HTML/JS (nginx) | `compose.yaml.j2`, `defaults.yaml` |
 | `templates/docusaurus/` | Docusaurus doc site | `compose.yaml.j2`, `Dockerfile.j2`, `docusaurus.config.js.j2`, `sidebars.js.j2` |
 | `templates/file-api/` | File-operations microservice | `compose.yaml.j2`, `Dockerfile.j2` |
@@ -249,7 +249,7 @@ All compose templates emit `container_name: {{ spec.id }}` for stable Docker nam
 | `templates/scaffold/docker/compose.dev.yaml.template` | Developer-mode override (ports exposed on `127.0.0.1` only). |
 | `templates/scaffold/docker/Dockerfile.node` | Canonical Node.js Dockerfile (`node:<LTS>-bookworm-slim`). |
 | `templates/scaffold/docker/Dockerfile.python` | Canonical Python Dockerfile (`python:<stable>-slim-bookworm`). |
-| `templates/scaffold/*` (34 files total) | Tests, CI workflows, README, .env.example, .gitignore, AGENTS.md boilerplate. |
+| `templates/scaffold/*` (full shared asset set) | Tests, CI workflows, README, .env.example, .gitignore, AGENTS.md boilerplate. |
 
 ### 4.3 Template-defaults registrar matrix (what fires on `fabrik apply` by default)
 
@@ -373,7 +373,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 
 | Path | Purpose | Edit mechanism |
 |---|---|---|
-| Authelia container's `/config/configuration.yml` | `access_control` rules (domain → policy, bypass/one_factor/two_factor). | Pull: `sudo docker exec authelia cat /config/configuration.yml > authelia.cur.yml`. Edit locally. Write back: `sudo docker cp authelia.cur.yml authelia:/config/configuration.yml && sudo docker restart authelia`. Never SIGHUP — Authelia exits on SIGHUP, use `docker restart` only. |
+| Authelia's `/config/configuration.yml` (bind-mounted from host `/opt/authelia/config/configuration.yml` — editing either path touches the same file) | `access_control` rules (domain → policy, bypass/one_factor/two_factor). | Go through the authelia driver, which pulls via `sudo docker exec authelia cat /config/configuration.yml > authelia.cur.yml`, edits locally, then writes back: `sudo docker cp authelia.cur.yml authelia:/config/configuration.yml && sudo docker restart authelia`. Never SIGHUP — Authelia exits on SIGHUP, use `docker restart` only. |
 | Authelia container's `/config/users_database.yml` | User definitions. | Same `docker cp` + `docker restart` pattern. |
 | Authelia container's `/config/notification.txt` | 2FA login codes fallback (SMTP disabled). | `sudo docker exec authelia cat /config/notification.txt` to read. |
 
@@ -403,7 +403,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 
 | Path | Purpose | Edit mechanism |
 |---|---|---|
-| `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules — only 80/443 allowed publicly. Docker bypasses UFW; this chain is the real public-port boundary. | Edit + `sudo /etc/iptables/add-docker-user-rules.sh` + `sudo systemctl restart iptables-docker-user.service`. |
+| `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules. Only 80/443 serve traffic; the script also RETURNs (allows) 6001/6002 as stale Coolify Realtime/Soketi leftovers — nothing listens, pending cleanup. Docker bypasses UFW; this chain is the real public-port boundary. | Edit + `sudo /etc/iptables/add-docker-user-rules.sh` + `sudo systemctl restart iptables-docker-user.service`. |
 | `/etc/systemd/system/iptables-docker-user.service` | Persistence for the chain across reboots. | `sudo systemctl {daemon-reload,enable,restart}` after edit. |
 | Docker networks | `coolify` (10.0.1.0/24) is the shared network Traefik lives on. Named `coolify` for historical reasons — it's a standard Docker bridge network. | Inspect: `docker network inspect coolify`. |
 
@@ -435,7 +435,7 @@ These are **hard rules** for every deploy. Violating any of them puts the VPS or
 - **`coolify` Docker network is the shared backbone.** Traefik lives here. Every service that must be reachable by Traefik MUST attach to this network. (The name is a historical artifact — it's a standard Docker bridge network.)
 - **`traefik.docker.network=coolify` label is mandatory** for any service on more than one Docker network — without it Traefik non-deterministically picks a network IP.
 - **No public `ports:` mapping** in compose. Everything goes through Traefik on 80/443. Docker bypasses UFW; iptables DOCKER-USER is the real boundary.
-- **Allowed public TCP ports:** 80, 443. Everything else is blocked at iptables.
+- **Allowed public TCP ports:** 80, 443 (the only ports serving traffic). The iptables script also still allows 6001/6002 (stale Coolify Realtime/Soketi — nothing listens; pending cleanup). Everything else is blocked at iptables.
 - **DB connection strings use Docker DNS names**, never `localhost`: `postgres-main:5432`, `redis-main:6379`. Inside a container, `localhost` is the container itself, not the shared database.
 
 ### 8.3 Traefik labels (canonical compose snippet)
@@ -480,7 +480,7 @@ networks:
 
 | Layer | Target | Mechanism |
 |---|---|---|
-| **Iptables DOCKER-USER** | All Docker ports | `/etc/iptables/add-docker-user-rules.sh`. Only 80/443 public. |
+| **Iptables DOCKER-USER** | All Docker ports | `/etc/iptables/add-docker-user-rules.sh`. 80/443 serve traffic; 6001/6002 also still allowed (stale Coolify leftovers, pending cleanup). |
 | **Authelia** | Admin dashboards without native TOTP | Forward-auth 2FA via Traefik middleware. **Not used** for services with native TOTP (see §7.2 matrix). |
 | **X-Internal-Token** | Fabrik microservices (captcha, translator, pdf, browser, dns, ...) | Service validates `SERVICE_INTERNAL_SECRET_KEY` header on every request. |
 | **Bearer tokens** | API endpoints on admin dashboards (Grafana, GlitchTip) | Issued by each service; stored in `/opt/fabrik/.env`. Authelia `^/api/` bypass (when `has_bearer_api: true`) allows these through. |
@@ -533,7 +533,7 @@ fabrik validate-deploy /opt/my-api
 
 1. `SpecValidator.validate()` — required-field + type checks + SSRF + `compute_spec_hash()` for idempotency.
 2. `SecretsManager.load()` — precedence: `os.environ` (includes `-s` flags) → `.env` → auto-generate.
-3. `DNSClient.add_record(domain, VPS_IP)` — skipped if `--skip-dns`.
+3. `DNSClient.add_subdomain(base_domain, subdomain, vps_ip)` — skipped if `--skip-dns`. Falls back to `CloudflareClient.add_subdomain()` if site-provisioner is unavailable.
 4. `SSHDeployer.deploy(ctx)` — dispatches by source type:
    - **Template:** `TemplateRenderer.render()` → `_validate_compose()` → SCP compose.yaml + .env to VPS → `docker compose up -d --wait`
    - **Git:** `git clone` (new) or `git pull` (existing) → write .env → `docker compose build` → `docker compose up -d --wait`

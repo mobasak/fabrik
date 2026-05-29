@@ -54,7 +54,7 @@ Both paths converge to the same output: a confirmed Vision Summary.
 
 1. **Quality first** — production-grade, no shortcuts. Never sacrifice quality to save money.
 2. **Total cost of ownership** — dev time is the most expensive resource. A $10/month managed service that saves 2 weeks of development is a clear win. Don't build for days what you can buy for dollars.
-3. **Speed to ship** — prefer solutions that deploy through the standard pipeline: code in WSL → push to GitHub → Coolify builds and deploys on VPS → 9 registrars auto-configure (see `docs/reference/fabrik-lifecycle.md` § Stage 3). If a solution requires manual SSH steps, custom CI/CD, or infrastructure outside Coolify, it's slower and riskier. The fastest path to production wins.
+3. **Speed to ship** — prefer solutions that deploy through the standard pipeline: code in WSL → push to GitHub → `fabrik apply` deploys via SSH + Docker Compose on VPS and fires 9 registrars (`fabrik redeploy` handles code-only updates without re-running registrars; see `docs/operations/fabrik-lifecycle.md`). If a solution requires custom CI/CD or infrastructure outside the standard fabrik deploy pipeline, it's slower and riskier. The fastest path to production wins.
 4. **Easy to maintain** — when two solutions both work, prefer the one that requires less ongoing attention. Start with what exists on the VPS. Escalate to dedicated tooling when the existing solution hits a proven limit.
 5. **Set and forget** — managed services (Supabase, Paddle, Cloudflare) are inherently set-and-forget — prefer them over self-hosted alternatives that need babysitting.
 
@@ -67,7 +67,7 @@ Both paths converge to the same output: a confirmed Vision Summary.
 
 ## The Fabrik Lifecycle (mental model)
 
-Every project passes through 4 stages. Read `docs/reference/fabrik-lifecycle.md` for the canonical reference.
+Every project passes through 4 stages (deploy/runtime detail in `docs/operations/fabrik-lifecycle.md`).
 
 1. **Intent & Scaffolding (WSL)** — `fabrik scaffold` → AI guardrails + spec `shape:` block.
 2. **Agentic Implementation (WSL)** — tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI).
@@ -129,7 +129,7 @@ Do NOT silently proceed past Checkpoint 1 if there are open questions or thin ar
 - `AGENTS.md` § `Fabrik Microservices` — existing custom services.
 - `AGENTS.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 6 checks.
 - `AGENTS.md` § `Planning Constraints` — all constraints.
-- `docs/reference/fabrik-lifecycle.md` — the 4-stage lifecycle.
+- `docs/operations/fabrik-lifecycle.md` — runtime behavior, data safety, deploy/redeploy/destroy.
 - `docs/reference/technology-stack-decision-guide.md` — stack defaults and decision flowchart.
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions that eliminate custom work.
 - `docs/BUSINESS_MODEL.md` § Project Portfolio — existing projects (duplicate check).
@@ -170,13 +170,13 @@ Synthesize answers into the same internal structure (vision, personas, features,
 Research from external AI sessions may suggest solutions that violate the owner's decision criteria (see Core Philosophy). Challenge actively against all 5 criteria:
 
 - **Expensive where free exists?** Research proposes a paid service → check if a VPS service already solves it (Apprise, Gotenberg, MeiliSearch, Backrest, n8n — all deployed, all free). State: "Research suggests [X] but [Y] is already deployed on VPS at zero cost."
-- **Complex where simple exists?** Research proposes Kubernetes, microservice mesh, custom auth — check if Coolify + Authelia + single-container deploys handle it. Fabrik deploys via `fabrik apply`, not Helm charts.
+- **Complex where simple exists?** Research proposes Kubernetes, microservice mesh, custom auth — check if SSH + Docker Compose + Authelia + single-container deploys handle it. Fabrik deploys via `fabrik apply`, not Helm charts.
 - **Build where consume exists?** Research proposes building a component → check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), VPS services, or `/opt/fabrik-lib/` vendorable modules (see `fabrik-lib/README.md` for the full table and which-module-do-I-need matrix).
 - **High-maintenance where set-and-forget exists?** Research proposes solutions requiring ongoing ops → prefer solutions that auto-heal, auto-backup, auto-monitor via existing Prometheus/Gatus/Backrest stack.
 - **Incompatible with Fabrik infra?** Port conflicts (check `PORTS.md`), Alpine images (bookworm-slim only), localhost assumptions (use postgres-main:5432), x86_64 issues, 12-Factor violations (local file storage, hardcoded config).
 - **Duplicate functionality?** Check `docs/BUSINESS_MODEL.md` § Project Portfolio + `AGENTS.md` § Microservices.
 
-If research direction is fundamentally wrong for Fabrik (e.g., proposes serverless on AWS when everything deploys to VPS via Coolify), say so directly: "Research suggests [approach] but this conflicts with Fabrik's deploy model. Recommend [alternative]. Want to adjust the vision or research this further?"
+If research direction is fundamentally wrong for Fabrik (e.g., proposes serverless on AWS when everything deploys to VPS via `fabrik apply`), say so directly: "Research suggests [approach] but this conflicts with Fabrik's deploy model. Recommend [alternative]. Want to adjust the vision or research this further?"
 
 **3d. Identify opportunities (become Backing Services in the summary):**
 - Existing VPS services that solve part of the vision: postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase
@@ -216,7 +216,7 @@ Check EVERY constraint. State each as `all clear` / `conflict (<details>)` / `un
 3. **Existing services** — list VPS services the vision will use.
 4. **Duplicate check** — no overlap with existing projects.
 5. **Port conflicts** — check `PORTS.md` for each service in the vision.
-6. **Coolify fit** — can every component deploy via Coolify?
+6. **SSH + Docker Compose deployment** — can every component deploy via `fabrik apply` (SSH + Docker Compose)?
 7. **No Alpine** — bookworm-slim only.
 8. **12-Factor compliance** — any architectural violations?
 9. **Solo dev capacity** — is this achievable by one person + AI agents?
@@ -459,7 +459,7 @@ monitoring in under 5 minutes via API. For digital agencies managing
 - Existing services: site-provisioner handles DNS/domain — consume, don't rebuild
 - Duplicate check: all clear (no WP factory exists)
 - Port conflicts: all clear (will need port 8020 — available)
-- Coolify fit: all clear (python-api + separate WP containers per site)
+- SSH + Docker Compose deployment: all clear (python-api + separate WP containers per site)
 - No Alpine: all clear
 - 12-Factor: all clear (stateless API, config via env)
 - Solo dev capacity: LARGE project — multiple large features

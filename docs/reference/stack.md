@@ -11,7 +11,7 @@ Below is your previous “Ultimate Stack v1.0” rewritten for **Docker + Coolif
    * one-click redeploy from GitHub,
    * required env var validation,
    * persistent storage for DB/files,
-   * backups to S3 for DB (Coolify-managed).
+   * backups to S3 for DB (VPS-managed).
 4. You can launch a new product by copying a template folder and changing ~10 lines.
 
 ---
@@ -198,7 +198,7 @@ In Coolify you attach a domain to `web` and it handles routing/HTTPS via its pro
 
 ### 5.1 Best practice for you: “one Postgres for all products” (initially)
 
-* Create Postgres **via Coolify’s database feature** (recommended), because Coolify can then manage backups more cleanly. (This assumption is aligned with how many users set backups; Coolify’s docs focus on its database backup capability.) ([Coolify][4])
+* Create Postgres **via `fabrik apply` (SSH + Docker Compose)’s database feature** (recommended), because Coolify can then manage backups more cleanly. (This assumption is aligned with how many users set backups; Coolify’s docs focus on its database backup capability.) ([Coolify][4])
 
 ### 5.2 Backups (non-negotiable)
 
@@ -319,7 +319,7 @@ Docker+Coolify value:
 
 * Deployment control plane: **Coolify**
 * Runtime: **Docker Compose per product**
-* DB: **Postgres 16** (Coolify-managed if possible)
+* DB: **Postgres 16** (VPS-managed if possible)
 * API: **FastAPI**
 * Jobs: **Postgres jobs table + worker container**
 * Scraping: **Scrapy + playwright** + Webshare + Anti-captcha

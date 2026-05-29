@@ -3,7 +3,7 @@ description: Turn confirmed epic specs into actionable tickets. One ticket per e
 argumentHints:
   - All epics, or specify epic numbers to ticket (e.g. "E1–E4")
 nextSteps:
-  - name: "05-cross-epic-validation"
+  - name: "04-cross-epic-validation"
   - name: "execute"
 ---
 
@@ -144,7 +144,7 @@ Total: [N] tickets. Each is dispatchable independently.
 
 ### Step 4: Route
 
-"All [N] epic tickets created. Run `05-cross-epic-validation-command` to validate cross-epic consistency before dispatching."
+"All [N] epic tickets created. Run `04-cross-epic-validation-command` to validate cross-epic consistency before dispatching."
 
 ## Output Contract
 
@@ -161,8 +161,8 @@ Total: [N] tickets. Each is dispatchable independently.
 
 - Does NOT write files to disk — Traycer's ticket store is the persistence layer.
 - Does NOT change epic boundaries or move features between epics — those were confirmed in `02-epic-decomposition-command`. If boundaries need changing, route back to 02.
-- Does NOT validate cross-epic consistency — that is `05-cross-epic-validation-command`.
-- Does NOT dispatch tickets — that is `04-dispatch-epic-tickets-command` (dispatch step).
+- Does NOT validate cross-epic consistency — that is `04-cross-epic-validation-command`.
+- Does NOT dispatch tickets — that is `05-dispatch-epic-tickets-command` (dispatch step).
 
 ## Acceptance Criteria
 
@@ -174,4 +174,4 @@ Total: [N] tickets. Each is dispatchable independently.
 - Dependencies name specific artifacts (tables, functions, endpoints, env vars), not vague references.
 - Scope boundaries unchanged from 02's confirmed proposal — no feature migration without routing back to 02.
 - Ticket count matches epic count from the compact proposal.
-- Route to `05-cross-epic-validation-command` stated after confirmation.
+- Route to `04-cross-epic-validation-command` stated after confirmation.

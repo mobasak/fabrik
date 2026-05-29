@@ -44,7 +44,7 @@ python scripts/container_images.py pull nginx:alpine
 2. **Check amd64** support: `container_images.py check-arch <image:tag>`
 3. **Review tags** for production version: `container_images.py tags <image>`
 4. **Pull to WSL** for local testing: `container_images.py pull <image:tag>`
-5. **Deploy via Coolify** with pinned version tag
+5. **Deploy via `fabrik apply` (SSH + Docker Compose)** with pinned version tag
 
 ### Available Categories
 
@@ -69,7 +69,7 @@ python scripts/container_images.py pull nginx:alpine
 | Coolify | Official | Self-managed | Deployment control plane |
 | PostgreSQL | Official | `postgres:16` | Shared database |
 | Redis | Official | `redis:7-bookworm` | Caching |
-| Traefik | Official | `traefik:v3` | Reverse proxy (via Coolify) |
+| Traefik | Official | `traefik:v3` | Reverse proxy (via `fabrik apply` (SSH + Docker Compose)) |
 
 ### External Services
 
@@ -269,7 +269,7 @@ services:
     image: lscr.io/linuxserver/qbittorrent:latest
 ```
 
-**Fabrik integration:** Deploy via Coolify, monitor via Netdata, backup configs via Duplicati.
+**Fabrik integration:** Deploy via `fabrik apply` (SSH + Docker Compose), monitor via Netdata, backup configs via Duplicati.
 
 ### Code/Git Server (for client projects)
 

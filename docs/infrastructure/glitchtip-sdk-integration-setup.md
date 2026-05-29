@@ -36,7 +36,7 @@ Without this rewrite, services would either:
 
 ## Prerequisites
 
-- GlitchTip deployed via Coolify (web + worker containers, postgres-main has `glitchtip` DB)
+- GlitchTip deployed via `fabrik apply` (SSH + Docker Compose) (web + worker containers, postgres-main has `glitchtip` DB)
 - `glitchtip-web` is a stable DNS alias on the `coolify` network (verify: `sudo docker run --rm --network coolify curlimages/curl:latest -sS -o /dev/null -w "%{http_code}\n" http://glitchtip-web:8000/api/0/`)
 - A GlitchTip auth token with `project:write` scope, created via the GlitchTip UI under Settings → Auth Tokens
 - Three credentials in `/opt/fabrik/.env` (WSL local mirror):
@@ -76,7 +76,7 @@ The script:
 - GETs the project; if 404, POSTs to create it
 - Fetches the DSN via `/api/0/projects/{org}/{project}/keys/`
 - Rewrites the host to `glitchtip-web:8000`
-- Optionally pushes the DSN to a Coolify service env via the Coolify API (PATCH `/api/v1/services/{uuid}/envs`)
+- Optionally pushes the DSN to a Coolify service env via `fabrik apply` (SSH + Docker Compose) (PATCH `/api/v1/services/{uuid}/envs`)
 - Prints the final DSN on the **last line of stdout** (other output goes to stderr)
 
 The script is idempotent: re-running for an existing project just refetches the DSN.

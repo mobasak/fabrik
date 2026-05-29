@@ -425,7 +425,7 @@ bash scripts/sync-vps-sysadmin.sh
 | Source (WSL) | Destination (VPS) | Purpose |
 |---|---|---|
 | `docs/infrastructure/*.md` | same path | Inventory, runbooks, audit prompts |
-| `docs/reference/fabrik-lifecycle.md` | same path | Deployment lifecycle rules |
+| `docs/operations/fabrik-lifecycle.md` | same path | Deployment lifecycle rules |
 | `docs/reference/architecture.md` | same path | System architecture reference |
 | `scripts/audit/*.sh` | same path | Diagnostic scripts |
 | `scripts/sysadmin/*` | same path | Bot, proactive check, system prompt |

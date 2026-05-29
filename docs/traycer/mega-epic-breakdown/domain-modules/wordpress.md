@@ -18,7 +18,7 @@
 ## WordPress is not SaaS/mobile — the 4 forks
 
 1. **"WordPress" = 5 products** — affiliate / content+ads / business-leadgen / landing-funnel / ecommerce. Dimension 1 is the type fork; **everything downstream branches on it.** Don't proceed without it.
-2. **WP is not 12-Factor** — local media uploads + plugin state. To run safely on Coolify: **media offload to Backblaze B2, object cache to redis-main, DB to MariaDB container**, persistent volume only as fallback. State this in the summary.
+2. **WP is not 12-Factor** — local media uploads + plugin state. To run safely on the VPS (SSH + Docker Compose): **media offload to Backblaze B2, dedicated per-site Redis object-cache container, dedicated MariaDB container**, persistent volume only as fallback. State this in the summary.
 3. **Plugins/security = the maintenance bomb** — WP is the most-attacked CMS; plugin sprawl is the antithesis of low-maintenance. Set-and-forget demands ruthless minimalism + auto-update + Cloudflare WAF.
 4. **Google-algorithm dependency is existential** for affiliate/content — the Apple-deplatform analogue. Diversify into an owned audience or one update can zero you.
 
@@ -58,7 +58,7 @@ A dimension belongs at intake **only if** wrong = **irreversible** or **kills be
 
 #### 4. WordPress Architecture & Hosting (Fabrik-fit irreversibles)
 
-- **Hosting:** Coolify WP container on VPS; **MariaDB** container; **redis-main** object cache; **media offload to Backblaze B2**; Cloudflare CDN+WAF in front.
+- **Hosting:** 4-container per-site stack on VPS via SSH + Docker Compose — **nginx + php-fpm (WordPress) + dedicated MariaDB + dedicated Redis** (object cache); **media offload to Backblaze B2**; backups via central Backrest; Cloudflare CDN+WAF in front.
 - **Domains:** via Cloudflare Registrar + site-provisioner for DNS.
 - **Backups:** Backrest to B2 (DB + uploads), staging clone for major changes.
 
@@ -193,7 +193,7 @@ Vision Summary may confirm only when **all 18 are resolved or logged as Open Que
 
 - Decisions to `Technology Decisions` + `Value Streams`.
 - Unresolved to `Open Questions` (block confirmation).
-- **Fabrik-fit:** `wordpress` scaffold on Coolify; media to B2, cache to redis-main, DB to MariaDB, DNS via site-provisioner, WAF/CDN via Cloudflare. State the non-12-Factor handling explicitly. Multiple sites or site + custom backend = multi-epic, route to `02-epic-decomposition-command`.
+- **Fabrik-fit:** `wordpress` scaffold deployed via SSH + Docker Compose as a 4-container per-site stack (nginx + php-fpm + MariaDB + Redis); media to B2, DNS via site-provisioner, WAF/CDN via Cloudflare, backups via Backrest. State the non-12-Factor handling explicitly. Multiple sites or site + custom backend = multi-epic, route to `02-epic-decomposition-command`.
 - **Manifest contract:** this module's decisions emit the **site-profile manifest** consumed by your provisioning pipeline (settings, theme, plugins, languages, pages, menus, forms, seo, analytics). Pipeline steps `post_deploy`, `verify`, `finalize` are **execution (downstream)** — intake supplies their inputs (DNS target, page list to 200-check, report scope), not the steps themselves.
 
 ### 1B. Epic Decomposition Directives
@@ -207,7 +207,7 @@ Every WordPress mega-epic MUST have dedicated coverage for:
 | Dimension | Epic boundary rule |
 |---|---|
 | §1 Site Type | Determines all downstream epics. If type = ecommerce, WooCommerce is its own epic. |
-| §4 Architecture + Hosting | Foundation epic — Coolify container, MariaDB, redis-main, B2 offload, Cloudflare, DNS. Everything else depends on this. |
+| §4 Architecture + Hosting | Foundation epic — 4-container stack (nginx + php-fpm + MariaDB + Redis) via SSH + Docker Compose, B2 offload, Cloudflare, DNS. Everything else depends on this. |
 | §5 Theme + Brand | Foundation epic or immediately after — theme choice + Ocoron mu-plugin. Content epics depend on theme. |
 | §6 Information Architecture | Foundation epic — page inventory, menus, URL/slug map. Content can't start without IA. |
 | §7 Plugin Manifest | Foundation epic — curated list installed + configured. Features depend on plugins being present. |
@@ -254,7 +254,7 @@ When creating the epic brief for a WordPress epic:
 - State which of the 18 dimensions this epic addresses (by number).
 - State the site type (§1) — it gates all downstream decisions.
 - Carry forward resolved decisions from the Vision Summary — do not re-decide.
-- If this epic is the foundation epic (§4-§7), the brief must include: hosting architecture (Coolify + MariaDB + redis-main + B2), theme choice, plugin manifest, page inventory, menu structure, legal pages, analytics IDs.
+- If this epic is the foundation epic (§4-§7), the brief must include: hosting architecture (4-container SSH + Docker Compose stack: nginx + php-fpm + MariaDB + Redis + B2 offload), theme choice, plugin manifest, page inventory, menu structure, legal pages, analytics IDs.
 - If this epic touches monetization (§9), the brief must include: which revenue mechanism, which networks/platforms, disclosure requirements. For ecommerce: payment gateway, shipping, tax, returns. For affiliate program: commission model, platform, terms.
 - If this epic owns content (§11), the brief must include: production model, quality bar, cadence, topic clusters.
 - Success Criteria must include at least one criterion per dimension this epic addresses.
@@ -263,7 +263,7 @@ When creating the epic brief for a WordPress epic:
 
 When mapping core flows for a WordPress epic, include these WP-specific flows if the epic touches them:
 
-- **Site provisioning flow:** Coolify deploy, DNS via site-provisioner, SSL via Cloudflare, WP install, theme activate, plugins install, settings apply, pages/menus create, analytics verify.
+- **Site provisioning flow:** SSH + Docker Compose deploy (4-container stack), DNS via site-provisioner, SSL via Cloudflare, WP install, theme activate, plugins install, settings apply, pages/menus create, analytics verify.
 - **Content publishing flow:** draft (AI-assisted), editorial review, SEO optimize (RankMath), schedule/publish, index (instant-indexing), social share, internal-link update.
 - **Visitor conversion flow (by type):**
   - Affiliate: land on content, click affiliate link (tracked), convert on merchant site, commission attributed.
@@ -281,7 +281,7 @@ Each flow must identify the `[PRIMARY PATH]` — the happy path.
 
 When creating the tech plan for a WordPress epic, enforce:
 
-- **Hosting architecture:** Coolify WP container, MariaDB container (not postgres-main — WP requires MySQL-compat), redis-main for object cache, Backblaze B2 for media offload, Cloudflare CDN+WAF. Persistent Docker volume as fallback only.
+- **Hosting architecture:** 4-container per-site stack via SSH + Docker Compose — nginx + php-fpm (WordPress) + dedicated MariaDB (not postgres-main — WP requires MySQL-compat) + dedicated Redis (object cache; NOT shared redis-main — WP's cache flush is FLUSHDB-based and would wipe co-tenants), Backblaze B2 for media offload, Cloudflare CDN+WAF. Persistent Docker volume for uploads as fallback only. Backups via central Backrest.
 - **Theme architecture:** lightweight block theme (GeneratePress/Kadence/FSE). No Elementor/Divi. Ocoron brand assets as mu-plugin.
 - **Plugin architecture:** minimal curated set per the manifest from §7. Each plugin justified. Auto-update minor, staging for major. Zero abandoned plugins.
 - **Caching architecture:** full-page cache plugin + redis object cache + Cloudflare edge cache. Cache-busting strategy for dynamic content (logged-in users, cart).
@@ -295,7 +295,7 @@ When creating the tech plan for a WordPress epic, enforce:
 
 When creating the ticket outline for a WordPress epic, verify coverage:
 
-- If this epic owns foundation: tickets for Coolify container setup + MariaDB + redis-main + B2 offload + Cloudflare DNS/WAF + theme install + mu-plugin (brand) + plugin manifest install + settings apply.
+- If this epic owns foundation: tickets for compose-stack setup (nginx + php-fpm + MariaDB + Redis) + B2 offload + Cloudflare DNS/WAF + theme install + mu-plugin (brand) + plugin manifest install + settings apply.
 - If this epic owns IA: tickets for page inventory creation + menu structure + homepage/blog-page pointers + URL/slug lock.
 - If this epic owns content: tickets for editorial pipeline setup + cornerstone content batch + SEO config (RankMath + schema + sitemap + instant-indexing).
 - If this epic owns monetization: tickets for affiliate network signup + link management plugin (if affiliate), ad network setup (if content+ads), WooCommerce setup + payment gateway + shipping + tax (if ecommerce), Paddle integration (if landing-funnel), AffiliateWP setup + commission config + recruitment page (if affiliate program).
@@ -315,7 +315,7 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 
 | If ticket touches... | Inject |
 |---|---|
-| Container / hosting | Coolify deploy; MariaDB container; redis-main object cache; B2 media offload configured; Cloudflare DNS + WAF active |
+| Container / hosting | SSH + Docker Compose deploy (4-container stack); dedicated MariaDB container; dedicated Redis object-cache container; B2 media offload configured; Cloudflare DNS + WAF active |
 | Theme / design | Lightweight block theme (no Elementor/Divi); Ocoron mu-plugin installed; brand CSS applied; CWV green |
 | Plugins | Plugin from the approved manifest only; no abandoned plugins; auto-update minor configured |
 | Pages / IA | Pages match inventory; slugs match URL map; menus match spec; homepage + blog-page pointers set |
@@ -340,7 +340,7 @@ For every ticket, check which dimensions apply and inject into Acceptance Criter
 Every WordPress ticket's Context Files section must include (in addition to general rule packs):
 
 ```text
-.windsurf/rules/core/30-ops.md              — Docker, compose, Coolify deploy patterns
+.windsurf/rules/core/30-ops.md              — Docker, compose, VPS (SSH + Docker Compose) deploy patterns
 .windsurf/rules/core/35-security-auth.md    — security hardening, credential management
 .windsurf/rules/core/85-payments-billing.md — payment gateway patterns (if ecommerce/funnel)
 .windsurf/rules/core/86-email-templates.md  — email/notification templates (if ticket creates or edits templates)
@@ -355,7 +355,7 @@ When Traycer creates the execution plan (the plan the coding agent follows), emb
 1. **Plugin manifest is law.** Do not install plugins outside the approved manifest from §7. Need a new plugin = ask the owner, not the agent's judgment.
 2. **No Elementor/Divi.** Lightweight block theme only. No page builder lock-in.
 3. **Media goes to B2.** No local media uploads to the container filesystem. Offload plugin configured and verified.
-4. **Object cache goes to redis-main.** Redis object cache plugin active and connected.
+4. **Object cache goes to the site's dedicated Redis container.** Redis object cache plugin active and connected. Never point WP at shared `redis-main` — its FLUSHDB-based flush would wipe co-tenants.
 5. **DB is MariaDB, not postgres-main.** WordPress requires MySQL-compatible. Do not route WP queries to postgres-main.
 6. **Every page matches the IA spec.** Slugs match the URL map from §6. No improvised page structure.
 7. **Every content page has SEO.** RankMath score green, schema applied, internal links present.

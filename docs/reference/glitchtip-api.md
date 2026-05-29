@@ -116,7 +116,7 @@ Returns an **array**. First element is the default key (auto-created with the pr
 
 The DSNs above use `localhost:8000` as the host — this is **wrong** for external clients. GlitchTip's Coolify service is missing the `GLITCHTIP_DOMAIN` environment variable (expected value: `https://errors.vps1.ocoron.com`).
 
-**Fix (future work):** Add `GLITCHTIP_DOMAIN=https://errors.vps1.ocoron.com` to the GlitchTip compose environment via Coolify UI → Environment Variables → redeploy. After that, DSNs will be emitted as `https://...@errors.vps1.ocoron.com/2`.
+**Fix (future work):** Add `GLITCHTIP_DOMAIN=https://errors.vps1.ocoron.com` to the GlitchTip compose environment via `fabrik apply` (SSH + Docker Compose) UI → Environment Variables → redeploy. After that, DSNs will be emitted as `https://...@errors.vps1.ocoron.com/2`.
 
 The driver must either:
 

@@ -91,7 +91,7 @@ These workflows provide structured processes for common development tasks.
 
 ### `/deploy`
 
-**Description:** Deploy application to VPS via Coolify
+**Description:** Deploy application to VPS via `fabrik apply` (SSH + Docker Compose)
 
 **Purpose:** Production deployment with automated Coolify integration
 
@@ -135,7 +135,7 @@ These workflows provide structured processes for common development tasks.
 - [ ] Health endpoint responds 200 on VPS
 - [ ] No error logs in Coolify dashboard
 
-**Key Feature:** Zero-downtime deployment via Coolify auto-deploy on `main` push.
+**Key Feature:** Zero-downtime deployment via `fabrik apply` (SSH + Docker Compose) auto-deploy on `main` push.
 
 ---
 
@@ -646,7 +646,7 @@ The reviewer enforces these Fabrik conventions:
 | Workflow | Type | Cost | Auto-Run | Purpose |
 |----------|------|------|----------|---------|
 | `/bug-fix` | Process | — | Partial | Test-first bug fixing |
-| `/deploy` | Process | — | Partial | VPS deployment via Coolify |
+| `/deploy` | Process | — | Partial | VPS deployment via `fabrik apply` (SSH + Docker Compose) |
 | `/new-feature` | Process | — | Partial | Structured feature dev |
 | `/review` | Cascade AI | — | No | Senior engineer review |
 | `/kilo` | Cloud Agent | 💵 Paid | Partial | Any cloud Kilo agent |

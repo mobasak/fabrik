@@ -44,11 +44,11 @@ Execution phase (execute onward): zero ambiguity. Agents execute tickets without
 
 ## **The Fabrik Lifecycle (mental model for ALL planning)**
 
-Every project passes through 4 stages. Read `docs/reference/fabrik-lifecycle.md` for the canonical reference.
+Every project passes through 4 stages (enumerated below; deploy/runtime detail in `docs/operations/fabrik-lifecycle.md`).
 
 1. **Intent & Scaffolding (WSL)** — `fabrik preplan` → `fabrik scaffold` → AI guardrails (5 governance files + 30 rule packs across `core/`, `saas/`, `mobile-app/`, `chrome-ext/` + reference docs) + spec `shape:` block injected. The scaffold is a Context Injection.
 2. **Agentic Implementation (WSL)** — structured tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI). Agents write infra-aware code against the spec contract. `fabrik dev` for local iteration. `fabrik review` for pre-PR bundling.
-3. **Proper Registration (VPS via Coolify API)** — `fabrik apply` fires 9 registrars (postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus) based on the `shape:` block. Observability auto-discovers via docker.sock. Network security via UFW + DOCKER-USER iptables chain.
+3. **Proper Registration (VPS via SSH + Docker Compose)** — `fabrik apply` fires 9 registrars (postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus) based on the `shape:` block. Observability auto-discovers via docker.sock. Network security via UFW + DOCKER-USER iptables chain.
 4. **Verification & Testing** — `fabrik verify` health check, `fabrik audit-registrars` drift detection, hourly Telegram alerting, `fabrik destroy --use-state` for clean teardown.
 
 If a project cannot pass through all 4 stages, state this explicitly and justify.
@@ -86,9 +86,9 @@ This command (`00-trigger`) is the **mandatory entry point** for every my-workfl
 - Tech stack defaults and when to deviate.
 - Existing infrastructure services and Fabrik microservices (read `## Infrastructure Services — Running on VPS` and `## Fabrik Microservices` fresh each run; do not cache).
 - All planning constraints in `AGENTS.md` § Planning Constraints.
-- `AGENTS.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 6 checks.
-- `docs/reference/fabrik-lifecycle.md` — the 4-stage lifecycle model.
-- Projects are developed in Ubuntu 24.04 WSL and deployed to VPS via Coolify.
+- `AGENTS.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks.
+- `docs/operations/fabrik-lifecycle.md` — deploy/runtime behavior & data safety (lifecycle stages 3–4).
+- Projects are developed in Ubuntu 24.04 WSL and deployed to VPS via `fabrik apply` (SSH + Docker Compose).
 
 **Platform-repo branch (special case):** If the workspace root has no `project.yaml` AND contains `apps/` + `infrastructure/` + `templates/`, this is the **Fabrik platform monorepo** itself. Pause and ask the user to scope the request.
 
@@ -138,7 +138,7 @@ State which source(s) read (or `none — interview-only`).
 - `docs/reference/technology-stack-decision-guide.md` — Fabrik stack overrides + existing services + decision flowchart.
 - `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions.
 - `docs/reference/AI_TAXONOMY.md` — if AI/ML project, identify correct category + tool.
-- `docs/reference/fabrik-lifecycle.md` — confirm project fits all 4 stages; identify registrars.
+- `docs/operations/fabrik-lifecycle.md` — confirm project fits the deploy/runtime stages; identify registrars.
 - `.windsurf/rules/` (subdirectories: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`) — identify applicable packs using `AGENTS.md` § Project Type → Default Packs table. The table maps scaffold type → pack IDs. These pack IDs are injected into each ticket's Context Files during `ticket-breakdown`.
 - `docs/traycer/kilo_selected_agents.md` — Kilo CLI agent rankings (Elo + pricing + capabilities).
 - `docs/reference/windsurf/cascade-models.md` — Windsurf Cascade model list.
@@ -161,11 +161,11 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 
 **Base (#1–#12 from AGENTS.md § Planning Constraints):**
 
-1. Solo developer  2. x86_64 VPS  3. Budget-conscious  4. Existing services  5. Prebuilt containers  6. Port conflicts  7. Coolify fit  8. No Alpine  9. Module deps  10. DNS  11. Scaffold immutability  12. State conflicts
+1. Solo developer  2. x86_64 VPS  3. Budget-conscious  4. Existing services  5. Prebuilt containers  6. Port conflicts  7. SSH + Docker Compose deployment  8. No Alpine  9. Module deps  10. DNS  11. Scaffold immutability  12. State conflicts
 
 **Workflow overlays (#13–#26):**
 
-13. **Duplicate project** — check `docs/reference/fabrik-project-catalog.md` (synced to every project from the master `/opt/fabrik/docs/BUSINESS_MODEL.md`) for an existing project that already solves this need. Also check `AGENTS.md` § Fabrik Microservices table for deployed services.
+13. **Duplicate project** — check `docs/BUSINESS_MODEL.md` § Project Portfolio (the master project list) for an existing project that already solves this need. Also check `AGENTS.md` § Fabrik Microservices table for deployed services.
 14. **Design System** — `.windsurf/rules/core/ocoron-design-system.md` read?
 15. **Platform debt** — informational; never blocks.
 16. **API audience / docs site** — `python-api`/`node-api`: external → User Guide true; internal → false. SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/` per `saas/88-saas-launch-checklist.md`.
@@ -193,7 +193,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 | `mobile-app` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
 | `desktop-app` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
 | `static-site` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
-| `wordpress` | epic-brief → ticket-outline → ticket-breakdown → execute | core-flows, tech-plan, deploy-plan | deferred (site-factory) |
+| `wordpress` | Use `/opt/wpf/` factory (`wpf wp apply <domain>`) instead | not this workflow | — |
 | `docusaurus` | epic-brief → ticket-outline → ticket-breakdown → deploy-plan → execute | core-flows, tech-plan | false |
 | Feature (existing) | Use `mega-epic-breakdown/00-continuation-trigger-command` instead | not this workflow | — |
 
@@ -220,8 +220,8 @@ User confirms. Proceed.
 
 ## **Acceptance Criteria**
 
-- MANDATORY ORCHESTRATOR PRE-FLIGHT (all 6) completed.
-- `docs/reference/fabrik-lifecycle.md` read; project fits all 4 stages (or justified).
+- MANDATORY ORCHESTRATOR PRE-FLIGHT (all 7) completed.
+- `docs/operations/fabrik-lifecycle.md` read; project fits all 4 stages (or justified).
 - Scaffold derived from concrete signals; never assumed.
 - Preplan read if exists (`docs/preplans/`).
 - All reference reads completed (tech-stack guide, prebuilt containers, AI taxonomy, lifecycle, rule packs, kilo agents).

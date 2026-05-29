@@ -76,7 +76,7 @@ Files available at /opt/fabrik/ on this VPS:
 
 References (read when investigating):
 - docs/infrastructure/vps-complete-inventory.md — full container inventory with names, purposes, limits
-- docs/reference/fabrik-lifecycle.md — 4-stage deployment lifecycle
+- docs/operations/fabrik-lifecycle.md — 4-stage deployment lifecycle
 - docs/reference/architecture.md — system architecture, all components
 - specs/services/*.yaml — deployment specs (shape blocks, domains, resource limits per service)
 

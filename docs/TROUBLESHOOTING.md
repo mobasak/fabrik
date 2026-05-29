@@ -17,16 +17,17 @@ Common issues and solutions.
 3. Check UFW allows port 22: `sudo ufw status`
 4. Verify your IP isn't banned: `sudo fail2ban-client status sshd`
 
-### Coolify API Unreachable
+### SSH Connection Failures
 
-**Symptom:** `ConnectionError: Unable to connect to Coolify API`
+**Symptom:** `fabrik apply` / `fabrik redeploy` fail with `RuntimeError: ssh ... exit 255` or `Could not resolve hostname`
 
 **Solutions:**
 
-1. Verify Coolify is running: `ssh deploy@vps docker ps | grep coolify`
-2. Check COOLIFY_API_URL is correct (include https://)
-3. Verify API token is valid
-4. Check firewall allows 443
+1. Verify the `vps` SSH alias resolves: `ssh -v vps echo ok` — should connect without password prompt
+2. If you use a non-default alias, set `FABRIK_VPS_SSH_HOST=<alias>` in `/opt/fabrik/.env`
+3. Confirm the VPS is reachable: `ping <vps-host>` + `nc -vz <vps-host> 22`
+4. Check UFW on the VPS allows port 22 from your IP
+5. Verify your key is in the VPS `~/.ssh/authorized_keys`
 
 ## DNS Issues
 
@@ -50,7 +51,7 @@ Common issues and solutions.
 1. Verify DNS points to correct VPS IP
 2. Check ports 80/443 are open on VPS
 3. Wait 5 minutes for Let's Encrypt
-4. Check Coolify logs: `docker logs coolify`
+4. Check Traefik logs (the cert resolver): `ssh vps "sudo docker logs traefik --tail 100"`
 
 ## Deployment Issues
 
@@ -111,7 +112,7 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 
 **Cause:** Multi-stage Node builds (`docusaurus`, `saas-skeleton`) take 60–90s during which Coolify reports the application as `exited:unhealthy` (old container removed, new one not yet running). Pre-2026-04-28 the orchestrator's `terminal_grace_period` was 30s — it gave up before the new container even started. Fixed in B46 (now 180s).
 
-**If you still see this with another slow-build type:** bump `terminal_grace_period` further in `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_app_status`. Genuine failures still terminate via Coolify's explicit `failed` deployment-job state, so longer grace only affects the legitimate deploy-recreate path.
+**If you still see this with another slow-build type:** bump `terminal_grace_period` further in `@/opt/fabrik/src/fabrik/orchestrator/deployer.py::_wait_for_app_status`. Genuine failures still terminate via `fabrik apply` (SSH + Docker Compose)'s explicit `failed` deployment-job state, so longer grace only affects the legitimate deploy-recreate path.
 
 ### Port Already in Use
 
@@ -152,7 +153,7 @@ Reference path used by automation: `scripts/proof_run.py` lines 410–423 demons
 
 1. Verify Postgres container is running
 2. Check DATABASE_URL format: `postgresql://user:pass@host:5432/db`
-3. Verify credentials in Coolify database settings
+3. Verify credentials match what the postgres registrar wrote (`fabrik audit-registrars` shows the live DB user/db)
 4. Check pg_hba.conf allows connection
 
 ### Backup Failed
@@ -163,7 +164,7 @@ Reference path used by automation: `scripts/proof_run.py` lines 410–423 demons
 
 1. Verify B2 credentials
 2. Check bucket exists and is accessible
-3. Review backup logs in Coolify
+3. Review backup logs in the Backrest UI (`backup.vps1.ocoron.com`)
 4. Test B2 connection: `b2 authorize-account`
 
 ## Backup Issues (Backrest)
@@ -175,8 +176,8 @@ Reference path used by automation: `scripts/proof_run.py` lines 410–423 demons
 If issues persist:
 
 1. Check logs: `fabrik logs <app> --tail 100`
-2. Review Coolify dashboard for errors
-3. Check VPS system logs: `journalctl -xe`
+2. Inspect the live container on the VPS: `ssh vps "sudo docker inspect <container>"`
+3. Check VPS system logs: `ssh vps "sudo journalctl -xe"`
 
 ## Common Error Messages
 

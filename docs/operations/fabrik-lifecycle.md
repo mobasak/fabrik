@@ -259,7 +259,7 @@ Similar to Authelia — each `add_endpoint` / `remove_endpoint` restarts gatus. 
 
 ### Container name stability
 
-All compose files must declare `container_name: <name>`. Without it, Docker generates names like `<project>-<service>-1` which change unpredictably. The `ComposeLinter` warns if `container_name` is missing; the deployer's `_validate_compose()` treats it as an error (blocks deployment).
+All compose files must declare `container_name: <name>`. Without it, Docker generates names like `<project>-<service>-1` which change unpredictably. The `ComposeLinter` warns if `container_name` is missing; the deployer's `_validate_compose()` treats it as an error (blocks deployment) — but only for **template** and **docker** source types. Git and local sources manage their own compose files and skip `_validate_compose()`, so a missing `container_name` there is caught only by `ComposeLinter` (a warning), not blocked at deploy.
 
 ### The `coolify` network name
 

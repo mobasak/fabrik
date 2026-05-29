@@ -12,7 +12,7 @@ Fabrik is an **enterprise-grade deployment orchestration platform** that automat
 
 **Core capabilities:**
 - Automated domain registration and DNS configuration
-- Container deployment via Coolify (Docker Compose)
+- Container deployment via `fabrik apply` (SSH + Docker Compose) (Docker Compose)
 - SSL certificate automation (Let's Encrypt)
 - Health monitoring and status pages
 - Encrypted backups to cloud storage
@@ -93,7 +93,7 @@ uv pip install -e .
 
 # 4. Configure credentials
 cp .env.example .env
-nano .env  # Fill in your VPS, Coolify, DNS credentials
+nano .env  # Fill in your VPS SSH access, DNS, and B2 credentials
 
 # 5. Verify installation
 fabrik --version
@@ -104,13 +104,10 @@ fabrik templates
 
 **Minimum (for basic deployment):**
 ```bash
-# VPS Access
+# VPS Access (SSH key-based; fabrik SSHes to this host to deploy)
 VPS_HOST=172.93.160.197
 VPS_USER=ozgur
-
-# Coolify API (get from Coolify UI → Settings → API)
-COOLIFY_API_URL=https://coolify.vps1.ocoron.com
-COOLIFY_API_TOKEN=your-token-here
+# Configure `vps` alias in ~/.ssh/config pointing at this host
 
 # DNS Provider (choose one)
 DNS_MANAGER_URL=https://dns.vps1.ocoron.com  # Service-based
@@ -130,16 +127,20 @@ B2_BUCKET_NAME=fabrik-backups
 - AI services (Anthropic, OpenAI, Factory.ai)
 - Monitoring (Gatus credentials)
 
-### How do I get Coolify API credentials?
+### How do I set up SSH access to the VPS?
 
-1. Open Coolify UI: `http://YOUR_VPS_IP:8000`
-2. Settings → API Tokens
-3. Create New Token → Copy token
-4. Add to `.env`:
-   ```bash
-   COOLIFY_API_URL=http://YOUR_VPS_IP:8000
-   COOLIFY_API_TOKEN=paste-token-here
+1. Generate a key pair if needed: `ssh-keygen -t ed25519`
+2. Copy your public key to the VPS: `ssh-copy-id ozgur@YOUR_VPS_IP`
+3. Add an alias to `~/.ssh/config`:
+   ```text
+   Host vps
+     HostName YOUR_VPS_IP
+     User ozgur
+     IdentityFile ~/.ssh/id_ed25519
    ```
+4. Test: `ssh vps "whoami"` → should print your user, no password prompt.
+
+`fabrik apply`, `fabrik redeploy`, and `fabrik destroy` all run over this SSH connection.
 
 ### How do I set up DNS automation?
 
@@ -546,12 +547,12 @@ uv pip install -e .
 
 **Causes:**
 
-1. **Coolify waiting for health check**
-   - Check container logs: `docker logs <container>`
-   - Verify health endpoint works: `curl http://localhost:PORT/health`
+1. **Health check failing**
+   - Check container logs: `sudo docker logs <container>`
+   - Verify health endpoint works inside the container: `sudo docker exec <container> curl -fsS http://localhost:PORT/health`
 
 2. **Build failing**
-   - Check Coolify UI for build logs
+   - SSH into the VPS and rerun the build manually: `cd /opt/<name> && sudo docker compose build`
    - Verify Dockerfile builds locally: `docker build .`
 
 3. **Resource constraints**

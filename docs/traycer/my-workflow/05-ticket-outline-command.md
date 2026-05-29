@@ -36,7 +36,7 @@ Read (in order):
 3. **Tech Plan** — Component Architecture, Data Model, Issue classification, Shape Block Declaration, resilience table.
 4. **Deploy Plan** — Shape confirmation, registrar surface map, env vars checklist, compose contract.
 5. **INFRA-CHECK** — Internal APIs (consumed, not built), Port, User Guide, Concurrency, i18n, Shape.
-6. `docs/reference/fabrik-lifecycle.md` — confirm tickets cover all 4 stages.
+6. `docs/operations/fabrik-lifecycle.md` — confirm tickets cover all 4 stages.
 
 **Feature for existing project:** If `trigger_workflow` classified this as a feature (not a new project), the outline covers ONLY the feature scope — not the entire existing project. Consume the existing project's `specs/services/<id>.yaml` to understand current shape; new tickets may ADD shape fields but never remove.
 
@@ -97,7 +97,7 @@ Before drafting, check which categories apply to this project. Every applicable 
 | **Observability Configuration** | ALL scaffolds (non-negotiable) | Configure pre-scaffolded logging (structlog/pino already emitted by scaffold), add correlation IDs to new endpoints, configure GlitchTip DSN, add custom business metrics beyond scaffold defaults. **Do NOT create logger/metrics modules from scratch — scaffold already emits them.** | `55-observability` |
 | **Health Endpoint** | ALL `is_public` scaffolds | `/health` must test ALL real deps (DB `SELECT 1`, Redis `PING`, consumed API connectivity). Scaffold emits the endpoint skeleton; ticket fills in dep checks. | `55-observability` |
 | **Resilience & Self-Healing** | Any service with external calls | Timeout + retry + circuit-breaker per dep, graceful degradation, `docs/RESILIENCE.md` filled. **Workers additionally:** pause-state (sliding TTL), queue-bloat prevention (5 mechanisms), orphan sweep, vendor balance checks. | `core/58-resilience` |
-| **Deployment & Compose** | ALL Coolify-deployed scaffolds | Dockerfile (slim-bookworm), compose.yaml (Traefik labels, healthcheck, resource limits, coolify network, platform: linux/amd64), `.env.example`. **Scaffold emits compose skeleton; ticket fills in service-specific labels/env/limits.** | `30-ops` |
+| **Deployment & Compose** | ALL VPS-deployed scaffolds | Dockerfile (slim-bookworm), compose.yaml (Traefik labels, healthcheck, resource limits, coolify network, platform: linux/amd64), `.env.example`. **Scaffold emits compose skeleton; ticket fills in service-specific labels/env/limits.** | `30-ops` |
 | **Backup & Data Safety** | `shape.has_persistent_data: true` | Backrest plan → B2, retention policy, restore test procedure | `30-ops` |
 | **Search** | `shape.has_search_feature: true` | MeiliSearch index creation, indexing pipeline, search endpoint, reindex strategy | `core/65-rag-search` + `core/66-rag-chunking` |
 | **Notifications & Alerts** | Any service sending alerts/emails/push | Apprise integration, email/push templates, notification preferences, delivery failure handling | (project-specific) |

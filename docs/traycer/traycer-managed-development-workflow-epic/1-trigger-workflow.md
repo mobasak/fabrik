@@ -22,7 +22,7 @@ The goal is alignment, not artifacts. Specs are records of decisions made togeth
 - Tech stack defaults and when to deviate.
 - Existing infrastructure services and Fabrik microservices (read sections `## Infrastructure Services — Running on VPS` and `## Fabrik Microservices (Custom-Built, on VPS)` fresh each run; do not cache).
 - All planning constraints in `AGENTS.md` § Planning Constraints.
-- Projects are developed in Ubuntu 24.04 WSL and deployed to VPS via Coolify.
+- Projects are developed in Ubuntu 24.04 WSL and deployed to VPS via `fabrik apply` (SSH + Docker Compose).
 
 **Platform-repo branch (special case):** If the workspace root has no `project.yaml` AND contains `apps/` + `infrastructure/` + `templates/`, this is the **Fabrik platform monorepo** itself. Pause the normal flow and ask the user to scope the request: which app, microservice, infra service, scaffold template, or platform tool is in scope? Do not attempt scaffold detection on the platform root.
 
@@ -110,7 +110,7 @@ The base set is `AGENTS.md` § Planning Constraints (currently 10 items). The wo
 4. **Existing services** — does a Fabrik microservice already solve this? (Reference live `AGENTS.md` table.)
 5. **Prebuilt containers** — does `docs/reference/prebuilt-app-containers.md` have a ready-made solution?
 6. **Port conflicts** — check `PORTS.md` before assigning new ports. **Additionally**, if `PORTS.md` contains a `### ⚠️ Port Conflicts Detected` section, surface those collisions in the INFRA-CHECK summary even when unrelated to the current request.
-7. **Coolify deployment (architectural fit)** — compatible with Docker Compose deployment on Coolify? *Operational health is constraint #13; do not collapse the two.*
+7. **SSH + Docker Compose deployment (architectural fit)** — compatible with `fabrik apply` (SSH + Docker Compose) deployment to VPS? *Operational health is constraint #13.*
 8. **No Alpine** — `slim-bookworm` base images only.
 9. **Module dependencies** — depends on an incomplete Fabrik module per `docs/BUSINESS_MODEL.md`?
 10. **DNS** — domain management is automatic via site-provisioner; no manual DNS work needed.
@@ -119,8 +119,8 @@ The base set is `AGENTS.md` § Planning Constraints (currently 10 items). The wo
 
 11. **Duplicate project** — similar project already in `docs/BUSINESS_MODEL.md`? State explicitly.
 12. **Design System** — for UI scaffolds, confirm `.windsurf/rules/core/ocoron-design-system.md` was read. State `Design system read.` or `No UI surface.`
-13. **Coolify health (operational readiness)** — Read `docs/infrastructure/COOLIFY_STATUS.md` for the last human-recorded status. State `Coolify: healthy / degraded / unknown` in INFRA-CHECK. *Architectural compatibility is constraint #7; do not collapse the two.* Heuristic staleness rule (subject to revision once `run_check_coolify_status()` ships per SN-9 in `docs/development/plans/fabrik-phase-gap-analysis.md`): treat the doc as **stale** if any of: (a) the date stated at the top of the doc is older than 7 days; (b) the doc contains internal contradictions (e.g. a service listed as both migrated and "Phase X — NEXT", or self-contradicting counts); (c) the user reports a deployment incident not yet reflected. When stale, render the field as `unknown — status doc stale, recommend regeneration via Coolify API`.
-14. **Platform debt** — aggregate open items from (a) `PORTS.md` `### ⚠️ Port Conflicts Detected`, (b) `docs/infrastructure/COOLIFY_STATUS.md` `## Summary → What Needs Attention`, and (c) `docs/infrastructure/COOLIFY_STATUS.md` `## Next Steps → Immediate`. **Always informational — never blocks the workflow.** Surface count + one-line summaries below INFRA-CHECK; the user decides whether to address or proceed.
+13. **Deploy infrastructure health (operational readiness)** — Check Gatus dashboard (`status.vps1.ocoron.com`) for VPS service health. State `Infra: healthy / degraded / unknown` in INFRA-CHECK based on the current Gatus status. *Architectural compatibility is constraint #7.*
+14. **Platform debt** — aggregate open items from `PORTS.md` `### ⚠️ Port Conflicts Detected`. **Always informational — never blocks the workflow.** Surface count + one-line summaries below INFRA-CHECK; the user decides whether to address or proceed.
 
 **Conditional overlay #15 — API audience (**`python-api` **/** `node-api` **only):**
 
@@ -169,7 +169,7 @@ State which rubric branch was chosen and why.
 
 Begin the summary with this header line emitted **verbatim**, all fields populated (use `unknown` if unverifiable, never blank):
 
-> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / project name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Coolify:* `healthy/degraded/unknown` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open`
+> ***INFRA-CHECK:** Port:* `XXXX` *| Scaffold:* `<type>` *| x86_64:* `Confirmed/Unknown/Conflict` *| Duplicate:* `[none / project name]` *| Internal APIs:* `[list or none]` *| User Guide:* `true/false` *| Infra:* `healthy/degraded/unknown` *| Design System:* `read/N-A` *| Platform Debt:* `<N> open`
 
 Immediately below the header, list the platform-debt items (one line each) when `<N>` &gt; 0.
 
@@ -185,14 +185,14 @@ Immediately below the header, list the platform-debt items (one line each) when 
 - **Duplicate:** `none` or the name of any similar project found in `docs/BUSINESS_MODEL.md`.
 - **Internal APIs:** Comma-separated list of existing Fabrik microservices the new project plans to **consume** (e.g. `dns-manager, image-broker`). Use `none` if the project consumes no internal services. Purely about **consumption**; exposure is captured by `User Guide`.
 - **User Guide:** `true` if the project ships a user-facing guide (UI scaffolds + external APIs); `false` for internal-only APIs and back-end workers. Set per the routing table / overlay #15. Propagated downstream as `HAS_USER_GUIDE` per the existing `epic-brief` Metadata contract.
-- **Coolify:** Operational-health value from constraint #13. Possible values: `healthy`, `degraded`, `unknown`. When the staleness heuristic triggers, render the value as `unknown — status doc stale, recommend regeneration via Coolify API` (the suffix is part of the value).
+- **Infra:** Operational-health value from constraint #13. Possible values: `healthy`, `degraded`, `unknown`. Derived from the current Gatus dashboard at `status.vps1.ocoron.com`.
 - **Design System:** `read` if `.windsurf/rules/core/ocoron-design-system.md` was read for a UI scaffold; `N-A` for non-UI scaffolds.
 - **Platform Debt:** Integer count from constraint #14. **Informational only — never blocks.**
 
 **Field propagation policy:**
 
 - **Propagated downstream** (consumed by `epic-brief` Metadata): `Port`, `Scaffold`, `User Guide` (named `HAS_USER_GUIDE` at the destination, per the existing epic-brief contract).
-- **Informational only** (surfaced in the INFRA-CHECK header for human awareness; not carried forward into Metadata): `x86_64`, `Duplicate`, `Internal APIs`, `Coolify`, `Design System`, `Platform Debt`.
+- **Informational only** (surfaced in the INFRA-CHECK header for human awareness; not carried forward into Metadata): `x86_64`, `Duplicate`, `Internal APIs`, `Infra`, `Design System`, `Platform Debt`.
 - If any informational field shows `conflict` (e.g. `x86_64: Conflict`, `Duplicate: <project>`), raise it as a numbered interview question in the route summary. Do not silently downgrade.
 
 Then present:
@@ -216,7 +216,7 @@ User confirms or adjusts the route. Proceed to the first relevant command.
 - Design system read and internalized for UI scaffolds; `No UI surface.` stated otherwise.
 - Duplicate project check completed against `docs/BUSINESS_MODEL.md`.
 - `User Guide` field (propagated downstream as `HAS_USER_GUIDE`) determined and included in INFRA-CHECK.
-- Coolify health verified per constraint #13 (markdown today; future Coolify-API verifier when shipped); field populated in INFRA-CHECK with the staleness heuristic applied.
+- Infra health verified per constraint #13 (Gatus dashboard at `status.vps1.ocoron.com`); field populated in INFRA-CHECK.
 - Platform Debt count populated in INFRA-CHECK with one-line summaries listed below the header when `<N>` &gt; 0. Never used to block the workflow.
 - INFRA-CHECK header line emitted verbatim at the top of the route summary, **all** fields populated (use `unknown`, never blank).
 - All INFRA-CHECK fields conform to the definitions in Step 7 (especially: `Internal APIs` lists consumed services, not exposed ones; `Port` is always a number or `N/A`, possibly followed by a parenthetical annotation, and follows the resolution order).

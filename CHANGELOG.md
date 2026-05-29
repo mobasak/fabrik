@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Consolidate catalog + lifecycle sync paths; Traycer planning docs aligned (2026-05-30)
+
+- **Catalog consolidation:** `docs/reference/fabrik-project-catalog.md` (a renamed copy of `docs/BUSINESS_MODEL.md`) is gone. Projects now sync `docs/BUSINESS_MODEL.md` under the same name. One catalog, one source of truth. `src/fabrik/scaffold.py` (gitignore block + copy target) and `scripts/sync_enforcement_to_projects.py` (sync tuple) updated.
+- **Lifecycle sync path:** `docs/reference/fabrik-lifecycle.md` was deleted earlier as a stale duplicate of `docs/operations/fabrik-lifecycle.md`. Sync source updated to `docs/operations/fabrik-lifecycle.md` in both `scaffold.py` gitignore and `sync_enforcement_to_projects.py`.
+- **Orphan cleanup on sync:** `sync_enforcement_to_projects.py` now deletes `docs/reference/fabrik-lifecycle.md` and `docs/reference/fabrik-project-catalog.md` from projects on next sync (they're synced artifacts that were renamed/moved).
+- **VPS sysadmin sync scripts** (`scripts/sync-vps-sysadmin.sh`, `scripts/sysadmin/system-prompt.txt`) updated to the new lifecycle path.
+- **22 Traycer/reference doc references** updated to the new paths (`reference/fabrik-lifecycle.md` → `operations/fabrik-lifecycle.md`; `reference/fabrik-project-catalog.md` → `BUSINESS_MODEL.md`).
+- **Traycer mega-epic-breakdown numbering** matches execution order: `04` was Dispatch, `05` was Cross-Epic Validation, but validation runs *before* dispatch. Swapped: `04 = cross-epic-validation`, `05 = dispatch-epic-tickets`. All cross-references in 02/03/04/05 + AGENTS.md:48 updated.
+- **Traycer planning files made factual:** chrome-ext, mobile-app, saas, wordpress (target architecture: 4 containers per site, no Coolify), rag (verified clean), 00-trigger, 00-continuation, 02, 03 (verified clean), 04, 05 — Coolify references replaced with SSH + Docker Compose / `fabrik apply`, broken `docs/reference/fabrik-lifecycle.md` links repointed, dead `fabrik-project-catalog.md` references consolidated, constraint `#7` aligned to AGENTS canonical "SSH + Docker Compose deployment," pre-flight check count corrected `6 → 7`.
+- **my-workflow/00 reviewed top-to-bottom:** 11 fixes (lifecycle links, Coolify refs, constraint #7 alignment, pre-flight 6→7, dead catalog, wordpress routing redirected to `/opt/wpf/`), descriptive over-claims about `§ Stage 3 + 4` sharpened to operation-based wording across 02-core-flows, 04-deploy-plan, 11-deploy.
+- **Bonus:** stale "Coolify v4 quirks" line in `my-workflow/11-deploy-command.md` removed.
+
 ### Changed — SSH deployer replaces Coolify API deployer (2026-05-28)
 
 Phase 11-1 of the Coolify migration. All `fabrik apply/deploy/redeploy/destroy` operations now use SSH+Docker Compose instead of the removed Coolify API. New `SSHDeployer` supports all 4 source types (template, git, docker, local), compose validation against rule-pack constraints, read-merge `.env` strategy preserving registrar-injected vars, and shell-injection-safe name validation. Old deployer archived as `deployer_coolify.py`. Compose linter updated: `container_name` now required (was forbidden under Coolify). CLI lazy-imports Coolify references so unrelated commands keep working.

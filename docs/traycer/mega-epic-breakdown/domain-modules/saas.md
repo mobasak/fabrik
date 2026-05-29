@@ -252,7 +252,7 @@ When mapping core flows for a SaaS epic, include these SaaS-specific flows if th
 
 Each flow must identify the `[PRIMARY PATH]` — the happy path a new user takes. These become integration test targets.
 
-**Page inventory:** `.windsurf/rules/saas/60-saas-ui.md` § Page Inventory lists the 21 mandatory pages every SaaS ships. Core-flows must map to these pages + derive any project-specific pages not in the inventory.
+**Page inventory:** `.windsurf/rules/saas/60-saas-ui.md` § Page Inventory lists the 20 mandatory pages every SaaS ships (one — `[Core feature pages]` — is a project-specific placeholder). Core-flows must map to these pages + derive any project-specific pages not in the inventory.
 
 ### 2C. Tech Plan (my-workflow/03)
 

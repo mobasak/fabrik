@@ -11,7 +11,7 @@
 
 1. **Git-sourced services require `git push` before `fabrik redeploy`.** Redeploy runs `git pull` on the VPS, which pulls from the GitHub remote configured in `/opt/<name>/.git/config` — not from your local WSL filesystem. (Local-sourced services skip the git pull step.)
 2. **DB connection strings use Docker DNS names**, never `localhost`: `postgres-main:5432`, `redis-main:6379`. Inside a container, `localhost` is the container itself, not the shared database.
-3. **Never SIGHUP Authelia** — it exits. Always `sudo docker restart authelia` after config changes. (Config lives at `/config/configuration.yml` inside the container — there is no host-path file. The authelia driver uses `docker cp` to write and `docker exec cat` to read.)
+3. **Never SIGHUP Authelia** — it exits. Always `sudo docker restart authelia` after config changes. (Config is `/config/configuration.yml` inside the container, bind-mounted from `/opt/authelia/config/configuration.yml` on the host — editing either path touches the same file. The authelia driver still writes via `docker cp` and reads via `docker exec cat`, so go through the driver rather than hand-editing.)
 4. **No `ports:` in compose.yaml** — binding ports bypasses UFW and exposes services directly. All traffic routes through Traefik on the `coolify` Docker network.
 5. **Every service must have `container_name:`** in its compose.yaml — provides stable names for `docker exec`, `docker inspect`, and Gatus monitoring. Without it, Docker generates random suffixed names.
 6. **All `docker` commands on VPS require `sudo`** — root-owned containers and directories.
@@ -371,8 +371,10 @@ Every deployed service lives at `/opt/<name>/` on the VPS:
 │   └── ...
 ├── monitoring/           ← infrastructure stack (prometheus, grafana, etc.)
 │   └── compose.yaml
-├── authelia/             ← auth gateway (config inside container at /config/configuration.yml)
-│   └── compose.yaml
+├── authelia/             ← auth gateway
+│   ├── compose.yaml
+│   └── config/
+│       └── configuration.yml  ← bind-mounted to /config inside the container
 ├── gatus/                ← not directly here — config at /opt/monitoring/configs/gatus/
 └── fabrik/               ← this repo (CLI + orchestrator)
     ├── specs/services/   ← spec YAML files
@@ -424,7 +426,7 @@ ssh vps 'sudo docker stats --no-stream --format "{{.Name}}\t{{.MemUsage}}\t{{.CP
 
 | System | URL | What it shows | Auth |
 |---|---|---|---|
-| Grafana | `https://grafana.vps1.ocoron.com` | Dashboards, Loki logs, Prometheus metrics | Authelia |
+| Grafana | `https://monitor.vps1.ocoron.com` | Dashboards, Loki logs, Prometheus metrics | Authelia |
 | GlitchTip | `https://errors.vps1.ocoron.com` | Error tracking (Sentry-compatible) | Authelia |
 | Gatus | `https://status.vps1.ocoron.com` | Public status page with health history | Public |
 | Alertmanager → Telegram | (push) | Critical alerts: down, OOM, cert expiry | n/a |
