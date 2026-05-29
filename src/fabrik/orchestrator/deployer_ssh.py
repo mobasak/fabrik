@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import subprocess
 import tempfile
 from typing import Any
 
@@ -190,13 +191,70 @@ class SSHDeployer:
             return
 
         if source_type == "git":
+            # Capture the current commit as a rollback point BEFORE mutating,
+            # so a failed health check (up -d --wait exits non-zero) can be
+            # reverted to the last-known-good code instead of leaving an
+            # unhealthy container live. Mirrors apply()'s fail-loud + rollback
+            # contract, which redeploy previously lacked.
+            old_sha = _ssh(
+                f"cd /opt/{name} && sudo git rev-parse HEAD", timeout=30
+            ).strip()
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
             build_flags = " --no-cache" if force else ""
             _ssh(f"cd /opt/{name} && sudo docker compose build{build_flags}", timeout=300)
-            _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+            try:
+                _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+            except (RuntimeError, subprocess.TimeoutExpired) as err:
+                logger.error(
+                    "Redeploy of %s failed health check; rolling back to %s",
+                    name,
+                    old_sha[:12] or "<unknown>",
+                )
+                if old_sha:
+                    try:
+                        _ssh(
+                            f"cd /opt/{name} && sudo git reset --hard {old_sha}",
+                            timeout=60,
+                        )
+                        _ssh(
+                            f"cd /opt/{name} && sudo docker compose build{build_flags}",
+                            timeout=300,
+                        )
+                        _ssh(
+                            f"cd /opt/{name} && sudo docker compose up -d --wait",
+                            timeout=120,
+                        )
+                        logger.info("Rollback of %s to %s succeeded", name, old_sha[:12])
+                    except (RuntimeError, subprocess.TimeoutExpired) as rb_err:
+                        raise DeployError(
+                            f"Redeploy of {name!r} failed AND rollback to "
+                            f"{old_sha[:12]} also failed — service may be down. "
+                            f"Manual intervention required. "
+                            f"Deploy error: {err}; Rollback error: {rb_err}"
+                        ) from err
+                raise DeployError(
+                    f"Redeploy of {name!r} failed health check; rolled back to "
+                    f"previous commit {old_sha[:12]}. New code is NOT live. "
+                    f"Original error: {err}"
+                ) from err
         else:
+            # Non-git (template/local): no previous image tag to revert to,
+            # so there is no recoverable rollback point. Fail loudly rather
+            # than fabricate one — the operator must re-run apply/redeploy or
+            # restore from a known-good spec.
             recreate_flags = " --force-recreate" if force else ""
-            _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait{recreate_flags}", timeout=120)
+            try:
+                _ssh(
+                    f"cd /opt/{name} && sudo docker compose up -d --wait{recreate_flags}",
+                    timeout=120,
+                )
+            except (RuntimeError, subprocess.TimeoutExpired) as err:
+                raise DeployError(
+                    f"Redeploy of {name!r} failed health check. No automatic "
+                    f"rollback is possible for non-git sources (no prior image "
+                    f"tag). The container may be unhealthy — check "
+                    f"`docker compose ps` on the VPS. Original error: {err}"
+                ) from err
 
         logger.info("Redeployed %s (source=%s, force=%s)", name, source_type, force)
 

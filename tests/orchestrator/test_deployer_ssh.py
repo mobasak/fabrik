@@ -452,15 +452,21 @@ class TestSSHDeployerRedeploy:
         assert "--force-recreate" in cmds[0]
 
     def test_redeploy_git(self):
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
+        with patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh:
             deployer = SSHDeployer()
             deployer.redeploy("my-app", source_type="git")
 
         cmds = [c.args[0] for c in mock_ssh.call_args_list]
-        assert len(cmds) == 3
-        assert "git pull" in cmds[0]
-        assert "docker compose build" in cmds[1]
-        assert "docker compose up -d" in cmds[2]
+        # rev-parse captures the rollback point BEFORE mutating, then the
+        # normal pull/build/up sequence. On success no rollback runs.
+        assert any("git rev-parse HEAD" in c for c in cmds)
+        assert any("git pull" in c for c in cmds)
+        assert any("docker compose build" in c for c in cmds)
+        assert any("docker compose up -d --wait" in c for c in cmds)
+        # rev-parse must precede the destructive pull
+        assert next(i for i, c in enumerate(cmds) if "rev-parse" in c) < next(
+            i for i, c in enumerate(cmds) if "git pull" in c
+        )
 
     def test_redeploy_git_force(self):
         with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
@@ -468,7 +474,8 @@ class TestSSHDeployerRedeploy:
             deployer.redeploy("my-app", source_type="git", force=True)
 
         cmds = [c.args[0] for c in mock_ssh.call_args_list]
-        assert "--no-cache" in cmds[1]
+        build_cmds = [c for c in cmds if "docker compose build" in c]
+        assert build_cmds and "--no-cache" in build_cmds[0]
 
     def test_redeploy_dry_run(self):
         with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
@@ -844,7 +851,8 @@ class TestDestroyCompose:
 
         assert result.status == "removed"
         cmds = [c.args[0] for c in mock_ssh.call_args_list]
-        assert any("docker compose down -v" in c for c in cmds)
+        # default drop_data=False → plain down (app-local volumes preserved)
+        assert any("docker compose down" in c and " -v" not in c for c in cmds)
         assert any("rm -rf /opt/my-app" in c for c in cmds)
         assert any("docker image prune" in c for c in cmds)
 
@@ -859,12 +867,35 @@ class TestDestroyApp:
         assert result.status == "removed"
         assert result.step == "compose"
 
-    def test_compose_not_found_falls_back_to_coolify(self):
+    def test_compose_not_found_surfaces_directly(self):
+        """No Coolify fallback: a missing /opt/<name> returns the compose
+        not_found result directly (the legacy Coolify-API path was removed
+        post-migration — it could only fail or hit a stale endpoint)."""
         from fabrik.orchestrator.destroyer import _destroy_app
 
-        with patch("fabrik.drivers.ssh.ssh", side_effect=RuntimeError("no dir")), \
-             patch("fabrik.orchestrator.destroyer._destroy_coolify_legacy") as mock_legacy:
-            mock_legacy.return_value = MagicMock(status="removed")
+        # `test -d /opt/my-app` failing → _destroy_compose returns not_found
+        with patch("fabrik.drivers.ssh.ssh", side_effect=RuntimeError("no dir")):
             result = _destroy_app("my-app", dry_run=False)
 
-        mock_legacy.assert_called_once_with("my-app", False)
+        assert result.status == "not_found"
+        assert result.step == "compose"
+
+    def test_drop_data_gates_volume_removal(self):
+        """down -v only when drop_data=True; plain down otherwise, so a
+        non-drop-data destroy never deletes app-local named volumes."""
+        from fabrik.orchestrator.destroyer import _destroy_compose
+
+        calls = []
+
+        def fake_ssh(cmd, timeout=60):
+            calls.append(cmd)
+            return ""
+
+        with patch("fabrik.drivers.ssh.ssh", side_effect=fake_ssh):
+            _destroy_compose("my-app", dry_run=False, drop_data=False)
+        assert any("compose down" in c and " -v" not in c for c in calls)
+
+        calls.clear()
+        with patch("fabrik.drivers.ssh.ssh", side_effect=fake_ssh):
+            _destroy_compose("my-app", dry_run=False, drop_data=True)
+        assert any("compose down -v" in c for c in calls)

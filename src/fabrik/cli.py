@@ -1204,14 +1204,15 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
         except RuntimeError:
             is_git = False
 
-        if is_git:
-            _ssh(f"cd /opt/{app} && sudo git pull", timeout=60)
-            build_flags = " --no-cache" if force else ""
-            _ssh(f"cd /opt/{app} && sudo docker compose build{build_flags}", timeout=300)
-            _ssh(f"cd /opt/{app} && sudo docker compose up -d --wait", timeout=120)
-        else:
-            recreate_flags = " --force-recreate" if force else ""
-            _ssh(f"cd /opt/{app} && sudo docker compose up -d --wait{recreate_flags}", timeout=120)
+        # Route through the hardened deployer.redeploy(): it captures a
+        # rollback point and reverts a git app to last-known-good on health
+        # failure (and fails loudly for non-git). Single source of truth —
+        # do NOT reinline the up/build steps here.
+        deployer.redeploy(
+            app,
+            source_type="git" if is_git else "template",
+            force=force,
+        )
 
         click.echo(f"✅ Redeployed: {app}")
         _post_deploy_sync()

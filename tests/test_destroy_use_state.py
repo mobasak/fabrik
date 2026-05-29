@@ -5,7 +5,7 @@ Coverage:
 - ``destroy_from_state`` Phase 0 data-bearing guard (refuse without --drop-data).
 - Phase 1 reverse-order dispatch using HANDLER_FUNCS/HANDLER_ARGS (T2-02 contract).
 - Phase 1 grafana-skip-by-design (no destroyer registered).
-- Phase 2 always-run for coolify; gated for dns/files.
+- Phase 2 always-run for app (compose); gated for dns/files.
 - Primary path (Epic SC-3): apply with shape A → edit spec to shape B → destroy --use-state
   reverses A's resources (the spec-B walk would have missed them).
 - Regression: shape-driven destroy (no --use-state) unchanged.
@@ -77,7 +77,7 @@ def patched_destroyers():
         "_destroy_authelia": ActionResult(step="authelia", status="removed"),
         "_destroy_meilisearch": ActionResult(step="meilisearch", status="removed"),
         "_destroy_prometheus": ActionResult(step="prometheus", status="removed"),
-        "_destroy_coolify": ActionResult(step="coolify", status="removed"),
+        "_destroy_app": ActionResult(step="compose", status="removed"),
         "_destroy_dns": ActionResult(step="dns", status="removed"),
         "_destroy_files": ActionResult(step="files", status="removed"),
     }
@@ -91,7 +91,7 @@ def patched_destroyers():
         patch("fabrik.orchestrator.destroyer._destroy_authelia", return_value=targets["_destroy_authelia"]) as m_auth,
         patch("fabrik.orchestrator.destroyer._destroy_meilisearch", return_value=targets["_destroy_meilisearch"]) as m_meili,
         patch("fabrik.orchestrator.destroyer._destroy_prometheus", return_value=targets["_destroy_prometheus"]) as m_prom,
-        patch("fabrik.orchestrator.destroyer._destroy_coolify", return_value=targets["_destroy_coolify"]) as m_coolify,
+        patch("fabrik.orchestrator.destroyer._destroy_app", return_value=targets["_destroy_app"]) as m_app,
         patch("fabrik.orchestrator.destroyer._destroy_dns", return_value=targets["_destroy_dns"]) as m_dns,
         patch("fabrik.orchestrator.destroyer._destroy_files", return_value=targets["_destroy_files"]) as m_files,
     ):
@@ -99,7 +99,7 @@ def patched_destroyers():
             "postgres": m_pg, "redis": m_redis, "gatus": m_gatus,
             "backrest": m_back, "glitchtip": m_glitch, "authelia": m_auth,
             "meilisearch": m_meili, "prometheus": m_prom,
-            "coolify": m_coolify, "dns": m_dns, "files": m_files,
+            "compose": m_app, "dns": m_dns, "files": m_files,
         })
         # HANDLER_FUNCS references the unmocked module-level objects; need
         # to rebind so the test sees the mocks. Re-assemble the map in-test:
@@ -126,7 +126,7 @@ class TestDataBearingGuard:
         assert report.had_errors
         assert any(a.step == "data-bearing-guard" for a in report.actions)
         # No destroyer should have been recorded — guard exits before Phase 1.
-        assert not any(a.step in ("gatus", "postgres", "coolify") for a in report.actions)
+        assert not any(a.step in ("gatus", "postgres", "compose") for a in report.actions)
 
     def test_proceeds_when_drop_data_set(self, patched_destroyers):
         state = _state(registrars=[
@@ -188,7 +188,7 @@ class TestReverseOrderDispatch:
         # shared counter.
         call_order: list[str] = []
         for name in ("postgres", "redis", "gatus", "backrest", "glitchtip",
-                     "authelia", "meilisearch", "prometheus", "coolify", "dns", "files"):
+                     "authelia", "meilisearch", "prometheus", "compose", "dns", "files"):
             mock = patched_destroyers[name]
             mock.side_effect = lambda *a, _n=name, **kw: (
                 call_order.append(_n) or ActionResult(step=_n, status="removed")
@@ -203,10 +203,10 @@ class TestReverseOrderDispatch:
         )
         # Per ticket string anchor: prometheus → meilisearch → authelia →
         # (grafana skipped) → glitchtip → backrest → gatus → redis → postgres
-        # → coolify → dns → files
+        # → compose → dns → files
         expected = ["prometheus", "meilisearch", "authelia", "glitchtip",
                     "backrest", "gatus", "redis", "postgres",
-                    "coolify", "dns", "files"]
+                    "compose", "dns", "files"]
         assert call_order == expected, f"order drift: {call_order}"
 
     def test_grafana_explicitly_skipped(self, patched_destroyers):
@@ -244,12 +244,12 @@ class TestReverseOrderDispatch:
 
 
 class TestPhase2NonRegistrars:
-    def test_coolify_always_runs(self, patched_destroyers):
+    def test_app_always_runs(self, patched_destroyers):
         state = _state(registrars=[])
         destroy_from_state(
             state, _spec(), drop_data=False, keep_dns=True, keep_files=True, dry_run=True
         )
-        patched_destroyers["coolify"].assert_called_once()
+        patched_destroyers["compose"].assert_called_once()
 
     def test_dns_skipped_with_keep_dns(self, patched_destroyers):
         state = _state(registrars=[])

@@ -43,7 +43,7 @@ Design choices
   :attr:`DestroyReport.errors` for the CLI to surface.
 
 * **Order is strict reverse-of-provisioner:** meilisearch →
-  authelia → glitchtip → backrest → gatus → postgres → Coolify app →
+  authelia → glitchtip → backrest → gatus → postgres → app (compose) →
   DNS record → local project files. This mirrors
   ``InfrastructureProvisioner.provision`` so a partial destroy can be
   resumed safely (idempotency guarantees).
@@ -311,7 +311,7 @@ def _destroy_postgres(name: str, drop_data: bool, dry_run: bool) -> ActionResult
         return ActionResult("postgres", "error", error=repr(e))
 
 
-def _destroy_compose(name: str, dry_run: bool) -> ActionResult:
+def _destroy_compose(name: str, dry_run: bool, drop_data: bool = False) -> ActionResult:
     """Destroy a compose-deployed app via SSH."""
     import re
 
@@ -330,8 +330,11 @@ def _destroy_compose(name: str, dry_run: bool) -> ActionResult:
         except RuntimeError:
             return ActionResult("compose", "not_found", detail=f"app {name}")
 
-        # Stop containers + remove volumes
-        _ssh(f"cd /opt/{name} && sudo docker compose down -v", timeout=60)
+        # Stop containers. Remove app-local named volumes only when
+        # drop_data=True — mirrors the postgres/redis/meilisearch contract
+        # so a plain destroy never silently deletes app state.
+        down_flags = " -v" if drop_data else ""
+        _ssh(f"cd /opt/{name} && sudo docker compose down{down_flags}", timeout=60)
         # Remove app directory
         _ssh(f"sudo rm -rf /opt/{name}", timeout=30)
         # Prune dangling images
@@ -342,90 +345,16 @@ def _destroy_compose(name: str, dry_run: bool) -> ActionResult:
         return ActionResult("compose", "error", error=repr(e))
 
 
-def _destroy_app(name: str, dry_run: bool) -> ActionResult:
-    """Destroy an app — try compose first, fall back to Coolify legacy."""
-    result = _destroy_compose(name, dry_run)
-    if result.status in ("removed", "dry_run"):
-        return result
-    # Compose not found — try Coolify legacy path for pre-migration apps
-    return _destroy_coolify_legacy(name, dry_run)
+def _destroy_app(name: str, dry_run: bool, drop_data: bool = False) -> ActionResult:
+    """Destroy an app via its /opt/<name> compose project.
 
-
-def _destroy_coolify_legacy(name: str, dry_run: bool) -> ActionResult:
-    try:
-        from fabrik.drivers.coolify import CoolifyClient
-
-        if dry_run:
-            return ActionResult("coolify", "dry_run", detail=f"app {name}")
-        client = CoolifyClient()
-        apps = client.list_applications()
-        matching = [a for a in apps if a.get("name") == name]
-        if not matching:
-            return ActionResult("coolify", "not_found", detail=f"app {name}")
-        uuid = matching[0].get("uuid")
-        if not uuid:
-            return ActionResult(
-                "coolify",
-                "error",
-                error=f"application {name!r} found but has no uuid",
-            )
-
-        # Fix 2 companion (2026-05-16): when the SSH fallback started a
-        # container via `docker compose -f docker-compose.yaml up -d`,
-        # Coolify's API DELETE removes the DB record but does NOT stop the
-        # running container (Coolify didn't start it — it doesn't own the
-        # lifecycle). Belt-and-suspenders: SSH-stop any container matching
-        # the Coolify naming pattern BEFORE the API delete so no orphan
-        # container lingers. Idempotent — if the container doesn't exist
-        # or Coolify DID stop it, docker stop/rm returns non-zero which we
-        # ignore.
-        try:
-            from fabrik.drivers.ssh import ssh as _ssh
-
-            _ssh(
-                f"sudo docker compose -f /data/coolify/applications/{uuid}/docker-compose.yaml "
-                f"down 2>/dev/null || true",
-                timeout=30,
-            )
-        except Exception:  # noqa: BLE001 — best-effort; API delete follows regardless
-            pass
-
-        client.delete_application(uuid)
-
-        # Clean up the Coolify app directory (source clone + compose)
-        try:
-            from fabrik.drivers.ssh import ssh as _ssh
-
-            _ssh(f"sudo rm -rf /data/coolify/applications/{uuid}", timeout=15)
-        except Exception:  # noqa: BLE001
-            pass
-
-        # Prune Docker images and networks left by the destroyed service.
-        # Images: Coolify builds images tagged <uuid>_<name>:<sha>. Remove
-        # any image whose repository starts with the app UUID prefix.
-        # Networks: Coolify creates a per-app bridge network named <uuid>.
-        # Both are best-effort — failure is non-fatal.
-        try:
-            from fabrik.drivers.ssh import ssh as _ssh
-
-            # Remove images tagged with this app's UUID prefix
-            _ssh(
-                f"sudo docker images --format '{{{{.Repository}}}}:{{{{.Tag}}}}' "
-                f"| grep '^{uuid}' "
-                f"| xargs -r sudo docker rmi 2>/dev/null || true",
-                timeout=30,
-            )
-            # Remove the per-app Docker network
-            _ssh(
-                f"sudo docker network rm {uuid} 2>/dev/null || true",
-                timeout=15,
-            )
-        except Exception:  # noqa: BLE001 — best-effort cleanup
-            pass
-
-        return ActionResult("coolify", "removed", detail=f"app {name} (uuid={uuid})")
-    except Exception as e:  # noqa: BLE001
-        return ActionResult("coolify", "error", error=repr(e))
+    Post-Coolify-migration apps all live at /opt/<name>; the former
+    Coolify-API fallback has been removed (the stack no longer runs a
+    Coolify API, so the fallback could only ever fail or hit a stale
+    endpoint, masking the real _destroy_compose error). Errors now
+    surface directly.
+    """
+    return _destroy_compose(name, dry_run, drop_data=drop_data)
 
 
 def _destroy_dns(domain: str, dry_run: bool) -> ActionResult:
@@ -634,8 +563,8 @@ def destroy_deployment(
     else:
         report.add("redis", "skipped", detail="not applicable per shape")
 
-    # ── Step B: App (compose, Coolify legacy fallback) ──
-    report.actions.append(_destroy_app(name, dry_run))
+    # ── Step B: App (compose project at /opt/<name>) ──
+    report.actions.append(_destroy_app(name, dry_run, drop_data=drop_data))
 
     # ── Step C: DNS record ──
     if keep_dns:
@@ -796,7 +725,7 @@ def destroy_from_state(
     # ── Phase 2: Non-registrar resources (app, DNS, files) ────────────
     # These are invariant of the registrar set; always run regardless of
     # state file contents. Symmetric with destroy_deployment Steps B/C/D.
-    report.actions.append(_destroy_app(spec.id, dry_run))
+    report.actions.append(_destroy_app(spec.id, dry_run, drop_data=drop_data))
 
     if keep_dns:
         report.add("dns", "skipped", detail="--keep-dns")
