@@ -66,9 +66,10 @@ services:
       {% else %}
       test: ["CMD-SHELL", "wget -q --spider http://localhost:{{ svc_port }}{{ health.path if health else '/health' }} || curl -fsS http://localhost:{{ svc_port }}{{ health.path if health else '/health' }} || exit 1"]
       {% endif %}
-      interval: {{ health.interval if health.interval else '30s' }}
-      timeout: {{ health.timeout if health.timeout else '10s' }}
+      interval: {{ health.interval if health.interval else '10s' }}
+      timeout: {{ health.timeout if health.timeout else '5s' }}
       retries: {{ health.retries if health.retries else 3 }}
+      start_period: {{ health.start_period if health.start_period else '30s' }}
     {% endif %}
     networks:
       - coolify

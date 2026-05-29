@@ -159,7 +159,7 @@ class SSHDeployer:
         env_content = _format_env(merged)
 
         _write_file_to_vps(name, ".env", env_content)
-        _ssh(f"cd /opt/{name} && sudo docker compose up -d", timeout=120)
+        _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
         logger.info("Injected %d env vars into %s and restarted", len(env_vars), name)
 
     def restart(self, name: str, dry_run: bool = False) -> None:
@@ -170,7 +170,7 @@ class SSHDeployer:
         if dry_run:
             logger.info("[DRY RUN] Would restart %s", name)
             return
-        _ssh(f"cd /opt/{name} && sudo docker compose up -d", timeout=120)
+        _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
 
     def redeploy(
         self,
@@ -193,10 +193,10 @@ class SSHDeployer:
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
             build_flags = " --no-cache" if force else ""
             _ssh(f"cd /opt/{name} && sudo docker compose build{build_flags}", timeout=300)
-            _ssh(f"cd /opt/{name} && sudo docker compose up -d", timeout=120)
+            _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
         else:
             recreate_flags = " --force-recreate" if force else ""
-            _ssh(f"cd /opt/{name} && sudo docker compose up -d{recreate_flags}", timeout=120)
+            _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait{recreate_flags}", timeout=120)
 
         logger.info("Redeployed %s (source=%s, force=%s)", name, source_type, force)
 
@@ -264,7 +264,7 @@ class SSHDeployer:
                 continue
             _write_file_to_vps(name, filename, content)
 
-        _ssh(f"cd /opt/{name} && sudo docker compose up -d", timeout=120)
+        _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
 
         # Verify container started
         try:
@@ -312,7 +312,7 @@ class SSHDeployer:
         _write_file_to_vps(name, ".env", env_content)
 
         _ssh(f"cd /opt/{name} && sudo docker compose build", timeout=300)
-        _ssh(f"cd /opt/{name} && sudo docker compose up -d", timeout=120)
+        _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
 
     def _deploy_docker(
         self,
@@ -351,7 +351,7 @@ class SSHDeployer:
         _ssh(f"sudo mkdir -p /opt/{name}", timeout=10)
         _write_file_to_vps(name, "compose.yaml", compose_content)
         _write_file_to_vps(name, ".env", env_content)
-        _ssh(f"cd /opt/{name} && sudo docker compose up -d", timeout=120)
+        _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
 
     def _deploy_local(
         self,
@@ -379,7 +379,7 @@ class SSHDeployer:
         # Write/merge .env
         env_content = self._build_env_content(ctx, name, existing, app_path=path)
         _write_file_to_vps_path(path, ".env", env_content)
-        _ssh(f"cd {path} && sudo docker compose up -d", timeout=120)
+        _ssh(f"cd {path} && sudo docker compose up -d --wait", timeout=120)
 
     # ------------------------------------------------------------------
     # Helpers

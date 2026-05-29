@@ -44,9 +44,10 @@ services:
           cpus: '{{ resources.cpu }}'
     healthcheck:  # Mandatory for Coolify orchestration
       test: ["CMD", "curl", "-f", "http://localhost:3000{{ health.path if health else '/health' }}"]
-      interval: {{ health.interval if health else '30s' }}
-      timeout: {{ health.timeout if health else '10s' }}
+      interval: {{ health.interval if health else '10s' }}
+      timeout: {{ health.timeout if health else '5s' }}
       retries: {{ health.retries if health else 3 }}
+      start_period: {{ health.start_period if health else '30s' }}
     networks:
       - coolify
 

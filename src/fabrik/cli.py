@@ -1208,10 +1208,10 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
             _ssh(f"cd /opt/{app} && sudo git pull", timeout=60)
             build_flags = " --no-cache" if force else ""
             _ssh(f"cd /opt/{app} && sudo docker compose build{build_flags}", timeout=300)
-            _ssh(f"cd /opt/{app} && sudo docker compose up -d", timeout=120)
+            _ssh(f"cd /opt/{app} && sudo docker compose up -d --wait", timeout=120)
         else:
             recreate_flags = " --force-recreate" if force else ""
-            _ssh(f"cd /opt/{app} && sudo docker compose up -d{recreate_flags}", timeout=120)
+            _ssh(f"cd /opt/{app} && sudo docker compose up -d --wait{recreate_flags}", timeout=120)
 
         click.echo(f"✅ Redeployed: {app}")
         _post_deploy_sync()

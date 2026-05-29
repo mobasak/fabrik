@@ -18,10 +18,10 @@ services:
       - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=3000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: {{ health.interval if health else '10s' }}
+      timeout: {{ health.timeout if health else '5s' }}
+      retries: {{ health.retries if health else 3 }}
+      start_period: {{ health.start_period if health else '40s' }}
 
 networks:
   coolify:

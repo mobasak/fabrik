@@ -44,8 +44,8 @@ services:
 {% if health %}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:{{ env.get('PORT', '3000') }}{{ health.path }}"]
-      interval: {{ health.interval }}
-      timeout: {{ health.timeout | default('10s') }}
+      interval: {{ health.interval | default('10s') }}
+      timeout: {{ health.timeout | default('5s') }}
       retries: {{ health.retries | default(3) }}
       start_period: 10s
 {% endif %}

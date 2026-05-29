@@ -24,10 +24,10 @@ services:
     
     healthcheck:  # Required for Coolify orchestration
       test: ["CMD", "curl", "-f", "http://localhost:8081/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: {{ health.interval if health else '10s' }}
+      timeout: {{ health.timeout if health else '5s' }}
+      retries: {{ health.retries if health else 3 }}
+      start_period: {{ health.start_period if health else '40s' }}
     deploy:
       resources:
         limits:

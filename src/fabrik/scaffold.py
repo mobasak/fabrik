@@ -428,6 +428,7 @@ _COMMON_GITIGNORE_PATTERNS = (
     "docs/reference/ai_agent_prompt_directives.md\n"
     "docs/reference/fabrik-lifecycle.md\n"
     "docs/reference/fabrik-project-catalog.md\n"
+    "docs/reference/mobile-responsive-testing-guide.md\n"
     "PORTS.md\n"
     "\n"
     "# Synced scripts\n"
