@@ -1,344 +1,410 @@
 # VPS Disaster Recovery Guide
 
-**Last Updated:** 2025-12-22
-**Recovery Time Objective (RTO):** 1-2 hours
-**Recovery Point Objective (RPO):** 24 hours (daily backups)
+**Last Updated:** 2026-05-31 (full rewrite — post-Coolify-migration, post-Backrest, post-W1 cleanup)
+**Previous version:** 2025-12-22 (Duplicati/Coolify era — archived in git history)
+**Recovery Time Objective (RTO):** 60–90 min (with VirtFusion image) · 2–3 h (from B2 cold-start)
+**Recovery Point Objective (RPO):** 24 h (daily Backrest plans) · 0 h for B2-backed objects since last successful run
 
 ---
 
-## Backup System Overview
+## Recovery scenarios — pick one
 
-| Component | Value |
-|-----------|-------|
-| **Backup Tool** | Duplicati |
-| **Web UI** | https://backup.vps1.ocoron.com |
-| **Password** | See `DUPLICATI_PASSWORD` in `.env` |
-| **Storage Backend** | Backblaze B2 |
-| **Bucket** | `vps1-ocoron-backups` |
-| **Schedule** | Daily (configurable in UI) |
-| **Retention** | 7 versions |
+- **Path A — VirtFusion restore (~60 min).** VPS booted into bad state (kernel panic, fs corruption, accidental wipe) but a VirtFusion image exists. Minimal data loss.
+- **Path B — B2 cold restore (~2–3 h).** VPS lost or unrecoverable, but B2 backups intact and a fresh VPS provisioned. Up to 24 h of changes lost since last Backrest run.
+- **Path C — GitHub-only rebuild (~half day).** Both VPS and B2 lost. Possible because all `compose.yaml` are checked into `mobasak/fabrik`; secrets are gone. Out of scope for this doc.
 
-### B2 Credentials (Store Securely)
-
-| Field | Value |
-|-------|-------|
-| Account ID | `<stored in password manager>` |
-| Application Key | `<stored in password manager>` |
-| Key Name | `vps1-b2-app-key` |
+Most real disasters are Path A. Document path B in full so we can drill it.
 
 ---
 
-## What Is Backed Up
+## What's currently being backed up
 
-### Critical Data (Must Restore)
+Verified against current Backrest state (28 containers, 3 active plans).
 
-| Path | Contents | Size |
-|------|----------|------|
-| `/opt/traefik/` | SSL certs (acme.json), htpasswd, config | ~1MB |
-| `/opt/*/compose.yaml` | Service definitions | ~50KB |
-| `/opt/*/.env` | All secrets and credentials | ~10KB |
-| `coolify-db` volume | Coolify PostgreSQL (projects, settings) | ~70MB |
-| `proxy_postgres_data` volume | Proxy service database | ~48MB |
+### Backup System
 
-### Service Configs (Needed for Rebuild)
+- **Backup tool:** Backrest (restic-based) — migrated from Duplicati on 2026-04-17.
+- **UI:** accessible internally on the VPS (Authelia-protected). See `/opt/backrest/compose.yaml` for the route.
+- **Repository password:** stored in `/opt/backrest/config/config.json` (root-owned, readable only on the VPS itself — see W-Sec follow-ups).
+- **B2 credentials:** `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` in `/opt/backrest/.env` (B2 S3-compatible).
+- **Storage backend:** Backblaze B2.
+- **Bucket:** `vps1-ocoron-backups`.
+- **Bucket size:** ~8.5 GiB, ~570 objects, ~27 snapshots (verified 2026-05-30).
+- **Repository layout:** single restic repo (`data/`, `index/`, `keys/`, `snapshots/`).
 
-| Service | Path | Critical Files |
-|---------|------|----------------|
-| traefik | `/opt/traefik/` | `compose.yaml`, `traefik.yml`, `acme.json`, `htpasswd` |
-| captcha | `/opt/captcha/` | `compose.yaml`, `.env` |
-| emailgateway | `/opt/emailgateway/` | `compose.yaml`, `.env` |
-| translator | `/opt/translator/` | `compose.yaml`, `.env` |
-| dns-manager | `/opt/dns-manager/` | `compose.yaml`, `.env` |
-| proxy | `/opt/proxy/` | `compose.yaml`, `.env` |
-| redis | `/opt/redis/` | `compose.yaml` |
-| netdata | `/opt/netdata/` | `compose.yaml` |
-| duplicati | `/opt/duplicati/` | `compose.yaml` |
+### Active backup plans
 
-### Docker Volumes (Stateful Data)
+- **`postgres-dumps`** — source: `/opt/backups/pg_dump_*.sql` (nightly pg_dump on the host) — daily — last verified run: 2026-05-30 04:00 UTC.
+- **`docker-volumes`** — source: all named Docker volumes in `/var/lib/docker/volumes/` — daily — last verified run: 2026-05-30 04:00 UTC.
+- **`opt-configs`** — source: `/opt/<svc>/compose.yaml` + `/opt/<svc>/.env` for every service — daily — last verified run: 2026-05-30 04:00 UTC.
+- **`_system_`** — Backrest housekeeping (prune/check) — scheduled — last run: 2026-05-30.
 
-| Volume | Service | Purpose | Critical? |
-|--------|---------|---------|-----------|
-| `coolify-db` | Coolify | PostgreSQL data | ✅ Yes |
-| `proxy_postgres_data` | Proxy | Proxy database | ✅ Yes |
-| `duplicati_duplicati-config` | Duplicati | Backup job config | ✅ Yes |
-| `coolify-redis` | Coolify | Cache | ⚠️ Optional |
-| `redis_redis-data` | Redis | App cache | ⚠️ Optional |
-| `netdata_*` | Netdata | Monitoring cache | ❌ Skip |
+### What is NOT backed up (deliberately)
 
-### Excluded From Backup
-
-| Pattern | Reason |
-|---------|--------|
-| `**/node_modules/` | Rebuilt on deploy |
-| `**/__pycache__/` | Python cache |
-| `**/.git/` | Already in GitHub |
-| `**/*.log` | Ephemeral logs |
-| `**/venv/` | Python virtual envs |
-| `**/.venv/` | Python virtual envs |
+- `**/node_modules/`, `**/__pycache__/`, `**/.venv/`, `**/venv/` — rebuilt at deploy
+- `**/.git/` — already on GitHub
+- `**/*.log` — ephemeral, in Loki anyway
+- Cloudflare DNS records — re-issued by the Fabrik DNS driver on first `fabrik apply`
+- Let's Encrypt certs in `/opt/traefik/acme.json` — regenerated by Traefik on first start (slow path, but works)
+- `/etc/`, `/var/log/`, kernel — handled at the OS-image level, not in Backrest
 
 ---
 
-## Disaster Recovery Procedure
+## Current service inventory (what you must restore)
 
-### Prerequisites
+28 containers across 9 logical groups. Order matters during restore (dependencies first).
 
-- New VPS provisioned (Ubuntu 24.04 LTS)
-- SSH access to new VPS
-- Access to B2 console or rclone configured locally
+### Layer 1 — Front door + auth (start FIRST)
 
-### Step 1: Provision New VPS (15 min)
+- `traefik` (`/opt/traefik`) — HTTPS termination, Let's Encrypt, routing
+- `authelia` (`/opt/authelia`) — SSO/forward-auth
+
+### Layer 2 — Shared infrastructure
+
+- `postgres-main` (`/opt/postgres`) — Postgres 16. Volume: `postgres-data`
+- `redis-main` (`/opt/redis`) — Redis 7. Volume: `redis_redis-data`
+- `meilisearch` (`/opt/meilisearch`) — search engine. Volume: `meilisearch-data`
+
+### Layer 3 — Observability (full monitoring stack via `/opt/monitoring`)
+
+- `prometheus`, `grafana`, `loki`, `promtail`, `cadvisor`, `node-exporter`, `postgres-exporter`, `redis-exporter`, `alertmanager`, `pushgateway`
+- Volumes: `monitoring_prometheus-data`, `monitoring_grafana-data`, `monitoring_loki-data`, `monitoring_alertmanager-data`, `monitoring_promtail-positions`
+
+### Layer 4 — Health + alerting
+
+- `gatus` (`/opt/gatus`) — synthetic checks
+- `apprise` (`/opt/apprise`) — notification dispatcher (Telegram). Volume: `apprise-config`
+
+### Layer 5 — Backups
+
+- `backrest` (`/opt/backrest`) — the very tool restoring this VPS. Bring it up after restore so future schedules resume.
+
+### Layer 6 — Error tracking
+
+- `glitchtip-web`, `glitchtip-worker` (`/opt/glitchtip`) — Sentry-compatible
+
+### Layer 7 — Workflow + utilities
+
+- `n8n` (`/opt/n8n`) — automation. Volume: `n8n-data`
+- `browserless` (`/opt/browserless`) — headless Chrome
+- `gotenberg` (`/opt/gotenberg`) — PDF/Office converter
+
+### Layer 8 — Tenants
+
+- `ocoron-com` (`/opt/ocoron-com`) — WordPress site. 5 containers: wordpress, nginx, mariadb, redis, backup-sidecar. Volumes: `ocoron-com_wp_html`, `ocoron-com_db_data`, `ocoron-com_redis_data`, `ocoron-com_backup_data`
+
+### Volumes that are NOT to be restored (legacy / orphan)
+
+`coolify-db` (98 MB), `coolify-redis`, and 2 SHA256-named anonymous volumes are leftover from pre-migration / removed containers. Skip them. The VirtFusion image still carries them; a future cleanup pass should `docker volume prune` them.
+
+---
+
+## Path A — VirtFusion image restore (~60 min)
+
+**Use when:** VPS is in a bad state but the VirtFusion image slot is populated (currently: image `pre-golden-20260530` exists).
+
+**Risk:** the image is bound to the same VPS slot in VirtFusion. You cannot restore it to a *different* GreenCloudVPS instance without a support ticket.
+
+1. **VirtFusion UI → Overview tab → Shutdown** (graceful). Wait for state = Stopped.
+2. **VirtFusion UI → Backups tab → Restore** on the `pre-golden-*` entry. Wait ~10–30 min.
+3. **Overview tab → Power On**. Wait ~60–90 sec.
+4. **Verify on the host** (from your dev machine):
+
+   ```bash
+   ssh vps "sudo docker ps --format '{{.Names}}\t{{.Status}}' | wc -l"   # expect 29 (header + 28)
+   ssh vps "sudo docker ps --filter status=exited --format '{{.Names}}'"  # expect empty
+   ssh vps "sudo systemctl is-active fail2ban docker sshd"                # expect: active active active
+   ssh vps "sudo docker exec prometheus wget -qO- http://localhost:9090/-/healthy"
+   ```
+
+5. **Re-arm Backrest schedule** — open the Backrest UI, confirm next run time.
+
+Done. RTO ~60 min. RPO = the moment of the image (typically your most recent shutdown).
+
+---
+
+## Path B — B2 cold restore onto a fresh VPS (~2–3 h)
+
+**Use when:** vps1 is gone. You have a fresh GreenCloudVPS Ubuntu node (or any Ubuntu 24.04 host with internet + SSH).
+
+You also need:
+
+- The B2 access key + secret (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` from `/opt/backrest/.env` — copy these to your password manager NOW if you haven't)
+- The restic repository password (from the old `/opt/backrest/config/config.json` — copy this too)
+- DNS / Cloudflare credentials (`CLOUDFLARE_API_TOKEN` in `/opt/fabrik/.env` on your dev machine)
+
+If you don't have those three sets of credentials elsewhere, **the recovery cannot proceed** — they live on the lost VPS. This is the single point of failure most worth fixing now (see "Hardening the DR path" at the bottom).
+
+### Step 1 — Provision the new VPS (~15 min)
+
+Order an Ubuntu 24.04 VPS. Minimum spec: 4 vCPU / 8 GB RAM / 60 GB SSD. (Match or exceed vps1's 11.6 GB / 6 cpu / 108 GB if budget allows.) Note the new IP as `NEW_VPS_IP`.
+
+### Step 2 — Initial access + hardening (~20 min)
 
 ```bash
-# Order new VPS from GreenCloud or provider
-# Minimum specs: 4 vCPU, 8GB RAM, 80GB SSD
-# Note the new IP address
-export NEW_VPS_IP="x.x.x.x"
-```
-
-### Step 2: Initial Access & Hardening (20 min)
-
-```bash
-# SSH as root initially
 ssh root@$NEW_VPS_IP
-
-# Update system
 apt update && apt upgrade -y
 
 # Create deploy user
 useradd -m -s /bin/bash ozgur
 mkdir -p /home/ozgur/.ssh
-cp ~/.ssh/authorized_keys /home/ozgur/.ssh/
+cp ~/.ssh/authorized_keys /home/ozgur/.ssh/   # or paste your public key
 chown -R ozgur:ozgur /home/ozgur/.ssh
 chmod 700 /home/ozgur/.ssh
+chmod 600 /home/ozgur/.ssh/authorized_keys
 echo "ozgur ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Harden SSH
-sed -i 's/PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
-sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-systemctl restart sshd
+# Harden SSH (matches vps1 posture: key-only, no root)
+sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+systemctl restart ssh
 
-# Configure firewall
-ufw allow 22
-ufw allow 80
-ufw allow 443
-ufw allow 1194
-ufw allow 8000
+# Firewall (UFW)
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
 ufw --force enable
 
-# Install fail2ban
+# fail2ban
 apt install -y fail2ban
-systemctl enable fail2ban
+systemctl enable --now fail2ban
 ```
 
-### Step 3: Install Docker (10 min)
+### Step 3 — Install Docker (~10 min)
 
 ```bash
-# Install Docker
 curl -fsSL https://get.docker.com | sh
 usermod -aG docker ozgur
 
-# Configure log rotation
-cat > /etc/docker/daemon.json << 'EOF'
+# Log rotation (vps1 standard)
+cat > /etc/docker/daemon.json <<'EOF'
 {
   "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  }
+  "log-opts": {"max-size": "10m", "max-file": "3"}
 }
 EOF
 systemctl restart docker
+
+# Create the shared bridge network Fabrik expects
+docker network create coolify   # named "coolify" for historical compat; pure Docker bridge now
 ```
 
-### Step 4: Install Coolify (15 min)
+### Step 4 — (Coolify install — REMOVED. Step intentionally blank to keep step numbering stable with prior versions of this doc.)
+
+Coolify is no longer part of the stack as of 2026-05. Continue to Step 5.
+
+### Step 5 — Install restic + rclone, configure B2 (~10 min)
 
 ```bash
-# Install Coolify
-curl -fsSL https://get.coollabs.io/coolify/install.sh | bash
+# restic for actual restore
+apt install -y restic
 
-# Wait for Coolify to start
-sleep 60
-
-# Access Coolify at http://$NEW_VPS_IP:8000
-# Complete initial setup in browser
-```
-
-### Step 5: Install rclone & Configure B2 (5 min)
-
-```bash
-# Install rclone
+# rclone for repo listing + sanity checks
 curl https://rclone.org/install.sh | sudo bash
 
-# Configure B2
-sudo rclone config create b2 b2 \
-  account='<B2_ACCOUNT_ID from password manager>' \
-  key='<B2_APPLICATION_KEY from password manager>'
+# Configure B2 access
+export AWS_ACCESS_KEY_ID='<from password manager>'
+export AWS_SECRET_ACCESS_KEY='<from password manager>'
+export RESTIC_REPOSITORY='s3:s3.us-west-004.backblazeb2.com/vps1-ocoron-backups'
+export RESTIC_PASSWORD='<from password manager>'
 
-# Verify access
-sudo rclone ls b2:vps1-ocoron-backups/ | head -5
+# Verify
+restic snapshots | head -20   # expect ~27 snapshots
 ```
 
-### Step 6: Download Latest Backup (10 min)
+### Step 6 — Restore `/opt/*` configs (~15 min)
 
 ```bash
-# Create restore directory
-sudo mkdir -p /var/restore
-cd /var/restore
+# Make a working area
+mkdir -p /var/restore && cd /var/restore
 
-# List available backups (find latest timestamp folder)
-sudo rclone lsd b2:vps1-ocoron-backups/
+# Find the most recent snapshot for each active plan
+restic snapshots --tag opt-configs | tail -3
+restic snapshots --tag docker-volumes | tail -3
+restic snapshots --tag postgres-dumps | tail -3
 
-# Download latest backup (replace TIMESTAMP with actual value)
-# Note: Duplicati stores in its own format, you may need to use Duplicati CLI
-# Alternative: Use Duplicati web UI from another machine to restore
+# Restore opt-configs to /var/restore/opt-configs/
+restic restore latest --tag opt-configs --target /var/restore
 
-# For manual file restore if backup was in raw format:
-sudo rclone copy b2:vps1-ocoron-backups/LATEST/ /var/restore/ --progress
+# Move into place (root-owned, like the original)
+sudo cp -a /var/restore/opt/. /opt/
+sudo find /opt -name '.env' -exec chmod 600 {} \;
+sudo find /opt -name '.env' -exec chown root:root {} \;
 ```
 
-### Step 7: Restore /opt Folders (10 min)
+### Step 7 — Restore Docker volumes (~30 min, depends on size)
+
+Restic stores volumes as filesystem trees under `/var/lib/docker/volumes/`.
 
 ```bash
-# Create /opt structure
-sudo mkdir -p /opt/{traefik,captcha,emailgateway,translator,dns-manager,proxy,redis,netdata,duplicati}
+# Find the docker-volumes snapshot
+SNAPSHOT_ID=$(restic snapshots --tag docker-volumes --json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d[-1]["id"])')
 
-# Restore from backup (adjust paths based on backup structure)
-# If using Duplicati backup, install Duplicati first and use its restore
+# Restore to /var/restore/docker-volumes
+restic restore $SNAPSHOT_ID --target /var/restore
 
-# Copy compose.yaml and .env files to each service folder
-# Example:
-sudo cp /var/restore/opt/traefik/* /opt/traefik/
-sudo cp /var/restore/opt/captcha/* /opt/captcha/
-# ... repeat for each service
+# Recreate volumes + copy data in (SKIP the legacy/orphan ones)
+SKIP="coolify-db coolify-redis"
+for vol in postgres-data redis_redis-data meilisearch-data n8n-data apprise-config \
+           monitoring_prometheus-data monitoring_grafana-data monitoring_loki-data \
+           monitoring_alertmanager-data monitoring_promtail-positions \
+           ocoron-com_wp_html ocoron-com_db_data ocoron-com_redis_data ocoron-com_backup_data; do
+  sudo docker volume create "$vol"
+  sudo docker run --rm \
+    -v "$vol":/dst \
+    -v "/var/restore/var/lib/docker/volumes/$vol/_data":/src:ro \
+    debian:bookworm-slim cp -a /src/. /dst/
+done
 ```
 
-### Step 8: Restore Docker Volumes (15 min)
+### Step 8 — Restore postgres logical dumps (sanity layer)
+
+The `postgres-dumps` plan is an extra safety net on top of the postgres-data volume (volume restore can fail; dump restore almost never does).
 
 ```bash
-# Create volumes
-docker volume create coolify-db
-docker volume create proxy_postgres_data
+restic restore latest --tag postgres-dumps --target /var/restore
+ls /var/restore/opt/backups/pg_dump_*.sql
 
-# Restore coolify-db
-docker run --rm \
-  -v coolify-db:/data \
-  -v /var/restore/docker-volumes/coolify-db/_data:/backup:ro \
-  debian:bookworm-slim cp -a /backup/. /data/
-
-# Restore proxy_postgres_data
-docker run --rm \
-  -v proxy_postgres_data:/data \
-  -v /var/restore/docker-volumes/proxy_postgres_data/_data:/backup:ro \
-  debian:bookworm-slim cp -a /backup/. /data/
+# After bringing postgres-main up in Step 9, if its volume restore is bad:
+# sudo docker exec -i postgres-main psql -U postgres < /var/restore/opt/backups/pg_dump_<latest>.sql
 ```
 
-### Step 9: Start Services (10 min)
+### Step 9 — Start services in dependency order (~15 min)
 
 ```bash
-# Start Traefik first (handles routing)
-cd /opt/traefik && docker compose up -d
+# Layer 1 — front door
+cd /opt/traefik && sudo docker compose up -d
 
-# Start infrastructure services
-cd /opt/redis && docker compose up -d
+# Layer 2 — shared infra (postgres + redis must come up before anything that depends on them)
+cd /opt/postgres && sudo docker compose up -d
+cd /opt/redis && sudo docker compose up -d
+cd /opt/meilisearch && sudo docker compose up -d
 
-# Start application services
-cd /opt/proxy && docker compose up -d
-cd /opt/captcha && docker compose up -d
-cd /opt/translator && docker compose up -d
-cd /opt/dns-manager && docker compose up -d
-cd /opt/emailgateway && docker compose up -d
+# Layer 3 — observability stack (all under /opt/monitoring/compose.yaml)
+cd /opt/monitoring && sudo docker compose up -d
 
-# Start monitoring
-cd /opt/netdata && docker compose up -d
-cd /opt/duplicati && docker compose up -d
+# Layer 4 — health + alerting
+cd /opt/gatus && sudo docker compose up -d
+cd /opt/apprise && sudo docker compose up -d
+
+# Layer 5 — backups (so future schedules resume)
+cd /opt/backrest && sudo docker compose up -d
+
+# Layer 6 — auth (after shared infra so it can write its session store)
+cd /opt/authelia && sudo docker compose up -d
+
+# Layer 7 — error tracking, automation, utilities
+cd /opt/glitchtip && sudo docker compose up -d
+cd /opt/n8n && sudo docker compose up -d
+cd /opt/browserless && sudo docker compose up -d
+cd /opt/gotenberg && sudo docker compose up -d
+
+# Layer 8 — tenants
+cd /opt/ocoron-com && sudo docker compose up -d
 ```
 
-### Step 10: Update DNS (5 min)
+### Step 10 — DNS cutover (~10 min)
+
+If the new VPS has a new IP, update the A record for `vps1.ocoron.com`. The wildcard `*.vps1.ocoron.com` points at it via CNAME, so the wildcard follows automatically — you only need to change one record.
+
+**Note:** Fabrik does not currently expose a `fabrik dns update` CLI subcommand. The `cloudflare.py` driver is used internally by `fabrik apply` registrars. For DR, use one of:
+
+**Option 1 — Cloudflare UI** (simplest):
+Cloudflare dashboard → `ocoron.com` zone → DNS → Records → edit `vps1.ocoron.com` A record → set content to `$NEW_VPS_IP` → Save.
+
+**Option 2 — Cloudflare API via curl** (scriptable):
 
 ```bash
-# Update DNS A records to point to new VPS IP
-# Use dns-manager service or Namecheap web console
+export CF_API_TOKEN='<from /opt/fabrik/.env on dev machine>'
+export CF_ZONE_ID='<from Cloudflare dashboard → ocoron.com → API → Zone ID>'
+RECORD_ID=$(curl -s -H "Authorization: Bearer $CF_API_TOKEN" \
+  "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?name=vps1.ocoron.com&type=A" \
+  | python3 -c 'import json,sys;print(json.load(sys.stdin)["result"][0]["id"])')
 
-# Records to update:
-# - vps1.ocoron.com → NEW_IP
-# - proxy.vps1.ocoron.com → NEW_IP
-# - captcha.vps1.ocoron.com → NEW_IP
-# - translator.vps1.ocoron.com → NEW_IP
-# - dns.vps1.ocoron.com → NEW_IP
-# - emailgateway.vps1.ocoron.com → NEW_IP
-# - status.vps1.ocoron.com → NEW_IP
-# - backup.vps1.ocoron.com → NEW_IP
+curl -X PATCH -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
+  "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records/$RECORD_ID" \
+  -d "{\"content\":\"$NEW_VPS_IP\"}"
 ```
 
-### Step 11: Verify Services (10 min)
+**Option 3 — Python via the Fabrik driver** (if you have `/opt/fabrik/` checked out on a recovery machine):
 
 ```bash
-# Check all containers running
-docker ps
-
-# Test each service
-curl -s https://proxy.vps1.ocoron.com/health
-curl -s https://translator.vps1.ocoron.com/health
-curl -s https://dns.vps1.ocoron.com/health
-curl -s https://emailgateway.vps1.ocoron.com/health
-
-# Access Coolify
-# https://NEW_IP:8000 or configure domain
+cd /opt/fabrik
+python3 -c "
+from fabrik.drivers.cloudflare import CloudflareClient
+import os
+cf = CloudflareClient(api_token=os.environ['CF_API_TOKEN'])
+cf.ensure_record(domain='vps1.ocoron.com', record_type='A', content=os.environ['NEW_VPS_IP'])
+"
 ```
 
-### Step 12: Reconfigure Backup (5 min)
+### Step 11 — Verify (~10 min)
 
 ```bash
-# Access Duplicati at https://backup.vps1.ocoron.com
-# Verify backup job is configured
-# Run manual backup to verify
+ssh vps "sudo docker ps --format '{{.Names}}\t{{.Status}}' | wc -l"  # expect ~29
+ssh vps "sudo docker exec prometheus wget -qO- http://localhost:9090/-/healthy"
+ssh vps "sudo docker exec postgres-main pg_isready -U postgres"
+ssh vps "sudo docker exec redis-main redis-cli ping"
+curl -sI https://gatus.vps1.ocoron.com | head -3   # Authelia 302 = correctly protected
+curl -sI https://errors.vps1.ocoron.com | head -3  # GlitchTip 200 = up
 ```
+
+Open the Backrest UI, confirm the next scheduled run; run a manual snapshot to prove writes still work.
 
 ---
 
-## Quick Recovery Checklist
+## Quick recovery checklist
 
-```
+```text
+PATH A (VirtFusion image):
+[ ] Shutdown via UI
+[ ] Restore image
+[ ] Power On
+[ ] ssh vps && verify 28 containers
+[ ] Confirm Backrest schedule
+
+PATH B (B2 cold restore):
 [ ] New VPS provisioned
 [ ] SSH hardened (no root, no password)
-[ ] UFW firewall enabled
-[ ] Docker installed
-[ ] Coolify installed
-[ ] rclone configured with B2
-[ ] Backup downloaded
-[ ] /opt folders restored
-[ ] Docker volumes restored
-[ ] Traefik started
-[ ] All services started
-[ ] DNS updated
-[ ] Services verified
-[ ] Backup reconfigured
+[ ] UFW + fail2ban enabled
+[ ] Docker + `coolify` bridge network created
+[ ] restic + rclone installed, B2 configured
+[ ] B2 access key + secret + restic password recovered from your password manager
+[ ] /opt/* configs restored from `opt-configs` snapshot
+[ ] Docker volumes restored from `docker-volumes` snapshot (skip coolify-db/coolify-redis)
+[ ] postgres-dumps snapshot restored (safety layer)
+[ ] All layers started in order (traefik → infra → monitoring → alerting → backrest → auth → apps → tenants)
+[ ] Cloudflare A record updated to NEW_VPS_IP
+[ ] Smoke tests pass
+[ ] Backrest schedule confirmed
 ```
 
 ---
 
-## Testing Recovery (Recommended Quarterly)
+## Hardening the DR path (gaps to close)
 
-1. Provision test VPS
-2. Follow recovery steps
-3. Verify all services work
-4. Document any issues
-5. Destroy test VPS
+These are real gaps in DR posture — not theater.
 
----
-
-## Emergency Contacts
-
-| Service | Contact |
-|---------|---------|
-| GreenCloud (VPS) | Support ticket |
-| Backblaze B2 | support@backblaze.com |
-| Namecheap (Domain Registrar) | Support ticket |
+- **CATASTROPHIC: Restic password lives only on vps1** (`/opt/backrest/config/config.json`). If vps1 is lost, the password is lost and the B2 repo becomes 8.5 GiB of unrecoverable encrypted noise. **Fix:** copy the password into your password manager **now**. This is the single biggest DR weakness today.
+- **CATASTROPHIC: B2 keys live only on vps1** (`/opt/backrest/.env`). Without them, can't auth to the bucket. **Fix:** same — copy to password manager.
+- **HIGH: Cloudflare API token lives only on your dev machine** in `/opt/fabrik/.env`. Without it, can't update DNS during cutover. **Fix:** already off-vps (good); ensure your dev machine itself is backed up.
+- **MEDIUM: No quarterly drill.** v1 of this doc claimed "Testing Recovery: recommended quarterly" but no drill has ever been run. Untested DR is theoretical DR. **Fix:** W-DR D3 in the Platform-to-A+ plan books a real drill on a throwaway VPS.
+- **LOW: No second-region B2 bucket.** Single-region means a B2 us-west outage during a vps1 disaster = no restore. B2 multi-region failures are rare. **Fix:** W-DR D4 adds `rclone sync` to an eu-central B2 bucket weekly.
+- **LOW: DNS still on Cloudflare only.** If Cloudflare goes down, traffic can't move. Out of scope for this doc; covered in network-redundancy plans.
+- **NOT A REAL RISK: 3 world-readable `.env` files** on the host (browserless, gotenberg, meilisearch). Single-operator VPS, no other users. Cosmetic only. See W-Sec in the Platform-to-A+ plan; deprioritized after threat-model review.
 
 ---
 
-## Version History
+## Emergency contacts
 
-| Date | Change |
-|------|--------|
-| 2025-12-22 | Initial document |
+- **GreenCloudVPS** — client area support ticket.
+- **Backblaze B2** — <support@backblaze.com>.
+- **Cloudflare** — dashboard support.
+- **Namecheap (domain registrar)** — client area support ticket.
+
+---
+
+## Version history
+
+- **2026-05-31** — Full rewrite. Reflects: SSH+Compose deploy path (no Coolify), Backrest backup tool (replaced Duplicati 2026-04-17), current 28-container inventory, VirtFusion image as Path A, B2 cold-restore as Path B, hardening gap register, K4 discovery (restic password lives in `/opt/backrest/config/config.json`).
+- **2025-12-22** — Initial document — Coolify era, Duplicati backup tool, service list of captcha/emailgateway/translator/dns-manager/proxy/redis/netdata/duplicati.
