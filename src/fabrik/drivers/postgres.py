@@ -50,11 +50,15 @@ from fabrik.locks_local import file_lock
 
 logger = logging.getLogger(__name__)
 
-POSTGRES_CONTAINER = "postgres-main-l0k4gk0kggc8okcwk0s4c8s8"
-"""Verified container name on VPS (2026-04-18, re-verified 2026-04-19).
+POSTGRES_CONTAINER = "postgres-main"
+"""Verified container name on VPS (2026-05-30, post-Coolify migration).
 
-Overridable per-call via the ``container`` kwarg for tests and future
-container migrations."""
+Previously this hardcoded the Coolify-suffixed UUID
+``postgres-main-l0k4gk0kggc8okcwk0s4c8s8``; that suffix died with the
+Coolify→SSH+Compose migration (commits 6ae18ab and earlier). Live VPS
+verification (``ssh vps "sudo docker ps --format '{{.Names}}'"``) shows
+the container is plain ``postgres-main``. Overridable per-call via the
+``container`` kwarg for tests and future container migrations."""
 
 ALLOCATIONS_PATH = "/opt/monitoring/configs/postgres/allocations.json"
 """Source-of-truth registry mapping db_name → owner/spec_id/user/notes.
@@ -469,13 +473,148 @@ def unregister_allocation(db_name: str, *, dry_run: bool = False) -> dict[str, A
         return payload
 
 
+# ── Shared fabrik_analytics database (T-P1 watchdog platform) ───────────── #
+
+
+FABRIK_ANALYTICS_DB = "fabrik_analytics"
+"""Shared database on postgres-main backing cross-project analytics.
+
+Provisioned by :func:`ensure_shared_analytics_db` once per cluster
+(idempotent). Currently hosts the ``cost_ledger`` table (cost-budget
+fabrik-lib module); future shared analytics tables land here too.
+"""
+
+COST_BUDGET_SCHEMA_PATH = "/opt/fabrik-lib/cost-budget/schema_pg.sql"
+"""Canonical DDL location read by :func:`ensure_shared_analytics_db`.
+
+The fabrik-lib module is the single source of truth — change the DDL
+there, the orchestrator picks it up on the next ``fabrik apply``."""
+
+
+def ensure_shared_analytics_db(
+    *,
+    container: str = POSTGRES_CONTAINER,
+    grant_to_role: str | None = None,
+    schema_path: str = COST_BUDGET_SCHEMA_PATH,
+    dry_run: bool = False,
+) -> dict:
+    """Idempotently provision the shared ``fabrik_analytics`` database +
+    apply the canonical ``cost_ledger`` DDL from ``/opt/fabrik-lib/cost-budget/schema_pg.sql``.
+
+    Steps:
+      1. ``CREATE DATABASE fabrik_analytics`` if not exists (uses the same
+         ``pg_database`` existence check as :func:`create_database`).
+      2. Apply ``schema_path``'s DDL inside ``fabrik_analytics`` —
+         ``CREATE TABLE IF NOT EXISTS cost_ledger`` + indexes.
+      3. If ``grant_to_role`` is provided, ``GRANT INSERT, SELECT ON
+         cost_ledger TO "<role>"``. (Currently v1 callers don't pass
+         a role — projects use the ``postgres`` superuser, which already
+         has all privileges. Parameter is future-proofed for when
+         per-project roles are wired.)
+
+    Called from :class:`InfrastructureProvisioner._provision_postgres`
+    AFTER ``create_database(spec)``. Safe to call multiple times per
+    ``fabrik apply`` (every call is idempotent at the DB level).
+
+    Args:
+        container:     Override for the postgres container name.
+        grant_to_role: Optional role to grant INSERT, SELECT on
+                       ``cost_ledger``. Validated via the same identifier
+                       regex as ``create_database``.
+        schema_path:   Path on the WSL/local side to the canonical DDL.
+                       Read at call time (not import time).
+        dry_run:       Skip the actual mutations. Existence check still
+                       runs so the caller's logs reflect what would happen.
+
+    Returns:
+        ``{"status": "created" | "exists" | "dry_run",
+           "database": "fabrik_analytics",
+           "schema_applied": bool,
+           "granted_to": role_or_None}``.
+
+    Raises:
+        ValueError:    ``grant_to_role`` failed identifier validation.
+        FileNotFoundError: ``schema_path`` does not exist on the orchestrator.
+        RuntimeError:  The underlying ``ssh`` call failed.
+    """
+    if grant_to_role is not None and grant_to_role != "postgres":
+        _validate_identifier(grant_to_role, "role")
+
+    # Step 1: existence check.
+    # nosec B608 — FABRIK_ANALYTICS_DB is a module constant, not user input.
+    check = _run_sql(
+        f"SELECT 1 FROM pg_database WHERE datname='{FABRIK_ANALYTICS_DB}';",  # nosec B608
+        container=container,
+        dry_run=dry_run,
+    )
+    db_exists = check.strip() == "1"
+
+    result: dict[str, Any] = {
+        "database": FABRIK_ANALYTICS_DB,
+        "schema_applied": False,
+        "granted_to": grant_to_role,
+    }
+
+    if dry_run:
+        logger.info(
+            "[DRY RUN] Would ensure shared analytics DB: %s (exists=%s)",
+            FABRIK_ANALYTICS_DB,
+            db_exists,
+        )
+        result["status"] = "dry_run"
+        return result
+
+    if not db_exists:
+        _run_sql(
+            f'CREATE DATABASE "{FABRIK_ANALYTICS_DB}";',
+            container=container,
+        )
+        logger.info("Created shared analytics database: %s", FABRIK_ANALYTICS_DB)
+        result["status"] = "created"
+    else:
+        result["status"] = "exists"
+
+    # Step 2: apply schema. Read locally and pipe to psql -d fabrik_analytics.
+    from pathlib import Path
+
+    ddl = Path(schema_path).read_text(encoding="utf-8")  # raises FileNotFoundError if absent
+    # Base64-encode and execute against the fabrik_analytics DB. Same
+    # pattern as _run_sql but targeting a non-default DB.
+    payload = base64.b64encode(ddl.encode()).decode()
+    ssh(
+        f"echo {payload} | base64 -d | sudo docker exec -i {container} "
+        f"psql -U postgres -d {FABRIK_ANALYTICS_DB} -tA"
+    )
+    result["schema_applied"] = True
+    logger.info("Applied cost_ledger DDL from %s", schema_path)
+
+    # Step 3: optional GRANT.
+    if grant_to_role and grant_to_role != "postgres":
+        grant_sql = f'GRANT INSERT, SELECT ON cost_ledger TO "{grant_to_role}";'
+        payload = base64.b64encode(grant_sql.encode()).decode()
+        ssh(
+            f"echo {payload} | base64 -d | sudo docker exec -i {container} "
+            f"psql -U postgres -d {FABRIK_ANALYTICS_DB} -tA"
+        )
+        logger.info(
+            "Granted INSERT,SELECT on cost_ledger to %s in %s",
+            grant_to_role,
+            FABRIK_ANALYTICS_DB,
+        )
+
+    return result
+
+
 __all__ = (
     "POSTGRES_CONTAINER",
     "PASSWORD_ALPHABET",
     "PASSWORD_LENGTH",
     "ALLOCATIONS_PATH",
+    "FABRIK_ANALYTICS_DB",
+    "COST_BUDGET_SCHEMA_PATH",
     "create_database",
     "drop_database",
+    "ensure_shared_analytics_db",
     "list_allocations",
     "register_allocation",
     "unregister_allocation",

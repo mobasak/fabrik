@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — AI Watchdog Platform P1 — Foundations (2026-05-30)
+
+- **Plan v2 + P1 sub-plan written.** `docs/development/plans/2026-05-30-ai-watchdog-platform.md` locks the architecture for a per-project sidecar AI watchdog with Claude Code primary / OpenRouter fallback, 3-layer permission boundaries, and per-project cost caps. `2026-05-30-ai-watchdog-platform-prompts.md` carries reusable discipline prompts for all 5 phases. `2026-05-30-ai-watchdog-platform-P1-subplan.md` carries the file-level spec for P1, including live-VPS verification of postgres-main state.
+- **Two new `fabrik-lib/` modules** (in the newly-established `/opt/fabrik-lib` git repo): `app-audit-log/` (append-only hash-chained audit log for sensitive ops — Decision A2 app-level hashing, upgrade-path-open to A1 trigger enforcement) and `cost-budget/` (per-project LLM cost caps + shared `cost_ledger` on `postgres-main` + local SQLite write-ahead buffer, Decision B2 fail-open semantics).
+- **Two new rule packs:** `.windsurf/rules/core/app-audit-log.md` (canonical ~25-action vocabulary across `auth.*`, `billing.*`, `admin.*`, `gdpr.*`, `consent.*`, `watchdog.*`; retention policy; anti-patterns; A1 upgrade path) and `.windsurf/rules/core/cost-budget.md` (tiered model selection ladder, kill-switch semantics, cost-per-success metric, portfolio analytics).
+- **Postgres registrar wire-in:** `src/fabrik/drivers/postgres.py` adds `ensure_shared_analytics_db()` + `FABRIK_ANALYTICS_DB` constant. `src/fabrik/orchestrator/infrastructure.py` calls it unconditionally at the start of `provision()` (NOT gated by `shape.needs_database`), so watchdog-enabled worker specs without their own DB still get `cost_ledger` provisioned. Idempotent at the DB level — every call after the first is a no-op.
+- **Three ship-blocker bugs caught by self-review and fixed before commit:** (B1) `verify_chain()` no longer reports a spurious `prev_hash_mismatch` on the first row of a bounded `since=` window; (B2) `prometheus_metrics()` escapes `\\`, `"`, `\n` in the `project_id` label per Prometheus exposition format; (B3) `ensure_shared_analytics_db()` was originally gated behind `shape.needs_database` — now runs unconditionally via a dedicated `_provision_shared_analytics` method.
+- **`fabrik-lib/README.md` updated** to register both new modules in the Modules table (alphabetical position) and the "Which Modules Do I Need?" matrix; Rule paragraph now mentions `app-audit-log/` for user-facing projects and `cost-budget/` for watchdog/paid-AI projects.
+
+### Fixed — Stale Coolify UUID in POSTGRES_CONTAINER (2026-05-30)
+
+- **`src/fabrik/drivers/postgres.py:53`** `POSTGRES_CONTAINER` constant updated from the pre-Coolify-migration UUID `postgres-main-l0k4gk0kggc8okcwk0s4c8s8` to the verified live container name `postgres-main`. Verified via `ssh vps "sudo docker ps --format '{{.Names}}'"` returning plain `postgres-main`. Pre-existing latent bug surfaced during P1 sub-plan verification; all existing call sites of the module constant pick up the fix automatically.
+
 ### Changed — Merge Traycer mega-epic-breakdown entry into a single self-contained command (2026-05-30)
 
 - **`00-trigger-workflow-command.md` is now the single entry point** for the `mega-epic-breakdown` workflow, serving both new and existing projects. Mode is **owner-declared at Step 0** ("Is this a NEW or EXISTING project?"); no auto-detection. NEW path = original vision intake. EXISTING path = project snapshot + Compliance Detection (mechanical via `fabrik validate` + `audit-registrars` / rule-pack judgment by Traycer / per-gap owner decision) + delta scoping. Both paths produce a `Vision Summary` in the same shape so `02-epic-decomposition-command` consumes them identically.

@@ -323,6 +323,14 @@ class InfrastructureProvisioner:
         for line in format_resolved_summary(resolved).splitlines():
             logger.info("%s", line)
 
+        # P1 (watchdog platform): ensure the shared fabrik_analytics DB +
+        # cost_ledger table exist BEFORE any per-spec registrar runs.
+        # Unconditional (NOT gated by shape.needs_database) so a worker
+        # spec without its own DB but with the watchdog enabled can still
+        # write to cost_ledger. Idempotent at the DB level — every call
+        # after the first is a no-op.
+        self._provision_shared_analytics(dry_run)
+
         should_run = {k: v[0] for k, v in resolved.items()}
 
         if should_run["postgres"]:
@@ -355,6 +363,39 @@ class InfrastructureProvisioner:
         logger.info("Infrastructure provisioning complete for %s", name)
 
     # ── individual registrars ────────────────────────────────────────────── #
+
+    def _provision_shared_analytics(self, dry_run: bool) -> None:
+        """Ensure the shared ``fabrik_analytics`` DB + ``cost_ledger`` exist.
+
+        Called unconditionally from :meth:`provision` — does NOT depend on
+        ``shape.needs_database``. A watchdog-enabled worker spec that has
+        no Postgres need of its own still requires ``cost_ledger`` to be
+        available for cost-budget writes.
+
+        Idempotent: every call after the first per cluster is a no-op at
+        the DB level (CREATE DATABASE existence check + CREATE TABLE
+        IF NOT EXISTS).
+
+        Non-fatal: a failure here logs WARNING and does NOT abort the
+        deploy. The per-spec postgres registrar (if applicable) still
+        runs afterwards.
+        """
+        try:
+            from fabrik.drivers.postgres import ensure_shared_analytics_db
+
+            # No grant_to_role yet — current projects use the postgres
+            # superuser, which already has all privileges. Per-project
+            # roles + their GRANT will be wired when create_database
+            # starts provisioning dedicated roles.
+            analytics_result = ensure_shared_analytics_db(dry_run=dry_run)
+            logger.info(
+                "shared analytics DB %s → %s (schema_applied=%s)",
+                analytics_result.get("database"),
+                analytics_result.get("status"),
+                analytics_result.get("schema_applied"),
+            )
+        except Exception as e:  # noqa: BLE001 — bounded non-fatal
+            logger.warning("shared analytics provisioning failed (non-fatal): %s", e)
 
     def _provision_postgres(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
         try:
