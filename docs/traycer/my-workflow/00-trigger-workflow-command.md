@@ -49,7 +49,7 @@ Every project passes through 4 stages (enumerated below; deploy/runtime detail i
 1. **Intent & Scaffolding (WSL)** — `fabrik preplan` → `fabrik scaffold` → AI guardrails (5 governance files + 30 rule packs across `core/`, `saas/`, `mobile-app/`, `chrome-ext/` + reference docs) + spec `shape:` block injected. The scaffold is a Context Injection.
 2. **Agentic Implementation (WSL)** — structured tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI). Agents write infra-aware code against the spec contract. `fabrik dev` for local iteration. `fabrik review` for pre-PR bundling.
 3. **Proper Registration (VPS via SSH + Docker Compose)** — `fabrik apply` fires 9 registrars (postgres/redis/gatus/backrest/glitchtip/grafana/authelia/meilisearch/prometheus) based on the `shape:` block. Observability auto-discovers via docker.sock. Network security via UFW + DOCKER-USER iptables chain.
-4. **Verification & Testing** — `fabrik verify` health check, `fabrik audit-registrars` drift detection, hourly Telegram alerting, `fabrik destroy --use-state` for clean teardown.
+4. **Verification & Testing** — `fabrik verify` health check, `fabrik audit-registrars` drift detection (manual today; hourly cron + Telegram on drift is target state per `AGENTS.md` § Deploy Pipeline, not yet wired), `fabrik destroy --use-state` for clean teardown from the recorded state file.
 
 If a project cannot pass through all 4 stages, state this explicitly and justify.
 
@@ -195,7 +195,7 @@ State EVERY constraint as `all clear` / `conflict (<details>)` / `unknown (<ques
 | `static-site` | epic-brief → core-flows → tech-plan → deploy-plan → ticket-outline → ticket-breakdown → execute | — | true |
 | `wordpress` | Use `/opt/wpf/` factory (`wpf wp apply <domain>`) instead | not this workflow | — |
 | `docusaurus` | epic-brief → ticket-outline → ticket-breakdown → deploy-plan → execute | core-flows, tech-plan | false |
-| Feature (existing) | Use `mega-epic-breakdown/00-continuation-trigger-command` instead | not this workflow | — |
+| Feature (existing) | Use `mega-epic-breakdown/00-trigger-workflow-command` (declare EXISTING mode at Step 0) instead | not this workflow | — |
 
 **Cross-cutting** (anytime): `revise-requirements`, `cross-artifact-validation`, `implementation-validation`, `deploy`.
 

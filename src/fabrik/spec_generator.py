@@ -436,9 +436,12 @@ def generate_spec(
     if source is None and project_path is not None:
         logger.warning(
             "No git remote configured at %s — emitting source.type=template. "
-            "This spec will fail Coolify deploy because the inline-compose "
-            "endpoint has no source for `build:`. Add a git remote and "
-            "re-emit: `git -C %s remote add origin <url> && git push -u origin main`",
+            "If the rendered compose.yaml has a `build:` directive, the deploy "
+            "will fail: `fabrik apply` (SSH + Docker Compose) only ships "
+            "compose.yaml + .env to the VPS — the build context (source code) "
+            "won't be present. Add a git remote so the spec becomes "
+            "source.type=git and the VPS can `git clone` to build: "
+            "`git -C %s remote add origin <url> && git push -u origin main`",
             project_path,
             project_path,
         )

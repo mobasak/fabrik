@@ -83,7 +83,7 @@ Sections in order (target 50 lines total, soft cap 100):
    - `Scaffold: <type>`
    - `Port: <value>`
    - `HAS_USER_GUIDE: true/false`
-   - `Shape: needs_database, needs_cache, exposes_metrics, has_search_feature, is_admin_dashboard` (list applicable true fields)
+   - `Shape: <flags>` — list every applicable true flag from the 8-flag canonical set: `is_public` (→ gatus), `is_admin_dashboard` (→ authelia), `has_bearer_api` (→ authelia `^/api/` bypass), `has_persistent_data` (→ backrest), `needs_database` (→ postgres), `needs_cache` (→ redis), `has_search_feature` (→ meilisearch), `exposes_metrics` (→ prometheus). Omitting a flag = the gated registrar will NOT fire.
    - `Concurrency: <mechanism>`
    - `i18n: <mechanism or N/A>`
    - `Responsive: 375px / N-A`

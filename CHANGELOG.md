@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Merge Traycer mega-epic-breakdown entry into a single self-contained command (2026-05-30)
+
+- **`00-trigger-workflow-command.md` is now the single entry point** for the `mega-epic-breakdown` workflow, serving both new and existing projects. Mode is **owner-declared at Step 0** ("Is this a NEW or EXISTING project?"); no auto-detection. NEW path = original vision intake. EXISTING path = project snapshot + Compliance Detection (mechanical via `fabrik validate` + `audit-registrars` / rule-pack judgment by Traycer / per-gap owner decision) + delta scoping. Both paths produce a `Vision Summary` in the same shape so `02-epic-decomposition-command` consumes them identically.
+- **`00-continuation-trigger-command.md` deleted** (its content folded into the merged entry; `git rm`).
+- **`02-epic-decomposition-command.md` updated to consume the EXISTING-mode extras:** reads Locked Decisions and inherits them verbatim into Infrastructure Decisions; reads Compliance Report and emits one **Retrofit epic** per `fix-now` row alongside delta-feature epics. `fix-later` / `accept-as-legacy` rows are surfaced in a new "Deferred Compliance" appendix that produces no epics.
+- **Cross-references updated:** `AGENTS.md` (3 sites — lifecycle table, continuation paragraph, index table), `docs/traycer/my-workflow/EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` (1 site), `docs/traycer/my-workflow/00-trigger-workflow-command.md` (1 site — routing table).
+- Architectural mandates kept as a single source of truth in the merged 00; pointer-only attempt in my-workflow reverted after surfacing the Traycer self-contained-per-file constraint.
+- **Scaffold "Next:" hint** (`src/fabrik/cli.py`) and **Coolify-era warning message** (`src/fabrik/spec_generator.py`) updated to reflect the SSH+Compose deploy model and the merged Traycer entry path.
+- **CLI reference doc** (`docs/reference/fabrik-cli-reference.md`) rewritten from scratch: organized by 4-stage lifecycle (Intent → Scaffold → Plan/Deploy → Verify/Audit) instead of alphabetical; every command documented with source line, purpose, the why, flags, and examples; new commands added (`preplan`, `audit-registrars`, `reconcile-all`, `dev`, `review`, `vps-sync`, `export`, `import`, `deploy`, `validate`, `fix`); stale Coolify framing removed; `fabrik wp` section replaced with a "moved to /opt/wpf/" note. Includes an honest note that the hourly drift-cron in `audit-registrars` is target state, not yet wired.
+- **`my-workflow/01-epic-brief-command.md`** Shape field example expanded: the canonical 8 boolean flags now listed (was 5) with their registrar mappings inline, so planners can't accidentally omit `is_public` / `has_bearer_api` / `has_persistent_data`.
+- **`my-workflow/00-trigger-workflow-command.md`** Step 4 "hourly Telegram alerting" overclaim corrected: now flagged as target state per AGENTS.md, not active wiring.
+
 ### Changed — Consolidate catalog + lifecycle sync paths; Traycer planning docs aligned (2026-05-30)
 
 - **Catalog consolidation:** `docs/reference/fabrik-project-catalog.md` (a renamed copy of `docs/BUSINESS_MODEL.md`) is gone. Projects now sync `docs/BUSINESS_MODEL.md` under the same name. One catalog, one source of truth. `src/fabrik/scaffold.py` (gitignore block + copy target) and `scripts/sync_enforcement_to_projects.py` (sync tuple) updated.

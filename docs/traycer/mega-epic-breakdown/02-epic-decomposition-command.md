@@ -45,6 +45,13 @@ This command produces the compact epic proposal + Infrastructure Decisions in co
   - Scale Assessment (multi-epic confirmed)
   - Personas, Value Streams, Out of Scope
 
+**Additional required input when 00 was in EXISTING mode (Vision Summary has these extra sections):**
+- **Locked Decisions** — technology choices that cannot change (auth, database, frontend, billing, current shape block). These are inherited into Infrastructure Decisions § Auth Strategy / § Database Strategy / etc. **verbatim** — they are not re-decided here.
+- **Compliance Report** — gap-by-gap table with owner decisions:
+  - `fix-now` rows → emit one **Retrofit epic** per row (handled in Step 2b "Existing mode addition" below).
+  - `fix-later` rows → surfaced in a "Deferred Compliance" appendix in the proposal; no epic emitted.
+  - `accept-as-legacy` rows → surfaced in the same appendix; no epic emitted.
+
 **Hard stop if:** Vision Summary not confirmed by owner, OR Open Questions remain unresolved. Do not proceed with ambiguity.
 
 **Additionally read:**
@@ -75,7 +82,11 @@ Read the confirmed Vision Summary from conversation context. Extract:
 - Scale Assessment (expected epic count)
 - Constraints, Backing Services, External Services
 
-State: "Vision Summary consumed. [N] features, [M] scaffold types, scale assessment: ~[K] epics."
+**If the Vision Summary is from EXISTING mode (it has Locked Decisions + Compliance Report sections), also extract:**
+- **Locked Decisions** → feed into Infrastructure Decisions in Step 3 (inherit verbatim; do NOT propose alternatives for locked areas).
+- **Compliance Report** → every `fix-now` row becomes a Retrofit-epic input for Step 2b "Existing mode addition" below. `fix-later` and `accept-as-legacy` rows go to the "Deferred Compliance" appendix (presented at the checkpoint).
+
+State: "Vision Summary consumed. [N] features, [M] scaffold types, scale assessment: ~[K] epics." If existing mode, also state: "Compliance Report consumed: [F] fix-now → Retrofit epics, [L] fix-later deferred, [A] accept-as-legacy noted."
 
 ### Step 2: Identify Epic Boundaries
 
@@ -89,6 +100,25 @@ State: "Vision Summary consumed. [N] features, [M] scaffold types, scale assessm
 - Each epic has 5-15 features. Fewer than 5 = merge with adjacent epic. More than 15 = split.
 - Each epic has a clear scaffold type (from the Vision Summary's Technology Decisions § Scaffold types).
 - Each epic has its own `fabrik apply` with its own shape block and registrars.
+
+**Existing mode addition — emit Retrofit epics from the Compliance Report:**
+
+For every `fix-now` row in the Vision Summary's Compliance Report, emit one **Retrofit epic** with:
+- **Name:** prefix `"Retrofit: "` + the compliance area (e.g., `"Retrofit: i18n"`, `"Retrofit: Resilience on YouTube Data API"`).
+- **Scope:** implement the compliance gap per the rule pack cited.
+- **Features:** the corresponding `R<n>` rows from the Vision Summary's Feature Inventory (R1, R2, …).
+- **Scaffold:** same as the project being continued (inherited from Locked Decisions § scaffold type).
+- **Rule packs:** the rule pack(s) cited in the gap (e.g., `core/86-email-templates.md`, `saas/87-abuse-detection.md`).
+- **HAS_USER_GUIDE:** inherited from the existing project (Locked Decisions).
+
+Retrofit epics ARE epics — they count toward the 5–15 features rule (a small retrofit may be smaller; document the justification), they receive the **same dependency analysis** in 2c, and they pass through the **same parallel-classification gate** in 2c.
+
+**Retrofit-epic dependency heuristics:**
+- A Retrofit epic that fixes a foundation gap (e.g., i18n, auth hardening) typically runs **before** any delta-feature epic that would otherwise inherit the violation.
+- A Retrofit epic on an isolated subsystem (e.g., Resilience layer on one external API) can be **parallel** with delta features that don't touch that subsystem.
+- Apply the parallel gate (2c) the same way as for delta epics.
+
+**`fix-later` and `accept-as-legacy` rows:** do NOT emit epics. Append them to the "Deferred Compliance" appendix presented at the checkpoint.
 
 **2c. Identify dependencies:**
 - Does Epic B need a database table that Epic A creates? → B depends on A.
@@ -127,7 +157,9 @@ Do NOT present the proposal until every parallel-labeled epic has a PASS verdict
 
 ### Step 3: Draft Infrastructure Decisions
 
-Produce the shared infrastructure document (≤5,000 tokens). These decisions are made ONCE here, referenced by each epic — never duplicated:
+Produce the shared infrastructure document (≤5,000 tokens). These decisions are made ONCE here, referenced by each epic — never duplicated.
+
+**Existing mode:** Sections of Infrastructure Decisions that overlap with `Locked Decisions` from the Vision Summary (Auth Strategy, Database Strategy, Frontend, Billing, current shape block) inherit those locked values **verbatim**. Do NOT propose alternative choices for locked areas. State the inheritance explicitly: e.g., *"**Auth Strategy:** Supabase Auth Pattern B (inherited from Locked Decisions — 1,800 active users, tokens issued)."* New decisions are only made for components the existing project did NOT have.
 
 ```markdown
 # Infrastructure Decisions — Shared Across All Epics
@@ -212,11 +244,26 @@ graph TD
 - Numbered list showing recommended order (respecting dependencies).
 - Parallel lanes noted.
 
-**6. Questions for owner:**
+**6. Deferred Compliance appendix (Existing mode only):**
+
+```text
+## Deferred Compliance (not actioned this run)
+
+| Gap | Source | Owner decision |
+|---|---|---|
+| [gap] | [rule pack / detection] | fix-later |
+| [gap] | [rule pack / detection] | accept-as-legacy |
+```
+
+Surface this even when empty (`"All compliance gaps actioned as Retrofit epics; nothing deferred."`) so the owner has explicit visibility.
+
+**7. Questions for owner:**
 - Any boundary you disagree with?
 - Any epic too big or too small?
 - Execution order acceptable?
 - Infrastructure Decisions complete?
+- (Existing mode) Retrofit-epic scope and ordering acceptable?
+- (Existing mode) Deferred Compliance list accurate?
 
 **CRITICAL: STOP GENERATION HERE.** Do NOT simulate the owner's response. Wait for explicit confirmation. Silence ≠ confirmation.
 
@@ -234,10 +281,11 @@ Iterate until the owner explicitly confirms:
 
 **Produced as Traycer specs (persisted in Traycer's spec store, readable via `read_spec`):**
 
-1. **Compact Epic Proposal** — one entry per epic with: scope, features, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE.
-2. **Infrastructure Decisions** — shared across all epics. ≤5,000 tokens.
-3. **Dependency Graph** — mermaid diagram + execution order.
+1. **Compact Epic Proposal** — one entry per epic (delta-feature epics + **Retrofit epics** if Existing mode) with: scope, features, scaffold, dependencies, parallel lanes, port, delivers, rule packs, HAS_USER_GUIDE.
+2. **Infrastructure Decisions** — shared across all epics. ≤5,000 tokens. In Existing mode, overlapping sections inherit Locked Decisions verbatim.
+3. **Dependency Graph** — mermaid diagram + execution order. Retrofit epics receive dependency analysis identical to delta epics.
 4. **Coverage Check** — every feature mapped to exactly one epic.
+5. **Deferred Compliance appendix (Existing mode only)** — Compliance Report rows the owner classified as `fix-later` or `accept-as-legacy`. Surfaced for owner awareness; produces no epics.
 
 **NOT produced here (deferred to 03-expand-epic-files-command):**
 
@@ -269,3 +317,9 @@ Iterate until the owner explicitly confirms:
 - Ports assigned per epic from `PORTS.md`.
 - Compact proposal format — NOT full epic files (those come in 03).
 - Owner explicitly confirms. Silence ≠ confirmation.
+
+**Existing mode adds:**
+- Locked Decisions consumed from Vision Summary and inherited verbatim into Infrastructure Decisions § Auth Strategy / § Database Strategy / § Frontend / § Billing / § Shared Shape Decisions. Not re-decided.
+- Compliance Report consumed: one Retrofit epic emitted per `fix-now` row. Retrofit epics receive the same dependency analysis as delta-feature epics and pass through the parallel-classification gate.
+- `fix-later` and `accept-as-legacy` rows surfaced in the "Deferred Compliance" appendix — produce no epics.
+- Retrofit epic names prefixed `"Retrofit: "`.

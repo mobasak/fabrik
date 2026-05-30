@@ -1688,12 +1688,14 @@ def scaffold(
             except Exception as exc:  # noqa: BLE001 — non-fatal, log + continue
                 click.echo(f"⚠️  GitHub repo create failed: {exc}", err=True)
 
-        # G-B4 (T1-02): print a generic next-step hint pointing the operator
-        # at the Traycer-managed workflow. No conditional on workflow_id
-        # constant — AGENTS.md references the directory itself, not a token.
+        # G-B4 (T1-02): point the operator at the current Traycer planning flow.
+        # Multi-epic projects start at mega-epic-breakdown/00-trigger;
+        # the per-epic flow lives in my-workflow/ (consumed after epic dispatch).
         click.echo(
-            f"\n# Next: cd /opt/{name}; open Traycer to begin epic-brief or "
-            f"feature-plan workflow per docs/traycer/traycer-managed-development-workflow/"
+            f"\n# Next: cd /opt/{name}; open Traycer and paste "
+            f"docs/traycer/mega-epic-breakdown/00-trigger-workflow-command.md "
+            f"to begin vision intake. The flow goes: vision → epic decomposition "
+            f"→ ticket expansion → dispatch → per-epic my-workflow."
         )
 
     except ValueError as e:

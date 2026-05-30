@@ -99,7 +99,7 @@ Every workflow command (00-11) must be evaluated against this list before it's c
 
 44. Does it work for ALL 11 scaffold types (or correctly skip via routing table)?
 45. Does it handle multi-epic entry correctly? (`00-trigger` is mandatory for ALL runs — single-epic and multi-epic. Multi-epic runs `00-trigger` in consume mode using the epic ticket metadata from `mega-epic-breakdown/03-expand-epic-files-command`. `01-epic-brief` always receives INFRA-CHECK from `00-trigger` regardless of path.)
-45b. Does it handle existing projects via `mega-epic-breakdown/00-continuation-trigger-command`?
+45b. Does it handle existing projects via `mega-epic-breakdown/00-trigger-workflow-command` in EXISTING mode (owner declares mode at Step 0; produces Vision Summary + Locked Decisions + Compliance Report; Compliance Report `fix-now` rows drive Retrofit epics in `02-epic-decomposition-command`)?
 46. Does it handle two-faced types (mobile/desktop/chrome-extension: backend deploys, client doesn't)?
 
 ## Scope Protection
