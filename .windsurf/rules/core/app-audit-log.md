@@ -37,7 +37,7 @@ The action string is a dotted identifier `<domain>.<verb>` (lowercase, snake_cas
 ### `auth.*` — authentication and session events
 
 | Action | Triggers | `details` shape | `target_*` |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `auth.login_success` | Successful login (any factor) | `{ip, user_agent, mfa_used: bool}` | `user`, user_id |
 | `auth.login_failure` | Wrong password / failed MFA | `{ip, user_agent, reason: "wrong_password" \| "mfa_failed" \| ...}` | `user`, user_id (if known) |
 | `auth.logout` | User-initiated logout | `{ip}` | `user`, user_id |
@@ -50,7 +50,7 @@ The action string is a dotted identifier `<domain>.<verb>` (lowercase, snake_cas
 ### `billing.*` — payment and subscription events
 
 | Action | Triggers | `details` shape | `target_*` |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `billing.subscription_created` | New subscription wired | `{plan, amount_usd, currency, billing_period}` | `subscription`, sub_id |
 | `billing.subscription_updated` | Plan change / quantity change | `{from, to}` | `subscription`, sub_id |
 | `billing.subscription_cancelled` | User or system cancelled | `{reason}` | `subscription`, sub_id |
@@ -62,7 +62,7 @@ The action string is a dotted identifier `<domain>.<verb>` (lowercase, snake_cas
 ### `admin.*` — operator actions on user data
 
 | Action | Triggers | `details` shape | `target_*` |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `admin.user_impersonated` | Admin acts as another user | `{admin_user_id}` | `user`, impersonated_user_id |
 | `admin.user_quota_overridden` | Admin changes a user's quota | `{from, to, reason}` | `user`, user_id |
 | `admin.feature_flag_toggled` | Admin flips a feature flag | `{flag, from, to}` | `feature_flag`, flag_name |
@@ -72,7 +72,7 @@ The action string is a dotted identifier `<domain>.<verb>` (lowercase, snake_cas
 ### `gdpr.*` and `consent.*` — privacy-rights events
 
 | Action | Triggers | `details` shape | `target_*` |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `gdpr.export_requested` | User requested data export | `{}` | `user`, user_id |
 | `gdpr.export_delivered` | Export file delivered to user | `{file_bytes, format}` | `user`, user_id |
 | `gdpr.deletion_requested` | User requested account erasure | `{}` | `user`, user_id |
@@ -83,7 +83,7 @@ The action string is a dotted identifier `<domain>.<verb>` (lowercase, snake_cas
 ### `watchdog.*` — autonomous sidecar actions
 
 | Action | Triggers | `details` shape | `target_*` |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `watchdog.tier_a_action` | Sidecar took an autonomous Tier A action | `{action: "restart_container" \| "clear_cache" \| ..., reason, llm_provider, llm_model}` | `container`, container_name |
 | `watchdog.tier_b_action` | Sidecar took an opt-in Tier B action | same as Tier A | `container`, container_name |
 | `watchdog.tier_c_escalation` | Sidecar escalated to owner (no autonomous action) | `{reason, severity: "warn" \| "urgent"}` | `container`, container_name |

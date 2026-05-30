@@ -44,7 +44,7 @@ watchdog:
 Recommended starting points (tune after a week of real data):
 
 | Project kind | `daily_budget_usd` | `daily_invocations_cap` |
-|---|---|---|
+| --- | --- | --- |
 | Small SaaS (low traffic) | 0.50 | 100 |
 | Mid SaaS / API | 1.00 | 200 |
 | High-volume worker / RAG | 2.50 | 500 |
@@ -57,7 +57,7 @@ Recommended starting points (tune after a week of real data):
 The watchdog (and any cost-conscious LLM caller) escalates models, not collapses to the most expensive one. Run the ladder top to bottom; STOP at the first tier that returns a usable answer:
 
 | Tier | Claude Code (primary) | OpenRouter (fallback) | When to use |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **1 — cheap** | Haiku | Gemini Flash / Haiku via OpenRouter | First pass on every incident. Returns structured output with a self-rated confidence (0.0–1.0). |
 | **2 — expensive** | Sonnet | Sonnet via OpenRouter | Tier 1 confidence < 0.7 OR rule-based heuristic triggered (stack trace, cross-system failure). |
 | **3 — rule-only fallback** | — | — | All providers failed OR cap hit. Drop to deterministic rules per `core/self-healing.md`. |

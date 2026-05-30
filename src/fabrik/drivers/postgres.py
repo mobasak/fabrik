@@ -571,6 +571,25 @@ def ensure_shared_analytics_db(
         )
         logger.info("Created shared analytics database: %s", FABRIK_ANALYTICS_DB)
         result["status"] = "created"
+        # Register in the allocation registry so audit / drift-detection
+        # tooling sees fabrik_analytics as a known infrastructure DB,
+        # not an orphan. Non-fatal: registry write failures must not
+        # block the deploy (same pattern as create_database()).
+        try:
+            register_allocation(
+                FABRIK_ANALYTICS_DB,
+                spec_id=None,
+                user="postgres",
+                owner="infrastructure",
+                notes="Shared cross-project analytics DB; hosts cost_ledger (cost-budget module).",
+                dry_run=False,
+            )
+        except Exception as exc:  # noqa: BLE001 — registry failure is non-fatal
+            logger.warning(
+                "postgres allocations: register %s failed (%s); DB created but registry skipped",
+                FABRIK_ANALYTICS_DB,
+                exc,
+            )
     else:
         result["status"] = "exists"
 
