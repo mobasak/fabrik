@@ -1,5 +1,11 @@
-<!-- Chrome Extension Domain Module — loaded by 02-epic-decomposition-command
-     when Vision Summary scaffold types include chrome-extension.
+<!-- Chrome Extension Domain Module — loaded by mega-epic-breakdown commands
+     when Vision Summary scaffold types include `chrome-extension`:
+       • 02-epic-decomposition-command — drives chrome-ext-specific epic patterns
+         (backend API first, extension second, CWS distribution).
+       • 00-trigger-workflow-command Step E4 (EXISTING mode) — drives delta
+         decisions when adding a chrome-extension to an existing project.
+     Traycer reads this file from disk based on the Vision Summary's
+     Technology Decisions § Scaffold types — no manual paste needed.
      Consumer: Traycer planning LLM (NOT coding agents).
      Coding agents use .windsurf/rules/chrome-ext/70-chrome-ext.md instead. -->
 

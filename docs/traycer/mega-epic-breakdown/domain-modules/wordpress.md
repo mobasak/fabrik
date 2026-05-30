@@ -1,7 +1,13 @@
-<!-- WordPress Domain Module — paste into Traycer workflow GUI.
-     Part 1: paste with mega-epic-breakdown (00 + 02)
-     Part 2: paste when starting my-workflow for a WordPress epic
-     Auto-select when scaffold signal includes wordpress.
+<!-- WordPress Domain Module — loaded by mega-epic-breakdown commands
+     when Vision Summary scaffold types include `wordpress`:
+       • 02-epic-decomposition-command — drives WP-specific epic patterns
+         (4-container stack foundation, theme + plugin manifest, content +
+         SEO, monetization, etc.).
+       • 00-trigger-workflow-command Step E4 (EXISTING mode) — drives delta
+         decisions when adding a WP capability (e.g., a new WP site) to an
+         existing project.
+     Traycer reads this file from disk based on the Vision Summary's
+     Technology Decisions § Scaffold types — no manual paste needed.
      Consumer: Traycer planning LLM (NOT coding agents).
      No dedicated WordPress rule pack exists — coding agents use
      general rule packs (core/30-ops, core/35-security-auth, core/85-payments-billing)

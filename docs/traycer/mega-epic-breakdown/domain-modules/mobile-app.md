@@ -1,7 +1,11 @@
-<!-- Mobile App Domain Module — paste into Traycer workflow GUI.
-     Part 1: paste with mega-epic-breakdown (00 + 02)
-     Part 2: paste when starting my-workflow for a mobile epic
-     Auto-select when scaffold signal includes mobile-app.
+<!-- Mobile App Domain Module — loaded by mega-epic-breakdown commands
+     when Vision Summary scaffold types include `mobile-app`:
+       • 02-epic-decomposition-command — drives mobile-specific epic patterns
+         (store submission epic, IAP / RevenueCat epic, push permission epic, etc.).
+       • 00-trigger-workflow-command Step E4 (EXISTING mode) — drives delta
+         decisions when adding a mobile capability to an existing project.
+     Traycer reads this file from disk based on the Vision Summary's
+     Technology Decisions § Scaffold types — no manual paste needed.
      Consumer: Traycer planning LLM (NOT coding agents).
      Coding agents use .windsurf/rules/mobile-app/80-mobile.md instead. -->
 

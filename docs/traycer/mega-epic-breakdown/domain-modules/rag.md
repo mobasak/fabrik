@@ -1,6 +1,13 @@
-<!-- RAG Domain Module — loaded by 02-epic-decomposition-command
-     when Vision Summary Technology Decisions includes a RAG pipeline.
-     Not scaffold-specific — any project type can need RAG.
+<!-- RAG Domain Module — loaded by mega-epic-breakdown commands
+     when Vision Summary Technology Decisions includes a RAG pipeline:
+       • 02-epic-decomposition-command — drives RAG-pipeline epic patterns
+         (search phase → classification phase → generation phase).
+       • 00-trigger-workflow-command Step E4 (EXISTING mode) — drives delta
+         decisions when adding search/RAG to an existing project.
+     Not scaffold-specific — any project type can need RAG; loaded by the
+     `RAG pipeline` field of Technology Decisions rather than a scaffold type.
+     Traycer reads this file from disk based on the Vision Summary's
+     Technology Decisions — no manual paste needed.
      Consumer: Traycer planning LLM (NOT coding agents).
      Coding agents use .windsurf/rules/core/65-rag-search.md + 66-rag-chunking.md instead. -->
 

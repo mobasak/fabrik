@@ -1,7 +1,12 @@
-<!-- SaaS Domain Module — paste into Traycer workflow GUI.
-     Part 1: paste with mega-epic-breakdown (00 + 02)
-     Part 2: paste when starting my-workflow for a SaaS epic
-     Auto-select when scaffold signal includes saas-skeleton.
+<!-- SaaS Domain Module — loaded by mega-epic-breakdown commands
+     when Vision Summary scaffold types include `saas-skeleton`:
+       • 02-epic-decomposition-command — drives SaaS-specific epic patterns
+         (tenant + auth foundation, billing + gating, marketing site, etc.).
+       • 00-trigger-workflow-command Step E4 (EXISTING mode) — drives delta
+         decisions when adding a SaaS capability (e.g., billing) to an
+         existing project.
+     Traycer reads this file from disk based on the Vision Summary's
+     Technology Decisions § Scaffold types — no manual paste needed.
      Consumer: Traycer planning LLM (NOT coding agents).
      Coding agents use .windsurf/rules/saas/88-saas-launch-checklist.md,
      saas/95-multi-tenant-saas.md, saas/60-saas-ui.md instead. -->
