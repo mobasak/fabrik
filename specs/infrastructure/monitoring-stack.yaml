@@ -1,6 +1,6 @@
 # Observability Stack — Deploy via Coolify as Docker Compose app
 # Config files are embedded inline via environment or copied to VPS at deploy time.
-# All services on shared 'coolify' Docker network for inter-service communication.
+# All services on shared 'fabrik' Docker network for inter-service communication.
 # Grafana exposed externally via Traefik at monitor.vps1.ocoron.com
 # All other services internal-only.
 #
@@ -18,7 +18,7 @@ services:
       - loki-data:/loki
     command: -config.file=/etc/loki/loki-config.yaml
     networks:
-      - coolify
+      - fabrik
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
       interval: 30s
@@ -37,7 +37,7 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/promtail-config.yaml
     networks:
-      - coolify
+      - fabrik
     depends_on:
       loki:
         condition: service_healthy
@@ -56,7 +56,7 @@ services:
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
     networks:
-      - coolify
+      - fabrik
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
       interval: 30s
@@ -76,7 +76,7 @@ services:
       - '--storage.path=/alertmanager'
       - '--web.external-url=http://alertmanager:9093'
     networks:
-      - coolify
+      - fabrik
     depends_on:
       prometheus:
         condition: service_healthy
@@ -102,7 +102,7 @@ services:
       - '--path.rootfs=/rootfs'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     networks:
-      - coolify
+      - fabrik
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.52.1
@@ -117,7 +117,7 @@ services:
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
     networks:
-      - coolify
+      - fabrik
 
   grafana:
     image: grafana/grafana:11.6.1
@@ -132,7 +132,7 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
     networks:
-      - coolify
+      - fabrik
     depends_on:
       loki:
         condition: service_healthy
@@ -159,5 +159,5 @@ volumes:
   grafana-data:
 
 networks:
-  coolify:
+  fabrik:
     external: true

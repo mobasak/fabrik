@@ -49,7 +49,7 @@ services:
       retries: {{ health.retries if health else 3 }}
       start_period: {{ health.start_period if health else '30s' }}
     networks:
-      - coolify
+      - fabrik
 
 {% if volumes %}
 volumes:
@@ -59,5 +59,5 @@ volumes:
 {% endif %}
 
 networks:
-  coolify:
+  fabrik:
     external: true

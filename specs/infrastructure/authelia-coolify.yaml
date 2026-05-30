@@ -6,11 +6,11 @@ services:
     volumes:
       - authelia-config:/config
     networks:
-      - coolify
+      - fabrik
     environment:
       - TZ=Europe/Istanbul
     labels:
-      - coolify.managed=true
+      - fabrik.managed=true
       - traefik.enable=true
       - traefik.http.routers.authelia.entryPoints=websecure
       - traefik.http.routers.authelia.rule=Host(`auth.vps1.ocoron.com`)
@@ -36,5 +36,5 @@ volumes:
     driver: local
 
 networks:
-  coolify:
+  fabrik:
     external: true

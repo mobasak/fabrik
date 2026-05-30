@@ -11,7 +11,7 @@ template: python-api
 # T1-04 W-1: domain realigned 2026-05-15 from image-broker.vps1.ocoron.com →
 # images.vps1.ocoron.com to match live Traefik label
 # (Host(`images.vps1.ocoron.com`)) in the deployed compose at
-# /data/coolify/applications/zo4ggs4g880skwkocwwkscgk/docker-compose.yaml.
+# /data/fabrik/applications/zo4ggs4g880skwkocwwkscgk/docker-compose.yaml.
 # Cloudflare has no DNS record for image-broker.vps1.ocoron.com; the
 # image-broker microservice has always been served at images.vps1.ocoron.com.
 domain: images.vps1.ocoron.com

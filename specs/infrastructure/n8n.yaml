@@ -19,7 +19,7 @@ volumes:
 ports:
   - "5678:5678"
 networks:
-  - coolify
+  - fabrik
 restart: unless-stopped
 healthcheck:
   test: ["CMD", "wget", "-qO-", "http://localhost:5678/healthz"]

@@ -652,14 +652,14 @@ def _write_canonical_compose(
     clones for git-source deploys, so it must be Coolify-correct on the
     first commit. Hand-rolling per scaffolder repeatedly drifted into
     bugs (missing Traefik labels, unexpanded ``${PORT}`` in label
-    strings, generic ``app:`` service names, missing ``coolify``
+    strings, generic ``app:`` service names, missing ``fabrik``
     network) — this helper centralises the invariants enforced by
     ``tests/test_scaffold_compose_traefik.py``:
 
     1. Service name == project name (drives Traefik routing + container
        lookup).
     2. ``platform: linux/amd64`` (mandatory for the VPS).
-    3. External ``coolify`` network so Traefik can discover the
+    3. External ``fabrik`` network so Traefik can discover the
        container.
     4. Hardcoded port + Host(...) in Traefik labels — Coolify's compose
        parser does not expand ``${VAR:-default}`` inside label strings.
@@ -676,7 +676,7 @@ def _write_canonical_compose(
         healthcheck_path: Path appended to ``http://localhost:<port>``
             for the HTTP healthcheck.
         with_traefik: When False (e.g. ``file-worker``), omit Traefik
-            labels entirely. The container still joins the ``coolify``
+            labels entirely. The container still joins the ``fabrik``
             network so Coolify can manage it, but no router is created.
         extra_labels: Additional raw label strings (e.g. CORS or auth
             middlewares) appended verbatim under ``labels:``.
@@ -710,7 +710,7 @@ def _write_canonical_compose(
     if with_traefik:
         traefik_labels = f"""    labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=coolify"
+      - "traefik.docker.network=fabrik"
       - "traefik.http.routers.{name}.rule=Host(`{fqdn}`)"
       - "traefik.http.routers.{name}.entrypoints=websecure"
       - "traefik.http.routers.{name}.tls=true"
@@ -749,7 +749,7 @@ def _write_canonical_compose(
 #   - service name == project name (drives Traefik routing + ``docker ps``)
 #   - hardcoded port in the loadbalancer label (no ${{VAR:-...}})
 #   - Host(...) uses the literal FQDN (no shell-fallback placeholders)
-#   - container joins the external ``coolify`` network for Traefik mesh
+#   - container joins the external ``fabrik`` network for Traefik mesh
 #
 # See ``tests/test_scaffold_compose_traefik.py`` for the enforced contract.
 
@@ -776,10 +776,10 @@ services:
           memory: {memory}
           cpus: '{cpus}'
     networks:
-      - coolify
+      - fabrik
 {traefik_labels}
 networks:
-  coolify:
+  fabrik:
     external: true
 """
     (project_dir / "compose.yaml").write_text(content, encoding="utf-8")
@@ -2213,7 +2213,7 @@ SERVICE_NAME={name}
 
     # B20: Worker-style compose. file-worker has no HTTP surface, so no
     # Traefik labels — Coolify still manages the container via the
-    # ``coolify`` network. Healthcheck probes the worker process by
+    # ``fabrik`` network. Healthcheck probes the worker process by
     # name (``python worker/main.py``) instead of HTTP.
     _write_canonical_compose(
         project_dir,

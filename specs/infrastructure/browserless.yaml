@@ -17,7 +17,7 @@ environment:
 ports:
   - "3000:3000"
 networks:
-  - coolify
+  - fabrik
 healthcheck:
   # v2 exposes /docs at root; /pressure is the health/queue endpoint
   test: ["CMD", "curl", "-f", "http://localhost:3000/docs"]

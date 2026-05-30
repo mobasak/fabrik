@@ -7,7 +7,7 @@ image: caronc/apprise:latest
 ports:
   - "8005:8000"
 networks:
-  - coolify
+  - fabrik
 healthcheck:
   test: ["CMD", "curl", "-f", "http://localhost:8000/"]  # Internal port
   interval: 30s

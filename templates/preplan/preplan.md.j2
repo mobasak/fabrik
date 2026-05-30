@@ -101,7 +101,7 @@ Bullet list of unresolved decisions. Stays in the preplan until resolved during 
 
 **These reminders are pre-loaded so the project's eventual AI guardrails stay grounded. Agents reading this preplan should treat them as ground truth.**
 
-- **Database:** `postgres-main:5432` — shared Postgres on the `coolify` Docker network. DB name = `{{ slug | replace('-', '_') }}` (auto-created by the postgres registrar if `shape.needs_database: true`). Never `localhost`.
+- **Database:** `postgres-main:5432` — shared Postgres on the `fabrik` Docker network. DB name = `{{ slug | replace('-', '_') }}` (auto-created by the postgres registrar if `shape.needs_database: true`). Never `localhost`.
 - **Cache:** `redis-main:6379` — shared Redis; one logical DB index per service, allocated via `/opt/monitoring/configs/redis/assignments.json`. Never `localhost`.
 - **M2M auth:** every internal Fabrik microservice validates `X-Internal-Token` against `SERVICE_INTERNAL_SECRET_KEY` (already in `/opt/fabrik/.env`). One key, one header, every service.
 - **Public health:** `*.vps1.ocoron.com → /health` is universally Authelia-bypassed; expose `/health` returning HTTP 200 (real DB ping, not just `OK`).

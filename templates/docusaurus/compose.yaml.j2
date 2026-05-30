@@ -8,7 +8,7 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=${PORT:-3000}
     networks:
-      - coolify
+      - fabrik
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.{{ spec.id }}.rule=Host(`{{ domain }}`)"
@@ -24,5 +24,5 @@ services:
       start_period: {{ health.start_period if health else '40s' }}
 
 networks:
-  coolify:
+  fabrik:
     external: true

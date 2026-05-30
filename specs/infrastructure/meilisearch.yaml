@@ -12,7 +12,7 @@ volumes:
 ports:
   - "7700:7700"
 networks:
-  - coolify
+  - fabrik
 healthcheck:
   test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
   interval: 30s

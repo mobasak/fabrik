@@ -12,7 +12,7 @@
 #     route HTTPS requests for <domain> to this service. Without them, the
 #     deployed app is unreachable at its spec domain even when the
 #     container is healthy. (See B16 in CHANGELOG, 2026-04-27.)
-#   - The "coolify" external network is provided by Coolify and is how
+#   - The "fabrik" external network is provided by Coolify and is how
 #     Traefik discovers containers.
 
 services:
@@ -44,10 +44,10 @@ services:
           memory: 512M
           cpus: '0.5'
     networks:
-      - coolify
+      - fabrik
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=coolify"
+      - "traefik.docker.network=fabrik"
       - "traefik.http.routers.<project>.rule=Host(`<domain>`)"
       - "traefik.http.routers.<project>.entrypoints=websecure"
       - "traefik.http.routers.<project>.tls=true"
@@ -60,7 +60,7 @@ services:
       - "traefik.http.services.<project>.loadbalancer.server.port=8000"
 
 networks:
-  coolify:
+  fabrik:
     external: true
 
 # Uncomment for services that need persistent storage

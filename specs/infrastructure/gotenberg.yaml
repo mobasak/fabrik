@@ -10,7 +10,7 @@ environment:
 ports:
   - "3003:3000"
 networks:
-  - coolify
+  - fabrik
 healthcheck:
   test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
   interval: 30s
