@@ -8,9 +8,6 @@ expose:
 source:
   type: template
   branch: main
-coolify:
-  project: default
-  server: localhost
 depends: {}
 infrastructure:
   database: local

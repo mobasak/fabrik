@@ -1,3 +1,14 @@
+# Fabrik CLI Reference (historical — pre-migration command-level docstrings)
+
+> **⚠️ Pre-migration vintage.** This auto-generated CLI reference reflects
+> docstrings from the Coolify-API deploy era. The active deploy path is
+> SSH + Docker Compose (`orchestrator/deployer_ssh.py`) — commands like
+> `apply` / `destroy` / `redeploy` no longer talk to the Coolify API.
+> `status` / `logs` / `reconcile-all` are the legacy commands that DO
+> still call the Coolify API for pre-migration services. For the current
+> CLI overview see
+> [docs/reference/fabrik-cli-reference.md](fabrik-cli-reference.md).
+
 ## cli
 
 **Signature:**

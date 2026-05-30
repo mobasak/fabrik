@@ -9,7 +9,6 @@ from pathlib import Path
 import yaml
 
 from fabrik.spec_loader import (
-    CoolifyConfig,
     Expose,
     Health,
     Kind,
@@ -23,14 +22,6 @@ from fabrik.spec_loader import (
     save_spec,
 )
 
-# Canonical Coolify project name on the live VPS. Every Fabrik-managed app
-# lives under this project unless the spec explicitly overrides ``coolify.project``.
-# Auto-generated specs declare it explicitly so a fresh clone (no
-# ``COOLIFY_PROJECT_UUID`` in env) deploys to the right place — see
-# ``orchestrator/deployer.py::_resolve_project_server_uuids`` for the
-# resolution order (env > spec > legacy fallback).
-DEFAULT_COOLIFY_PROJECT: str = "fabrik-services"
-
 # Templates directory — single source of truth for shape: blocks per scaffold type.
 # Phase 4k moved shape defaults out of Python (`_TYPE_DEFAULTS`) and into
 # `templates/<type>/defaults.yaml` so they can be grep'd / diff'd / version-controlled
@@ -43,9 +34,9 @@ logger = logging.getLogger(__name__)
 # Module-level constants
 # ---------------------------------------------------------------------------
 
-# Project types that are deployed to the VPS via Coolify. Each of these gets an
-# auto-generated ``specs/services/<name>.yaml`` so ``fabrik apply`` has
-# something to consume.
+# Project types that are deployed to the VPS via SSH + Docker Compose. Each
+# of these gets an auto-generated ``specs/services/<name>.yaml`` so
+# ``fabrik apply`` has something to consume.
 #
 # ``chrome-extension`` IS enabled because the scaffolder emits a real
 # FastAPI backend at ``server/`` plus a canonical ``compose.yaml`` with
@@ -299,13 +290,14 @@ _SHAPE_KIND_TO_TOP_KIND: dict[str, Kind] = {
 def detect_git_source(project_path: Path) -> Source | None:
     """Detect a git remote on ``project_path`` and return a Source(type=git).
 
-    B7: Coolify v4's inline-compose endpoint receives only the rendered
-    compose YAML, no source tree. Compose templates that use ``build:
-    context: .`` therefore cannot deploy via the inline path — there is
-    nothing to build from. When the scaffolded project already has a git
-    remote we can flip ``source.type`` to ``git`` so Coolify clones the
-    repo before building. Working services (``proxy``, ``site-provisioner``,
-    etc.) all use this path; ``source.type=template`` was a dead path.
+    B7 (historical): the legacy Coolify-API inline-compose path could only
+    submit a rendered compose YAML and lacked a source tree, so compose
+    templates that use ``build: context: .`` couldn't deploy through it.
+    The SSH+Compose deployer (the active path) handles both — when a git
+    remote is present, ``source.type=git`` triggers a ``git clone`` +
+    ``docker compose build`` on the VPS; ``source.type=template`` renders
+    the compose locally and ships it. Detection here picks the right shape
+    so the spec round-trips cleanly across both source types.
 
     Returns:
         ``Source(type=GIT, repository=<remote-url>, branch=<HEAD>)`` when a
@@ -353,7 +345,7 @@ def generate_spec(
     """Build a :class:`Spec` for a scaffolded project.
 
     Args:
-        name: Project name (also the Coolify app name).
+        name: Project name (also the compose app name == directory under ``/opt/``).
         project_type: One of :data:`SPEC_ENABLED_TYPES`.
         domain: FQDN for the deployed service (or ``None`` for workers).
         context: Extracted project context (env vars, secrets, deps).
@@ -420,16 +412,11 @@ def generate_spec(
         from_file=ctx.get("secrets_from_file", {}),
     )
 
-    # B2: emit the canonical Coolify project explicitly. Pre-fix the spec
-    # carried the pydantic CoolifyConfig defaults (``project="default"``,
-    # ``server="localhost"``) which, post deployer fix, would auto-create a
-    # useless "default" project on every fresh-environment deploy.
-    coolify = CoolifyConfig(project=DEFAULT_COOLIFY_PROJECT)
-
-    # B7: detect git remote → emit ``source.type: git`` so Coolify clones
-    # the repo before building. Falls back to ``template`` (the pydantic
-    # default) when no remote is configured; a clear warning is logged so
-    # the user knows the spec can't deploy until they push to a remote.
+    # B7: detect git remote → emit ``source.type: git`` so the SSH+Compose
+    # deployer clones the repo before building. Falls back to ``template``
+    # (the pydantic default) when no remote is configured; a clear warning
+    # is logged so the user knows the spec can't deploy until they push to
+    # a remote.
     source: Source | None = None
     if project_path is not None:
         source = detect_git_source(project_path)
@@ -461,7 +448,6 @@ def generate_spec(
         depends=depends,
         secrets=secrets_policy,
         env=ctx.get("env", {}),
-        coolify=coolify,
         # Phase 4k: emit shape: from templates/<type>/defaults.yaml.
         # None is passed through when the template predates Phase 4k
         # (back-compat path — orchestrator tolerates a missing shape).

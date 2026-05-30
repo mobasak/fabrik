@@ -142,10 +142,8 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   └── n8n/workflows/               # n8n workflow JSON templates
 ├── docs/                            # Documentation (see Structure Map below)
 │   └── operations/n8n-webhooks.md   # n8n webhook URLs, payloads, curl tests
-├── infrastructure/                  # VPS-level system files
-│   ├── coolify-ssh-permissions.sh
-│   ├── coolify-ssh-permissions.service
-│   └── coolify-ssh-permissions.timer
+├── infrastructure/                  # VPS-level system files (Coolify-era systemd units
+│                                    # removed 2026-05-30; directory may be empty)
 ├── scripts/                         # Automation and tooling scripts
 │   ├── final_gate.py                # Mandatory pre-commit quality gate
 │   ├── docs_updater.py              # Auto-update docs structure
@@ -173,7 +171,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── api/                         # API layer
 │   ├── drivers/                     # External service drivers
 │   │   ├── dns.py                   # DNS Manager service client
-│   │   ├── coolify.py               # Coolify deployment API client
+│   │   ├── coolify.py               # Coolify deployment API client (legacy — pre SSH+Compose migration)
 │   │   ├── seo.py                   # SEO service client (keyword research, briefs)
 │   │   ├── tco.py                   # TCO client (AI content generation)
 │   │   ├── image_broker.py          # Image Broker client (stock images)

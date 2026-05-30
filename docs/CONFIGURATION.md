@@ -43,16 +43,16 @@ python -m fabrik.config --verify
    ssh-copy-id deploy@your-vps
    ```
 
-### Coolify API Token
+### Coolify API Token (legacy — only for pre-migration Coolify-managed services)
 
-**Why needed:** Automate deployments, manage services.
+**Status:** Fabrik no longer deploys via the Coolify API. The active deploy path is SSH + Docker Compose (`fabrik apply`). This section remains only for legacy CLI commands (`fabrik status`, `fabrik logs`, `fabrik reconcile-all`) that still talk to the Coolify API for services that were never migrated. New projects do NOT need a Coolify API token.
 
-**How to get:**
-1. Install Coolify: https://coolify.io/docs/installation
-2. Login to dashboard: `https://your-vps:8000`
-3. Settings → API Keys → Create New
-4. Copy token (shown once)
-5. Server/Project UUIDs auto-detected on first run
+**Legacy how-to (only if you still have Coolify-managed services):**
+
+1. Coolify dashboard: `https://your-vps:8000`
+2. Settings → API Keys → Create New
+3. Copy token (shown once)
+4. Server/Project UUIDs auto-detected on first run
 
 ### FABRIK_EXEC_MODE — WordPress driver execution mode (T1.1)
 
@@ -330,9 +330,14 @@ ssh-copy-id deploy@your-vps
 VPS_SSH_KEY=  # Remove from .env
 ```
 
-### Coolify API 401 Unauthorized
+### Coolify API 401 Unauthorized (legacy)
+
+Only affects the legacy CLI commands that still talk to the Coolify API
+(`fabrik status`, `fabrik logs`, `fabrik reconcile-all`). The active deploy
+path (`fabrik apply` / SSH + Docker Compose) is unaffected.
 
 **Causes:**
+
 1. Token expired → Regenerate in Coolify dashboard
 2. Wrong token → Check for copy/paste errors
 3. Coolify not running → `systemctl status coolify`
@@ -386,7 +391,7 @@ python -c "import secrets, string; print(''.join(secrets.choice(string.ascii_let
 ### Credential Storage
 
 1. **Development:** `.env` file (gitignored)
-2. **Production:** Environment variables set by Coolify
+2. **Production:** Environment variables in `/opt/<project>/.env` on the VPS, written and merged by `fabrik apply` (SSH + Docker Compose)
 3. **Backup:** `/opt/fabrik/.env` (master copy)
 
 ### Rotation Schedule

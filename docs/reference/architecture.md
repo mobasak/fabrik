@@ -2,6 +2,15 @@
 
 **Last Updated:** 2026-04-22
 
+> **⚠️ Pre-migration context (2026-04 vintage).** Deploy-mechanism sections
+> below describe the Coolify-API era. Fabrik migrated to SSH + Docker
+> Compose in 2026-05; the architecture diagrams' "Deploy Pipeline" /
+> "Orchestrator" boxes are still accurate at the saga-pattern level but
+> the underlying calls go through `orchestrator/deployer_ssh.py` (SSH +
+> `docker compose up -d`), not the Coolify API. See
+> [docs/operations/deployment.md](../operations/deployment.md) for the
+> current procedure.
+
 ---
 
 ## Overview

@@ -649,9 +649,11 @@ def run_consistency_checks(
         # Full Traefik label-set enforcement (Phase 4l §7). Every service
         # with traefik.enable=true in any templates/**/compose.yaml.j2 MUST
         # declare the full five-label set (rule, entrypoints, tls=true,
-        # tls.certresolver, loadbalancer.server.port). Relying on Coolify's
-        # runtime auto-inject has silently broken admin-dashboard 2FA in
-        # production — see docs/LESSONS_LEARNT.md §8.7 (GlitchTip incident).
+        # tls.certresolver, loadbalancer.server.port). Historical lesson:
+        # relying on Coolify-era runtime label auto-injection silently broke
+        # admin-dashboard 2FA in production — see docs/LESSONS_LEARNT.md §8.7
+        # (GlitchTip incident). Today's SSH+Compose deployer ships the
+        # rendered compose verbatim; explicit labels are still mandatory.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_traefik_labels.py",

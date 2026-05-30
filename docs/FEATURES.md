@@ -35,7 +35,7 @@
 
 **Status:** ✅ Shipped | **Audience:** Operator | **Since:** v0.1
 
-> **Headline:** `fabrik apply` takes a YAML spec with a `shape:` block and deploys it end-to-end — Coolify container, DNS, SSL, plus 9 registrars that fire automatically based on shape flags.
+> **Headline:** `fabrik apply` takes a YAML spec with a `shape:` block and deploys it end-to-end — container (via SSH + Docker Compose), DNS, SSL, plus 9 registrars that fire automatically based on shape flags.
 
 ### What It Does
 
@@ -43,7 +43,7 @@ The core of Fabrik. A spec at `specs/services/<id>.yaml` declares what a service
 
 1. **Validates** — spec schema, deploy readiness, compose linting
 2. **Provisions secrets** — resolves from `-s` flag > project `.env` > fabrik `.env` > process env
-3. **Deploys** — pushes to Coolify API (with 300s grace + SSH fallback for Coolify v4 quirks)
+3. **Deploys** — SSH to VPS, writes `/opt/<name>/compose.yaml` + `.env`, runs `docker compose up -d`
 4. **Fires registrars** — 9 shape-gated registrars provision infrastructure automatically
 5. **Verifies** — health checks, postcondition validation
 6. **Rolls back** on failure — reverse-order cleanup of everything created
@@ -54,7 +54,7 @@ Each registrar fires only when the spec's `shape:` block activates it. `infra: <
 
 | Registrar | Fires when | What it provisions |
 |-----------|-----------|-------------------|
-| **postgres** | `needs_database: true` | Database on postgres-main, credentials in Coolify env |
+| **postgres** | `needs_database: true` | Database on postgres-main; credentials written into `/opt/<name>/.env` by the postgres registrar |
 | **redis** | `needs_cache: true` | Cache index on redis-main via `assignments.json` |
 | **gatus** | `is_public: true` + domain set | Health monitor endpoint on status.vps1.ocoron.com |
 | **backrest** | `has_persistent_data: true` | Restic backup plan → Backblaze B2 |
@@ -420,7 +420,7 @@ Every `fabrik apply` writes a per-spec state file (T2-01) capturing which regist
 - **`fabrik audit-registrars`** — Compares each spec's shape-resolved registrars (what SHOULD be live) to the VPS's actual state (postgres `\l`, gatus `apps/<id>.yaml`, authelia config rules, backrest `config.json` plans, glitchtip project API, meilisearch index, prometheus scrape jobs, redis `assignments.json`). Outputs a pivot table or JSON. Exit 2 if any `missing`.
 - **`fabrik reconcile-all`** — Walks every deployed spec, holds a per-spec file lock (T2-01 `locks_local.file_lock`), re-runs `DeploymentOrchestrator.refresh_infrastructure` per spec. Dry-run by default; `--yes` to apply. `--filter <substr>` to scope.
 - **`fabrik verify <domain> --spec registrars`** — Single-domain postcondition check using the YAML-driven `PostconditionChecker`. Fails on any `missing` registrar.
-- **`fabrik destroy --partial <reg>`** — Surgical un-registration without touching DNS, Coolify app, or local files. Repeatable: `--partial gatus --partial backrest`. Backed by module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py` (also consumed by T4-02).
+- **`fabrik destroy --partial <reg>`** — Surgical un-registration without touching DNS, the running compose stack, or local files. Repeatable: `--partial gatus --partial backrest`. Backed by module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py` (also consumed by T4-02).
 
 ### How To Use
 
@@ -471,7 +471,7 @@ Follow-up auditors will compare config bags.
 
 Stage 2 of the Fabrik lifecycle (Agentic Implementation) is where the developer iterates on code against the spec contract. T3-03 ships three commands that keep that loop tight without round-tripping to the VPS:
 
-- **`fabrik dev`** — runs the project's `compose.dev.yaml` stack locally via `docker compose up`. Hot-reload + bind mounts, no Coolify involvement.
+- **`fabrik dev`** — runs the project's `compose.dev.yaml` stack locally via `docker compose up`. Hot-reload + bind mounts, no VPS involvement.
 - **`fabrik logs --local`** — tails `docker compose -f compose.dev.yaml logs` (sibling of the Loki-backed `fabrik logs <service>` for remote queries).
 - **`fabrik review`** — bundles `git diff` + `specs/services/<id>.yaml` + `docs/preplan.md` + the resolved-registrar table into `.fabrik/review/<ts>.md`. Hand the bundle to a human reviewer or dispatch to Kilo CLI's reviewer agent.
 
@@ -564,7 +564,7 @@ Two invariants the vision insists on (Stage 3 — Proper Registration) are now l
 
 - **Phase 0** — data-bearing guard. Scans state's `registrars_applied` for `data_bearing: true` entries; refuses pre-flight if `--drop-data` not set.
 - **Phase 1** — canonical reverse-order registrar teardown using `reversed(_REGISTRAR_ORDER)`: `prometheus → meilisearch → authelia → grafana → glitchtip → backrest → gatus → redis → postgres`. Order is enforced because postgres-last avoids FK violations against authelia session rows. Grafana is intentionally skipped (annotations are decorative). Dispatch uses T2-02's module-level `HANDLER_FUNCS` + `HANDLER_ARGS` maps.
-- **Phase 2** — Coolify app (always), DNS (gated by `--keep-dns` + spec domain), local files (gated by `--keep-files`).
+- **Phase 2** — Compose stack teardown on the VPS (always: `docker compose down -v` + `rm -rf /opt/<name>`), DNS (gated by `--keep-dns` + spec domain), local files (gated by `--keep-files`).
 - **On success** — `state.archive_destroyed(spec.id)` moves `<id>.json` → `_destroyed/<id>.json.<UTC-ts>`. State file is the deploy-state record; the archive preserves the audit trail without leaving the file in place to confuse future audits.
 - **Mutually exclusive with `--partial`** — both flags exist for distinct surgical purposes (per-registrar vs. per-state-file). The combination errors out (exit 2).
 - **Handler exception → bounded error.** A single failing destroyer doesn't abort the rest of the teardown; the failure goes into the report as an `error` ActionResult and `--use-state` exits 2 so CI can catch it.

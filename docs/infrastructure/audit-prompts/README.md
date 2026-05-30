@@ -1,5 +1,15 @@
 # VPS Audit Prompts
 
+> **⚠️ Pre-migration vintage.** All eight audit prompts in this directory
+> were authored during the Coolify-orchestrated era. They reference Coolify
+> containers, the Coolify UI, and Coolify deployment workflows. The audit
+> *intent* (security, observability, backups, container health, etc.) is
+> still valid post-migration — but specific check commands need to be
+> rewritten: `sudo docker compose -f /opt/<app>/compose.yaml ps` instead
+> of "Coolify dashboard", `/opt/<app>/.env` instead of "Coolify env vars",
+> etc. Re-run audits with these substitutions in mind, or rewrite the
+> prompts for the SSH+Compose era as needed.
+
 Structured prompts for comprehensive VPS health auditing. Each file is a self-contained prompt designed to be pasted into an AI assistant (Claude Code, ChatGPT, etc.) alongside the diagnostic output it requests.
 
 ## Usage

@@ -1,6 +1,13 @@
-# Coolify API Reference
+# Coolify API Reference (historical — Coolify removed 2026-05)
 
-**Last Updated:** 2026-04-27 (verified live against `coolify.vps1.ocoron.com` running Coolify v4.0.0-beta.459)
+> **⚠️ Historical.** Coolify was removed from the VPS in May 2026. This API
+> reference is preserved for the handful of legacy CLI commands (`fabrik
+> status`, `fabrik logs`, `fabrik reconcile-all`) still targeting Coolify-era
+> endpoints for services that were never migrated. New deploys go through
+> `orchestrator/deployer_ssh.py` (SSH + Docker Compose). See
+> [docs/operations/deployment.md](../operations/deployment.md).
+
+**Last Updated:** 2026-04-27 (verified live against `coolify.vps1.ocoron.com` running Coolify v4.0.0-beta.459 — host removed post-migration)
 **Authoritative source:** https://coolify.io/docs/api-reference/
 
 This document records the **subset Fabrik actually uses**. For the full API, see Coolify's docs. Every endpoint listed here was probed live before publication.

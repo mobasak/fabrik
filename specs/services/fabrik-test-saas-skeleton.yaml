@@ -17,9 +17,6 @@ source:
   type: git
   repository: https://github.com/mobasak/fabrik-test-saas-skeleton.git
   branch: mobasak/fabrik-test-saas-skeleton
-coolify:
-  project: fabrik-services
-  server: localhost
 depends: {}
 infrastructure:
   database: local

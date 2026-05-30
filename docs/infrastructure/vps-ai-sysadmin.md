@@ -111,7 +111,7 @@ Claude Code reaches these from inside the Docker `coolify` network via `sudo doc
 
 | Category | Containers | Claude's permissions |
 |---|---|---|
-| **critical-infra** | coolify, traefik, postgres-main, redis-main, coolify-db/redis/realtime/sentinel | READ ONLY. Never restart/stop/scale. |
+| **critical-infra** | traefik, postgres-main, redis-main | READ ONLY. Never restart/stop/scale. (Pre-migration entry also listed coolify + coolify-db/redis/realtime/sentinel — all removed 2026-05.) |
 | **monitoring** | prometheus, grafana, loki, promtail, alertmanager, cadvisor, node-exporter, netdata, gatus, pushgateway, exporters | READ ONLY. Touching these blinds Claude. |
 | **platform** | authelia, apprise, backrest, n8n, glitchtip-web/worker, meilisearch, gotenberg, browserless | Restart autonomously. Report after. |
 | **application** | image-broker, site-provisioner, ocoron-com-*, any future service | Full autonomous management. |

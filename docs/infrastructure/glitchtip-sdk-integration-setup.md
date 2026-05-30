@@ -1,5 +1,12 @@
 # GlitchTip SDK Integration — Setup
 
+> **⚠️ Setup steps describe the Coolify-era control plane.** GlitchTip
+> itself still runs (now as a Compose stack at `/opt/glitchtip/`).
+> Anywhere this doc says "edit env in Coolify dashboard" treat it as
+> "edit `/opt/<app>/.env` on the VPS and run `sudo docker compose up -d`".
+> The GlitchTip registrar now injects DSNs via the SSH deployer's
+> `inject_env()` rather than the Coolify API.
+
 **Status:** ✅ Live (2026-05-08)
 **Scaffold-emitted:** `glitchtip_init.py` / `glitchtip_init.js` per project
 **Provisioner:** `/opt/fabrik/scripts/provision_glitchtip_project.sh`

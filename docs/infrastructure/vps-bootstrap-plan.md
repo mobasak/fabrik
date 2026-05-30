@@ -1,5 +1,14 @@
 # VPS Bootstrap Automation — Future Plan
 
+> **⚠️ Pre-migration capture (2026-05-20).** This plan was authored when
+> Coolify v4 was still the deploy control plane on the VPS. Sections that
+> install Coolify, manage Coolify env vars, or rely on
+> `coolify-alias-watcher` are now superseded by the SSH+Compose bootstrap
+> path (Compose stacks under `/opt/<app>/` with `container_name:` for
+> stable naming — no alias watcher). Use this doc for the rest (firewall,
+> base packages, monitoring stack bind mounts, secrets layout). A
+> Coolify-free bootstrap plan supersedes this for new VPS provisioning.
+
 **Status:** Planned
 **Created:** 2026-05-20
 **State capture:** `docs/infrastructure/vps-captured-state-20260520.txt` (737 lines, full VPS config dump)

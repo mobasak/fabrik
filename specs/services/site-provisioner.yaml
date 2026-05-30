@@ -26,9 +26,6 @@ source:
   repository: git@github.com:mobasak/site-provisioner.git
   branch: main
 
-coolify:
-  project: fabrik-services
-  server: localhost
 
 # Non-secret runtime config. Hardcoded values; NAMECHEAP_CLIENT_IP must be the
 # VPS public IP (Namecheap validates source IP against this), not a dev IP —

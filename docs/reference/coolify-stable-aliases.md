@@ -1,4 +1,12 @@
-# Coolify Stable Aliases for Single-Image Applications
+# Coolify Stable Aliases for Single-Image Applications (historical)
+
+> **⚠️ Historical — no longer needed post-migration.** With Coolify removed
+> and `compose.yaml` files now emitting `container_name: <name>` directly
+> (enforced by `compose_linter.py`), container names are stable across
+> redeploys by construction. The alias-watcher mechanism described below
+> ran during the Coolify era to compensate for UUID-suffix container names;
+> it is retained here as the historical record of why `container_name:` is
+> now a hard requirement.
 
 **Purpose:** Coolify's single-image Applications get container names like
 `<app-uuid>-<timestamp>`. The **timestamp** changes on every redeploy, so any

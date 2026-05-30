@@ -19,9 +19,6 @@ source:
   type: git
   repository: https://github.com/mobasak/fabrik-test-chrome-extension.git
   branch: mobasak/fabrik-test-chrome-extension
-coolify:
-  project: fabrik-services
-  server: localhost
 depends: {}
 infrastructure:
   database: local

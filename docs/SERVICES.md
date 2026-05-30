@@ -1,5 +1,14 @@
 # Required Services
 
+> **⚠️ Partially pre-migration vintage.** The table lists Coolify as the
+> deployment control plane. As of 2026-05-30 Coolify has been removed —
+> the control plane is now the local `fabrik` CLI which SSHes to the VPS
+> and runs `docker compose`. All other services (postgres-main, redis-main,
+> traefik, gatus, authelia, glitchtip, backrest, monitoring stack, etc.)
+> are still running, now as standalone Compose stacks under `/opt/<svc>/`
+> with stable `container_name:`. Drop the Coolify row; everything else
+> reads correctly.
+
 **Last Updated:** 2026-04-28 (services table refreshed — Backrest replaces Duplicati [migrated 2026-04-17]; Authelia, Gotenberg, MeiliSearch added; monitoring stack [Prometheus/Grafana/Loki/Promtail/Alertmanager/cAdvisor/node-exporter] migrated to Coolify management)
 
 Services Fabrik needs to function.

@@ -429,8 +429,7 @@ def apply(
 
         if project_type == "wordpress":
             click.echo(
-                "WordPress deployment has moved to /opt/wpf/. "
-                "Use the `wpf` CLI instead.",
+                "WordPress deployment has moved to /opt/wpf/. Use the `wpf` CLI instead.",
                 err=True,
             )
             raise SystemExit(1)
@@ -710,7 +709,12 @@ def status(spec_path: str):
 @click.option("--lines", "-n", default=100, help="Number of lines to show")
 @click.option("--follow", "-f", is_flag=True, help="Follow log output")
 def app_logs(spec_path: str, lines: int, follow: bool):
-    """View application logs via Coolify (spec-based).
+    """(legacy) View application logs via the Coolify API (spec-based).
+
+    Legacy: this command still uses the Coolify API and only works for
+    services that remain Coolify-managed. For SSH+Compose deploys, use
+    ``docker logs <app>`` on the VPS directly, or the upcoming
+    ``fabrik logs`` (Loki-backed) once wired.
 
     Example:
         fabrik app-logs specs/my-api.yaml
@@ -768,7 +772,10 @@ def app_logs(spec_path: str, lines: int, follow: bool):
     except Exception as e:
         click.echo(f"⚠️  Error fetching logs: {e}", err=True)
         click.echo()
-        click.echo("Tip: You can also view logs via Coolify dashboard")
+        click.echo(
+            "Tip: for SSH+Compose deploys, "
+            '`ssh vps "sudo docker logs <app>"` is the canonical path.'
+        )
 
 
 @cli.command()
@@ -1205,9 +1212,7 @@ def redeploy(app: str | None, force: bool, refresh_infra: bool, spec: Path | Non
                 click.echo("   (dry-run — no changes will be applied)")
             orch = DeploymentOrchestrator()
             ctx = orch.refresh_infrastructure(spec_path=spec, dry_run=dry_run)
-            click.echo(
-                f"✅ Infrastructure refreshed for {ctx.spec.get('name')} ({ctx.coolify_uuid})"
-            )
+            click.echo(f"✅ Infrastructure refreshed for {ctx.spec.get('name')} ({ctx.app_name})")
             if ctx.created_resources:
                 click.echo(f"   Tracked resources: {len(ctx.created_resources)}")
                 for r in ctx.created_resources:

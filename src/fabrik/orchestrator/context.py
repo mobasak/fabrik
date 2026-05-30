@@ -35,10 +35,10 @@ class DeploymentContext:
     # Resources created (for rollback)
     created_resources: list[ResourceRecord] = field(default_factory=list)
 
-    # Deployment results — stores app name (compose deploy) or Coolify UUID (legacy).
-    # Despite the name, this field now holds the compose app name (== directory
-    # name under /opt/) for SSH-deployed services. Field name preserved for
-    # minimal churn across 20+ files that reference it.
+    # Deployment results — holds the compose app name (== directory name
+    # under /opt/) for SSH-deployed services. Field is named ``coolify_uuid``
+    # only for state-file backward compatibility (older ``.fabrik/state/*.json``
+    # files use this key); new code should use ``ctx.app_name`` (alias below).
     coolify_uuid: str | None = None
     dns_record_id: str | None = None
     deployed_url: str | None = None
@@ -46,6 +46,21 @@ class DeploymentContext:
     # Error tracking
     error: str | None = None
     error_step: str | None = None
+
+    @property
+    def app_name(self) -> str | None:
+        """Preferred name for what's stored in :attr:`coolify_uuid`.
+
+        For SSH+Compose deploys this is the compose app name (== directory
+        name under ``/opt/``). The underlying field is named ``coolify_uuid``
+        for state-file backward compat; new call sites should use this
+        property.
+        """
+        return self.coolify_uuid
+
+    @app_name.setter
+    def app_name(self, value: str | None) -> None:
+        self.coolify_uuid = value
 
     def add_resource(self, resource_type: str, resource_id: str, **metadata: Any) -> None:
         """Record a created resource."""

@@ -2,6 +2,15 @@
 
 **Last Updated:** 2026-04-16
 
+> **⚠️ Pre-migration vintage.** Deployment sections below reference Coolify
+> (the active deploy path before the 2026-05 SSH+Compose migration). For
+> File API today, `fabrik apply specs/services/file-api.yaml` runs
+> `orchestrator/deployer_ssh.py` (writes `compose.yaml` + `.env` to
+> `/opt/file-api/` via SSH, runs `docker compose up -d --wait`). See
+> [docs/operations/deployment.md](../operations/deployment.md) for the
+> current procedure. The architecture / config / env-var sections in this
+> file are still accurate.
+
 This guide covers deploying the File API service that provides presigned URLs for R2 file uploads/downloads.
 
 ---

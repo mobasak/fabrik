@@ -2,7 +2,7 @@
 Fabrik - Deployment automation CLI for AI-powered infrastructure.
 
 Enables spec-driven deployment of Python APIs, WordPress sites,
-and AI-integrated applications via Coolify.
+and AI-integrated applications via SSH + Docker Compose to a VPS.
 """
 
 __version__ = "0.1.0"

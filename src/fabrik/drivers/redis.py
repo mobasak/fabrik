@@ -36,8 +36,8 @@ Design notes
   file; it does NOT call into the Redis container. The actual
   ``REDIS_URL=redis://redis-main:6379/<n>`` injection happens in
   :class:`fabrik.orchestrator.infrastructure.InfrastructureProvisioner`
-  via Coolify env-var update + redeploy, the same pattern used for
-  ``SENTRY_DSN``.
+  via the SSH+Compose deployer's ``.env`` merge + ``docker compose up
+  -d`` restart, the same pattern used for ``SENTRY_DSN``.
 """
 
 from __future__ import annotations

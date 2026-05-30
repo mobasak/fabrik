@@ -5,15 +5,18 @@ Plan §7 (``docs/development/plans/2026-04-18-zero-touch-deployment.md:344``)
 acceptance criterion (``:2086``):
 
     Every emitted ``templates/*/compose.yaml.j2`` declares the full
-    Traefik label set explicitly; no reliance on Coolify auto-inject.
+    Traefik label set explicitly; no reliance on runtime auto-injection.
 
-Why this matters (GlitchTip incident, 2026-04-18)
--------------------------------------------------
-Coolify's runtime Traefik-label auto-injection is non-deterministic across
-``PATCH /services/{uuid}`` calls. ``errors.vps1.ocoron.com`` was reachable
-without 2FA despite the Authelia policy declaring ``two_factor`` for
-``*.vps1.ocoron.com`` — root cause: the service's ``docker_compose_raw``
-had zero Traefik labels and Coolify was no longer injecting them on boot.
+Why this matters (GlitchTip incident, 2026-04-18, historical)
+-------------------------------------------------------------
+Under the legacy Coolify-API deployer, runtime Traefik-label auto-injection
+was non-deterministic across ``PATCH /services/{uuid}`` calls.
+``errors.vps1.ocoron.com`` was reachable without 2FA despite the Authelia
+policy declaring ``two_factor`` for ``*.vps1.ocoron.com`` — root cause: the
+service's ``docker_compose_raw`` had zero Traefik labels and Coolify was no
+longer injecting them on boot. The SSH+Compose deployer (active path) ships
+the rendered compose verbatim, but the rule is unchanged: explicit labels
+are mandatory.
 
 The only safe posture is: Fabrik-emitted composes declare the FULL label
 set explicitly. Every Traefik-enabled service MUST have all five:

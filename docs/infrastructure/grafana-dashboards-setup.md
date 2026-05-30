@@ -1,5 +1,12 @@
 # Grafana Provisioning & Dashboards
 
+> **Note:** "Coolify network" / "Coolify redeploys" references below
+> describe the pre-migration era. The shared Docker network is still
+> named `coolify` (kept for compatibility) but Coolify itself no longer
+> runs. Container is now `grafana` (stable via `container_name:`), so the
+> `docker inspect` IP-lookup pattern still works and is more reliable than
+> ever.
+
 **Status:** ✅ Complete (2026-04-18)
 **Grafana URL:** `https://monitor.vps1.ocoron.com` (Authelia 2FA required for UI)
 **Automation:** `scripts/provision_grafana.sh` — idempotent, re-runnable

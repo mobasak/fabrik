@@ -1,5 +1,11 @@
 # Fabrik External Systems & APIs
 
+> **⚠️ Pre-migration vintage on the Coolify section.** Coolify was removed
+> from the VPS in 2026-05; `COOLIFY_API_TOKEN` is no longer used by the
+> active deploy path. `drivers/coolify.py` remains as legacy only for a
+> handful of unported CLI commands. All other external systems
+> (Cloudflare, Backblaze B2, Namecheap, Anthropic API, etc.) are unchanged.
+
 **Last Updated:** 2026-03-15
 
 This document catalogs all external systems, APIs, and services that Fabrik integrates with, along with their API documentation links, authentication methods, and usage patterns.

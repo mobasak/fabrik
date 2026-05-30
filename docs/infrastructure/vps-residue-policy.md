@@ -1,6 +1,16 @@
 # VPS Residue Policy — Lean Hygiene
 
 > Mandate (2026-05-06): never leave residue on the VPS from Fabrik test, throwaway, or deprecated work. Keep it lean.
+>
+> **⚠️ Partially pre-migration vintage.** Rows that describe residue as
+> "orphan Coolify app" / "Gatus alias pinned to Coolify UUID hostname" /
+> "destroy via Coolify UI" are historical. Post-migration the equivalent
+> residue is an orphan `/opt/<app>/` Compose directory; cleanup is
+> `cd /opt/<app> && sudo docker compose down -v && sudo rm -rf /opt/<app>`
+> (which `fabrik destroy` does via the SSH deployer's `delete()`). Gatus
+> alias drift is no longer a concern — `container_name:` in compose files
+> guarantees stable Docker DNS. Other policy items (memory limits,
+> Authelia rules, DNS records, .env hygiene) are unchanged.
 
 ## TL;DR
 

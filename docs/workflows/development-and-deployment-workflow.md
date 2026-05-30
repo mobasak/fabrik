@@ -3,6 +3,14 @@
 **Audience:** Owner reference + onboarding agents (Traycer / Claude Code / Cascade / Kilo CLI).
 **Authority:** This document narrates the workflow. Authoritative rule sources stay in [AGENTS.md](../../AGENTS.md), [CLAUDE.md](../../CLAUDE.md), [.windsurfrules](../../.windsurfrules), [AGENTS-compact.md](../../AGENTS-compact.md), and the topic packs under [.windsurf/rules/](../../.windsurf/rules/). When this document and a rule file disagree, the rule file wins — update this document.
 **Updated:** 2026-05-14
+
+> **⚠️ Partially pre-migration vintage.** Sections that mention Coolify
+> (Coolify dashboard, `coolify.vps1.ocoron.com`, Coolify deploy step) are
+> historical. Current deploy path: `fabrik apply` → `orchestrator/deployer_ssh.py`
+> writes `compose.yaml` + `.env` to `/opt/<app>/` via SSH and runs
+> `sudo docker compose up -d`. The dev workflow, scaffold step, registrar
+> pipeline, and verifier are unchanged. See
+> [docs/operations/deployment.md](../operations/deployment.md).
 **Verification:** Every factual claim below has a grep / file check; see [§ Verification anchors](#verification-anchors) at the end.
 
 ---

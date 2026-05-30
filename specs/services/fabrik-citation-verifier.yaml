@@ -17,9 +17,6 @@ source:
   type: git
   repository: https://github.com/mobasak/fabrik-citation-verifier.git
   branch: main
-coolify:
-  project: fabrik-services
-  server: localhost
 depends: {}
 infra:
   glitchtip: true                # real service, error tracking worthwhile

@@ -38,7 +38,7 @@ Every template directory contains at minimum:
 ```text
 templates/<name>/
 ├── defaults.yaml          # shape: + env: + resources: defaults (required for deploy-able templates)
-├── compose.yaml.j2        # Coolify-ready Docker Compose template (required)
+├── compose.yaml.j2        # Docker Compose template (required) — written to /opt/<app>/compose.yaml by SSH deployer
 ├── Dockerfile.j2          # Dockerfile template (if not using a published image)
 └── [AGENTS.md.j2 / README.md.j2 / tests / CI workflow / .env.example / ...]
 ```
@@ -159,7 +159,7 @@ health: {disabled: true}         # scratch image has no shell — see Lesson 30
 ```text
 templates/my-template/
 ├── defaults.yaml          # REQUIRED — shape + env defaults
-├── compose.yaml.j2        # REQUIRED — Coolify-ready compose
+├── compose.yaml.j2        # REQUIRED — Docker Compose template (rendered + scp'd to VPS by SSH deployer)
 ├── Dockerfile.j2          # optional
 └── (AGENTS.md.j2, README.md.j2, tests, CI, ...)
 ```

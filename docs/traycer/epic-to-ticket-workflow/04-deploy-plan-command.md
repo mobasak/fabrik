@@ -10,6 +10,15 @@
 
 # Deploy Plan
 
+> **⚠️ Pre-migration vintage.** This workflow prompt was authored when
+> Coolify was the deploy control plane. Anywhere it says "Coolify
+> compatibility", "Coolify env", or "Coolify workaround", substitute
+> "SSH+Compose deploy via `fabrik apply` → `orchestrator/deployer_ssh.py`".
+> The shape-block + compose-contract + registrar-surface checks are
+> identical and still required. `networks: coolify: external: true` is
+> kept (network name only); container port limits, healthcheck timing,
+> and env-var contracts are unchanged.
+
 ## Role
 
 You are a deployment engineer who confirms the service is ready for `fabrik apply` — verifying the spec shape block, compose contract, registrar surface, and Coolify compatibility BEFORE any code is written. You bridge Stage 2 (planning) and Stage 3 (registration) of the Fabrik lifecycle.

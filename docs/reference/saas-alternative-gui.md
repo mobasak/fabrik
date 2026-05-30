@@ -2,6 +2,12 @@
 
 **Reference:** OpenRouter's production frontend (May 2026). Adapted to Fabrik stack.
 
+> **Note:** Stack-mapping rows and the Dockerfile section below say
+> "on Coolify" / "Coolify Docker builds" — these were written when Coolify
+> was the deploy control plane. Substitute "on Fabrik VPS (SSH + Docker
+> Compose)" — the Docker images, runtime, and Traefik routing are identical;
+> only the orchestrator changed.
+
 ---
 
 ## Stack Mapping

@@ -128,7 +128,7 @@ class DeploymentOrchestrator:
             self.deployer.deploy(ctx)
 
             # Step 4b: Provision infrastructure registrars (post-deploy).
-            # Must run AFTER deployer.deploy so ctx.coolify_uuid is set
+            # Must run AFTER deployer.deploy so ctx.app_name is set
             # (glitchtip needs it for SENTRY_DSN injection) and the
             # deployed FQDN has Traefik routers up (authelia + gatus
             # attach to live routes). Non-fatal by contract, except for
@@ -289,7 +289,7 @@ class DeploymentOrchestrator:
         Pipeline:
           1. Validate spec.
           2. Load secrets (same path as :meth:`deploy`).
-          3. Resolve ``ctx.coolify_uuid`` from the live VPS state
+          3. Resolve ``ctx.app_name`` from the live VPS state
              matched on spec name (with the conventional ``fabrik-`` prefix
              tried as a fallback).
           4. Call ``InfrastructureProvisioner.provision(ctx)``.
@@ -338,9 +338,9 @@ class DeploymentOrchestrator:
                 f"No compose app found at /opt/{spec_name}/ or /opt/fabrik-{spec_name}/",
                 resource_type="infrastructure",
             )
-        ctx.coolify_uuid = existing["name"]  # stores app name, not UUID
+        ctx.app_name = existing["name"]  # stores app name, not UUID
         ctx.deployed_url = f"https://{spec['domain']}" if spec.get("domain") else None
-        logger.info("refresh_infrastructure: matched %s -> %s", spec_name, ctx.coolify_uuid)
+        logger.info("refresh_infrastructure: matched %s -> %s", spec_name, ctx.app_name)
 
         try:
             self.infrastructure_provisioner.provision(ctx)
@@ -375,7 +375,7 @@ class DeploymentOrchestrator:
                 spec_id,
                 spec_path=str(ctx.spec_path),
                 spec_hash=ctx.spec_hash,
-                coolify_uuid=ctx.coolify_uuid,
+                coolify_uuid=ctx.app_name,
                 coolify_app_name=spec.get("name") or spec.get("id") or "",
                 registrars_applied=registrars_applied,
                 domain=spec.get("domain") or "",

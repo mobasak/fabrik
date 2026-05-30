@@ -484,9 +484,9 @@ class InfrastructureProvisioner:
 
             # Inject DSN into the deployed container via .env + restart,
             # then verify it actually arrived via docker inspect (Lesson 31).
-            if not ctx.coolify_uuid:
+            if not ctx.app_name:
                 logger.warning(
-                    "glitchtip: ctx.coolify_uuid unset; "
+                    "glitchtip: ctx.app_name unset; "
                     "cannot inject SENTRY_DSN. Degraded but non-fatal."
                 )
                 return
@@ -582,7 +582,7 @@ class InfrastructureProvisioner:
         The driver call is idempotent — a re-run picks up the existing
         assignment from the registry file. Always tracks the resource
         record (so a same-deploy rollback can release the slot) and
-        always patches the env var when ``coolify_uuid`` is known (so
+        always patches the env var when ``app_name`` is known (so
         a re-run after a compose redeploy repopulates a wiped env).
         """
         try:
@@ -598,9 +598,9 @@ class InfrastructureProvisioner:
                 return
 
             # Inject REDIS_URL via .env merge + docker compose up -d.
-            if not ctx.coolify_uuid:
+            if not ctx.app_name:
                 logger.warning(
-                    "redis: ctx.coolify_uuid unset; cannot inject REDIS_URL. "
+                    "redis: ctx.app_name unset; cannot inject REDIS_URL. "
                     "Degraded but non-fatal — value will be patched on next "
                     "deploy."
                 )

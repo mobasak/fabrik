@@ -1,5 +1,15 @@
 # Fabrik Scaffold Specification
 
+> **⚠️ Partially pre-migration vintage.** Sections describing deployment
+> via Coolify (apply/redeploy flow, Coolify dashboard, Coolify-API auth)
+> are historical. The **scaffolder itself is unchanged and current** —
+> `fabrik scaffold`, `SCAFFOLD_TYPES`, template inventory, generated file
+> tree, and `spec_generator.py` behavior all still apply. For the current
+> deploy path see [docs/operations/deployment.md](../operations/deployment.md)
+> (SSH + Docker Compose). Templates still emit `networks: [coolify]` —
+> the Docker network is named `coolify` for compatibility, but no Coolify
+> control plane runs.
+
 **Last Updated:** 2026-04-29 (full code-truth rewrite: every CLI command/flag, `SCAFFOLD_TYPES`, `SPEC_ENABLED_TYPES`, template inventory, and file reference links re-verified against `src/fabrik/cli.py`, `src/fabrik/scaffold.py`, `src/fabrik/spec_generator.py`, and `templates/`. Aspirational sections that referenced files that never shipped — "Template Complexity Tiers", "Factory Configuration" — have been removed. `fabrik new` deprecation banner from Phase 4k 2026-04-22 retained.)
 **Scope:** This doc is **canonical for the project-creation half** (`fabrik scaffold` and the file tree it produces). For the **deployment half** (`fabrik apply` — the single deploy command — orchestrator state machine, registrars, verifier, rollback), see `@/opt/fabrik/docs/DEPLOYMENT.md`.
 **Source code:** `src/fabrik/scaffold.py` (scaffolders) + `src/fabrik/cli.py` (CLI) + `src/fabrik/spec_generator.py` (auto-spec)

@@ -1,7 +1,14 @@
 # Grafana Datasource Provisioning — Setup
 
+> **⚠️ Container name is pre-migration.** The container name shown below
+> (`grafana-loc484owg8gsw04owo0go8kc`) was Coolify's UUID-suffix naming.
+> Post-migration the container is named `grafana` (set via `container_name:`
+> in the compose stack). All paths and provisioning file behavior are
+> unchanged — Grafana still reads `/etc/grafana/provisioning/` from a host
+> bind mount at `/opt/monitoring/configs/grafana/provisioning/`.
+
 **Status:** ✅ Live on VPS (2026-05-08)
-**Container:** `grafana-loc484owg8gsw04owo0go8kc` (VPS-managed)
+**Container:** `grafana` (post-migration; was `grafana-loc484owg8gsw04owo0go8kc` under Coolify)
 **Provisioning files:** `/opt/monitoring/configs/grafana/provisioning/` (host bind mount)
 
 ---

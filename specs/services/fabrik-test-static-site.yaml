@@ -17,9 +17,6 @@ source:
   type: git
   repository: https://github.com/mobasak/fabrik-test-static-site.git
   branch: mobasak/fabrik-test-static-site
-coolify:
-  project: fabrik-services
-  server: localhost
 depends: {}
 infrastructure:
   database: local

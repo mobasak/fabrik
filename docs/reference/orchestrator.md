@@ -2,6 +2,13 @@
 
 **Last Updated:** 2026-04-22
 
+> **⚠️ Partially pre-migration vintage.** Lines mentioning `ServiceDeployer` /
+> "Coolify mutations" / "Coolify status" describe the pre-2026-05 deploy path.
+> Today `deployer_ssh.py` (SSH + Docker Compose) is the active deployer; the
+> orchestrator's overall structure (shape-driven registrars, verifier, rollback)
+> is unchanged. See [docs/operations/deployment.md](../operations/deployment.md)
+> for the current flow.
+
 The orchestrator module (`src/fabrik/orchestrator/`) provides unified end-to-end deployment automation. The pipeline is **shape-driven**: the `shape.*` flags on a spec decide which registrars run (Postgres DB, Gatus endpoint, Backrest backup plan, GlitchTip project, Grafana annotation, Authelia rule, MeiliSearch index).
 
 ---

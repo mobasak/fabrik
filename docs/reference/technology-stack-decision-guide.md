@@ -29,11 +29,11 @@ These constraints are **mandatory** for all Fabrik projects. The generic flowcha
 |------------|------|-------------|
 | **Base images** | `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`. **Never Alpine.** | `.windsurfrules`, `core/30-ops.md`, `AGENTS-compact.md` |
 | **amd64** | All Docker images must support `linux/amd64`. VPS is x86_64 (AMD EPYC-Genoa). | `.windsurfrules`, `core/30-ops.md`, `check_docker.py` |
-| **Deployment** | Docker Compose via **Coolify** on VPS. Not Vercel, Railway, or K8s. | `core/30-ops.md`, `AGENTS.md` |
+| **Deployment** | Docker Compose via **`fabrik apply`** (SSH + `docker compose up -d` on VPS). Not Vercel, Railway, K8s, or Coolify. | `core/30-ops.md`, `AGENTS.md` |
 | **Port ranges** | Python services: **8000–8099**. Frontend/Node.js: **3000–3099**. Register in `PORTS.md`. | `.windsurfrules`, `core/10-python.md`, `core/20-typescript.md` |
 | **No hardcoded config** | Never hardcode `localhost`, DB strings, API keys. Use `os.getenv()` / `process.env`. | `.windsurfrules`, `core/10-python.md`, `core/20-typescript.md` |
 | **Health endpoints** | Must test real dependencies (`SELECT 1`), not just return 200. | `.windsurfrules`, `core/10-python.md` |
-| **Networking** | Coolify network (`coolify: external: true`). VPS internal: `http://service-name:PORT`. | `core/30-ops.md` |
+| **Networking** | Shared Docker network named `coolify` (`external: true`, kept post-migration for compatibility). VPS internal: `http://service-name:PORT`. | `core/30-ops.md` |
 | **Existing services first** | Before building, check if a Fabrik microservice or prebuilt container already solves the need. | `AGENTS.md` § Mandatory Pre-Flight |
 | **Solo developer scope** | All architecture must be operable by one person (~50 hrs/week). No K8s, no polyglot backends. | `AGENTS.md` § Planning Constraints |
 

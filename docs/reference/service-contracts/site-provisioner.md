@@ -4,7 +4,7 @@
 **URL:** `https://provision.vps1.ocoron.com` (VPS) / `http://localhost:8001` (WSL dev)
 **Port:** 8001 (internal container) / 18014 (host/registered)
 **Source:** `/opt/site-provisioner`
-**Status:** Production (deployed on VPS)
+**Status:** Removed from VPS 2026-05-30 (spec + source retained for future re-deploy). Contract field names like `ready_for_coolify` are historical — they predate the SSH+Compose migration but remain on the API surface as a stable contract; consumers now interpret "ready" as "ready for the SSH deployer to run `docker compose up -d`".
 **Last verified:** 2026-04-12
 
 ---

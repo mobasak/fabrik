@@ -1,6 +1,15 @@
-# Site Provisioner Reference
+# Site Provisioner Reference (legacy)
 
 **Last Updated:** 2026-04-22 (verified against `src/fabrik/provisioner.py`)
+
+> **⚠️ Legacy module — Coolify era.** `src/fabrik/provisioner.py` is the
+> pre-migration provisioner that called the Coolify API to create
+> Application and Service entries. Post-migration (2026-05) the active
+> deploy path is `orchestrator/deployer_ssh.py` (SSH + Docker Compose).
+> The module is retained for legacy CLI commands (`fabrik status`,
+> `fabrik logs`, `fabrik reconcile-all`) that still talk to the Coolify
+> API for services that were never migrated; do not plan new work
+> against this module.
 
 The Site Provisioner orchestrates Steps 0-1-2 for **brand-new WordPress site bootstrap** (domain registration → DNS + CF zone → Coolify app + WP install) using a saga pattern with granular states for safe retries and partial failure recovery.
 

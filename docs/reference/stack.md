@@ -1,3 +1,14 @@
+# Ultimate Stack v1.0 (historical — Coolify edition)
+
+> **⚠️ Historical (pre-2026-05): Coolify-era stack overview.** This document
+> describes the stack when Coolify was the deploy control plane. Fabrik
+> migrated to SSH + Docker Compose in 2026-05; see
+> [docs/operations/deployment.md](../operations/deployment.md) and
+> [docs/operations/fabrik-lifecycle.md](../operations/fabrik-lifecycle.md)
+> for the current deploy procedure. The library/`/opt` layout and WSL→VPS
+> flow described below are still accurate; only the deploy mechanism
+> changed (no Coolify API; SSH + `docker compose up -d` on the VPS).
+
 Below is your previous “Ultimate Stack v1.0” rewritten for **Docker + Coolify** while keeping your existing libraries, /opt layout, and WSL→VPS flow. This is the “best, easy to use, fast to monetize” path with **one repeatable deployment pattern** for all future products.
 
 ---

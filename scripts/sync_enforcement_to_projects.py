@@ -361,7 +361,7 @@ def sync_scripts_to_project(
         # Remove orphans from prior renames (docs that moved/consolidated).
         # Safe to delete: these were synced artifacts, never authored in projects.
         for stale_rel in (
-            "docs/reference/fabrik-lifecycle.md",      # moved to docs/operations/
+            "docs/reference/fabrik-lifecycle.md",  # moved to docs/operations/
             "docs/reference/fabrik-project-catalog.md",  # consolidated into docs/BUSINESS_MODEL.md
         ):
             stale_path = project_dir / stale_rel

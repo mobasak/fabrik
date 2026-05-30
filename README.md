@@ -24,7 +24,7 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
 2. **Mandatory Quality Gates** via Final Gate (deterministic checks) + Kilo (AI review)
 3. **Convention Enforcement** via 19 enforcement scripts covering security, structure, documentation
 4. **AI-Guided Workflows** via Fabrik skills, Traycer phases, Kilo sessions
-5. **Production Deployment** via Coolify orchestration, DNS automation, health monitoring
+5. **Production Deployment** via SSH + Docker Compose orchestration, DNS automation, health monitoring
 
 ### The Complete Development Flow
 
@@ -77,7 +77,7 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
          │
          ▼
 ┌──────────────────┐
-│  Deploy Pipeline │  18. Coolify orchestration (saga pattern)
+│  Deploy Pipeline │  18. SSH + Docker Compose orchestration (saga pattern)
 │  (Orchestrator)  │  19. DNS + SSL + Health checks
 └──────────────────┘  20. Automatic rollback on failure
 
@@ -448,9 +448,9 @@ Create production-ready services instantly:
 
 ### Prerequisites
 
-- VPS with SSH access (Hetzner, DigitalOcean, etc.)
+- VPS with SSH access (Hetzner, DigitalOcean, etc.) — Docker + Docker Compose installed
 - Domain you control
-- Coolify installed on VPS (or use Fabrik to deploy Coolify)
+- (Optional, legacy) Coolify installed on VPS — only needed if you have services that weren't migrated to the SSH+Compose path
 
 ### Installation
 
@@ -473,8 +473,8 @@ nano .env
 ```
 
 **Required:**
-- `VPS_HOST`, `VPS_USER` - SSH access to your VPS
-- `COOLIFY_API_URL`, `COOLIFY_API_TOKEN` - Coolify API
+- `VPS_HOST`, `VPS_USER` - SSH access to your VPS (used by SSH+Compose deployer)
+- `COOLIFY_API_URL`, `COOLIFY_API_TOKEN` - Coolify API (legacy — only for `fabrik status` / `fabrik logs` / `fabrik reconcile-all` against pre-migration Coolify-managed services)
 - `DNS_MANAGER_URL` or `CLOUDFLARE_API_TOKEN` - DNS provider
 
 ### Create Your First Project
@@ -928,7 +928,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 |-------|------------|
 | **CLI** | Python 3.12, Click |
 | **Orchestration** | State machines, saga pattern (782 lines) |
-| **Deployment** | Coolify API, Docker Compose |
+| **Deployment** | SSH + Docker Compose |
 | **DNS** | Site Provisioner service (Namecheap + Cloudflare) |
 | **Reverse Proxy** | Traefik (automatic HTTPS) |
 | **Database** | PostgreSQL 16, Supabase |

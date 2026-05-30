@@ -2,6 +2,13 @@
 
 **Last Updated:** 2026-03-31
 
+> **⚠️ Pre-migration vintage.** The `/deploy-production` workflow section
+> mentions Coolify auto-deploy from `main` and the Coolify dashboard. After
+> the 2026-05 SSH+Compose migration, production deployment is `fabrik
+> apply` / `fabrik redeploy` (which SSHes to the VPS and runs `docker
+> compose`). The Coolify dashboard is gone. Other workflows in this doc
+> are unaffected.
+
 This document describes all workflows available in Windsurf Cascade via the `/` slash command.
 
 ---

@@ -1,30 +1,21 @@
 #!/usr/bin/env bash
 # vps_apply_limits.sh — apply Docker memory limits to all VPS containers
-# Run after VPS reboot or after Coolify redeployments of infra services.
+# Run after VPS reboot or after any redeploy of infra services that doesn't
+# pick up the `deploy.resources.limits.memory` block.
 #
-# Coolify gap (F5, 2026-05-16): Coolify v4.0.0-beta.459 stores `limits_memory`
-# in its application config but does NOT translate that into the compose
-# `deploy.resources.limits.memory` block it writes to disk. Docker therefore
-# sees no limit (`HostConfig.Memory: 0` = unlimited).
-#
-# 2026-05-16 STATUS — F5 PERMANENT FIX APPLIED:
-#   - 7 Coolify Applications (build_pack=dockercompose): deploy.resources.limits
-#     committed to each service's git repo (translator, image-broker, captcha,
-#     emailgateway, file-api, proxy, site-provisioner — file-worker already had
-#     it). Coolify pulls the new compose on next redeploy.
-#   - 12 Coolify Services (one-click stacks: apprise, netdata, grafana, loki,
-#     promtail, node-exporter, cadvisor, alertmanager, postgres-main, n8n,
-#     backrest, authelia): docker_compose_raw PATCHed via Coolify API
-#     (scripts/coolify_services_f5.py). Effective on next redeploy.
-#   - Scaffolder canonical compose (_write_canonical_compose) emits the deploy
-#     block by default so NEW deployments are already correct.
-#
-# This script remains as a TRANSITIONAL stopgap: running containers were
-# started from the OLD compose without limits. Until each service is
-# redeployed once after F5, this script enforces the limit live via
-# `docker update --memory`. After every service has been redeployed once,
-# this script's main loop becomes a noop (the deploy block in compose will
-# already enforce the limit). The script is safe to keep running indefinitely.
+# Historical context (F5, 2026-05-16): under the legacy Coolify-API deployer,
+# Coolify v4.0.0-beta.459 stored `limits_memory` in its application config
+# but did NOT translate that into the compose `deploy.resources.limits.memory`
+# block it wrote to disk. Docker therefore saw no limit (`HostConfig.Memory: 0`
+# = unlimited). F5 (2026-05-16) committed explicit `deploy.resources.limits`
+# blocks to every service's compose; the scaffolder's canonical compose
+# (_write_canonical_compose) emits the deploy block by default so NEW
+# deployments are already correct. The SSH+Compose deployer (active path)
+# ships the rendered compose verbatim, so the historical Coolify gap no
+# longer applies — this script remains as a defense-in-depth live enforcer
+# for any container that somehow ends up without limits (manual `docker run`,
+# legacy state, etc.). The main loop becomes a noop when all containers
+# already have `HostConfig.Memory` set.
 #
 # Run pattern: `ssh vps "bash -s" < /opt/fabrik/scripts/vps_apply_limits.sh`
 

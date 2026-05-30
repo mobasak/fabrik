@@ -996,12 +996,12 @@ def _scaffold_shared(
         f"\n"
         f"# M2M Authentication — REQUIRED for all Fabrik API services\n"
         f"# Value: copy SERVICE_INTERNAL_SECRET_KEY from /opt/fabrik/.env\n"
-        f"# Set via Coolify env vars on deploy (never hardcode the real value here)\n"
+        f"# Set via project .env (/opt/<name>/.env, managed by `fabrik apply`); never hardcode the real value here\n"
         f"SERVICE_INTERNAL_SECRET_KEY=change-me-copy-from-fabrik-env\n"
         f"\n"
         f"# Error reporting (GlitchTip) — recommended for production deploys\n"
         f"# Get DSN by running: scripts/provision_glitchtip_project.sh {name}\n"
-        f"# Push to Coolify env on deploy. If unset, SDK becomes a no-op (zero overhead).\n"
+        f"# Set via project .env (managed by `fabrik apply`). If unset, SDK becomes a no-op (zero overhead).\n"
         f"SENTRY_DSN=\n"  # primary (fabrik orchestrator injects this); GLITCHTIP_DSN below kept as fallback alias
         f"GLITCHTIP_DSN=\n"
         f"ENVIRONMENT=production\n"
@@ -1597,7 +1597,7 @@ def init_glitchtip() -> bool:
         # Replace commented DB line with VPS version
         env_content = env_content.replace(
             f"# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n",
-            f"# Database (managed by Coolify on VPS)\n# Set via Coolify secrets: POSTGRES_PASSWORD\nDATABASE_URL=postgresql://postgres:${{POSTGRES_PASSWORD}}@postgres-main:5432/{name.replace('-', '_')}\n",
+            f"# Database (managed by Fabrik orchestrator on VPS via postgres registrar)\n# Set via project .env (managed by `fabrik apply`): POSTGRES_PASSWORD\nDATABASE_URL=postgresql://postgres:${{POSTGRES_PASSWORD}}@postgres-main:5432/{name.replace('-', '_')}\n",
         )
         env_example_path.write_text(env_content)
 
@@ -1940,7 +1940,7 @@ server.listen(PORT, () => {{
         f"# Service identity for structured logging\nSERVICE_NAME={name}\n\n"
         f"# Error reporting (GlitchTip) — recommended for production deploys\n"
         f"# Get DSN: scripts/provision_glitchtip_project.sh {name} --platform javascript-node\n"
-        f"# Push to Coolify env on deploy. If unset, SDK is a no-op (zero overhead).\n"
+        f"# Set via project .env (managed by `fabrik apply`). If unset, SDK is a no-op (zero overhead).\n"
         f"GLITCHTIP_DSN=\nENVIRONMENT=production\n"
     )
 
@@ -2809,8 +2809,8 @@ SERVICE_NAME={name}
         env_example_path = project_dir / ".env.example"
         with open(env_example_path, "a") as f:
             f.write(
-                f"\n# Database (managed by Coolify on VPS)\n"
-                f"# Set via Coolify secrets: POSTGRES_PASSWORD\n"
+                f"\n# Database (managed by Fabrik orchestrator on VPS via postgres registrar)\n"
+                f"# Set via project .env (managed by `fabrik apply`): POSTGRES_PASSWORD\n"
                 f"DATABASE_URL=postgresql://postgres:${{POSTGRES_PASSWORD}}@postgres-main:5432/{name.replace('-', '_')}\n"
             )
 

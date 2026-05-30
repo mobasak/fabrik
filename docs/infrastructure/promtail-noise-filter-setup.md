@@ -1,7 +1,12 @@
 # Promtail Log Noise Filter — Setup
 
+> **⚠️ Container name is pre-migration.** Was `promtail-w0000ckgsgg048w0848okk08`
+> under Coolify's UUID-suffix naming. Post-migration container is named
+> `promtail` (via `container_name:` in the compose stack). Filter config
+> and behavior are unchanged.
+
 **Status:** ✅ Live on VPS (2026-05-08)
-**Container:** `promtail-w0000ckgsgg048w0848okk08` (VPS-managed)
+**Container:** `promtail` (was `promtail-w0000ckgsgg048w0848okk08` pre-migration)
 **Config:** `/opt/monitoring/configs/promtail/promtail-config.yaml` (host bind mount)
 
 ---

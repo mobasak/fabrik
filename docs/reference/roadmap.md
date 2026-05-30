@@ -1,7 +1,15 @@
+# Complete Fabrik Roadmap (historical — pre-migration)
 
-## Complete Fabrik Roadmap
+> **⚠️ Historical.** This roadmap covers Phases 1–3 from the pre-2026-05
+> era when Coolify was the deploy control plane. Phase 1 (Coolify Setup,
+> Coolify driver) was completed and then SUPERSEDED by the SSH+Compose
+> migration (2026-05) — the Coolify-install + Coolify-driver line items
+> remain accurate as a historical record but are not the current path.
+> See [docs/operations/fabrik-lifecycle.md](../operations/fabrik-lifecycle.md)
+> for the current 4-stage lifecycle.
 
-### Phase 1: Foundation (Current)
+## Phase 1: Foundation (historical — completed, then migrated)
+
 **Goal:** One working deployment engine that proves the full chain.
 
 | Step | Task | Time |

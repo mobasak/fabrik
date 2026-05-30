@@ -91,8 +91,8 @@ With ~$50/month infrastructure cost:
 ## Project Portfolio
 
 <!-- AUTO-GENERATED:PROJECTS:START -->
-<!-- Last synced: 2026-05-29 11:57:39 -->
-<!-- Total projects: 34 -->
+<!-- Last synced: 2026-05-30 12:21:09 -->
+<!-- Total projects: 35 -->
 
 ### Production Services (5 projects)
 
@@ -104,7 +104,7 @@ With ~$50/month infrastructure cost:
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
 
-### Active Development (13 projects)
+### Active Development (14 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -116,6 +116,7 @@ With ~$50/month infrastructure cost:
 | **obsidian-agents** | Obsidian plugin: right-pane chat view that drives Claude Code and Kilo CLI agents via headless ... | Node.js | 🔨 Development | - | ✅ Current |
 | **proposal-creator** | A professional B2B proposal generation system based on best practices from McKinsey, Shipley, a... | FastAPI | 🔨 Development | https://proposal-creator.vps1.ocoron.com | ✅ Current |
 | **seo** | SEO keyword research and long-tail keyword generation for AI content creation | FastAPI | 🔨 Development | https://seo.vps1.ocoron.com | ✅ Current |
+| **test-saas-for-epic-wf** | Editorial — content portfolio SaaS for small B2B media teams (dogfood: testing epic workflow) | Node.js | 🔨 Development | - | ✅ Current |
 | **test-saas-platform** | Full-blown SaaS platform for testing mega-epic workflow | Node.js | 🔨 Development | - | ✅ Current |
 | **trade-intelligence** | **Last Updated:** 2026-03-10 | FastAPI | 🔨 Development | https://trade-intelligence.vps1.ocoron.com | ✅ Current |
 | **trading-core** | Crash-safe Python FX trading service with Pepperstone/cTrader integration and risk gates. | FastAPI | 🔨 Development | - | ✅ Current |

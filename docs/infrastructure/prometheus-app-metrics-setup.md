@@ -1,5 +1,10 @@
 # Prometheus app-level metrics — runbook
 
+> **⚠️ Container names + URLs may be pre-migration.** Anywhere this runbook
+> references Coolify UUID-suffix container names (e.g. `prometheus-xxxx`),
+> the post-migration name is just `prometheus` (set via `container_name:`).
+> Scrape config behavior, target syntax, and metric semantics are unchanged.
+
 Status: **DEPLOYED 2026-05-08**
 
 This runbook covers Prometheus scrape configuration for application-level metrics from infrastructure services. It complements `cadvisor` (container-level) and `node-exporter` (host-level) which were already in place.

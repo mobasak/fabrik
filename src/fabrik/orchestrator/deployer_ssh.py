@@ -48,7 +48,7 @@ class SSHDeployer:
         """Deploy or update a service on the VPS.
 
         Dispatches by ``source.type`` from the spec.  Returns the app name
-        (stored in ``ctx.coolify_uuid`` for backward compat).
+        (stored in ``ctx.app_name`` for backward compat).
         """
         name = ctx.spec["name"]
         _validate_name(name)
@@ -94,7 +94,7 @@ class SSHDeployer:
         if not existing:
             ctx.add_resource("compose", name, name=name)
 
-        ctx.coolify_uuid = name
+        ctx.app_name = name
         return name
 
     def find_existing(self, name: str) -> dict[str, Any] | None:
@@ -140,9 +140,9 @@ class SSHDeployer:
         """
         from fabrik.drivers.ssh import ssh as _ssh
 
-        name = ctx.coolify_uuid
+        name = ctx.app_name
         if not name:
-            raise DeployError("inject_env called but ctx.coolify_uuid is not set")
+            raise DeployError("inject_env called but ctx.app_name is not set")
         _validate_name(name)
 
         if ctx.dry_run:
@@ -196,9 +196,7 @@ class SSHDeployer:
             # reverted to the last-known-good code instead of leaving an
             # unhealthy container live. Mirrors apply()'s fail-loud + rollback
             # contract, which redeploy previously lacked.
-            old_sha = _ssh(
-                f"cd /opt/{name} && sudo git rev-parse HEAD", timeout=30
-            ).strip()
+            old_sha = _ssh(f"cd /opt/{name} && sudo git rev-parse HEAD", timeout=30).strip()
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
             build_flags = " --no-cache" if force else ""
             _ssh(f"cd /opt/{name} && sudo docker compose build{build_flags}", timeout=300)

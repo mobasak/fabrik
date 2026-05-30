@@ -30,9 +30,6 @@ source:
   type: local
   path: /opt/file-worker
 
-coolify:
-  project: fabrik-services
-  server: localhost
 
 # Worker, no HTTP surface.
 expose:

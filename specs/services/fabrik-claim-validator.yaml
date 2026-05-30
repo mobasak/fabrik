@@ -16,9 +16,6 @@ expose:
 source:
   type: template
   branch: main
-coolify:
-  project: fabrik-services
-  server: localhost
 depends:
   postgres: main
 infrastructure:

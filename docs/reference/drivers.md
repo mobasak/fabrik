@@ -2,6 +2,17 @@
 
 **Last Updated:** 2026-04-22
 
+> **⚠️ Pre-migration vintage.** The "CoolifyClient — primary deploy driver"
+> section below describes the deploy path before the 2026-05 SSH+Compose
+> migration. Today the primary deploy driver is `orchestrator/deployer_ssh.py`
+> (SSH + Docker Compose, no Coolify API). `drivers/coolify.py` and
+> `drivers/compose_updater.py` are retained as legacy for the few CLI
+> commands (`fabrik status`, `fabrik logs`, `fabrik reconcile-all`) that
+> still talk to the Coolify API for services that were never migrated.
+> Other drivers in this document (postgres, redis, gatus, backrest,
+> glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns,
+> ssh, r2, supabase) are unchanged and current.
+
 Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to external APIs or the VPS**. Every deploy mutation goes through exactly one driver — no ad-hoc HTTP/SSH calls allowed in the orchestrator or CLI.
 
 **Canonical catalog** (with shape gates and contract details) lives in `docs/DEPLOYMENT.md` §2.4. This file is the module reference with usage examples.

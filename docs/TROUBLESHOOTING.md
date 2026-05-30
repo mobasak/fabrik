@@ -1,5 +1,12 @@
 # Troubleshooting
 
+> **⚠️ Coolify-flavored symptoms are pre-migration.** Entries that say
+> "Coolify shows the container as ..." / "Coolify's inline-compose
+> endpoint" / etc. are historical. Post-migration the same root causes
+> still apply (health verifier, terminal grace, source.type validation)
+> but the symptom surfaces in `docker compose ps` / `docker inspect`
+> instead of the Coolify UI.
+
 **Last Updated:** 2026-04-28 (added B23 verifier 404 / Docusaurus terminal grace entries from B23–B46 proof mission; replaced Duplicati block with one-paragraph migration notice — Backrest is the live backup tool since 2026-04-17)
 
 Common issues and solutions.

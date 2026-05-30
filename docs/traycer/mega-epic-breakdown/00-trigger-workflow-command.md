@@ -17,96 +17,69 @@ This command is the **single entry point** for the `mega-epic-breakdown` workflo
 
 Mode is **owner-declared at the start** (Step 0). Do not auto-detect from filesystem heuristics.
 
-## Role
+## Orientation
 
-You are a technical strategist who builds a shared, complete, grounded understanding of what's being built (NEW) or extended (EXISTING). You produce a deploy-ready Vision Summary that grounds all downstream epic and ticket work in Fabrik's actual infrastructure.
+**Role.** Technical strategist. Build a shared, grounded understanding of what's being built (NEW) or extended (EXISTING), and produce a deploy-ready Vision Summary that grounds all downstream epic + ticket work in Fabrik's actual infrastructure.
 
-## Goal
+**Output.** NEW mode → Vision Summary (exact structure from Step N4). EXISTING mode → same Vision Summary shape + `## Locked Decisions` + `## Compliance Report` (so `02-epic-decomposition-command` consumes both modes identically; the extras drive Retrofit epic emission in 02). No files written to disk by this command. Tickets are created later by `03-expand-epic-files-command`.
 
-By the end of this command, the owner and Traycer agree on:
+**Agreed outputs by mode:**
 
-**For NEW mode:**
-- **WHAT** we're building (full feature inventory — nothing vague, nothing missing)
-- **WHO** it's for (named personas, not "users")
-- **WHY** it matters (value streams — revenue, cost savings, productivity)
-- **HOW BIG** it is (single epic or multiple epics)
-- **WHICH SERVICES** we'll use — every major technology choice resolved, not deferred. Choices grounded in `AGENTS.md` § Infrastructure Services (what's deployed) and `docs/reference/technology-stack-decision-guide.md` (decision flowchart).
-- **WHAT EXISTS** that we can leverage — VPS services already deployed, existing Fabrik microservices, managed services (Supabase, Cloudflare, Backblaze B2).
-- **WHAT DOESN'T FIT** (constraints, conflicts with Fabrik infrastructure).
-- **WHAT'S MISSING** (what needs to be built).
+- **NEW:** WHAT we're building (full feature inventory, nothing vague), WHO it's for (named personas, not "users"), WHY it matters (value streams), HOW BIG it is (single vs multi-epic), WHICH SERVICES (every major tech choice resolved — grounded in `AGENTS.md` § Infrastructure Services + `docs/reference/technology-stack-decision-guide.md`), WHAT EXISTS to leverage, WHAT DOESN'T FIT, WHAT'S MISSING.
+- **EXISTING:** WHAT EXISTS (project snapshot), WHAT'S LOCKED (decisions that cannot change — data exists, users paying, APIs live), WHERE IT DEVIATES from current scaffold standards/rule packs (and per-gap fix-now/fix-later/accept-as-legacy), WHAT TO BUILD NEXT (delta only, not re-planning), WHICH SERVICES the delta needs (per current ruleset, inheriting locked decisions).
 
-**For EXISTING mode:**
-- **WHAT EXISTS** — deployed services, database, auth, billing, existing features (the project snapshot).
-- **WHAT'S LOCKED** — technology decisions that cannot change (data exists, users paying, APIs live).
-- **WHERE IT DEVIATES** from current Fabrik scaffold standards and rule packs — and what to fix-now / fix-later / accept-as-legacy.
-- **WHAT TO BUILD NEXT** — the new capability scoped as a delta (not re-planning what works).
-- **WHICH SERVICES** the new capability needs — per current ruleset, inheriting locked decisions.
+**Core principles.** The goal is shared understanding, not a document. Questions are investments in correctness; surfacing assumptions early is cheap, fixing wrong epics is expensive. **Planning is SLOW. Execution is FAST.** NEW: never rush, never skip a constraint, never assume when you can ask. EXISTING: respect what's built — read the vision from the codebase, do NOT re-derive it; do NOT re-decide locked tech choices; DO compare against current rules and surface deviations.
 
-## Output
-
-- **NEW mode:** Vision Summary (markdown, exact structure from Step N4) presented in Traycer conversation.
-- **EXISTING mode:** Vision Summary in the SAME shape + two extra sections — `## Locked Decisions` and `## Compliance Report`. Titled "Vision Summary" so `02-epic-decomposition-command` consumes it identically; the extras drive Retrofit epic emission in 02.
-
-No files written to disk in this command. `03-expand-epic-files-command` creates Traycer tickets from the confirmed decomposition.
-
-## Core Philosophy
-
-**The goal is a shared understanding, not a document.** The Vision Summary is a RECORD of decisions made together — not a deliverable to rush toward.
-
-- Questions are investments in correctness, not overhead.
-- Surfacing assumptions early is cheap; fixing wrong epics is expensive.
-- Multiple rounds of clarification are normal and encouraged.
-- Only proceed when shared understanding exists.
-
-**Planning is SLOW. Execution is FAST.**
-
-Take all the time needed here. Ask questions. Surface conflicts. Get the vision RIGHT — because decomposing a wrong vision into epics wastes weeks.
-
-**Mode-specific principles:**
-
-- **NEW mode:** Never rush to produce the summary. Never skip a constraint. Never assume when you can ask.
-- **EXISTING mode:** The project already works — **respect what's built**. Do NOT re-derive the full vision; read it from the codebase. Do NOT re-decide locked technology choices. DO compare against current rules and surface deviations.
-
-## Owner's Decision Criteria (apply when evaluating technology choices)
+**Owner's decision criteria** (apply to every tech choice, and used in N3c challenges):
 
 1. **Quality first** — production-grade, no shortcuts. Never sacrifice quality to save money.
-2. **Total cost of ownership** — dev time is the most expensive resource. A $10/month managed service that saves 2 weeks of development is a clear win. Don't build for days what you can buy for dollars.
-3. **Speed to ship** — prefer solutions that deploy through the standard pipeline: code in WSL → push to GitHub → `fabrik apply` deploys via SSH + Docker Compose on VPS and fires 9 registrars (`fabrik redeploy` handles code-only updates without re-running registrars; see `docs/operations/fabrik-lifecycle.md`). If a solution requires custom CI/CD or infrastructure outside the standard fabrik deploy pipeline, it's slower and riskier.
-4. **Easy to maintain** — when two solutions both work, prefer the one that requires less ongoing attention. Start with what exists on the VPS. Escalate to dedicated tooling when the existing solution hits a proven limit.
-5. **Set and forget** — managed services (Supabase, Paddle, Cloudflare) are inherently set-and-forget — prefer them over self-hosted alternatives that need babysitting.
+2. **Total cost of ownership** — dev time is the most expensive resource. A $10/month managed service that saves 2 weeks of dev is a win. Don't build for days what you can buy for dollars.
+3. **Speed to ship** — prefer solutions that deploy through the standard pipeline (WSL → push → `fabrik apply` deploys via SSH+Compose and fires 9 registrars; `fabrik redeploy` handles code-only updates — see `docs/operations/fabrik-lifecycle.md`). Custom CI/CD or off-pipeline infra = slower and riskier.
+4. **Easy to maintain** — when two solutions both work, prefer the one needing less ongoing attention. Start with what exists on the VPS; escalate when proven necessary.
+5. **Set and forget** — prefer managed services (Supabase, Paddle, Cloudflare) over self-hosted alternatives that need babysitting.
 
-## Grounding Rules
+**Grounding rules.** Ground in what EXISTS on the VPS (read `AGENTS.md` § Infrastructure Services fresh each run), not theoretical architecture. Decide NOTHING about epic boundaries — that is `02-epic-decomposition-command`. Challenge research against Fabrik reality, but treat it as expert input, not hallucination to dismiss. All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths.
 
-- Ground in what EXISTS on the VPS — not theoretical architecture. Read `AGENTS.md` § Infrastructure Services fresh each run.
-- Decide NOTHING about epic boundaries — that is `02-epic-decomposition-command`'s job.
-- Challenge research against Fabrik reality — but treat research as expert input, not hallucination to dismiss.
-- **All paths are Linux.** WSL Ubuntu 24.04. Never generate Windows-style paths.
-
-## The Fabrik Lifecycle (mental model)
-
-Every project passes through 4 stages (deploy/runtime detail in `docs/operations/fabrik-lifecycle.md`).
+**Fabrik lifecycle (mental model).** Every project passes through 4 stages (full detail in `docs/operations/fabrik-lifecycle.md`):
 
 1. **Intent & Scaffolding (WSL)** — `fabrik scaffold` → AI guardrails + spec `shape:` block.
 2. **Agentic Implementation (WSL)** — tickets dispatched to agents (Claude Code, Windsurf Cascade, Kilo CLI).
 3. **Proper Registration (VPS)** — `fabrik apply` fires 9 registrars based on `shape:` block.
 4. **Verification & Testing** — `fabrik verify`, drift detection (`fabrik audit-registrars`), alerting.
 
-If a vision (NEW) cannot pass through all 4 stages, state this explicitly and justify. If a project (EXISTING) has incomplete stages, flag them in the Compliance Report.
+If a NEW vision cannot pass all 4 stages, state this explicitly and justify. If an EXISTING project has incomplete stages, flag them in the Compliance Report (these are lifecycle gaps, not separate from compliance).
 
 ## Architectural Mandates (non-negotiable — single source of truth)
 
 These are **vision-level architectural commitments**. Every epic dispatched from this vision inherits them. **Violations block vision confirmation.** Per-epic verification happens later in `epic-to-ticket-workflow/00` Step 5 (overlay constraints #17–#24) — but the commitment is made here.
 
-- **12-Factor App** — every service satisfies [The Twelve-Factor App](https://12factor.net/). Key factors: III (config via env only), VI (stateless processes), IX (fast startup + SIGTERM), XI (structured stdout logs). A "file-based sessions" choice violates Factor VI — use Redis.
+- **12-Factor App** — every backend service satisfies [The Twelve-Factor App](https://12factor.net/). Key factors: III (config via env only), VI (stateless processes), IX (fast startup + SIGTERM), XI (structured stdout logs). A "file-based sessions" choice violates Factor VI — use Redis. WordPress is the documented exception (stateful by design — local media uploads + plugin state; see `domain-modules/wordpress.md`).
 - **Concurrency** — every service handles multiple simultaneous requests. Never single-threaded blocking.
 - **i18n** — every GUI/user-facing service supports multi-language from day one (en + tr minimum). Translation validated via `scripts/validate_i18n.py` (3-level: structural, back-translation, native-speaker critique). Adding a language = adding a locale file, zero code changes.
-- **Responsive** — every web GUI responsive from 375px to 2560px (RWD1–RWD10). No desktop-only layouts. See `docs/reference/mobile-responsive-testing-guide.md`.
+- **Responsive** — every **web** GUI responsive from 375px to 2560px (RWD1–RWD10). No desktop-only layouts. See `docs/reference/mobile-responsive-testing-guide.md`. Excludes: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI, not web breakpoints), desktop-app (electron window sizing).
 - **Dark + light mode** — both mandatory for all GUI scaffolds. OS preference detected, manual toggle, preference persists.
 - **Resilience** — every external call has timeout + retry with backoff + circuit-breaker + graceful fallback. `/health` tests ALL real deps. Rule pack: `.windsurf/rules/core/58-resilience.md`. Each project gets `docs/RESILIENCE.md` template at scaffold time — filled when external deps are added.
 - **Abuse detection** — every SaaS with a free tier must implement registration gating (IP rate limit, disposable email block, progressive unlock). Rule pack: `.windsurf/rules/saas/87-abuse-detection.md`.
 - **Email two-stream** — transactional and marketing email MUST be on separate streams/subdomains. Rule pack: `.windsurf/rules/core/86-email-templates.md`.
-- **Shape contract** — `specs/services/<id>.yaml` declares which registrars fire. Code MUST match shape.
-- **Observability** — every service exposes `/health` for Gatus and `/metrics` for Prometheus.
+- **Shape contract** — every Fabrik-deployed service has a `specs/services/<id>.yaml` whose `shape:` block declares which registrars fire; code MUST match shape. Client-only artifacts (chrome-extension CRX, mobile-app binary, desktop-app binary) ship through their own distribution channels (Chrome Web Store, EAS/App Stores, signed installers) and have no Fabrik spec — only their backends do.
+- **Observability** — every backend service exposes `/health` for Gatus and `/metrics` for Prometheus. Static artifacts (static-site, docusaurus) and WordPress have no app process exposing these endpoints — Gatus probes them externally for liveness instead.
+
+### Shape model (8 canonical flags)
+
+Every `specs/services/<id>.yaml` declares `shape:` with these booleans. Each flag fires registrars on `fabrik apply`. The Vision Summary must propose the shape per service.
+
+| Flag | True when | Fires |
+| --- | --- | --- |
+| `is_public` | Anonymous traffic hits it (marketing site, landing, public API) | Authelia bypass rule |
+| `is_admin_dashboard` | UI behind auth for owner/staff | Authelia forward-auth middleware |
+| `has_bearer_api` | M2M/token-auth API endpoints | API gateway gzip middleware, no Authelia |
+| `has_persistent_data` | Writes durable state (DB rows, uploaded files, vector store) | Backrest backup plan |
+| `needs_database` | Reads/writes PostgreSQL | Postgres registrar creates DB + user on `postgres-main` |
+| `has_search_feature` | Full-text or semantic search | Meilisearch index |
+| `needs_cache` | Redis for sessions, queues, rate-limit, cache | Redis registrar allocates index, injects `REDIS_URL` |
+| `exposes_metrics` | App serves `/metrics` (Prometheus format) | Prometheus scrape target added |
+
+Plus `kind:` (one of: `service`, `worker`, `static`, `wordpress` — per `src/fabrik/spec_loader.py:Kind`) — drives template selection and applicability gates (e.g., `kind: service|worker|wordpress` gates GlitchTip; `static` skips it). Scaffold-to-kind mapping: python-api/node-api/saas-skeleton/file-api → `service`; file-worker → `worker`; static-site/docusaurus/chrome-extension/mobile-app/desktop-app → `static`; wordpress → `wordpress`.
 
 ## Input Contract
 
@@ -139,6 +112,10 @@ These are **vision-level architectural commitments**. Every epic dispatched from
 - Owner's description of what they want to build next ("add RAG search", "add mobile app", "add billing").
 - Optionally: research files dropped in `docs/development/plans/` (consumed the same way as NEW mode Path A).
 
+**EXISTING mode — additional auto-loads:**
+
+- `docs/reference/fabrik-cli-reference.md` — needed to interpret `fabrik validate` and `fabrik audit-registrars` output (present/missing/drift/n/a/override/unknown) in Step E3.A.
+
 **EXISTING mode also reads from the project itself:**
 - `project.yaml` — scaffold type, ports, shape flags.
 - `specs/services/*.yaml` — deployed services, shape blocks, registrars.
@@ -147,7 +124,45 @@ These are **vision-level architectural commitments**. Every epic dispatched from
 - `src/` or `app/` — codebase structure, modules, API routes.
 - Database schema (migrations or models).
 - `docs/` — existing architecture docs, preplans, FINANCIALS.md.
-- `.windsurf/rules/` — rule packs are synced; check if project follows them.
+- `.windsurf/rules/` — rule packs are synced; check if project follows them. Index below.
+
+**⚠ Project files may be pre-rules, missing, or stale.** Existing projects predate current Fabrik conventions. Treat the files above as *evidence*, not as ground truth. Specifically:
+
+- `project.yaml` may be absent entirely (project predates the scaffolder) → infer scaffold type from `compose.yaml` + `src/` structure; flag as gap.
+- `specs/services/*.yaml` may have no `shape:` block, partial flags, or flags that contradict the code → cross-check by reading the code, not by trusting the spec. Missing/wrong shape = compliance gap → Retrofit epic.
+- `compose.yaml` may violate current rule pack `core/30-ops.md` (Alpine images, `ports:` exposed, no `container_name`, no `deploy.resources.limits.memory`, `localhost` in env, wrong Traefik entrypoint) → each violation is a compliance gap.
+- `.env.example` may be missing, out of sync with `.env` on VPS, or expose secrets → flag and treat the live VPS state (via `ssh root@vps "cat /opt/<name>/.env"`) as authoritative for current behavior.
+- `docs/` may contain pre-rules conventions, dead links, or files outside the current allowlist (root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-*.md` · `docs/reference/**` · `docs/archive/**`) → flag as doc-hygiene gap.
+- Database schema may have drifted from migrations → treat the live DB (`docker exec postgres-main psql -d <db> -c '\d'`) as authoritative.
+- `.windsurf/rules/` directory may be absent (older scaffolds didn't sync rules) → flag and propose syncing via `fabrik fix /opt/<project> --type <scaffold-type>` (per `fabrik fix --help`, adds missing required files including `.windsurfrules` and `.windsurf/rules/`) as part of the Retrofit set.
+
+**How gaps surface:** Every divergence between project files and current rule packs / shape model becomes a row in the Compliance Report (Step E3.C). Per-gap owner decision (Fix-now / Fix-later / Accept-as-legacy) determines whether it becomes a Retrofit epic in 02, goes to the Compliance Report as deferred (Fix-later), or is recorded as accepted legacy (no action).
+
+**Rule pack index** (consulted in Step E3.B for rule-pack judgment):
+
+| Pack | Covers |
+| --- | --- |
+| `core/10-python.md`, `core/20-typescript.md` | Language-level conventions, project layout |
+| `core/15-api-contracts.md` | API request/response contracts, error shapes |
+| `core/25-data-postgres.md` | Schema, migrations, connection patterns |
+| `core/30-ops.md` | Compose structure, Traefik labels, base images, networking |
+| `core/35-security-auth.md` | Authelia, M2M tokens, password policy, secrets |
+| `core/40-documentation.md` | Doc Sync Matrix, allowed `.md` locations |
+| `core/42-docusaurus.md` | Docusaurus-specific structure |
+| `core/45-testing-strategy.md` | Test pyramid, integration vs unit, no-mock-DB rule |
+| `core/50-code-review.md` | Review gates, pre-merge checks |
+| `core/55-observability.md` | `/health` + `/metrics`, Gatus, Prometheus, Promtail |
+| `core/58-resilience.md` | Timeout/retry/circuit-breaker/fallback for external calls |
+| `core/65-rag-search.md`, `core/66-rag-chunking.md` | RAG ingestion, embedding, chunking |
+| `core/75-workers-jobs.md`, `core/76-gpu-workers.md` | Background jobs, GPU workers |
+| `core/85-payments-billing.md` | Stripe/billing flows |
+| `core/86-email-templates.md` | Email two-stream (transactional vs marketing) |
+| `saas/60-saas-ui.md`, `saas/95-multi-tenant-saas.md` | SaaS UI patterns, tenancy |
+| `saas/87-abuse-detection.md` | Free-tier abuse gating |
+| `saas/88-saas-launch-checklist.md` | Launch gates |
+| `chrome-ext/70-chrome-ext.md` | Manifest V3, popup/sidepanel patterns |
+| `mobile-app/80-mobile.md`, `81-mobile-billing.md`, `89-mobile-launch-checklist.md` | RN/Expo, IAP, store launch |
+| `core/*-design-system.md`, `mobile-app/*-design-system.md` | Brand design systems (Ocoron, Tojlo) |
 
 ## Processing User Request
 
@@ -170,11 +185,11 @@ Do NOT auto-detect from filesystem. Do NOT skip this question. The owner declare
 
 ### Step N1: Context Orientation
 
-`AGENTS.md` is auto-loaded. Additionally read:
+The Input Contract files are already auto-loaded. Now focus on these specific sections within them (and one new file):
 
 - `AGENTS.md` § `Infrastructure Services — Running on VPS` — what's already deployed.
 - `AGENTS.md` § `Fabrik Microservices` — existing custom services.
-- `AGENTS.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks.
+- `AGENTS.md` § `MANDATORY ORCHESTRATOR PRE-FLIGHT` — run all 7 checks listed there (Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib).
 - `AGENTS.md` § `Planning Constraints` — all constraints.
 - `docs/operations/fabrik-lifecycle.md` — runtime behavior, data safety, deploy/redeploy/destroy.
 - `docs/reference/technology-stack-decision-guide.md` — stack defaults.
@@ -198,102 +213,66 @@ Synthesize answers into the same internal structure (vision, personas, features,
 
 ### Step N3: Analyze and Improve Input
 
-**N3a. Extract from input (research or interview synthesis):**
-- Product vision (what, for whom, why)
-- All personas mentioned or implied
-- All features described (numbered inventory)
-- All constraints stated
-- All technology choices made or implied
-- Revenue/value model (if stated)
+**Execute N3a → N3j in order. Do not skip; some later sub-steps depend on earlier ones (e.g., N3i constraint verification consumes the feature list from N3a, the tech choices from N3c, and the opportunities from N3d).**
 
-**N3b. Identify gaps (become Open Questions in the summary):**
-- Missing personas? ("Research describes the product but not WHO uses it")
-- Missing revenue model? ("No mention of how this generates value")
-- Missing features? ("Research describes X but the Y component isn't mentioned — is it in scope?")
-- Missing auth decision? ("Research doesn't address auth — Authelia, Supabase Auth, or custom?")
+**N3a. Extract** from input (research or interview synthesis): product vision (what/for whom/why), all personas (named/implied), all features (numbered inventory), all constraints, all tech choices (made/implied), revenue/value model.
 
-**N3c. Challenge research against Fabrik reality and owner values:**
+**N3b. Identify gaps** → become Open Questions: missing personas, missing revenue model, missing features (Y component not mentioned — in scope?), missing auth decision (Authelia / Supabase Auth / custom?), etc.
 
-Research from external AI sessions may suggest solutions that violate the owner's decision criteria (see Core Philosophy). Challenge actively against all 5 criteria:
+**N3c. Challenge research against Fabrik reality and owner's decision criteria.** External research may violate the owner's 5 decision criteria (Orientation § Owner's decision criteria). Apply these 6 checks:
 
-- **Expensive where free exists?** Research proposes a paid service → check if a VPS service already solves it (Apprise, Gotenberg, MeiliSearch, Backrest, n8n — all deployed, all free). State: "Research suggests [X] but [Y] is already deployed on VPS at zero cost."
-- **Complex where simple exists?** Research proposes Kubernetes, microservice mesh, custom auth — check if SSH + Docker Compose + Authelia + single-container deploys handle it. Fabrik deploys via `fabrik apply`, not Helm charts.
-- **Build where consume exists?** Research proposes building a component → check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), VPS services, or `/opt/fabrik-lib/` vendorable modules (see `fabrik-lib/README.md` for the full table and which-module-do-I-need matrix).
-- **High-maintenance where set-and-forget exists?** Research proposes solutions requiring ongoing ops → prefer solutions that auto-heal, auto-backup, auto-monitor via existing Prometheus/Gatus/Backrest stack.
-- **Incompatible with Fabrik infra?** Port conflicts (check `PORTS.md`), Alpine images (bookworm-slim only), localhost assumptions (use postgres-main:5432), x86_64 issues, 12-Factor violations (local file storage, hardcoded config).
-- **Duplicate functionality?** Check `docs/BUSINESS_MODEL.md` § Project Portfolio + `AGENTS.md` § Microservices.
+- **Expensive where free exists?** Research proposes paid service → check if a VPS service already solves it (Apprise, Gotenberg, MeiliSearch, Backrest, n8n — all deployed, all free). State: "Research suggests [X] but [Y] is already deployed on VPS at zero cost."
+- **Complex where simple exists?** K8s/microservice mesh/custom auth proposed → SSH+Docker Compose + Authelia + single-container deploys handle it. Fabrik uses `fabrik apply`, not Helm.
+- **Build where consume exists?** Check prebuilt containers, existing Fabrik microservices (site-provisioner, image-broker), VPS services, `/opt/fabrik-lib/` vendorable modules (see `fabrik-lib/README.md` for the module table).
+- **High-maintenance where set-and-forget exists?** Prefer solutions that auto-heal/auto-backup/auto-monitor via the existing Prometheus/Gatus/Backrest stack.
+- **Incompatible with Fabrik infra?** Port conflicts (`PORTS.md`), Alpine images (bookworm-slim only), `localhost` assumptions (use `postgres-main:5432`), x86_64 issues, 12-Factor violations.
+- **Duplicate functionality?** Check `docs/BUSINESS_MODEL.md` § Portfolio + `AGENTS.md` § Microservices.
 
-If research direction is fundamentally wrong for Fabrik (e.g., proposes serverless on AWS when everything deploys to VPS via `fabrik apply`), say so directly: "Research suggests [approach] but this conflicts with Fabrik's deploy model. Recommend [alternative]. Want to adjust the vision or research this further?"
+If research direction is fundamentally wrong for Fabrik (e.g., AWS serverless when everything deploys to VPS via `fabrik apply`), say so directly and recommend an alternative or pause for re-research.
 
-**N3d. Identify opportunities (become Backing Services in the summary):**
-- Existing VPS services that solve part of the vision: postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase.
-- Prebuilt containers that eliminate custom code.
-- Existing Fabrik microservices consumable via M2M auth.
+**N3d. Identify opportunities** → become Backing Services: VPS services (postgres-main, redis-main, MeiliSearch, Gotenberg, Browserless, Apprise, n8n, Backblaze B2, Supabase), prebuilt containers, consumable Fabrik microservices.
 
-**N3e. Scale assessment (by feature complexity, NOT ticket count):**
+**N3e. Scale assessment** (by feature complexity, NOT ticket count — ticket counts belong to `05-ticket-outline-command`):
 
-Do NOT estimate ticket counts — that belongs to `05-ticket-outline-command` after tech plan and deploy plan exist. At this stage, assess scale by feature inventory:
+- Classify each feature: `small` (single endpoint/page), `medium` (multi-component), `large` (cross-cutting system).
+- Signal only — do NOT assign features to epics (that's `02-epic-decomposition-command`):
+  - All small/medium, <8 total → **single epic** (use epic-to-ticket-workflow directly).
+  - Mix with 8–15 total → **likely 2–3 epics**.
+  - Multiple large, 15+ total → **likely 4–7 epics**.
+  - Massive scope, many large → re-scope or accept 7+ epics.
 
-- Count distinct features.
-- Classify each feature as: `small` (single endpoint/page), `medium` (multi-component), `large` (cross-cutting system).
-- Count how many `large` features exist.
-- Assess (signal only — do NOT assign features to epics, that is `02-epic-decomposition-command`'s job):
-  - All features small/medium, <8 total → **single epic** (use epic-to-ticket-workflow directly).
-  - Mix of small/medium/large, 8–15 total → **likely 2–3 epics**.
-  - Multiple large features, 15+ total → **likely 4–7 epics**.
-  - Massive scope, many large features → re-scope or accept 7+ epics.
+**N3f. Context window check.** Research files >approaching context limits → flag: "Research files ~[N]K tokens. Risk of dropping details. Recommend splitting into focused files per domain."
 
-**N3f. Context window check:**
-- If research files are excessively large (approaching context limits), flag immediately: "Research files are ~[N]K tokens. Risk of dropping details. Recommend splitting into focused files per domain area."
+**N3g. API contract check.** If vision relies on an existing Fabrik microservice (site-provisioner, image-broker, etc.) and assumes endpoints not in current contract (`docs/reference/service-contracts/[service].md`) → Open Question: "Vision assumes [service] can do [X], but contract doesn't include it. New endpoint or scope adjustment?"
 
-**N3g. API contract check for existing services:**
-- If the vision relies on an existing Fabrik microservice (site-provisioner, image-broker, etc.), check: does the research assume functionality or endpoints that DON'T currently exist? If yes, flag as Open Question: "Vision assumes [service] can do [X], but current API contract (`docs/reference/service-contracts/[service].md`) doesn't include this. New endpoint needed or scope adjustment?"
+**N3h. Research sufficiency.** Any critical area THIN (auth not addressed, data model vague, pricing unclear)? → Recommend pause-and-research with concrete questions, drop results into `docs/development/plans/`, re-run. Do NOT proceed on a thin foundation.
 
-**N3h. Research sufficiency check:**
-- Is any critical area THIN? (e.g., "auth strategy not addressed", "data model vague", "pricing model unclear")
-- If thin → tell the owner: "I recommend doing more research on [topic] before proceeding. Specifically: [concrete questions to research]. Drop the results in `docs/development/plans/` and re-run this command."
-- Do not proceed with a thin foundation. Better to pause and research than build on assumptions.
+**N3i. Constraint verification** (12 checks — state each as `all clear` / `conflict (<details>)` / `unknown (<question>)`):
 
-**N3i. Constraint verification:**
-
-Check EVERY constraint. State each as `all clear` / `conflict (<details>)` / `unknown (<question>)`:
-
-1. **x86_64 VPS** — all containers must be amd64.
+1. **x86_64 VPS** — all containers amd64.
 2. **Budget** — state any paid service dependencies with estimated monthly cost.
 3. **Existing services** — list VPS services the vision will use.
 4. **Duplicate check** — no overlap with existing projects.
-5. **Port conflicts** — check `PORTS.md` for each service in the vision.
-6. **SSH + Docker Compose deployment** — can every component deploy via `fabrik apply` (SSH + Docker Compose)?
+5. **Port conflicts** — check `PORTS.md` per service.
+6. **SSH+Docker Compose deployment** — every component deployable via `fabrik apply`?
 7. **No Alpine** — bookworm-slim only.
 8. **12-Factor compliance** — any architectural violations?
-9. **Solo dev capacity** — is this achievable by one person + AI agents?
-10. **Observability compatibility** — does every proposed service expose `/metrics` for Prometheus and `/health` for Gatus?
-11. **Vector DB ban** — if research suggests Pinecone/Qdrant/Weaviate/Milvus, reject. pgvector on postgres-main or Supabase only.
-12. **Email streams** — if the product sends email, confirm transactional and marketing are on separate streams/subdomains (per `core/86-email-templates.md`).
+9. **Solo dev capacity** — achievable by one person + AI agents?
+10. **Observability** — every service exposes `/metrics` (Prometheus) and `/health` (Gatus)?
+11. **Vector DB ban** — Pinecone/Qdrant/Weaviate/Milvus = reject. pgvector or Supabase only.
+12. **Email streams** — if product sends email, transactional + marketing on separate streams/subdomains (`core/86-email-templates.md`).
 
-**N3j. Multi-scaffold check:**
-- A single vision can span MULTIPLE scaffold types (e.g., `python-api` backend + `saas-skeleton` portal + `wordpress` sites). If the vision implies more than one scaffold type, list each and which features map to which scaffold. Strong multi-epic signal.
-- **Separate projects vs epics:** If the scaffolds share no data, no auth, and no deploy coupling (each could exist independently), flag as candidate for **separate `fabrik scaffold` projects with their own lifecycles** — not epics within one project. Ask the owner: "These components seem independent. Should they be separate projects or epics within one project?"
+**N3j. Multi-scaffold check.** Single vision spanning multiple scaffold types (e.g., python-api + saas-skeleton + wordpress) → list which features map to which scaffold. Strong multi-epic signal. **If scaffolds share no data, no auth, no deploy coupling** → candidate for **separate `fabrik scaffold` projects with own lifecycles**, not epics. Ask: "These components seem independent. Separate projects or epics within one project?"
 
 #### ── CHECKPOINT N-1: Present Analysis ──
 
-Present to the owner:
-1. **Features extracted:** numbered list with complexity classification (from N3a + N3e).
-2. **Gaps found:** questions that need answers (from N3b).
-3. **Conflicts with Fabrik:** issues to resolve (from N3c).
-4. **Opportunities:** existing services that help (from N3d).
-5. **Scale estimate:** feature complexity breakdown + single/multi-epic classification (from N3e).
-6. **Constraints:** each as `all clear` / `conflict` / `unknown` (from N3i).
-7. **Research sufficiency:** areas that need more research, if any (from N3h).
+Present: (1) Features extracted with complexity classification (N3a+N3e), (2) Gaps (N3b), (3) Conflicts with Fabrik (N3c), (4) Opportunities (N3d), (5) Scale estimate + single/multi-epic classification (N3e), (6) Constraints `all clear`/`conflict`/`unknown` (N3i), (7) Research sufficiency notes (N3h).
 
-**Then ask:**
-- "Do these features capture your full vision? Anything missing or wrong?"
-- "Can you answer the gap questions above?"
-- If research is thin: "I recommend researching [topic] further before we continue. Want to pause and add to your research files?"
+Ask: "Do these features capture your full vision? Anything missing or wrong?" + "Can you answer the gap questions?" + (if research thin) "Recommend researching [topic] further. Want to pause?"
 
-**Wait for answers.** Incorporate them. If the owner adds research → re-read and re-analyze. If the owner answers questions → update internal notes. If the owner confirms → proceed to Step N4.
+Owner adds research → re-read + re-analyze. Owner answers questions → update notes. Owner confirms → Step N4.
 
-**CRITICAL: STOP GENERATION HERE.** Do NOT simulate the owner's response. Do NOT continue without explicit user input. Silence ≠ confirmation.
+**CRITICAL: STOP GENERATION HERE.** Do NOT simulate the owner's response. Silence ≠ confirmation.
 
 ### Step N4: Draft Vision Summary
 
@@ -335,7 +314,9 @@ Every feature from the research MUST appear here. Nothing silently dropped.]
 ## Technology Decisions
 [Every major technology choice RESOLVED — not deferred. These are the
 contracts that all epics inherit. 02-epic-decomposition-command reads
-these and does NOT re-decide them.]
+these and does NOT re-decide them. Fill ONLY bullets relevant to this
+vision — omit N/A bullets entirely rather than writing "Billing: N/A"
+across multiple lines.]
 - **Auth:** [Authelia (admin) + Supabase Auth (user-facing) / Authelia only / custom — state which and why]
 - **Database:** [postgres-main / Supabase / both — state which holds what]
 - **Search:** [MeiliSearch / pgvector / none — state what's being searched]
@@ -382,21 +363,16 @@ If no open questions: state "None — research was comprehensive."]
 
 ### Step N5: Present and Iterate
 
-Present the COMPLETE Vision Summary. This is the only user-facing output of NEW mode.
+Present the COMPLETE Vision Summary — the only user-facing output of NEW mode. Iterate until the owner explicitly confirms:
 
-Iterate until the owner explicitly confirms:
-- Silence ≠ confirmation.
-- If the owner answers Open Questions → incorporate answers, remove from Open Questions, re-validate affected sections.
-- If the owner adds features → add to Feature Inventory, re-assess scale.
-- If the owner removes features → remove from inventory, re-assess scale.
-- If the owner changes scope → re-run constraint verification on affected items.
-- If all Open Questions are resolved and owner confirms → command is complete.
+- Owner answers Open Questions → incorporate, remove from Open Questions, re-validate affected sections.
+- Owner adds/removes features → update Feature Inventory, re-assess scale.
+- Owner changes scope → re-run constraint verification on affected items.
+- All Open Questions resolved + owner confirms → command complete.
 
-**CRITICAL: STOP GENERATION after presenting.** Do NOT simulate the owner's response. Do NOT self-confirm. Wait for explicit user input.
+**CRITICAL: STOP GENERATION after presenting.** Do NOT simulate the owner's response. Do NOT self-confirm. Silence ≠ confirmation.
 
-**Routing after confirmation:**
-- Single-epic → "This fits a single epic. Proceed to `epic-to-ticket-workflow/00-trigger-workflow-command`." Stop.
-- Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
+**Routing after confirmation:** single-epic → "Proceed to `epic-to-ticket-workflow/00-trigger-workflow-command`." Multi-epic → "Proceed to `02-epic-decomposition-command` to define epic boundaries."
 
 ---
 
@@ -415,22 +391,16 @@ Read the project's actual state — not from memory, from files. Owner must have
 - `docs/` → existing architecture docs, preplans, FINANCIALS.md.
 - `.windsurf/rules/` → rule packs synced; check if project follows them.
 
-**Lifecycle check (4 stages — completeness audit):**
-- **Stage 1 (Scaffolding):** does `project.yaml` exist? Are AI guardrails synced (AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules, .windsurf/rules/)?
-- **Stage 2 (Implementation):** does the project have structured code (src/, tests/, docs/)?
-- **Stage 3 (Registration):** was `fabrik apply` run? Does `.fabrik/state/*.json` exist? Are registrars active (Gatus endpoint, GlitchTip project, Prometheus scrape)?
-- **Stage 4 (Verification):** does `fabrik verify` pass? Is drift detection (`fabrik audit-registrars`) clean?
+**Lifecycle check (4 stages — completeness audit; gaps feed Step E3):**
 
-Lifecycle gaps feed Step E3 (Compliance Detection) — they're not separate from compliance, they're compliance against the 4-stage model itself.
+- **Stage 1 (Scaffolding):** `project.yaml` exists? AI guardrails synced (AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules, .windsurf/rules/)?
+- **Stage 2 (Implementation):** structured code (src/, tests/, docs/)?
+- **Stage 3 (Registration):** `fabrik apply` run? `.fabrik/state/*.json` exists? Registrars active (Gatus, GlitchTip, Prometheus)?
+- **Stage 4 (Verification):** `fabrik verify` passes? `fabrik audit-registrars` clean?
 
-**Pre-flight checks (from `AGENTS.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT):**
-- Check `docs/BUSINESS_MODEL.md` § Project Portfolio — does the new capability overlap with another project?
-- Check `AGENTS.md` § Fabrik Microservices — can an existing microservice handle part of the new capability?
-- Check `PORTS.md` — any new services need port assignments?
-- Check `docs/reference/prebuilt-app-containers.md` — off-the-shelf solutions that eliminate custom work?
-- Check `/opt/fabrik-lib/README.md` — vendorable modules that already solve part of the need.
+**Pre-flight checks** — run all 7 checks per `AGENTS.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT (same as Step N1): Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib.
 
-State: "Project read. Scaffold type: [X / pre-scaffold]. Port: [Y]. [N] API routes, [M] database tables, [K] background workers. Lifecycle: [all 4 stages / gaps at Stage N]. Pre-flight: [findings]."
+State: "Project read. Scaffold: [X / pre-scaffold]. Port: [Y]. [N] API routes, [M] DB tables, [K] workers. Lifecycle: [all 4 / gaps at Stage N]. Pre-flight: [findings]."
 
 ### Step E2: Produce Project Snapshot
 
@@ -491,7 +461,7 @@ Report findings as a list of mechanical gaps with concrete locations.
 
 **Step E3.B — Rule-pack judgment (Traycer evaluates code/structure):**
 
-For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project Type → Default Packs table), evaluate the project against the pack's mandates. Examples for `saas-skeleton`:
+For each rule pack applicable to this scaffold type (per `AGENTS.md` § Project Type → Default Packs table; full pack list in the Rule Pack Index above in the Input Contract section), evaluate the project against the pack's mandates. Example table below is for `saas-skeleton`; for other scaffold types (chrome-extension, mobile-app, wordpress, file-worker, etc.) build the equivalent table from the Rule Pack Index plus the scaffold's `domain-modules/<type>.md` file:
 
 | Rule area | Current rule | How to evaluate the project | Status |
 |---|---|---|---|
@@ -527,42 +497,23 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 ### Step E4: Scope the Continuation
 
-Now take the owner's input on what to build next.
+**Research path:** read files from `docs/development/plans/` or `docs/preplans/`; challenge against Fabrik reality using N3c's six checks.
 
-**If research exists:** read files from `docs/development/plans/` or `docs/preplans/`. Challenge against Fabrik reality — same five challenge criteria as NEW mode Step N3c.
+**Idea path:** interview the owner — What capability are you adding? Who uses it (existing/new persona)? How does it integrate with what's built? New tables/endpoints/workers needed? New scaffold type (e.g., adding mobile-app to existing SaaS)?
 
-**If just an idea:** interview the owner:
-- "What capability are you adding?"
-- "Who uses it? (existing users or new user type?)"
-- "How does it integrate with what's already built?"
-- "Does it need new database tables, new API endpoints, new background workers?"
-- "Does it need a new scaffold type? (e.g., adding mobile-app to an existing SaaS)"
+**Load domain modules** — for each NEW capability, read the matching `domain-modules/` file: search/RAG → `rag.md`; mobile app → `mobile-app.md`; billing → `saas.md` (billing section); chrome extension → `chrome-ext.md`; WordPress site/theme → `wordpress.md`.
 
-**Load domain modules** — for each NEW capability, read the matching domain module from `domain-modules/`:
-- Adding search/RAG → read `domain-modules/rag.md`.
-- Adding mobile app → read `domain-modules/mobile-app.md`.
-- Adding billing → read `domain-modules/saas.md` (billing section).
-- Adding chrome extension → read `domain-modules/chrome-ext.md`.
-- Adding WordPress site/theme work → read `domain-modules/wordpress.md`.
+**fabrik-lib check** — before designing any new component, check `fabrik-lib/README.md` for a vendorable module (copy, don't import). State: "fabrik-lib checked — [module used / no match]."
 
-**fabrik-lib check** — before designing any new component from scratch, check `fabrik-lib/README.md` for a vendorable module that already solves it (copy, don't import). State: "fabrik-lib checked — [module used / no match]."
+**Force new tech decisions per current ruleset — for NEW components only** (do NOT re-decide locked choices): new search → pgvector + hybrid per `core/65-rag-search.md`; new billing → Paddle per `core/85-payments-billing.md`; new mobile → RevenueCat + IAP per `mobile-app/81-mobile-billing.md`.
 
-**Force new technology decisions per current ruleset** — but ONLY for new components:
-- New search? → pgvector + hybrid search per `core/65-rag-search.md`. NOT re-deciding the database.
-- New billing? → Paddle per `core/85-payments-billing.md`. NOT re-deciding auth.
-- New mobile app? → RevenueCat + IAP per `mobile-app/81-mobile-billing.md`. NOT re-deciding the backend.
+**Identify integration points:** existing tables read/written, existing API endpoints extended/depended on, shared auth, existing vs new background workers.
 
-**Identify integration points:**
-- Which existing tables does the new feature read/write?
-- Which existing API endpoints does it extend or depend on?
-- Does it share auth with existing features?
-- Does it need existing background workers or new ones?
+**Constraint verification for the delta** (same 12 checks as N3i, scoped to what the delta adds; inherited services not re-checked).
 
-**Constraint verification** for the delta (same 12 constraints as NEW mode Step N3i, scoped to what the delta adds; inherited services are not re-checked).
+### Step E5: Produce Vision Summary (EXISTING mode — with extra sections)
 
-### Step E5: Produce Vision Summary (Existing mode — with extra sections)
-
-Assemble the summary. Uses the **exact same shape and title as Vision Summary** (so `02-epic-decomposition-command` consumes it identically) PLUS two extra sections (`Locked Decisions`, `Compliance Report`). The artifact is titled `Vision Summary` — not "Continuation Summary" — even though this is the existing-mode branch.
+Same shape and title as NEW-mode Vision Summary (so `02-epic-decomposition-command` consumes both identically) + two extra sections (`Locked Decisions`, `Compliance Report`). Artifact title is `Vision Summary` — not "Continuation Summary".
 
 ```markdown
 # Vision Summary: [Project Name] — [New Capability]
@@ -673,253 +624,50 @@ Wait for explicit confirmation. **STOP GENERATION HERE.** Silence ≠ confirmati
 
 ---
 
-## Output Contract (both modes)
+## Output Contract & Acceptance Criteria
 
-**NEW mode:**
-- **Format:** Vision Summary (markdown, exact structure from Step N4) — presented in Traycer conversation.
-- **Token budget:** ≤5,000 target, ≤8,000 hard cap.
-- **Sections required:** Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Technology Decisions, Constraints, Out of Scope, Open Questions, Scale Assessment.
+**Format.** Vision Summary (markdown, exact structure from Step N4 / E5 skeleton) presented in Traycer conversation. No files written. Lives in Traycer conversation context titled "Vision Summary." Persisted by Traycer's spec store automatically. Consumed by `02-epic-decomposition-command` from conversation context; `03-expand-epic-files-command` creates tickets per epic from the confirmed decomposition.
 
-**EXISTING mode:**
-- **Format:** Same Vision Summary shape (so 02 consumes identically) + extra sections.
-- **Token budget:** ≤6,000 target, ≤10,000 hard cap (extras add length).
-- **Sections required:** all NEW-mode sections + **Locked Decisions** + **Compliance Report**.
-- **Compliance Report drives Retrofit epics in 02.**
+**Token budget.** NEW: ≤5,000 target / ≤8,000 hard cap. EXISTING: ≤6,000 target / ≤10,000 hard cap (extras add length).
 
-**Both modes:**
-- **Key routing output:** Scale Assessment determines whether this is a single-epic (→ epic-to-ticket-workflow) or multi-epic (→ `02-epic-decomposition-command`).
-- **Lives in:** Traycer conversation context as a spec titled "Vision Summary."
-- **Consumed by:** `02-epic-decomposition-command` reads the Vision Summary from conversation context. In Existing mode, 02 also reads Locked Decisions (inherits them into Infrastructure Decisions) and Compliance Report (emits one Retrofit epic per fix-now item).
-- **Persisted by:** Traycer's spec store (automatic). `03-expand-epic-files-command` creates tickets per epic from the confirmed decomposition.
+**Required sections** (both modes): Product Vision, Personas, Value Streams, Full Feature Inventory, Backing Services, External Services, Technology Decisions, Constraints, Out of Scope, Open Questions, Scale Assessment. **EXISTING adds:** `Locked Decisions` + `Compliance Report`. The Compliance Report drives Retrofit epics in 02.
 
-## Does NOT
+**Key routing output.** Scale Assessment determines single-epic (→ `epic-to-ticket-workflow/00-trigger-workflow-command`) vs multi-epic (→ `02-epic-decomposition-command`).
 
-- Does NOT split the vision into epics — that is `02-epic-decomposition-command`.
-- Does NOT decide scaffold types per epic — that is `02-epic-decomposition-command`.
-- Does NOT decide shape blocks per epic — that is `02-epic-decomposition-command`.
-- Does NOT produce infrastructure decisions per epic — that is `02-epic-decomposition-command`.
-- Does NOT create files or tickets — this is an orientation command. Ticket creation happens in `03-expand-epic-files-command`.
-- Does NOT blindly accept research — challenges against Fabrik reality, budget, maintainability.
-- **EXISTING mode:** Does NOT re-derive the full vision (reads it from the existing project) and does NOT re-decide locked technology choices (inherits them).
-- **EXISTING mode:** Does NOT auto-fix compliance gaps. Owner decides per gap. Auto-fix is `02-epic-decomposition-command`'s job once fix-now items become Retrofit epics.
-- Does NOT plan refactoring of existing code — that's a separate workflow.
-
-## Acceptance Criteria
-
-**Common to both modes:**
+**Acceptance — both modes:**
 - Mode declared explicitly at Step 0 — never auto-detected.
 - Input consumed per declared mode and path.
-- Research (if present) improved: gaps, conflicts, opportunities surfaced.
-- ALL features (or retrofits + new features in Existing mode) present in Feature Inventory — no silent drops.
-- Personas explicitly identified — not just "users."
-- Value streams stated — not just "it's useful."
-- Backing services grounded in actual VPS inventory (`AGENTS.md` § Infrastructure Services).
-- External services identified with cost tier (free/paid).
-- Technology Decisions section complete — every major NEW choice resolved. No "TBD" allowed.
+- ALL features (or retrofits + new features in EXISTING) present in Feature Inventory — no silent drops.
+- Personas named explicitly — not just "users." Value streams stated — not just "it's useful."
+- Backing services grounded in actual VPS inventory (`AGENTS.md` § Infrastructure Services). External services identified with cost tier (free/paid).
+- Technology Decisions complete — every major NEW choice resolved. No "TBD" allowed.
 - All 12 constraints verified: `all clear` / `conflict` / `unknown`. No silent unknowns.
-- Scale assessment present with classification and clear next-step routing.
+- Scale Assessment present with classification and clear next-step routing.
 - Vision Summary within token budget for the declared mode.
-- Open Questions section captures ALL unresolved items.
+- Open Questions captures ALL unresolved items; zero remain at confirmation (all answered or explicitly deferred).
 - Owner explicitly confirms. Silence ≠ confirmation.
-- Zero open questions remain at confirmation (all answered or explicitly deferred).
 
-**NEW mode adds:**
-- Multiple research files handled: conflicts flagged in Open Questions, not silently resolved.
-- Multi-scaffold visions identified (e.g., python-api + saas-skeleton + wordpress in one vision).
+**Acceptance — NEW adds:**
+
+- Research (if present) improved: gaps, conflicts, opportunities surfaced. Multiple research files: conflicts flagged in Open Questions, not silently resolved.
+- Multi-scaffold visions identified (e.g., python-api + saas-skeleton + wordpress).
 - Single-epic visions routed to `epic-to-ticket-workflow`, not forced through mega-epic-breakdown.
-- One checkpoint after analysis + constraints (owner answers gaps, resolves conflicts). Then draft summary presented for final confirmation.
+- One analysis checkpoint (N-1) before draft, one confirmation after.
 
-**EXISTING mode adds:**
-- Project state read from actual files — not from memory or assumptions.
-- Project Snapshot presented and confirmed by owner (Checkpoint E-1).
-- Lifecycle gaps (4 stages) detected and surfaced.
-- Pre-flight checks completed.
-- Compliance Detection executed in three sub-steps (E3.A mechanical, E3.B rule-pack, E3.C owner decision) — all three required.
-- `fabrik validate` run and parsed for scaffold compliance.
-- `fabrik audit-registrars` run and parsed for shape drift.
-- Owner decided on each compliance gap: fix-now / fix-later / accept-as-legacy (Checkpoint E-2).
-- Locked Decisions section produced explicitly — listed reasons (data, users, tokens issued).
-- Compliance Report section produced — maps each gap to owner decision and epic action.
+**Acceptance — EXISTING adds:**
+
+- Project state read from actual files — not memory or assumptions.
+- Project Snapshot confirmed by owner (Checkpoint E-1).
+- Lifecycle gaps (4 stages) detected; pre-flight checks completed.
+- Compliance Detection executed in all three sub-steps: E3.A mechanical (`fabrik validate` + `fabrik audit-registrars` run and parsed), E3.B rule-pack judgment, E3.C owner decision per gap (Checkpoint E-2).
+- Locked Decisions section produced with explicit reasons (data, users, tokens issued).
+- Compliance Report maps each gap to owner decision + epic action.
 - New capability scoped as delta — not re-planning existing features.
-- Relevant domain modules loaded for new capability.
+- Relevant domain modules loaded for the new capability.
 - Integration points identified (tables, APIs, auth, workers).
 
-## Concrete Example — NEW mode (illustrative)
+**Does NOT.** Split the vision into epics, decide scaffold types per epic, decide shape blocks per epic, or produce per-epic infrastructure decisions — all of those are `02-epic-decomposition-command`. Create files or tickets — orientation only; tickets in `03-expand-epic-files-command`. Blindly accept research — challenges against Fabrik reality, budget, maintainability. Plan refactoring of existing code — separate workflow. **EXISTING-specific:** does NOT re-derive the vision (reads from project) or re-decide locked tech choices (inherits them); does NOT auto-fix compliance gaps (owner decides per gap; auto-fix happens later as Retrofit epics in 02).
 
-**Hypothetical vision intake for a "WordPress Factory" product:**
+## Examples
 
-```markdown
-# Vision Summary: WordPress Factory (WPF)
-
-## Product Vision
-A platform that automates WordPress site creation, management, and scaling.
-Provisions new WP sites with pre-configured themes, plugins, SSL, and
-monitoring in under 5 minutes via API. For digital agencies managing
-50-200 client WordPress sites.
-
-## Personas
-- **Agency Admin** — manages all client sites, creates new sites, monitors health
-- **Client** — views their site status, requests changes via portal
-- **Developer** — customizes themes/plugins, deploys via git push
-
-## Value Streams
-- SaaS subscription per managed site ($15-50/month per site)
-- Premium theme marketplace (20% commission)
-- Managed hosting margin (VPS cost vs client billing)
-
-## Full Feature Inventory
-1. Site provisioning engine — create WP site with domain, SSL, DB in <5min
-2. Theme management — install, customize, version themes per site
-3. Plugin marketplace — curated plugins with one-click install
-4. Client portal — per-client dashboard showing site health, analytics
-5. Bulk operations — update WP core/plugins across all sites simultaneously
-6. Backup management — per-site backup schedules via Backrest
-7. Monitoring dashboard — uptime, performance, error rates per site
-8. Billing integration — Paddle subscriptions tied to site count
-9. API — programmatic site management for agency automation
-10. Multi-user auth — agency teams with role-based access
-
-## Backing Services (from VPS)
-- postgres-main:5432 — WPF application database (NOT individual WP site DBs)
-- redis-main:6379 — session cache, job queue
-- MeiliSearch — site/theme/plugin search
-- Apprise — notifications (site down, backup failed, billing events)
-- Backrest → B2 — WPF application backups
-- Gotenberg — PDF invoice generation
-
-## External Services
-- Cloudflare — DNS automation per site (via site-provisioner, already deployed)
-- Paddle — subscription billing (paid, ~3% transaction fee)
-- Backblaze B2 — per-site media storage (paid, ~$5/TB/month)
-
-## Technology Decisions
-- **Auth:** Supabase Auth for agency users (managed, set-and-forget) + Authelia for admin dashboard (already deployed)
-- **Database:** postgres-main for WPF application data. Individual WP sites get their own DB containers (not postgres-main).
-- **Search:** MeiliSearch (already deployed) for site/theme/plugin search
-- **Billing:** Paddle — subscription per managed site. Paddle handles tax/invoicing.
-- **File storage:** Backblaze B2 for per-site media. WPF app assets in Docker volume.
-- **Notifications:** Apprise (already deployed) for site-down, backup-failed, billing alerts
-- **Consumed microservices:** site-provisioner for DNS/domain automation per client site
-- **Domain structure:** api.wpf.ocoron.com (API), app.wpf.ocoron.com (client portal), admin.wpf.ocoron.com (admin)
-- **Scaffold types:** python-api (backend) + saas-skeleton (client portal) — 2 scaffold types → strong multi-epic signal
-
-## Constraints
-- x86_64: all clear
-- Budget: Paddle + B2 are paid dependencies (~$20/month base + per-site)
-- Existing services: site-provisioner handles DNS/domain — consume, don't rebuild
-- Duplicate check: all clear (no WP factory exists)
-- Port conflicts: all clear (will need port 8020 — available)
-- SSH + Docker Compose deployment: all clear (python-api + separate WP containers per site)
-- No Alpine: all clear
-- 12-Factor: all clear (stateless API, config via env)
-- Solo dev capacity: LARGE project — multiple large features
-- Observability: all clear (python-api scaffold emits /health + /metrics)
-
-## Out of Scope (Vision Level)
-- Custom WP plugin development (agencies bring their own)
-- Email hosting (use external: Google Workspace, etc.)
-- Site migration from other hosts (manual process)
-- White-label branding of the portal
-
-## Open Questions
-- Will individual WP sites run as separate Docker containers or shared hosting?
-- What's the target for simultaneous site count on VPS1? (resource planning)
-- Should the client portal be a separate saas-skeleton project or part of the API?
-
-## Scale Assessment
-- Feature count: 10 (3 small, 4 medium, 3 large)
-- Classification: multi-epic (~4 epics)
-- Reasoning: 3 large features + 4 medium features + multiple scaffold types → too broad for a single epic-to-ticket-workflow run.
-- Next step: Proceed to `02-epic-decomposition-command` to define epic boundaries.
-```
-
-## Concrete Example — EXISTING mode (illustrative)
-
-**Hypothetical continuation: "youtube" SaaS adding a RAG-search capability.**
-
-```markdown
-# Vision Summary: youtube — Adding RAG-Search Over Comment Archive
-
-## Product Vision
-youtube is a deployed SaaS that ingests YouTube channel comments and surfaces
-viewer-sentiment trends for B2C brands. We're ADDING natural-language search +
-AI Q&A over the comment archive so brand managers can ask "what do viewers say
-about retinol?" instead of filtering by tags.
-
-## Personas
-- **Brand Manager** — existing persona; new capability they use directly
-- **Analyst** — NEW persona; uses the Q&A interface for ad-hoc deep dives
-
-## Value Streams
-- Higher seat utilization (analysts now justify additional seats)
-- Pricing-tier lift (RAG-search is a Pro-tier feature)
-
-## Full Feature Inventory
-1. Embedding pipeline for comment archive — large
-2. Hybrid retriever (pgvector + tsvector + RRF) — medium
-3. AI Q&A endpoint — medium
-4. Search UI in client portal — small
-R1. Retrofit: add i18n (en + tr) to client portal — medium
-R2. Retrofit: add Resilience layer to YouTube Data API calls — medium
-
-## Backing Services (from VPS)
-- postgres-main:5432 — existing comment archive + pgvector for embeddings
-- redis-main:6379 — existing cache; will store retriever results
-
-## External Services
-- OpenRouter — for embedding model (Voyage embedding-3) and the Q&A LLM
-
-## Technology Decisions
-
-**Inherited (locked — do NOT re-decide):**
-- Auth: Supabase Auth (Pattern B) — locked because tokens issued, users paying
-- Database: postgres-main (multi-tenant w/ tenant_id) — locked, data exists
-- Frontend: Next.js + Tailwind + Shadcn — locked, deployed
-- Billing: Paddle — locked, subscriptions active
-
-**New decisions (per current ruleset):**
-- RAG pipeline: search + classification (Phase 2 per `domain-modules/rag.md`)
-- Background processing: existing pg job queue for embedding batch jobs
-- Domain structure: no new subdomains (search lives under existing app.youtube.vps1.ocoron.com)
-
-## Locked Decisions
-- Auth: Supabase Auth — locked because 1,800 active users
-- Database: postgres-main — locked because 50M comments archived
-- Shape block (current): needs_database=true, needs_cache=true, exposes_metrics=true, is_admin_dashboard=false, has_persistent_data=true
-- Frontend: Next.js — locked, no React → Vue migration desired
-
-## Compliance Report
-
-| Gap | Source | Owner decision | Epic action |
-|---|---|---|---|
-| i18n missing (en only) | `core/i18n` rule pack | Fix-now | Retrofit epic R1 |
-| Resilience layer absent on YouTube Data API | `core/58-resilience.md` | Fix-now | Retrofit epic R2 |
-| psycopg2 used instead of asyncpg | `core/25-data-postgres.md` | Accept-as-legacy | No action |
-| Shape drift: prometheus registrar inactive | `fabrik audit-registrars` | Fix-now (folded into R2) | Folded into R2 |
-| FINANCIALS.md missing | `saas/88-saas-launch-checklist.md` | Fix-later | Deferred |
-
-## Constraints
-- x86_64: all clear
-- Budget: OpenRouter ~$30/month estimated for 50M comments
-- Port conflicts: all clear (no new ports)
-- SSH + Docker Compose deployment: all clear (delta is in-place; same compose)
-- 12-Factor: all clear for new code
-- Vector DB ban: pgvector only — confirmed
-- Email streams: N/A (no new email)
-
-## Out of Scope
-- Existing comment-ingestion pipeline — not being modified
-- Existing comment-sentiment classifier — not being touched
-- Tenant model — not being changed
-- WordPress integration (not on roadmap)
-
-## Open Questions
-- None — owner confirmed scope, retrofits, and locked decisions.
-
-## Scale Assessment
-- New feature count: 4 (1 small, 2 medium, 1 large)
-- Retrofit count: 2 (both medium)
-- Classification: multi-epic (~3 epics)
-- Reasoning: 1 large + 2 medium new features + 2 retrofits → too broad for a single epic-to-ticket-workflow run.
-- Next step: Proceed to `02-epic-decomposition-command` to define epic boundaries. 02 will emit Retrofit epics R1 and R2 alongside the delta-feature epics.
-```
+Filled-in Vision Summaries for both modes live in `00-examples.md` (sibling file). Owner reads them once to learn the output shape; they are NOT pasted into Traycer at runtime. The skeletons in Step N4 (NEW) and Step E5 (EXISTING) above are authoritative.

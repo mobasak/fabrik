@@ -37,13 +37,12 @@ class SourceType(str, Enum):
 
     LOCAL added 2026-05-14 (T1-02 G-B1a cascade-fix): pre-G1 deployed specs
     (captcha, file-api, translator, image-broker, emailgateway) declare
-    ``source.type: local`` + ``source.path: /opt/<name>``. They are already
-    running on the VPS (deployed pre-Fabrik-orchestrator via Coolify GUI).
+    ``source.type: local`` + ``source.path: /opt/<name>``. They were already
+    running on the VPS pre-Fabrik-orchestrator (historically via Coolify GUI;
+    today they would be deployed via SSH+Compose through ``fabrik apply``).
     LOCAL lets ``load_spec`` / ``fabrik plan`` / ``fabrik status`` /
-    ``fabrik audit-registrars`` work on them. ``fabrik apply`` on a LOCAL
-    spec is NOT yet wired through orchestrator/deployer.py — the type_map
-    at deployer.py:287-289,490-492 silently coerces unknown source types
-    to TEMPLATE; full plumbing is deferred to a separate ticket.
+    ``fabrik audit-registrars`` work on them; full ``fabrik apply`` plumbing
+    for LOCAL is handled by the SSH+Compose deployer (Phase 11-1 migration).
     """
 
     TEMPLATE = "template"
@@ -173,31 +172,6 @@ class SecretsPolicy(BaseModel):
     from_file: dict[str, str] = Field(
         default_factory=dict, description="Read from file: {ENV_VAR: file_path}"
     )
-
-
-class CoolifyConfig(BaseModel):
-    """Coolify deployment configuration."""
-
-    project: str = "default"
-    server: str = "localhost"
-    compose_path: str | None = None
-    # Per-service Coolify SSH deploy-key override. Resolution precedence
-    # is spec → ``COOLIFY_PRIVATE_KEY_UUID`` env var → auto-discovery.
-    # Required for SSH-URL git repos (``git@...``); ignored otherwise.
-    # See ``orchestrator/deployer.py::_resolve_private_key_uuid``.
-    private_key_uuid: str | None = None
-    # T2-04 G-J3: stable Docker DNS alias for single-image Applications.
-    # Coolify renames Application containers on every redeploy
-    # (``<uuid>-<timestamp>``); any Gatus monitor or inter-service URL
-    # keyed on that container name breaks silently after a redeploy.
-    # When this field is set, the orchestrator calls
-    # ``coolify_alias.add_alias(ctx.coolify_uuid, alias)`` which writes
-    # to ``/opt/coolify-alias-watcher/aliases.json`` so the watcher
-    # service re-applies the alias on every Coolify Application start.
-    # Service stacks (multi-container, under
-    # ``/data/coolify/services/<uuid>/``) already get stable names from
-    # compose, so this field is a no-op for them; leave it None.
-    alias: str | None = None
 
 
 class Depends(BaseModel):
@@ -387,7 +361,6 @@ class Spec(BaseModel):
 
     expose: Expose = Field(default_factory=Expose)
     source: Source = Field(default_factory=Source)
-    coolify: CoolifyConfig = Field(default_factory=CoolifyConfig)
     depends: Depends = Field(default_factory=Depends)
     infrastructure: Infrastructure = Field(default_factory=Infrastructure)
 

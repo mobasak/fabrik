@@ -18,9 +18,6 @@ source:
   image: traefik/whoami:latest
   image_port: 80
   image_command: --port 80
-coolify:
-  project: default
-  server: localhost
 depends: {}
 infra:
   glitchtip: false

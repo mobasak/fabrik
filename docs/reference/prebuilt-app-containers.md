@@ -1,5 +1,14 @@
 # Prebuilt Container Strategy
 
+> **⚠️ Pre-migration vintage:** sections that mention "Coolify deployment"
+> (most notably § Coolify Deployment Policy) describe the pre-2026-05
+> deploy path. Under SSH + Docker Compose, the equivalent rule is "every
+> compose template uses pinned, architecture-compatible images, and
+> `fabrik redeploy <name>` reverts via `git reset --hard` on health-check
+> failure (git-sourced) or stays at the last good image (template-sourced)."
+> The container selection criteria (pinned tags, slim-bookworm bases,
+> registry choice GHCR/JFrog) are unchanged.
+
 How Fabrik selects and uses prebuilt container images for self-hosted services.
 
 ## Architecture Notice
