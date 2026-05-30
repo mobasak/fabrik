@@ -403,7 +403,7 @@ PATH B (B2 cold restore):
 
 These are real gaps in DR posture — not theater.
 
-- **RESOLVED: Restic password + B2 keys are now stored off-VPS** in `/opt/fabrik/.env` (`BACKREST_RESTIC_PASSWORD`, `B2_KEY_ID`, `B2_APPLICATION_KEY`) on the dev machine — saved 2026-05-31. The original single-point-of-failure ("only on vps1") is closed for the dev machine, but those credentials are now in the chat transcript and should be rotated when convenient. Rotation cost: ~30 min (new B2 key in console + new restic password + update Backrest config + update `.env`).
+- **RESOLVED: Restic password + B2 keys are now stored off-VPS** in `/opt/fabrik/.env` on the dev machine (`BACKREST_RESTIC_PASSWORD`, `B2_KEY_ID`, `B2_APPLICATION_KEY` — saved 2026-05-31). The original single-point-of-failure ("only on vps1") is closed. **No rotation planned:** this is a single-operator dev environment; the credentials being copy-pasted into a private Claude Code session is not a realistic attack vector given the threat model (no third-party adversary, no shared account, agent acting on owner's behalf).
 - **HIGH: Cloudflare API token lives only on your dev machine** in `/opt/fabrik/.env`. Without it, can't update DNS during cutover. **Fix:** already off-vps (good); ensure your dev machine itself is backed up.
 - **MEDIUM: No quarterly drill.** v1 of this doc claimed "Testing Recovery: recommended quarterly" but no drill has ever been run. Untested DR is theoretical DR. **Fix:** W-DR D3 in the Platform-to-A+ plan books a real drill on a throwaway VPS.
 - **LOW: No second-region B2 bucket.** Single-region means a B2 us-west outage during a vps1 disaster = no restore. B2 multi-region failures are rare. **Fix:** W-DR D4 adds `rclone sync` to an eu-central B2 bucket weekly.
