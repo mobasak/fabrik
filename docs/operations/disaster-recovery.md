@@ -1,9 +1,17 @@
 # VPS Disaster Recovery Guide
 
-**Last Updated:** 2026-05-31 (full rewrite — post-Coolify-migration, post-Backrest, post-W1 cleanup)
+**Last Updated:** 2026-05-31 (post-Backrest-wipe revision)
 **Previous version:** 2025-12-22 (Duplicati/Coolify era — archived in git history)
-**Recovery Time Objective (RTO):** 60–90 min (with VirtFusion image) · 2–3 h (from B2 cold-start)
-**Recovery Point Objective (RPO):** 24 h (daily Backrest plans) · 0 h for B2-backed objects since last successful run
+**Recovery Time Objective (RTO):** 60–90 min (with VirtFusion image). Path B (B2 cold restore) currently unavailable — see below.
+**Recovery Point Objective (RPO):** depends on path — see below.
+
+> **⚠️ CURRENT STATE (2026-05-31, 01:15 UTC):** All Backrest plans have been deleted and the B2 bucket `vps1-ocoron-backups` is empty (0 objects). The repo definition (`b2-vps1`) and B2 credentials remain in Backrest so plans can be reconfigured later. **Until plans are restored:**
+>
+> - **Path A (VirtFusion image) is the ONLY working DR path.** Image `pre-golden-20260530` is current.
+> - **Path B (B2 cold restore) does NOT apply** — there's nothing in B2 to restore from.
+> - **RPO for non-VirtFusion changes since 2026-05-30 is INFINITE** until backups are reconfigured.
+>
+> Rationale: nothing material to back up today (no live tenants except ocoron.com WP; postgres-main is empty; no SaaS workloads). Owner deferred backup configuration until real data lands. This is an intentional posture, not a bug — but it is a real risk if the VPS dies in the gap. **Mitigation: take a fresh VirtFusion snapshot any time material state changes** (e.g., before a big deploy, after onboarding a tenant). The VirtFusion slot is free.
 
 ---
 
@@ -21,23 +29,31 @@ Most real disasters are Path A. Document path B in full so we can drill it.
 
 Verified against current Backrest state (28 containers, 3 active plans).
 
-### Backup System
+### Backup System (current state)
 
 - **Backup tool:** Backrest (restic-based) — migrated from Duplicati on 2026-04-17.
-- **UI:** accessible internally on the VPS (Authelia-protected). See `/opt/backrest/compose.yaml` for the route.
-- **Repository password:** stored in `/opt/backrest/config/config.json` (root-owned, readable only on the VPS itself — see W-Sec follow-ups).
-- **B2 credentials:** `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` in `/opt/backrest/.env` (B2 S3-compatible).
-- **Storage backend:** Backblaze B2.
-- **Bucket:** `vps1-ocoron-backups`.
-- **Bucket size:** ~8.5 GiB, ~570 objects, ~27 snapshots (verified 2026-05-30).
-- **Repository layout:** single restic repo (`data/`, `index/`, `keys/`, `snapshots/`).
+- **UI:** <https://backup.vps1.ocoron.com> (Authelia 2FA required).
+- **Repository password:** stored in `/opt/backrest/config/config.json` AND in `/opt/fabrik/.env` on the dev machine as `BACKREST_RESTIC_PASSWORD` (saved 2026-05-31 — closes the "only-on-vps1" DR weakness).
+- **B2 credentials:** `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` in `/opt/backrest/.env` on the VPS AND in `/opt/fabrik/.env` on the dev machine as `B2_KEY_ID` / `B2_APPLICATION_KEY` (already there before today).
+- **Storage backend:** Backblaze B2 (S3-compatible endpoint `s3.us-west-004.backblazeb2.com`).
+- **Bucket:** `vps1-ocoron-backups` — **EMPTY as of 2026-05-31 01:15 UTC** (intentional wipe; bucket itself preserved for reuse).
+- **Repository layout:** single restic repo `b2-vps1` defined in Backrest config; bucket contents wiped, so the repo is structurally absent on B2 and would need a `restic init` before next use.
+- **Active plans:** **0** (all 8 prior plans deleted — 3 active + 5 stale test plans).
 
 ### Active backup plans
 
-- **`postgres-dumps`** — source: `/opt/backups/pg_dump_*.sql` (nightly pg_dump on the host) — daily — last verified run: 2026-05-30 04:00 UTC.
-- **`docker-volumes`** — source: all named Docker volumes in `/var/lib/docker/volumes/` — daily — last verified run: 2026-05-30 04:00 UTC.
-- **`opt-configs`** — source: `/opt/<svc>/compose.yaml` + `/opt/<svc>/.env` for every service — daily — last verified run: 2026-05-30 04:00 UTC.
-- **`_system_`** — Backrest housekeeping (prune/check) — scheduled — last run: 2026-05-30.
+**None.** All plans were deleted on 2026-05-31. When backups are reconfigured, the previous design (kept here for reference) was:
+
+- **`postgres-dumps`** — source: `/opt/backups/pg_dump_*.sql` (nightly pg_dump on the host) — daily 02:00.
+- **`docker-volumes`** — source: all named Docker volumes in `/var/lib/docker/volumes/` — daily 03:30.
+- **`opt-configs`** — source: `/opt/<svc>/compose.yaml` + `/opt/<svc>/.env` for every service — daily 03:00.
+- **`_system_`** — Backrest housekeeping (prune/check) — daily 04:00.
+
+Known issues with that design (to fix when reconfiguring):
+
+- Apprise failure-notification webhook used the old Coolify-era UUID-suffix hostname `apprise-lcocgs4gs8ksg4g08w40ows8:8000` — broken after the W1 container-rename. Failure alerts never reached Telegram. **Fix:** use `apprise:8000` in the new hooks.
+- `postgres-dumps` had a 44 % failure rate over 30 d (32 fail / 40 ok). Likely race with the host's nightly `pg_dump` cron. **Fix:** ensure pg_dump cron completes before 02:00, or trigger the Backrest snapshot from a post-dump hook instead of a separate cron.
+- 5 stale test plans (`fabrik-e2e-test-data`, `fabrik-smoke-test-data`, etc.) ran on schedule against deleted data and dragged the success rate down. They were deleted in the 2026-05-31 wipe.
 
 ### What is NOT backed up (deliberately)
 
@@ -124,6 +140,8 @@ Done. RTO ~60 min. RPO = the moment of the image (typically your most recent shu
 ---
 
 ## Path B — B2 cold restore onto a fresh VPS (~2–3 h)
+
+> **⚠️ NOT CURRENTLY AVAILABLE (2026-05-31):** Bucket `vps1-ocoron-backups` is empty. This path will become available again once backup plans are reconfigured and at least one successful run completes. The procedure below is retained for that future state.
 
 **Use when:** vps1 is gone. You have a fresh GreenCloudVPS Ubuntu node (or any Ubuntu 24.04 host with internet + SSH).
 
@@ -385,8 +403,7 @@ PATH B (B2 cold restore):
 
 These are real gaps in DR posture — not theater.
 
-- **CATASTROPHIC: Restic password lives only on vps1** (`/opt/backrest/config/config.json`). If vps1 is lost, the password is lost and the B2 repo becomes 8.5 GiB of unrecoverable encrypted noise. **Fix:** copy the password into your password manager **now**. This is the single biggest DR weakness today.
-- **CATASTROPHIC: B2 keys live only on vps1** (`/opt/backrest/.env`). Without them, can't auth to the bucket. **Fix:** same — copy to password manager.
+- **RESOLVED: Restic password + B2 keys are now stored off-VPS** in `/opt/fabrik/.env` (`BACKREST_RESTIC_PASSWORD`, `B2_KEY_ID`, `B2_APPLICATION_KEY`) on the dev machine — saved 2026-05-31. The original single-point-of-failure ("only on vps1") is closed for the dev machine, but those credentials are now in the chat transcript and should be rotated when convenient. Rotation cost: ~30 min (new B2 key in console + new restic password + update Backrest config + update `.env`).
 - **HIGH: Cloudflare API token lives only on your dev machine** in `/opt/fabrik/.env`. Without it, can't update DNS during cutover. **Fix:** already off-vps (good); ensure your dev machine itself is backed up.
 - **MEDIUM: No quarterly drill.** v1 of this doc claimed "Testing Recovery: recommended quarterly" but no drill has ever been run. Untested DR is theoretical DR. **Fix:** W-DR D3 in the Platform-to-A+ plan books a real drill on a throwaway VPS.
 - **LOW: No second-region B2 bucket.** Single-region means a B2 us-west outage during a vps1 disaster = no restore. B2 multi-region failures are rare. **Fix:** W-DR D4 adds `rclone sync` to an eu-central B2 bucket weekly.
@@ -406,5 +423,6 @@ These are real gaps in DR posture — not theater.
 
 ## Version history
 
+- **2026-05-31 (post-wipe)** — Second revision same day. Reflects: all Backrest plans deleted, B2 bucket emptied (bucket preserved, repo definition preserved). Path B marked unavailable until plans are reconfigured. Restic password + B2 keys saved off-VPS in `/opt/fabrik/.env`. Rationale: nothing material to back up today; intentional defer until real tenants land.
 - **2026-05-31** — Full rewrite. Reflects: SSH+Compose deploy path (no Coolify), Backrest backup tool (replaced Duplicati 2026-04-17), current 28-container inventory, VirtFusion image as Path A, B2 cold-restore as Path B, hardening gap register, K4 discovery (restic password lives in `/opt/backrest/config/config.json`).
 - **2025-12-22** — Initial document — Coolify era, Duplicati backup tool, service list of captcha/emailgateway/translator/dns-manager/proxy/redis/netdata/duplicati.
